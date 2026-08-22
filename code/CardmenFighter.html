@@ -7202,12 +7202,37 @@ window.CardFace = {};
       send({t:'setup', decks:seatDecks.slice(0), hostDeck:youDeck, clientDeck:seatDecks[1]});   // clients read decks[mySeat] for their own label
       broadcastMirror();
     }
+    /* A remote seat reordered its energy pile. The client is UNTRUSTED — E.reorderEnergy re-validates that
+     * `ids` is a true permutation of that seat's pile (same lesson as the deck-string intake in v1.28.0), so a
+     * rogue payload cannot conjure or delete energy. On success: narrate publicly and rebroadcast. */
+    function hostReorderEnergy(seat, it){
+      var pl=hostState.players[seat]; if(!pl) return;
+      var before=(pl.energy||[]).map(function(c){ return c.id; }).join(',');
+      var r=E.reorderEnergy(hostState, seat, it && it.ids);
+      if(!r || !r.ok){ sendTo(seat, {t:'err', seat:seat, reason:(r&&r.reason)||'Cannot reorder now.'}); return; }
+      var top=pl.energy[0];
+      if(top && before.split(',')[0]!==top.id) broadcastLog(logEnergyPromoteHTML(seat, top));
+      broadcastMirror();
+    }
+    // Public battle-log narration for a seat's promote. Built from rank/suit only — never from client text.
+    function logEnergyPromoteHTML(seat, card){
+      return '<b>'+(seat===0?'The host':seatName(seat))+'</b> moved <b>'+rankLabel(card.rank)+SUIT_SYMBOL[card.suit]+'</b> to the front of their energy pile.';
+    }
+    /* Decision 6 wants reorder lines to be PUBLIC, but netplay had no host→client log channel at all — every
+     * message type is state (mirror/setup) or control (join/welcome/err/peer/ceremony), so each side has only
+     * ever narrated what it could see locally. This is the first `t:'log'` broadcast; other narration could
+     * migrate onto it later if the same "everyone sees it" treatment is ever wanted for plays. */
+    function broadcastLog(html, cls){
+      logMsg(html, cls||'nrgmove');                                   // the host's own log
+      for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'log', seat:s, html:html, cls:cls||'nrgmove'});
+    }
     function broadcastMirror(){ if(hostState){ for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'mirror', seat:s, st:NetView.mirrorFor(hostState, s)}); } }   // per-seat (a seat's private hand never reaches another peer)
     function onRender(){ if(isHost() && started && hostState) broadcastMirror(); }   // hook: keep the client's board in lockstep
     function awaitRival(){ busy=true; $('rivalStatus').textContent='Waiting for opponent…'; render(); broadcastMirror(); }   // park; client will send a move
     var netSettle=null;   // parked: the host is waiting on the remote's respond/decline to an open stack window
     function hostApplyMove(it){
       if(!hostState || hostState.finished || !it || typeof it.op!=='string') return;
+      if(it.op==='reorderEnergy') return hostReorderEnergy(1, it);   // the remote seat in a duel is always 1
       var g=gen, r;
       // ---- stack windows the remote (seat 1) owes: apply, then re-enter the parked settle continuation ----
       if(it.op==='respond' || it.op==='decline'){
@@ -7426,6 +7451,8 @@ window.CardFace = {};
     function hostApplyMoveN(seat, it){
       if(!hostState || hostState.finished || !it || typeof it.op!=='string') return;
       var n=hostState.numPlayers;
+      // ---- energy reorder: never interacts with a window, so handle it before anything else ----
+      if(it.op==='reorderEnergy') return hostReorderEnergy(seat, it);
       // ---- pre-fight (Back Stab) window the remote holder owes ----
       if(it.op==='prefight'||it.op==='prefightPass'){
         if(!netReact || netReact.kind!=='prefight' || netReact.seat!==seat) return;
