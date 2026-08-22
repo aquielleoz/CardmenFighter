@@ -79,6 +79,46 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(await p.evaluate(()=>window.__solo.st().turn===0), '…and it is still your turn, not a stalled board');
   ok(!(await log()).some(l=>/Rival countered|Rival answered/.test(l)), 'no opponent action is credited to "Rival" in a free-for-all');
 
+  // ================= B1: an opponent's Equipment and Forms are reachable =================
+  ok(await start3p(), '3-player game restarted for opponent-zone targeting');
+  await p.evaluate(()=>{
+    const st=window.__solo.st(); const mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
+    st.round=4; st.turn=0; st.pile=null; st.pending=null; st.respondFor=null;
+    st.players[0].hand=[mk(7,'D'),mk(4,'C')];                         // Forceful Strip + a spare: the engine refuses to empty your hand
+    st.players[0].energy=Array.from({length:14},(_,i)=>mk(7,'D','y'+i));
+    st.players[1].equipment=[]; st.players[1].forms=[];
+    st.players[2].equipment=[{ id:'eq-caltrops', card:mk(7,'S'), name:'Caltrops', counters:1, oppDelta:-2 }];
+    st.players[2].forms=[{rank:12,suit:'S',tier:'queen',name:'Pandora Form',card:mk(12,'S')}];
+    window.__solo.render();
+  }); await wait(400);
+  ok(await p.evaluate(()=>!!document.querySelector('.oppPanel .oppGear.tappable')), 'the gear line on an opponent panel is tappable');
+  ok(await p.evaluate(()=>!document.querySelector('.oppPanel .oppZones.open')), '…and its zones start collapsed, keeping the strip compact');
+  await p.evaluate(()=>{ const g=[].find.call(document.querySelectorAll('.oppPanel'),el=>/Caltrops/.test(el.textContent)).querySelector('.oppGear'); g.click(); });
+  await wait(400);
+  ok(await p.evaluate(()=>!!document.querySelector('.oppPanel .oppZones.open .eq')), 'tapping it opens that seat\'s real Equipment zone (a buildEqBox, not a label)');
+  ok(await p.evaluate(()=>!!document.querySelector('.oppPanel .oppZones.open .formZone')), '…and their Forms & Rides zone');
+  ok(await p.evaluate(()=>window.__solo.st().turn===0), '…without the tap registering as a seat pick');
+  // .equipZone/.formZone are position:absolute in the duel layout, so inside a panel they escape its border.
+  // Measure containment rather than trusting the eye — the same class of bug as the pile-viewer button bleed.
+  ok(await p.evaluate(()=>{
+    const pnl=[].find.call(document.querySelectorAll('.oppPanel'),el=>/Caltrops/.test(el.textContent));
+    const pr=pnl.getBoundingClientRect(), eq=pnl.querySelector('.oppZones .eq').getBoundingClientRect();
+    return eq.left>=pr.left-1 && eq.right<=pr.right+1 && eq.bottom<=pr.bottom+1;
+  }), '…and the equipment box stays INSIDE the panel border (the zones are absolute in the duel layout)');
+
+  // now cast Forceful Strip and actually remove their Caltrops — the original report
+  await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="7D"]'); if(c)c.click();
+    const a=document.getElementById('cardActivate'), ctx=document.getElementById('ctxBtn');
+    if(a&&a.offsetParent!==null&&!a.disabled) a.click(); else if(ctx&&!ctx.disabled) ctx.click(); });
+  await wait(500);
+  ok(await p.evaluate(()=>document.querySelectorAll('.oppPanel .oppZones.open').length>0), 'targeting force-opens the panels so the target cannot hide');
+  const tgt=await p.evaluate(()=>!!document.querySelector('.oppPanel .oppZones .eq.targetable'));
+  ok(tgt, 'their Caltrops is marked .targetable (it was unclickable before — the whole reported bug)');
+  await p.evaluate(()=>{ const t=document.querySelector('.oppPanel .oppZones .eq.targetable'); if(t)t.click(); });
+  await wait(700);
+  ok(await p.evaluate(()=>window.__solo.st().players[2].equipment.length===0), 'tapping it REMOVED their Caltrops');
+  ok(await hasLog(/Forceful Strip/i), '…and the play is logged');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

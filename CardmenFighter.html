@@ -381,6 +381,24 @@
   .modal .pvReadBack{margin-top:8px;}
   .nrgBox.clickable, .shufBox.clickable{cursor:pointer;}
   .nrgBox.clickable:hover, .shufBox.clickable:hover{border-color:var(--gold);}
+  /* Free-for-all: an opponent panel's zones, opened by tapping its gear line (v1.29.2). Collapsed by
+     default so the strip stays compact; force-opened while a removal is choosing a target. */
+  .oppPanel .oppGear.tappable{cursor:pointer; border-radius:6px;}
+  .oppPanel .oppGear.tappable:hover{outline:1px solid var(--gold); outline-offset:2px;}
+  .oppPanel .oppGear .none{opacity:.45; font-style:italic;}
+  .oppPanel .oppZones{display:none;}
+  .oppPanel .oppZones.open{display:flex; flex-direction:column; gap:5px; margin-top:6px; padding-top:6px; border-top:1px solid var(--line);}
+  /* .equipZone/.formZone are position:absolute in the duel layout (they float over the board), so inside a
+     panel they escape its border. Pin them back into normal flow and shrink the boxes to the panel width. */
+  .oppPanel .oppZones .equipZone,
+  .oppPanel .oppZones .formZone{position:static; left:auto; right:auto; top:auto; bottom:auto; max-width:100%;
+    align-items:stretch; pointer-events:auto; margin:0; gap:4px;}
+  .oppPanel .oppZones .equipZone{display:flex; flex-direction:column;}
+  .oppPanel .oppZones .equipZone .eq{min-width:0; max-width:100%; padding:5px 8px;}
+  .oppPanel .oppZones .eqName{font-size:11px; max-width:100%;}
+  .oppPanel .oppZones .eqEff{font-size:9.5px; line-height:1.3;}
+  .oppPanel .oppZones .formRow{flex-wrap:wrap; gap:3px;}
+  .oppPanel .oppZones .zoneLbl{font-size:10px; letter-spacing:.05em; text-transform:uppercase; opacity:.6;}
   /* Custom deck builder (✏️ Custom deck… in any deck picker) */
   .modal .deckBuild{display:flex; flex-direction:column; gap:8px; margin:12px 0 4px; text-align:left;}
   .modal .dbHint{font-size:12.5px; opacity:.7; line-height:1.5;}
@@ -3385,7 +3403,9 @@ window.CardFace = {};
   var PULSE_KEY='cmf_pulse_detail_v1';
   var pulseDetail=false; try{ pulseDetail = localStorage.getItem(PULSE_KEY)==='1'; }catch(e){}   // detailed energy pulses — DEFAULT OFF (net delta); Settings toggles it
   var pick=null;               // active selection: {kind:'discard'|'top', cardId, need, chosen:{}}
-  var formsOpen=null;          // which Forms & Rides zone is expanded to full cards ('you'|'rival'|null); default collapsed to chips
+  var formsOpen=null;          // which Forms & Rides zone is expanded to full cards — a seat key like 'p0'/'p2', or null (collapsed to chips)
+  var oppOpen=null;            // which opponent PANEL is expanded to real zones in a free-for-all (seat index, or null)
+  function zoneKeyFor(seat){ return 'p'+seat; }
   function collapseForms(){ if(formsOpen!==null){ formsOpen=null; render(); } }
   var targeting=null;          // {cardId} while choosing an equipment to remove
   var pileSig=null;            // signature of the pile currently rendered (skip rebuild/re-animate)
@@ -3830,13 +3850,14 @@ window.CardFace = {};
   // `mine` = true for your zone (bottom), false for the Rival's (top) — drives whose perspective the text takes.
   // REWORK: the on-table Forms & Rides Zone — actual Ride/Form cards stacked on the left edge, plus a
   // pulsing INCARNATION badge once Super Mode is live.
-  function renderFormsZone(el, pl, mine){
+  function renderFormsZone(el, pl, mine, seat){
     if(!el) return;
     el.innerHTML='';
     if(!pl.forms || !pl.forms.length){ el.style.display='none'; return; }
     el.style.display='flex';
-    var zk=mine?'you':'rival', superOn=E.hasSuper(pl);
-    var lbl=document.createElement('div'); lbl.className='zoneLbl'; lbl.textContent=(mine?'Your':'Rival')+' Forms & Rides'; el.appendChild(lbl);
+    if(typeof seat!=='number') seat=(mine?YOU:RIVAL);
+    var zk=zoneKeyFor(seat), superOn=E.hasSuper(pl);
+    var lbl=document.createElement('div'); lbl.className='zoneLbl'; lbl.textContent=(mine?'Your':(logName(seat)+'’s'))+' Forms & Rides'; el.appendChild(lbl);
     // COLLAPSED (default): a compact tap-to-expand strip — just rank/suit chips, or the single INCARNATION line when Super is live.
     if(formsOpen!==zk && !targeting){
       var strip=document.createElement('div'); strip.className='formStrip'; strip.title='Tap to expand';
@@ -3887,7 +3908,8 @@ window.CardFace = {};
         '<div class="oppTop"><span class="oppName">'+seatName(i)+' <span class="oppSeat">'+deckLabel(seatDecks[i]||'full')+'</span></span></div>'+
         '<div class="oppShields">'+sh+'</div>'+
         '<div class="oppStats"><button type="button" class="statBtn oppNrgBtn" data-seat="'+i+'" title="View '+seatName(i)+'’s energy pile">⚡'+(nrg||'0')+'</button><span>🃏'+pl.hand.length+'</span><span>🂠'+pl.deck.length+'</span><span>♻'+pl.shuffle.length+'</span></div>'+
-        '<div class="oppGear">'+gear.join('')+'</div>'+
+        '<div class="oppGear'+(gear.length?' tappable':'')+'" title="'+(gear.length?'Tap to open '+seatName(i)+'’s zones':'')+'">'+(gear.join('')||'<span class="none">no gear</span>')+'</div>'+
+        '<div class="oppZones"><div class="equipZone oppEquipZone"></div><div class="formZone oppFormZone"></div></div>'+
         (pl.eliminated?'<div class="oppDead">OUT</div>':'')+
         (isTurn?'<div class="oppTag">◆</div>':'');
       el.onclick = (lossPick && lossPick.cands.indexOf(i)>=0) ? (function(seat){ return function(){ chooseLossSeat(seat); }; })(i)
@@ -3896,6 +3918,23 @@ window.CardFace = {};
       // never doubles as a loss/target pick on the panel behind it.
       var nb=el.querySelector('.oppNrgBtn');
       if(nb) nb.addEventListener('click', (function(seat){ return function(ev){ ev.stopPropagation(); if(!lossPick && !targetPick) openPileView('energy', seat); }; })(i));
+      /* EXPANDABLE ZONES. The gear line used to be plain <span> labels, so an opponent's Equipment and
+       * Rides/Forms were merely DESCRIBED — unreachable for Forceful Strip / Sabotage, which the engine
+       * has always offered as targets. Tapping the gear line now opens the seat's real zones, built by the
+       * same renderEquipZone/renderFormsZone the duel uses, so `.targetable` and doRemove() come with them.
+       * While a removal is targeting, every panel force-opens so the target cannot be hidden behind a tap. */
+      var zones=el.querySelector('.oppZones'), open=(oppOpen===i)||!!targeting;
+      zones.className='oppZones'+(open?' open':'');
+      if(open){
+        renderEquipZone(el.querySelector('.oppEquipZone'), pl, false, i);
+        renderFormsZone(el.querySelector('.oppFormZone'), pl, false, i);
+      } else { el.querySelector('.oppEquipZone').innerHTML=''; el.querySelector('.oppFormZone').innerHTML=''; }
+      var gearEl=el.querySelector('.oppGear');
+      if(gearEl && gear.length) gearEl.addEventListener('click', (function(seat){ return function(ev){
+        ev.stopPropagation();                                  // never let this double as a loss/target seat pick
+        if(targeting) return;                                  // already force-open while targeting
+        oppOpen=(oppOpen===seat)?null:seat; formsOpen=null; render();
+      }; })(i));
     });
   }
   var equipFx={}, equipFxClear=null;   // zoneKey:id -> { counters, flashUntil, name, good, card, gone } — drives the counter-change / spent flash
@@ -3916,9 +3955,11 @@ window.CardFace = {};
     }
     return box;
   }
-  function renderEquipZone(el, pl, mine){
+  function renderEquipZone(el, pl, mine, seat){
+    if(!el) return;
     el.innerHTML='';
-    var zk=(mine?'you':'rival')+':', now=Date.now(), live={}, flashing=false;
+    if(typeof seat!=='number') seat=(mine?YOU:RIVAL);
+    var zk=zoneKeyFor(seat)+':', now=Date.now(), live={}, flashing=false;   // per-SEAT fx key: 'rival' collided across opponents
     (pl.equipment||[]).forEach(function(e){
       var info=equipInfo(e, mine), key=zk+e.id, prev=equipFx[key];
       var flashUntil=prev?prev.flashUntil:0;
@@ -4321,7 +4362,7 @@ window.CardFace = {};
     if(!holdShields){ animateShields($('youShields'), you.shields, YOU); }
     var yb=$('youNrgSuits'); if(yb){ yb.innerHTML=energyChips(you); yb.title=energyBreakdown(you); energyPulse(yb, YOU, you); }
     $('youDeck').textContent=you.deck.length; $('youShuf').textContent=you.shuffle.length;
-    renderEquipZone($('youEquipZone'), you, true); renderFormsZone($('youFormZone'), you, true);
+    renderEquipZone($('youEquipZone'), you, true, YOU); renderFormsZone($('youFormZone'), you, true, YOU);
     if(MP()){                                                          // N-player: a strip of opponent panels; hide the single duel panel + its on-table zones
       $('rival').style.display='none'; $('rivalEquipZone').style.display='none'; $('rivalFormZone').style.display='none';
       renderOpponents();
@@ -4333,7 +4374,7 @@ window.CardFace = {};
       $('rivalHand').textContent=riv.hand.length;
       $('rivalDeck').textContent=riv.deck.length;
       $('rivalShuf').textContent=riv.shuffle.length;
-      renderEquipZone($('rivalEquipZone'), riv, false); renderFormsZone($('rivalFormZone'), riv, false);
+      renderEquipZone($('rivalEquipZone'), riv, false, RIVAL); renderFormsZone($('rivalFormZone'), riv, false, RIVAL);
       $('rival').classList.toggle('turn', state.turn===RIVAL && !state.finished);
       $('rival').classList.toggle('targetable', !!(targetPick && !MP()));   // duel: the rival panel is the tap-target while choosing a target
     }

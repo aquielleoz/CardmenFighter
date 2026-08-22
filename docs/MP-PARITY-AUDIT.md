@@ -112,7 +112,7 @@ measure the thing a human will actually feel, which is Knight/Demon now locking 
 
 ## B. Reachability — opponents' zones are described, not shown
 
-### B1. The rival equip/forms zones are hidden outright · `template ~1912`
+### B1. The rival equip/forms zones are hidden outright · `template ~1912` — ✅ **FIXED in v1.29.2**
 
 ```js
 if(MP()){
@@ -134,8 +134,16 @@ labels inside `.oppGear`. Consequences:
 - **No equipment counter/decay feedback** for opponents: the `equipFx` counter-change and spent flashes only
   exist inside `buildEqBox`.
 
-Aj's proposed fix: **clicking a player's box expands it** so the gear inside becomes clickable. Reuse
-`buildEqBox` rather than writing a second renderer, so targeting cannot drift again. Note equipment targets
+**Fixed as Aj specified:** tapping a panel's gear line **expands that seat's real zones**, rendered by the same
+`renderEquipZone` / `renderFormsZone` the duel uses — so `.targetable` and `doRemove()` come along for free and
+cannot drift. Both renderers now take a **seat** instead of a `mine` boolean (the FX key was `'rival'` for every
+opponent, so their equipment flashes collided). Panels stay collapsed by default, and **force-open while a
+removal is targeting** so a target can never hide behind a tap. Two traps met on the way: the zones are
+`position:absolute` in the duel layout and escaped the panel border until pinned back into flow (containment is
+now a measured assertion), and the gear tap needs `stopPropagation()` or it doubles as a seat pick.
+
+Original note kept for context — reuse `buildEqBox` rather than writing a second renderer, so targeting cannot
+drift again. Note equipment targets
 are keyed by the equipment entry's own **`e.id`** (*not* `e.card.id`); zone targets use `f.card.id`. An
 expanded panel must `stopPropagation()` on inner clicks or a gear tap doubles as a seat pick — `oppNrgBtn`
 (v1.29.0) is the working precedent.
@@ -185,6 +193,6 @@ which already exists and knows about duels vs seats.
 
 1. ~~**A1 + A2**~~ — ✅ **DONE in v1.29.1**, along with **A3**, which was found while doing them and mattered
    more than either. New `code/mptest.js` (13 assertions) covers all three.
-2. **B1** — unlocks two whole removal effects in free-for-all, and Aj has already specified the UX.
+2. ~~**B1**~~ — ✅ **DONE in v1.29.2.** Unlocked Forceful Strip *and* Sabotage against opponents' zones in a free-for-all.
 3. **C1** — the biggest visible improvement, and the extraction protects against re-drift.
 4. **C2** — one line.
