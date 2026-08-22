@@ -95,18 +95,31 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   }); await wait(400);
   ok(await p.evaluate(()=>!!document.querySelector('.oppPanel .oppGear.tappable')), 'the gear line on an opponent panel is tappable');
   ok(await p.evaluate(()=>!document.querySelector('.oppPanel .oppZones.open')), '…and its zones start collapsed, keeping the strip compact');
+  // Aj hit this: expanding IN FLOW grew #opponents, and since it is flex:0 0 auto while #board is flex:1 1 auto,
+  // the board lost exactly that much height — visibly flattening the battle log and the description box.
+  const hBefore=await p.evaluate(()=>({board:Math.round(document.getElementById('board').getBoundingClientRect().height),
+    log:Math.round(document.getElementById('logWrap').getBoundingClientRect().height),
+    side:Math.round(document.getElementById('side').getBoundingClientRect().height)}));
   await p.evaluate(()=>{ const g=[].find.call(document.querySelectorAll('.oppPanel'),el=>/Caltrops/.test(el.textContent)).querySelector('.oppGear'); g.click(); });
   await wait(400);
   ok(await p.evaluate(()=>!!document.querySelector('.oppPanel .oppZones.open .eq')), 'tapping it opens that seat\'s real Equipment zone (a buildEqBox, not a label)');
   ok(await p.evaluate(()=>!!document.querySelector('.oppPanel .oppZones.open .formZone')), '…and their Forms & Rides zone');
   ok(await p.evaluate(()=>window.__solo.st().turn===0), '…without the tap registering as a seat pick');
-  // .equipZone/.formZone are position:absolute in the duel layout, so inside a panel they escape its border.
-  // Measure containment rather than trusting the eye — the same class of bug as the pile-viewer button bleed.
+  const hAfter=await p.evaluate(()=>({board:Math.round(document.getElementById('board').getBoundingClientRect().height),
+    log:Math.round(document.getElementById('logWrap').getBoundingClientRect().height),
+    side:Math.round(document.getElementById('side').getBoundingClientRect().height)}));
+  ok(hBefore.board===hAfter.board && hBefore.log===hAfter.log && hBefore.side===hAfter.side,
+     'opening the zones does NOT flatten the battle log or description box ('+JSON.stringify(hBefore)+' → '+JSON.stringify(hAfter)+')');
+  ok(await p.evaluate(()=>getComputedStyle(document.querySelector('.oppZones.open')).position==='absolute'),
+     '…because the zones float as a popover instead of expanding in flow');
+  // The zones are a POPOVER below the panel (in-flow expansion stole height from the board), so the box is
+  // deliberately outside the panel box. What must hold: it hangs under its own panel and stays on screen.
   ok(await p.evaluate(()=>{
     const pnl=[].find.call(document.querySelectorAll('.oppPanel'),el=>/Caltrops/.test(el.textContent));
-    const pr=pnl.getBoundingClientRect(), eq=pnl.querySelector('.oppZones .eq').getBoundingClientRect();
-    return eq.left>=pr.left-1 && eq.right<=pr.right+1 && eq.bottom<=pr.bottom+1;
-  }), '…and the equipment box stays INSIDE the panel border (the zones are absolute in the duel layout)');
+    const pr=pnl.getBoundingClientRect(), pop=pnl.querySelector('.oppZones.open').getBoundingClientRect();
+    const onScreen = pop.left>=0 && pop.right<=window.innerWidth+1 && pop.top>=0;
+    return Math.abs(pop.left-pr.left)<=2 && pop.top>=pr.bottom-1 && onScreen;
+  }), '…and the popover hangs under its own panel, fully on screen');
 
   // now cast Forceful Strip and actually remove their Caltrops — the original report
   await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="7D"]'); if(c)c.click();

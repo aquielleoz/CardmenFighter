@@ -387,7 +387,13 @@
   .oppPanel .oppGear.tappable:hover{outline:1px solid var(--gold); outline-offset:2px;}
   .oppPanel .oppGear .none{opacity:.45; font-style:italic;}
   .oppPanel .oppZones{display:none;}
-  .oppPanel .oppZones.open{display:flex; flex-direction:column; gap:5px; margin-top:6px; padding-top:6px; border-top:1px solid var(--line);}
+  /* A POPOVER, not in-flow. #opponents is flex:0 0 auto inside <main> while #board is flex:1 1 auto, so any
+     height the strip gains is taken straight out of the board — expanding in flow visibly flattened the battle
+     log and the description box. Floating it leaves the strip's height untouched. */
+  .oppPanel .oppZones.open{display:flex; flex-direction:column; gap:5px; position:absolute; top:calc(100% + 4px);
+    left:0; min-width:100%; width:max-content; max-width:min(280px,86vw); padding:8px 9px; z-index:12;
+    background:linear-gradient(180deg,#241533,#1a0f28); border:1px solid var(--gold); border-radius:10px;
+    box-shadow:0 14px 34px rgba(0,0,0,.6);}
   /* .equipZone/.formZone are position:absolute in the duel layout (they float over the board), so inside a
      panel they escape its border. Pin them back into normal flow and shrink the boxes to the panel width. */
   .oppPanel .oppZones .equipZone,
@@ -6624,7 +6630,13 @@ window.CardFace = {};
     $('closeHelp').addEventListener('click', close);
   }
 
-  document.addEventListener('click', function(e){ if(formsOpen && !(e.target.closest && e.target.closest('.formZone'))) collapseForms(); });   // tap outside an expanded Forms zone → minimize it back to chips
+  document.addEventListener('click', function(e){ if(formsOpen && !(e.target.closest && e.target.closest('.formZone'))) collapseForms(); });
+  // tap outside an opponent's popover to close it (targeting force-opens them, so leave those alone)
+  document.addEventListener('click', function(e){
+    if(oppOpen==null || targeting) return;
+    if(e.target.closest && (e.target.closest('.oppZones') || e.target.closest('.oppGear'))) return;
+    oppOpen=null; render();
+  });   // tap outside an expanded Forms zone → minimize it back to chips
   $('fightBtn').addEventListener('click', function(){ pick?confirmPick():doFight(); });
   $('passBtn').addEventListener('click', function(){ pick?cancelPick():doPass(); });
   $('ctxBtn').addEventListener('click', onCtxClick);

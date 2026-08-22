@@ -35,6 +35,13 @@ Current version: **v1.29.3**. The 2-apex + Forms **rework is simply the game** �
   - ~~Advanced tutorial lesson on custom decks~~ — ✅ **BUILT** in v1.28.1 (Advanced lesson 9).
   - **Deck editing** was deliberately left out (Aj: create + delete only). If it ever comes back, note that a saved deck's IDENTITY is its composition key, so "editing" is really delete + re-add and anything pointing at the old key must be migrated.
 
+### v1.29.4 — the opponent-zone popover no longer flattens the log and description box
+Aj, immediately on trying v1.29.2: *"how is opening the player equipments flattening the description box and battle log?"* — a regression from B1, and a nice illustration of why layout needs measuring rather than eyeballing.
+- **Cause:** the expanded zones were **in flow** inside the panel. `#opponents` is `flex:0 0 auto` inside `<main>` while `#board` is `flex:1 1 auto; min-height:0`, so every pixel the strip gained came **straight out of the board** — the battle log and the description box shrank by exactly that much.
+- **Fix:** the zones are now a **popover** — `position:absolute; top:calc(100% + 4px)` under their panel, with its own border and shadow, so the strip's height never changes. Tapping outside closes it (targeting-forced panels are left alone).
+- **Measured, and now asserted:** `#board`, `#logWrap` and `#side` heights are byte-identical before and after opening (744 / 482 / 482), and the popover must compute to `position:absolute`. The old "box stays inside the panel border" assertion was **deliberately replaced** — it enforced the in-flow behaviour that caused this — with "the popover hangs under its own panel, fully on screen".
+- `mptest.js` 29 → **31 assertions**.
+
 ### v1.29.3 — C1: opponents' turns are actually presented in a free-for-all
 The presentation half of [`MP-PARITY-AUDIT.md`](MP-PARITY-AUDIT.md), and the fix for Aj's first report — *"the animation doesn't let my play breathe before the AI plays… the text beneath the play still says i played something… i can see my effects fine, but i'm not seeing the rival's."* All three were one cause.
 - **Cause:** `runOpponents` did `AI.takeTurn` → `logOppPlays` → `render()` → `setTimeout(step, 460)`. It **logged and rendered, and nothing else** — no dwell, no `flashArt`/`revealEffect`, no `setMessage`, no `bumpEffect`. Every bit of the v1.25.0/v1.26.0 readability work (longer rival dwells, the ⏩ QUICK cue, the two-phase art flash) had landed on the **2-player path only**.
