@@ -16,6 +16,8 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
   const log=()=>p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'),e=>e.textContent.trim()));
   const hasLog=async re=>{ for(let i=0;i<60;i++){ if((await log()).some(l=>re.test(l))) return true; await wait(150);} return false; };
+  const msg=()=>p.evaluate(()=>((document.getElementById('message')||{}).textContent||'').trim());
+  const waitFor=async (fn,n)=>{ for(let i=0;i<(n||60);i++){ if(await fn()) return true; await wait(150);} return false; };
 
   async function start3p(){
     await p.goto(URL); await wait(700);
@@ -93,18 +95,31 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   }); await wait(400);
   ok(await p.evaluate(()=>!!document.querySelector('.oppPanel .oppGear.tappable')), 'the gear line on an opponent panel is tappable');
   ok(await p.evaluate(()=>!document.querySelector('.oppPanel .oppZones.open')), '…and its zones start collapsed, keeping the strip compact');
+  // Aj hit this: expanding IN FLOW grew #opponents, and since it is flex:0 0 auto while #board is flex:1 1 auto,
+  // the board lost exactly that much height — visibly flattening the battle log and the description box.
+  const hBefore=await p.evaluate(()=>({board:Math.round(document.getElementById('board').getBoundingClientRect().height),
+    log:Math.round(document.getElementById('logWrap').getBoundingClientRect().height),
+    side:Math.round(document.getElementById('side').getBoundingClientRect().height)}));
   await p.evaluate(()=>{ const g=[].find.call(document.querySelectorAll('.oppPanel'),el=>/Caltrops/.test(el.textContent)).querySelector('.oppGear'); g.click(); });
   await wait(400);
   ok(await p.evaluate(()=>!!document.querySelector('.oppPanel .oppZones.open .eq')), 'tapping it opens that seat\'s real Equipment zone (a buildEqBox, not a label)');
   ok(await p.evaluate(()=>!!document.querySelector('.oppPanel .oppZones.open .formZone')), '…and their Forms & Rides zone');
   ok(await p.evaluate(()=>window.__solo.st().turn===0), '…without the tap registering as a seat pick');
-  // .equipZone/.formZone are position:absolute in the duel layout, so inside a panel they escape its border.
-  // Measure containment rather than trusting the eye — the same class of bug as the pile-viewer button bleed.
+  const hAfter=await p.evaluate(()=>({board:Math.round(document.getElementById('board').getBoundingClientRect().height),
+    log:Math.round(document.getElementById('logWrap').getBoundingClientRect().height),
+    side:Math.round(document.getElementById('side').getBoundingClientRect().height)}));
+  ok(hBefore.board===hAfter.board && hBefore.log===hAfter.log && hBefore.side===hAfter.side,
+     'opening the zones does NOT flatten the battle log or description box ('+JSON.stringify(hBefore)+' → '+JSON.stringify(hAfter)+')');
+  ok(await p.evaluate(()=>getComputedStyle(document.querySelector('.oppZones.open')).position==='absolute'),
+     '…because the zones float as a popover instead of expanding in flow');
+  // The zones are a POPOVER below the panel (in-flow expansion stole height from the board), so the box is
+  // deliberately outside the panel box. What must hold: it hangs under its own panel and stays on screen.
   ok(await p.evaluate(()=>{
     const pnl=[].find.call(document.querySelectorAll('.oppPanel'),el=>/Caltrops/.test(el.textContent));
-    const pr=pnl.getBoundingClientRect(), eq=pnl.querySelector('.oppZones .eq').getBoundingClientRect();
-    return eq.left>=pr.left-1 && eq.right<=pr.right+1 && eq.bottom<=pr.bottom+1;
-  }), '…and the equipment box stays INSIDE the panel border (the zones are absolute in the duel layout)');
+    const pr=pnl.getBoundingClientRect(), pop=pnl.querySelector('.oppZones.open').getBoundingClientRect();
+    const onScreen = pop.left>=0 && pop.right<=window.innerWidth+1 && pop.top>=0;
+    return Math.abs(pop.left-pr.left)<=2 && pop.top>=pr.bottom-1 && onScreen;
+  }), '…and the popover hangs under its own panel, fully on screen');
 
   // now cast Forceful Strip and actually remove their Caltrops — the original report
   await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="7D"]'); if(c)c.click();
@@ -118,6 +133,60 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   await wait(700);
   ok(await p.evaluate(()=>window.__solo.st().players[2].equipment.length===0), 'tapping it REMOVED their Caltrops');
   ok(await hasLog(/Forceful Strip/i), '…and the play is logged');
+
+  // ================= C1: opponents' turns are actually presented =================
+  ok(await start3p(), '3-player game restarted for turn presentation');
+  await p.evaluate(()=>{
+    const st=window.__solo.st(); const mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
+    st.round=3; st.turn=0; st.pile=null; st.pending=null; st.respondFor=null;
+    st.players[0].hand=[mk(4,'H'),mk(5,'C')];
+    st.players[1].hand=[mk(9,'S')]; st.players[1].energy=[];
+    st.players[2].hand=[mk(10,'H')]; st.players[2].energy=[];
+    window.__solo.render();
+  }); await wait(300);
+  // your own play writes the caption; an opponent's turn must then OVERWRITE it
+  await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="4H"]'); if(c)c.click();
+    const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  // NB: your own fight does not set the centre caption (the log carries it) — the caption after your play is a
+  // prompt/status line. What matters for C1 is that an opponent's turn WRITES one at all, asserted next.
+  ok(await hasLog(/^You played/), 'your own play is logged');
+  // an opponent then acts — the caption must name THEM, never still say "You played"
+  const capt=await waitFor(async()=>{ const m=await msg(); return /P2|P3/.test(m); }, 90);
+  ok(capt, 'an opponent\'s turn OVERWRITES the caption with their name (it used to stay "You played…"): "'+(await msg()).slice(0,60)+'"');
+  ok(!/^You played/.test(await msg()), '…so the stage and the caption no longer disagree');
+  ok(await p.evaluate(()=>window.__solo.st().round>=3), 'the game progressed through the opponents\' turns');
+
+  // ================= targeting is CONFIRM-FIRST (Aj: "always err on the side of confirming first") =================
+  ok(await start3p(), '3-player game restarted for target confirmation');
+  await p.evaluate(()=>{
+    const st=window.__solo.st(); const mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
+    st.round=3; st.turn=0; st.pile=null; st.pending=null; st.respondFor=null;
+    st.players[0].hand=[mk(3,'D'),mk(5,'C')];                          // Telekinesis (discardOpp → needs a target)
+    st.players[0].energy=Array.from({length:10},(_,i)=>mk(3,'D','y'+i));
+    st.players[1].hand=[mk(9,'S'),mk(8,'S','b')]; st.players[2].hand=[mk(10,'H'),mk(7,'H','c')];
+    window.__solo.render();
+  }); await wait(300);
+  const nrg0=await p.evaluate(()=>window.__solo.st().players[0].energy.length);
+  await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="3D"]'); if(c)c.click(); }); await wait(200);
+  ok(/Choose target/i.test(await p.evaluate(()=>(document.getElementById('ctxBtn')||{}).textContent||'')), 'a targeting effect offers "🎯 Choose target"');
+  await p.evaluate(()=>document.getElementById('ctxBtn').click()); await wait(300);
+  ok(/Pick a target/i.test(await p.evaluate(()=>(document.getElementById('ctxBtn')||{}).textContent||'')), 'entering target mode asks you to pick one');
+  await p.evaluate(()=>{ const t=document.querySelector('.oppPanel[data-seat="2"]'); if(t)t.click(); }); await wait(300);
+  ok(await p.evaluate(()=>!!document.querySelector('.oppPanel.aimed')), 'tapping a rival STAGES it (marked "aimed")');
+  ok(await p.evaluate(()=>window.__solo.st().players[0].energy.length)===nrg0, '…and spends NOTHING yet');
+  ok(await p.evaluate(()=>window.__solo.st().players[2].hand.length===2), '…and does not resolve the effect yet');
+  ok(/Activate/i.test(await p.evaluate(()=>(document.getElementById('ctxBtn')||{}).textContent||'')), '…the button becomes ⚡ Activate to confirm');
+  // Clear must abandon it with nothing spent
+  await p.evaluate(()=>document.getElementById('clearBtn').click()); await wait(250);
+  ok(await p.evaluate(()=>window.__solo.st().players[0].energy.length)===nrg0, 'Clear cancels with nothing spent');
+  ok(await p.evaluate(()=>!document.querySelector('.oppPanel.aimed')), '…and un-aims the target');
+  // re-aim and confirm for real
+  await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="3D"]'); if(c)c.click(); }); await wait(200);
+  await p.evaluate(()=>document.getElementById('ctxBtn').click()); await wait(250);
+  await p.evaluate(()=>{ const t=document.querySelector('.oppPanel[data-seat="2"]'); if(t)t.click(); }); await wait(250);
+  await p.evaluate(()=>document.getElementById('ctxBtn').click()); await wait(700);
+  ok(await p.evaluate(()=>window.__solo.st().players[0].energy.length)<nrg0, 'confirming with ⚡ Activate finally spends the energy');
+  ok(await p.evaluate(()=>window.__solo.st().players[2].hand.length<2), '…and resolves against the seat you aimed at (P3, not the default next seat)');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);

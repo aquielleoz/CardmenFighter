@@ -45,6 +45,9 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   await c1.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card[data-id="9S"]'); if(c)c.click(); var ca=document.getElementById('cardActivate'), ctx=document.getElementById('ctxBtn'); if(ca&&ca.offsetParent!==null&&!ca.disabled)ca.click(); else if(ctx&&!ctx.disabled&&/Activate/i.test(ctx.textContent||''))ctx.click(); });
   ok(await waitFor(async()=>await c1.evaluate(()=>!!document.querySelector('.oppPanel[data-seat="1"].targetable, .oppPanel[data-seat="1"]'))),'c1 entered target-pick mode');
   await c1.evaluate(()=>{ var el=document.querySelector('.oppPanel[data-seat="1"]'); if(el)el.click(); });   // pick the rotated panel = absolute seat 2
+  // v1.29.5: tapping a target only STAGES it — confirm with ⚡ Activate. Nothing is spent until this click.
+  await wait(250);
+  await c1.evaluate(()=>{ var b=document.getElementById('ctxBtn'); if(b && /Activate/i.test(b.textContent||'')) b.click(); });
 
   // Response windows auto-decline (no counters); c2's shield should drop, host & c1 unchanged.
   const c2Dropped = await waitFor(async()=>await shieldsOf(c2) === sh0[2]-1, 80, 150);

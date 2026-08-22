@@ -387,7 +387,13 @@
   .oppPanel .oppGear.tappable:hover{outline:1px solid var(--gold); outline-offset:2px;}
   .oppPanel .oppGear .none{opacity:.45; font-style:italic;}
   .oppPanel .oppZones{display:none;}
-  .oppPanel .oppZones.open{display:flex; flex-direction:column; gap:5px; margin-top:6px; padding-top:6px; border-top:1px solid var(--line);}
+  /* A POPOVER, not in-flow. #opponents is flex:0 0 auto inside <main> while #board is flex:1 1 auto, so any
+     height the strip gains is taken straight out of the board — expanding in flow visibly flattened the battle
+     log and the description box. Floating it leaves the strip's height untouched. */
+  .oppPanel .oppZones.open{display:flex; flex-direction:column; gap:5px; position:absolute; top:calc(100% + 4px);
+    left:0; min-width:100%; width:max-content; max-width:min(280px,86vw); padding:8px 9px; z-index:12;
+    background:linear-gradient(180deg,#241533,#1a0f28); border:1px solid var(--gold); border-radius:10px;
+    box-shadow:0 14px 34px rgba(0,0,0,.6);}
   /* .equipZone/.formZone are position:absolute in the duel layout (they float over the board), so inside a
      panel they escape its border. Pin them back into normal flow and shrink the boxes to the panel width. */
   .oppPanel .oppZones .equipZone,
@@ -399,6 +405,12 @@
   .oppPanel .oppZones .eqEff{font-size:9.5px; line-height:1.3;}
   .oppPanel .oppZones .formRow{flex-wrap:wrap; gap:3px;}
   .oppPanel .oppZones .zoneLbl{font-size:10px; letter-spacing:.05em; text-transform:uppercase; opacity:.6;}
+  /* A STAGED target, waiting on ⚡ Activate — distinct from the pulsing "pick me" state (v1.29.5) */
+  .oppPanel.aimed, .fighter.aimed{border-color:var(--bad) !important; box-shadow:0 0 0 2px var(--bad), 0 0 18px rgba(226,98,74,.55) !important; animation:none !important;}
+  .oppPanel.aimed::after{content:'🎯 aimed'; position:absolute; top:4px; right:6px; font-size:9.5px; font-weight:800; letter-spacing:.04em; color:var(--bad);}
+  /* Respond? modal — who cast it and who it is aimed at (v1.29.5) */
+  .modal .respAtYou{color:var(--bad); letter-spacing:.03em;}
+  .modal .respNotYou{font-size:12.5px; opacity:.75; margin:-4px 0 8px;}
   /* Custom deck builder (✏️ Custom deck… in any deck picker) */
   .modal .deckBuild{display:flex; flex-direction:column; gap:8px; margin:12px 0 4px; text-align:left;}
   .modal .dbHint{font-size:12.5px; opacity:.7; line-height:1.5;}
@@ -1482,7 +1494,8 @@ __NETVIEW__
       var pl=state.players[i], el=host.children[idx];
       var isTurn=(state.turn===i && !state.finished);
       var pickable=(targetPick && !pl.eliminated) || (lossPick && lossPick.cands.indexOf(i)>=0);
-      el.className='oppPanel'+(isTurn?' turn':'')+(pl.eliminated?' dead':'')+(pickable?' targetable':'');
+      var staged=!!(targetPick && targetPick.chosen===i);
+      el.className='oppPanel'+(isTurn?' turn':'')+(pl.eliminated?' dead':'')+(pickable?' targetable':'')+(staged?' aimed':'');
       el.dataset.seat=i;
       var sh='', slots=Math.max(E.START_SHIELDS, pl.shields);
       for(var s=0;s<slots;s++) sh+='<span class="s'+(s<pl.shields?'':' lost')+'"></span>';
@@ -1964,6 +1977,7 @@ __NETVIEW__
       renderEquipZone($('rivalEquipZone'), riv, false, RIVAL); renderFormsZone($('rivalFormZone'), riv, false, RIVAL);
       $('rival').classList.toggle('turn', state.turn===RIVAL && !state.finished);
       $('rival').classList.toggle('targetable', !!(targetPick && !MP()));   // duel: the rival panel is the tap-target while choosing a target
+      $('rival').classList.toggle('aimed', !!(targetPick && targetPick.chosen===RIVAL));   // staged, awaiting ⚡ Activate
     }
     $('roundTag').textContent='Round '+state.round;
     if(!state.finished){ if(state.turn===YOU && prevTurn!==YOU && prevTurn!==null) SFX.play('turnStart'); prevTurn=state.turn; }   // gentle chime when control returns to you
@@ -2390,6 +2404,11 @@ __NETVIEW__
   // The single context-aware action for the current selection: Activate (default), Stopper, or Phantasm.
   function ctxAction(){
     var sel=selectedCards();
+    // a staged target waits on an explicit confirm — the button IS the confirm
+    if(targetPick && targetPick.chosen!=null)
+      return {mode:'activate', label:'⚡ Activate', ok:true, reason:'', gold:true, run:function(){ confirmTargetPick(); }};
+    if(targetPick)
+      return {mode:'activate', label:'🎯 Pick a target', ok:false, reason:'Tap the rival you want to hit, then press ⚡ Activate.', run:null};
     if(sel.length>=1 && sel.every(function(c){ var e=E.effectOf(c); return e && e.kind==='stopper'; })){
       var si=stopInfo();
       if(si && si.show) return {mode:'stopper', label: si.ok?('Stopper ×'+si.need):'Stopper', ok:!!si.ok, reason:si.reason||'', run:doStopper};
@@ -2577,8 +2596,21 @@ __NETVIEW__
   // Effects that pick a target before firing — the button reads "Choose target" and no energy is spent until a target is locked in.
   function effNeedsTarget(eff){ return eff && (eff.kind==='removeEquip' || eff.kind==='counterfeit' || isHostileSingular(eff)); }
   function livingOpps(){ var a=[]; for(var i=0;i<state.numPlayers;i++) if(i!==YOU && !state.players[i].eliminated) a.push(i); return a; }
-  function promptTargetPick(cardId, eff){ targetPick={ cardId:cardId }; selected={}; setMessage('<b>'+eff.name+'</b> — tap the rival'+(MP()?' panel':'')+' to strike. No energy is spent until you pick. (Clear to cancel.)'); render(); }
-  function chooseTargetSeat(seat){ if(!targetPick) return; var cid=targetPick.cardId; targetPick=null; activate(cid, { target: seat }); }
+  /* TARGETING IS NOW TWO STEPS (Aj: "always err on the side of confirming first"). Tapping a target used to
+   * fire the effect instantly; it now only STAGES the target, and the context button turns into ⚡ Activate to
+   * confirm. Clear still cancels with nothing spent. */
+  function promptTargetPick(cardId, eff){ targetPick={ cardId:cardId, chosen:null, name:eff.name }; selected={}; setMessage('<b>'+eff.name+'</b> — tap the rival'+(MP()?' panel':'')+' to aim. Nothing is spent until you confirm.'); render(); }
+  function chooseTargetSeat(seat){
+    if(!targetPick) return;
+    targetPick.chosen=seat;                                  // stage only — the player confirms with ⚡ Activate
+    setMessage('<b>'+targetPick.name+'</b> aimed at <b>'+logName(seat)+'</b> — press <b>⚡ Activate</b> to confirm, or <b>Clear</b> to cancel.');
+    render();
+  }
+  function confirmTargetPick(){
+    if(!targetPick || targetPick.chosen==null) return;
+    var cid=targetPick.cardId, seat=targetPick.chosen; targetPick=null;
+    activate(cid, { target: seat });
+  }
   function cancelTargetPick(){ if(targetPick){ targetPick=null; setMessage('Target cancelled.'); render(); return true; } return false; }
   // The round winner (chosen mode, 3–6p) picks whose shield to strip. `done(finalRes)` continues with the resolved result.
   function promptLossTarget(res, g, done){
@@ -3035,6 +3067,35 @@ __NETVIEW__
     });
   }
 
+  /* Turn one seat's AI log into paced "beats" — the readable presentation layer: a dwell per action,
+   * the card flashed or revealed, and a centre-stage message. SHARED by the duel driver (runRival) and
+   * the N-player driver (runOpponents). It lived inline in runRival, and because the free-for-all driver
+   * only logged, every bit of the v1.25.0/v1.26.0 readability work (rival dwells, the QUICK cue, the
+   * two-phase art flash) was missing there — your play never breathed, the caption still read "You
+   * played…" under an opponent's card, and their effects were invisible. Extracted so it cannot drift. */
+  function buildOppBeats(log, seat){
+    var who=logName(seat), beats=[];
+      log.forEach(function(e){
+        if(e.play){
+          var eff=e.card?E.effectOf(e.card):null;
+          beats.push({ dwell: revealDwell(e.card), run:function(){
+            say(seat, '{who} played '+effPhrase(e.card)+'.', 'rival'); bumpEffect(seat, eff);
+            if(e.card){ if(eff&&eff.kind==='transform'){ flashArt(e.card, who); } else { revealEffect(e.card, who); } setMessage('<b>'+who+' used '+(eff?eff.name:'a card')+'.</b>'); }   // Forms pop center-stage only; read them by hovering the Forms & Rides zone
+          }});
+        }
+        else if(e.useEquip){ beats.push({ dwell:750, run:function(){ say(seat, '{who} spent a '+e.name+' counter — drew a card.', 'rival'); } }); }
+        else if(e.fight==='play'){ beats.push({ dwell:1500, run:function(){ say(seat, '{who} played '+playPhrase(e.combo)+(e.boost?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'rival'); bumpFight(RIVAL, e.combo.type); setMessage('<b>'+who+'</b> played '+kindPhrase(e.combo.type)+'.'); render(); } }); }
+        else if(e.phantasm){ beats.push({ dwell:1300, run:function(){ say(seat, '{who} conjured a Phantasmal Illusion — a '+kindLabel(e.made)+' overtakes the pile.', 'rival'); setMessage('🎭 <b>Rival warped your play with a Phantasmal Illusion!</b>'); render(); } }); }
+        else if(e.fight==='pass'){ beats.push({ dwell:950, run:function(){ say(seat, '{who} passed.', 'rival'); setMessage('<b>'+who+'</b> passed.'); render(); } }); }
+        else if(e.stopper){ beats.push({ dwell:1150, run:function(){ say(seat, '{who} cancelled a '+kindLabel(e.cancelled)+' with '+e.stopper+' STOPPER'+(e.stopper>1?'s':'')+' — '+who+' leads.', 'rival'); if(stats) stats[pkey(RIVAL)].stoppers += e.stopper; setMessage('🛑 <b>Rival cancelled your '+kindLabel(e.cancelled)+'!</b>'); stopperFlash('Rival', kindLabel(e.cancelled), e.stopper); render(); } }); }
+        else if(e.discard){ beats.push({ dwell:600, run:function(){ say(seat, '{who} discarded '+e.discard+' to hand size.', 'rival'); } }); }
+        else if(e.forcedDiscard){ beats.push({ dwell:750, run:function(){ say(seat, '{who} discarded '+e.forcedDiscard+' card'+(e.forcedDiscard>1?'s':'')+'.', 'rival'); } }); }
+        else if(e.lockedSkip){ beats.push({ dwell:650, run:function(){ say(seat, '{who} is locked out — turn skipped.', 'warn'); setMessage('<b>'+who+'</b> is locked out — turn skipped.'); render(); } }); }
+        else if(e.stuck){ beats.push({ dwell:650, run:function(){ say(seat, '{who} is out of cards!', 'warn'); setMessage('<b>'+who+'</b> is out of cards!'); render(); } }); }
+      });
+    return beats;
+  }
+
   function runRival(){
     if(state.finished){ return; }
     busy=true; render(); $('rivalStatus').textContent='thinking…';
@@ -3058,25 +3119,7 @@ __NETVIEW__
       }
       // Turn the Rival's actions into paced "beats". Effect activations reveal the card in the side
       // panel and dwell so you can read them; the fight/pass/stopper beats render the board.
-      var beats=[];
-      log.forEach(function(e){
-        if(e.play){
-          var eff=e.card?E.effectOf(e.card):null;
-          beats.push({ dwell: revealDwell(e.card), run:function(){
-            logMsg('<b>Rival</b> played '+effPhrase(e.card)+'.', 'rival'); bumpEffect(RIVAL, eff);
-            if(e.card){ if(eff&&eff.kind==='transform'){ flashArt(e.card, 'Rival'); } else { revealEffect(e.card, 'Rival'); } setMessage('<b>Rival used '+(eff?eff.name:'a card')+'.</b>'); }   // Forms pop center-stage only; read them by hovering the Forms & Rides zone
-          }});
-        }
-        else if(e.useEquip){ beats.push({ dwell:750, run:function(){ logMsg('<b>Rival</b> spent a '+e.name+' counter — drew a card.', 'rival'); } }); }
-        else if(e.fight==='play'){ beats.push({ dwell:1500, run:function(){ logMsg('<b>Rival</b> played '+playPhrase(e.combo)+(e.boost?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'rival'); bumpFight(RIVAL, e.combo.type); setMessage('<b>Rival</b> played '+kindPhrase(e.combo.type)+'.'); render(); } }); }
-        else if(e.phantasm){ beats.push({ dwell:1300, run:function(){ logMsg('<b>Rival</b> conjured a Phantasmal Illusion — a '+kindLabel(e.made)+' overtakes the pile.', 'rival'); setMessage('🎭 <b>Rival warped your play with a Phantasmal Illusion!</b>'); render(); } }); }
-        else if(e.fight==='pass'){ beats.push({ dwell:950, run:function(){ logMsg('<b>Rival</b> passed.', 'rival'); setMessage('<b>Rival</b> passed.'); render(); } }); }
-        else if(e.stopper){ beats.push({ dwell:1150, run:function(){ logMsg('<b>Rival</b> cancelled a '+kindLabel(e.cancelled)+' with '+e.stopper+' STOPPER'+(e.stopper>1?'s':'')+' — Rival leads.', 'rival'); if(stats) stats[pkey(RIVAL)].stoppers += e.stopper; setMessage('🛑 <b>Rival cancelled your '+kindLabel(e.cancelled)+'!</b>'); stopperFlash('Rival', kindLabel(e.cancelled), e.stopper); render(); } }); }
-        else if(e.discard){ beats.push({ dwell:600, run:function(){ logMsg('<b>Rival</b> discarded '+e.discard+' to hand size.', 'rival'); } }); }
-        else if(e.forcedDiscard){ beats.push({ dwell:750, run:function(){ logMsg('<b>Rival</b> discarded '+e.forcedDiscard+' card'+(e.forcedDiscard>1?'s':'')+'.', 'rival'); } }); }
-        else if(e.lockedSkip){ beats.push({ dwell:650, run:function(){ logMsg('<b>Rival</b> is locked out — turn skipped.', 'warn'); setMessage('<b>Rival</b> is locked out — turn skipped.'); render(); } }); }
-        else if(e.stuck){ beats.push({ dwell:650, run:function(){ logMsg('<b>Rival</b> is out of cards!', 'warn'); setMessage('<b>Rival</b> is out of cards!'); render(); } }); }
-      });
+      var beats=buildOppBeats(log, RIVAL);
       playBeats(beats, g, function(){
         if(g!==gen) return;
         render();                                                                 // settle the board to the final state
@@ -3150,8 +3193,21 @@ __NETVIEW__
     var pend=state.pending, rivalEff=E.effectOf(pend.card)||{}, rivalName=rivalEff.name||'a Technique';
     var quicks=eligibleQuicks();
     if(!quicks.length){ if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'decline'}); busy=true; render(); return; } E.declineResponse(state, YOU); return cont(); }   // nothing to answer with — auto-pass
+    /* WHO cast it and WHO it is aimed at were both missing — Aj: "who or what is being targetted? why should I
+     * counter it? this lacks some vital information." In a free-for-all that decides the whole choice: a
+     * Telekinesis aimed at P2 is none of your business, one aimed at YOU is worth a Counter Spell. */
+    var caster=(typeof pend.p==='number') ? pend.p : null;
+    var aimed=null;
+    if(caster!=null && E.effectTarget && (E.HOSTILE_SINGLE && E.HOSTILE_SINGLE[rivalEff.kind]))
+      aimed=E.effectTarget(state, caster, pend.opts||{});
+    var casterTxt=(caster!=null) ? ('<b>'+logName(caster)+'</b>') : 'Someone';
+    var aimTxt='';
+    if(aimed!=null) aimTxt = (aimed===YOU) ? ' at <b class="respAtYou">YOU</b>' : (' at <b>'+logName(aimed)+'</b>');
+    var lead='<p>'+casterTxt+' cast <b>'+rivalName+'</b>'+aimTxt+'. Play a Quick in response, or let it resolve.</p>';
+    // when it is not aimed at you, say so plainly rather than leaving you to work it out
+    if(aimed!=null && aimed!==YOU) lead+='<p class="respNotYou">It does not target you — countering only helps '+logName(aimed)+'.</p>';
     var incoming=(rivalEff.text?('<div class="respIncoming"><b>'+rivalName+'</b> ('+cardSym(pend.card)+') — '+rivalEff.text+'</div>'):'');
-    var html='<h2>Respond?</h2><p><b>'+rivalName+'</b> is on the stack. Play a Quick in response, or let it resolve.</p>'+incoming+tableContextHTML()+'<div class="respOpts">';
+    var html='<h2>Respond?</h2>'+lead+incoming+tableContextHTML()+'<div class="respOpts">';
     quicks.forEach(function(c){ var ef=E.effectOf(c);
       html+='<button class="respQuick" data-id="'+c.id+'">'+ef.name+' · '+cardSym(c)+' ('+ef.cost+'⚡)<span class="respTxt">'+ef.text+'</span></button>'; });
     html+='<button id="respDecline" class="respLet">Let it resolve</button></div>'+peekBtnHTML();
@@ -3256,18 +3312,8 @@ __NETVIEW__
     return driveRival();                              // finish the Rival's suspended turn (netplay-aware)
   }
   // ---- N-player turn driver: play every AI seat until control returns to the human (seat 0) ----
-  function logOppPlays(log, p){
-    log.forEach(function(e){
-      if(e.play){ say(p, '{who} played '+effPhrase(e.card)+'.', 'rival'); }
-      else if(e.fight==='play'){ say(p, '{who} played '+playPhrase(e.combo)+(e.boost?' (boosted)':'')+'.', 'rival'); }
-      else if(e.phantasm){ say(p, '{who} conjured a Phantasmal Illusion.', 'rival'); }
-      else if(e.fight==='pass'){ logMsg('<b>'+seatName(p)+'</b> passed.', 'rival'); }
-      else if(e.stopper){ logMsg('<b>'+seatName(p)+'</b> cancelled a '+kindLabel(e.cancelled)+' with a STOPPER.', 'rival'); }
-      else if(e.lockedSkip){ logMsg('<b>'+seatName(p)+'</b> is locked out — turn skipped.', 'warn'); }
-      else if(e.stuck){ logMsg('<b>'+seatName(p)+'</b> is out of cards.', 'warn'); }
-      else if(e.respond){ logMsg('<b>'+seatName(p)+'</b> answered with a Quick'+(e.countered?' (Counter)':'')+'.', 'rival'); }
-    });
-  }
+  // logOppPlays was here: a log-only renderer for opponents' turns. Superseded by buildOppBeats, which
+  // logs AND paces/flashes/messages. Deleted rather than left as a second path that could drift again.
   function mpResolveAIShieldWindows(){                 // auto-resolve any shield-guard windows that belong to AI seats
     var guard=0;
     while(state.shieldResponse && state.shieldResponse.q!==YOU && guard++<16){
@@ -3300,26 +3346,34 @@ __NETVIEW__
       if(isHumanSeat(p)){ return awaitHumanSeat(p, g); }   // a human occupies this opponent seat — pause for their input (unreachable today: all opponents are 'ai')
       $('rivalStatus').textContent=seatName(p)+' is playing…';
       var log=AI.takeTurn(state, p, diffOf(p), [YOU]);
-      logOppPlays(log, p);
-      var passed=log.filter(function(e){ return e.fight==='pass' || e.stopper; })[0];
-      var res=passed && passed.result;
-      if(res && res.roundWinner!=null){                                                             // a round resolved on this seat's pass
-        if(res.needsLossTarget){                                                                    // YOU won with a Special → pick whose shield to strip
-          return promptLossTarget(res, g, function(fr){ if(g!==gen) return;
-            if(fr.shieldResponsePending && state.shieldResponse && state.shieldResponse.q===YOU){ announceRoundWin(fr); return openShieldGuardModal(null, function(){ if(g!==gen) return; if(state.finished){ busy=false; render(); return endGame(); } resolveRoundCeremony(fr, g, function(){ if(g===gen) step(); }); }); }
-            mpResolveAIShieldWindows(); announceRoundWin(fr); if(state.finished){ busy=false; render(); return endGame(); } resolveRoundCeremony(fr, g, function(){ if(g===gen) step(); }); });
-        }
-        if(res.shieldResponsePending && state.shieldResponse && state.shieldResponse.q===YOU){
+      /* C1: play this seat's turn as paced BEATS, exactly like the duel. Previously this driver called
+       * logOppPlays and rendered — no dwell, no flashArt/revealEffect, no setMessage, no bumpEffect — so
+       * an opponent's turn was invisible: your play never breathed, the centre-stage caption still read
+       * "You played…" under their card, and their effects never showed. The round-resolution branches
+       * below must run AFTER the beats, so they moved inside the completion callback. */
+      var beats=buildOppBeats(log, p);
+      playBeats(beats, g, function(){
+        if(g!==gen) return;
+        var passed=log.filter(function(e){ return e.fight==='pass' || e.stopper; })[0];
+        var res=passed && passed.result;
+        if(res && res.roundWinner!=null){                                                             // a round resolved on this seat's pass
+          if(res.needsLossTarget){                                                                    // YOU won with a Special → pick whose shield to strip
+            return promptLossTarget(res, g, function(fr){ if(g!==gen) return;
+              if(fr.shieldResponsePending && state.shieldResponse && state.shieldResponse.q===YOU){ announceRoundWin(fr); return openShieldGuardModal(null, function(){ if(g!==gen) return; if(state.finished){ busy=false; render(); return endGame(); } resolveRoundCeremony(fr, g, function(){ if(g===gen) step(); }); }); }
+              mpResolveAIShieldWindows(); announceRoundWin(fr); if(state.finished){ busy=false; render(); return endGame(); } resolveRoundCeremony(fr, g, function(){ if(g===gen) step(); }); });
+          }
+          if(res.shieldResponsePending && state.shieldResponse && state.shieldResponse.q===YOU){
+            announceRoundWin(res);
+            return openShieldGuardModal(null, function(){ if(g!==gen) return; if(state.finished){ busy=false; render(); return endGame(); } resolveRoundCeremony(res, g, function(){ if(g===gen) step(); }); });
+          }
+          mpResolveAIShieldWindows();
           announceRoundWin(res);
-          return openShieldGuardModal(null, function(){ if(g!==gen) return; if(state.finished){ busy=false; render(); return endGame(); } resolveRoundCeremony(res, g, function(){ if(g===gen) step(); }); });
+          if(state.finished){ busy=false; render(); return endGame(); }
+          return resolveRoundCeremony(res, g, function(){ if(g===gen) step(); });
         }
-        mpResolveAIShieldWindows();
-        announceRoundWin(res);
-        if(state.finished){ busy=false; render(); return endGame(); }
-        return resolveRoundCeremony(res, g, function(){ if(g===gen) step(); });
-      }
-      render();
-      setTimeout(step, reduceMotion()?40:460);
+        render();
+        setTimeout(step, reduceMotion()?40:460);
+      });
     })();
   }
   function finishStep(res, g, effs){
@@ -4202,7 +4256,13 @@ __NETVIEW__
     $('closeHelp').addEventListener('click', close);
   }
 
-  document.addEventListener('click', function(e){ if(formsOpen && !(e.target.closest && e.target.closest('.formZone'))) collapseForms(); });   // tap outside an expanded Forms zone → minimize it back to chips
+  document.addEventListener('click', function(e){ if(formsOpen && !(e.target.closest && e.target.closest('.formZone'))) collapseForms(); });
+  // tap outside an opponent's popover to close it (targeting force-opens them, so leave those alone)
+  document.addEventListener('click', function(e){
+    if(oppOpen==null || targeting) return;
+    if(e.target.closest && (e.target.closest('.oppZones') || e.target.closest('.oppGear'))) return;
+    oppOpen=null; render();
+  });   // tap outside an expanded Forms zone → minimize it back to chips
   $('fightBtn').addEventListener('click', function(){ pick?confirmPick():doFight(); });
   $('passBtn').addEventListener('click', function(){ pick?cancelPick():doPass(); });
   $('ctxBtn').addEventListener('click', onCtxClick);

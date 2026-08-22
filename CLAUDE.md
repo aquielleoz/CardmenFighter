@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.29.2**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.29.5**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -49,7 +49,7 @@ node viewtest.js                                # 🔍 View card reader gating o
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node piletest.js                                # energy/shuffle pile viewers + promote (21)
-node mptest.js                                  # free-for-all parity: pre-fight, responses, opponent zones (24)
+node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting (42)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -83,6 +83,17 @@ npx playwright install chromium
 
 Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` is a shared
 helper, not a suite — don't run it directly.
+
+**Targeting is confirm-first (v1.29.5).** Tapping a target only *stages* it into `targetPick.chosen`; the
+context button then reads **⚡ Activate** and `confirmTargetPick()` is what actually spends energy and resolves.
+Nothing is spent before that, and `Clear` abandons it. A test that taps a target and expects a result must press
+the confirm — `nettest_target3` and `nettest_discard` both had to.
+
+**Opponent turns are presented by `buildOppBeats(log, seat)`** — shared by the duel driver (`runRival`) and the
+N-player driver (`runOpponents`). It is the dwell + `flashArt`/`revealEffect` + `setMessage` + `bumpEffect` layer.
+It used to live inline in `runRival`, and the free-for-all driver only logged, so **every readability feature was
+silently missing in 3-6 player games** (v1.29.3 fixed it by extracting). If you add a beat, add it there — never
+in one driver.
 
 **Narration is reader-relative.** Never write a name into a log line — call `say(actor, '{who} …', cls)`. It
 renders `{who}` in the local frame via `logName` (yourself → "You"; a duel opponent → "Rival"; otherwise `P<n>`)
