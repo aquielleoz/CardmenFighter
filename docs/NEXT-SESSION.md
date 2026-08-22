@@ -1,9 +1,53 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `node test.js` (PASS / 0 FAIL, currently **131**) · `node netview.test.js` (**28**, snapshot redaction) · `node browsertest.js` (headless duel smoke) · the `nettest_*.js` Playwright suite (full-UI netplay — `nettest_full`/`_counter`/`_activate`/`_discard`/`_guard`/`_ceremony`/`_deckpick` 2p, `_3p`/`_rtc`/`_rtc3`/`_react3`/`_target3`/`_losspick3`/`_losspick_remote3`/`_concede3`/`_prefight` N-player) · `node analysis.js 130 on` (balance round-robin — args `N catchup recycle difficulty`; the old `rework` flag was removed in v1.23.0) · `node mpsim.js` (3/4/6p free-for-all balance — args `games difficulty`).
+Test: `npm test` = `node test.js` (**190**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**52** — free-for-all parity) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node browsertest.js` (12-duel smoke) · the `nettest_*.js` netplay suite (**run one at a time**; `nettest_log`/`nettest_full` are position-dependent — verify alone). Balance: `node analysis.js 130 on` · `node mpsim.js` · `node recyclesim.js 400`.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
 Current version: **v1.29.6**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+
+## ☀️ START HERE — where we left off (night of 2026-08-22)
+
+Everything is **merged, pushed and green.** `main` is at **v1.29.6**, working tree clean, and `node build.js`
+reproduces the committed HTML byte-for-byte. Nothing is half-done and no branch is waiting.
+
+**Sanity check before you touch anything** (from `code/`, ~15 seconds):
+
+```bash
+npm test && node mptest.js
+```
+Expect **190 / 0**, **28 / 0**, **52 / 0**. If those pass, the repo is exactly as it was left.
+
+### What got done, in one breath
+The **MP parity audit is fully closed** — every finding fixed: A1/A2 (pre-fight + response windows for seats
+past the first), A3 (the AI could never use *any* Form-granted Quick — it had never sprung Back Stab in any
+mode), B1 (opponents' Equipment/Forms are reachable and targetable), C1 (opponents' turns are actually
+presented), C2 + D1 (round results name real seats; the "you lost a shield" mislabel is gone). Plus, from
+playtest: the popover no longer flattens the log, the Respond? modal says **who cast what at whom**, and
+targeting now **confirms before it fires**.
+
+### Three good places to start, easiest first
+
+1. **Player names** — *the one you asked for.* Every naming site now flows through a single **`logName(seat)`**,
+   which was the whole point of doing D1 first. So this is: add a name per seat (netplay already carries a
+   per-seat identity in the lobby), let the setup screen collect them, and return them from `logName`. One
+   function plus a UI field. Nothing else needs to change.
+2. **The reorderable-energy follow-ups** in the backlog below — a tutorial lesson for the pile viewers, and the
+   deferred "view-only opponent pile inspection", which is now cheap since the mirror already ships every pile.
+3. **The landscape-phone layout branch** — untouched, self-contained, and independent of everything above.
+
+### One loose thread, deliberately left
+`nettest_log` and `nettest_full` are **position-dependent**: they pass alone (13/0 and 5/0) but fail or time out
+late in a long serial sweep. An A/B of the actual builds cleared our changes of causing it — the accumulation
+behind it is still unisolated. **Confirm any sweep failure by running that suite alone before believing it.**
+
+### Two hard-won habits worth keeping
+- **A/B the actual builds** before believing a diagnosis. Three times this session a "product bug" turned out to
+  be tooling (busy-wait loops, orphaned ports, `pkill` killing a live test). The A/B took ~4 minutes and was
+  right every time; confident code-reading was wrong every time.
+- **Measure layout, don't eyeball it.** A passing assertion that enforces the *wrong* invariant is worse than
+  none — one of them actively locked in the bug that flattened the battle log.
+
+---
 
 ## BACKLOG (proposed, not built)
 - **Round-result naming is hardcoded to 2 players — and one part is a real bug** (Aj, 3-Rider playtest — parked as **D1** in [`MP-PARITY-AUDIT.md`](MP-PARITY-AUDIT.md)). `announceRoundWin` computes the loser as "whichever of YOU/RIVAL didn't win", so **when P2 beats P3 the board tells YOU that you lost a shield.** The cosmetic half is the same assumption leaking: the lowercase `'a rival'` fallback, *"returns to Rival's hand"*, and *"Round N — You draw 2, Rival draws 2"*. Fix by deriving the real loser seat(s) from `res` and routing every site through the existing `logName(seat)` — and fold **C2** (`centerShieldFX` saying "Rival") into the same pass. Aj's follow-on idea — **let players enter their own names** — is best done *after* that, since it then becomes one function instead of a second naming fix.
