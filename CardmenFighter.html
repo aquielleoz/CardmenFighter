@@ -5448,6 +5448,35 @@ window.CardFace = {};
     });
   }
 
+  /* Turn one seat's AI log into paced "beats" — the readable presentation layer: a dwell per action,
+   * the card flashed or revealed, and a centre-stage message. SHARED by the duel driver (runRival) and
+   * the N-player driver (runOpponents). It lived inline in runRival, and because the free-for-all driver
+   * only logged, every bit of the v1.25.0/v1.26.0 readability work (rival dwells, the QUICK cue, the
+   * two-phase art flash) was missing there — your play never breathed, the caption still read "You
+   * played…" under an opponent's card, and their effects were invisible. Extracted so it cannot drift. */
+  function buildOppBeats(log, seat){
+    var who=logName(seat), beats=[];
+      log.forEach(function(e){
+        if(e.play){
+          var eff=e.card?E.effectOf(e.card):null;
+          beats.push({ dwell: revealDwell(e.card), run:function(){
+            say(seat, '{who} played '+effPhrase(e.card)+'.', 'rival'); bumpEffect(seat, eff);
+            if(e.card){ if(eff&&eff.kind==='transform'){ flashArt(e.card, who); } else { revealEffect(e.card, who); } setMessage('<b>'+who+' used '+(eff?eff.name:'a card')+'.</b>'); }   // Forms pop center-stage only; read them by hovering the Forms & Rides zone
+          }});
+        }
+        else if(e.useEquip){ beats.push({ dwell:750, run:function(){ say(seat, '{who} spent a '+e.name+' counter — drew a card.', 'rival'); } }); }
+        else if(e.fight==='play'){ beats.push({ dwell:1500, run:function(){ say(seat, '{who} played '+playPhrase(e.combo)+(e.boost?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'rival'); bumpFight(RIVAL, e.combo.type); setMessage('<b>'+who+'</b> played '+kindPhrase(e.combo.type)+'.'); render(); } }); }
+        else if(e.phantasm){ beats.push({ dwell:1300, run:function(){ say(seat, '{who} conjured a Phantasmal Illusion — a '+kindLabel(e.made)+' overtakes the pile.', 'rival'); setMessage('🎭 <b>Rival warped your play with a Phantasmal Illusion!</b>'); render(); } }); }
+        else if(e.fight==='pass'){ beats.push({ dwell:950, run:function(){ say(seat, '{who} passed.', 'rival'); setMessage('<b>'+who+'</b> passed.'); render(); } }); }
+        else if(e.stopper){ beats.push({ dwell:1150, run:function(){ say(seat, '{who} cancelled a '+kindLabel(e.cancelled)+' with '+e.stopper+' STOPPER'+(e.stopper>1?'s':'')+' — '+who+' leads.', 'rival'); if(stats) stats[pkey(RIVAL)].stoppers += e.stopper; setMessage('🛑 <b>Rival cancelled your '+kindLabel(e.cancelled)+'!</b>'); stopperFlash('Rival', kindLabel(e.cancelled), e.stopper); render(); } }); }
+        else if(e.discard){ beats.push({ dwell:600, run:function(){ say(seat, '{who} discarded '+e.discard+' to hand size.', 'rival'); } }); }
+        else if(e.forcedDiscard){ beats.push({ dwell:750, run:function(){ say(seat, '{who} discarded '+e.forcedDiscard+' card'+(e.forcedDiscard>1?'s':'')+'.', 'rival'); } }); }
+        else if(e.lockedSkip){ beats.push({ dwell:650, run:function(){ say(seat, '{who} is locked out — turn skipped.', 'warn'); setMessage('<b>'+who+'</b> is locked out — turn skipped.'); render(); } }); }
+        else if(e.stuck){ beats.push({ dwell:650, run:function(){ say(seat, '{who} is out of cards!', 'warn'); setMessage('<b>'+who+'</b> is out of cards!'); render(); } }); }
+      });
+    return beats;
+  }
+
   function runRival(){
     if(state.finished){ return; }
     busy=true; render(); $('rivalStatus').textContent='thinking…';
@@ -5471,25 +5500,7 @@ window.CardFace = {};
       }
       // Turn the Rival's actions into paced "beats". Effect activations reveal the card in the side
       // panel and dwell so you can read them; the fight/pass/stopper beats render the board.
-      var beats=[];
-      log.forEach(function(e){
-        if(e.play){
-          var eff=e.card?E.effectOf(e.card):null;
-          beats.push({ dwell: revealDwell(e.card), run:function(){
-            logMsg('<b>Rival</b> played '+effPhrase(e.card)+'.', 'rival'); bumpEffect(RIVAL, eff);
-            if(e.card){ if(eff&&eff.kind==='transform'){ flashArt(e.card, 'Rival'); } else { revealEffect(e.card, 'Rival'); } setMessage('<b>Rival used '+(eff?eff.name:'a card')+'.</b>'); }   // Forms pop center-stage only; read them by hovering the Forms & Rides zone
-          }});
-        }
-        else if(e.useEquip){ beats.push({ dwell:750, run:function(){ logMsg('<b>Rival</b> spent a '+e.name+' counter — drew a card.', 'rival'); } }); }
-        else if(e.fight==='play'){ beats.push({ dwell:1500, run:function(){ logMsg('<b>Rival</b> played '+playPhrase(e.combo)+(e.boost?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'rival'); bumpFight(RIVAL, e.combo.type); setMessage('<b>Rival</b> played '+kindPhrase(e.combo.type)+'.'); render(); } }); }
-        else if(e.phantasm){ beats.push({ dwell:1300, run:function(){ logMsg('<b>Rival</b> conjured a Phantasmal Illusion — a '+kindLabel(e.made)+' overtakes the pile.', 'rival'); setMessage('🎭 <b>Rival warped your play with a Phantasmal Illusion!</b>'); render(); } }); }
-        else if(e.fight==='pass'){ beats.push({ dwell:950, run:function(){ logMsg('<b>Rival</b> passed.', 'rival'); setMessage('<b>Rival</b> passed.'); render(); } }); }
-        else if(e.stopper){ beats.push({ dwell:1150, run:function(){ logMsg('<b>Rival</b> cancelled a '+kindLabel(e.cancelled)+' with '+e.stopper+' STOPPER'+(e.stopper>1?'s':'')+' — Rival leads.', 'rival'); if(stats) stats[pkey(RIVAL)].stoppers += e.stopper; setMessage('🛑 <b>Rival cancelled your '+kindLabel(e.cancelled)+'!</b>'); stopperFlash('Rival', kindLabel(e.cancelled), e.stopper); render(); } }); }
-        else if(e.discard){ beats.push({ dwell:600, run:function(){ logMsg('<b>Rival</b> discarded '+e.discard+' to hand size.', 'rival'); } }); }
-        else if(e.forcedDiscard){ beats.push({ dwell:750, run:function(){ logMsg('<b>Rival</b> discarded '+e.forcedDiscard+' card'+(e.forcedDiscard>1?'s':'')+'.', 'rival'); } }); }
-        else if(e.lockedSkip){ beats.push({ dwell:650, run:function(){ logMsg('<b>Rival</b> is locked out — turn skipped.', 'warn'); setMessage('<b>Rival</b> is locked out — turn skipped.'); render(); } }); }
-        else if(e.stuck){ beats.push({ dwell:650, run:function(){ logMsg('<b>Rival</b> is out of cards!', 'warn'); setMessage('<b>Rival</b> is out of cards!'); render(); } }); }
-      });
+      var beats=buildOppBeats(log, RIVAL);
       playBeats(beats, g, function(){
         if(g!==gen) return;
         render();                                                                 // settle the board to the final state
@@ -5669,18 +5680,8 @@ window.CardFace = {};
     return driveRival();                              // finish the Rival's suspended turn (netplay-aware)
   }
   // ---- N-player turn driver: play every AI seat until control returns to the human (seat 0) ----
-  function logOppPlays(log, p){
-    log.forEach(function(e){
-      if(e.play){ say(p, '{who} played '+effPhrase(e.card)+'.', 'rival'); }
-      else if(e.fight==='play'){ say(p, '{who} played '+playPhrase(e.combo)+(e.boost?' (boosted)':'')+'.', 'rival'); }
-      else if(e.phantasm){ say(p, '{who} conjured a Phantasmal Illusion.', 'rival'); }
-      else if(e.fight==='pass'){ logMsg('<b>'+seatName(p)+'</b> passed.', 'rival'); }
-      else if(e.stopper){ logMsg('<b>'+seatName(p)+'</b> cancelled a '+kindLabel(e.cancelled)+' with a STOPPER.', 'rival'); }
-      else if(e.lockedSkip){ logMsg('<b>'+seatName(p)+'</b> is locked out — turn skipped.', 'warn'); }
-      else if(e.stuck){ logMsg('<b>'+seatName(p)+'</b> is out of cards.', 'warn'); }
-      else if(e.respond){ logMsg('<b>'+seatName(p)+'</b> answered with a Quick'+(e.countered?' (Counter)':'')+'.', 'rival'); }
-    });
-  }
+  // logOppPlays was here: a log-only renderer for opponents' turns. Superseded by buildOppBeats, which
+  // logs AND paces/flashes/messages. Deleted rather than left as a second path that could drift again.
   function mpResolveAIShieldWindows(){                 // auto-resolve any shield-guard windows that belong to AI seats
     var guard=0;
     while(state.shieldResponse && state.shieldResponse.q!==YOU && guard++<16){
@@ -5713,26 +5714,34 @@ window.CardFace = {};
       if(isHumanSeat(p)){ return awaitHumanSeat(p, g); }   // a human occupies this opponent seat — pause for their input (unreachable today: all opponents are 'ai')
       $('rivalStatus').textContent=seatName(p)+' is playing…';
       var log=AI.takeTurn(state, p, diffOf(p), [YOU]);
-      logOppPlays(log, p);
-      var passed=log.filter(function(e){ return e.fight==='pass' || e.stopper; })[0];
-      var res=passed && passed.result;
-      if(res && res.roundWinner!=null){                                                             // a round resolved on this seat's pass
-        if(res.needsLossTarget){                                                                    // YOU won with a Special → pick whose shield to strip
-          return promptLossTarget(res, g, function(fr){ if(g!==gen) return;
-            if(fr.shieldResponsePending && state.shieldResponse && state.shieldResponse.q===YOU){ announceRoundWin(fr); return openShieldGuardModal(null, function(){ if(g!==gen) return; if(state.finished){ busy=false; render(); return endGame(); } resolveRoundCeremony(fr, g, function(){ if(g===gen) step(); }); }); }
-            mpResolveAIShieldWindows(); announceRoundWin(fr); if(state.finished){ busy=false; render(); return endGame(); } resolveRoundCeremony(fr, g, function(){ if(g===gen) step(); }); });
-        }
-        if(res.shieldResponsePending && state.shieldResponse && state.shieldResponse.q===YOU){
+      /* C1: play this seat's turn as paced BEATS, exactly like the duel. Previously this driver called
+       * logOppPlays and rendered — no dwell, no flashArt/revealEffect, no setMessage, no bumpEffect — so
+       * an opponent's turn was invisible: your play never breathed, the centre-stage caption still read
+       * "You played…" under their card, and their effects never showed. The round-resolution branches
+       * below must run AFTER the beats, so they moved inside the completion callback. */
+      var beats=buildOppBeats(log, p);
+      playBeats(beats, g, function(){
+        if(g!==gen) return;
+        var passed=log.filter(function(e){ return e.fight==='pass' || e.stopper; })[0];
+        var res=passed && passed.result;
+        if(res && res.roundWinner!=null){                                                             // a round resolved on this seat's pass
+          if(res.needsLossTarget){                                                                    // YOU won with a Special → pick whose shield to strip
+            return promptLossTarget(res, g, function(fr){ if(g!==gen) return;
+              if(fr.shieldResponsePending && state.shieldResponse && state.shieldResponse.q===YOU){ announceRoundWin(fr); return openShieldGuardModal(null, function(){ if(g!==gen) return; if(state.finished){ busy=false; render(); return endGame(); } resolveRoundCeremony(fr, g, function(){ if(g===gen) step(); }); }); }
+              mpResolveAIShieldWindows(); announceRoundWin(fr); if(state.finished){ busy=false; render(); return endGame(); } resolveRoundCeremony(fr, g, function(){ if(g===gen) step(); }); });
+          }
+          if(res.shieldResponsePending && state.shieldResponse && state.shieldResponse.q===YOU){
+            announceRoundWin(res);
+            return openShieldGuardModal(null, function(){ if(g!==gen) return; if(state.finished){ busy=false; render(); return endGame(); } resolveRoundCeremony(res, g, function(){ if(g===gen) step(); }); });
+          }
+          mpResolveAIShieldWindows();
           announceRoundWin(res);
-          return openShieldGuardModal(null, function(){ if(g!==gen) return; if(state.finished){ busy=false; render(); return endGame(); } resolveRoundCeremony(res, g, function(){ if(g===gen) step(); }); });
+          if(state.finished){ busy=false; render(); return endGame(); }
+          return resolveRoundCeremony(res, g, function(){ if(g===gen) step(); });
         }
-        mpResolveAIShieldWindows();
-        announceRoundWin(res);
-        if(state.finished){ busy=false; render(); return endGame(); }
-        return resolveRoundCeremony(res, g, function(){ if(g===gen) step(); });
-      }
-      render();
-      setTimeout(step, reduceMotion()?40:460);
+        render();
+        setTimeout(step, reduceMotion()?40:460);
+      });
     })();
   }
   function finishStep(res, g, effs){

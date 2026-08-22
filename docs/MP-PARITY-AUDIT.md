@@ -181,6 +181,37 @@ var who=player===YOU?'You':'Rival';     // centerShieldFX
 In a free-for-all a broken P3 shield is announced as "Rival · shield down". Should use `logName(player)`,
 which already exists and knows about duels vs seats.
 
+### D1. The round-result announcer is hardcoded to two players · **not just wording** · `template ~2906-2927`
+
+Reported by Aj from a 3-Rider game: *"`a rival` in lower case everything?"*, *"the previous prompt said `You lost
+a shield` when it meant the rival"*, and *"can we just call them by their registered names?"*
+
+There is a genuine **correctness** bug underneath the cosmetics — `announceRoundWin` derives the loser as
+"whichever of YOU/RIVAL didn't win":
+
+```js
+var loserIdx = w===YOU?RIVAL:YOU, loserCls = ..., foePoss = foe==='You'?'your':"Rival's";
+```
+
+With three or more seats that is simply wrong. When **P2 beats P3**, `w` is not `YOU`, so `loserIdx` becomes
+**YOU** — and the board announces *"You lost a shield"* to a player who lost nothing. Everything else in the
+report is the same two-player assumption leaking out:
+
+| Line | Shows | Should be |
+| --- | --- | --- |
+| `~2906` | `foe = seatName(elim) : 'a rival'` | the actual seat; `'a rival'` is a lowercase fallback used whenever nobody was eliminated |
+| `~2912` | *"a rival lost a shield."* (caption **and** log) | *"P3 lost a shield."* |
+| `~2921-2922` | `foePoss = "Rival's"` → *"returns to Rival's hand"* | *"returns to P3's hand"* |
+| `~2927` | *"Round 4 — You draw 2, **Rival** draws 2."* | per-seat, or a neutral line (see v1.28.2, which already broadcasts a neutral `Round N begins.` to netplay clients for exactly this reason) |
+
+`logName(seat)` already exists and handles duel-vs-free-for-all naming; the fix is to compute the **real** loser
+seat(s) from `res` rather than inferring one, then route every one of these through `logName`. **C2**
+(`centerShieldFX` saying "Rival") is the same bug in the shield flourish and should be fixed in the same pass.
+
+**Aj's stretch idea: let players enter their own names.** Worth doing *after* this — once every one of these
+sites goes through a single `logName(seat)`, swapping `P3` for a player-chosen name is one function, and a
+netplay name is already carried per seat in the lobby. Doing it before would mean fixing the naming twice.
+
 ---
 
 ## Deliberate, not gaps
@@ -195,4 +226,6 @@ which already exists and knows about duels vs seats.
    more than either. New `code/mptest.js` (13 assertions) covers all three.
 2. ~~**B1**~~ — ✅ **DONE in v1.29.2.** Unlocked Forceful Strip *and* Sabotage against opponents' zones in a free-for-all.
 3. **C1** — the biggest visible improvement, and the extraction protects against re-drift.
-4. **C2** — one line.
+4. **C2 + D1 together** — D1 is a real MP correctness bug (a player is told they lost a shield when they did
+   not), and C2 is the same two-player assumption in the shield flourish. Fixing them in one pass, routing every
+   site through `logName(seat)`, also sets up Aj's player-names idea as a one-function change.

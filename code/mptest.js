@@ -16,6 +16,8 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
   const log=()=>p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'),e=>e.textContent.trim()));
   const hasLog=async re=>{ for(let i=0;i<60;i++){ if((await log()).some(l=>re.test(l))) return true; await wait(150);} return false; };
+  const msg=()=>p.evaluate(()=>((document.getElementById('message')||{}).textContent||'').trim());
+  const waitFor=async (fn,n)=>{ for(let i=0;i<(n||60);i++){ if(await fn()) return true; await wait(150);} return false; };
 
   async function start3p(){
     await p.goto(URL); await wait(700);
@@ -118,6 +120,28 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   await wait(700);
   ok(await p.evaluate(()=>window.__solo.st().players[2].equipment.length===0), 'tapping it REMOVED their Caltrops');
   ok(await hasLog(/Forceful Strip/i), '…and the play is logged');
+
+  // ================= C1: opponents' turns are actually presented =================
+  ok(await start3p(), '3-player game restarted for turn presentation');
+  await p.evaluate(()=>{
+    const st=window.__solo.st(); const mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
+    st.round=3; st.turn=0; st.pile=null; st.pending=null; st.respondFor=null;
+    st.players[0].hand=[mk(4,'H'),mk(5,'C')];
+    st.players[1].hand=[mk(9,'S')]; st.players[1].energy=[];
+    st.players[2].hand=[mk(10,'H')]; st.players[2].energy=[];
+    window.__solo.render();
+  }); await wait(300);
+  // your own play writes the caption; an opponent's turn must then OVERWRITE it
+  await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="4H"]'); if(c)c.click();
+    const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  // NB: your own fight does not set the centre caption (the log carries it) — the caption after your play is a
+  // prompt/status line. What matters for C1 is that an opponent's turn WRITES one at all, asserted next.
+  ok(await hasLog(/^You played/), 'your own play is logged');
+  // an opponent then acts — the caption must name THEM, never still say "You played"
+  const capt=await waitFor(async()=>{ const m=await msg(); return /P2|P3/.test(m); }, 90);
+  ok(capt, 'an opponent\'s turn OVERWRITES the caption with their name (it used to stay "You played…"): "'+(await msg()).slice(0,60)+'"');
+  ok(!/^You played/.test(await msg()), '…so the stage and the caption no longer disagree');
+  ok(await p.evaluate(()=>window.__solo.st().round>=3), 'the game progressed through the opponents\' turns');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
