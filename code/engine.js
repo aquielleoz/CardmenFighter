@@ -1416,11 +1416,12 @@
     var wasBroken = opp.shields <= 0;                       // already at 0 coming in = a finishing strike
     for (var s2 = 0; s2 < obj.n && !st.finished; s2++) {
       if (opp.shields > 0) {                                                                            // you still have a shield to protect
-        if (opp.cantLoseRound) { result.prevented = true; continue; }                                  // Leyline: "can't lose this round"
+        if (opp.cantLoseRound) { result.prevented = true; (result.spared = result.spared || []).push(q); continue; }   // Leyline: "can't lose this round"
         if (shieldSaved(st, q)) { result.prevented = true; continue; }                                 // Sphere / Holy Shroud
         if (opp.equipment.some(function (e) { return e.protect === 'special'; })) { result.prevented = true; continue; }
         if (opp.preventShield) { opp.preventShield = false; result.prevented = true; continue; }
         opp.shields -= 1; result.shieldStripped = true; opp.lastAttacker = obj.winner;                  // take a shield (+ grudge the striker)
+        (result.struck = result.struck || []).push(q);   // WHO lost it — the UI could only say "a rival" without this
         if (SHIELD_CARDS && opp.shieldPile && opp.shieldPile.length) {                                  // Mechanic 1: the broken shield's card returns to its owner's hand
           opp.hand = sortHand(opp.hand.concat([opp.shieldPile.pop()]));
           result.shieldToHand = (result.shieldToHand || 0) + 1;

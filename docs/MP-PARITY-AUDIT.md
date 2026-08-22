@@ -172,7 +172,7 @@ the two-phase art flash — landed on the 2-player path only. Reported symptoms:
 branches. Aj: *"it's fast so good for testing"* — keep the quick pacing available rather than slowing
 everything uniformly.
 
-### C2. The shield flourish calls every opponent "Rival" · `template ~1316`
+### C2. The shield flourish calls every opponent "Rival" · ✅ **FIXED in v1.29.6** (`logName(player)`)
 
 ```js
 var who=player===YOU?'You':'Rival';     // centerShieldFX

@@ -1344,7 +1344,7 @@ __NETVIEW__
   function centerShieldFX(kind, player){
     if(reduceMotion()) return;
     var fx=$('stagefx'); if(!fx) return;
-    var who=player===YOU?'You':'Rival';
+    var who=logName(player);   // C2: this said 'Rival' for every opponent, so a broken P3 shield read 'Rival - shield down'
     fx.innerHTML='<div class="sfFlash"></div><div class="sfRing"></div>'+
       '<span class="sfShards"><i></i><i></i><i></i><i></i><i></i><i></i></span>'+
       '<div class="sfShield"></div>'+
@@ -2934,32 +2934,67 @@ __NETVIEW__
   // Log the win itself (win / shield strip / prevented / kick / jab). The "Round N — draws" line is logged
   // LATER by logRoundDraw(), after the end-of-round discard + the deferred draw.
   function announceRoundWin(res){
-    var w=res.roundWinner, who=w===YOU?'You':(MP()?seatName(w):'Rival'), foe;
-    if(MP()){ var elim=(res.eliminated&&res.eliminated.length)?res.eliminated[res.eliminated.length-1]:null; foe=(elim!=null)?seatName(elim):'a rival'; }
-    else { foe=w===YOU?'Rival':'You'; }
-    var cls=w===YOU?'you':'rival';
+    var w=res.roundWinner, who=logName(w), cls=(w===YOU?'you':'rival');
     var spec = res.comboType ? (TYPE[res.comboType]||'Special') : 'Special';
-    if(res.kick){ pendingKick=true; lastEndType='kick'; setMessage('💥🦵 <b>'+who+'</b> land'+(w===YOU?'':'s')+' the FIGHTER KICK — '+foe+' explode'+(w===YOU?'s':'')+'!'); logMsg('💥 <b>'+who+'</b> won with a <b>'+spec+'</b> — FIGHTER KICK!', cls); }
-    else if(res.prevented){ setMessage('🛡 The loss was prevented!'); logMsg('<b>'+who+'</b> won with a '+spec+' - but the loss was prevented.', cls); }
-    else if(res.shieldStripped){ setMessage('<b>'+foe+'</b> lost a shield.'); logMsg('<b>'+who+'</b> won with a <b>'+spec+'</b> - '+foe+' lost a shield.', cls); }
-    else { setMessage('<b>'+who+'</b> won the round of Jabs.'); logMsg('<b>'+who+'</b> won the round of Jabs.', cls); }
-    logCatchUp(res, w, foe);
+    /* WHO lost the shield now comes from res.struck (engine, v1.29.6). It used to be "whoever was eliminated,
+     * else the string 'a rival'" — so in a free-for-all almost every line read "a rival lost a shield" even
+     * though the game knew perfectly well which seat it was. */
+    var struck=(res.struck||[]).filter(function(q,i,a){ return a.indexOf(q)===i; });
+    var foeList = struck.length ? struck.map(logName).join(' & ') : null;
+    var foe = foeList || (MP() ? 'a rival' : (w===YOU?'Rival':'You'));
+    var lostVerb = (struck.length===1 && struck[0]===YOU) ? 'lose' : (foe==='You' ? 'lose' : 'lost');
+    if(res.kick){
+      pendingKick=true; lastEndType='kick';
+      setMessage('💥🦵 <b>'+who+'</b> land'+(w===YOU?'':'s')+' the FIGHTER KICK — '+foe+' explode'+(foe==='You'?'':'s')+'!');
+      say(w, '💥 {who} land'+(w===YOU?'':'s')+' the FIGHTER KICK — '+foe+' is out!', cls);
+    }
+    else if(res.prevented && !res.shieldStripped){
+      setMessage('🛡 The loss was prevented!');
+      say(w, '{who} won with a '+spec+' - but the loss was prevented.', cls);
+    }
+    else if(res.shieldStripped){
+      setMessage('<b>'+foe+'</b> '+lostVerb+' a shield.');
+      say(w, '{who} won with a <b>'+spec+'</b> - '+foe+' '+lostVerb+' a shield.', cls);
+    }
+    else if(res.wonWithCombo){
+      // A Special won but nothing was stripped (no valid target, or every strike was blanked). Saying
+      // "won the round of Jabs" here was simply wrong — Aj saw exactly this after striking P3's shield.
+      setMessage('<b>'+who+'</b> won with a <b>'+spec+'</b> — no shield lost.');
+      say(w, '{who} won with a <b>'+spec+'</b> - no shield was lost.', cls);
+    }
+    else {
+      setMessage('<b>'+who+'</b> won the round of Jabs.');
+      say(w, '{who} won the round of Jabs.', cls);
+    }
+    logCatchUp(res, w, struck);
     TUT.note('roundWin', res);
   }
   // Catch-up (M1 shields-as-cards + M2 loser-mill): surface the round loser's refuel. Skipped on a Kick
-  // (the loser is out). shieldToHand = broken shields returned to hand; milled[loser] = cards → Energy.
-  function logCatchUp(res, w, foe){
+  // (the loser is out). Every seat is named from res.milled / res.struck — the old version derived the loser
+  // as "whichever of YOU/RIVAL didn't win", which in a free-for-all told the WRONG player they lost a shield.
+  function logCatchUp(res, w, struck){
     if(res.kick) return;
-    var loserIdx = w===YOU?RIVAL:YOU, loserCls = w===YOU?'rival':'you', foePoss = foe==='You'?'your':"Rival's";
-    if(res.shieldToHand) logMsg('🛡→✋ The broken shield returns to '+foePoss+' hand.', loserCls);
-    if(res.milled && res.milled[loserIdx]){ var mn=res.milled[loserIdx]; logMsg('<b>'+foe+'</b> move'+(foe==='You'?'':'s')+' '+mn+' card'+(mn>1?'s':'')+' from '+(foe==='You'?'your':'their')+' deck into Energy — catch-up.', loserCls); floatDeckLoss(loserIdx===YOU?'youDeck':'rivalDeck', mn); }
+    if(res.shieldToHand && struck && struck.length){
+      struck.forEach(function(q){
+        say(q, '🛡→✋ The broken shield returns to {who}’s hand.', q===YOU?'you':'rival');
+      });
+    }
+    if(res.milled){
+      Object.keys(res.milled).forEach(function(k){
+        var q=parseInt(k,10), mn=res.milled[k];
+        say(q, '{who} move'+(q===YOU?'':'s')+' '+mn+' card'+(mn>1?'s':'')+' from '+(q===YOU?'your':'their')+' deck into Energy — catch-up.', q===YOU?'you':'rival');
+      });
+    }
   }
   function logRoundDraw(res){
-    if(!res.newRound) return;
-    logMsg('<b>Round '+res.newRound+'</b> — You draw '+res.draws[YOU]+', Rival draws '+res.draws[RIVAL]+'.', 'round');
-    // Clients get a neutral marker: the draw counts are per-seat, so only the round number is shareable.
-    if(typeof NET!=='undefined' && NET.sayBroadcast) NET.sayBroadcast(null, '<b>Round '+res.newRound+'</b> begins.', 'round');
-    if(res.draws[YOU]===0) logMsg('Draw fizzled — your deck &amp; shuffle pile are empty. Spend energy on effects to recycle cards back into your deck.', 'warn');
+    var rn = res.newRound || (state && state.round);      // never render "Round undefined" (Aj saw it)
+    if(!rn) return;
+    /* One neutral line for everyone (Aj's wording), instead of "You draw 2, Rival draws 2" — which could not
+     * be phrased for 3-6 seats and named the wrong player in a free-for-all. Per-seat detail that actually
+     * matters (your own fizzle) still follows. */
+    var per=(E.DRAW_PER_ROUND!=null)?E.DRAW_PER_ROUND:2;
+    say(null, '<b>Round '+rn+'</b> begins. Each player draws '+per+'.', 'round');
+    if(res.draws && res.draws[YOU]===0) logMsg('Draw fizzled — your deck &amp; shuffle pile are empty. Spend energy on effects to recycle cards back into your deck.', 'warn');
   }
   function logDeckout(){
     var loser = state.winner===YOU ? 'Rival' : 'You';

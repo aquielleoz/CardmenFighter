@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.29.5**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.29.6**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -49,7 +49,7 @@ node viewtest.js                                # 🔍 View card reader gating o
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node piletest.js                                # energy/shuffle pile viewers + promote (21)
-node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting (42)
+node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (50)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -84,6 +84,11 @@ npx playwright install chromium
 Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` is a shared
 helper, not a suite — don't run it directly.
 
+**Never infer who lost a round — read `result.struck`.** The round result carries `struck` (seats that lost a
+shield) and `spared` (blanked by a Leyline), added in v1.29.6 precisely because the UI used to derive the loser as
+`w===YOU?RIVAL:YOU` and therefore told the wrong player they lost a shield in a free-for-all. Announcements name
+seats via `logName(seat)`; there is no hardcoded "Rival" left in them. Note `resolveRoundWin` returns early with
+`needsLossTarget` and **no `newRound`**, so anything rendering a round number needs the `state.round` fallback.
 **Targeting is confirm-first (v1.29.5).** Tapping a target only *stages* it into `targetPick.chosen`; the
 context button then reads **⚡ Activate** and `confirmTargetPick()` is what actually spends energy and resolves.
 Nothing is spent before that, and `Clear` abandons it. A test that taps a target and expects a result must press
