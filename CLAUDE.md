@@ -133,6 +133,17 @@ They pass serially because each closes its server, but never run those three con
 `srv.listen` is awaited with no error handler in every suite, so a port collision hangs forever rather than
 failing — which is why a collision would look like a mysterious timeout.
 
+**Never `pkill` browsers while a suite is running — and never put cleanup in a command that shares a shell
+with a test.** `pkill -f headless_shell` used as tidy-up killed a running `browsertest`'s page mid-flight; the
+symptom was `HARNESS ERROR: page.evaluate: Target page, context or browser has been closed`, plus a
+`chrome-headless-shell` sitting at ~28% CPU that looks exactly like the game stuck in a loop. It is not.
+
+**Three separate self-inflicted diagnoses happened in one session** — busy-wait `pgrep` loops stealing CPU,
+orphaned ports from `kill -9`, and this. Each one presented as a product bug and each was the tooling. The
+reliable escape is an **A/B of the actual builds**: stash the change, run the suspect suite N times on each
+build, compare. It takes ~4 minutes and it has been right every time, where confident code-reading was wrong
+every time.
+
 They are load-sensitive enough that *background junk on the machine* can fail them: one sweep's `nettest_full`
 timed out at >180s purely because three stray busy-wait shells were spinning. If a suite times out, check for
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
