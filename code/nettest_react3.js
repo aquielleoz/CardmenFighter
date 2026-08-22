@@ -1,7 +1,7 @@
 /* N-PLAYER REACTIVE PARITY (3 players): the host casts a Technique (Gather Energy 1D); a REMOTE OPPONENT (client 1,
  * holding Counter Spell 4D) gets the Counter window on its own board and counters over the wire — proving reactive
  * windows now belong to the remote human in 3–6p, not the auto-resolver. Over BroadcastChannel. */
-const { chromium } = require('playwright'); const http=require('http'),fs=require('fs'),path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=8297,ROOM='RX'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -13,7 +13,7 @@ const ready=p=>p.evaluate(()=>{ var g=document.getElementById('lobbyGo'); if(g)g
 async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } return false; }
 (async()=>{
   await new Promise(r=>srv.listen(PORT,r));
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
+  const b=await chromium.launch(LAUNCH);
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));
   const c1=await ctx.newPage(); c1.on('pageerror',e=>errs.push('c1: '+e.message));

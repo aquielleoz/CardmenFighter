@@ -2,7 +2,7 @@
  * leads a jab, client passes → host wins, no shield lost), THEN in round 2 stage a host combo win (5-card straight
  * the client can't beat) that threatens the client's shield. The client holds Leyline (9D) and springs it OVER THE
  * WIRE. Verifies the guard modal pops from the mirror, resolves on the host, and the client keeps its shield. */
-const { chromium } = require('playwright'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=8285,ROOM='G'+Date.now().toString().slice(-4);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -18,7 +18,7 @@ const passC=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(
 async function waitFor(fn){ for(let i=0;i<60;i++){ if(await fn()) return true; await wait(120); } return false; }
 (async()=>{
   await new Promise(r=>srv.listen(PORT,r));
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
+  const b=await chromium.launch(LAUNCH);
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));
   const join=await ctx.newPage(); join.on('pageerror',e=>errs.push('join: '+e.message));

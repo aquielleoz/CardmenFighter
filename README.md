@@ -2,7 +2,7 @@
 
 A self-contained, single-file dueling card game — a Kamen-Rider-themed TCG you play in any browser, on desktop or phone, fully offline. Strip your rival's shields with card combos, transform into stronger forms, and land the finishing Fighter Kick.
 
-**Status:** v1.26.1 — playable and complete (solo vs AI, guided tutorials, and local/online 2–6 player).
+**Status:** v1.26.2 — playable and complete (solo vs AI, guided tutorials, and local/online 2–6 player).
 
 ## Play
 
@@ -49,6 +49,12 @@ cp CardmenFighter.html ../CardmenFighter.html   # keep the repo-root copy in syn
 node test.js           # engine + AI suite (131 assertions, must be 0 FAIL)
 node netview.test.js   # netplay snapshot tests (28)
 ```
+
+Or via the npm scripts: `npm run build`, `npm test`, `npm run test:smoke`.
+
+The full-UI browser and netplay suites (`browsertest.js`, `nettest_*.js`) need Playwright — `npm install &&
+npx playwright install chromium` in `code/`, then run one suite at a time. The **game** has no dependencies;
+`code/package.json` exists only for these tests.
 
 `CardmenFighter.html` is generated — edit the sources in `code/` (template + `.js` modules) and re-run `node build.js`. Never hand-edit the generated HTML; the next build overwrites it. `build.js` writes only `code/CardmenFighter.html`, so copy it to the repo root yourself if you want both in sync (`faces.js` is no longer inlined — layouts were retired in v0.95).
 

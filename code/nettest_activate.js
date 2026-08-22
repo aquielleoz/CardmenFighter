@@ -1,7 +1,7 @@
 /* Deterministic netplay ACTIVATE-over-the-wire: the remote client activates a Technique (Gather Energy 1D) on
  * its own turn. Verifies {op:'activate'} reaches the host, the engine applies it (client ramps), the host settles
  * with no counter, the client keeps its turn, and both boards stay error-free and in sync. */
-const { chromium } = require('playwright'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=8281,ROOM='V'+Date.now().toString().slice(-4);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -12,7 +12,7 @@ const energyOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.energy():0);
 const playFirst=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card'); if(c)c.click(); var f=document.getElementById('fightBtn'); if(f)f.click(); });
 (async()=>{
   await new Promise(r=>srv.listen(PORT,r));
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
+  const b=await chromium.launch(LAUNCH);
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));
   const join=await ctx.newPage(); join.on('pageerror',e=>errs.push('join: '+e.message));

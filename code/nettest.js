@@ -1,7 +1,7 @@
 /* Validate the transport primitive: can two tabs exchange messages via BroadcastChannel,
  * both when the page is SERVED over http and when opened as a file:// URL?
  * Decides whether the local two-client rehearsal can use BroadcastChannel. */
-const { chromium } = require('playwright');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -23,7 +23,7 @@ const PROBE = `<!doctype html><meta charset=utf8><body><script>
 
 (async()=>{
   const dir='/tmp/nettest'; fs.mkdirSync(dir,{recursive:true}); fs.writeFileSync(path.join(dir,'probe.html'),PROBE);
-  const browser = await chromium.launch({ executablePath:'/opt/pw-browsers/chromium' });
+  const browser = await chromium.launch(LAUNCH);
 
   async function trial(label, url1, url2){
     const ctx = await browser.newContext();

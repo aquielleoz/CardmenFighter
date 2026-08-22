@@ -1,7 +1,7 @@
 /* Netplay DECK PICKER: host and client each choose a DIFFERENT archetype in the lobby; verify the host deals each
  * side the deck it picked (Pure Wizard = all ♦ for the host, Pure Rogue = all ♠ for the client) and that the board
  * deck labels match on both ends. Proves the lobby picks actually drive startGame. */
-const { chromium } = require('playwright'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=8291,ROOM='DK'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}`;
@@ -11,7 +11,7 @@ const label=(p,id)=>p.evaluate(id=>((document.getElementById(id)||{}).textConten
 async function waitHand(p){ for(let i=0;i<60;i++){ if((await p.evaluate(()=>document.querySelectorAll('#hand .card').length))===6) return true; await wait(150); } return false; }
 (async()=>{
   await new Promise(r=>srv.listen(PORT,r));
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
+  const b=await chromium.launch(LAUNCH);
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));
   const join=await ctx.newPage(); join.on('pageerror',e=>errs.push('join: '+e.message));

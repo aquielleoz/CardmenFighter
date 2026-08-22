@@ -1,7 +1,7 @@
 /* N-PLAYER over REAL WebRTC (3 players, host-centered star): the host runs a hub, inviting two players via two
  * separate offer/answer exchanges, then starts a 3-Rider game. Verifies multi-peer signaling, per-seat mirror
  * routing (no cross-peer hand leak), N-player turns, and round sync — all over DataChannels, no server. */
-const { chromium } = require('playwright'); const http=require('http'),fs=require('fs'),path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=8296,ROOM='RT3'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&stun=0&dbg=1`;
@@ -29,7 +29,7 @@ async function invite(host, client, prevOffer){
 }
 (async()=>{
   await new Promise(r=>srv.listen(PORT,r));
-  const b=await chromium.launch({ executablePath:'/opt/pw-browsers/chromium', args:['--disable-features=WebRtcHideLocalIpsWithMdns'] });
+  const b=await chromium.launch(Object.assign({}, LAUNCH, { args:['--disable-features=WebRtcHideLocalIpsWithMdns'] }));
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));
   const c1=await ctx.newPage(); c1.on('pageerror',e=>errs.push('c1: '+e.message));

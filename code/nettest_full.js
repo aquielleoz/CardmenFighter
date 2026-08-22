@@ -1,6 +1,6 @@
 /* Full-UI netplay core loop: two tabs on the REAL board. Turn-driven, patient bot that waits out the async
  * mirror round-trip. Verifies both play, rounds resolve in sync, no errors. */
-const { chromium } = require('playwright'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=8273,ROOM='F'+Date.now().toString().slice(-4);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}`;
@@ -17,7 +17,7 @@ const play=(p,id)=>p.evaluate(function(id){ var c=document.querySelector('#hand 
 async function waitTurnEnds(p){ for(let i=0;i<40;i++){ if(!(await snap(p)).yourTurn) return; await wait(80); } }
 (async()=>{
   await new Promise(r=>srv.listen(PORT,r));
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
+  const b=await chromium.launch(LAUNCH);
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));
   const join=await ctx.newPage(); join.on('pageerror',e=>errs.push('join: '+e.message));

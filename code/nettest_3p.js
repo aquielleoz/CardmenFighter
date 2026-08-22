@@ -1,7 +1,7 @@
 /* N-PLAYER netplay (3 players) over BroadcastChannel: host + two clients share a room; each client picks a deck &
  * readies, the host starts a 3-Rider free-for-all. A patient bot drives whichever seat's turn it is on the real
  * board. Verifies seat assignment, per-seat mirrors, N-player turn routing, round advance, and cross-board sync. */
-const { chromium } = require('playwright'); const http=require('http'),fs=require('fs'),path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=8295,ROOM='T3'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -21,7 +21,7 @@ async function waitFor(fn,t=80,ms=150){ for(let i=0;i<t;i++){ if(await fn()) ret
 async function turnOff(p){ for(let i=0;i<40;i++){ if(!(await snap(p)).mine) return; await wait(80); } }
 (async()=>{
   await new Promise(r=>srv.listen(PORT,r));
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
+  const b=await chromium.launch(LAUNCH);
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));
   const c1=await ctx.newPage(); c1.on('pageerror',e=>errs.push('c1: '+e.message));

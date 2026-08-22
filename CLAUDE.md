@@ -1,10 +1,11 @@
 # Cardmen Fighter — working notes for Claude
 
 A Kamen-Rider-themed dueling card game that ships as **one self-contained HTML file** — engine, AI, art, and
-sound all inlined. No server, no install, no dependencies, no `package.json`. Runs offline in any browser,
-desktop or phone.
+sound all inlined. No server, no install, runs offline in any browser, desktop or phone. **The game itself has
+zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
+the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.26.1**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.26.2**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -29,11 +30,19 @@ instead of inlining it (saves ~435KB). It is still tracked but not part of the b
 Run everything from `code/`:
 
 ```bash
+npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
+npm test               # = node test.js && node netview.test.js — 131 + 28 assertions, must end 0 FAIL
+npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
+```
+
+The underlying commands, if you prefer them raw:
+
+```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
 node test.js                                    # engine + AI suite — 131 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction — 28, must end 0 FAIL
-node browsertest.js                             # headless duel smoke (needs Playwright — see below)
+node browsertest.js                             # headless duel smoke
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -48,11 +57,44 @@ node mpsim.js                # 3/4/6p free-for-all — args: games difficulty
 node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js
 ```
 
-`browsertest.js` and the whole `nettest_*.js` full-UI netplay suite need **Playwright** — `require('playwright')`
-plus a Chromium at `/opt/pw-browsers/chromium`. Neither is installed on this machine, so both currently fail with
-`MODULE_NOT_FOUND`; that's an environment gap, not a regression. `nettest_prefight` also fails deterministically
-in a sandbox even with Playwright present (a harness/BroadcastChannel limitation, not an engine bug) — worth a
-real 2-tab manual check instead.
+### Playwright suites (browser + netplay)
+
+`browsertest.js` and the 21 `nettest_*.js` full-UI netplay suites drive the real built HTML in a headless browser.
+They need Playwright, which **is** installed here (`code/node_modules`, gitignored). To set it up from scratch:
+
+```bash
+npm install            # in code/ — installs the playwright devDependency
+npx playwright install chromium
+```
+
+Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` is a shared
+helper, not a suite — don't run it directly.
+
+Browser resolution lives in **`code/pwchrome.js`**: `$PW_CHROMIUM` if set, else `/opt/pw-browsers/chromium` if it
+exists (the old sandbox layout), else Playwright's own download. Launch through it — `chromium.launch(LAUNCH)` —
+rather than hardcoding a path, which is what these files used to do and why they were unrunnable off that sandbox.
+
+`nettest.js` is a **BroadcastChannel-isolation probe**, not a pass/fail suite: it prints "cross delivery: FAILS ✗
+(expected — contexts are isolated)" and exits 0. That line is the expected result.
+
+**Run them one at a time.** Each suite starts its own HTTP server on a fixed port and drives two or three real
+browser pages; two suites at once flake on CPU contention (`nettest_rtc` in particular fails at `maxRound=0`
+concurrently and passes 11/0 alone). A serial sweep of all 21 takes a few minutes.
+
+Status as of v1.26.2 — **20 of 21 green**, one known-failing:
+
+- `nettest_prefight.js` — **6 pass / 7 fail, unresolved.** The remote and host pre-fight modals never appear, so
+  Back Stab never springs, though the turn-skip assertions still pass. Earlier notes blamed the sandbox harness;
+  it fails the same way on a real Mac with a real Chromium, so **that explanation no longer holds** and it is
+  either a stale test or a real netplay regression. The engine side is sound in isolation (`effectFor` gives Back
+  Stab `quick:true` under Hermes Super). Ruled out: the lead-lock guard (padding both holders' hands changes
+  nothing). Needs a 2-tab manual check to decide test-vs-product before trusting or rewriting it.
+
+**These suites go stale silently** — they were unrunnable for however long `/opt/pw-browsers/chromium` was
+missing, and two had quietly rotted against product changes (fixed in v1.26.2: `nettest_discard` never adapted to
+v1.24.0's target-first flow, `nettest_target3` never adapted to v1.22.1's Broadway pitch cost on Critical Hit).
+**Run the full sweep before and after any netplay or activation-flow change**, and when one fails, first ask
+whether the product moved and the test didn't.
 
 ## Rules facts worth knowing before touching the engine
 

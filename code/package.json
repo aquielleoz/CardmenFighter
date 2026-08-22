@@ -1,0 +1,15 @@
+{
+  "name": "cardmen-fighter-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dev-only test tooling for Cardmen Fighter. The GAME has zero dependencies — it is one self-contained HTML file and never imports any of this. Playwright is here only so the browser/netplay suites can run.",
+  "scripts": {
+    "build": "node build.js && cp CardmenFighter.html ../CardmenFighter.html",
+    "test": "node test.js && node netview.test.js",
+    "test:smoke": "node browsertest.js",
+    "cardlist": "node gen-cardlist.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}

@@ -1,9 +1,9 @@
-const { chromium } = require('playwright');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
 const path = require('path');
 
 (async () => {
   const url = 'file://' + path.resolve('CardmenFighter.html');
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  const browser = await chromium.launch(LAUNCH);
   const errors = [];
   let games = 0, youWins = 0, rivalWins = 0, maxRound = 0, responded = 0, declined = 0;
 

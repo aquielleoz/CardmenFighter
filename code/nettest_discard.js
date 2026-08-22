@@ -1,7 +1,7 @@
 /* Deterministic netplay REMOTE FORCED-DISCARD: the host casts Telekinesis (3D, "target Rival discards 2"); the
  * remote client gets the discard PICKER on its own board and chooses which 2 to pitch. Verifies the picker appears
  * from the mirror, the client's chosen ids resolve on the host, its hand shrinks by 2, and no errors / stays in sync. */
-const { chromium } = require('playwright'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=8283,ROOM='DC'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -12,7 +12,7 @@ const handOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.hand():[]);
 const pickerUp=p=>p.evaluate(()=>/discard/i.test((document.getElementById('message')||{}).textContent||'') && document.querySelectorAll('#hand .card').length>0);
 (async()=>{
   await new Promise(r=>srv.listen(PORT,r));
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
+  const b=await chromium.launch(LAUNCH);
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));
   const join=await ctx.newPage(); join.on('pageerror',e=>errs.push('join: '+e.message));
@@ -31,7 +31,12 @@ const pickerUp=p=>p.evaluate(()=>/discard/i.test((document.getElementById('messa
   await host.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card[data-id="3D"]'); if(c)c.click();
     var ca=document.getElementById('cardActivate'), ctx=document.getElementById('ctxBtn');
     if(ca&&ca.offsetParent!==null&&!ca.disabled&&!/off/.test(ca.className)) ca.click();
-    else if(ctx&&!ctx.disabled&&/Activate/i.test(ctx.textContent||'')) ctx.click(); });
+    else if(ctx&&!ctx.disabled&&/Activate|Choose target/i.test(ctx.textContent||'')) ctx.click(); });
+
+  // v1.24.0 made hostile-singular effects (incl. Telekinesis' discardOpp) TARGET-FIRST: the button reads
+  // "🎯 Choose target" and the energy is only spent once a target is picked. Tap the opponent panel.
+  await wait(300);
+  await host.evaluate(()=>{ var t=document.querySelector('.oppPanel.targetable')||document.querySelector('.oppPanel')||document.querySelector('#rival.targetable'); if(t)t.click(); });
 
   // Wait for the discard picker to appear on the CLIENT (may follow a brief auto-declined response window).
   let picker=false; for(let i=0;i<50;i++){ if(await pickerUp(join)){ picker=true; break; } await wait(120); }
