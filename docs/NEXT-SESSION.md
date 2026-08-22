@@ -3,7 +3,13 @@
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
 Test: `node test.js` (PASS / 0 FAIL, currently **131**) · `node netview.test.js` (**28**, snapshot redaction) · `node browsertest.js` (headless duel smoke) · the `nettest_*.js` Playwright suite (full-UI netplay — `nettest_full`/`_counter`/`_activate`/`_discard`/`_guard`/`_ceremony`/`_deckpick` 2p, `_3p`/`_rtc`/`_rtc3`/`_react3`/`_target3`/`_losspick3`/`_losspick_remote3`/`_concede3`/`_prefight` N-player) · `node analysis.js 130 on` (balance round-robin — args `N catchup recycle difficulty`; the old `rework` flag was removed in v1.23.0) · `node mpsim.js` (3/4/6p free-for-all balance — args `games difficulty`).
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
+<<<<<<< HEAD
 Current version: **v1.28.2**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+||||||| parent of 280b11e (v1.29.0 — Advanced lesson 10 "Energy Order" + docs)
+Current version: **v1.28.1**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+=======
+Current version: **v1.29.0**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+>>>>>>> 280b11e (v1.29.0 — Advanced lesson 10 "Energy Order" + docs)
 
 ## BACKLOG (proposed, not built)
 - **Mobile layout — landscape follow-up** (optional): the v1.20.0 pass covered portrait phones. Landscape phones are *wide* (>720px) but *short*, so the `max-width:720px` mobile rules don't apply — they fall into the 3-column desktop layout with a cramped height. If landscape matters, add a short-viewport branch (e.g. `@media (max-height:520px)`) that collapses to a single scroll column + the 🔍 View reader regardless of width. Not blocking; portrait is the common case.
@@ -16,6 +22,7 @@ Current version: **v1.28.2**. The 2-apex + Forms **rework is simply the game** �
   - ~~Advanced tutorial lesson on custom decks~~ — ✅ **BUILT** in v1.28.1 (Advanced lesson 9).
   - **Deck editing** was deliberately left out (Aj: create + delete only). If it ever comes back, note that a saved deck's IDENTITY is its composition key, so "editing" is really delete + re-add and anything pointing at the old key must be migrated.
 
+<<<<<<< HEAD
 ### v1.28.2 — netplay's battle log was EMPTY for every client (public narration)
 A standalone netplay bug, found while designing the energy-reorder feature but fixed on its own: netplay had **no host→client log channel at all**. Every message type was state (`mirror`/`setup`) or control (`join`/`welcome`/`err`/`peer`/`ceremony`), so the host narrated the whole game to *itself* and **every other player sat in front of a blank battle log for the entire match — including their own moves.** Verified before touching anything: the host log had 4 lines ending in `Rival played a Jab - 6♣`; the client's had **zero**.
 - **Why it was never a simple broadcast:** narration is **reader-relative**. The same event is "You played" to the actor and "Rival played" to everyone else, and the host's strings are baked in its own frame — forwarding them verbatim would tell a client *"You played"* about the host's card. That is presumably why nobody just piped the log across.
@@ -25,6 +32,19 @@ A standalone netplay bug, found while designing the energy-reorder feature but f
 - **NEW `code/nettest_log.js`** (13 assertions): the host's play reads "You played" on the host and **"Rival played" on the client, describing the same card**; the client's own play reads "You played" for it and "Rival played" for the host; the client's log is genuinely populated; no unresolved `{who}` ever leaks; and the client opens with its own duel line, never the host-framed one.
 - Two test traps worth recording, since both look exactly like product bugs: a client's mirror is **seat-rotated** so its own turn is `turn===0`, not its absolute seat; and round 1 is jabs-only *and must beat the pile*, so a test has to pick a **legal** card rather than the first in hand.
 
+||||||| parent of 280b11e (v1.29.0 — Advanced lesson 10 "Energy Order" + docs)
+=======
+### v1.29.0 — reorderable energy pile: two pile viewers, ⤒ Promote to top, public log, Advanced lesson 10
+The backlog's energy-reorder item, built to [`ENERGY-REORDER-DESIGN.md`](ENERGY-REORDER-DESIGN.md) with all six of Aj's decisions. **Read the design doc's measured-payoff section first**: only **39%** of games ever reshuffle (`node recyclesim.js`), so this is a long-game / reclaim-deck lever, deliberately shipped because it carries **zero balance risk** — Decision 3 kept `payEnergy` untouched.
+- **engine**: `reorderEnergy(st, p, ids)` (ids must be a true permutation — a bad order is an attempt to conjure or delete energy) and `promoteEnergy(st, p, cardId)`. `payEnergy` was already order-driven, so **no cost logic changed at all**. Guards: your turn, and **not** while `pending`/`respondFor` is set. **+18 assertions (172 → 190)**, including the two that matter — a generic cost spends off the front in your order, and a coloured pip takes the earliest card *of that suit*, skipping a promotion.
+- **NEW: two pile viewers.** ⚡ and ♻ in your meta row are now buttons opening one modal with two views and **← / →** between them. Energy is ordered and orderable; **shuffle is read-only** and says outright that its reshuffle is random. Nothing in the game could show you a pile before this.
+- **The caveat is labelled, not buried**: position 1 is tagged **spent next**, and the first card of each suit is tagged **first ♥ / first ♦** — because a coloured cost reaches past a promotion. Without the tag that reads as the game ignoring you.
+- **Tap a card → 🔍 View + ⤒ Promote to top.** View reuses `cardTextHTML`, so boosted Form/Super lines come along and there is no second card renderer. Repeated promotes are a **stack push** — last promoted is spent first.
+- **Netplay**: new `{op:'reorderEnergy'}` intent in both host paths, host **re-validates** the permutation (the deck-string lesson from v1.28.0). Four rogue payloads leave the pile byte-identical.
+- **Decision 6 needed a channel that did not exist.** Netplay's message types were all state or control, so *a client had never seen the host's log lines for anything*. Added a narrow **`t:'log'` broadcast** so a reorder is genuinely public on every board. First use; other narration could migrate onto it later. Lines are built from rank/suit only, never client text.
+- **NEW Advanced lesson 10, "Energy Order"** — the second screen-subject lesson, with its own rig seeding a readable pile. Covers the three things a player can get wrong: the coloured-cost caveat, that the shuffle pile is random and unorderable, and that the log is public.
+- **New suites**: `piletest.js` (21), `nettest_energy.js` (10), `lessontest_energy.js` (14).
+>>>>>>> 280b11e (v1.29.0 — Advanced lesson 10 "Energy Order" + docs)
 
 ### v1.28.1 — Advanced lesson 9: Custom Decks (+ build.js now refuses to ship a syntax error)
 The follow-up the deck-builder backlog asked for. Aj, on review: *"we should add the related tutorial."*

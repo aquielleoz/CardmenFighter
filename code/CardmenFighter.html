@@ -6096,6 +6096,29 @@ window.CardFace = {};
       promptHumanResponse(g, function(){ if(gen===g){ state.turn=YOU; render(); } });   // after resolve, hand the turn back
     } else { state.turn=savedTurn; render(); }
   }
+  // Energy-order lesson (Advanced): seed a readable energy pile, then teach the queue through the ⚡ viewer.
+  // Like the Custom Decks lesson, its subject is a screen — the coach panel (z-index 80) sits over the modal (30).
+  function tutRigEnergyOrder(st){
+    tutRig(st);                                        // normal rigged deal, then stage the pile we want to talk about
+    var me=st.players[0];
+    var mk=function(r,su){ return { rank:r, suit:su, id:r+su+'#tut' }; };
+    me.energy=[mk(3,'H'), mk(4,'S'), mk(5,'H'), mk(6,'C'), mk(7,'D')];   // one ♦, one ♣, one ♠, two ♥ → the "first ♥" tag has something to say
+    me.shuffle=[mk(9,'S'), mk(8,'C')];
+  }
+  function lessonEnergyOrderSteps(){
+    return [
+      { text:"Your <b>⚡ energy pile is a queue</b>. When you pay for an effect the cards come off the <b>front</b> and go to your <b>♻ shuffle pile</b> — and when your 🂠 deck runs dry, the shuffle pile is what refills it. So <b>what you spend decides what you see again sooner</b>.", hi:['#youNrgBtn','#youShufBtn'], btn:"Show me ▸" },
+      { text:"Tap <b>⚡</b> to open the pile. Position <b>1</b> is spent next.", prep:tutOpenEnergyPile, hi:'.pileList', btn:"Next ▸" },
+      { text:"Pick any card and press <b>⤒ Promote to top</b> — that card becomes the next one spent, so it recycles back toward your deck sooner. Promote again later and the newest one takes the top.", hi:['.pileRow','#pvPromote'], gate:function(t,d){ return t==='energypromote'; }, wait:"Promote a card…" },
+      { text:"See the <b>first ♥ / first ♦</b> tags? A cost that demands a <b>colour</b> takes the <b>first card of that suit</b> — so a coloured cost can reach past whatever you promoted. Promoting controls the order; it does not change which suits a card needs.", hi:'.pvTag.pip', btn:"Got it ▸" },
+      { text:"The <b>→</b> button shows your <b>♻ shuffle pile</b> — everything you have already spent, waiting to come back. You <b>can't order that one</b>: when it refills your deck it is <b>shuffled at random</b>. Ordering the energy pile is the only say you get.", hi:'#pvNext', btn:"Next ▸" },
+      { text:"One last thing: every promote is written to the <b>battle log</b>, and <b>your opponents see it</b> — the energy pile is open information, exactly as it would be on a table. Reorder as often as you like, but only on <b>your own turn</b>.", hi:'#log', btn:"Finish ▸" }
+    ];
+  }
+  function tutOpenEnergyPile(){
+    if(!document.querySelector('.pileList')) openPileView('energy');
+  }
+
   // Custom decks lesson (Advanced): the only lesson whose subject is a SCREEN rather than a play.
   // The rigged duel is just scenery — the steps open the deck builder over the board and gate on the
   // player's own stepper/save clicks (#tutPanel is z-index 80 against the overlay's 30, so the coach
@@ -6158,6 +6181,7 @@ window.CardFace = {};
     { id:'rides',      num:7, section:'Advanced', title:'Rides',              blurb:'The J — a persistent companion that helps you out.',              ready:true,  basics:false,            rig:tutRigRides,     steps:lessonRidesSteps },
     { id:'forms',      num:8, section:'Advanced', title:'Form Changes',       blurb:'The Q &amp; K — transformations that upgrade your cards’ effects.', ready:true,  basics:false,            rig:tutRigForms,     steps:lessonFormsSteps },
     { id:'decks',      num:9, section:'Advanced', title:'Custom Decks',      blurb:'Build your own 52-card deck out of class parts.',              ready:true,  basics:false,            rig:tutRig,          steps:lessonDecksSteps },
+    { id:'energyorder',num:10,section:'Advanced', title:'Energy Order',      blurb:'Choose what you spend — and what comes back sooner.',           ready:true,  basics:false,            rig:tutRigEnergyOrder, steps:lessonEnergyOrderSteps }
   ];
   function lessonById(id){ for(var i=0;i<LESSONS.length;i++) if(LESSONS[i].id===id) return LESSONS[i]; return null; }
   function nextLesson(lsn){ var idx=LESSONS.indexOf(lsn); for(var i=idx+1;i<LESSONS.length;i++){ if(LESSONS[i].ready) return LESSONS[i]; } return null; }

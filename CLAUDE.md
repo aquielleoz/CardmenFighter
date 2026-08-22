@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.28.2**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.29.0**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -47,6 +47,8 @@ node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens (10)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
+node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
+node piletest.js                                # energy/shuffle pile viewers + promote (21)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -70,7 +72,7 @@ node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — R
 
 ### Playwright suites (browser + netplay)
 
-`browsertest.js` and the 22 `nettest_*.js` full-UI netplay suites drive the real built HTML in a headless browser.
+`browsertest.js` and the 23 `nettest_*.js` full-UI netplay suites drive the real built HTML in a headless browser.
 They need Playwright, which **is** installed here (`code/node_modules`, gitignored). To set it up from scratch:
 
 ```bash
