@@ -349,6 +349,39 @@
   .specialsRef{font:inherit; font-size:11.5px; font-weight:800; letter-spacing:.3px; color:var(--gold); background:rgba(240,200,80,.10); border:1px solid rgba(240,200,80,.4); border-radius:8px; padding:4px 9px; cursor:pointer; white-space:nowrap;}
   .specialsRef:hover{background:rgba(240,200,80,.2);}
   #viewCardBtn{display:none;}   /* only on tight screens, where the inline description strip is hidden (see the tight-screen media query) */
+  #viewCardBtn:disabled{opacity:.4; cursor:default;}   /* nothing selected → nothing to read */
+  /* Custom deck builder (✏️ Custom deck… in any deck picker) */
+  .modal .deckBuild{display:flex; flex-direction:column; gap:8px; margin:12px 0 4px; text-align:left;}
+  .modal .dbHint{font-size:12.5px; opacity:.7; line-height:1.5;}
+  .modal .dbRow{display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:11px; border:1px solid var(--line); background:rgba(255,255,255,.02);}
+  .modal .dbRow.zero{opacity:.62;}
+  .modal .dbCls{flex:1 1 auto; font-weight:700; font-size:14.5px;}
+  .modal .dbCls b{font-size:16px;}
+  .modal .dbCls b.red{color:var(--red);}
+  .modal .dbStep{flex:0 0 auto; display:flex; align-items:center; gap:8px;}
+  .modal .dbBtn{width:30px; height:30px; min-width:0; padding:0; margin:0; font:800 17px/1 system-ui; border-radius:8px; border:1px solid var(--line); background:#1a2230; color:var(--txt); cursor:pointer;}
+  .modal .dbBtn:hover:not(:disabled){border-color:var(--gold); color:var(--gold);}
+  .modal .dbBtn:disabled{opacity:.3; cursor:default;}
+  .modal .dbN{min-width:16px; text-align:center; font:800 16px/1 system-ui;}
+  .modal .dbCards{flex:0 0 66px; text-align:right; font-size:12px; opacity:.7;}
+  .modal .dbTotal{margin-top:2px; padding:9px 12px; border-radius:10px; border:1px dashed var(--line); font-size:13px; opacity:.7; text-align:center;}
+  .modal .dbTotal.ready{border-style:solid; border-color:rgba(240,200,80,.5); background:rgba(240,200,80,.07); color:var(--txt); opacity:1;}
+  .modal .dbTotal b.good{color:var(--gold);}
+  .modal .dbNameRow{display:flex; align-items:center; gap:10px; margin-top:2px; font-size:13.5px;}
+  .modal .dbNameRow span{flex:0 0 auto; opacity:.7;}
+  .modal .dbNameRow input{flex:1 1 auto; min-width:0; font:600 14px system-ui; padding:9px 11px; border-radius:9px; border:1px solid var(--line); background:#141a24; color:var(--txt);}
+  .modal .dbNameRow input:focus{outline:none; border-color:var(--gold);}
+  .modal .dbErr{min-height:16px; font-size:12.5px; color:var(--bad);}
+  .modal .dbSaved{margin-top:4px; border-top:1px solid var(--line); padding-top:9px;}
+  .modal .dbSavedHd{font-size:11.5px; letter-spacing:.06em; text-transform:uppercase; opacity:.7; margin-bottom:6px;}
+  .modal .dbSavedRow{display:flex; align-items:center; gap:9px; padding:6px 2px; font-size:13.5px;}
+  .modal .dbSavedName{flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .modal .dbSavedParts{flex:0 0 auto; opacity:.7; font-size:13px;}
+  .modal .dbDel{width:28px; height:28px; min-width:0; padding:0; margin:0; font-size:13px; border-radius:7px; border:1px solid var(--line); background:transparent; opacity:.7; cursor:pointer;}
+  .modal .dbDel:hover{border-color:var(--bad); color:var(--bad);}
+  .modal .dbBtns{display:flex; gap:9px; justify-content:center; margin-top:10px;}
+  .modal .dbBtns button{flex:0 1 auto; white-space:nowrap; min-width:130px;}
+  .modal .dbBtns button:disabled{opacity:.45; cursor:default;}
   /* Settings modal rows (toggle switches) */
   .modal .settings{display:flex; flex-direction:column; gap:9px; margin:12px 0 4px; text-align:left;}
   .modal .settingRow{display:flex; align-items:flex-start; gap:11px; width:100%; margin:0; padding:12px 13px; border-radius:12px; border:1px solid var(--line); background:var(--panel); color:var(--txt); cursor:pointer; font:inherit; text-align:left;}
@@ -1218,7 +1251,70 @@
     Berserker:  { name: 'Berserker (Fig+Rog)',   bases: ['Fighter', 'Rogue'] }
   };
   var DECK_ORDER = ['Wizard', 'Cleric', 'Fighter', 'Rogue', 'Sage', 'MageKnight', 'Warlock', 'Paladin', 'Bard', 'Berserker'];
+  // ---- deck compositions ("parts") --------------------------------------------------------------------
+  // A deck is always 4 PARTS, and a part is one complete 13-card suit (ranks 1-13, i.e. A..K with the apex 2)
+  // of one class. Parts stack and may repeat: {D:1,H:2,C:1} = 13♦ + 26♥ + 13♣ = 52 cards. This GENERALISES the
+  // presets rather than sitting beside them — Pure X is 4 parts of one class, each two-base mix is 2+2, and the
+  // Full Set is 1 of each. A composition serialises to a self-describing key ('custom:D1H2C1') so netplay can
+  // carry the composition itself instead of a saved deck name the host would have to recognise.
+  var PARTS_TOTAL = 4, PARTS_PREFIX = 'custom:';
+  var PARTS_SUITS = ['D', 'H', 'C', 'S'];   // canonical order = Wizard, Cleric, Fighter, Rogue (the builder's stepper order)
+  function partsCount(parts) {
+    var n = 0;
+    for (var i = 0; i < PARTS_SUITS.length; i++) n += (parts && parts[PARTS_SUITS[i]]) || 0;
+    return n;
+  }
+  function partsValid(parts) {
+    if (!parts || typeof parts !== 'object') return false;
+    for (var k in parts) {                                     // reject unknown suits outright
+      if (!Object.prototype.hasOwnProperty.call(parts, k)) continue;
+      if (PARTS_SUITS.indexOf(k) < 0) return false;
+      var v = parts[k];
+      if (typeof v !== 'number' || v !== Math.floor(v) || v < 0 || v > PARTS_TOTAL) return false;
+    }
+    return partsCount(parts) === PARTS_TOTAL;
+  }
+  function partsKey(parts) {
+    if (!partsValid(parts)) return null;
+    var s = '';
+    for (var i = 0; i < PARTS_SUITS.length; i++) { var n = parts[PARTS_SUITS[i]] || 0; if (n) s += PARTS_SUITS[i] + n; }
+    return PARTS_PREFIX + s;
+  }
+  function parseParts(key) {
+    if (typeof key !== 'string' || key.indexOf(PARTS_PREFIX) !== 0) return null;
+    var body = key.slice(PARTS_PREFIX.length), parts = {}, re = /([DHCS])([0-9])/g, m, used = 0;
+    while ((m = re.exec(body))) {
+      if (parts[m[1]] !== undefined) return null;              // the same class listed twice
+      parts[m[1]] = +m[2]; used += m[0].length;
+    }
+    if (used !== body.length) return null;                     // junk or an unparsed remainder
+    return partsValid(parts) ? parts : null;
+  }
+  function isPartsKey(key) { return !!parseParts(key); }
+  function buildFromParts(parts) {
+    if (!partsValid(parts)) return null;
+    var out = [], n = 0;
+    for (var v = 1; v <= 13; v++)
+      for (var i = 0; i < PARTS_SUITS.length; i++) {
+        var su = PARTS_SUITS[i], reps = parts[su] || 0;
+        for (var k = 0; k < reps; k++) out.push({ rank: v, suit: su, id: v + su + '#' + (n++) });   // unique instance id
+      }
+    return out;                                                // 52 cards
+  }
+  // The composition behind a preset key (or 'full'), so the builder can open pre-filled from one.
+  function presetParts(key) {
+    if (key === 'full' || key === null || key === undefined) return { D: 1, H: 1, C: 1, S: 1 };
+    var spec = DECKS[key]; if (!spec) return null;
+    var per = PARTS_TOTAL / spec.bases.length, parts = {};
+    for (var i = 0; i < spec.bases.length; i++) {
+      var su = BASE_SUIT[spec.bases[i]];
+      parts[su] = (parts[su] || 0) + per;
+    }
+    return parts;
+  }
   function buildDeck(key) {
+    if (key && typeof key === 'object') return buildFromParts(key);        // a raw composition
+    var asParts = parseParts(key); if (asParts) return buildFromParts(asParts);
     var spec = DECKS[key]; if (!spec) return null;
     var suits = spec.bases.map(function (b) { return BASE_SUIT[b]; });
     var perSuit = 4 / suits.length;                // pure -> 4, mix -> 2
@@ -2455,6 +2551,9 @@
     openPreFight: openPreFight, preFightCast: preFightCast, preFightPass: preFightPass,
     shieldGuard: shieldGuard, shieldGuardPass: shieldGuardPass, shieldGuardCard: shieldGuardCard,
     DECKS: DECKS, DECK_ORDER: DECK_ORDER, BASE_SUIT: BASE_SUIT, buildDeck: buildDeck,
+    PARTS_TOTAL: PARTS_TOTAL, PARTS_SUITS: PARTS_SUITS, PARTS_PREFIX: PARTS_PREFIX,
+    partsCount: partsCount, partsValid: partsValid, partsKey: partsKey, parseParts: parseParts,
+    isPartsKey: isPartsKey, buildFromParts: buildFromParts, presetParts: presetParts,
     canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
     discardToLimit: discardToLimit, MAX_HAND: MAX_HAND,
     effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, opponentCanRespond: opponentCanRespond, useEquipment: useEquipment, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
@@ -3263,7 +3362,61 @@ window.CardFace = {};
   // New Duel picks — remembered on this device between visits, with a one-click revert to defaults.
   var DEFAULT_SEL={you:'random', rival:'random', diff:'fighter', players:2, mode:'full'};
   var SETUP_KEY='cmf_setup_v1';
-  function validDeck(v){ return v==='random' || v==='full' || !!(E.DECKS && E.DECKS[v]); }
+  // ---- custom decks ("parts") -------------------------------------------------------------------
+  // A saved deck is {name, parts}; its VALUE everywhere (dropdowns, sel, seatDecks, newGame) is its
+  // composition key from the engine — 'custom:D1H2C1' — so a deck value stays self-describing and the
+  // name is purely cosmetic. Compositions are therefore unique per saved deck (saving a duplicate
+  // composition is refused, since the key is the identity).
+  var DECKS_KEY='cmf_decks_v1', savedDecks=[];
+  function loadSavedDecks(){
+    savedDecks=[];
+    try{
+      var a=JSON.parse(localStorage.getItem(DECKS_KEY)||'[]');
+      if(!Array.isArray(a)) return;
+      a.forEach(function(d){
+        if(!d || typeof d!=='object' || !E.partsValid(d.parts)) return;                 // drop anything corrupt
+        var key=E.partsKey(d.parts);
+        if(savedDecks.some(function(x){ return E.partsKey(x.parts)===key; })) return;   // drop duplicate compositions
+        savedDecks.push({ name:String(d.name||'').slice(0,24) || deckPartsLabel(d.parts), parts:normalizeParts(d.parts) });
+      });
+    }catch(e){}
+  }
+  function persistSavedDecks(){ try{ localStorage.setItem(DECKS_KEY, JSON.stringify(savedDecks)); }catch(e){} }
+  function savedDeckFor(key){
+    for(var i=0;i<savedDecks.length;i++) if(E.partsKey(savedDecks[i].parts)===key) return savedDecks[i];
+    return null;
+  }
+  var PART_SUIT_SYM={D:'♦',H:'♥',C:'♣',S:'♠'};
+  function deckPartsLabel(parts){                                        // '2♥ 1♣ 1♠' — the composition, spelled out
+    return E.PARTS_SUITS.map(function(su){ var n=parts[su]||0; return n?(n+PART_SUIT_SYM[su]):''; }).filter(Boolean).join(' ');
+  }
+  // Canonical form for storage: classes in D-H-C-S order, zero entries dropped, so a stored deck is
+  // exactly its composition and two identical mixes are byte-identical.
+  function normalizeParts(parts){
+    var out={};
+    E.PARTS_SUITS.forEach(function(su){ var n=(parts&&parts[su])||0; if(n) out[su]=n; });
+    return out;
+  }
+  function addSavedDeck(name, parts){
+    if(!E.partsValid(parts)) return null;
+    var norm=normalizeParts(parts), key=E.partsKey(norm);
+    if(savedDeckFor(key)) return null;                                   // caller reports the clash
+    savedDecks.push({ name:String(name||'').slice(0,24) || deckPartsLabel(norm), parts:norm });
+    persistSavedDecks(); return key;
+  }
+  function removeSavedDeck(key){
+    var before=savedDecks.length;
+    savedDecks=savedDecks.filter(function(d){ return E.partsKey(d.parts)!==key; });
+    if(savedDecks.length===before) return false;
+    persistSavedDecks();
+    // anything still pointing at the deleted deck falls back to the Full Set
+    if(sel.you===key) sel.you=DEFAULT_SEL.you;
+    if(sel.rival===key) sel.rival=DEFAULT_SEL.rival;
+    (sel.opps||[]).forEach(function(o){ if(o && o.deck===key) o.deck='random'; });
+    saveSel();
+    return true;
+  }
+  function validDeck(v){ return v==='random' || v==='full' || !!(E.DECKS && E.DECKS[v]) || E.isPartsKey(v); }
   function validDiff(v){ return v==='random'||v==='minion'||v==='recruit'||v==='fighter'||v==='knight'||v==='demon'; }
   function validMode(v){ return v==='full'||v==='basics'; }
   function loadSel(){
@@ -3281,7 +3434,14 @@ window.CardFace = {};
   function saveSel(){ try{ localStorage.setItem(SETUP_KEY, JSON.stringify(sel)); }catch(e){} }
   function isDefaultSel(){ return sel.you===DEFAULT_SEL.you && sel.rival===DEFAULT_SEL.rival && sel.diff===DEFAULT_SEL.diff; }
   var sel=loadSel();   // last picks in the setup screen (may be 'random'), restored from this device
-  function deckLabel(key){ return key==='full' ? 'Full Set' : (E.DECKS[key]?E.DECKS[key].name:key); }
+  loadSavedDecks();    // custom "parts" decks saved on this device — they appear in every deck picker
+  function deckLabel(key){
+    if(key==='full') return 'Full Set';
+    if(E.DECKS[key]) return E.DECKS[key].name;
+    var parts=E.parseParts(key);
+    if(parts){ var d=savedDeckFor(key); return d ? d.name : ('Custom · '+deckPartsLabel(parts)); }   // unknown (e.g. from the wire) → describe it
+    return key;
+  }
   var DIFF_NAME={minion:'Minion',recruit:'Recruit',fighter:'Fighter',knight:'Knight',demon:'Demon Lord'};
   var LOG_KEY='cmf_games_v1', memGames=[];   // playtest log (localStorage w/ in-memory fallback)
   var SEEN_HELP_KEY='cmf_seen_help_v1';      // set once the rules have auto-shown on first play
@@ -3293,6 +3453,8 @@ window.CardFace = {};
   function setLessonDone(id){ try{ localStorage.setItem(lessonKey(id),'1'); }catch(e){} }
   var stats=null, gameStartTs=0, lastEndType=null;
   var $=function(id){return document.getElementById(id);};
+  // HTML-escape for anything the player typed (custom deck names go straight into <option> markup).
+  function esc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
   function reduceMotion(){ return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
   // ---- Sound effects: a tiny procedural WebAudio synth. No audio assets → the file stays self-contained.
   var SFX = (function(){
@@ -3796,8 +3958,16 @@ window.CardFace = {};
     showCard(sel.length ? sel[0] : null);
   }
   var cvCard=null;   // the card currently shown in the description box — reused by the full-screen View reader
+  // The 🔍 View button is only meaningful when a card is actually selected — otherwise the reader
+  // opens on nothing but its own "tap a card first" placeholder. Disable it until there is something to read.
+  function paintViewCardBtn(){
+    var b=document.getElementById('viewCardBtn'); if(!b) return;
+    b.disabled=!cvCard;
+    b.title=cvCard ? 'View the selected card full-screen' : 'Tap a card in your hand first';
+  }
   function showCard(card){
     cvCard=card||null;
+    paintViewCardBtn();
     if(document.getElementById('cardFull') && $('cardFull').classList.contains('show')) renderCardFull();   // keep the open full-screen reader in sync
     var cv=$('cardView'); cv.innerHTML='';
     if(!card){ cv.innerHTML='<div class="cvEmpty">Tap or hover a card to read what it does.</div>'; return; }
@@ -5848,6 +6018,33 @@ window.CardFace = {};
       promptHumanResponse(g, function(){ if(gen===g){ state.turn=YOU; render(); } });   // after resolve, hand the turn back
     } else { state.turn=savedTurn; render(); }
   }
+  // Custom decks lesson (Advanced): the only lesson whose subject is a SCREEN rather than a play.
+  // The rigged duel is just scenery — the steps open the deck builder over the board and gate on the
+  // player's own stepper/save clicks (#tutPanel is z-index 80 against the overlay's 30, so the coach
+  // stays readable on top, and .tut-spot at 82 can spotlight controls inside the modal).
+  function tutOpenDeckBuilder(force){
+    // `force` re-renders an already-open builder. Saving does NOT hide the modal (openDeckBuilder's finish()
+    // only hands the key back), so without force the guard below would short-circuit and the saved-decks list
+    // would still show the pre-save state.
+    if(!force && document.querySelector('.deckBuild')) return;    // already open (a re-entered step)
+    openDeckBuilder(null, function(){                             // start from an empty 0/4 so the steppers ARE the lesson
+      // While the lesson runs, always come back: on a cancel it would otherwise strand the step, and after a
+      // save the reopened builder re-renders "Your saved decks" so the final step can point at the real deck
+      // the player just built (the modal is not rebuilt in place).
+      if(TUT.isActive()) setTimeout(function(){ tutOpenDeckBuilder(true); }, 120);
+    });
+  }
+  function lessonDecksSteps(){
+    return [
+      { text:"Every deck in this game is <b>52 cards</b> — and it is always <b>4 parts</b>. A <b>part</b> is one <b>complete 13-card suit</b> of a class: all of its ranks, A through K, apex 2 included.", hi:['#youDeck','#youDeckName'], btn:"Show me ▸" },
+      { text:"The decks you already know are just part-mixes: <b>Pure Wizard</b> is 4 parts Wizard, <b>Sage</b> is 2 Wizard + 2 Cleric, and the <b>Full Set</b> is 1 part of each of the four. Let's build your own.", prep:tutOpenDeckBuilder, hi:'.deckBuild', btn:"Open the builder ▸" },
+      { text:"Four classes, <b>4 parts to spend</b>. Give <b>Cleric</b> two of them — tap its <b>+</b> twice. Doubling a class means <b>two of every one of its cards</b>: two 7♥, two Aces of hearts, and so on.", hi:'.dbRow[data-su="H"] [data-d="1"]', gate:function(t,d){ return t==='deckparts' && d && d.parts && (d.parts.H||0)>=2; }, wait:"Two parts of Cleric…" },
+      { text:"Now spend the <b>last two parts</b> however you like — the counter has to read <b>4 / 4</b> before you can save. Fewer parts is not an option: a deck is always 52 cards.", hi:['.dbRow[data-su="D"] [data-d="1"]','.dbRow[data-su="C"] [data-d="1"]','.dbRow[data-su="S"] [data-d="1"]','#dbTotal'], gate:function(t,d){ return t==='deckparts' && d && d.total>=4; }, wait:"Spend all 4 parts…" },
+      { text:"That's a legal deck. <b>Name it</b> and hit <b>Save deck</b>. It sits under <b>Your class</b> alongside the Wizard and the Rogue, so name it like <b>a class of your own</b> — Twin Cleric, Battle Priest, whatever your mix fights like.", hi:['#dbName','#dbSave'], gate:function(t,d){ return t==='decksaved'; }, wait:"Name it and save…" },
+      { text:"Done — it's now in <b>every</b> deck picker: your own, the <b>Rival's</b>, each seat of a local free-for-all, and the <b>online lobby</b>. Online, only the <b>mix</b> travels, so your opponent's host builds it correctly even though your deck's <i>name</i> means nothing to them. Delete a deck any time from this same builder.", hi:'.dbSaved', btn:"Finish ▸" }
+    ];
+  }
+
   function lessonQuicksSteps(){
     return [
       { text:"Some cards are <b>Quicks</b> (⏩) — playable <b>in response</b>, even on the Rival’s turn. This is <b>Counter Spell</b>: it <b>cancels a Technique</b> as it’s cast, sending it to the Rival’s shuffle pile.", prep:tutPrepQuick, hi:function(){ return tutQuickId?('#hand .card[data-id="'+tutQuickId+'"]'):'#hand'; }, btn:"Show me ▸" },
@@ -5881,7 +6078,8 @@ window.CardFace = {};
     { id:'energy',     num:5, section:'Basics',   title:'Energy & Effects',   blurb:'Bank energy, spend it on card effects, keep your deck alive.',    ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonEnergySteps },
     { id:'quicks',     num:6, section:'Advanced', title:'Quicks',             blurb:'Cards you can play in response — even on the Rival’s turn.',      ready:true,  basics:false,            rig:tutRigQuicks,    steps:lessonQuicksSteps },
     { id:'rides',      num:7, section:'Advanced', title:'Rides',              blurb:'The J — a persistent companion that helps you out.',              ready:true,  basics:false,            rig:tutRigRides,     steps:lessonRidesSteps },
-    { id:'forms',      num:8, section:'Advanced', title:'Form Changes',       blurb:'The Q &amp; K — transformations that upgrade your cards’ effects.', ready:true,  basics:false,            rig:tutRigForms,     steps:lessonFormsSteps }
+    { id:'forms',      num:8, section:'Advanced', title:'Form Changes',       blurb:'The Q &amp; K — transformations that upgrade your cards’ effects.', ready:true,  basics:false,            rig:tutRigForms,     steps:lessonFormsSteps },
+    { id:'decks',      num:9, section:'Advanced', title:'Custom Decks',      blurb:'Build your own 52-card deck out of class parts.',              ready:true,  basics:false,            rig:tutRig,          steps:lessonDecksSteps },
   ];
   function lessonById(id){ for(var i=0;i<LESSONS.length;i++) if(LESSONS[i].id===id) return LESSONS[i]; return null; }
   function nextLesson(lsn){ var idx=LESSONS.indexOf(lsn); for(var i=idx+1;i<LESSONS.length;i++){ if(LESSONS[i].ready) return LESSONS[i]; } return null; }
@@ -5964,6 +6162,108 @@ window.CardFace = {};
     $('setSound').addEventListener('click', function(){ SFX.toggle(); paintSfxBtn(); repaint(this, !SFX.isMuted()); });
     $('setDone').addEventListener('click', hideOverlay);
     overlayDismiss=hideOverlay;
+  }
+  // ---- Custom deck builder ----------------------------------------------------------------------
+  // Four steppers (one per class) that must total PARTS_TOTAL parts; a part is one complete 13-card
+  // suit, so the deck is always 52 cards. Saving stores {name, parts} and hands the caller back the
+  // composition key. Create + delete only — to change a deck, delete it and build it again.
+  function openDeckBuilder(startParts, onDone){
+    var parts={}; E.PARTS_SUITS.forEach(function(su){ parts[su]=(startParts&&startParts[su])||0; });
+    var CLASS_NAME={D:'Wizard',H:'Cleric',C:'Fighter',S:'Rogue'};
+    var done=false;
+    function finish(key){ if(done) return; done=true; overlayDismiss=null; if(onDone) onDone(key||null); }
+
+    function stepperHTML(su){
+      return '<div class="dbRow" data-su="'+su+'">'+
+        '<span class="dbCls"><b class="'+(su==='D'||su==='H'?'red':'')+'">'+PART_SUIT_SYM[su]+'</b> '+CLASS_NAME[su]+'</span>'+
+        '<span class="dbStep">'+
+          '<button type="button" class="dbBtn" data-d="-1" aria-label="One fewer '+CLASS_NAME[su]+' part">−</button>'+
+          '<b class="dbN">0</b>'+
+          '<button type="button" class="dbBtn" data-d="1" aria-label="One more '+CLASS_NAME[su]+' part">+</button>'+
+        '</span>'+
+        '<span class="dbCards"></span>'+
+      '</div>';
+    }
+    function savedListHTML(){
+      if(!savedDecks.length) return '';
+      var h='<div class="dbSaved"><div class="dbSavedHd">Your saved decks</div>';
+      savedDecks.forEach(function(d){
+        var k=E.partsKey(d.parts);
+        h+='<div class="dbSavedRow"><span class="dbSavedName">'+esc(d.name)+'</span>'+
+           '<span class="dbSavedParts">'+deckPartsLabel(d.parts)+'</span>'+
+           '<button type="button" class="dbDel" data-key="'+k+'" title="Delete this deck">🗑</button></div>';
+      });
+      return h+'</div>';
+    }
+    showModal('<h2>✏️ Custom deck</h2>'+
+      '<div class="deckBuild">'+
+        '<div class="dbHint">Pick <b>'+E.PARTS_TOTAL+' parts</b>. One part is a full 13-card suit of that class — so a deck is always 52 cards. Doubling a class gives you two of each of its cards.</div>'+
+        E.PARTS_SUITS.map(stepperHTML).join('')+
+        '<div class="dbTotal" id="dbTotal"></div>'+
+        '<label class="dbNameRow"><span>Deck name</span><input id="dbName" type="text" maxlength="24" placeholder="e.g. Twin Cleric" autocomplete="off"></label>'+
+        '<div class="dbErr" id="dbErr"></div>'+
+        savedListHTML()+
+      '</div>'+
+      '<div class="dbBtns"><button id="dbSave">Save deck</button><button id="dbCancel" class="ghostBtn">Cancel</button></div>');
+
+    function repaint(){
+      var total=E.partsCount(parts), ok=E.partsValid(parts);
+      E.PARTS_SUITS.forEach(function(su){
+        var row=document.querySelector('.dbRow[data-su="'+su+'"]'); if(!row) return;
+        row.querySelector('.dbN').textContent=parts[su];
+        row.querySelector('.dbCards').textContent=parts[su]?(parts[su]*13+' cards'):'—';
+        row.classList.toggle('zero', !parts[su]);
+        row.querySelector('[data-d="-1"]').disabled = parts[su]<=0;
+        row.querySelector('[data-d="1"]').disabled  = total>=E.PARTS_TOTAL;
+      });
+      var left=E.PARTS_TOTAL-total;
+      $('dbTotal').innerHTML = ok
+        ? '<b class="good">'+total+' / '+E.PARTS_TOTAL+' parts — 52 cards</b>'
+        : (left>0 ? 'Parts: <b>'+total+' / '+E.PARTS_TOTAL+'</b> — add '+left+' more' : 'Parts: <b>'+total+' / '+E.PARTS_TOTAL+'</b> — remove '+(-left));
+      $('dbTotal').classList.toggle('ready', ok);
+      $('dbSave').disabled=!ok;
+      if($('dbName')) $('dbName').placeholder = ok ? deckPartsLabel(parts) : 'e.g. Twin Cleric';
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('.deckBuild .dbBtn'), function(b){
+      b.addEventListener('click', function(){
+        var su=b.parentNode.parentNode.getAttribute('data-su'), d=+b.getAttribute('data-d');
+        var next=parts[su]+d;
+        if(next<0 || next>E.PARTS_TOTAL) return;
+        if(d>0 && E.partsCount(parts)>=E.PARTS_TOTAL) return;
+        parts[su]=next; $('dbErr').textContent=''; repaint();
+        TUT.note('deckparts', { parts:parts, total:E.partsCount(parts), suit:su });   // the deck lesson gates on the steppers
+      });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.deckBuild .dbDel'), function(b){
+      b.addEventListener('click', function(){
+        var k=b.getAttribute('data-key'), d=savedDeckFor(k);
+        if(!d) return;
+        if(!window.confirm('Delete the deck "'+d.name+'"? Anything using it falls back to the Full Set.')) return;
+        removeSavedDeck(k);
+        openDeckBuilder(parts, onDone);   // re-render the builder with the list updated, keeping the work in progress
+      });
+    });
+    $('dbSave').addEventListener('click', function(){
+      if(!E.partsValid(parts)) return;
+      var name=($('dbName').value||'').trim();
+      var clash=savedDeckFor(E.partsKey(parts));
+      if(clash){
+        $('dbErr').textContent='You already have that exact mix saved as "'+clash.name+'".';
+        TUT.note('decksaved', { duplicate:true, name:clash.name });   // lesson: you got there; the deck simply already exists
+        return;
+      }
+      if(savedDecks.some(function(d){ return d.name.toLowerCase()===name.toLowerCase() && name; })){
+        $('dbErr').textContent='You already have a deck called "'+name+'" — pick another name.'; return;
+      }
+      var key=addSavedDeck(name, parts);
+      if(!key){ $('dbErr').textContent='Could not save that deck.'; return; }
+      TUT.note('decksaved', { key:key, name:name });
+      finish(key);
+    });
+    $('dbCancel').addEventListener('click', function(){ finish(null); });
+    overlayDismiss=function(){ finish(null); };
+    repaint();
+    var nm=$('dbName'); if(nm) nm.addEventListener('input', function(){ $('dbErr').textContent=''; });
   }
   // Make the coach panel draggable so it never blocks the played cards.
   function initTutDrag(){
@@ -6060,7 +6360,8 @@ window.CardFace = {};
   $('cheatBtn').addEventListener('click', showCheatSheet);   // quick Specials reference, reachable any time from the board
   $('rival').addEventListener('click', function(){ if(targetPick && !MP() && state.turn===YOU && !state.finished) chooseTargetSeat(RIVAL); });   // duel: tap the rival panel to confirm a targeting effect
   $('specialsRefBtn').addEventListener('click', showCheatSheet);   // spelled-out reference right above the hand
-  $('viewCardBtn').addEventListener('click', openCardFull);         // tight screens: open the full-screen card reader
+  $('viewCardBtn').addEventListener('click', function(){ if(cvCard) openCardFull(); });   // tight screens: open the full-screen card reader (no-op with nothing selected)
+  paintViewCardBtn();                                               // start out disabled — nothing is selected yet
   $('cardFullClose').addEventListener('click', closeCardFull);
   $('cardFull').addEventListener('click', function(e){ if(e.target===$('cardFull')) closeCardFull(); });   // tap the backdrop to close
   (function(){ var hb=$('hintsBtn'); function paint(){ hb.textContent='💡 Hints: '+(hintsOn?'On':'Off'); hb.classList.toggle('on', hintsOn); } hb.addEventListener('click', function(){ hintsOn=!hintsOn; try{ localStorage.setItem(HINTS_KEY, hintsOn?'1':'0'); }catch(e){} paint(); if(state) render(); }); paint(); })();
@@ -6071,9 +6372,17 @@ window.CardFace = {};
   initTutDrag();   // coach panel is draggable
 
   // ---- Pre-game setup: pick decks + AI strength (with Random), then roll for initiative ----
+  var BUILD_DECK_OPT='__builddeck__';   // the "✏️ Custom deck…" sentinel — intercepted on change, never a real deck value
+  // Every deck picker (solo, each local seat, and both netplay lobbies) is built from this one list.
   function deckOptionsHTML(){
     var h='<option value="random">🎲 Random class</option><option value="full">Full Set (all 52)</option>';
-    E.DECK_ORDER.forEach(function(k){ h+='<option value="'+k+'">'+E.DECKS[k].name+'</option>'; });
+    E.DECK_ORDER.forEach(function(k){ h+='<option value="'+k+'">'+esc(E.DECKS[k].name)+'</option>'; });
+    if(savedDecks.length){
+      h+='<optgroup label="Your decks">';
+      savedDecks.forEach(function(d){ var k=E.partsKey(d.parts); h+='<option value="'+k+'">'+esc(d.name)+' ('+deckPartsLabel(d.parts)+')</option>'; });
+      h+='</optgroup>';
+    }
+    h+='<option value="'+BUILD_DECK_OPT+'">✏️ Custom deck…</option>';
     return h;
   }
   function resolveDeck(v){ return v==='random' ? E.DECK_ORDER[Math.floor(Math.random()*E.DECK_ORDER.length)] : v; }
@@ -6156,7 +6465,18 @@ window.CardFace = {};
     Array.prototype.forEach.call(document.querySelectorAll('#setMode .segBtn'), function(btn){ btn.addEventListener('click', function(){ pickMode(btn.getAttribute('data-mode')); }); });
     paintMode();
     function refreshReset(){ var r=$('resetSetup'); if(r) r.style.visibility=isDefaultSel()?'hidden':'visible'; }
-    function onSetupChange(){ sel.you=$('setYouDeck').value; sel.rival=$('setRivalDeck').value; sel.diff=$('setDiff').value; sel.players=parseInt($('setPlayers').value,10)||2; saveSel(); refreshReset(); updatePlayersUI(); }   // mode is handled by the segmented buttons (pickMode)
+    // "✏️ Custom deck…" is a sentinel, not a deck: open the builder, then re-open Setup so every picker
+    // re-renders with the new deck in it. Cancelling restores whatever was selected before.
+    function onDeckPick(id, assign, prev){
+      var v=$(id).value;
+      if(v!==BUILD_DECK_OPT){ assign(v); saveSel(); refreshReset(); updatePlayersUI(); return true; }
+      openDeckBuilder(E.parseParts(prev)||E.presetParts(prev), function(key){
+        if(key) assign(key); else assign(prev);
+        saveSel(); openSetup();
+      });
+      return false;
+    }
+    function onSetupChange(){ sel.diff=$('setDiff').value; sel.players=parseInt($('setPlayers').value,10)||2; saveSel(); refreshReset(); updatePlayersUI(); }   // mode is handled by the segmented buttons (pickMode)
     function updatePlayersUI(){
       var n=parseInt($('setPlayers').value,10)||2, mp=n>2;
       buildDice(n);
@@ -6178,12 +6498,22 @@ window.CardFace = {};
       Array.prototype.forEach.call(list.querySelectorAll('select'), function(sl){
         var oi=+sl.getAttribute('data-opp'), k=sl.getAttribute('data-k');
         sl.value=(sel.opps[oi] && sel.opps[oi][k]) || (k==='deck'?'random':'fighter');
-        sl.addEventListener('change', function(){ sel.opps[oi]=sel.opps[oi]||{}; sel.opps[oi][k]=sl.value; saveSel(); });
+        sl.addEventListener('change', function(){
+          sel.opps[oi]=sel.opps[oi]||{};
+          if(k==='deck' && sl.value===BUILD_DECK_OPT){                       // seat picker → builder, then re-open Setup
+            var prev=sel.opps[oi].deck||'random';
+            openDeckBuilder(E.parseParts(prev)||E.presetParts(prev), function(key){
+              sel.opps[oi].deck = key || prev; saveSel(); openSetup();
+            });
+            return;
+          }
+          sel.opps[oi][k]=sl.value; saveSel();
+        });
       });
     }
     $('setPlayers').addEventListener('change', onSetupChange);
-    $('setYouDeck').addEventListener('change', onSetupChange);
-    $('setRivalDeck').addEventListener('change', onSetupChange);
+    $('setYouDeck').addEventListener('change', function(){ onDeckPick('setYouDeck', function(v){ sel.you=v; }, sel.you); });
+    $('setRivalDeck').addEventListener('change', function(){ onDeckPick('setRivalDeck', function(v){ sel.rival=v; }, sel.rival); });
     $('setDiff').addEventListener('change', onSetupChange);
     updatePlayersUI();
     $('resetSetup').addEventListener('click', function(){
@@ -6617,7 +6947,11 @@ window.CardFace = {};
           connected=true;
           var cid=m.cid||'anon', isNew=(hostSeatOf[cid]==null);
           if(isNew){ if(nextSeat>MAX_SEATS-1){ sendTo0(srcChan, {t:'full', cid:cid}); return; } hostSeatOf[cid]=nextSeat++; }   // seats 1..5 (+host = up to 6)
-          var jseat=hostSeatOf[cid]; seatDeckMap[jseat]=m.deck||'full'; oppDeck=seatDeckMap[jseat]; oppReady=true;
+          // The joiner's deck arrives as a bare string (a preset key, 'random', 'full', or a composition
+          // like 'custom:D1H2C1'). It is untrusted: validate it here rather than letting an unknown key
+          // fall through buildDeck() to a silent Full Set.
+          var jseat=hostSeatOf[cid], jdeck=(typeof m.deck==='string' && validDeck(m.deck)) ? m.deck : 'full';
+          seatDeckMap[jseat]=jdeck; oppDeck=jdeck; oppReady=true;
           if(srcChan){ var ci=dcs.indexOf(srcChan); if(ci>=0) chanSeat[ci]=jseat; }   // RTC: bind this channel to its seat (authoritative)
           sendTo(jseat, {t:'welcome', seat:jseat, cid:cid});
           if(started) hostOnPeerBack(jseat);                             // re-join (same cid): a held seat resumes; an already-dropped seat rejoins to spectate
@@ -7128,7 +7462,14 @@ window.CardFace = {};
           : '<button id="lobbyGo" class="netbtn go">Ready ▶</button><p class="nethint">Pick your deck, then hit Ready — the host starts the game.</p>';
       }
       root.innerHTML=head+body+'</div>';
-      var sel=$('deckSel'); if(sel){ sel.value=myDeck; sel.disabled=(!isHost()&&iReady); sel.addEventListener('change', function(){ myDeck=sel.value; }); }
+      var sel=$('deckSel'); if(sel){ sel.value=myDeck; sel.disabled=(!isHost()&&iReady); sel.addEventListener('change', function(){
+        if(sel.value===BUILD_DECK_OPT){                                  // "✏️ Custom deck…" → build one, then re-render the lobby
+          var prev=myDeck;
+          openDeckBuilder(E.parseParts(prev)||E.presetParts(prev), function(key){ myDeck=key||prev; renderNet(); });
+          return;
+        }
+        myDeck=sel.value;
+      }); }
       var go=$('lobbyGo'); if(go) go.addEventListener('click', function(){
         myDeck=($('deckSel')||{}).value||myDeck;
         if(isHost()){ if(nextSeat-1<1) return; hostStartRealN(myDeck); }
@@ -7183,7 +7524,7 @@ window.CardFace = {};
     '#netroot .deckSel:disabled{opacity:.55}#netroot .lobbyStatus{margin:12px 0;padding:10px 12px;background:#141a24;border:1px solid #263140;border-radius:8px;color:#cdd8e6}';
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
   if(!NET.boot()) openSetup();   // netplay when ?net= is present; otherwise the normal game (byte-identical)
   if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, setPulse:function(b){pulseDetail=b;}, activate:function(id,o){ return activate(id,o); } }; }   // test hook: inspect/mutate solo state for layout/pulse verification
 })();

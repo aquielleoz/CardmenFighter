@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.26.4**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.28.1**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -43,11 +43,19 @@ cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sy
 node test.js                                    # engine + AI suite — 131 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction — 28, must end 0 FAIL
 node browsertest.js                             # headless duel smoke
+node decktest.js                                # custom deck builder, full UI (35 assertions)
+node viewtest.js                                # 🔍 View card reader gating on tight screens (10)
+node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
 run straight on `engine.js`/`ai.js` (no build needed), so run them after a source edit even if you skip the
 build.
+
+`build.js` **parses every inlined `<script>` before writing** and refuses to build on a syntax error, naming the
+offending line. It did not always: a missing comma in the template's `LESSONS` array once shipped a page whose
+entire script failed to parse — a dead game, which the UI tests then reported as a scatter of unrelated
+failures. If a UI test suddenly fails on everything, suspect a broken build first.
 
 Balance / heavier harnesses, when a change could move win rates:
 
@@ -60,7 +68,7 @@ node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — R
 
 ### Playwright suites (browser + netplay)
 
-`browsertest.js` and the 21 `nettest_*.js` full-UI netplay suites drive the real built HTML in a headless browser.
+`browsertest.js` and the 22 `nettest_*.js` full-UI netplay suites drive the real built HTML in a headless browser.
 They need Playwright, which **is** installed here (`code/node_modules`, gitignored). To set it up from scratch:
 
 ```bash
@@ -70,6 +78,14 @@ npx playwright install chromium
 
 Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` is a shared
 helper, not a suite — don't run it directly.
+
+**Both pages in a netplay suite share one browser context** (BroadcastChannel needs it), so they share one
+`localStorage`. To give one side data the other lacks — e.g. a saved custom deck the host has never seen — load
+that page first, seed and reload it, clear the store, and only *then* open the other page. `nettest_customdeck.js`
+does exactly that. **`decktest.js`** and **`viewtest.js`** are the same kind of full-UI test for
+the solo side (the custom deck builder; the 🔍 View card reader), driving the page against `file://…?dbgsolo=1`.
+`viewtest.js` runs at a 390×780 viewport because `#viewCardBtn` only exists inside `@media (max-width:720px)
+and (max-height:800px)` — at a taller phone size it is correctly absent.
 
 Browser resolution lives in **`code/pwchrome.js`**: `$PW_CHROMIUM` if set, else `/opt/pw-browsers/chromium` if it
 exists (the old sandbox layout), else Playwright's own download. Launch through it — `chromium.launch(LAUNCH)` —
@@ -81,6 +97,11 @@ rather than hardcoding a path, which is what these files used to do and why they
 **Run them one at a time.** Each suite starts its own HTTP server on a fixed port and drives two or three real
 browser pages; two suites at once flake on CPU contention (`nettest_rtc` in particular fails at `maxRound=0`
 concurrently and passes 11/0 alone). A serial sweep of all 21 takes a few minutes.
+
+They are load-sensitive enough that *background junk on the machine* can fail them: one sweep's `nettest_full`
+timed out at >180s purely because three stray busy-wait shells were spinning. If a suite times out, check for
+stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
+— the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
 Status as of v1.26.3 — **all 21 green.**
 

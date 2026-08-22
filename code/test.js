@@ -36,6 +36,60 @@ function cards(ids) { return ids.map(card); }
   ok(E.makeDeck().length === 52, 'REWORK: full deck is 52 cards (ranks 1-13)');
   ok(E.buildDeck('Wizard').length === 52, 'REWORK: pure deck is 52 cards');
   ok(E.buildDeck('Sage').length === 52, 'REWORK: dual deck is 52 cards');
+
+  // ---- deck compositions ("parts"): 4 parts of 13 cards, duplicates allowed, serialised as 'custom:D1H2C1' ----
+  (function () {
+    var suits = function (deck) { return deck.reduce(function (a, c) { a[c.suit] = (a[c.suit] || 0) + 1; return a; }, {}); };
+    // key-order-insensitive compare: suit tallies come back in deal order, not declaration order
+    var J = function (o) { if (!o || typeof o !== 'object') return JSON.stringify(o);
+      return Object.keys(o).sort().map(function (k) { return k + ':' + o[k]; }).join(','); };
+    ok(E.partsKey({ D: 1, H: 2, C: 1 }) === 'custom:D1H2C1', 'parts: partsKey serialises in canonical D-H-C-S order');
+    ok(E.partsKey({ C: 1, H: 2, D: 1 }) === 'custom:D1H2C1', 'parts: key is canonical regardless of property order');
+    ok(J(E.parseParts('custom:D1H2C1')) === J({ D: 1, H: 2, C: 1 }), 'parts: parseParts round-trips its own key');
+    ok(E.partsKey({ D: 4 }) === 'custom:D4' && J(E.parseParts('custom:D4')) === J({ D: 4 }), 'parts: a single 4-part class round-trips');
+    ok(E.partsCount({ D: 1, H: 2, C: 1 }) === 4 && E.partsCount({}) === 0, 'parts: partsCount sums the parts');
+    ok(E.PARTS_TOTAL === 4, 'parts: a deck is always 4 parts');
+
+    ok(!E.partsValid({ D: 1, H: 2 }), 'parts: 3 parts is invalid (must total 4)');
+    ok(!E.partsValid({ D: 1, H: 2, C: 2 }), 'parts: 5 parts is invalid');
+    ok(!E.partsValid({ D: 4, X: 0 }), 'parts: an unknown class is invalid');
+    ok(!E.partsValid({ D: 3, H: 1.5 }), 'parts: a fractional part is invalid');
+    ok(!E.partsValid({ D: 5, H: -1 }), 'parts: a negative part is invalid');
+    ok(!E.partsValid(null) && !E.partsValid('custom:D4'), 'parts: partsValid wants an object, not a key');
+    ok(E.parseParts('custom:D1H2C2') === null, 'parts: a key that does not total 4 is rejected');
+    ok(E.parseParts('custom:D1H1D1S1') === null, 'parts: a key listing a class twice is rejected');
+    ok(E.parseParts('custom:D4X') === null && E.parseParts('custom:') === null, 'parts: junk in a key is rejected');
+    ok(E.parseParts('Wizard') === null && E.parseParts('full') === null, 'parts: preset keys are not parts keys');
+    ok(E.isPartsKey('custom:D2S2') && !E.isPartsKey('Sage'), 'parts: isPartsKey distinguishes the two kinds of deck value');
+
+    var mixed = E.buildDeck('custom:D1H2C1');
+    ok(mixed.length === 52, 'parts: a composition deck is 52 cards');
+    ok(J(suits(mixed)) === J({ D: 13, H: 26, C: 13 }), 'parts: 1 Wizard + 2 Cleric + 1 Fighter = 13/26/13 by suit');
+    ok(mixed.filter(function (c) { return c.suit === 'H' && c.rank === 7; }).length === 2, 'parts: a doubled class yields duplicate cards');
+    var ids = {}; mixed.forEach(function (c) { ids[c.id] = 1; });
+    ok(Object.keys(ids).length === 52, 'parts: every card instance gets a unique id even when duplicated');
+    ok(E.buildDeck('custom:S4').every(function (c) { return c.suit === 'S'; }), 'parts: 4 parts Rogue is all spades');
+    ok(E.buildDeck({ D: 2, H: 2 }).length === 52, 'parts: buildDeck also takes a raw composition object');
+    ok(E.buildDeck('custom:D9') === null && E.buildDeck('custom:nope') === null, 'parts: buildDeck returns null for an invalid composition');
+
+    // presets ARE compositions — the builder opens pre-filled from one, and this pins the equivalence
+    ok(J(E.presetParts('Wizard')) === J({ D: 4 }), 'parts: Pure Wizard is 4 parts Wizard');
+    ok(J(E.presetParts('Sage')) === J({ D: 2, H: 2 }), 'parts: Sage is 2 Wizard + 2 Cleric');
+    ok(J(E.presetParts('full')) === J({ D: 1, H: 1, C: 1, S: 1 }), 'parts: the Full Set is 1 part of each class');
+    ok(E.presetParts('nope') === null, 'parts: presetParts is null for an unknown key');
+    E.DECK_ORDER.forEach(function (k) {
+      var byPreset = suits(E.buildDeck(k)), byParts = suits(E.buildDeck(E.partsKey(E.presetParts(k))));
+      ok(J(byPreset) === J(byParts), 'parts: preset ' + k + ' builds the same suit spread as its composition');
+    });
+
+    // a real game dealt from compositions (newGame needs no changes — buildDeck absorbs the new key)
+    var g = E.newGame(null, { decks: ['custom:D1H2C1', 'custom:S4'], starter: 0 });
+    // NB: an earlier block leaves setShieldCards(true) on globally, so 4 of the 52 sit in shieldPile — count them.
+    var all = function (p) { var pl = g.players[p]; return pl.deck.concat(pl.hand, pl.shieldPile || [], pl.energy || []); };
+    ok(all(0).length === 52 && all(1).length === 52, 'parts: both seats are dealt a full 52 from their compositions (' + all(0).length + '/' + all(1).length + ')');
+    ok(J(suits(all(0))) === J({ H: 26, D: 13, C: 13 }), 'parts: seat 0 kept its 1/2/1 composition through the deal');
+    ok(all(1).every(function (c) { return c.suit === 'S'; }), 'parts: seat 1 kept its 4-part Rogue composition');
+  })();
   ok(E.fightValue(sc(11, 'D')) === 11 && E.fightValue(sc(13, 'D')) === 13, 'REWORK: J/Q/K value = 11/12/13');
   ok(E.fightValue(sc(1, 'D')) === 14 && E.fightValue(sc(2, 'D')) === 15, 'REWORK: Ace=14, apex 2=15');
   ok(E.beats(single(2, 'D'), single(1, 'D')), 'REWORK: apex 2 beats Ace');
