@@ -399,7 +399,7 @@
       if (!kindOK(kind, q)) return null;               // analysis: blocked reactive kind
       var best = null, bestEff = null;
       qp.hand.forEach(function (c) {
-        var ef = E.effectOf(c);
+        var ef = E.effectFor(st, q, c);   // effectFor: Forms can GRANT quick (Hector→Sanctuary, Hippolyta→Armor Piercing)
         if (ef && ef.impl && ef.quick && ef.kind === kind && E.canAfford(qp, c) && (!best || ef.cost < bestEff.cost)) { best = c; bestEff = ef; }
       });
       return best;
@@ -411,7 +411,7 @@
     }
     // Reactive Leyline: spring an immunity Quick to blank a destroyShield technique aimed at us.
     if (eff.kind === 'destroyShield' && qp.shields <= 2) {
-      var immuneQ = qp.hand.filter(function (c) { var e = E.effectOf(c); return e && e.impl && e.quick && e.immune && E.canAfford(qp, c); })[0];
+      var immuneQ = qp.hand.filter(function (c) { var e = E.effectFor(st, q, c); return e && e.impl && e.quick && e.immune && E.canAfford(qp, c); })[0];
       if (immuneQ) { var ir = E.respond(st, q, immuneQ.id); if (ir.ok) return ir; }
     }
     // Counter Spell: negate the genuinely threatening Techniques (not friendly draws/ramp).
@@ -462,7 +462,10 @@
   // The affordable lockout Quick (Back Stab) in q's hand, if any.
   function lockoutQuick(st, q) {
     if (!kindOK('lockout', q)) return null;            // analysis: blocked lockout kind
-    return st.players[q].hand.filter(function (c) { var e = E.effectOf(c); return e && e.impl && e.quick && e.kind === 'lockout' && E.canAfford(st.players[q], c); })[0] || null;
+    // effectFor, NOT effectOf: a card's `quick` can be GRANTED by a Form. Back Stab is only a Quick under
+    // Hermes Super, so reading the base effect here meant the AI could never see it — it has never sprung
+    // Back Stab in any mode. Same trap applies to every Form-granted Quick.
+    return st.players[q].hand.filter(function (c) { var e = E.effectFor(st, q, c); return e && e.impl && e.quick && e.kind === 'lockout' && E.canAfford(st.players[q], c); })[0] || null;
   }
   // Should the NON-active player q spring Back Stab before the active player fights? Deny an opening
   // LEAD: if the active player is about to lead (no pile) and we hold a combo to capitalize, lock them —
