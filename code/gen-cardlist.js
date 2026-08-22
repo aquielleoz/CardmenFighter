@@ -1,6 +1,10 @@
-/* Generate CARD-LIST.md straight from engine.js (the source of truth) so it can never drift. */
+/* Generate docs/CARD-LIST.md straight from engine.js (the source of truth) so it can never drift.
+ * Writes to ../docs/ by absolute path — it used to write CARD-LIST.md into the CWD, so running it from
+ * code/ left the generated file beside the sources and the published docs/ copy silently went stale. */
 var E = require('./engine.js');
 var fs = require('fs');
+var path = require('path');
+var OUT = path.join(__dirname, '..', 'docs', 'CARD-LIST.md');
 function sc(r, s){ return { rank:r, suit:s, id:s+r }; }
 var g = E.newGame(null, { starter:0 });
 
@@ -68,5 +72,5 @@ SUITS.forEach(function(S){
   tierBlock('super','Super Mode');
 });
 
-fs.writeFileSync('CARD-LIST.md', out.join('\n') + '\n');
-console.log('wrote CARD-LIST.md (' + out.length + ' lines)');
+fs.writeFileSync(OUT, out.join('\n') + '\n');
+console.log('wrote ' + OUT + ' (' + out.length + ' lines)');

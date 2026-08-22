@@ -118,7 +118,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 | 6 | Never Out of Options | 6 | Look at the top 3 cards of your deck. Put 2 into your Energy Pile and draw the other 1. |
 | 7 | Caltrops | 7 | Equipment — lasts 3 rounds (retires to your Energy after). While equipped, the Rival's highest card each fight has its value reduced by 2. |
 | 8 | Counterfeit | 8 | Copy a card from the Rival's current play into your hand. You must play the copy in a fight this round — at the round's end it fades away. |
-| 9 | Critical Hit | 9 | Target Rival loses 1 shield. |
+| 9 | Critical Hit | 9 | Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield. |
 | 10 | Back Stab | 10 | Target Rival skips their next turn — no fights, no Techniques. |
 | 2 | — | — | *Apex trump — no effect; the highest fight value in the game.* |
 
