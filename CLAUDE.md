@@ -63,6 +63,7 @@ Balance / heavier harnesses, when a change could move win rates:
 ```bash
 node analysis.js 130 on      # class round-robin — args: N catchup recycle difficulty
 node mpsim.js                # 3/4/6p free-for-all — args: games difficulty
+node recyclesim.js 400       # how often a game reaches the reshuffle (deck-cycling pressure)
 node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — RUN IT after any card
                              # name/cost/text change, or the published card list silently goes stale
 ```

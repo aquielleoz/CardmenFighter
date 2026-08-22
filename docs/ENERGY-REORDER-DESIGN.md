@@ -59,6 +59,50 @@ control will feel like it is being ignored. See *Decision 3*.
 
 ---
 
+## How much is this actually worth? (measured)
+
+Aj's review raised the real question: *nothing much accelerates the deck, so how often does ordering the shuffle
+pile ever pay off?* Measured, not guessed — 400 AI-vs-AI games at default settings, instrumented for deck refills:
+
+| | |
+| --- | --- |
+| median game length | **11 rounds** (max 25) |
+| games that ever reshuffled | **154 / 400 = 39%** |
+| median round of the first reshuffle | **12** |
+| avg reshuffles per game | **0.41** |
+| avg cards spent energy→shuffle | **24.1** of 52 |
+
+**So in ~61% of games the deck never runs dry, and the median first reshuffle (round 12) lands *after* the median
+game has already ended.** Ordering the pile pays off only in long games. Aj's instinct — that this is a
+micromanager's nightmare relative to its payoff — is supported by the data.
+
+And the acceleration really is thin. Every draw/mill effect in the game, one line per class:
+
+| Class | Deck acceleration |
+| --- | --- |
+| ♦ Wizard | `A♦` Gather Energy (mill 3 → energy), `6♦` Back to the Books (draw 3) |
+| ♥ Cleric | `3♥` Pray for Strength (mill 5 → energy), `4♥` Pray for Guidance (draw 2) |
+| ♣ Fighter | `A♣` Prepare for Combat (draw 2), `5♣` Superior Training (draw 4), `8♣` Instant Recovery (draw 2 + reclaim) |
+| ♠ Rogue | `3♠` Hand-to-Hand Mastery (draw 2), `4♠` Poison the Air (recycle), `6♠` Never Out of Options (draw 3) |
+
+Two or three cards each, on top of a flat `DRAW_PER_ROUND = 2`. No class is a real engine.
+
+### The second trigger, which changes the picture
+
+Deck-out is not the only way the shuffle pile comes back. **Reclaim effects pull the shuffle pile into the deck
+on demand** (`engine.js` ~1073: `pl.deck = pl.deck.concat(shuffle(pl.shuffle))`) — `8♣` Instant Recovery,
+`9♦` Leyline under Athena, `4♠` Poison the Air. That trigger is **chosen by the player**, not waited on, so a
+deck built around reclaim makes ordering matter immediately rather than at round 12.
+
+### What to do about it — for Aj
+
+- **(i) Build it as designed and accept it is a long-game / reclaim-deck lever.** Cheap, honest, no balance risk.
+  The pile viewer alone is worth having (nothing today answers "what is in my pile?").
+- **(ii) Build it, and pair it with a card-set nudge** that rewards cycling — the "suit ≠ class / hybrid classes"
+  direction is the natural place for a genuine draw engine, and this feature would gain value automatically.
+- **(iii) Defer the reorder half; ship only the viewers.** The viewer is the useful, low-risk part; reordering
+  waits until something in the card set makes cycling common.
+
 ## What has to be built
 
 ### A. The energy-pile viewer — the bulk of the work
@@ -111,44 +155,56 @@ pile.
 
 ---
 
-## Decisions needed
+## Decisions — settled (Aj, review of this doc)
 
-**1. Interaction: click-to-promote, or drag-to-reorder?**
-**Recommendation: click-to-promote.** Tap a card, it moves to the front (tap again → next-most-recent behind it,
-or a simple "selected order" list). It is one clear rule, works on a phone, and is trivially serialisable as a
-permutation. Drag-to-reorder is much fiddlier and this codebase has been bitten there before — the coach-panel
-drag bug in v1.19.1 stretched the panel full-height because of a `bottom`/`top` interaction.
+**1. Interaction: click, then a two-button context row.** Clicking a card in the pile opens **🔍 View** (read
+the card — people forget effects) and **⤒ Promote to top**. Not drag. This reuses the existing description/context
+pattern rather than inventing a gesture, and serialises as a plain permutation.
 
-**2. Does the viewer show the shuffle pile too?**
-**Recommendation: yes, read-only, beside the energy pile.** The whole point is "what comes back to me sooner",
-and the shuffle pile is currently invisible (`♻ N`). Showing both makes the consequence legible instead of
-theoretical. It reveals no hidden information — it is your own pile.
+**2. Two viewers, not one panel.** The energy pile and the shuffle pile get **separate** views, moved between
+with **← / →** buttons. **The shuffle pile is not orderable** — it is a read-only look at what is queued to come
+back. (Supersedes the earlier "show both side by side" recommendation.)
 
-**3. How do we handle the colored-pip caveat?**
-Options:
-- **(a) Label it.** Leave `payEnergy` greedy-by-suit and mark each card in the viewer with what would take it
-  ("next ♥"), so the player sees why a promoted card was skipped. *Recommended* — no balance change.
-- **(b) Make pips honour your order strictly.** A small engine change, but it makes costs materially more
-  controllable, which is a **balance** change and would want an `analysis.js` round-robin before shipping.
+**3. Colored pips: label them, never make them strict.** Aj: *"we can't make it strict if it's not the expected
+suit."* A ♥ pip requirement takes the earliest **♥**; the viewer marks what would claim each card so a skipped
+promotion is visible rather than mysterious. **No engine change to `payEnergy`, and therefore no balance risk.**
 
-**4. How many reorders per turn?**
-**Recommendation: unlimited while it is your turn**, no confirm step. It is pure information-free rearrangement
-of your own resource, it cannot be baited by the opponent, and a limit would only add UI. Cheap to restrict
-later if it proves fiddly.
+**4. Unlimited reorders while it is your turn.** No confirm step, no per-turn cap.
 
-**5. Does the Rival (AI) use it?**
-**Recommendation: not in v1.** `ai.js` would need a heuristic for "which energy do I want back sooner", and a
-bad one is worse than none. The AI keeps spending FIFO, which is exactly today's behaviour, so nothing
-regresses. Worth revisiting once there is a sense of how humans use it.
+**5. AI: parked.** The Rival keeps spending FIFO (today's behaviour, so nothing regresses). Aj floated giving it
+only to **Demon Lord** later — deliberately parked as possibly too big for this feature.
+
+**6. NEW — log every reorder.** Aj: the energy pile *"isn't really hidden information in paper play"*, and
+logging makes usage trends trackable. See **Logging** below; this one has an open sub-question.
 
 ---
 
+## Logging (Decision 6)
+
+Each promote writes a battle-log line — the pile is a public zone in paper play, and it makes the feature's
+usage measurable (both for balance and for `PLAYER-PROFILE.md`, which already ingests exported games).
+
+**Open sub-question — who sees the line?** This is not just logging; it is an information-model choice:
+
+- **(a) Local only.** You see your own reorders; opponents see nothing new. Preserves today's model exactly —
+  `netview.js` gives opponents only `energyCount`.
+- **(b) Public.** Every player's log shows *"P2 moved 7♥ to the front of their energy pile"*. This matches paper
+  play, which is the stated rationale — but it **leaks pile composition over time**, one card per line, to a
+  zone the mirror currently redacts to a count. It would also want the AI to eventually use that information,
+  or it becomes a human-only tell.
+- **(c) Public and go further** — drop the redaction and let opponents inspect each other's energy piles outright,
+  fully matching paper. The largest change: `netview.js`, the opponent panels, and arguably `ai.js`.
+
+Note the tension with the **non-goal** below: "no opponent-pile inspection." (b) partially breaches it and (c)
+deletes it. Worth settling before implementation, since it decides whether `netview.js` is touched at all.
+
+---
 ## Non-goals
 
 - **No change to the reshuffle** — shuffle→deck stays random.
-- **No change to costs, `canAfford`, or `costReq`** (unless Decision 3 goes to option (b)).
-- **No opponent-pile inspection.** Opponents keep `energyCount` only; this feature must not become an
-  information leak.
+- **No change to costs, `canAfford`, or `costReq`** — Decision 3 settled this: pips stay greedy-by-suit and get labelled, so `payEnergy` is untouched and there is no balance risk.
+- **No opponent-pile inspection** — *pending Decision 6's sub-question*, which may relax this deliberately.
+  Today opponents keep `energyCount` only.
 - **No reordering off-turn**, including during a response window — that is what keeps netplay sequencing simple.
 
 ---
@@ -157,9 +213,10 @@ regresses. Worth revisiting once there is a sense of how humans use it.
 
 | Piece | Size |
 | --- | --- |
-| Pile viewer UI (new surface) | **large** — the bulk |
+| Pile viewer UI — two views (energy orderable, shuffle read-only) + ← / → | **large** — the bulk |
 | `reorderEnergy` + validation | small |
 | Netplay intent op + host re-validation | small |
+| Reorder logging (scope depends on the open sub-question) | small–medium |
 | Tests (engine, UI, netplay) | medium |
 | Tutorial lesson + test | small, now that the pattern exists |
 
