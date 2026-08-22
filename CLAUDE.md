@@ -112,16 +112,25 @@ rather than hardcoding a path, which is what these files used to do and why they
 browser pages; two suites at once flake on CPU contention (`nettest_rtc` in particular fails at `maxRound=0`
 concurrently and passes 11/0 alone). A serial sweep of all 21 takes a few minutes.
 
-**A killed suite orphans its fixed port, and the next run of it hangs forever.** Each suite binds its own fixed
-port and starts its own HTTP server; `kill -9` on the runner leaves that server (and sometimes a
-`chromium_headless_shell`) alive, so the next run waits on a page that never loads. Symptom is a **>240s timeout
-on a suite that passes in ~3s** — a 70× gap that load alone cannot explain, and it is not a regression however
-much it looks like one. Clean up before re-running:
+**Two suites are position-dependent late in a long sweep — `nettest_full` and `nettest_log`.** Run individually
+both pass (5/0 in ~3s, 13/0 in ~5s); run as the 13th-and-later entries of a full 24-suite serial sweep,
+`nettest_full` times out at >240s and `nettest_log` fails ~4 timing assertions. **This is environmental
+accumulation, not a code regression** — established by A/B'ing the actual builds, four runs each:
 
-```bash
-pkill -f nettest_ ; pkill -f headless_shell
-lsof -nP -iTCP -sTCP:LISTEN | grep -E ':8(2|3)[0-9][0-9]'   # any suite port still bound
-```
+| build | result |
+| --- | --- |
+| before the v1.29.1 log migration | 4/4 pass, 3.0-3.7s |
+| after it | 4/4 pass, 3.0-3.7s |
+
+Three hypotheses were tested and **all three were wrong**, so don't re-run them: CPU contention from other work
+(it reproduces with nothing else running), orphaned ports from `kill -9`'d runs (it reproduces on a clean sweep),
+and stale `chromium_headless_shell` processes (reaping them between suites changes nothing). The actual cause is
+still unisolated. Until it is, **confirm any sweep failure by running that suite alone** before believing it.
+
+Unrelated but real: **three suites share port 8303** (`nettest_concede3`, `nettest_elim3`, `nettest_energy`).
+They pass serially because each closes its server, but never run those three concurrently. Also note
+`srv.listen` is awaited with no error handler in every suite, so a port collision hangs forever rather than
+failing — which is why a collision would look like a mysterious timeout.
 
 They are load-sensitive enough that *background junk on the machine* can fail them: one sweep's `nettest_full`
 timed out at >180s purely because three stray busy-wait shells were spinning. If a suite times out, check for
