@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.26.4**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.27.0**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -43,6 +43,7 @@ cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sy
 node test.js                                    # engine + AI suite — 131 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction — 28, must end 0 FAIL
 node browsertest.js                             # headless duel smoke
+node decktest.js                                # custom deck builder, full UI (35 assertions)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -69,7 +70,8 @@ npx playwright install chromium
 ```
 
 Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` is a shared
-helper, not a suite — don't run it directly.
+helper, not a suite — don't run it directly. **`decktest.js`** is the same kind of full-UI test for the solo/local
+side (the custom deck builder); it drives the New Duel screen against `file://…?dbgsolo=1`.
 
 Browser resolution lives in **`code/pwchrome.js`**: `$PW_CHROMIUM` if set, else `/opt/pw-browsers/chromium` if it
 exists (the old sandbox layout), else Playwright's own download. Launch through it — `chromium.launch(LAUNCH)` —

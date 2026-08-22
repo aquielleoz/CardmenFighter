@@ -363,7 +363,70 @@
     Berserker:  { name: 'Berserker (Fig+Rog)',   bases: ['Fighter', 'Rogue'] }
   };
   var DECK_ORDER = ['Wizard', 'Cleric', 'Fighter', 'Rogue', 'Sage', 'MageKnight', 'Warlock', 'Paladin', 'Bard', 'Berserker'];
+  // ---- deck compositions ("parts") --------------------------------------------------------------------
+  // A deck is always 4 PARTS, and a part is one complete 13-card suit (ranks 1-13, i.e. A..K with the apex 2)
+  // of one class. Parts stack and may repeat: {D:1,H:2,C:1} = 13♦ + 26♥ + 13♣ = 52 cards. This GENERALISES the
+  // presets rather than sitting beside them — Pure X is 4 parts of one class, each two-base mix is 2+2, and the
+  // Full Set is 1 of each. A composition serialises to a self-describing key ('custom:D1H2C1') so netplay can
+  // carry the composition itself instead of a saved deck name the host would have to recognise.
+  var PARTS_TOTAL = 4, PARTS_PREFIX = 'custom:';
+  var PARTS_SUITS = ['D', 'H', 'C', 'S'];   // canonical order = Wizard, Cleric, Fighter, Rogue (the builder's stepper order)
+  function partsCount(parts) {
+    var n = 0;
+    for (var i = 0; i < PARTS_SUITS.length; i++) n += (parts && parts[PARTS_SUITS[i]]) || 0;
+    return n;
+  }
+  function partsValid(parts) {
+    if (!parts || typeof parts !== 'object') return false;
+    for (var k in parts) {                                     // reject unknown suits outright
+      if (!Object.prototype.hasOwnProperty.call(parts, k)) continue;
+      if (PARTS_SUITS.indexOf(k) < 0) return false;
+      var v = parts[k];
+      if (typeof v !== 'number' || v !== Math.floor(v) || v < 0 || v > PARTS_TOTAL) return false;
+    }
+    return partsCount(parts) === PARTS_TOTAL;
+  }
+  function partsKey(parts) {
+    if (!partsValid(parts)) return null;
+    var s = '';
+    for (var i = 0; i < PARTS_SUITS.length; i++) { var n = parts[PARTS_SUITS[i]] || 0; if (n) s += PARTS_SUITS[i] + n; }
+    return PARTS_PREFIX + s;
+  }
+  function parseParts(key) {
+    if (typeof key !== 'string' || key.indexOf(PARTS_PREFIX) !== 0) return null;
+    var body = key.slice(PARTS_PREFIX.length), parts = {}, re = /([DHCS])([0-9])/g, m, used = 0;
+    while ((m = re.exec(body))) {
+      if (parts[m[1]] !== undefined) return null;              // the same class listed twice
+      parts[m[1]] = +m[2]; used += m[0].length;
+    }
+    if (used !== body.length) return null;                     // junk or an unparsed remainder
+    return partsValid(parts) ? parts : null;
+  }
+  function isPartsKey(key) { return !!parseParts(key); }
+  function buildFromParts(parts) {
+    if (!partsValid(parts)) return null;
+    var out = [], n = 0;
+    for (var v = 1; v <= 13; v++)
+      for (var i = 0; i < PARTS_SUITS.length; i++) {
+        var su = PARTS_SUITS[i], reps = parts[su] || 0;
+        for (var k = 0; k < reps; k++) out.push({ rank: v, suit: su, id: v + su + '#' + (n++) });   // unique instance id
+      }
+    return out;                                                // 52 cards
+  }
+  // The composition behind a preset key (or 'full'), so the builder can open pre-filled from one.
+  function presetParts(key) {
+    if (key === 'full' || key === null || key === undefined) return { D: 1, H: 1, C: 1, S: 1 };
+    var spec = DECKS[key]; if (!spec) return null;
+    var per = PARTS_TOTAL / spec.bases.length, parts = {};
+    for (var i = 0; i < spec.bases.length; i++) {
+      var su = BASE_SUIT[spec.bases[i]];
+      parts[su] = (parts[su] || 0) + per;
+    }
+    return parts;
+  }
   function buildDeck(key) {
+    if (key && typeof key === 'object') return buildFromParts(key);        // a raw composition
+    var asParts = parseParts(key); if (asParts) return buildFromParts(asParts);
     var spec = DECKS[key]; if (!spec) return null;
     var suits = spec.bases.map(function (b) { return BASE_SUIT[b]; });
     var perSuit = 4 / suits.length;                // pure -> 4, mix -> 2
@@ -1600,6 +1663,9 @@
     openPreFight: openPreFight, preFightCast: preFightCast, preFightPass: preFightPass,
     shieldGuard: shieldGuard, shieldGuardPass: shieldGuardPass, shieldGuardCard: shieldGuardCard,
     DECKS: DECKS, DECK_ORDER: DECK_ORDER, BASE_SUIT: BASE_SUIT, buildDeck: buildDeck,
+    PARTS_TOTAL: PARTS_TOTAL, PARTS_SUITS: PARTS_SUITS, PARTS_PREFIX: PARTS_PREFIX,
+    partsCount: partsCount, partsValid: partsValid, partsKey: partsKey, parseParts: parseParts,
+    isPartsKey: isPartsKey, buildFromParts: buildFromParts, presetParts: presetParts,
     canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
     discardToLimit: discardToLimit, MAX_HAND: MAX_HAND,
     effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, opponentCanRespond: opponentCanRespond, useEquipment: useEquipment, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
