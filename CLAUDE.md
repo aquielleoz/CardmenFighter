@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.28.0**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.28.1**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -45,11 +45,17 @@ node netview.test.js                            # netplay snapshot redaction —
 node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens (10)
+node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
 run straight on `engine.js`/`ai.js` (no build needed), so run them after a source edit even if you skip the
 build.
+
+`build.js` **parses every inlined `<script>` before writing** and refuses to build on a syntax error, naming the
+offending line. It did not always: a missing comma in the template's `LESSONS` array once shipped a page whose
+entire script failed to parse — a dead game, which the UI tests then reported as a scatter of unrelated
+failures. If a UI test suddenly fails on everything, suspect a broken build first.
 
 Balance / heavier harnesses, when a change could move win rates:
 

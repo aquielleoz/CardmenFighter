@@ -6018,6 +6018,33 @@ window.CardFace = {};
       promptHumanResponse(g, function(){ if(gen===g){ state.turn=YOU; render(); } });   // after resolve, hand the turn back
     } else { state.turn=savedTurn; render(); }
   }
+  // Custom decks lesson (Advanced): the only lesson whose subject is a SCREEN rather than a play.
+  // The rigged duel is just scenery — the steps open the deck builder over the board and gate on the
+  // player's own stepper/save clicks (#tutPanel is z-index 80 against the overlay's 30, so the coach
+  // stays readable on top, and .tut-spot at 82 can spotlight controls inside the modal).
+  function tutOpenDeckBuilder(force){
+    // `force` re-renders an already-open builder. Saving does NOT hide the modal (openDeckBuilder's finish()
+    // only hands the key back), so without force the guard below would short-circuit and the saved-decks list
+    // would still show the pre-save state.
+    if(!force && document.querySelector('.deckBuild')) return;    // already open (a re-entered step)
+    openDeckBuilder(null, function(){                             // start from an empty 0/4 so the steppers ARE the lesson
+      // While the lesson runs, always come back: on a cancel it would otherwise strand the step, and after a
+      // save the reopened builder re-renders "Your saved decks" so the final step can point at the real deck
+      // the player just built (the modal is not rebuilt in place).
+      if(TUT.isActive()) setTimeout(function(){ tutOpenDeckBuilder(true); }, 120);
+    });
+  }
+  function lessonDecksSteps(){
+    return [
+      { text:"Every deck in this game is <b>52 cards</b> — and it is always <b>4 parts</b>. A <b>part</b> is one <b>complete 13-card suit</b> of a class: all of its ranks, A through K, apex 2 included.", hi:['#youDeck','#youDeckName'], btn:"Show me ▸" },
+      { text:"The decks you already know are just part-mixes: <b>Pure Wizard</b> is 4 parts Wizard, <b>Sage</b> is 2 Wizard + 2 Cleric, and the <b>Full Set</b> is 1 part of each of the four. Let's build your own.", prep:tutOpenDeckBuilder, hi:'.deckBuild', btn:"Open the builder ▸" },
+      { text:"Four classes, <b>4 parts to spend</b>. Give <b>Cleric</b> two of them — tap its <b>+</b> twice. Doubling a class means <b>two of every one of its cards</b>: two 7♥, two Aces of hearts, and so on.", hi:'.dbRow[data-su="H"] [data-d="1"]', gate:function(t,d){ return t==='deckparts' && d && d.parts && (d.parts.H||0)>=2; }, wait:"Two parts of Cleric…" },
+      { text:"Now spend the <b>last two parts</b> however you like — the counter has to read <b>4 / 4</b> before you can save. Fewer parts is not an option: a deck is always 52 cards.", hi:['.dbRow[data-su="D"] [data-d="1"]','.dbRow[data-su="C"] [data-d="1"]','.dbRow[data-su="S"] [data-d="1"]','#dbTotal'], gate:function(t,d){ return t==='deckparts' && d && d.total>=4; }, wait:"Spend all 4 parts…" },
+      { text:"That's a legal deck. <b>Name it</b> and hit <b>Save deck</b>. It sits under <b>Your class</b> alongside the Wizard and the Rogue, so name it like <b>a class of your own</b> — Twin Cleric, Battle Priest, whatever your mix fights like.", hi:['#dbName','#dbSave'], gate:function(t,d){ return t==='decksaved'; }, wait:"Name it and save…" },
+      { text:"Done — it's now in <b>every</b> deck picker: your own, the <b>Rival's</b>, each seat of a local free-for-all, and the <b>online lobby</b>. Online, only the <b>mix</b> travels, so your opponent's host builds it correctly even though your deck's <i>name</i> means nothing to them. Delete a deck any time from this same builder.", hi:'.dbSaved', btn:"Finish ▸" }
+    ];
+  }
+
   function lessonQuicksSteps(){
     return [
       { text:"Some cards are <b>Quicks</b> (⏩) — playable <b>in response</b>, even on the Rival’s turn. This is <b>Counter Spell</b>: it <b>cancels a Technique</b> as it’s cast, sending it to the Rival’s shuffle pile.", prep:tutPrepQuick, hi:function(){ return tutQuickId?('#hand .card[data-id="'+tutQuickId+'"]'):'#hand'; }, btn:"Show me ▸" },
@@ -6051,7 +6078,8 @@ window.CardFace = {};
     { id:'energy',     num:5, section:'Basics',   title:'Energy & Effects',   blurb:'Bank energy, spend it on card effects, keep your deck alive.',    ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonEnergySteps },
     { id:'quicks',     num:6, section:'Advanced', title:'Quicks',             blurb:'Cards you can play in response — even on the Rival’s turn.',      ready:true,  basics:false,            rig:tutRigQuicks,    steps:lessonQuicksSteps },
     { id:'rides',      num:7, section:'Advanced', title:'Rides',              blurb:'The J — a persistent companion that helps you out.',              ready:true,  basics:false,            rig:tutRigRides,     steps:lessonRidesSteps },
-    { id:'forms',      num:8, section:'Advanced', title:'Form Changes',       blurb:'The Q &amp; K — transformations that upgrade your cards’ effects.', ready:true,  basics:false,            rig:tutRigForms,     steps:lessonFormsSteps }
+    { id:'forms',      num:8, section:'Advanced', title:'Form Changes',       blurb:'The Q &amp; K — transformations that upgrade your cards’ effects.', ready:true,  basics:false,            rig:tutRigForms,     steps:lessonFormsSteps },
+    { id:'decks',      num:9, section:'Advanced', title:'Custom Decks',      blurb:'Build your own 52-card deck out of class parts.',              ready:true,  basics:false,            rig:tutRig,          steps:lessonDecksSteps },
   ];
   function lessonById(id){ for(var i=0;i<LESSONS.length;i++) if(LESSONS[i].id===id) return LESSONS[i]; return null; }
   function nextLesson(lsn){ var idx=LESSONS.indexOf(lsn); for(var i=idx+1;i<LESSONS.length;i++){ if(LESSONS[i].ready) return LESSONS[i]; } return null; }
@@ -6203,6 +6231,7 @@ window.CardFace = {};
         if(next<0 || next>E.PARTS_TOTAL) return;
         if(d>0 && E.partsCount(parts)>=E.PARTS_TOTAL) return;
         parts[su]=next; $('dbErr').textContent=''; repaint();
+        TUT.note('deckparts', { parts:parts, total:E.partsCount(parts), suit:su });   // the deck lesson gates on the steppers
       });
     });
     Array.prototype.forEach.call(document.querySelectorAll('.deckBuild .dbDel'), function(b){
@@ -6218,12 +6247,17 @@ window.CardFace = {};
       if(!E.partsValid(parts)) return;
       var name=($('dbName').value||'').trim();
       var clash=savedDeckFor(E.partsKey(parts));
-      if(clash){ $('dbErr').textContent='You already have that exact mix saved as "'+clash.name+'".'; return; }
+      if(clash){
+        $('dbErr').textContent='You already have that exact mix saved as "'+clash.name+'".';
+        TUT.note('decksaved', { duplicate:true, name:clash.name });   // lesson: you got there; the deck simply already exists
+        return;
+      }
       if(savedDecks.some(function(d){ return d.name.toLowerCase()===name.toLowerCase() && name; })){
         $('dbErr').textContent='You already have a deck called "'+name+'" — pick another name.'; return;
       }
       var key=addSavedDeck(name, parts);
       if(!key){ $('dbErr').textContent='Could not save that deck.'; return; }
+      TUT.note('decksaved', { key:key, name:name });
       finish(key);
     });
     $('dbCancel').addEventListener('click', function(){ finish(null); });
