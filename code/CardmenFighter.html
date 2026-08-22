@@ -7251,7 +7251,7 @@ window.CardFace = {};
       if(!r || !r.ok){ sendTo(seat, {t:'err', seat:seat, reason:(r&&r.reason)||'Cannot reorder now.'}); return; }
       var top=pl.energy[0];
       if(top && before.split(',')[0]!==top.id)
-        sayPublic(seat, '{who} moved <b>'+rankLabel(top.rank)+SUIT_SYMBOL[top.suit]+'</b> to the front of their energy pile.', 'nrgmove');
+        say(seat, '{who} moved <b>'+rankLabel(top.rank)+SUIT_SYMBOL[top.suit]+'</b> to the front of their energy pile.', 'nrgmove');
       broadcastMirror();
     }
     /* PUBLIC narration. Netplay had no host→client log channel at all — every message type was state
@@ -7261,10 +7261,6 @@ window.CardFace = {};
      * Phrasing is reader-relative ("You played" vs "Rival played" vs "P3 played"), so we broadcast a TEMPLATE
      * with a `{who}` placeholder plus the actor's absolute seat, and each client resolves the name in its own
      * frame (its mirror is rotated so it is index 0). One message, no per-recipient string building. */
-    function sayPublic(actorSeat, tpl, cls){
-      logMsg(tpl.replace(/\{who\}/g, '<b>'+(actorSeat===0 ? 'You' : seatName(actorSeat))+'</b>'), cls);   // the host's own frame
-      send({t:'log', actor:actorSeat, tpl:tpl, cls:cls||''});
-    }
     function broadcastMirror(){ if(hostState){ for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'mirror', seat:s, st:NetView.mirrorFor(hostState, s)}); } }   // per-seat (a seat's private hand never reaches another peer)
     function onRender(){ if(isHost() && started && hostState) broadcastMirror(); }   // hook: keep the client's board in lockstep
     function awaitRival(){ busy=true; $('rivalStatus').textContent='Waiting for opponent…'; render(); broadcastMirror(); }   // park; client will send a move
