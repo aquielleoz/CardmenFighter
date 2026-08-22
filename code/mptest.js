@@ -15,9 +15,9 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
   const log=()=>p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'),e=>e.textContent.trim()));
+  const waitFor=async (fn,n)=>{ for(let i=0;i<(n||60);i++){ if(await fn()) return true; await wait(150);} return false; };
   const hasLog=async re=>{ for(let i=0;i<60;i++){ if((await log()).some(l=>re.test(l))) return true; await wait(150);} return false; };
   const msg=()=>p.evaluate(()=>((document.getElementById('message')||{}).textContent||'').trim());
-  const waitFor=async (fn,n)=>{ for(let i=0;i<(n||60);i++){ if(await fn()) return true; await wait(150);} return false; };
 
   async function start3p(){
     await p.goto(URL); await wait(700);
@@ -187,6 +187,38 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   await p.evaluate(()=>document.getElementById('ctxBtn').click()); await wait(700);
   ok(await p.evaluate(()=>window.__solo.st().players[0].energy.length)<nrg0, 'confirming with ⚡ Activate finally spends the energy');
   ok(await p.evaluate(()=>window.__solo.st().players[2].hand.length<2), '…and resolves against the seat you aimed at (P3, not the default next seat)');
+  // ================= D1/C2: round announcements name the real seats =================
+  // Play a real 3-player game rather than forcing state: rounds then resolve through the normal driver, which
+  // is what produces the announcement lines. (Forcing a pile/hands mid-round leaves the driver mid-cycle — it
+  // fails to resolve identically on main, so it is a staging artifact, not a regression.)
+  ok(await start3p(), '3-player game restarted for round-result naming');
+  let resolved=false;
+  for(let i=0;i<160 && !resolved;i++){
+    resolved=(await log()).some(l=>/won with a|won the round of Jabs/.test(l));
+    if(resolved) break;
+    await p.evaluate(()=>{
+      const clr=document.getElementById('clearBtn'), f=document.getElementById('fightBtn'), ps=document.getElementById('passBtn');
+      const cards=[].slice.call(document.querySelectorAll('#hand .card'));
+      for(let k=0;k<cards.length;k++){ if(clr)clr.click(); document.querySelectorAll('#hand .card')[k].click(); if(f&&!f.disabled){ f.click(); return; } }
+      if(clr)clr.click(); if(ps&&!ps.disabled) ps.click();
+    });
+    await wait(260);
+  }
+  ok(resolved, 'a round resolved in a real 3-player game');
+  // the round card + draw line land AFTER the win line, once the ceremony dwell finishes
+  await waitFor(async()=>(await log()).some(l=>/^Round \d+ begins/.test(l)), 60);
+  const lines=await log();
+  ok(!lines.some(l=>/a rival lost a shield/.test(l)), 'no line says the lowercase "a rival lost a shield" any more');
+  ok(!lines.some(l=>/returns to Rival.s hand/.test(l)), 'the broken-shield line no longer says "Rival\'s hand"');
+  ok(!lines.some(l=>/^a rival moves/.test(l)), 'the catch-up line no longer starts with a lowercase "a rival"');
+  ok(!lines.some(l=>/Round undefined/.test(l)), 'never "Round undefined" (Aj saw one)');
+  ok(!lines.some(l=>/You draw \d+, Rival draws/.test(l)), 'the 2-player "You draw 2, Rival draws 2" line is gone');
+  const roundLine=lines.filter(l=>/^Round \d+ begins/.test(l))[0];
+  ok(!!roundLine, 'the round line uses the neutral wording: "'+(roundLine||'(none)')+'"');
+  ok(/Each player draws \d+/.test(roundLine||''), '…including how many each player draws');
+  // any shield loss must name a seat
+  const lossLines=lines.filter(l=>/lost a shield|lose a shield/.test(l));
+  ok(lossLines.every(l=>/\b(You|P2|P3)\b/.test(l)), 'every shield-loss line names a seat ('+(lossLines[0]||'none seen')+')');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
