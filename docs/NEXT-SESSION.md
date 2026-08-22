@@ -50,6 +50,24 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 ---
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **"Each jab is a cantrip"** (Aj, idea — parked, not designed). A **jab** (single-card play) would also do
+  something small on top of banking energy — the obvious reading being **draw a card**, MTG-style.
+  - **Why this is more interesting than it looks:** it is a **global draw engine**, and that is exactly the
+    thing the game measurably lacks. `node recyclesim.js` says only **39%** of games ever reach a reshuffle and
+    the median first one lands at **round 12**, *past* the median 11-round game — which is why the reorderable
+    energy pile is currently a niche lever. Jab-cantrips would raise cycling for **every** deck at once, so the
+    energy reorder, the shuffle pile, and reclaim effects all gain value without touching any of them. It is
+    the same need noted under *suit ≠ class* (a real draw engine), but solved as a **core rule** instead of a
+    card set.
+  - **Questions to settle first:** every jab or only a **winning** jab? Draw **1**, or a small choice (draw /
+    ramp / peek)? Both players, or only the one who played it? Round 1 is jabs-only — does that make the
+    opening explosive? And does it change what a jab *is for*, since today the honest reason to jab is "bank
+    energy and don't break a shield".
+  - **Definitely measure, don't ship on feel:** this is a core-rule change, so run `analysis.js` before/after
+    for class win rates, `recyclesim.js` for the reshuffle rate it is meant to move, and `mpsim.js` for 3-6p.
+    Expect games to get **longer** and effect density to rise — the interesting risk is decking out sooner, in
+    the other direction.
+
 
 - **Player names** (Aj) — *the cheapest good thing left.* Let players type a name instead of `P2`/`P3`. Every
   naming site already funnels through a single **`logName(seat)`** (that was the point of doing D1 first), and
