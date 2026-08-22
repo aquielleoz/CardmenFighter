@@ -37,6 +37,68 @@ function cards(ids) { return ids.map(card); }
   ok(E.buildDeck('Wizard').length === 52, 'REWORK: pure deck is 52 cards');
   ok(E.buildDeck('Sage').length === 52, 'REWORK: dual deck is 52 cards');
 
+  // ---- energy pile ORDER: the player's lever on what recycles sooner (ENERGY-REORDER-DESIGN.md) ----
+  (function () {
+    function rig() {
+      var g = E.newGame(null, { starter: 0 });
+      var pl = g.players[0];
+      pl.energy = [sc(3, 'H'), sc(4, 'S'), sc(5, 'H'), sc(6, 'C'), sc(7, 'D'), sc(8, 'H')];
+      pl.shuffle = []; g.turn = 0; g.pending = null; g.respondFor = null; g.finished = false;
+      return g;
+    }
+    var ids = function (a) { return a.map(function (c) { return c.id; }).join(','); };
+
+    var g = rig();
+    var r = E.promoteEnergy(g, 0, '7D');
+    ok(r.ok && ids(g.players[0].energy) === '7D,3H,4S,5H,6C,8H', 'energy: promote moves a card to the FRONT, the rest shift down');
+    E.promoteEnergy(g, 0, '6C');
+    ok(ids(g.players[0].energy) === '6C,7D,3H,4S,5H,8H', 'energy: a second promote takes the top — last promoted is spent first (stack, not queue)');
+
+    // The consequence that matters: order decides what leaves the pile. Isolate the GENERIC path by paying for a
+    // card whose suit is absent from the pile — the colored-pip loop then finds nothing and the whole cost comes
+    // off the front. (J/Q/K would be fully generic but their transform cost is 0 since v1.23.0, so they pay
+    // nothing at all.)
+    g = rig();
+    g.players[0].energy = [sc(3, 'H'), sc(4, 'S'), sc(5, 'H'), sc(6, 'C'), sc(8, 'H'), sc(9, 'S')];   // no ♦ at all
+    E.promoteEnergy(g, 0, '4S');                                   // a spade to the front
+    E.payEnergy(g.players[0], sc(4, 'D'), 0);                      // 4♦: 2 ♦ pips (none available) + the rest generic
+    ok(ids(g.players[0].shuffle) === '4S,3H,5H,6C', 'energy: a generic cost spends off the FRONT, in the order you set');
+    ok(g.players[0].energy.length === 2, 'energy: the pile shrank by exactly the cost');
+
+    // colored pips take the earliest card OF THAT SUIT — the labelled caveat, pinned
+    g = rig();
+    E.promoteEnergy(g, 0, '4S');                                   // spade in front, but a ♥ cost ignores it
+    E.payEnergy(g.players[0], sc(3, 'H'), 0);                      // cost 3 ♥-suited → pips floor(3/2)=1 ♥ + 2 generic
+    var sh = g.players[0].shuffle.map(function (c) { return c.id; });
+    ok(sh[0] === '3H', 'energy: a colored pip takes the earliest card of THAT suit, skipping a promoted spade');
+    ok(sh.indexOf('4S') > 0, 'energy: the promoted spade still went, but as generic — not as the ♥ pip');
+
+    // validation — a bad order is an attempt to conjure or delete energy
+    g = rig();
+    var before = ids(g.players[0].energy);
+    ok(!E.reorderEnergy(g, 0, ['3H', '4S']).ok, 'energy: a short order is rejected');
+    ok(!E.reorderEnergy(g, 0, ['3H', '3H', '4S', '5H', '6C', '7D']).ok, 'energy: a duplicated id is rejected');
+    ok(!E.reorderEnergy(g, 0, ['3H', '4S', '5H', '6C', '7D', '9S']).ok, 'energy: a foreign id is rejected');
+    ok(!E.reorderEnergy(g, 0, 'nope').ok && !E.reorderEnergy(g, 0, null).ok, 'energy: a non-array order is rejected');
+    ok(!E.promoteEnergy(g, 0, '9S').ok, 'energy: promoting a card you do not hold is rejected');
+    ok(ids(g.players[0].energy) === before, 'energy: every rejection left the pile untouched');
+
+    g = rig(); g.turn = 1;
+    ok(!E.reorderEnergy(g, 0, ['8H', '3H', '4S', '5H', '6C', '7D']).ok, 'energy: reordering off-turn is rejected');
+    g = rig(); g.respondFor = 1;
+    ok(!E.reorderEnergy(g, 0, ['8H', '3H', '4S', '5H', '6C', '7D']).ok, 'energy: no reorder while a response window is open');
+    g = rig(); g.pending = { some: 'stack' };
+    ok(!E.reorderEnergy(g, 0, ['8H', '3H', '4S', '5H', '6C', '7D']).ok, 'energy: no reorder while a Technique is resolving');
+    g = rig(); g.finished = true;
+    ok(!E.reorderEnergy(g, 0, ['8H', '3H', '4S', '5H', '6C', '7D']).ok, 'energy: no reorder after the game ends');
+
+    // a full reversal is a legal permutation
+    g = rig();
+    ok(E.reorderEnergy(g, 0, ['8H', '7D', '6C', '5H', '4S', '3H']).ok && ids(g.players[0].energy) === '8H,7D,6C,5H,4S,3H',
+       'energy: any true permutation is accepted, including a full reversal');
+    ok(E.reorderEnergy(g, 0, []).ok === false || g.players[0].energy.length === 6, 'energy: an empty order cannot empty a non-empty pile');
+  })();
+
   // ---- deck compositions ("parts"): 4 parts of 13 cards, duplicates allowed, serialised as 'custom:D1H2C1' ----
   (function () {
     var suits = function (deck) { return deck.reduce(function (a, c) { a[c.suit] = (a[c.suit] || 0) + 1; return a; }, {}); };

@@ -2,7 +2,7 @@
 
 A self-contained, single-file dueling card game — a Kamen-Rider-themed TCG you play in any browser, on desktop or phone, fully offline. Strip your rival's shields with card combos, transform into stronger forms, and land the finishing Fighter Kick.
 
-**Status:** v1.28.2 — playable and complete (solo vs AI, guided tutorials, and local/online 2–6 player).
+**Status:** v1.29.0 — playable and complete (solo vs AI, guided tutorials, and local/online 2–6 player).
 
 ## Play
 
@@ -64,5 +64,6 @@ npx playwright install chromium` in `code/`, then run one suite at a time. The *
 - [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) — current state, changelog, and the open backlog.
 - [`docs/REWORK-HISTORY.md`](docs/REWORK-HISTORY.md) — how the game evolved into its current form.
 - [`docs/RIDES-AND-FORMS.md`](docs/RIDES-AND-FORMS.md) — design of the J/Q/K Forms & Rides layer.
+- [`docs/ENERGY-REORDER-DESIGN.md`](docs/ENERGY-REORDER-DESIGN.md) — design for the reorderable energy pile (proposed, not built).
 - [`docs/PATCHNOTES.md`](docs/PATCHNOTES.md) — balance principles and win-rate history.
 - [`docs/PLAYER-PROFILE.md`](docs/PLAYER-PROFILE.md) — a living read on how the game's main player actually plays; used for AI tuning and balance.

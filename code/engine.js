@@ -304,6 +304,41 @@
     var pips = (card && card.pips != null) ? card.pips : defaultPips(r);
     var m = {}; m[card.suit] = Math.min(pips, r); return m;                      // never more pips than the total cost
   }
+  /* Energy pile ORDER is the player's lever on what recycles sooner. payEnergy above spends colored pips as
+   * the earliest card of the required suit and the generic remainder as energy.shift() — the front of the pile —
+   * so re-ordering the pile fully determines which cards leave it, without touching cost logic at all.
+   * `ids` is the pile's intended new order and must be a PERMUTATION of the current pile: same length and the
+   * same multiset of ids (ids can repeat legitimately — Counterfeit copies). Anything else is rejected, since a
+   * bad order is an attempt to conjure or delete energy. ON YOUR TURN ONLY, and not while a stack/response
+   * window is open, so the pile cannot shift underneath a resolution that is mid-flight. */
+  function reorderEnergy(st, p, ids) {
+    if (st.finished) return { ok: false, reason: 'Game over.' };
+    if (p !== st.turn) return { ok: false, reason: 'You can only reorder your energy on your own turn.' };
+    if (st.pending || st.respondFor != null) return { ok: false, reason: 'Not while a Technique is resolving.' };
+    var pl = st.players[p];
+    if (!Array.isArray(ids) || ids.length !== pl.energy.length) return { ok: false, reason: 'Bad order — that is not your whole energy pile.' };
+    var have = {}, i, j;
+    for (i = 0; i < pl.energy.length; i++) have[pl.energy[i].id] = (have[pl.energy[i].id] || 0) + 1;
+    var seen = {};
+    for (i = 0; i < ids.length; i++) {
+      seen[ids[i]] = (seen[ids[i]] || 0) + 1;
+      if (!have[ids[i]] || seen[ids[i]] > have[ids[i]]) return { ok: false, reason: 'Bad order — unknown or duplicated card.' };
+    }
+    var pool = pl.energy.slice(), out = [];                 // same length + no id over its own multiplicity ⇒ a true permutation
+    for (i = 0; i < ids.length; i++)
+      for (j = 0; j < pool.length; j++) if (pool[j].id === ids[i]) { out.push(pool.splice(j, 1)[0]); break; }
+    pl.energy = out;
+    return { ok: true, order: out.map(function (c) { return c.id; }) };
+  }
+  // "⤒ Promote to top": the named card BECOMES the front and everything else shifts down, so repeated promotes
+  // mean last-promoted-is-spent-first (a stack push, not a queue).
+  function promoteEnergy(st, p, cardId) {
+    var pl = st.players[p];
+    if (!pl.energy.some(function (c) { return c.id === cardId; })) return { ok: false, reason: 'That card is not in your energy pile.' };
+    var ids = [cardId];
+    pl.energy.forEach(function (c) { if (c.id !== cardId) ids.push(c.id); });
+    return reorderEnergy(st, p, ids);
+  }
   function canAfford(pl, card, delta) {
     var cost = card ? Math.max(0, activationCost(card) + (delta || 0)) : 0;       // delta = ride cost modifier (Owl −1 / Ram +1)
     if (cost <= 0) return true;
@@ -1666,7 +1701,7 @@
     PARTS_TOTAL: PARTS_TOTAL, PARTS_SUITS: PARTS_SUITS, PARTS_PREFIX: PARTS_PREFIX,
     partsCount: partsCount, partsValid: partsValid, partsKey: partsKey, parseParts: parseParts,
     isPartsKey: isPartsKey, buildFromParts: buildFromParts, presetParts: presetParts,
-    canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
+    canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, reorderEnergy: reorderEnergy, promoteEnergy: promoteEnergy, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
     discardToLimit: discardToLimit, MAX_HAND: MAX_HAND,
     effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, opponentCanRespond: opponentCanRespond, useEquipment: useEquipment, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS

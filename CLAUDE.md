@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.28.2**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.29.0**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -47,6 +47,8 @@ node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens (10)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
+node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
+node piletest.js                                # energy/shuffle pile viewers + promote (21)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -63,13 +65,14 @@ Balance / heavier harnesses, when a change could move win rates:
 ```bash
 node analysis.js 130 on      # class round-robin — args: N catchup recycle difficulty
 node mpsim.js                # 3/4/6p free-for-all — args: games difficulty
+node recyclesim.js 400       # how often a game reaches the reshuffle (deck-cycling pressure)
 node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — RUN IT after any card
                              # name/cost/text change, or the published card list silently goes stale
 ```
 
 ### Playwright suites (browser + netplay)
 
-`browsertest.js` and the 22 `nettest_*.js` full-UI netplay suites drive the real built HTML in a headless browser.
+`browsertest.js` and the 23 `nettest_*.js` full-UI netplay suites drive the real built HTML in a headless browser.
 They need Playwright, which **is** installed here (`code/node_modules`, gitignored). To set it up from scratch:
 
 ```bash
@@ -108,6 +111,26 @@ rather than hardcoding a path, which is what these files used to do and why they
 **Run them one at a time.** Each suite starts its own HTTP server on a fixed port and drives two or three real
 browser pages; two suites at once flake on CPU contention (`nettest_rtc` in particular fails at `maxRound=0`
 concurrently and passes 11/0 alone). A serial sweep of all 21 takes a few minutes.
+
+**Two suites are position-dependent late in a long sweep — `nettest_full` and `nettest_log`.** Run individually
+both pass (5/0 in ~3s, 13/0 in ~5s); run as the 13th-and-later entries of a full 24-suite serial sweep,
+`nettest_full` times out at >240s and `nettest_log` fails ~4 timing assertions. **This is environmental
+accumulation, not a code regression** — established by A/B'ing the actual builds, four runs each:
+
+| build | result |
+| --- | --- |
+| before the v1.29.1 log migration | 4/4 pass, 3.0-3.7s |
+| after it | 4/4 pass, 3.0-3.7s |
+
+Three hypotheses were tested and **all three were wrong**, so don't re-run them: CPU contention from other work
+(it reproduces with nothing else running), orphaned ports from `kill -9`'d runs (it reproduces on a clean sweep),
+and stale `chromium_headless_shell` processes (reaping them between suites changes nothing). The actual cause is
+still unisolated. Until it is, **confirm any sweep failure by running that suite alone** before believing it.
+
+Unrelated but real: **three suites share port 8303** (`nettest_concede3`, `nettest_elim3`, `nettest_energy`).
+They pass serially because each closes its server, but never run those three concurrently. Also note
+`srv.listen` is awaited with no error handler in every suite, so a port collision hangs forever rather than
+failing — which is why a collision would look like a mysterious timeout.
 
 They are load-sensitive enough that *background junk on the machine* can fail them: one sweep's `nettest_full`
 timed out at >180s purely because three stray busy-wait shells were spinning. If a suite times out, check for
