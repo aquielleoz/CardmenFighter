@@ -350,6 +350,35 @@
   .specialsRef:hover{background:rgba(240,200,80,.2);}
   #viewCardBtn{display:none;}   /* only on tight screens, where the inline description strip is hidden (see the tight-screen media query) */
   #viewCardBtn:disabled{opacity:.4; cursor:default;}   /* nothing selected → nothing to read */
+  .statBtn{font:inherit; color:inherit; background:none; border:none; margin:0; padding:0; cursor:pointer; display:inline-flex; align-items:center; gap:4px;}
+  .statBtn:hover{color:var(--gold);}
+  /* Energy / Shuffle pile viewers (⚡ and ♻ in your meta row open these) */
+  .modal .pileHead{display:flex; align-items:center; gap:8px; margin:2px 0 10px;}
+  .modal .pileHead .pvNav{flex:0 0 auto; width:34px; height:34px; min-width:0; margin:0; padding:0; font:800 16px/1 system-ui; border-radius:9px; border:1px solid var(--line); background:#1a2230; color:var(--txt); cursor:pointer;}
+  .modal .pileHead .pvNav:hover{border-color:var(--gold); color:var(--gold);}
+  .modal .pileHead .pvTitle{flex:1 1 auto; font-weight:800; font-size:16px;}
+  .modal .pileHead .pvCount{flex:0 0 auto; font-size:12.5px; opacity:.7;}
+  .modal .pileHint{font-size:12.5px; opacity:.75; line-height:1.5; margin:0 0 9px; text-align:left;}
+  .modal .pileList{display:flex; flex-direction:column; gap:5px; max-height:min(46vh,340px); overflow-y:auto; text-align:left; padding-right:2px;}
+  .modal .pileRow{display:flex; align-items:center; gap:9px; padding:5px 8px; border-radius:10px; border:1px solid var(--line); background:rgba(255,255,255,.02); cursor:pointer;}
+  .modal .pileRow.ro{cursor:default;}
+  .modal .pileRow:not(.ro):hover{border-color:var(--gold);}
+  .modal .pileRow.sel{border-color:var(--gold); background:rgba(240,200,80,.08);}
+  .modal .pileRow .pvPos{flex:0 0 26px; text-align:right; font:700 12px/1 system-ui; opacity:.6;}
+  .modal .pileRow .card.mini{flex:0 0 auto; pointer-events:none;}
+  .modal .pileRow .pvName{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13.5px;}
+  .modal .pileRow .pvTags{flex:0 0 auto; display:flex; gap:5px;}
+  .modal .pvTag{font:700 10.5px/1 system-ui; letter-spacing:.03em; text-transform:uppercase; padding:3px 6px; border-radius:6px; border:1px solid var(--line); opacity:.9;}
+  .modal .pvTag.next{border-color:rgba(240,200,80,.6); color:var(--gold); background:rgba(240,200,80,.1);}
+  .modal .pvTag.pip{border-color:rgba(90,200,250,.5); color:var(--nrg); background:rgba(90,200,250,.08);}
+  .modal .pileCtx{display:flex; gap:8px; justify-content:center; margin:10px 0 2px;}
+  .modal .pileCtx button{margin:0; flex:0 1 auto; white-space:nowrap; min-width:120px; font-size:14.5px; padding:10px 14px;}
+  .modal .pileCtx button:disabled{opacity:.45; cursor:default;}
+  .modal .pileEmpty{margin:16px 0; opacity:.6; font-style:italic; font-size:14px;}
+  .modal .pvRead{margin-top:10px; padding:11px 12px; border:1px solid var(--line); border-radius:11px; text-align:left; max-height:min(38vh,300px); overflow-y:auto;}
+  .modal .pvReadBack{margin-top:8px;}
+  .nrgBox.clickable, .shufBox.clickable{cursor:pointer;}
+  .nrgBox.clickable:hover, .shufBox.clickable:hover{border-color:var(--gold);}
   /* Custom deck builder (✏️ Custom deck… in any deck picker) */
   .modal .deckBuild{display:flex; flex-direction:column; gap:8px; margin:12px 0 4px; text-align:left;}
   .modal .dbHint{font-size:12.5px; opacity:.7; line-height:1.5;}
@@ -857,9 +886,9 @@
       <span class="fighter" style="padding:5px 10px; gap:10px; background:transparent; border:none;">
         <span class="who" style="min-width:0;">You</span><span id="youDeckName" class="deckName"></span>
         <span class="shields" id="youShields"></span>
-        <span class="stat">⚡<span id="youNrgSuits" class="nrgSuits nrgBox"></span></span>
+        <span class="stat"><button type="button" id="youNrgBtn" class="statBtn" title="Open your energy pile">⚡<span id="youNrgSuits" class="nrgSuits nrgBox clickable"></span></button></span>
         <span class="stat deck">🂠 <b id="youDeck">0</b> deck</span>
-        <span class="stat">♻ <span id="youShuf">0</span></span>
+        <span class="stat"><button type="button" id="youShufBtn" class="statBtn" title="Open your shuffle pile">♻ <span id="youShuf" class="shufBox clickable">0</span></button></span>
         <span class="equip" id="youEquip"></span>
       </span>
       <span class="metaRight"><button id="viewCardBtn" class="specialsRef" title="View the selected card full-screen">🔍 View card</button><button id="specialsRefBtn" class="specialsRef" title="Open the Specials cheat sheet">🃏 Specials list</button><span id="turnTag" class="you"></span></span>
@@ -1191,6 +1220,41 @@
     if (r <= 0) return {};                                                       // 0-cost = free
     var pips = (card && card.pips != null) ? card.pips : defaultPips(r);
     var m = {}; m[card.suit] = Math.min(pips, r); return m;                      // never more pips than the total cost
+  }
+  /* Energy pile ORDER is the player's lever on what recycles sooner. payEnergy above spends colored pips as
+   * the earliest card of the required suit and the generic remainder as energy.shift() — the front of the pile —
+   * so re-ordering the pile fully determines which cards leave it, without touching cost logic at all.
+   * `ids` is the pile's intended new order and must be a PERMUTATION of the current pile: same length and the
+   * same multiset of ids (ids can repeat legitimately — Counterfeit copies). Anything else is rejected, since a
+   * bad order is an attempt to conjure or delete energy. ON YOUR TURN ONLY, and not while a stack/response
+   * window is open, so the pile cannot shift underneath a resolution that is mid-flight. */
+  function reorderEnergy(st, p, ids) {
+    if (st.finished) return { ok: false, reason: 'Game over.' };
+    if (p !== st.turn) return { ok: false, reason: 'You can only reorder your energy on your own turn.' };
+    if (st.pending || st.respondFor != null) return { ok: false, reason: 'Not while a Technique is resolving.' };
+    var pl = st.players[p];
+    if (!Array.isArray(ids) || ids.length !== pl.energy.length) return { ok: false, reason: 'Bad order — that is not your whole energy pile.' };
+    var have = {}, i, j;
+    for (i = 0; i < pl.energy.length; i++) have[pl.energy[i].id] = (have[pl.energy[i].id] || 0) + 1;
+    var seen = {};
+    for (i = 0; i < ids.length; i++) {
+      seen[ids[i]] = (seen[ids[i]] || 0) + 1;
+      if (!have[ids[i]] || seen[ids[i]] > have[ids[i]]) return { ok: false, reason: 'Bad order — unknown or duplicated card.' };
+    }
+    var pool = pl.energy.slice(), out = [];                 // same length + no id over its own multiplicity ⇒ a true permutation
+    for (i = 0; i < ids.length; i++)
+      for (j = 0; j < pool.length; j++) if (pool[j].id === ids[i]) { out.push(pool.splice(j, 1)[0]); break; }
+    pl.energy = out;
+    return { ok: true, order: out.map(function (c) { return c.id; }) };
+  }
+  // "⤒ Promote to top": the named card BECOMES the front and everything else shifts down, so repeated promotes
+  // mean last-promoted-is-spent-first (a stack push, not a queue).
+  function promoteEnergy(st, p, cardId) {
+    var pl = st.players[p];
+    if (!pl.energy.some(function (c) { return c.id === cardId; })) return { ok: false, reason: 'That card is not in your energy pile.' };
+    var ids = [cardId];
+    pl.energy.forEach(function (c) { if (c.id !== cardId) ids.push(c.id); });
+    return reorderEnergy(st, p, ids);
   }
   function canAfford(pl, card, delta) {
     var cost = card ? Math.max(0, activationCost(card) + (delta || 0)) : 0;       // delta = ride cost modifier (Owl −1 / Ram +1)
@@ -2554,7 +2618,7 @@
     PARTS_TOTAL: PARTS_TOTAL, PARTS_SUITS: PARTS_SUITS, PARTS_PREFIX: PARTS_PREFIX,
     partsCount: partsCount, partsValid: partsValid, partsKey: partsKey, parseParts: parseParts,
     isPartsKey: isPartsKey, buildFromParts: buildFromParts, presetParts: presetParts,
-    canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
+    canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, reorderEnergy: reorderEnergy, promoteEnergy: promoteEnergy, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
     discardToLimit: discardToLimit, MAX_HAND: MAX_HAND,
     effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, opponentCanRespond: opponentCanRespond, useEquipment: useEquipment, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS
@@ -6177,6 +6241,113 @@ window.CardFace = {};
     $('setDone').addEventListener('click', hideOverlay);
     overlayDismiss=hideOverlay;
   }
+  /* ---- Energy / Shuffle pile viewers -------------------------------------------------------------
+   * Two views, one modal, ← / → between them (ENERGY-REORDER-DESIGN.md, decision 2).
+   *  · ENERGY is ORDERED and orderable: position 1 is spent next, and tapping a card offers 🔍 View
+   *    (the full description-box text) and ⤒ Promote to top.
+   *  · SHUFFLE is read-only — what is queued to come back when your deck runs dry.
+   * The "first ♥ / first ♦ …" tags are decision 3's labelling: a colored pip takes the EARLIEST card of
+   * that suit, so a promoted card of another suit gets skipped. Tagging the first of each suit makes that
+   * visible instead of mysterious.
+   */
+  var pileWhich='energy', pileSel=null, pileRead=null;
+  function pileCanReorder(){
+    return !!(state && !state.finished && state.turn===YOU && !state.pending && state.respondFor==null && !busy && !TUT.blocking());
+  }
+  function pileCards(which){
+    var pl=state && state.players[YOU]; if(!pl) return [];
+    return (which==='shuffle' ? pl.shuffle : pl.energy) || [];
+  }
+  function firstOfSuitIds(cards){                       // which card a colored pip of each suit would claim
+    var seen={}, out={};
+    cards.forEach(function(c){ if(!seen[c.suit]){ seen[c.suit]=1; out[c.id]=c.suit; } });
+    return out;
+  }
+  function openPileView(which){
+    pileWhich=(which==='shuffle')?'shuffle':'energy'; pileSel=null; pileRead=null;
+    renderPileView();
+  }
+  function renderPileView(){
+    var isNrg=(pileWhich!=='shuffle'), cards=pileCards(pileWhich), canOrder=isNrg && pileCanReorder();
+    var firsts=isNrg?firstOfSuitIds(cards):{};
+    var rows='';
+    cards.forEach(function(c,i){
+      var eff=E.effectOf(c), nm=eff?eff.name:'—', tags='';
+      if(isNrg && i===0) tags+='<span class="pvTag next">spent next</span>';
+      if(isNrg && firsts[c.id]) tags+='<span class="pvTag pip">first '+SUIT_SYMBOL[firsts[c.id]]+'</span>';
+      rows+='<div class="pileRow'+(canOrder?'':' ro')+(pileSel===c.id?' sel':'')+'" data-id="'+esc(c.id)+'">'+
+        '<span class="pvPos">'+(i+1)+'</span>'+
+        '<span class="pvMini"></span>'+
+        '<span class="pvName">'+rankLabel(c.rank)+SUIT_SYMBOL[c.suit]+(nm!=='—'?(' · '+esc(nm)):'')+'</span>'+
+        '<span class="pvTags">'+tags+'</span></div>';
+    });
+    var hint = isNrg
+      ? (canOrder
+          ? 'Position <b>1</b> is spent next. Tap a card to read it or <b>promote it to the top</b> — a promoted card becomes the next one spent, so it recycles into your ♻ pile sooner. A <b>coloured cost</b> takes the <b>first card of that suit</b> (tagged), so it can skip past a promotion.'
+          : 'Position <b>1</b> is spent next. You can reorder this on <b>your own turn</b>.')
+      : 'Cards you have already spent. When your 🂠 deck runs dry, this pile is <b>shuffled at random</b> back into it — the order here does not matter, only what is in it.';
+    var body='<h2>'+(isNrg?'⚡ Energy pile':'♻ Shuffle pile')+'</h2>'+
+      '<div class="pileHead">'+
+        '<button type="button" class="pvNav" id="pvPrev" title="'+(isNrg?'Shuffle pile':'Energy pile')+'">←</button>'+
+        '<span class="pvTitle">'+(isNrg?'Spent next, first':'Waiting to be reshuffled')+'</span>'+
+        '<span class="pvCount">'+cards.length+' card'+(cards.length===1?'':'s')+'</span>'+
+        '<button type="button" class="pvNav" id="pvNext" title="'+(isNrg?'Shuffle pile':'Energy pile')+'">→</button>'+
+      '</div>'+
+      '<p class="pileHint">'+hint+'</p>'+
+      (cards.length?('<div class="pileList" id="pileList">'+rows+'</div>'):'<div class="pileEmpty">This pile is empty.</div>');
+    if(pileRead){
+      var rc=cards.filter(function(c){ return c.id===pileRead; })[0];
+      if(rc) body+='<div class="pvRead">'+cardTextHTML(rc)+'</div>'+
+        '<div class="pileCtx pvReadBack"><button id="pvBack" class="ghostBtn">← Back to the pile</button></div>';
+    } else if(pileSel){
+      body+='<div class="pileCtx">'+
+        '<button id="pvView" class="ghostBtn">🔍 View</button>'+
+        '<button id="pvPromote"'+(canOrder?'':' disabled')+'>⤒ Promote to top</button>'+
+      '</div>';
+    }
+    body+='<button id="pvDone">Done</button>';
+    showModal(body);
+    // real card thumbnails (cardEl builds DOM, so paint them after the innerHTML pass)
+    Array.prototype.forEach.call(document.querySelectorAll('#pileList .pileRow'), function(row){
+      var id=row.getAttribute('data-id'), c=cards.filter(function(x){ return x.id===id; })[0];
+      if(c){ var mini=row.querySelector('.pvMini'); if(mini) mini.replaceWith(cardEl(c,'mini')); }
+      row.addEventListener('click', function(){
+        if(!isNrg) return;                                  // shuffle pile is read-only
+        pileSel=(pileSel===id?null:id); pileRead=null; renderPileView();
+      });
+    });
+    var flip=function(){ pileWhich=isNrg?'shuffle':'energy'; pileSel=null; pileRead=null; renderPileView(); };
+    $('pvPrev').addEventListener('click', flip);
+    $('pvNext').addEventListener('click', flip);
+    if($('pvView')) $('pvView').addEventListener('click', function(){ pileRead=pileSel; renderPileView(); });
+    if($('pvBack')) $('pvBack').addEventListener('click', function(){ pileRead=null; renderPileView(); });
+    if($('pvPromote')) $('pvPromote').addEventListener('click', function(){ promoteFromPile(pileSel); });
+    $('pvDone').addEventListener('click', hideOverlay);
+    overlayDismiss=hideOverlay;
+  }
+  // Promote the selected energy card to the front — locally, or as an intent when we are a netplay client.
+  function promoteFromPile(id){
+    if(!id || !pileCanReorder()) return;
+    var cards=pileCards('energy'), card=cards.filter(function(c){ return c.id===id; })[0];
+    if(!card) return;
+    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){
+      var ids=[id]; cards.forEach(function(c){ if(c.id!==id) ids.push(c.id); });
+      NET.clientSend({op:'reorderEnergy', ids:ids});
+      pileSel=null; busy=true; hideOverlay(); render();
+      return;
+    }
+    var r=E.promoteEnergy(state, YOU, id);
+    if(!r.ok){ setMessage(r.reason||'Cannot reorder right now.'); return; }
+    logEnergyPromote(YOU, card);
+    TUT.note('energypromote', { id:id, card:card });
+    pileSel=null; render(); renderPileView();
+  }
+  // PUBLIC log line (decision 6): the energy pile is not hidden information in paper play, and public lines
+  // make usage trends trackable — they also land in fullLog, so exported games carry them.
+  function logEnergyPromote(seat, card){
+    logMsg('<b>'+(seat===YOU?'You':seatName(seat))+'</b> moved <b>'+rankLabel(card.rank)+SUIT_SYMBOL[card.suit]+'</b> to the front of '+(seat===YOU?'your':'their')+' energy pile.', 'nrgmove');
+  }
+
   // ---- Custom deck builder ----------------------------------------------------------------------
   // Four steppers (one per class) that must total PARTS_TOTAL parts; a part is one complete 13-card
   // suit, so the deck is always 52 cards. Saving stores {name, parts} and hands the caller back the
@@ -6366,6 +6537,8 @@ window.CardFace = {};
   });
   $('logNewBtn').addEventListener('click', scrollLogToBottom);
   $('log').addEventListener('scroll', function(){ if(logAtBottom()) setLogNewBtn(false); });
+  $('youNrgBtn').addEventListener('click', function(){ openPileView('energy'); });     // ⚡ → the ordered energy pile (promote from here)
+  $('youShufBtn').addEventListener('click', function(){ openPileView('shuffle'); });   // ♻ → what is queued to come back (read-only)
   $('clearBtn').addEventListener('click', function(){ if(targeting){ targeting=null; setMessage('Cancelled — no energy spent.'); } else if(targetPick){ targetPick=null; setMessage('Cancelled — no energy spent.'); } else if(pick){ pick.chosen={}; } else { selected={}; breakAllGroups(); } render(); });
   $('sortBtn').addEventListener('click', flipSort);
   $('hand').addEventListener('mouseleave', showRestCard);   // hovering out reverts the panel to the selected card (or empty)
