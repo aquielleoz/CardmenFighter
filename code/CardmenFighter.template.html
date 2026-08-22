@@ -850,7 +850,7 @@
   <div class="fighter" id="rival">
     <span class="who">Rival</span><span id="rivalDeckName" class="deckName"></span>
     <span class="shields" id="rivalShields"></span>
-    <span class="stat">⚡<span id="rivalNrgSuits" class="nrgSuits nrgBox"></span></span>
+    <span class="stat"><button type="button" id="rivalNrgBtn" class="statBtn" title="View the Rival’s energy pile">⚡<span id="rivalNrgSuits" class="nrgSuits nrgBox clickable"></span></button></span>
     <span class="stat">🃏 <span id="rivalHand">0</span></span>
     <span class="stat deck">🂠 <b id="rivalDeck">0</b></span>
     <span class="stat">♻ <span id="rivalShuf">0</span></span>
@@ -1473,12 +1473,16 @@ __NETVIEW__
       el.innerHTML =
         '<div class="oppTop"><span class="oppName">'+seatName(i)+' <span class="oppSeat">'+deckLabel(seatDecks[i]||'full')+'</span></span></div>'+
         '<div class="oppShields">'+sh+'</div>'+
-        '<div class="oppStats"><span>⚡'+(nrg||'0')+'</span><span>🃏'+pl.hand.length+'</span><span>🂠'+pl.deck.length+'</span><span>♻'+pl.shuffle.length+'</span></div>'+
+        '<div class="oppStats"><button type="button" class="statBtn oppNrgBtn" data-seat="'+i+'" title="View '+seatName(i)+'’s energy pile">⚡'+(nrg||'0')+'</button><span>🃏'+pl.hand.length+'</span><span>🂠'+pl.deck.length+'</span><span>♻'+pl.shuffle.length+'</span></div>'+
         '<div class="oppGear">'+gear.join('')+'</div>'+
         (pl.eliminated?'<div class="oppDead">OUT</div>':'')+
         (isTurn?'<div class="oppTag">◆</div>':'');
       el.onclick = (lossPick && lossPick.cands.indexOf(i)>=0) ? (function(seat){ return function(){ chooseLossSeat(seat); }; })(i)
                  : (targetPick && !pl.eliminated) ? (function(seat){ return function(){ chooseTargetSeat(seat); }; })(i) : null;
+      // ⚡ on a rival panel opens THEIR pile, view-only — energy is open information. Stop the click so it
+      // never doubles as a loss/target pick on the panel behind it.
+      var nb=el.querySelector('.oppNrgBtn');
+      if(nb) nb.addEventListener('click', (function(seat){ return function(ev){ ev.stopPropagation(); if(!lossPick && !targetPick) openPileView('energy', seat); }; })(i));
     });
   }
   var equipFx={}, equipFxClear=null;   // zoneKey:id -> { counters, flashUntil, name, good, card, gone } — drives the counter-change / spent flash
@@ -3866,25 +3870,29 @@ __NETVIEW__
    * that suit, so a promoted card of another suit gets skipped. Tagging the first of each suit makes that
    * visible instead of mysterious.
    */
-  var pileWhich='energy', pileSel=null, pileRead=null;
+  var pileWhich='energy', pileSel=null, pileRead=null, pileSeat=0;   // pileSeat: whose pile we are looking at (0 = you)
   function pileCanReorder(){
+    if(pileSeat!==YOU) return false;                                  // another player's pile is VIEW ONLY
     return !!(state && !state.finished && state.turn===YOU && !state.pending && state.respondFor==null && !busy && !TUT.blocking());
   }
   function pileCards(which){
-    var pl=state && state.players[YOU]; if(!pl) return [];
-    return (which==='shuffle' ? pl.shuffle : pl.energy) || [];
+    var pl=state && state.players[pileSeat]; if(!pl) return [];
+    var a=(which==='shuffle' ? pl.shuffle : pl.energy) || [];
+    return a.filter(function(c){ return !c.hidden; });                // a redacted zone (shuffle/deck dummies) shows as empty, not as fake cards
   }
   function firstOfSuitIds(cards){                       // which card a colored pip of each suit would claim
     var seen={}, out={};
     cards.forEach(function(c){ if(!seen[c.suit]){ seen[c.suit]=1; out[c.id]=c.suit; } });
     return out;
   }
-  function openPileView(which){
+  function openPileView(which, seat){
     pileWhich=(which==='shuffle')?'shuffle':'energy'; pileSel=null; pileRead=null;
+    pileSeat=(typeof seat==='number')?seat:YOU;
     renderPileView();
   }
   function renderPileView(){
     var isNrg=(pileWhich!=='shuffle'), cards=pileCards(pileWhich), canOrder=isNrg && pileCanReorder();
+    var mine=(pileSeat===YOU), owner=mine?'':(seatName(pileSeat)+'’s ');   // declare BEFORE the hint reads it
     var firsts=isNrg?firstOfSuitIds(cards):{};
     var rows='';
     cards.forEach(function(c,i){
@@ -3897,12 +3905,16 @@ __NETVIEW__
         '<span class="pvName">'+rankLabel(c.rank)+SUIT_SYMBOL[c.suit]+(nm!=='—'?(' · '+esc(nm)):'')+'</span>'+
         '<span class="pvTags">'+tags+'</span></div>';
     });
-    var hint = isNrg
-      ? (canOrder
-          ? 'Position <b>1</b> is spent next. Tap a card to read it or <b>promote it to the top</b> — a promoted card becomes the next one spent, so it recycles into your ♻ pile sooner. A <b>coloured cost</b> takes the <b>first card of that suit</b> (tagged), so it can skip past a promotion.'
-          : 'Position <b>1</b> is spent next. You can reorder this on <b>your own turn</b>.')
-      : 'Cards you have already spent. When your 🂠 deck runs dry, this pile is <b>shuffled at random</b> back into it — the order here does not matter, only what is in it.';
-    var body='<h2>'+(isNrg?'⚡ Energy pile':'♻ Shuffle pile')+'</h2>'+
+    var hint = !mine
+      ? (isNrg
+          ? 'Energy piles are <b>open information</b> — the same as cards face-up on a table. This is <b>view only</b>: position <b>1</b> is what '+seatName(pileSeat)+' spends next.'
+          : 'What '+seatName(pileSeat)+' has already spent. It is <b>shuffled at random</b> back into their deck when it runs dry.')
+      : (isNrg
+        ? (canOrder
+            ? 'Position <b>1</b> is spent next. Tap a card to read it or <b>promote it to the top</b> — a promoted card becomes the next one spent, so it recycles into your ♻ pile sooner. A <b>coloured cost</b> takes the <b>first card of that suit</b> (tagged), so it can skip past a promotion.'
+            : 'Position <b>1</b> is spent next. You can reorder this on <b>your own turn</b>.')
+        : 'Cards you have already spent. When your 🂠 deck runs dry, this pile is <b>shuffled at random</b> back into it — the order here does not matter, only what is in it.');
+    var body='<h2>'+(isNrg?('⚡ '+owner+'Energy pile'):('♻ '+owner+'Shuffle pile'))+'</h2>'+
       '<div class="pileHead">'+
         '<button type="button" class="pvNav" id="pvPrev" title="'+(isNrg?'Shuffle pile':'Energy pile')+'">←</button>'+
         '<span class="pvTitle">'+(isNrg?'Spent next, first':'Waiting to be reshuffled')+'</span>'+
@@ -3928,7 +3940,7 @@ __NETVIEW__
       var id=row.getAttribute('data-id'), c=cards.filter(function(x){ return x.id===id; })[0];
       if(c){ var mini=row.querySelector('.pvMini'); if(mini) mini.replaceWith(cardEl(c,'mini')); }
       row.addEventListener('click', function(){
-        if(!isNrg) return;                                  // shuffle pile is read-only
+        if(!isNrg || !mine) return;                         // shuffle pile, and any pile but yours, are read-only
         pileSel=(pileSel===id?null:id); pileRead=null; renderPileView();
       });
     });
@@ -4155,6 +4167,7 @@ __NETVIEW__
   $('log').addEventListener('scroll', function(){ if(logAtBottom()) setLogNewBtn(false); });
   $('youNrgBtn').addEventListener('click', function(){ openPileView('energy'); });     // ⚡ → the ordered energy pile (promote from here)
   $('youShufBtn').addEventListener('click', function(){ openPileView('shuffle'); });   // ♻ → what is queued to come back (read-only)
+  $('rivalNrgBtn').addEventListener('click', function(){ openPileView('energy', RIVAL); });   // energy piles are open information — view only
   $('clearBtn').addEventListener('click', function(){ if(targeting){ targeting=null; setMessage('Cancelled — no energy spent.'); } else if(targetPick){ targetPick=null; setMessage('Cancelled — no energy spent.'); } else if(pick){ pick.chosen={}; } else { selected={}; breakAllGroups(); } render(); });
   $('sortBtn').addEventListener('click', flipSort);
   $('hand').addEventListener('mouseleave', showRestCard);   // hovering out reverts the panel to the selected card (or empty)
@@ -4827,20 +4840,20 @@ __NETVIEW__
       var r=E.reorderEnergy(hostState, seat, it && it.ids);
       if(!r || !r.ok){ sendTo(seat, {t:'err', seat:seat, reason:(r&&r.reason)||'Cannot reorder now.'}); return; }
       var top=pl.energy[0];
-      if(top && before.split(',')[0]!==top.id) broadcastLog(logEnergyPromoteHTML(seat, top));
+      if(top && before.split(',')[0]!==top.id)
+        sayPublic(seat, '{who} moved <b>'+rankLabel(top.rank)+SUIT_SYMBOL[top.suit]+'</b> to the front of their energy pile.', 'nrgmove');
       broadcastMirror();
     }
-    // Public battle-log narration for a seat's promote. Built from rank/suit only — never from client text.
-    function logEnergyPromoteHTML(seat, card){
-      return '<b>'+(seat===0?'The host':seatName(seat))+'</b> moved <b>'+rankLabel(card.rank)+SUIT_SYMBOL[card.suit]+'</b> to the front of their energy pile.';
-    }
-    /* Decision 6 wants reorder lines to be PUBLIC, but netplay had no host→client log channel at all — every
-     * message type is state (mirror/setup) or control (join/welcome/err/peer/ceremony), so each side has only
-     * ever narrated what it could see locally. This is the first `t:'log'` broadcast; other narration could
-     * migrate onto it later if the same "everyone sees it" treatment is ever wanted for plays. */
-    function broadcastLog(html, cls){
-      logMsg(html, cls||'nrgmove');                                   // the host's own log
-      for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'log', seat:s, html:html, cls:cls||'nrgmove'});
+    /* PUBLIC narration. Netplay had no host→client log channel at all — every message type was state
+     * (mirror/setup) or control (join/welcome/err/peer/ceremony) — so a client's battle log was permanently
+     * EMPTY, even for its own moves. The host has always narrated everything correctly, just locally.
+     *
+     * Phrasing is reader-relative ("You played" vs "Rival played" vs "P3 played"), so we broadcast a TEMPLATE
+     * with a `{who}` placeholder plus the actor's absolute seat, and each client resolves the name in its own
+     * frame (its mirror is rotated so it is index 0). One message, no per-recipient string building. */
+    function sayPublic(actorSeat, tpl, cls){
+      logMsg(tpl.replace(/\{who\}/g, '<b>'+(actorSeat===0 ? 'You' : seatName(actorSeat))+'</b>'), cls);   // the host's own frame
+      send({t:'log', actor:actorSeat, tpl:tpl, cls:cls||''});
     }
     function broadcastMirror(){ if(hostState){ for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'mirror', seat:s, st:NetView.mirrorFor(hostState, s)}); } }   // per-seat (a seat's private hand never reaches another peer)
     function onRender(){ if(isHost() && started && hostState) broadcastMirror(); }   // hook: keep the client's board in lockstep

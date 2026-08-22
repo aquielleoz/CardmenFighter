@@ -40,10 +40,18 @@ for (var g = colored; g < cost && pl.energy.length; g++) pl.shuffle.push(pl.ener
 So **pile order already fully determines what is spent**, for both halves of a cost. Reordering the pile *is*
 the feature; no change to spending logic, cost validation, or `canAfford` is needed.
 
-**2. The netplay mirror already carries the ordered pile.** `netview.js` sends a seat its **own** energy as a
-real ordered array (`o.energy = cards(pl.energy)`, public) and gives opponents only `energyCount`. A host-side
-reorder therefore reaches the owning client through the existing mirror, and leaks nothing to anyone else.
-No `netview.js` change, no new message type for the *result*.
+**2. The netplay mirror already carries EVERY pile, in order.** `netview.js`'s `clonePlayer` does
+`o.energy = cards(pl.energy)` for **every** seat, commented "public" — hands, decks, shuffle and removed piles
+become face-down dummies, but energy travels intact for all players. So a host-side reorder reaches the owning
+client through the existing mirror, and every client already holds every opponent's real pile.
+No `netview.js` change at all.
+
+> **CORRECTION.** An earlier draft of this doc claimed opponents receive "only `energyCount`". That was wrong —
+> it came from reading `snapshotFor` (a lighter snapshot) instead of `mirrorFor`/`clonePlayer`, which is what
+> clients actually get. Two things followed from the error and are now fixed: the "public log lines leak pile
+> composition" worry was **overstated** (the pile was always public data), and view-only opponent inspection was
+> filed as *deferred* on a false size estimate when it is in fact nearly free — the data is already client-side,
+> so it is pure UI.
 
 **3. The reshuffle is untouched.** Refilling the deck from the shuffle pile stays random, exactly as today.
 
@@ -192,8 +200,10 @@ Every promote writes a **public battle-log line**, visible to all players — e.
 public lines make usage trends trackable (for balance, and for `PLAYER-PROFILE.md`, which already ingests
 exported games).
 
-**Interactive inspection of another player's pile is NOT in this feature** — Aj judged it too big. When it does
-arrive it is **view-only**, never something you can act on.
+**Opponents' piles ARE viewable, view-only** (Aj: *"i thought we agreed that opponent could see the piles but
+view only"*). Recorded wrongly as deferred in an earlier draft — the misreading is mine. It is cheap because the
+mirror already ships every pile (see the correction above), so it is UI only: tapping a rival's ⚡ opens their
+pile with every row read-only and no promote button.
 
 ### The consequence, stated plainly
 
@@ -216,9 +226,9 @@ Two follow-ons, both deliberately out of scope here:
 
 - **No change to the reshuffle** — shuffle→deck stays random.
 - **No change to costs, `canAfford`, or `costReq`** — Decision 3 settled this: pips stay greedy-by-suit and get labelled, so `payEnergy` is untouched and there is no balance risk.
-- **No *interactive* opponent-pile inspection** in this feature (Aj: too big). Note this is **no longer a design
-  principle** — see *Deferred* — because the public log lines already reveal pile contents over time.
-  `netview.js` is untouched: opponents still receive `energyCount` only.
+- ~~No opponent-pile inspection~~ — **struck.** Energy is open information, as it is on a table: opponents'
+  piles are viewable, **view-only** (no promote button, no interaction). `netview.js` is untouched because it
+  already sends every pile in order.
 - **No reordering off-turn**, including during a response window — that is what keeps netplay sequencing simple.
 
 ---
@@ -241,9 +251,8 @@ netplay, lesson).
 
 ## Deferred (explicitly not "never")
 
-- **View-only opponent-pile inspection.** Aj wants this eventually — paper play has no hidden energy pile — but
-  it is its own change: `netview.js` redaction, the opponent panels, and a decision about what the AI may read.
-  The public log lines shipped here are the first step toward it, not a substitute.
+- **The AI reading an opponent's pile.** The information is on the table for humans now; `ai.js` still ignores
+  it (Decision 5), so it is a human-only advantage on purpose.
 - **AI use of pile order**, possibly Demon Lord only (Decision 5).
 - **A real draw engine** — the thing that would make ordering matter in more than 39% of games. Natural home is
   the *suit ≠ class / hybrid classes* direction already in the backlog.

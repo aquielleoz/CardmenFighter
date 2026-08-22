@@ -68,6 +68,20 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
   await p.evaluate(()=>document.getElementById('youNrgBtn').click()); await p.waitForTimeout(300);
   ok(await p.evaluate(()=>document.querySelectorAll('.pileRow.ro').length>0),'off-turn the energy pile is read-only');
   ok(await p.evaluate(()=>/on <b>your own turn<\/b>/.test(document.querySelector('.pileHint').innerHTML)),'…and says so');
+  // ---- an opponent's pile is viewable, but VIEW ONLY (Aj: energy is open information) ----
+  await p.evaluate(()=>{ const d=document.getElementById('pvDone'); if(d)d.click(); }); await p.waitForTimeout(200);
+  await p.evaluate(()=>{ const st=window.__solo.st(); const mk=(r,s)=>({rank:r,suit:s,id:r+s+'#r'});
+    st.players[1].energy=[mk(8,'D'),mk(9,'C'),mk(2,'S')]; st.turn=0; window.__solo.render(); }); await p.waitForTimeout(250);
+  await p.evaluate(()=>document.getElementById('rivalNrgBtn').click()); await p.waitForTimeout(400);
+  ok(await p.evaluate(()=>/Energy pile/.test(document.querySelector('#modal h2').textContent)),'the Rival\'s ⚡ opens their energy pile');
+  ok(await p.evaluate(()=>document.querySelectorAll('.pileRow').length===3),'…showing all 3 of THEIR cards');
+  ok(await p.evaluate(()=>/8♦/.test(document.querySelector('.pileRow .pvName').textContent)),'…in their order, 8♦ spent next');
+  ok(await p.evaluate(()=>document.querySelectorAll('.pileRow.ro').length===3),'…and every row is read-only');
+  ok(await p.evaluate(()=>/open information/.test(document.querySelector('.pileHint').textContent)),'…with a hint saying energy is open information');
+  await p.evaluate(()=>document.querySelectorAll('.pileRow')[0].click()); await p.waitForTimeout(200);
+  ok(await p.evaluate(()=>!document.getElementById('pvPromote')),'…and no promote button on someone else\'s pile');
+  ok(await p.evaluate(()=>window.__solo.st().players[1].energy[0].id==='8D#r'),'…their pile is untouched');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
