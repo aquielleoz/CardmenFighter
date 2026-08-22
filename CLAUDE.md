@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.26.2**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.26.3**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -81,20 +81,25 @@ rather than hardcoding a path, which is what these files used to do and why they
 browser pages; two suites at once flake on CPU contention (`nettest_rtc` in particular fails at `maxRound=0`
 concurrently and passes 11/0 alone). A serial sweep of all 21 takes a few minutes.
 
-Status as of v1.26.2 — **20 of 21 green**, one known-failing:
-
-- `nettest_prefight.js` — **6 pass / 7 fail, unresolved.** The remote and host pre-fight modals never appear, so
-  Back Stab never springs, though the turn-skip assertions still pass. Earlier notes blamed the sandbox harness;
-  it fails the same way on a real Mac with a real Chromium, so **that explanation no longer holds** and it is
-  either a stale test or a real netplay regression. The engine side is sound in isolation (`effectFor` gives Back
-  Stab `quick:true` under Hermes Super). Ruled out: the lead-lock guard (padding both holders' hands changes
-  nothing). Needs a 2-tab manual check to decide test-vs-product before trusting or rewriting it.
+Status as of v1.26.3 — **all 21 green.**
 
 **These suites go stale silently** — they were unrunnable for however long `/opt/pw-browsers/chromium` was
-missing, and two had quietly rotted against product changes (fixed in v1.26.2: `nettest_discard` never adapted to
-v1.24.0's target-first flow, `nettest_target3` never adapted to v1.22.1's Broadway pitch cost on Critical Hit).
-**Run the full sweep before and after any netplay or activation-flow change**, and when one fails, first ask
-whether the product moved and the test didn't.
+missing, and *three* had quietly rotted against product changes while nobody could run them (all fixed in
+v1.26.2/v1.26.3):
+
+| Suite | Rotted against | Symptom |
+| --- | --- | --- |
+| `nettest_discard` | v1.24.0 target-first | button reads "🎯 Choose target", the old `/Activate/i` guard matched nothing, cast never happened |
+| `nettest_target3` | v1.22.1 Broadway pitch | staged hand had no 10/J/Q/K/A to pitch, so Critical Hit was blocked |
+| `nettest_prefight` | the Ride requirement in `hasSuper` | its `HERMES` was Q+K only → no Super → Back Stab not a Quick → no pre-fight window |
+
+**When a suite fails, ask first whether the product moved and the test didn't** — that was the answer all three
+times, and in each case the failure was *silent* (no JS error, the board just quietly did nothing). Run the full
+sweep before and after any netplay or activation-flow change.
+
+Note the trap in the `prefight` case: **`hasSuper` requires a Ride.** Super Mode is any J + any Q + any K
+(`engine.js` ~190, variant B) — a Q + K alone is NOT Super, so staging forms without a J silently disables every
+Form-granted Quick. Some older comments and doc lines say "any Q + any K"; the code is the truth.
 
 ## Rules facts worth knowing before touching the engine
 

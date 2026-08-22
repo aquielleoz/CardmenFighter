@@ -66,15 +66,15 @@ function cards(ids) { return ids.map(card); }
     ok(r1.ok && r1.transformed && pl.forms.length === 1 && pl.energy.length === 0, 'REWORK: activating a J is FREE and moves it to the zone');
     ok(pl.hand.length === handBefore, 'REWORK: transform draws 1 to replace the spent card (net hand-neutral)');
     E.activate(g, 0, '12H');                                          // a Q with no K yet must NOT light Super
-    ok(!E.hasSuper(pl), 'REWORK: a Q with no K does NOT reach Super (needs a Q AND a K)');
-    var r3 = E.activate(g, 0, '13S');                                 // DEFAULT Variant B: any Q + any K → Super (mixed suits OK)
-    ok(E.hasSuper(pl) && r3.isSuper, 'REWORK: any Q + any K lights up Super Mode (Variant B default — Q♥+K♠)');
+    ok(!E.hasSuper(pl), 'REWORK: a Ride + Q with no K does NOT reach Super (needs J AND Q AND K)');
+    var r3 = E.activate(g, 0, '13S');                                 // DEFAULT Variant B: any J + any Q + any K → Super (mixed suits OK; the Ride is REQUIRED)
+    ok(E.hasSuper(pl) && r3.isSuper, 'REWORK: any J + any Q + any K lights up Super Mode (Variant B default — J♦+Q♥+K♠; the Ride is required)');
     ok(!E.hasSuper(g.players[1]), 'REWORK: the empty-zone player is not in Super');
-    // Variant A (same-suit) flips it back: mixed-suit Q+K no longer supers
+    // Variant A (same-suit) flips it back: a mixed-suit J/Q/K set no longer supers
     E.setFormSuitMatch(true);
-    ok(!E.hasSuper(pl), 'REWORK: under Variant A (same-suit), Q♥+K♠ does NOT reach Super');
+    ok(!E.hasSuper(pl), 'REWORK: under Variant A (same-suit), J♦+Q♥+K♠ does NOT reach Super');
     E.setFormSuitMatch(false);
-    ok(E.hasSuper(pl), 'REWORK: back to Variant B — Q♥+K♠ supers again');
+    ok(E.hasSuper(pl), 'REWORK: back to Variant B — J♦+Q♥+K♠ supers again');
   })();
   (function () {  // ONE transform per rank: a new J/Q/K replaces the existing one of that rank (to Energy)
     var g = E.newGame(null, { starter: 0 }); var pl = g.players[0];

@@ -12,7 +12,9 @@ const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const D=(n,s,tag)=>({rank:n,suit:s,id:(tag||'')+n+s});
-const HERMES=[{rank:12,suit:'S',tier:'queen',name:'Q'},{rank:13,suit:'S',tier:'king',name:'K'}];   // any Q + any K = Super (Hermes)
+const HERMES=[{rank:11,suit:'S',tier:'ride',name:'J'},{rank:12,suit:'S',tier:'queen',name:'Q'},{rank:13,suit:'S',tier:'king',name:'K'}];   // Super (Hermes) = any J + any Q + any K.
+// The RIDE IS REQUIRED (engine.js hasSuper, variant B) — this constant used to be Q+K only, so hasSuper was false,
+// Back Stab was never a Quick, and no pre-fight window ever opened. That was the whole 6/7 failure.
 const EN=()=>Array.from({length:12},(_,i)=>D(2,'S','e'+i));                                         // 12 ♠ energy — covers the 10-cost super Back Stab
 const turnOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.turn():null);
 const modalUp=p=>p.evaluate(()=>document.getElementById('overlay').classList.contains('show'));
