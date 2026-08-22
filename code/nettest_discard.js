@@ -37,6 +37,9 @@ const pickerUp=p=>p.evaluate(()=>/discard/i.test((document.getElementById('messa
   // "🎯 Choose target" and the energy is only spent once a target is picked. Tap the opponent panel.
   await wait(300);
   await host.evaluate(()=>{ var t=document.querySelector('.oppPanel.targetable')||document.querySelector('.oppPanel')||document.querySelector('#rival.targetable'); if(t)t.click(); });
+  // v1.29.5: the target tap only STAGES it — confirm with ⚡ Activate before anything resolves.
+  await wait(250);
+  await host.evaluate(()=>{ var b=document.getElementById('ctxBtn'); if(b && /Activate/i.test(b.textContent||'')) b.click(); });
 
   // Wait for the discard picker to appear on the CLIENT (may follow a brief auto-declined response window).
   let picker=false; for(let i=0;i<50;i++){ if(await pickerUp(join)){ picker=true; break; } await wait(120); }

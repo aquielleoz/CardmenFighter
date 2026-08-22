@@ -156,6 +156,38 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(!/^You played/.test(await msg()), '…so the stage and the caption no longer disagree');
   ok(await p.evaluate(()=>window.__solo.st().round>=3), 'the game progressed through the opponents\' turns');
 
+  // ================= targeting is CONFIRM-FIRST (Aj: "always err on the side of confirming first") =================
+  ok(await start3p(), '3-player game restarted for target confirmation');
+  await p.evaluate(()=>{
+    const st=window.__solo.st(); const mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
+    st.round=3; st.turn=0; st.pile=null; st.pending=null; st.respondFor=null;
+    st.players[0].hand=[mk(3,'D'),mk(5,'C')];                          // Telekinesis (discardOpp → needs a target)
+    st.players[0].energy=Array.from({length:10},(_,i)=>mk(3,'D','y'+i));
+    st.players[1].hand=[mk(9,'S'),mk(8,'S','b')]; st.players[2].hand=[mk(10,'H'),mk(7,'H','c')];
+    window.__solo.render();
+  }); await wait(300);
+  const nrg0=await p.evaluate(()=>window.__solo.st().players[0].energy.length);
+  await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="3D"]'); if(c)c.click(); }); await wait(200);
+  ok(/Choose target/i.test(await p.evaluate(()=>(document.getElementById('ctxBtn')||{}).textContent||'')), 'a targeting effect offers "🎯 Choose target"');
+  await p.evaluate(()=>document.getElementById('ctxBtn').click()); await wait(300);
+  ok(/Pick a target/i.test(await p.evaluate(()=>(document.getElementById('ctxBtn')||{}).textContent||'')), 'entering target mode asks you to pick one');
+  await p.evaluate(()=>{ const t=document.querySelector('.oppPanel[data-seat="2"]'); if(t)t.click(); }); await wait(300);
+  ok(await p.evaluate(()=>!!document.querySelector('.oppPanel.aimed')), 'tapping a rival STAGES it (marked "aimed")');
+  ok(await p.evaluate(()=>window.__solo.st().players[0].energy.length)===nrg0, '…and spends NOTHING yet');
+  ok(await p.evaluate(()=>window.__solo.st().players[2].hand.length===2), '…and does not resolve the effect yet');
+  ok(/Activate/i.test(await p.evaluate(()=>(document.getElementById('ctxBtn')||{}).textContent||'')), '…the button becomes ⚡ Activate to confirm');
+  // Clear must abandon it with nothing spent
+  await p.evaluate(()=>document.getElementById('clearBtn').click()); await wait(250);
+  ok(await p.evaluate(()=>window.__solo.st().players[0].energy.length)===nrg0, 'Clear cancels with nothing spent');
+  ok(await p.evaluate(()=>!document.querySelector('.oppPanel.aimed')), '…and un-aims the target');
+  // re-aim and confirm for real
+  await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="3D"]'); if(c)c.click(); }); await wait(200);
+  await p.evaluate(()=>document.getElementById('ctxBtn').click()); await wait(250);
+  await p.evaluate(()=>{ const t=document.querySelector('.oppPanel[data-seat="2"]'); if(t)t.click(); }); await wait(250);
+  await p.evaluate(()=>document.getElementById('ctxBtn').click()); await wait(700);
+  ok(await p.evaluate(()=>window.__solo.st().players[0].energy.length)<nrg0, 'confirming with ⚡ Activate finally spends the energy');
+  ok(await p.evaluate(()=>window.__solo.st().players[2].hand.length<2), '…and resolves against the seat you aimed at (P3, not the default next seat)');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
