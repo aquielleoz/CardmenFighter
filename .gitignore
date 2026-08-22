@@ -5,3 +5,6 @@ shot*.js
 shot*.png
 *.log
 .DS_Store
+# scratch probes — throwaway debug harnesses, never part of the suite
+code/_*.js
+_*.js
