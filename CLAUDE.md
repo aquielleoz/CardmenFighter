@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.29.0**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.29.1**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -49,6 +49,7 @@ node viewtest.js                                # 🔍 View card reader gating o
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node piletest.js                                # energy/shuffle pile viewers + promote (21)
+node mptest.js                                  # local free-for-all parity: pre-fight + response windows (13)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -156,6 +157,12 @@ sweep before and after any netplay or activation-flow change.
 Note the trap in the `prefight` case: **`hasSuper` requires a Ride.** Super Mode is any J + any Q + any K
 (`engine.js` ~190, variant B) — a Q + K alone is NOT Super, so staging forms without a J silently disables every
 Form-granted Quick. Some older comments and doc lines say "any Q + any K"; the code is the truth.
+
+**`effectOf` vs `effectFor` — the trap that hid three bugs.** `effectOf(card)` is the card's **base** effect;
+`effectFor(st, p, card)` applies that player's Form/Super boosts. A Form can **grant `quick`** (Back Stab only
+under Hermes Super, Sanctuary under Hector, Armor Piercing under Hippolyta), so any code deciding *"is this a
+Quick?"* must use **`effectFor`**. `ai.js` read `effectOf` in three places and therefore never sprang Back Stab
+in any mode (fixed v1.29.1). If a Form-granted behaviour appears dead, check which one the call site reads.
 
 ## Rules facts worth knowing before touching the engine
 

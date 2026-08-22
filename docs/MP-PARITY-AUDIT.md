@@ -30,6 +30,16 @@ window is dropped. So **Back Stab — and any Form-granted pre-fight Quick — i
 Netplay is fine here: `NET.hostPreFight` handles any seat, host or remote (`doFight`/`doPass` route to it
 when `hostLive() && MP()`). The gap is only the local AI path.
 
+> **CORRECTION to this entry's original scope.** It first claimed Back Stab was "dead for P3+" generally.
+> Two things narrowed it, both found while implementing:
+> - **`ai.js` already handled pre-fight seat-generically** for its own turns (`takeTurn` → `openPreFight` →
+>   `aiPreFightLock(st, qq, …)`), and correctly suspends when the holder is a human. So AI-vs-AI was fine.
+> - The broken path is **only the UI's `rivalPreFightThen`, i.e. when YOU fight.** The holder is
+>   `nextPlayer(st.turn)`, so from your turn it is seat 1 unless seat 1 is skipped — most obviously **when P2
+>   has been eliminated**, which is exactly the board in the report (P2 showed `OUT`).
+>
+> **But the real reason nobody noticed is worse — see A3.**
+
 **Verified, not just code-read** — `openPreFight` on a 3-player board, by starter seat:
 
 ```
@@ -62,6 +72,41 @@ So the window genuinely opens for seat 2 and genuinely goes undrained.
 
 **Worth a test either way:** a local 3-player game where seat 2 holds Counter Spell, asserting it actually
 counters. Neither A1 nor A2 has any coverage today, which is why they went unnoticed.
+
+### A3. The AI could never use ANY Form-granted Quick · **all modes** · `ai.js ~463, ~402, ~414`
+
+```js
+// lockoutQuick, bestQuick (inside respondDecision), and the immunity filter all did:
+var e = E.effectOf(c);            // ← BASE effect
+```
+
+`effectOf` is the card's **base** effect. A card's `quick` flag can be **granted by a Form** — Back Stab is a
+Quick *only* under Hermes Super, Sanctuary under Hector, Armor Piercing under Hippolyta — and that lives in
+`effectFor(st, q, c)`. Reading the base meant the AI's Quick searches could never see any of them.
+
+Verified:
+
+```
+E.effectOf(10♠).quick        → false     ← what the AI read
+E.effectFor(st, 2, 10♠).quick → true     ← the truth, with J+Q+K in the zone
+```
+
+**So the AI has never sprung Back Stab, in any mode, 2-player included** — which is why A1 sat unnoticed: the
+seat gate only mattered for a play the AI was never going to make. Fixed by reading `effectFor` at all three
+sites.
+
+**Balance:** this genuinely strengthens the AI, so it was measured (`analysis.js 40 on x knight`, before/after):
+
+| | before | after |
+| --- | --- | --- |
+| Back Stab win rate | 36.3% | **39.9%** |
+| Quick responses across all games | 1216 | 1211 |
+
+Back Stab gains ~3.6 points and is still **below 50%**, so it goes from unusable to merely weak — no new
+problem. Response volume is flat, as expected: Form-granted *response* Quicks are much rarer than the lockout
+case. Other cards drifted 1-3 points in both directions, which is noise at 40 games per matchup. Caveat worth
+stating: `analysis.js` is **AI-vs-AI and symmetric**, so a buff to both sides largely cancels — it cannot
+measure the thing a human will actually feel, which is Knight/Demon now locking *you* out of a lead.
 
 ---
 
@@ -138,8 +183,8 @@ which already exists and knows about duels vs seats.
 
 ## Suggested order
 
-1. **A1 + A2** — cards that do nothing are worse than cards that look wrong, and both are small, local fixes
-   (generalise two hardcoded `RIVAL`s and give the AI loop a seat parameter). Add the missing local-MP tests.
+1. ~~**A1 + A2**~~ — ✅ **DONE in v1.29.1**, along with **A3**, which was found while doing them and mattered
+   more than either. New `code/mptest.js` (13 assertions) covers all three.
 2. **B1** — unlocks two whole removal effects in free-for-all, and Aj has already specified the UX.
 3. **C1** — the biggest visible improvement, and the extraction protects against re-drift.
 4. **C2** — one line.

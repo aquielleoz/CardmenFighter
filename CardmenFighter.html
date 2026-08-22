@@ -3031,7 +3031,7 @@
       if (!kindOK(kind, q)) return null;               // analysis: blocked reactive kind
       var best = null, bestEff = null;
       qp.hand.forEach(function (c) {
-        var ef = E.effectOf(c);
+        var ef = E.effectFor(st, q, c);   // effectFor: Forms can GRANT quick (Hector→Sanctuary, Hippolyta→Armor Piercing)
         if (ef && ef.impl && ef.quick && ef.kind === kind && E.canAfford(qp, c) && (!best || ef.cost < bestEff.cost)) { best = c; bestEff = ef; }
       });
       return best;
@@ -3043,7 +3043,7 @@
     }
     // Reactive Leyline: spring an immunity Quick to blank a destroyShield technique aimed at us.
     if (eff.kind === 'destroyShield' && qp.shields <= 2) {
-      var immuneQ = qp.hand.filter(function (c) { var e = E.effectOf(c); return e && e.impl && e.quick && e.immune && E.canAfford(qp, c); })[0];
+      var immuneQ = qp.hand.filter(function (c) { var e = E.effectFor(st, q, c); return e && e.impl && e.quick && e.immune && E.canAfford(qp, c); })[0];
       if (immuneQ) { var ir = E.respond(st, q, immuneQ.id); if (ir.ok) return ir; }
     }
     // Counter Spell: negate the genuinely threatening Techniques (not friendly draws/ramp).
@@ -3094,7 +3094,10 @@
   // The affordable lockout Quick (Back Stab) in q's hand, if any.
   function lockoutQuick(st, q) {
     if (!kindOK('lockout', q)) return null;            // analysis: blocked lockout kind
-    return st.players[q].hand.filter(function (c) { var e = E.effectOf(c); return e && e.impl && e.quick && e.kind === 'lockout' && E.canAfford(st.players[q], c); })[0] || null;
+    // effectFor, NOT effectOf: a card's `quick` can be GRANTED by a Form. Back Stab is only a Quick under
+    // Hermes Super, so reading the base effect here meant the AI could never see it — it has never sprung
+    // Back Stab in any mode. Same trap applies to every Form-granted Quick.
+    return st.players[q].hand.filter(function (c) { var e = E.effectFor(st, q, c); return e && e.impl && e.quick && e.kind === 'lockout' && E.canAfford(st.players[q], c); })[0] || null;
   }
   // Should the NON-active player q spring Back Stab before the active player fights? Deny an opening
   // LEAD: if the active player is about to lead (no pile) and we hold a combo to capitalize, lock them —
@@ -5486,20 +5489,25 @@ window.CardFace = {};
     // NETPLAY HOST: the Rival is a remote human — route through NET so their response windows wait on the wire
     // (instead of the AI loop below), while the host's own windows still pop the normal modal.
     if(typeof NET!=='undefined' && NET.hostSettleActive && NET.hostSettleActive()){ return (MP() && NET.hostSettleN) ? NET.hostSettleN(g, done) : NET.hostSettle(g, done); }
-    var guard=0, lastResp=null;
-    while(state.pending && state.respondFor===RIVAL && guard++<64){
-      var resp=AI.respondDecision(state, RIVAL);
+    var guard=0, lastResp=null, lastQ=null;
+    // Drain the window for ANY AI seat. This used to loop on `respondFor===RIVAL` only, and the branch
+    // below handles `respondFor===YOU` — so in a free-for-all a window owed to seat 2+ was handled by
+    // NEITHER: that seat never countered, and the undrained window left the turn parked. `respondDecision`
+    // is seat-generic and always advances state (respond or decline), so this terminates.
+    while(state.pending && state.respondFor!=null && state.respondFor!==YOU && !isHumanSeat(state.respondFor) && guard++<64){
+      var q=state.respondFor;
+      var resp=AI.respondDecision(state, q);
       if(!resp) break;
       if(resp.respondedWith){
-        bumpEffect(RIVAL, {kind:resp.respondKind, id:resp.respondedWith});
-        if(resp.countered) logMsg('<b>Rival</b> countered with '+resp.respondName+'!', 'rival');
-        else logMsg('<b>Rival</b> answered at instant speed with '+resp.respondName+'.', 'rival');
-        lastResp=resp;
+        bumpEffect(q, {kind:resp.respondKind, id:resp.respondedWith});
+        if(resp.countered) say(q, '{who} countered with '+resp.respondName+'!', 'rival');
+        else say(q, '{who} answered at instant speed with '+resp.respondName+'.', 'rival');
+        lastResp=resp; lastQ=q;
       }
     }
     if(lastResp){                                                  // the Rival sprang a Quick — flash a cue and DWELL so it's readable (it used to resolve instantly, log-only)
-      setMessage(lastResp.countered ? ('🌀 <b>Rival Countered with '+lastResp.respondName+'!</b>') : ('<b>Rival answered with '+lastResp.respondName+'.</b>'));
-      quickFlash('Rival', lastResp.respondName, !!lastResp.countered); render();
+      setMessage(lastResp.countered ? ('🌀 <b>'+logName(lastQ)+' Countered with '+lastResp.respondName+'!</b>') : ('<b>'+logName(lastQ)+' answered with '+lastResp.respondName+'.</b>'));
+      quickFlash(logName(lastQ), lastResp.respondName, !!lastResp.countered); render();
       return setTimeout(function(){
         if(g!==gen) return;
         if(state.pending && state.respondFor===YOU){ render(); return promptHumanResponse(g, function(){ settleWindows(g, done); }); }
@@ -5593,15 +5601,20 @@ window.CardFace = {};
   // Synchronous (proceed immediately) unless the Rival actually springs Back Stab.
   function rivalPreFightThen(g, proceed){
     var pf=E.openPreFight(state);
-    if(!pf.preFightPending || pf.q!==RIVAL){ return proceed(); }
-    var mv=AI.preFightMove(state, RIVAL, YOU, difficulty);
-    if(mv.pass){ E.preFightPass(state, RIVAL); return proceed(); }
-    var r=E.preFightCast(state, RIVAL, mv.cast);
-    if(!r.ok){ E.preFightPass(state, RIVAL); return proceed(); }
+    var q=pf.q;
+    // ANY AI opponent can hold this window, not just seat 1 — `openPreFight` names whichever seat is next,
+    // which in a free-for-all is often seat 2+. This used to test `pf.q!==RIVAL` and silently drop those,
+    // so Back Stab (and every Form-granted pre-fight Quick) was dead for P3 and beyond. Your own window is
+    // prompted elsewhere (promptHumanPreFight); a human seat's is driven by netplay (NET.hostPreFight).
+    if(!pf.preFightPending || q==null || q===YOU || isHumanSeat(q)){ return proceed(); }
+    var mv=AI.preFightMove(state, q, YOU, diffOf(q));
+    if(mv.pass){ E.preFightPass(state, q); return proceed(); }
+    var r=E.preFightCast(state, q, mv.cast);
+    if(!r.ok){ E.preFightPass(state, q); return proceed(); }
     busy=true;
-    setMessage('🗡 Rival springs <b>Back Stab</b> — your turn is locked!');
-    logMsg('<b>Rival</b> sprang Back Stab — you are locked out of this turn.', 'rival');
-    bumpEffect(RIVAL, E.effectOf(mv.card));
+    setMessage('🗡 '+logName(q)+' springs <b>Back Stab</b> — your turn is locked!');
+    say(q, '{who} sprang Back Stab — you are locked out of this turn.', 'rival');
+    bumpEffect(q, E.effectOf(mv.card));
     render();
     settleWindows(g, function(){                       // you (active) may Counter the Back Stab
       if(g!==gen) return;
