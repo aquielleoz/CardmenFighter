@@ -66,6 +66,7 @@
   .oppPanel.turn{border-color:var(--gold); box-shadow:0 0 0 2px rgba(232,195,122,.35);}
   .oppPanel.dead{opacity:.4; filter:grayscale(1);}
   .oppPanel.targetable{cursor:pointer; border-color:var(--pick); box-shadow:0 0 12px rgba(201,139,255,.8); animation:tgtPulse .9s ease-in-out infinite;}
+  .fighter.targetable{cursor:pointer; border-radius:12px; outline:2px solid var(--pick); box-shadow:0 0 12px rgba(201,139,255,.8); animation:tgtPulse .9s ease-in-out infinite;}   /* duel: rival panel as a tap-target */
   .oppPanel .oppTop{display:flex; align-items:center; gap:6px; justify-content:space-between;}
   .oppPanel .oppName{font-weight:800; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .oppPanel .oppSeat{font-size:9px; opacity:.6; font-weight:700;}
@@ -617,16 +618,28 @@
   /* --- card flash on effect activation (the whole card face pops center-stage, then fades) --- */
   #artFlash{ position:fixed; inset:0; z-index:40; display:none; align-items:center; justify-content:center; pointer-events:none; }
   #artFlash.show{ display:flex; }
+  #artFlash .afStage{ position:relative; display:inline-flex; }   /* holds the art (or fallback card) with the caption overlaid on its bottom */
+  #artFlash.show .afStage{ animation:artPop var(--flashdur,1.15s) cubic-bezier(.2,.8,.2,1) both; }   /* duration set by flashArt so the fade-out aligns with the (longer) two-phase reveal */
   #artFlash .af{ width:min(88vw,680px); max-height:74vh; aspect-ratio:512/341; border-radius:16px; background-size:cover; background-repeat:no-repeat; background-position:center;
     box-shadow:0 24px 70px rgba(0,0,0,.65), 0 0 0 2px rgba(232,195,122,.5), 0 0 46px rgba(232,195,122,.55); }
   #artFlash.you .af{ box-shadow:0 24px 70px rgba(0,0,0,.65), 0 0 0 2px rgba(90,200,250,.45), 0 0 46px rgba(90,200,250,.5); }
-  #artFlash.show .af{ animation:artPop 1.15s cubic-bezier(.2,.8,.2,1) both; }
   #artFlash .flashCard{ zoom:2.8; border-radius:14px; box-shadow:0 24px 70px rgba(0,0,0,.65); }   /* fallback flash: the drawn card, scaled up */
   #artFlash.you .flashCard{ box-shadow:0 24px 70px rgba(0,0,0,.65), 0 0 0 2px rgba(90,200,250,.45), 0 0 46px rgba(90,200,250,.5); }
-  #artFlash.show .flashCard{ animation:flashCardFade 1.15s ease-out both; }
+  /* caption ON the art — value/suit + name over a bottom scrim, so it reads as part of the card */
+  #artFlash .afCap{ position:absolute; left:0; right:0; bottom:0; z-index:2; padding:26px 16px 12px; text-align:center; line-height:1.12; pointer-events:none;
+    border-radius:0 0 16px 16px; background:linear-gradient(to top, rgba(0,0,0,.9), rgba(0,0,0,.55) 55%, transparent); }
+  #artFlash .afCap:empty{ display:none; }
+  #artFlash .afCap .afSym{ font-size:clamp(22px,4.2vw,34px); font-weight:900; color:#fff; margin-right:9px; text-shadow:0 2px 8px rgba(0,0,0,.9); }
+  #artFlash .afCap .afSym.red{ color:#ff6b8a; }
+  #artFlash .afCap .afName{ font-size:clamp(16px,3vw,24px); font-weight:800; color:var(--gold); text-shadow:0 2px 8px rgba(0,0,0,.9); }
+  /* beat 2: the effect text rises in on top of the art after a beat */
+  #artFlash .afCap .afText{ max-height:0; opacity:0; overflow:hidden; transform:translateY(6px); margin-top:0;
+    font-size:clamp(14px,2.5vw,20px); font-weight:600; line-height:1.4; color:#f4eff9; text-shadow:0 2px 8px rgba(0,0,0,.95); max-width:min(84vw,620px); margin-left:auto; margin-right:auto;
+    transition:opacity .38s ease, transform .38s ease, max-height .38s ease, margin-top .38s ease; }
+  #artFlash .afCap.showText .afText{ max-height:40vh; opacity:1; transform:none; margin-top:9px; }
   @keyframes flashCardFade{ 0%{opacity:0;} 15%{opacity:1;} 80%{opacity:1;} 100%{opacity:0;} }
   @keyframes artPop{ 0%{opacity:0; transform:scale(.82) translateY(8px);} 12%{opacity:1; transform:scale(1.04);} 26%{transform:scale(1);} 76%{opacity:1; transform:scale(1);} 100%{opacity:0; transform:scale(1.05);} }
-  @media (prefers-reduced-motion: reduce){ #artFlash.show .af{ animation:artFade .9s ease-out both; } @keyframes artFade{ 0%{opacity:0;} 15%{opacity:1;} 80%{opacity:1;} 100%{opacity:0;} } }
+  @media (prefers-reduced-motion: reduce){ #artFlash.show .afStage{ animation:artFade var(--flashdur,.9s) ease-out both; } @keyframes artFade{ 0%{opacity:0;} 8%{opacity:1;} 88%{opacity:1;} 100%{opacity:0;} } }
   /* --- center-stage shield break / form FX (a mini Fighter Kick) --- */
   .shields .s.forming{ animation:shieldForm .46s cubic-bezier(.2,1.4,.3,1); }
   @keyframes shieldForm{ 0%{transform:scale(0) rotate(-28deg); opacity:0;} 60%{transform:scale(1.22);} 100%{transform:scale(1); opacity:1;} }
@@ -664,6 +677,11 @@
   #stopfx.you .stxMain{ color:#8fdcff; text-shadow:0 0 26px rgba(120,210,255,.55), 0 2px 10px rgba(0,0,0,.7); }
   #stopfx .stxSub{ font-size:clamp(13px,3vw,18px); font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:var(--txt); opacity:.9; margin-top:8px; }
   @keyframes stxPop{ 0%{opacity:0; transform:translateY(10px) scale(.82);} 13%{opacity:1; transform:none;} 76%{opacity:1;} 100%{opacity:0;} }
+  /* Quick-response cue — reuses #stopfx (STOPPER retired); gold "⏩ QUICK" for the rival, cyan for you */
+  #stopfx.quick .stx::before{ background:radial-gradient(ellipse at center, rgba(232,195,122,.18), transparent 62%); }
+  #stopfx.quick.you .stx::before{ background:radial-gradient(ellipse at center, rgba(120,210,255,.16), transparent 62%); }
+  #stopfx.quick .stxMain{ color:#f0c85a; text-shadow:0 0 26px rgba(232,195,122,.55), 0 2px 10px rgba(0,0,0,.7); }
+  #stopfx.quick.you .stxMain{ color:#8fdcff; text-shadow:0 0 26px rgba(120,210,255,.55), 0 2px 10px rgba(0,0,0,.7); }
   @media (prefers-reduced-motion: reduce){ #stopfx{ display:none!important; } }
   #stagefx{ position:absolute; left:50%; top:48%; transform:translate(-50%,-50%); z-index:6; display:none; flex-direction:column; align-items:center; gap:8px; pointer-events:none; }
   #stagefx.show{ display:flex; }
@@ -828,7 +846,7 @@
   </div>
 </main>
 <div id="kick"></div>
-<div id="artFlash"><div class="af"></div></div>
+<div id="artFlash"><div class="afStage"><div class="af"></div><div class="afCap"></div></div></div>
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
 <div id="tutPanel"></div>
 <div id="cardFull"><button id="cardFullClose" title="Close">✕ Close</button><div class="cfScroll"><div class="cfArt"></div><div class="cfText"></div></div></div>
@@ -1564,19 +1582,29 @@ __NETVIEW__
     if(!card) return;
     var _ef=(E.effectOf?E.effectOf(card):null);   // SFX: flashArt is the universal effect/transform reveal (both sides) — pick the cue from the card's kind
     SFX.play(_ef ? (_ef.kind==='transform' ? (_ef.tier==='ride'?'ride':'form') : _ef.kind==='equip' ? 'equip' : _ef.kind==='removeEquip' ? 'removal' : 'technique') : 'technique');
-    var wrap=$('artFlash'), img=wrap.firstElementChild;
+    var wrap=$('artFlash'), img=wrap.querySelector('.af'), cap=wrap.querySelector('.afCap');
     var prev=wrap.querySelector('.flashCard'); if(prev) prev.remove();               // clear any prior fallback card
     // raw art is keyed by rank+suit ("7H"); deck cards carry instance ids ("7H#5"), so key by rank+suit
     var art=window.CardArt && (window.CardArt[card.rank+card.suit] || window.CardArt[card.id]);
     if(art){ img.style.display=''; img.style.backgroundImage='url("'+art+'")'; }
     else {                                                                           // no raw yet (some Rogue ♠ / Fighter ♣) → flash the drawn card so EVERY Technique pops
       img.style.display='none';
-      var el=cardEl(card,'big'); el.classList.add('flashCard'); wrap.appendChild(el);
+      var el=cardEl(card,'big'); el.classList.add('flashCard'); cap.parentNode.insertBefore(el, cap);
     }
+    // caption: beat 1 = value/suit + card name; beat 2 = the effect text rises in on top
+    var _nm=(_ef&&_ef.name)||(E.cardName&&E.cardName(card))||'';
+    var _tx=(_ef&&_ef.text)||'';
+    cap.className='afCap';
+    cap.innerHTML='<div class="afTitle"><span class="afSym'+(red(card.suit)?' red':'')+'">'+cardSym(card)+'</span>'+(_nm?('<span class="afName">'+_nm+'</span>'):'')+'</div>'+(_tx?('<div class="afText">'+_tx+'</div>'):'');
     wrap.classList.remove('show','you'); void wrap.offsetWidth;    // restart the pop
     wrap.classList.add('show'); if(who==='You') wrap.classList.add('you');
-    clearTimeout(flashArt._t); var g=gen;
-    flashArt._t=setTimeout(function(){ if(g===gen){ wrap.classList.remove('show','you'); var fc=wrap.querySelector('.flashCard'); if(fc) fc.remove(); img.style.display=''; } }, reduceMotion()?900:1150);
+    clearTimeout(flashArt._t); clearTimeout(flashArt._t2); var g=gen;
+    var twoPhase = _tx && !reduceMotion();
+    if(_tx && reduceMotion()) cap.classList.add('showText');                        // reduced motion: text shown immediately, no phased reveal
+    else if(twoPhase) flashArt._t2=setTimeout(function(){ if(g===gen) cap.classList.add('showText'); }, 850);   // beat 2
+    var dur = twoPhase ? 2500 : (reduceMotion()?900:1350);
+    wrap.style.setProperty('--flashdur', dur+'ms');   // the pop/fade animation runs the full flash length so it doesn't vanish early
+    flashArt._t=setTimeout(function(){ if(g===gen){ wrap.classList.remove('show','you'); var fc=wrap.querySelector('.flashCard'); if(fc) fc.remove(); img.style.display=''; cap.classList.remove('showText'); } }, dur);
   }
   // Center-stage STOPPER cue (art-independent, works for any suit). `who` = 'You' / 'Rival'.
   function stopperFlash(who, cancelledLabel, n){
@@ -1587,6 +1615,17 @@ __NETVIEW__
     fx.className='show '+(me?'you':'rival');
     clearTimeout(stopperFlash._t); var g=gen;
     stopperFlash._t=setTimeout(function(){ if(g===gen){ fx.className=''; inner.innerHTML=''; } }, 1200);
+  }
+  // Center-stage QUICK cue — fires whenever either side plays a Quick in response, so instant-speed answers read.
+  function quickFlash(who, name, countered){
+    var fx=$('stopfx'); if(!fx || reduceMotion()) return;
+    var inner=fx.querySelector('.stx'), me=(who==='You');
+    var verb = countered ? (me?'You Counter':who+' Counters') : (me?'You answer':who+' answers');
+    inner.innerHTML='<div class="stxMain">⏩ QUICK'+(countered?'!':'')+'</div><div class="stxSub">'+verb+' with '+name+'</div>';
+    fx.className=''; void fx.offsetWidth;
+    fx.className='show quick '+(me?'you':'rival');
+    clearTimeout(stopperFlash._t); clearTimeout(quickFlash._t); var g=gen;
+    quickFlash._t=setTimeout(function(){ if(g===gen){ fx.className=''; inner.innerHTML=''; } }, 1400);
   }
   function revealEffect(card, who){
     if(!card) return;
@@ -1610,8 +1649,8 @@ __NETVIEW__
   }
   // Reading time for an effect reveal — a base beat plus a little more for wordy cards.
   function revealDwell(card){
-    var eff=card?E.effectOf(card):null, len=(eff&&eff.text)?eff.text.length:0;
-    return Math.min(2200, 1150 + len*7);
+    var eff=card?E.effectOf(card):null;
+    return (eff && eff.text && !reduceMotion()) ? 2650 : 1200;   // effect cards get both flash beats (art+name, then the effect text); others a short beat
   }
 
   function startGame(starter){
@@ -1732,6 +1771,7 @@ __NETVIEW__
       $('rivalShuf').textContent=riv.shuffle.length;
       renderEquipZone($('rivalEquipZone'), riv, false); renderFormsZone($('rivalFormZone'), riv, false);
       $('rival').classList.toggle('turn', state.turn===RIVAL && !state.finished);
+      $('rival').classList.toggle('targetable', !!(targetPick && !MP()));   // duel: the rival panel is the tap-target while choosing a target
     }
     $('roundTag').textContent='Round '+state.round;
     if(!state.finished){ if(state.turn===YOU && prevTurn!==YOU && prevTurn!==null) SFX.play('turnStart'); prevTurn=state.turn; }   // gentle chime when control returns to you
@@ -1774,7 +1814,7 @@ __NETVIEW__
     document.body.classList.toggle('spectating', spectating);
     $('turnTag').textContent = spectating ? ('👁 Spectating — '+seatName(state.turn)+'’s turn')
       : targeting?'● choose target':(pick?'● choose cards':(yourTurn?'● your turn':(state.finished?'':'Rival’s turn…')));
-    renderHand(yourTurn && !targeting);
+    renderHand(yourTurn && !targeting && !targetPick);
     renderPlayMods(spectating);
     updateActions(yourTurn);
     refreshNewBtn();                                                // header button: "🏳 Concede" while a duel is live, else "New Duel"
@@ -1787,7 +1827,7 @@ __NETVIEW__
   // Is this card an effect card that gets an Activate button at all? (Quick boosts, STOPPERs and
   // Phantasm have their own buttons and never use Activate.) This decides whether the button SHOWS.
   function activatableCard(card){
-    if(!card || state.turn!==YOU || state.finished || busy || pick || targeting) return false;
+    if(!card || state.turn!==YOU || state.finished || busy || pick || targeting || targetPick) return false;
     var eff=E.effectOf(card);
     if(!eff || !eff.impl || eff.kind==='stopper' || eff.kind==='phantasm') return false;   // quicks are proactively castable now (fizzle if no target)
     if(eff.kind==='transform' && state && state.basics) return false;                       // BASICS: J/Q/K are plain high cards — no ⚡ transform
@@ -2010,7 +2050,7 @@ __NETVIEW__
   }
   function onPointerDown(e, gid, el){
     if(peeking) return;                                     // no drag-to-play while reviewing
-    if(state.turn!==YOU || state.finished || busy || pick || targeting) return;
+    if(state.turn!==YOU || state.finished || busy || pick || targeting || targetPick) return;
     if(e.button!==undefined && e.button!==0 && e.pointerType==='mouse') return;
     var g=groupById(gid); if(g && g.cards[0]) showCard(g.cards[0]);
     drag={ gid:gid, el:el, startX:e.clientX, startY:e.clientY, moved:false, ghost:null, targetGid:null, playZone:null, hl:null };
@@ -2103,7 +2143,7 @@ __NETVIEW__
     });
   }
   function canHumanPlay(cards){
-    if(state.turn!==YOU || state.finished || busy || pick || targeting || E.isLocked(state, YOU)) return false;
+    if(state.turn!==YOU || state.finished || busy || pick || targeting || targetPick || E.isLocked(state, YOU)) return false;
     return !!fightLegal(cards);
   }
   // Shared by the Fight button and drag-to-play.
@@ -2126,7 +2166,7 @@ __NETVIEW__
   }
 
   function selectedCards(){ return state.players[YOU].hand.filter(function(c){ return selected[c.id]; }); }
-  function toggle(id){ if(state.turn!==YOU||state.finished||busy||pick||targeting) return;
+  function toggle(id){ if(state.turn!==YOU||state.finished||busy||pick||targeting||targetPick) return;
     var card=state.players[YOU].hand.filter(function(c){return c.id===id;})[0]; if(card) showCard(card);
     if(selected[id]) delete selected[id]; else selected[id]=true; render(); }
   // Open the STOPPER selection prompt so the player chooses WHICH STOPPERs to commit.
@@ -2172,7 +2212,8 @@ __NETVIEW__
       }
       if(activatableCard(sel[0])){
         var card=sel[0], block=activateBlock(card);
-        return {mode:'activate', label:'⚡ Activate', ok:!block, reason:block||'', run:function(){ activate(card.id); }};
+        var tgt=effNeedsTarget(E.effectOf(card));   // targeting effects: the button chooses a target first; energy is only spent once one is picked
+        return {mode:'activate', label: tgt?'🎯 Choose target':'⚡ Activate', ok:!block, reason:block||'', run:function(){ activate(card.id); }};
       }
     }
     return {mode:'activate', label:'⚡ Activate', ok:false,
@@ -2341,8 +2382,10 @@ __NETVIEW__
   function cardById(id){ return state.players[YOU].hand.filter(function(c){return c.id===id;})[0]; }
 
   function isHostileSingular(eff){ return eff && (eff.kind==='discardOpp'||eff.kind==='destroyShield'||eff.kind==='energyDenyOpp'||eff.kind==='lockout'||(eff.kind==='recycle'&&eff.scope==='opp')); }
+  // Effects that pick a target before firing — the button reads "Choose target" and no energy is spent until a target is locked in.
+  function effNeedsTarget(eff){ return eff && (eff.kind==='removeEquip' || eff.kind==='counterfeit' || isHostileSingular(eff)); }
   function livingOpps(){ var a=[]; for(var i=0;i<state.numPlayers;i++) if(i!==YOU && !state.players[i].eliminated) a.push(i); return a; }
-  function promptTargetPick(cardId, eff){ targetPick={ cardId:cardId }; setMessage('<b>'+eff.name+'</b> — tap a rival panel to target. (Clear to cancel.)'); render(); }
+  function promptTargetPick(cardId, eff){ targetPick={ cardId:cardId }; selected={}; setMessage('<b>'+eff.name+'</b> — tap the rival'+(MP()?' panel':'')+' to strike. No energy is spent until you pick. (Clear to cancel.)'); render(); }
   function chooseTargetSeat(seat){ if(!targetPick) return; var cid=targetPick.cardId; targetPick=null; activate(cid, { target: seat }); }
   function cancelTargetPick(){ if(targetPick){ targetPick=null; setMessage('Target cancelled.'); render(); return true; } return false; }
   // The round winner (chosen mode, 3–6p) picks whose shield to strip. `done(finalRes)` continues with the resolved result.
@@ -2362,7 +2405,7 @@ __NETVIEW__
     done(fin);
   }
   function activate(cardId, _opts){
-    if(state.turn!==YOU||state.finished||busy||pick||targeting) return;
+    if(state.turn!==YOU||state.finished||busy||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     var card=cardById(cardId); var eff=card?E.effectOf(card):null;
     if(!card||!eff||!eff.impl) return;
@@ -2371,8 +2414,7 @@ __NETVIEW__
     if(eff.kind==='removeEquip'){                          // needs a target — Equipment, and (boosted) a zone Ride/Form
       var tgts=(E.removeTargets?E.removeTargets(state, YOU, eff):E.equipTargets(state, YOU));
       if(!tgts.length){ setMessage('No Equipment or zone card on the board to target.'); return; }
-      if(tgts.length===1){ doRemove(cardId, tgts[0].id); return; }
-      targeting={cardId:cardId, ride:!!eff.ride, form:!!eff.form}; selected={};
+      targeting={cardId:cardId, ride:!!eff.ride, form:!!eff.form}; selected={};   // always tap a target — energy is only spent on the tap, so you can back out (Clear)
       var what='an Equipment'+(eff.ride||eff.form?(eff.form?', Ride or Form':' or Ride'):'');
       setMessage('Tap '+what+' to remove with <b>'+eff.name+'</b>. (Clear to cancel.)'); render(); return;
     }
@@ -2380,7 +2422,7 @@ __NETVIEW__
       if(!state.pile || state.pile.byPlayer===YOU){ setMessage('Counterfeit needs the Rival’s current play to copy — cast it while facing an attack.'); return; }
       promptCounterfeit(cardId); return;
     }
-    if(MP() && isHostileSingular(eff) && livingOpps().length>1 && !(_opts && _opts.target!=null)){   // N-player: pick which rival to hit
+    if(isHostileSingular(eff) && !(_opts && _opts.target!=null)){   // pick the rival to hit FIRST — energy is only spent once a target is chosen (Clear to back out)
       return promptTargetPick(cardId, eff);
     }
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'activate', id:cardId, target:(_opts&&_opts.target), copyId:(_opts&&_opts.copyId)}); selected={}; busy=true; render(); return; }
@@ -2467,7 +2509,7 @@ __NETVIEW__
   }
 
   function doFight(){
-    if(peeking||busy||pick||targeting) return;
+    if(peeking||busy||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ var ids=selectedCards().map(function(c){return c.id;}); if(!ids.length){ setMessage('Select a card or combo to play.'); return; } NET.clientSend({op:'play', ids:ids}); selected={}; boostArmed=false; busy=true; render(); return; }
     var g=gen;
@@ -2477,7 +2519,7 @@ __NETVIEW__
     rivalPreFightThen(g, function(){ playCards(selectedCards()); });
   }
   function doPass(){
-    if(peeking||busy||pick||targeting) return;
+    if(peeking||busy||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'pass'}); busy=true; render(); return; }
     var g=gen;
@@ -2542,7 +2584,7 @@ __NETVIEW__
     var rpl=state.players[RIVAL];
     var gcard=rpl.hand.filter(function(c){return c.id===state.shieldResponse.guardId;})[0];
     var fr=(rpl.shields<=2) ? E.shieldGuard(state, RIVAL, state.shieldResponse.guardId) : E.shieldGuardPass(state, RIVAL);
-    if(fr.guarded){ if(gcard) flashArt(gcard, 'Rival'); setMessage('🛡 <b>Rival sprang '+fr.guardName+' — its shield holds!</b>'); logMsg('<b>Rival</b> sprang '+fr.guardName+' in response — its shield holds.', 'rival'); }
+    if(fr.guarded){ if(gcard) flashArt(gcard, 'Rival'); quickFlash('Rival', fr.guardName, false); setMessage('🛡 <b>Rival sprang '+fr.guardName+' — its shield holds!</b>'); logMsg('<b>Rival</b> sprang '+fr.guardName+' in response — its shield holds.', 'rival'); }
     else { logMsg('<b>Rival</b> took the hit.', 'dim'); }
   }
   // STOPPER (fight action): commit N affordable STOPPERs to cancel a single/pair/trio + seize the lead.
@@ -2572,7 +2614,7 @@ __NETVIEW__
     return { show:true, ok:true, need:need, ids:ids };
   }
   function doStopper(e){
-    if(busy||pick||targeting) return;
+    if(busy||pick||targeting||targetPick) return;
     var info=stopInfo(); if(!info) return;
     if(!info.ok){ showTip($('ctxBtn'), info.reason); if(e&&e.stopPropagation) e.stopPropagation(); return; }
     var cancelled = kindLabel(state.pile.combo.type);
@@ -2645,7 +2687,7 @@ __NETVIEW__
     return -1;
   }
   function doPhantasm(e){
-    if(busy||pick||targeting) return;
+    if(busy||pick||targeting||targetPick) return;
     var info=phantInfo(); if(!info) return;
     if(!info.ok){ showTip($('ctxBtn'), info.reason); if(e&&e.stopPropagation) e.stopPropagation(); return; }
     pick={ kind:'phantasm', need:1, chosen:{}, cardId:info.cardId };   // choose 1 hand card to lend the illusion
@@ -2815,7 +2857,7 @@ __NETVIEW__
           var q=state.shieldResponse.q, rpl=state.players[q];
           var rgcard=rpl.hand.filter(function(c){return c.id===state.shieldResponse.guardId;})[0];
           var fr=(rpl.shields<=2) ? E.shieldGuard(state, q, state.shieldResponse.guardId) : E.shieldGuardPass(state, q);
-          if(fr.guarded){ if(rgcard) flashArt(rgcard, 'Rival'); setMessage('🛡 <b>Rival sprang '+fr.guardName+' — its shield holds!</b>'); logMsg('<b>Rival</b> sprang '+fr.guardName+' in response — its shield holds.', 'rival'); }
+          if(fr.guarded){ if(rgcard) flashArt(rgcard, 'Rival'); quickFlash('Rival', fr.guardName, false); setMessage('🛡 <b>Rival sprang '+fr.guardName+' — its shield holds!</b>'); logMsg('<b>Rival</b> sprang '+fr.guardName+' in response — its shield holds.', 'rival'); }
           return finishStep(fr, g, log.filter(function(e){return e.play;}));   // finishStep renders (with the ceremony's held draw/shield)
         }
         return finishStep(pres, g, log.filter(function(e){return e.play;}));   // finishStep renders (with the ceremony's held draw/shield)
@@ -2832,9 +2874,9 @@ __NETVIEW__
           }});
         }
         else if(e.useEquip){ beats.push({ dwell:750, run:function(){ logMsg('<b>Rival</b> spent a '+e.name+' counter — drew a card.', 'rival'); } }); }
-        else if(e.fight==='play'){ beats.push({ dwell:950, run:function(){ logMsg('<b>Rival</b> played '+playPhrase(e.combo)+(e.boost?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'rival'); bumpFight(RIVAL, e.combo.type); setMessage('<b>Rival</b> played '+kindPhrase(e.combo.type)+'.'); render(); } }); }
-        else if(e.phantasm){ beats.push({ dwell:1000, run:function(){ logMsg('<b>Rival</b> conjured a Phantasmal Illusion — a '+kindLabel(e.made)+' overtakes the pile.', 'rival'); setMessage('🎭 <b>Rival warped your play with a Phantasmal Illusion!</b>'); render(); } }); }
-        else if(e.fight==='pass'){ beats.push({ dwell:650, run:function(){ logMsg('<b>Rival</b> passed.', 'rival'); setMessage('<b>Rival</b> passed.'); render(); } }); }
+        else if(e.fight==='play'){ beats.push({ dwell:1500, run:function(){ logMsg('<b>Rival</b> played '+playPhrase(e.combo)+(e.boost?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'rival'); bumpFight(RIVAL, e.combo.type); setMessage('<b>Rival</b> played '+kindPhrase(e.combo.type)+'.'); render(); } }); }
+        else if(e.phantasm){ beats.push({ dwell:1300, run:function(){ logMsg('<b>Rival</b> conjured a Phantasmal Illusion — a '+kindLabel(e.made)+' overtakes the pile.', 'rival'); setMessage('🎭 <b>Rival warped your play with a Phantasmal Illusion!</b>'); render(); } }); }
+        else if(e.fight==='pass'){ beats.push({ dwell:950, run:function(){ logMsg('<b>Rival</b> passed.', 'rival'); setMessage('<b>Rival</b> passed.'); render(); } }); }
         else if(e.stopper){ beats.push({ dwell:1150, run:function(){ logMsg('<b>Rival</b> cancelled a '+kindLabel(e.cancelled)+' with '+e.stopper+' STOPPER'+(e.stopper>1?'s':'')+' — Rival leads.', 'rival'); if(stats) stats[pkey(RIVAL)].stoppers += e.stopper; setMessage('🛑 <b>Rival cancelled your '+kindLabel(e.cancelled)+'!</b>'); stopperFlash('Rival', kindLabel(e.cancelled), e.stopper); render(); } }); }
         else if(e.discard){ beats.push({ dwell:600, run:function(){ logMsg('<b>Rival</b> discarded '+e.discard+' to hand size.', 'rival'); } }); }
         else if(e.forcedDiscard){ beats.push({ dwell:750, run:function(){ logMsg('<b>Rival</b> discarded '+e.forcedDiscard+' card'+(e.forcedDiscard>1?'s':'')+'.', 'rival'); } }); }
@@ -2849,7 +2891,7 @@ __NETVIEW__
         if(state.shieldResponse && state.shieldResponse.q===YOU){ return openShieldGuardModal(null, function(){ resumeRival(g); }); }   // Rival's destroyShield threatens you — spring a guard
         if(state.discardPending && state.discardPending.player===YOU){ return promptHumanDiscard(g); }   // Rival forced you to discard
         if(state.finished){ busy=false; return endGame(); }
-        setTimeout(function(){ if(g===gen) step(); }, 320);
+        setTimeout(function(){ if(g===gen) step(); }, 480);
       });
     }, 650);
   }
@@ -2881,7 +2923,7 @@ __NETVIEW__
     // NETPLAY HOST: the Rival is a remote human — route through NET so their response windows wait on the wire
     // (instead of the AI loop below), while the host's own windows still pop the normal modal.
     if(typeof NET!=='undefined' && NET.hostSettleActive && NET.hostSettleActive()){ return (MP() && NET.hostSettleN) ? NET.hostSettleN(g, done) : NET.hostSettle(g, done); }
-    var guard=0;
+    var guard=0, lastResp=null;
     while(state.pending && state.respondFor===RIVAL && guard++<64){
       var resp=AI.respondDecision(state, RIVAL);
       if(!resp) break;
@@ -2889,7 +2931,17 @@ __NETVIEW__
         bumpEffect(RIVAL, {kind:resp.respondKind, id:resp.respondedWith});
         if(resp.countered) logMsg('<b>Rival</b> countered with '+resp.respondName+'!', 'rival');
         else logMsg('<b>Rival</b> answered at instant speed with '+resp.respondName+'.', 'rival');
+        lastResp=resp;
       }
+    }
+    if(lastResp){                                                  // the Rival sprang a Quick — flash a cue and DWELL so it's readable (it used to resolve instantly, log-only)
+      setMessage(lastResp.countered ? ('🌀 <b>Rival Countered with '+lastResp.respondName+'!</b>') : ('<b>Rival answered with '+lastResp.respondName+'.</b>'));
+      quickFlash('Rival', lastResp.respondName, !!lastResp.countered); render();
+      return setTimeout(function(){
+        if(g!==gen) return;
+        if(state.pending && state.respondFor===YOU){ render(); return promptHumanResponse(g, function(){ settleWindows(g, done); }); }
+        render(); done();
+      }, reduceMotion()?300:1400);
     }
     if(state.pending && state.respondFor===YOU){ render(); return promptHumanResponse(g, function(){ settleWindows(g, done); }); }
     render(); done();
@@ -2920,7 +2972,7 @@ __NETVIEW__
     var r=E.respond(state, YOU, quickId);
     if(!r.ok){ setMessage(r.reason); return; }
     hideOverlay();
-    if(qeff) flashArt(qcard, 'You');
+    if(qeff){ flashArt(qcard, 'You'); quickFlash('You', qeff.name, qeff.kind==='counter'); }
     if(qeff && qeff.kind==='counter'){ setMessage('🌀 You <b>Countered</b> '+pendName+'!'); logMsg('<b>You</b> Countered '+pendName+' with '+qeff.name+'!', 'you'); }
     else { setMessage('You answered with <b>'+qeff.name+'</b>.'); logMsg('<b>You</b> answered with '+qeff.name+' at instant speed.', 'you'); }
     bumpEffect(YOU, qeff);
@@ -3691,12 +3743,13 @@ __NETVIEW__
   });
   $('logNewBtn').addEventListener('click', scrollLogToBottom);
   $('log').addEventListener('scroll', function(){ if(logAtBottom()) setLogNewBtn(false); });
-  $('clearBtn').addEventListener('click', function(){ if(targeting){ targeting=null; setMessage('Cancelled.'); } else if(pick){ pick.chosen={}; } else { selected={}; breakAllGroups(); } render(); });
+  $('clearBtn').addEventListener('click', function(){ if(targeting){ targeting=null; setMessage('Cancelled — no energy spent.'); } else if(targetPick){ targetPick=null; setMessage('Cancelled — no energy spent.'); } else if(pick){ pick.chosen={}; } else { selected={}; breakAllGroups(); } render(); });
   $('sortBtn').addEventListener('click', flipSort);
   $('hand').addEventListener('mouseleave', showRestCard);   // hovering out reverts the panel to the selected card (or empty)
   $('newBtn').addEventListener('click', requestNewDuel);
   $('helpBtn').addEventListener('click', function(){ showHelp(!(state && !state.finished)); });   // mid-duel: close/dismiss resumes the duel; pre-game or finished: back to New Duel setup
   $('cheatBtn').addEventListener('click', showCheatSheet);   // quick Specials reference, reachable any time from the board
+  $('rival').addEventListener('click', function(){ if(targetPick && !MP() && state.turn===YOU && !state.finished) chooseTargetSeat(RIVAL); });   // duel: tap the rival panel to confirm a targeting effect
   $('specialsRefBtn').addEventListener('click', showCheatSheet);   // spelled-out reference right above the hand
   $('viewCardBtn').addEventListener('click', openCardFull);         // tight screens: open the full-screen card reader
   $('cardFullClose').addEventListener('click', closeCardFull);
