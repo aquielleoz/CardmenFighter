@@ -112,6 +112,17 @@ rather than hardcoding a path, which is what these files used to do and why they
 browser pages; two suites at once flake on CPU contention (`nettest_rtc` in particular fails at `maxRound=0`
 concurrently and passes 11/0 alone). A serial sweep of all 21 takes a few minutes.
 
+**A killed suite orphans its fixed port, and the next run of it hangs forever.** Each suite binds its own fixed
+port and starts its own HTTP server; `kill -9` on the runner leaves that server (and sometimes a
+`chromium_headless_shell`) alive, so the next run waits on a page that never loads. Symptom is a **>240s timeout
+on a suite that passes in ~3s** — a 70× gap that load alone cannot explain, and it is not a regression however
+much it looks like one. Clean up before re-running:
+
+```bash
+pkill -f nettest_ ; pkill -f headless_shell
+lsof -nP -iTCP -sTCP:LISTEN | grep -E ':8(2|3)[0-9][0-9]'   # any suite port still bound
+```
+
 They are load-sensitive enough that *background junk on the machine* can fail them: one sweep's `nettest_full`
 timed out at >180s purely because three stray busy-wait shells were spinning. If a suite times out, check for
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
