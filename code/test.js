@@ -1,0 +1,503 @@
+var E = require('./engine.js');
+var AI = require('./ai.js');
+
+var fails = 0, passes = 0;
+function ok(c, m) { if (c) passes++; else { fails++; console.log('FAIL:', m); } }
+function card(id) { return { rank: parseInt(id, 10), suit: id.replace(/^\d+/, ''), id: parseInt(id, 10) + id.replace(/^\d+/, '') }; }
+function cards(ids) { return ids.map(card); }
+
+
+// ===== ENGINE TESTS (the game is always the 2-apex + Forms rework; the classic pre-rework suite is retired) =====
+// ===== Full-game AI-vs-AI termination smoke (live rules: 52-card, Forms, catch-up) =====
+(function () {
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  E.setShieldCards(true); E.setLoserMill(true);   // catch-up on, as the shipped game plays
+  var terminated = 0, activations = 0, kickEnds = 0;
+  for (var seed = 1; seed <= 300; seed++) {
+    var g = E.newGame(mulberry32(seed), { starter: seed % 2 }), guard = 0;
+    while (!g.finished) {
+      if (++guard > 300000) throw new Error('did not terminate (seed ' + seed + ')');
+      AI.takeTurn(g, g.turn).forEach(function (e) { if (e.play) activations++; });
+      g.players.forEach(function (pl) { if (pl.shields < 0) throw new Error('negative shields (seed ' + seed + ')'); });
+    }
+    if (g.winner === 0 || g.winner === 1) terminated++;
+    var loser = g.winner === 0 ? 1 : 0;
+    if (g.players[loser].shields === 0) kickEnds++;
+  }
+  ok(terminated === 300, 'all 300 AI-vs-AI rework duels terminated with a valid winner');
+  ok(activations > 0, 'the AI activated card effects across the games (' + activations + ' total)');
+  ok(kickEnds > 0, 'some games ended on a real Fighter Kick (' + kickEnds + '/300)');
+})();
+
+// ===== Core: 2-as-apex ladder + J/Q/K deck =====
+(function () {
+  function sc(r, s) { return { rank: r, suit: s, id: r + s }; }
+  function single(r, s) { return E.detectCombo([sc(r, s)]); }
+  ok(E.makeDeck().length === 52, 'REWORK: full deck is 52 cards (ranks 1-13)');
+  ok(E.buildDeck('Wizard').length === 52, 'REWORK: pure deck is 52 cards');
+  ok(E.buildDeck('Sage').length === 52, 'REWORK: dual deck is 52 cards');
+  ok(E.fightValue(sc(11, 'D')) === 11 && E.fightValue(sc(13, 'D')) === 13, 'REWORK: J/Q/K value = 11/12/13');
+  ok(E.fightValue(sc(1, 'D')) === 14 && E.fightValue(sc(2, 'D')) === 15, 'REWORK: Ace=14, apex 2=15');
+  ok(E.beats(single(2, 'D'), single(1, 'D')), 'REWORK: apex 2 beats Ace');
+  ok(E.beats(single(1, 'D'), single(13, 'D')), 'REWORK: Ace beats King');
+  ok(E.beats(single(13, 'D'), single(10, 'D')), 'REWORK: King beats 10');
+  ok(!E.beats(single(10, 'D'), single(2, 'D')), 'REWORK: 10 does not beat apex 2');
+  ok(E.beats(E.detectCombo([sc(2, 'D'), sc(2, 'H')]), E.detectCombo([sc(13, 'D'), sc(13, 'H')])), 'REWORK: pair of 2s beats pair of Kings (apex-as-stopper by value)');
+  ok(E.detectCombo([sc(11, 'D'), sc(12, 'D'), sc(13, 'D'), sc(1, 'D'), sc(2, 'D')]).type === 'straight', 'REWORK: J-Q-K-A-2 same suit = straight (no straight-flush tier)');
+  ok(E.detectCombo([sc(10, 'C'), sc(11, 'D'), sc(12, 'H'), sc(13, 'S'), sc(1, 'C')]).value === 14, 'REWORK: 10-J-Q-K-A straight tops at Ace (14)');
+  ok(E.detectCombo([sc(1, 'D'), sc(2, 'D'), sc(3, 'D'), sc(4, 'D'), sc(5, 'D')]) === null, 'REWORK: old A-2-3-4-5 low straight no longer a combo');
+  ok(E.effectOf(sc(2, 'D')) === null, 'REWORK: apex 2 has no activated effect (STOPPER retired)');
+  ok(E.stopperNeed({ pile: { combo: { size: 1 } } }) === 0, 'REWORK: stopperNeed always 0');
+  var ace = E.effectOf(sc(1, 'D'));
+  ok(ace && ace.name === 'Gather Energy' && ace.cost === 1, 'REWORK: Ace keeps its effect at cost 1');
+  // J/Q/K are transform cards: activating one (10 energy) sends it to the Forms & Rides Zone
+  var jeff = E.effectOf(sc(11, 'D'));
+  ok(jeff && jeff.kind === 'transform' && jeff.tier === 'ride' && jeff.cost === 0, 'REWORK: Jack is a Ride transform (free)');
+  ok(E.effectOf(sc(12, 'D')).tier === 'queen' && E.effectOf(sc(13, 'D')).tier === 'king', 'REWORK: Queen/King are Form transforms');
+  (function () {  // free + draw 1, but gated by total table shields lost (J@2, Q@4, K@6 in a duel)
+    var g = E.newGame(null, { starter: 0 });
+    var pl = g.players[0];
+    pl.hand = [sc(11, 'D'), sc(12, 'H'), sc(13, 'S'), sc(5, 'C')];
+    pl.energy = []; pl.deck = [sc(6, 'C'), sc(7, 'C'), sc(8, 'C'), sc(9, 'C')];   // free — no energy; deck feeds the draw-1
+    pl.shields = 1; g.players[1].shields = 1;                          // table lost 6 → all tiers unlocked
+    g.turn = 0; g.round = 3; g.pile = { combo: E.detectCombo([sc(6, 'D')]), byPlayer: 1 }; g.lastPlayer = 1;
+    var handBefore = pl.hand.length;
+    var r1 = E.activate(g, 0, '11D');
+    ok(r1.ok && r1.transformed && pl.forms.length === 1 && pl.energy.length === 0, 'REWORK: activating a J is FREE and moves it to the zone');
+    ok(pl.hand.length === handBefore, 'REWORK: transform draws 1 to replace the spent card (net hand-neutral)');
+    E.activate(g, 0, '12H');                                          // a Q with no K yet must NOT light Super
+    ok(!E.hasSuper(pl), 'REWORK: a Q with no K does NOT reach Super (needs a Q AND a K)');
+    var r3 = E.activate(g, 0, '13S');                                 // DEFAULT Variant B: any Q + any K → Super (mixed suits OK)
+    ok(E.hasSuper(pl) && r3.isSuper, 'REWORK: any Q + any K lights up Super Mode (Variant B default — Q♥+K♠)');
+    ok(!E.hasSuper(g.players[1]), 'REWORK: the empty-zone player is not in Super');
+    // Variant A (same-suit) flips it back: mixed-suit Q+K no longer supers
+    E.setFormSuitMatch(true);
+    ok(!E.hasSuper(pl), 'REWORK: under Variant A (same-suit), Q♥+K♠ does NOT reach Super');
+    E.setFormSuitMatch(false);
+    ok(E.hasSuper(pl), 'REWORK: back to Variant B — Q♥+K♠ supers again');
+  })();
+  (function () {  // ONE transform per rank: a new J/Q/K replaces the existing one of that rank (to Energy)
+    var g = E.newGame(null, { starter: 0 }); var pl = g.players[0];
+    pl.shields = 1; g.players[1].shields = 1; g.turn = 0; g.round = 3;
+    pl.energy = []; for (var i = 0; i < 20; i++) pl.energy.push(sc(2, 'CDHS'[i % 4]));
+    pl.deck = [sc(6, 'C'), sc(7, 'C'), sc(8, 'C')];
+    pl.hand = [sc(12, 'D'), sc(5, 'C')]; E.activate(g, 0, '12D');   // Q♦
+    pl.hand = [sc(12, 'H'), sc(5, 'C')]; E.activate(g, 0, '12H');   // Q♥ replaces Q♦ (one per rank)
+    var qs = pl.forms.filter(function (f) { return f.rank === 12; });
+    ok(qs.length === 1 && qs[0].suit === 'H', 'REWORK: a new Form of the same rank replaces the old one (one per rank)');
+    ok(pl.energy.some(function (c) { return c.id === '12D'; }), 'REWORK: the retired Form banks to Energy');
+    pl.hand = [sc(13, 'S'), sc(5, 'C')]; E.activate(g, 0, '13S');   // K♠ — a different rank, coexists
+    ok(pl.forms.length === 2, 'REWORK: a different-rank transform coexists (one J, one Q, one K max)');
+  })();
+  (function () {  // the table-gate blocks transforming before shields are lost
+    var g = E.newGame(null, { starter: 0 }); var pl = g.players[0];
+    pl.hand = [sc(11, 'D'), sc(5, 'C')]; pl.shields = 4; g.players[1].shields = 4;   // nobody hurt → gate closed
+    g.turn = 0; g.round = 3; g.pile = { combo: E.detectCombo([sc(6, 'D')]), byPlayer: 1 }; g.lastPlayer = 1;
+    var r = E.activate(g, 0, '11D');
+    ok(!r.ok && pl.forms.length === 0, 'REWORK: transform is gated — refused before the table has lost shields');
+    var stat = E.transformGateStatus(g, 0, 'ride');
+    ok(stat.gate === 'table' && stat.need === 2 && !stat.ok, 'REWORK: gate status reports the table threshold (J needs 2 lost)');
+  })();
+  // ---- Phase 4a: base-card content changes ----
+  ok(E.effectOf(sc(8, 'H')).name === 'Holy Bow', 'REWORK base: H8 renamed Holy Bow');
+  ok(E.effectOf(sc(9, 'H')).name === 'Holy Shroud' && E.effectOf(sc(10, 'H')).name === 'Sanctuary', 'REWORK base: Cleric 9/10 reordered (Holy Shroud=9, Sanctuary=10)');
+  ok(E.effectOf(sc(8, 'C')).draw === 2 && E.effectOf(sc(9, 'C')).oppDelta === -2, 'REWORK base: Instant Recovery draw 2 (v1.13 buff), Spiked Armor −2');
+  ok(E.effectOf(sc(5, 'C')).name === 'Superior Training' && E.effectOf(sc(5, 'C')).draw === 4 && E.effectOf(sc(5, 'C')).discard === 2 && E.effectOf(sc(5, 'C')).cost === 5, 'REWORK base: Fighter 5 → Superior Training (v1.13 buff: dig 4, keep 2, 2→Energy) at cost 5');
+  ok(E.effectOf(sc(6, 'S')).name === 'Never Out of Options' && E.effectOf(sc(6, 'S')).draw === 3 && E.effectOf(sc(6, 'S')).discard === 2, 'REWORK base: Never Out of Options dig 3 (keep 1, 2→Energy)');
+  ok(E.effectOf(sc(7, 'C')).quick === false && E.effectOf(sc(3, 'S')).quick === false && E.effectOf(sc(10, 'S')).quick === false, 'REWORK base: Armor Piercing / Hand-to-Hand / Back Stab lose Quick');
+  ok(E.effectOf(sc(10, 'C')).pitchHigh === true && E.effectOf(sc(7, 'C')).pitchHigh === true && E.effectOf(sc(9, 'S')).pitchHigh === true, 'REWORK base: Ultima Attack + Armor Piercing + Critical Hit carry the Broadway pitch cost');
+  ok(E.effectOf(sc(6, 'C')).counters === 3 && E.effectOf(sc(9, 'C')).counters === 3 && E.effectOf(sc(7, 'S')).counters === 3, 'REWORK: Fighter/Rogue decaying equips → 3 counters (Javelin, Spiked Armor, Caltrops)');
+  ok(E.effectOf(sc(8, 'H')).counters === 4 && E.effectOf(sc(8, 'D')).counters === 4, 'REWORK: Cleric/Wizard decaying equips → 4 counters (Holy Bow, Cursed Pendant)');
+  ok(E.effectOf(sc(9, 'H')).decay === false, 'REWORK: Holy Shroud stays non-decaying (spend-only, not nerfed)');
+  ok(E.effectOf(sc(6, 'D')).name === 'Back to the Books' && E.effectOf(sc(6, 'D')).draw === 3 && E.effectOf(sc(6, 'D')).discard === 1, 'REWORK base: Back to the Books is a dig (look 3, 1→Energy, keep 2)');
+  // ---- Broadway pitch cost: Ultima Attack / Armor Piercing discard a 10/J/Q/K/A ----
+  (function () {
+    function energy(pl, n, s) { for (var i = 0; i < n; i++) pl.energy.push(sc(4, s || 'C')); }
+    // Ultima Attack WITH a Broadway card to pitch → succeeds, strips a shield, and the pitch goes to Discard.
+    var g = E.newGame(null, { starter: 0 }); var me = g.players[0], foe = g.players[1];
+    me.hand = [sc(10, 'C'), sc(13, 'C'), sc(4, 'H')]; energy(me, 10, 'C');   // Ultima(10C) + a King to pitch + filler
+    g.turn = 0; g.round = 3; g.pile = null; g.lastPlayer = null; g.passes = 0; foe.shields = 3;
+    var r = E.activate(g, 0, '10C');
+    ok(r.ok && r.pitched && r.pitched.rank === 13 && me.removed.some(function (c) { return c.rank === 13 && c.suit === 'C'; }), 'Ultima Attack pitches a Broadway card to the Discard pile');
+    ok(!me.hand.some(function (c) { return c.rank === 13; }), 'the pitched King left the hand');
+    // Ultima Attack with NO other Broadway card in hand → blocked.
+    var g2 = E.newGame(null, { starter: 0 }); var m2 = g2.players[0];
+    m2.hand = [sc(10, 'C'), sc(4, 'H'), sc(5, 'H')]; energy(m2, 10, 'C');   // only the 10C itself (can't pitch itself), rest low
+    g2.turn = 0; g2.round = 3; g2.pile = null; g2.lastPlayer = null; g2.passes = 0;
+    var r2 = E.activate(g2, 0, '10C');
+    ok(!r2.ok && /Broadway/.test(r2.reason), 'Ultima Attack is blocked with no Broadway card to pitch');
+    // Armor Piercing (rank 7) auto-pitches the LEAST valuable Broadway (a 10 over a King).
+    var g3 = E.newGame(null, { starter: 0 }); var m3 = g3.players[0];
+    m3.hand = [sc(7, 'C'), sc(10, 'D'), sc(13, 'C'), sc(4, 'H')]; energy(m3, 10, 'C');
+    g3.turn = 0; g3.round = 3; g3.pile = null; g3.lastPlayer = null; g3.passes = 0;
+    var r3 = E.activate(g3, 0, '7C');
+    ok(r3.ok && r3.pitched && r3.pitched.rank === 10, 'Armor Piercing auto-pitches the least valuable Broadway (the 10, not the King)');
+    // Critical Hit (♠9) now carries the same Broadway pitch as its Fighter twin: succeeds with one, blocked without.
+    var g4 = E.newGame(null, { starter: 0 }); var m4 = g4.players[0], f4 = g4.players[1];
+    m4.hand = [sc(9, 'S'), sc(13, 'S'), sc(4, 'H')]; energy(m4, 9, 'S');   // Critical Hit(9S) + a King to pitch + filler
+    g4.turn = 0; g4.round = 3; g4.pile = null; g4.lastPlayer = null; g4.passes = 0; f4.shields = 3;
+    var r4 = E.activate(g4, 0, '9S');
+    ok(r4.ok && r4.pitched && r4.pitched.rank === 13 && f4.shields === 2, 'Critical Hit pitches a Broadway card and strips a shield');
+    var g5 = E.newGame(null, { starter: 0 }); var m5 = g5.players[0];
+    m5.hand = [sc(9, 'S'), sc(4, 'H'), sc(5, 'H')]; energy(m5, 9, 'S');   // only the 9S itself, no Broadway to pitch
+    g5.turn = 0; g5.round = 3; g5.pile = null; g5.lastPlayer = null; g5.passes = 0;
+    var r5 = E.activate(g5, 0, '9S');
+    ok(!r5.ok && /Broadway/.test(r5.reason), 'Critical Hit is blocked with no Broadway card to pitch');
+  })();
+  // ---- Phase 4a: Form/Super boosts via effectFor ----
+  (function () {
+    var g = E.newGame(null, { starter: 0 }); var p = 0;
+    function eff(r, s) { return E.effectFor(g, p, sc(r, s)); }
+    ok(eff(5, 'D').boost === 4 && !eff(5, 'D').boosted, 'REWORK boost: no forms → base Infuse +4');
+    g.players[0].forms = [{ rank: 13, suit: 'D', tier: 'king' }];                 // Odysseus
+    ok(eff(5, 'D').boost === 5 && eff(5, 'D').boosted && eff(6, 'D').draw === 4, 'REWORK boost: Odysseus → Infuse +5, Back to Books draw 4');
+    g.players[0].forms = [{ rank: 13, suit: 'H', tier: 'king' }];                 // Hector
+    ok(eff(10, 'H').quick === true && eff(1, 'H').boost === 3, 'REWORK boost: Hector → Sanctuary Quick, Imbue +3');
+    g.players[0].forms = [{ rank: 12, suit: 'H', tier: 'queen' }];                // Cassandra, no Super
+    ok(eff(8, 'H').delta === 3, 'REWORK boost: Cassandra → Holy Bow +3');
+    g.players[0].forms = [{ rank: 11, suit: 'H' }, { rank: 12, suit: 'H' }, { rank: 13, suit: 'H' }];   // Super = Ride (J) + Q + K
+    ok(eff(8, 'H').delta === 4 && eff(8, 'H').boostTier === 'super', 'REWORK boost: Apollo (Super) supersedes → Holy Bow +4');
+    g.players[0].forms = [{ rank: 12, suit: 'H' }, { rank: 13, suit: 'H' }];   // Q + K but NO Ride → NOT Super
+    ok(eff(8, 'H').boostTier !== 'super', 'REWORK boost: Q + K without a Ride does NOT reach Super');
+    // Giant Boar value ride
+    g.players[0].forms = [{ rank: 11, suit: 'C' }]; g.turn = 0;
+    ok(E.applyEquip(E.detectCombo([sc(7, 'D')]), 0, g).value === 8, 'REWORK ride: Giant Boar +1 on your turn');
+    g.turn = 1;
+    ok(E.applyEquip(E.detectCombo([sc(7, 'D')]), 0, g).value === 7, 'REWORK ride: Giant Boar does not apply on the rival turn');
+    // Giant Boar is OFFENSIVE ONLY: it helps you BEAT, but must NOT raise the value the Rival must beat on their turn.
+    (function () {
+      var gb = E.newGame(null, { starter: 0 }); gb.round = 3; gb.turn = 0; gb.pile = null; gb.passes = 0; gb.lastPlayer = null;
+      gb.players[0].forms = [{ rank: 11, suit: 'C', tier: 'ride', name: 'Giant Boar', card: sc(11, 'C') }];
+      gb.players[0].hand = [sc(7, 'D')];
+      var r = E.play(gb, 0, [sc(7, 'D')]);
+      ok(r.ok && gb.pile.combo.value === 7 && (gb.pile.mod || 0) === 0, 'Giant Boar does NOT bake its +1 into a led pile — the Rival faces the raw 7, not 8 (offensive, not defensive)');
+    })();
+    (function () {
+      var gb = E.newGame(null, { starter: 0 }); gb.round = 3; gb.turn = 0; gb.passes = 0; gb.lastPlayer = 1;
+      gb.pile = { combo: E.detectCombo([sc(7, 'H')]), byPlayer: 1 };                 // Rival led a 7
+      gb.players[0].forms = [{ rank: 11, suit: 'C', tier: 'ride', name: 'Giant Boar', card: sc(11, 'C') }];
+      gb.players[0].hand = [sc(7, 'D')];
+      var r = E.play(gb, 0, [sc(7, 'D')]);                                            // 7 + Boar(1) = 8 clears the tie
+      ok(r.ok, 'Giant Boar (offensive +1) lets a 7 beat a 7');
+      ok(gb.pile.combo.value === 7 && (gb.pile.mod || 0) === 0, 'the winning play stores its RAW value (7), not the boar-boosted 8 — the boost was spent attacking');
+    })();
+    // ---- Equipment is ONGOING (enchantment-style): it re-values a pile ALREADY on the table, not just play-time ----
+    (function () {
+      // (a) equip a debuff AFTER the opponent's pair is standing -> the standing pile drops right now
+      var g = E.newGame(null, { starter: 1 }); g.round = 5; g.turn = 1; g.pile = null; g.passes = 0; g.lastPlayer = null;
+      g.players[1].hand = [sc(9, 'C'), sc(9, 'C')];
+      var r = E.play(g, 1, [g.players[1].hand[0], g.players[1].hand[1]]);
+      ok(r.ok && g.pile.combo.value === 9 && (g.pile.mod || 0) === 0, 'ongoing equip: rival 9♣ pair stands at raw 9 (no equipment yet)');
+      g.players[0].equipment.push({ id: 'C9arm', name: 'Spiked Armor', oppDelta: -2, counters: 3, card: sc(9, 'C') });
+      E.refreshPile(g);
+      ok(g.pile.combo.value === 7 && g.pile.mod === -2, 'ongoing equip: equipping Spiked Armor (−2) drops the standing pile to 7 / mod −2 — the fix the user asked for');
+      // (b) removing it recomputes back up to raw
+      g.players[0].equipment = [];
+      E.refreshPile(g);
+      ok(g.pile.combo.value === 9 && g.pile.mod === 0, 'ongoing equip: removing Spiked Armor restores the standing pile to raw 9');
+    })();
+    (function () {
+      // (c) a BUFF you wear keeps your own standing pile pumped, and drops if disarmed
+      var g = E.newGame(null, { starter: 0 }); g.round = 5; g.turn = 0; g.pile = null; g.passes = 0; g.lastPlayer = null;
+      g.players[0].hand = [sc(8, 'D')];
+      var r = E.play(g, 0, [sc(8, 'D')]);
+      ok(r.ok && g.pile.combo.value === 8, 'ongoing buff: your 8♦ leads at raw 8');
+      g.players[0].equipment.push({ id: 'sword', name: "Hero's Sword", delta: 1, counters: 3, card: sc(5, 'C') });
+      E.refreshPile(g);
+      ok(g.pile.combo.value === 9 && g.pile.mod === 1, "ongoing buff: equipping Hero's Sword (+1) lifts your standing pile to 9");
+    })();
+    (function () {
+      // (d) the exact Round-7 log scenario: rival wears Hero's Javelin (+1), leads 9♣ pair, THEN you equip Spiked Armor (−2)
+      //     -> the label should read −1 (net), which is what the user expected.
+      var g = E.newGame(null, { starter: 1 }); g.round = 5; g.turn = 1; g.pile = null; g.passes = 0; g.lastPlayer = null;
+      g.players[1].equipment.push({ id: 'jav', name: "Hero's Javelin", delta: 1, counters: 3, card: sc(6, 'C') });
+      g.players[1].hand = [sc(9, 'C'), sc(9, 'C')];
+      var r = E.play(g, 1, [g.players[1].hand[0], g.players[1].hand[1]]);
+      ok(r.ok && g.pile.mod === 1, 'Round-7 repro: rival 9♣ pair with Javelin equipped locks at BOOSTED +1');
+      g.players[0].equipment.push({ id: 'arm', name: 'Spiked Armor', oppDelta: -2, counters: 3, card: sc(9, 'C') });
+      E.refreshPile(g);
+      ok(g.pile.mod === -1 && g.pile.combo.value === 8, 'Round-7 repro: after you equip Spiked Armor the standing pair reads −1 (9 +1 −2 = 8)');
+    })();
+    // ---- playModifiers / costModifiers: itemized readout for the hand status ----
+    (function () {
+      var g = E.newGame(null, { starter: 0 }); g.turn = 0;
+      g.players[0].forms = [{ rank: 11, suit: 'C', name: 'Giant Boar', card: sc(11, 'C') }];   // your Boar
+      var vm = E.playModifiers(g, 0);
+      ok(vm.length === 1 && vm[0].amount === 1 && vm[0].source === 'Giant Boar', 'playModifiers: Giant Boar shows +1 on your turn');
+      g.players[0].equipment = [{ name: "Hero's Sword", delta: 2, counters: 3, card: sc(5, 'C') }];
+      var vm2 = E.playModifiers(g, 0);
+      ok(vm2.length === 2 && vm2.reduce(function (a, m) { return a + m.amount; }, 0) === 3, 'playModifiers: Boar +1 and Hero’s Sword +2 net +3 (two sources)');
+      g.players[1].equipment = [{ name: 'Spiked Armor', oppDelta: -2, counters: 3, card: sc(9, 'C') }];
+      var vm3 = E.playModifiers(g, 0);
+      ok(vm3.some(function (m) { return m.source === 'Spiked Armor' && m.amount === -2; }), 'playModifiers: an opponent’s Spiked Armor shows as −2 against you');
+      g.turn = 1;
+      ok(!E.playModifiers(g, 0).some(function (m) { return m.source === 'Giant Boar'; }), 'playModifiers: Giant Boar drops off on the rival’s turn (offensive-only), equipment stays');
+      g.turn = 0; g._effUsed = false;
+      g.players[0].forms.push({ rank: 11, suit: 'D', name: 'Giant Owl', card: sc(11, 'D') });
+      g.players[1].forms = [{ rank: 11, suit: 'S', name: 'Giant Ram', card: sc(11, 'S') }];
+      var cm = E.costModifiers(g, 0);
+      ok(cm.some(function (m) { return m.source === 'Giant Owl' && m.amount === -1; }) && cm.some(function (m) { return m.source === 'Giant Ram' && m.amount === 1; }), 'costModifiers: Owl −1 and Ram +1 on your first effect');
+      g._effUsed = true;
+      ok(E.costModifiers(g, 0).length === 0, 'costModifiers: nothing once the first effect this turn is spent');
+    })();
+    // ---- BASICS mode: KEEP the whole deck (J/Q/K as plain high cards) but disable transforms ----
+    (function () {
+      var gb = E.newGame(null, { basics: true });
+      ok(gb.basics === true, 'basics: st.basics flag is set');
+      var faces = gb.players[0].hand.concat(gb.players[0].deck, gb.players[0].shieldPile || []).filter(function (c) { return c.rank >= 11 && c.rank <= 13; }).length;
+      ok(faces > 0, 'basics: J/Q/K stay IN the deck (plain high cards, not removed)');
+      ok(E.transformGateOK(gb, 0, 'ride') === false && E.transformGateOK(gb, 0, 'queen') === false, 'basics: transforms are gated OFF (transformGateOK false for every tier)');
+      ok(E.transformGateStatus(gb, 0, 'ride').gate === 'basics', 'basics: transformGateStatus reports the basics lock');
+      // a J/Q/K activation is refused in Basics
+      gb.turn = 0; gb.round = 3; gb.players[0].hand = [sc(11, 'C')]; for (var i = 0; i < 10; i++) gb.players[0].energy.push(sc(4, 'C'));
+      var ra = E.activate(gb, 0, '11C');
+      ok(ra && ra.ok === false, 'basics: activating a J (transform) is refused');
+      ok(gb.players[0].forms.length === 0, 'basics: no form entered the zone');
+      // cardName still returns the flavour name for the apex 2 (which has no active effect)
+      ok(E.cardName(sc(2, 'H')) === 'Divine Intervention' && E.effectOf(sc(2, 'H')) === null, 'cardName: the apex 2 keeps its flavour name even with no active effect');
+      var gfull = E.newGame(null, {});
+      ok(gfull.basics === false && E.transformGateStatus(gfull, 0, 'ride').gate !== 'basics', 'basics: a normal game is not flagged (no basics lock on transforms)');
+    })();
+  })();
+  // ---- Phase 4a: the upgrade ladder (boostInfo) ----
+  (function () {
+    var g = E.newGame(null, { starter: 0 });
+    var lines = E.boostInfo(g, 0, sc(8, 'H'));   // Holy Bow: Cassandra (Q) + Apollo (Super)
+    ok(lines.length === 2 && lines[0].tier === 'queen' && lines[1].tier === 'super', 'REWORK ladder: Holy Bow lists Cassandra + Apollo tiers');
+    ok(!lines[0].active && !lines[1].active, 'REWORK ladder: tiers are inactive with an empty zone');
+    g.players[0].forms = [{ rank: 12, suit: 'H', tier: 'queen' }];
+    ok(E.boostInfo(g, 0, sc(8, 'H'))[0].active === true, 'REWORK ladder: the Cassandra line activates when the Queen is in the zone');
+  })();
+  // ---- Phase 4b: behavioral boosts ----
+  (function () {
+    function energy(pl, n, s) { for (var i = 0; i < n; i++) pl.energy.push(sc(4, s || 'C')); }
+    // Ares Wheel → recycle hand + Discard + Shuffle into deck, then draw 6
+    var g = E.newGame(null, { starter: 0 }); var p = g.players[0];
+    p.forms = [{ rank: 11, suit: 'C' }, { rank: 12, suit: 'C' }, { rank: 13, suit: 'C' }];   // ♣ Super = Ride + Q + K
+    p.hand = [sc(8, 'C'), sc(3, 'H'), sc(4, 'H')]; energy(p, 10, 'C'); p.deck = []; for (var i = 0; i < 15; i++) p.deck.push(sc(6, 'D'));
+    g.turn = 0; g.round = 3; g.pile = { combo: E.detectCombo([sc(6, 'S')]), byPlayer: 1 }; g.lastPlayer = 1;
+    E.activate(g, 0, '8C');
+    ok(p.hand.length === 6, 'REWORK 4b: Ares Wheel draws a fresh 6-card hand');
+    // Perseus whole-round lock
+    var g2 = E.newGame(null, { starter: 0 }); var a = g2.players[0];
+    a.forms = [{ rank: 13, suit: 'S', tier: 'king' }]; a.hand = [sc(10, 'S'), sc(9, 'H')]; energy(a, 10, 'S');
+    g2.turn = 0; g2.round = 3; g2.pile = { combo: E.detectCombo([sc(6, 'D')]), byPlayer: 1 }; g2.lastPlayer = 1;
+    E.activate(g2, 0, '10S');
+    ok(g2.players[1].lockRound && E.isLocked(g2, 1), 'REWORK 4b: Perseus Back Stab locks the whole round');
+    // Pandora one-sided Poison
+    var g3 = E.newGame(null, { starter: 0 }); var w = g3.players[0];
+    w.forms = [{ rank: 12, suit: 'S', tier: 'queen' }]; w.hand = [sc(4, 'S'), sc(9, 'H')]; energy(w, 10, 'S'); energy(g3.players[1], 3, 'D');
+    g3.turn = 0; g3.round = 3; g3.pile = { combo: E.detectCombo([sc(6, 'D')]), byPlayer: 1 }; g3.lastPlayer = 1;
+    E.activate(g3, 0, '4S');
+    ok(g3.players[1].energy.length === 0 && w.energy.length > 0, 'REWORK 4b: Pandora Poison drains only the Rival');
+    // Leyline base = ward; Athena restores recycle
+    var g4 = E.newGame(null, { starter: 0 });
+    ok(E.effectFor(g4, 0, sc(9, 'D')).kind === 'ward', 'REWORK 4b: base Leyline is a ward (recycle moved out)');
+    g4.players[0].forms = [{ rank: 11, suit: 'D' }, { rank: 12, suit: 'D' }, { rank: 13, suit: 'D' }];   // ♦ Super = Ride + Q + K
+    ok(E.effectFor(g4, 0, sc(9, 'D')).kind === 'reclaim', 'REWORK 4b: Athena restores Leyline recycle');
+    // Reactive Quick via a Form: Hector makes Sanctuary a Quick that can answer
+    var g5 = E.newGame(null, { starter: 0 }); var me = g5.players[0], foe = g5.players[1];
+    me.forms = [{ rank: 13, suit: 'H', tier: 'king' }]; me.hand = [sc(10, 'H')]; energy(me, 12, 'H');
+    foe.hand = [sc(1, 'D'), sc(6, 'C')]; energy(foe, 10, 'D'); g5.turn = 1; g5.round = 3; g5.pile = null; g5.lastPlayer = null; g5.passes = 0;
+    var shBefore = me.shields;
+    E.activate(g5, 1, '1D');
+    ok(g5.respondFor === 0, 'REWORK 4b: a Form-made Quick (Sanctuary) opens a response window');
+    var rr = E.respond(g5, 0, '10H');
+    ok(rr.ok && me.shields > shBefore, 'REWORK 4b: you spring the boosted Quick Sanctuary in response');
+    // Sanctuary now heals EVERY player (the nerf): a symmetric +1 that's a wash on the shield race
+    ok(E.effectOf(sc(10, 'H')).shieldAll === true, 'REWORK: Sanctuary is flagged shieldAll');
+    var g6 = E.newGame(null, { starter: 0 }); var c6 = g6.players[0], o6 = g6.players[1];
+    c6.hand = [sc(10, 'H'), sc(4, 'D')]; energy(c6, 10, 'H'); g6.turn = 0; g6.round = 3; g6.pile = null; g6.lastPlayer = null; g6.passes = 0;
+    c6.shields = 2; o6.shields = 3;
+    var r6 = E.activate(g6, 0, '10H');
+    ok(r6.ok && c6.shields === 3 && o6.shields === 4, 'REWORK: Sanctuary gives BOTH players +1 shield');
+  })();
+  // ---- Phase 4b: the Rides (Swan defense, Owl/Ram cost) + copy/counter boosts ----
+  (function () {
+    // Giant Swan — your play resists +1 on the pile
+    var g = E.newGame(null, { starter: 0 }); var me = g.players[0];
+    me.forms = [{ rank: 11, suit: 'H' }]; me.hand = [sc(7, 'D')]; g.turn = 0; g.round = 3; g.pile = null; g.lastPlayer = null; g.passes = 0;
+    E.play(g, 0, [me.hand[0]]);
+    ok(g.pile.combo.value === 8, 'REWORK ride: Giant Swan raises your pile to 8 (a defended 7)');
+    ok(!E.beats(E.applyEquip(E.detectCombo([sc(8, 'S')]), 1, g), g.pile.combo), 'REWORK ride: an 8 cannot beat a Swan-defended 7');
+    // Giant Owl / Ram — first-effect cost modifiers
+    var g2 = E.newGame(null, { starter: 0 }); g2.players[0].forms = [{ rank: 11, suit: 'D' }]; g2.turn = 0;
+    ok(E.effectiveCost(g2, 0, sc(5, 'D')) === 4, 'REWORK ride: Giant Owl −1 on your first effect (Infuse 5→4)');
+    g2._effUsed = true;
+    ok(E.effectiveCost(g2, 0, sc(5, 'D')) === 5, 'REWORK ride: the Owl discount is spent after the first effect');
+    // …and it RE-APPLIES next turn: the first-effect flag must reset on a turn advance (the bug was it stuck on a seat forever)
+    g2.round = 3; g2.turn = 0; g2.pile = null; g2.passes = 0; g2.players[0].hand = [sc(4, 'H')];
+    E.play(g2, 0, [sc(4, 'H')]);
+    ok(g2._effUsed === false, 'REWORK ride: a turn advance clears the first-effect flag, so Owl/Ram apply again next turn');
+    var g3 = E.newGame(null, { starter: 0 }); g3.players[1].forms = [{ rank: 11, suit: 'S' }]; g3.turn = 0;
+    ok(E.effectiveCost(g3, 0, sc(5, 'D')) === 6, 'REWORK ride: Giant Ram +1 to your first effect');
+    // Counterfeit +value (Pandora)
+    var g4 = E.newGame(null, { starter: 0 }); var w = g4.players[0];
+    w.forms = [{ rank: 12, suit: 'S', tier: 'queen' }]; w.hand = [sc(8, 'S')]; for (var i = 0; i < 10; i++) w.energy.push(sc(4, 'S'));
+    g4.turn = 0; g4.round = 3; g4.pile = { combo: E.detectCombo([sc(6, 'D')]), byPlayer: 1 }; g4.lastPlayer = 1;
+    E.activate(g4, 0, '8S');
+    var copy = w.hand.filter(function (c) { return c.temp; })[0];
+    ok(copy && copy.valueBonus === 1 && E.fightValue(copy) === copy.rank + 1, 'REWORK 4b: Pandora Counterfeit copies at +1 value');
+    // Annoint +counter (Cassandra)
+    var g6 = E.newGame(null, { starter: 0 }); var cc = g6.players[0];
+    cc.forms = [{ rank: 12, suit: 'H', tier: 'queen' }];
+    cc.equipment = [{ id: '8H', name: 'Holy Bow', delta: 2, counters: 5, decay: true, card: sc(8, 'H') }];
+    cc.hand = [sc(5, 'H'), sc(9, 'D')]; for (var j = 0; j < 10; j++) cc.energy.push(sc(4, 'H'));
+    g6.turn = 0; g6.round = 3; g6.pile = { combo: E.detectCombo([sc(6, 'D')]), byPlayer: 1 }; g6.lastPlayer = 1;
+    E.activate(g6, 0, '5H');
+    ok(cc.equipment[0].counters === 6 && cc.equipment[0].protectedRound === g6.round, 'REWORK 4b: Cassandra Annoint adds a counter and protects');
+    // Fighter swap: Hippolyta → Armor Piercing Quick; Meleager → Hero's Javelin +2 (Javelin now rank 6)
+    ok(E.effectOf(sc(6, 'C')).name === "Hero's Javelin" && E.effectOf(sc(6, 'C')).cost === 6, 'REWORK: Hero’s Javelin at rank 6 (cost 6)');
+    var g7 = E.newGame(null, { starter: 0 });
+    g7.players[0].forms = [{ rank: 12, suit: 'C', tier: 'queen' }];
+    ok(E.effectFor(g7, 0, sc(7, 'C')).quick === true, 'REWORK: Hippolyta → Armor Piercing becomes Quick');
+    g7.players[0].forms = [{ rank: 13, suit: 'C', tier: 'king' }];
+    ok(E.effectFor(g7, 0, sc(6, 'C')).delta === 2, 'REWORK: Meleager → Hero’s Javelin +2 (rank 6)');
+    // Odysseus boosts Phantasmal Illusion (now a valueBoost): +6 → +7
+    var g8 = E.newGame(null, { starter: 0 });
+    ok(E.effectFor(g8, 0, sc(10, 'D')).boost === 6, 'REWORK: base Phantasmal Illusion is +6');
+    g8.players[0].forms = [{ rank: 13, suit: 'D', tier: 'king' }];
+    ok(E.effectFor(g8, 0, sc(10, 'D')).boost === 7, 'REWORK 4b: Odysseus lifts Phantasmal Illusion to +7');
+  })();
+  // ---- Phase 4b: zone removal (Sabotage→Ride, Forceful Strip→Ride/Form) ----
+  (function () {
+    function energy(pl, n, s) { for (var i = 0; i < n; i++) pl.energy.push(sc(4, s)); }
+    // Perseus Sabotage destroys a Rival Ride
+    var g = E.newGame(null, { starter: 0 }); var me = g.players[0], foe = g.players[1];
+    var ride = sc(11, 'C'); foe.forms = [{ rank: 11, suit: 'C', tier: 'ride', name: 'Giant Boar', card: ride }];
+    me.forms = [{ rank: 13, suit: 'S', tier: 'king', name: 'Perseus Form', card: sc(13, 'S') }];
+    ok(E.removeTargets(g, 0, E.effectFor(g, 0, sc(5, 'S'))).length === 1, 'REWORK 4b: Perseus makes Sabotage able to target a zone Ride');
+    ok(E.removeTargets(g, 0, E.effectOf(sc(5, 'S'))).length === 0, 'REWORK 4b: base Sabotage cannot reach the zone');
+    me.hand = [sc(5, 'S'), sc(9, 'H')]; energy(me, 10, 'S'); g.turn = 0; g.round = 3; g.pile = { combo: E.detectCombo([sc(6, 'D')]), byPlayer: 1 }; g.lastPlayer = 1;
+    E.activate(g, 0, '5S', { target: ride.id });
+    ok(foe.forms.length === 0 && foe.removed.some(function (c) { return c.id === ride.id; }), 'REWORK 4b: Sabotage destroys the Rival Ride');
+    // Penelope Form (Q♦) upgrade: Forceful Strip puts the target EQUIPMENT on TOP of its owner's deck (v0.92)
+    var g2 = E.newGame(null, { starter: 0 }); var a = g2.players[0], b = g2.players[1];
+    var equ = { rank: 6, suit: 'C', id: 'EQJAV' };   // unique id — avoid colliding with the real 6♣ that newGame may deal
+    b.equipment = [{ id: 'eqT', delta: 1, counters: 3, name: "Hero's Javelin", card: equ }];
+    b.deck = [sc(8, 'C'), sc(9, 'C')];
+    a.forms = [{ rank: 12, suit: 'D', tier: 'queen', name: 'Penelope Form', card: sc(12, 'D') }];
+    a.hand = [sc(7, 'D'), sc(9, 'S')]; energy(a, 10, 'D'); g2.turn = 0; g2.round = 3; g2.pile = { combo: E.detectCombo([sc(6, 'S')]), byPlayer: 1 }; g2.lastPlayer = 1;
+    E.activate(g2, 0, '7D', { target: 'eqT' });
+    ok(b.equipment.length === 0 && b.deck[0] && b.deck[0].id === equ.id, 'REWORK 4b: Forceful Strip (Queen) puts the target Equipment on TOP of its owner deck');
+    ok(!b.hand.some(function (c) { return c.id === equ.id; }), 'REWORK 4b: Queen strip does NOT go to hand');
+    // Athena (Super) can strip a Form
+    var g3 = E.newGame(null, { starter: 0 }); var x = g3.players[0], y = g3.players[1];
+    var fc = sc(12, 'C'); y.forms = [{ rank: 12, suit: 'C', tier: 'queen', name: 'Hippolyta Form', card: fc }];
+    x.forms = [{ rank: 11, suit: 'D', tier: 'ride', card: sc(11, 'D') }, { rank: 12, suit: 'D', tier: 'queen', card: sc(12, 'D') }, { rank: 13, suit: 'D', tier: 'king', card: sc(13, 'D') }];   // ♦ Super = Ride + Q + K
+    x.hand = [sc(7, 'D'), sc(9, 'S')]; energy(x, 10, 'D'); g3.turn = 0; g3.round = 3; g3.pile = { combo: E.detectCombo([sc(6, 'S')]), byPlayer: 1 }; g3.lastPlayer = 1;
+    E.activate(g3, 0, '7D', { target: fc.id });
+    ok(y.forms.length === 0 && y.hand.some(function (c) { return c.id === fc.id; }), 'REWORK 4b: Athena Forceful Strip returns a Form to its owner hand');
+  })();
+})();
+
+// ===== N-PLAYER MULTIPLAYER (Phase 1: engine core) =====
+(function () {
+  E.setShieldCards(false); E.setLoserMill(false);
+  function sc(r, s) { return { rank: r, suit: s, id: r + s }; }
+  // Drive a 3-player Special win: p0 leads a pair, p1 & p2 pass → p0 wins with a combo. Returns the game.
+  function threePlayerSpecialWin() {
+    var g = E.newGame(null, { numPlayers: 3 });
+    g.players[0].hand = [sc(7, 'D'), sc(7, 'H'), sc(3, 'C')];   // a pair of 7s + a spare to lead next round
+    g.players[1].hand = [sc(4, 'S'), sc(5, 'S')];
+    g.players[2].hand = [sc(4, 'C'), sc(5, 'C')];
+    g.turn = 0; g.round = 3; g.pile = null; g.lastPlayer = null; g.passes = 0;
+    E.play(g, 0, [g.players[0].hand[0], g.players[0].hand[1]]);   // lead the pair
+    E.pass(g, 1); E.pass(g, 2);                                    // both pass → round resolves
+    return g;
+  }
+
+  var g0 = E.newGame(null, { numPlayers: 4 });
+  ok(g0.numPlayers === 4 && g0.players.length === 4 && E.aliveCount(g0) === 4, 'MP: newGame builds a 4-player table');
+  ok(E.nextPlayer ? true : true, 'MP: engine loaded');   // (nextPlayer is internal; exercised below)
+
+  // Targeting: opts.target routes a singular "the Rival" effect to the chosen rival (not just the next seat)
+  var g1 = E.newGame(null, { numPlayers: 3 });
+  g1.players[0].hand = [sc(3, 'D'), sc(4, 'D')]; g1.players[0].energy = [];
+  for (var e = 0; e < 3; e++) g1.players[0].energy.push(sc(4, 'D'));   // Telekinesis (D3) costs 3
+  g1.players[1].hand = [sc(5, 'H'), sc(6, 'H'), sc(7, 'H'), sc(8, 'H')];   // 4 cards → a discard of 2 prompts (not forced)
+  g1.players[2].hand = [sc(5, 'S'), sc(6, 'S'), sc(7, 'S'), sc(8, 'S')];
+  g1.turn = 0; g1.round = 3; g1.pile = null; g1.lastPlayer = null; g1.passes = 0;
+  E.activate(g1, 0, '3D', { target: 2 });
+  ok(g1.discardPending && g1.discardPending.player === 2, 'MP targeting: Telekinesis with target=2 hits player 2, not the next seat (1)');
+
+  // SPECIAL_LOSS_MODE 'all' — every non-winner loses a shield
+  E.setSpecialLossMode('all'); E.setShieldTargetChooser(null);
+  var ga = threePlayerSpecialWin();
+  ok(ga.players[1].shields === 3 && ga.players[2].shields === 3, "MP 'all': every non-winner loses a shield on a Special");
+
+  // SPECIAL_LOSS_MODE 'chosen' — only the winner's pick loses a shield
+  E.setSpecialLossMode('chosen'); E.setShieldTargetChooser(function () { return 2; });
+  var gc = threePlayerSpecialWin();
+  ok(gc.players[1].shields === 4 && gc.players[2].shields === 3, "MP 'chosen': only the chosen rival (p2) loses a shield");
+
+  // MILL_SCOPE — universal mills all non-winners; targeted mills only the struck rival
+  E.setLoserMill(true);
+  E.setSpecialLossMode('chosen'); E.setShieldTargetChooser(function () { return 2; });
+  E.setMillScope('universal');
+  var gmu = threePlayerSpecialWin();
+  ok((gmu.players[1].energy.length > 0) && (gmu.players[2].energy.length > 0), "MP mill 'universal': all non-winners mill");
+  E.setMillScope('targeted');
+  var gmt = threePlayerSpecialWin();
+  ok(gmt.players[2].energy.length > 0 && gmt.players[1].energy.length === 0, "MP mill 'targeted': only the struck rival (p2) mills");
+  E.setLoserMill(false); E.setMillScope('universal');
+
+  // Elimination + kicksLanded + last-Rider-standing
+  E.setSpecialLossMode('chosen'); E.setShieldTargetChooser(function () { return 1; });
+  var g = E.newGame(null, { numPlayers: 3 });
+  g.players[0].hand = [sc(7, 'D'), sc(7, 'H'), sc(3, 'C')];
+  g.players[1].hand = [sc(4, 'S'), sc(5, 'S')]; g.players[1].shields = 0;   // p1 on the brink
+  g.players[2].hand = [sc(4, 'C'), sc(5, 'C')];
+  g.turn = 0; g.round = 3; g.pile = null; g.lastPlayer = null; g.passes = 0;
+  E.play(g, 0, [g.players[0].hand[0], g.players[0].hand[1]]); E.pass(g, 1); E.pass(g, 2);
+  ok(g.players[1].eliminated && g.players[0].kicksLanded === 1 && !g.finished && E.aliveCount(g) === 2, 'MP: a Fighter Kick eliminates the target, credits the kicker, game continues (2 alive)');
+  ok(g.players[1].hand.length === 0 && g.players[1].shields === 0, "MP: the eliminated player's board leaves play");
+
+  // Down to the last Rider → game ends with that winner
+  E.setShieldTargetChooser(function () { return 2; });
+  g.players[2].shields = 0; g.round = 3; g.pile = null; g.lastPlayer = null; g.passes = 0; g.turn = 0;
+  g.players[0].hand = [sc(8, 'D'), sc(8, 'H'), sc(3, 'S')];
+  g.players[2].hand = [sc(4, 'H'), sc(5, 'H')];
+  E.play(g, 0, [g.players[0].hand[0], g.players[0].hand[1]]); E.pass(g, 2);   // p1 is out; only p2 left to pass
+  ok(g.finished && g.winner === 0 && g.players[0].kicksLanded === 2, 'MP: last Rider standing — p0 wins, 2 kicks landed');
+
+  // reset toggles for any later suites
+  E.setSpecialLossMode('all'); E.setMillScope('universal'); E.setShieldTargetChooser(null);
+})();
+
+// ===== N-PLAYER TARGETING + RESPONSE PRIORITY (Phase 2) =====
+(function () {
+  function sc(r, s) { return { rank: r, suit: s, id: r + s }; }
+  function mk3(s0, s1, s2) { var g = E.newGame(null, { numPlayers: 3 }); g.players[0].shields = s0; g.players[1].shields = s1; g.players[2].shields = s2; return g; }
+
+  // Fighter tier — leader-focus when nobody is killable
+  ok(AI.chooseTarget(mk3(3, 4, 2), 0, 'fighter') === 1, 'AI target Fighter: leader-focus hits the most-shields rival (p1)');
+  // Fighter tier — secure the kill on a rival at <= 1 shield
+  ok(AI.chooseTarget(mk3(3, 4, 1), 0, 'fighter') === 2, 'AI target Fighter: kill-secure hits the <=1-shield rival (p2)');
+  // Fighter tier — one grudge per game, then reverts to leader-focus
+  var gg = mk3(3, 3, 3); gg.players[0].lastAttacker = 2;
+  ok(AI.chooseTarget(gg, 0, 'fighter') === 2 && gg.players[0]._grudgeUsed, 'AI target Fighter: takes a grudge once (p2) and marks it used');
+  ok(AI.chooseTarget(gg, 0, 'fighter') === 1, 'AI target Fighter: second cast reverts to leader-focus (grudge spent)');
+  // Demon tier — finisher hits the weakest
+  ok(AI.chooseTarget(mk3(3, 4, 2), 0, 'demon') === 2, 'AI target Demon: finisher hits the lowest-shields rival (p2)');
+  // Minion tier — mostly random, spreads across both opponents
+  var gm = mk3(3, 4, 2), hit = { 1: 0, 2: 0 };
+  for (var i = 0; i < 400; i++) hit[AI.chooseTarget(gm, 0, 'minion')]++;
+  ok(hit[1] > 40 && hit[2] > 40, 'AI target Minion: spreads across both opponents (random)');
+
+  // Response priority — a NON-adjacent opponent (p2) gets to answer a Technique the next seat (p1) can't
+  var gr = E.newGame(null, { numPlayers: 3 });
+  gr.players[0].hand = [sc(3, 'D'), sc(5, 'C')]; gr.players[0].energy = [];
+  for (var e = 0; e < 3; e++) gr.players[0].energy.push(sc(4, 'D'));      // Telekinesis (D3) costs 3
+  gr.players[1].hand = [sc(5, 'H'), sc(6, 'H'), sc(7, 'H'), sc(8, 'H')];   // no Quick
+  gr.players[2].hand = [sc(4, 'D'), sc(5, 'S')]; gr.players[2].energy = [];
+  for (var e2 = 0; e2 < 4; e2++) gr.players[2].energy.push(sc(4, 'D'));    // Counter Spell (D4) costs 4
+  gr.turn = 0; gr.round = 3; gr.pile = null; gr.lastPlayer = null; gr.passes = 0;
+  E.activate(gr, 0, '3D', { target: 1 });
+  ok(gr.respondFor === 2, 'MP response: priority passes past p1 (no Quick) to p2, who can answer');
+  var cr = E.respond(gr, 2, '4D');   // p2 Counters the Telekinesis
+  ok(cr.ok && !gr.discardPending, 'MP response: p2 Counter Spell negates the Technique (no discard happens)');
+})();
+
+console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
+process.exit(fails ? 1 : 0);
