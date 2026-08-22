@@ -1,7 +1,12 @@
 # Cardmen Fighter — Reorderable Energy Pile (design)
 
-*Design doc for the backlog's "reorderable energy pile" item. Written before any implementation, so the
-decisions are reviewable while they are still cheap. Nothing here is built yet.*
+> ✅ **BUILT in v1.29.0** — the engine op, both pile viewers, ⤒ Promote to top, the public log lines, the
+> netplay intent, and Advanced lesson 10 "Energy Order". Opponent piles became view-only in the same pass.
+> Kept for the *reasoning* — especially the measured payoff below, which is the argument for pairing this
+> with a real draw engine. Still open: the AI using pile order (Demon Lord only, if ever).
+
+*Design doc for the reorderable energy pile, written before implementation so the decisions were reviewable
+while they were still cheap.*
 
 > ⚠️ **Design/rationale doc, not the source of truth.** File and line references are to the state of `main`
 > at v1.28.1 and will drift; re-check before relying on them.

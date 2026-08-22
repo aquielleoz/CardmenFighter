@@ -1,12 +1,13 @@
 # Cardmen Fighter — duel vs free-for-all parity audit
 
-*What a 2-player duel gives you that a 3–6 player free-for-all silently does not. Written after two
-playtest reports in a row turned out to share this root shape. Findings are code-read and spot-verified;
-**nothing here is fixed yet.***
+> ✅ **CLOSED — every finding in this document is fixed** (A1/A2/A3 in v1.29.1, B1 in v1.29.2, C1 in v1.29.3,
+> C2 + D1 in v1.29.6). Kept as a **record**, not a to-do list: it explains *why* each gap existed, which is
+> what stops the next 2-player feature from quietly skipping the free-for-all again. The one-line lesson —
+> **anything the duel path does, the N-player path must do too, and the way to guarantee that is to share the
+> function rather than copy it** (`buildOppBeats`, `renderEquipZone`/`renderFormsZone`, `logName`, `say`).
 
-> Scope note: "local MP" means a free-for-all against AI seats. "netplay MP" means an online free-for-all
-> with a host. **They are different code paths and they have different gaps** — netplay N-player is in
-> better shape than local N-player, which is the opposite of what you'd guess.
+*Originally: what a 2-player duel gives you that a 3–6 player free-for-all silently does not. Written after two
+playtest reports in a row turned out to share this root shape.*
 
 ---
 

@@ -49,35 +49,41 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 
 ---
 
-## BACKLOG (proposed, not built)
-- **Round-result naming is hardcoded to 2 players — and one part is a real bug** (Aj, 3-Rider playtest — parked as **D1** in [`MP-PARITY-AUDIT.md`](MP-PARITY-AUDIT.md)). `announceRoundWin` computes the loser as "whichever of YOU/RIVAL didn't win", so **when P2 beats P3 the board tells YOU that you lost a shield.** The cosmetic half is the same assumption leaking: the lowercase `'a rival'` fallback, *"returns to Rival's hand"*, and *"Round N — You draw 2, Rival draws 2"*. Fix by deriving the real loser seat(s) from `res` and routing every site through the existing `logName(seat)` — and fold **C2** (`centerShieldFX` saying "Rival") into the same pass. Aj's follow-on idea — **let players enter their own names** — is best done *after* that, since it then becomes one function instead of a second naming fix.
+## BACKLOG (open work only — completed items live in the changelog below)
 
-- **Duel-vs-free-for-all parity** — 📋 **AUDITED**, see [`MP-PARITY-AUDIT.md`](MP-PARITY-AUDIT.md). Prompted by two playtest reports in a row sharing one root shape. Five findings, and **two of them are gameplay, not cosmetics**: in a **local** free-for-all `rivalPreFightThen` gates on `pf.q!==RIVAL` so **Back Stab never fires for P3+**, and `settleWindows` drains only `respondFor===RIVAL` so **AI seats past the first never counter at instant speed** (and the un-drained window is a stall risk). Netplay N-player has proper equivalents for both (`hostPreFight`, `hostSettleN`) — it is the **local AI path** that is behind, which is the opposite of what you would guess. The other three: opponents' equip/forms zones are `display:none` in MP so neither equipment **nor Rides/Forms** can be targeted (supersedes the two entries parked below), `runOpponents` has no beats/flash/`setMessage`, and `centerShieldFX` labels every opponent "Rival". Audit carries suggested order and fix shapes.
+- **Player names** (Aj) — *the cheapest good thing left.* Let players type a name instead of `P2`/`P3`. Every
+  naming site already funnels through a single **`logName(seat)`** (that was the point of doing D1 first), and
+  netplay already carries a per-seat identity in the lobby. So: collect a name per seat on the setup screen +
+  in the lobby, store it, and return it from `logName`. One function plus a UI field; nothing else changes.
+- **Mobile layout — landscape follow-up** (optional): the v1.20.0 pass covered portrait phones. Landscape
+  phones are *wide* (>720px) but *short*, so the `max-width:720px` mobile rules don't apply — they fall into
+  the 3-column desktop layout with a cramped height. If landscape matters, add a short-viewport branch (e.g.
+  `@media (max-height:520px)`) that collapses to a single scroll column + the 🔍 View reader regardless of
+  width. Not blocking; portrait is the common case.
+- **Suit ≠ class — future direction** (Aj, design intent, not yet built): the current 1:1 map (♦ Wizard,
+  ♥ Cleric, ♣ Fighter, ♠ Rogue) is temporary. There will stay **only 4 suits**, but eventually **more than one
+  class per suit**, and **hybrid classes** — e.g. an **assassin** that is *both* Fighter and Rogue, with **its
+  own card set** (it does NOT reuse the pure Fighter or pure Rogue cards). This is also the natural home for a
+  real **draw engine**, which is what would make the reorderable energy pile matter in more than the ~39% of
+  games that currently reach a reshuffle (`node recyclesim.js`).
+- **Deck editing** — deliberately out (Aj: create + delete only). If it comes back, note a saved deck's
+  IDENTITY is its composition key, so "editing" is really delete + re-add, and anything pointing at the old key
+  must be migrated.
+- **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
+  public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+- **The position-dependent netplay suites** — `nettest_log` and `nettest_full` pass alone (13/0, 5/0) but fail
+  or time out late in a long serial sweep. **Not a regression** — an A/B of the actual builds, four runs each,
+  behaved identically before and after our changes. The accumulation behind it is still unisolated. Until it
+  is, confirm any sweep failure by running that suite alone. Two real harness facts found while chasing it:
+  three suites share port **8303** (`concede3`/`elim3`/`energy` — fine serially, never concurrently), and every
+  suite awaits `srv.listen` with **no error handler**, so a genuine port collision hangs silently instead of
+  failing.
 
-- **You cannot target an opponent's Equipment in a free-for-all** (Aj, playtest — parked, not built). With **Forceful Strip** active the board correctly said *"Tap an Equipment to remove"*, but P3's **Caltrops** was unclickable, so the cast could not be completed.
-  - **The engine is already ready** — `E.removeTargets(st, 0, eff)` in a 3-player game returns **every** seat's equipment (verified: `[{playerIdx:1, name:'Shield Wall'}, {playerIdx:2, name:'Caltrops'}]`). Nothing is missing in the rules layer; this is purely UI.
-  - **Cause:** the opponent panel (`template ~1469`) renders equipment and forms as **plain `<span>` labels** inside `.oppGear` — no id, no `.targetable`, no click handler. The duel layout instead builds each one through **`buildEqBox`** (`~1370`), which *does* support `targeting` and wires `doRemove(targeting.cardId, id)`. So the rival's gear is reachable in a duel and merely *described* in a free-for-all.
-  - **Aj's proposed UX:** clicking a player's box **expands** it so the individual pieces of gear inside become clickable. Good fit — it keeps the panels compact by default and needs no new screen.
-  - **Fix notes for whoever builds it:** reuse `buildEqBox` rather than adding a second renderer, so targeting behaviour cannot drift. Equipment targets are keyed by the equipment entry's **own `e.id`** (*not* `e.card.id`); zone Ride/Form targets are keyed by `f.card.id`. `.oppPanel.targetable` already exists for seat-picking, so an expanded panel must `stopPropagation()` on inner clicks or a gear tap will also register as a seat pick — the `oppNrgBtn` added in v1.29.0 is the working precedent for exactly that.
-  - **Theme worth noting:** this is the *second* consecutive playtest report tracing to the same thing — **the MP opponent panel is a compact summary, not a real interactive zone.** The other was the missing presentation layer for opponents' turns (above). Both are 2-player features that were never carried across to N-player. Worth a deliberate pass over "what does a duel give you that a free-for-all silently does not" rather than fixing these one report at a time.
+*Recently closed (see the changelog): the **deck builder** parts system (v1.27.0/v1.28.0) and its lesson
+(v1.28.1) · the **reorderable energy pile** + both pile viewers + Advanced lesson 10 (v1.29.0) · netplay's
+**public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
+C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
-- **N-player games have no presentation layer for opponents' turns** (Aj, playtest of a 3-Rider free-for-all — parked, not built). Three symptoms, **one root cause**:
-  1. *"the animation doesn't let my play breathe before the AI plays"* — no per-play dwell.
-  2. The caption under the centre stage still read **"You played a Jab."** while the stage showed **"P3 · JAB"** with P3's 8♠.
-  3. *"I can see my effects fine, but not the rival's"* — P3's **Caltrops** never flashed (it is in the exported log, so it resolved; it was simply never shown).
-  - **Cause:** `runOpponents` (the N-player driver, `template ~3236`) does `AI.takeTurn` → `logOppPlays` → `render()` → `setTimeout(step, 460)`. It **logs and renders, and nothing else.** The 2-player rival path (`resumeRival`, `~3020`) builds paced **beats** with `revealDwell(card)` / `dwell:1500`, `flashArt` / `revealEffect`, `quickFlash`, `bumpEffect` **and `setMessage`**. All of the v1.25.0/v1.26.0 readability work (longer rival dwells, the QUICK cue, two-phase art flash) landed on the **2-player path only**; the MP driver never got it.
-  - That also explains the stale caption exactly: nothing in the MP path calls `setMessage` for an opponent's play, so `#message` keeps whatever the human's own last action wrote. The "P3 · JAB" header is the pile rendering, which *is* correct — the two just disagree.
-  - **Fix shape:** give `runOpponents` the same beats treatment as `resumeRival` — ideally by extracting the beat builder from `resumeRival` so the two paths cannot drift again, rather than copying it. Watch the interaction with `reduceMotion()` and with the existing `mpResolveAIShieldWindows` / round-ceremony branches, which return early.
-  - Aj's own note: *"it's fast so good for testing i guess"* — so consider keeping the quick pacing behind a setting or reduced-motion, not just slowing everything down.
-  - Evidence: exported log appended to `PLAYER-PROFILE.md`'s ingestion log (2026-08-22, 3-Rider, reached round 15). The **log narration is correct** in that game ("P2 played…", "P3 played…", "You played…"), so this is purely the presentation layer, not the v1.28.2 narration work.
-
-- **Mobile layout — landscape follow-up** (optional): the v1.20.0 pass covered portrait phones. Landscape phones are *wide* (>720px) but *short*, so the `max-width:720px` mobile rules don't apply — they fall into the 3-column desktop layout with a cramped height. If landscape matters, add a short-viewport branch (e.g. `@media (max-height:520px)`) that collapses to a single scroll column + the 🔍 View reader regardless of width. Not blocking; portrait is the common case.
-- **Suit ≠ class — future direction** (Aj, design intent, not yet built): the current 1:1 map (♦ Wizard, ♥ Cleric, ♣ Fighter, ♠ Rogue) is temporary. There will stay **only 4 suits**, but eventually **more than one class per suit**, and **hybrid classes** — e.g. an **assassin** that is *both* Fighter and Rogue, with **its own card set** (it does NOT reuse the pure Fighter or pure Rogue cards). Implication for copy & code: **don't tie a card's effect to its suit** ("each card carries its own effect," not "its suit's effect" — already scrubbed from the Energy lesson). When the deck-builder/parts work lands, revisit whether "parts" are keyed by *class* rather than *suit*, since a suit may host several classes. Keep archetype (`ef.archetype`) as the class identity, distinct from `suit`.
-- **Reorderable energy pile** (Aj): energy pile shows FIFO; when you **peek on your own turn**, click energy cards to send them earlier into the **shuffle pile** (choosing which cards recycle back to your deck sooner). The shuffle→deck reshuffle stays **random** — this only controls *which* energy cards you spend into the shuffle pile. Your-turn-only to avoid netplay sequencing issues.
-  - Follow-up once built: add an **Advanced tutorial lesson** teaching energy sorting (peek → set recycle order).
-- **Deck builder — "parts" system** — ✅ **BUILT** in v1.27.0 (solo/local) + v1.28.0 (netplay). See those changelog entries. Follow-up still open:
-  - ~~Advanced tutorial lesson on custom decks~~ — ✅ **BUILT** in v1.28.1 (Advanced lesson 9).
-  - **Deck editing** was deliberately left out (Aj: create + delete only). If it ever comes back, note that a saved deck's IDENTITY is its composition key, so "editing" is really delete + re-add and anything pointing at the old key must be migrated.
 
 ### v1.29.6 — D1 + C2: round results name the real seats (and two bugs found inside them)
 The naming pass from [`MP-PARITY-AUDIT.md`](MP-PARITY-AUDIT.md), from Aj's 3-Rider log. **It needed an engine change to be possible at all:** the round result recorded *that* a shield was stripped but never *whose*, so the UI genuinely could not do better than `'a rival'`.
