@@ -161,6 +161,12 @@ pile.
 the card — people forget effects) and **⤒ Promote to top**. Not drag. This reuses the existing description/context
 pattern rather than inventing a gesture, and serialises as a plain permutation.
 
+- **Promote semantics (Aj):** the newly promoted card **becomes the top** and everything else shifts down. So
+  repeated promotes mean **last tapped is spent first** — a stack push, not a queue. One rule, it matches the
+  button's label, and the pile stays a single permutation.
+- **🔍 View shows the full text, exactly like the description box (Aj)** — the same `cardTextHTML` the board uses,
+  including the **Form/Super boosted** lines for your current zone. No second, reduced card renderer.
+
 **2. Two viewers, not one panel.** The energy pile and the shuffle pile get **separate** views, moved between
 with **← / →** buttons. **The shuffle pile is not orderable** — it is a read-only look at what is queued to come
 back. (Supersedes the earlier "show both side by side" recommendation.)
@@ -179,32 +185,40 @@ logging makes usage trends trackable. See **Logging** below; this one has an ope
 
 ---
 
-## Logging (Decision 6)
+## Logging (Decision 6) — settled
 
-Each promote writes a battle-log line — the pile is a public zone in paper play, and it makes the feature's
-usage measurable (both for balance and for `PLAYER-PROFILE.md`, which already ingests exported games).
+Every promote writes a **public battle-log line**, visible to all players — e.g.
+*"P2 moved 7♥ to the front of their energy pile."* Aj: the pile is not hidden information in paper play, and
+public lines make usage trends trackable (for balance, and for `PLAYER-PROFILE.md`, which already ingests
+exported games).
 
-**Open sub-question — who sees the line?** This is not just logging; it is an information-model choice:
+**Interactive inspection of another player's pile is NOT in this feature** — Aj judged it too big. When it does
+arrive it is **view-only**, never something you can act on.
 
-- **(a) Local only.** You see your own reorders; opponents see nothing new. Preserves today's model exactly —
-  `netview.js` gives opponents only `energyCount`.
-- **(b) Public.** Every player's log shows *"P2 moved 7♥ to the front of their energy pile"*. This matches paper
-  play, which is the stated rationale — but it **leaks pile composition over time**, one card per line, to a
-  zone the mirror currently redacts to a count. It would also want the AI to eventually use that information,
-  or it becomes a human-only tell.
-- **(c) Public and go further** — drop the redaction and let opponents inspect each other's energy piles outright,
-  fully matching paper. The largest change: `netview.js`, the opponent panels, and arguably `ai.js`.
+### The consequence, stated plainly
 
-Note the tension with the **non-goal** below: "no opponent-pile inspection." (b) partially breaches it and (c)
-deletes it. Worth settling before implementation, since it decides whether `netview.js` is touched at all.
+Public log lines mean the **information model has already changed**: each reorder reveals one card of your pile to
+everyone, so across a long game an attentive opponent can reconstruct much of it. Given that, keeping
+*"no opponent-pile inspection"* as a **non-goal** would be incoherent — the information is already leaving, just
+slowly and in prose. Per Aj that non-goal is therefore **struck as a principle and recorded as deferred scope**
+(see *Deferred*).
 
----
+Two follow-ons, both deliberately out of scope here:
+
+- **It is a human-only tell until the AI reads it.** Decision 5 parks the AI, so the Rival will not act on your
+  reorders — in solo play the information flows one way, from you to nobody. That is the safe direction, but the
+  asymmetry is on purpose, not an oversight.
+- **`netview.js` stays untouched.** Opponents still receive `energyCount` only; the log line is the sole channel.
+  That holds this feature's netplay surface to exactly one new intent op.
+
+
 ## Non-goals
 
 - **No change to the reshuffle** — shuffle→deck stays random.
 - **No change to costs, `canAfford`, or `costReq`** — Decision 3 settled this: pips stay greedy-by-suit and get labelled, so `payEnergy` is untouched and there is no balance risk.
-- **No opponent-pile inspection** — *pending Decision 6's sub-question*, which may relax this deliberately.
-  Today opponents keep `energyCount` only.
+- **No *interactive* opponent-pile inspection** in this feature (Aj: too big). Note this is **no longer a design
+  principle** — see *Deferred* — because the public log lines already reveal pile contents over time.
+  `netview.js` is untouched: opponents still receive `energyCount` only.
 - **No reordering off-turn**, including during a response window — that is what keeps netplay sequencing simple.
 
 ---
@@ -216,9 +230,20 @@ deletes it. Worth settling before implementation, since it decides whether `netv
 | Pile viewer UI — two views (energy orderable, shuffle read-only) + ← / → | **large** — the bulk |
 | `reorderEnergy` + validation | small |
 | Netplay intent op + host re-validation | small |
-| Reorder logging (scope depends on the open sub-question) | small–medium |
+| Reorder logging (public battle-log lines; `netview.js` untouched) | small |
 | Tests (engine, UI, netplay) | medium |
 | Tutorial lesson + test | small, now that the pattern exists |
 
 Comparable to v1.27.0 + v1.28.0 together — roughly one focused session, landing as ~3 commits (viewer, reorder +
 netplay, lesson).
+
+---
+
+## Deferred (explicitly not "never")
+
+- **View-only opponent-pile inspection.** Aj wants this eventually — paper play has no hidden energy pile — but
+  it is its own change: `netview.js` redaction, the opponent panels, and a decision about what the AI may read.
+  The public log lines shipped here are the first step toward it, not a substitute.
+- **AI use of pile order**, possibly Demon Lord only (Decision 5).
+- **A real draw engine** — the thing that would make ordering matter in more than 39% of games. Natural home is
+  the *suit ≠ class / hybrid classes* direction already in the backlog.
