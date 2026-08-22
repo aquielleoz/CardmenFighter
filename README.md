@@ -2,7 +2,7 @@
 
 A self-contained, single-file dueling card game — a Kamen-Rider-themed TCG you play in any browser, on desktop or phone, fully offline. Strip your rival's shields with card combos, transform into stronger forms, and land the finishing Fighter Kick.
 
-**Status:** v1.23.0 — playable and complete (solo vs AI, guided tutorials, and local/online 2–6 player).
+**Status:** v1.26.1 — playable and complete (solo vs AI, guided tutorials, and local/online 2–6 player).
 
 ## Play
 
@@ -24,14 +24,14 @@ The full, authoritative card list lives in [`docs/CARD-LIST.md`](docs/CARD-LIST.
 ## Repo layout
 
 ```
-CardmenFighter.html      ← the playable game (also lives in code/)
+CardmenFighter.html      ← the playable game (a copy of the built code/CardmenFighter.html)
 code/                    ← source + build + tests
   CardmenFighter.template.html   UI/markup/styles (with __ENGINE__ etc. placeholders)
   engine.js              pure rules engine (deck, combos, duel loop) — no DOM
   ai.js                  the effect-using duel AI (drives the Rival + sims)
-  art.js / faces.js      inlined card art
+  art.js                 inlined card art (faces.js = retired layouts, not inlined)
   netview.js             per-seat redacted snapshots for online play
-  build.js               inlines the modules → CardmenFighter.html
+  build.js               inlines the modules → code/CardmenFighter.html
   test.js                engine + AI unit/sim suite
   netview.test.js        netplay snapshot tests
   nettest_*.js           full-UI netplay (Playwright) suites
@@ -44,12 +44,13 @@ assets/                  ← tutorial-demo.gif
 
 ```bash
 cd code
-node build.js          # inline engine/ai/art/faces/netview → ../CardmenFighter.html and ./CardmenFighter.html
+node build.js          # inline engine/ai/art/netview → code/CardmenFighter.html
+cp CardmenFighter.html ../CardmenFighter.html   # keep the repo-root copy in sync
 node test.js           # engine + AI suite (131 assertions, must be 0 FAIL)
 node netview.test.js   # netplay snapshot tests (28)
 ```
 
-`CardmenFighter.html` is generated — edit the sources in `code/` (template + `.js` modules) and re-run `node build.js`.
+`CardmenFighter.html` is generated — edit the sources in `code/` (template + `.js` modules) and re-run `node build.js`. Never hand-edit the generated HTML; the next build overwrites it. `build.js` writes only `code/CardmenFighter.html`, so copy it to the repo root yourself if you want both in sync (`faces.js` is no longer inlined — layouts were retired in v0.95).
 
 ## Docs
 
@@ -58,3 +59,4 @@ node netview.test.js   # netplay snapshot tests (28)
 - [`docs/REWORK-HISTORY.md`](docs/REWORK-HISTORY.md) — how the game evolved into its current form.
 - [`docs/RIDES-AND-FORMS.md`](docs/RIDES-AND-FORMS.md) — design of the J/Q/K Forms & Rides layer.
 - [`docs/PATCHNOTES.md`](docs/PATCHNOTES.md) — balance principles and win-rate history.
+- [`docs/PLAYER-PROFILE.md`](docs/PLAYER-PROFILE.md) — a living read on how the game's main player actually plays; used for AI tuning and balance.

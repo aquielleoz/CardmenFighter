@@ -1,0 +1,7 @@
+# scratch / local only
+*.zip
+node_modules/
+shot*.js
+shot*.png
+*.log
+.DS_Store

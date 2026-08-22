@@ -854,24 +854,35 @@
 <script>
 /* ==== ENGINE (inlined) ==================================================== */
 /* ============================================================================
- * CARDMEN FIGHTER — Engine core (v0.1, pure logic, no DOM)
+ * CARDMEN FIGHTER — Engine core (pure logic, no DOM)
  * ----------------------------------------------------------------------------
- * The Chikicha combat engine rebuilt for the Cardmen Fighter TCG:
- *   - 40-card deck per player: values 1-10 in four suits.
- *   - Value ranking: 1 (low) .. 10 (high). NO supreme card, NO four-of-a-kind bomb.
- *   - The card's number is its fight value AND its energy cost (they are one and the same).
- *   - Combos: single, pair, trio, straight, full house. NO flush and NO straight
- *     flush — a run of the same suit is just a straight (same rule for every deck).
- *   - Straights: 1-2-3-4-5 (lowest) .. 6-7-8-9-10 (highest); no wrap.
- *   - Duel (1v1): 4 shields each. Round = draw, one player leads, the fight is a
- *     Chikicha trick; the last unbeaten play wins the round. Winning with a COMBO
- *     strips 1 opponent shield; winning with a single just banks energy. At 0
- *     shields, the next combo win is the FIGHTER KICK -> that player loses.
- *   - Every card you fight goes to your Energy pile (spending it comes with the
- *     effects layer — not in this core).
- *
- * This core has NO card effects yet (the 0/STOPPER, draws, ramp, equipment come
- * next). It is deliberately UI-free.
+ * The rules engine for the Cardmen Fighter TCG. The 2-apex + Forms "rework" IS
+ * the game — the old REWORK flag and the classic 1-10 ruleset were deleted in
+ * v1.23.0, so there is only one ruleset here.
+ *   - 52-card deck per player: ranks A,2,3..10,J,Q,K in four suits. One suit =
+ *     one class (♦ Wizard, ♥ Cleric, ♣ Fighter, ♠ Rogue). Suits DO NOT beat
+ *     each other; SUIT_RANK is representative/display ordering only.
+ *   - Fight value (`fightValue`): 3..10 as themselves, J=11, Q=12, K=13,
+ *     A=14, and the **2 is the apex at 15**. To win an exchange you must match
+ *     the shape at a STRICTLY higher value (ties do not win).
+ *   - Combos: single (a "jab"), pair, trio, straight (5), full house. NO flush
+ *     and NO straight flush (retired in v1.14) — a same-suit run is just a
+ *     straight, the same rule for every deck.
+ *   - Straights: 5-card windows over fight value, lo 3..11 → 3-4-5-6-7 (lowest)
+ *     .. J-Q-K-A-2 (highest); no wrap.
+ *   - Duel: START_SHIELDS=4 each, START_HAND=6, DRAW_PER_ROUND=2, MAX_HAND=10.
+ *     A round is draw → one player leads → the fight is a trick; the last
+ *     unbeaten play wins. A SPECIAL (multi-card) win strips 1 shield; a jab
+ *     only banks energy. Specials are locked in round 1. At 0 shields the next
+ *     special win is the FIGHTER KICK → that player loses.
+ *   - Energy: every card you fight banks into your energy pile. Activating a
+ *     card's effect costs its number (`activationCost`): 3-10 cost themselves,
+ *     A costs 1, J/Q/K cost a flat TRANSFORM_COST to move into the Forms &
+ *     Rides zone, and the apex 2 has no activated effect. Spent energy cycles
+ *     to the shuffle pile, which refills the deck when it runs dry.
+ *   - Effects, equipment, Forms/Rides, quicks and the MP layer all live here
+ *     too (EFFECTS + BASE_OVERRIDES). Still deliberately UI-free.
+ * Exported as `CardmenEngine` on the global and via `module.exports`.
  * ========================================================================== */
 (function (root) {
   'use strict';
@@ -902,7 +913,7 @@
   }
   function sortHand(hand) {
     return hand.slice().sort(function (a, b) {
-      var va = fightValue(a), vb = fightValue(b);   // sort by ladder value (= rank when REWORK off) so Ace/2 sort up top
+      var va = fightValue(a), vb = fightValue(b);   // sort by ladder value (3..10, J, Q, K, A=14, 2=15) so Ace/2 sort up top
       return va !== vb ? va - vb : suitVal(b.suit) - suitVal(a.suit);
     });
   }
@@ -910,7 +921,7 @@
   // ---- combo detection ----
   function detectStraight(cards) {
     if (cards.length !== 5) return null;
-    // Ordered by FIGHT VALUE (= rank when REWORK is off). Values are contiguous 3..15 under REWORK
+    // Ordered by FIGHT VALUE — contiguous 3..15 (3..10, J=11, Q=12, K=13, A=14, apex 2=15)
     // (…10, J=11, Q=12, K=13, A=14, 2=15), so a run is 5 consecutive values just like the old 1..10.
     var rs = cards.map(fightValue).sort(function (a, b) { return a - b; });
     for (var i = 1; i < 5; i++) if (rs[i] !== rs[i - 1] + 1) return null; // consecutive & distinct
@@ -920,7 +931,7 @@
   }
   function detectCombo(cards) {
     if (!cards || !cards.length) return null;
-    var n = cards.length, ranks = cards.map(fightValue);   // "ranks" here = fight VALUES (= rank when REWORK off)
+    var n = cards.length, ranks = cards.map(fightValue);   // "ranks" here = fight VALUES, not raw ranks (A=14, 2=15)
     var same = ranks.every(function (r) { return r === ranks[0]; });
     if (n === 1) return { type: 'single', value: ranks[0], size: 1, key: [ranks[0]], cards: cards };
     if (n === 2) return same ? { type: 'pair', value: ranks[0], size: 2, key: [ranks[0]], cards: cards } : null;
@@ -962,7 +973,7 @@
     return res;
   }
   function enumerateCombos(hand) {
-    var out = [], byRank = {};                                                      // keyed by FIGHT VALUE (= rank when REWORK off)
+    var out = [], byRank = {};                                                      // keyed by FIGHT VALUE (see fightValue: 2 is the apex)
     hand.forEach(function (c) { var v = fightValue(c); (byRank[v] = byRank[v] || []).push(c); });
     Object.keys(byRank).forEach(function (r) { byRank[r].sort(function (a, b) { return suitVal(b.suit) - suitVal(a.suit); }); });
     hand.forEach(function (c) { out.push([c]); });                                  // singles
@@ -1143,7 +1154,7 @@
   function costReq(card) {
     if (card && card.cost && typeof card.cost === 'object') return card.cost;   // explicit multi-suit map
     if (card && card.rank >= 11 && card.rank <= 13) return {};          // transforms: 10 flat, all generic (any energy)
-    var r = card ? activationCost(card) : 0;                                      // activation cost (= card number when REWORK off; J/Q/K = 10, A = 1)
+    var r = card ? activationCost(card) : 0;                                      // activation cost (card number; J/Q/K = TRANSFORM_COST, A = 1)
     if (r <= 0) return {};                                                       // 0-cost = free
     var pips = (card && card.pips != null) ? card.pips : defaultPips(r);
     var m = {}; m[card.suit] = Math.min(pips, r); return m;                      // never more pips than the total cost
@@ -1216,7 +1227,7 @@
       for (var si = 0; si < suits.length; si++)
         for (var k = 0; k < perSuit; k++)
           out.push({ rank: v, suit: suits[si], id: v + suits[si] + '#' + (n++) });   // unique instance id
-    return out;                                     // 40 cards (off) / 52 cards (REWORK)
+    return out;                                     // 52 cards
   }
   // EFFECTS are keyed by the card's NUMBER (1..10) — which is now also its internal rank and its cost.
   // Aug-12 card set. Cards whose machinery already exists are impl:true; the genuinely new
@@ -1792,7 +1803,7 @@
         spendCard(pl, card); break;
       case 'shield':
         var sgain = (eff.shield || 1);
-        var stargets = eff.shieldAll ? st.players : [pl];   // Sanctuary (REWORK): shieldAll → every player gains, so it's a wash on the shield race (the nerf)
+        var stargets = eff.shieldAll ? st.players : [pl];   // Sanctuary: shieldAll → every player gains, so it's a wash on the shield race (the nerf)
         for (var sti = 0; sti < stargets.length; sti++) {
           var swho = stargets[sti];
           if (SHIELD_CARDS && swho.shieldPile) { for (var sgi = 0; sgi < sgain; sgi++) { var sgc = drawOne(swho); if (sgc) swho.shieldPile.push(sgc); swho.shields += 1; } }   // Mechanic 1: a gained shield pulls a card from that player's own deck
@@ -1801,7 +1812,7 @@
         if (eff.shieldImmune) pl.shieldImmune = true;      // Apollo (Super): Sanctuary also locks the CASTER's shields for the round (caster-only)
         if (eff.draw) drawCards(pl, eff.draw);
         spendCard(pl, card); break;
-      case 'ward':                                         // Leyline base (REWORK): pure can't-lose, no ramp/recycle
+      case 'ward':                                         // Leyline base: pure can't-lose, no ramp/recycle
         if (eff.immune) pl.shieldImmune = true;
         if (eff.cantLose) pl.cantLoseRound = true;
         spendCard(pl, card); break;
@@ -1814,7 +1825,7 @@
         pl.finishingBlow = true; spendCard(pl, card); break;
       case 'lockout':                                     // Back Stab: the target skips their NEXT turn (no fights, no Techniques)
         st.players[oppIdx].lockSkip = true;
-        if (eff.lockRound) st.players[oppIdx].lockRound = true;   // Perseus / Hermes (REWORK): skip the WHOLE round
+        if (eff.lockRound) st.players[oppIdx].lockRound = true;   // Perseus / Hermes: skip the WHOLE round
         spendCard(pl, card); break;
       case 'equip':
         pl.equipment.push({
@@ -1832,7 +1843,7 @@
       case 'recycle':
         var recyc = function (q) { var P = st.players[q]; P.shuffle = P.shuffle.concat(P.energy); P.energy = []; };
         if (eff.scope === 'all') { for (var q2 = 0; q2 < st.numPlayers; q2++) recyc(q2); }
-        else if (eff.scope === 'opp') { recyc(oppIdx); }   // Pandora (REWORK): Poison hits only the Rival
+        else if (eff.scope === 'opp') { recyc(oppIdx); }   // Pandora: Poison hits only the Rival
         else recyc(p);
         spendCard(pl, card); break;
       case 'discardOpp':                                  // Telekinesis / Discombobulate / Outbalance
