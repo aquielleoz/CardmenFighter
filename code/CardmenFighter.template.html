@@ -372,7 +372,9 @@
   .modal .pvTag.next{border-color:rgba(240,200,80,.6); color:var(--gold); background:rgba(240,200,80,.1);}
   .modal .pvTag.pip{border-color:rgba(90,200,250,.5); color:var(--nrg); background:rgba(90,200,250,.08);}
   .modal .pileCtx{display:flex; gap:8px; justify-content:center; margin:10px 0 2px;}
-  .modal .pileCtx button{margin:0; flex:0 1 auto; white-space:nowrap; min-width:120px; font-size:14.5px; padding:10px 14px;}
+  /* width:auto and min-width:0 override .modal .ghostBtn{width:100%} — otherwise 🔍 View claims the whole
+     row, squeezes ⤒ Promote below its text width, and nowrap spills the label outside the button. */
+  .modal .pileCtx button{margin:0; flex:0 0 auto; width:auto; min-width:0; white-space:nowrap; font-size:14.5px; padding:10px 16px;}
   .modal .pileCtx button:disabled{opacity:.45; cursor:default;}
   .modal .pileEmpty{margin:16px 0; opacity:.6; font-style:italic; font-size:14px;}
   .modal .pvRead{margin-top:10px; padding:11px 12px; border:1px solid var(--line); border-radius:11px; text-align:left; max-height:min(38vh,300px); overflow-y:auto;}

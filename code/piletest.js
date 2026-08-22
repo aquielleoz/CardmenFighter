@@ -31,6 +31,13 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
   // select → context row
   await p.evaluate(()=>document.querySelectorAll('.pileRow')[4].click()); await p.waitForTimeout(250);
   ok(await p.evaluate(()=>!!document.getElementById('pvView') && !!document.getElementById('pvPromote')),'tapping a card offers 🔍 View + ⤒ Promote to top');
+  // Aj hit this: .modal .ghostBtn sets width:100%, so 🔍 View claimed the whole row, squeezed ⤒ Promote below
+  // its text width, and white-space:nowrap spilled the label outside the gold button. Measure, don't eyeball.
+  const fits=await p.evaluate(()=>['pvView','pvPromote','pvDone'].every(id=>{ const b=document.getElementById(id);
+    return !b || b.scrollWidth <= Math.ceil(b.getBoundingClientRect().width)+1; }));
+  ok(fits,'neither context button overflows its own box (no text bleeding past the button)');
+  ok(await p.evaluate(()=>{ const v=document.getElementById('pvView'), pr=document.getElementById('pvPromote');
+     return v.getBoundingClientRect().width < pr.getBoundingClientRect().width; }),'🔍 View sizes to its content rather than hogging the row');
   await p.evaluate(()=>document.getElementById('pvView').click()); await p.waitForTimeout(250);
   ok(await p.evaluate(()=>!!document.querySelector('.pvRead')),'🔍 View shows the card text');
   ok(await p.evaluate(()=>/Gather Energy|Energy|effect|Technique/i.test(document.querySelector('.pvRead').textContent)),'…the full description-box text');
