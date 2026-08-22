@@ -3933,6 +3933,18 @@ window.CardFace = {};
   function logAtBottom(){ var l=$('log'); return l.scrollHeight - l.scrollTop - l.clientHeight < 80; }   // tolerate one tall entry so auto-follow doesn't drop off
   function setLogNewBtn(show){ var b=$('logNewBtn'); if(b) b.classList.toggle('show', show); }
   function scrollLogToBottom(){ var l=$('log'); l.scrollTop=l.scrollHeight; setLogNewBtn(false); }
+  // Reader-relative name for a seat in OUR frame: yourself is "You", and a duel's opponent is "Rival"
+  // rather than "P2" (seatName is the raw seat label and does not know about duels).
+  function logName(i){ return i===YOU ? 'You' : (MP() ? seatName(i) : 'Rival'); }
+  /* Narrate a GAME EVENT. `actor` is the absolute seat acting, or null for a neutral line.
+   * The template carries a `{who}` placeholder instead of a baked-in name, because phrasing is
+   * reader-relative — the same event is "You played" to the actor and "Rival played" to everyone else.
+   * Locally it renders in our own frame; as netplay host it ALSO broadcasts the template so each client
+   * can render it in theirs. Without this a client's battle log was empty all game, even for its own moves. */
+  function say(actor, tpl, cls){
+    logMsg(tpl.replace(/\{who\}/g, actor==null ? '' : '<b>'+logName(actor)+'</b>'), cls);
+    if(typeof NET!=='undefined' && NET.sayBroadcast) NET.sayBroadcast(actor, tpl, cls);
+  }
   function logMsg(html, cls){
     var l=$('log'); var stick=logAtBottom();           // only auto-follow if you're already at the newest entry
     var d=document.createElement('div'); d.className='le'+(cls?' '+cls:''); d.innerHTML=html;
@@ -4378,7 +4390,7 @@ window.CardFace = {};
     var r=E.useEquipment(state, YOU, equipId);
     if(!r.ok){ setMessage(r.reason); return; }
     setMessage('You spent a <b>'+r.name+'</b> counter to draw.');
-    logMsg('<b>You</b> spent a '+r.name+' counter — drew a card.', 'you');
+    say(YOU, '{who} spent a '+r.name+' counter — drew a card.', 'you');
     if(state.finished){ render(); return endGame(); }
     render();
   }
@@ -4637,7 +4649,7 @@ window.CardFace = {};
     if(!r.ok){ flipFrom=null; setMessage(r.reason); render(); return; }
     selected={}; boostArmed=false;
     setMessage('You played <b>'+kindPhrase(r.combo.type)+'</b>'+(r.boosted?' (boosted)':'')+'.');
-    logMsg('<b>You</b> played '+playPhrase(r.combo)+(bId?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'you');
+    say(YOU, '{who} played '+playPhrase(r.combo)+(bId?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'you');
     bumpFight(YOU, r.combo.type);
     render();
     TUT.note('play', r.combo);
@@ -4815,7 +4827,7 @@ window.CardFace = {};
       if(!r.ok){ setMessage(r.reason); pick.chosen={}; render(); return; }
       pick=null; selected={};
       setMessage('🎭 You warped the '+warped+' into a higher <b>'+kindLabel(r.made)+'</b> — you take the initiative.');
-      logMsg('<b>You</b> conjured a Phantasmal Illusion — a '+kindLabel(r.made)+' overtakes the pile.', 'you');
+      say(YOU, '{who} conjured a Phantasmal Illusion — a '+kindLabel(r.made)+' overtakes the pile.', 'you');
       render();
       return afterHumanAction();
     }
@@ -4879,7 +4891,7 @@ window.CardFace = {};
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ lossPick=null; NET.clientSend({op:'lossTarget', target:seat}); busy=true; render(); return; }   // client picks → host applies
     var g=lossPick.g, done=lossPick.done; lossPick=null;
     var fin=E.chooseLossTarget(state, seat);
-    logMsg('<b>You</b> strike '+seatName(seat)+'’s shield with your Special.', 'you');
+    say(YOU, '{who} strike '+logName(seat)+'’s shield with a Special.', 'you');
     if(g!=null && g!==gen) return;
     done(fin);
   }
@@ -4928,7 +4940,7 @@ window.CardFace = {};
     var pitchNote=r.pitched?(' <span class="subtle">(pitched '+cardSym(r.pitched)+')</span>'):'';
     if(eff.kind==='stopper'){ setMessage('<b>STOPPER!</b> You reset the fight and take the lead.'); }
     else { setMessage('You played <b>'+eff.name+'</b>.'+pitchNote); }
-    logMsg('<b>You</b> played '+effPhrase(card)+(r.pitched?' — pitched '+cardSym(r.pitched):'')+'.', 'you');
+    say(YOU, '{who} played '+effPhrase(card)+(r.pitched?' — pitched '+cardSym(r.pitched):'')+'.', 'you');
     bumpEffect(YOU, eff);
     TUT.note('activate', eff);
     revealEffect(card, 'You');              // quick flash of what you just played
@@ -4961,7 +4973,7 @@ window.CardFace = {};
     if(!r.ok){ setMessage(r.reason); targeting=null; render(); return; }
     selected={}; targeting=null;
     setMessage('You played <b>'+eff.name+'</b>.');
-    logMsg('<b>You</b> played '+effPhrase(card)+'.', 'you');
+    say(YOU, '{who} played '+effPhrase(card)+'.', 'you');
     bumpEffect(YOU, eff);
     revealEffect(card, 'You');
     settleWindows(gen, function(){
@@ -5131,7 +5143,7 @@ window.CardFace = {};
     if(!r.ok){ setMessage(r.reason); return; }
     selected={};
     setMessage('You <b>counterfeited</b> a '+(src?cardSym(src):'card')+' — play the copy before the round ends.');
-    logMsg('<b>You</b> counterfeited a '+(src?cardSym(src):'card')+' into your hand.', 'you');
+    say(YOU, '{who} counterfeited a '+(src?cardSym(src):'card')+'.', 'you');
     bumpEffect(YOU, eff);
     revealEffect(card, 'You');
     rivalMayRespond(eff.name);
@@ -5212,6 +5224,8 @@ window.CardFace = {};
   function logRoundDraw(res){
     if(!res.newRound) return;
     logMsg('<b>Round '+res.newRound+'</b> — You draw '+res.draws[YOU]+', Rival draws '+res.draws[RIVAL]+'.', 'round');
+    // Clients get a neutral marker: the draw counts are per-seat, so only the round number is shareable.
+    if(typeof NET!=='undefined' && NET.sayBroadcast) NET.sayBroadcast(null, '<b>Round '+res.newRound+'</b> begins.', 'round');
     if(res.draws[YOU]===0) logMsg('Draw fizzled — your deck &amp; shuffle pile are empty. Spend energy on effects to recycle cards back into your deck.', 'warn');
   }
   function logDeckout(){
@@ -5464,7 +5478,7 @@ window.CardFace = {};
     if(g!==gen){ hideOverlay(); return; }
     hideOverlay();
     E.declineResponse(state, YOU);
-    logMsg('<b>You</b> let it resolve.', 'dim');
+    say(YOU, '{who} let it resolve.', 'dim');
     render(); cont();
     if(tutAwaitCounter && typeof TUT!=='undefined' && TUT.isActive && TUT.isActive()){ tutAwaitCounter=false; setMessage('That one resolved — let’s try again. Counter the next one!'); setTimeout(function(){ if(gen===g) tutCastRivalTech(); }, 700); }   // lesson: don't brick if they let it resolve
   }
@@ -5533,9 +5547,9 @@ window.CardFace = {};
   // ---- N-player turn driver: play every AI seat until control returns to the human (seat 0) ----
   function logOppPlays(log, p){
     log.forEach(function(e){
-      if(e.play){ logMsg('<b>'+seatName(p)+'</b> played '+effPhrase(e.card)+'.', 'rival'); }
-      else if(e.fight==='play'){ logMsg('<b>'+seatName(p)+'</b> played '+playPhrase(e.combo)+(e.boost?' (boosted)':'')+'.', 'rival'); }
-      else if(e.phantasm){ logMsg('<b>'+seatName(p)+'</b> conjured a Phantasmal Illusion.', 'rival'); }
+      if(e.play){ say(p, '{who} played '+effPhrase(e.card)+'.', 'rival'); }
+      else if(e.fight==='play'){ say(p, '{who} played '+playPhrase(e.combo)+(e.boost?' (boosted)':'')+'.', 'rival'); }
+      else if(e.phantasm){ say(p, '{who} conjured a Phantasmal Illusion.', 'rival'); }
       else if(e.fight==='pass'){ logMsg('<b>'+seatName(p)+'</b> passed.', 'rival'); }
       else if(e.stopper){ logMsg('<b>'+seatName(p)+'</b> cancelled a '+kindLabel(e.cancelled)+' with a STOPPER.', 'rival'); }
       else if(e.lockedSkip){ logMsg('<b>'+seatName(p)+'</b> is locked out — turn skipped.', 'warn'); }
@@ -6962,7 +6976,16 @@ window.CardFace = {};
       } else {
         if(m.t==='welcome'){ if(m.cid && m.cid!==myId) return; mySeat=(typeof m.seat==='number'?m.seat:1); connected=true; }
         else if(m.t==='full'){ if(!m.cid || m.cid===myId){ if(sig) sig.err='This game is full (6 players max).'; setMessage('⚠ This game is full.'); renderNet(); } }
-        else if(m.t==='setup'){ youDeck=(m.decks&&m.decks[mySeat])||m.clientDeck||'full'; rivalDeck=m.hostDeck||'full'; var yn=$('youDeckName'), rn=$('rivalDeckName'); if(yn)yn.textContent=deckLabel(youDeck); if(rn)rn.textContent=deckLabel(rivalDeck); }   // adopt this seat's concrete deck (for the board labels)
+        else if(m.t==='log'){                                   // public narration — resolve {who} in OUR frame
+          var n=(state&&state.numPlayers)||2, a=m.actor, who;
+          if(a===mySeat) who='You';
+          else if(n===2) who='Rival';
+          else who='P'+((((a-mySeat)%n)+n)%n + 1);
+          logMsg(String(m.tpl||'').replace(/\{who\}/g, '<b>'+who+'</b>'), m.cls||'');
+        }
+        else if(m.t==='setup'){ youDeck=(m.decks&&m.decks[mySeat])||m.clientDeck||'full'; rivalDeck=m.hostDeck||'full'; var yn=$('youDeckName'), rn=$('rivalDeckName'); if(yn)yn.textContent=deckLabel(youDeck); if(rn)rn.textContent=deckLabel(rivalDeck);
+          // the host's opening line is written in ITS frame, so a client writes its own locally instead
+          logMsg('Online duel — you play <b>'+deckLabel(youDeck)+'</b>. Round 1, jabs only.', 'round'); }   // adopt this seat's concrete deck (for the board labels)
         else if(m.t==='mirror' && m.seat===mySeat){ connected=true; applyMirror(m.st); }
         else if(m.t==='ceremony' && m.seat===mySeat){ clientPlayCeremony(m.res); }
         else if(m.t==='concede'){ onOpponentConcede(); }
@@ -6973,6 +6996,15 @@ window.CardFace = {};
 
     // ================= FULL-UI netplay: reuse the real single-player board (render()) on both ends =================
     var started=false;
+    /* PUBLIC narration. Netplay had no host→client log channel at all — every message type was state
+     * (mirror/setup) or control (join/welcome/err/peer/ceremony) — so a client's battle log was permanently
+     * EMPTY, even for its own moves. The host has always narrated everything correctly, just locally.
+     * We broadcast the TEMPLATE plus the actor's absolute seat; each client resolves the name in its own
+     * frame (its mirror is rotated so it is index 0). One message, no per-recipient string building. */
+    function sayBroadcast(actorSeat, tpl, cls){
+      if(!isHost() || !started) return;                 // only the referee narrates to the table
+      send({t:'log', actor:actorSeat, tpl:tpl, cls:cls||''});
+    }
     function isClient(){ return role==='join'; }
     function isClientActive(){ return isClient() && started; }
     function hideNetroot(){ var r=$('netroot'); if(r) r.style.display='none'; }
@@ -7009,7 +7041,7 @@ window.CardFace = {};
         if(!netSettle) return;                                  // no open window — stale/duplicate reply, ignore
         try{
           if(it.op==='respond'){ var qc=(hostState.players[1].hand.filter(function(c){return c.id===it.id;})[0]), qe=qc?E.effectOf(qc):null; r=E.respond(hostState, 1, it.id); if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal response.'}); broadcastMirror(); return; } if(qe && qe.kind==='counter') logMsg('<b>Rival</b> countered your Technique with '+qe.name+'!', 'rival'); else logMsg('<b>Rival</b> answered at instant speed'+(qe?(' with '+qe.name):'')+'.', 'rival'); }
-          else { E.declineResponse(hostState, 1); logMsg('<b>Rival</b> let it resolve.', 'dim'); }
+          else { E.declineResponse(hostState, 1); say(1, '{who} let it resolve.', 'dim'); }
         }catch(e){ send({t:'err', reason:'Response rejected.'}); broadcastMirror(); return; }
         var ns=netSettle; netSettle=null; return hostSettle(ns.g, ns.done);
       }
@@ -7020,7 +7052,7 @@ window.CardFace = {};
         try{ fr=(it.op==='guard') ? E.shieldGuard(hostState, 1, it.id) : E.shieldGuardPass(hostState, 1); }
         catch(e){ send({t:'err', reason:'Guard rejected.'}); broadcastMirror(); return; }
         if(fr && fr.ok===false){ send({t:'err', reason:fr.reason||'Illegal guard.'}); broadcastMirror(); return; }
-        logMsg((fr && fr.guarded) ? ('<b>Rival</b> sprang '+(fr.guardName||'a guard')+' — its shield holds.') : '<b>Rival</b> took the hit.', 'rival');
+        say(1, (fr && fr.guarded) ? ('{who} sprang '+(fr.guardName||'a guard')+' — their shield holds.') : '{who} took the hit.', 'rival');
         var ng=netGuard; netGuard=null; return hostRivalWindows(ng.g, function(){ ng.cont(fr); });
       }
       // ---- forced-discard window the remote (seat 1) owes: apply the chosen pitches, then re-check + continue ----
@@ -7028,7 +7060,7 @@ window.CardFace = {};
         if(!netDiscard) return;
         try{ var d=E.resolveDiscard(hostState, (it.ids||[])); if(d && d.ok===false){ send({t:'err', reason:d.reason||'Illegal discard.'}); broadcastMirror(); return; } }
         catch(e){ send({t:'err', reason:'Discard rejected.'}); broadcastMirror(); return; }
-        logMsg('<b>Rival</b> discarded '+(it.ids?it.ids.length:0)+' card'+((it.ids&&it.ids.length>1)?'s':'')+'.', 'rival');
+        say(1, '{who} discarded '+(it.ids?it.ids.length:0)+' card'+((it.ids&&it.ids.length>1)?'s':'')+'.', 'rival');
         var nd=netDiscard; netDiscard=null; return hostRivalWindows(nd.g, nd.cont);
       }
       // ---- turn actions ----
@@ -7037,7 +7069,7 @@ window.CardFace = {};
         try{ r=E.activate(hostState, 1, it.id, { target:(it.target!=null?it.target:YOU), copyId:it.copyId, discard:it.discard, toTop:it.toTop }); }
         catch(e){ send({t:'err', reason:'Move rejected.'}); broadcastMirror(); return; }
         if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
-        logMsg('<b>Rival</b> played '+(aeff?aeff.name:'a Technique')+'.', 'rival');
+        say(1, '{who} played '+(aeff?aeff.name:'a Technique')+'.', 'rival');
         return hostSettle(g, function(){ hostRivalContinue(g); });   // host may Counter; rival may counter-back; then the rival's turn continues
       }
       try{
@@ -7048,8 +7080,8 @@ window.CardFace = {};
         }
       }catch(e){ send({t:'err', reason:'Move rejected.'}); broadcastMirror(); return; }   // never let a malformed remote payload crash the host
       if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
-      if(it.op==='play'){ logMsg('<b>Rival</b> played '+playPhrase(r.combo)+(r.boosted?' (boosted)':'')+'.', 'rival'); }
-      else if(it.op==='pass'){ logMsg('<b>Rival</b> passed.', 'rival'); }
+      if(it.op==='play'){ say(1, '{who} played '+playPhrase(r.combo)+(r.boosted?' (boosted)':'')+'.', 'rival'); }
+      else if(it.op==='pass'){ say(1, '{who} passed.', 'rival'); }
       hostAfterRivalMove(r, g);
     }
     // Settle the response stack from the HOST's authority: the host's own windows pop its normal modal; a window
@@ -7226,7 +7258,7 @@ window.CardFace = {};
         if(!netReact || netReact.kind!=='prefight' || netReact.seat!==seat) return;
         var pfc=netReact; netReact=null;
         if(it.op==='prefight'){ var pr=E.preFightCast(hostState, seat, it.id); if(pr&&pr.ok===false){ netReact=pfc; sendTo(seat,{t:'err',seat:seat,reason:pr.reason||'Illegal Quick.'}); broadcastMirror(); return; } logMsg('<b>'+seatName(seat)+'</b> sprang Back Stab!', 'rival'); return hostSettleN(pfc.g, function(){ if(pfc.g===gen) pfc.cont(); }); }
-        E.preFightPass(hostState, seat); logMsg('<b>'+seatName(seat)+'</b> let the fight proceed.', 'dim'); return pfc.cont();
+        E.preFightPass(hostState, seat); say(seat, '{who} let the fight proceed.', 'dim'); return pfc.cont();
       }
       // ---- LOSS-TARGET pick: the remote round-winner chose whose shield to strip (chosen mode) ----
       if(it.op==='lossTarget'){
@@ -7234,7 +7266,7 @@ window.CardFace = {};
         var lt=(it.target!=null)?((it.target+seat)%n):null;                     // un-rotate the winner's pick to an absolute seat
         var lr=E.chooseLossTarget(hostState, lt);
         if(lr && lr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:lr.reason||'Illegal target.'}); broadcastMirror(); return; }
-        logMsg('<b>'+seatName(seat)+'</b> strikes '+seatName(lt)+'’s shield with a Special.', 'rival');
+        say(seat, '{who} strikes '+logName(lt)+'’s shield with a Special.', 'rival');
         var nrl=netReact; netReact=null; return nrl.cont(lr);
       }
       // ---- REACTIVE ops: valid only for the seat whose reactive window is parked (which may NOT be its turn) ----
@@ -7242,9 +7274,9 @@ window.CardFace = {};
         if(!netReact || netReact.seat!==seat) return;                           // stale / duplicate / out-of-window — ignore
         try{
           if(it.op==='respond'){ if(netReact.kind!=='respond') return; var qc=resolveIds(seat,[it.id])[0], qe=qc?E.effectOf(qc):null; var rr=E.respond(hostState, seat, it.id); if(rr&&rr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:rr.reason||'Illegal response.'}); broadcastMirror(); return; } logMsg('<b>'+seatName(seat)+'</b> '+((qe&&qe.kind==='counter')?('countered with '+qe.name+'!'):('answered'+(qe?(' with '+qe.name):'')+' at instant speed.')), 'rival'); }
-          else if(it.op==='decline'){ if(netReact.kind!=='respond') return; E.declineResponse(hostState, seat); logMsg('<b>'+seatName(seat)+'</b> let it resolve.', 'dim'); }
+          else if(it.op==='decline'){ if(netReact.kind!=='respond') return; E.declineResponse(hostState, seat); say(seat, '{who} let it resolve.', 'dim'); }
           else if(it.op==='guard'){ if(netReact.kind!=='guard') return; var fr=E.shieldGuard(hostState, seat, it.id); if(fr&&fr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:fr.reason||'Illegal guard.'}); broadcastMirror(); return; } logMsg('<b>'+seatName(seat)+'</b> sprang '+((fr&&fr.guardName)||'a guard')+' — shield holds.', 'rival'); }
-          else if(it.op==='guardPass'){ if(netReact.kind!=='guard') return; E.shieldGuardPass(hostState, seat); logMsg('<b>'+seatName(seat)+'</b> took the hit.', 'rival'); }
+          else if(it.op==='guardPass'){ if(netReact.kind!=='guard') return; E.shieldGuardPass(hostState, seat); say(seat, '{who} took the hit.', 'rival'); }
           else if(it.op==='discard'){ if(netReact.kind!=='discard') return; var d=E.resolveDiscard(hostState, it.ids||[]); if(d&&d.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:d.reason||'Illegal discard.'}); broadcastMirror(); return; } logMsg('<b>'+seatName(seat)+'</b> discarded '+((it.ids&&it.ids.length)||0)+' card'+(((it.ids&&it.ids.length)||0)>1?'s':'')+'.', 'rival'); }
         }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Rejected.'}); broadcastMirror(); return; }
         var nr=netReact; netReact=null; return nr.resume();
@@ -7258,7 +7290,7 @@ window.CardFace = {};
           if(g!==gen) return;
           var r;
           try{
-            if(E.isLocked(hostState, seat)){ r=E.pass(hostState, seat); logMsg('<b>'+seatName(seat)+'</b> is locked out (Back Stab) — turn skipped.', 'warn'); }
+            if(E.isLocked(hostState, seat)){ r=E.pass(hostState, seat); say(seat, '{who} is locked out (Back Stab) — turn skipped.', 'warn'); }
             else if(it.op==='play'){ r=E.play(hostState, seat, resolveIds(seat, it.ids)); if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; } logMsg('<b>'+seatName(seat)+'</b> played '+playPhrase(r.combo)+(r.boosted?' (boosted)':'')+'.', 'rival'); }
             else { r=E.pass(hostState, seat); if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; } logMsg('<b>'+seatName(seat)+'</b> passed.', 'rival'); }
           }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Move rejected.'}); broadcastMirror(); return; }
@@ -7274,7 +7306,7 @@ window.CardFace = {};
           var tgt=(it.target!=null)?((it.target+seat)%n):undefined;   // un-rotate the client's (rotated) target back to the absolute seat
           r=E.activate(hostState, seat, it.id, { target:tgt, copyId:it.copyId, discard:it.discard, toTop:it.toTop });
           if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
-          logMsg('<b>'+seatName(seat)+'</b> played '+(ae?ae.name:'a Technique')+'.', 'rival');
+          say(seat, '{who} played '+(ae?ae.name:'a Technique')+'.', 'rival');
         } else return;
       }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Move rejected.'}); broadcastMirror(); return; }
       netParked=null;
@@ -7388,7 +7420,7 @@ window.CardFace = {};
       if(isHost() && hostState && MP()){                        // N-player: eliminate the conceder, keep the game going
         var r=E.concede(hostState, seat);
         if(r && r.ok){
-          logMsg('🏳 '+seatName(seat)+' conceded — '+(r.finished?'game over.':'out.'), 'warn');
+          say(seat, '🏳 {who} conceded — '+(r.finished?'game over.':'out.'), 'warn');
           if(netReact && netReact.seat===seat) netReact=null;   // drop any window parked for the departed seat
           if(netParked && netParked.seat===seat) netParked=null;
           if(r.finished){ busy=false; render(); broadcastMirror(); return endGame(); }
@@ -7510,7 +7542,7 @@ window.CardFace = {};
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
+    return { boot:boot, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:99999;background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     '#netroot .netbar{background:#161c26;border:1px solid #263140;border-radius:8px;padding:8px 12px;margin-bottom:10px}'+
