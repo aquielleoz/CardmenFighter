@@ -63,6 +63,13 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
     ramp / peek)? Both players, or only the one who played it? Round 1 is jabs-only — does that make the
     opening explosive? And does it change what a jab *is for*, since today the honest reason to jab is "bank
     energy and don't break a shield".
+  - **Cost to get a real answer: ~20-30 min, almost all of it the engine edit.** The measurement is nearly
+    free — timed on this machine: `recyclesim.js 400` **0.5s**, `analysis.js 130 on x knight` **7.1s**,
+    `mpsim.js 200 knight` **1.8s**. So a full before/after sweep is **under 20 seconds per build**. And the
+    engine already has this exact toggle pattern for sim experiments (`setShieldCards`, `setLoserMill`,
+    `setMillScope`, `setSpecialLossMode`, `setFormSuitMatch`), so add **`setJabCantrip(v)`** + a couple of lines
+    where a single-card play resolves, and the A/B is a flag flip in one process rather than two builds.
+    **Worth doing before any draw-engine work under *suit ≠ class* — it might make that unnecessary.**
   - **Definitely measure, don't ship on feel:** this is a core-rule change, so run `analysis.js` before/after
     for class win rates, `recyclesim.js` for the reshuffle rate it is meant to move, and `mpsim.js` for 3-6p.
     Expect games to get **longer** and effect density to rise — the interesting risk is decking out sooner, in
