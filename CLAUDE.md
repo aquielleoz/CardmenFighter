@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.27.1**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.28.0**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -62,7 +62,7 @@ node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — R
 
 ### Playwright suites (browser + netplay)
 
-`browsertest.js` and the 21 `nettest_*.js` full-UI netplay suites drive the real built HTML in a headless browser.
+`browsertest.js` and the 22 `nettest_*.js` full-UI netplay suites drive the real built HTML in a headless browser.
 They need Playwright, which **is** installed here (`code/node_modules`, gitignored). To set it up from scratch:
 
 ```bash
@@ -71,7 +71,12 @@ npx playwright install chromium
 ```
 
 Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` is a shared
-helper, not a suite — don't run it directly. **`decktest.js`** and **`viewtest.js`** are the same kind of full-UI test for
+helper, not a suite — don't run it directly.
+
+**Both pages in a netplay suite share one browser context** (BroadcastChannel needs it), so they share one
+`localStorage`. To give one side data the other lacks — e.g. a saved custom deck the host has never seen — load
+that page first, seed and reload it, clear the store, and only *then* open the other page. `nettest_customdeck.js`
+does exactly that. **`decktest.js`** and **`viewtest.js`** are the same kind of full-UI test for
 the solo side (the custom deck builder; the 🔍 View card reader), driving the page against `file://…?dbgsolo=1`.
 `viewtest.js` runs at a 390×780 viewport because `#viewCardBtn` only exists inside `@media (max-width:720px)
 and (max-height:800px)` — at a taller phone size it is correctly absent.

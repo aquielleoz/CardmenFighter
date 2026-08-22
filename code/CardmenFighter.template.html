@@ -3964,19 +3964,16 @@ __NETVIEW__
 
   // ---- Pre-game setup: pick decks + AI strength (with Random), then roll for initiative ----
   var BUILD_DECK_OPT='__builddeck__';   // the "✏️ Custom deck…" sentinel — intercepted on change, never a real deck value
-  // opts.custom:false omits saved decks and the builder entry (the netplay lobby, until the wire format is done).
-  function deckOptionsHTML(opts){
-    var custom=!(opts&&opts.custom===false);
+  // Every deck picker (solo, each local seat, and both netplay lobbies) is built from this one list.
+  function deckOptionsHTML(){
     var h='<option value="random">🎲 Random class</option><option value="full">Full Set (all 52)</option>';
     E.DECK_ORDER.forEach(function(k){ h+='<option value="'+k+'">'+esc(E.DECKS[k].name)+'</option>'; });
-    if(custom){
-      if(savedDecks.length){
-        h+='<optgroup label="Your decks">';
-        savedDecks.forEach(function(d){ var k=E.partsKey(d.parts); h+='<option value="'+k+'">'+esc(d.name)+' ('+deckPartsLabel(d.parts)+')</option>'; });
-        h+='</optgroup>';
-      }
-      h+='<option value="'+BUILD_DECK_OPT+'">✏️ Custom deck…</option>';
+    if(savedDecks.length){
+      h+='<optgroup label="Your decks">';
+      savedDecks.forEach(function(d){ var k=E.partsKey(d.parts); h+='<option value="'+k+'">'+esc(d.name)+' ('+deckPartsLabel(d.parts)+')</option>'; });
+      h+='</optgroup>';
     }
+    h+='<option value="'+BUILD_DECK_OPT+'">✏️ Custom deck…</option>';
     return h;
   }
   function resolveDeck(v){ return v==='random' ? E.DECK_ORDER[Math.floor(Math.random()*E.DECK_ORDER.length)] : v; }
@@ -4541,7 +4538,11 @@ __NETVIEW__
           connected=true;
           var cid=m.cid||'anon', isNew=(hostSeatOf[cid]==null);
           if(isNew){ if(nextSeat>MAX_SEATS-1){ sendTo0(srcChan, {t:'full', cid:cid}); return; } hostSeatOf[cid]=nextSeat++; }   // seats 1..5 (+host = up to 6)
-          var jseat=hostSeatOf[cid]; seatDeckMap[jseat]=m.deck||'full'; oppDeck=seatDeckMap[jseat]; oppReady=true;
+          // The joiner's deck arrives as a bare string (a preset key, 'random', 'full', or a composition
+          // like 'custom:D1H2C1'). It is untrusted: validate it here rather than letting an unknown key
+          // fall through buildDeck() to a silent Full Set.
+          var jseat=hostSeatOf[cid], jdeck=(typeof m.deck==='string' && validDeck(m.deck)) ? m.deck : 'full';
+          seatDeckMap[jseat]=jdeck; oppDeck=jdeck; oppReady=true;
           if(srcChan){ var ci=dcs.indexOf(srcChan); if(ci>=0) chanSeat[ci]=jseat; }   // RTC: bind this channel to its seat (authoritative)
           sendTo(jseat, {t:'welcome', seat:jseat, cid:cid});
           if(started) hostOnPeerBack(jseat);                             // re-join (same cid): a held seat resumes; an already-dropped seat rejoins to spectate
@@ -5037,7 +5038,7 @@ __NETVIEW__
     function renderLobby(root){
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
         '<div class="netbar">Room <b>'+room+'</b> · You are '+(isHost()?'Player 1 (host)':'Player 2')+' · '+connLabel()+'</div>';
-      var body='<h3>Choose your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML({custom:false})+'</select>';
+      var body='<h3>Choose your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>';
       if(isHost()){
         var joined=nextSeat-1;   // clients who have readied
         var total=joined+1;
@@ -5052,7 +5053,14 @@ __NETVIEW__
           : '<button id="lobbyGo" class="netbtn go">Ready ▶</button><p class="nethint">Pick your deck, then hit Ready — the host starts the game.</p>';
       }
       root.innerHTML=head+body+'</div>';
-      var sel=$('deckSel'); if(sel){ sel.value=myDeck; sel.disabled=(!isHost()&&iReady); sel.addEventListener('change', function(){ myDeck=sel.value; }); }
+      var sel=$('deckSel'); if(sel){ sel.value=myDeck; sel.disabled=(!isHost()&&iReady); sel.addEventListener('change', function(){
+        if(sel.value===BUILD_DECK_OPT){                                  // "✏️ Custom deck…" → build one, then re-render the lobby
+          var prev=myDeck;
+          openDeckBuilder(E.parseParts(prev)||E.presetParts(prev), function(key){ myDeck=key||prev; renderNet(); });
+          return;
+        }
+        myDeck=sel.value;
+      }); }
       var go=$('lobbyGo'); if(go) go.addEventListener('click', function(){
         myDeck=($('deckSel')||{}).value||myDeck;
         if(isHost()){ if(nextSeat-1<1) return; hostStartRealN(myDeck); }
@@ -5064,7 +5072,7 @@ __NETVIEW__
       var joined=nextSeat-1, total=joined+1, full=(joined>=MAX_SEATS-1);
       var errHTML = (sig&&sig.err) ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · no server · '+joined+' connected</div>'+errHTML;
-      var body='<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML({custom:false})+'</select>';
+      var body='<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>';
       if(sig.step==='host-gen'){ body+='<p>Generating an invite code…</p>'; }
       else if(sig.step==='host-invite'){
         body+='<h3>Invite a player — send them this code</h3>'+
@@ -5107,7 +5115,7 @@ __NETVIEW__
     '#netroot .deckSel:disabled{opacity:.55}#netroot .lobbyStatus{margin:12px 0;padding:10px 12px;background:#141a24;border:1px solid #263140;border-radius:8px;color:#cdd8e6}';
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
   if(!NET.boot()) openSetup();   // netplay when ?net= is present; otherwise the normal game (byte-identical)
   if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, setPulse:function(b){pulseDetail=b;}, activate:function(id,o){ return activate(id,o); } }; }   // test hook: inspect/mutate solo state for layout/pulse verification
 })();
