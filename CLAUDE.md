@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.28.1**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.28.2**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -42,6 +42,7 @@ node build.js                                   # engine+ai+art+netview → code
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
 node test.js                                    # engine + AI suite — 131 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction — 28, must end 0 FAIL
+node nettest_log.js                             # netplay public battle log, both frames (13)
 node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens (10)
@@ -78,6 +79,16 @@ npx playwright install chromium
 
 Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` is a shared
 helper, not a suite — don't run it directly.
+
+**Narration is reader-relative.** Never write a name into a log line — call `say(actor, '{who} …', cls)`. It
+renders `{who}` in the local frame via `logName` (yourself → "You"; a duel opponent → "Rival"; otherwise `P<n>`)
+and, when we are the netplay host, broadcasts the **template** plus the actor's absolute seat so each client
+renders it in *its* frame. A bare `logMsg` is host-local and reaches nobody else — which is how clients ended up
+with a completely empty battle log for every version up to v1.28.2.
+
+**A client's mirror is seat-ROTATED**: its own seat is index 0. So in a test, the client's own turn is
+`turn===0`, never its absolute seat number. `nettest_log.js` documents this; getting it wrong looks exactly like
+a product bug.
 
 **Both pages in a netplay suite share one browser context** (BroadcastChannel needs it), so they share one
 `localStorage`. To give one side data the other lacks — e.g. a saved custom deck the host has never seen — load
