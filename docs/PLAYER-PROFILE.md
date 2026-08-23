@@ -124,5 +124,10 @@ losing action, played constantly.
 **Unlooked-for third finding: the minion tier is a different game.** 100% jab, 0% Special — the minion AI never
 contests a Special pile and never leads one. (Caveat: AI vs AI, so a human leading Specials against a minion
 still sees them; but the AI side brings none.) **Onboarding implication:** a newcomer learning on the low tier
-learns a jabs-only game, then meets an 85%-Specials game the moment they move up. That is a plausible source of
-the brother's surprise, since he came in via the tutorials and the exported games all record `demon`.
+learns a jabs-only game, then meets an 85%-Specials game the moment they move up.
+
+**What we do NOT know, and should not guess:** Aj's brother is **not** the playtester in the exports above
+("bibong"), and **we have none of his logs**. So his difficulty, player count and deck are all unknown, and the
+minion-vs-demon gap is *a* candidate explanation for his report, not an established one. An earlier version of
+this entry inferred his setup from bibong's export data — a straight conflation of two different people. If his
+report matters, get his actual configuration; everything else here is measurement that stands on its own.

@@ -85,9 +85,12 @@ every respect.
      while only 12-17% of *rounds* are jab-decided, so jabs are thrown constantly and win almost nothing.
      The two reports are the same game seen from what-I-play versus what-wins.
    - **And the tier gap is real:** minion is **100% jab / 0% Special** in AI-vs-AI, because the minion tier
-     never contests or leads a Special. A newcomer arriving through the tutorials learns a jabs-only game and
-     then meets an 85%-Specials game one tier up. Worth deciding whether minion should lead the occasional
-     Special purely so the low tier teaches the real game.
+     never contests or leads a Special. A newcomer learning on the low tier learns a jabs-only game and then
+     meets an 85%-Specials game one tier up. Worth deciding whether minion should lead the occasional Special
+     purely so the low tier teaches the real game.
+   - **We have no logs from Aj's brother** — he is not the playtester in the exports ("bibong"), so his tier,
+     player count and deck are unknown. **Ask him what he was playing before designing around his report**; the
+     minion/demon gap above is a candidate explanation, not a confirmed one.
 5. **Initiative is a separate job.** It is ~1.8x concentrated at 6p in *every* config tested. Only
    `st.initiative = winner` (`engine.js` ~1685) will move it.
 
