@@ -3,7 +3,7 @@
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
 Test: `npm test` = `node test.js` (**190**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**52** — free-for-all parity) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node browsertest.js` (12-duel smoke) · the `nettest_*.js` netplay suite (**run one at a time**; `nettest_log`/`nettest_full` are position-dependent — verify alone). Balance: `node analysis.js 130 on` · `node mpsim.js` · `node recyclesim.js 400`.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.29.6**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.29.7**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (night of 2026-08-22)
 
@@ -108,6 +108,14 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 (v1.28.1) · the **reorderable energy pile** + both pile viewers + Advanced lesson 10 (v1.29.0) · netplay's
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
+
+
+### v1.29.7 — bigger cards on big screens (playtester: "the cards look smol")
+Measured before changing anything, and the report was fair: at **1920×1080** — the most common large screen — a hand card was **65×94px, just 3.4% of the width**, with ~970px of board above it mostly empty. The cause was a gap in the steps: **1920 falls just under the old 2000px breakpoint**, so it got the same `--cs:1.42` as a 1600px screen.
+- Steps are now **denser and gated on `min-height` as well as `min-width`**, so a wide-but-*short* window (a laptop, a half-height window) never gets cards too tall for its hand row: `1200→1.18`, `1440+800h→1.32`, `1600+860h→1.5`, `1800+900h→1.68`, `2200+1000h→1.9`, `2560+1200h→2.1`.
+- Measured card width, before → after: **1440×900** 54→**61** · **1600×900** 65→**69** · **1907×938** (the reporter's size) 65→**77** · **1920×1080** 65→**77** · **2560×1440** 87→**97**. **1366×768 is deliberately unchanged** at 54px — it is short, so growing the cards there would squeeze the hand row.
+- **Overflow checked, not assumed:** with a **full 10-card hand** (`MAX_HAND`) at eight viewport sizes, verified no hand overflow, no card past the viewport, no horizontal page scroll, and the action bar still on screen. Phones are untouched (every new step needs ≥1440px width); `viewtest` still 10/0 at 390×780.
+- Still open if it is not enough: the cards are ~4% of screen width even now, because the **board itself is mostly empty space** on a big monitor. Growing cards further starts to fight the layout, so the better lever would be a **card-size preference in ⚙️ Settings** (the modal already persists prefs like detailed energy pulses) — per-person perception is exactly what a setting is for.
 
 
 ### v1.29.6 — D1 + C2: round results name the real seats (and two bugs found inside them)

@@ -13,10 +13,16 @@
     --cs:1;   /* card scale — grows on wider viewports so cards don't look tiny on big monitors */
   }
   /* Adaptive card sizing: scale playing cards up on large screens (base tuned for laptops/tablets) */
+  /* Card scale steps. Playtester on a large screen: "the cards look smol". Measured, they were: at 1920x1080
+     a card was 65x94px — 3.4% of the width — with ~970px of board above it mostly empty, because 1920 falls
+     just UNDER the old 2000px step. Steps are now denser and gated on min-height as well as min-width, so a
+     wide-but-short window (a laptop, a half-height window) does not get cards too tall for its hand row. */
   @media (min-width:1200px){ :root{ --cs:1.18; } }
-  @media (min-width:1600px){ :root{ --cs:1.42; } }
-  @media (min-width:2000px){ :root{ --cs:1.68; } }
-  @media (min-width:2560px){ :root{ --cs:1.9; } }
+  @media (min-width:1440px) and (min-height:800px){ :root{ --cs:1.32; } }
+  @media (min-width:1600px) and (min-height:860px){ :root{ --cs:1.5; } }
+  @media (min-width:1800px) and (min-height:900px){ :root{ --cs:1.68; } }
+  @media (min-width:2200px) and (min-height:1000px){ :root{ --cs:1.9; } }
+  @media (min-width:2560px) and (min-height:1200px){ :root{ --cs:2.1; } }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0;height:100%;}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
