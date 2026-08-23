@@ -36,21 +36,32 @@ ranges — suggestive, not settled. Bottom decks rise consistently (Pure Wizard 
 
 ### 0h. Initiative concentration is invariant to every lever we have tried. (2026-08-24)
 The busiest leader's share of a game's rounds, against a fair share of 1/P, sits at **~1.8x at 6 players in all
-six configs above** (L29-L35) — including both apex-2 variants, whose entire design rationale is to let a
-player seize the lead. Winning a round with an unbeatable 2 does not distribute initiative; it just changes
-*who* gets the streak, because `engine.js` ~1685 still hands the next lead to the round winner.
+six configs above** (L29-L35) — including both apex-2 variants. (Those were measured for initiative because
+*we* were curious, not because the idea promised anything about it; see the correction below.) Winning a round
+with an unbeatable 2 does not distribute initiative — it changes *who* gets the streak, because `engine.js`
+~1685 still hands the next lead to the round winner.
 
 **So initiative concentration has exactly one cause and it will not fall out of a side lever.** If it is worth
 fixing, `st.initiative = winner` is the line to change — rotate the lead, or give it to a player who has led
 least recently. Everything else is a symptom.
 
-**The apex-2 rework, judged fairly:** it does *not* deliver its stated purpose (initiative), and it roughly
-doubles 6-player length (D 15 -> E 35; live 33 -> F 48) because an unbeatable-but-harmless play ends a round
-without draining a shield. Its jab reduction (10% at 6p) is already achieved by `draw=players` alone at
-less than half the length. **But it is explicitly a FEEL change**, and concentration averages cannot capture
-"I could always seize the lead at a moment I chose", which is the agency it is really selling. Variants that
-keep the feel and remove the stall, untested: only the FIRST 2 each round is unbeatable; a 2 wins unbeatably
-**and** still strips (a true finisher); or playing a 2 as apex costs energy.
+**On the apex-2 rework — and a correction worth keeping, because it is a mistake about how to read feedback.**
+This came from Aj's brother as **playtest feedback**, not as a proposed fix for anything. It was first written
+up here as "fails its own rationale (initiative)" — but that rationale was *ours*, invented and then attached
+to someone else's report so it could be scored against it. **Playtest feedback does not arrive with a
+hypothesis; it arrives with a feeling.** The job is to price it, not to grade it.
+
+Priced, then. What it costs: 6-player length roughly doubles (package 15 -> 35 rounds; live 33 -> 48), because
+an unbeatable-but-harmless play ends a round without draining a shield, and there are four 2s per deck. What it
+gives: jab share at 6p drops to 10%, though `draw=players` already achieves that at under half the length. What
+it does *not* do is spread initiative — but nobody claimed it would, and concentration averages could not see
+"I could seize the lead at a moment I chose" even if it did.
+
+**The motivating complaint is unrecorded, and that is the thing to go and ask.** "Plays with 2s should not
+strip shields" and "a 2 should be unbeatable" are two separate wishes, and they point at different fixes: the
+first sounds like *being crushed by an apex feels arbitrary*, the second like *the apex does not feel apex
+enough*. Variants worth trying once the actual complaint is known: only the FIRST 2 each round is unbeatable; a
+2 wins unbeatably **and** still strips (a true finisher); or playing a 2 as apex costs energy.
 
 
 ### 0d. RE-TESTED: `MILL_SCOPE='universal'` is not the loser it was recorded as. (2026-08-24)

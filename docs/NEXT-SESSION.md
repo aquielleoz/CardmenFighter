@@ -69,9 +69,13 @@ every respect.
 3. **Mean energy nearly doubles** under draw=players (8.6 -> 14.4 at 6p). Activation costs are fixed, so every
    effect becomes much cheaper in relative terms. That is a big shift in feel that no win-rate number shows,
    and it is the change most likely to surprise a playtester.
-4. **The apex-2 rework needs a variant, not a verdict.** As written it fails its own rationale (initiative
-   concentration unmoved, principle 0h) and doubles 6p length. Try: only the first 2 each round is unbeatable;
-   or unbeatable AND still strips; or apex costs energy.
+4. **The apex-2 rework: go and ask what the complaint was.** This is **playtest feedback from Aj's brother**,
+   not a proposal aimed at our problems — an earlier note here wrongly scored it against a rationale we had
+   invented for it. Priced honestly it costs roughly double the 6p length (15 -> 35 rounds) and buys a jab
+   share that `draw=players` already delivers more cheaply. But the underlying complaint is unrecorded, and
+   *"plays with 2s should not strip shields"* and *"a 2 should be unbeatable"* are two different wishes with
+   two different fixes. **Ask which one it was before designing.** Then try: only the first 2 each round is
+   unbeatable; unbeatable AND still strips; or apex costs energy.
 5. **Initiative is a separate job.** It is ~1.8x concentrated at 6p in *every* config tested. Only
    `st.initiative = winner` (`engine.js` ~1685) will move it.
 
