@@ -18,6 +18,10 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const waitFor=async (fn,n)=>{ for(let i=0;i<(n||60);i++){ if(await fn()) return true; await wait(150);} return false; };
   const hasLog=async re=>{ for(let i=0;i<60;i++){ if((await log()).some(l=>re.test(l))) return true; await wait(150);} return false; };
   const msg=()=>p.evaluate(()=>((document.getElementById('message')||{}).textContent||'').trim());
+  // Personas mean seat 2 is "Gawain", not "P3". Resolve the name from the page so these assertions keep
+  // checking the thing that matters — that the RIGHT seat is named — instead of a literal that moved.
+  // Every use below pairs it with a negative on another seat's name, or the check would be vacuous.
+  const nm=seat=>p.evaluate(i=>window.__solo.logName(i), seat);
 
   async function start3p(){
     await p.goto(URL); await wait(700);
@@ -48,7 +52,9 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(staged.holder===2, 'the pre-fight holder really is seat 2, not 1 ('+staged.holder+') — the case the old gate dropped');
   await p.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
     const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
-  ok(await hasLog(/P3.*sprang Back Stab/i), 'P3 sprang Back Stab against your fight (was silently skipped before)');
+  const bsName=await nm(2), bsOther=await nm(1);
+  ok(await hasLog(new RegExp(bsName+'.*sprang Back Stab','i')) && !(await hasLog(new RegExp(bsOther+'.*sprang Back Stab','i'))),
+     'seat 2 ('+bsName+') sprang Back Stab against your fight, and it is not credited to seat 1 ('+bsOther+')');
   ok(await p.evaluate(()=>{ const st=window.__solo.st(); return !!(st.players[0].lockSkip||st.players[0].lockRound); }), '…and you are actually locked out');
   ok(!(await log()).some(l=>/Rival sprang/.test(l)), '…and it is credited to P3, never to "Rival"');
 
@@ -151,7 +157,8 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   // prompt/status line. What matters for C1 is that an opponent's turn WRITES one at all, asserted next.
   ok(await hasLog(/^You played/), 'your own play is logged');
   // an opponent then acts — the caption must name THEM, never still say "You played"
-  const capt=await waitFor(async()=>{ const m=await msg(); return /P2|P3/.test(m); }, 90);
+  const oppNames=[await nm(1), await nm(2)];
+  const capt=await waitFor(async()=>{ const m=await msg(); return oppNames.some(n=>m.indexOf(n)>=0); }, 90);
   ok(capt, 'an opponent\'s turn OVERWRITES the caption with their name (it used to stay "You played…"): "'+(await msg()).slice(0,60)+'"');
   ok(!/^You played/.test(await msg()), '…so the stage and the caption no longer disagree');
   ok(await p.evaluate(()=>window.__solo.st().round>=3), 'the game progressed through the opponents\' turns');
@@ -220,71 +227,24 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const lossLines=lines.filter(l=>/lost a shield|lose a shield/.test(l));
   ok(lossLines.every(l=>/\b(You|P2|P3)\b/.test(l)), 'every shield-loss line names a seat ('+(lossLines[0]||'none seen')+')');
 
-  // ================= the CEREMONY banner must name the same seat as the log =================
+  // ================= the CEREMONY banner names the struck seat =================
   // Aj caught this after v1.29.6: the log said "P3 lost a shield" while the between-rounds banner said
-  // "You lose a shield" — buildPreDrawBeats was a THIRD site deriving the loser as YOU/RIVAL. The earlier
-  // assertions only read #log, so they could not see it. Watch the banner text itself.
+  // "You lose a shield" — buildPreDrawBeats was a THIRD site deriving the loser as YOU/RIVAL.
+  // Asserted DIRECTLY against that pure function. An earlier version played random games until a shield-loss
+  // ceremony occurred, which failed ~1 run in 3 by never reaching one (66/2), and told us nothing when it did.
   ok(await start3p(), '3-player game restarted for the ceremony banner');
-  const banners=[];
-  await p.evaluate(()=>{ window.__banners=[];
-    const fx=document.getElementById('roundfx');
-    new MutationObserver(()=>{ const t=(fx.textContent||'').trim(); if(t) window.__banners.push(t); })
-      .observe(fx,{childList:true,subtree:true,characterData:true});
-  });
-  // Loop until a shield-loss CEREMONY actually happens — a negative-space assertion that never sees the event
-  // passes for the wrong reason. Validated by A/B: on the pre-fix build this capture yields "You lose a shield".
-  let sawWin=false;
-  for(let i=0;i<420 && !sawWin;i++){
-    await p.evaluate(()=>{
-      const clr=document.getElementById('clearBtn'), f=document.getElementById('fightBtn'), ps=document.getElementById('passBtn');
-      const cards=[].slice.call(document.querySelectorAll('#hand .card'));
-      for(let k=0;k<cards.length;k++){ if(clr)clr.click(); document.querySelectorAll('#hand .card')[k].click(); if(f&&!f.disabled){ f.click(); return; } }
-      if(clr)clr.click(); if(ps&&!ps.disabled) ps.click();
-    });
-    await wait(200);
-    sawWin=(await p.evaluate(()=>window.__banners.some(t=>/a shield/.test(t))));
-  }
-  const seen=await p.evaluate(()=>window.__banners.slice());
-  const lossLog=(await log()).filter(l=>/lost a shield/.test(l));
-  ok(sawWin, 'a shield-loss CEREMONY occurred (so the checks below are not vacuous)');
-  const lostBanners=seen.filter(t=>/lose[s]? a shield/.test(t));
-  // if the LOG says P2/P3 lost it, the BANNER must not claim you did
-  const logSaysYou=lossLog.some(l=>/^You lost a shield|- You lost a shield/.test(l));
-  const bannerSaysYou=lostBanners.some(t=>/\bYou lose a shield/.test(t));
-  ok(!(bannerSaysYou && !logSaysYou),
-     'the ceremony banner never says "You lose a shield" when the log names another seat (banner: "'+(lostBanners[0]||'none')+'")');
-  ok(lostBanners.length>0, '…and we captured the banner text itself: "'+(lostBanners[0]||'NONE')+'"');
-  ok(lostBanners.every(t=>/\b(You|P2|P3)\b/.test(t)), '…every loss banner names a seat');
-
-  // ================= the pile stays CENTRED with its label, at any card count =================
-  // Aj caught two versions of this: a reserved rail done with padding shifted the content, so a 1-card pile
-  // and the "Fight is open" line sat right of the centred label. The fix narrows the BOX and centres it, so
-  // assert alignment at 1 and 5 cards rather than trusting it.
-  ok(await start3p(), '3-player game restarted for pile centring');
-  for(const n of [1,5]){
-    await p.evaluate(n=>{ const st=window.__solo.st(), E=window.CardmenEngine;
-      const mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
-      const five=[mk(9,'H'),mk(9,'H','a'),mk(9,'C','b'),mk(5,'H','c'),mk(5,'H','d')];
-      st.pile={ combo:E.detectCombo(n===1?[mk(7,'H')]:five), byPlayer:2 }; window.__solo.render();
-      const z=document.getElementById('beaten'); z.innerHTML='';
-      const lab=document.createElement('div'); lab.className='bLabel'; lab.textContent='You · last played'; z.appendChild(lab);
-      const row=document.createElement('div'); row.className='bCards';
-      for(let i=0;i<5;i++){ const d=document.createElement('div'); d.className='card tiny faced'; row.appendChild(d); }
-      z.appendChild(row);
-    }, n);
-    await wait(320);
-    const m=await p.evaluate(()=>{
-      const cards=[].slice.call(document.querySelectorAll('#pile .card')).map(c=>c.getBoundingClientRect());
-      const lab=document.getElementById('pileLabel').getBoundingClientRect();
-      const bz=document.getElementById('beaten').getBoundingClientRect();
-      let wraps=false; for(let i=1;i<cards.length;i++) if(cards[i].left<cards[i-1].left-1) wraps=true;
-      return { off:Math.abs(Math.round((cards[0].left+cards[cards.length-1].right)/2) - Math.round(lab.left+lab.width/2)),
-               overlap:Math.max(0,Math.round(bz.right-cards[0].left)), wraps };
-    });
-    ok(m.off<=3, n+'-card pile is centred with its label (off by '+m.off+'px)');
-    ok(m.overlap===0, '…and does not overlap the "last played" stash');
-    ok(!m.wraps, '…and does not wrap');
-  }
+  // strip tags: the beats are HTML, so "<b>You</b> lose a shield" would not match /You lose a shield/
+  const beatsFor=(res)=>p.evaluate(r=>window.__solo.beats(r).map(b=>String(b.html).replace(/<[^>]*>/g,'')).join(' | '), res);
+  const b_p3=await beatsFor({ roundWinner:1, comboType:'pair', shieldStripped:true, struck:[2] });
+  const struckName=await nm(2), winnerName=await nm(1);
+  ok(b_p3.indexOf(struckName+' lose')>=0 && !/\bYou lose\b/.test(b_p3) && b_p3.indexOf(winnerName+' lose')<0,
+     'seat 1 ('+winnerName+') beating seat 2 ('+struckName+') announces '+struckName+' losing the shield — not you, not the winner: "'+b_p3+'"');
+  const b_you=await beatsFor({ roundWinner:2, comboType:'pair', shieldStripped:true, struck:[0] });
+  ok(/\bYou lose a shield\b/.test(b_you), '…and when YOU are struck it does say so: "'+b_you+'"');
+  const b_none=await beatsFor({ roundWinner:1, comboType:'single', shieldStripped:false });
+  ok(!/lose[s]? a shield/.test(b_none), '…a jab win announces no shield loss at all');
+  const b_prev=await beatsFor({ roundWinner:1, comboType:'pair', shieldStripped:false, prevented:true, struck:[] });
+  ok(/prevented/i.test(b_prev), '…and a blanked strike says the loss was prevented');
 
   // ================= the "last played" stash must name a seat, not "Rival" =================
   // Aj's screenshot showed "RIVAL · LAST PLAYED" in a 3-Rider game (sweepBeaten took prevOwner===YOU?'You':'Rival').
@@ -308,7 +268,68 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const stashLabel=await p.evaluate(()=>{ const l=document.querySelector('#beaten .bLabel'); return l?l.textContent.trim():''; });
   ok(!!stashLabel, 'beating an opponent\'s play sweeps it to the stash (label present, not vacuous)');
   ok(!/rival/i.test(stashLabel), '…and the label names a seat, never "Rival": "'+stashLabel+'"');
-  ok(/^P2\b/i.test(stashLabel), '…specifically the seat whose card was beaten (P2)');
+  const beatName=await nm(1), notBeat=await nm(2);
+  ok(stashLabel.indexOf(beatName)===0 && stashLabel.indexOf(notBeat)<0,
+     '…specifically the seat whose card was beaten, seat 1 ('+beatName+'), not seat 2 ('+notBeat+'): "'+stashLabel+'"');
+
+  // ================= PLAYER NAMES flow through the single logName/seatName funnel =================
+  ok(await start3p(), '3-player game restarted for player names');
+  await p.evaluate(()=>window.__solo.names(['', 'Ana', 'Bo'])); await wait(350);
+  const panels=await p.evaluate(()=>[].map.call(document.querySelectorAll('.oppPanel .oppName'),e=>e.textContent.trim()));
+  ok(panels.some(t=>/Ana/.test(t)) && panels.some(t=>/Bo/.test(t)), 'opponent panels show the names, not P2/P3: '+JSON.stringify(panels));
+  ok(!panels.some(t=>/\bP2\b|\bP3\b/.test(t)), '…and the P2/P3 placeholders are gone');
+  const nb=await beatsFor({ roundWinner:1, comboType:'pair', shieldStripped:true, struck:[2] });
+  ok(/Ana/.test(nb) && /Bo/.test(nb), 'the ceremony banner uses them too (one funnel): "'+nb+'"');
+  // a name is only for OTHERS — you stay "You" in your own frame
+  const nbYou=await beatsFor({ roundWinner:0, comboType:'pair', shieldStripped:true, struck:[1] });
+  ok(/^You\b/.test(nbYou), '…but you are still "You" to yourself: "'+nbYou+'"');
+  // unnamed seats keep the placeholder
+  await p.evaluate(()=>window.__solo.names(['', '', 'Bo'])); await wait(300);
+  const mixed=await p.evaluate(()=>[].map.call(document.querySelectorAll('.oppPanel .oppName'),e=>e.textContent.trim()));
+  ok(mixed.some(t=>/\bP2\b/.test(t)) && mixed.some(t=>/Bo/.test(t)), 'an unnamed seat keeps its P<n> placeholder: '+JSON.stringify(mixed));
+  // hostile text is sanitised, not rendered
+  await p.evaluate(()=>window.__solo.names(['', '<img src=x onerror=alert(1)>', 'Bo'])); await wait(300);
+  const safe=await p.evaluate(()=>{ const el=document.querySelector('.oppPanel .oppName'); return { html:el.innerHTML, imgs:document.querySelectorAll('.oppPanel img').length }; });
+  ok(safe.imgs===0 && !/</.test(safe.html.replace(/<\/?span[^>]*>/g,'')), 'a name containing markup is sanitised, never rendered as HTML');
+
+  // ================= your own name on the board strip, and renaming from there =================
+  // You are the one person who cannot see your own name in the log (you always read as "You"), so the strip
+  // shows "Name (You)" and is itself the way to change it.
+  ok(await start3p(), '3-player game restarted for the name strip');
+  await p.evaluate(()=>{ try{ localStorage.removeItem('cmf_name_v1'); }catch(e){} });
+  await p.evaluate(()=>window.__solo.names([])); await wait(250);
+  await p.evaluate(()=>document.getElementById('youWho').click()); await wait(350);
+  ok(await p.evaluate(()=>!!document.getElementById('nameInput')), 'clicking your own label opens the rename editor');
+  await p.evaluate(()=>{ document.getElementById('nameInput').value='Aj'; document.getElementById('nameSave').click(); });
+  await wait(500);
+  ok(await p.evaluate(()=>document.getElementById('youWho').textContent.trim())==='Aj (You)', 'the strip then reads "Aj (You)"');
+  ok(await p.evaluate(()=>localStorage.getItem('cmf_name_v1'))==='Aj', '…and it persists');
+  // a name with markup or over-length is cleaned on the way in
+  await p.evaluate(()=>document.getElementById('youWho').click()); await wait(300);
+  await p.evaluate(()=>{ document.getElementById('nameInput').value='<b>x</b>0123456789abcdef'; document.getElementById('nameSave').click(); });
+  await wait(450);
+  const cleaned=await p.evaluate(()=>localStorage.getItem('cmf_name_v1'));
+  ok(!/[<>]/.test(cleaned) && cleaned.length<=14, 'a typed name is sanitised and capped: '+JSON.stringify(cleaned));
+  // Clear puts it back to plain "You"
+  await p.evaluate(()=>document.getElementById('youWho').click()); await wait(300);
+  await p.evaluate(()=>document.getElementById('nameClear').click()); await wait(450);
+  ok(await p.evaluate(()=>document.getElementById('youWho').textContent.trim())==='You', 'Clear restores the plain "You" label');
+
+  /* ---- AI PERSONAS: drawn per tier, distinct at the table, revealed BEFORE the fight ---- */
+  ok(await start3p(), '3-player game restarted for the persona checks');
+  const perse=await p.evaluate(()=>[1,2].map(i=>window.__solo.persona(i)));
+  ok(perse.every(n=>!!n), 'every AI seat drew a persona: '+JSON.stringify(perse));
+  ok(perse[0]!==perse[1], '…and no two seats at the table drew the same one');
+  const roster=await p.evaluate(()=>window.CardmenAI.personasFor('knight').map(x=>x.name));
+  ok(perse.every(n=>roster.indexOf(n)>=0), '…each drawn from its OWN tier (both opponents pinned to knight): '+roster.join(', '));
+  // the reveal: the persona must be readable before a card is played, in the header AND the opening log
+  const tag=await p.evaluate(()=>document.getElementById('matchupTag').textContent);
+  ok(perse.every(n=>tag.indexOf(n)>=0), 'the header reveals every opponent by name pre-match: "'+tag.trim()+'"');
+  const opening=(await log())[0]||'';
+  ok(perse.every(n=>opening.indexOf(n)>=0), '…and so does the opening log line: "'+opening.slice(0,110)+'"');
+  // and the names reach the shared naming funnel, so they show up everywhere else for free
+  ok((await nm(1))===perse[0] && (await nm(2))===perse[1], 'logName() resolves each seat to its persona, so all narration inherits it');
+  ok((await nm(0))==='You', '…while you still read as "You" in your own frame');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);

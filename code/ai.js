@@ -112,6 +112,115 @@
   function mostShields(st, cands) { return extremeBy(st, cands, function (a, b) { return a.shields > b.shields; }); }
   function grudgeTarget(st, p, cands) { var g = st.players[p].lastAttacker; return (g != null && cands.indexOf(g) >= 0) ? g : -1; }
   function pickRandom(cands) { return cands[Math.floor(Math.random() * cands.length)]; }
+  /* PERSONA STYLES. A persona flavours WHO a seat hits — never HOW WELL it plays, which stays the tier's
+   * job. Installed from the UI at game start via AI.setStyles({seat:style}); with none set every seat falls
+   * through to its tier's default disposition below, so nothing changes for callers that never set one.
+   *   grudge 0..1   chance of answering whoever last struck us
+   *   focus         'weakest' | 'leader' | 'random' — who we hit while holding no grudge
+   *   holds         once a grudge lands, stay locked on that seat until it is out (unforgiving)
+   * There is deliberately no "nice" knob. Axelrod's nice strategies never defect first, but a round win here
+   * FORCES you to strike someone, so refusing to open hostilities is unrepresentable. The faithful analogue is
+   * TIT FOR TAT: grudge 1.0 with no `holds` — answers every strike, carries nothing forward. Flonne, Galahad
+   * and Adell are exactly that.
+   * KILL-SECURING RUNS FIRST and is tier-gated, so a persona can never make a Demon Lord play below its
+   * tier. That is what keeps difficulty meaningful — verify with `node mpsim.js` after touching this. */
+  /* AI PERSONAS. A persona is a NAME plus a play STYLE, drawn at random from its difficulty tier at game
+   * start and revealed before the fight. Six per tier so a 6-player table (you + 5 AI) never repeats and the
+   * cast still cycles between games.
+   *
+   * The hard rule: personas vary STYLE, NOT STRENGTH. If Etna beat Laharl consistently, picking a persona
+   * would be a hidden difficulty slider and the tier would stop meaning anything. Same-tier personas must sit
+   * within a few points of each other in `node mpsim.js` — measurable, so it can be enforced rather than hoped.
+   *
+   * `style` is Axelrod's language, because a free-for-all IS an iterated reciprocity game and the engine
+   * already records `lastAttacker` as a grudge signal:
+   *   grudge  0..1   how reliably it retaliates against whoever last struck it
+   *   focus   'weakest' | 'leader' | 'random'   who it hits when it holds no grudge
+   *   nice    true    never opens hostilities — only ever retaliates (Axelrod's "never defect first")
+   *   holds   true    once it has a grudge it stays locked on until that seat is out (unforgiving)
+   * Axelrod's fourth property — CLEAR — is the design constraint: a style you cannot read is just a dice roll,
+   * so these are deliberately few and blunt. */
+  var PERSONAS = [
+    { name:'Stuart',   tier:'minion',  grudge:0.10, focus:'random'  },
+    { name:'Bob',      tier:'minion',  grudge:0.35, focus:'random'  },
+    { name:'Kevin',    tier:'minion',  grudge:0.20, focus:'weakest' },
+    { name:'Dave',     tier:'minion',  grudge:0.05, focus:'random'  },
+    { name:'Phil',     tier:'minion',  grudge:0.30, focus:'leader'  },
+    { name:'Tim',      tier:'minion',  grudge:0.15, focus:'random'  },
+    { name:'Carl',     tier:'minion',  grudge:0.25, focus:'weakest' },
+    { name:'Jorge',    tier:'minion',  grudge:0.12, focus:'random'  },
+
+    { name:'Griflet',   tier:'recruit', grudge:0.25, focus:'weakest' },
+    { name:'Beaumains', tier:'recruit', grudge:0.40, focus:'random'  },
+    { name:'Owain',     tier:'recruit', grudge:0.20, focus:'leader'  },
+    { name:'Lucan',     tier:'recruit', grudge:0.35, focus:'weakest' },
+    { name:'Sagramore', tier:'recruit', grudge:0.15, focus:'random'  },
+    { name:'Dinadan',   tier:'recruit', grudge:0.30, focus:'leader'  },
+
+    { name:'Lefty',    tier:'fighter', grudge:0.50, focus:'weakest' },
+    { name:'Bruiser',  tier:'fighter', grudge:0.80, focus:'weakest', holds:true },
+    { name:'Slugger',  tier:'fighter', grudge:0.30, focus:'leader'  },
+    { name:'Tank',     tier:'fighter', grudge:0.60, focus:'leader'  },
+    { name:'Duke',     tier:'fighter', grudge:0.40, focus:'random'  },
+    { name:'Knuckles', tier:'fighter', grudge:0.70, focus:'weakest' },
+
+    { name:'Lancelot', tier:'knight',  grudge:0.60, focus:'weakest' },
+    { name:'Galahad',  tier:'knight',  grudge:1.00, focus:'weakest' },            // pure TIT FOR TAT: answers all, forgives all
+    { name:'Gawain',   tier:'knight',  grudge:1.00, focus:'leader',  holds:true },
+    { name:'Percival', tier:'knight',  grudge:0.50, focus:'leader'  },
+    { name:'Bedivere', tier:'knight',  grudge:0.70, focus:'weakest' },
+    { name:'Bors',     tier:'knight',  grudge:0.85, focus:'leader',  holds:true },
+
+    // Disgaea cast. Styles read off the characters — correct any reading that is off, Aj knows the games better:
+    { name:'Etna',     tier:'demon',   grudge:0.95, focus:'weakest', holds:true },   // vindictive, preys on the weak, never lets it go
+    { name:'Laharl',   tier:'demon',   grudge:0.75, focus:'leader'  },               // beating whoever is on top IS the ambition
+    { name:'Flonne',   tier:'demon',   grudge:1.00, focus:'weakest' },              // love and justice as TIT FOR TAT: answers every strike, forgives instantly
+    { name:'Rozalin',  tier:'demon',   grudge:0.55, focus:'leader'  },               // haughty noble, aims high, above petty grudges
+    { name:'Adell',    tier:'demon',   grudge:0.40, focus:'leader'  },              // honourable brawler: slow to anger, never holds a grudge
+    { name:'Vyers',    tier:'demon',   grudge:1.00, focus:'random',  holds:true }    // Mid-Boss: fixated on whoever slighted him, forever, theatrically
+  ];
+  function personasFor(tier){ return PERSONAS.filter(function(x){ return x.tier===tier; }); }
+  // Draw one persona per AI seat, no repeats at the table (6 per tier covers you + 5 AI).
+  function drawPersonas(diffs){
+    var used={}, out=[];
+    for(var i=0;i<diffs.length;i++){
+      if(!diffs[i]){ out.push(null); continue; }
+      var pool=personasFor(diffs[i]).filter(function(x){ return !used[x.name]; });
+      if(!pool.length) pool=personasFor(diffs[i]);
+      var pick=pool[Math.floor(Math.random()*pool.length)] || null;
+      if(pick) used[pick.name]=1;
+      out.push(pick);
+    }
+    return out;
+  }
+  var FOCUS_LEAN = 0.60;          // 'focus' is a LEAN, not a law — see the note in styleTarget
+  var FINISH_AT = 2;              // shields at or below which any persona takes the finish instead of its focus
+  var seatStyles = {};
+  function setStyles(m) { seatStyles = m || {}; }
+  function styleOf(p) { return (seatStyles && seatStyles[p]) ? seatStyles[p] : null; }
+  function aggressors(st) { var a = {}, i, la; for (i = 0; i < st.numPlayers; i++) { la = st.players[i].lastAttacker; if (la != null) a[la] = 1; } return a; }
+  function styleTarget(st, p, cands, sty) {
+    var pl = st.players[p], i;
+    if (sty.holds && pl._vendetta != null && cands.indexOf(pl._vendetta) >= 0) return pl._vendetta;   // still locked on
+    var grud = grudgeTarget(st, p, cands);
+    if (grud >= 0 && Math.random() < (sty.grudge == null ? 0.5 : sty.grudge)) { if (sty.holds) pl._vendetta = grud; return grud; }
+    // Punishing whoever is actually throwing punches is COMPETENCE, not personality, so EVERY persona does it.
+    // It used to be bundled into `nice`, which measured at +6 points (personasim/_knob replicates) — i.e. the
+    // "nice" personas were simply playing better, and the tier stopped meaning anything. Shared, it cancels.
+    var agg = aggressors(st), guilty = [];
+    for (i = 0; i < cands.length; i++) if (agg[cands[i]]) guilty.push(cands[i]);
+    if (guilty.length) cands = guilty;
+    if (sty.focus === 'weakest') return lowestShields(st, cands);
+    // Nobody above Minion ignores a nearly-dead player. Without this, 'leader'/'random' focus cost real win
+    // rate against 'weakest' (personasim: a 10-point spread) — piling on the weak banks kills and shrinks the
+    // field, so a persona that always aimed high was quietly the easy setting. Finishing is competence, not
+    // style; the style is only where it looks WHEN nothing is nearly dead.
+    var soft = lowestShields(st, cands);
+    if (st.players[soft].shields <= FINISH_AT) return soft;
+    if (Math.random() >= FOCUS_LEAN) return soft;   // even a high-aiming rider takes the soft target sometimes
+    if (sty.focus === 'leader') return mostShields(st, cands);
+    return pickRandom(cands);
+  }
   // Tier model: minion < fighter < KNIGHT < DEMON. 'knight' inherits the old top-tier ("demon") behavior;
   // 'demon' is now the NEW smartest tier — everything knight does PLUS the top-tier extras (isTop). The
   // internal 'demonpass' A/B alias maps to knight (the behavior it originally tested).
@@ -121,6 +230,12 @@
   function chooseTarget(st, p, diff) {
     var cands = livingOpponents(st, p);
     if (cands.length <= 1) return cands.length ? cands[0] : -1;
+    var sty = styleOf(p);
+    if (sty) {                                                      // persona: tier keeps the kill, style picks the rest
+      var kill = lowestShields(st, cands);
+      if (diff !== 'minion' && st.players[kill].shields <= 1) return kill;   // Minions still fail to notice a kill
+      return styleTarget(st, p, cands, sty);
+    }
     var grud = grudgeTarget(st, p, cands);
     if (diff === 'minion') {                                        // 80% random · 20% grudge
       if (grud >= 0 && Math.random() < 0.20) return grud;
@@ -569,7 +684,7 @@
     if (aiPreFightLock(st, q, activeP, diff)) { var bs = lockoutQuick(st, q); if (bs) return { cast: bs.id, card: { rank: bs.rank, suit: bs.suit, id: bs.id } }; }
     return { pass: true };
   }
-  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget };
+  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

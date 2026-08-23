@@ -438,6 +438,20 @@
   /* Respond? modal — who cast it and who it is aimed at (v1.29.5) */
   .modal .respAtYou{color:var(--bad); letter-spacing:.03em;}
   .modal .respNotYou{font-size:12.5px; opacity:.75; margin:-4px 0 8px;}
+  /* Your own name on the board strip — click to rename (v1.29.8) */
+  .whoBtn{font:inherit; color:inherit; background:transparent; border:1px solid transparent; padding:1px 6px; margin:0;
+    border-radius:7px; cursor:pointer; max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .whoBtn:hover{border-color:var(--gold); color:var(--gold);}
+  .modal .nameEdit{margin:12px 0 4px;}
+  .modal .nameEdit input{width:100%; box-sizing:border-box; font:700 16px system-ui; padding:10px 12px; border-radius:10px;
+    border:1px solid var(--line); background:#141a24; color:var(--txt); text-align:center;}
+  .modal .nameEdit input:focus{outline:none; border-color:var(--gold);}
+  .modal .nameBtns{display:flex; gap:9px; justify-content:center; margin-top:10px;}
+  .modal .nameBtns button{min-width:120px; white-space:nowrap;}
+  /* "Your name" on the New Duel screen (v1.29.8) */
+  .modal .setRow input#setName{flex:1 1 auto; min-width:0; font:600 14px system-ui; padding:8px 10px; border-radius:9px;
+    border:1px solid var(--line); background:#141a24; color:var(--txt);}
+  .modal .setRow input#setName:focus{outline:none; border-color:var(--gold);}
   /* Custom deck builder (✏️ Custom deck… in any deck picker) */
   .modal .deckBuild{display:flex; flex-direction:column; gap:8px; margin:12px 0 4px; text-align:left;}
   .modal .dbHint{font-size:12.5px; opacity:.7; line-height:1.5;}
@@ -915,7 +929,7 @@
   <div id="disconBar"></div>
   <div id="opponents"></div>
   <div class="fighter" id="rival">
-    <span class="who">Rival</span><span id="rivalDeckName" class="deckName"></span>
+    <span class="who" id="rivalWho">Rival</span><span id="rivalDeckName" class="deckName"></span>
     <span class="shields" id="rivalShields"></span>
     <span class="stat"><button type="button" id="rivalNrgBtn" class="statBtn" title="View the Rival’s energy pile">⚡<span id="rivalNrgSuits" class="nrgSuits nrgBox clickable"></span></button></span>
     <span class="stat">🃏 <span id="rivalHand">0</span></span>
@@ -953,7 +967,7 @@
     <div id="handWrap">
     <div id="handMeta">
       <span class="fighter" style="padding:5px 10px; gap:10px; background:transparent; border:none;">
-        <span class="who" style="min-width:0;">You</span><span id="youDeckName" class="deckName"></span>
+        <button type="button" id="youWho" class="who whoBtn" style="min-width:0;" title="Click to change your name">You</button><span id="youDeckName" class="deckName"></span>
         <span class="shields" id="youShields"></span>
         <span class="stat"><button type="button" id="youNrgBtn" class="statBtn" title="Open your energy pile">⚡<span id="youNrgSuits" class="nrgSuits nrgBox clickable"></span></button></span>
         <span class="stat deck">🂠 <b id="youDeck">0</b> deck</span>
@@ -2814,6 +2828,115 @@
   function mostShields(st, cands) { return extremeBy(st, cands, function (a, b) { return a.shields > b.shields; }); }
   function grudgeTarget(st, p, cands) { var g = st.players[p].lastAttacker; return (g != null && cands.indexOf(g) >= 0) ? g : -1; }
   function pickRandom(cands) { return cands[Math.floor(Math.random() * cands.length)]; }
+  /* PERSONA STYLES. A persona flavours WHO a seat hits — never HOW WELL it plays, which stays the tier's
+   * job. Installed from the UI at game start via AI.setStyles({seat:style}); with none set every seat falls
+   * through to its tier's default disposition below, so nothing changes for callers that never set one.
+   *   grudge 0..1   chance of answering whoever last struck us
+   *   focus         'weakest' | 'leader' | 'random' — who we hit while holding no grudge
+   *   holds         once a grudge lands, stay locked on that seat until it is out (unforgiving)
+   * There is deliberately no "nice" knob. Axelrod's nice strategies never defect first, but a round win here
+   * FORCES you to strike someone, so refusing to open hostilities is unrepresentable. The faithful analogue is
+   * TIT FOR TAT: grudge 1.0 with no `holds` — answers every strike, carries nothing forward. Flonne, Galahad
+   * and Adell are exactly that.
+   * KILL-SECURING RUNS FIRST and is tier-gated, so a persona can never make a Demon Lord play below its
+   * tier. That is what keeps difficulty meaningful — verify with `node mpsim.js` after touching this. */
+  /* AI PERSONAS. A persona is a NAME plus a play STYLE, drawn at random from its difficulty tier at game
+   * start and revealed before the fight. Six per tier so a 6-player table (you + 5 AI) never repeats and the
+   * cast still cycles between games.
+   *
+   * The hard rule: personas vary STYLE, NOT STRENGTH. If Etna beat Laharl consistently, picking a persona
+   * would be a hidden difficulty slider and the tier would stop meaning anything. Same-tier personas must sit
+   * within a few points of each other in `node mpsim.js` — measurable, so it can be enforced rather than hoped.
+   *
+   * `style` is Axelrod's language, because a free-for-all IS an iterated reciprocity game and the engine
+   * already records `lastAttacker` as a grudge signal:
+   *   grudge  0..1   how reliably it retaliates against whoever last struck it
+   *   focus   'weakest' | 'leader' | 'random'   who it hits when it holds no grudge
+   *   nice    true    never opens hostilities — only ever retaliates (Axelrod's "never defect first")
+   *   holds   true    once it has a grudge it stays locked on until that seat is out (unforgiving)
+   * Axelrod's fourth property — CLEAR — is the design constraint: a style you cannot read is just a dice roll,
+   * so these are deliberately few and blunt. */
+  var PERSONAS = [
+    { name:'Stuart',   tier:'minion',  grudge:0.10, focus:'random'  },
+    { name:'Bob',      tier:'minion',  grudge:0.35, focus:'random'  },
+    { name:'Kevin',    tier:'minion',  grudge:0.20, focus:'weakest' },
+    { name:'Dave',     tier:'minion',  grudge:0.05, focus:'random'  },
+    { name:'Phil',     tier:'minion',  grudge:0.30, focus:'leader'  },
+    { name:'Tim',      tier:'minion',  grudge:0.15, focus:'random'  },
+    { name:'Carl',     tier:'minion',  grudge:0.25, focus:'weakest' },
+    { name:'Jorge',    tier:'minion',  grudge:0.12, focus:'random'  },
+
+    { name:'Griflet',   tier:'recruit', grudge:0.25, focus:'weakest' },
+    { name:'Beaumains', tier:'recruit', grudge:0.40, focus:'random'  },
+    { name:'Owain',     tier:'recruit', grudge:0.20, focus:'leader'  },
+    { name:'Lucan',     tier:'recruit', grudge:0.35, focus:'weakest' },
+    { name:'Sagramore', tier:'recruit', grudge:0.15, focus:'random'  },
+    { name:'Dinadan',   tier:'recruit', grudge:0.30, focus:'leader'  },
+
+    { name:'Lefty',    tier:'fighter', grudge:0.50, focus:'weakest' },
+    { name:'Bruiser',  tier:'fighter', grudge:0.80, focus:'weakest', holds:true },
+    { name:'Slugger',  tier:'fighter', grudge:0.30, focus:'leader'  },
+    { name:'Tank',     tier:'fighter', grudge:0.60, focus:'leader'  },
+    { name:'Duke',     tier:'fighter', grudge:0.40, focus:'random'  },
+    { name:'Knuckles', tier:'fighter', grudge:0.70, focus:'weakest' },
+
+    { name:'Lancelot', tier:'knight',  grudge:0.60, focus:'weakest' },
+    { name:'Galahad',  tier:'knight',  grudge:1.00, focus:'weakest' },            // pure TIT FOR TAT: answers all, forgives all
+    { name:'Gawain',   tier:'knight',  grudge:1.00, focus:'leader',  holds:true },
+    { name:'Percival', tier:'knight',  grudge:0.50, focus:'leader'  },
+    { name:'Bedivere', tier:'knight',  grudge:0.70, focus:'weakest' },
+    { name:'Bors',     tier:'knight',  grudge:0.85, focus:'leader',  holds:true },
+
+    // Disgaea cast. Styles read off the characters — correct any reading that is off, Aj knows the games better:
+    { name:'Etna',     tier:'demon',   grudge:0.95, focus:'weakest', holds:true },   // vindictive, preys on the weak, never lets it go
+    { name:'Laharl',   tier:'demon',   grudge:0.75, focus:'leader'  },               // beating whoever is on top IS the ambition
+    { name:'Flonne',   tier:'demon',   grudge:1.00, focus:'weakest' },              // love and justice as TIT FOR TAT: answers every strike, forgives instantly
+    { name:'Rozalin',  tier:'demon',   grudge:0.55, focus:'leader'  },               // haughty noble, aims high, above petty grudges
+    { name:'Adell',    tier:'demon',   grudge:0.40, focus:'leader'  },              // honourable brawler: slow to anger, never holds a grudge
+    { name:'Vyers',    tier:'demon',   grudge:1.00, focus:'random',  holds:true }    // Mid-Boss: fixated on whoever slighted him, forever, theatrically
+  ];
+  function personasFor(tier){ return PERSONAS.filter(function(x){ return x.tier===tier; }); }
+  // Draw one persona per AI seat, no repeats at the table (6 per tier covers you + 5 AI).
+  function drawPersonas(diffs){
+    var used={}, out=[];
+    for(var i=0;i<diffs.length;i++){
+      if(!diffs[i]){ out.push(null); continue; }
+      var pool=personasFor(diffs[i]).filter(function(x){ return !used[x.name]; });
+      if(!pool.length) pool=personasFor(diffs[i]);
+      var pick=pool[Math.floor(Math.random()*pool.length)] || null;
+      if(pick) used[pick.name]=1;
+      out.push(pick);
+    }
+    return out;
+  }
+  var FOCUS_LEAN = 0.60;          // 'focus' is a LEAN, not a law — see the note in styleTarget
+  var FINISH_AT = 2;              // shields at or below which any persona takes the finish instead of its focus
+  var seatStyles = {};
+  function setStyles(m) { seatStyles = m || {}; }
+  function styleOf(p) { return (seatStyles && seatStyles[p]) ? seatStyles[p] : null; }
+  function aggressors(st) { var a = {}, i, la; for (i = 0; i < st.numPlayers; i++) { la = st.players[i].lastAttacker; if (la != null) a[la] = 1; } return a; }
+  function styleTarget(st, p, cands, sty) {
+    var pl = st.players[p], i;
+    if (sty.holds && pl._vendetta != null && cands.indexOf(pl._vendetta) >= 0) return pl._vendetta;   // still locked on
+    var grud = grudgeTarget(st, p, cands);
+    if (grud >= 0 && Math.random() < (sty.grudge == null ? 0.5 : sty.grudge)) { if (sty.holds) pl._vendetta = grud; return grud; }
+    // Punishing whoever is actually throwing punches is COMPETENCE, not personality, so EVERY persona does it.
+    // It used to be bundled into `nice`, which measured at +6 points (personasim/_knob replicates) — i.e. the
+    // "nice" personas were simply playing better, and the tier stopped meaning anything. Shared, it cancels.
+    var agg = aggressors(st), guilty = [];
+    for (i = 0; i < cands.length; i++) if (agg[cands[i]]) guilty.push(cands[i]);
+    if (guilty.length) cands = guilty;
+    if (sty.focus === 'weakest') return lowestShields(st, cands);
+    // Nobody above Minion ignores a nearly-dead player. Without this, 'leader'/'random' focus cost real win
+    // rate against 'weakest' (personasim: a 10-point spread) — piling on the weak banks kills and shrinks the
+    // field, so a persona that always aimed high was quietly the easy setting. Finishing is competence, not
+    // style; the style is only where it looks WHEN nothing is nearly dead.
+    var soft = lowestShields(st, cands);
+    if (st.players[soft].shields <= FINISH_AT) return soft;
+    if (Math.random() >= FOCUS_LEAN) return soft;   // even a high-aiming rider takes the soft target sometimes
+    if (sty.focus === 'leader') return mostShields(st, cands);
+    return pickRandom(cands);
+  }
   // Tier model: minion < fighter < KNIGHT < DEMON. 'knight' inherits the old top-tier ("demon") behavior;
   // 'demon' is now the NEW smartest tier — everything knight does PLUS the top-tier extras (isTop). The
   // internal 'demonpass' A/B alias maps to knight (the behavior it originally tested).
@@ -2823,6 +2946,12 @@
   function chooseTarget(st, p, diff) {
     var cands = livingOpponents(st, p);
     if (cands.length <= 1) return cands.length ? cands[0] : -1;
+    var sty = styleOf(p);
+    if (sty) {                                                      // persona: tier keeps the kill, style picks the rest
+      var kill = lowestShields(st, cands);
+      if (diff !== 'minion' && st.players[kill].shields <= 1) return kill;   // Minions still fail to notice a kill
+      return styleTarget(st, p, cands, sty);
+    }
     var grud = grudgeTarget(st, p, cands);
     if (diff === 'minion') {                                        // 80% random · 20% grudge
       if (grud >= 0 && Math.random() < 0.20) return grud;
@@ -3271,7 +3400,7 @@
     if (aiPreFightLock(st, q, activeP, diff)) { var bs = lockoutQuick(st, q); if (bs) return { cast: bs.id, card: { rank: bs.rank, suit: bs.suit, id: bs.id } }; }
     return { pass: true };
   }
-  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget };
+  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
@@ -3498,8 +3627,65 @@ window.CardFace = {};
   function resetControllers(n){ seatCtrl=[]; for(var i=0;i<n;i++) seatCtrl.push(i===YOU?'local':'ai'); }
   function MP(){ return !!(state && state.numPlayers>2); }
   function oppSeats(){ var a=[]; for(var i=1;i<state.numPlayers;i++) a.push(i); return a; }   // opponents left→right = seats after you in turn order
-  function seatName(i){ return i===YOU?'You':('P'+(i+1)); }
+  /* PLAYER NAMES. Every naming site funnels through seatName/logName (that was the point of doing the D1
+   * naming pass first), so a chosen name only has to be answered here. `seatNames` is indexed in the LOCAL
+   * frame — a netplay client rotates the host's table on arrival, so nothing downstream needs to know about
+   * rotation. Empty entries fall back to P<n> / Rival exactly as before. */
+  var NAME_KEY='cmf_name_v1', myName='', seatNames=[];
+  function cleanName(v){ return String(v==null?'':v).replace(/[^\w \-'.]/g,'').replace(/\s+/g,' ').trim().slice(0,14); }
+  function loadMyName(){ try{ myName=cleanName(localStorage.getItem(NAME_KEY)||''); }catch(e){ myName=''; } }
+  function saveMyName(v){ myName=cleanName(v); try{ localStorage.setItem(NAME_KEY, myName); }catch(e){} }
+  function nameOf(i){ return (seatNames && seatNames[i]) ? seatNames[i] : ''; }
+  function setSeatNames(list){ seatNames=(list||[]).map(cleanName); }
+  function seatName(i){ return i===YOU?'You':(nameOf(i)||('P'+(i+1))); }
+  /* Your own strip showed a bare "You", so your name was invisible to you — the one person who cannot see it
+     in the log (you always read as "You" there). Show "Name (You)" when set, and make it the way you change it. */
+  function paintWhoLabels(){
+    var yw=$('youWho');
+    if(yw) yw.textContent = myName ? (myName+' (You)') : 'You';
+    var rw=$('rivalWho');
+    if(rw && !MP()) rw.textContent = nameOf(RIVAL) || 'Rival';
+  }
+  function openNameEditor(){
+    var cur=myName;
+    showModal('<h2>Your name</h2>'+
+      '<p class="rIntro">Other players see this instead of <b>P2</b> / <b>Rival</b>. You always read as <b>You</b> in your own log.</p>'+
+      '<div class="nameEdit"><input id="nameInput" type="text" maxlength="14" placeholder="You" autocomplete="off" spellcheck="false"></div>'+
+      '<div class="nameBtns"><button id="nameSave">Save</button><button id="nameClear" class="ghostBtn">Clear</button></div>');
+    var inp=$('nameInput'); inp.value=cur; inp.focus(); inp.select();
+    function commit(v){ saveMyName(v); paintWhoLabels(); hideOverlay(); render(); }
+    $('nameSave').addEventListener('click', function(){ commit(inp.value); });
+    $('nameClear').addEventListener('click', function(){ commit(''); });
+    inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); commit(inp.value); } });
+    overlayDismiss=hideOverlay;
+  }
   function diffOf(i){ return seatDiffs[i] || difficulty; }
+  /* Draw a persona per AI seat: a name (so it appears everywhere the naming funnel already reaches — strips,
+   * battle log, announcements) plus a targeting style handed to the AI. Solo/local only — in netplay the other
+   * seats are people with names of their own, and the tutorial keeps a plain "Rival" so the lesson stays about
+   * the rules. Styles vary WHO a seat hits, never how well it plays; `node personasim.js` is the guard on that. */
+  var seatPersonas=[];
+  function assignPersonas(){
+    seatPersonas = AI.drawPersonas ? AI.drawPersonas(seatDiffs) : [];
+    var names=[], styles={};
+    for(var i=0;i<seatPersonas.length;i++){
+      names.push(i===YOU ? myName : (seatPersonas[i] ? seatPersonas[i].name : ''));
+      if(seatPersonas[i]) styles[i]=seatPersonas[i];
+    }
+    setSeatNames(names);
+    if(AI.setStyles) AI.setStyles(styles);
+  }
+  function personaOf(i){ return seatPersonas[i] || null; }
+  function clearPersonaStyles(){ seatPersonas=[]; if(AI.setStyles) AI.setStyles(null); }   // styles only — netplay NAMES belong to the humans
+  function clearPersonas(){ clearPersonaStyles(); setSeatNames([myName]); }                // …and the tutorial wants a plain "Rival" back
+  function oppReveal(){                    // ' · vs Etna, Laharl, Flonne' — the pre-match reveal in the header
+    var n=[]; for(var i=1;i<mpCount;i++){ var nm=nameOf(i); if(nm) n.push(nm); }
+    return n.length ? (' · vs <b>'+n.join('</b>, <b>')+'</b>') : '';
+  }
+  function oppRoll(){                      // 'Etna (Demon Lord), Laharl (Demon Lord)' — the same reveal, for the log
+    var n=[]; for(var i=1;i<mpCount;i++){ var nm=nameOf(i)||('P'+(i+1)); n.push('<b>'+nm+'</b> ('+(DIFF_NAME[diffOf(i)]||'')+')'); }
+    return n.join(', ');
+  }
   // New Duel picks — remembered on this device between visits, with a one-click revert to defaults.
   var DEFAULT_SEL={you:'random', rival:'random', diff:'fighter', players:2, mode:'full'};
   var SETUP_KEY='cmf_setup_v1';
@@ -3576,6 +3762,7 @@ window.CardFace = {};
   function isDefaultSel(){ return sel.you===DEFAULT_SEL.you && sel.rival===DEFAULT_SEL.rival && sel.diff===DEFAULT_SEL.diff; }
   var sel=loadSel();   // last picks in the setup screen (may be 'random'), restored from this device
   loadSavedDecks();    // custom "parts" decks saved on this device — they appear in every deck picker
+  loadMyName();        // your display name, if you have set one (others see it online)
   function deckLabel(key){
     if(key==='full') return 'Full Set';
     if(E.DECKS[key]) return E.DECKS[key].name;
@@ -3583,7 +3770,7 @@ window.CardFace = {};
     if(parts){ var d=savedDeckFor(key); return d ? d.name : ('Custom · '+deckPartsLabel(parts)); }   // unknown (e.g. from the wire) → describe it
     return key;
   }
-  var DIFF_NAME={minion:'Minion',recruit:'Recruit',fighter:'Fighter',knight:'Knight',demon:'Demon Lord'};
+  var DIFF_NAME={minion:'Minion',recruit:'Squire',fighter:'Fighter',knight:'Knight',demon:'Demon Lord'};   // 'recruit' stays the KEY (ai.js branches on it, cmf_setup_v1 stores it); Squire is display only
   var LOG_KEY='cmf_games_v1', memGames=[];   // playtest log (localStorage w/ in-memory fallback)
   var SEEN_HELP_KEY='cmf_seen_help_v1';      // set once the rules have auto-shown on first play
   var TUT_DONE_KEY='cmf_tut_done_v1';        // set once the guided tutorial is finished (or the player says they know how) → declutters New Duel
@@ -4102,7 +4289,7 @@ window.CardFace = {};
   function scrollLogToBottom(){ var l=$('log'); l.scrollTop=l.scrollHeight; setLogNewBtn(false); }
   // Reader-relative name for a seat in OUR frame: yourself is "You", and a duel's opponent is "Rival"
   // rather than "P2" (seatName is the raw seat label and does not know about duels).
-  function logName(i){ return i===YOU ? 'You' : (MP() ? seatName(i) : 'Rival'); }
+  function logName(i){ return i===YOU ? 'You' : (nameOf(i) || (MP() ? ('P'+(i+1)) : 'Rival')); }
   /* Narrate a GAME EVENT. `actor` is the absolute seat acting, or null for a neutral line.
    * The template carries a `{who}` placeholder instead of a baked-in name, because phrasing is
    * reader-relative — the same event is "You played" to the actor and "Rival played" to everyone else.
@@ -4325,11 +4512,11 @@ window.CardFace = {};
     $('log').innerHTML=''; $('beaten').innerHTML=''; $('kick').className=''; $('kick').innerHTML=''; $('stagefx').className=''; $('stagefx').innerHTML=''; $('roundfx').className=''; $('thresholdfx').className=''; $('thresholdfx').innerHTML=''; document.body.classList.remove('kicking');
     $('rivalDeckName').textContent=deckLabel(rivalDeck); $('youDeckName').textContent=deckLabel(youDeck);
     var modeTag=gameBasics?' · <b class="basicsTag">BASICS</b>':'';
-    $('matchupTag').innerHTML=((mpCount>2)?('<b>'+mpCount+'-Rider free-for-all</b> · you: '+deckLabel(seatDecks[0])):('<b>'+deckLabel(youDeck)+'</b> vs <b>'+deckLabel(rivalDeck)+'</b> · '+DIFF_NAME[difficulty]))+modeTag;
+    $('matchupTag').innerHTML=((mpCount>2)?('<b>'+mpCount+'-Rider free-for-all</b> · you: '+deckLabel(seatDecks[0])+oppReveal()):('<b>'+deckLabel(youDeck)+'</b> vs <b>'+(nameOf(1)||'Rival')+'</b> · '+deckLabel(rivalDeck)+' · '+DIFF_NAME[difficulty]))+modeTag;
     syncOrder(true);
     var youLead=state.turn===YOU;
-    if(mpCount>2) logMsg('New game — <b>'+mpCount+' Riders</b>, last one standing. You play <b>'+deckLabel(seatDecks[0])+'</b>. Round 1, jabs only.', 'system');
-    else logMsg('New duel — you play <b>'+deckLabel(youDeck)+'</b> vs Rival <b>'+deckLabel(rivalDeck)+'</b> (<b>'+DIFF_NAME[difficulty]+'</b>). Each draws '+E.START_HAND+' and holds '+(state.startShields||4)+' shields.', 'system');
+    if(mpCount>2) logMsg('New game — <b>'+mpCount+' Riders</b>, last one standing. You play <b>'+deckLabel(seatDecks[0])+'</b>'+(oppRoll()?' against '+oppRoll():'')+'. Round 1, jabs only.', 'system');
+    else logMsg('New duel — you play <b>'+deckLabel(youDeck)+'</b> vs <b>'+(nameOf(1)||'Rival')+'</b> (<b>'+DIFF_NAME[difficulty]+'</b>) on <b>'+deckLabel(rivalDeck)+'</b>. Each draws '+E.START_HAND+' and holds '+(state.startShields||4)+' shields.', 'system');
     logMsg('<b>'+(youLead?'You':seatName(state.turn))+'</b> '+(youLead?'have':'has')+' the initiative — <b>Round 1</b>, jabs only.', 'round');
     hideOverlay(); showCard(null);
     setMessage((youLead?'You have':(MP()?seatName(state.turn):'Rival')+' has')+' the initiative — '+(youLead?'lead the fight':'they lead the fight')+'. Only <b>Jabs</b> are allowed in Round 1.');
@@ -4413,6 +4600,7 @@ window.CardFace = {};
     syncOrder(false);
     var you=state.players[YOU];
     if(!holdShields){ animateShields($('youShields'), you.shields, YOU); }
+    paintWhoLabels();
     var yb=$('youNrgSuits'); if(yb){ yb.innerHTML=energyChips(you); yb.title=energyBreakdown(you); energyPulse(yb, YOU, you); }
     $('youDeck').textContent=you.deck.length; $('youShuf').textContent=you.shuffle.length;
     renderEquipZone($('youEquipZone'), you, true, YOU); renderFormsZone($('youFormZone'), you, true, YOU);
@@ -6403,6 +6591,7 @@ window.CardFace = {};
     sel.mode=basics?'basics':'full'; saveSel();
     gameBasics=basics; tutorialMode=true; mpCount=2; difficulty='minion';
     youDeck='full'; rivalDeck='full'; seatDecks=['full','full']; seatDiffs=[null,'minion'];
+    clearPersonas();   // a persona from the game before would otherwise linger — the tutorial wants a plain "Rival"
     tutShields=lsn.shields||4;   // lessons that need the kill arc set shields:2; Advanced keep the full 4
     startGame(YOU);   // rigs the deal (currentLesson.rig) and launches that lesson's steps
   }
@@ -6746,7 +6935,7 @@ window.CardFace = {};
       '<li><b>Mode:</b> <b>Basics</b> (no transforms — recommended for your first games) or <b>Full</b> (with Rides &amp; Forms).</li>'+
       '<li><b>Players:</b> a 2-player duel, or a 3–6 free-for-all where everyone fights for themselves.</li>'+
       '<li><b>Decks:</b> <b>Full Set</b> is one of every card; the <b>archetype decks</b> run 4 of each rank — pures are one suit, mixes split two (e.g. Sage = Wizard+Cleric).</li>'+
-      '<li><b>Rival strength:</b> <b>Minion</b> (timid — barely uses effects, won’t contest your Specials), <b>Recruit</b> (a gentle step up — leads Specials and plays for survival, but still won’t contest yours or run the pressure plays), <b>Fighter</b> (the standard duelist — full toolkit), <b>Knight</b> (tanky, ramps hard, conserves for Specials), <b>Demon Lord</b> (the toughest — digs deeper for gas and hoards its apex/Aces for the kill).</li>'+
+      '<li><b>Rival strength:</b> <b>Minion</b> (timid — barely uses effects, won’t contest your Specials), <b>Squire</b> (a gentle step up — leads Specials and plays for survival, but still won’t contest yours or run the pressure plays), <b>Fighter</b> (the standard duelist — full toolkit), <b>Knight</b> (tanky, ramps hard, conserves for Specials), <b>Demon Lord</b> (the toughest — digs deeper for gas and hoards its apex/Aces for the kill).</li>'+
       '</ul>'+
       '<h3>🃏 Specials cheat sheet</h3>'+cheatSheetHTML()+
       '</div>'+
@@ -6787,7 +6976,8 @@ window.CardFace = {};
   $('log').addEventListener('scroll', function(){ if(logAtBottom()) setLogNewBtn(false); });
   $('youNrgBtn').addEventListener('click', function(){ openPileView('energy'); });     // ⚡ → the ordered energy pile (promote from here)
   $('youShufBtn').addEventListener('click', function(){ openPileView('shuffle'); });   // ♻ → what is queued to come back (read-only)
-  $('rivalNrgBtn').addEventListener('click', function(){ openPileView('energy', RIVAL); });   // energy piles are open information — view only
+  $('rivalNrgBtn').addEventListener('click', function(){ openPileView('energy', RIVAL); });
+  $('youWho').addEventListener('click', function(){ if(!peeking) openNameEditor(); });   // your name, editable from the board   // energy piles are open information — view only
   $('clearBtn').addEventListener('click', function(){ if(targeting){ targeting=null; setMessage('Cancelled — no energy spent.'); } else if(targetPick){ targetPick=null; setMessage('Cancelled — no energy spent.'); } else if(pick){ pick.chosen={}; } else { selected={}; breakAllGroups(); } render(); });
   $('sortBtn').addEventListener('click', flipSort);
   $('hand').addEventListener('mouseleave', showRestCard);   // hovering out reverts the panel to the selected card (or empty)
@@ -6862,8 +7052,9 @@ window.CardFace = {};
         '</span></div>'+
         '<div class="segHint" id="modeHint"></div>'+
         '<label class="setRow"><span>Players</span><select id="setPlayers"><option value="2">2 · Duel</option><option value="3">3 · Free-for-all</option><option value="4">4 · Free-for-all</option><option value="5">5 · Free-for-all</option><option value="6">6 · Free-for-all</option></select></label>'+
+        '<label class="setRow"><span>Your name</span><input id="setName" type="text" maxlength="14" placeholder="You" autocomplete="off" spellcheck="false"></label>'+
         '<label class="setRow"><span>Your class</span><select id="setYouDeck">'+deckOptionsHTML()+'</select></label>'+
-        '<label class="setRow" id="rowOppStrength"><span>Opponent strength</span><select id="setDiff"><option value="random">🎲 Random</option><option value="minion">Minion</option><option value="recruit">Recruit</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon Lord</option></select></label>'+
+        '<label class="setRow" id="rowOppStrength"><span>Opponent strength</span><select id="setDiff"><option value="random">🎲 Random</option><option value="minion">Minion</option><option value="recruit">Squire</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon Lord</option></select></label>'+
         '<label class="setRow" id="rowOppClass"><span>Opponent class</span><select id="setRivalDeck">'+deckOptionsHTML()+'</select></label>'+
         '<div id="oppList"></div>'+
       '</div>'+
@@ -6895,6 +7086,7 @@ window.CardFace = {};
       '</div>';
     showModal(html);
     $('setYouDeck').value=sel.you; $('setRivalDeck').value=sel.rival; $('setDiff').value=sel.diff; $('setPlayers').value=String(sel.players||2);
+    if($('setName')){ $('setName').value=myName; $('setName').addEventListener('input', function(){ saveMyName(this.value); }); }
     var MODE_HINT={ full:'Full game — with Rides &amp; Forms (J/Q/K).', basics:'Basics — no transforms; learn the ladder, effects &amp; energy first.' };
     function paintMode(){ var m=sel.mode||'full'; Array.prototype.forEach.call(document.querySelectorAll('#setMode .segBtn'), function(btn){ var on=btn.getAttribute('data-mode')===m; btn.classList.toggle('active', on); btn.setAttribute('aria-checked', on?'true':'false'); }); var h=$('modeHint'); if(h) h.innerHTML=MODE_HINT[m]||''; }
     function pickMode(m){ if((sel.mode||'full')===m) return; sel.mode=m; saveSel(); paintMode(); refreshReset(); }
@@ -6923,7 +7115,7 @@ window.CardFace = {};
       if(!mp){ list.innerHTML=''; return; }
       sel.opps=sel.opps||[];
       while(sel.opps.length < n-1) sel.opps.push({ deck:'random', diff: sel.diff||'fighter' });
-      var strengthOpts='<option value="random">🎲</option><option value="minion">Minion</option><option value="recruit">Recruit</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon</option>';
+      var strengthOpts='<option value="random">🎲</option><option value="minion">Minion</option><option value="recruit">Squire</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon</option>';
       var html='';
       for(var i=0;i<n-1;i++){
         html+='<label class="setRow"><span>P'+(i+2)+'</span><span class="oppPick">'+
@@ -6982,6 +7174,7 @@ window.CardFace = {};
       for(var s=0;s<mpCount-1;s++){ var o=(sel.opps&&sel.opps[s])||{deck:'random',diff:'fighter'}; seatDecks.push(resolveDeck(o.deck||'random')); seatDiffs.push(resolveDiff(o.diff||'fighter')); }
     }
     else { seatDecks=[youDeck, rivalDeck]; seatDiffs=[null, difficulty]; }
+    assignPersonas();
     $('setYouDeck').disabled=$('setRivalDeck').disabled=$('setDiff').disabled=true; var sp=$('setPlayers'); if(sp) sp.disabled=true;
     var ol=$('oppList'); if(ol) Array.prototype.forEach.call(ol.querySelectorAll('select'), function(s){ s.disabled=true; });
     ['browseBtn','howToBtn','goFirstBtn','goSecondBtn','rollBtn'].forEach(function(id){ var b=$(id); if(b) b.disabled=true; });
@@ -7192,7 +7385,7 @@ window.CardFace = {};
       joinRetry=setInterval(function(){
         if(started){ clearInterval(joinRetry); joinRetry=null; return; }
         if(++joinTries>40){ clearInterval(joinRetry); joinRetry=null; if(sig){ sig.err='Could not sync with the host. Re-check the codes and reload both tabs.'; renderNet(); } return; }
-        send({t:'join', deck:myDeck, cid:myId});
+        send({t:'join', deck:myDeck, cid:myId, name:myName});
       }, 350);
     }
     function connectWith(t){ attachTransport(t); kickoff(); }   // BroadcastChannel: attach + kick off together (already listening)
@@ -7388,6 +7581,8 @@ window.CardFace = {};
           // fall through buildDeck() to a silent Full Set.
           var jseat=hostSeatOf[cid], jdeck=(typeof m.deck==='string' && validDeck(m.deck)) ? m.deck : 'full';
           seatDeckMap[jseat]=jdeck; oppDeck=jdeck; oppReady=true;
+          seatNames[jseat]=cleanName(m.name);   // untrusted text: cleanName strips markup chars and caps length
+          seatNames[0]=myName;                  // the host's own, so clients can be told everyone's
           if(srcChan){ var ci=dcs.indexOf(srcChan); if(ci>=0) chanSeat[ci]=jseat; }   // RTC: bind this channel to its seat (authoritative)
           sendTo(jseat, {t:'welcome', seat:jseat, cid:cid});
           if(started) hostOnPeerBack(jseat);                             // re-join (same cid): a held seat resumes; an already-dropped seat rejoins to spectate
@@ -7399,13 +7594,18 @@ window.CardFace = {};
         if(m.t==='welcome'){ if(m.cid && m.cid!==myId) return; mySeat=(typeof m.seat==='number'?m.seat:1); connected=true; }
         else if(m.t==='full'){ if(!m.cid || m.cid===myId){ if(sig) sig.err='This game is full (6 players max).'; setMessage('⚠ This game is full.'); renderNet(); } }
         else if(m.t==='log'){                                   // public narration — resolve {who} in OUR frame
-          var n=(state&&state.numPlayers)||2, a=m.actor, who;
-          if(a===mySeat) who='You';
-          else if(n===2) who='Rival';
-          else who='P'+((((a-mySeat)%n)+n)%n + 1);
+          var n=(state&&state.numPlayers)||2, r=((((m.actor-mySeat)%n)+n)%n), who;
+          if(r===0) who='You';
+          else who = nameOf(r) || (n===2 ? 'Rival' : ('P'+(r+1)));   // seatNames is already in OUR frame
           logMsg(String(m.tpl||'').replace(/\{who\}/g, '<b>'+who+'</b>'), m.cls||'');
         }
-        else if(m.t==='setup'){ youDeck=(m.decks&&m.decks[mySeat])||m.clientDeck||'full'; rivalDeck=m.hostDeck||'full'; var yn=$('youDeckName'), rn=$('rivalDeckName'); if(yn)yn.textContent=deckLabel(youDeck); if(rn)rn.textContent=deckLabel(rivalDeck);
+        else if(m.t==='setup'){
+          if(m.names && m.names.length){                        // rotate absolute -> local so seatName/logName need no rotation
+            var nn=m.names.length, loc=[];
+            for(var ai=0; ai<nn; ai++) loc[((((ai-mySeat)%nn)+nn)%nn)] = m.names[ai]||'';
+            setSeatNames(loc);
+          }
+          youDeck=(m.decks&&m.decks[mySeat])||m.clientDeck||'full'; rivalDeck=m.hostDeck||'full'; var yn=$('youDeckName'), rn=$('rivalDeckName'); if(yn)yn.textContent=deckLabel(youDeck); if(rn)rn.textContent=deckLabel(rivalDeck);
           // the host's opening line is written in ITS frame, so a client writes its own locally instead
           logMsg('Online duel — you play <b>'+deckLabel(youDeck)+'</b>. Round 1, jabs only.', 'round'); }   // adopt this seat's concrete deck (for the board labels)
         else if(m.t==='mirror' && m.seat===mySeat){ connected=true; applyMirror(m.st); }
@@ -7443,12 +7643,14 @@ window.CardFace = {};
       mpCount=n;
       youDeck=resolveDeck(hostDeck||'full');
       seatDecks=[youDeck]; seatDiffs=[null];
+      clearPersonaStyles();   // drop any style a solo game left behind, but KEEP the names: the joined players' own names are already in seatNames by now, and wiping them cost nettest_names 3 assertions
       for(var s=1;s<=joined;s++){ seatDecks[s]=resolveDeck(seatDeckMap[s]||'full'); seatDiffs[s]='fighter'; }   // 'fighter' = AI fallback for the round-win chooser only
       rivalDeck=seatDecks[1]||'full';
       startGame(YOU);                                   // host leads round 1
       for(var s2=1;s2<n;s2++) seatCtrl[s2]='remote';    // every opponent seat is a remote human (override resetControllers' 'ai')
       hostState=state;
-      send({t:'setup', decks:seatDecks.slice(0), hostDeck:youDeck, clientDeck:seatDecks[1]});   // clients read decks[mySeat] for their own label
+      seatNames[0]=myName;
+      send({t:'setup', decks:seatDecks.slice(0), hostDeck:youDeck, clientDeck:seatDecks[1], names:seatNames.slice(0, mpCount)});   // clients read decks[mySeat] for their own label
       broadcastMirror();
     }
     /* A remote seat reordered its energy pile. The client is UNTRUSTED — E.reorderEnergy re-validates that
@@ -7950,7 +8152,7 @@ window.CardFace = {};
       var go=$('lobbyGo'); if(go) go.addEventListener('click', function(){
         myDeck=($('deckSel')||{}).value||myDeck;
         if(isHost()){ if(nextSeat-1<1) return; hostStartRealN(myDeck); }
-        else { iReady=true; send({t:'join', deck:myDeck, cid:myId}); startJoinRetry(); renderNet(); }
+        else { iReady=true; send({t:'join', deck:myDeck, cid:myId, name:myName}); startJoinRetry(); renderNet(); }
       });
     }
     // HOST over WebRTC: a combined lobby — deck picker + invite one player at a time (each becomes a hub channel) + Start.
@@ -8003,7 +8205,13 @@ window.CardFace = {};
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
   if(!NET.boot()) openSetup();   // netplay when ?net= is present; otherwise the normal game (byte-identical)
-  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, setPulse:function(b){pulseDetail=b;}, activate:function(id,o){ return activate(id,o); } }; }   // test hook: inspect/mutate solo state for layout/pulse verification
+  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, setPulse:function(b){pulseDetail=b;}, activate:function(id,o){ return activate(id,o); },
+      seatName:seatName, logName:logName, persona:function(i){ var q=personaOf(i); return q?q.name:null; },   // tests assert the RIGHT seat is named, with personas live
+      // buildPreDrawBeats is a pure function of the round result — exposing it lets a test assert the
+      // ceremony wording DIRECTLY instead of playing random games until a shield-loss ceremony happens
+      // (which failed ~1 run in 3 by simply never reaching one).
+      beats:function(res){ return buildPreDrawBeats(res||{}); },
+      names:function(list){ setSeatNames(list); render(); } }; }   // test hook: inspect/mutate solo state for layout/pulse verification
 })();
 </script>
 </body>

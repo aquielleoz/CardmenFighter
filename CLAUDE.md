@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.29.7**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.29.8**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -43,13 +43,14 @@ cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sy
 node test.js                                    # engine + AI suite — 131 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction — 28, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (13)
+node nettest_names.js                           # netplay player names, both directions (7)
 node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens (10)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node piletest.js                                # energy/shuffle pile viewers + promote (21)
-node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (50)
+node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (74)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -67,6 +68,7 @@ Balance / heavier harnesses, when a change could move win rates:
 node analysis.js 130 on      # class round-robin — args: N catchup recycle difficulty
 node mpsim.js                # 3/4/6p free-for-all — args: games difficulty
 node recyclesim.js 400       # how often a game reaches the reshuffle (deck-cycling pressure)
+node personasim.js 150 demon  # AI persona parity — args: gamesPerRotation tier [control]
 node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — RUN IT after any card
                              # name/cost/text change, or the published card list silently goes stale
 ```
@@ -83,6 +85,12 @@ npx playwright install chromium
 
 Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` is a shared
 helper, not a suite — don't run it directly.
+
+**Player names go through `seatName`/`logName` only.** `seatNames` is indexed in the **LOCAL** frame; a netplay
+client rotates the host's absolute-seat table on arrival (`t:'setup'`), so no call site needs rotation
+awareness. A name is for *other people* — you always read as "You" in your own frame. Names are player-typed,
+so they pass through `cleanName()` and are re-sanitised on the host, which receives them from an untrusted
+client.
 
 **Never infer who lost a round — read `result.struck`.** The round result carries `struck` (seats that lost a
 shield) and `spared` (blanked by a Leyline), added in v1.29.6 precisely because the UI used to derive the loser as
@@ -190,6 +198,29 @@ Form-granted Quick. Some older comments and doc lines say "any Q + any K"; the c
 under Hermes Super, Sanctuary under Hector, Armor Piercing under Hippolyta), so any code deciding *"is this a
 Quick?"* must use **`effectFor`**. `ai.js` read `effectOf` in three places and therefore never sprang Back Stab
 in any mode (fixed v1.29.1). If a Form-granted behaviour appears dead, check which one the call site reads.
+
+**AI personas vary STYLE, not STRENGTH — and `personasim.js` is the guard.** Each AI seat draws a persona
+(name + targeting style) from its difficulty tier at game start; `PERSONAS` and `drawPersonas` live in
+**`ai.js`**, not the template, so the sims can `require` them. The name is fed into `seatNames`, so it reaches
+the UI through the existing `seatName`/`logName` funnel for free. Solo/local only — netplay seats are people
+with their own names, and the tutorial keeps a plain "Rival".
+
+The knobs are `grudge` (0..1), `focus` (`weakest`/`leader`/`random`) and `holds`, all read in `styleTarget`.
+**If a persona in a tier out-wins its tier-mates, the tier has stopped meaning anything** — picking an opponent
+would be a hidden difficulty slider. Run `node personasim.js <games> <tier>` after touching a style, and read
+the **spread**, not the ranking. It has a **`control`** mode that seats six *identical* personas: whatever
+spread that prints is the noise floor (**2.8 points at 900 games**), and a real spread means nothing until it
+clears it. All five tiers currently sit at or under it.
+
+That harness caught a design error worth remembering: a `nice` flag (Axelrod's "never defect first") measured
+**+6 points** because it bundled a personality with a **competence upgrade** — preferentially hitting whoever
+is actually attacking. Only the nice personas got the upgrade. The fix was to make the competence half
+**shared by every persona** and delete the flag; **"never defect first" is unrepresentable here anyway**, since
+winning a round forces you to strike someone. The faithful analogue is TIT FOR TAT (`grudge:1.00`, no `holds`).
+**When a style knob shows a win-rate effect, suspect it is smuggling competence, not personality.**
+
+**The `recruit` tier displays as "Squire" but its KEY is still `recruit`** — `ai.js` branches on the key and
+`cmf_setup_v1` stores it, so renaming the key would silently invalidate every player's saved difficulty.
 
 ## Rules facts worth knowing before touching the engine
 
