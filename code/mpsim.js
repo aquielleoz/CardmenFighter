@@ -6,6 +6,8 @@ var AI = require('./ai.js');
 var _dpp=(process.argv[5]||'').toLowerCase()==='drawplayers'; E.setDrawPerPlayer(_dpp);
 E.setShieldCards(true); E.setLoserMill(true);
 E.setSpecialLossMode('chosen');
+var _f = (process.argv[8] || '').toLowerCase();          // extra flags: 'shp' shields=2+P, 'dpp' draw=players, 'apex'
+E.setShieldsPerPlayer(_f.indexOf('shp') >= 0); E.setDrawPerPlayer(_f.indexOf('dpp') >= 0); E.setApexInfinity(_f.indexOf('apex') >= 0);
 var MS = ((process.argv[6] || 'targeted').toLowerCase() === 'universal') ? 'universal' : 'targeted';
 E.setMillScope(MS);   // live game (v0.88+) is 'targeted'; arg 6 flips it for the A/B
 

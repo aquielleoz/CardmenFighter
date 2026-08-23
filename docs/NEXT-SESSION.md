@@ -49,6 +49,42 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 
 ---
 
+## ☀️ TOMORROW: extensive testing of the multiplayer rules package (Aj, 2026-08-24)
+
+Aj: *"don't ship anything yet, we'll test extensively tomorrow."* **Nothing is shipped** — three new engine
+flags all default **OFF** and every suite is green (test 190, netview 28). What exists is the measurement kit
+and the numbers below; the decisions are open.
+
+**The state of play.** Aj is "very partial to draw=players, and universal", plus his own shields idea. Measured,
+that package (`rulesim.js` config **D** = `all`+`universal` + shields 2+P + draw=players) does this at 6
+players: length **33 -> 15** rounds, jab share **24% -> 10%**, spread **16.4 -> 13.6**, and relative energy
+dispersion flattens (91% -> 72% of the pool, and it stops scaling with table size). Duels are **unchanged** in
+every respect.
+
+**What still needs deciding, in the order it matters:**
+1. **Is 15 rounds right for 6 players?** Live is 33, symmetric-alone is 9, Aj's 2+P shields gives 16 (config C)
+   or 15 with the draw change (D). Nobody has played any of them — this is a feel call, not a numbers call.
+2. **3-player got WORSE on spread** (13.8 -> 16.6) while 4p and 6p improved. Ranges overlap, so re-measure at
+   10 runs per arm before believing either direction. `mpsim` is non-deterministic (principle 0c).
+3. **Mean energy nearly doubles** under draw=players (8.6 -> 14.4 at 6p). Activation costs are fixed, so every
+   effect becomes much cheaper in relative terms. That is a big shift in feel that no win-rate number shows,
+   and it is the change most likely to surprise a playtester.
+4. **The apex-2 rework needs a variant, not a verdict.** As written it fails its own rationale (initiative
+   concentration unmoved, principle 0h) and doubles 6p length. Try: only the first 2 each round is unbeatable;
+   or unbeatable AND still strips; or apex costs energy.
+5. **Initiative is a separate job.** It is ~1.8x concentrated at 6p in *every* config tested. Only
+   `st.initiative = winner` (`engine.js` ~1685) will move it.
+
+**How to run it** (all flags default OFF; pass them explicitly):
+```
+node rulesim.js                                  # length / jab% / initiative, 6 configs x 4 player counts
+node mpsim.js 1000 knight '' '' '' universal all shp-dpp    # balance for package D  (repeat 3-10x!)
+node optionsim.js drawplayers                    # legal plays per turn, energy gap and pool
+node passsim.js 300 6 knight 5 combo             # pass policies, initiative, cap saturation
+```
+Engine flags: `E.setShieldsPerPlayer()`, `E.setDrawPerPlayer()`, `E.setApexInfinity()`,
+`E.setMillScope('universal')`, `E.setSpecialLossMode('all')`.
+
 ## BACKLOG (open work only — completed items live in the changelog below)
 - **6-player games run 33 rounds; duels run 11. That is probably the root cause.** (2026-08-24, from Aj's
   question "is it weird that everybody mills but not everybody loses a shield?") Under the live

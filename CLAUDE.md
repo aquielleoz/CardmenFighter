@@ -72,6 +72,7 @@ node recyclesim.js 400       # how often a game reaches the reshuffle (deck-cycl
 node personasim.js 150 demon  # AI persona parity — args: gamesPerRotation tier [control]
 node passsim.js 200 6 knight  # strategic-pass study + initiative concentration — args: games players tier thresh mode
 node optionsim.js             # legal plays per turn by player count — the OPTIONS-vs-cards measurement
+node rulesim.js               # rule-config sweep: game length / jab share / initiative, by player count
 node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — RUN IT after any card
                              # name/cost/text change, or the published card list silently goes stale
 ```

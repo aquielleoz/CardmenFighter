@@ -163,6 +163,24 @@
 
   // ---- game state ----
   var START_HAND = 6, DRAW_PER_ROUND = 2, START_SHIELDS = 4, MAX_HAND = 10;
+  /* SHIELDS = 2 + numPlayers (Aj, 2026-08-24) — flag, A/B only.
+   * Companion to `all`+`universal`: that pairing makes damage scale with the table, which holds game length
+   * flat at ~10 rounds but may be too SHORT for six players (live pairing runs 33). Scaling the shield pool
+   * with the table gives the middle ground: 2p keeps exactly today's 4, 6p gets 8. */
+  var SHIELDS_PER_PLAYER = false;
+  function setShieldsPerPlayer(v) { SHIELDS_PER_PLAYER = !!v; }
+  function isShieldsPerPlayer() { return SHIELDS_PER_PLAYER; }
+  function startShieldsFor(n) { return SHIELDS_PER_PLAYER ? (2 + n) : START_SHIELDS; }
+  /* APEX-2 REWORK (Aj's brother, 2026-08-24) — flag, A/B only, and explicitly a FEEL change as much as a
+   * balance one. A play containing a 2 becomes UNBEATABLE (rank infinity) but strips NO shield. It converts
+   * the apex from a damage tool into an INITIATIVE tool, which is interesting because initiative is the
+   * scarcest thing in a free-for-all (concentration 1.6-1.9x, and 0.5 legal plays when following at 6p).
+   * Two 2s of the same shape cannot beat each other — infinity is not strictly greater than infinity — so an
+   * apex play is genuinely final for that round. */
+  var APEX_INF = false;
+  function setApexInfinity(v) { APEX_INF = !!v; }
+  function isApexInfinity() { return APEX_INF; }
+  function hasApex(cards) { for (var i = 0; i < (cards || []).length; i++) if (cards[i] && cards[i].rank === 2) return true; return false; }
   /* "DRAW EQUAL TO THE NUMBER OF PLAYERS" (Aj's idea, 2026-08-24) — a flag, for A/B only.
    * Aimed at the constraint `optionsim.js` actually found: legal plays per turn FALL as players rise (4.5 at
    * 2p to 2.3 at 6p) because the pile is raised more times before it reaches you. A fixed draw of 2 does not
@@ -211,7 +229,7 @@
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
     var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, discardPending: null, shieldResponse: null, stack: [], roundWinResult: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
-    var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : START_SHIELDS;   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
+    var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
     for (var p = 0; p < np; p++) {
       var pl = newPlayer();
@@ -1484,6 +1502,7 @@
     var winner = st.lastPlayer;
     st.preFightHandled = false;                                                // new round → fresh pre-fight windows
     var wonWithCombo = st.pile.combo.size > 1;                                 // only Specials strip shields
+    if (APEX_INF && hasApex(st.pile.combo.cards)) wonWithCombo = false;         // apex rework: a 2 wins the round but deals no damage
     var losers = livingNonWinners(st, winner);
     // who takes a shield loss (Specials only): 'all' = every loser; 'chosen' = the winner's one pick
     var strikeTargets = [];
@@ -1645,6 +1664,7 @@
   // Ladder (low->high): 3 4 5 6 7 8 9 10 J(11) Q(12) K(13) A(1) 2 . Rank stays the card's identity (1-13).
   function fightValue(card) {
     var r = card.rank, v = (r >= 3 && r <= 13) ? r : (r === 1 ? 14 : (r === 2 ? 15 : r));   // 3..10, J, Q, K, A(14), 2(15 apex)
+    if (APEX_INF && r === 2) return Infinity;   // apex rework: a 2 is unbeatable (and strips no shield — see applyRoundLoss)
     return v + (card.valueBonus || 0);   // Counterfeit copies can carry a +value bonus (Pandora/Hermes)
   }
   // Energy to activate a card's effect. J/Q/K cost a flat 10 to transform into the zone; Ace keeps cost 1;
@@ -1721,6 +1741,8 @@
     discardToLimit: discardToLimit, MAX_HAND: MAX_HAND,
     effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, opponentCanRespond: opponentCanRespond, useEquipment: useEquipment, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
+    setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
+    setApexInfinity: setApexInfinity, isApexInfinity: isApexInfinity,
     setDrawPerPlayer: setDrawPerPlayer, isDrawPerPlayer: isDrawPerPlayer
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

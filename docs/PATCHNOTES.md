@@ -10,6 +10,49 @@ deck vs every other, ~7,150 games, Demon-strength AI, strict suit-cost).
 
 ## Balance Design Principles (the durable learnings)
 
+### 0g. Aj's package: scaling shields with the table is the middle ground. NOT SHIPPED. (2026-08-24)
+Three flags, all defaulting **OFF** — `setShieldsPerPlayer` (START_SHIELDS = 2 + numPlayers),
+`setDrawPerPlayer` (draw = numPlayers), `setApexInfinity`. Measured with `rulesim.js`,
+`median(max) rounds | jab % of plays | busiest-leader share`, 90 games per cell:
+
+| config | 2p | 3p | 4p | 6p |
+| --- | --- | --- | --- | --- |
+| A live (`chosen`+`targeted`, draw2, sh4) | 11 j27 L56 | 16 j34 L46 | 22 j29 L39 | **33 j24 L31** |
+| B symmetric (`all`+`universal`) | 11 j28 L56 | 10 j34 L48 | 10 j33 L41 | **9 j29 L35** |
+| C + shields 2+P | 11 j28 L56 | 12 j36 L44 | 13 j29 L38 | **16 j23 L29** |
+| D + draw=players | 11 j27 L56 | 11 j24 L46 | 12 j15 L39 | **15 j10 L31** |
+| E + apex-2 infinity | 12 j27 L56 | 15 j19 L45 | 21 j11 L37 | **35 j10 L32** |
+| F live + apex-2 | 12 j27 L56 | 19 j32 L46 | 30 j28 L40 | **48 j21 L31** |
+
+**Shields = 2 + players works exactly as intended.** The symmetric pairing alone overshoots (flat 9 rounds at
+6p); scaling the shield pool pulls it back to a gentle 11/12/13/16, so more players means a longer game without
+the live rules' 33-round balloon. **Duels are untouched** — 2p resolves to 4 shields, today's value.
+
+**Package D halves the jab problem.** Jab share at 6p falls **24% -> 10%**, at 15 rounds. That is Aj's original
+complaint ("three rounds in a row throwing jab after jab") measured and cut in half. Balance, 3 runs per arm:
+spread **16.4 -> 13.6** at 6p and **15.7 -> 13.7** at 4p, but **13.8 -> 16.6 (worse) at 3p**, with overlapping
+ranges — suggestive, not settled. Bottom decks rise consistently (Pure Wizard +3.7, Pure Rogue +3.7, Warlock
++3.0), top decks come down (Paladin -3.7, Bard -3.5, Cleric -2.5).
+
+### 0h. Initiative concentration is invariant to every lever we have tried. (2026-08-24)
+The busiest leader's share of a game's rounds, against a fair share of 1/P, sits at **~1.8x at 6 players in all
+six configs above** (L29-L35) — including both apex-2 variants, whose entire design rationale is to let a
+player seize the lead. Winning a round with an unbeatable 2 does not distribute initiative; it just changes
+*who* gets the streak, because `engine.js` ~1685 still hands the next lead to the round winner.
+
+**So initiative concentration has exactly one cause and it will not fall out of a side lever.** If it is worth
+fixing, `st.initiative = winner` is the line to change — rotate the lead, or give it to a player who has led
+least recently. Everything else is a symptom.
+
+**The apex-2 rework, judged fairly:** it does *not* deliver its stated purpose (initiative), and it roughly
+doubles 6-player length (D 15 -> E 35; live 33 -> F 48) because an unbeatable-but-harmless play ends a round
+without draining a shield. Its jab reduction (10% at 6p) is already achieved by `draw=players` alone at
+less than half the length. **But it is explicitly a FEEL change**, and concentration averages cannot capture
+"I could always seize the lead at a moment I chose", which is the agency it is really selling. Variants that
+keep the feel and remove the stall, untested: only the FIRST 2 each round is unbeatable; a 2 wins unbeatably
+**and** still strips (a true finisher); or playing a 2 as apex costs energy.
+
+
 ### 0d. RE-TESTED: `MILL_SCOPE='universal'` is not the loser it was recorded as. (2026-08-24)
 Carried belief (from an earlier session): universal milling "opened a huge win-rate spread in multiplayer while
 targeted keeps the decks close", so the live game uses `'targeted'`. Re-measured with 3 runs per arm — mandatory
