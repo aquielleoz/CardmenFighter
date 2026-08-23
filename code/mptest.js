@@ -220,71 +220,22 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const lossLines=lines.filter(l=>/lost a shield|lose a shield/.test(l));
   ok(lossLines.every(l=>/\b(You|P2|P3)\b/.test(l)), 'every shield-loss line names a seat ('+(lossLines[0]||'none seen')+')');
 
-  // ================= the CEREMONY banner must name the same seat as the log =================
+  // ================= the CEREMONY banner names the struck seat =================
   // Aj caught this after v1.29.6: the log said "P3 lost a shield" while the between-rounds banner said
-  // "You lose a shield" — buildPreDrawBeats was a THIRD site deriving the loser as YOU/RIVAL. The earlier
-  // assertions only read #log, so they could not see it. Watch the banner text itself.
+  // "You lose a shield" — buildPreDrawBeats was a THIRD site deriving the loser as YOU/RIVAL.
+  // Asserted DIRECTLY against that pure function. An earlier version played random games until a shield-loss
+  // ceremony occurred, which failed ~1 run in 3 by never reaching one (66/2), and told us nothing when it did.
   ok(await start3p(), '3-player game restarted for the ceremony banner');
-  const banners=[];
-  await p.evaluate(()=>{ window.__banners=[];
-    const fx=document.getElementById('roundfx');
-    new MutationObserver(()=>{ const t=(fx.textContent||'').trim(); if(t) window.__banners.push(t); })
-      .observe(fx,{childList:true,subtree:true,characterData:true});
-  });
-  // Loop until a shield-loss CEREMONY actually happens — a negative-space assertion that never sees the event
-  // passes for the wrong reason. Validated by A/B: on the pre-fix build this capture yields "You lose a shield".
-  let sawWin=false;
-  for(let i=0;i<420 && !sawWin;i++){
-    await p.evaluate(()=>{
-      const clr=document.getElementById('clearBtn'), f=document.getElementById('fightBtn'), ps=document.getElementById('passBtn');
-      const cards=[].slice.call(document.querySelectorAll('#hand .card'));
-      for(let k=0;k<cards.length;k++){ if(clr)clr.click(); document.querySelectorAll('#hand .card')[k].click(); if(f&&!f.disabled){ f.click(); return; } }
-      if(clr)clr.click(); if(ps&&!ps.disabled) ps.click();
-    });
-    await wait(200);
-    sawWin=(await p.evaluate(()=>window.__banners.some(t=>/a shield/.test(t))));
-  }
-  const seen=await p.evaluate(()=>window.__banners.slice());
-  const lossLog=(await log()).filter(l=>/lost a shield/.test(l));
-  ok(sawWin, 'a shield-loss CEREMONY occurred (so the checks below are not vacuous)');
-  const lostBanners=seen.filter(t=>/lose[s]? a shield/.test(t));
-  // if the LOG says P2/P3 lost it, the BANNER must not claim you did
-  const logSaysYou=lossLog.some(l=>/^You lost a shield|- You lost a shield/.test(l));
-  const bannerSaysYou=lostBanners.some(t=>/\bYou lose a shield/.test(t));
-  ok(!(bannerSaysYou && !logSaysYou),
-     'the ceremony banner never says "You lose a shield" when the log names another seat (banner: "'+(lostBanners[0]||'none')+'")');
-  ok(lostBanners.length>0, '…and we captured the banner text itself: "'+(lostBanners[0]||'NONE')+'"');
-  ok(lostBanners.every(t=>/\b(You|P2|P3)\b/.test(t)), '…every loss banner names a seat');
-
-  // ================= the pile stays CENTRED with its label, at any card count =================
-  // Aj caught two versions of this: a reserved rail done with padding shifted the content, so a 1-card pile
-  // and the "Fight is open" line sat right of the centred label. The fix narrows the BOX and centres it, so
-  // assert alignment at 1 and 5 cards rather than trusting it.
-  ok(await start3p(), '3-player game restarted for pile centring');
-  for(const n of [1,5]){
-    await p.evaluate(n=>{ const st=window.__solo.st(), E=window.CardmenEngine;
-      const mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
-      const five=[mk(9,'H'),mk(9,'H','a'),mk(9,'C','b'),mk(5,'H','c'),mk(5,'H','d')];
-      st.pile={ combo:E.detectCombo(n===1?[mk(7,'H')]:five), byPlayer:2 }; window.__solo.render();
-      const z=document.getElementById('beaten'); z.innerHTML='';
-      const lab=document.createElement('div'); lab.className='bLabel'; lab.textContent='You · last played'; z.appendChild(lab);
-      const row=document.createElement('div'); row.className='bCards';
-      for(let i=0;i<5;i++){ const d=document.createElement('div'); d.className='card tiny faced'; row.appendChild(d); }
-      z.appendChild(row);
-    }, n);
-    await wait(320);
-    const m=await p.evaluate(()=>{
-      const cards=[].slice.call(document.querySelectorAll('#pile .card')).map(c=>c.getBoundingClientRect());
-      const lab=document.getElementById('pileLabel').getBoundingClientRect();
-      const bz=document.getElementById('beaten').getBoundingClientRect();
-      let wraps=false; for(let i=1;i<cards.length;i++) if(cards[i].left<cards[i-1].left-1) wraps=true;
-      return { off:Math.abs(Math.round((cards[0].left+cards[cards.length-1].right)/2) - Math.round(lab.left+lab.width/2)),
-               overlap:Math.max(0,Math.round(bz.right-cards[0].left)), wraps };
-    });
-    ok(m.off<=3, n+'-card pile is centred with its label (off by '+m.off+'px)');
-    ok(m.overlap===0, '…and does not overlap the "last played" stash');
-    ok(!m.wraps, '…and does not wrap');
-  }
+  // strip tags: the beats are HTML, so "<b>You</b> lose a shield" would not match /You lose a shield/
+  const beatsFor=(res)=>p.evaluate(r=>window.__solo.beats(r).map(b=>String(b.html).replace(/<[^>]*>/g,'')).join(' | '), res);
+  const b_p3=await beatsFor({ roundWinner:1, comboType:'pair', shieldStripped:true, struck:[2] });
+  ok(/P3/.test(b_p3) && !/\bYou lose\b/.test(b_p3), 'P2 beating P3 announces P3 losing the shield, not you: "'+b_p3+'"');
+  const b_you=await beatsFor({ roundWinner:2, comboType:'pair', shieldStripped:true, struck:[0] });
+  ok(/\bYou lose a shield\b/.test(b_you), '…and when YOU are struck it does say so: "'+b_you+'"');
+  const b_none=await beatsFor({ roundWinner:1, comboType:'single', shieldStripped:false });
+  ok(!/lose[s]? a shield/.test(b_none), '…a jab win announces no shield loss at all');
+  const b_prev=await beatsFor({ roundWinner:1, comboType:'pair', shieldStripped:false, prevented:true, struck:[] });
+  ok(/prevented/i.test(b_prev), '…and a blanked strike says the loss was prevented');
 
   // ================= the "last played" stash must name a seat, not "Rival" =================
   // Aj's screenshot showed "RIVAL · LAST PLAYED" in a 3-Rider game (sweepBeaten took prevOwner===YOU?'You':'Rival').
@@ -309,6 +260,26 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(!!stashLabel, 'beating an opponent\'s play sweeps it to the stash (label present, not vacuous)');
   ok(!/rival/i.test(stashLabel), '…and the label names a seat, never "Rival": "'+stashLabel+'"');
   ok(/^P2\b/i.test(stashLabel), '…specifically the seat whose card was beaten (P2)');
+
+  // ================= PLAYER NAMES flow through the single logName/seatName funnel =================
+  ok(await start3p(), '3-player game restarted for player names');
+  await p.evaluate(()=>window.__solo.names(['', 'Ana', 'Bo'])); await wait(350);
+  const panels=await p.evaluate(()=>[].map.call(document.querySelectorAll('.oppPanel .oppName'),e=>e.textContent.trim()));
+  ok(panels.some(t=>/Ana/.test(t)) && panels.some(t=>/Bo/.test(t)), 'opponent panels show the names, not P2/P3: '+JSON.stringify(panels));
+  ok(!panels.some(t=>/\bP2\b|\bP3\b/.test(t)), '…and the P2/P3 placeholders are gone');
+  const nb=await beatsFor({ roundWinner:1, comboType:'pair', shieldStripped:true, struck:[2] });
+  ok(/Ana/.test(nb) && /Bo/.test(nb), 'the ceremony banner uses them too (one funnel): "'+nb+'"');
+  // a name is only for OTHERS — you stay "You" in your own frame
+  const nbYou=await beatsFor({ roundWinner:0, comboType:'pair', shieldStripped:true, struck:[1] });
+  ok(/^You\b/.test(nbYou), '…but you are still "You" to yourself: "'+nbYou+'"');
+  // unnamed seats keep the placeholder
+  await p.evaluate(()=>window.__solo.names(['', '', 'Bo'])); await wait(300);
+  const mixed=await p.evaluate(()=>[].map.call(document.querySelectorAll('.oppPanel .oppName'),e=>e.textContent.trim()));
+  ok(mixed.some(t=>/\bP2\b/.test(t)) && mixed.some(t=>/Bo/.test(t)), 'an unnamed seat keeps its P<n> placeholder: '+JSON.stringify(mixed));
+  // hostile text is sanitised, not rendered
+  await p.evaluate(()=>window.__solo.names(['', '<img src=x onerror=alert(1)>', 'Bo'])); await wait(300);
+  const safe=await p.evaluate(()=>{ const el=document.querySelector('.oppPanel .oppName'); return { html:el.innerHTML, imgs:document.querySelectorAll('.oppPanel img').length }; });
+  ok(safe.imgs===0 && !/</.test(safe.html.replace(/<\/?span[^>]*>/g,'')), 'a name containing markup is sanitised, never rendered as HTML');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);

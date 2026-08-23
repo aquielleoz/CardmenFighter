@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.29.7**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.29.8**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -43,13 +43,14 @@ cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sy
 node test.js                                    # engine + AI suite — 131 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction — 28, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (13)
+node nettest_names.js                           # netplay player names, both directions (7)
 node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens (10)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node piletest.js                                # energy/shuffle pile viewers + promote (21)
-node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (50)
+node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (68)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -83,6 +84,12 @@ npx playwright install chromium
 
 Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` is a shared
 helper, not a suite — don't run it directly.
+
+**Player names go through `seatName`/`logName` only.** `seatNames` is indexed in the **LOCAL** frame; a netplay
+client rotates the host's absolute-seat table on arrival (`t:'setup'`), so no call site needs rotation
+awareness. A name is for *other people* — you always read as "You" in your own frame. Names are player-typed,
+so they pass through `cleanName()` and are re-sanitised on the host, which receives them from an untrusted
+client.
 
 **Never infer who lost a round — read `result.struck`.** The round result carries `struck` (seats that lost a
 shield) and `spared` (blanked by a Leyline), added in v1.29.6 precisely because the UI used to derive the loser as

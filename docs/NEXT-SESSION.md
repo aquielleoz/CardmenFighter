@@ -3,7 +3,7 @@
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
 Test: `npm test` = `node test.js` (**190**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**52** — free-for-all parity) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node browsertest.js` (12-duel smoke) · the `nettest_*.js` netplay suite (**run one at a time**; `nettest_log`/`nettest_full` are position-dependent — verify alone). Balance: `node analysis.js 130 on` · `node mpsim.js` · `node recyclesim.js 400`.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.29.7**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.29.8**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (night of 2026-08-22)
 
@@ -108,6 +108,16 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 (v1.28.1) · the **reorderable energy pile** + both pile viewers + Advanced lesson 10 (v1.29.0) · netplay's
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
+
+
+### v1.29.8 — player names
+Aj's idea from the D1 report, and it landed as predicted: **one function**. Every naming site already funnelled through `seatName`/`logName`, so only those two had to answer differently — panels, log lines, the ceremony banner and the announcements all picked names up for free. Doing the naming cleanup *before* this feature is the whole reason it was small.
+- **Store:** `cmf_name_v1` in localStorage, through `cleanName()` — caps at 14 chars, strips markup characters. A **"Your name"** field on the New Duel screen saves as you type.
+- **Netplay:** the name rides on the existing `{t:'join'}` message; the host **sanitises** it (untrusted client text), adds its own, and rebroadcasts the table with `{t:'setup'}`. No new message type.
+- **The rotation catch:** a client's mirror is seat-**rotated**, so the host's table arrives in absolute seats. The client rotates it into its local frame **on arrival**, which means nothing downstream needs rotation awareness — the alternative was every call site knowing about it.
+- **A name is for other people.** You always read as "You" in your own frame; your name is what *others* see. Unnamed seats keep `P2`/`P3`/`Rival` exactly as before, so nothing changes if you never set one.
+- **Tests:** `mptest` +7 (names reach panels *and* the ceremony banner through the one funnel; you stay "You" to yourself; an unnamed seat keeps its placeholder; a name containing markup is sanitised, not rendered — names are only the second player-typed content in the game after deck names). **NEW `nettest_names.js`** (8) drives the wire both ways: the client sees *"Aj played …"*, the host sees *"Bea played …"*, each reads its own play as *"You played"*.
+- **Also made the ceremony test deterministic.** It had been playing random games until a shield-loss ceremony happened — flaky (~1 run in 3 never reached one, failing 2 assertions) *and* uninformative when it did. `buildPreDrawBeats` is a pure function of the round result, so it is now exposed on the `?dbgsolo=1` hook and asserted directly across four cases, **both directions**: P2-beating-P3 names P3, *and* a genuine "You" case still says "You". A one-directional check would pass on code that says nothing at all. Stable at 3×.
 
 
 ### v1.29.7 — bigger cards on big screens (playtester: "the cards look smol")
