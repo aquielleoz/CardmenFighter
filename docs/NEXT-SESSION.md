@@ -3,7 +3,7 @@
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
 Test: `npm test` = `node test.js` (**190**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**52** — free-for-all parity) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node browsertest.js` (12-duel smoke) · the `nettest_*.js` netplay suite (**run one at a time**; `nettest_log`/`nettest_full` are position-dependent — verify alone). Balance: `node analysis.js 130 on` · `node mpsim.js` · `node recyclesim.js 400`.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.29.6**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.29.7**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (night of 2026-08-22)
 
@@ -108,6 +108,36 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 (v1.28.1) · the **reorderable energy pile** + both pile viewers + Advanced lesson 10 (v1.29.0) · netplay's
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
+
+
+### v1.29.7 — bigger cards on big screens (playtester: "the cards look smol")
+Measured before changing anything, and the report was fair: at **1920×1080** — the most common large screen — a hand card was **65×94px, just 3.4% of the width**, with ~970px of board above it mostly empty. The cause was a gap in the steps: **1920 falls just under the old 2000px breakpoint**, so it got the same `--cs:1.42` as a 1600px screen.
+- Steps are now **denser and gated on `min-height` as well as `min-width`**, so a wide-but-*short* window (a laptop, a half-height window) never gets cards too tall for its hand row: `1200→1.18`, `1440+800h→1.32`, `1600+860h→1.5`, `1800+900h→1.68`, `2200+1000h→1.9`, `2560+1200h→2.1`.
+- Measured card width, before → after: **1440×900** 54→**61** · **1600×900** 65→**69** · **1907×938** (the reporter's size) 65→**77** · **1920×1080** 65→**77** · **2560×1440** 87→**97**. **1366×768 is deliberately unchanged** at 54px — it is short, so growing the cards there would squeeze the hand row.
+- **Overflow checked, not assumed:** with a **full 10-card hand** (`MAX_HAND`) at eight viewport sizes, verified no hand overflow, no card past the viewport, no horizontal page scroll, and the action bar still on screen. Phones are untouched (every new step needs ≥1440px width); `viewtest` still 10/0 at 390×780.
+- **The PILE was the real offender** (Aj: *"more than the hand, the cards in the center of the play area are small too… those only go up to a max of 5 cards for specials"* — correct on both counts). The pile rendered through `.card.sm` at a **38×55 base — smaller than the hand's 46×66** — so the focal point was the *smallest* thing on screen. It now has its own multiplier **`--pm`** on top of `--cs`, because it never shows more than 5 cards (a straight or a full house) and therefore has room the hand does not.
+  - Measured pile-card width, before → after: **1366×768** 45→**72** · **1440×900** 45→**80** · **1907×938** 54→**112** · **1920×1080** 54→**112** · **2560×1440** 72→**140**. The pile is now comfortably larger than the hand (112 vs 77 at 1920), which is the right relationship for the thing you are reading.
+  - **Phones are byte-identical to before:** `--pm` stays exactly `1` below 560px and the 38×55 base is unchanged, so nothing shifts on a phone. A first attempt raised the *base* to 46×66 and cost vertical space on a 360×640 screen — caught by measurement, reverted.
+- Verified with a **5-card pile + a full 10-card hand** across ten viewports (360×640 → 2560×1440): no card past the viewport, no horizontal page scroll, hand fully visible, action bar on screen.
+- **Parked, pre-existing (NOT from this change):** at **360×640** with a 5-card pile *and* a 10-card hand, the action bar is pushed off screen. An A/B confirmed `main` behaves identically — the smallest phone is simply out of vertical room in that worst case. Worth its own look with the landscape/short-viewport work.
+- **Then the bigger pile started colliding with the "last played" stash** (Aj: *"can we tweak it so they don't overlap when the battle log is open? maybe don't change the size, just shift the placement"* — exactly right, and placement is the fix). `#beaten` is `position:absolute; left:12px; top:50%`, while `#pile` centres in the **whole** play area — so as the pile grew it reached into the left rail, worst when the log is open and the area is narrow.
+  - Moving the stash vertically is not safe: in a duel the left rail is fully occupied — rival forms (top), stash (middle), your forms (bottom). So the pile now **reserves the rail** instead: `padding-left:186px; padding-right:28px` on ≥1200px, and it centres in the clear band.
+  - **Asymmetric on purpose.** A symmetric reservation squeezed the band enough to *wrap* the 5-card pile at 1440×900 with the log open. Measured: the right rail's equip zones sit top/bottom and never met the vertically-centred pile — 267px+ of slack — so only the left needs reserving.
+  - **Verified across seven widths** (1280 → 2560), log **open and closed**: overlap **0px everywhere**, no wrap anywhere, right-rail clearance always positive (tightest 22px at 1280×720 with the log open).
+  - Two false positives worth knowing if you measure this area again: the pile **fans cards with transforms**, so `scrollWidth > clientWidth` reads as overflow at every size on every build, and comparing card `top`s reads as wrapping. Test wrapping by checking each card's `left` against its predecessor's.
+- **Then two centring bugs, both mine, both caught by Aj in a minute:** the rail reservation was done with
+  `padding`, which shifts *content* rather than narrowing the *box* — so the `"Fight is open — lead a card"`
+  line and then **every short pile** (1-3 cards) sat right of its centred `NEW FIGHT` label.
+  - **Correct fix:** `max-width:calc(100% - 260px); margin-inline:auto` on ≥1200px. The box is narrower *and*
+    centred, so cards stay on the label's axis and still cannot reach the rails.
+  - To make that reservation affordable, the stash is slimmed to **3 tiny cards per row** (`max-width:99px`)
+    instead of 5 across, and the pile scale eases to `--pm:1.35` in the **1200-1439** band — the tightest case,
+    where the log open leaves only ~640px and a 5-card pile at 1.6 wrapped.
+  - **Verified 28 cases:** seven widths (1280 → 2560) × log open/closed × 1-card and 5-card piles — centred to
+    within 3px, zero overlap, no wrapping anywhere. `mptest.js` now asserts centring, overlap and wrap at both
+    card counts, because my earlier assertion enforced the *in-flow* behaviour that caused this.
+- **Your play now lingers before an opponent answers** (Aj: *"my play also gets clobbered right away by ai, i know they think fast… but can my play just linger a bit?"*). The duel driver opened with a 650ms pause; the free-for-all driver had **none** and stepped straight into the first AI seat. Both now share one named constant, **`PLAY_HOLD = 1000`** (60ms under reduced motion) via `playHold()`, so they cannot drift apart the way the presentation layer did. Measured after: first opponent line **1051ms** (duel) / **1039ms** (3-player) after your Fight.
+- Still open if it is *still* not enough: cards are ~4% of screen **width** even now, because the board itself is mostly empty on a big monitor. Growing them further fights the layout, so the better lever is a **card-size preference in ⚙️ Settings** (the modal already persists prefs like detailed energy pulses) — per-person perception is exactly what a setting is for.
 
 
 ### v1.29.6 — D1 + C2: round results name the real seats (and two bugs found inside them)

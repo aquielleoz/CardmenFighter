@@ -11,12 +11,25 @@
     --red:#ff5a5a; --txt:#f2ecf6; --panel:rgba(0,0,0,.3); --good:#43c06a; --bad:#e2624a;
     --nrg:#5ac8fa; --shield:#e8c37a; --pick:#c98bff;
     --cs:1;   /* card scale — grows on wider viewports so cards don't look tiny on big monitors */
+    --pm:1;   /* PILE multiplier on top of --cs: the pile shows at most 5 cards, so it can run larger */
   }
   /* Adaptive card sizing: scale playing cards up on large screens (base tuned for laptops/tablets) */
-  @media (min-width:1200px){ :root{ --cs:1.18; } }
-  @media (min-width:1600px){ :root{ --cs:1.42; } }
-  @media (min-width:2000px){ :root{ --cs:1.68; } }
-  @media (min-width:2560px){ :root{ --cs:1.9; } }
+  /* Card scale steps. Playtester on a large screen: "the cards look smol". Measured, they were: at 1920x1080
+     a card was 65x94px — 3.4% of the width — with ~970px of board above it mostly empty, because 1920 falls
+     just UNDER the old 2000px step. Steps are now denser and gated on min-height as well as min-width, so a
+     wide-but-short window (a laptop, a half-height window) does not get cards too tall for its hand row. */
+  @media (min-width:560px){  :root{ --pm:1.2; } }
+  @media (min-width:1000px){ :root{ --pm:1.45; } }
+  @media (min-width:1200px){ :root{ --cs:1.18; --pm:1.6; } }
+  /* 1200-1439 is the tightest band: with the battle log open the centre is ~640px wide, and after the rail
+     reservation a 5-card pile at --pm:1.6 wrapped. Ease the pile scale here only — these are small screens,
+     and the "cards look smol" complaint was about large ones. */
+  @media (min-width:1200px) and (max-width:1439px){ :root{ --pm:1.35; } }
+  @media (min-width:1440px) and (min-height:800px){ :root{ --cs:1.32; } }
+  @media (min-width:1600px) and (min-height:860px){ :root{ --cs:1.5; --pm:1.75; } }
+  @media (min-width:1800px) and (min-height:900px){ :root{ --cs:1.68; } }
+  @media (min-width:2200px) and (min-height:1000px){ :root{ --cs:1.9; } }
+  @media (min-width:2560px) and (min-height:1200px){ :root{ --cs:2.1; } }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0;height:100%;}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -156,6 +169,20 @@
   #table{flex:1 1 auto; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; min-height:0; position:relative;}
   #pileLabel{font-size:12px; text-transform:uppercase; letter-spacing:.5px; opacity:.7; min-height:15px;}
   #pile{display:flex; gap:6px; min-height:70px; align-items:center; justify-content:center; flex-wrap:wrap;}
+  /* The play area's LEFT rail holds the rival's forms (top), the "last played" stash (middle) and your forms
+     (bottom); the RIGHT rail holds the equipment zones. The pile is centred in the whole area, so as it grew it
+     started colliding with the stash — worst when the battle log is open and the area is narrow. Reserve both
+     rails so the pile centres in the clear band instead. Desktop only: the rails are laid out differently below
+     1200px, and phones need every pixel. */
+  /* Asymmetric on purpose: the stash is a fixed-width strip on the LEFT (5 x 30px tiny cards + gaps ~176px),
+     while the right rail's equip zones sit top/bottom and never met the vertically-centred pile (measured
+     267px+ of slack). Reserving both sides squeezed the band enough to wrap the pile at 1440 with the log
+     open, so only the left is reserved, and by a fixed amount rather than a vw that grows past its need. */
+  /* Keep the pile CENTRED with its label and message, but stop it reaching the rails: narrow the BOX and
+     centre it, rather than padding it (padding shifts the content, which put a 1-card pile off-centre — Aj
+     caught both). The stash is slimmed to 3-per-row below so this reservation still leaves room for 5 big
+     cards even at 1440 with the battle log open. */
+  @media (min-width:1200px){ #pile{ width:100%; box-sizing:border-box; max-width:calc(100% - 260px); margin-inline:auto; } }
   #pile .empty{opacity:.4; font-style:italic; font-size:13px;}
   #stackView{display:none; flex-direction:column; gap:3px; align-items:center; margin:3px 0;}
   #stackView .stk{font-size:11px; padding:2px 9px; border-radius:8px; border:1px solid var(--line); background:rgba(255,255,255,.05); opacity:.9;}
@@ -538,6 +565,16 @@
   #hand .card.enter{ animation:dealIn .46s cubic-bezier(.2,.85,.25,1.05) both; }
   /* pile cards start off-transform; entrance is driven inline via JS FLIP */
   #pile .card{ transform-origin:center; }
+  /* THE PILE IS THE FOCAL POINT and shows at most 5 cards (a straight or a full house), so it has far more room
+     than the hand — yet it rendered via .card.sm at a 38x55 base, i.e. SMALLER than the hand's 46x66. Give it
+     its own multiplier on top of --cs. Kept modest on phones, where 5 cards across 390px is the binding
+     constraint, and generous from tablet up. */
+  #pile .card{ width:calc(38px*var(--cs)*var(--pm)); height:calc(55px*var(--cs)*var(--pm)); border-radius:calc(8px*var(--cs)*var(--pm)); }
+  #pile .card .r, #pile .card .s{ font-size:calc(13px*var(--cs)*var(--pm)); }
+  #pile .card .c{ font-size:calc(19px*var(--cs)*var(--pm)); }
+  #pile .card.faced .idx{ font-size:calc(11px*var(--cs)*var(--pm)); padding:1px 4px 2px; }
+  #pile .card .efi{ width:calc(13px*var(--cs)*var(--pm)); height:calc(13px*var(--cs)*var(--pm)); }
+  #pile .card .qbadge{ font-size:calc(8px*var(--cs)*var(--pm)); }
   /* boosted / reduced plays get a glowing border so a play's effective value reads at a glance */
   #pile.boosted .card{ border-color:rgba(95,220,255,.95); box-shadow:0 0 11px 2px rgba(95,220,255,.7); animation:pileGlowUp 1.5s ease-in-out infinite; }
   #pile.reduced .card{ border-color:rgba(255,110,110,.95); box-shadow:0 0 11px 2px rgba(255,110,110,.7); animation:pileGlowDn 1.5s ease-in-out infinite; }
@@ -679,7 +716,7 @@
   #beaten{position:absolute; top:50%; transform:translateY(-50%); left:12px; display:flex; flex-direction:column; gap:3px; z-index:2; pointer-events:none;}   /* center-left: clears the rival Forms zone (top-left) and your Forms zone (bottom-left) */
   #beaten:empty{display:none;}
   #beaten .bLabel{font-size:9.5px; text-transform:uppercase; letter-spacing:.4px; opacity:.5; font-weight:800;}
-  #beaten .bCards{display:flex; gap:3px;}
+  #beaten .bCards{display:flex; gap:3px; flex-wrap:wrap; max-width:99px;}   /* 3 tiny cards per row (30px each) — a narrow column, so the centred pile has room */
   #beaten .card{opacity:.7; box-shadow:0 1px 3px rgba(0,0,0,.45);}
 
   /* --- Fighter Kick finisher --- */
@@ -3849,7 +3886,7 @@ window.CardFace = {};
   // Text is written from the VIEWER's seat (the human), not the owner's — so the Rival's Holy Sword
   // reads "Rival's highest +2" (not the confusing "Your highest +2"). Every equip benefits its owner,
   // so it's a green "good" tile when it's yours and a red one when it's the Rival's.
-  function equipInfo(e, mine){
+  function equipInfo(e, mine, seat){
     var d=e.delta||0, od=e.oppDelta||0;
     var owner = mine ? 'Your' : "Rival's";     // the equip's owner, named from your seat
     var foe   = mine ? "Rival's" : 'Your';     // the owner's opponent, from your seat
@@ -3857,7 +3894,7 @@ window.CardFace = {};
     if(d>0)                         eff=owner+' highest +'+d+' each fight';
     else if(od<0)                   eff=foe+' highest '+od+' each fight';
     else if(e.absorb)               eff='Absorbs '+(mine?'your':"the Rival's")+' next shield loss';
-    else if(e.ability==='draw')     eff=(mine?'You':'Rival')+' can spend a counter to draw';
+    else if(e.ability==='draw')     eff=(mine?'You':(typeof seat==='number'?logName(seat):'Rival'))+' can spend a counter to draw';
     else if(e.protect==='special')  eff='No shield loss on '+(mine?'your':"the Rival's")+' Special';
     return { good:mine, eff:eff };
   }
@@ -3977,7 +4014,7 @@ window.CardFace = {};
     if(typeof seat!=='number') seat=(mine?YOU:RIVAL);
     var zk=zoneKeyFor(seat)+':', now=Date.now(), live={}, flashing=false;   // per-SEAT fx key: 'rival' collided across opponents
     (pl.equipment||[]).forEach(function(e){
-      var info=equipInfo(e, mine), key=zk+e.id, prev=equipFx[key];
+      var info=equipInfo(e, mine, seat), key=zk+e.id, prev=equipFx[key];
       var flashUntil=prev?prev.flashUntil:0;
       if(prev && e.counters<prev.counters) flashUntil=now+1300;                          // a counter just dropped → flash the box
       equipFx[key]={ counters:e.counters, flashUntil:flashUntil, name:e.name, good:info.good, card:e.card, gone:false };
@@ -4339,7 +4376,7 @@ window.CardFace = {};
     if(objs.length<1){ el.style.display='none'; el.innerHTML=''; return; }
     el.style.display='flex';
     var html='';
-    for(var i=objs.length-1;i>=0;i--){ var o=objs[i], eff=o.eff, who=o.p===YOU?'You':'Rival', isTop=(i===objs.length-1);
+    for(var i=objs.length-1;i>=0;i--){ var o=objs[i], eff=o.eff, who=logName(o.p), isTop=(i===objs.length-1);
       html+='<div class="stk'+(isTop?' top':'')+(o.countered?' countered':'')+'"><span class="who">'+who+' ▸</span> '+(eff.name||'?')+' · '+cardSym(o.card)+(isTop?' <span class="who">(resolves next)</span>':'')+'</div>';
     }
     el.innerHTML=html;
@@ -4417,7 +4454,7 @@ window.CardFace = {};
       if(isBeat){                               // sweep the just-beaten cards to the top-left corner
         var swept=prevData.map(function(d){ return {id:d.id,rank:d.rank,suit:d.suit,rect:oldRectById[d.id]}; })
                           .filter(function(o){return o.rect;});
-        sweepBeaten(swept, prevOwner===YOU?'You':'Rival');
+        sweepBeaten(swept, logName(prevOwner));
       } else if(!state.pile){
         $('beaten').innerHTML='';               // a fresh fight opened — clear last-beaten
       }
@@ -4430,6 +4467,7 @@ window.CardFace = {};
       pileEl.classList.toggle('reduced', mod<0);
       $('pileLabel').textContent=owner+' · '+kindLabel(state.pile.combo.type)+(mod>0?' · boosted +'+mod:(mod<0?' · reduced '+mod:''));
     } else { $('pileLabel').textContent=state.finished?'':'New fight'; pileEl.classList.remove('boosted','reduced'); }
+    pileEl.classList.toggle('noCards', !state.pile);   // drives the rail reserve off when there is nothing to collide with
     renderStack();
     var yourTurn=(state.turn===YOU && !state.finished);
     var spectating=(MP() && you.eliminated && !state.finished);            // knocked out but the duel continues — watch on
@@ -5412,11 +5450,16 @@ window.CardFace = {};
     say(null, '<b>Round '+rn+'</b> begins. Each player draws '+per+'.', 'round');
     if(res.draws && res.draws[YOU]===0) logMsg('Draw fizzled — your deck &amp; shuffle pile are empty. Spend energy on effects to recycle cards back into your deck.', 'warn');
   }
-  function logDeckout(){
-    var loser = state.winner===YOU ? 'Rival' : 'You';
+  function logDeckout(res){
+    // The engine records the decked-out seat in res.eliminated for N-player games; only a duel can safely
+    // infer it as "whoever didn't win". Deriving it that way in a free-for-all named the wrong player.
+    var elim = (res && res.eliminated && res.eliminated.length) ? res.eliminated[res.eliminated.length-1] : null;
+    var loserSeat = (elim!=null) ? elim : (MP() ? null : (state.winner===YOU ? RIVAL : YOU));
+    var loser = (loserSeat!=null) ? logName(loserSeat) : 'A rival';
+    var youWin = state.winner===YOU;
     lastEndType='deckout';
-    setMessage('<b>'+loser+'</b> decked out — '+(state.winner===YOU?'you win!':'Rival wins.'));
-    logMsg('<b>'+loser+'</b> decked out!', 'warn');
+    setMessage('<b>'+loser+'</b> decked out — '+(youWin?'you win!':(logName(state.winner)+' wins.')));
+    say(loserSeat!=null?loserSeat:state.winner, (loserSeat!=null?'{who} decked out!':(loser+' decked out!')), 'warn');
   }
 
   /* ---- Round-announcement ceremony ----------------------------------------------------------
@@ -5429,12 +5472,20 @@ window.CardFace = {};
     if(res.newRound===2) return 'Specials unlocked!';
     return 'Each player draws 2 cards';
   }
+  /* The between-rounds ceremony beats. This was the THIRD site deriving the loser as "whichever of YOU/RIVAL
+   * didn't win" (Aj caught it after v1.29.6 fixed the other two): with P2 beating P3, `youWon` is false, so
+   * `foe` became 'You' and the ceremony announced "You lose a shield" to a player who lost nothing — while the
+   * battle log, already fixed, correctly said "P3 lost a shield". Now reads res.struck like announceRoundWin. */
   function buildPreDrawBeats(res){
-    var youWon=res.roundWinner===YOU, who=youWon?'You':'Rival', foe=youWon?'Rival':'You', cls=youWon?'good':'bad';
+    var w=res.roundWinner, youWon=(w===YOU), who=logName(w), cls=youWon?'good':'bad';
+    var struck=(res.struck||[]).filter(function(q,i,a){ return a.indexOf(q)===i; });
+    var youStruck=struck.indexOf(YOU)>=0;
+    var foe = struck.length ? struck.map(logName).join(' & ') : (MP() ? 'a rival' : (youWon?'Rival':'You'));
+    var lostVerb = youStruck ? 'lose' : (struck.length ? 'loses' : (foe==='You'?'lose':'loses'));
     var isSpecial=res.comboType && res.comboType!=='single';
     var label=isSpecial ? (TYPE[res.comboType]||'Special') : 'Jab';
-    var beats=[{ html:who+' won the round with a <b>'+label+'</b>!', cls:cls }];
-    if(res.shieldStripped) beats.push({ html:'<b>'+foe+'</b> lose'+(foe==='You'?'':'s')+' a shield 🛡', cls:cls, shield:true });
+    var beats=[{ html:'<b>'+who+'</b> won the round with a <b>'+label+'</b>!', cls:cls }];
+    if(res.shieldStripped) beats.push({ html:'<b>'+foe+'</b> '+lostVerb+' a shield 🛡', cls:(youStruck?'bad':cls), shield:true });
     else if(res.prevented) beats.push({ html:foe+'’s shield held — loss prevented 🛡', cls:'dim' });
     beats.push({ html:'<b>'+who+'</b> '+(youWon?'seize':'seizes')+' the initiative!', cls:cls });
     return beats;
@@ -5508,7 +5559,7 @@ window.CardFace = {};
       endOfRoundTrimThen(function(){
         if(g!==gen) return;
         E.roundDraw(state, res);                                // draw the new round's cards (held invisible for a beat)
-        if(res.deckedOut){ inCeremony=false; logDeckout(); render(); clearRoundfx(); busy=false; return endGame(); }
+        if(res.deckedOut){ inCeremony=false; logDeckout(res); render(); clearRoundfx(); busy=false; return endGame(); }
         logRoundDraw(res);
         enterDelayBase = reduceMotion()?0:340;                  // Round banner appears FIRST (round start), THEN the new cards fly in
         render(); enterDelayBase = 0;
@@ -5581,7 +5632,7 @@ window.CardFace = {};
         if(state.finished){ busy=false; return endGame(); }
         setTimeout(function(){ if(g===gen) step(); }, 480);
       });
-    }, 650);
+    }, playHold());
   }
   // The Rival forced a discard on you: pause its turn, let you choose which cards to pitch, then resume.
   function promptHumanDiscard(g){
@@ -5780,11 +5831,18 @@ window.CardFace = {};
     if(!isHumanSeat(p)) console.warn('awaitHumanSeat called on a non-human seat', p, controllerOf(p));
     // no auto-resume: the transport (Phase 5) will call back into the driver when the remote input lands.
   }
+  /* How long YOUR play sits on the table before an opponent answers. Aj: "my play also gets clobbered right
+   * away by ai, i know they think fast… but can my play just linger a bit?" The duel driver had a 650ms opener;
+   * the free-for-all driver had NONE and stepped straight into the first AI seat. One constant, both drivers. */
+  var PLAY_HOLD = 1000;
+  function playHold(){ return reduceMotion() ? 60 : PLAY_HOLD; }
   function runOpponents(){
     if(state.finished){ busy=false; render(); return endGame(); }
     busy=true; render();
     var g=gen;
+    var firstStep=true;
     (function step(){
+      if(firstStep){ firstStep=false; return setTimeout(function(){ if(g===gen) step(); }, playHold()); }   // let your play linger
       if(g!==gen) return;
       if(state.shieldResponse && state.shieldResponse.q===YOU){ return openShieldGuardModal(null, function(){ if(g===gen) step(); }); }   // your shield is threatened
       mpResolveAIShieldWindows();
