@@ -17,8 +17,8 @@
  *
  * CAVEAT on the minion row: this is AI vs AI, and the minion tier never contests a Special pile and never leads
  * one, so minion-vs-minion is all jabs by construction. A human leading Specials against a minion would still
- * see them. But the AI side brings none — so the low tier really is a different game, which matters for
- * onboarding: a newcomer learns a jabs-only game and then meets an 85%-Specials game one tier up.
+ * see them, so do not read this as "the low tier is a different game for players" — that inference was drawn
+ * once and Aj ruled it out as unrelated to anyone's actual experience.
  *
  * Run: node roundsim.js
  */

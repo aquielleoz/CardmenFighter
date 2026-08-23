@@ -96,38 +96,39 @@ opposite of the sim's concentration on the cheapest ramp.
 - Already fixed, confirmed against current source: the 2-player draw line (`You draw 2, Rival draws 2`) and
   the lowercase `a rival lost a shield` announcement. Both appear in this corpus, neither remains in the code.
 
-### 2026-08-24 — reconciling two opposite playtest reports (Aj and his brother)
+### 2026-08-24 — jab vs Special: what decides a round (and who reported what)
 
-Aj: *"three rounds in a row throwing jab after jab."* His brother, independently: *"after the initial round of
-jabs, there was only ever specials."* Aj's own read: *"which doesn't reflect my experience at all, but I might
-be biased."* **Both reports are accurate.** They are measuring different things, and `roundsim.js` separates
-them.
+**Attribution first, because an earlier version of this entry got it wrong.** Three different people:
+- **bibong** — a playtester who knew nothing about chikicha and learned the game by playing the tutorials.
+- **Aj** — the owner.
+- **Aj's brother** — relayed two pieces of feedback and **has no logs here at all**; his difficulty, player
+  count and deck are unknown.
 
-Share of rounds 2+ decided by a jab vs a Special (200 games per row, AI vs AI):
+The two export files are **one continuous log**: Aj cleared it, bibong played, then Aj carried on working on the
+game. So bibong's games and Aj's diagnostics sit in the same 14 records and **cannot be attributed to either
+person** — including the 36-jab / 77-Special round-win split reported here earlier. Treat every per-game number
+from that corpus as unattributed. (If anyone wants to try splitting it, there is a 7-hour gap between
+`08-22T07:04` and `08-22T14:26` that is the likeliest boundary, but nobody has confirmed it.)
+
+**The brother's two reports, verbatim in substance:** the apex 2s should be unbeatable (in chikicha the 2 is the
+outright peak, and here boosts can exceed it), and *"after the initial round of jabs, there was only ever
+specials."*
+
+**That second report is confirmed by simulation** — and this part needs no human data at all, so it stands
+regardless of attribution. Share of rounds 2+ decided by a jab vs a Special (`roundsim.js`, 200 games per row,
+AI vs AI; round 1 is jabs-only by rule so it is counted apart):
 
 | | jab | Special |
 | --- | --- | --- |
-| minion 2p | **100%** | 0% |
 | knight 2p | 16% | 84% |
 | demon 2p | 15% | 85% |
 | knight 3p / 4p / 6p | 17% / 15% / 12% | 83% / 85% / 88% |
 | demon 6p | 13% | 87% |
 
-**The brother is describing what WINS:** after round 1 (jabs-only by rule) Specials decide **83-88%** of rounds
-at every real difficulty and player count.
+**Specials decide 83-88% of rounds after round 1**, at every difficulty and player count.
 
-**Aj is describing what he PLAYS:** 20-27% of all plays are jabs (`optionsim.js`), so jabs are thrown far more
-often than they decide anything. With ~0.5 legal options while following at 6p and 79% of such turns stuck, a
-jab is frequently the only legal move — and then somebody leads a Special next round and takes it. Jabs are the
-losing action, played constantly.
-
-**Unlooked-for third finding: the minion tier is a different game.** 100% jab, 0% Special — the minion AI never
-contests a Special pile and never leads one. (Caveat: AI vs AI, so a human leading Specials against a minion
-still sees them; but the AI side brings none.) **Onboarding implication:** a newcomer learning on the low tier
-learns a jabs-only game, then meets an 85%-Specials game the moment they move up.
-
-**What we do NOT know, and should not guess:** Aj's brother is **not** the playtester in the exports above
-("bibong"), and **we have none of his logs**. So his difficulty, player count and deck are all unknown, and the
-minion-vs-demon gap is *a* candidate explanation for his report, not an established one. An earlier version of
-this entry inferred his setup from bibong's export data — a straight conflation of two different people. If his
-report matters, get his actual configuration; everything else here is measurement that stands on its own.
+**This does not contradict Aj's jab complaint.** 20-27% of all *plays* are jabs (`optionsim.js`) while only
+12-17% of *rounds* are jab-decided — so jabs are thrown far more often than they decide anything. With ~0.5
+legal options while following at 6p and 79% of those turns stuck, a jab is frequently the only legal move, and
+then somebody leads a Special next round and takes it. **One report is about what you play, the other about what
+wins.**

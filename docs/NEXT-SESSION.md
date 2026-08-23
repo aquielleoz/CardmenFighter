@@ -79,18 +79,14 @@ every respect.
      package, because an unbeatable play that deals no damage ends a round without progressing the game.
    So the open question is small: take the free half, and decide separately whether being crushed by an apex is
    a problem worth the length cost.
-   - **His other report, from the same conversation:** *"after the initial round of jabs, there was only ever
-     specials."* **Measured and confirmed** — Specials decide **83-88%** of rounds 2+ at every real difficulty
-     and player count (`roundsim.js`). It does not contradict Aj's jab complaint: 20-27% of *plays* are jabs
-     while only 12-17% of *rounds* are jab-decided, so jabs are thrown constantly and win almost nothing.
-     The two reports are the same game seen from what-I-play versus what-wins.
-   - **And the tier gap is real:** minion is **100% jab / 0% Special** in AI-vs-AI, because the minion tier
-     never contests or leads a Special. A newcomer learning on the low tier learns a jabs-only game and then
-     meets an 85%-Specials game one tier up. Worth deciding whether minion should lead the occasional Special
-     purely so the low tier teaches the real game.
-   - **We have no logs from Aj's brother** — he is not the playtester in the exports ("bibong"), so his tier,
-     player count and deck are unknown. **Ask him what he was playing before designing around his report**; the
-     minion/demon gap above is a candidate explanation, not a confirmed one.
+   - **His second report:** *"after the initial round of jabs, there was only ever specials."* **Confirmed by
+     simulation** — Specials decide **83-88%** of rounds 2+ at every difficulty and player count
+     (`roundsim.js`). It does not contradict Aj's jab complaint: 20-27% of *plays* are jabs while only 12-17%
+     of *rounds* are jab-decided, so jabs are thrown constantly and win almost nothing. One report is about
+     what you play, the other about what wins.
+   - **We have no logs from his sessions** — he is not the playtester in the exports (that is bibong), so his
+     tier, player count and deck are unknown. Ask him what he was playing before designing around either report.
+
 5. **Initiative is a separate job.** It is ~1.8x concentrated at 6p in *every* config tested. Only
    `st.initiative = winner` (`engine.js` ~1685) will move it.
 
