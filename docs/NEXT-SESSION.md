@@ -114,6 +114,47 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.30.2 — the landscape FLOOR: 568x320 degrades to a scrolling board
+
+Aj dragged a desktop window until landscape broke and said *"but no phone is that thin"* — almost right, and
+the exception is worth having in writing. **568x320 is a real device size**: iPhone 5/5s/SE-1st and the iPod
+touch 7th gen, which Apple sold until 2022, are all 568x320 in landscape. It broke — the pile drew **34px over
+the hand**. **640x360 passes**, so the floor sits between them.
+
+Measured at 568x320: at that width **both `#handMeta` and `#actions` wrap to two rows**, so the hand region
+wanted **199px of a 320px viewport** and the play area's `1fr` track collapsed to **32px for 96px of content**.
+
+**Making it genuinely fit would mean hiding real controls** — the ♻ shuffle-pile button, the stat readouts —
+which is the wrong trade for a 2016 device. So below **340px** tall the game stops fighting for one screen and
+**degrades gracefully instead**: `#board` goes `grid-template-rows:auto auto` with `overflow-y:auto`. Nothing is
+ever drawn on top of anything, everything stays reachable by scrolling, and the same fallback covers a desktop
+window dragged to **any** absurd height — which is otherwise unbounded, and was exactly what Aj did to find it.
+
+**A second, narrower floor: NARROW and short.** 640x360 was left with **2px** of pile-to-hand clearance, and
+every honest way to buy more was measured and rejected — inlining the hint gave a 63px action bar, clipping it
+inline still gave 63px (it squeezes the buttons), and `minmax(min-content,1fr)` with a scrolling board put the
+action bar **11-117px below the fold on every device**. So `(max-height:364px) and (max-width:720px)` scrolls
+too. **800x360 is equally short but WIDE** and fits with 13px to spare, so the rule is narrow-and-short, not
+merely short.
+
+Two variability sources are now pinned to a single line each: `#hint` and `#message`. `#message` renders 26px
+instead of 13px whenever its text wraps, and the text depends on game state — so a near-zero clearance was an
+**intermittent** overlap rather than a stable one. Pinning them also lifted 667x375's clearance from 15px to
+**39px**. Full text is always in the battle log.
+
+**The flake, and the lesson.** This assertion failed **twice in 22 runs** while the tightest clearances were
+2-8px, and both times the failing line was lost because the run was logged with `tail -1` — the same
+truncation mistake twice in one session. After the floor change it has been clean for **16 consecutive runs**.
+Absence of a repro is not proof, so the fix is not "it stopped happening": the assertion now demands a **real
+8px margin** rather than `>=0`, which converts any future erosion into a deterministic failure. A test that
+fails one run in eight trains you to ignore it.
+
+`landscapetest.js` is now **64 assertions** and encodes both contracts. At and below 340px it asserts the
+board scrolls, that the hand starts **below** the play area rather than under it, and that the action bar is
+reachable — by actually scrolling the board and re-measuring, rather than relaxing the check into something
+that would pass on a broken build. Above the floor the original promise stands unchanged: everything on one
+screen, no scrolling.
+
 ### v1.30.1 — landscape: a phone held sideways was getting the desktop layout in 390px of height
 
 Aj asked whether landscape mobile "won't we just follow the desktop layout?" — it already did, and that was

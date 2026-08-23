@@ -47,7 +47,7 @@ node nettest_names.js                           # netplay player names, both dir
 node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens (10)
-node landscapetest.js                           # landscape / short-viewport layout, 6 device sizes (40)
+node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (64)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node piletest.js                                # energy/shuffle pile viewers + promote (21)
@@ -132,6 +132,19 @@ structure** and only reclaims vertical space; if you add anything to the vertica
 **negative** half too: portrait, iPad landscape (768 tall = landscape but not short) and desktop must be
 untouched. The landscape block must stay **after** the phone branch in the stylesheet: at 667×375 both match
 and landscape has to win.
+
+**Two FLOORS, and they are about width as well as height:** `max-height:340px` at any width, and
+`max-height:364px` when also `max-width:720px`. 800×360 is short but WIDE and fits on one screen with 13px to
+spare, so narrow-and-short is the thing that cannot fit — not short alone. `#hint` and `#message` are pinned to
+one line inside the landscape bands because both change height with game state, and the pile-to-hand assertion
+demands a real **8px** margin rather than `>=0`: at 2-8px it failed *twice in 22 runs*, intermittently, which is
+worse than failing outright. Don't shave that margin.
+
+**There is a declared FLOOR at 340px tall.** 568×320 (iPhone 5/5s/SE-1st, iPod touch 7th gen) cannot fit on
+one screen without hiding real controls, so below 340px `#board` becomes `auto auto` + `overflow-y:auto` and
+the board **scrolls**. Above the floor the promise is everything-on-one-screen; at or below it the promise is
+only *nothing overlaps and everything is reachable*. The suite encodes both, and the floor cases assert
+reachability by really scrolling the board — don't weaken that into a check that would pass on a broken build.
 
 `viewtest.js` runs at a 390×780 viewport because `#viewCardBtn` only exists inside `@media (max-width:720px)
 and (max-height:800px)` — at a taller phone size it is correctly absent.

@@ -14,7 +14,12 @@ const { chromium }=require('playwright'); const LAUNCH=require('./pwchrome'); co
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 // [w, h, players, label]
+/* 568x320 is the FLOOR — iPhone 5/5s/SE-1st and the iPod touch 7th gen (sold to 2022) are all this size in
+ * landscape. It cannot fit on one screen without hiding real controls, so below 340px tall the contract
+ * changes: the board SCROLLS and nothing overlaps, rather than everything fitting. 640x360 still fits. */
 const CASES=[
+  [568,320,2,'SE-1st/iPod'], [568,320,6,'SE-1st/iPod 6p'],
+  [640,360,6,'budget Android 6p'],
   [667,375,2,'iPhone SE'], [667,375,6,'iPhone SE 6p'],
   [800,360,4,'Android 4p'], [844,390,2,'iPhone 13/14'], [844,390,6,'iPhone 13/14 6p'],
   [932,430,6,'14 Pro Max 6p'],
@@ -52,6 +57,7 @@ const CASES=[
     return { vh:innerHeight, vw:innerWidth, pile:R('#pile'), table:R('#table'), handWrap:R('#handWrap'),
       actions:R('#actions'), side:R('#side'), opp:R('#opponents'), log:R('#logWrap'),
       nPile:pileCards.length, pileCardH:pileCards.length?Math.round(pileCards[0].height):0, pileWrapped:wrapped,
+      boardScrolls:(()=>{const b=document.getElementById('board'); return b.scrollHeight>b.clientHeight+1;})(),
       handScrolls:hand.scrollHeight>hand.clientHeight+1,
       handCardH:(()=>{const c=document.querySelector('#hand .card'); return c?Math.round(c.getBoundingClientRect().height):0;})() };
   });
@@ -60,12 +66,33 @@ const CASES=[
     const p=await open(w,h,np); await stress(p);
     const g=await geom(p);
     const tag=`${label} ${w}x${h}`;
-    // 1. THE action bar must be reachable — this is what was broken outright (136px and 60px off screen)
-    ok(g.actions.b<=g.vh+1, `${tag}: the action bar is on screen (bottom ${g.actions.b} <= ${g.vh})`);
-    // 2. the pile must not be drawn over the hand — the play-area track collapsing under a tall hand region
-    ok(g.pile.b<=g.handWrap.t+1, `${tag}: the pile clears the hand (pile ${g.pile.b} <= hand top ${g.handWrap.t})`);
+    // Below the floor the promise is reachable-by-scrolling, not all-on-one-screen. Two ways to be below it:
+    // very short (<=340px, any width), or NARROW and short (<=364px and <=720px). 800x360 is equally short but
+    // wide, and fits with room to spare — so width is part of the rule, not just height.
+    const FLOOR = h<=340 || (h<=364 && w<=720);
+    // 1. THE action bar must be REACHABLE — this is what was broken outright (136px and 60px off screen).
+    //    At the floor that means "after scrolling the board", so scroll it and re-measure rather than
+    //    relaxing the check into something that proves nothing.
+    if(!FLOOR){
+      ok(g.actions.b<=g.vh+1, `${tag}: the action bar is on screen (bottom ${g.actions.b} <= ${g.vh})`);
+    } else {
+      ok(g.boardScrolls, `${tag}: the board scrolls instead of overlapping (the floor's contract)`);
+      const reach=await p.evaluate(()=>{ const b=document.getElementById('board');
+        b.scrollTop=b.scrollHeight; const r=document.getElementById('actions').getBoundingClientRect();
+        return {b:Math.round(r.bottom), t:Math.round(r.top), vh:innerHeight}; });
+      ok(reach.b<=reach.vh+1 && reach.t>=0, `${tag}: the action bar is reachable by scrolling (${reach.t}-${reach.b} in ${reach.vh})`);
+    }
+    // 2. the pile must not be drawn over the hand — the play-area track collapsing under a tall hand region.
+    //    Asserted with a real MARGIN, not >=0. This assertion flaked twice in 22 runs back when the tightest
+    //    clearance was 2-8px: #message and #hint change height with game state, so a near-zero margin fails
+    //    intermittently and trains you to ignore the suite. Requiring 8px turns any future erosion into a
+    //    deterministic failure instead. Current clearances: 13px at 800x360 (tightest), 29-51px elsewhere.
+    const SLACK=8;
+    ok(g.handWrap.t-g.pile.b>=SLACK, `${tag}: the pile clears the hand by >=${SLACK}px (got ${g.handWrap.t-g.pile.b}px)`);
     // 3. the play area must be tall enough to actually SHOW a pile card, the original 57px-vs-66px failure
     ok(g.table.h>=g.pileCardH+8, `${tag}: the play area fits a pile card (${g.table.h}px area, ${g.pileCardH}px card)`);
+    // and at the floor, confirm the degradation is the SCROLL and not a silently clipped board
+    if(FLOOR) ok(g.handWrap.t>=g.table.b-1, `${tag}: the hand starts below the play area, never on top of it (${g.handWrap.t} >= ${g.table.b})`);
     // 4. a 5-card special must stay on one row (it is the widest thing the pile ever shows)
     ok(g.nPile===5 && !g.pileWrapped, `${tag}: a 5-card special does not wrap (${g.nPile} cards)`);
     // 5. an over-full hand scrolls rather than growing without bound
