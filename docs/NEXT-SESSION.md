@@ -50,6 +50,27 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 ---
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **Initiative has no catch-up, and that is probably the real problem** (Aj, from play — 2026-08-23; the
+  finding that came out of testing and REJECTING the jab-cantrip, see the note below). In `engine.js` ~1685 a
+  round win does `st.initiative = winner; st.turn = winner;` — **the round winner leads the next round.** That
+  is a rich-get-richer loop, and it collides with two other rules:
+  - **only a special breaks a shield**, and
+  - you may only beat the pile with a **higher value of the SAME shape**.
+
+  So a player who is not winning rounds can almost never *lead*, and therefore can almost never deploy a
+  special — their full house is dead weight until somebody else happens to lead a full house at a lower value.
+  Aj, mid-game: *"three rounds in a row throwing jab after jab… I didn't want to break my full house to answer
+  their pair."* It gets worse with player count, because the pile is contested by more people.
+
+  **The game has CARD catch-up (shields-as-cards, loser-mill) and NO INITIATIVE catch-up.** That asymmetry is
+  the thing to attack. Directions, none designed yet:
+  - **Rotate the lead** instead of awarding it to the winner — clockwise, or to whoever has led least recently.
+    Cheap to try and directly measurable (`mpsim.js`, and watch whether special-cast rates rise).
+  - **Let a bigger shape answer a smaller one at a cost** (energy, or reduced banking), so holding a special is
+    never structurally dead.
+  - **Frame passing as a real choice in the UI.** Aj: *"I think the real strat is really to pass."* The engine
+    agrees — a pass spends no hand cards and still banks energy via the loser-mill — but the tutorial currently
+    teaches *"leading a jab is the safe way to stock energy"*, which may be teaching the weaker line.
 - **Overlays and modals are not landscape-safe** (Aj, screenshot 2026-08-23 — the setup dialog clipped at both
   top AND bottom in a short window). v1.30.1/v1.30.2 fixed the in-game **board** only; every dialog was
   untouched, and the cause is a single point:
@@ -79,31 +100,6 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
   specified yet. Worth noting that **v1.30.0 just built the substrate for it by accident**: a roster of 32
   named characters, grouped into five tiers, each with a distinct play style and a name that already flows
   through the whole naming funnel. A collection/progression layer has something to collect now.
-- **"Each jab is a cantrip"** (Aj, idea — parked, not designed). A **jab** (single-card play) would also do
-  something small on top of banking energy — the obvious reading being **draw a card**, MTG-style.
-  - **Why this is more interesting than it looks:** it is a **global draw engine**, and that is exactly the
-    thing the game measurably lacks. `node recyclesim.js` says only **39%** of games ever reach a reshuffle and
-    the median first one lands at **round 12**, *past* the median 11-round game — which is why the reorderable
-    energy pile is currently a niche lever. Jab-cantrips would raise cycling for **every** deck at once, so the
-    energy reorder, the shuffle pile, and reclaim effects all gain value without touching any of them. It is
-    the same need noted under *suit ≠ class* (a real draw engine), but solved as a **core rule** instead of a
-    card set.
-  - **Questions to settle first:** every jab or only a **winning** jab? Draw **1**, or a small choice (draw /
-    ramp / peek)? Both players, or only the one who played it? Round 1 is jabs-only — does that make the
-    opening explosive? And does it change what a jab *is for*, since today the honest reason to jab is "bank
-    energy and don't break a shield".
-  - **Cost to get a real answer: ~20-30 min, almost all of it the engine edit.** The measurement is nearly
-    free — timed on this machine: `recyclesim.js 400` **0.5s**, `analysis.js 130 on x knight` **7.1s**,
-    `mpsim.js 200 knight` **1.8s**. So a full before/after sweep is **under 20 seconds per build**. And the
-    engine already has this exact toggle pattern for sim experiments (`setShieldCards`, `setLoserMill`,
-    `setMillScope`, `setSpecialLossMode`, `setFormSuitMatch`), so add **`setJabCantrip(v)`** + a couple of lines
-    where a single-card play resolves, and the A/B is a flag flip in one process rather than two builds.
-    **Worth doing before any draw-engine work under *suit ≠ class* — it might make that unnecessary.**
-  - **Definitely measure, don't ship on feel:** this is a core-rule change, so run `analysis.js` before/after
-    for class win rates, `recyclesim.js` for the reshuffle rate it is meant to move, and `mpsim.js` for 3-6p.
-    Expect games to get **longer** and effect density to rise — the interesting risk is decking out sooner, in
-    the other direction.
-
 
 - **Player names** (Aj) — *the cheapest good thing left.* Let players type a name instead of `P2`/`P3`. Every
   naming site already funnels through a single **`logName(seat)`** (that was the point of doing D1 first), and

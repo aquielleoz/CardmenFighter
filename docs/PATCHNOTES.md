@@ -10,6 +10,52 @@ deck vs every other, ~7,150 games, Demon-strength AI, strict suit-cost).
 
 ## Balance Design Principles (the durable learnings)
 
+### 0. A free bonus on the BORING action makes the boring action mandatory. (2026-08-23)
+Tested and **rejected**: *"each jab is a cantrip"* — a single-card play also draws a card. The measurements
+were fine and the change still failed, which is the interesting part.
+
+**What it did (1500 / 1300 / 660-game A/Bs, flag in `play()` gated on `MAX_HAND`):**
+
+| | off | on |
+| --- | --- | --- |
+| games that reshuffle at all | 36% | **42%** |
+| median round of first reshuffle | 13 | **11** |
+| reshuffles per game | 0.38 | 0.44 |
+| longest game | 28 rounds | 20 rounds |
+| duel win-rate spread | 12.3 pts | **11.3 pts** |
+| Full Set (the default deck) | 46.7% (#10) | **49.5% (#7)** |
+| Quick responses | 4217 | 4396 (+4.2%) |
+
+So it did what it was designed to do: cycling up, spread tighter, the long tail gone, and the **default deck
+moved toward fair**. Free-for-all was neutral, every deck inside noise.
+
+**Why it was rejected anyway — three reasons, and the third is the real one:**
+
+1. **It cannibalised an entire archetype.** The six biggest cast-rate declines in the whole card set were
+   *exactly the six draw cards* (Hand-to-Hand Mastery −0.05, Back to the Books −0.04 with win% 60.0→56.1, Pray
+   for Guidance, Prepare for Combat, Superior Training, Never Out of Options). Paying a card **and** energy for
+   "draw a card" is bad when jabs do it free. **Any free effect prices out the cards that sell that effect.**
+2. **Card advantage is a tempo tax.** Pure Fighter fell 52.4% → 47.2% (#3 → #9) — the only real loser — while
+   the value/utility decks rose (Warlock +2.8, Full Set +2.8, Mage Knight +2.4). When everyone can afford to
+   hold an answer, the deck whose edge is closing fast loses that edge. Expect this from *any* global draw.
+3. **It subsidised the least interesting action in the game.** A playtester had already said jabs were boring,
+   and Aj hit the reason in play: with 3+ players you jab over and over because you cannot get the initiative
+   to lead your own special, and you will not break a full house to answer a pair. The correct line is often to
+   **pass**. So the common exchange is already jab-versus-passes — and paying players to jab makes the boring
+   line *more* attractive. **Check what an incentive rewards, not just what it balances.** A change can pass
+   every metric and still push play toward the part of the game nobody enjoys.
+
+The root cause it exposed is recorded as an open item in `NEXT-SESSION.md`: **the round winner keeps the
+initiative** (`engine.js` ~1685, `st.initiative = winner`), and the game has card catch-up but **no initiative
+catch-up**. Fix that and jabs may stop being the default action on their own — without paying anyone to throw
+them.
+
+Re-testing this or a variant is ~15 minutes: a `JAB_CANTRIP` flag beside `MAX_HAND`, one line in `play()` after
+the cards move to energy (`combo.size === 1 && pl.hand.length < MAX_HAND`), `cantrip` on the play result, and a
+`cantrip`/`nocantrip` arg in `analysis.js` / `mpsim.js` / `recyclesim.js`. Narrower variants worth measuring if
+it ever comes back: draw only on a **leading** jab, only when the jab **wins**, or **once per round**.
+
+
 ### 1. To move a DECK, nerf its workhorse — not its flashy top-end.
 A deck's win rate is driven by its **high-cast-rate** cards, not its splashy finishers.
 Cards that only cast ~0.1 times per game cannot move a deck's overall win rate no matter
