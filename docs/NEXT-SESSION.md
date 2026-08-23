@@ -114,6 +114,52 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.30.1 — landscape: a phone held sideways was getting the desktop layout in 390px of height
+
+Aj asked whether landscape mobile "won't we just follow the desktop layout?" — it already did, and that was
+exactly the bug. The phone branch is gated on `@media (max-width:720px) and (max-height:800px)`, and a phone
+in landscape is about **844x390**: it fails that gate on **width**, so it received the full desktop layout
+inside 390px of height. Measured, before this change:
+
+| size | what was broken |
+| --- | --- |
+| 844x390 | header 56 + hand region 213 left the play area **57px** tall — and a card is **66px**, so the pile could not render a single card |
+| 667x375 | the hand and the entire action bar sat **136px BELOW the viewport**, unreachable |
+| 667x375, 6 players | the opponents strip wrapped to two rows (**172px**) and pushed the action bar **60px** off screen |
+
+**The fix keeps the desktop structure** — three-column board, side panel, hand along the bottom. Landscape did
+not become a new layout; height is simply the scarce axis there while width is abundant, so the new block buys
+height back from the chrome: slimmer header, tighter gaps, shorter action buttons, a compacted `#handMeta`
+(which measured **67px**, the single biggest consumer), and a hand capped by `dvh` so it scrolls instead of
+growing. Cards shrink via `--cs`, but `--pm` is raised to compensate so the **pile stays near full size** —
+that is what you read mid-play, and it was the part with no room at all.
+
+After: the play area goes **57px → 140px** at 844x390, and on the common iPhone landscape sizes the pile is
+**67px**, *larger* than the 55px phone-portrait baseline — the same "cards look smol" reasoning as the desktop
+steps, applied to the axis that is actually free here.
+
+Three bands, because the devices genuinely differ:
+
+- `(orientation:landscape) and (max-height:520px)` — the shared reclaim.
+- `+ (min-height:380px)` — the roomier 844x390 / 932x430 phones get bigger cards (`--cs:.9 --pm:1.35`).
+- `+ (max-width:720px)` — a small phone sideways (667x375 SE). Below 721px the action bar loses its desktop
+  spacer and wraps, so the buttons shrink further; the pile drops to its unmultiplied size; and **with six
+  players the opponent panels become a single row of name + shields**, the stat line hidden. That last one is
+  the hardest case in the game — the opponents strip left the play-area track 49px for 96px of content — and
+  nothing else was big enough to cut. The detail is still one tap away, since tapping a panel expands it.
+
+Ordering matters: the landscape block comes **after** the phone branch, because at 667x375 both match and this
+one must win. It also replaces the phone branch's `minmax(min-content,1fr)` with `minmax(0,1fr)` — that
+`min-content` was what let the hand force its own minimum and push the action bar off screen.
+
+**New suite: `node landscapetest.js` (40 assertions).** Six device/player combinations, each measured in its
+**worst** state — battle log open, hand stuffed to `MAX_HAND`, a 5-card special staged — asserting the action
+bar is on screen, the pile clears the hand, the play area can fit a pile card, a 5-card special does not wrap,
+and an over-full hand scrolls. It also carries the **negative** half of the spec: portrait 390x780, iPad
+landscape 1024x768 (landscape but *not* short) and desktop 1400x1000 must all be **unaffected**. That negative
+half caught my own bad assertion immediately — I asserted a literal 66px card on desktop, which correctly
+serves 78px via the `min-width:1200px` step.
+
 ### v1.30.0 — AI personas: every opponent has a name and a temper
 
 Difficulty used to be the whole personality of an opponent: five tiers, and within a tier every AI played

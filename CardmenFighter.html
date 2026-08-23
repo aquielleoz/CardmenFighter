@@ -911,6 +911,87 @@
     #board > #side{display:none;}
     #viewCardBtn{display:inline-block;}
   }
+
+  /* --- LANDSCAPE / SHORT VIEWPORT ------------------------------------------------------------------------
+     A phone held sideways is ~844x390, which MISSES the phone branch above entirely (that gate needs
+     max-width:720px) and therefore got the full DESKTOP layout inside 390px of height. Measured at 844x390
+     before this block: header 56 + hand region 213 left the play area **57px** tall — and a card is 66px, so
+     the pile could not render a single card. On a 667x375 SE it was worse: the hand and the whole action bar
+     sat **136px BELOW the viewport**, unreachable, because the phone branch's `minmax(min-content,1fr)` let
+     the hand force its own minimum and push everything down.
+     Height is the scarce axis in landscape and width is abundant, so this block buys height back from the
+     chrome instead of rescaling the page: a slimmer header, tighter gaps, shorter action buttons, and a hand
+     capped by dvh. Cards shrink via --cs, but --pm is raised to compensate so the PILE stays near full size —
+     that is the thing you actually read mid-play, and it is the part that had no room at all.
+     Comes AFTER the phone branch on purpose: at 667x375 both match, and this one must win. */
+  @media (orientation:landscape) and (max-height:520px){
+    :root{ --cs:.82; --pm:1.15; }                              /* pile = .82 x 1.15 = .94, near full size */
+    header{padding:3px 10px; gap:6px;}
+    header h1{font-size:13px;}
+    header h1 small{display:none;}
+    header button{padding:4px 8px; font-size:12px;}
+    header select{padding:4px 7px; font-size:12px;}
+    header .diffWrap{font-size:10px;}
+    main{padding:4px 8px 0; gap:4px;}
+    #board{gap:6px; grid-template-rows:minmax(0,1fr) auto;}    /* minmax(0,...) — min-content was the SE overflow */
+    #handWrap{padding:4px 8px 5px;}
+    /* #handMeta (your name, shields, energy, deck, shuffle pile) measured 67px — it WRAPS to two rows on a
+       narrow landscape phone, and it was the single biggest consumer of the height the play area needed.
+       The inner .fighter span carries an inline padding, hence the !important. */
+    #handMeta{font-size:11px; gap:5px; margin:0 3px 4px;}
+    #handMeta .fighter{padding:2px 5px !important; gap:6px !important;}
+    #handMeta .stat, #handMeta .deckName{font-size:10.5px;}
+    #handMeta .shields{gap:3px;}
+    #handMeta .shields .s{width:11px; height:14px;}
+    #hand{max-height:32dvh; padding:13px 6px 4px; gap:5px;}    /* 13px top still clears the hover lift */
+    #actions{margin-top:4px; gap:6px;}
+    #actions button{padding:6px 11px; font-size:13px; border-radius:9px;}
+    #hint{font-size:11.5px; min-height:13px;}
+    #pileLabel{font-size:11px; min-height:13px;}
+    #pile{min-height:56px;}
+    #message{font-size:12px; min-height:15px;}
+    #roundTag{font-size:10px;}
+    #table{gap:4px;}
+  }
+  /* Roomier landscape (>=380px tall: the common 844x390 and 932x430 iPhones). The 360-375px devices need
+     every pixel, but these have slack in the play area once the chrome is slimmed — measured 140px and 263px
+     of play area at --cs:.82 — so spend it on card size. Same "cards look smol" reasoning as the desktop
+     steps, applied to the axis that is actually free here. */
+  @media (orientation:landscape) and (min-height:380px) and (max-height:520px){
+    :root{ --cs:.9; --pm:1.35; }
+  }
+  /* Narrow AND short — a small phone sideways (667x375 SE). Below 721px the action bar loses its desktop
+     spacer and WRAPS to two rows, which cost 25px and pushed a 5-card pile into the hand with the battle log
+     open. Shrink the buttons enough to keep one row. */
+  @media (orientation:landscape) and (max-height:520px) and (max-width:720px){
+    #actions{gap:4px;}
+    #actions button{padding:5px 8px; font-size:12px; border-radius:8px;}
+    #hint{font-size:11px; flex:1 1 100%; order:9;}   /* the hint drops to its own line rather than squeezing the buttons */
+    /* Five opponent panels at min-width:130px need 690px+ and so WRAPPED to two rows at 667px — measured a
+       172px opponents strip in a 6-player game, which put the action bar 60px below the viewport. Compact
+       them enough that a full table fits one row (5 x 88 + gaps = ~484 of 667). */
+    /* With a 6-player strip (69px even compacted) the play area is only 96px, and the pile's own column
+       measured 109px of content — it overflowed the grid track into the hand. Ease the pile back to its
+       unmultiplied size here; 667x375 is the smallest landscape device we support and it cannot afford the
+       bigger pile the roomier sizes get. */
+    :root{ --pm:1; }
+    #pile{min-height:44px;}
+    #message{font-size:11px; min-height:13px;}
+    #opponents{gap:4px;}
+    .oppPanel{min-width:88px; max-width:150px; padding:4px 6px; gap:2px; font-size:10px; border-radius:9px;}
+    .oppPanel .oppName{font-size:11px;}
+    .oppPanel .oppSeat{display:none;}                                   /* the name already identifies the seat */
+    .oppPanel .oppShields{gap:2px;}
+    .oppPanel .oppShields .s{width:9px; height:12px;}
+    .oppPanel .oppStats{gap:5px;}
+    /* 667x375 with SIX players is the hardest case in the game: the opponents strip (69px even compacted)
+       left the play-area grid track 49px for 96px of content, so the pile drew over the hand. Lay each panel
+       out as a single ROW — name + shields — and drop the per-seat stat line. The detail is still one tap
+       away: tapping a panel expands it (the B1 zone-targeting work). Nothing else is small enough to cut. */
+    .oppPanel{flex-direction:row; align-items:center; justify-content:space-between; flex-wrap:wrap;}
+    .oppPanel .oppStats{display:none;}
+    .oppPanel .oppTop{flex:1 1 auto; min-width:0;}
+  }
 </style>
 </head>
 <body>
