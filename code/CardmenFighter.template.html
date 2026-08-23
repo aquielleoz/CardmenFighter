@@ -11,15 +11,18 @@
     --red:#ff5a5a; --txt:#f2ecf6; --panel:rgba(0,0,0,.3); --good:#43c06a; --bad:#e2624a;
     --nrg:#5ac8fa; --shield:#e8c37a; --pick:#c98bff;
     --cs:1;   /* card scale — grows on wider viewports so cards don't look tiny on big monitors */
+    --pm:1;   /* PILE multiplier on top of --cs: the pile shows at most 5 cards, so it can run larger */
   }
   /* Adaptive card sizing: scale playing cards up on large screens (base tuned for laptops/tablets) */
   /* Card scale steps. Playtester on a large screen: "the cards look smol". Measured, they were: at 1920x1080
      a card was 65x94px — 3.4% of the width — with ~970px of board above it mostly empty, because 1920 falls
      just UNDER the old 2000px step. Steps are now denser and gated on min-height as well as min-width, so a
      wide-but-short window (a laptop, a half-height window) does not get cards too tall for its hand row. */
-  @media (min-width:1200px){ :root{ --cs:1.18; } }
+  @media (min-width:560px){  :root{ --pm:1.2; } }
+  @media (min-width:1000px){ :root{ --pm:1.45; } }
+  @media (min-width:1200px){ :root{ --cs:1.18; --pm:1.6; } }
   @media (min-width:1440px) and (min-height:800px){ :root{ --cs:1.32; } }
-  @media (min-width:1600px) and (min-height:860px){ :root{ --cs:1.5; } }
+  @media (min-width:1600px) and (min-height:860px){ :root{ --cs:1.5; --pm:1.75; } }
   @media (min-width:1800px) and (min-height:900px){ :root{ --cs:1.68; } }
   @media (min-width:2200px) and (min-height:1000px){ :root{ --cs:1.9; } }
   @media (min-width:2560px) and (min-height:1200px){ :root{ --cs:2.1; } }
@@ -544,6 +547,16 @@
   #hand .card.enter{ animation:dealIn .46s cubic-bezier(.2,.85,.25,1.05) both; }
   /* pile cards start off-transform; entrance is driven inline via JS FLIP */
   #pile .card{ transform-origin:center; }
+  /* THE PILE IS THE FOCAL POINT and shows at most 5 cards (a straight or a full house), so it has far more room
+     than the hand — yet it rendered via .card.sm at a 38x55 base, i.e. SMALLER than the hand's 46x66. Give it
+     its own multiplier on top of --cs. Kept modest on phones, where 5 cards across 390px is the binding
+     constraint, and generous from tablet up. */
+  #pile .card{ width:calc(38px*var(--cs)*var(--pm)); height:calc(55px*var(--cs)*var(--pm)); border-radius:calc(8px*var(--cs)*var(--pm)); }
+  #pile .card .r, #pile .card .s{ font-size:calc(13px*var(--cs)*var(--pm)); }
+  #pile .card .c{ font-size:calc(19px*var(--cs)*var(--pm)); }
+  #pile .card.faced .idx{ font-size:calc(11px*var(--cs)*var(--pm)); padding:1px 4px 2px; }
+  #pile .card .efi{ width:calc(13px*var(--cs)*var(--pm)); height:calc(13px*var(--cs)*var(--pm)); }
+  #pile .card .qbadge{ font-size:calc(8px*var(--cs)*var(--pm)); }
   /* boosted / reduced plays get a glowing border so a play's effective value reads at a glance */
   #pile.boosted .card{ border-color:rgba(95,220,255,.95); box-shadow:0 0 11px 2px rgba(95,220,255,.7); animation:pileGlowUp 1.5s ease-in-out infinite; }
   #pile.reduced .card{ border-color:rgba(255,110,110,.95); box-shadow:0 0 11px 2px rgba(255,110,110,.7); animation:pileGlowDn 1.5s ease-in-out infinite; }
