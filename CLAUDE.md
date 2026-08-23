@@ -70,6 +70,7 @@ node analysis.js 130 on      # class round-robin — args: N catchup recycle dif
 node mpsim.js                # 3/4/6p free-for-all — args: games difficulty
 node recyclesim.js 400       # how often a game reaches the reshuffle (deck-cycling pressure)
 node personasim.js 150 demon  # AI persona parity — args: gamesPerRotation tier [control]
+node passsim.js 200 6 knight  # strategic-pass study + initiative concentration — args: games players tier thresh mode
 node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — RUN IT after any card
                              # name/cost/text change, or the published card list silently goes stale
 ```

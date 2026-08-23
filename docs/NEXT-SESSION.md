@@ -71,7 +71,38 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
   - **Frame passing as a real choice in the UI.** Aj: *"I think the real strat is really to pass."* The engine
     agrees — a pass spends no hand cards and still banks energy via the loser-mill — but the tutorial currently
     teaches *"leading a jab is the safe way to stock energy"*, which may be teaching the weaker line.
-  - **The AI is FORBIDDEN from the strategy Aj identified.** `ai.js` 363:
+  - **STUDIED 2026-08-23 — the strategic pass does NOT work in multiplayer; the gate stays.** `passsim.js`
+    measures it as a within-game A/B (same table, half the seats allowed to pass, seats rotated, one deck and
+    one tier for everyone), so deck, tier and seat luck are identical in both arms by construction:
+
+    | case | delta to the passing arm | |
+    | --- | --- | --- |
+    | demon DUEL | **+17.3 pts** | real — reproduces the original "~59% vs always-contest" |
+    | knight duel | +1.5 | noise — the duel edge is a **demon** edge, not a smart-tier one |
+    | 6p, thresholds 5→10 (fires up to 8x/game) | +0.6 / −1.7 / +1.7 / −0.9 / −2.2 | all noise |
+    | 3p / 4p, 3200 games | +0.9 / −0.1 | noise |
+
+    So the old comment was wrong in an interesting way: it said conceding "hands the trick to several
+    opponents", implying **harm**. There is no harm — the policy is **inert**. Conserving a card is a
+    **two-body** attrition edge; against five opponents the marginal card stops mattering, so the pass fires
+    and changes nothing. Raising the threshold just buys more firings of the same zero.
+  - **Aj's own policy was also tested and is the better idea, but still not significant.** The shipped rule
+    concedes on *hand size*; Aj was conceding because he *held a full house he meant to lead*. That is a
+    different rule (`AI.setStratPassMode('combo')` — concede a jab whenever you hold a Special). It is the only
+    variant with a consistently positive sign, **+0.9 at both 3p and 4p over 3200 games** — inside noise. Worth
+    revisiting **after** an initiative fix, because its whole premise is "I will get to lead this later", which
+    is exactly what the initiative loop denies. A low-power +4.0 regressed to +0.9 at 6x the games; don't be
+    fooled by the first run.
+  - **Two things the study turned up that matter more than the pass itself:**
+    1. **Initiative concentration grows with player count.** The busiest leader holds **40% of rounds at 4p**
+       (fair 25%) and **32% at 6p** (fair 17%) — 1.6-1.9x its share. Everyone leads *eventually* across a
+       33-round game, but the local streaks are real, and that is the "three rounds in a row" feeling.
+       `passsim.js` prints this, so it is the harness to evaluate any initiative fix against.
+    2. **The AI is not jab-locked at all — only ~20% of its plays are jabs** (it casts ~56 Specials a game at
+       6p). A human felt starved of Specials while the AI was swimming in them. **That asymmetry is the real
+       lead**, and it is consistent with the initiative loop: the AI keeps winning rounds, keeps the lead, and
+       keeps leading Specials. Find out what the AI does that a human cannot before redesigning anything.
+  - The original observation, for the record. `ai.js` 363:
     `if (strategicPass && st.numPlayers === 2 && hand.length <= STRAT_PASS_MAX) return {action:'pass'}` —
     deliberately passing a *winnable* jab to conserve cards is **hard-gated to 1v1**. In a free-for-all no AI
     ever strategic-passes, which is exactly the mode where Aj found passing to be right. Two consequences:
