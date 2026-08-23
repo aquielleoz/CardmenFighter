@@ -47,6 +47,7 @@ node nettest_names.js                           # netplay player names, both dir
 node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens (10)
+node landscapetest.js                           # landscape / short-viewport layout, 6 device sizes (40)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node piletest.js                                # energy/shuffle pile viewers + promote (21)
@@ -123,6 +124,15 @@ a product bug.
 that page first, seed and reload it, clear the store, and only *then* open the other page. `nettest_customdeck.js`
 does exactly that. **`decktest.js`** and **`viewtest.js`** are the same kind of full-UI test for
 the solo side (the custom deck builder; the 🔍 View card reader), driving the page against `file://…?dbgsolo=1`.
+**`landscapetest.js` is the landscape/short-viewport guard.** A phone held sideways (~844×390) MISSES the
+phone branch entirely — that gate needs `max-width:720px` — so it used to get the **desktop layout in 390px
+of height**, with a 57px play area that could not fit a 66px card. Landscape deliberately **keeps the desktop
+structure** and only reclaims vertical space; if you add anything to the vertical stack (`#handMeta`,
+`#actions`, the opponents strip), run this suite — those three are what consumed the height. It asserts the
+**negative** half too: portrait, iPad landscape (768 tall = landscape but not short) and desktop must be
+untouched. The landscape block must stay **after** the phone branch in the stylesheet: at 667×375 both match
+and landscape has to win.
+
 `viewtest.js` runs at a 390×780 viewport because `#viewCardBtn` only exists inside `@media (max-width:720px)
 and (max-height:800px)` — at a taller phone size it is correctly absent.
 
