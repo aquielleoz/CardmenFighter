@@ -21,6 +21,10 @@
   @media (min-width:560px){  :root{ --pm:1.2; } }
   @media (min-width:1000px){ :root{ --pm:1.45; } }
   @media (min-width:1200px){ :root{ --cs:1.18; --pm:1.6; } }
+  /* 1200-1439 is the tightest band: with the battle log open the centre is ~640px wide, and after the rail
+     reservation a 5-card pile at --pm:1.6 wrapped. Ease the pile scale here only — these are small screens,
+     and the "cards look smol" complaint was about large ones. */
+  @media (min-width:1200px) and (max-width:1439px){ :root{ --pm:1.35; } }
   @media (min-width:1440px) and (min-height:800px){ :root{ --cs:1.32; } }
   @media (min-width:1600px) and (min-height:860px){ :root{ --cs:1.5; --pm:1.75; } }
   @media (min-width:1800px) and (min-height:900px){ :root{ --cs:1.68; } }
@@ -174,7 +178,11 @@
      while the right rail's equip zones sit top/bottom and never met the vertically-centred pile (measured
      267px+ of slack). Reserving both sides squeezed the band enough to wrap the pile at 1440 with the log
      open, so only the left is reserved, and by a fixed amount rather than a vw that grows past its need. */
-  @media (min-width:1200px){ #pile{ width:100%; box-sizing:border-box; padding-left:186px; padding-right:28px; } }
+  /* Keep the pile CENTRED with its label and message, but stop it reaching the rails: narrow the BOX and
+     centre it, rather than padding it (padding shifts the content, which put a 1-card pile off-centre — Aj
+     caught both). The stash is slimmed to 3-per-row below so this reservation still leaves room for 5 big
+     cards even at 1440 with the battle log open. */
+  @media (min-width:1200px){ #pile{ width:100%; box-sizing:border-box; max-width:calc(100% - 260px); margin-inline:auto; } }
   #pile .empty{opacity:.4; font-style:italic; font-size:13px;}
   #stackView{display:none; flex-direction:column; gap:3px; align-items:center; margin:3px 0;}
   #stackView .stk{font-size:11px; padding:2px 9px; border-radius:8px; border:1px solid var(--line); background:rgba(255,255,255,.05); opacity:.9;}
@@ -708,7 +716,7 @@
   #beaten{position:absolute; top:50%; transform:translateY(-50%); left:12px; display:flex; flex-direction:column; gap:3px; z-index:2; pointer-events:none;}   /* center-left: clears the rival Forms zone (top-left) and your Forms zone (bottom-left) */
   #beaten:empty{display:none;}
   #beaten .bLabel{font-size:9.5px; text-transform:uppercase; letter-spacing:.4px; opacity:.5; font-weight:800;}
-  #beaten .bCards{display:flex; gap:3px;}
+  #beaten .bCards{display:flex; gap:3px; flex-wrap:wrap; max-width:99px;}   /* 3 tiny cards per row (30px each) — a narrow column, so the centred pile has room */
   #beaten .card{opacity:.7; box-shadow:0 1px 3px rgba(0,0,0,.45);}
 
   /* --- Fighter Kick finisher --- */
@@ -2043,6 +2051,7 @@ __NETVIEW__
       pileEl.classList.toggle('reduced', mod<0);
       $('pileLabel').textContent=owner+' · '+kindLabel(state.pile.combo.type)+(mod>0?' · boosted +'+mod:(mod<0?' · reduced '+mod:''));
     } else { $('pileLabel').textContent=state.finished?'':'New fight'; pileEl.classList.remove('boosted','reduced'); }
+    pileEl.classList.toggle('noCards', !state.pile);   // drives the rail reserve off when there is nothing to collide with
     renderStack();
     var yourTurn=(state.turn===YOU && !state.finished);
     var spectating=(MP() && you.eliminated && !state.finished);            // knocked out but the duel continues — watch on
@@ -3042,12 +3051,20 @@ __NETVIEW__
     if(res.newRound===2) return 'Specials unlocked!';
     return 'Each player draws 2 cards';
   }
+  /* The between-rounds ceremony beats. This was the THIRD site deriving the loser as "whichever of YOU/RIVAL
+   * didn't win" (Aj caught it after v1.29.6 fixed the other two): with P2 beating P3, `youWon` is false, so
+   * `foe` became 'You' and the ceremony announced "You lose a shield" to a player who lost nothing — while the
+   * battle log, already fixed, correctly said "P3 lost a shield". Now reads res.struck like announceRoundWin. */
   function buildPreDrawBeats(res){
-    var youWon=res.roundWinner===YOU, who=youWon?'You':'Rival', foe=youWon?'Rival':'You', cls=youWon?'good':'bad';
+    var w=res.roundWinner, youWon=(w===YOU), who=logName(w), cls=youWon?'good':'bad';
+    var struck=(res.struck||[]).filter(function(q,i,a){ return a.indexOf(q)===i; });
+    var youStruck=struck.indexOf(YOU)>=0;
+    var foe = struck.length ? struck.map(logName).join(' & ') : (MP() ? 'a rival' : (youWon?'Rival':'You'));
+    var lostVerb = youStruck ? 'lose' : (struck.length ? 'loses' : (foe==='You'?'lose':'loses'));
     var isSpecial=res.comboType && res.comboType!=='single';
     var label=isSpecial ? (TYPE[res.comboType]||'Special') : 'Jab';
-    var beats=[{ html:who+' won the round with a <b>'+label+'</b>!', cls:cls }];
-    if(res.shieldStripped) beats.push({ html:'<b>'+foe+'</b> lose'+(foe==='You'?'':'s')+' a shield 🛡', cls:cls, shield:true });
+    var beats=[{ html:'<b>'+who+'</b> won the round with a <b>'+label+'</b>!', cls:cls }];
+    if(res.shieldStripped) beats.push({ html:'<b>'+foe+'</b> '+lostVerb+' a shield 🛡', cls:(youStruck?'bad':cls), shield:true });
     else if(res.prevented) beats.push({ html:foe+'’s shield held — loss prevented 🛡', cls:'dim' });
     beats.push({ html:'<b>'+who+'</b> '+(youWon?'seize':'seizes')+' the initiative!', cls:cls });
     return beats;

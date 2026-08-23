@@ -125,6 +125,17 @@ Measured before changing anything, and the report was fair: at **1920×1080** �
   - **Asymmetric on purpose.** A symmetric reservation squeezed the band enough to *wrap* the 5-card pile at 1440×900 with the log open. Measured: the right rail's equip zones sit top/bottom and never met the vertically-centred pile — 267px+ of slack — so only the left needs reserving.
   - **Verified across seven widths** (1280 → 2560), log **open and closed**: overlap **0px everywhere**, no wrap anywhere, right-rail clearance always positive (tightest 22px at 1280×720 with the log open).
   - Two false positives worth knowing if you measure this area again: the pile **fans cards with transforms**, so `scrollWidth > clientWidth` reads as overflow at every size on every build, and comparing card `top`s reads as wrapping. Test wrapping by checking each card's `left` against its predecessor's.
+- **Then two centring bugs, both mine, both caught by Aj in a minute:** the rail reservation was done with
+  `padding`, which shifts *content* rather than narrowing the *box* — so the `"Fight is open — lead a card"`
+  line and then **every short pile** (1-3 cards) sat right of its centred `NEW FIGHT` label.
+  - **Correct fix:** `max-width:calc(100% - 260px); margin-inline:auto` on ≥1200px. The box is narrower *and*
+    centred, so cards stay on the label's axis and still cannot reach the rails.
+  - To make that reservation affordable, the stash is slimmed to **3 tiny cards per row** (`max-width:99px`)
+    instead of 5 across, and the pile scale eases to `--pm:1.35` in the **1200-1439** band — the tightest case,
+    where the log open leaves only ~640px and a 5-card pile at 1.6 wrapped.
+  - **Verified 28 cases:** seven widths (1280 → 2560) × log open/closed × 1-card and 5-card piles — centred to
+    within 3px, zero overlap, no wrapping anywhere. `mptest.js` now asserts centring, overlap and wrap at both
+    card counts, because my earlier assertion enforced the *in-flow* behaviour that caused this.
 - Still open if it is *still* not enough: cards are ~4% of screen **width** even now, because the board itself is mostly empty on a big monitor. Growing them further fights the layout, so the better lever is a **card-size preference in ⚙️ Settings** (the modal already persists prefs like detailed energy pulses) — per-person perception is exactly what a setting is for.
 
 

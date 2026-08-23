@@ -220,6 +220,72 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const lossLines=lines.filter(l=>/lost a shield|lose a shield/.test(l));
   ok(lossLines.every(l=>/\b(You|P2|P3)\b/.test(l)), 'every shield-loss line names a seat ('+(lossLines[0]||'none seen')+')');
 
+  // ================= the CEREMONY banner must name the same seat as the log =================
+  // Aj caught this after v1.29.6: the log said "P3 lost a shield" while the between-rounds banner said
+  // "You lose a shield" — buildPreDrawBeats was a THIRD site deriving the loser as YOU/RIVAL. The earlier
+  // assertions only read #log, so they could not see it. Watch the banner text itself.
+  ok(await start3p(), '3-player game restarted for the ceremony banner');
+  const banners=[];
+  await p.evaluate(()=>{ window.__banners=[];
+    const fx=document.getElementById('roundfx');
+    new MutationObserver(()=>{ const t=(fx.textContent||'').trim(); if(t) window.__banners.push(t); })
+      .observe(fx,{childList:true,subtree:true,characterData:true});
+  });
+  // Loop until a shield-loss CEREMONY actually happens — a negative-space assertion that never sees the event
+  // passes for the wrong reason. Validated by A/B: on the pre-fix build this capture yields "You lose a shield".
+  let sawWin=false;
+  for(let i=0;i<420 && !sawWin;i++){
+    await p.evaluate(()=>{
+      const clr=document.getElementById('clearBtn'), f=document.getElementById('fightBtn'), ps=document.getElementById('passBtn');
+      const cards=[].slice.call(document.querySelectorAll('#hand .card'));
+      for(let k=0;k<cards.length;k++){ if(clr)clr.click(); document.querySelectorAll('#hand .card')[k].click(); if(f&&!f.disabled){ f.click(); return; } }
+      if(clr)clr.click(); if(ps&&!ps.disabled) ps.click();
+    });
+    await wait(200);
+    sawWin=(await p.evaluate(()=>window.__banners.some(t=>/a shield/.test(t))));
+  }
+  const seen=await p.evaluate(()=>window.__banners.slice());
+  const lossLog=(await log()).filter(l=>/lost a shield/.test(l));
+  ok(sawWin, 'a shield-loss CEREMONY occurred (so the checks below are not vacuous)');
+  const lostBanners=seen.filter(t=>/lose[s]? a shield/.test(t));
+  // if the LOG says P2/P3 lost it, the BANNER must not claim you did
+  const logSaysYou=lossLog.some(l=>/^You lost a shield|- You lost a shield/.test(l));
+  const bannerSaysYou=lostBanners.some(t=>/\bYou lose a shield/.test(t));
+  ok(!(bannerSaysYou && !logSaysYou),
+     'the ceremony banner never says "You lose a shield" when the log names another seat (banner: "'+(lostBanners[0]||'none')+'")');
+  ok(lostBanners.length>0, '…and we captured the banner text itself: "'+(lostBanners[0]||'NONE')+'"');
+  ok(lostBanners.every(t=>/\b(You|P2|P3)\b/.test(t)), '…every loss banner names a seat');
+
+  // ================= the pile stays CENTRED with its label, at any card count =================
+  // Aj caught two versions of this: a reserved rail done with padding shifted the content, so a 1-card pile
+  // and the "Fight is open" line sat right of the centred label. The fix narrows the BOX and centres it, so
+  // assert alignment at 1 and 5 cards rather than trusting it.
+  ok(await start3p(), '3-player game restarted for pile centring');
+  for(const n of [1,5]){
+    await p.evaluate(n=>{ const st=window.__solo.st(), E=window.CardmenEngine;
+      const mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
+      const five=[mk(9,'H'),mk(9,'H','a'),mk(9,'C','b'),mk(5,'H','c'),mk(5,'H','d')];
+      st.pile={ combo:E.detectCombo(n===1?[mk(7,'H')]:five), byPlayer:2 }; window.__solo.render();
+      const z=document.getElementById('beaten'); z.innerHTML='';
+      const lab=document.createElement('div'); lab.className='bLabel'; lab.textContent='You · last played'; z.appendChild(lab);
+      const row=document.createElement('div'); row.className='bCards';
+      for(let i=0;i<5;i++){ const d=document.createElement('div'); d.className='card tiny faced'; row.appendChild(d); }
+      z.appendChild(row);
+    }, n);
+    await wait(320);
+    const m=await p.evaluate(()=>{
+      const cards=[].slice.call(document.querySelectorAll('#pile .card')).map(c=>c.getBoundingClientRect());
+      const lab=document.getElementById('pileLabel').getBoundingClientRect();
+      const bz=document.getElementById('beaten').getBoundingClientRect();
+      let wraps=false; for(let i=1;i<cards.length;i++) if(cards[i].left<cards[i-1].left-1) wraps=true;
+      return { off:Math.abs(Math.round((cards[0].left+cards[cards.length-1].right)/2) - Math.round(lab.left+lab.width/2)),
+               overlap:Math.max(0,Math.round(bz.right-cards[0].left)), wraps };
+    });
+    ok(m.off<=3, n+'-card pile is centred with its label (off by '+m.off+'px)');
+    ok(m.overlap===0, '…and does not overlap the "last played" stash');
+    ok(!m.wraps, '…and does not wrap');
+  }
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
