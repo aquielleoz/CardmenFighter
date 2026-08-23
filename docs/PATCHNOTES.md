@@ -10,6 +10,50 @@ deck vs every other, ~7,150 games, Demon-strength AI, strict suit-cost).
 
 ## Balance Design Principles (the durable learnings)
 
+### 0a. The binding constraint is OPTIONS, not cards. Check which resource is scarce before tuning it. (2026-08-24)
+Two card-economy experiments in a row measured inert — the **jab cantrip** (below) and making the AI's
+**strategic pass** work in multiplayer (`passsim.js`). Same reason, and `optionsim.js` names it:
+
+| | hand size | legal plays/turn | turns with NO legal play | following a pile: stuck |
+| --- | --- | --- | --- | --- |
+| 2p | 7.6 | 4.5 | 40% | 67% |
+| 3p | 7.6 | 3.2 | 50% | 68% |
+| 4p | 8.1 | 2.9 | 56% | 73% |
+| **6p** | **8.7** | **2.3** | **65%** | **79%** (82% facing a Special) |
+
+**Hand size RISES with player count while legal plays FALL.** A 6-player hand is *fuller* than a duel hand and
+has *half* the options; when you are not leading you average **0.5 legal plays** and are stuck **79%** of turns.
+With more players the pile is raised several times before it reaches you, so the bar is higher and fewer of your
+cards qualify. That is the shape-and-value rule biting, not scarcity. **A full hand with no legal play is
+functionally an empty hand.**
+
+Corroborated from the other side by `passsim.js`: hands sit **at** the 10-card `MAX_HAND` cap **43% (4p) to 53%
+(6p)** of the time, within one of it 55-65%. So conserving cards buys cards you would discard anyway, and
+drawing extra cards is gated off by the cap. **Any future card-economy lever will also measure inert** until
+the cap or the draw rate moves. Aj's "jab after jab" was never a strategy choice — it was the absence of
+choices.
+
+The lever that would actually bite is **options**: e.g. letting a bigger shape answer a smaller one at a cost,
+so a full house is not dead against a pair. Untested.
+
+### 0b. The energy economy pays for PARTICIPATION; initiative pays for WINNING. (2026-08-24)
+Traced card by card through the engine on a real line Aj described. Energy gained in a round is simply **cards
+committed** — a played card goes hand→energy, a milled card goes deck→energy:
+
+- Aj passes twice while two opponents trade jabs → **Aj 1, opp1 3, opp2 2** (opp1 committed two plays plus a
+  mill; opp2 won so it never mills).
+- Aj instead **un-passes and wins** the jab round → **Aj 1, opp1 3, opp2 2**. *Identical.*
+
+So **the winner of a jab round banks the least** (just the card it played) while a player who contested twice
+and lost banks three. Winning buys **initiative**, not energy. Two currencies pulling opposite ways, and
+"passing is a tempo loss" is not quite right: passing is energy-**neutral** and swaps deck depletion for hand
+depletion. Its real cost is the initiative, which compounds (see `NEXT-SESSION.md`).
+
+**Do not re-run `MILL_SCOPE='universal'`** as a fix for this. Aj: already measured in a previous session —
+`'targeted'` won, because universal milling opened a large win-rate spread in multiplayer while targeted keeps
+the decks close.
+
+
 ### 0. A free bonus on the BORING action makes the boring action mandatory. (2026-08-23)
 Tested and **rejected**: *"each jab is a cantrip"* — a single-card play also draws a card. The measurements
 were fine and the change still failed, which is the interesting part.

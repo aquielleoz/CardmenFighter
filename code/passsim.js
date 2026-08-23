@@ -43,20 +43,36 @@ function playGame(passOf, rng) {
   // Who gets to LEAD? Aj's complaint was being unable to deploy a Special because the initiative never came
   // round. engine.js ~1685 gives the lead to the round winner, so sample the leader once per round.
   var leadCount = {}, lastRound = -1, leads = 0;
+  var samp = { passE: 0, passH: 0, passN: 0, contE: 0, contH: 0, contN: 0, hN: 0, atCap: 0, nearCap: 0 };
   while (!g.finished) {
     if (++guard > 500000) throw new Error('no terminate');
-    if (g.round !== lastRound) { lastRound = g.round; leadCount[g.initiative] = (leadCount[g.initiative] || 0) + 1; leads++; }
+    if (g.round !== lastRound) {
+      lastRound = g.round; leadCount[g.initiative] = (leadCount[g.initiative] || 0) + 1; leads++;
+      for (var si = 0; si < P; si++) {
+        var sp = g.players[si]; if (sp.eliminated) continue;
+        if (passOf[si]) { samp.passE += sp.energy.length; samp.passH += sp.hand.length; samp.passN++; }
+        else            { samp.contE += sp.energy.length; samp.contH += sp.hand.length; samp.contN++; }
+        // How SATURATED is the card economy? If hands sit at the cap, conserving cards buys nothing — which
+        // would explain why every card-economy lever we have tried measures as inert.
+        samp.hN++; if (sp.hand.length >= E.MAX_HAND) samp.atCap++; if (sp.hand.length >= E.MAX_HAND - 1) samp.nearCap++;
+      }
+    }
     var log = AI.takeTurn(g, g.turn, TIER) || [];
     for (i = 0; i < log.length; i++) {
       if (log[i] && log[i].fight === 'play' && log[i].combo) { if (log[i].combo.size === 1) jabs++; else specials++; }
     }
   }
+  // RESOURCE LEDGER. Energy accumulation is just "cards committed": a played card goes hand->energy, a milled
+  // card goes deck->energy. So passing does not forgo energy from nowhere — it commits fewer cards, keeping
+  // HAND instead. Aj's question is which resource is worth more, so measure both, per arm, at game end.
+  var res = samp;
   var best = 0, k; for (k in leadCount) if (leadCount[k] > best) best = leadCount[k];
   return { winner: g.winner, jabs: jabs, specials: specials, rounds: g.round,
-           topLeadShare: leads ? best / leads : 0, distinctLeaders: Object.keys(leadCount).length };
+           topLeadShare: leads ? best / leads : 0, distinctLeaders: Object.keys(leadCount).length, res: res };
 }
 
 var winPass = 0, winCont = 0, nPass = 0, nCont = 0, jabT = 0, specT = 0, roundT = 0, games = 0, topLeadT = 0, distLeadT = 0;
+var LED = { passE: 0, passH: 0, passN: 0, contE: 0, contH: 0, contN: 0, hN: 0, atCap: 0, nearCap: 0 };
 AI.resetStratPassCount();
 for (var rot = 0; rot < P; rot++) {
   for (var n = 0; n < GAMES; n++) {
@@ -66,6 +82,7 @@ for (var rot = 0; rot < P; rot++) {
     for (var q = 0; q < P; q++) { if (passOf[q]) nPass++; else nCont++; }
     if (r.winner != null && r.winner >= 0) { if (passOf[r.winner]) winPass++; else winCont++; }
     jabT += r.jabs; specT += r.specials; roundT += r.rounds; topLeadT += r.topLeadShare; distLeadT += r.distinctLeaders; games++;
+    var kk; for (kk in LED) LED[kk] += r.res[kk];
   }
 }
 AI.setStratPassMP(false); AI.setStratPassSeats(null);
@@ -95,6 +112,15 @@ console.log('strategic passes actually taken: ' + fires + ' (' + (fires / games)
             Math.round(nPass / games) + ' enabled seats)' + (fires / games < 0.5 ? '   <-- TOO RARE TO CONCLUDE ANYTHING' : ''));
 console.log('jab-heaviness: ' + (jabT / games).toFixed(1) + ' jabs vs ' + (specT / games).toFixed(1) + ' specials per game  (' +
             (100 * jabT / (jabT + specT)).toFixed(0) + '% of all plays are jabs)   avg ' + (roundT / games).toFixed(1) + ' rounds');
+console.log('resource ledger, averaged over every ROUND a seat was alive (this is tempo):');
+console.log('  may strategic-pass   ' + (LED.passE / LED.passN).toFixed(1) + ' energy   ' + (LED.passH / LED.passN).toFixed(1) + ' hand');
+console.log('  always contests      ' + (LED.contE / LED.contN).toFixed(1) + ' energy   ' + (LED.contH / LED.contN).toFixed(1) + ' hand');
+console.log('  -> the passing arm trades ' + ((LED.contE / LED.contN) - (LED.passE / LED.passN)).toFixed(1) +
+            ' energy for ' + ((LED.passH / LED.passN) - (LED.contH / LED.contN)).toFixed(1) +
+            ' hand, and wins ' + (pctPass - pctCont >= 0 ? '+' : '') + (pctPass - pctCont).toFixed(1) + ' pts differently');
+console.log('card economy: hands sit at the ' + E.MAX_HAND + '-card cap ' + (100 * LED.atCap / LED.hN).toFixed(0) +
+            '% of the time, within one of it ' + (100 * LED.nearCap / LED.hN).toFixed(0) + '%  <- if this is high, ' +
+            'conserving cards buys nothing and every card-economy lever will measure inert');
 console.log('initiative: the busiest leader holds ' + (100 * topLeadT / games).toFixed(0) + '% of a game\'s rounds; ' +
             (distLeadT / games).toFixed(1) + ' of ' + P + ' players ever lead one  (even split would be ' +
             (100 / P).toFixed(0) + '% and ' + P + '.0)');
