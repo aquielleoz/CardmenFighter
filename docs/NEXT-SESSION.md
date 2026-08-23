@@ -136,6 +136,7 @@ Measured before changing anything, and the report was fair: at **1920×1080** �
   - **Verified 28 cases:** seven widths (1280 → 2560) × log open/closed × 1-card and 5-card piles — centred to
     within 3px, zero overlap, no wrapping anywhere. `mptest.js` now asserts centring, overlap and wrap at both
     card counts, because my earlier assertion enforced the *in-flow* behaviour that caused this.
+- **Your play now lingers before an opponent answers** (Aj: *"my play also gets clobbered right away by ai, i know they think fast… but can my play just linger a bit?"*). The duel driver opened with a 650ms pause; the free-for-all driver had **none** and stepped straight into the first AI seat. Both now share one named constant, **`PLAY_HOLD = 1000`** (60ms under reduced motion) via `playHold()`, so they cannot drift apart the way the presentation layer did. Measured after: first opponent line **1051ms** (duel) / **1039ms** (3-player) after your Fight.
 - Still open if it is *still* not enough: cards are ~4% of screen **width** even now, because the board itself is mostly empty on a big monitor. Growing them further fights the layout, so the better lever is a **card-size preference in ⚙️ Settings** (the modal already persists prefs like detailed energy pulses) — per-person perception is exactly what a setting is for.
 
 

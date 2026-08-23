@@ -3216,7 +3216,7 @@ __NETVIEW__
         if(state.finished){ busy=false; return endGame(); }
         setTimeout(function(){ if(g===gen) step(); }, 480);
       });
-    }, 650);
+    }, playHold());
   }
   // The Rival forced a discard on you: pause its turn, let you choose which cards to pitch, then resume.
   function promptHumanDiscard(g){
@@ -3415,11 +3415,18 @@ __NETVIEW__
     if(!isHumanSeat(p)) console.warn('awaitHumanSeat called on a non-human seat', p, controllerOf(p));
     // no auto-resume: the transport (Phase 5) will call back into the driver when the remote input lands.
   }
+  /* How long YOUR play sits on the table before an opponent answers. Aj: "my play also gets clobbered right
+   * away by ai, i know they think fast… but can my play just linger a bit?" The duel driver had a 650ms opener;
+   * the free-for-all driver had NONE and stepped straight into the first AI seat. One constant, both drivers. */
+  var PLAY_HOLD = 1000;
+  function playHold(){ return reduceMotion() ? 60 : PLAY_HOLD; }
   function runOpponents(){
     if(state.finished){ busy=false; render(); return endGame(); }
     busy=true; render();
     var g=gen;
+    var firstStep=true;
     (function step(){
+      if(firstStep){ firstStep=false; return setTimeout(function(){ if(g===gen) step(); }, playHold()); }   // let your play linger
       if(g!==gen) return;
       if(state.shieldResponse && state.shieldResponse.q===YOU){ return openShieldGuardModal(null, function(){ if(g===gen) step(); }); }   // your shield is threatened
       mpResolveAIShieldWindows();
