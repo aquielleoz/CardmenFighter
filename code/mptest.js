@@ -286,6 +286,30 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     ok(!m.wraps, '…and does not wrap');
   }
 
+  // ================= the "last played" stash must name a seat, not "Rival" =================
+  // Aj's screenshot showed "RIVAL · LAST PLAYED" in a 3-Rider game (sweepBeaten took prevOwner===YOU?'You':'Rival').
+  // Driven DETERMINISTICALLY: the sweep fires when a new pile replaces one owned by someone else, so render P2's
+  // pile, then replace it with yours. An earlier version played a random game until a sweep happened, which is
+  // both flaky (it may never happen) and was vacuous when the sweep turned out to be your own cards.
+  ok(await start3p(), '3-player game restarted for the "last played" label');
+  await p.evaluate(()=>{
+    const st=window.__solo.st(), E=window.CardmenEngine;
+    const mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
+    st.round=3; st.turn=0;
+    st.pile={ combo:E.detectCombo([mk(4,'H')]), byPlayer:1 };   // P2 holds the table
+    window.__solo.render();
+  }); await wait(350);
+  await p.evaluate(()=>{
+    const st=window.__solo.st(), E=window.CardmenEngine;
+    const mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
+    st.pile={ combo:E.detectCombo([mk(9,'C','z')]), byPlayer:0 };   // you beat it → P2's card sweeps to the stash
+    window.__solo.render();
+  }); await wait(500);
+  const stashLabel=await p.evaluate(()=>{ const l=document.querySelector('#beaten .bLabel'); return l?l.textContent.trim():''; });
+  ok(!!stashLabel, 'beating an opponent\'s play sweeps it to the stash (label present, not vacuous)');
+  ok(!/rival/i.test(stashLabel), '…and the label names a seat, never "Rival": "'+stashLabel+'"');
+  ok(/^P2\b/i.test(stashLabel), '…specifically the seat whose card was beaten (P2)');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

@@ -1470,7 +1470,7 @@ __NETVIEW__
   // Text is written from the VIEWER's seat (the human), not the owner's — so the Rival's Holy Sword
   // reads "Rival's highest +2" (not the confusing "Your highest +2"). Every equip benefits its owner,
   // so it's a green "good" tile when it's yours and a red one when it's the Rival's.
-  function equipInfo(e, mine){
+  function equipInfo(e, mine, seat){
     var d=e.delta||0, od=e.oppDelta||0;
     var owner = mine ? 'Your' : "Rival's";     // the equip's owner, named from your seat
     var foe   = mine ? "Rival's" : 'Your';     // the owner's opponent, from your seat
@@ -1478,7 +1478,7 @@ __NETVIEW__
     if(d>0)                         eff=owner+' highest +'+d+' each fight';
     else if(od<0)                   eff=foe+' highest '+od+' each fight';
     else if(e.absorb)               eff='Absorbs '+(mine?'your':"the Rival's")+' next shield loss';
-    else if(e.ability==='draw')     eff=(mine?'You':'Rival')+' can spend a counter to draw';
+    else if(e.ability==='draw')     eff=(mine?'You':(typeof seat==='number'?logName(seat):'Rival'))+' can spend a counter to draw';
     else if(e.protect==='special')  eff='No shield loss on '+(mine?'your':"the Rival's")+' Special';
     return { good:mine, eff:eff };
   }
@@ -1598,7 +1598,7 @@ __NETVIEW__
     if(typeof seat!=='number') seat=(mine?YOU:RIVAL);
     var zk=zoneKeyFor(seat)+':', now=Date.now(), live={}, flashing=false;   // per-SEAT fx key: 'rival' collided across opponents
     (pl.equipment||[]).forEach(function(e){
-      var info=equipInfo(e, mine), key=zk+e.id, prev=equipFx[key];
+      var info=equipInfo(e, mine, seat), key=zk+e.id, prev=equipFx[key];
       var flashUntil=prev?prev.flashUntil:0;
       if(prev && e.counters<prev.counters) flashUntil=now+1300;                          // a counter just dropped → flash the box
       equipFx[key]={ counters:e.counters, flashUntil:flashUntil, name:e.name, good:info.good, card:e.card, gone:false };
@@ -1960,7 +1960,7 @@ __NETVIEW__
     if(objs.length<1){ el.style.display='none'; el.innerHTML=''; return; }
     el.style.display='flex';
     var html='';
-    for(var i=objs.length-1;i>=0;i--){ var o=objs[i], eff=o.eff, who=o.p===YOU?'You':'Rival', isTop=(i===objs.length-1);
+    for(var i=objs.length-1;i>=0;i--){ var o=objs[i], eff=o.eff, who=logName(o.p), isTop=(i===objs.length-1);
       html+='<div class="stk'+(isTop?' top':'')+(o.countered?' countered':'')+'"><span class="who">'+who+' ▸</span> '+(eff.name||'?')+' · '+cardSym(o.card)+(isTop?' <span class="who">(resolves next)</span>':'')+'</div>';
     }
     el.innerHTML=html;
@@ -2038,7 +2038,7 @@ __NETVIEW__
       if(isBeat){                               // sweep the just-beaten cards to the top-left corner
         var swept=prevData.map(function(d){ return {id:d.id,rank:d.rank,suit:d.suit,rect:oldRectById[d.id]}; })
                           .filter(function(o){return o.rect;});
-        sweepBeaten(swept, prevOwner===YOU?'You':'Rival');
+        sweepBeaten(swept, logName(prevOwner));
       } else if(!state.pile){
         $('beaten').innerHTML='';               // a fresh fight opened — clear last-beaten
       }
@@ -3034,11 +3034,16 @@ __NETVIEW__
     say(null, '<b>Round '+rn+'</b> begins. Each player draws '+per+'.', 'round');
     if(res.draws && res.draws[YOU]===0) logMsg('Draw fizzled — your deck &amp; shuffle pile are empty. Spend energy on effects to recycle cards back into your deck.', 'warn');
   }
-  function logDeckout(){
-    var loser = state.winner===YOU ? 'Rival' : 'You';
+  function logDeckout(res){
+    // The engine records the decked-out seat in res.eliminated for N-player games; only a duel can safely
+    // infer it as "whoever didn't win". Deriving it that way in a free-for-all named the wrong player.
+    var elim = (res && res.eliminated && res.eliminated.length) ? res.eliminated[res.eliminated.length-1] : null;
+    var loserSeat = (elim!=null) ? elim : (MP() ? null : (state.winner===YOU ? RIVAL : YOU));
+    var loser = (loserSeat!=null) ? logName(loserSeat) : 'A rival';
+    var youWin = state.winner===YOU;
     lastEndType='deckout';
-    setMessage('<b>'+loser+'</b> decked out — '+(state.winner===YOU?'you win!':'Rival wins.'));
-    logMsg('<b>'+loser+'</b> decked out!', 'warn');
+    setMessage('<b>'+loser+'</b> decked out — '+(youWin?'you win!':(logName(state.winner)+' wins.')));
+    say(loserSeat!=null?loserSeat:state.winner, (loserSeat!=null?'{who} decked out!':(loser+' decked out!')), 'warn');
   }
 
   /* ---- Round-announcement ceremony ----------------------------------------------------------
@@ -3138,7 +3143,7 @@ __NETVIEW__
       endOfRoundTrimThen(function(){
         if(g!==gen) return;
         E.roundDraw(state, res);                                // draw the new round's cards (held invisible for a beat)
-        if(res.deckedOut){ inCeremony=false; logDeckout(); render(); clearRoundfx(); busy=false; return endGame(); }
+        if(res.deckedOut){ inCeremony=false; logDeckout(res); render(); clearRoundfx(); busy=false; return endGame(); }
         logRoundDraw(res);
         enterDelayBase = reduceMotion()?0:340;                  // Round banner appears FIRST (round start), THEN the new cards fly in
         render(); enterDelayBase = 0;
