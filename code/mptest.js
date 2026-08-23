@@ -281,6 +281,29 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const safe=await p.evaluate(()=>{ const el=document.querySelector('.oppPanel .oppName'); return { html:el.innerHTML, imgs:document.querySelectorAll('.oppPanel img').length }; });
   ok(safe.imgs===0 && !/</.test(safe.html.replace(/<\/?span[^>]*>/g,'')), 'a name containing markup is sanitised, never rendered as HTML');
 
+  // ================= your own name on the board strip, and renaming from there =================
+  // You are the one person who cannot see your own name in the log (you always read as "You"), so the strip
+  // shows "Name (You)" and is itself the way to change it.
+  ok(await start3p(), '3-player game restarted for the name strip');
+  await p.evaluate(()=>{ try{ localStorage.removeItem('cmf_name_v1'); }catch(e){} });
+  await p.evaluate(()=>window.__solo.names([])); await wait(250);
+  await p.evaluate(()=>document.getElementById('youWho').click()); await wait(350);
+  ok(await p.evaluate(()=>!!document.getElementById('nameInput')), 'clicking your own label opens the rename editor');
+  await p.evaluate(()=>{ document.getElementById('nameInput').value='Aj'; document.getElementById('nameSave').click(); });
+  await wait(500);
+  ok(await p.evaluate(()=>document.getElementById('youWho').textContent.trim())==='Aj (You)', 'the strip then reads "Aj (You)"');
+  ok(await p.evaluate(()=>localStorage.getItem('cmf_name_v1'))==='Aj', '…and it persists');
+  // a name with markup or over-length is cleaned on the way in
+  await p.evaluate(()=>document.getElementById('youWho').click()); await wait(300);
+  await p.evaluate(()=>{ document.getElementById('nameInput').value='<b>x</b>0123456789abcdef'; document.getElementById('nameSave').click(); });
+  await wait(450);
+  const cleaned=await p.evaluate(()=>localStorage.getItem('cmf_name_v1'));
+  ok(!/[<>]/.test(cleaned) && cleaned.length<=14, 'a typed name is sanitised and capped: '+JSON.stringify(cleaned));
+  // Clear puts it back to plain "You"
+  await p.evaluate(()=>document.getElementById('youWho').click()); await wait(300);
+  await p.evaluate(()=>document.getElementById('nameClear').click()); await wait(450);
+  ok(await p.evaluate(()=>document.getElementById('youWho').textContent.trim())==='You', 'Clear restores the plain "You" label');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

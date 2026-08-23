@@ -50,7 +50,7 @@ node viewtest.js                                # 🔍 View card reader gating o
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node piletest.js                                # energy/shuffle pile viewers + promote (21)
-node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (68)
+node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (74)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
