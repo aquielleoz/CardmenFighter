@@ -50,6 +50,21 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 ---
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **6-player games run 33 rounds; duels run 11. That is probably the root cause.** (2026-08-24, from Aj's
+  question "is it weird that everybody mills but not everybody loses a shield?") Under the live
+  `SPECIAL_LOSS_MODE='chosen'` + `MILL_SCOPE='targeted'` pairing a Special win costs the table **one** shield
+  however many people are at it, so total shields scale with player count while damage does not. Median length
+  goes **11 (2p) -> 15 -> 22 -> 33 (6p)**. The engine's own defaults (`all`+`universal`) hold it **flat at ~10
+  rounds** at every count.
+  - Everything else we chased today — jab-round grind, option starvation (0.5 legal plays when following at
+    6p), initiative concentration (1.6-1.9x) — has **three times as long to compound** in a 6-player game.
+    Consider fixing length before designing around any of those symptoms.
+  - Do NOT just flip to `all`+`universal`: ~9 rounds may be too short for six players, and it is a large rules
+    change. The question worth designing is whether something between the corners lands at ~15-18 rounds —
+    e.g. a Special win stripping shields from *more than one* rival as the table grows, or `START_SHIELDS`
+    scaling down with player count instead.
+  - Measure with the one-off in this session's history (median/mean/max rounds by player count for both
+    pairings); worth turning into a small committed harness if this is picked up.
 - **Draw = number of players** (Aj's idea, 2026-08-24 — measured once, verdict OPEN, flag shipped OFF as
   `E.setDrawPerPlayer()`). Aimed squarely at what `optionsim.js` found: legal plays per turn collapse as the
   table grows (4.5 at 2p to 2.3 at 6p) and a fixed draw of 2 does not scale with that. Making the draw scale

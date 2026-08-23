@@ -29,7 +29,7 @@ function mul(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15
   // Aj's reframe (2026-08-24): more "no legal play" turns may be GOOD — a jab round nobody can answer ENDS
   // sooner, so the contesters get fewer chances to bank energy and the gap to a passer stays small. Both
   // halves of that are measured here: plays per jab round, and the energy spread across living players.
-  var gapSum=0, gapN=0, jbRounds=0, jbPlays=0, spRounds=0, spPlays=0, curPlays=0, curSpecial=false, lastR=-1;
+  var gapSum=0, gapN=0, meanSum=0, meanN=0, jbRounds=0, jbPlays=0, spRounds=0, spPlays=0, curPlays=0, curSpecial=false, lastR=-1;
   for(var s=1;s<=(P===2?400:250);s++){
     var decks=[]; for(var d=0;d<P;d++) decks.push(null);
     var g=E.newGame(mul(s),{numPlayers:P,decks:decks});
@@ -41,7 +41,12 @@ function mul(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15
         lastR = g.round; var mn=1e9, mx=-1, nLive=0;
         for (var q=0;q<P;q++){ var qq=g.players[q]; if(qq.eliminated) continue; nLive++;
           if(qq.energy.length<mn) mn=qq.energy.length; if(qq.energy.length>mx) mx=qq.energy.length; }
-        if (nLive>1) { gapSum += (mx-mn); gapN++; }
+        if (nLive>1) { gapSum += (mx-mn); gapN++;
+          // ALSO track the MEAN, because a gap only means something relative to the pool it sits in: if every
+          // player's energy grew 30%, an absolute gap growing 30% is not a widening at all.
+          var tot=0; for (var q2=0;q2<P;q2++){ if(!g.players[q2].eliminated) tot+=g.players[q2].energy.length; }
+          meanSum += tot/nLive; meanN++;
+        }
       }
       var p=g.turn, pl=g.players[p];
       if(!pl.eliminated){
@@ -67,4 +72,7 @@ function mul(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15
   console.log('     jab rounds: '+(jbPlays/Math.max(1,jbRounds)).toFixed(2)+' plays each   |   special rounds: '+
     (spPlays/Math.max(1,spRounds)).toFixed(2)+' plays each   |   energy GAP, richest vs poorest living player: '+
     (gapSum/Math.max(1,gapN)).toFixed(1)+' cards');
+  var mg=gapSum/Math.max(1,gapN), mm=meanSum/Math.max(1,meanN);
+  console.log('     mean energy per living player: '+mm.toFixed(1)+'   -> gap as a SHARE of the pool: '+
+    (100*mg/Math.max(0.001,mm)).toFixed(0)+'%');
 });

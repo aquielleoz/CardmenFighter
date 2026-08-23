@@ -26,10 +26,46 @@ moves decks the way `MULTIPLAYER-DESIGN.md` always predicted it would — Pure R
 14.0 -> 16.9, Pure Cleric reined in 27.1 -> 24.8. Bottom up, top down: the "healthy economy" the design doc
 describes.
 
-**Do not flip the live setting on this alone** — 3 runs is the minimum credible number and the 4p ranges
-overlap. But the recorded conclusion is not safe to lean on, and the likeliest explanation is that it is
-**stale rather than wrong**: it predates the v1.23 rework deletion and a lot of balance work. **Lesson: a
-balance finding has a shelf life. Re-date it before reusing it, especially to veto an idea.**
+**CORRECTION, same day — that comparison was the wrong one.** Aj: *"is that weird that everybody mills but not
+everybody loses a shield?"* It is, and it exposes that `chosen`+`universal` is an **incoherent corner** of a 2x2:
+one player eats the shield while all five get paid, so the spared players are strictly better off than the
+struck one on both axes. The coherent designs are:
+- **`chosen`+`targeted`** (live) — hit one, compensate that one. Punishment and consolation are linked.
+- **`all`+`universal`** (the engine's own defaults) — hit everyone, pay everyone.
+
+Re-run as coherent pairs, 3 runs each, they are close on balance, with the symmetric one slightly tighter and
+much steadier: spread 12.5 [10.8-13.4] vs 13.0 [10.1-16.8] at 6p, 14.7 vs 18.0 at 4p, 15.4 vs 18.1 at 3p.
+So the original "universal opens a huge spread" claim is not reproduced — but neither is my own overstated
+reading of it, because I had measured a pairing nobody would ship. **Lesson: a balance finding has a shelf
+life — re-date it before reusing it to veto an idea — and check that the arm you are testing is a design
+someone would actually ship.**
+
+### 0f. The live loss/mill pairing is why a 6-player game runs 3x as long as a duel. (2026-08-24)
+Chasing Aj's shields question turned up the biggest number of the session. Median game length, 120 games each:
+
+| | live (`chosen`+`targeted`) | symmetric (`all`+`universal`) |
+| --- | --- | --- |
+| 6p | **33 rounds** (max 49) | **9** (max 14) |
+| 4p | 22 (max 36) | 10 (max 21) |
+| 3p | 15 (max 25) | 10 (max 19) |
+| 2p | 11 | 11 — identical; both modes are no-ops in a duel |
+
+Under the live pairing a special win costs the table exactly **one** shield no matter how many people are
+sitting at it, so total shields scale with player count while damage does not — game length balloons
+**11 -> 15 -> 22 -> 33**. Under the symmetric pairing damage scales with the table too, and length is **flat at
+~10 rounds** at every count, i.e. duel length.
+
+**This reframes the whole "jab after jab" complaint.** It is not primarily an initiative problem or an options
+problem: a 6-player game is simply **three times longer than the game the numbers are balanced around**, so the
+grind, the option starvation (`optionsim.js`) and the 1.6-1.9x initiative concentration all have three times as
+long to compound. Fix the length and several symptoms may go with it.
+
+Not shipped — this is a large rules change and 9 rounds may be too *short* for six players; the interesting
+question is whether something between the two corners (e.g. `all` scaled down, or `chosen` striking more than
+one shield as the table grows) lands at ~15-18 rounds. But **length, not balance, is the axis to argue about**,
+and the live setting was chosen without this number on the table.
+
+
 
 ### 0e. Jab rounds are the grind, and their LENGTH is the lever — not the reward. (2026-08-24)
 Aj's complaint was "three rounds in a row throwing jab after jab". Measured (`optionsim.js`), plays per jab
