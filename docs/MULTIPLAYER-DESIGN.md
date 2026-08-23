@@ -46,6 +46,10 @@ winner's bank) — not just players who passed without getting to play. (Scope i
 Two independent tunables, so we can mix and measure at 3–6 players:
 - **`SPECIAL_LOSS_MODE`** — on a Special win: `all` = every non-winner loses a shield (bloodbath, fast); `chosen`
   = the winner picks one rival to lose a shield (targeted, political).
+> **2026-08-24:** the "healthy economy" reading of `universal` was RE-MEASURED and holds up better than the
+> live `targeted` setting at 3p and 6p (tighter spread, and a 2-point run-to-run range against targeted's
+> 10-11). See PATCHNOTES principle 0d before acting on it — 3 runs per arm is the minimum and 4p overlapped.
+
 - **`MILL_SCOPE`** — who catch-up mills each round: `universal` = all non-winners mill (healthy economy);
   `targeted` = only the struck rival(s) mill (cutthroat; untargeted losers tread water).
 - *Property:* at `numPlayers === 2` both toggles are no-ops — the single loser loses a shield and mills either

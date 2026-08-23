@@ -10,6 +10,45 @@ deck vs every other, ~7,150 games, Demon-strength AI, strict suit-cost).
 
 ## Balance Design Principles (the durable learnings)
 
+### 0d. RE-TESTED: `MILL_SCOPE='universal'` is not the loser it was recorded as. (2026-08-24)
+Carried belief (from an earlier session): universal milling "opened a huge win-rate spread in multiplayer while
+targeted keeps the decks close", so the live game uses `'targeted'`. Re-measured with 3 runs per arm — mandatory
+now, see 0c — and it **does not reproduce**; the direction is the opposite at 3p and 6p:
+
+| spread (top-bottom), mean [min-max] | targeted (live) | universal |
+| --- | --- | --- |
+| 6p | 17.3 [12.1-22.1] | **12.9 [11.9-14.0]** |
+| 4p | **13.8 [11.0-15.6]** | 15.1 [12.0-17.9] |
+| 3p | 17.1 [10.9-21.6] | **12.6 [10.5-13.7]** |
+
+Note the *variance* as much as the means: targeted swings 10-11 points run to run, universal 2. And universal
+moves decks the way `MULTIPLAYER-DESIGN.md` always predicted it would — Pure Rogue 10.3 -> 13.1, Bard
+14.0 -> 16.9, Pure Cleric reined in 27.1 -> 24.8. Bottom up, top down: the "healthy economy" the design doc
+describes.
+
+**Do not flip the live setting on this alone** — 3 runs is the minimum credible number and the 4p ranges
+overlap. But the recorded conclusion is not safe to lean on, and the likeliest explanation is that it is
+**stale rather than wrong**: it predates the v1.23 rework deletion and a lot of balance work. **Lesson: a
+balance finding has a shelf life. Re-date it before reusing it, especially to veto an idea.**
+
+### 0e. Jab rounds are the grind, and their LENGTH is the lever — not the reward. (2026-08-24)
+Aj's complaint was "three rounds in a row throwing jab after jab". Measured (`optionsim.js`), plays per jab
+round rise with the table: **1.72 (2p) -> 2.79 -> 2.92 -> 3.12 (6p)**, while special rounds stay ~1.6-2.1. So
+jab rounds really are the long ones, and they get longer as players are added.
+
+Aj's own prediction about `DRAW_PER_ROUND = numPlayers` was half right, and the right half is the useful one:
+- **Confirmed:** jab rounds get **33% shorter** at 6p (3.12 -> 2.08) — at six players they collapse to exactly
+  the length of a special round (2.08 vs 2.09). More turns with *no legal play* is what shortens them, so that
+  metric is not purely a cost, which is how it was first read.
+- **Refuted:** he expected the energy gap between passers and contesters to *narrow* (fewer chances to pass).
+  It **widens**, 7.9 -> 10.3 cards, because everyone commits more cards per round overall.
+
+Also worth having on record: in the **shipped** game the energy gap already scales hard with table size —
+**3.0 / 5.2 / 6.1 / 7.9** cards (2p/3p/4p/6p) between richest and poorest living player. At six players the
+leader sits ~8 energy ahead, which compounds with the 1.6-1.9x initiative concentration. **Attack jab-round
+LENGTH, not the jab's payoff** — the cantrip failed precisely because it paid the jab instead of shortening it.
+
+
 ### 0c. `mpsim` / `analysis` are NOT deterministic — never trust a single run. (2026-08-24)
 The **engine** takes a seeded rng; the **AI does not**. `ai.js` calls bare `Math.random()` in five places
 (`pickRandom`, the persona `grudge` roll, `FOCUS_LEAN`, `drawPersonas`). So the same command with the same seeds

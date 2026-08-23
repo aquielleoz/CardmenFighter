@@ -26,6 +26,10 @@ console.log('draw per round: '+(DPP?'= number of players':'2 (shipped)'));
 function mul(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 [2,3,4,6].forEach(function(P){
   var turns=0, opts=0, zero=0, handSum=0, followTurns=0, followOpts=0, followZero=0, specialPileTurns=0, specialPileZero=0;
+  // Aj's reframe (2026-08-24): more "no legal play" turns may be GOOD — a jab round nobody can answer ENDS
+  // sooner, so the contesters get fewer chances to bank energy and the gap to a passer stays small. Both
+  // halves of that are measured here: plays per jab round, and the energy spread across living players.
+  var gapSum=0, gapN=0, jbRounds=0, jbPlays=0, spRounds=0, spPlays=0, curPlays=0, curSpecial=false, lastR=-1;
   for(var s=1;s<=(P===2?400:250);s++){
     var decks=[]; for(var d=0;d<P;d++) decks.push(null);
     var g=E.newGame(mul(s),{numPlayers:P,decks:decks});
@@ -33,6 +37,12 @@ function mul(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15
     var guard=0;
     while(!g.finished){
       if(++guard>200000) break;
+      if (g.round !== lastR) {                        // once per round: how far apart are the energy piles?
+        lastR = g.round; var mn=1e9, mx=-1, nLive=0;
+        for (var q=0;q<P;q++){ var qq=g.players[q]; if(qq.eliminated) continue; nLive++;
+          if(qq.energy.length<mn) mn=qq.energy.length; if(qq.energy.length>mx) mx=qq.energy.length; }
+        if (nLive>1) { gapSum += (mx-mn); gapN++; }
+      }
       var p=g.turn, pl=g.players[p];
       if(!pl.eliminated){
         var n=E.legalFightPlays(g,p).length;
@@ -40,11 +50,21 @@ function mul(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15
         if(g.pile){ followTurns++; followOpts+=n; if(n===0) followZero++;
           if(g.pile.combo.size>1){ specialPileTurns++; if(n===0) specialPileZero++; } }
       }
-      AI.takeTurn(g,g.turn,'knight');
+      var lg=AI.takeTurn(g,g.turn,'knight')||[];
+      for (var li=0; li<lg.length; li++) if (lg[li] && lg[li].fight==='play' && lg[li].combo) {
+        curPlays++; if (lg[li].combo.size>1) curSpecial=true;
+      }
+      if (!g.pile) {                                  // pile cleared => that round just resolved
+        if (curPlays) { if (curSpecial) { spRounds++; spPlays+=curPlays; } else { jbRounds++; jbPlays+=curPlays; } }
+        curPlays=0; curSpecial=false;
+      }
     }
   }
   console.log(P+'p:  hand '+(handSum/turns).toFixed(1)+'   legal plays/turn '+(opts/turns).toFixed(1)+
     '   NO legal play '+(100*zero/turns).toFixed(0)+'% of turns'+
     '   | following a pile: '+(followOpts/followTurns).toFixed(1)+' options, stuck '+(100*followZero/followTurns).toFixed(0)+'%'+
     '   | facing a SPECIAL pile: stuck '+(100*specialPileZero/Math.max(1,specialPileTurns)).toFixed(0)+'%');
+  console.log('     jab rounds: '+(jbPlays/Math.max(1,jbRounds)).toFixed(2)+' plays each   |   special rounds: '+
+    (spPlays/Math.max(1,spRounds)).toFixed(2)+' plays each   |   energy GAP, richest vs poorest living player: '+
+    (gapSum/Math.max(1,gapN)).toFixed(1)+' cards');
 });
