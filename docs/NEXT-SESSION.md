@@ -50,6 +50,31 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 ---
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **Overlays and modals are not landscape-safe** (Aj, screenshot 2026-08-23 — the setup dialog clipped at both
+  top AND bottom in a short window). v1.30.1/v1.30.2 fixed the in-game **board** only; every dialog was
+  untouched, and the cause is a single point:
+
+  ```
+  .overlay{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .modal  { max-width:470px; width:100%; padding:24px; }        /* no max-height, no overflow */
+  ```
+
+  A modal taller than the viewport is **centred**, so it overflows equally off the top and the bottom and the
+  top half becomes unreachable — there is nothing to scroll. That is exactly the screenshot: "Your name" is
+  cut off above and the roll button below.
+
+  - **There is only ONE `.overlay`/`.modal` pair in the markup** (`<div class="overlay" id="overlay">`), filled
+    by `showModal(html)`. So setup, settings, the card codex, the specials cheat sheet, how-to-play, the win
+    overlay, the name editor and the pile viewers **all share it** — one fix covers every dialog. Likely:
+    `max-height:calc(100dvh - 40px); overflow-y:auto;` on `.modal`, plus `align-items:flex-start` (or
+    `safe center`) so a too-tall modal pins to the top instead of centring off both edges.
+  - **Check these separately** — they are `position:fixed` panels that do NOT go through the shared overlay:
+    `#cardFull` (the 🔍 full-card reader, `inset:0`), `#tutPanel` (bottom-anchored, `width:min(500px…)`),
+    `#kick`, `#artFlash`, `.peekBar`, `#disconBar` (which sits at `top:54px` — a hardcoded offset that assumes
+    the **56px desktop header**, and the landscape header is **37px**, so it will float 17px low).
+  - `landscapetest.js` covers the board only. This wants a sibling pass in the same suite: open each dialog at
+    568x320 / 844x390 and assert it is fully on screen or scrollable, and that its primary button is reachable.
+    Reuse the floor/one-screen split already encoded there.
 - **A gacha-style storyline** (Aj, idea — parked, ahead of netplay AI in the queue, not designed). Nothing
   specified yet. Worth noting that **v1.30.0 just built the substrate for it by accident**: a roster of 32
   named characters, grouped into five tiers, each with a distinct play style and a name that already flows
