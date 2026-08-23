@@ -94,6 +94,24 @@ Engine flags: `E.setShieldsPerPlayer()`, `E.setDrawPerPlayer()`, `E.setApexInfin
 `E.setMillScope('universal')`, `E.setSpecialLossMode('all')`.
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **Game export cannot represent a free-for-all** (found 2026-08-24 in Aj's playtest exports; 6 of 14 games
+  were MP). The record has a two-player schema — `you` / `rival` — so in an MP game seats 2+ are simply lost;
+  2 of the 6 recorded `rival: 0/0/0/0` (everything gone) and the rest captured one seat only. There is **no
+  player-count field**, so an MP game can only be identified by grepping its log for "P2"/"P3". Fix: a `seats`
+  array plus `numPlayers`, and keep `you`/`rival` as aliases for duel compatibility if anything reads them.
+- **Two-player wording still reachable in MP narration** (same source):
+  - `Rival discarded N to hand size → energy pile.` — `CardmenFighter.template.html` ~3315 hardcodes `RIVAL`,
+    so only seat 1's hand-limit trim is *announced*. Not a correctness bug (`finishRoundWin`, `engine.js` ~1726,
+    trims every seat), but seats 2+ trim silently and the label is wrong at a 6-player table. Route through
+    `logName(seat)`.
+  - **16 card texts in `engine.js` say "the Rival's ..."** (e.g. Spiked Armor). Reads wrong in a free-for-all.
+    Needs a decision, not just a find-replace: card text is static, so it probably wants neutral phrasing
+    ("the target's", "an opponent's") rather than a seat name.
+- **STOPPERs have zero engagement in real play** (0 uses across 14 games and 958 log lines, in both the stats
+  and the logs — genuine non-use, not a recording gap; see PLAYER-PROFILE). The AI uses the reactive layer at
+  about the rate the sims predict, so this is a human-facing problem: either the cost is wrong, the prompt is
+  missed, or players do not know it exists. **Check the UI surfacing before touching the card.** Also 0
+  Emergency Maintenance casts where the sim rate predicts ~3.
 - **6-player games run 33 rounds; duels run 11. That is probably the root cause.** (2026-08-24, from Aj's
   question "is it weird that everybody mills but not everybody loses a shield?") Under the live
   `SPECIAL_LOSS_MODE='chosen'` + `MILL_SCOPE='targeted'` pairing a Special win costs the table **one** shield

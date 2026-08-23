@@ -49,3 +49,49 @@ Games already folded into this profile (so future uploads aren't double-counted)
 | 2026-08-20 | 1.0 | demon | Pure Wizard (♦) | Win (kick) | 12 | Giant Boar, Hippolyta; Counter Spell ×2 |
 | 2026-08-20 | 1.0 | demon | Pure Wizard (♦) | Win (kick) | 9 | Giant Owl, Penelope; countered Caltrops |
 | 2026-08-20 | 1.0 | demon | Cleric/Fighter mix | Win (kick) | 12 | Javelin/Spiked Armor; countered Armor Piercing, sprang Leyline |
+
+### 2026-08-22/23 — 14 games (2 exports, "bibong+aj", 25 records deduped to 14)
+
+**Caveat from Aj, and it matters for every number here:** two players' games are mixed in this corpus (Aj plus a
+playtester who had never seen chikicha and had only played the tutorials), and *"most of this data was
+diagnostics instead of serious games."* So read it for **mechanic engagement**, not skill or balance.
+
+Shape of the sample: 14 games, 958 log lines, all recorded `difficulty: 'demon'`, 6 of the 14 were
+**free-for-alls** (P2/P3 appear in the log), games ran 1-24 rounds and 0.1-20 minutes. Human side won 8.
+
+**Finding 1 — the reactive layer is almost entirely unused in real play.** Across all 958 lines:
+
+| mechanic | mentions in 14 games |
+| --- | --- |
+| Counter Spell | 8 |
+| Back Stab | 3 |
+| Phantasmal Illusion | 1 |
+| **STOPPER / cancel** | **0** |
+| **Emergency Maintenance** | **0** |
+| pre-fight window | 0 |
+
+`stoppers` is **0 in the per-game stats for both sides in all 14 games**, *and* the word never appears in a log
+line — so this is genuine non-engagement, not a recording gap. For contrast, `analysis.js` counts ~4,200 Quick
+responses across ~7,150 sim games (~0.6/game), which over 14 games predicts ~8 — and Counter Spell alone hits
+that, while Emergency Maintenance (about a quarter of sim Quicks) shows up zero times. **The AI uses the
+reactive layer at roughly the predicted rate; the humans essentially do not use STOPPERs at all.** Worth
+knowing before tuning anything defensive: a whole mechanic is sitting idle in real hands.
+
+**Finding 2 — round wins split 36 jab / 77 special (32% jab).** Consistent with the sim's ~27% jab share of
+plays at 2p, so the AI-vs-AI jab rate is not an artefact of the AI.
+
+**Finding 3 — technique use is broad and flat, not focused.** 25 distinct techniques cast across 14 games, the
+top three tied at 8 casts (Outbalance, Pray for Strength, Gather Energy). Sim cast rates predict ~13 Gather
+Energy over 14 games; observed 8. Humans under-activate relative to the AI, and spread their casts wider — the
+opposite of the sim's concentration on the cheapest ramp.
+
+**Bugs the corpus surfaced** (filed in NEXT-SESSION.md; two others in these logs are already fixed):
+- The export's `rival` block **cannot represent a free-for-all**. In 2 of the 6 MP games it recorded
+  `0/0/0/0` — every opponent stat lost — and in the other 4 it recorded one seat while seats 2+ vanished. There
+  is also **no player-count field**, so an MP game is only identifiable by grepping the log for "P2"/"P3".
+- `Rival discarded N to hand size → energy pile.` still names "Rival" in a free-for-all
+  (`CardmenFighter.template.html` ~3315), and only seat 1's trim is announced. **Not a correctness bug** —
+  `finishRoundWin` (`engine.js` ~1726) trims every seat over the cap — but seats 2+ trim silently.
+- **16 card texts in `engine.js` say "the Rival's ..."**, which reads wrong at a 6-player table.
+- Already fixed, confirmed against current source: the 2-player draw line (`You draw 2, Rival draws 2`) and
+  the lowercase `a rival lost a shield` announcement. Both appear in this corpus, neither remains in the code.
