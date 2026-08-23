@@ -71,6 +71,16 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
   - **Frame passing as a real choice in the UI.** Aj: *"I think the real strat is really to pass."* The engine
     agrees — a pass spends no hand cards and still banks energy via the loser-mill — but the tutorial currently
     teaches *"leading a jab is the safe way to stock energy"*, which may be teaching the weaker line.
+  - **The AI is FORBIDDEN from the strategy Aj identified.** `ai.js` 363:
+    `if (strategicPass && st.numPlayers === 2 && hand.length <= STRAT_PASS_MAX) return {action:'pass'}` —
+    deliberately passing a *winnable* jab to conserve cards is **hard-gated to 1v1**. In a free-for-all no AI
+    ever strategic-passes, which is exactly the mode where Aj found passing to be right. Two consequences:
+    (a) the AI is probably playing the multiplayer game wrong, and (b) **every free-for-all balance number we
+    have was measured with strategic passing switched off**, so `mpsim.js` may not describe the real strategic
+    landscape at all. Cheapest possible experiment: drop the `numPlayers === 2` guard, re-run `mpsim.js`, and
+    watch both the win rates and how many jab exchanges a game contains. Do this BEFORE designing an initiative
+    fix — the jab-spam may be partly an AI artefact rather than a rules problem, and it would be embarrassing
+    to redesign initiative to fix a missing `if`.
 - **Overlays and modals are not landscape-safe** (Aj, screenshot 2026-08-23 — the setup dialog clipped at both
   top AND bottom in a short window). v1.30.1/v1.30.2 fixed the in-game **board** only; every dialog was
   untouched, and the cause is a single point:
