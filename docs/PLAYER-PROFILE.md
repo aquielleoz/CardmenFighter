@@ -95,3 +95,34 @@ opposite of the sim's concentration on the cheapest ramp.
 - **16 card texts in `engine.js` say "the Rival's ..."**, which reads wrong at a 6-player table.
 - Already fixed, confirmed against current source: the 2-player draw line (`You draw 2, Rival draws 2`) and
   the lowercase `a rival lost a shield` announcement. Both appear in this corpus, neither remains in the code.
+
+### 2026-08-24 — reconciling two opposite playtest reports (Aj and his brother)
+
+Aj: *"three rounds in a row throwing jab after jab."* His brother, independently: *"after the initial round of
+jabs, there was only ever specials."* Aj's own read: *"which doesn't reflect my experience at all, but I might
+be biased."* **Both reports are accurate.** They are measuring different things, and `roundsim.js` separates
+them.
+
+Share of rounds 2+ decided by a jab vs a Special (200 games per row, AI vs AI):
+
+| | jab | Special |
+| --- | --- | --- |
+| minion 2p | **100%** | 0% |
+| knight 2p | 16% | 84% |
+| demon 2p | 15% | 85% |
+| knight 3p / 4p / 6p | 17% / 15% / 12% | 83% / 85% / 88% |
+| demon 6p | 13% | 87% |
+
+**The brother is describing what WINS:** after round 1 (jabs-only by rule) Specials decide **83-88%** of rounds
+at every real difficulty and player count.
+
+**Aj is describing what he PLAYS:** 20-27% of all plays are jabs (`optionsim.js`), so jabs are thrown far more
+often than they decide anything. With ~0.5 legal options while following at 6p and 79% of such turns stuck, a
+jab is frequently the only legal move — and then somebody leads a Special next round and takes it. Jabs are the
+losing action, played constantly.
+
+**Unlooked-for third finding: the minion tier is a different game.** 100% jab, 0% Special — the minion AI never
+contests a Special pile and never leads one. (Caveat: AI vs AI, so a human leading Specials against a minion
+still sees them; but the AI side brings none.) **Onboarding implication:** a newcomer learning on the low tier
+learns a jabs-only game, then meets an 85%-Specials game the moment they move up. That is a plausible source of
+the brother's surprise, since he came in via the tutorials and the exported games all record `demon`.
