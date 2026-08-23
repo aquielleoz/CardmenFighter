@@ -69,13 +69,17 @@ every respect.
 3. **Mean energy nearly doubles** under draw=players (8.6 -> 14.4 at 6p). Activation costs are fixed, so every
    effect becomes much cheaper in relative terms. That is a big shift in feel that no win-rate number shows,
    and it is the change most likely to surprise a playtester.
-4. **The apex-2 rework: go and ask what the complaint was.** This is **playtest feedback from Aj's brother**,
-   not a proposal aimed at our problems — an earlier note here wrongly scored it against a rationale we had
-   invented for it. Priced honestly it costs roughly double the 6p length (15 -> 35 rounds) and buys a jab
-   share that `draw=players` already delivers more cheaply. But the underlying complaint is unrecorded, and
-   *"plays with 2s should not strip shields"* and *"a 2 should be unbeatable"* are two different wishes with
-   two different fixes. **Ask which one it was before designing.** Then try: only the first 2 each round is
-   unbeatable; unbeatable AND still strips; or apex costs energy.
+4. **The apex-2 feedback resolves into a FREE fix — decide whether to take it.** It is playtest feedback from
+   Aj's brother, and the complaint is now known: in the original **chikicha** the 2 is the outright peak, but
+   here it is only 15 and **boosts stack on top**, so a +7 Ace (Aj has run one) beats the apex. Measured, the
+   two halves of his proposal price completely differently:
+   - **Unbeatable apex, shields still strip** (`E.setApexInfinity(true)`) — 6p length **33 -> 34** on live,
+     **15 -> 15** on Aj's package. **Free.** And it is the half that answers the actual complaint.
+   - **Also no shield strip** (`+ E.setApexNoStrip(true)`) — 6p length **33 -> 50** on live, **15 -> 38** on the
+     package, because an unbeatable play that deals no damage ends a round without progressing the game.
+   So the open question is small: take the free half, and decide separately whether being crushed by an apex is
+   a problem worth the length cost. Worth asking Aj's brother whether the no-strip part was a *wish* or just
+   the mechanism he reached for.
 5. **Initiative is a separate job.** It is ~1.8x concentrated at 6p in *every* config tested. Only
    `st.initiative = winner` (`engine.js` ~1685) will move it.
 

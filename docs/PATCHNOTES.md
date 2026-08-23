@@ -57,7 +57,29 @@ gives: jab share at 6p drops to 10%, though `draw=players` already achieves that
 it does *not* do is spread initiative — but nobody claimed it would, and concentration averages could not see
 "I could seize the lead at a moment I chose" even if it did.
 
-**The motivating complaint is unrecorded, and that is the thing to go and ask.** "Plays with 2s should not
+**The motivating complaint, now recorded (Aj, 2026-08-24):** in the original **chikicha** the 2 is the outright
+peak. Here it is merely 15, and **boosts stack on top of `fightValue`** — a boosted Ace at 14+7 beats it, and Aj
+has run a +7 in a real game. So the apex is not an apex. That is wish #2 ("a 2 should be unbeatable"), not #1,
+and it makes the minimal fix **"no boost may exceed the apex"**.
+
+**Split in two, the proposal has a free half and an expensive half** (`rulesim.js`, configs G/H vs E/F):
+
+| 6-player median rounds | |
+| --- | --- |
+| A live | 33 |
+| **G live + apex unbeatable, still strips** | **34** |
+| F live + apex unbeatable, NO strip | 50 |
+| D Aj's package | 15 |
+| **H package + apex unbeatable, still strips** | **15** |
+| E package + apex unbeatable, NO strip | 38 |
+
+**Making the apex unbeatable is FREE** — 33 -> 34, and 15 -> 15. The whole length cost (+17 on live, +23 on the
+package) belongs to the **no-strip** half, because an unbeatable play that also deals no damage ends a round
+without progressing the game. So the half that answers the actual complaint costs nothing, and the half that
+does not is the only one that hurts. **Lesson: split a proposal into its independent parts before pricing it —
+bundled, this looked like an expensive idea, and the part that mattered was free.**
+
+Kept for reference, the other reading: "Plays with 2s should not
 strip shields" and "a 2 should be unbeatable" are two separate wishes, and they point at different fixes: the
 first sounds like *being crushed by an apex feels arbitrary*, the second like *the apex does not feel apex
 enough*. Variants worth trying once the actual complaint is known: only the FIRST 2 each round is unbeatable; a

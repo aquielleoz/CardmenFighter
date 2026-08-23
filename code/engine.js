@@ -177,9 +177,19 @@
    * scarcest thing in a free-for-all (concentration 1.6-1.9x, and 0.5 legal plays when following at 6p).
    * Two 2s of the same shape cannot beat each other — infinity is not strictly greater than infinity — so an
    * apex play is genuinely final for that round. */
-  var APEX_INF = false;
+  /* Aj (2026-08-24) on where the feedback comes from: in the original **chikicha** the 2 is the outright peak.
+   * Here it is only 15, and boosts stack ON TOP of fightValue — a boosted Ace at 14+7 beats it (Aj has run a
+   * +7). So the apex is not actually an apex, which is the complaint. That makes the minimal fix "no boost may
+   * exceed the apex", and it is SEPARATE from the no-strip half of the proposal:
+   *   APEX_INF     — a 2 ranks at infinity, so no boost can pass it. Shields still work normally.
+   *   APEX_NOSTRIP — additionally, a winning play containing a 2 strips no shield (the literal proposal).
+   * Split because the length cost measured earlier belongs entirely to the second half: an unbeatable play
+   * that also deals no damage ends a round without progressing the game. */
+  var APEX_INF = false, APEX_NOSTRIP = false;
   function setApexInfinity(v) { APEX_INF = !!v; }
+  function setApexNoStrip(v) { APEX_NOSTRIP = !!v; }
   function isApexInfinity() { return APEX_INF; }
+  function isApexNoStrip() { return APEX_NOSTRIP; }
   function hasApex(cards) { for (var i = 0; i < (cards || []).length; i++) if (cards[i] && cards[i].rank === 2) return true; return false; }
   /* "DRAW EQUAL TO THE NUMBER OF PLAYERS" (Aj's idea, 2026-08-24) — a flag, for A/B only.
    * Aimed at the constraint `optionsim.js` actually found: legal plays per turn FALL as players rise (4.5 at
@@ -1502,7 +1512,7 @@
     var winner = st.lastPlayer;
     st.preFightHandled = false;                                                // new round → fresh pre-fight windows
     var wonWithCombo = st.pile.combo.size > 1;                                 // only Specials strip shields
-    if (APEX_INF && hasApex(st.pile.combo.cards)) wonWithCombo = false;         // apex rework: a 2 wins the round but deals no damage
+    if (APEX_INF && APEX_NOSTRIP && hasApex(st.pile.combo.cards)) wonWithCombo = false;   // only the no-strip variant declaws the apex
     var losers = livingNonWinners(st, winner);
     // who takes a shield loss (Specials only): 'all' = every loser; 'chosen' = the winner's one pick
     var strikeTargets = [];
@@ -1743,6 +1753,7 @@
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     setApexInfinity: setApexInfinity, isApexInfinity: isApexInfinity,
+    setApexNoStrip: setApexNoStrip, isApexNoStrip: isApexNoStrip,
     setDrawPerPlayer: setDrawPerPlayer, isDrawPerPlayer: isDrawPerPlayer
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

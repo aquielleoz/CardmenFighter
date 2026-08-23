@@ -21,16 +21,22 @@
 var E=require('./engine.js'), AI=require('./ai.js');
 function mul(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 E.setShieldCards(true); E.setLoserMill(true);
+/* apex column: '' off | 'inf' = 2 ranks at infinity, shields STILL strip (the narrow fix for the real
+ * complaint: boosts can currently exceed the apex) | 'nostrip' = infinity AND no shield strip (the literal
+ * proposal). Split because the length cost belongs to the no-strip half. */
 var CFG=[
- ['A live (chosen+targeted, draw2, sh4)',      'chosen','targeted',false,false,false],
- ['B symmetric (all+universal)',               'all','universal',  false,false,false],
- ['C  + shields 2+P',                          'all','universal',  true, false,false],
- ['D  + shields 2+P + draw=players',           'all','universal',  true, true, false],
- ['E  + apex-2 infinity (no strip)',           'all','universal',  true, true, true ],
- ['F live + apex-2 infinity',                  'chosen','targeted',false,false,true ]
+ ['A live (chosen+targeted, draw2, sh4)',      'chosen','targeted',false,false,''],
+ ['B symmetric (all+universal)',               'all','universal',  false,false,''],
+ ['C  + shields 2+P',                          'all','universal',  true, false,''],
+ ['D  + shields 2+P + draw=players',           'all','universal',  true, true, ''],
+ ['E  D + apex inf, NO strip (proposal)',      'all','universal',  true, true, 'nostrip'],
+ ['F live + apex inf, NO strip',               'chosen','targeted',false,false,'nostrip'],
+ ['G live + apex inf, strips normally',        'chosen','targeted',false,false,'inf'],
+ ['H  D + apex inf, strips normally',          'all','universal',  true, true, 'inf']
 ];
 function run(loss,mill,sh,dp,ap,P,n){
-  E.setSpecialLossMode(loss); E.setMillScope(mill); E.setShieldsPerPlayer(sh); E.setDrawPerPlayer(dp); E.setApexInfinity(ap);
+  E.setSpecialLossMode(loss); E.setMillScope(mill); E.setShieldsPerPlayer(sh); E.setDrawPerPlayer(dp);
+  E.setApexInfinity(ap === 'inf' || ap === 'nostrip'); E.setApexNoStrip(ap === 'nostrip');
   var rounds=[], jb=0, sp=0, leadTop=0, leadN=0;
   for(var s=1;s<=n;s++){
     var decks=[]; for(var d=0;d<P;d++) decks.push(null);
@@ -63,4 +69,4 @@ CFG.forEach(function(c){
   });
   console.log(out);
 });
-E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false);
+E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false); E.setApexNoStrip(false);
