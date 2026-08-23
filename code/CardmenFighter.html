@@ -2828,6 +2828,115 @@
   function mostShields(st, cands) { return extremeBy(st, cands, function (a, b) { return a.shields > b.shields; }); }
   function grudgeTarget(st, p, cands) { var g = st.players[p].lastAttacker; return (g != null && cands.indexOf(g) >= 0) ? g : -1; }
   function pickRandom(cands) { return cands[Math.floor(Math.random() * cands.length)]; }
+  /* PERSONA STYLES. A persona flavours WHO a seat hits — never HOW WELL it plays, which stays the tier's
+   * job. Installed from the UI at game start via AI.setStyles({seat:style}); with none set every seat falls
+   * through to its tier's default disposition below, so nothing changes for callers that never set one.
+   *   grudge 0..1   chance of answering whoever last struck us
+   *   focus         'weakest' | 'leader' | 'random' — who we hit while holding no grudge
+   *   holds         once a grudge lands, stay locked on that seat until it is out (unforgiving)
+   * There is deliberately no "nice" knob. Axelrod's nice strategies never defect first, but a round win here
+   * FORCES you to strike someone, so refusing to open hostilities is unrepresentable. The faithful analogue is
+   * TIT FOR TAT: grudge 1.0 with no `holds` — answers every strike, carries nothing forward. Flonne, Galahad
+   * and Adell are exactly that.
+   * KILL-SECURING RUNS FIRST and is tier-gated, so a persona can never make a Demon Lord play below its
+   * tier. That is what keeps difficulty meaningful — verify with `node mpsim.js` after touching this. */
+  /* AI PERSONAS. A persona is a NAME plus a play STYLE, drawn at random from its difficulty tier at game
+   * start and revealed before the fight. Six per tier so a 6-player table (you + 5 AI) never repeats and the
+   * cast still cycles between games.
+   *
+   * The hard rule: personas vary STYLE, NOT STRENGTH. If Etna beat Laharl consistently, picking a persona
+   * would be a hidden difficulty slider and the tier would stop meaning anything. Same-tier personas must sit
+   * within a few points of each other in `node mpsim.js` — measurable, so it can be enforced rather than hoped.
+   *
+   * `style` is Axelrod's language, because a free-for-all IS an iterated reciprocity game and the engine
+   * already records `lastAttacker` as a grudge signal:
+   *   grudge  0..1   how reliably it retaliates against whoever last struck it
+   *   focus   'weakest' | 'leader' | 'random'   who it hits when it holds no grudge
+   *   nice    true    never opens hostilities — only ever retaliates (Axelrod's "never defect first")
+   *   holds   true    once it has a grudge it stays locked on until that seat is out (unforgiving)
+   * Axelrod's fourth property — CLEAR — is the design constraint: a style you cannot read is just a dice roll,
+   * so these are deliberately few and blunt. */
+  var PERSONAS = [
+    { name:'Stuart',   tier:'minion',  grudge:0.10, focus:'random'  },
+    { name:'Bob',      tier:'minion',  grudge:0.35, focus:'random'  },
+    { name:'Kevin',    tier:'minion',  grudge:0.20, focus:'weakest' },
+    { name:'Dave',     tier:'minion',  grudge:0.05, focus:'random'  },
+    { name:'Phil',     tier:'minion',  grudge:0.30, focus:'leader'  },
+    { name:'Tim',      tier:'minion',  grudge:0.15, focus:'random'  },
+    { name:'Carl',     tier:'minion',  grudge:0.25, focus:'weakest' },
+    { name:'Jorge',    tier:'minion',  grudge:0.12, focus:'random'  },
+
+    { name:'Griflet',   tier:'recruit', grudge:0.25, focus:'weakest' },
+    { name:'Beaumains', tier:'recruit', grudge:0.40, focus:'random'  },
+    { name:'Owain',     tier:'recruit', grudge:0.20, focus:'leader'  },
+    { name:'Lucan',     tier:'recruit', grudge:0.35, focus:'weakest' },
+    { name:'Sagramore', tier:'recruit', grudge:0.15, focus:'random'  },
+    { name:'Dinadan',   tier:'recruit', grudge:0.30, focus:'leader'  },
+
+    { name:'Lefty',    tier:'fighter', grudge:0.50, focus:'weakest' },
+    { name:'Bruiser',  tier:'fighter', grudge:0.80, focus:'weakest', holds:true },
+    { name:'Slugger',  tier:'fighter', grudge:0.30, focus:'leader'  },
+    { name:'Tank',     tier:'fighter', grudge:0.60, focus:'leader'  },
+    { name:'Duke',     tier:'fighter', grudge:0.40, focus:'random'  },
+    { name:'Knuckles', tier:'fighter', grudge:0.70, focus:'weakest' },
+
+    { name:'Lancelot', tier:'knight',  grudge:0.60, focus:'weakest' },
+    { name:'Galahad',  tier:'knight',  grudge:1.00, focus:'weakest' },            // pure TIT FOR TAT: answers all, forgives all
+    { name:'Gawain',   tier:'knight',  grudge:1.00, focus:'leader',  holds:true },
+    { name:'Percival', tier:'knight',  grudge:0.50, focus:'leader'  },
+    { name:'Bedivere', tier:'knight',  grudge:0.70, focus:'weakest' },
+    { name:'Bors',     tier:'knight',  grudge:0.85, focus:'leader',  holds:true },
+
+    // Disgaea cast. Styles read off the characters — correct any reading that is off, Aj knows the games better:
+    { name:'Etna',     tier:'demon',   grudge:0.95, focus:'weakest', holds:true },   // vindictive, preys on the weak, never lets it go
+    { name:'Laharl',   tier:'demon',   grudge:0.75, focus:'leader'  },               // beating whoever is on top IS the ambition
+    { name:'Flonne',   tier:'demon',   grudge:1.00, focus:'weakest' },              // love and justice as TIT FOR TAT: answers every strike, forgives instantly
+    { name:'Rozalin',  tier:'demon',   grudge:0.55, focus:'leader'  },               // haughty noble, aims high, above petty grudges
+    { name:'Adell',    tier:'demon',   grudge:0.40, focus:'leader'  },              // honourable brawler: slow to anger, never holds a grudge
+    { name:'Vyers',    tier:'demon',   grudge:1.00, focus:'random',  holds:true }    // Mid-Boss: fixated on whoever slighted him, forever, theatrically
+  ];
+  function personasFor(tier){ return PERSONAS.filter(function(x){ return x.tier===tier; }); }
+  // Draw one persona per AI seat, no repeats at the table (6 per tier covers you + 5 AI).
+  function drawPersonas(diffs){
+    var used={}, out=[];
+    for(var i=0;i<diffs.length;i++){
+      if(!diffs[i]){ out.push(null); continue; }
+      var pool=personasFor(diffs[i]).filter(function(x){ return !used[x.name]; });
+      if(!pool.length) pool=personasFor(diffs[i]);
+      var pick=pool[Math.floor(Math.random()*pool.length)] || null;
+      if(pick) used[pick.name]=1;
+      out.push(pick);
+    }
+    return out;
+  }
+  var FOCUS_LEAN = 0.60;          // 'focus' is a LEAN, not a law — see the note in styleTarget
+  var FINISH_AT = 2;              // shields at or below which any persona takes the finish instead of its focus
+  var seatStyles = {};
+  function setStyles(m) { seatStyles = m || {}; }
+  function styleOf(p) { return (seatStyles && seatStyles[p]) ? seatStyles[p] : null; }
+  function aggressors(st) { var a = {}, i, la; for (i = 0; i < st.numPlayers; i++) { la = st.players[i].lastAttacker; if (la != null) a[la] = 1; } return a; }
+  function styleTarget(st, p, cands, sty) {
+    var pl = st.players[p], i;
+    if (sty.holds && pl._vendetta != null && cands.indexOf(pl._vendetta) >= 0) return pl._vendetta;   // still locked on
+    var grud = grudgeTarget(st, p, cands);
+    if (grud >= 0 && Math.random() < (sty.grudge == null ? 0.5 : sty.grudge)) { if (sty.holds) pl._vendetta = grud; return grud; }
+    // Punishing whoever is actually throwing punches is COMPETENCE, not personality, so EVERY persona does it.
+    // It used to be bundled into `nice`, which measured at +6 points (personasim/_knob replicates) — i.e. the
+    // "nice" personas were simply playing better, and the tier stopped meaning anything. Shared, it cancels.
+    var agg = aggressors(st), guilty = [];
+    for (i = 0; i < cands.length; i++) if (agg[cands[i]]) guilty.push(cands[i]);
+    if (guilty.length) cands = guilty;
+    if (sty.focus === 'weakest') return lowestShields(st, cands);
+    // Nobody above Minion ignores a nearly-dead player. Without this, 'leader'/'random' focus cost real win
+    // rate against 'weakest' (personasim: a 10-point spread) — piling on the weak banks kills and shrinks the
+    // field, so a persona that always aimed high was quietly the easy setting. Finishing is competence, not
+    // style; the style is only where it looks WHEN nothing is nearly dead.
+    var soft = lowestShields(st, cands);
+    if (st.players[soft].shields <= FINISH_AT) return soft;
+    if (Math.random() >= FOCUS_LEAN) return soft;   // even a high-aiming rider takes the soft target sometimes
+    if (sty.focus === 'leader') return mostShields(st, cands);
+    return pickRandom(cands);
+  }
   // Tier model: minion < fighter < KNIGHT < DEMON. 'knight' inherits the old top-tier ("demon") behavior;
   // 'demon' is now the NEW smartest tier — everything knight does PLUS the top-tier extras (isTop). The
   // internal 'demonpass' A/B alias maps to knight (the behavior it originally tested).
@@ -2837,6 +2946,12 @@
   function chooseTarget(st, p, diff) {
     var cands = livingOpponents(st, p);
     if (cands.length <= 1) return cands.length ? cands[0] : -1;
+    var sty = styleOf(p);
+    if (sty) {                                                      // persona: tier keeps the kill, style picks the rest
+      var kill = lowestShields(st, cands);
+      if (diff !== 'minion' && st.players[kill].shields <= 1) return kill;   // Minions still fail to notice a kill
+      return styleTarget(st, p, cands, sty);
+    }
     var grud = grudgeTarget(st, p, cands);
     if (diff === 'minion') {                                        // 80% random · 20% grudge
       if (grud >= 0 && Math.random() < 0.20) return grud;
@@ -3285,7 +3400,7 @@
     if (aiPreFightLock(st, q, activeP, diff)) { var bs = lockoutQuick(st, q); if (bs) return { cast: bs.id, card: { rank: bs.rank, suit: bs.suit, id: bs.id } }; }
     return { pass: true };
   }
-  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget };
+  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
@@ -3545,6 +3660,32 @@ window.CardFace = {};
     overlayDismiss=hideOverlay;
   }
   function diffOf(i){ return seatDiffs[i] || difficulty; }
+  /* Draw a persona per AI seat: a name (so it appears everywhere the naming funnel already reaches — strips,
+   * battle log, announcements) plus a targeting style handed to the AI. Solo/local only — in netplay the other
+   * seats are people with names of their own, and the tutorial keeps a plain "Rival" so the lesson stays about
+   * the rules. Styles vary WHO a seat hits, never how well it plays; `node personasim.js` is the guard on that. */
+  var seatPersonas=[];
+  function assignPersonas(){
+    seatPersonas = AI.drawPersonas ? AI.drawPersonas(seatDiffs) : [];
+    var names=[], styles={};
+    for(var i=0;i<seatPersonas.length;i++){
+      names.push(i===YOU ? myName : (seatPersonas[i] ? seatPersonas[i].name : ''));
+      if(seatPersonas[i]) styles[i]=seatPersonas[i];
+    }
+    setSeatNames(names);
+    if(AI.setStyles) AI.setStyles(styles);
+  }
+  function personaOf(i){ return seatPersonas[i] || null; }
+  function clearPersonaStyles(){ seatPersonas=[]; if(AI.setStyles) AI.setStyles(null); }   // styles only — netplay NAMES belong to the humans
+  function clearPersonas(){ clearPersonaStyles(); setSeatNames([myName]); }                // …and the tutorial wants a plain "Rival" back
+  function oppReveal(){                    // ' · vs Etna, Laharl, Flonne' — the pre-match reveal in the header
+    var n=[]; for(var i=1;i<mpCount;i++){ var nm=nameOf(i); if(nm) n.push(nm); }
+    return n.length ? (' · vs <b>'+n.join('</b>, <b>')+'</b>') : '';
+  }
+  function oppRoll(){                      // 'Etna (Demon Lord), Laharl (Demon Lord)' — the same reveal, for the log
+    var n=[]; for(var i=1;i<mpCount;i++){ var nm=nameOf(i)||('P'+(i+1)); n.push('<b>'+nm+'</b> ('+(DIFF_NAME[diffOf(i)]||'')+')'); }
+    return n.join(', ');
+  }
   // New Duel picks — remembered on this device between visits, with a one-click revert to defaults.
   var DEFAULT_SEL={you:'random', rival:'random', diff:'fighter', players:2, mode:'full'};
   var SETUP_KEY='cmf_setup_v1';
@@ -3629,7 +3770,7 @@ window.CardFace = {};
     if(parts){ var d=savedDeckFor(key); return d ? d.name : ('Custom · '+deckPartsLabel(parts)); }   // unknown (e.g. from the wire) → describe it
     return key;
   }
-  var DIFF_NAME={minion:'Minion',recruit:'Recruit',fighter:'Fighter',knight:'Knight',demon:'Demon Lord'};
+  var DIFF_NAME={minion:'Minion',recruit:'Squire',fighter:'Fighter',knight:'Knight',demon:'Demon Lord'};   // 'recruit' stays the KEY (ai.js branches on it, cmf_setup_v1 stores it); Squire is display only
   var LOG_KEY='cmf_games_v1', memGames=[];   // playtest log (localStorage w/ in-memory fallback)
   var SEEN_HELP_KEY='cmf_seen_help_v1';      // set once the rules have auto-shown on first play
   var TUT_DONE_KEY='cmf_tut_done_v1';        // set once the guided tutorial is finished (or the player says they know how) → declutters New Duel
@@ -4371,11 +4512,11 @@ window.CardFace = {};
     $('log').innerHTML=''; $('beaten').innerHTML=''; $('kick').className=''; $('kick').innerHTML=''; $('stagefx').className=''; $('stagefx').innerHTML=''; $('roundfx').className=''; $('thresholdfx').className=''; $('thresholdfx').innerHTML=''; document.body.classList.remove('kicking');
     $('rivalDeckName').textContent=deckLabel(rivalDeck); $('youDeckName').textContent=deckLabel(youDeck);
     var modeTag=gameBasics?' · <b class="basicsTag">BASICS</b>':'';
-    $('matchupTag').innerHTML=((mpCount>2)?('<b>'+mpCount+'-Rider free-for-all</b> · you: '+deckLabel(seatDecks[0])):('<b>'+deckLabel(youDeck)+'</b> vs <b>'+deckLabel(rivalDeck)+'</b> · '+DIFF_NAME[difficulty]))+modeTag;
+    $('matchupTag').innerHTML=((mpCount>2)?('<b>'+mpCount+'-Rider free-for-all</b> · you: '+deckLabel(seatDecks[0])+oppReveal()):('<b>'+deckLabel(youDeck)+'</b> vs <b>'+(nameOf(1)||'Rival')+'</b> · '+deckLabel(rivalDeck)+' · '+DIFF_NAME[difficulty]))+modeTag;
     syncOrder(true);
     var youLead=state.turn===YOU;
-    if(mpCount>2) logMsg('New game — <b>'+mpCount+' Riders</b>, last one standing. You play <b>'+deckLabel(seatDecks[0])+'</b>. Round 1, jabs only.', 'system');
-    else logMsg('New duel — you play <b>'+deckLabel(youDeck)+'</b> vs Rival <b>'+deckLabel(rivalDeck)+'</b> (<b>'+DIFF_NAME[difficulty]+'</b>). Each draws '+E.START_HAND+' and holds '+(state.startShields||4)+' shields.', 'system');
+    if(mpCount>2) logMsg('New game — <b>'+mpCount+' Riders</b>, last one standing. You play <b>'+deckLabel(seatDecks[0])+'</b>'+(oppRoll()?' against '+oppRoll():'')+'. Round 1, jabs only.', 'system');
+    else logMsg('New duel — you play <b>'+deckLabel(youDeck)+'</b> vs <b>'+(nameOf(1)||'Rival')+'</b> (<b>'+DIFF_NAME[difficulty]+'</b>) on <b>'+deckLabel(rivalDeck)+'</b>. Each draws '+E.START_HAND+' and holds '+(state.startShields||4)+' shields.', 'system');
     logMsg('<b>'+(youLead?'You':seatName(state.turn))+'</b> '+(youLead?'have':'has')+' the initiative — <b>Round 1</b>, jabs only.', 'round');
     hideOverlay(); showCard(null);
     setMessage((youLead?'You have':(MP()?seatName(state.turn):'Rival')+' has')+' the initiative — '+(youLead?'lead the fight':'they lead the fight')+'. Only <b>Jabs</b> are allowed in Round 1.');
@@ -6450,6 +6591,7 @@ window.CardFace = {};
     sel.mode=basics?'basics':'full'; saveSel();
     gameBasics=basics; tutorialMode=true; mpCount=2; difficulty='minion';
     youDeck='full'; rivalDeck='full'; seatDecks=['full','full']; seatDiffs=[null,'minion'];
+    clearPersonas();   // a persona from the game before would otherwise linger — the tutorial wants a plain "Rival"
     tutShields=lsn.shields||4;   // lessons that need the kill arc set shields:2; Advanced keep the full 4
     startGame(YOU);   // rigs the deal (currentLesson.rig) and launches that lesson's steps
   }
@@ -6793,7 +6935,7 @@ window.CardFace = {};
       '<li><b>Mode:</b> <b>Basics</b> (no transforms — recommended for your first games) or <b>Full</b> (with Rides &amp; Forms).</li>'+
       '<li><b>Players:</b> a 2-player duel, or a 3–6 free-for-all where everyone fights for themselves.</li>'+
       '<li><b>Decks:</b> <b>Full Set</b> is one of every card; the <b>archetype decks</b> run 4 of each rank — pures are one suit, mixes split two (e.g. Sage = Wizard+Cleric).</li>'+
-      '<li><b>Rival strength:</b> <b>Minion</b> (timid — barely uses effects, won’t contest your Specials), <b>Recruit</b> (a gentle step up — leads Specials and plays for survival, but still won’t contest yours or run the pressure plays), <b>Fighter</b> (the standard duelist — full toolkit), <b>Knight</b> (tanky, ramps hard, conserves for Specials), <b>Demon Lord</b> (the toughest — digs deeper for gas and hoards its apex/Aces for the kill).</li>'+
+      '<li><b>Rival strength:</b> <b>Minion</b> (timid — barely uses effects, won’t contest your Specials), <b>Squire</b> (a gentle step up — leads Specials and plays for survival, but still won’t contest yours or run the pressure plays), <b>Fighter</b> (the standard duelist — full toolkit), <b>Knight</b> (tanky, ramps hard, conserves for Specials), <b>Demon Lord</b> (the toughest — digs deeper for gas and hoards its apex/Aces for the kill).</li>'+
       '</ul>'+
       '<h3>🃏 Specials cheat sheet</h3>'+cheatSheetHTML()+
       '</div>'+
@@ -6912,7 +7054,7 @@ window.CardFace = {};
         '<label class="setRow"><span>Players</span><select id="setPlayers"><option value="2">2 · Duel</option><option value="3">3 · Free-for-all</option><option value="4">4 · Free-for-all</option><option value="5">5 · Free-for-all</option><option value="6">6 · Free-for-all</option></select></label>'+
         '<label class="setRow"><span>Your name</span><input id="setName" type="text" maxlength="14" placeholder="You" autocomplete="off" spellcheck="false"></label>'+
         '<label class="setRow"><span>Your class</span><select id="setYouDeck">'+deckOptionsHTML()+'</select></label>'+
-        '<label class="setRow" id="rowOppStrength"><span>Opponent strength</span><select id="setDiff"><option value="random">🎲 Random</option><option value="minion">Minion</option><option value="recruit">Recruit</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon Lord</option></select></label>'+
+        '<label class="setRow" id="rowOppStrength"><span>Opponent strength</span><select id="setDiff"><option value="random">🎲 Random</option><option value="minion">Minion</option><option value="recruit">Squire</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon Lord</option></select></label>'+
         '<label class="setRow" id="rowOppClass"><span>Opponent class</span><select id="setRivalDeck">'+deckOptionsHTML()+'</select></label>'+
         '<div id="oppList"></div>'+
       '</div>'+
@@ -6973,7 +7115,7 @@ window.CardFace = {};
       if(!mp){ list.innerHTML=''; return; }
       sel.opps=sel.opps||[];
       while(sel.opps.length < n-1) sel.opps.push({ deck:'random', diff: sel.diff||'fighter' });
-      var strengthOpts='<option value="random">🎲</option><option value="minion">Minion</option><option value="recruit">Recruit</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon</option>';
+      var strengthOpts='<option value="random">🎲</option><option value="minion">Minion</option><option value="recruit">Squire</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon</option>';
       var html='';
       for(var i=0;i<n-1;i++){
         html+='<label class="setRow"><span>P'+(i+2)+'</span><span class="oppPick">'+
@@ -7032,6 +7174,7 @@ window.CardFace = {};
       for(var s=0;s<mpCount-1;s++){ var o=(sel.opps&&sel.opps[s])||{deck:'random',diff:'fighter'}; seatDecks.push(resolveDeck(o.deck||'random')); seatDiffs.push(resolveDiff(o.diff||'fighter')); }
     }
     else { seatDecks=[youDeck, rivalDeck]; seatDiffs=[null, difficulty]; }
+    assignPersonas();
     $('setYouDeck').disabled=$('setRivalDeck').disabled=$('setDiff').disabled=true; var sp=$('setPlayers'); if(sp) sp.disabled=true;
     var ol=$('oppList'); if(ol) Array.prototype.forEach.call(ol.querySelectorAll('select'), function(s){ s.disabled=true; });
     ['browseBtn','howToBtn','goFirstBtn','goSecondBtn','rollBtn'].forEach(function(id){ var b=$(id); if(b) b.disabled=true; });
@@ -7500,6 +7643,7 @@ window.CardFace = {};
       mpCount=n;
       youDeck=resolveDeck(hostDeck||'full');
       seatDecks=[youDeck]; seatDiffs=[null];
+      clearPersonaStyles();   // drop any style a solo game left behind, but KEEP the names: the joined players' own names are already in seatNames by now, and wiping them cost nettest_names 3 assertions
       for(var s=1;s<=joined;s++){ seatDecks[s]=resolveDeck(seatDeckMap[s]||'full'); seatDiffs[s]='fighter'; }   // 'fighter' = AI fallback for the round-win chooser only
       rivalDeck=seatDecks[1]||'full';
       startGame(YOU);                                   // host leads round 1
@@ -8062,6 +8206,7 @@ window.CardFace = {};
   if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
   if(!NET.boot()) openSetup();   // netplay when ?net= is present; otherwise the normal game (byte-identical)
   if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, setPulse:function(b){pulseDetail=b;}, activate:function(id,o){ return activate(id,o); },
+      seatName:seatName, logName:logName, persona:function(i){ var q=personaOf(i); return q?q.name:null; },   // tests assert the RIGHT seat is named, with personas live
       // buildPreDrawBeats is a pure function of the round result — exposing it lets a test assert the
       // ceremony wording DIRECTLY instead of playing random games until a shield-loss ceremony happens
       // (which failed ~1 run in 3 by simply never reaching one).

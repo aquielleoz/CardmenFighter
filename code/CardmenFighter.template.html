@@ -1129,6 +1129,32 @@ __NETVIEW__
     overlayDismiss=hideOverlay;
   }
   function diffOf(i){ return seatDiffs[i] || difficulty; }
+  /* Draw a persona per AI seat: a name (so it appears everywhere the naming funnel already reaches — strips,
+   * battle log, announcements) plus a targeting style handed to the AI. Solo/local only — in netplay the other
+   * seats are people with names of their own, and the tutorial keeps a plain "Rival" so the lesson stays about
+   * the rules. Styles vary WHO a seat hits, never how well it plays; `node personasim.js` is the guard on that. */
+  var seatPersonas=[];
+  function assignPersonas(){
+    seatPersonas = AI.drawPersonas ? AI.drawPersonas(seatDiffs) : [];
+    var names=[], styles={};
+    for(var i=0;i<seatPersonas.length;i++){
+      names.push(i===YOU ? myName : (seatPersonas[i] ? seatPersonas[i].name : ''));
+      if(seatPersonas[i]) styles[i]=seatPersonas[i];
+    }
+    setSeatNames(names);
+    if(AI.setStyles) AI.setStyles(styles);
+  }
+  function personaOf(i){ return seatPersonas[i] || null; }
+  function clearPersonaStyles(){ seatPersonas=[]; if(AI.setStyles) AI.setStyles(null); }   // styles only — netplay NAMES belong to the humans
+  function clearPersonas(){ clearPersonaStyles(); setSeatNames([myName]); }                // …and the tutorial wants a plain "Rival" back
+  function oppReveal(){                    // ' · vs Etna, Laharl, Flonne' — the pre-match reveal in the header
+    var n=[]; for(var i=1;i<mpCount;i++){ var nm=nameOf(i); if(nm) n.push(nm); }
+    return n.length ? (' · vs <b>'+n.join('</b>, <b>')+'</b>') : '';
+  }
+  function oppRoll(){                      // 'Etna (Demon Lord), Laharl (Demon Lord)' — the same reveal, for the log
+    var n=[]; for(var i=1;i<mpCount;i++){ var nm=nameOf(i)||('P'+(i+1)); n.push('<b>'+nm+'</b> ('+(DIFF_NAME[diffOf(i)]||'')+')'); }
+    return n.join(', ');
+  }
   // New Duel picks — remembered on this device between visits, with a one-click revert to defaults.
   var DEFAULT_SEL={you:'random', rival:'random', diff:'fighter', players:2, mode:'full'};
   var SETUP_KEY='cmf_setup_v1';
@@ -1213,7 +1239,7 @@ __NETVIEW__
     if(parts){ var d=savedDeckFor(key); return d ? d.name : ('Custom · '+deckPartsLabel(parts)); }   // unknown (e.g. from the wire) → describe it
     return key;
   }
-  var DIFF_NAME={minion:'Minion',recruit:'Recruit',fighter:'Fighter',knight:'Knight',demon:'Demon Lord'};
+  var DIFF_NAME={minion:'Minion',recruit:'Squire',fighter:'Fighter',knight:'Knight',demon:'Demon Lord'};   // 'recruit' stays the KEY (ai.js branches on it, cmf_setup_v1 stores it); Squire is display only
   var LOG_KEY='cmf_games_v1', memGames=[];   // playtest log (localStorage w/ in-memory fallback)
   var SEEN_HELP_KEY='cmf_seen_help_v1';      // set once the rules have auto-shown on first play
   var TUT_DONE_KEY='cmf_tut_done_v1';        // set once the guided tutorial is finished (or the player says they know how) → declutters New Duel
@@ -1955,11 +1981,11 @@ __NETVIEW__
     $('log').innerHTML=''; $('beaten').innerHTML=''; $('kick').className=''; $('kick').innerHTML=''; $('stagefx').className=''; $('stagefx').innerHTML=''; $('roundfx').className=''; $('thresholdfx').className=''; $('thresholdfx').innerHTML=''; document.body.classList.remove('kicking');
     $('rivalDeckName').textContent=deckLabel(rivalDeck); $('youDeckName').textContent=deckLabel(youDeck);
     var modeTag=gameBasics?' · <b class="basicsTag">BASICS</b>':'';
-    $('matchupTag').innerHTML=((mpCount>2)?('<b>'+mpCount+'-Rider free-for-all</b> · you: '+deckLabel(seatDecks[0])):('<b>'+deckLabel(youDeck)+'</b> vs <b>'+deckLabel(rivalDeck)+'</b> · '+DIFF_NAME[difficulty]))+modeTag;
+    $('matchupTag').innerHTML=((mpCount>2)?('<b>'+mpCount+'-Rider free-for-all</b> · you: '+deckLabel(seatDecks[0])+oppReveal()):('<b>'+deckLabel(youDeck)+'</b> vs <b>'+(nameOf(1)||'Rival')+'</b> · '+deckLabel(rivalDeck)+' · '+DIFF_NAME[difficulty]))+modeTag;
     syncOrder(true);
     var youLead=state.turn===YOU;
-    if(mpCount>2) logMsg('New game — <b>'+mpCount+' Riders</b>, last one standing. You play <b>'+deckLabel(seatDecks[0])+'</b>. Round 1, jabs only.', 'system');
-    else logMsg('New duel — you play <b>'+deckLabel(youDeck)+'</b> vs Rival <b>'+deckLabel(rivalDeck)+'</b> (<b>'+DIFF_NAME[difficulty]+'</b>). Each draws '+E.START_HAND+' and holds '+(state.startShields||4)+' shields.', 'system');
+    if(mpCount>2) logMsg('New game — <b>'+mpCount+' Riders</b>, last one standing. You play <b>'+deckLabel(seatDecks[0])+'</b>'+(oppRoll()?' against '+oppRoll():'')+'. Round 1, jabs only.', 'system');
+    else logMsg('New duel — you play <b>'+deckLabel(youDeck)+'</b> vs <b>'+(nameOf(1)||'Rival')+'</b> (<b>'+DIFF_NAME[difficulty]+'</b>) on <b>'+deckLabel(rivalDeck)+'</b>. Each draws '+E.START_HAND+' and holds '+(state.startShields||4)+' shields.', 'system');
     logMsg('<b>'+(youLead?'You':seatName(state.turn))+'</b> '+(youLead?'have':'has')+' the initiative — <b>Round 1</b>, jabs only.', 'round');
     hideOverlay(); showCard(null);
     setMessage((youLead?'You have':(MP()?seatName(state.turn):'Rival')+' has')+' the initiative — '+(youLead?'lead the fight':'they lead the fight')+'. Only <b>Jabs</b> are allowed in Round 1.');
@@ -4034,6 +4060,7 @@ __NETVIEW__
     sel.mode=basics?'basics':'full'; saveSel();
     gameBasics=basics; tutorialMode=true; mpCount=2; difficulty='minion';
     youDeck='full'; rivalDeck='full'; seatDecks=['full','full']; seatDiffs=[null,'minion'];
+    clearPersonas();   // a persona from the game before would otherwise linger — the tutorial wants a plain "Rival"
     tutShields=lsn.shields||4;   // lessons that need the kill arc set shields:2; Advanced keep the full 4
     startGame(YOU);   // rigs the deal (currentLesson.rig) and launches that lesson's steps
   }
@@ -4377,7 +4404,7 @@ __NETVIEW__
       '<li><b>Mode:</b> <b>Basics</b> (no transforms — recommended for your first games) or <b>Full</b> (with Rides &amp; Forms).</li>'+
       '<li><b>Players:</b> a 2-player duel, or a 3–6 free-for-all where everyone fights for themselves.</li>'+
       '<li><b>Decks:</b> <b>Full Set</b> is one of every card; the <b>archetype decks</b> run 4 of each rank — pures are one suit, mixes split two (e.g. Sage = Wizard+Cleric).</li>'+
-      '<li><b>Rival strength:</b> <b>Minion</b> (timid — barely uses effects, won’t contest your Specials), <b>Recruit</b> (a gentle step up — leads Specials and plays for survival, but still won’t contest yours or run the pressure plays), <b>Fighter</b> (the standard duelist — full toolkit), <b>Knight</b> (tanky, ramps hard, conserves for Specials), <b>Demon Lord</b> (the toughest — digs deeper for gas and hoards its apex/Aces for the kill).</li>'+
+      '<li><b>Rival strength:</b> <b>Minion</b> (timid — barely uses effects, won’t contest your Specials), <b>Squire</b> (a gentle step up — leads Specials and plays for survival, but still won’t contest yours or run the pressure plays), <b>Fighter</b> (the standard duelist — full toolkit), <b>Knight</b> (tanky, ramps hard, conserves for Specials), <b>Demon Lord</b> (the toughest — digs deeper for gas and hoards its apex/Aces for the kill).</li>'+
       '</ul>'+
       '<h3>🃏 Specials cheat sheet</h3>'+cheatSheetHTML()+
       '</div>'+
@@ -4496,7 +4523,7 @@ __NETVIEW__
         '<label class="setRow"><span>Players</span><select id="setPlayers"><option value="2">2 · Duel</option><option value="3">3 · Free-for-all</option><option value="4">4 · Free-for-all</option><option value="5">5 · Free-for-all</option><option value="6">6 · Free-for-all</option></select></label>'+
         '<label class="setRow"><span>Your name</span><input id="setName" type="text" maxlength="14" placeholder="You" autocomplete="off" spellcheck="false"></label>'+
         '<label class="setRow"><span>Your class</span><select id="setYouDeck">'+deckOptionsHTML()+'</select></label>'+
-        '<label class="setRow" id="rowOppStrength"><span>Opponent strength</span><select id="setDiff"><option value="random">🎲 Random</option><option value="minion">Minion</option><option value="recruit">Recruit</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon Lord</option></select></label>'+
+        '<label class="setRow" id="rowOppStrength"><span>Opponent strength</span><select id="setDiff"><option value="random">🎲 Random</option><option value="minion">Minion</option><option value="recruit">Squire</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon Lord</option></select></label>'+
         '<label class="setRow" id="rowOppClass"><span>Opponent class</span><select id="setRivalDeck">'+deckOptionsHTML()+'</select></label>'+
         '<div id="oppList"></div>'+
       '</div>'+
@@ -4557,7 +4584,7 @@ __NETVIEW__
       if(!mp){ list.innerHTML=''; return; }
       sel.opps=sel.opps||[];
       while(sel.opps.length < n-1) sel.opps.push({ deck:'random', diff: sel.diff||'fighter' });
-      var strengthOpts='<option value="random">🎲</option><option value="minion">Minion</option><option value="recruit">Recruit</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon</option>';
+      var strengthOpts='<option value="random">🎲</option><option value="minion">Minion</option><option value="recruit">Squire</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon</option>';
       var html='';
       for(var i=0;i<n-1;i++){
         html+='<label class="setRow"><span>P'+(i+2)+'</span><span class="oppPick">'+
@@ -4616,6 +4643,7 @@ __NETVIEW__
       for(var s=0;s<mpCount-1;s++){ var o=(sel.opps&&sel.opps[s])||{deck:'random',diff:'fighter'}; seatDecks.push(resolveDeck(o.deck||'random')); seatDiffs.push(resolveDiff(o.diff||'fighter')); }
     }
     else { seatDecks=[youDeck, rivalDeck]; seatDiffs=[null, difficulty]; }
+    assignPersonas();
     $('setYouDeck').disabled=$('setRivalDeck').disabled=$('setDiff').disabled=true; var sp=$('setPlayers'); if(sp) sp.disabled=true;
     var ol=$('oppList'); if(ol) Array.prototype.forEach.call(ol.querySelectorAll('select'), function(s){ s.disabled=true; });
     ['browseBtn','howToBtn','goFirstBtn','goSecondBtn','rollBtn'].forEach(function(id){ var b=$(id); if(b) b.disabled=true; });
@@ -5084,6 +5112,7 @@ __NETVIEW__
       mpCount=n;
       youDeck=resolveDeck(hostDeck||'full');
       seatDecks=[youDeck]; seatDiffs=[null];
+      clearPersonaStyles();   // drop any style a solo game left behind, but KEEP the names: the joined players' own names are already in seatNames by now, and wiping them cost nettest_names 3 assertions
       for(var s=1;s<=joined;s++){ seatDecks[s]=resolveDeck(seatDeckMap[s]||'full'); seatDiffs[s]='fighter'; }   // 'fighter' = AI fallback for the round-win chooser only
       rivalDeck=seatDecks[1]||'full';
       startGame(YOU);                                   // host leads round 1
@@ -5646,6 +5675,7 @@ __NETVIEW__
   if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
   if(!NET.boot()) openSetup();   // netplay when ?net= is present; otherwise the normal game (byte-identical)
   if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, setPulse:function(b){pulseDetail=b;}, activate:function(id,o){ return activate(id,o); },
+      seatName:seatName, logName:logName, persona:function(i){ var q=personaOf(i); return q?q.name:null; },   // tests assert the RIGHT seat is named, with personas live
       // buildPreDrawBeats is a pure function of the round result — exposing it lets a test assert the
       // ceremony wording DIRECTLY instead of playing random games until a shield-loss ceremony happens
       // (which failed ~1 run in 3 by simply never reaching one).

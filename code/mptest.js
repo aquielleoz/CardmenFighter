@@ -18,6 +18,10 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const waitFor=async (fn,n)=>{ for(let i=0;i<(n||60);i++){ if(await fn()) return true; await wait(150);} return false; };
   const hasLog=async re=>{ for(let i=0;i<60;i++){ if((await log()).some(l=>re.test(l))) return true; await wait(150);} return false; };
   const msg=()=>p.evaluate(()=>((document.getElementById('message')||{}).textContent||'').trim());
+  // Personas mean seat 2 is "Gawain", not "P3". Resolve the name from the page so these assertions keep
+  // checking the thing that matters — that the RIGHT seat is named — instead of a literal that moved.
+  // Every use below pairs it with a negative on another seat's name, or the check would be vacuous.
+  const nm=seat=>p.evaluate(i=>window.__solo.logName(i), seat);
 
   async function start3p(){
     await p.goto(URL); await wait(700);
@@ -48,7 +52,9 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(staged.holder===2, 'the pre-fight holder really is seat 2, not 1 ('+staged.holder+') — the case the old gate dropped');
   await p.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
     const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
-  ok(await hasLog(/P3.*sprang Back Stab/i), 'P3 sprang Back Stab against your fight (was silently skipped before)');
+  const bsName=await nm(2), bsOther=await nm(1);
+  ok(await hasLog(new RegExp(bsName+'.*sprang Back Stab','i')) && !(await hasLog(new RegExp(bsOther+'.*sprang Back Stab','i'))),
+     'seat 2 ('+bsName+') sprang Back Stab against your fight, and it is not credited to seat 1 ('+bsOther+')');
   ok(await p.evaluate(()=>{ const st=window.__solo.st(); return !!(st.players[0].lockSkip||st.players[0].lockRound); }), '…and you are actually locked out');
   ok(!(await log()).some(l=>/Rival sprang/.test(l)), '…and it is credited to P3, never to "Rival"');
 
@@ -151,7 +157,8 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   // prompt/status line. What matters for C1 is that an opponent's turn WRITES one at all, asserted next.
   ok(await hasLog(/^You played/), 'your own play is logged');
   // an opponent then acts — the caption must name THEM, never still say "You played"
-  const capt=await waitFor(async()=>{ const m=await msg(); return /P2|P3/.test(m); }, 90);
+  const oppNames=[await nm(1), await nm(2)];
+  const capt=await waitFor(async()=>{ const m=await msg(); return oppNames.some(n=>m.indexOf(n)>=0); }, 90);
   ok(capt, 'an opponent\'s turn OVERWRITES the caption with their name (it used to stay "You played…"): "'+(await msg()).slice(0,60)+'"');
   ok(!/^You played/.test(await msg()), '…so the stage and the caption no longer disagree');
   ok(await p.evaluate(()=>window.__solo.st().round>=3), 'the game progressed through the opponents\' turns');
@@ -229,7 +236,9 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   // strip tags: the beats are HTML, so "<b>You</b> lose a shield" would not match /You lose a shield/
   const beatsFor=(res)=>p.evaluate(r=>window.__solo.beats(r).map(b=>String(b.html).replace(/<[^>]*>/g,'')).join(' | '), res);
   const b_p3=await beatsFor({ roundWinner:1, comboType:'pair', shieldStripped:true, struck:[2] });
-  ok(/P3/.test(b_p3) && !/\bYou lose\b/.test(b_p3), 'P2 beating P3 announces P3 losing the shield, not you: "'+b_p3+'"');
+  const struckName=await nm(2), winnerName=await nm(1);
+  ok(b_p3.indexOf(struckName+' lose')>=0 && !/\bYou lose\b/.test(b_p3) && b_p3.indexOf(winnerName+' lose')<0,
+     'seat 1 ('+winnerName+') beating seat 2 ('+struckName+') announces '+struckName+' losing the shield — not you, not the winner: "'+b_p3+'"');
   const b_you=await beatsFor({ roundWinner:2, comboType:'pair', shieldStripped:true, struck:[0] });
   ok(/\bYou lose a shield\b/.test(b_you), '…and when YOU are struck it does say so: "'+b_you+'"');
   const b_none=await beatsFor({ roundWinner:1, comboType:'single', shieldStripped:false });
@@ -259,7 +268,9 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const stashLabel=await p.evaluate(()=>{ const l=document.querySelector('#beaten .bLabel'); return l?l.textContent.trim():''; });
   ok(!!stashLabel, 'beating an opponent\'s play sweeps it to the stash (label present, not vacuous)');
   ok(!/rival/i.test(stashLabel), '…and the label names a seat, never "Rival": "'+stashLabel+'"');
-  ok(/^P2\b/i.test(stashLabel), '…specifically the seat whose card was beaten (P2)');
+  const beatName=await nm(1), notBeat=await nm(2);
+  ok(stashLabel.indexOf(beatName)===0 && stashLabel.indexOf(notBeat)<0,
+     '…specifically the seat whose card was beaten, seat 1 ('+beatName+'), not seat 2 ('+notBeat+'): "'+stashLabel+'"');
 
   // ================= PLAYER NAMES flow through the single logName/seatName funnel =================
   ok(await start3p(), '3-player game restarted for player names');
@@ -303,6 +314,22 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   await p.evaluate(()=>document.getElementById('youWho').click()); await wait(300);
   await p.evaluate(()=>document.getElementById('nameClear').click()); await wait(450);
   ok(await p.evaluate(()=>document.getElementById('youWho').textContent.trim())==='You', 'Clear restores the plain "You" label');
+
+  /* ---- AI PERSONAS: drawn per tier, distinct at the table, revealed BEFORE the fight ---- */
+  ok(await start3p(), '3-player game restarted for the persona checks');
+  const perse=await p.evaluate(()=>[1,2].map(i=>window.__solo.persona(i)));
+  ok(perse.every(n=>!!n), 'every AI seat drew a persona: '+JSON.stringify(perse));
+  ok(perse[0]!==perse[1], '…and no two seats at the table drew the same one');
+  const roster=await p.evaluate(()=>window.CardmenAI.personasFor('knight').map(x=>x.name));
+  ok(perse.every(n=>roster.indexOf(n)>=0), '…each drawn from its OWN tier (both opponents pinned to knight): '+roster.join(', '));
+  // the reveal: the persona must be readable before a card is played, in the header AND the opening log
+  const tag=await p.evaluate(()=>document.getElementById('matchupTag').textContent);
+  ok(perse.every(n=>tag.indexOf(n)>=0), 'the header reveals every opponent by name pre-match: "'+tag.trim()+'"');
+  const opening=(await log())[0]||'';
+  ok(perse.every(n=>opening.indexOf(n)>=0), '…and so does the opening log line: "'+opening.slice(0,110)+'"');
+  // and the names reach the shared naming funnel, so they show up everywhere else for free
+  ok((await nm(1))===perse[0] && (await nm(2))===perse[1], 'logName() resolves each seat to its persona, so all narration inherits it');
+  ok((await nm(0))==='You', '…while you still read as "You" in your own frame');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);

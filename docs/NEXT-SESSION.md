@@ -50,6 +50,15 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 ---
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **AI seats in netplay** (would make personas apply there). Today an online game is humans only: every
+  opponent seat is `'remote'`, and a dropped player **concedes** rather than being taken over. Two obvious
+  wants: **fill empty lobby seats** with AI, and **take over a dropout** instead of removing them mid-game.
+  - The persona plumbing already supports it — `AI.drawPersonas` takes the `seatDiffs` array and
+    `AI.setStyles` is keyed by absolute seat. The missing piece is **broadcasting the drawn names** in the
+    existing `t:'setup'` names table, so every client sees the same persona instead of each client rolling its
+    own. Without that, seat 2 would be "Etna" on the host and "Laharl" on a client.
+  - Watch the frames: `seatNames` is LOCAL-frame and clients rotate the host's absolute table on arrival, so
+    the draw must happen host-side and travel as absolute seats, exactly like `t:'log'` actor seats do.
 - **"Each jab is a cantrip"** (Aj, idea — parked, not designed). A **jab** (single-card play) would also do
   something small on top of banking energy — the obvious reading being **draw a card**, MTG-style.
   - **Why this is more interesting than it looks:** it is a **global draw engine**, and that is exactly the
@@ -109,6 +118,73 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.30.0 — AI personas: every opponent has a name and a temper
+
+Difficulty used to be the whole personality of an opponent: five tiers, and within a tier every AI played
+identically. Now each AI seat draws a **persona** at game start — a name plus a targeting style — revealed
+**before** the fight, in the header matchup tag and the opening log line. Six per tier (eight Minions), so a
+full 6-player table never repeats itself and the cast still cycles between games.
+
+| tier | cast |
+| --- | --- |
+| Minion | Stuart, Bob, Kevin, Dave, Phil, Tim, Carl, Jorge |
+| Squire | Griflet, Beaumains, Owain, Lucan, Sagramore, Dinadan |
+| Fighter | Lefty, Bruiser, Slugger, Tank, Duke, Knuckles |
+| Knight | Lancelot, Galahad, Gawain, Percival, Bedivere, Bors |
+| Demon Lord | Etna, Laharl, Flonne, Rozalin, Adell, Vyers |
+
+**"Recruit" is now displayed as "Squire"** so the ladder reads as a progression — Minion → Squire → Fighter →
+Knight → Demon Lord, a squire being what becomes a knight. **The internal key is still `recruit`**: `ai.js`
+branches on it and `cmf_setup_v1` stores it, so renaming the key would have silently invalidated every player's
+remembered difficulty. Display-only rename.
+
+**Personas vary STYLE, never STRENGTH.** If one persona in a tier won more than its tier-mates, choosing an
+opponent would be a hidden difficulty slider and the tier would stop meaning anything. Three knobs, all in
+`styleTarget` in `ai.js`: `grudge` 0..1 (how reliably it answers whoever last struck it), `focus`
+(`weakest`/`leader`/`random` — where it looks when un-provoked), and `holds` (never lets a grudge go).
+
+**New harness: `node personasim.js [games] [tier]`.** Seats every persona of one tier with the same deck,
+rotating seat order to cancel turn-order bias, and prints win% per persona plus the spread. It has a
+**`control`** mode (`node personasim.js 150 demon control`) that seats six *identical* personas — whatever
+spread that reports is the **noise floor**, currently **2.8 points at 900 games**. Never read a real spread as
+meaningful unless it clears the control. All five tiers now sit at or under it: Fighter 1.3, Minion 2.8,
+Knight 3.0, Demon Lord 3.3, Squire 3.6.
+
+**It caught a real bug immediately, and the bug was a design error.** Flonne, Galahad and Adell originally had
+a **`nice`** flag for Axelrod's "never defect first". Measured, `nice` was worth **+6 points** — replicated
+tightly against duplicated control configs — because it bundled two unrelated things: a personality (*never
+open hostilities*) and a **competence upgrade** (*preferentially hit whoever is actually attacking*). Only the
+nice personas got the upgrade, so "nice" was quietly the strong setting.
+
+The deeper problem is that **"never defect first" is unrepresentable in this game**: winning a round *forces*
+you to strike someone, so no persona can decline to open hostilities. The faithful analogue is **TIT FOR TAT**
+— answer every strike, carry nothing forward — which is `grudge:1.00` with no `holds`, and is what Flonne and
+Galahad now are. The competence half became **shared by every persona**, so it cancels instead of favouring
+three of them. There is deliberately no `nice` knob any more; the comment in `ai.js` says why.
+
+Also of note: `focus` and `grudge` were both measured **flat inside noise** once the finish rule
+(`FINISH_AT` — nobody above Minion ignores a nearly-dead player) was shared. Minions remain the one tier that
+will pass up a handed kill.
+
+Personas are **solo/local only** — and worth being precise about why: **netplay has no AI players at all.**
+Every opponent seat is set to `'remote'` when the host starts (`seatCtrl[s2]='remote'`). The
+`seatDiffs[s]='fighter'` in that path is only a tier fallback so the round-win shield-target chooser has
+something to read; it is a formula input, not a player. And a disconnect does not become an AI — the seat is
+held for a grace period and then **concedes** (`onOpponentConcede`), with a later reconnect arriving as a
+spectator. The tutorial also keeps a plain "Rival" so the lesson stays about the rules.
+
+**A bug from this, caught by `nettest_names` (4 pass / 3 FAIL) and worth remembering:** the guard against
+leaking personas into netplay called a `clearPersonas()` that also wiped `seatNames` — in the host's start
+path, where that table **already holds the joined players' real names**. Online players would have lost their
+names. Split into `clearPersonaStyles()` (styles only, for netplay) and `clearPersonas()` (also resets names to
+just `myName`, for the tutorial). The lesson is that "personas are solo-only, so netplay is unaffected" was
+exactly the reasoning that made the bug invisible — the shared state was the *name table*, not the personas.
+
+`mptest.js` grew 8 assertions for this (draw, distinctness, correct tier, both reveal sites, and the naming
+funnel), and 4 existing ones were rewritten: they hardcoded `"P2"`/`"P3"` and now resolve the seat's name from
+the page via a new `__solo.logName`/`__solo.persona` hook — so they run with personas **live** rather than
+switched off, each paired with a negative on a *different* seat's name so it cannot pass vacuously.
 
 ### v1.29.8 — player names
 Aj's idea from the D1 report, and it landed as predicted: **one function**. Every naming site already funnelled through `seatName`/`logName`, so only those two had to answer differently — panels, log lines, the ceremony banner and the announcements all picked names up for free. Doing the naming cleanup *before* this feature is the whole reason it was small.

@@ -68,6 +68,7 @@ Balance / heavier harnesses, when a change could move win rates:
 node analysis.js 130 on      # class round-robin — args: N catchup recycle difficulty
 node mpsim.js                # 3/4/6p free-for-all — args: games difficulty
 node recyclesim.js 400       # how often a game reaches the reshuffle (deck-cycling pressure)
+node personasim.js 150 demon  # AI persona parity — args: gamesPerRotation tier [control]
 node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — RUN IT after any card
                              # name/cost/text change, or the published card list silently goes stale
 ```
@@ -197,6 +198,29 @@ Form-granted Quick. Some older comments and doc lines say "any Q + any K"; the c
 under Hermes Super, Sanctuary under Hector, Armor Piercing under Hippolyta), so any code deciding *"is this a
 Quick?"* must use **`effectFor`**. `ai.js` read `effectOf` in three places and therefore never sprang Back Stab
 in any mode (fixed v1.29.1). If a Form-granted behaviour appears dead, check which one the call site reads.
+
+**AI personas vary STYLE, not STRENGTH — and `personasim.js` is the guard.** Each AI seat draws a persona
+(name + targeting style) from its difficulty tier at game start; `PERSONAS` and `drawPersonas` live in
+**`ai.js`**, not the template, so the sims can `require` them. The name is fed into `seatNames`, so it reaches
+the UI through the existing `seatName`/`logName` funnel for free. Solo/local only — netplay seats are people
+with their own names, and the tutorial keeps a plain "Rival".
+
+The knobs are `grudge` (0..1), `focus` (`weakest`/`leader`/`random`) and `holds`, all read in `styleTarget`.
+**If a persona in a tier out-wins its tier-mates, the tier has stopped meaning anything** — picking an opponent
+would be a hidden difficulty slider. Run `node personasim.js <games> <tier>` after touching a style, and read
+the **spread**, not the ranking. It has a **`control`** mode that seats six *identical* personas: whatever
+spread that prints is the noise floor (**2.8 points at 900 games**), and a real spread means nothing until it
+clears it. All five tiers currently sit at or under it.
+
+That harness caught a design error worth remembering: a `nice` flag (Axelrod's "never defect first") measured
+**+6 points** because it bundled a personality with a **competence upgrade** — preferentially hitting whoever
+is actually attacking. Only the nice personas got the upgrade. The fix was to make the competence half
+**shared by every persona** and delete the flag; **"never defect first" is unrepresentable here anyway**, since
+winning a round forces you to strike someone. The faithful analogue is TIT FOR TAT (`grudge:1.00`, no `holds`).
+**When a style knob shows a win-rate effect, suspect it is smuggling competence, not personality.**
+
+**The `recruit` tier displays as "Squire" but its KEY is still `recruit`** — `ai.js` branches on the key and
+`cmf_setup_v1` stores it, so renaming the key would silently invalidate every player's saved difficulty.
 
 ## Rules facts worth knowing before touching the engine
 
