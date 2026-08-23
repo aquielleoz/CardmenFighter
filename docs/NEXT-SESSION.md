@@ -50,6 +50,10 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 ---
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **A gacha-style storyline** (Aj, idea — parked, ahead of netplay AI in the queue, not designed). Nothing
+  specified yet. Worth noting that **v1.30.0 just built the substrate for it by accident**: a roster of 32
+  named characters, grouped into five tiers, each with a distinct play style and a name that already flows
+  through the whole naming funnel. A collection/progression layer has something to collect now.
 - **"Each jab is a cantrip"** (Aj, idea — parked, not designed). A **jab** (single-card play) would also do
   something small on top of banking energy — the obvious reading being **draw a card**, MTG-style.
   - **Why this is more interesting than it looks:** it is a **global draw engine**, and that is exactly the
@@ -163,9 +167,12 @@ Every opponent seat is set to `'remote'` when the host starts (`seatCtrl[s2]='re
 `seatDiffs[s]='fighter'` in that path is only a tier fallback so the round-win shield-target chooser has
 something to read; it is a formula input, not a player. And a disconnect does not become an AI — the seat is
 held for a grace period and then **concedes** (`onOpponentConcede`), with a later reconnect arriving as a
-spectator. **Aj has explicitly decided against adding AI seats to netplay** (2026-08-23) — no AI fill for
-empty lobby seats and no AI takeover of a dropout; conceding the seat is the wanted behaviour. So do not
-propose it again, and personas stay solo/local by design rather than by omission. The tutorial also keeps a plain "Rival" so the lesson stays about the rules.
+spectator. **Aj: not now** (2026-08-23) — a dropped seat conceding is the wanted behaviour, and netplay AI
+is worth revisiting only **if players actually ask for it**, not on our own initiative. So personas are
+solo/local by design rather than by omission. If it ever does happen, the plumbing is already most of the way
+there (`AI.drawPersonas` takes the `seatDiffs` array, `AI.setStyles` is keyed by absolute seat); the missing
+piece is **broadcasting the drawn names** in the existing `t:'setup'` names table, host-side and as absolute
+seats, or seat 2 would be "Etna" on the host and "Laharl" on a client. The tutorial also keeps a plain "Rival" so the lesson stays about the rules.
 
 **A bug from this, caught by `nettest_names` (4 pass / 3 FAIL) and worth remembering:** the guard against
 leaking personas into netplay called a `clearPersonas()` that also wiped `seatNames` — in the host's start
