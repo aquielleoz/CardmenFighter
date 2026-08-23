@@ -20,6 +20,7 @@
  * — Aj's actual complaint was "three rounds in a row throwing jab after jab", so that is a headline number. */
 var E = require('./engine.js');
 var AI = require('./ai.js');
+var _dpp=(process.argv[7]||'').toLowerCase()==='drawplayers'; E.setDrawPerPlayer(_dpp);
 E.setShieldCards(true); E.setLoserMill(true); E.setSpecialLossMode('chosen'); E.setMillScope('targeted');
 
 var GAMES = parseInt(process.argv[2] || '200', 10);

@@ -163,6 +163,18 @@
 
   // ---- game state ----
   var START_HAND = 6, DRAW_PER_ROUND = 2, START_SHIELDS = 4, MAX_HAND = 10;
+  /* "DRAW EQUAL TO THE NUMBER OF PLAYERS" (Aj's idea, 2026-08-24) — a flag, for A/B only.
+   * Aimed at the constraint `optionsim.js` actually found: legal plays per turn FALL as players rise (4.5 at
+   * 2p to 2.3 at 6p) because the pile is raised more times before it reaches you. A fixed draw of 2 does not
+   * scale with that, so this makes the draw scale with the table instead: draw = numPlayers.
+   * Note it is not simply "more cards" — hands already sit at the MAX_HAND cap 43-53% of the time in a
+   * free-for-all, so the extra draw largely converts into SELECTION (you see more of your deck and keep the
+   * best 10) and into CYCLING (the surplus is discarded to energy each round). Both plausibly raise option
+   * quality without raising hand size. Measure with optionsim / recyclesim / mpsim. */
+  var DRAW_PER_PLAYER = false;
+  function setDrawPerPlayer(v) { DRAW_PER_PLAYER = !!v; }
+  function isDrawPerPlayer() { return DRAW_PER_PLAYER; }
+  function drawCountFor(st) { return DRAW_PER_PLAYER ? Math.max(DRAW_PER_ROUND, st.numPlayers) : DRAW_PER_ROUND; }
 
   // End-of-turn hand limit: discard down to MAX_HAND. `ids` = the player's chosen cards
   // to pitch (auto-picks lowest values if omitted / short). Discards go to the ENERGY pile
@@ -1648,7 +1660,8 @@
     result = result || {};
     if (result.drawn) return result;
     result.draws = [];
-    for (var r = 0; r < st.numPlayers; r++) result.draws[r] = st.players[r].eliminated ? 0 : drawCards(st.players[r], DRAW_PER_ROUND);
+    var perRound = drawCountFor(st);
+    for (var r = 0; r < st.numPlayers; r++) result.draws[r] = st.players[r].eliminated ? 0 : drawCards(st.players[r], perRound);
     result.drawn = true;
     // deck-out: the new leader has no card to lead with. Duel → they lose; N-player → they're eliminated.
     if (st.players[st.turn].hand.length === 0) {
@@ -1707,7 +1720,8 @@
     canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, reorderEnergy: reorderEnergy, promoteEnergy: promoteEnergy, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
     discardToLimit: discardToLimit, MAX_HAND: MAX_HAND,
     effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, opponentCanRespond: opponentCanRespond, useEquipment: useEquipment, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
-    START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS
+    START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
+    setDrawPerPlayer: setDrawPerPlayer, isDrawPerPlayer: isDrawPerPlayer
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenEngine = API;

@@ -50,6 +50,35 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 ---
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **Draw = number of players** (Aj's idea, 2026-08-24 — measured once, verdict OPEN, flag shipped OFF as
+  `E.setDrawPerPlayer()`). Aimed squarely at what `optionsim.js` found: legal plays per turn collapse as the
+  table grows (4.5 at 2p to 2.3 at 6p) and a fixed draw of 2 does not scale with that. Making the draw scale
+  **works on its target**: options per turn go flat across player counts — 4.5 / 4.1 / 4.3 / **4.4** instead of
+  4.5 / 3.2 / 2.9 / **2.3**.
+  - **But the felt problem got worse.** Turns with NO legal play rose 65% -> **70%** at 6p, and when following a
+    pile, stuck rose 79% -> **85%**. Same trap as the jab cantrip: give everyone more resources and the pile is
+    raised more times before it reaches you, so the bar climbs as fast as your hand does. *Average* options up,
+    *ability to act at all* down.
+  - Side effect worth deciding about: mid-round hands reach **12.9** against a `MAX_HAND` of 10, so ~3 cards per
+    player per round are discarded to energy at Clean-up. That is a large cycling boost — and it means much of
+    the extra draw is converted straight into energy rather than into playable options.
+  - **The balance read is UNRESOLVED, and for a methodological reason.** It first looked like the 6-player
+    spread tightened 18.5 -> 14.4 points, but `mpsim` turned out to be non-deterministic (the AI uses unseeded
+    `Math.random()`), and three identical baseline runs gave Cleric 28.0 / 24.9 / 24.1. The apparent gain was
+    inside run noise. Re-measure with 3+ runs per arm, or seed the AI first. See PATCHNOTES principle 0c.
+  - If it comes back, the interesting variant is a draw that scales but is **capped below MAX_HAND**, so it buys
+    options without spilling into energy — e.g. `min(numPlayers, MAX_HAND - hand.length)`.
+- **The "outbid" pass model for the AI** (Aj — parked 2026-08-24, may come back). The AI currently picks the
+  *lowest safe single* to contest a jab, and never asks *"will this card even survive five opponents?"* Aj's
+  reason #3 for passing was exactly that: middling values get outbid, so spending them is waste. Unlike the
+  shipped hand-size heuristic (measured inert in multiplayer, see the note below) this signal **gets stronger
+  as the table grows**, which is the dimension where the problem actually scales.
+  - **Decide by measurement whether it goes on knight AND demon, or demon only** (Aj's explicit question). Do
+    not assume it transfers: the *existing* strategic pass measured **+17.3 pts for demon and +1.5 for knight**
+    in duels — same code, and the effect was real for one tier and noise for the other. `passsim.js` takes a
+    tier argument for exactly this.
+  - Implement as a third `setStratPassMode('outbid')` beside `'hand'` and `'combo'` so all three stay
+    comparable in one harness.
 - **Initiative has no catch-up, and that is probably the real problem** (Aj, from play — 2026-08-23; the
   finding that came out of testing and REJECTING the jab-cantrip, see the note below). In `engine.js` ~1685 a
   round win does `st.initiative = winner; st.turn = winner;` — **the round winner leads the next round.** That

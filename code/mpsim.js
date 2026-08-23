@@ -3,6 +3,7 @@
  * Usage: node mpsim.js [gamesPer(3p)] [diff]   — player counts 3/4/6 swept automatically. */
 var E = require('./engine.js');
 var AI = require('./ai.js');
+var _dpp=(process.argv[5]||'').toLowerCase()==='drawplayers'; E.setDrawPerPlayer(_dpp);
 E.setShieldCards(true); E.setLoserMill(true);
 E.setSpecialLossMode('chosen'); E.setMillScope('targeted');  // matches the live game (v0.88+): cutthroat combo
 

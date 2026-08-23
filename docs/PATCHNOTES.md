@@ -10,6 +10,23 @@ deck vs every other, ~7,150 games, Demon-strength AI, strict suit-cost).
 
 ## Balance Design Principles (the durable learnings)
 
+### 0c. `mpsim` / `analysis` are NOT deterministic — never trust a single run. (2026-08-24)
+The **engine** takes a seeded rng; the **AI does not**. `ai.js` calls bare `Math.random()` in five places
+(`pickRandom`, the persona `grudge` roll, `FOCUS_LEAN`, `drawPersonas`). So the same command with the same seeds
+gives different answers. Measured, three consecutive `node mpsim.js 1200 knight` runs put Pure Cleric at
+**28.0% / 24.9% / 24.1%** in the 6-player table — a ~4-point spread on identical input, well beyond the ~2-point
+sampling error at 360 games per deck.
+
+This invalidated a conclusion in the very session that found it: a `DRAW_PER_ROUND = numPlayers` A/B looked like
+it tightened the 6-player spread from 18.5 to 14.4 points, but the 18.5 baseline was simply a high outlier and
+the "improvement" sat inside run-to-run noise.
+
+**So:** for any per-deck claim, run each arm **3+ times and compare ranges**, or seed the AI. Prefer a
+**within-game paired** design where possible — `passsim.js` and `personasim.js` both put the arms in the *same*
+games, which cancels this entirely and is why their numbers are trustworthy at one run. `personasim.js` also has
+a `control` mode that measures the noise floor directly; there is no equivalent for `mpsim` yet.
+
+
 ### 0a. The binding constraint is OPTIONS, not cards. Check which resource is scarce before tuning it. (2026-08-24)
 Two card-economy experiments in a row measured inert — the **jab cantrip** (below) and making the AI's
 **strategic pass** work in multiplayer (`passsim.js`). Same reason, and `optionsim.js` names it:
