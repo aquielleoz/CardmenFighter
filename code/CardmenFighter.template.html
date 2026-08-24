@@ -3222,7 +3222,9 @@ __NETVIEW__
     /* One neutral line for everyone (Aj's wording), instead of "You draw 2, Rival draws 2" — which could not
      * be phrased for 3-6 seats and named the wrong player in a free-for-all. Per-seat detail that actually
      * matters (your own fizzle) still follows. */
-    var per=(E.DRAW_PER_ROUND!=null)?E.DRAW_PER_ROUND:2;
+    // The per-round draw SCALES with the table (= numPlayers since v1.31.3), so ask the engine.
+    // E.DRAW_PER_ROUND is the DUEL value and would announce "draws 2" at a six-player table drawing 6.
+    var per=(E.drawCountFor&&state)?E.drawCountFor(state):((E.DRAW_PER_ROUND!=null)?E.DRAW_PER_ROUND:2);
     say(null, '<b>Round '+rn+'</b> begins. Each player draws '+per+'.', 'round');
     if(res.draws && res.draws[YOU]===0) logMsg('Draw fizzled — your deck &amp; shuffle pile are empty. Spend energy on effects to recycle cards back into your deck.', 'warn');
   }
@@ -3246,7 +3248,8 @@ __NETVIEW__
     if(res.opening) return 'Jabs only';
     if(res.draws && res.draws[YOU]===0) return 'Deck empty — spend energy to recycle';
     if(res.newRound===2) return 'Specials unlocked!';
-    return 'Each player draws 2 cards';
+    var nDraw=(E.drawCountFor&&state)?E.drawCountFor(state):2;   // scales with the table — never hardcode it
+    return 'Each player draws '+nDraw+(nDraw===1?' card':' cards');
   }
   /* The between-rounds ceremony beats. This was the THIRD site deriving the loser as "whichever of YOU/RIVAL
    * didn't win" (Aj caught it after v1.29.6 fixed the other two): with P2 beating P3, `youWon` is false, so

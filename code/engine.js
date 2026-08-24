@@ -16,9 +16,9 @@
  *   - Straights: 5-card windows over fight value, lo 3..11 → 3-4-5-6-7 (lowest)
  *     .. J-Q-K-A-2 (highest); no wrap.
  *   - Duel: START_SHIELDS=4 each, START_HAND=6, DRAW_PER_ROUND=2, MAX_HAND=10.
- *   - Those are the values at EVERY player count. The v1.31.0 scaling package (shields 2+numPlayers, draw =
- *     numPlayers, loss 'all', mill 'universal') was REVERTED in v1.31.2: it fixed pacing but broke deck
- *     balance badly (PATCHNOTES 0j). The scaling remains behind setShieldsPerPlayer()/setDrawPerPlayer() for
+ *   - Shields are flat at every player count. The per-round DRAW scales: = numPlayers (v1.31.3), so 2 in a duel
+ *     and 6 at a six-player table. The rest of the v1.31.0 package (shields 2+numPlayers, loss 'all', mill
+ *     'universal') was REVERTED in v1.31.2 — it broke deck balance badly (PATCHNOTES 0j); only the draw came back. The scaling remains behind setShieldsPerPlayer()/setDrawPerPlayer() for
  *     A/B only. Read values via startShieldsFor(n)/drawCountFor(st) regardless — the UI must never read the
  *     bare constants, which is how a round banner once announced "draws 2" at a table drawing 6.
  *     A round is draw → one player leads → the fight is a trick; the last
@@ -204,7 +204,10 @@
    * free-for-all, so the extra draw largely converts into SELECTION (you see more of your deck and keep the
    * best 10) and into CYCLING (the surplus is discarded to energy each round). Both plausibly raise option
    * quality without raising hand size. Measure with optionsim / recyclesim / mpsim. */
-  var DRAW_PER_PLAYER = false;        // OFF: reverted with it — not the culprit, but part of the same package.
+  var DRAW_PER_PLAYER = true;         // ON (v1.31.3): per-round draw = numPlayers. Measured on the live baseline:
+                                      // jab share at 6p 22% -> 8%, deck balance neutral at 10 runs per arm, and a
+                                      // mechanical no-op at 2 players (max(2,2)=2), so duels are untouched.
+                                      // Shipped ALONE — shields stay flat, loss stays 'chosen', mill 'targeted'.
   function setDrawPerPlayer(v) { DRAW_PER_PLAYER = !!v; }
   function isDrawPerPlayer() { return DRAW_PER_PLAYER; }
   function drawCountFor(st) { return DRAW_PER_PLAYER ? Math.max(DRAW_PER_ROUND, st.numPlayers) : DRAW_PER_ROUND; }
