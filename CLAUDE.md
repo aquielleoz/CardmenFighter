@@ -50,7 +50,6 @@ node viewtest.js                                # 🔍 View card reader gating o
 node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (64)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
-node lessontest_mp.js                           # the "Free-for-All" MP lesson — the only non-duel lesson (12)
 node piletest.js                                # energy/shuffle pile viewers + promote (21)
 node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (74)
 ```
@@ -150,20 +149,6 @@ one screen without hiding real controls, so below 340px `#board` becomes `auto a
 the board **scrolls**. Above the floor the promise is everything-on-one-screen; at or below it the promise is
 only *nothing overlaps and everything is reachable*. The suite encodes both, and the floor cases assert
 reachability by really scrolling the board — don't weaken that into a check that would pass on a broken build.
-
-**`lessontest_mp.js` guards the only lesson that is NOT a duel.** The Free-for-All lesson declares
-`players:4`, so it is the sole exercise of `startLesson`'s N-seat path — every other lesson is 2p, which is
-why none of them needed touching when MP scaling shipped in v1.31.0. It asserts the lesson's **claims**, not
-just that steps advance: a tutorial that completes while telling you something false is worse than one that
-stalls. Two bugs it caught, both of which would have shipped silently: `tutShields` defaulted to a flat 4 so
-a 4-player lesson contradicted its own "everyone has 6 shields" line, and **3♦ Telekinesis grouped with any
-other rank-3 card**, so "select 3♦" selected a pair and the step was uncompletable.
-
-**A lesson cannot ask the player to play a Special unless it hands them the LEAD.** A jab pile can only be
-answered by a higher jab, and in a 4-player game the initiative usually belongs to somebody else — the first
-draft of that step deadlocked exactly where the rules say it must (observed: round 2, initiative with P3, no
-pair left after the 4-card draw). `tutStageLead`/`tutStagePair`/`tutStageTarget` stage it, the way the Quicks
-lesson stages the Rival's Technique.
 
 `viewtest.js` runs at a 390×780 viewport because `#viewCardBtn` only exists inside `@media (max-width:720px)
 and (max-height:800px)` — at a taller phone size it is correctly absent.

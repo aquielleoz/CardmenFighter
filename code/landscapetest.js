@@ -58,14 +58,6 @@ const CASES=[
       actions:R('#actions'), side:R('#side'), opp:R('#opponents'), log:R('#logWrap'),
       nPile:pileCards.length, pileCardH:pileCards.length?Math.round(pileCards[0].height):0, pileWrapped:wrapped,
       boardScrolls:(()=>{const b=document.getElementById('board'); return b.scrollHeight>b.clientHeight+1;})(),
-      // The GUARANTEE is that the hand is capped and scrollable, so it can never grow and shove the board off
-      // screen. Asserting "it is currently scrolling" was racy: 10 cards fit on one row at these sizes, so
-      // whether it overflows depends on how many cards happen to be in hand, and a round tick adds more.
-      // Measured failing 1-2 runs in 3 on BOTH this build and the previous one (A/B'd), i.e. pre-existing.
-      handCapped:(function(){ var cs=getComputedStyle(hand);
-        return /auto|scroll/.test(cs.overflowY) && parseFloat(cs.maxHeight) > 0 &&
-               hand.clientHeight <= parseFloat(cs.maxHeight) + 1; })(),
-      handOverflows:hand.scrollHeight>hand.clientHeight+1,
       handScrolls:hand.scrollHeight>hand.clientHeight+1,
       handCardH:(()=>{const c=document.querySelector('#hand .card'); return c?Math.round(c.getBoundingClientRect().height):0;})() };
   });
@@ -104,8 +96,7 @@ const CASES=[
     // 4. a 5-card special must stay on one row (it is the widest thing the pile ever shows)
     ok(g.nPile===5 && !g.pileWrapped, `${tag}: a 5-card special does not wrap (${g.nPile} cards)`);
     // 5. an over-full hand scrolls rather than growing without bound
-    ok(g.handCapped && (!g.handOverflows || g.handScrolls),
-       `${tag}: the hand is capped and scrollable, so a full hand can never shove the board off screen`);
+    ok(g.handScrolls, `${tag}: a 10-card hand scrolls instead of pushing the board off screen`);
     // 6. it is still the DESKTOP layout: the card-description column stays wherever width allows it
     if(w>=721) ok(!g.side.none, `${tag}: keeps the desktop side panel (width is the abundant axis here)`);
     else ok(!!g.side.none, `${tag}: below 721px the phone branch still hides the side panel`);
