@@ -31,10 +31,11 @@ var LALL = flag('lockoutall') || flag('hostileall');  // Back Stab -> all rivals
 E.setShieldCards(true); E.setLoserMill(true);
 E.setSpecialLossMode(LM); E.setMillScope(MS);
 E.setShieldsPerPlayer(SHP); E.setDrawPerPlayer(DPP);
+var LMAX=parseInt((FLAGS.match(/lockmax=(\d+)/)||[0,0])[1],10); if(LMAX && AI.setLockoutMaxAlive) AI.setLockoutMaxAlive(LMAX);
 E.setApexInfinity(APEX); E.setApexNoStrip(NOSTRIP); E.setDamageAll(DALL); E.setLockoutAll(LALL);
 console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' drawN=' + DPP +
             ' apex=' + (APEX ? (NOSTRIP ? 'unbeatable+nostrip' : 'unbeatable') : 'off') +
-            ' damageAll=' + DALL + ' lockoutAll=' + LALL);
+            ' damageAll=' + DALL + ' lockoutAll=' + LALL + (LMAX ? ' lockoutMaxAlive=' + LMAX : ''));
 
 /* SELF-CHECK — prove the config took EFFECT, behaviourally. Echoing the flags back is not enough: the flags
  * were right and the parser was wrong, so every arm of a 40-run study silently ran the same rules. This probes

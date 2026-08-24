@@ -323,6 +323,16 @@
    * The knobs below stay because `passsim.js` needs them, and because it also reports INITIATIVE
    * CONCENTRATION — the busiest leader holds 1.6-1.9x its fair share of rounds — which is the open question
    * this study actually turned up. See NEXT-SESSION.md. */
+  /* How few rivals must remain for a SINGLE-target lockout to be worth 10 energy? Silencing one of five leaves
+   * four who can still take the round; silencing one of two leaves one.
+   * SWEPT (2026-08-25, thresholds 2/3/4/6 x 6 runs): NO value is distinguishable from another. 6-player spread
+   * came out 12.9 / 15.4 / 13.9 / 16.9 with standard errors of 0.6-0.9, and the same config measured twice gave
+   * 12.5 and 15.4 — so the metric cannot rank thresholds at this power. What the sweep DOES show is that
+   * `hasCombo` alone is not enough: threshold 6 (i.e. no effective count limit) lands where the ungated version
+   * did. So the count condition is kept, and 3 is retained as a conservative UNTUNED default. Do not read
+   * meaning into the exact number. */
+  var LOCKOUT_MAX_ALIVE = 3;
+  function setLockoutMaxAlive(n) { LOCKOUT_MAX_ALIVE = n | 0; }
   var STRAT_PASS_MAX = 5;                      // pass a winnable jab when hand length <= this
   var STRAT_PASS_MP = false;                   // allow it in 3+ player games at all
   var STRAT_PASS_SEATS = null;                 // study hook: only these seats may (null = every seat)
@@ -507,8 +517,10 @@
          * spread, because the AI was making a bad play more often. So gate on VALUE, not on player count:
          *   - only when we hold a combo to capitalise with (same reasoning as the pre-fight Quick spring), and
          *   - only when few enough rivals remain that silencing one actually clears the way.
-         * A lockout that hit EVERY rival would not need this — see setLockoutAll. */
-        var loWorth = (st.numPlayers === 2) || (hasCombo(pl.hand) && E.aliveCount(st) <= 3);
+         * Net balance effect, pooled over 16 runs: -1.6 +/-1.12 spread at 6p = 1.4 s.e., i.e. NO measurable
+         * difference. This fix is about the card EXISTING in multiplayer, not about balance.
+         * A lockout that hit EVERY rival would not need the count condition — see setLockoutAll. */
+        var loWorth = (st.numPlayers === 2) || (hasCombo(pl.hand) && E.aliveCount(st) <= LOCKOUT_MAX_ALIVE);
         if (loV && loWorth && !loV.eliminated && !loV.lockSkip && !loV.lockRound && loV.hand.length >= 2 &&
             act(st, p, lo.id, log, 'LOCKOUT', humans, loT)) continue;
       }
@@ -754,7 +766,7 @@
     if (aiPreFightLock(st, q, activeP, diff)) { var bs = lockoutQuick(st, q); if (bs) return { cast: bs.id, card: { rank: bs.rank, suit: bs.suit, id: bs.id } }; }
     return { pass: true };
   }
-  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
+  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
