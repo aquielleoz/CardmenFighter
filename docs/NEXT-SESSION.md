@@ -58,7 +58,7 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
    unchanged and balance-neutral at 10 runs. `+ E.setApexNoStrip(true)` additionally makes a winning play
    containing a 2 strip no shield, which costs **6p length 15 -> 38 rounds**. Aj wants both measured for feel,
    not just numbers.
-2. **Play the shipped rules.** Nobody has actually played a 6-player game at ~15 rounds with 8 shields and a
+2. **Play the shipped rules** (Lesson 10 "Free-for-All" is now the on-ramp). Nobody has actually played a 6-player game at ~15 rounds with 8 shields and a
    draw of 6. The number most likely to surprise: **mean energy nearly doubles** (8.6 -> 14.4 at 6p), so every
    fixed activation cost is relatively much cheaper. No win-rate figure shows that.
 3. **Initiative is still concentrated ~1.8x** at 6p and no lever tried has moved it. Only
@@ -254,6 +254,61 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.1 — a tutorial for the free-for-all (the first non-duel lesson)
+
+Every lesson before this one was a duel, which is why none of them needed touching when v1.31.0 scaled
+multiplayer. **Lesson 10, "Free-for-All"**, seats **four players** and teaches only what actually changes.
+`startLesson` gained a `players:` field; everything else rides on machinery already built and tested (the
+opponents strip, the N-player driver, `buildOppBeats`, confirm-first targeting).
+
+Ten steps, in the order the differences matter:
+
+1. Four riders, last one standing — read the strip.
+2. **The table scales:** 6 shields and a draw of 4 here, against a duel's 4 and 2.
+3. Round 1 is jabs only, same as a duel — lead one.
+4. **Everyone who lost banked energy**, not just one rival. Losing a round in a free-for-all pays you.
+5. **A Special win costs EVERY opponent a shield.** Three opponents, three shields, one play.
+6. Watch the strip confirm it.
+7. **Hostile effects choose a target** — tap a seat, then ⚡ Activate. Nothing is spent until you confirm.
+8. Tap a panel to expand it and see their equipment and Forms.
+9. **You win about a quarter of rounds here, not half — and you will often have no legal card at all. That is
+   normal.** Pass, and wait for a round you can take.
+10. Elimination and the Fighter Kick.
+
+Steps 9 and 4 exist because of what the sims found, not because the rules say so: at six players you average
+**0.5 legal plays** when following a pile and are **stuck 79%** of such turns. A newcomer meeting that without
+warning concludes the game is broken or that they are bad at it — and it is what Aj and his brother each ran
+into from opposite directions.
+
+**Three bugs found by building it, two of which would have shipped silently:**
+- `tutShields` defaulted to a flat **4**, so a 4-player lesson would have started with 4 shields while its own
+  text said 6. The tutorial would have been lying. Now defaults to `startShieldsFor(mpCount)`; 2p lessons are
+  unchanged at 4.
+- **3♦ Telekinesis grouped with any other rank-3 card in hand**, so "select 3♦" selected a *pair* and the
+  context button never offered ⚡ Activate — the step was uncompletable. `tutStageTarget` now clears other 3s.
+- **A lesson cannot ask for a Special without handing over the LEAD.** A jab pile can only be answered by a
+  higher jab, so the first draft deadlocked exactly where the rules say it must — observed at round 2 with the
+  initiative on P3 and no pair left after the 4-card draw. `tutStageLead`/`tutStagePair` stage it, as the Quicks
+  lesson already stages the Rival's Technique.
+
+**New suite: `node lessontest_mp.js` (12).** It asserts the lesson's *claims*, not just that steps advance — a
+tutorial that completes while telling you something false is worse than one that stalls. It verifies the table
+really starts at `2 + numPlayers` shields, that a Special win really drops **every** opponent (measured
+`[6,6,6] -> [5,5,5]`), that 3♦ stands alone, and that staging a target spends **nothing** (energy 6 → 6 with
+labels `⚡ Activate` → `🎯 Pick a target`).
+
+*One flake on record:* the suite failed once in seven runs, cause unidentified, and has been clean for the four
+runs since. Almost certainly the test's own sampling racing a step's `prep` — three assertions were already
+rewritten for exactly that — but it is unproven, so treat a single red run as suspect before believing it.
+
+**Also fixed: `landscapetest`'s racy hand assertion.** It asserted *"a 10-card hand scrolls"*, which fails
+whenever those 10 cards happen to fit on one row — and a round tick changes the count, so it failed 1-2 runs in
+3. **A/B'd against the previous build before touching it: it failed there too, so it was pre-existing and not
+the lesson.** Rewritten to assert the actual guarantee — the hand is **capped and scrollable**, so it can never
+grow and shove the board off screen — and only to require live scrolling when the content genuinely overflows.
+Clean 3 runs since. This is the second racy assertion in that suite; the pattern to avoid is asserting a
+*current state* where the guarantee is a *bound*.
 
 ### v1.31.0 — multiplayer scales with the table: shields, draw, and damage
 
