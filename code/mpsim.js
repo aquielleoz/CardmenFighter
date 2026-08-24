@@ -1,10 +1,28 @@
 /* Multiplayer balance sim: N-player free-for-alls, random deck per seat, track each deck's win rate + placement.
  * Matches the live game: rework + catch-up (shields-as-cards, loser-mill), SPECIAL_LOSS_MODE='all', MILL_SCOPE='universal'.
- * Usage: node mpsim.js [gamesPer(3p)] [diff]   — player counts 3/4/6 swept automatically. */
+ * Player counts 2/3/4/6 swept automatically. See the flag list below — and CHECK THE PRINTED CONFIG. */
 var E = require('./engine.js');
 var AI = require('./ai.js');
+/* CONFIG BY NAMED FLAG, and it PRINTS what it resolved.
+ * Positional flags caused two invalid A/B studies (2026-08-25): the loss mode had been hardcoded to 'chosen'
+ * by an edit that dropped its argument, and the mill/apex flags read positions the commands never filled — so
+ * arms that were supposed to differ ran the IDENTICAL config and duly measured no difference. The header line
+ * below is the guard: if the printed config is not the config you asked for, the numbers are worthless.
+ * Usage: node mpsim.js [games] [diff] [flags...]
+ *   flags: mill=universal|targeted   loss=all|chosen   apex   nostrip   noshp   nodpp   cantrip
+ *   defaults are the SHIPPED game: mill=universal loss=all, shields 2+P on, draw=N on, apex off. */
+var FLAGS = process.argv.slice(4).join(' ').toLowerCase();
+function flag(name){ return FLAGS.indexOf(name) >= 0; }
+function opt(name, dflt){ var m = FLAGS.match(new RegExp(name + '=([a-z]+)')); return m ? m[1] : dflt; }
+var MS = (opt('mill','universal') === 'targeted') ? 'targeted' : 'universal';
+var LM = (opt('loss','all') === 'chosen') ? 'chosen' : 'all';
+var SHP = !flag('noshp'), DPP = !flag('nodpp'), APEX = flag('apex'), NOSTRIP = flag('nostrip');
 E.setShieldCards(true); E.setLoserMill(true);
-E.setSpecialLossMode('chosen'); E.setMillScope('targeted');  // matches the live game (v0.88+): cutthroat combo
+E.setSpecialLossMode(LM); E.setMillScope(MS);
+E.setShieldsPerPlayer(SHP); E.setDrawPerPlayer(DPP);
+E.setApexInfinity(APEX); E.setApexNoStrip(NOSTRIP);
+console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' drawN=' + DPP +
+            ' apex=' + (APEX ? (NOSTRIP ? 'unbeatable+nostrip' : 'unbeatable') : 'off'));
 
 var DIFF = (process.argv[3] || 'fighter');
 var POOL = [null].concat(E.DECK_ORDER);              // null = Full Set
@@ -37,7 +55,7 @@ function runSweep(P, games, seed0){
   var fair = 100/P;
   var rows = Object.keys(stat).map(function(L){ var s=stat[L]; return { L:L, win: s.appear? 100*s.wins/s.appear : 0, share: s.appear? (100*s.wins/s.appear)/fair : 0, place: s.appear? s.placeSum/s.appear : 0, appear:s.appear }; });
   rows.sort(function(a,b){ return b.win - a.win; });
-  console.log('\n=== ' + P + '-PLAYER free-for-all — ' + games + ' games (' + DIFF + ' AI) · fair win share = ' + fair.toFixed(1) + '% ===');
+  console.log('\n=== ' + P + '-PLAYER free-for-all — ' + games + ' games (' + DIFF + ' AI, mill=' + MS + ') · fair win share = ' + fair.toFixed(1) + '% ===');
   console.log('deck                     win%   x-fair   avgPlace   (1=win … ' + P + '=first out)   games');
   rows.forEach(function(r){
     console.log(r.L.padEnd(24) + (r.win.toFixed(1)+'%').padStart(6) + '   ' + (r.share.toFixed(2)+'x').padStart(6) + '   ' + r.place.toFixed(2).padStart(6) + '                            ' + String(r.appear).padStart(6));
