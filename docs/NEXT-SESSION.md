@@ -67,6 +67,20 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **A count-up "charge" CLASS** (Aj, 2026-08-25 — his current lean; nothing built). Full analysis in
+  **[`docs/COUNT-UP-DESIGN.md`](COUNT-UP-DESIGN.md)**, which came out of his brother asking why the game has
+  shields at all and proposing "Kick Coins" — a count-up replacing them wholesale. Aj's landing point: not a
+  rules overhaul, **one class whose schtick is counting up**.
+  - **The count-up resource already exists twice**, so this needs no tokens and no new zone: the **energy pile**
+    already counts up, is card-backed and public — a charge class could gate effects on how much it has *banked*
+    rather than spent, which genuinely conflicts with everyone else's "spend energy on effects". And
+    `TRANSFORM_GATE='table'` is *already* a count-up (total `shieldsLost` unlocks Rides/Forms).
+  - Read the doc's **bias-correction section** before re-opening the wholesale version: the first analysis
+    leaned toward the shipped shield design, and four of its objections did not survive re-checking — notably
+    "length balloons with player count", which is false if a Special win pays **a coin per opponent beaten**
+    (the v1.31.0 fix, mirrored).
+  - The one objection that *did* survive: the **leader-snowball is worse under coins**, because a win advances
+    only the winner where a shield hit damages everyone, and initiative is already 1.8x concentrated.
 - **Game export cannot represent a free-for-all** (found 2026-08-24 in Aj's playtest exports; 6 of 14 games
   were MP). The record has a two-player schema — `you` / `rival` — so in an MP game seats 2+ are simply lost;
   2 of the 6 recorded `rival: 0/0/0/0` (everything gone) and the rest captured one seat only. There is **no
