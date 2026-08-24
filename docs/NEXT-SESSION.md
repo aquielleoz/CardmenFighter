@@ -269,7 +269,46 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
-### v1.31.0 — multiplayer scales with the table: shields, draw, and damage
+### v1.31.2 — REVERT of the MP scaling package: it broke deck balance
+
+**Reverted wholesale**, including the Free-for-All tutorial built on top of it. 3-6 player games are back to
+flat 4 shields, draw 2, `SPECIAL_LOSS_MODE='chosen'`, `MILL_SCOPE='targeted'`. **Duels were never affected by
+any of it**, in either direction.
+
+**The regression.** 6-player deck spread went **15.5 → 40.7 points**. Pure Wizard won **44.3%** against a fair
+share of 16.7%; **Pure Rogue won 1.7%** — a 26x gap between best and worst deck. It was on `main` for a day and
+Aj played an evening on it.
+
+**One change caused all of it:** `SPECIAL_LOSS_MODE='all'`. Reverting only that restores the spread to **13.3**
+(better than the 15.5 it started at). `all` **multiplies the value of landing a Special by (N-1)**, so at six
+players the deck that lands Specials most reliably gains against five people at once and any edge compounds
+five-fold. Under `chosen` a Special is worth one shield regardless of table size.
+
+**Why it shipped — a harness bug, not a judgement call.** `mpsim.js` read its ruleset from **positional**
+arguments; an edit had dropped the loss-mode argument and left `setSpecialLossMode('chosen')` hardcoded, and the
+mill/apex flags read argv positions the commands never filled. **Every arm of both studies ran the identical
+config.** "Balance-neutral at 10 runs per arm" was measuring nothing — twice, once for this package and once for
+the apex-2 A/B. The printed header said `mill=targeted` throughout and was read past. `mpsim.js` now takes
+**named** flags and prints the config it resolved.
+
+**Kept**, none of it dependent on the broken harness: the pacing findings (`rulesim.js` sets flags directly, so
+6p length 33 → 15 rounds and jab share 24% → 10% were real), the `optionsim`/`passsim`/`roundsim`/`rulesim`
+harnesses and their results, the playtest analysis, and the apex-2 complaint measurement. The scaling flags
+survive defaulting **off** so a re-land can be measured one step at a time.
+
+**Scrapped:** the Free-for-All tutorial (Lesson 10) and `lessontest_mp.js` — the lesson taught the reverted
+numbers as rules ("everyone has 6 shields and draws 4", "a Special costs every opponent a shield"), so it went
+with them rather than being rewritten around a ruleset we no longer trust. `landscapetest.js`'s assertion fix
+was re-applied separately: it repaired a **pre-existing** flake, A/B'd against an earlier build, unrelated to
+the rules.
+
+**Worth keeping from the wreckage** (PATCHNOTES **0k**): shields should scale **DOWN** with player count, not
+up. `max(2, 6 - numPlayers)` gives 4/3/2/2 and median lengths of **11 / 11 / 11 / 17** — flatter than the
+reverted package managed — *while keeping* `chosen`, so balance stays near 13.3. With more players you lose
+rounds more often, so you need **fewer** shields to die in the same number of rounds. Balance untested. That is
+the re-land candidate, and it should go in one flag at a time with a deck-spread run per step.
+
+### ~~v1.31.0~~ (REVERTED in v1.31.2 — broke deck balance) — multiplayer scales with the table: shields, draw, and damage
 
 A 6-player game used to run **33 rounds against a duel's 11**, and the cause was structural: under
 `SPECIAL_LOSS_MODE='chosen'` + `MILL_SCOPE='targeted'` a Special win cost the table exactly **one** shield

@@ -16,6 +16,11 @@
  *   - Straights: 5-card windows over fight value, lo 3..11 → 3-4-5-6-7 (lowest)
  *     .. J-Q-K-A-2 (highest); no wrap.
  *   - Duel: START_SHIELDS=4 each, START_HAND=6, DRAW_PER_ROUND=2, MAX_HAND=10.
+ *   - Those are the values at EVERY player count. The v1.31.0 scaling package (shields 2+numPlayers, draw =
+ *     numPlayers, loss 'all', mill 'universal') was REVERTED in v1.31.2: it fixed pacing but broke deck
+ *     balance badly (PATCHNOTES 0j). The scaling remains behind setShieldsPerPlayer()/setDrawPerPlayer() for
+ *     A/B only. Read values via startShieldsFor(n)/drawCountFor(st) regardless — the UI must never read the
+ *     bare constants, which is how a round banner once announced "draws 2" at a table drawing 6.
  *     A round is draw → one player leads → the fight is a trick; the last
  *     unbeaten play wins. A SPECIAL (multi-card) win strips 1 shield; a jab
  *     only banks energy. Specials are locked in round 1. At 0 shields the next
@@ -163,6 +168,46 @@
 
   // ---- game state ----
   var START_HAND = 6, DRAW_PER_ROUND = 2, START_SHIELDS = 4, MAX_HAND = 10;
+  /* SHIELDS = 2 + numPlayers (Aj, 2026-08-24) — flag, A/B only.
+   * Companion to `all`+`universal`: that pairing makes damage scale with the table, which holds game length
+   * flat at ~10 rounds but may be too SHORT for six players (live pairing runs 33). Scaling the shield pool
+   * with the table gives the middle ground: 2p keeps exactly today's 4, 6p gets 8. */
+  var SHIELDS_PER_PLAYER = false;     // OFF: shipping this broke deck balance and was reverted in v1.31.2 (PATCHNOTES 0j).
+  function setShieldsPerPlayer(v) { SHIELDS_PER_PLAYER = !!v; }
+  function isShieldsPerPlayer() { return SHIELDS_PER_PLAYER; }
+  function startShieldsFor(n) { return SHIELDS_PER_PLAYER ? (2 + n) : START_SHIELDS; }
+  /* APEX-2 REWORK (Aj's brother, 2026-08-24) — flag, A/B only, and explicitly a FEEL change as much as a
+   * balance one. A play containing a 2 becomes UNBEATABLE (rank infinity) but strips NO shield. It converts
+   * the apex from a damage tool into an INITIATIVE tool, which is interesting because initiative is the
+   * scarcest thing in a free-for-all (concentration 1.6-1.9x, and 0.5 legal plays when following at 6p).
+   * Two 2s of the same shape cannot beat each other — infinity is not strictly greater than infinity — so an
+   * apex play is genuinely final for that round. */
+  /* Aj (2026-08-24) on where the feedback comes from: in the original **chikicha** the 2 is the outright peak.
+   * Here it is only 15, and boosts stack ON TOP of fightValue — a boosted Ace at 14+7 beats it (Aj has run a
+   * +7). So the apex is not actually an apex, which is the complaint. That makes the minimal fix "no boost may
+   * exceed the apex", and it is SEPARATE from the no-strip half of the proposal:
+   *   APEX_INF     — a 2 ranks at infinity, so no boost can pass it. Shields still work normally.
+   *   APEX_NOSTRIP — additionally, a winning play containing a 2 strips no shield (the literal proposal).
+   * Split because the length cost measured earlier belongs entirely to the second half: an unbeatable play
+   * that also deals no damage ends a round without progressing the game. */
+  var APEX_INF = false, APEX_NOSTRIP = false;
+  function setApexInfinity(v) { APEX_INF = !!v; }
+  function setApexNoStrip(v) { APEX_NOSTRIP = !!v; }
+  function isApexInfinity() { return APEX_INF; }
+  function isApexNoStrip() { return APEX_NOSTRIP; }
+  function hasApex(cards) { for (var i = 0; i < (cards || []).length; i++) if (cards[i] && cards[i].rank === 2) return true; return false; }
+  /* "DRAW EQUAL TO THE NUMBER OF PLAYERS" (Aj's idea, 2026-08-24) — a flag, for A/B only.
+   * Aimed at the constraint `optionsim.js` actually found: legal plays per turn FALL as players rise (4.5 at
+   * 2p to 2.3 at 6p) because the pile is raised more times before it reaches you. A fixed draw of 2 does not
+   * scale with that, so this makes the draw scale with the table instead: draw = numPlayers.
+   * Note it is not simply "more cards" — hands already sit at the MAX_HAND cap 43-53% of the time in a
+   * free-for-all, so the extra draw largely converts into SELECTION (you see more of your deck and keep the
+   * best 10) and into CYCLING (the surplus is discarded to energy each round). Both plausibly raise option
+   * quality without raising hand size. Measure with optionsim / recyclesim / mpsim. */
+  var DRAW_PER_PLAYER = false;        // OFF: reverted with it — not the culprit, but part of the same package.
+  function setDrawPerPlayer(v) { DRAW_PER_PLAYER = !!v; }
+  function isDrawPerPlayer() { return DRAW_PER_PLAYER; }
+  function drawCountFor(st) { return DRAW_PER_PLAYER ? Math.max(DRAW_PER_ROUND, st.numPlayers) : DRAW_PER_ROUND; }
 
   // End-of-turn hand limit: discard down to MAX_HAND. `ids` = the player's chosen cards
   // to pitch (auto-picks lowest values if omitted / short). Discards go to the ENERGY pile
@@ -199,7 +244,7 @@
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
     var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, discardPending: null, shieldResponse: null, stack: [], roundWinResult: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
-    var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : START_SHIELDS;   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
+    var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
     for (var p = 0; p < np; p++) {
       var pl = newPlayer();
@@ -1472,6 +1517,7 @@
     var winner = st.lastPlayer;
     st.preFightHandled = false;                                                // new round → fresh pre-fight windows
     var wonWithCombo = st.pile.combo.size > 1;                                 // only Specials strip shields
+    if (APEX_INF && APEX_NOSTRIP && hasApex(st.pile.combo.cards)) wonWithCombo = false;   // only the no-strip variant declaws the apex
     var losers = livingNonWinners(st, winner);
     // who takes a shield loss (Specials only): 'all' = every loser; 'chosen' = the winner's one pick
     var strikeTargets = [];
@@ -1633,6 +1679,7 @@
   // Ladder (low->high): 3 4 5 6 7 8 9 10 J(11) Q(12) K(13) A(1) 2 . Rank stays the card's identity (1-13).
   function fightValue(card) {
     var r = card.rank, v = (r >= 3 && r <= 13) ? r : (r === 1 ? 14 : (r === 2 ? 15 : r));   // 3..10, J, Q, K, A(14), 2(15 apex)
+    if (APEX_INF && r === 2) return Infinity;   // apex rework: a 2 is unbeatable (and strips no shield — see applyRoundLoss)
     return v + (card.valueBonus || 0);   // Counterfeit copies can carry a +value bonus (Pandora/Hermes)
   }
   // Energy to activate a card's effect. J/Q/K cost a flat 10 to transform into the zone; Ace keeps cost 1;
@@ -1648,7 +1695,8 @@
     result = result || {};
     if (result.drawn) return result;
     result.draws = [];
-    for (var r = 0; r < st.numPlayers; r++) result.draws[r] = st.players[r].eliminated ? 0 : drawCards(st.players[r], DRAW_PER_ROUND);
+    var perRound = drawCountFor(st);
+    for (var r = 0; r < st.numPlayers; r++) result.draws[r] = st.players[r].eliminated ? 0 : drawCards(st.players[r], perRound);
     result.drawn = true;
     // deck-out: the new leader has no card to lead with. Duel → they lose; N-player → they're eliminated.
     if (st.players[st.turn].hand.length === 0) {
@@ -1707,7 +1755,12 @@
     canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, reorderEnergy: reorderEnergy, promoteEnergy: promoteEnergy, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
     discardToLimit: discardToLimit, MAX_HAND: MAX_HAND,
     effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, opponentCanRespond: opponentCanRespond, useEquipment: useEquipment, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
-    START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS
+    START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
+    setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
+    drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
+    setApexInfinity: setApexInfinity, isApexInfinity: isApexInfinity,
+    setApexNoStrip: setApexNoStrip, isApexNoStrip: isApexNoStrip,
+    setDrawPerPlayer: setDrawPerPlayer, isDrawPerPlayer: isDrawPerPlayer
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenEngine = API;

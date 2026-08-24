@@ -67,9 +67,15 @@ Balance / heavier harnesses, when a change could move win rates:
 
 ```bash
 node analysis.js 130 on      # class round-robin — args: N catchup recycle difficulty
-node mpsim.js                # 3/4/6p free-for-all — args: games difficulty
+node mpsim.js 1000 knight     # 3/4/6p free-for-all. NAMED flags: mill= loss= apex nostrip noshp nodpp.
+                             # It PRINTS the config it resolved — read that line. Positional args once made
+                             # every arm of two studies run the SAME config; see PATCHNOTES 0j.
 node recyclesim.js 400       # how often a game reaches the reshuffle (deck-cycling pressure)
 node personasim.js 150 demon  # AI persona parity — args: gamesPerRotation tier [control]
+node passsim.js 200 6 knight   # strategic-pass study + initiative concentration
+node optionsim.js             # legal plays per turn by player count — the OPTIONS-vs-cards measurement
+node rulesim.js               # rule-config sweep: length / jab share / initiative, by player count
+node roundsim.js              # share of ROUNDS decided by a jab vs a Special, by tier and player count
 node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — RUN IT after any card
                              # name/cost/text change, or the published card list silently goes stale
 ```
@@ -246,6 +252,16 @@ winning a round forces you to strike someone. The faithful analogue is TIT FOR T
 `cmf_setup_v1` stores it, so renaming the key would silently invalidate every player's saved difficulty.
 
 ## Rules facts worth knowing before touching the engine
+
+**3-6 player scaling was tried and REVERTED (v1.31.0 → v1.31.2).** Shields = 2+numPlayers, draw = numPlayers,
+`SPECIAL_LOSS_MODE='all'`, `MILL_SCOPE='universal'`. It fixed pacing (6p length 33 → 15 rounds, jab share
+24% → 10%) and **broke deck balance**: 6p spread 15.5 → 40.7 points, Pure Wizard 44% vs Pure Rogue 1.7%.
+Isolated to `loss='all'` alone, because **`all` multiplies the value of landing a Special by (N-1)** — at six
+players the best Special-lander gains against five people at once. The flags survive
+(`setShieldsPerPlayer`/`setDrawPerPlayer`, default **off**) for A/B only. **Read `startShieldsFor(n)` /
+`drawCountFor(st)`, never the bare constants** — reading `E.DRAW_PER_ROUND` in the UI is what once made the
+round banner announce "draws 2" at a table drawing 6. Full post-mortem: PATCHNOTES **0j**; the promising
+re-land direction (shields scaling **down**) is **0k**.
 
 The 2-apex + Forms **"rework" is simply the game.** The `REWORK` flag, `setRework()`, `E.isRework()` and the
 whole classic ruleset were deleted in v1.23.0 — if a doc or comment implies a toggle, the doc is stale. Many
