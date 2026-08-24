@@ -64,8 +64,11 @@ every respect.
 **What still needs deciding, in the order it matters:**
 1. **Is 15 rounds right for 6 players?** Live is 33, symmetric-alone is 9, Aj's 2+P shields gives 16 (config C)
    or 15 with the draw change (D). Nobody has played any of them — this is a feel call, not a numbers call.
-2. **3-player got WORSE on spread** (13.8 -> 16.6) while 4p and 6p improved. Ranges overlap, so re-measure at
-   10 runs per arm before believing either direction. `mpsim` is non-deterministic (principle 0c).
+2. ~~3-player got worse on spread~~ **SETTLED 2026-08-25, 10 runs per arm: the package is balance-neutral at
+   every player count.** 6p 14.9 +/-1.2 -> 15.2 +/-0.7, 4p 14.2 +/-0.9 -> 12.6 +/-0.8, 3p 13.8 +/-0.7 -> 15.6
+   +/-0.9 — nothing clears 2 s.e., and only 1 of 33 per-deck comparisons does (chance, from 33 comparisons).
+   The 3-player regression was noise, so **the thing that could have sunk the package does not exist**. The
+   package is a pure PACING change: it moves length and jab share and leaves deck balance alone.
 3. **Mean energy nearly doubles** under draw=players (8.6 -> 14.4 at 6p). Activation costs are fixed, so every
    effect becomes much cheaper in relative terms. That is a big shift in feel that no win-rate number shows,
    and it is the change most likely to surprise a playtester.

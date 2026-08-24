@@ -29,10 +29,29 @@ Three flags, all defaulting **OFF** — `setShieldsPerPlayer` (START_SHIELDS = 2
 the live rules' 33-round balloon. **Duels are untouched** — 2p resolves to 4 shields, today's value.
 
 **Package D halves the jab problem.** Jab share at 6p falls **24% -> 10%**, at 15 rounds. That is Aj's original
-complaint ("three rounds in a row throwing jab after jab") measured and cut in half. Balance, 3 runs per arm:
-spread **16.4 -> 13.6** at 6p and **15.7 -> 13.7** at 4p, but **13.8 -> 16.6 (worse) at 3p**, with overlapping
-ranges — suggestive, not settled. Bottom decks rise consistently (Pure Wizard +3.7, Pure Rogue +3.7, Warlock
-+3.0), top decks come down (Paladin -3.7, Bard -3.5, Cleric -2.5).
+complaint ("three rounds in a row throwing jab after jab") measured and cut in half.
+
+**SETTLED 2026-08-25 at 10 runs per arm: the package is BALANCE-NEUTRAL at every player count.** Spread, mean
++/- standard error of the mean over 10 runs:
+
+| | live | C shields 2+P | D full package | H + apex unbeatable |
+| --- | --- | --- | --- | --- |
+| 6p | 14.9 +/-1.2 | 16.0 +/-0.8 | 15.2 +/-0.7 | 16.0 +/-1.0 |
+| 4p | 14.2 +/-0.9 | 14.3 +/-1.0 | 12.6 +/-0.8 | 14.3 +/-1.0 |
+| 3p | 13.8 +/-0.7 | 14.9 +/-1.0 | 15.6 +/-0.9 | 15.2 +/-1.2 |
+
+Nothing clears 2 s.e. **Both earlier 3-run readings were noise** — the "spread tightens 16.4 -> 13.6 at 6p" was
+really 14.9 -> 15.2, and the 3-player regression that looked like it might sink the package (13.8 -> 16.6) is
+13.8 -> 15.6 +/-1.1. Across all 33 per-deck comparisons exactly **one** clears 2 s.e. (Warlock +1.7 at 4p),
+which is what chance predicts from 33 comparisons, so there is no real per-deck movement either. The "bottom
+decks rise, top decks fall" pattern read off 3 runs did not survive.
+
+**This is the best available outcome for a change of this kind:** it moves length (33 -> 15 rounds at 6p), jab
+share (24% -> 10%) and energy dispersion, and leaves the deck balance — tuned across many versions — alone. A
+pure PACING change. The apex-2 fix is neutral here too, so it is free on balance as well as on length.
+
+**And it is a third strike for single-run readings.** Every 3-run balance claim made on 2026-08-24 has now been
+overturned by 10 runs. Treat 3 runs as a smoke test, not evidence.
 
 ### 0h. Initiative concentration is invariant to every lever we have tried. (2026-08-24)
 The busiest leader's share of a game's rounds, against a fair share of 1/P, sits at **~1.8x at 6 players in all
@@ -109,10 +128,12 @@ struck one on both axes. The coherent designs are:
 - **`chosen`+`targeted`** (live) — hit one, compensate that one. Punishment and consolation are linked.
 - **`all`+`universal`** (the engine's own defaults) — hit everyone, pay everyone.
 
-Re-run as coherent pairs, 3 runs each, they are close on balance, with the symmetric one slightly tighter and
-much steadier: spread 12.5 [10.8-13.4] vs 13.0 [10.1-16.8] at 6p, 14.7 vs 18.0 at 4p, 15.4 vs 18.1 at 3p.
-So the original "universal opens a huge spread" claim is not reproduced — but neither is my own overstated
-reading of it, because I had measured a pairing nobody would ship. **Lesson: a balance finding has a shelf
+Re-run as coherent pairs, 3 runs each, they looked close with the symmetric one slightly tighter: spread 12.5
+vs 13.0 at 6p, 14.7 vs 18.0 at 4p, 15.4 vs 18.1 at 3p. **At 10 runs per arm (2026-08-25) even that difference
+vanishes** — see 0g, where `all`+`universal`+shields is 16.0 +/-0.8 against live's 14.9 +/-1.2 at 6p, i.e. no
+measurable difference. A 0.5-point gap read off 3 runs was never meaningful given a per-arm s.e. of ~1.0.
+So the original "universal opens a huge spread" claim is not reproduced, *and* neither is any tightening: the
+loss/mill pairing is a **length** lever, not a balance one. **Lesson: a balance finding has a shelf
 life — re-date it before reusing it to veto an idea — and check that the arm you are testing is a design
 someone would actually ship.**
 
