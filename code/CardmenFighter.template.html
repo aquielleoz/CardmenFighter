@@ -941,11 +941,8 @@
     #handMeta{font-size:11px; gap:5px; margin:0 3px 4px;}
     #handMeta .fighter{padding:2px 5px !important; gap:6px !important;}
     #handMeta .stat, #handMeta .deckName{font-size:10.5px;}
-    /* v1.31.0 scaled shields with the table, so a 6-player game shows EIGHT pips here, not four. At 11px they
-       pushed #handMeta taller and cut the pile's clearance over the hand from ~17px to 3px. Sized for the
-       8-pip case: 8 x 8px + 7 x 2px gaps = 78px, and the row is allowed to shrink rather than force a wrap. */
-    #handMeta .shields{gap:2px; flex:0 1 auto; min-width:0;}
-    #handMeta .shields .s{width:8px; height:11px;}
+    #handMeta .shields{gap:3px;}
+    #handMeta .shields .s{width:11px; height:14px;}
     #hand{max-height:32dvh; padding:13px 6px 4px; gap:5px;}    /* 13px top still clears the hover lift */
     #actions{margin-top:4px; gap:6px;}
     #actions button{padding:6px 11px; font-size:13px; border-radius:9px;}
@@ -984,8 +981,7 @@
        same fallback covers a desktop window dragged to any absurd height — which is otherwise unbounded. */
     #board{grid-template-rows:auto auto; overflow-y:auto; overscroll-behavior:contain;}
     #handMeta{font-size:10px; gap:4px; margin:0 2px 2px;}
-    #handMeta .shields{gap:2px;}
-    #handMeta .shields .s{width:7px; height:9px;}      /* the floor: 8 pips must still fit beside the stats */
+    #handMeta .shields .s{width:9px; height:11px;}
     #actions{margin-top:3px;}
     #actions button{padding:4px 7px; font-size:11.5px;}
     #pileLabel{font-size:10px; min-height:11px;}
@@ -1023,8 +1019,8 @@
     .oppPanel{min-width:88px; max-width:150px; padding:4px 6px; gap:2px; font-size:10px; border-radius:9px;}
     .oppPanel .oppName{font-size:11px;}
     .oppPanel .oppSeat{display:none;}                                   /* the name already identifies the seat */
-    .oppPanel .oppShields{gap:2px; flex:0 1 auto; min-width:0;}
-    .oppPanel .oppShields .s{width:7px; height:10px;}   /* 8 pips at 6p, inside an 88px-min panel */
+    .oppPanel .oppShields{gap:2px;}
+    .oppPanel .oppShields .s{width:9px; height:12px;}
     .oppPanel .oppStats{gap:5px;}
     /* 667x375 with SIX players is the hardest case in the game: the opponents strip (69px even compacted)
        left the play-area grid track 49px for 96px of content, so the pile drew over the hand. Lay each panel
@@ -1137,14 +1133,8 @@ __NETVIEW__
   E.setDeferRoundDraw(true);   // the UI draws the new round's cards AFTER the end-of-round hand-limit trim (see resolveRoundCeremony)
   E.setShieldCards(true);      // CATCH-UP M1: shields are cards — a broken shield returns to its owner's hand (the trailing player refuels)
   E.setLoserMill(true);        // CATCH-UP M2: the round's loser mills (winning-play size) cards into their Energy Pile (energy parity; deck-out guarded)
-  /* MP RULES, 2026-08-25. Measured: with 'chosen'+'targeted' a Special win cost the table exactly ONE shield
-     however many people were at it, so total shields scaled with the table while damage did not and a 6-player
-     game ran 33 rounds against a duel's 11. 'all'+'universal' scales damage too — hit everyone, pay everyone —
-     which is also the only other COHERENT pairing (punishment and catch-up stay linked). With shields = 2 +
-     numPlayers that lands 6p at ~15 rounds, and 10 runs per arm found it balance-NEUTRAL at every count. Both
-     modes are no-ops at 2 players, so duels are untouched. */
-  E.setSpecialLossMode('all');    // MP: a Special win costs EVERY non-winner a shield. No-op at 2p.
-  E.setMillScope('universal');    // MP: every non-winner mills catch-up cards, so the compensation matches the damage. No-op at 2p.
+  E.setSpecialLossMode('chosen'); // MP: on a Special win the victor strips ONE chosen rival's shield (not the whole table). No-op at 2p.
+  E.setMillScope('targeted');     // MP: only the struck rival(s) mill catch-up cards, not every non-winner. No-op at 2p. (Cutthroat combo — flattens 3–6p balance; see CARD-STATS.md.)
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
   var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',straightflush:'Straight Flush'};
@@ -3232,9 +3222,7 @@ __NETVIEW__
     /* One neutral line for everyone (Aj's wording), instead of "You draw 2, Rival draws 2" — which could not
      * be phrased for 3-6 seats and named the wrong player in a free-for-all. Per-seat detail that actually
      * matters (your own fizzle) still follows. */
-    // The per-round draw SCALES with the table (= numPlayers), so ask the engine — E.DRAW_PER_ROUND is the
-    // duel value and would have announced "draws 2" at a 6-player table that actually drew 6.
-    var per=(E.drawCountFor&&state)?E.drawCountFor(state):((E.DRAW_PER_ROUND!=null)?E.DRAW_PER_ROUND:2);
+    var per=(E.DRAW_PER_ROUND!=null)?E.DRAW_PER_ROUND:2;
     say(null, '<b>Round '+rn+'</b> begins. Each player draws '+per+'.', 'round');
     if(res.draws && res.draws[YOU]===0) logMsg('Draw fizzled — your deck &amp; shuffle pile are empty. Spend energy on effects to recycle cards back into your deck.', 'warn');
   }
@@ -3258,8 +3246,7 @@ __NETVIEW__
     if(res.opening) return 'Jabs only';
     if(res.draws && res.draws[YOU]===0) return 'Deck empty — spend energy to recycle';
     if(res.newRound===2) return 'Specials unlocked!';
-    var n=(E.drawCountFor&&state)?E.drawCountFor(state):2;
-    return 'Each player draws '+n+(n===1?' card':' cards');
+    return 'Each player draws 2 cards';
   }
   /* The between-rounds ceremony beats. This was the THIRD site deriving the loser as "whichever of YOU/RIVAL
    * didn't win" (Aj caught it after v1.29.6 fixed the other two): with P2 beating P3, `youWon` is false, so
@@ -4097,92 +4084,12 @@ __NETVIEW__
   }
   // Energy-order lesson (Advanced): seed a readable energy pile, then teach the queue through the ⚡ viewer.
   // Like the Custom Decks lesson, its subject is a screen — the coach panel (z-index 80) sits over the modal (30).
-  /* FREE-FOR-ALL lesson rig (4 players). Stages exactly what the steps ask for and nothing else:
-   *   - a middling jab to lead round 1 with,
-   *   - a rank-7 PAIR, so the "a Special hits EVERY opponent" beat is one tap away once Specials unlock,
-   *   - 3♦ Telekinesis + 3 energy, so the targeting beat can actually be cast (cost 3, and it is a hostile
-   *     single-target effect, which is what forces the choose-a-seat flow),
-   *   - deliberately weak opponent hands (ranks 3-6, no pairs) so the human's plays land and the lesson does
-   *     not stall waiting for a win it was promised.
-   * Shields are NOT overridden, so the table starts at the real 2 + numPlayers = 6 and the scaling step can
-   * point at something true. */
-  /* The Free-for-All lesson has to STAGE two of its beats, and the reason is the lesson's own subject matter:
-   * a Special can only be played by whoever LEADS (a jab pile can only be answered by a higher jab), and in a
-   * 4-player game the initiative usually belongs to somebody else. Left to chance the "play your pair" step
-   * deadlocks — observed: round 2, initiative with P3, a jab on the table, and no pair left in hand after the
-   * 4-card round draw. So hand the player the lead and a clean pair, exactly as the Quicks lesson stages the
-   * Rival's Technique. Staging is honest here; asking for something the rules cannot guarantee is not. */
-  function tutStageLead(st){
-    var s=st||state; if(!s) return;
-    s.pile=null; s.passes=0; s.lastPlayer=null; s.turn=YOU; s.initiative=YOU;
-    if(s.round<2) s.round=2;                      // Specials are locked in round 1
-    s.preFightHandled=false; s._effUsed=false;
-  }
-  function tutStagePair(){
-    if(!state) return;
-    tutStageLead(state);
-    var me=state.players[YOU];
-    var have={}, pairRank=null, i;
-    for(i=0;i<me.hand.length;i++){ var r=me.hand[i].rank; if(have[r]){ pairRank=r; break; } have[r]=1; }
-    if(pairRank==null){                            // no pair survived the draw — put one in hand from the deck
-      var mk=function(rk,su){ return { rank:rk, suit:su, id:rk+su+'#tutpair' }; };
-      me.hand.push(mk(7,'H')); me.hand.push(mk(7,'S'));
-      while(me.hand.length > E.MAX_HAND) me.hand.shift();
-    }
-    render();
-  }
-  function tutStageTarget(){
-    if(!state) return;
-    tutStageLead(state);
-    var me=state.players[YOU];
-    // 3♦ must stand ALONE in the hand. Any other rank-3 card groups with it, so tapping "3♦ Telekinesis"
-    // selects a pair instead of the single card and the step's instruction cannot be followed at all —
-    // the context button offers a fight, never ⚡ Activate. Observed with a 3♣ in hand.
-    me.hand = me.hand.filter(function(c){ return c.rank !== 3; });
-    me.hand.push({ rank:3, suit:'D', id:'3D#tuttel' });
-    while(me.energy.length < 3) me.energy.push({ rank:4, suit:'D', id:'4D#tute'+me.energy.length });
-    render();
-  }
-  function tutRigFreeForAll(st){
-    var mk=function(r,su,tag){ return { rank:r, suit:su, id:r+su+(tag||'#tut') }; };
-    var me=st.players[0], pool=me.hand.concat(me.deck), hand=[];
-    function add(c){ if(c) hand.push(c); }
-    add(tutPull(pool,7,'H')); add(tutPull(pool,7,'S'));       // the pair
-    add(tutPull(pool,9,'C'));                                  // a jab worth leading with
-    add(tutPull(pool,3,'D'));                                  // D3 Telekinesis — hostile, single target, cost 3
-    add(tutPull(pool,5,'C')); add(tutPull(pool,6,'D'));        // filler jabs
-    while(hand.length < E.START_HAND && pool.length) hand.push(pool.shift());
-    me.hand=hand; me.deck=pool;
-    me.energy=[mk(4,'D','#e1'), mk(5,'D','#e2'), mk(6,'D','#e3')];   // exactly enough for Telekinesis
-    me.shuffle=[];
-    for(var s=1; s<st.numPlayers; s++){                        // weak, pairless opponent hands
-      var op=st.players[s], opool=op.hand.concat(op.deck), oh=[];
-      var want=[[3,'H'],[4,'S'],[5,'H'],[6,'C']];
-      for(var w=0; w<want.length; w++){ var c=tutPull(opool,want[w][0],want[w][1]); if(c) oh.push(c); }
-      while(oh.length < 4 && opool.length) oh.push(opool.shift());
-      op.hand=oh; op.deck=opool; op.energy=[]; op.shuffle=[];
-    }
-  }
   function tutRigEnergyOrder(st){
     tutRig(st);                                        // normal rigged deal, then stage the pile we want to talk about
     var me=st.players[0];
     var mk=function(r,su){ return { rank:r, suit:su, id:r+su+'#tut' }; };
     me.energy=[mk(3,'H'), mk(4,'S'), mk(5,'H'), mk(6,'C'), mk(7,'D')];   // one ♦, one ♣, one ♠, two ♥ → the "first ♥" tag has something to say
     me.shuffle=[mk(9,'S'), mk(8,'C')];
-  }
-  function lessonFreeForAllSteps(){
-    return [
-      { text:"This is a <b>free-for-all</b> — <b>four riders</b>, and the <b>last one standing</b> wins. Everything you already know still applies; what changes is that you are no longer aiming at one person. Look at the <b>strip along the top</b>: that is every opponent, with their shields, energy and deck.", hi:'#opponents', btn:"Next \u25b8" },
-      { text:"First difference, and it is quiet: <b>the table scales</b>. A duel starts at <b>4 shields</b> and draws <b>2</b> a round \u2014 here everyone has <b>6 shields</b> and draws <b>4</b>. More players means a longer game and a fuller hand, so the fight does not just get shorter as people join.", hi:'#handMeta', btn:"Next \u25b8" },
-      { text:"<b>Round 1 is jabs only</b>, same as a duel. Lead a single card \u2014 select one and press <b>Fight</b>.", hi:['#hand','#fightBtn'], gate:function(ty,d){ return ty==='play' && d && d.size===1; } },
-      { text:"Now the important part. <b>Everyone who lost that round banked energy</b> \u2014 not just one rival, <b>all of them</b>. Losing a round in a free-for-all is never nothing: it pays you. That is what makes stepping aside survivable, and you will be doing a lot of it.", hi:'#handMeta', btn:"Next \u25b8" },
-      { text:"Here is the big one. <b>Specials break shields \u2014 and in a free-for-all a Special win costs EVERY opponent a shield</b>, not just one. Three opponents, three shields, one play. You have the lead and a <b>pair</b> in hand: select <b>both cards of the same number</b> and press <b>Fight</b>.", prep:tutStagePair, hi:['#hand','#fightBtn'], gate:function(ty,d){ return ty==='play' && d && d.size>1; } },
-      { text:"Watch the strip \u2014 <b>every</b> opponent dropped a shield at once. That is why a Special is worth so much more here than in a duel, and why the table will gang up on whoever is about to land one.", hi:'#opponents', btn:"Next \u25b8" },
-      { text:"Effects work differently too. A hostile effect hits <b>one</b> rival, so you have to say <b>which</b>. Select <b>3\u2666 Telekinesis</b>, <b>tap the opponent you want</b>, then press <b>\u26a1 Activate</b> to confirm. Nothing is spent until you confirm \u2014 <b>Clear</b> backs out.", prep:tutStageTarget, hi:['#hand','#opponents'], gate:function(ty){ return ty==='activate'; } },
-      { text:"You can also <b>tap any opponent's panel</b> to expand it and see their <b>equipment and Forms</b> \u2014 that is how you pick a target for the effects that strip gear.", hi:'#opponents', btn:"Next \u25b8" },
-      { text:"Last thing, and it is the one that trips people up. In a duel you win about <b>half</b> the rounds. At <b>four</b> players you win about a <b>quarter</b> \u2014 and when you are answering someone else's play you will often have <b>no legal card at all</b>. <b>That is normal, not a mistake.</b> <b>Pass</b> now: you keep your hand, you still bank energy, and you wait for a round you can actually take.", hi:'#passBtn', gate:function(ty){ return ty==='pass'; } },
-      { text:"That is the free-for-all. <b>Specials hit everyone</b>, <b>losing still pays</b>, hostile effects <b>choose a target</b>, and <b>patience is a real move</b>. Knock a rider to <b>0 shields</b> and your next Special win is the <b>Fighter Kick</b> \u2014 they are out, and the last one standing takes it.", hi:'#opponents', btn:"Finish \u2713" }
-    ];
   }
   function lessonEnergyOrderSteps(){
     return [
@@ -4260,8 +4167,7 @@ __NETVIEW__
     { id:'rides',      num:7, section:'Advanced', title:'Rides',              blurb:'The J — a persistent companion that helps you out.',              ready:true,  basics:false,            rig:tutRigRides,     steps:lessonRidesSteps },
     { id:'forms',      num:8, section:'Advanced', title:'Form Changes',       blurb:'The Q &amp; K — transformations that upgrade your cards’ effects.', ready:true,  basics:false,            rig:tutRigForms,     steps:lessonFormsSteps },
     { id:'decks',      num:9, section:'Advanced', title:'Custom Decks',      blurb:'Build your own 52-card deck out of class parts.',              ready:true,  basics:false,            rig:tutRig,          steps:lessonDecksSteps },
-    { id:'freeforall', num:10,section:'Advanced', title:'Free-for-All',      blurb:'Four riders, last one standing \u2014 what changes when it is not a duel.', ready:true, basics:false, players:4, rig:tutRigFreeForAll, steps:lessonFreeForAllSteps },
-    { id:'energyorder',num:11,section:'Advanced', title:'Energy Order',      blurb:'Choose what you spend — and what comes back sooner.',           ready:true,  basics:false,            rig:tutRigEnergyOrder, steps:lessonEnergyOrderSteps }
+    { id:'energyorder',num:10,section:'Advanced', title:'Energy Order',      blurb:'Choose what you spend — and what comes back sooner.',           ready:true,  basics:false,            rig:tutRigEnergyOrder, steps:lessonEnergyOrderSteps }
   ];
   function lessonById(id){ for(var i=0;i<LESSONS.length;i++) if(LESSONS[i].id===id) return LESSONS[i]; return null; }
   function nextLesson(lsn){ var idx=LESSONS.indexOf(lsn); for(var i=idx+1;i<LESSONS.length;i++){ if(LESSONS[i].ready) return LESSONS[i]; } return null; }
@@ -4271,17 +4177,10 @@ __NETVIEW__
     hideOverlay();
     var basics=(lsn.basics!==false);   // Basics lessons hide transforms; Advanced lessons run in Full mode
     sel.mode=basics?'basics':'full'; saveSel();
-    gameBasics=basics; tutorialMode=true; difficulty='minion';
-    // A lesson may declare `players` (the Free-for-All one does). Everything else stays a duel, which is why
-    // no other lesson needed touching when multiplayer scaling shipped in v1.31.0.
-    mpCount=Math.max(2,Math.min(6,lsn.players||2));
-    youDeck='full'; rivalDeck='full'; seatDecks=[]; seatDiffs=[null];
-    for(var ls=0; ls<mpCount; ls++){ seatDecks.push('full'); if(ls>0) seatDiffs.push('minion'); }
+    gameBasics=basics; tutorialMode=true; mpCount=2; difficulty='minion';
+    youDeck='full'; rivalDeck='full'; seatDecks=['full','full']; seatDiffs=[null,'minion'];
     clearPersonas();   // a persona from the game before would otherwise linger — the tutorial wants a plain "Rival"
-    // Lessons that need the kill arc set shields:2. Otherwise use the REAL starting count for the table —
-    // which since v1.31.0 scales as 2 + numPlayers, so a 4-player lesson gets 6 and the Free-for-All lesson's
-    // "everyone has 6 shields here" line is true. Defaulting to a flat 4 made it a lie.
-    tutShields=lsn.shields||(E.startShieldsFor?E.startShieldsFor(mpCount):4);
+    tutShields=lsn.shields||4;   // lessons that need the kill arc set shields:2; Advanced keep the full 4
     startGame(YOU);   // rigs the deal (currentLesson.rig) and launches that lesson's steps
   }
   function startTutorial(){ startLesson(LESSONS[0]); }   // legacy entry points → Lesson 1
@@ -4602,7 +4501,7 @@ __NETVIEW__
       '<p class="rIntro">You’re a Cardman. Each turn you <b>Activate</b> card effects, then <b>Fight</b> — lead a card or beat the one on the table. Win <b>Specials</b> to strip your Rival’s shields; land the finisher and the duel is yours.</p>'+
 
       '<h3>The basics</h3><ul>'+
-      '<li><b>Goal:</b> strip your opponents’ <b>'+baseShields()+' shields</b>'+(MP()?' (a bigger table starts with more)':'')+'. Once they’re at 0, your next <b>Special</b> win is the <b>Fighter Kick</b> — game over, you win.</li>'+
+      '<li><b>Goal:</b> strip your Rival’s <b>4 shields</b>. Once they’re at 0, your next <b>Special</b> win is the <b>Fighter Kick</b> — game over, you win.</li>'+
       '<li><b>Jab vs Special:</b> a <b>jab</b> is a single card; a <b>Special</b> is any combo — pair, trio, straight, or full house. <span class="rNote">(Same suit doesn’t matter — a run of one suit is just a straight.)</span> Only <b>Specials strip a shield</b> — a jab win just takes the round (no shield lost). Round 1 is jabs only — Specials open up from round 2.</li>'+
       '<li><b>Beating a play:</b> you must go <b>strictly higher</b> — equal values <b>tie</b>, and a tie doesn’t win. The ladder runs <b>3 (low) → 4 … 10</b>, then the trumps: <b>A</b>, and at the very top <b>2 — the apex, which beats everything</b>. So your 2 is the strongest card, your Ace second. <span class="rNote">(In Full mode J/Q/K sit on the rungs between 10 and A — see below.)</span></li>'+
       '<li><b>Shields are cards (catch-up):</b> when one of your shields breaks, that card returns to <b>your hand</b>. And every round you <b>lose</b>, you move cards from your deck into your <b>energy</b> to match what the winner banked. Falling behind re-arms you — leads still win, they just don’t snowball away.</li>'+
@@ -5325,7 +5224,7 @@ __NETVIEW__
     // Unified start for 2–6 players. Seat 0 = host; seats 1..k = the joined remote clients (each with its lobby pick).
     // 2p keeps the awaitRival flow; 3–6p uses the netDriveN driver (both entered via driveRival, gated on MP()).
     function hostStartRealN(hostDeck){
-      E.setShieldCards(true); E.setLoserMill(true); E.setSpecialLossMode('all'); E.setMillScope('universal');
+      E.setShieldCards(true); E.setLoserMill(true); E.setSpecialLossMode('chosen'); E.setMillScope('targeted');
       gameBasics=false;                                // online is always the Full game (Basics is a solo learn-the-ropes mode for now)
       started=true; hideOverlay(); hideNetroot();
       var joined=nextSeat-1, n=Math.max(2, joined+1);

@@ -10,6 +10,77 @@ deck vs every other, ~7,150 games, Demon-strength AI, strict suit-cost).
 
 ## Balance Design Principles (the durable learnings)
 
+### 0j. POST-MORTEM: v1.31.0 shipped a balance regression, and a harness bug is why. (2026-08-25)
+**Reverted in v1.31.2.** This is the most expensive mistake in the project's history so far — it shipped to
+`main`, Aj played an evening on it, and the study that cleared it was incapable of detecting the problem.
+
+**What shipped (v1.31.0):** for 3-6 players, shields = 2 + numPlayers, per-round draw = numPlayers,
+`SPECIAL_LOSS_MODE='all'`, `MILL_SCOPE='universal'`. All four are no-ops at 2 players, so duels were never
+affected.
+
+**What it did to balance.** Deck-spread at 6 players went from **15.5 to 40.7 points**. Pure Wizard won
+**44.3%** of games against a fair share of 16.7%; **Pure Rogue won 1.7%**. A 26x gap between best and worst deck.
+
+**Isolated to one change.** Reverting each part separately, 6-player spread:
+
+| config | spread |
+| --- | --- |
+| shipped (all four) | 40.7 |
+| minus draw=numPlayers | 32.9 |
+| minus shields 2+N | 35.9 |
+| mill back to `targeted` | 41.3 |
+| **loss back to `chosen`** | **13.3** |
+| pre-ship (all four off) | 15.5 |
+
+**`SPECIAL_LOSS_MODE='all'` was the whole regression.** The mechanism, obvious afterwards: `all` **multiplies
+the value of landing a Special by (N-1)**. At six players the deck that lands Specials most reliably gains
+against five people at once, so any edge in landing them compounds five-fold. Under `chosen` a Special is worth
+one shield regardless of table size, so deck edges are not amplified.
+
+**Why the study missed it — the actual root cause.** `mpsim.js` took its ruleset from **positional arguments**,
+and an edit had dropped the loss-mode argument and left `setSpecialLossMode('chosen')` hardcoded. The mill and
+apex flags read argv positions the commands never filled. **So every arm of both studies ran the IDENTICAL
+config** and dutifully reported "no measurable difference" — twice, once for the v1.31.0 package and once for
+the apex-2 A/B. The header printed `mill=targeted` the whole time and it was read past.
+
+**Fixes applied:** `mpsim.js` now takes **named** flags and **prints the config it resolved** on every run. If
+the printed config is not what you asked for, the numbers are worthless.
+
+**The four lessons, in order of how much they cost:**
+1. **A harness that can silently run the wrong configuration is worse than no harness** — it manufactures
+   false confidence. Print the resolved config, and read it.
+2. **"No measurable difference" is the signature of a broken A/B**, not just of a neutral change. When arms
+   come back identical, suspect the harness before believing the result. Two studies in a row said "neutral"
+   and both were measuring nothing.
+3. **A pacing win and a balance check are different experiments.** The pacing numbers (`rulesim.js`, which
+   sets flags directly) were correct throughout — 6p length 33 -> 15 rounds, jab share 24% -> 10% — and they
+   are what made the package look good. Do not let a valid measurement of one axis carry a change past an
+   invalid measurement of another.
+4. **Ship the reversible thing first.** The package was a default-on rules change across four dimensions with
+   a tutorial built on top of it. A flag left off, plus one deck-spread run, would have caught this for free.
+
+**What was NOT wrong, and is kept:** the pacing findings; `optionsim`/`passsim`/`roundsim`/`rulesim` and their
+results; the playtest analysis; the apex-2 complaint measurement. And the design insight that fell out of the
+post-mortem, which is worth more than the reverted package:
+
+### 0k. Shields should scale DOWN with player count, not up. (2026-08-25)
+The reverted package reasoned "more players, longer game, so give everyone more shields." Backwards. Measured
+median rounds under `loss=chosen` with a fixed shield count:
+
+| | 2 shields | 3 | 4 | 5 | 6 |
+| --- | --- | --- | --- | --- | --- |
+| 2p | 6 | 8 | **11** | 13 | 16 |
+| 3p | 8 | **11** | 14 | 18 | 20 |
+| 4p | **11** | 15 | 19 | 23 | 27 |
+| 6p | **17** | 24 | 29 | 36 | 42 |
+
+`shields = max(2, 6 - numPlayers)` gives 4/3/2/2 and lengths of **11 / 11 / 11 / 17** — flatter than the
+reverted package managed, *while keeping `chosen`* so deck balance stays near 13.3. With more players you lose
+rounds more often, so you need **fewer** shields to die in the same number of rounds. **Untested for balance —
+that run has not been done.** This is the candidate for a re-land, one flag at a time, with a deck-spread run
+per step.
+
+
 ### 0g. Aj's package: scaling shields with the table is the middle ground. NOT SHIPPED. (2026-08-24)
 Three flags, all defaulting **OFF** — `setShieldsPerPlayer` (START_SHIELDS = 2 + numPlayers),
 `setDrawPerPlayer` (draw = numPlayers), `setApexInfinity`. Measured with `rulesim.js`,

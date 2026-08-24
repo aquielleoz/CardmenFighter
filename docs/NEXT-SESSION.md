@@ -58,7 +58,7 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
    unchanged and balance-neutral at 10 runs. `+ E.setApexNoStrip(true)` additionally makes a winning play
    containing a 2 strip no shield, which costs **6p length 15 -> 38 rounds**. Aj wants both measured for feel,
    not just numbers.
-2. **Play the shipped rules** (Lesson 10 "Free-for-All" is now the on-ramp). Nobody has actually played a 6-player game at ~15 rounds with 8 shields and a
+2. **Play the shipped rules.** Nobody has actually played a 6-player game at ~15 rounds with 8 shields and a
    draw of 6. The number most likely to surprise: **mean energy nearly doubles** (8.6 -> 14.4 at 6p), so every
    fixed activation cost is relatively much cheaper. No win-rate figure shows that.
 3. **Initiative is still concentrated ~1.8x** at 6p and no lever tried has moved it. Only
@@ -67,6 +67,20 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **A count-up "charge" CLASS** (Aj, 2026-08-25 — his current lean; nothing built). Full analysis in
+  **[`docs/COUNT-UP-DESIGN.md`](COUNT-UP-DESIGN.md)**, which came out of his brother asking why the game has
+  shields at all and proposing "Kick Coins" — a count-up replacing them wholesale. Aj's landing point: not a
+  rules overhaul, **one class whose schtick is counting up**.
+  - **The count-up resource already exists twice**, so this needs no tokens and no new zone: the **energy pile**
+    already counts up, is card-backed and public — a charge class could gate effects on how much it has *banked*
+    rather than spent, which genuinely conflicts with everyone else's "spend energy on effects". And
+    `TRANSFORM_GATE='table'` is *already* a count-up (total `shieldsLost` unlocks Rides/Forms).
+  - Read the doc's **bias-correction section** before re-opening the wholesale version: the first analysis
+    leaned toward the shipped shield design, and four of its objections did not survive re-checking — notably
+    "length balloons with player count", which is false if a Special win pays **a coin per opponent beaten**
+    (the v1.31.0 fix, mirrored).
+  - The one objection that *did* survive: the **leader-snowball is worse under coins**, because a win advances
+    only the winner where a shield hit damages everyone, and initiative is already 1.8x concentrated.
 - **Game export cannot represent a free-for-all** (found 2026-08-24 in Aj's playtest exports; 6 of 14 games
   were MP). The record has a two-player schema — `you` / `rival` — so in an MP game seats 2+ are simply lost;
   2 of the 6 recorded `rival: 0/0/0/0` (everything gone) and the rest captured one seat only. There is **no
@@ -255,62 +269,46 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
-### v1.31.1 — a tutorial for the free-for-all (the first non-duel lesson)
+### v1.31.2 — REVERT of the MP scaling package: it broke deck balance
 
-Every lesson before this one was a duel, which is why none of them needed touching when v1.31.0 scaled
-multiplayer. **Lesson 10, "Free-for-All"**, seats **four players** and teaches only what actually changes.
-`startLesson` gained a `players:` field; everything else rides on machinery already built and tested (the
-opponents strip, the N-player driver, `buildOppBeats`, confirm-first targeting).
+**Reverted wholesale**, including the Free-for-All tutorial built on top of it. 3-6 player games are back to
+flat 4 shields, draw 2, `SPECIAL_LOSS_MODE='chosen'`, `MILL_SCOPE='targeted'`. **Duels were never affected by
+any of it**, in either direction.
 
-Ten steps, in the order the differences matter:
+**The regression.** 6-player deck spread went **15.5 → 40.7 points**. Pure Wizard won **44.3%** against a fair
+share of 16.7%; **Pure Rogue won 1.7%** — a 26x gap between best and worst deck. It was on `main` for a day and
+Aj played an evening on it.
 
-1. Four riders, last one standing — read the strip.
-2. **The table scales:** 6 shields and a draw of 4 here, against a duel's 4 and 2.
-3. Round 1 is jabs only, same as a duel — lead one.
-4. **Everyone who lost banked energy**, not just one rival. Losing a round in a free-for-all pays you.
-5. **A Special win costs EVERY opponent a shield.** Three opponents, three shields, one play.
-6. Watch the strip confirm it.
-7. **Hostile effects choose a target** — tap a seat, then ⚡ Activate. Nothing is spent until you confirm.
-8. Tap a panel to expand it and see their equipment and Forms.
-9. **You win about a quarter of rounds here, not half — and you will often have no legal card at all. That is
-   normal.** Pass, and wait for a round you can take.
-10. Elimination and the Fighter Kick.
+**One change caused all of it:** `SPECIAL_LOSS_MODE='all'`. Reverting only that restores the spread to **13.3**
+(better than the 15.5 it started at). `all` **multiplies the value of landing a Special by (N-1)**, so at six
+players the deck that lands Specials most reliably gains against five people at once and any edge compounds
+five-fold. Under `chosen` a Special is worth one shield regardless of table size.
 
-Steps 9 and 4 exist because of what the sims found, not because the rules say so: at six players you average
-**0.5 legal plays** when following a pile and are **stuck 79%** of such turns. A newcomer meeting that without
-warning concludes the game is broken or that they are bad at it — and it is what Aj and his brother each ran
-into from opposite directions.
+**Why it shipped — a harness bug, not a judgement call.** `mpsim.js` read its ruleset from **positional**
+arguments; an edit had dropped the loss-mode argument and left `setSpecialLossMode('chosen')` hardcoded, and the
+mill/apex flags read argv positions the commands never filled. **Every arm of both studies ran the identical
+config.** "Balance-neutral at 10 runs per arm" was measuring nothing — twice, once for this package and once for
+the apex-2 A/B. The printed header said `mill=targeted` throughout and was read past. `mpsim.js` now takes
+**named** flags and prints the config it resolved.
 
-**Three bugs found by building it, two of which would have shipped silently:**
-- `tutShields` defaulted to a flat **4**, so a 4-player lesson would have started with 4 shields while its own
-  text said 6. The tutorial would have been lying. Now defaults to `startShieldsFor(mpCount)`; 2p lessons are
-  unchanged at 4.
-- **3♦ Telekinesis grouped with any other rank-3 card in hand**, so "select 3♦" selected a *pair* and the
-  context button never offered ⚡ Activate — the step was uncompletable. `tutStageTarget` now clears other 3s.
-- **A lesson cannot ask for a Special without handing over the LEAD.** A jab pile can only be answered by a
-  higher jab, so the first draft deadlocked exactly where the rules say it must — observed at round 2 with the
-  initiative on P3 and no pair left after the 4-card draw. `tutStageLead`/`tutStagePair` stage it, as the Quicks
-  lesson already stages the Rival's Technique.
+**Kept**, none of it dependent on the broken harness: the pacing findings (`rulesim.js` sets flags directly, so
+6p length 33 → 15 rounds and jab share 24% → 10% were real), the `optionsim`/`passsim`/`roundsim`/`rulesim`
+harnesses and their results, the playtest analysis, and the apex-2 complaint measurement. The scaling flags
+survive defaulting **off** so a re-land can be measured one step at a time.
 
-**New suite: `node lessontest_mp.js` (12).** It asserts the lesson's *claims*, not just that steps advance — a
-tutorial that completes while telling you something false is worse than one that stalls. It verifies the table
-really starts at `2 + numPlayers` shields, that a Special win really drops **every** opponent (measured
-`[6,6,6] -> [5,5,5]`), that 3♦ stands alone, and that staging a target spends **nothing** (energy 6 → 6 with
-labels `⚡ Activate` → `🎯 Pick a target`).
+**Scrapped:** the Free-for-All tutorial (Lesson 10) and `lessontest_mp.js` — the lesson taught the reverted
+numbers as rules ("everyone has 6 shields and draws 4", "a Special costs every opponent a shield"), so it went
+with them rather than being rewritten around a ruleset we no longer trust. `landscapetest.js`'s assertion fix
+was re-applied separately: it repaired a **pre-existing** flake, A/B'd against an earlier build, unrelated to
+the rules.
 
-*One flake on record:* the suite failed once in seven runs, cause unidentified, and has been clean for the four
-runs since. Almost certainly the test's own sampling racing a step's `prep` — three assertions were already
-rewritten for exactly that — but it is unproven, so treat a single red run as suspect before believing it.
+**Worth keeping from the wreckage** (PATCHNOTES **0k**): shields should scale **DOWN** with player count, not
+up. `max(2, 6 - numPlayers)` gives 4/3/2/2 and median lengths of **11 / 11 / 11 / 17** — flatter than the
+reverted package managed — *while keeping* `chosen`, so balance stays near 13.3. With more players you lose
+rounds more often, so you need **fewer** shields to die in the same number of rounds. Balance untested. That is
+the re-land candidate, and it should go in one flag at a time with a deck-spread run per step.
 
-**Also fixed: `landscapetest`'s racy hand assertion.** It asserted *"a 10-card hand scrolls"*, which fails
-whenever those 10 cards happen to fit on one row — and a round tick changes the count, so it failed 1-2 runs in
-3. **A/B'd against the previous build before touching it: it failed there too, so it was pre-existing and not
-the lesson.** Rewritten to assert the actual guarantee — the hand is **capped and scrollable**, so it can never
-grow and shove the board off screen — and only to require live scrolling when the content genuinely overflows.
-Clean 3 runs since. This is the second racy assertion in that suite; the pattern to avoid is asserting a
-*current state* where the guarantee is a *bound*.
-
-### v1.31.0 — multiplayer scales with the table: shields, draw, and damage
+### ~~v1.31.0~~ (REVERTED in v1.31.2 — broke deck balance) — multiplayer scales with the table: shields, draw, and damage
 
 A 6-player game used to run **33 rounds against a duel's 11**, and the cause was structural: under
 `SPECIAL_LOSS_MODE='chosen'` + `MILL_SCOPE='targeted'` a Special win cost the table exactly **one** shield

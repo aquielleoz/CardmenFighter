@@ -44,16 +44,8 @@ winner's bank) — not just players who passed without getting to play. (Scope i
 
 **Round-resolution toggles (for playtesting — both collapse to current behavior at 2 players).**
 Two independent tunables, so we can mix and measure at 3–6 players:
-- **`SPECIAL_LOSS_MODE`** — on a Special win: `all` = every non-winner loses a shield (**LIVE since v1.31.0**;
-  damage scales with the table, which is what keeps game length flat); `chosen` = the winner picks one rival
-  (political, but it made 6-player games run 3x a duel's length).
-> **SHIPPED 2026-08-25 (v1.31.0):** the live pairing is now **`all` + `universal`** — hit everyone, pay
-> everyone — together with shields = 2 + numPlayers and a per-round draw of numPlayers. The old
-> `chosen`+`targeted` pairing made a Special win cost the table exactly ONE shield however many people were at
-> it, so total shields scaled with the table while damage did not and a 6-player game ran **33 rounds against a
-> duel's 11**. The new pairing plus scaled shields lands 6p at **~15 rounds**, cuts jab share **24% -> 10%**,
-> and measured **balance-neutral at 10 runs per arm** (PATCHNOTES 0g). All of it is a no-op at 2 players.
-
+- **`SPECIAL_LOSS_MODE`** — on a Special win: `all` = every non-winner loses a shield (bloodbath, fast); `chosen`
+  = the winner picks one rival to lose a shield (targeted, political).
 - **`MILL_SCOPE`** — who catch-up mills each round: `universal` = all non-winners mill (healthy economy);
   `targeted` = only the struck rival(s) mill (cutthroat; untargeted losers tread water).
 - *Property:* at `numPlayers === 2` both toggles are no-ops — the single loser loses a shield and mills either

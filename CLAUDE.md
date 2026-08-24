@@ -50,7 +50,6 @@ node viewtest.js                                # 🔍 View card reader gating o
 node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (64)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
-node lessontest_mp.js                           # the "Free-for-All" MP lesson — the only non-duel lesson (12)
 node piletest.js                                # energy/shuffle pile viewers + promote (21)
 node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (74)
 ```
@@ -68,12 +67,14 @@ Balance / heavier harnesses, when a change could move win rates:
 
 ```bash
 node analysis.js 130 on      # class round-robin — args: N catchup recycle difficulty
-node mpsim.js                # 3/4/6p free-for-all — args: games difficulty
+node mpsim.js 1000 knight     # 3/4/6p free-for-all. NAMED flags: mill= loss= apex nostrip noshp nodpp.
+                             # It PRINTS the config it resolved — read that line. Positional args once made
+                             # every arm of two studies run the SAME config; see PATCHNOTES 0j.
 node recyclesim.js 400       # how often a game reaches the reshuffle (deck-cycling pressure)
 node personasim.js 150 demon  # AI persona parity — args: gamesPerRotation tier [control]
-node passsim.js 200 6 knight  # strategic-pass study + initiative concentration — args: games players tier thresh mode
+node passsim.js 200 6 knight   # strategic-pass study + initiative concentration
 node optionsim.js             # legal plays per turn by player count — the OPTIONS-vs-cards measurement
-node rulesim.js               # rule-config sweep: game length / jab share / initiative, by player count
+node rulesim.js               # rule-config sweep: length / jab share / initiative, by player count
 node roundsim.js              # share of ROUNDS decided by a jab vs a Special, by tier and player count
 node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — RUN IT after any card
                              # name/cost/text change, or the published card list silently goes stale
@@ -150,20 +151,6 @@ one screen without hiding real controls, so below 340px `#board` becomes `auto a
 the board **scrolls**. Above the floor the promise is everything-on-one-screen; at or below it the promise is
 only *nothing overlaps and everything is reachable*. The suite encodes both, and the floor cases assert
 reachability by really scrolling the board — don't weaken that into a check that would pass on a broken build.
-
-**`lessontest_mp.js` guards the only lesson that is NOT a duel.** The Free-for-All lesson declares
-`players:4`, so it is the sole exercise of `startLesson`'s N-seat path — every other lesson is 2p, which is
-why none of them needed touching when MP scaling shipped in v1.31.0. It asserts the lesson's **claims**, not
-just that steps advance: a tutorial that completes while telling you something false is worse than one that
-stalls. Two bugs it caught, both of which would have shipped silently: `tutShields` defaulted to a flat 4 so
-a 4-player lesson contradicted its own "everyone has 6 shields" line, and **3♦ Telekinesis grouped with any
-other rank-3 card**, so "select 3♦" selected a pair and the step was uncompletable.
-
-**A lesson cannot ask the player to play a Special unless it hands them the LEAD.** A jab pile can only be
-answered by a higher jab, and in a 4-player game the initiative usually belongs to somebody else — the first
-draft of that step deadlocked exactly where the rules say it must (observed: round 2, initiative with P3, no
-pair left after the 4-card draw). `tutStageLead`/`tutStagePair`/`tutStageTarget` stage it, the way the Quicks
-lesson stages the Rival's Technique.
 
 `viewtest.js` runs at a 390×780 viewport because `#viewCardBtn` only exists inside `@media (max-width:720px)
 and (max-height:800px)` — at a taller phone size it is correctly absent.
@@ -266,6 +253,16 @@ winning a round forces you to strike someone. The faithful analogue is TIT FOR T
 
 ## Rules facts worth knowing before touching the engine
 
+**3-6 player scaling was tried and REVERTED (v1.31.0 → v1.31.2).** Shields = 2+numPlayers, draw = numPlayers,
+`SPECIAL_LOSS_MODE='all'`, `MILL_SCOPE='universal'`. It fixed pacing (6p length 33 → 15 rounds, jab share
+24% → 10%) and **broke deck balance**: 6p spread 15.5 → 40.7 points, Pure Wizard 44% vs Pure Rogue 1.7%.
+Isolated to `loss='all'` alone, because **`all` multiplies the value of landing a Special by (N-1)** — at six
+players the best Special-lander gains against five people at once. The flags survive
+(`setShieldsPerPlayer`/`setDrawPerPlayer`, default **off**) for A/B only. **Read `startShieldsFor(n)` /
+`drawCountFor(st)`, never the bare constants** — reading `E.DRAW_PER_ROUND` in the UI is what once made the
+round banner announce "draws 2" at a table drawing 6. Full post-mortem: PATCHNOTES **0j**; the promising
+re-land direction (shields scaling **down**) is **0k**.
+
 The 2-apex + Forms **"rework" is simply the game.** The `REWORK` flag, `setRework()`, `E.isRework()` and the
 whole classic ruleset were deleted in v1.23.0 — if a doc or comment implies a toggle, the doc is stale. Many
 comments and test names still *say* "REWORK:" as a label; that's just naming, not a branch.
@@ -281,13 +278,7 @@ comments and test names still *say* "REWORK:" as a label; that's just naming, no
   special win is the **Fighter Kick**.
 - Energy: activation cost = the card's number (`activationCost`); A costs 1, J/Q/K cost a flat
   `TRANSFORM_COST` into the Forms & Rides zone, and the apex 2 has no activated effect.
-- Duel defaults: `START_SHIELDS=4`, `START_HAND=6`, `DRAW_PER_ROUND=2`, `MAX_HAND=10`.
-- **3-6 players SCALE WITH THE TABLE (v1.31.0):** shields = **2 + numPlayers**, per-round draw = **numPlayers**,
-  and a Special win uses `SPECIAL_LOSS_MODE='all'` + `MILL_SCOPE='universal'` — hit everyone, pay everyone.
-  **All four resolve to the duel values at 2 players, so a duel is byte-identical to before.** Read the scaled
-  values with **`E.startShieldsFor(n)` / `E.drawCountFor(st)`** — the bare constants are duel values, and reading
-  `E.DRAW_PER_ROUND` in the UI is what made the round banner announce "draws 2" at a 6-player table that drew 6.
-  `setShieldsPerPlayer(false)` / `setDrawPerPlayer(false)` restore flat values for A/B.
+- Defaults: `START_SHIELDS=4`, `START_HAND=6`, `DRAW_PER_ROUND=2`, `MAX_HAND=10`.
 
 ## Conventions
 
@@ -311,6 +302,8 @@ comments and test names still *say* "REWORK:" as a label; that's just naming, no
 - `docs/CARD-LIST.md` — authoritative card list, generated by `gen-cardlist.js` (regenerate, don't hand-edit).
 - `docs/CARD-STATS.md` — cast rates / win rates from the sims.
 - `docs/RIDES-AND-FORMS.md` — design of the J/Q/K layer. `docs/MULTIPLAYER-DESIGN.md` — netplay design.
+- `docs/COUNT-UP-DESIGN.md` — the count-up / "Kick Coin" branch: why shields are load-bearing (catch-up,
+  the transform gate, the targeting signal), and Aj's narrower lean toward a count-up **class**. Open.
 - `docs/PATCHNOTES.md` — balance principles + win-rate history. `docs/REWORK-HISTORY.md` — how it got here.
 - `docs/BUILD-PLAN-v0.82.md`, `docs/Cardmen-Fighter-Design-v0.70.md`, `docs/STACK-DESIGN-v0.53.md` —
   historical snapshots, not current truth.
