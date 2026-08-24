@@ -540,12 +540,13 @@ function cards(ids) { return ids.map(card); }
   // SPECIAL_LOSS_MODE 'all' — every non-winner loses a shield
   E.setSpecialLossMode('all'); E.setShieldTargetChooser(null);
   var ga = threePlayerSpecialWin();
-  ok(ga.players[1].shields === 3 && ga.players[2].shields === 3, "MP 'all': every non-winner loses a shield on a Special");
+  var base3 = E.startShieldsFor(3);   // NOT the START_SHIELDS constant: shields scale with player count
+  ok(ga.players[1].shields === base3 - 1 && ga.players[2].shields === base3 - 1, "MP 'all': every non-winner loses a shield on a Special");
 
   // SPECIAL_LOSS_MODE 'chosen' — only the winner's pick loses a shield
   E.setSpecialLossMode('chosen'); E.setShieldTargetChooser(function () { return 2; });
   var gc = threePlayerSpecialWin();
-  ok(gc.players[1].shields === 4 && gc.players[2].shields === 3, "MP 'chosen': only the chosen rival (p2) loses a shield");
+  ok(gc.players[1].shields === base3 && gc.players[2].shields === base3 - 1, "MP 'chosen': only the chosen rival (p2) loses a shield");
 
   // MILL_SCOPE — universal mills all non-winners; targeted mills only the struck rival
   E.setLoserMill(true);

@@ -49,59 +49,22 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 
 ---
 
-## ☀️ TOMORROW: extensive testing of the multiplayer rules package (Aj, 2026-08-24)
+## ☀️ START HERE
 
-Aj: *"don't ship anything yet, we'll test extensively tomorrow."* **Nothing is shipped** — three new engine
-flags all default **OFF** and every suite is green (test 190, netview 28). What exists is the measurement kit
-and the numbers below; the decisions are open.
+**v1.31.0 shipped the multiplayer rules package** (see the changelog below). What is still open:
 
-**The state of play.** Aj is "very partial to draw=players, and universal", plus his own shields idea. Measured,
-that package (`rulesim.js` config **D** = `all`+`universal` + shields 2+P + draw=players) does this at 6
-players: length **33 -> 15** rounds, jab share **24% -> 10%**, spread **16.4 -> 13.6**, and relative energy
-dispersion flattens (91% -> 72% of the pool, and it stops scaling with table size). Duels are **unchanged** in
-every respect.
+1. **The apex-2 A/B — Aj's explicit next task.** Two variants, both behind flags, to be tested *with* strip and
+   *without*: `E.setApexInfinity(true)` makes a 2 unbeatable (no boost can pass it) and is **free** — 6p length
+   unchanged and balance-neutral at 10 runs. `+ E.setApexNoStrip(true)` additionally makes a winning play
+   containing a 2 strip no shield, which costs **6p length 15 -> 38 rounds**. Aj wants both measured for feel,
+   not just numbers.
+2. **Play the shipped rules.** Nobody has actually played a 6-player game at ~15 rounds with 8 shields and a
+   draw of 6. The number most likely to surprise: **mean energy nearly doubles** (8.6 -> 14.4 at 6p), so every
+   fixed activation cost is relatively much cheaper. No win-rate figure shows that.
+3. **Initiative is still concentrated ~1.8x** at 6p and no lever tried has moved it. Only
+   `st.initiative = winner` (`engine.js` ~1685) will. Note the shipped package may have changed the picture —
+   worth re-measuring with `passsim.js` before designing anything.
 
-**What still needs deciding, in the order it matters:**
-1. **Is 15 rounds right for 6 players?** Live is 33, symmetric-alone is 9, Aj's 2+P shields gives 16 (config C)
-   or 15 with the draw change (D). Nobody has played any of them — this is a feel call, not a numbers call.
-2. ~~3-player got worse on spread~~ **SETTLED 2026-08-25, 10 runs per arm: the package is balance-neutral at
-   every player count.** 6p 14.9 +/-1.2 -> 15.2 +/-0.7, 4p 14.2 +/-0.9 -> 12.6 +/-0.8, 3p 13.8 +/-0.7 -> 15.6
-   +/-0.9 — nothing clears 2 s.e., and only 1 of 33 per-deck comparisons does (chance, from 33 comparisons).
-   The 3-player regression was noise, so **the thing that could have sunk the package does not exist**. The
-   package is a pure PACING change: it moves length and jab share and leaves deck balance alone.
-3. **Mean energy nearly doubles** under draw=players (8.6 -> 14.4 at 6p). Activation costs are fixed, so every
-   effect becomes much cheaper in relative terms. That is a big shift in feel that no win-rate number shows,
-   and it is the change most likely to surprise a playtester.
-4. **The apex-2 feedback resolves into a FREE fix — decide whether to take it.** It is playtest feedback from
-   Aj's brother, and the complaint is now known: in the original **chikicha** the 2 is the outright peak, but
-   here it is only 15 and **boosts stack on top**, so a +7 Ace (Aj has run one) beats the apex. Measured, the
-   two halves of his proposal price completely differently:
-   - **Unbeatable apex, shields still strip** (`E.setApexInfinity(true)`) — 6p length **33 -> 34** on live,
-     **15 -> 15** on Aj's package. **Free.** And it is the half that answers the actual complaint.
-   - **Also no shield strip** (`+ E.setApexNoStrip(true)`) — 6p length **33 -> 50** on live, **15 -> 38** on the
-     package, because an unbeatable play that deals no damage ends a round without progressing the game.
-   So the open question is small: take the free half, and decide separately whether being crushed by an apex is
-   a problem worth the length cost.
-   - **His second report:** *"after the initial round of jabs, there was only ever specials."* **Confirmed by
-     simulation** — Specials decide **83-88%** of rounds 2+ at every difficulty and player count
-     (`roundsim.js`). It does not contradict Aj's jab complaint: 20-27% of *plays* are jabs while only 12-17%
-     of *rounds* are jab-decided, so jabs are thrown constantly and win almost nothing. One report is about
-     what you play, the other about what wins.
-   - **We have no logs from his sessions** — he is not the playtester in the exports (that is bibong), so his
-     tier, player count and deck are unknown. Ask him what he was playing before designing around either report.
-
-5. **Initiative is a separate job.** It is ~1.8x concentrated at 6p in *every* config tested. Only
-   `st.initiative = winner` (`engine.js` ~1685) will move it.
-
-**How to run it** (all flags default OFF; pass them explicitly):
-```
-node rulesim.js                                  # length / jab% / initiative, 6 configs x 4 player counts
-node mpsim.js 1000 knight '' '' '' universal all shp-dpp    # balance for package D  (repeat 3-10x!)
-node optionsim.js drawplayers                    # legal plays per turn, energy gap and pool
-node passsim.js 300 6 knight 5 combo             # pass policies, initiative, cap saturation
-```
-Engine flags: `E.setShieldsPerPlayer()`, `E.setDrawPerPlayer()`, `E.setApexInfinity()`,
-`E.setMillScope('universal')`, `E.setSpecialLossMode('all')`.
 
 ## BACKLOG (open work only — completed items live in the changelog below)
 - **Game export cannot represent a free-for-all** (found 2026-08-24 in Aj's playtest exports; 6 of 14 games
@@ -291,6 +254,61 @@ Engine flags: `E.setShieldsPerPlayer()`, `E.setDrawPerPlayer()`, `E.setApexInfin
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.0 — multiplayer scales with the table: shields, draw, and damage
+
+A 6-player game used to run **33 rounds against a duel's 11**, and the cause was structural: under
+`SPECIAL_LOSS_MODE='chosen'` + `MILL_SCOPE='targeted'` a Special win cost the table exactly **one** shield
+however many people were sitting at it, so total shields scaled with the player count while damage did not.
+Aj's diagnosis in play — *"three rounds in a row throwing jab after jab"* — was a symptom of the length, not an
+independent problem.
+
+Four changes, all of which **resolve to today's duel values at 2 players**, so a duel is unchanged:
+
+| | duel (2p) | 3p | 4p | 6p |
+| --- | --- | --- | --- | --- |
+| shields (`2 + numPlayers`) | **4** (unchanged) | 5 | 6 | 8 |
+| per-round draw (`= numPlayers`) | **2** (unchanged) | 3 | 4 | 6 |
+| `SPECIAL_LOSS_MODE` | `all` — no-op at 2p | every non-winner loses a shield | | |
+| `MILL_SCOPE` | `universal` — no-op at 2p | every non-winner mills | | |
+
+**Measured effect at 6 players:** median length **33 -> 15 rounds**, jab share of all plays **24% -> 10%**,
+and relative energy dispersion flattens (the richest-vs-poorest gap falls from 91% of the mean energy pool to
+72%, and stops scaling with table size). Options per turn stop collapsing as players are added — 4.5 / 4.1 /
+4.3 / 4.4 across 2/3/4/6p, where it used to fall 4.5 / 3.2 / 2.9 / 2.3.
+
+**And it is balance-neutral, settled at 10 runs per arm.** Spread 14.9 ±1.2 -> 15.2 ±0.7 at 6p, 14.2 ±0.9 ->
+12.6 ±0.8 at 4p, 13.8 ±0.7 -> 15.6 ±0.9 at 3p — nothing clears 2 s.e., and only 1 of 33 per-deck comparisons
+does, which is what chance predicts from 33. So this is a **pure pacing change**: it leaves the deck balance
+tuned across many versions alone. (Two earlier 3-run readings claimed a spread tightening at 4p/6p and a
+regression at 3p; both were noise. See PATCHNOTES 0g.)
+
+**The pairing choice was a coherence argument, not just a measurement.** `chosen`+`targeted` links punishment to
+compensation (hit one, pay that one); `all`+`universal` links them the other way (hit all, pay all). The
+mixture Aj spotted — one player hit, everyone paid — leaves the spared players strictly better off than the
+struck one on both axes, and was never a design worth shipping.
+
+**One real bug fixed on the way in:** the round banner read `E.DRAW_PER_ROUND`, the flat duel constant, so it
+would have announced *"Each player draws 2"* at a 6-player table that actually drew 6. Both that line and the
+round-card subtitle now ask `E.drawCountFor(state)`. The how-to-play goal line also hardcoded *"your Rival's 4
+shields"* — now scaled, and no longer singular. `E.startShieldsFor(n)` / `E.drawCountFor(st)` are exported
+precisely so nothing else reads the constants; two engine tests that hardcoded `4 - 1 = 3` now derive from the
+formula.
+
+**It broke the landscape layout, which is exactly why that suite exists.** Scaling shields means a 6-player
+game renders **eight** shield pips where there were four — in your own `#handMeta` *and* in every opponent
+panel. At the old 11px the row grew and cut the pile's clearance over the hand from ~17px to **3px** at
+667x375, failing `landscapetest`'s 8px-margin assertion consistently. Pips are now sized for the 8-pip case
+(8x8px + 2px gaps = 78px, and the row shrinks rather than forcing a wrap; 7x9px at the 340px floor). Back to
+64/0 across 3 runs. **This is the second time that 8px margin has earned its keep** — it was deliberately set
+above zero so an erosion fails outright instead of intermittently.
+
+*Observed once and not reproducing:* `landscapetest`'s "a 10-card hand scrolls" assertion at 568x320 failed in
+one run of five and passed in the rest. That case is a **duel**, so it cannot be caused by this change — it is
+either pre-existing timing or a genuinely marginal state. Worth watching; do not assume it is this commit.
+
+**Not shipped, still flagged:** the apex-2 rework (`setApexInfinity`, `setApexNoStrip`) — Aj is A/B-ing strip
+vs no-strip next. `setShieldsPerPlayer(false)` / `setDrawPerPlayer(false)` restore flat values for sims.
 
 ### v1.30.2 — the landscape FLOOR: 568x320 degrades to a scrolling board
 

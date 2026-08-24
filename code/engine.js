@@ -16,6 +16,9 @@
  *   - Straights: 5-card windows over fight value, lo 3..11 → 3-4-5-6-7 (lowest)
  *     .. J-Q-K-A-2 (highest); no wrap.
  *   - Duel: START_SHIELDS=4 each, START_HAND=6, DRAW_PER_ROUND=2, MAX_HAND=10.
+ *   - 3-6 PLAYERS SCALE WITH THE TABLE (2026-08-25): shields = 2 + numPlayers, and the per-round draw =
+ *     numPlayers. Both resolve to the duel values at 2 players (4 shields, draw 2), so a duel is unchanged.
+ *     Read them with startShieldsFor(n) / drawCountFor(st) — never the raw constants, which are duel values.
  *     A round is draw → one player leads → the fight is a trick; the last
  *     unbeaten play wins. A SPECIAL (multi-card) win strips 1 shield; a jab
  *     only banks energy. Specials are locked in round 1. At 0 shields the next
@@ -167,7 +170,7 @@
    * Companion to `all`+`universal`: that pairing makes damage scale with the table, which holds game length
    * flat at ~10 rounds but may be too SHORT for six players (live pairing runs 33). Scaling the shield pool
    * with the table gives the middle ground: 2p keeps exactly today's 4, 6p gets 8. */
-  var SHIELDS_PER_PLAYER = false;
+  var SHIELDS_PER_PLAYER = true;      // ON: this is the game (2026-08-25). false restores a flat START_SHIELDS for A/B.
   function setShieldsPerPlayer(v) { SHIELDS_PER_PLAYER = !!v; }
   function isShieldsPerPlayer() { return SHIELDS_PER_PLAYER; }
   function startShieldsFor(n) { return SHIELDS_PER_PLAYER ? (2 + n) : START_SHIELDS; }
@@ -199,7 +202,7 @@
    * free-for-all, so the extra draw largely converts into SELECTION (you see more of your deck and keep the
    * best 10) and into CYCLING (the surplus is discarded to energy each round). Both plausibly raise option
    * quality without raising hand size. Measure with optionsim / recyclesim / mpsim. */
-  var DRAW_PER_PLAYER = false;
+  var DRAW_PER_PLAYER = true;         // ON: this is the game (2026-08-25). false restores a flat DRAW_PER_ROUND for A/B.
   function setDrawPerPlayer(v) { DRAW_PER_PLAYER = !!v; }
   function isDrawPerPlayer() { return DRAW_PER_PLAYER; }
   function drawCountFor(st) { return DRAW_PER_PLAYER ? Math.max(DRAW_PER_ROUND, st.numPlayers) : DRAW_PER_ROUND; }
@@ -1752,6 +1755,7 @@
     effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, opponentCanRespond: opponentCanRespond, useEquipment: useEquipment, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
+    drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
     setApexInfinity: setApexInfinity, isApexInfinity: isApexInfinity,
     setApexNoStrip: setApexNoStrip, isApexNoStrip: isApexNoStrip,
     setDrawPerPlayer: setDrawPerPlayer, isDrawPerPlayer: isDrawPerPlayer
