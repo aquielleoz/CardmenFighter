@@ -49,36 +49,177 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 
 ---
 
+## ☀️ START HERE
+
+**v1.31.0 shipped the multiplayer rules package** (see the changelog below). What is still open:
+
+1. **The apex-2 A/B — Aj's explicit next task.** Two variants, both behind flags, to be tested *with* strip and
+   *without*: `E.setApexInfinity(true)` makes a 2 unbeatable (no boost can pass it) and is **free** — 6p length
+   unchanged and balance-neutral at 10 runs. `+ E.setApexNoStrip(true)` additionally makes a winning play
+   containing a 2 strip no shield, which costs **6p length 15 -> 38 rounds**. Aj wants both measured for feel,
+   not just numbers.
+2. **Play the shipped rules.** Nobody has actually played a 6-player game at ~15 rounds with 8 shields and a
+   draw of 6. The number most likely to surprise: **mean energy nearly doubles** (8.6 -> 14.4 at 6p), so every
+   fixed activation cost is relatively much cheaper. No win-rate figure shows that.
+3. **Initiative is still concentrated ~1.8x** at 6p and no lever tried has moved it. Only
+   `st.initiative = winner` (`engine.js` ~1685) will. Note the shipped package may have changed the picture —
+   worth re-measuring with `passsim.js` before designing anything.
+
+
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **Game export cannot represent a free-for-all** (found 2026-08-24 in Aj's playtest exports; 6 of 14 games
+  were MP). The record has a two-player schema — `you` / `rival` — so in an MP game seats 2+ are simply lost;
+  2 of the 6 recorded `rival: 0/0/0/0` (everything gone) and the rest captured one seat only. There is **no
+  player-count field**, so an MP game can only be identified by grepping its log for "P2"/"P3". Fix: a `seats`
+  array plus `numPlayers`, and keep `you`/`rival` as aliases for duel compatibility if anything reads them.
+- **Two-player wording still reachable in MP narration** (same source):
+  - `Rival discarded N to hand size → energy pile.` — `CardmenFighter.template.html` ~3315 hardcodes `RIVAL`,
+    so only seat 1's hand-limit trim is *announced*. Not a correctness bug (`finishRoundWin`, `engine.js` ~1726,
+    trims every seat), but seats 2+ trim silently and the label is wrong at a 6-player table. Route through
+    `logName(seat)`.
+  - **16 card texts in `engine.js` say "the Rival's ..."** (e.g. Spiked Armor). Reads wrong in a free-for-all.
+    Needs a decision, not just a find-replace: card text is static, so it probably wants neutral phrasing
+    ("the target's", "an opponent's") rather than a seat name.
+- **STOPPERs have zero engagement in real play** (0 uses across 14 games and 958 log lines, in both the stats
+  and the logs — genuine non-use, not a recording gap; see PLAYER-PROFILE). The AI uses the reactive layer at
+  about the rate the sims predict, so this is a human-facing problem: either the cost is wrong, the prompt is
+  missed, or players do not know it exists. **Check the UI surfacing before touching the card.** Also 0
+  Emergency Maintenance casts where the sim rate predicts ~3.
+- **6-player games run 33 rounds; duels run 11. That is probably the root cause.** (2026-08-24, from Aj's
+  question "is it weird that everybody mills but not everybody loses a shield?") Under the live
+  `SPECIAL_LOSS_MODE='chosen'` + `MILL_SCOPE='targeted'` pairing a Special win costs the table **one** shield
+  however many people are at it, so total shields scale with player count while damage does not. Median length
+  goes **11 (2p) -> 15 -> 22 -> 33 (6p)**. The engine's own defaults (`all`+`universal`) hold it **flat at ~10
+  rounds** at every count.
+  - Everything else we chased today — jab-round grind, option starvation (0.5 legal plays when following at
+    6p), initiative concentration (1.6-1.9x) — has **three times as long to compound** in a 6-player game.
+    Consider fixing length before designing around any of those symptoms.
+  - Do NOT just flip to `all`+`universal`: ~9 rounds may be too short for six players, and it is a large rules
+    change. The question worth designing is whether something between the corners lands at ~15-18 rounds —
+    e.g. a Special win stripping shields from *more than one* rival as the table grows, or `START_SHIELDS`
+    scaling down with player count instead.
+  - Measure with the one-off in this session's history (median/mean/max rounds by player count for both
+    pairings); worth turning into a small committed harness if this is picked up.
+- **Draw = number of players** (Aj's idea, 2026-08-24 — measured once, verdict OPEN, flag shipped OFF as
+  `E.setDrawPerPlayer()`). Aimed squarely at what `optionsim.js` found: legal plays per turn collapse as the
+  table grows (4.5 at 2p to 2.3 at 6p) and a fixed draw of 2 does not scale with that. Making the draw scale
+  **works on its target**: options per turn go flat across player counts — 4.5 / 4.1 / 4.3 / **4.4** instead of
+  4.5 / 3.2 / 2.9 / **2.3**.
+  - **But the felt problem got worse.** Turns with NO legal play rose 65% -> **70%** at 6p, and when following a
+    pile, stuck rose 79% -> **85%**. Same trap as the jab cantrip: give everyone more resources and the pile is
+    raised more times before it reaches you, so the bar climbs as fast as your hand does. *Average* options up,
+    *ability to act at all* down.
+  - Side effect worth deciding about: mid-round hands reach **12.9** against a `MAX_HAND` of 10, so ~3 cards per
+    player per round are discarded to energy at Clean-up. That is a large cycling boost — and it means much of
+    the extra draw is converted straight into energy rather than into playable options.
+  - **The balance read is UNRESOLVED, and for a methodological reason.** It first looked like the 6-player
+    spread tightened 18.5 -> 14.4 points, but `mpsim` turned out to be non-deterministic (the AI uses unseeded
+    `Math.random()`), and three identical baseline runs gave Cleric 28.0 / 24.9 / 24.1. The apparent gain was
+    inside run noise. Re-measure with 3+ runs per arm, or seed the AI first. See PATCHNOTES principle 0c.
+  - If it comes back, the interesting variant is a draw that scales but is **capped below MAX_HAND**, so it buys
+    options without spilling into energy — e.g. `min(numPlayers, MAX_HAND - hand.length)`.
+- **The "outbid" pass model for the AI** (Aj — parked 2026-08-24, may come back). The AI currently picks the
+  *lowest safe single* to contest a jab, and never asks *"will this card even survive five opponents?"* Aj's
+  reason #3 for passing was exactly that: middling values get outbid, so spending them is waste. Unlike the
+  shipped hand-size heuristic (measured inert in multiplayer, see the note below) this signal **gets stronger
+  as the table grows**, which is the dimension where the problem actually scales.
+  - **Decide by measurement whether it goes on knight AND demon, or demon only** (Aj's explicit question). Do
+    not assume it transfers: the *existing* strategic pass measured **+17.3 pts for demon and +1.5 for knight**
+    in duels — same code, and the effect was real for one tier and noise for the other. `passsim.js` takes a
+    tier argument for exactly this.
+  - Implement as a third `setStratPassMode('outbid')` beside `'hand'` and `'combo'` so all three stay
+    comparable in one harness.
+- **Initiative has no catch-up, and that is probably the real problem** (Aj, from play — 2026-08-23; the
+  finding that came out of testing and REJECTING the jab-cantrip, see the note below). In `engine.js` ~1685 a
+  round win does `st.initiative = winner; st.turn = winner;` — **the round winner leads the next round.** That
+  is a rich-get-richer loop, and it collides with two other rules:
+  - **only a special breaks a shield**, and
+  - you may only beat the pile with a **higher value of the SAME shape**.
+
+  So a player who is not winning rounds can almost never *lead*, and therefore can almost never deploy a
+  special — their full house is dead weight until somebody else happens to lead a full house at a lower value.
+  Aj, mid-game: *"three rounds in a row throwing jab after jab… I didn't want to break my full house to answer
+  their pair."* It gets worse with player count, because the pile is contested by more people.
+
+  **The game has CARD catch-up (shields-as-cards, loser-mill) and NO INITIATIVE catch-up.** That asymmetry is
+  the thing to attack. Directions, none designed yet:
+  - **Rotate the lead** instead of awarding it to the winner — clockwise, or to whoever has led least recently.
+    Cheap to try and directly measurable (`mpsim.js`, and watch whether special-cast rates rise).
+  - **Let a bigger shape answer a smaller one at a cost** (energy, or reduced banking), so holding a special is
+    never structurally dead.
+  - **Frame passing as a real choice in the UI.** Aj: *"I think the real strat is really to pass."* The engine
+    agrees — a pass spends no hand cards and still banks energy via the loser-mill — but the tutorial currently
+    teaches *"leading a jab is the safe way to stock energy"*, which may be teaching the weaker line.
+  - **STUDIED 2026-08-23 — the strategic pass does NOT work in multiplayer; the gate stays.** `passsim.js`
+    measures it as a within-game A/B (same table, half the seats allowed to pass, seats rotated, one deck and
+    one tier for everyone), so deck, tier and seat luck are identical in both arms by construction:
+
+    | case | delta to the passing arm | |
+    | --- | --- | --- |
+    | demon DUEL | **+17.3 pts** | real — reproduces the original "~59% vs always-contest" |
+    | knight duel | +1.5 | noise — the duel edge is a **demon** edge, not a smart-tier one |
+    | 6p, thresholds 5→10 (fires up to 8x/game) | +0.6 / −1.7 / +1.7 / −0.9 / −2.2 | all noise |
+    | 3p / 4p, 3200 games | +0.9 / −0.1 | noise |
+
+    So the old comment was wrong in an interesting way: it said conceding "hands the trick to several
+    opponents", implying **harm**. There is no harm — the policy is **inert**. Conserving a card is a
+    **two-body** attrition edge; against five opponents the marginal card stops mattering, so the pass fires
+    and changes nothing. Raising the threshold just buys more firings of the same zero.
+  - **Aj's own policy was also tested and is the better idea, but still not significant.** The shipped rule
+    concedes on *hand size*; Aj was conceding because he *held a full house he meant to lead*. That is a
+    different rule (`AI.setStratPassMode('combo')` — concede a jab whenever you hold a Special). It is the only
+    variant with a consistently positive sign, **+0.9 at both 3p and 4p over 3200 games** — inside noise. Worth
+    revisiting **after** an initiative fix, because its whole premise is "I will get to lead this later", which
+    is exactly what the initiative loop denies. A low-power +4.0 regressed to +0.9 at 6x the games; don't be
+    fooled by the first run.
+  - **Two things the study turned up that matter more than the pass itself:**
+    1. **Initiative concentration grows with player count.** The busiest leader holds **40% of rounds at 4p**
+       (fair 25%) and **32% at 6p** (fair 17%) — 1.6-1.9x its share. Everyone leads *eventually* across a
+       33-round game, but the local streaks are real, and that is the "three rounds in a row" feeling.
+       `passsim.js` prints this, so it is the harness to evaluate any initiative fix against.
+    2. **The AI is not jab-locked at all — only ~20% of its plays are jabs** (it casts ~56 Specials a game at
+       6p). A human felt starved of Specials while the AI was swimming in them. **That asymmetry is the real
+       lead**, and it is consistent with the initiative loop: the AI keeps winning rounds, keeps the lead, and
+       keeps leading Specials. Find out what the AI does that a human cannot before redesigning anything.
+  - The original observation, for the record. `ai.js` 363:
+    `if (strategicPass && st.numPlayers === 2 && hand.length <= STRAT_PASS_MAX) return {action:'pass'}` —
+    deliberately passing a *winnable* jab to conserve cards is **hard-gated to 1v1**. In a free-for-all no AI
+    ever strategic-passes, which is exactly the mode where Aj found passing to be right. Two consequences:
+    (a) the AI is probably playing the multiplayer game wrong, and (b) **every free-for-all balance number we
+    have was measured with strategic passing switched off**, so `mpsim.js` may not describe the real strategic
+    landscape at all. Cheapest possible experiment: drop the `numPlayers === 2` guard, re-run `mpsim.js`, and
+    watch both the win rates and how many jab exchanges a game contains. Do this BEFORE designing an initiative
+    fix — the jab-spam may be partly an AI artefact rather than a rules problem, and it would be embarrassing
+    to redesign initiative to fix a missing `if`.
+- **Overlays and modals are not landscape-safe** (Aj, screenshot 2026-08-23 — the setup dialog clipped at both
+  top AND bottom in a short window). v1.30.1/v1.30.2 fixed the in-game **board** only; every dialog was
+  untouched, and the cause is a single point:
+
+  ```
+  .overlay{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .modal  { max-width:470px; width:100%; padding:24px; }        /* no max-height, no overflow */
+  ```
+
+  A modal taller than the viewport is **centred**, so it overflows equally off the top and the bottom and the
+  top half becomes unreachable — there is nothing to scroll. That is exactly the screenshot: "Your name" is
+  cut off above and the roll button below.
+
+  - **There is only ONE `.overlay`/`.modal` pair in the markup** (`<div class="overlay" id="overlay">`), filled
+    by `showModal(html)`. So setup, settings, the card codex, the specials cheat sheet, how-to-play, the win
+    overlay, the name editor and the pile viewers **all share it** — one fix covers every dialog. Likely:
+    `max-height:calc(100dvh - 40px); overflow-y:auto;` on `.modal`, plus `align-items:flex-start` (or
+    `safe center`) so a too-tall modal pins to the top instead of centring off both edges.
+  - **Check these separately** — they are `position:fixed` panels that do NOT go through the shared overlay:
+    `#cardFull` (the 🔍 full-card reader, `inset:0`), `#tutPanel` (bottom-anchored, `width:min(500px…)`),
+    `#kick`, `#artFlash`, `.peekBar`, `#disconBar` (which sits at `top:54px` — a hardcoded offset that assumes
+    the **56px desktop header**, and the landscape header is **37px**, so it will float 17px low).
+  - `landscapetest.js` covers the board only. This wants a sibling pass in the same suite: open each dialog at
+    568x320 / 844x390 and assert it is fully on screen or scrollable, and that its primary button is reachable.
+    Reuse the floor/one-screen split already encoded there.
 - **A gacha-style storyline** (Aj, idea — parked, ahead of netplay AI in the queue, not designed). Nothing
   specified yet. Worth noting that **v1.30.0 just built the substrate for it by accident**: a roster of 32
   named characters, grouped into five tiers, each with a distinct play style and a name that already flows
   through the whole naming funnel. A collection/progression layer has something to collect now.
-- **"Each jab is a cantrip"** (Aj, idea — parked, not designed). A **jab** (single-card play) would also do
-  something small on top of banking energy — the obvious reading being **draw a card**, MTG-style.
-  - **Why this is more interesting than it looks:** it is a **global draw engine**, and that is exactly the
-    thing the game measurably lacks. `node recyclesim.js` says only **39%** of games ever reach a reshuffle and
-    the median first one lands at **round 12**, *past* the median 11-round game — which is why the reorderable
-    energy pile is currently a niche lever. Jab-cantrips would raise cycling for **every** deck at once, so the
-    energy reorder, the shuffle pile, and reclaim effects all gain value without touching any of them. It is
-    the same need noted under *suit ≠ class* (a real draw engine), but solved as a **core rule** instead of a
-    card set.
-  - **Questions to settle first:** every jab or only a **winning** jab? Draw **1**, or a small choice (draw /
-    ramp / peek)? Both players, or only the one who played it? Round 1 is jabs-only — does that make the
-    opening explosive? And does it change what a jab *is for*, since today the honest reason to jab is "bank
-    energy and don't break a shield".
-  - **Cost to get a real answer: ~20-30 min, almost all of it the engine edit.** The measurement is nearly
-    free — timed on this machine: `recyclesim.js 400` **0.5s**, `analysis.js 130 on x knight` **7.1s**,
-    `mpsim.js 200 knight` **1.8s**. So a full before/after sweep is **under 20 seconds per build**. And the
-    engine already has this exact toggle pattern for sim experiments (`setShieldCards`, `setLoserMill`,
-    `setMillScope`, `setSpecialLossMode`, `setFormSuitMatch`), so add **`setJabCantrip(v)`** + a couple of lines
-    where a single-card play resolves, and the A/B is a flag flip in one process rather than two builds.
-    **Worth doing before any draw-engine work under *suit ≠ class* — it might make that unnecessary.**
-  - **Definitely measure, don't ship on feel:** this is a core-rule change, so run `analysis.js` before/after
-    for class win rates, `recyclesim.js` for the reshuffle rate it is meant to move, and `mpsim.js` for 3-6p.
-    Expect games to get **longer** and effect density to rise — the interesting risk is decking out sooner, in
-    the other direction.
-
 
 - **Player names** (Aj) — *the cheapest good thing left.* Let players type a name instead of `P2`/`P3`. Every
   naming site already funnels through a single **`logName(seat)`** (that was the point of doing D1 first), and
@@ -113,6 +254,61 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.0 — multiplayer scales with the table: shields, draw, and damage
+
+A 6-player game used to run **33 rounds against a duel's 11**, and the cause was structural: under
+`SPECIAL_LOSS_MODE='chosen'` + `MILL_SCOPE='targeted'` a Special win cost the table exactly **one** shield
+however many people were sitting at it, so total shields scaled with the player count while damage did not.
+Aj's diagnosis in play — *"three rounds in a row throwing jab after jab"* — was a symptom of the length, not an
+independent problem.
+
+Four changes, all of which **resolve to today's duel values at 2 players**, so a duel is unchanged:
+
+| | duel (2p) | 3p | 4p | 6p |
+| --- | --- | --- | --- | --- |
+| shields (`2 + numPlayers`) | **4** (unchanged) | 5 | 6 | 8 |
+| per-round draw (`= numPlayers`) | **2** (unchanged) | 3 | 4 | 6 |
+| `SPECIAL_LOSS_MODE` | `all` — no-op at 2p | every non-winner loses a shield | | |
+| `MILL_SCOPE` | `universal` — no-op at 2p | every non-winner mills | | |
+
+**Measured effect at 6 players:** median length **33 -> 15 rounds**, jab share of all plays **24% -> 10%**,
+and relative energy dispersion flattens (the richest-vs-poorest gap falls from 91% of the mean energy pool to
+72%, and stops scaling with table size). Options per turn stop collapsing as players are added — 4.5 / 4.1 /
+4.3 / 4.4 across 2/3/4/6p, where it used to fall 4.5 / 3.2 / 2.9 / 2.3.
+
+**And it is balance-neutral, settled at 10 runs per arm.** Spread 14.9 ±1.2 -> 15.2 ±0.7 at 6p, 14.2 ±0.9 ->
+12.6 ±0.8 at 4p, 13.8 ±0.7 -> 15.6 ±0.9 at 3p — nothing clears 2 s.e., and only 1 of 33 per-deck comparisons
+does, which is what chance predicts from 33. So this is a **pure pacing change**: it leaves the deck balance
+tuned across many versions alone. (Two earlier 3-run readings claimed a spread tightening at 4p/6p and a
+regression at 3p; both were noise. See PATCHNOTES 0g.)
+
+**The pairing choice was a coherence argument, not just a measurement.** `chosen`+`targeted` links punishment to
+compensation (hit one, pay that one); `all`+`universal` links them the other way (hit all, pay all). The
+mixture Aj spotted — one player hit, everyone paid — leaves the spared players strictly better off than the
+struck one on both axes, and was never a design worth shipping.
+
+**One real bug fixed on the way in:** the round banner read `E.DRAW_PER_ROUND`, the flat duel constant, so it
+would have announced *"Each player draws 2"* at a 6-player table that actually drew 6. Both that line and the
+round-card subtitle now ask `E.drawCountFor(state)`. The how-to-play goal line also hardcoded *"your Rival's 4
+shields"* — now scaled, and no longer singular. `E.startShieldsFor(n)` / `E.drawCountFor(st)` are exported
+precisely so nothing else reads the constants; two engine tests that hardcoded `4 - 1 = 3` now derive from the
+formula.
+
+**It broke the landscape layout, which is exactly why that suite exists.** Scaling shields means a 6-player
+game renders **eight** shield pips where there were four — in your own `#handMeta` *and* in every opponent
+panel. At the old 11px the row grew and cut the pile's clearance over the hand from ~17px to **3px** at
+667x375, failing `landscapetest`'s 8px-margin assertion consistently. Pips are now sized for the 8-pip case
+(8x8px + 2px gaps = 78px, and the row shrinks rather than forcing a wrap; 7x9px at the 340px floor). Back to
+64/0 across 3 runs. **This is the second time that 8px margin has earned its keep** — it was deliberately set
+above zero so an erosion fails outright instead of intermittently.
+
+*Observed once and not reproducing:* `landscapetest`'s "a 10-card hand scrolls" assertion at 568x320 failed in
+one run of five and passed in the rest. That case is a **duel**, so it cannot be caused by this change — it is
+either pre-existing timing or a genuinely marginal state. Worth watching; do not assume it is this commit.
+
+**Not shipped, still flagged:** the apex-2 rework (`setApexInfinity`, `setApexNoStrip`) — Aj is A/B-ing strip
+vs no-strip next. `setShieldsPerPlayer(false)` / `setDrawPerPlayer(false)` restore flat values for sims.
 
 ### v1.30.2 — the landscape FLOOR: 568x320 degrades to a scrolling board
 

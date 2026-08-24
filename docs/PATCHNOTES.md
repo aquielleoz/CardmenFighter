@@ -10,6 +10,285 @@ deck vs every other, ~7,150 games, Demon-strength AI, strict suit-cost).
 
 ## Balance Design Principles (the durable learnings)
 
+### 0g. Aj's package: scaling shields with the table is the middle ground. NOT SHIPPED. (2026-08-24)
+Three flags, all defaulting **OFF** — `setShieldsPerPlayer` (START_SHIELDS = 2 + numPlayers),
+`setDrawPerPlayer` (draw = numPlayers), `setApexInfinity`. Measured with `rulesim.js`,
+`median(max) rounds | jab % of plays | busiest-leader share`, 90 games per cell:
+
+| config | 2p | 3p | 4p | 6p |
+| --- | --- | --- | --- | --- |
+| A live (`chosen`+`targeted`, draw2, sh4) | 11 j27 L56 | 16 j34 L46 | 22 j29 L39 | **33 j24 L31** |
+| B symmetric (`all`+`universal`) | 11 j28 L56 | 10 j34 L48 | 10 j33 L41 | **9 j29 L35** |
+| C + shields 2+P | 11 j28 L56 | 12 j36 L44 | 13 j29 L38 | **16 j23 L29** |
+| D + draw=players | 11 j27 L56 | 11 j24 L46 | 12 j15 L39 | **15 j10 L31** |
+| E + apex-2 infinity | 12 j27 L56 | 15 j19 L45 | 21 j11 L37 | **35 j10 L32** |
+| F live + apex-2 | 12 j27 L56 | 19 j32 L46 | 30 j28 L40 | **48 j21 L31** |
+
+**Shields = 2 + players works exactly as intended.** The symmetric pairing alone overshoots (flat 9 rounds at
+6p); scaling the shield pool pulls it back to a gentle 11/12/13/16, so more players means a longer game without
+the live rules' 33-round balloon. **Duels are untouched** — 2p resolves to 4 shields, today's value.
+
+**Package D halves the jab problem.** Jab share at 6p falls **24% -> 10%**, at 15 rounds. That is Aj's original
+complaint ("three rounds in a row throwing jab after jab") measured and cut in half.
+
+**SETTLED 2026-08-25 at 10 runs per arm: the package is BALANCE-NEUTRAL at every player count.** Spread, mean
++/- standard error of the mean over 10 runs:
+
+| | live | C shields 2+P | D full package | H + apex unbeatable |
+| --- | --- | --- | --- | --- |
+| 6p | 14.9 +/-1.2 | 16.0 +/-0.8 | 15.2 +/-0.7 | 16.0 +/-1.0 |
+| 4p | 14.2 +/-0.9 | 14.3 +/-1.0 | 12.6 +/-0.8 | 14.3 +/-1.0 |
+| 3p | 13.8 +/-0.7 | 14.9 +/-1.0 | 15.6 +/-0.9 | 15.2 +/-1.2 |
+
+Nothing clears 2 s.e. **Both earlier 3-run readings were noise** — the "spread tightens 16.4 -> 13.6 at 6p" was
+really 14.9 -> 15.2, and the 3-player regression that looked like it might sink the package (13.8 -> 16.6) is
+13.8 -> 15.6 +/-1.1. Across all 33 per-deck comparisons exactly **one** clears 2 s.e. (Warlock +1.7 at 4p),
+which is what chance predicts from 33 comparisons, so there is no real per-deck movement either. The "bottom
+decks rise, top decks fall" pattern read off 3 runs did not survive.
+
+**This is the best available outcome for a change of this kind:** it moves length (33 -> 15 rounds at 6p), jab
+share (24% -> 10%) and energy dispersion, and leaves the deck balance — tuned across many versions — alone. A
+pure PACING change. The apex-2 fix is neutral here too, so it is free on balance as well as on length.
+
+**And it is a third strike for single-run readings.** Every 3-run balance claim made on 2026-08-24 has now been
+overturned by 10 runs. Treat 3 runs as a smoke test, not evidence.
+
+### 0h. Initiative concentration is invariant to every lever we have tried. (2026-08-24)
+The busiest leader's share of a game's rounds, against a fair share of 1/P, sits at **~1.8x at 6 players in all
+six configs above** (L29-L35) — including both apex-2 variants. (Those were measured for initiative because
+*we* were curious, not because the idea promised anything about it; see the correction below.) Winning a round
+with an unbeatable 2 does not distribute initiative — it changes *who* gets the streak, because `engine.js`
+~1685 still hands the next lead to the round winner.
+
+**So initiative concentration has exactly one cause and it will not fall out of a side lever.** If it is worth
+fixing, `st.initiative = winner` is the line to change — rotate the lead, or give it to a player who has led
+least recently. Everything else is a symptom.
+
+**On the apex-2 rework — and a correction worth keeping, because it is a mistake about how to read feedback.**
+This came from Aj's brother as **playtest feedback**, not as a proposed fix for anything. It was first written
+up here as "fails its own rationale (initiative)" — but that rationale was *ours*, invented and then attached
+to someone else's report so it could be scored against it. **Playtest feedback does not arrive with a
+hypothesis; it arrives with a feeling.** The job is to price it, not to grade it.
+
+Priced, then. What it costs: 6-player length roughly doubles (package 15 -> 35 rounds; live 33 -> 48), because
+an unbeatable-but-harmless play ends a round without draining a shield, and there are four 2s per deck. What it
+gives: jab share at 6p drops to 10%, though `draw=players` already achieves that at under half the length. What
+it does *not* do is spread initiative — but nobody claimed it would, and concentration averages could not see
+"I could seize the lead at a moment I chose" even if it did.
+
+**The motivating complaint, now recorded (Aj, 2026-08-24):** in the original **chikicha** the 2 is the outright
+peak. Here it is merely 15, and **boosts stack on top of `fightValue`** — a boosted Ace at 14+7 beats it, and Aj
+has run a +7 in a real game. So the apex is not an apex. That is wish #2 ("a 2 should be unbeatable"), not #1,
+and it makes the minimal fix **"no boost may exceed the apex"**.
+
+**Split in two, the proposal has a free half and an expensive half** (`rulesim.js`, configs G/H vs E/F):
+
+| 6-player median rounds | |
+| --- | --- |
+| A live | 33 |
+| **G live + apex unbeatable, still strips** | **34** |
+| F live + apex unbeatable, NO strip | 50 |
+| D Aj's package | 15 |
+| **H package + apex unbeatable, still strips** | **15** |
+| E package + apex unbeatable, NO strip | 38 |
+
+**Making the apex unbeatable is FREE** — 33 -> 34, and 15 -> 15. The whole length cost (+17 on live, +23 on the
+package) belongs to the **no-strip** half, because an unbeatable play that also deals no damage ends a round
+without progressing the game. So the half that answers the actual complaint costs nothing, and the half that
+does not is the only one that hurts. **Lesson: split a proposal into its independent parts before pricing it —
+bundled, this looked like an expensive idea, and the part that mattered was free.**
+
+Kept for reference, the other reading: "Plays with 2s should not
+strip shields" and "a 2 should be unbeatable" are two separate wishes, and they point at different fixes: the
+first sounds like *being crushed by an apex feels arbitrary*, the second like *the apex does not feel apex
+enough*. Variants worth trying once the actual complaint is known: only the FIRST 2 each round is unbeatable; a
+2 wins unbeatably **and** still strips (a true finisher); or playing a 2 as apex costs energy.
+
+
+### 0d. RE-TESTED: `MILL_SCOPE='universal'` is not the loser it was recorded as. (2026-08-24)
+Carried belief (from an earlier session): universal milling "opened a huge win-rate spread in multiplayer while
+targeted keeps the decks close", so the live game uses `'targeted'`. Re-measured with 3 runs per arm — mandatory
+now, see 0c — and it **does not reproduce**; the direction is the opposite at 3p and 6p:
+
+| spread (top-bottom), mean [min-max] | targeted (live) | universal |
+| --- | --- | --- |
+| 6p | 17.3 [12.1-22.1] | **12.9 [11.9-14.0]** |
+| 4p | **13.8 [11.0-15.6]** | 15.1 [12.0-17.9] |
+| 3p | 17.1 [10.9-21.6] | **12.6 [10.5-13.7]** |
+
+Note the *variance* as much as the means: targeted swings 10-11 points run to run, universal 2. And universal
+moves decks the way `MULTIPLAYER-DESIGN.md` always predicted it would — Pure Rogue 10.3 -> 13.1, Bard
+14.0 -> 16.9, Pure Cleric reined in 27.1 -> 24.8. Bottom up, top down: the "healthy economy" the design doc
+describes.
+
+**CORRECTION, same day — that comparison was the wrong one.** Aj: *"is that weird that everybody mills but not
+everybody loses a shield?"* It is, and it exposes that `chosen`+`universal` is an **incoherent corner** of a 2x2:
+one player eats the shield while all five get paid, so the spared players are strictly better off than the
+struck one on both axes. The coherent designs are:
+- **`chosen`+`targeted`** (live) — hit one, compensate that one. Punishment and consolation are linked.
+- **`all`+`universal`** (the engine's own defaults) — hit everyone, pay everyone.
+
+Re-run as coherent pairs, 3 runs each, they looked close with the symmetric one slightly tighter: spread 12.5
+vs 13.0 at 6p, 14.7 vs 18.0 at 4p, 15.4 vs 18.1 at 3p. **At 10 runs per arm (2026-08-25) even that difference
+vanishes** — see 0g, where `all`+`universal`+shields is 16.0 +/-0.8 against live's 14.9 +/-1.2 at 6p, i.e. no
+measurable difference. A 0.5-point gap read off 3 runs was never meaningful given a per-arm s.e. of ~1.0.
+So the original "universal opens a huge spread" claim is not reproduced, *and* neither is any tightening: the
+loss/mill pairing is a **length** lever, not a balance one. **Lesson: a balance finding has a shelf
+life — re-date it before reusing it to veto an idea — and check that the arm you are testing is a design
+someone would actually ship.**
+
+### 0f. The live loss/mill pairing is why a 6-player game runs 3x as long as a duel. (2026-08-24)
+Chasing Aj's shields question turned up the biggest number of the session. Median game length, 120 games each:
+
+| | live (`chosen`+`targeted`) | symmetric (`all`+`universal`) |
+| --- | --- | --- |
+| 6p | **33 rounds** (max 49) | **9** (max 14) |
+| 4p | 22 (max 36) | 10 (max 21) |
+| 3p | 15 (max 25) | 10 (max 19) |
+| 2p | 11 | 11 — identical; both modes are no-ops in a duel |
+
+Under the live pairing a special win costs the table exactly **one** shield no matter how many people are
+sitting at it, so total shields scale with player count while damage does not — game length balloons
+**11 -> 15 -> 22 -> 33**. Under the symmetric pairing damage scales with the table too, and length is **flat at
+~10 rounds** at every count, i.e. duel length.
+
+**This reframes the whole "jab after jab" complaint.** It is not primarily an initiative problem or an options
+problem: a 6-player game is simply **three times longer than the game the numbers are balanced around**, so the
+grind, the option starvation (`optionsim.js`) and the 1.6-1.9x initiative concentration all have three times as
+long to compound. Fix the length and several symptoms may go with it.
+
+Not shipped — this is a large rules change and 9 rounds may be too *short* for six players; the interesting
+question is whether something between the two corners (e.g. `all` scaled down, or `chosen` striking more than
+one shield as the table grows) lands at ~15-18 rounds. But **length, not balance, is the axis to argue about**,
+and the live setting was chosen without this number on the table.
+
+
+
+### 0e. Jab rounds are the grind, and their LENGTH is the lever — not the reward. (2026-08-24)
+Aj's complaint was "three rounds in a row throwing jab after jab". Measured (`optionsim.js`), plays per jab
+round rise with the table: **1.72 (2p) -> 2.79 -> 2.92 -> 3.12 (6p)**, while special rounds stay ~1.6-2.1. So
+jab rounds really are the long ones, and they get longer as players are added.
+
+Aj's own prediction about `DRAW_PER_ROUND = numPlayers` was half right, and the right half is the useful one:
+- **Confirmed:** jab rounds get **33% shorter** at 6p (3.12 -> 2.08) — at six players they collapse to exactly
+  the length of a special round (2.08 vs 2.09). More turns with *no legal play* is what shortens them, so that
+  metric is not purely a cost, which is how it was first read.
+- **Refuted:** he expected the energy gap between passers and contesters to *narrow* (fewer chances to pass).
+  It **widens**, 7.9 -> 10.3 cards, because everyone commits more cards per round overall.
+
+Also worth having on record: in the **shipped** game the energy gap already scales hard with table size —
+**3.0 / 5.2 / 6.1 / 7.9** cards (2p/3p/4p/6p) between richest and poorest living player. At six players the
+leader sits ~8 energy ahead, which compounds with the 1.6-1.9x initiative concentration. **Attack jab-round
+LENGTH, not the jab's payoff** — the cantrip failed precisely because it paid the jab instead of shortening it.
+
+
+### 0c. `mpsim` / `analysis` are NOT deterministic — never trust a single run. (2026-08-24)
+The **engine** takes a seeded rng; the **AI does not**. `ai.js` calls bare `Math.random()` in five places
+(`pickRandom`, the persona `grudge` roll, `FOCUS_LEAN`, `drawPersonas`). So the same command with the same seeds
+gives different answers. Measured, three consecutive `node mpsim.js 1200 knight` runs put Pure Cleric at
+**28.0% / 24.9% / 24.1%** in the 6-player table — a ~4-point spread on identical input, well beyond the ~2-point
+sampling error at 360 games per deck.
+
+This invalidated a conclusion in the very session that found it: a `DRAW_PER_ROUND = numPlayers` A/B looked like
+it tightened the 6-player spread from 18.5 to 14.4 points, but the 18.5 baseline was simply a high outlier and
+the "improvement" sat inside run-to-run noise.
+
+**So:** for any per-deck claim, run each arm **3+ times and compare ranges**, or seed the AI. Prefer a
+**within-game paired** design where possible — `passsim.js` and `personasim.js` both put the arms in the *same*
+games, which cancels this entirely and is why their numbers are trustworthy at one run. `personasim.js` also has
+a `control` mode that measures the noise floor directly; there is no equivalent for `mpsim` yet.
+
+
+### 0a. The binding constraint is OPTIONS, not cards. Check which resource is scarce before tuning it. (2026-08-24)
+Two card-economy experiments in a row measured inert — the **jab cantrip** (below) and making the AI's
+**strategic pass** work in multiplayer (`passsim.js`). Same reason, and `optionsim.js` names it:
+
+| | hand size | legal plays/turn | turns with NO legal play | following a pile: stuck |
+| --- | --- | --- | --- | --- |
+| 2p | 7.6 | 4.5 | 40% | 67% |
+| 3p | 7.6 | 3.2 | 50% | 68% |
+| 4p | 8.1 | 2.9 | 56% | 73% |
+| **6p** | **8.7** | **2.3** | **65%** | **79%** (82% facing a Special) |
+
+**Hand size RISES with player count while legal plays FALL.** A 6-player hand is *fuller* than a duel hand and
+has *half* the options; when you are not leading you average **0.5 legal plays** and are stuck **79%** of turns.
+With more players the pile is raised several times before it reaches you, so the bar is higher and fewer of your
+cards qualify. That is the shape-and-value rule biting, not scarcity. **A full hand with no legal play is
+functionally an empty hand.**
+
+Corroborated from the other side by `passsim.js`: hands sit **at** the 10-card `MAX_HAND` cap **43% (4p) to 53%
+(6p)** of the time, within one of it 55-65%. So conserving cards buys cards you would discard anyway, and
+drawing extra cards is gated off by the cap. **Any future card-economy lever will also measure inert** until
+the cap or the draw rate moves. Aj's "jab after jab" was never a strategy choice — it was the absence of
+choices.
+
+The lever that would actually bite is **options**: e.g. letting a bigger shape answer a smaller one at a cost,
+so a full house is not dead against a pair. Untested.
+
+### 0b. The energy economy pays for PARTICIPATION; initiative pays for WINNING. (2026-08-24)
+Traced card by card through the engine on a real line Aj described. Energy gained in a round is simply **cards
+committed** — a played card goes hand→energy, a milled card goes deck→energy:
+
+- Aj passes twice while two opponents trade jabs → **Aj 1, opp1 3, opp2 2** (opp1 committed two plays plus a
+  mill; opp2 won so it never mills).
+- Aj instead **un-passes and wins** the jab round → **Aj 1, opp1 3, opp2 2**. *Identical.*
+
+So **the winner of a jab round banks the least** (just the card it played) while a player who contested twice
+and lost banks three. Winning buys **initiative**, not energy. Two currencies pulling opposite ways, and
+"passing is a tempo loss" is not quite right: passing is energy-**neutral** and swaps deck depletion for hand
+depletion. Its real cost is the initiative, which compounds (see `NEXT-SESSION.md`).
+
+**Do not re-run `MILL_SCOPE='universal'`** as a fix for this. Aj: already measured in a previous session —
+`'targeted'` won, because universal milling opened a large win-rate spread in multiplayer while targeted keeps
+the decks close.
+
+
+### 0. A free bonus on the BORING action makes the boring action mandatory. (2026-08-23)
+Tested and **rejected**: *"each jab is a cantrip"* — a single-card play also draws a card. The measurements
+were fine and the change still failed, which is the interesting part.
+
+**What it did (1500 / 1300 / 660-game A/Bs, flag in `play()` gated on `MAX_HAND`):**
+
+| | off | on |
+| --- | --- | --- |
+| games that reshuffle at all | 36% | **42%** |
+| median round of first reshuffle | 13 | **11** |
+| reshuffles per game | 0.38 | 0.44 |
+| longest game | 28 rounds | 20 rounds |
+| duel win-rate spread | 12.3 pts | **11.3 pts** |
+| Full Set (the default deck) | 46.7% (#10) | **49.5% (#7)** |
+| Quick responses | 4217 | 4396 (+4.2%) |
+
+So it did what it was designed to do: cycling up, spread tighter, the long tail gone, and the **default deck
+moved toward fair**. Free-for-all was neutral, every deck inside noise.
+
+**Why it was rejected anyway — three reasons, and the third is the real one:**
+
+1. **It cannibalised an entire archetype.** The six biggest cast-rate declines in the whole card set were
+   *exactly the six draw cards* (Hand-to-Hand Mastery −0.05, Back to the Books −0.04 with win% 60.0→56.1, Pray
+   for Guidance, Prepare for Combat, Superior Training, Never Out of Options). Paying a card **and** energy for
+   "draw a card" is bad when jabs do it free. **Any free effect prices out the cards that sell that effect.**
+2. **Card advantage is a tempo tax.** Pure Fighter fell 52.4% → 47.2% (#3 → #9) — the only real loser — while
+   the value/utility decks rose (Warlock +2.8, Full Set +2.8, Mage Knight +2.4). When everyone can afford to
+   hold an answer, the deck whose edge is closing fast loses that edge. Expect this from *any* global draw.
+3. **It subsidised the least interesting action in the game.** A playtester had already said jabs were boring,
+   and Aj hit the reason in play: with 3+ players you jab over and over because you cannot get the initiative
+   to lead your own special, and you will not break a full house to answer a pair. The correct line is often to
+   **pass**. So the common exchange is already jab-versus-passes — and paying players to jab makes the boring
+   line *more* attractive. **Check what an incentive rewards, not just what it balances.** A change can pass
+   every metric and still push play toward the part of the game nobody enjoys.
+
+The root cause it exposed is recorded as an open item in `NEXT-SESSION.md`: **the round winner keeps the
+initiative** (`engine.js` ~1685, `st.initiative = winner`), and the game has card catch-up but **no initiative
+catch-up**. Fix that and jabs may stop being the default action on their own — without paying anyone to throw
+them.
+
+Re-testing this or a variant is ~15 minutes: a `JAB_CANTRIP` flag beside `MAX_HAND`, one line in `play()` after
+the cards move to energy (`combo.size === 1 && pl.hand.length < MAX_HAND`), `cantrip` on the play result, and a
+`cantrip`/`nocantrip` arg in `analysis.js` / `mpsim.js` / `recyclesim.js`. Narrower variants worth measuring if
+it ever comes back: draw only on a **leading** jab, only when the jab **wins**, or **once per round**.
+
+
 ### 1. To move a DECK, nerf its workhorse — not its flashy top-end.
 A deck's win rate is driven by its **high-cast-rate** cards, not its splashy finishers.
 Cards that only cast ~0.1 times per game cannot move a deck's overall win rate no matter

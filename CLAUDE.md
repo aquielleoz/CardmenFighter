@@ -70,6 +70,10 @@ node analysis.js 130 on      # class round-robin — args: N catchup recycle dif
 node mpsim.js                # 3/4/6p free-for-all — args: games difficulty
 node recyclesim.js 400       # how often a game reaches the reshuffle (deck-cycling pressure)
 node personasim.js 150 demon  # AI persona parity — args: gamesPerRotation tier [control]
+node passsim.js 200 6 knight  # strategic-pass study + initiative concentration — args: games players tier thresh mode
+node optionsim.js             # legal plays per turn by player count — the OPTIONS-vs-cards measurement
+node rulesim.js               # rule-config sweep: game length / jab share / initiative, by player count
+node roundsim.js              # share of ROUNDS decided by a jab vs a Special, by tier and player count
 node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — RUN IT after any card
                              # name/cost/text change, or the published card list silently goes stale
 ```
@@ -262,7 +266,13 @@ comments and test names still *say* "REWORK:" as a label; that's just naming, no
   special win is the **Fighter Kick**.
 - Energy: activation cost = the card's number (`activationCost`); A costs 1, J/Q/K cost a flat
   `TRANSFORM_COST` into the Forms & Rides zone, and the apex 2 has no activated effect.
-- Defaults: `START_SHIELDS=4`, `START_HAND=6`, `DRAW_PER_ROUND=2`, `MAX_HAND=10`.
+- Duel defaults: `START_SHIELDS=4`, `START_HAND=6`, `DRAW_PER_ROUND=2`, `MAX_HAND=10`.
+- **3-6 players SCALE WITH THE TABLE (v1.31.0):** shields = **2 + numPlayers**, per-round draw = **numPlayers**,
+  and a Special win uses `SPECIAL_LOSS_MODE='all'` + `MILL_SCOPE='universal'` — hit everyone, pay everyone.
+  **All four resolve to the duel values at 2 players, so a duel is byte-identical to before.** Read the scaled
+  values with **`E.startShieldsFor(n)` / `E.drawCountFor(st)`** — the bare constants are duel values, and reading
+  `E.DRAW_PER_ROUND` in the UI is what made the round banner announce "draws 2" at a 6-player table that drew 6.
+  `setShieldsPerPlayer(false)` / `setDrawPerPlayer(false)` restore flat values for A/B.
 
 ## Conventions
 
