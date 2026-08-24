@@ -67,6 +67,23 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **Rogue "slash": an on-demand card that LOWERS the current pile's value** (Aj, 2026-08-25 — filed for when
+  Rogue needs a boost in balancing; nothing built). Distinct from Caltrops, which is a standing `oppDelta` debuff
+  on opponents' cards. Aj's example: pile is a boosted pair of 4s at effective 6, you hold a pair of 5s; a
+  "slash 2" drops the pile to 4 and your 5s become legal. The engine already has the hook — `st.pile.mod`,
+  folded in by `refreshPile()`.
+  - **Measured support (`stucksim.js`):** at 6 players every deck is stuck on ~85% of following turns, and
+    **62-72% of those are VALUE-stuck** (right shape, too low) rather than shape-stuck. Pure Rogue is **68%
+    value-stuck, the LEAST shape-blocked deck (32%)**, and has the highest share of **deficit-of-one** losses
+    (14%) — it misses by a single point more than anyone. A slash-2 would convert roughly **24% of Rogue's stuck
+    turns into plays** (~20% of its following turns), against a current 7.2 plays per game.
+  - **It is not a Rogue-specific problem.** Every deck is 62-72% value-stuck and a slash-2 would unlock 19-24%
+    for any of them, so this works as a *card* (only Rogue holds it) rather than as a fix for a Rogue weakness.
+    Rogue benefits slightly more than average, and benefits most from the cheap slash-1.
+  - **Corrects an earlier claim:** Rogue's problem was described as "shape, not economy". It is **value**.
+  - Also noted: **Caltrops is stronger in multiplayer than its text says.** `equipDelta` sums `oppDelta` across
+    *every* opponent, so one Caltrops is -2 to all five at a six-player table. Its text reads "the Rival's
+    highest card" (duel wording) and undersells it.
 - **A count-up "charge" CLASS** (Aj, 2026-08-25 — his current lean; nothing built). Full analysis in
   **[`docs/COUNT-UP-DESIGN.md`](COUNT-UP-DESIGN.md)**, which came out of his brother asking why the game has
   shields at all and proposing "Kick Coins" — a count-up replacing them wholesale. Aj's landing point: not a
@@ -268,6 +285,46 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.3 — per-round draw scales with the table (draw = numPlayers)
+
+The one piece of the reverted v1.31.0 package that measures clean, shipped **on its own**. Shields stay flat at
+4, `SPECIAL_LOSS_MODE` stays `'chosen'`, `MILL_SCOPE` stays `'targeted'`, apex stays off.
+
+| | 2p | 3p | 4p | 6p |
+| --- | --- | --- | --- | --- |
+| per-round draw | **2** (unchanged) | 3 | 4 | 6 |
+
+**What it buys:** jab share of all plays falls **22% -> 8%** at six players and **29% -> 12%** at four — Aj's
+original complaint, *"three rounds in a row throwing jab after jab"*, cut by two thirds. It also flattens
+player-to-player energy inequality, which otherwise *worsens* with table size: richest-vs-poorest goes from
+**108% of the pool to 83%** at 6p (43 s.e., 10 runs per arm).
+
+**What it does not buy:** length barely moves, 33 -> 31 rounds at 6p. The length win in the reverted package came
+from `loss='all'`, not the draw. Same number of rounds, each more decisive.
+
+**Balance: neutral.** Deck spread +0.3 / +0.8 / -1.6 at 6/4/3p, nothing clearing noise, 10 runs per arm with the
+config self-checked behaviourally on every run. **Duels are a mechanical no-op** (`max(2, numPlayers) = 2`),
+verified by reading the engine back rather than inferred.
+
+**Two costs, measured and accepted:**
+- **Deck energy spread widens 2.6 -> 4.6 cards** at 6p. Investigated: nobody draws more — the draw is uniform.
+  Energy is a *balance* of inflow (cards committed by fighting) minus outflow (activations), and extra cards
+  amplify the difference between decks that convert cards into energy and decks that do not. Pure Rogue banks
+  least because it *commits* least (28 cards played vs Cleric's 54); Pure Wizard is second-lowest for the
+  opposite reason — it commits as much as Cleric but *spends* most (19.2 activations). Pile size measures
+  hoarding, not strength, which is why this never surfaced as a win-rate effect.
+- **Initiative concentration** reads 1.8x -> 2.1x from `rulesim`. **UNVERIFIED and possibly wrong:** a separate
+  run says draw=N makes the round leader *win less* (43% -> 38% at 6p), which should rotate initiative more, not
+  less. Both cannot be true. Do not build on either until reconciled.
+
+**Two UI bugs fixed with it,** both restored by the revert: the round banner read `E.DRAW_PER_ROUND` (the duel
+constant) and would have announced *"Each player draws 2"* at a six-player table drawing 6, and the round-card
+subtitle hardcoded the same string. Both now ask `E.drawCountFor(state)`. Verified in the built page — a duel
+says "draws 2", a 3-player game says "draws 3".
+
+**New harness `node stucksim.js [players] [games]`** — splits stuck-while-following turns into SHAPE-stuck vs
+VALUE-stuck. Built to test Aj's Rogue "slash" idea; see BACKLOG.
 
 ### v1.31.2 — REVERT of the MP scaling package: it broke deck balance
 

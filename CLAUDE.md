@@ -76,6 +76,7 @@ node passsim.js 200 6 knight   # strategic-pass study + initiative concentration
 node optionsim.js             # legal plays per turn by player count — the OPTIONS-vs-cards measurement
 node rulesim.js               # rule-config sweep: length / jab share / initiative, by player count
 node roundsim.js              # share of ROUNDS decided by a jab vs a Special, by tier and player count
+node stucksim.js 6 150        # stuck-while-following turns split into SHAPE-stuck vs VALUE-stuck
 node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — RUN IT after any card
                              # name/cost/text change, or the published card list silently goes stale
 ```
@@ -279,6 +280,10 @@ comments and test names still *say* "REWORK:" as a label; that's just naming, no
 - Energy: activation cost = the card's number (`activationCost`); A costs 1, J/Q/K cost a flat
   `TRANSFORM_COST` into the Forms & Rides zone, and the apex 2 has no activated effect.
 - Defaults: `START_SHIELDS=4`, `START_HAND=6`, `DRAW_PER_ROUND=2`, `MAX_HAND=10`.
+- **The per-round DRAW scales with the table (v1.31.3): `= numPlayers`** — 2 in a duel, 6 at six players.
+  Shields stay flat 4 at every count. Read the draw with **`E.drawCountFor(st)`**, never `E.DRAW_PER_ROUND`
+  (the duel value) — reading the constant in the UI is what made the round banner announce "draws 2" at a table
+  drawing 6, twice.
 
 ## Conventions
 

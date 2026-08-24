@@ -1135,9 +1135,9 @@
  *   - Straights: 5-card windows over fight value, lo 3..11 → 3-4-5-6-7 (lowest)
  *     .. J-Q-K-A-2 (highest); no wrap.
  *   - Duel: START_SHIELDS=4 each, START_HAND=6, DRAW_PER_ROUND=2, MAX_HAND=10.
- *   - Those are the values at EVERY player count. The v1.31.0 scaling package (shields 2+numPlayers, draw =
- *     numPlayers, loss 'all', mill 'universal') was REVERTED in v1.31.2: it fixed pacing but broke deck
- *     balance badly (PATCHNOTES 0j). The scaling remains behind setShieldsPerPlayer()/setDrawPerPlayer() for
+ *   - Shields are flat at every player count. The per-round DRAW scales: = numPlayers (v1.31.3), so 2 in a duel
+ *     and 6 at a six-player table. The rest of the v1.31.0 package (shields 2+numPlayers, loss 'all', mill
+ *     'universal') was REVERTED in v1.31.2 — it broke deck balance badly (PATCHNOTES 0j); only the draw came back. The scaling remains behind setShieldsPerPlayer()/setDrawPerPlayer() for
  *     A/B only. Read values via startShieldsFor(n)/drawCountFor(st) regardless — the UI must never read the
  *     bare constants, which is how a round banner once announced "draws 2" at a table drawing 6.
  *     A round is draw → one player leads → the fight is a trick; the last
@@ -1323,7 +1323,10 @@
    * free-for-all, so the extra draw largely converts into SELECTION (you see more of your deck and keep the
    * best 10) and into CYCLING (the surplus is discarded to energy each round). Both plausibly raise option
    * quality without raising hand size. Measure with optionsim / recyclesim / mpsim. */
-  var DRAW_PER_PLAYER = false;        // OFF: reverted with it — not the culprit, but part of the same package.
+  var DRAW_PER_PLAYER = true;         // ON (v1.31.3): per-round draw = numPlayers. Measured on the live baseline:
+                                      // jab share at 6p 22% -> 8%, deck balance neutral at 10 runs per arm, and a
+                                      // mechanical no-op at 2 players (max(2,2)=2), so duels are untouched.
+                                      // Shipped ALONE — shields stay flat, loss stays 'chosen', mill 'targeted'.
   function setDrawPerPlayer(v) { DRAW_PER_PLAYER = !!v; }
   function isDrawPerPlayer() { return DRAW_PER_PLAYER; }
   function drawCountFor(st) { return DRAW_PER_PLAYER ? Math.max(DRAW_PER_ROUND, st.numPlayers) : DRAW_PER_ROUND; }
@@ -5854,7 +5857,9 @@ window.CardFace = {};
     /* One neutral line for everyone (Aj's wording), instead of "You draw 2, Rival draws 2" — which could not
      * be phrased for 3-6 seats and named the wrong player in a free-for-all. Per-seat detail that actually
      * matters (your own fizzle) still follows. */
-    var per=(E.DRAW_PER_ROUND!=null)?E.DRAW_PER_ROUND:2;
+    // The per-round draw SCALES with the table (= numPlayers since v1.31.3), so ask the engine.
+    // E.DRAW_PER_ROUND is the DUEL value and would announce "draws 2" at a six-player table drawing 6.
+    var per=(E.drawCountFor&&state)?E.drawCountFor(state):((E.DRAW_PER_ROUND!=null)?E.DRAW_PER_ROUND:2);
     say(null, '<b>Round '+rn+'</b> begins. Each player draws '+per+'.', 'round');
     if(res.draws && res.draws[YOU]===0) logMsg('Draw fizzled — your deck &amp; shuffle pile are empty. Spend energy on effects to recycle cards back into your deck.', 'warn');
   }
@@ -5878,7 +5883,8 @@ window.CardFace = {};
     if(res.opening) return 'Jabs only';
     if(res.draws && res.draws[YOU]===0) return 'Deck empty — spend energy to recycle';
     if(res.newRound===2) return 'Specials unlocked!';
-    return 'Each player draws 2 cards';
+    var nDraw=(E.drawCountFor&&state)?E.drawCountFor(state):2;   // scales with the table — never hardcode it
+    return 'Each player draws '+nDraw+(nDraw===1?' card':' cards');
   }
   /* The between-rounds ceremony beats. This was the THIRD site deriving the loser as "whichever of YOU/RIVAL
    * didn't win" (Aj caught it after v1.29.6 fixed the other two): with P2 beating P3, `youWon` is false, so

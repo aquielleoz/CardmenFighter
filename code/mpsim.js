@@ -9,20 +9,50 @@ var AI = require('./ai.js');
  * arms that were supposed to differ ran the IDENTICAL config and duly measured no difference. The header line
  * below is the guard: if the printed config is not the config you asked for, the numbers are worthless.
  * Usage: node mpsim.js [games] [diff] [flags...]
- *   flags: mill=universal|targeted   loss=all|chosen   apex   nostrip   noshp   nodpp   cantrip
- *   defaults are the SHIPPED game: mill=universal loss=all, shields 2+P on, draw=N on, apex off. */
+ *   flags: mill=universal|targeted  loss=all|chosen  shp (shields 2+N)  dpp (draw=N)  apex  nostrip
+ *   Defaults = the LIVE game: loss=chosen mill=targeted, flat shields, flat draw, apex off.
+ *   Every run prints CONFIG and then a behavioural SELF-CHECK; if the self-check fails the run aborts. */
 var FLAGS = process.argv.slice(4).join(' ').toLowerCase();
 function flag(name){ return FLAGS.indexOf(name) >= 0; }
 function opt(name, dflt){ var m = FLAGS.match(new RegExp(name + '=([a-z]+)')); return m ? m[1] : dflt; }
-var MS = (opt('mill','universal') === 'targeted') ? 'targeted' : 'universal';
-var LM = (opt('loss','all') === 'chosen') ? 'chosen' : 'all';
-var SHP = !flag('noshp'), DPP = !flag('nodpp'), APEX = flag('apex'), NOSTRIP = flag('nostrip');
+/* Defaults are the LIVE game as set in CardmenFighter.template.html (~1136): loss='chosen', mill='targeted',
+ * and the engine's own flat shields/draw. They previously defaulted to the v1.31.0 package, which meant a bare
+ * run measured a ruleset the game does not use — the same class of error that shipped that package. */
+var MS = (opt('mill','targeted') === 'universal') ? 'universal' : 'targeted';
+var LM = (opt('loss','chosen') === 'all') ? 'all' : 'chosen';
+var SHP = flag('shp'), DPP = flag('dpp'), APEX = flag('apex'), NOSTRIP = flag('nostrip');   // opt IN, not out
 E.setShieldCards(true); E.setLoserMill(true);
 E.setSpecialLossMode(LM); E.setMillScope(MS);
 E.setShieldsPerPlayer(SHP); E.setDrawPerPlayer(DPP);
 E.setApexInfinity(APEX); E.setApexNoStrip(NOSTRIP);
 console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' drawN=' + DPP +
             ' apex=' + (APEX ? (NOSTRIP ? 'unbeatable+nostrip' : 'unbeatable') : 'off'));
+
+/* SELF-CHECK — prove the config took EFFECT, behaviourally. Echoing the flags back is not enough: the flags
+ * were right and the parser was wrong, so every arm of a 40-run study silently ran the same rules. This probes
+ * the three things the flags are supposed to change and prints what the engine actually does. */
+(function selfCheck(){
+  var probe = E.newGame(null, { numPlayers: 4 });
+  var shields = probe.players[0].shields, draw = E.drawCountFor(probe);
+  // force a Special win by seat 0 in a 4-player game and count how many opponents actually lose a shield
+  var g = E.newGame(null, { numPlayers: 4 }), i;
+  g.round = 3; g.pile = null; g.turn = 0; g.passes = 0;
+  var mk = function (r, su) { return { rank: r, suit: su, id: 'chk' + r + su }; };
+  g.players[0].hand = [mk(9, 'H'), mk(9, 'D')];
+  for (i = 1; i < 4; i++) g.players[i].hand = [mk(3, 'S')];
+  var before = [g.players[1].shields, g.players[2].shields, g.players[3].shields];
+  var pr = E.play(g, 0, [mk(9, 'H'), mk(9, 'D')]);
+  for (i = 1; i < 4 && !g.finished; i++) { if (g.turn === i) E.pass(g, i); }
+  if (g.pendingLossChoice) E.chooseLossTarget(g, g.pendingLossChoice.cands ? g.pendingLossChoice.cands[0] : 1);
+  var after = [g.players[1].shields, g.players[2].shields, g.players[3].shields];
+  var struck = before.filter(function (v, k) { return after[k] < v; }).length;
+  console.log('SELF-CHECK (4p): shields=' + shields + ' (expect ' + (SHP ? 6 : 4) + ')   draw=' + draw +
+              ' (expect ' + (DPP ? 4 : 2) + ')   opponents struck by one Special=' + struck +
+              ' (expect ' + (LM === 'all' ? 3 : 1) + ')' +
+              (pr && pr.ok ? '' : '   [probe play failed: ' + (pr && pr.reason) + ']'));
+  var bad = (shields !== (SHP ? 6 : 4)) || (draw !== (DPP ? 4 : 2)) || (struck !== (LM === 'all' ? 3 : 1));
+  if (bad) { console.log('*** SELF-CHECK FAILED — the config did not take effect. These numbers are worthless. ***'); process.exit(3); }
+})();
 
 var DIFF = (process.argv[3] || 'fighter');
 var POOL = [null].concat(E.DECK_ORDER);              // null = Full Set
