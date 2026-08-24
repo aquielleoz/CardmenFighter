@@ -25,9 +25,10 @@ E.setShieldCards(true); E.setLoserMill(true);
  * complaint: boosts can currently exceed the apex) | 'nostrip' = infinity AND no shield strip (the literal
  * proposal). Split because the length cost belongs to the no-strip half. */
 var CFG=[
- ['A BASELINE (live: chosen/targeted, flat 4, draw 2)', 'chosen','targeted', false,false,''],
- ['B  + draw = numPlayers  (the ship candidate)',       'chosen','targeted', false,true, ''],
- ['C  + loss = all, for reference',                     'all','targeted',    false,false,'']
+ ['A LIVE baseline (chosen, flat 4, draw=N)',        'chosen','targeted', false,true, ''],
+ ['B  + loss = all           (flat 4 shields)',      'all','targeted',    false,true, ''],
+ ['C  + loss = all + shields 2+N',                   'all','targeted',    true, true, ''],
+ ['D  loss = chosen + shields 2+N (for contrast)',   'chosen','targeted', true, true, '']
 ];
 function run(loss,mill,sh,dp,ap,P,n){
   E.setSpecialLossMode(loss); E.setMillScope(mill); E.setShieldsPerPlayer(sh); E.setDrawPerPlayer(dp);

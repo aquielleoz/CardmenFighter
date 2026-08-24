@@ -20,13 +20,21 @@ function opt(name, dflt){ var m = FLAGS.match(new RegExp(name + '=([a-z]+)')); r
  * run measured a ruleset the game does not use — the same class of error that shipped that package. */
 var MS = (opt('mill','targeted') === 'universal') ? 'universal' : 'targeted';
 var LM = (opt('loss','chosen') === 'all') ? 'all' : 'chosen';
-var SHP = flag('shp'), DPP = flag('dpp'), APEX = flag('apex'), NOSTRIP = flag('nostrip');   // opt IN, not out
+/* Flags default to the ENGINE'S OWN current values, not hardcoded ones. Hardcoding drifted twice: once after
+ * v1.31.0 shipped, and again after v1.31.3 shipped draw=N — each time leaving the "baseline" arm measuring a
+ * ruleset the game no longer used. `shp`/`dpp` force on, `noshp`/`nodpp` force off. */
+var SHP = flag('noshp') ? false : (flag('shp') || E.isShieldsPerPlayer());
+var DPP = flag('nodpp') ? false : (flag('dpp') || E.isDrawPerPlayer());
+var APEX = flag('apex'), NOSTRIP = flag('nostrip');
+var DALL = flag('damageall') || flag('hostileall');   // Critical Hit / Ultima Attack -> all rivals
+var LALL = flag('lockoutall') || flag('hostileall');  // Back Stab -> all rivals
 E.setShieldCards(true); E.setLoserMill(true);
 E.setSpecialLossMode(LM); E.setMillScope(MS);
 E.setShieldsPerPlayer(SHP); E.setDrawPerPlayer(DPP);
-E.setApexInfinity(APEX); E.setApexNoStrip(NOSTRIP);
+E.setApexInfinity(APEX); E.setApexNoStrip(NOSTRIP); E.setDamageAll(DALL); E.setLockoutAll(LALL);
 console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' drawN=' + DPP +
-            ' apex=' + (APEX ? (NOSTRIP ? 'unbeatable+nostrip' : 'unbeatable') : 'off'));
+            ' apex=' + (APEX ? (NOSTRIP ? 'unbeatable+nostrip' : 'unbeatable') : 'off') +
+            ' damageAll=' + DALL + ' lockoutAll=' + LALL);
 
 /* SELF-CHECK — prove the config took EFFECT, behaviourally. Echoing the flags back is not enough: the flags
  * were right and the parser was wrong, so every arm of a 40-run study silently ran the same rules. This probes
@@ -50,7 +58,26 @@ console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' draw
               ' (expect ' + (DPP ? 4 : 2) + ')   opponents struck by one Special=' + struck +
               ' (expect ' + (LM === 'all' ? 3 : 1) + ')' +
               (pr && pr.ok ? '' : '   [probe play failed: ' + (pr && pr.reason) + ']'));
-  var bad = (shields !== (SHP ? 6 : 4)) || (draw !== (DPP ? 4 : 2)) || (struck !== (LM === 'all' ? 3 : 1));
+  // hostileAll is checked behaviourally too: cast Critical Hit and count how many rivals actually lose a shield
+  var hg = E.newGame(null, { numPlayers: 4 }), hk = function (r, su) { return { rank: r, suit: su, id: 'sc' + r + su }; };
+  hg.round = 3; hg.turn = 0; hg.pile = null;
+  hg.players[0].hand = [hk(9, 'S'), hk(13, 'S'), hk(5, 'S'), hk(6, 'S')];
+  hg.players[0].energy = []; for (i = 0; i < 9; i++) hg.players[0].energy.push(hk(4, 'S'));
+  var hb = [hg.players[1].shields, hg.players[2].shields, hg.players[3].shields];
+  E.activate(hg, 0, 'sc9S', { target: 1, pitch: 'sc13S' });
+  var ha = [hg.players[1].shields, hg.players[2].shields, hg.players[3].shields];
+  var hStruck = hb.filter(function (v, k) { return ha[k] < v; }).length;
+  // and Back Stab separately, since the two halves are now independent flags
+  var bg = E.newGame(null, { numPlayers: 4 });
+  bg.round = 3; bg.turn = 0; bg.pile = null;
+  bg.players[0].hand = [hk(10, 'S'), hk(5, 'S'), hk(6, 'S')];
+  bg.players[0].energy = []; for (i = 0; i < 12; i++) bg.players[0].energy.push(hk(4, 'S'));
+  E.activate(bg, 0, 'sc10S', { target: 1 });
+  var bLock = [1, 2, 3].filter(function (q) { return bg.players[q].lockSkip; }).length;
+  console.log('SELF-CHECK hostile: Critical Hit struck ' + hStruck + ' (expect ' + (DALL ? 3 : 1) +
+              '), Back Stab locked ' + bLock + ' (expect ' + (LALL ? 3 : 1) + ')');
+  var bad = (shields !== (SHP ? 6 : 4)) || (draw !== (DPP ? 4 : 2)) || (struck !== (LM === 'all' ? 3 : 1)) ||
+            (hStruck !== (DALL ? 3 : 1)) || (bLock !== (LALL ? 3 : 1));
   if (bad) { console.log('*** SELF-CHECK FAILED — the config did not take effect. These numbers are worthless. ***'); process.exit(3); }
 })();
 

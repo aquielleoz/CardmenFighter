@@ -1115,8 +1115,10 @@
       case 'onWin':                                       // Finishing Blow: your next combo win strips an extra shield
         pl.finishingBlow = true; spendCard(pl, card); break;
       case 'lockout':                                     // Back Stab: the target skips their NEXT turn (no fights, no Techniques)
-        st.players[oppIdx].lockSkip = true;
-        if (eff.lockRound) st.players[oppIdx].lockRound = true;   // Perseus / Hermes: skip the WHOLE round
+        hostileTargets(st, p, oppIdx, 'lockout').forEach(function (t) {
+          st.players[t].lockSkip = true;
+          if (eff.lockRound) st.players[t].lockRound = true;      // Perseus / Hermes: skip the WHOLE round
+        });
         spendCard(pl, card); break;
       case 'equip':
         pl.equipment.push({
@@ -1175,7 +1177,9 @@
         }
         spendCard(pl, card); break;
       case 'destroyShield':                               // Ultima Attack / Critical Hit: the target already got a response window vs this technique (spring Leyline there); the loss itself no longer opens a second guard window
-        st.stack.push({ oid: newOid(st), kind: 'shieldloss', target: oppIdx, n: (eff.n || 1), winner: p, source: eff.name, noKick: true, noGuard: true });
+        hostileTargets(st, p, oppIdx, 'damage').forEach(function (t) {
+          st.stack.push({ oid: newOid(st), kind: 'shieldloss', target: t, n: (eff.n || 1), winner: p, source: eff.name, noKick: true, noGuard: true });
+        });
         spendCard(pl, card); break;
       case 'counter':                                     // proactively cast Counter Spell with nothing on the stack to counter — fizzles
         spendCard(pl, card); break;
@@ -1621,6 +1625,30 @@
   // ---- N-PLAYER round-resolution toggles (both are no-ops at numPlayers===2) ----
   // SPECIAL_LOSS_MODE: on a Special win, 'all' = every non-winner loses a shield; 'chosen' = winner strips one rival.
   // MILL_SCOPE: 'universal' = all non-winners mill each round; 'targeted' = only the struck rival(s) mill.
+  /* HOSTILE_ALL (Aj, 2026-08-25): the targeted offensive techniques hit EVERY living rival instead of one —
+   * Critical Hit and Back Stab (Rogue), Ultima Attack (Fighter). The idea pairs with SPECIAL_LOSS_MODE='all':
+   * if a Special win costs every opponent a shield, then a card that emulates a Special hit should scale with
+   * the table the same way. It lands on exactly the three decks that `all` massacres — Rogue, Fighter, and
+   * Berserker (Fighter+Rogue) — because those are the classes whose whole kit is offensive and who own no
+   * shield protection at all. Flagged so it can be A/B'd against `all` alone.
+   *
+   * SPLIT into two flags (2026-08-25) because they are not the same size of effect. Measured together, Fighter
+   * (Ultima Attack only) gained +0.8 while Rogue (Critical Hit AND Back Stab) gained +11.1 — and Critical Hit
+   * and Ultima Attack are mechanically identical, so Back Stab was doing nearly all the work. Scaling a shield
+   * strip to (N-1) matches what a Special win already costs; scaling a TURN SKIP to every rival is worth closer
+   * to a free round, a much bigger multiplier. */
+  var DAMAGE_ALL = false, LOCKOUT_ALL = false;
+  function setDamageAll(v) { DAMAGE_ALL = !!v; }        // Critical Hit / Ultima Attack -> every rival
+  function setLockoutAll(v) { LOCKOUT_ALL = !!v; }      // Back Stab -> every rival
+  function setHostileAll(v) { DAMAGE_ALL = !!v; LOCKOUT_ALL = !!v; }
+  function isDamageAll() { return DAMAGE_ALL; }
+  function isLockoutAll() { return LOCKOUT_ALL; }
+  function hostileTargets(st, p, oppIdx, which) {
+    var on = (which === 'lockout') ? LOCKOUT_ALL : DAMAGE_ALL;
+    if (!on) return (oppIdx == null || oppIdx < 0) ? [] : [oppIdx];
+    var a = []; for (var i = 0; i < st.numPlayers; i++) if (i !== p && !st.players[i].eliminated) a.push(i);
+    return a;
+  }
   var SPECIAL_LOSS_MODE = 'all', MILL_SCOPE = 'universal';
   function setSpecialLossMode(m) { SPECIAL_LOSS_MODE = (m === 'chosen') ? 'chosen' : 'all'; }
   function setMillScope(m) { MILL_SCOPE = (m === 'targeted') ? 'targeted' : 'universal'; }
@@ -1744,6 +1772,8 @@
     enumerateCombos: enumerateCombos, legalFightPlays: legalFightPlays, combinations: combinations,
     newGame: newGame, play: play, pass: pass, stopper: stopper, stopperNeed: stopperNeed, phantasm: phantasm, drawCards: drawCards, isLocked: isLocked,
     setDeferRoundDraw: setDeferRoundDraw, roundDraw: roundDraw, setShieldCards: setShieldCards, setLoserMill: setLoserMill, setRecycleTech: setRecycleTech,
+    setHostileAll: setHostileAll, setDamageAll: setDamageAll, setLockoutAll: setLockoutAll,
+    isDamageAll: isDamageAll, isLockoutAll: isLockoutAll,
     setSpecialLossMode: setSpecialLossMode, setMillScope: setMillScope, setShieldTargetChooser: setShieldTargetChooser, setLossTargetInteractive: setLossTargetInteractive, chooseLossTarget: chooseLossTarget, concede: concede, aliveCount: aliveCount, lastAlive: lastAlive,
     setNoStraightFlush: setNoStraightFlush, fightValue: fightValue, activationCost: activationCost, hasSuper: hasSuper, effectFor: effectFor, boostInfo: boostInfo, rideCostDelta: rideCostDelta, effectiveCost: effectiveCost, removeTargets: removeTargets,
     setTransformCost: setTransformCost, setTransformDraw: setTransformDraw, setTransformGate: setTransformGate, transformGateOK: transformGateOK, transformGateStatus: transformGateStatus, transformCost: transformCost, transformDraw: transformDraw, setBoostScale: setBoostScale, setFormSuitMatch: setFormSuitMatch,
