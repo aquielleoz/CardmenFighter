@@ -624,7 +624,7 @@
       6:  { kind: 'draw', draw: 3, discard: 2, name: 'Never Out of Options', type: 'Technique', impl: true, text: 'Look at the top 3 cards of your deck. Put 2 into your Energy Pile and draw the other 1.' },
       7:  { kind: 'equip', oppDelta: -2, counters: 3, name: 'Caltrops', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds (retires to your Energy after). While equipped, the Rival's highest card each fight has its value reduced by 2." },
       9:  { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Critical Hit', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield.' },
-      10: { kind: 'lockout', name: 'Back Stab', type: 'Technique', impl: true, text: 'Target Rival skips their next turn — no fights, no Techniques.' }
+      10: { kind: 'lockout', lockRound: true, name: 'Back Stab', type: 'Technique', impl: true, text: 'Target Rival skips the whole round — no fights, no Techniques.' }
     }
   };
   // Bake the overrides into EFFECTS permanently (the game has one card set — the classic pre-rework table is retired).
@@ -650,9 +650,9 @@
       super: { 8: { wheel: true, draw: 6, desc: 'The Wheel — shuffle your hand, your Discard, and your Shuffle Pile back into your deck, then draw 6 fresh cards.' }, 10: { n: 2, desc: 'The Rival loses 1 additional shield (2 total).' } }
     },
     S: {
-      queen: { 1: { n: 2, desc: 'The Rival discards 1 more (2 total).' }, 4: { scope: 'opp', desc: 'Poison only the Rival — their Energy Pile goes to their Shuffle Pile (you keep yours).' }, 8: { copyPlus: 1, desc: 'The copy enters your hand at +1 value.' } },
-      king:  { 3: { quick: true, desc: 'Hand-to-Hand Mastery becomes a Quick.' }, 5: { ride: true, desc: 'Sabotage can also destroy a Ride.' }, 10: { lockRound: true, desc: 'The target skips the WHOLE round, not just their next turn.' } },
-      super: { 8: { copyPlus: 2, desc: 'The copy enters your hand at +2 value.' }, 10: { quick: true, lockRound: true, desc: 'Back Stab becomes a Quick AND the target skips the whole round.' } }
+      queen: { 1: { n: 2, reveal: true, desc: "Look at the target's hand. They discard 1 more (2 total)." }, 4: { scope: 'opp', desc: 'Poison only the Rival — their Energy Pile goes to their Shuffle Pile (you keep yours).' }, 8: { copyPlus: 1, desc: 'The copy enters your hand at +1 value.' } },
+      king:  { 3: { quick: true, desc: 'Hand-to-Hand Mastery becomes a Quick.' }, 5: { ride: true, desc: 'Sabotage can also destroy a Ride.' }, 10: { quick: true, desc: 'Back Stab becomes a Quick.' } },
+      super: { 8: { copyPlus: 2, desc: 'The copy enters your hand at +2 value.' }, 10: { quick: true, all: true, desc: 'Back Stab becomes a Quick AND ALL rivals skip the whole round.' } }
     }
   };
   // The card's flavour name from the spec — available even when it has NO activated effect (the apex 2, or a
@@ -838,6 +838,7 @@
   // Activate a card's effect from hand. opts: { discard:[ids], toTop:id } for the
   // effects that need a choice (auto-picks lowest cards if omitted).
   function activate(st, p, cardId, opts) {
+    pendingReveal = null;                               // a read never survives into the next cast
     opts = opts || {};
     if (st.finished) return { ok: false, reason: 'Game over.' };
     if (p !== st.turn) return { ok: false, reason: 'Not your turn.' };
@@ -1114,10 +1115,10 @@
         pl.shieldImmune = true; spendCard(pl, card); break;
       case 'onWin':                                       // Finishing Blow: your next combo win strips an extra shield
         pl.finishingBlow = true; spendCard(pl, card); break;
-      case 'lockout':                                     // Back Stab: the target skips their NEXT turn (no fights, no Techniques)
-        hostileTargets(st, p, oppIdx, 'lockout').forEach(function (t) {
+      case 'lockout':                                     // Back Stab: the target skips the WHOLE ROUND (no fights, no Techniques)
+        hostileTargets(st, p, oppIdx, 'lockout', eff).forEach(function (t) {
           st.players[t].lockSkip = true;
-          if (eff.lockRound) st.players[t].lockRound = true;      // Perseus / Hermes: skip the WHOLE round
+          if (eff.lockRound) st.players[t].lockRound = true;      // base Back Stab since v1.31.4 — see the card
         });
         spendCard(pl, card); break;
       case 'equip':
@@ -1141,6 +1142,12 @@
         spendCard(pl, card); break;
       case 'discardOpp':                                  // Telekinesis / Discombobulate / Outbalance
         var oppD = st.players[oppIdx], dn = Math.min(eff.n || 2, oppD.hand.length);
+        if (eff.reveal) {                                 // Pandora: look at their hand before they pitch
+          var rdSum = handRead(oppD); rdSum.round = st.round;
+          (pl._read = pl._read || {})[oppIdx] = rdSum;    // what the caster REMEMBERS — a summary, never the cards
+          pendingReveal = { by: p, seat: oppIdx, round: st.round,
+                            cards: oppD.hand.map(function (c) { return { rank: c.rank, suit: c.suit, id: c.id }; }) };
+        }
         if (dn > 0) {
           if (opts.oppDiscard || dn >= oppD.hand.length) { discardChosen(oppD, opts.oppDiscard, dn); }  // forced-all needs no choice
           else { st.discardPending = { player: oppIdx, count: dn }; }   // the TARGET chooses which to pitch
@@ -1177,7 +1184,7 @@
         }
         spendCard(pl, card); break;
       case 'destroyShield':                               // Ultima Attack / Critical Hit: the target already got a response window vs this technique (spring Leyline there); the loss itself no longer opens a second guard window
-        hostileTargets(st, p, oppIdx, 'damage').forEach(function (t) {
+        hostileTargets(st, p, oppIdx, 'damage', eff).forEach(function (t) {
           st.stack.push({ oid: newOid(st), kind: 'shieldloss', target: t, n: (eff.n || 1), winner: p, source: eff.name, noKick: true, noGuard: true });
         });
         spendCard(pl, card); break;
@@ -1230,7 +1237,7 @@
     if (!pl.pendingTop && st.turn === p && st.pile == null && pl.hand.length === 0) {
       st.finished = true; st.winner = nextPlayer(st, p);
     }
-    return { ok: true, state: st, effect: eff.id, kind: eff.kind, deckedOut: st.finished || undefined };
+    return { ok: true, state: st, effect: eff.id, kind: eff.kind, revealed: pendingReveal || undefined, deckedOut: st.finished || undefined };
   }
 
   // Resolve a deferred DRAW2TOP1 top-of-deck choice (opts.pickTop). The UI calls
@@ -1643,8 +1650,34 @@
   function setHostileAll(v) { DAMAGE_ALL = !!v; LOCKOUT_ALL = !!v; }
   function isDamageAll() { return DAMAGE_ALL; }
   function isLockoutAll() { return LOCKOUT_ALL; }
-  function hostileTargets(st, p, oppIdx, which) {
-    var on = (which === 'lockout') ? LOCKOUT_ALL : DAMAGE_ALL;
+  /* Pandora's Outbalance READS the target's hand. We deliberately record a SUMMARY, not the cards: the point
+   * of the read is to answer "are they holding something that beats what I want to play?", and storing a full
+   * hand on a player object would put private information into every netplay snapshot that includes that
+   * player. The actual cards go out transiently on the activate RESULT for the UI to show once. */
+  /* Transient handoff for a reveal. Deliberately NOT stored on `st` — anything on state travels in netplay
+   * snapshots, and a revealed hand must reach only the player who cast the reveal.
+   * It is picked up with takeReveal(p) rather than threaded through return values, because an Outbalance can
+   * sit in a response window: by the time it RESOLVES the UI is several callbacks deep and settleWindows()
+   * hands its caller no result. takeReveal is seat-checked and one-shot, so a read can never reach the wrong
+   * player or survive into a later cast. */
+  var pendingReveal = null;
+  function takeReveal(p) {
+    if (!pendingReveal || pendingReveal.by !== p) return null;
+    var r = pendingReveal; pendingReveal = null; return r;
+  }
+  function handRead(pl) {
+    var best = 0, counts = {}, pairs = 0, i, r;
+    for (i = 0; i < pl.hand.length; i++) {
+      var v = fightValue(pl.hand[i]); if (v > best) best = v;
+      r = pl.hand[i].rank; counts[r] = (counts[r] || 0) + 1;
+    }
+    for (r in counts) if (counts[r] >= 2) pairs++;
+    return { best: best, pairs: pairs, size: pl.hand.length };
+  }
+  function hostileTargets(st, p, oppIdx, which, eff) {
+    // `eff.all` is a property of the CARD (Hermes Back Stab), not of the research flags — a form-granted
+    // upgrade must work with the flags off, which is how it ships.
+    var on = (eff && eff.all) || ((which === 'lockout') ? LOCKOUT_ALL : DAMAGE_ALL);
     if (!on) return (oppIdx == null || oppIdx < 0) ? [] : [oppIdx];
     var a = []; for (var i = 0; i < st.numPlayers; i++) if (i !== p && !st.players[i].eliminated) a.push(i);
     return a;
@@ -1775,7 +1808,7 @@
     setHostileAll: setHostileAll, setDamageAll: setDamageAll, setLockoutAll: setLockoutAll,
     isDamageAll: isDamageAll, isLockoutAll: isLockoutAll,
     setSpecialLossMode: setSpecialLossMode, setMillScope: setMillScope, setShieldTargetChooser: setShieldTargetChooser, setLossTargetInteractive: setLossTargetInteractive, chooseLossTarget: chooseLossTarget, concede: concede, aliveCount: aliveCount, lastAlive: lastAlive,
-    setNoStraightFlush: setNoStraightFlush, fightValue: fightValue, activationCost: activationCost, hasSuper: hasSuper, effectFor: effectFor, boostInfo: boostInfo, rideCostDelta: rideCostDelta, effectiveCost: effectiveCost, removeTargets: removeTargets,
+    setNoStraightFlush: setNoStraightFlush, fightValue: fightValue, activationCost: activationCost, takeReveal: takeReveal, hasSuper: hasSuper, effectFor: effectFor, boostInfo: boostInfo, rideCostDelta: rideCostDelta, effectiveCost: effectiveCost, removeTargets: removeTargets,
     setTransformCost: setTransformCost, setTransformDraw: setTransformDraw, setTransformGate: setTransformGate, transformGateOK: transformGateOK, transformGateStatus: transformGateStatus, transformCost: transformCost, transformDraw: transformDraw, setBoostScale: setBoostScale, setFormSuitMatch: setFormSuitMatch,
     openPreFight: openPreFight, preFightCast: preFightCast, preFightPass: preFightPass,
     effectTarget: effectTarget,   // who a pending effect is aimed at — the UI needs it to say so out loud

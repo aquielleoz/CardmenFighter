@@ -616,5 +616,68 @@ function cards(ids) { return ids.map(card); }
   ok(cr.ok && !gr.discardPending, 'MP response: p2 Counter Spell negates the Technique (no discard happens)');
 })();
 
+// ===== BACK STAB / OUTBALANCE REDESIGN (v1.31.4) + the AI timing model =====
+(function () {
+  function mkc(r, su) { return { rank: r, suit: su, id: '' + r + su }; }
+  // every rival holds 3 junk cards: a target too thin to assemble an answer is never worth locking, and that
+  // veto would otherwise silently swallow the scenarios below
+  function tbl(np) { var g = E.newGame(null, { numPlayers: np }); g.round = 3; g.turn = 0; g.pile = null;
+    for (var i = 0; i < np; i++) g.players[i].hand = (i === 0) ? [] : [mkc(3, 'D'), mkc(4, 'H'), mkc(6, 'C')];
+    return g; }
+
+  // --- the cards themselves: base locks the ROUND, the Forms escalate it
+  var base = E.effectOf({ rank: 10, suit: 'S', id: '10S' });
+  ok(base.kind === 'lockout' && base.lockRound === true, 'Back Stab base: skips the whole ROUND, not one turn');
+  ok(!base.quick && !base.all, 'Back Stab base: not a Quick and not table-wide until a Form says so');
+  var gp = tbl(4);
+  gp.players[0].forms = [mkc(13, 'S')];                       // Perseus (King of Spades)
+  var pers = E.effectFor(gp, 0, { rank: 10, suit: 'S', id: '10S' });
+  ok(pers.quick === true && pers.lockRound === true && !pers.all, 'Perseus: Back Stab becomes a Quick, still one target');
+  var gh = tbl(4);
+  gh.players[0].forms = [mkc(11, 'S'), mkc(12, 'S'), mkc(13, 'S')];   // Hermes Super (Ride + Q + K)
+  var herm = E.effectFor(gh, 0, { rank: 10, suit: 'S', id: '10S' });
+  ok(herm.quick === true && herm.all === true, 'Hermes Super: Back Stab is a Quick AND every rival skips the round');
+
+  // --- Pandora's Outbalance: a look at the hand, and 2 discards instead of 1
+  var gq = tbl(4);
+  gq.players[0].forms = [mkc(12, 'S')];                       // Pandora (Queen of Spades)
+  var out = E.effectFor(gq, 0, { rank: 1, suit: 'S', id: '1S' });
+  ok(out.n === 2 && out.reveal === true, 'Pandora Outbalance: reveals the hand and discards 2');
+  gq.players[0].hand = [mkc(1, 'S'), mkc(5, 'S'), mkc(6, 'S')];
+  gq.players[0].energy = [mkc(4, 'S')];
+  gq.players[2].hand = [mkc(13, 'H'), mkc(13, 'D'), mkc(4, 'C')];      // a pair of Kings, hidden
+  var ar = E.activate(gq, 0, '1S', { target: 2 });
+  ok(ar.ok && ar.revealed && ar.revealed.seat === 2 && ar.revealed.cards.length === 3,
+     'Outbalance: the caster gets the target hand back on the result (transient, for the UI)');
+  ok(JSON.stringify(gq).indexOf('revealed') < 0, 'Outbalance: the revealed HAND never lands on state (netplay would leak it)');
+  var rd = gq.players[0]._read && gq.players[0]._read[2];
+  ok(rd && rd.best === 13 && rd.pairs === 1 && rd.round === 3, 'Outbalance: the caster keeps a SUMMARY read (best/pairs/round)');
+
+  // --- the timing model: Aj's own heuristic, scenario by scenario
+  var d2 = tbl(2); d2.players[0].hand = [mkc(9, 'S'), mkc(9, 'H')];
+  ok(AI.lockoutWorth(d2, 0, 1) === 'duel', 'lockout model: in a duel a skipped round is always worth it');
+  function midPlan(np) { var g = tbl(np); g.players[0].hand = [mkc(9, 'S'), mkc(9, 'H'), mkc(4, 'C')]; return g; }
+  var hi = midPlan(4);
+  hi.pile = { byPlayer: 2, combo: { type: 'pair', size: 2, value: 13 } }; AI.observe(hi); hi.pile = null;
+  ok(AI.lockoutWorth(hi, 0, 2) === '', 'lockout model: a rival who just DUMPED a high cannot answer us — hold the card');
+  var lo2 = midPlan(4);
+  lo2.pile = { byPlayer: 2, combo: { type: 'pair', size: 2, value: 5 } }; AI.observe(lo2); lo2.pile = null;
+  ok(AI.lockoutWorth(lo2, 0, 2) === 'plan-vulnerable', 'lockout model: our mid special is answerable — silence them');
+  var rr = midPlan(4); rr.players[0]._read = { 2: { round: 3, best: 13, pairs: 1, size: 4 } };
+  ok(AI.lockoutWorth(rr, 0, 2) === 'read-threat', 'lockout model: a READ showing a pair that beats us is the cast');
+  var rj = midPlan(4); rj.players[0]._read = { 2: { round: 3, best: 5, pairs: 0, size: 3 } };
+  ok(AI.lockoutWorth(rj, 0, 2) === '', 'lockout model: a READ showing junk saves the energy');
+  var rs = midPlan(4); rs.players[0]._read = { 2: { round: 2, best: 5, pairs: 0, size: 3 } };
+  ok(AI.lockoutWorth(rs, 0, 2) === 'plan-vulnerable', 'lockout model: a STALE read is ignored, not trusted');
+  function highPlan(np) { var g = tbl(np); g.players[0].hand = [mkc(13, 'S'), mkc(13, 'H'), mkc(4, 'C')]; return g; }
+  ok(AI.lockoutWorth(highPlan(6), 0, 2) === '', 'lockout model: a high special defends itself at a full table');
+  ok(AI.lockoutWorth(highPlan(3), 0, 2) === 'crowd-thin', 'lockout model: a high special still worth protecting when few rivals remain');
+  var nn = tbl(4); nn.players[0].hand = [mkc(9, 'S'), mkc(4, 'C')];
+  ok(AI.lockoutWorth(nn, 0, 2) === '', 'lockout model: nothing to protect, nothing to spend');
+  var th = midPlan(4); th.players[2].hand = [mkc(3, 'D'), mkc(4, 'H')];
+  ok(AI.lockoutWorth(th, 0, 2) === '', 'lockout model: a rival down to 2 cards cannot answer — hold the card');
+})();
+
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

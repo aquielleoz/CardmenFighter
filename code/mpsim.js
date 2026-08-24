@@ -75,10 +75,11 @@ console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' draw
   bg.players[0].energy = []; for (i = 0; i < 12; i++) bg.players[0].energy.push(hk(4, 'S'));
   E.activate(bg, 0, 'sc10S', { target: 1 });
   var bLock = [1, 2, 3].filter(function (q) { return bg.players[q].lockSkip; }).length;
+  var bRound = [1, 2, 3].filter(function (q) { return bg.players[q].lockRound; }).length;   // base Back Stab locks the ROUND (v1.31.4)
   console.log('SELF-CHECK hostile: Critical Hit struck ' + hStruck + ' (expect ' + (DALL ? 3 : 1) +
-              '), Back Stab locked ' + bLock + ' (expect ' + (LALL ? 3 : 1) + ')');
+              '), Back Stab locked ' + bLock + ' (expect ' + (LALL ? 3 : 1) + ', whole-round ' + bRound + ')');
   var bad = (shields !== (SHP ? 6 : 4)) || (draw !== (DPP ? 4 : 2)) || (struck !== (LM === 'all' ? 3 : 1)) ||
-            (hStruck !== (DALL ? 3 : 1)) || (bLock !== (LALL ? 3 : 1));
+            (hStruck !== (DALL ? 3 : 1)) || (bLock !== (LALL ? 3 : 1)) || (bRound !== bLock);
   if (bad) { console.log('*** SELF-CHECK FAILED — the config did not take effect. These numbers are worthless. ***'); process.exit(3); }
 })();
 

@@ -331,6 +331,65 @@
    * `hasCombo` alone is not enough: threshold 6 (i.e. no effective count limit) lands where the ungated version
    * did. So the count condition is kept, and 3 is retained as a conservative UNTUNED default. Do not read
    * meaning into the exact number. */
+  /* ---- Back Stab: the timing model -----------------------------------------------------------------
+   * Base Back Stab now skips the target's WHOLE round (v1.31.4), not a single turn, so it is worth much
+   * more than the old turn-skip and the crude "do I hold a combo" gate can go. This models Aj's own
+   * heuristic verbatim:
+   *   "if they played a high last turn, back stab looks bad because they wouldn't be able to play higher
+   *    than me anyway. but if it feels like they're building a high special on hand, back stab starts
+   *    looking promising, because they wouldn't be able to retaliate my low cards. i'd back stab them,
+   *    then play my mid special or pair of Js."
+   * So the question is never "who do I hate" — that is targeting's job — it is "is the play I want to make
+   * under threat from THIS rival". Two information sources, best first:
+   *   1. a fresh READ from Pandora's Outbalance (pl._read): we have actually seen their hand this round;
+   *   2. what we watched them play (st._seen): public, partial, and it expires every round.
+   * Tiers are Aj's: low 3-6, mid 7-10, high 11+ (J, Q, K, A and the apex 2). */
+  var TIER_MID = 7, TIER_HIGH = 11;
+  function tierOf(v) { return v >= TIER_HIGH ? 'high' : (v >= TIER_MID ? 'mid' : 'low'); }
+  /* Watch the table. The pile is public, so remembering who put down what gives the AI no information a
+   * player at the table would not have — and like a player it only notices the plays it is present for. */
+  function observe(st) {
+    if (!st.pile || st.pile.byPlayer == null || !st.pile.combo) return;
+    var m = st._seen || (st._seen = {}), s = st.pile.byPlayer, e = m[s];
+    if (!e || e.round !== st.round) e = m[s] = { round: st.round, hi: 0, n: 0 };
+    if (st.pile.combo.value > e.hi) e.hi = st.pile.combo.value;
+    e.n++;
+  }
+  /* The special we would actually THROW, which is the CHEAPEST legal one — not the best one we hold. That
+   * distinction is the whole model: if our best special were a pair of Kings we would just play it and never
+   * want a Back Stab. Aj's line is "i'd back stab them, then play my mid special or pair of Js" — the play
+   * under threat is the modest one. */
+  function plannedSpecialValue(st, p) {
+    var opts = E.legalFightPlays(st, p), lo = 0;        // NOTE: each entry is {cards, combo} — the value is on .combo
+    for (var i = 0; i < opts.length; i++) { var cb = opts[i].combo; if (cb && cb.size > 1 && (lo === 0 || cb.value < lo)) lo = cb.value; }
+    return lo;
+  }
+  /* Which branch fired, tallied for the sims the same way stratPassCount() is — the model is only worth
+   * having if its interesting branches actually come up in real games. */
+  var lockStats = {};
+  function lockoutStats() { return lockStats; }
+  function resetLockoutStats() { lockStats = {}; }
+  /* Worth silencing `t`? Returns the REASON (handy in a log or a test) or '' for "hold the card". */
+  var LOCK_CAST = { duel: 1, 'read-threat': 1, 'plan-vulnerable': 1, 'crowd-thin': 1 };   // anything else is a HOLD
+  function lockoutWorth(st, p, t) {
+    var why = lockoutReason(st, p, t);
+    lockStats[why] = (lockStats[why] || 0) + 1;    // holds are tallied BY NAME: "why didn't it fire" is the useful question
+    return LOCK_CAST[why] ? why : '';
+  }
+  function lockoutReason(st, p, t) {
+    if (st.numPlayers === 2) return 'duel';                          // one rival: a skipped round is a free round
+    var plan = plannedSpecialValue(st, p), read = st.players[p]._read && st.players[p]._read[t];
+    if (read && read.round === st.round) {                           // we have SEEN the hand: no guessing needed
+      return (read.pairs >= 1 && read.best > plan) ? 'read-threat' : 'read-harmless';   // can't answer us -> keep the energy
+    }
+    if (!plan) return 'no-special';                                  // nothing to protect yet
+    if (st.players[t].hand.length < 3) return 'thin-hand';           // too few cards left to assemble an answer
+    var seen = st._seen && st._seen[t];
+    if (seen && seen.round === st.round && tierOf(seen.hi) === 'high') return 'highs-spent';   // their highs are already spent
+    if (tierOf(plan) !== 'high') return 'plan-vulnerable';           // a low/mid special is answerable: lock them
+    return (E.aliveCount(st) <= LOCKOUT_MAX_ALIVE) ? 'crowd-thin' : 'crowded';   // a high special mostly defends itself
+  }
+
   var LOCKOUT_MAX_ALIVE = 3;
   function setLockoutMaxAlive(n) { LOCKOUT_MAX_ALIVE = n | 0; }
   var STRAT_PASS_MAX = 5;                      // pass a winnable jab when hand length <= this
@@ -512,15 +571,14 @@
         var loT = (st.numPlayers === 2) ? oppIdx : chooseTarget(st, p, (st._diff && st._diff[p]) || 'fighter');
         var loV = (loT != null && loT >= 0) ? st.players[loT] : null;
         /* WHEN is it worth 10 energy? Silencing your ONLY opponent buys a free round. Silencing one of five
-         * leaves four who can still contest it, so the same cast is close to worthless — measured: un-gating it
-         * naively made every Back-Stab-holding deck slightly WORSE (Bard -2.1, Rogue -1.0) and widened persona
-         * spread, because the AI was making a bad play more often. So gate on VALUE, not on player count:
-         *   - only when we hold a combo to capitalise with (same reasoning as the pre-fight Quick spring), and
-         *   - only when few enough rivals remain that silencing one actually clears the way.
-         * Net balance effect, pooled over 16 runs: -1.6 +/-1.12 spread at 6p = 1.4 s.e., i.e. NO measurable
-         * difference. This fix is about the card EXISTING in multiplayer, not about balance.
-         * A lockout that hit EVERY rival would not need the count condition — see setLockoutAll. */
-        var loWorth = (st.numPlayers === 2) || (hasCombo(pl.hand) && E.aliveCount(st) <= LOCKOUT_MAX_ALIVE);
+         * leaves four who can still contest it — measured: un-gating this naively made every Back-Stab-holding
+         * deck slightly WORSE (Bard -2.1, Rogue -1.0) and widened persona spread, because the AI was simply
+         * making a bad play more often. The first fix gated on "hold a combo AND few rivals left"; v1.31.4
+         * replaces that with the TIMING model above, which asks whether the play we want to make is under
+         * threat from THIS rival. Balance-neutral (8 runs/arm, nothing over 3 s.e. across 44 deck
+         * comparisons), and it casts LESS often on purpose: 6p 38 -> 16 casts per 200 games.
+         * A lockout that hit EVERY rival would not need any of this — see setLockoutAll. */
+        var loWorth = loV ? lockoutWorth(st, p, loT) : '';    // see the timing model above
         if (loV && loWorth && !loV.eliminated && !loV.lockSkip && !loV.lockRound && loV.hand.length >= 2 &&
             act(st, p, lo.id, log, 'LOCKOUT', humans, loT)) continue;
       }
@@ -674,6 +732,7 @@
     return st.pile == null && st.round >= 2 && hasCombo(st.players[q].hand);
   }
   function takeTurn(st, p, diff, humans) {
+    observe(st);                                        // remember what the table has been playing
     diff = diff || 'fighter';
     (st._diff = st._diff || {})[p] = diff;                          // remember each seat's tier (round-win chooser reads it)
     var log = [];
@@ -763,10 +822,12 @@
 
   // Drive the NON-active player q's pre-fight decision from the UI (the engine window is already open).
   function preFightMove(st, q, activeP, diff) {
+    observe(st);
     if (aiPreFightLock(st, q, activeP, diff)) { var bs = lockoutQuick(st, q); if (bs) return { cast: bs.id, card: { rank: bs.rank, suit: bs.suit, id: bs.id } }; }
     return { pass: true };
   }
-  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
+  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe,
+    lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
