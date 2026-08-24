@@ -1,5 +1,11 @@
 # Cardmen Fighter — Card & Deck Stats (v0.86 snapshot)
 
+> **Stale on the ♠ lockout line as of v1.31.4.** This snapshot predates two changes: the AI *does* cast Back
+> Stab now (v1.29.1 fixed the `effectOf`/`effectFor` bug that stopped it springing any Form-granted Quick, and
+> v1.29.7 un-gated it in multiplayer), and the card itself was redesigned — base Back Stab is a **plain
+> round-long lockout, not a Quick**; the Quick moved to Perseus. So the "0.00 cast / reactive Quick" rows below
+> describe a card that no longer exists. Current cast volume, `knight`, 200 games: **2p 31, 3p 28, 6p 16**.
+
 *Point-in-time balance snapshot. Regenerate with `node analysis.js 120 on x rework` (round-robin, every deck
 vs every other, Demon-strength AI, catch-up on, strict suit-cost). ~6,600 games this run. Numbers are noisy at
 this sample — treat ±2 pts as noise. Date: 2026-08-19.*

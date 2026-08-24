@@ -709,6 +709,8 @@
   .modal .respQuick{background:var(--gold); color:#3a2a08;}
   .modal .respQuick .respTxt{font-weight:600; font-size:11.5px; opacity:.85;}
   .modal .respLet{background:var(--panel); color:var(--txt); border:1px solid var(--line); text-align:center !important;}
+  /* the hand Outbalance let you look at — wraps, and scrolls rather than overflowing a short viewport */
+  .modal .revealHand{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:10px 0; max-height:40vh; overflow-y:auto;}
   .modal .respIncoming{margin-top:10px; padding:9px 11px; background:rgba(255,255,255,.05); border:1px solid var(--line); border-radius:10px; font-size:12.5px; line-height:1.45; opacity:.92;}
   /* inline "what's on the table" context + the peek-at-the-board control (decision & game-over modals) */
   .modal .ctxBox{margin-top:10px; padding:8px 11px; background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:10px; font-size:12.5px; display:flex; flex-direction:column; gap:6px;}
@@ -1743,7 +1745,7 @@
       6:  { kind: 'draw', draw: 3, discard: 2, name: 'Never Out of Options', type: 'Technique', impl: true, text: 'Look at the top 3 cards of your deck. Put 2 into your Energy Pile and draw the other 1.' },
       7:  { kind: 'equip', oppDelta: -2, counters: 3, name: 'Caltrops', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds (retires to your Energy after). While equipped, the Rival's highest card each fight has its value reduced by 2." },
       9:  { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Critical Hit', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield.' },
-      10: { kind: 'lockout', name: 'Back Stab', type: 'Technique', impl: true, text: 'Target Rival skips their next turn — no fights, no Techniques.' }
+      10: { kind: 'lockout', lockRound: true, name: 'Back Stab', type: 'Technique', impl: true, text: 'Target Rival skips the whole round — no fights, no Techniques.' }
     }
   };
   // Bake the overrides into EFFECTS permanently (the game has one card set — the classic pre-rework table is retired).
@@ -1769,9 +1771,9 @@
       super: { 8: { wheel: true, draw: 6, desc: 'The Wheel — shuffle your hand, your Discard, and your Shuffle Pile back into your deck, then draw 6 fresh cards.' }, 10: { n: 2, desc: 'The Rival loses 1 additional shield (2 total).' } }
     },
     S: {
-      queen: { 1: { n: 2, desc: 'The Rival discards 1 more (2 total).' }, 4: { scope: 'opp', desc: 'Poison only the Rival — their Energy Pile goes to their Shuffle Pile (you keep yours).' }, 8: { copyPlus: 1, desc: 'The copy enters your hand at +1 value.' } },
-      king:  { 3: { quick: true, desc: 'Hand-to-Hand Mastery becomes a Quick.' }, 5: { ride: true, desc: 'Sabotage can also destroy a Ride.' }, 10: { lockRound: true, desc: 'The target skips the WHOLE round, not just their next turn.' } },
-      super: { 8: { copyPlus: 2, desc: 'The copy enters your hand at +2 value.' }, 10: { quick: true, lockRound: true, desc: 'Back Stab becomes a Quick AND the target skips the whole round.' } }
+      queen: { 1: { n: 2, reveal: true, desc: "Look at the target's hand. They discard 1 more (2 total)." }, 4: { scope: 'opp', desc: 'Poison only the Rival — their Energy Pile goes to their Shuffle Pile (you keep yours).' }, 8: { copyPlus: 1, desc: 'The copy enters your hand at +1 value.' } },
+      king:  { 3: { quick: true, desc: 'Hand-to-Hand Mastery becomes a Quick.' }, 5: { ride: true, desc: 'Sabotage can also destroy a Ride.' }, 10: { quick: true, desc: 'Back Stab becomes a Quick.' } },
+      super: { 8: { copyPlus: 2, desc: 'The copy enters your hand at +2 value.' }, 10: { quick: true, all: true, desc: 'Back Stab becomes a Quick AND ALL rivals skip the whole round.' } }
     }
   };
   // The card's flavour name from the spec — available even when it has NO activated effect (the apex 2, or a
@@ -1957,6 +1959,7 @@
   // Activate a card's effect from hand. opts: { discard:[ids], toTop:id } for the
   // effects that need a choice (auto-picks lowest cards if omitted).
   function activate(st, p, cardId, opts) {
+    pendingReveal = null;                               // a read never survives into the next cast
     opts = opts || {};
     if (st.finished) return { ok: false, reason: 'Game over.' };
     if (p !== st.turn) return { ok: false, reason: 'Not your turn.' };
@@ -2233,9 +2236,11 @@
         pl.shieldImmune = true; spendCard(pl, card); break;
       case 'onWin':                                       // Finishing Blow: your next combo win strips an extra shield
         pl.finishingBlow = true; spendCard(pl, card); break;
-      case 'lockout':                                     // Back Stab: the target skips their NEXT turn (no fights, no Techniques)
-        st.players[oppIdx].lockSkip = true;
-        if (eff.lockRound) st.players[oppIdx].lockRound = true;   // Perseus / Hermes: skip the WHOLE round
+      case 'lockout':                                     // Back Stab: the target skips the WHOLE ROUND (no fights, no Techniques)
+        hostileTargets(st, p, oppIdx, 'lockout', eff).forEach(function (t) {
+          st.players[t].lockSkip = true;
+          if (eff.lockRound) st.players[t].lockRound = true;      // base Back Stab since v1.31.4 — see the card
+        });
         spendCard(pl, card); break;
       case 'equip':
         pl.equipment.push({
@@ -2258,6 +2263,12 @@
         spendCard(pl, card); break;
       case 'discardOpp':                                  // Telekinesis / Discombobulate / Outbalance
         var oppD = st.players[oppIdx], dn = Math.min(eff.n || 2, oppD.hand.length);
+        if (eff.reveal) {                                 // Pandora: look at their hand before they pitch
+          var rdSum = handRead(oppD); rdSum.round = st.round;
+          (pl._read = pl._read || {})[oppIdx] = rdSum;    // what the caster REMEMBERS — a summary, never the cards
+          pendingReveal = { by: p, seat: oppIdx, round: st.round,
+                            cards: oppD.hand.map(function (c) { return { rank: c.rank, suit: c.suit, id: c.id }; }) };
+        }
         if (dn > 0) {
           if (opts.oppDiscard || dn >= oppD.hand.length) { discardChosen(oppD, opts.oppDiscard, dn); }  // forced-all needs no choice
           else { st.discardPending = { player: oppIdx, count: dn }; }   // the TARGET chooses which to pitch
@@ -2294,7 +2305,9 @@
         }
         spendCard(pl, card); break;
       case 'destroyShield':                               // Ultima Attack / Critical Hit: the target already got a response window vs this technique (spring Leyline there); the loss itself no longer opens a second guard window
-        st.stack.push({ oid: newOid(st), kind: 'shieldloss', target: oppIdx, n: (eff.n || 1), winner: p, source: eff.name, noKick: true, noGuard: true });
+        hostileTargets(st, p, oppIdx, 'damage', eff).forEach(function (t) {
+          st.stack.push({ oid: newOid(st), kind: 'shieldloss', target: t, n: (eff.n || 1), winner: p, source: eff.name, noKick: true, noGuard: true });
+        });
         spendCard(pl, card); break;
       case 'counter':                                     // proactively cast Counter Spell with nothing on the stack to counter — fizzles
         spendCard(pl, card); break;
@@ -2345,7 +2358,7 @@
     if (!pl.pendingTop && st.turn === p && st.pile == null && pl.hand.length === 0) {
       st.finished = true; st.winner = nextPlayer(st, p);
     }
-    return { ok: true, state: st, effect: eff.id, kind: eff.kind, deckedOut: st.finished || undefined };
+    return { ok: true, state: st, effect: eff.id, kind: eff.kind, revealed: pendingReveal || undefined, deckedOut: st.finished || undefined };
   }
 
   // Resolve a deferred DRAW2TOP1 top-of-deck choice (opts.pickTop). The UI calls
@@ -2740,6 +2753,56 @@
   // ---- N-PLAYER round-resolution toggles (both are no-ops at numPlayers===2) ----
   // SPECIAL_LOSS_MODE: on a Special win, 'all' = every non-winner loses a shield; 'chosen' = winner strips one rival.
   // MILL_SCOPE: 'universal' = all non-winners mill each round; 'targeted' = only the struck rival(s) mill.
+  /* HOSTILE_ALL (Aj, 2026-08-25): the targeted offensive techniques hit EVERY living rival instead of one —
+   * Critical Hit and Back Stab (Rogue), Ultima Attack (Fighter). The idea pairs with SPECIAL_LOSS_MODE='all':
+   * if a Special win costs every opponent a shield, then a card that emulates a Special hit should scale with
+   * the table the same way. It lands on exactly the three decks that `all` massacres — Rogue, Fighter, and
+   * Berserker (Fighter+Rogue) — because those are the classes whose whole kit is offensive and who own no
+   * shield protection at all. Flagged so it can be A/B'd against `all` alone.
+   *
+   * SPLIT into two flags (2026-08-25) because they are not the same size of effect. Measured together, Fighter
+   * (Ultima Attack only) gained +0.8 while Rogue (Critical Hit AND Back Stab) gained +11.1 — and Critical Hit
+   * and Ultima Attack are mechanically identical, so Back Stab was doing nearly all the work. Scaling a shield
+   * strip to (N-1) matches what a Special win already costs; scaling a TURN SKIP to every rival is worth closer
+   * to a free round, a much bigger multiplier. */
+  var DAMAGE_ALL = false, LOCKOUT_ALL = false;
+  function setDamageAll(v) { DAMAGE_ALL = !!v; }        // Critical Hit / Ultima Attack -> every rival
+  function setLockoutAll(v) { LOCKOUT_ALL = !!v; }      // Back Stab -> every rival
+  function setHostileAll(v) { DAMAGE_ALL = !!v; LOCKOUT_ALL = !!v; }
+  function isDamageAll() { return DAMAGE_ALL; }
+  function isLockoutAll() { return LOCKOUT_ALL; }
+  /* Pandora's Outbalance READS the target's hand. We deliberately record a SUMMARY, not the cards: the point
+   * of the read is to answer "are they holding something that beats what I want to play?", and storing a full
+   * hand on a player object would put private information into every netplay snapshot that includes that
+   * player. The actual cards go out transiently on the activate RESULT for the UI to show once. */
+  /* Transient handoff for a reveal. Deliberately NOT stored on `st` — anything on state travels in netplay
+   * snapshots, and a revealed hand must reach only the player who cast the reveal.
+   * It is picked up with takeReveal(p) rather than threaded through return values, because an Outbalance can
+   * sit in a response window: by the time it RESOLVES the UI is several callbacks deep and settleWindows()
+   * hands its caller no result. takeReveal is seat-checked and one-shot, so a read can never reach the wrong
+   * player or survive into a later cast. */
+  var pendingReveal = null;
+  function takeReveal(p) {
+    if (!pendingReveal || pendingReveal.by !== p) return null;
+    var r = pendingReveal; pendingReveal = null; return r;
+  }
+  function handRead(pl) {
+    var best = 0, counts = {}, pairs = 0, i, r;
+    for (i = 0; i < pl.hand.length; i++) {
+      var v = fightValue(pl.hand[i]); if (v > best) best = v;
+      r = pl.hand[i].rank; counts[r] = (counts[r] || 0) + 1;
+    }
+    for (r in counts) if (counts[r] >= 2) pairs++;
+    return { best: best, pairs: pairs, size: pl.hand.length };
+  }
+  function hostileTargets(st, p, oppIdx, which, eff) {
+    // `eff.all` is a property of the CARD (Hermes Back Stab), not of the research flags — a form-granted
+    // upgrade must work with the flags off, which is how it ships.
+    var on = (eff && eff.all) || ((which === 'lockout') ? LOCKOUT_ALL : DAMAGE_ALL);
+    if (!on) return (oppIdx == null || oppIdx < 0) ? [] : [oppIdx];
+    var a = []; for (var i = 0; i < st.numPlayers; i++) if (i !== p && !st.players[i].eliminated) a.push(i);
+    return a;
+  }
   var SPECIAL_LOSS_MODE = 'all', MILL_SCOPE = 'universal';
   function setSpecialLossMode(m) { SPECIAL_LOSS_MODE = (m === 'chosen') ? 'chosen' : 'all'; }
   function setMillScope(m) { MILL_SCOPE = (m === 'targeted') ? 'targeted' : 'universal'; }
@@ -2863,8 +2926,10 @@
     enumerateCombos: enumerateCombos, legalFightPlays: legalFightPlays, combinations: combinations,
     newGame: newGame, play: play, pass: pass, stopper: stopper, stopperNeed: stopperNeed, phantasm: phantasm, drawCards: drawCards, isLocked: isLocked,
     setDeferRoundDraw: setDeferRoundDraw, roundDraw: roundDraw, setShieldCards: setShieldCards, setLoserMill: setLoserMill, setRecycleTech: setRecycleTech,
+    setHostileAll: setHostileAll, setDamageAll: setDamageAll, setLockoutAll: setLockoutAll,
+    isDamageAll: isDamageAll, isLockoutAll: isLockoutAll,
     setSpecialLossMode: setSpecialLossMode, setMillScope: setMillScope, setShieldTargetChooser: setShieldTargetChooser, setLossTargetInteractive: setLossTargetInteractive, chooseLossTarget: chooseLossTarget, concede: concede, aliveCount: aliveCount, lastAlive: lastAlive,
-    setNoStraightFlush: setNoStraightFlush, fightValue: fightValue, activationCost: activationCost, hasSuper: hasSuper, effectFor: effectFor, boostInfo: boostInfo, rideCostDelta: rideCostDelta, effectiveCost: effectiveCost, removeTargets: removeTargets,
+    setNoStraightFlush: setNoStraightFlush, fightValue: fightValue, activationCost: activationCost, takeReveal: takeReveal, hasSuper: hasSuper, effectFor: effectFor, boostInfo: boostInfo, rideCostDelta: rideCostDelta, effectiveCost: effectiveCost, removeTargets: removeTargets,
     setTransformCost: setTransformCost, setTransformDraw: setTransformDraw, setTransformGate: setTransformGate, transformGateOK: transformGateOK, transformGateStatus: transformGateStatus, transformCost: transformCost, transformDraw: transformDraw, setBoostScale: setBoostScale, setFormSuitMatch: setFormSuitMatch,
     openPreFight: openPreFight, preFightCast: preFightCast, preFightPass: preFightPass,
     effectTarget: effectTarget,   // who a pending effect is aimed at — the UI needs it to say so out loud
@@ -3214,6 +3279,75 @@
    * The knobs below stay because `passsim.js` needs them, and because it also reports INITIATIVE
    * CONCENTRATION — the busiest leader holds 1.6-1.9x its fair share of rounds — which is the open question
    * this study actually turned up. See NEXT-SESSION.md. */
+  /* How few rivals must remain for a SINGLE-target lockout to be worth 10 energy? Silencing one of five leaves
+   * four who can still take the round; silencing one of two leaves one.
+   * SWEPT (2026-08-25, thresholds 2/3/4/6 x 6 runs): NO value is distinguishable from another. 6-player spread
+   * came out 12.9 / 15.4 / 13.9 / 16.9 with standard errors of 0.6-0.9, and the same config measured twice gave
+   * 12.5 and 15.4 — so the metric cannot rank thresholds at this power. What the sweep DOES show is that
+   * `hasCombo` alone is not enough: threshold 6 (i.e. no effective count limit) lands where the ungated version
+   * did. So the count condition is kept, and 3 is retained as a conservative UNTUNED default. Do not read
+   * meaning into the exact number. */
+  /* ---- Back Stab: the timing model -----------------------------------------------------------------
+   * Base Back Stab now skips the target's WHOLE round (v1.31.4), not a single turn, so it is worth much
+   * more than the old turn-skip and the crude "do I hold a combo" gate can go. This models Aj's own
+   * heuristic verbatim:
+   *   "if they played a high last turn, back stab looks bad because they wouldn't be able to play higher
+   *    than me anyway. but if it feels like they're building a high special on hand, back stab starts
+   *    looking promising, because they wouldn't be able to retaliate my low cards. i'd back stab them,
+   *    then play my mid special or pair of Js."
+   * So the question is never "who do I hate" — that is targeting's job — it is "is the play I want to make
+   * under threat from THIS rival". Two information sources, best first:
+   *   1. a fresh READ from Pandora's Outbalance (pl._read): we have actually seen their hand this round;
+   *   2. what we watched them play (st._seen): public, partial, and it expires every round.
+   * Tiers are Aj's: low 3-6, mid 7-10, high 11+ (J, Q, K, A and the apex 2). */
+  var TIER_MID = 7, TIER_HIGH = 11;
+  function tierOf(v) { return v >= TIER_HIGH ? 'high' : (v >= TIER_MID ? 'mid' : 'low'); }
+  /* Watch the table. The pile is public, so remembering who put down what gives the AI no information a
+   * player at the table would not have — and like a player it only notices the plays it is present for. */
+  function observe(st) {
+    if (!st.pile || st.pile.byPlayer == null || !st.pile.combo) return;
+    var m = st._seen || (st._seen = {}), s = st.pile.byPlayer, e = m[s];
+    if (!e || e.round !== st.round) e = m[s] = { round: st.round, hi: 0, n: 0 };
+    if (st.pile.combo.value > e.hi) e.hi = st.pile.combo.value;
+    e.n++;
+  }
+  /* The special we would actually THROW, which is the CHEAPEST legal one — not the best one we hold. That
+   * distinction is the whole model: if our best special were a pair of Kings we would just play it and never
+   * want a Back Stab. Aj's line is "i'd back stab them, then play my mid special or pair of Js" — the play
+   * under threat is the modest one. */
+  function plannedSpecialValue(st, p) {
+    var opts = E.legalFightPlays(st, p), lo = 0;        // NOTE: each entry is {cards, combo} — the value is on .combo
+    for (var i = 0; i < opts.length; i++) { var cb = opts[i].combo; if (cb && cb.size > 1 && (lo === 0 || cb.value < lo)) lo = cb.value; }
+    return lo;
+  }
+  /* Which branch fired, tallied for the sims the same way stratPassCount() is — the model is only worth
+   * having if its interesting branches actually come up in real games. */
+  var lockStats = {};
+  function lockoutStats() { return lockStats; }
+  function resetLockoutStats() { lockStats = {}; }
+  /* Worth silencing `t`? Returns the REASON (handy in a log or a test) or '' for "hold the card". */
+  var LOCK_CAST = { duel: 1, 'read-threat': 1, 'plan-vulnerable': 1, 'crowd-thin': 1 };   // anything else is a HOLD
+  function lockoutWorth(st, p, t) {
+    var why = lockoutReason(st, p, t);
+    lockStats[why] = (lockStats[why] || 0) + 1;    // holds are tallied BY NAME: "why didn't it fire" is the useful question
+    return LOCK_CAST[why] ? why : '';
+  }
+  function lockoutReason(st, p, t) {
+    if (st.numPlayers === 2) return 'duel';                          // one rival: a skipped round is a free round
+    var plan = plannedSpecialValue(st, p), read = st.players[p]._read && st.players[p]._read[t];
+    if (read && read.round === st.round) {                           // we have SEEN the hand: no guessing needed
+      return (read.pairs >= 1 && read.best > plan) ? 'read-threat' : 'read-harmless';   // can't answer us -> keep the energy
+    }
+    if (!plan) return 'no-special';                                  // nothing to protect yet
+    if (st.players[t].hand.length < 3) return 'thin-hand';           // too few cards left to assemble an answer
+    var seen = st._seen && st._seen[t];
+    if (seen && seen.round === st.round && tierOf(seen.hi) === 'high') return 'highs-spent';   // their highs are already spent
+    if (tierOf(plan) !== 'high') return 'plan-vulnerable';           // a low/mid special is answerable: lock them
+    return (E.aliveCount(st) <= LOCKOUT_MAX_ALIVE) ? 'crowd-thin' : 'crowded';   // a high special mostly defends itself
+  }
+
+  var LOCKOUT_MAX_ALIVE = 3;
+  function setLockoutMaxAlive(n) { LOCKOUT_MAX_ALIVE = n | 0; }
   var STRAT_PASS_MAX = 5;                      // pass a winnable jab when hand length <= this
   var STRAT_PASS_MP = false;                   // allow it in 3+ player games at all
   var STRAT_PASS_SEATS = null;                 // study hook: only these seats may (null = every seat)
@@ -3379,11 +3513,31 @@
       var finEff = fin && E.effectOf(fin);
       // Armor Piercing (pitchHigh) costs a Broadway discard — only cast it when we hold a spare one.
       if (fin && !basic && !pl.finishingBlow && st.round >= 2 && !st.pile && anyOpp(st, p, function (o) { return o.shields <= 2; }) && hasCombo(pl.hand) && (!finEff.pitchHigh || broadwayPitchAvail(fin.id)) && act(st, p, fin.id, log, 'FINISH', humans)) continue;   // Finishing Blow: press lethal
-      // Back Stab (proactive, non-Quick lockout): deny the Rival their next turn — strong tempo. 1v1 only (auto-
-      // targets); skip if they're already locked or holding almost nothing (nothing to deny). The reactive
-      // Hermes-Quick spring in the pre-fight window is separate (takeTurn); this covers the plain card.
+      /* Back Stab (proactive, non-Quick lockout): deny a rival their next turn — strong tempo. Activate it, then
+       * play; they auto-pass and you take the round.
+       * This was gated to `st.numPlayers === 2` with the note "1v1 only (auto-targets)" — i.e. disabled in a
+       * free-for-all because the code had no way to choose WHICH rival to silence. `act` has resolved targets
+       * via chooseTarget for a while now (lockout is in HOSTILE_TARGETED), so the gate was purely historical,
+       * and it made the card cast 0 times in 200 six-player games while casting 44 times in 200 duels — one of
+       * Rogue's two signature cards, inert in every multiplayer sim we have ever run.
+       * In multiplayer it is BETTER than in a duel: you get to pick which of several threats to shut up, which
+       * is exactly what the persona targeting styles are for. Guard and cast share one target so they agree. */
       var lo = pick(function (ef) { return ef.kind === 'lockout'; });
-      if (lo && !basic && st.numPlayers === 2 && !st.players[oppIdx].lockSkip && !st.players[oppIdx].lockRound && st.players[oppIdx].hand.length >= 2 && act(st, p, lo.id, log, 'LOCKOUT', humans)) continue;
+      if (lo && !basic) {
+        var loT = (st.numPlayers === 2) ? oppIdx : chooseTarget(st, p, (st._diff && st._diff[p]) || 'fighter');
+        var loV = (loT != null && loT >= 0) ? st.players[loT] : null;
+        /* WHEN is it worth 10 energy? Silencing your ONLY opponent buys a free round. Silencing one of five
+         * leaves four who can still contest it — measured: un-gating this naively made every Back-Stab-holding
+         * deck slightly WORSE (Bard -2.1, Rogue -1.0) and widened persona spread, because the AI was simply
+         * making a bad play more often. The first fix gated on "hold a combo AND few rivals left"; v1.31.4
+         * replaces that with the TIMING model above, which asks whether the play we want to make is under
+         * threat from THIS rival. Balance-neutral (8 runs/arm, nothing over 3 s.e. across 44 deck
+         * comparisons), and it casts LESS often on purpose: 6p 38 -> 16 casts per 200 games.
+         * A lockout that hit EVERY rival would not need any of this — see setLockoutAll. */
+        var loWorth = loV ? lockoutWorth(st, p, loT) : '';    // see the timing model above
+        if (loV && loWorth && !loV.eliminated && !loV.lockSkip && !loV.lockRound && loV.hand.length >= 2 &&
+            act(st, p, lo.id, log, 'LOCKOUT', humans, loT)) continue;
+      }
       var eq = pick(function (ef) { return ef.kind === 'equip'; });
       if (eq && !basic && pl.equipment.length === 0) {
         var eqEff = E.effectOf(eq);
@@ -3418,14 +3572,17 @@
   // engine refused it (e.g. the lead-lock guard) so the AI simply moves on. When an
   // activation opens a window for an AI opponent, that opponent's response is resolved
   // right here; when it opens one for a HUMAN, st.pending is left set for the UI.
-  function act(st, p, id, log, tag, humans) {
+  /* `tgt` (optional): a target the CALLER already chose. Without it act picks its own via chooseTarget — which
+   * uses randomness, so a caller that guards on "is my target worth hitting?" and then lets act re-roll can
+   * check one rival and hit another. Back Stab needs the guard and the cast to agree. */
+  function act(st, p, id, log, tag, humans, tgt) {
     var c = st.players[p].hand.filter(function (x) { return x.id === id; })[0];
     if (kindBlock && c) { var ke = E.effectOf(c); if (ke && !kindOK(ke.kind, p)) return false; }   // analysis: skip a blocked effect KIND
     var card = c ? { rank: c.rank, suit: c.suit, id: c.id } : null;   // capture before the card leaves the hand
     var opts = {};                                                    // N-player: pick which rival a singular hostile effect hits
     var eff0 = c && E.effectOf(c);
     if (eff0 && st.numPlayers > 2 && (HOSTILE_TARGETED[eff0.kind] || (eff0.kind === 'recycle' && eff0.scope === 'opp'))) {
-      var t = chooseTarget(st, p, (st._diff && st._diff[p]) || 'fighter');
+      var t = (tgt != null && tgt >= 0) ? tgt : chooseTarget(st, p, (st._diff && st._diff[p]) || 'fighter');
       if (t >= 0) opts.target = t;
     }
     var r = E.activate(st, p, id, opts);
@@ -3531,6 +3688,7 @@
     return st.pile == null && st.round >= 2 && hasCombo(st.players[q].hand);
   }
   function takeTurn(st, p, diff, humans) {
+    observe(st);                                        // remember what the table has been playing
     diff = diff || 'fighter';
     (st._diff = st._diff || {})[p] = diff;                          // remember each seat's tier (round-win chooser reads it)
     var log = [];
@@ -3620,10 +3778,12 @@
 
   // Drive the NON-active player q's pre-fight decision from the UI (the engine window is already open).
   function preFightMove(st, q, activeP, diff) {
+    observe(st);
     if (aiPreFightLock(st, q, activeP, diff)) { var bs = lockoutQuick(st, q); if (bs) return { cast: bs.id, card: { rank: bs.rank, suit: bs.suit, id: bs.id } }; }
     return { pass: true };
   }
-  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
+  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe,
+    lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
@@ -5545,10 +5705,27 @@ window.CardFace = {};
     // the Rival (and then you again) may answer on the stack — Counter, spring Leyline, etc.
     settleWindows(gen, function(){
       if(state.finished){ render(); return endGame(); }
+      showRevealIfAny();                     // Outbalance: show the hand you just looked at
       if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive()){ return NET.hostAfterOwnCast(gen); }   // netplay: a forced discard on the Rival is theirs to choose
       if(handleDiscardAfterAction()) return; // a self draw-and-pitch opens the discard picker
       render();
     });
+  }
+  /* Pandora's Outbalance promises "look at the target's hand", so show it. The engine hands the cards over
+   * exactly once and seat-checked (E.takeReveal) and never puts them on state — a revealed hand on `st` would
+   * ride along in every netplay snapshot, i.e. to the player whose hand it is. `next` runs once you dismiss. */
+  function showRevealIfAny(next){
+    next = next || function(){};
+    var rv = (E.takeReveal ? E.takeReveal(YOU) : null);
+    if(!rv || !rv.cards || !rv.cards.length){ next(); return false; }
+    showModal('<h2>👁 '+logName(rv.seat)+'\u2019s hand</h2>'+
+      '<p class="subtle">Outbalance lets you look before they pitch. Remember what you can — you only see it once.</p>'+
+      '<div class="revealHand" id="revealHand"></div>'+
+      '<button id="revOk">Got it</button>');
+    var box=$('revealHand');
+    rv.cards.forEach(function(c){ box.appendChild(cardEl(c, 'sm')); });
+    $('revOk').addEventListener('click', function(){ hideOverlay(); next(); });
+    return true;
   }
   // After one of YOUR actions resolves, deal with any forced discard it created:
   // your own (draw-and-pitch) opens the picker; the Rival's (you played a discard on them) auto-resolves.
@@ -5576,6 +5753,7 @@ window.CardFace = {};
     revealEffect(card, 'You');
     settleWindows(gen, function(){
       if(state.finished){ render(); return endGame(); }
+      showRevealIfAny();
       render();
     });
   }

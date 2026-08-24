@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.29.8**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.4**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -51,6 +51,8 @@ node landscapetest.js                           # landscape / short-viewport lay
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node piletest.js                                # energy/shuffle pile viewers + promote (21)
+node revealtest.js                              # Outbalance's hand read: the modal, and that it never
+                                                # reaches `state` (12)
 node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (74)
 ```
 
@@ -224,9 +226,9 @@ Note the trap in the `prefight` case: **`hasSuper` requires a Ride.** Super Mode
 Form-granted Quick. Some older comments and doc lines say "any Q + any K"; the code is the truth.
 
 **`effectOf` vs `effectFor` — the trap that hid three bugs.** `effectOf(card)` is the card's **base** effect;
-`effectFor(st, p, card)` applies that player's Form/Super boosts. A Form can **grant `quick`** (Back Stab only
-under Hermes Super, Sanctuary under Hector, Armor Piercing under Hippolyta), so any code deciding *"is this a
-Quick?"* must use **`effectFor`**. `ai.js` read `effectOf` in three places and therefore never sprang Back Stab
+`effectFor(st, p, card)` applies that player's Form/Super boosts. A Form can **grant `quick`** (Back Stab under
+Perseus **or** Hermes Super, Sanctuary under Hector, Armor Piercing under Hippolyta), so any code deciding
+*"is this a Quick?"* must use **`effectFor`**. `ai.js` read `effectOf` in three places and therefore never sprang Back Stab
 in any mode (fixed v1.29.1). If a Form-granted behaviour appears dead, check which one the call site reads.
 
 **AI personas vary STYLE, not STRENGTH — and `personasim.js` is the guard.** Each AI seat draws a persona
@@ -284,6 +286,19 @@ comments and test names still *say* "REWORK:" as a label; that's just naming, no
   Shields stay flat 4 at every count. Read the draw with **`E.drawCountFor(st)`**, never `E.DRAW_PER_ROUND`
   (the duel value) — reading the constant in the UI is what made the round banner announce "draws 2" at a table
   drawing 6, twice.
+
+**A revealed hand must never touch `st`.** Pandora's Outbalance lets the caster look at the target's hand
+(v1.31.4). Anything on state travels in netplay snapshots — including back to the player whose hand it is — so
+the engine hands the cards over through `E.takeReveal(p)`, which is **seat-checked and one-shot**, and persists
+only a derived summary on the caster (`pl._read[seat] = {round, best, pairs, size}`). `test.js` asserts the
+cards never appear in `JSON.stringify(st)`. It is a pickup rather than a return value because an Outbalance can
+sit in a response window, and by the time it resolves `settleWindows()` hands its caller no result.
+
+**Back Stab's AI is a TIMING model, not a gate** (`lockoutWorth` in `ai.js`). It answers "is the play I want to
+make under threat from THIS rival", from a fresh Outbalance read or else from `observe()`'s memory of public
+plays. The trap: the "plan" it protects is the **cheapest legal special, not the best one** — read as the best
+play, the model's own branch fired 6 times in 200 six-player games, because when you are following every legal
+play already beats the pile and so looks high. `lockoutStats()` tallies the branches, holds included by name.
 
 ## Conventions
 

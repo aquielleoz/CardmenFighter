@@ -119,22 +119,22 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 | 7 | Caltrops | 7 | Equipment — lasts 3 rounds (retires to your Energy after). While equipped, the Rival's highest card each fight has its value reduced by 2. |
 | 8 | Counterfeit | 8 | Copy a card from the Rival's current play into your hand. You must play the copy in a fight this round — at the round's end it fades away. |
 | 9 | Critical Hit | 9 | Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield. |
-| 10 | Back Stab | 10 | Target Rival skips their next turn — no fights, no Techniques. |
+| 10 | Back Stab | 10 | Target Rival skips the whole round — no fights, no Techniques. |
 | 2 | — | — | *Apex trump — no effect; the highest fight value in the game.* |
 
 **Ride — J♠ · Giant Ram** (Super keystone): While in your zone: the Rival's first effect each turn costs 1 more energy.
 
 **Queen Form — ♠Q · Pandora Form**:
-- **Outbalance** → The Rival discards 1 more (2 total).
+- **Outbalance** → Look at the target's hand. They discard 1 more (2 total).
 - **Poison the Air** → Poison only the Rival — their Energy Pile goes to their Shuffle Pile (you keep yours).
 - **Counterfeit** → The copy enters your hand at +1 value.
 
 **King Form — ♠K · Perseus Form**:
 - **Hand-to-Hand Mastery** → Hand-to-Hand Mastery becomes a Quick.
 - **Sabotage** → Sabotage can also destroy a Ride.
-- **Back Stab** → The target skips the WHOLE round, not just their next turn.
+- **Back Stab** → Back Stab becomes a Quick.
 
 **Super Mode — ♠ · Hermes Mode** *(J+Q+K in zone)*:
 - **Counterfeit** → The copy enters your hand at +2 value.
-- **Back Stab** → Back Stab becomes a Quick AND the target skips the whole round.
+- **Back Stab** → Back Stab becomes a Quick AND ALL rivals skip the whole round.
 

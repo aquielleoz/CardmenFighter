@@ -1,7 +1,7 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**190**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**52** — free-for-all parity) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node browsertest.js` (12-duel smoke) · the `nettest_*.js` netplay suite (**run one at a time**; `nettest_log`/`nettest_full` are position-dependent — verify alone). Balance: `node analysis.js 130 on` · `node mpsim.js` · `node recyclesim.js 400`.
+Test: `npm test` = `node test.js` (**208**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**52** — free-for-all parity) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node browsertest.js` (12-duel smoke) · the `nettest_*.js` netplay suite (**run one at a time**; `nettest_log`/`nettest_full` are position-dependent — verify alone). Balance: `node analysis.js 130 on` · `node mpsim.js` · `node recyclesim.js 400`.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
 Current version: **v1.29.8**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
@@ -67,6 +67,13 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **Netplay: a CLIENT casting Outbalance never sees the hand it revealed** (v1.31.4, known gap). Solo and
+  local MP show the reveal modal; over the wire the **host** resolves the effect and there is no
+  private-to-one-seat message — every existing channel is either host-local or broadcast, and a revealed hand
+  is the one payload that must reach exactly one seat. Needs a targeted `t:'reveal'` frame addressed to the
+  caster's seat, sent from the host's cast handler. Until then the card is honest in solo/local and silently
+  weaker online. The engine side is already safe: `E.takeReveal(p)` is seat-checked, so a client cannot pick
+  up a read that is not its own.
 - **Rogue "slash": an on-demand card that LOWERS the current pile's value** (Aj, 2026-08-25 — filed for when
   Rogue needs a boost in balancing; nothing built). Distinct from Caltrops, which is a standing `oppDelta` debuff
   on opponents' cards. Aj's example: pile is a boosted pair of 4s at effective 6, you hold a pair of 5s; a
@@ -285,6 +292,85 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.4 — Back Stab locks the ROUND, Outbalance reads the hand, and the AI learns to time it
+
+Aj's redesign of the ♠ lockout line, plus the AI model that makes it a *timing* card rather than a card
+nobody casts. His own account of why the old one was dead: *"i personally also don't use backstab a lot. but
+the flavor is so good!"*
+
+**The cards** (`engine.js`):
+
+| | before | now |
+| --- | --- | --- |
+| Back Stab (♠10) | target skips their next **turn** | target skips the whole **round** |
+| Outbalance (♠A under Pandora/Q) | they discard 1 more (2 total) | **look at their hand**, they discard 2 |
+| Perseus (♠K) | Back Stab → skips the whole round | Back Stab becomes a **Quick** |
+| Hermes (♠ Super) | Quick + skips the whole round | Quick **and ALL rivals** skip the round |
+
+The escalation now reads cleanly — base buys a round off one rival, the King buys the *timing*, the Super
+buys the *table*. `hostileTargets` honours a card-level `eff.all`, so Hermes is table-wide independently of
+the `setDamageAll`/`setLockoutAll` research flags.
+
+**The reveal is deliberately NOT stored on state.** A hand parked on `st` rides along in every netplay
+snapshot — including to the player whose hand it is. The engine hands the cards over through a transient
+`takeReveal(p)` that is **seat-checked and one-shot**, and persists only a derived *summary* on the caster
+(`pl._read[seat] = {round, best, pairs, size}`). It is a pickup rather than a return value because an
+Outbalance can sit in a response window: by the time it resolves, `settleWindows()` has long since handed
+its caller no result. `test.js` asserts the hand never appears in `JSON.stringify(st)`.
+
+**The AI model** (`ai.js`) is Aj's heuristic, transcribed: *"if they played a high last turn, back stab looks
+bad because they wouldn't be able to play higher than me anyway. but if it feels like they're building a high
+special on hand, back stab starts looking promising."* Tiers are his — low 3-6, mid 7-10, high 11+.
+`lockoutWorth()` answers **"is the play I want to make under threat from THIS rival"**, never "do I hate
+them" (that is targeting's job), from two sources: a fresh Outbalance **read**, else what we watched them
+play (`observe()` — the pile is public, and like a player the AI only notices the plays it is present for).
+
+**The subtle bug worth remembering: the "plan" must be the CHEAPEST legal special, not the best one.** Read
+as the best play, the model's own branch fired **6 times in 200 six-player games** while the crude fallback
+fired 24 — because when you are *following*, every legal play already beats the pile and therefore looks
+high. Aj's line is *"i'd back stab them, then play my mid special or pair of Js"*: the play under threat is
+the modest one. With the fix, `plan-vulnerable` becomes the dominant branch (45 of 50 casts at 6p). Hold
+reasons are tallied **by name** (`lockoutStats()`), because *why it didn't fire* is the useful question.
+
+**Balance: neutral, and this time that claim is measured properly.** 8 runs per arm, 400 games, `knight`,
+A/B'd against the pre-redesign build in a separate directory:
+
+| | base | new |
+| --- | --- | --- |
+| 2p spread | 18.4 ±1.05 | 18.3 ±1.06 |
+| 3p spread | 19.1 ±0.93 | 17.5 ±0.93 |
+| 4p spread | 19.8 ±1.90 | 18.4 ±1.04 |
+| 6p spread | 15.9 ±1.55 | 16.0 ±0.94 |
+
+Across all 44 per-deck comparisons **nothing clears 3σ** (largest 2.6). Pure Rogue drifts up everywhere
+(2p +1.1, 3p +1.8, 6p +0.8) and none of it is significant — **the redesign does not fix Rogue's 6p problem**
+(still 9.8% at a fair share of 16.7%); that is still waiting on the "slash" card in the backlog.
+
+**A first draft of this measurement lied, and the way it lied is instructive.** With the mis-specified plan,
+Pure Fighter showed **−6.0 at 3p (3.5 s.e.)** — over the bar, mechanically plausible ("better-aimed
+lockouts hurt the deck that contests every fight"), and a completely coherent story. It evaporated when the
+model was corrected. A significant-looking result with a good story attached is still just one sample.
+
+**Cast volume went DOWN, on purpose:** 3p 56 → 28 casts per 200 games, 6p 38 → 16. The model holds the card
+when the target cannot answer. `read-threat` — the Pandora line, the coolest part — fires about **3 times in
+200 six-player games**: it needs Q♠ in the zone *and* an Outbalance on the same target in the same round. It
+is a real line, not a common one, and it should be described that way.
+
+**Persona parity holds** (`personasim.js 900 knight`): spread **1.1 points**, well under the 2.8 floor. Worth
+recording how that looked at smaller samples on the way there — **5.8 at 150 games, 3.3 at 500, 1.1 at 900**,
+with a control (six identical personas) reading 4.3 at 150 and 1.8 at 500. A 150-game persona run cannot tell
+a real style effect from noise; don't read one.
+
+**Human UI:** casting Outbalance pops a modal of the revealed hand (`showRevealIfAny`, dismissible, cards
+rendered with `cardEl`). **Known gap:** over netplay a *client* casting Outbalance does not see the reveal —
+the host resolves it and there is no private-to-one-seat message channel. Filed in the backlog.
+
+Tests: **208** (was 190) plus a new full-UI suite **`revealtest.js`** (12) that drives the real page — casts
+Outbalance in a 4-player game, checks the modal shows the right three cards, and checks the hand cannot be
+found anywhere in `JSON.stringify(state)`. The unit side covers the four card definitions, the reveal's transience and the summary read, and the
+timing model scenario by scenario, including the stale-read and thin-hand vetoes. `mpsim`'s self-check now
+also asserts the whole-round lock, so a future edit that silently downgrades it aborts the run.
 
 ### v1.31.3 — per-round draw scales with the table (draw = numPlayers)
 

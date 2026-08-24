@@ -199,20 +199,20 @@ benders, and the **Super keystone**. They landed as two clean mirror pairs:
 | 7 | Caltrops | Equipment — Rival highest −2 |
 | 8 | Counterfeit | copy a card from the Rival's play |
 | 9 | Critical Hit | Rival loses 1 shield |
-| 10 | Back Stab | target skips their next turn  ⤵ *(Quick moved to Hermes)* |
+| 10 | Back Stab | target skips the **whole round**  ⤵ *(Quick moved to Perseus)* |
 
 - **Ride — J♠ · Giant Ram:** opponents' first effect each turn costs 1 more to activate.
 - **Queen Form — Q♠ · Pandora:**
-  - Outbalance → Rival discards **2**
+  - Outbalance → **look at the target's hand**, they discard **2**
   - Poison the Air → **target Rival's** Energy → Shuffle *(base is symmetric; boost makes it one-sided)*
   - Counterfeit → copy one card **+ value +1**
 - **King Form — K♠ · Perseus:**
   - Hand-to-Hand Mastery → **Quick**
   - Sabotage → destroy an Equipment **or Ride**
-  - Back Stab → target skips the **whole round**
+  - Back Stab → **Quick** *(the round-long lock is now the base card)*
 - **Super — Hermes** *(supersedes):*
   - Counterfeit → copy **+ value +2**
-  - Back Stab → **Quick** — target skips the whole round *(the Super's add over Perseus is regaining Quick)*
+  - Back Stab → **Quick and ALL rivals** skip the round *(the Super's add over Perseus is the whole table)*
 
 ---
 
@@ -223,7 +223,7 @@ benders, and the **Super keystone**. They landed as two clean mirror pairs:
 | Leyline Ascension (♦9) | Quick — can't-lose-round | **recycle** → Athena (Super) |
 | Armor Piercing (♣7) | next win strips +1 shield | **Quick** → Meleager (K) |
 | Hand-to-Hand Mastery (♠3) | draw 2 | **Quick** → Perseus (K) |
-| Back Stab (♠10) | skips their next turn | **Quick** → Hermes (Super) |
+| Back Stab (♠10) | skips the whole round | **Quick** → Perseus (K); **all rivals** → Hermes (Super) |
 
 Pattern is coherent: the base stays playable, transforming buys back the spice, and each number stays an
 independent tuning knob.
@@ -250,3 +250,12 @@ independent tuning knob.
 - **Catch-up interaction** — v0.82 run had Cleric #1 (~60%) and Rogue at the bottom. Form boosts that pile
   onto Cleric's shield engine (Sanctuary/Apollo) or Wizard's ramp compound with that. Re-run
   `node analysis.js` once the layer exists and tune against the *new* numbers.
+
+### v1.31.4 — the ♠ lockout line, re-laid
+
+Base Back Stab was a turn-skip that nobody cast, and the two Forms above it spent their boosts re-buying
+things the base could have had. The line now escalates along one axis each step: **base buys a round off one
+rival, Perseus buys the timing (Quick), Hermes buys the table (all rivals).** Pandora's Outbalance gained the
+**hand read** that makes the timing decidable — you can now see whether the rival you are about to silence
+actually holds an answer. The AI's version of that judgement is `lockoutWorth` in `ai.js`; measured
+balance-neutral (8 runs/arm, nothing over 3σ across 44 deck comparisons).
