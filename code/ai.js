@@ -488,11 +488,30 @@
       var finEff = fin && E.effectOf(fin);
       // Armor Piercing (pitchHigh) costs a Broadway discard — only cast it when we hold a spare one.
       if (fin && !basic && !pl.finishingBlow && st.round >= 2 && !st.pile && anyOpp(st, p, function (o) { return o.shields <= 2; }) && hasCombo(pl.hand) && (!finEff.pitchHigh || broadwayPitchAvail(fin.id)) && act(st, p, fin.id, log, 'FINISH', humans)) continue;   // Finishing Blow: press lethal
-      // Back Stab (proactive, non-Quick lockout): deny the Rival their next turn — strong tempo. 1v1 only (auto-
-      // targets); skip if they're already locked or holding almost nothing (nothing to deny). The reactive
-      // Hermes-Quick spring in the pre-fight window is separate (takeTurn); this covers the plain card.
+      /* Back Stab (proactive, non-Quick lockout): deny a rival their next turn — strong tempo. Activate it, then
+       * play; they auto-pass and you take the round.
+       * This was gated to `st.numPlayers === 2` with the note "1v1 only (auto-targets)" — i.e. disabled in a
+       * free-for-all because the code had no way to choose WHICH rival to silence. `act` has resolved targets
+       * via chooseTarget for a while now (lockout is in HOSTILE_TARGETED), so the gate was purely historical,
+       * and it made the card cast 0 times in 200 six-player games while casting 44 times in 200 duels — one of
+       * Rogue's two signature cards, inert in every multiplayer sim we have ever run.
+       * In multiplayer it is BETTER than in a duel: you get to pick which of several threats to shut up, which
+       * is exactly what the persona targeting styles are for. Guard and cast share one target so they agree. */
       var lo = pick(function (ef) { return ef.kind === 'lockout'; });
-      if (lo && !basic && st.numPlayers === 2 && !st.players[oppIdx].lockSkip && !st.players[oppIdx].lockRound && st.players[oppIdx].hand.length >= 2 && act(st, p, lo.id, log, 'LOCKOUT', humans)) continue;
+      if (lo && !basic) {
+        var loT = (st.numPlayers === 2) ? oppIdx : chooseTarget(st, p, (st._diff && st._diff[p]) || 'fighter');
+        var loV = (loT != null && loT >= 0) ? st.players[loT] : null;
+        /* WHEN is it worth 10 energy? Silencing your ONLY opponent buys a free round. Silencing one of five
+         * leaves four who can still contest it, so the same cast is close to worthless — measured: un-gating it
+         * naively made every Back-Stab-holding deck slightly WORSE (Bard -2.1, Rogue -1.0) and widened persona
+         * spread, because the AI was making a bad play more often. So gate on VALUE, not on player count:
+         *   - only when we hold a combo to capitalise with (same reasoning as the pre-fight Quick spring), and
+         *   - only when few enough rivals remain that silencing one actually clears the way.
+         * A lockout that hit EVERY rival would not need this — see setLockoutAll. */
+        var loWorth = (st.numPlayers === 2) || (hasCombo(pl.hand) && E.aliveCount(st) <= 3);
+        if (loV && loWorth && !loV.eliminated && !loV.lockSkip && !loV.lockRound && loV.hand.length >= 2 &&
+            act(st, p, lo.id, log, 'LOCKOUT', humans, loT)) continue;
+      }
       var eq = pick(function (ef) { return ef.kind === 'equip'; });
       if (eq && !basic && pl.equipment.length === 0) {
         var eqEff = E.effectOf(eq);
@@ -527,14 +546,17 @@
   // engine refused it (e.g. the lead-lock guard) so the AI simply moves on. When an
   // activation opens a window for an AI opponent, that opponent's response is resolved
   // right here; when it opens one for a HUMAN, st.pending is left set for the UI.
-  function act(st, p, id, log, tag, humans) {
+  /* `tgt` (optional): a target the CALLER already chose. Without it act picks its own via chooseTarget — which
+   * uses randomness, so a caller that guards on "is my target worth hitting?" and then lets act re-roll can
+   * check one rival and hit another. Back Stab needs the guard and the cast to agree. */
+  function act(st, p, id, log, tag, humans, tgt) {
     var c = st.players[p].hand.filter(function (x) { return x.id === id; })[0];
     if (kindBlock && c) { var ke = E.effectOf(c); if (ke && !kindOK(ke.kind, p)) return false; }   // analysis: skip a blocked effect KIND
     var card = c ? { rank: c.rank, suit: c.suit, id: c.id } : null;   // capture before the card leaves the hand
     var opts = {};                                                    // N-player: pick which rival a singular hostile effect hits
     var eff0 = c && E.effectOf(c);
     if (eff0 && st.numPlayers > 2 && (HOSTILE_TARGETED[eff0.kind] || (eff0.kind === 'recycle' && eff0.scope === 'opp'))) {
-      var t = chooseTarget(st, p, (st._diff && st._diff[p]) || 'fighter');
+      var t = (tgt != null && tgt >= 0) ? tgt : chooseTarget(st, p, (st._diff && st._diff[p]) || 'fighter');
       if (t >= 0) opts.target = t;
     }
     var r = E.activate(st, p, id, opts);
