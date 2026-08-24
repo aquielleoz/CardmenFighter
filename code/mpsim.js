@@ -3,13 +3,8 @@
  * Usage: node mpsim.js [gamesPer(3p)] [diff]   — player counts 3/4/6 swept automatically. */
 var E = require('./engine.js');
 var AI = require('./ai.js');
-var _dpp=(process.argv[5]||'').toLowerCase()==='drawplayers'; E.setDrawPerPlayer(_dpp);
 E.setShieldCards(true); E.setLoserMill(true);
-E.setSpecialLossMode('chosen');
-var _f = (process.argv[8] || '').toLowerCase();          // extra flags: 'shp' shields=2+P, 'dpp' draw=players, 'apex'
-E.setShieldsPerPlayer(_f.indexOf('shp') >= 0); E.setDrawPerPlayer(_f.indexOf('dpp') >= 0); E.setApexInfinity(_f.indexOf('apex') >= 0);
-var MS = ((process.argv[6] || 'targeted').toLowerCase() === 'universal') ? 'universal' : 'targeted';
-E.setMillScope(MS);   // live game (v0.88+) is 'targeted'; arg 6 flips it for the A/B
+E.setSpecialLossMode('chosen'); E.setMillScope('targeted');  // matches the live game (v0.88+): cutthroat combo
 
 var DIFF = (process.argv[3] || 'fighter');
 var POOL = [null].concat(E.DECK_ORDER);              // null = Full Set
@@ -42,7 +37,7 @@ function runSweep(P, games, seed0){
   var fair = 100/P;
   var rows = Object.keys(stat).map(function(L){ var s=stat[L]; return { L:L, win: s.appear? 100*s.wins/s.appear : 0, share: s.appear? (100*s.wins/s.appear)/fair : 0, place: s.appear? s.placeSum/s.appear : 0, appear:s.appear }; });
   rows.sort(function(a,b){ return b.win - a.win; });
-  console.log('\n=== ' + P + '-PLAYER free-for-all — ' + games + ' games (' + DIFF + ' AI, mill=' + MS + ') · fair win share = ' + fair.toFixed(1) + '% ===');
+  console.log('\n=== ' + P + '-PLAYER free-for-all — ' + games + ' games (' + DIFF + ' AI) · fair win share = ' + fair.toFixed(1) + '% ===');
   console.log('deck                     win%   x-fair   avgPlace   (1=win … ' + P + '=first out)   games');
   rows.forEach(function(r){
     console.log(r.L.padEnd(24) + (r.win.toFixed(1)+'%').padStart(6) + '   ' + (r.share.toFixed(2)+'x').padStart(6) + '   ' + r.place.toFixed(2).padStart(6) + '                            ' + String(r.appear).padStart(6));

@@ -302,57 +302,9 @@
   function rankCounts(hand) { var m = {}; hand.forEach(function (c) { m[c.rank] = (m[c.rank] || 0) + 1; }); return m; }
 
   // Demon-Lord "strategic pass": concede a winnable JAB to conserve hand for Specials when running
-  // low. A/B tested (mirror Demon duels, 3600 games/threshold) — hand<=5 wins ~59% vs always-contest,
-  // independently reproduced in 2026-08 by `passsim.js` at +17.3 points. 1v1 only — see the note below for
-  // what that gate really buys, which is not what the old comment claimed.
-  /* STUDIED AND SETTLED (2026-08-23, `passsim.js`): the 1v1 gate STAYS, but the reason above was wrong.
-   * "Conceding hands the trick to several opponents" implies harm. There is no harm — in a free-for-all the
-   * strategic pass is simply INERT. Measured as a within-game A/B (same table, half the seats allowed to pass,
-   * seats rotated, one deck and one tier for everyone), win-rate delta to the passing arm:
-   *     demon DUEL          +17.3 pts   REAL — and it reproduces the original "~59% vs always-contest"
-   *     knight duel          +1.5 pts   noise (so the duel edge is a DEMON edge, not a smart-tier edge)
-   *     6p, thresholds 5-10  +0.6 / -1.7 / +1.7 / -0.9 / -2.2   all noise, even firing 8x per game
-   *     4p / 3p, 3200 games  -0.1 / +0.9                        noise
-   * Why: conserving a card is a TWO-BODY attrition edge. Against five opponents the marginal card stops
-   * mattering, so the policy fires and changes nothing. Raising the threshold only makes it fire more often
-   * for the same zero.
-   * A second policy was tried — Aj's own reasoning from play: concede a jab because you HOLD a Special you
-   * mean to lead (`setStratPassMode('combo')`), which has nothing to do with hand size. It is the only variant
-   * with a consistent positive sign, +0.9 at both 3p and 4p over 3200 games — still inside noise. A promising
-   * low-power reading of +4.0 regressed to +0.9 at 6x the games, which is what noise does.
-   * The knobs below stay because `passsim.js` needs them, and because it also reports INITIATIVE
-   * CONCENTRATION — the busiest leader holds 1.6-1.9x its fair share of rounds — which is the open question
-   * this study actually turned up. See NEXT-SESSION.md. */
-  var STRAT_PASS_MAX = 5;                      // pass a winnable jab when hand length <= this
-  var STRAT_PASS_MP = false;                   // allow it in 3+ player games at all
-  var STRAT_PASS_SEATS = null;                 // study hook: only these seats may (null = every seat)
-  function setStratPassMP(v) { STRAT_PASS_MP = !!v; }
-  function setStratPassSeats(m) { STRAT_PASS_SEATS = m || null; }
-  /* Study instrumentation: how OFTEN does the pass actually fire? A policy that never triggers measures as
-   * "neutral", which is indistinguishable from "harmless" unless you count the firings. */
-  /* Two DIFFERENT pass policies, and conflating them is the trap:
-   *   'hand'  — the shipped one: concede a jab when the HAND IS LOW, to conserve cards. A duel edge
-   *             (+17 pts for demon, measured), and inert in a free-for-all.
-   *   'combo' — Aj's, from actual play: concede a jab because you HOLD A SPECIAL you intend to lead, and
-   *             answering costs you the pieces. Nothing to do with hand size, and never tested. */
-  var STRAT_PASS_MODE = 'hand';
-  function setStratPassMode(m) { STRAT_PASS_MODE = (m === 'combo') ? 'combo' : 'hand'; }
-  function wantsStratPass(st, p) {
-    var pl = st.players[p];
-    if (STRAT_PASS_MODE === 'combo') return hasCombo(pl.hand);   // holding a Special: don't spend into a jab
-    return pl.hand.length <= STRAT_PASS_MAX;
-  }
-  var stratPasses = 0;
-  function stratPassCount() { return stratPasses; }
-  function resetStratPassCount() { stratPasses = 0; }
-  function mayStratPass(st, p) {
-    // The study override is checked FIRST and at every player count. It used to sit last, after an early
-    // `numPlayers === 2 -> true`, which let BOTH seats of a duel pass and made passsim's 2-player arm a
-    // comparison of a policy against itself — a vacuous 50/50.
-    if (STRAT_PASS_SEATS) return !!STRAT_PASS_SEATS[p];
-    if (st.numPlayers === 2) return true;                                   // shipped behaviour: duels only
-    return STRAT_PASS_MP;
-  }
+  // low. A/B tested (mirror Demon duels, 3600 games/threshold) — hand<=5 wins ~59% vs always-contest.
+  // 1v1 only: in 3-4 player, conceding hands the trick to several opponents, so it's gated off there.
+  var STRAT_PASS_MAX = 5;                      // pass a winnable jab when hand length <= this (1v1 only)
 
   function chooseMove(st, p, diff) {
     var strategicPass = isSmart(diff); var top = isTop(diff); if (diff === 'demonpass') diff = 'knight';
@@ -408,7 +360,7 @@
       });
       if (safe.length) {
         // strategic pass (Demon only, 1v1): conserve hand for Specials by conceding a jab when low
-        if (strategicPass && mayStratPass(st, p) && wantsStratPass(st, p)) { stratPasses++; return { action: 'pass' }; }
+        if (strategicPass && st.numPlayers === 2 && st.players[p].hand.length <= STRAT_PASS_MAX) return { action: 'pass' };
         safe.sort(function (a, b) { return a.combo.value - b.combo.value; }); return { action: 'play', cards: safe[0].cards };
       }
       return { action: 'pass' };
@@ -732,7 +684,7 @@
     if (aiPreFightLock(st, q, activeP, diff)) { var bs = lockoutQuick(st, q); if (bs) return { cast: bs.id, card: { rank: bs.rank, suit: bs.suit, id: bs.id } }; }
     return { pass: true };
   }
-  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
+  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

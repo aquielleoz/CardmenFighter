@@ -941,11 +941,8 @@
     #handMeta{font-size:11px; gap:5px; margin:0 3px 4px;}
     #handMeta .fighter{padding:2px 5px !important; gap:6px !important;}
     #handMeta .stat, #handMeta .deckName{font-size:10.5px;}
-    /* v1.31.0 scaled shields with the table, so a 6-player game shows EIGHT pips here, not four. At 11px they
-       pushed #handMeta taller and cut the pile's clearance over the hand from ~17px to 3px. Sized for the
-       8-pip case: 8 x 8px + 7 x 2px gaps = 78px, and the row is allowed to shrink rather than force a wrap. */
-    #handMeta .shields{gap:2px; flex:0 1 auto; min-width:0;}
-    #handMeta .shields .s{width:8px; height:11px;}
+    #handMeta .shields{gap:3px;}
+    #handMeta .shields .s{width:11px; height:14px;}
     #hand{max-height:32dvh; padding:13px 6px 4px; gap:5px;}    /* 13px top still clears the hover lift */
     #actions{margin-top:4px; gap:6px;}
     #actions button{padding:6px 11px; font-size:13px; border-radius:9px;}
@@ -984,8 +981,7 @@
        same fallback covers a desktop window dragged to any absurd height — which is otherwise unbounded. */
     #board{grid-template-rows:auto auto; overflow-y:auto; overscroll-behavior:contain;}
     #handMeta{font-size:10px; gap:4px; margin:0 2px 2px;}
-    #handMeta .shields{gap:2px;}
-    #handMeta .shields .s{width:7px; height:9px;}      /* the floor: 8 pips must still fit beside the stats */
+    #handMeta .shields .s{width:9px; height:11px;}
     #actions{margin-top:3px;}
     #actions button{padding:4px 7px; font-size:11.5px;}
     #pileLabel{font-size:10px; min-height:11px;}
@@ -1023,8 +1019,8 @@
     .oppPanel{min-width:88px; max-width:150px; padding:4px 6px; gap:2px; font-size:10px; border-radius:9px;}
     .oppPanel .oppName{font-size:11px;}
     .oppPanel .oppSeat{display:none;}                                   /* the name already identifies the seat */
-    .oppPanel .oppShields{gap:2px; flex:0 1 auto; min-width:0;}
-    .oppPanel .oppShields .s{width:7px; height:10px;}   /* 8 pips at 6p, inside an 88px-min panel */
+    .oppPanel .oppShields{gap:2px;}
+    .oppPanel .oppShields .s{width:9px; height:12px;}
     .oppPanel .oppStats{gap:5px;}
     /* 667x375 with SIX players is the hardest case in the game: the opponents strip (69px even compacted)
        left the play-area grid track 49px for 96px of content, so the pile drew over the hand. Lay each panel
@@ -1139,9 +1135,6 @@
  *   - Straights: 5-card windows over fight value, lo 3..11 → 3-4-5-6-7 (lowest)
  *     .. J-Q-K-A-2 (highest); no wrap.
  *   - Duel: START_SHIELDS=4 each, START_HAND=6, DRAW_PER_ROUND=2, MAX_HAND=10.
- *   - 3-6 PLAYERS SCALE WITH THE TABLE (2026-08-25): shields = 2 + numPlayers, and the per-round draw =
- *     numPlayers. Both resolve to the duel values at 2 players (4 shields, draw 2), so a duel is unchanged.
- *     Read them with startShieldsFor(n) / drawCountFor(st) — never the raw constants, which are duel values.
  *     A round is draw → one player leads → the fight is a trick; the last
  *     unbeaten play wins. A SPECIAL (multi-card) win strips 1 shield; a jab
  *     only banks energy. Specials are locked in round 1. At 0 shields the next
@@ -1289,46 +1282,6 @@
 
   // ---- game state ----
   var START_HAND = 6, DRAW_PER_ROUND = 2, START_SHIELDS = 4, MAX_HAND = 10;
-  /* SHIELDS = 2 + numPlayers (Aj, 2026-08-24) — flag, A/B only.
-   * Companion to `all`+`universal`: that pairing makes damage scale with the table, which holds game length
-   * flat at ~10 rounds but may be too SHORT for six players (live pairing runs 33). Scaling the shield pool
-   * with the table gives the middle ground: 2p keeps exactly today's 4, 6p gets 8. */
-  var SHIELDS_PER_PLAYER = true;      // ON: this is the game (2026-08-25). false restores a flat START_SHIELDS for A/B.
-  function setShieldsPerPlayer(v) { SHIELDS_PER_PLAYER = !!v; }
-  function isShieldsPerPlayer() { return SHIELDS_PER_PLAYER; }
-  function startShieldsFor(n) { return SHIELDS_PER_PLAYER ? (2 + n) : START_SHIELDS; }
-  /* APEX-2 REWORK (Aj's brother, 2026-08-24) — flag, A/B only, and explicitly a FEEL change as much as a
-   * balance one. A play containing a 2 becomes UNBEATABLE (rank infinity) but strips NO shield. It converts
-   * the apex from a damage tool into an INITIATIVE tool, which is interesting because initiative is the
-   * scarcest thing in a free-for-all (concentration 1.6-1.9x, and 0.5 legal plays when following at 6p).
-   * Two 2s of the same shape cannot beat each other — infinity is not strictly greater than infinity — so an
-   * apex play is genuinely final for that round. */
-  /* Aj (2026-08-24) on where the feedback comes from: in the original **chikicha** the 2 is the outright peak.
-   * Here it is only 15, and boosts stack ON TOP of fightValue — a boosted Ace at 14+7 beats it (Aj has run a
-   * +7). So the apex is not actually an apex, which is the complaint. That makes the minimal fix "no boost may
-   * exceed the apex", and it is SEPARATE from the no-strip half of the proposal:
-   *   APEX_INF     — a 2 ranks at infinity, so no boost can pass it. Shields still work normally.
-   *   APEX_NOSTRIP — additionally, a winning play containing a 2 strips no shield (the literal proposal).
-   * Split because the length cost measured earlier belongs entirely to the second half: an unbeatable play
-   * that also deals no damage ends a round without progressing the game. */
-  var APEX_INF = false, APEX_NOSTRIP = false;
-  function setApexInfinity(v) { APEX_INF = !!v; }
-  function setApexNoStrip(v) { APEX_NOSTRIP = !!v; }
-  function isApexInfinity() { return APEX_INF; }
-  function isApexNoStrip() { return APEX_NOSTRIP; }
-  function hasApex(cards) { for (var i = 0; i < (cards || []).length; i++) if (cards[i] && cards[i].rank === 2) return true; return false; }
-  /* "DRAW EQUAL TO THE NUMBER OF PLAYERS" (Aj's idea, 2026-08-24) — a flag, for A/B only.
-   * Aimed at the constraint `optionsim.js` actually found: legal plays per turn FALL as players rise (4.5 at
-   * 2p to 2.3 at 6p) because the pile is raised more times before it reaches you. A fixed draw of 2 does not
-   * scale with that, so this makes the draw scale with the table instead: draw = numPlayers.
-   * Note it is not simply "more cards" — hands already sit at the MAX_HAND cap 43-53% of the time in a
-   * free-for-all, so the extra draw largely converts into SELECTION (you see more of your deck and keep the
-   * best 10) and into CYCLING (the surplus is discarded to energy each round). Both plausibly raise option
-   * quality without raising hand size. Measure with optionsim / recyclesim / mpsim. */
-  var DRAW_PER_PLAYER = true;         // ON: this is the game (2026-08-25). false restores a flat DRAW_PER_ROUND for A/B.
-  function setDrawPerPlayer(v) { DRAW_PER_PLAYER = !!v; }
-  function isDrawPerPlayer() { return DRAW_PER_PLAYER; }
-  function drawCountFor(st) { return DRAW_PER_PLAYER ? Math.max(DRAW_PER_ROUND, st.numPlayers) : DRAW_PER_ROUND; }
 
   // End-of-turn hand limit: discard down to MAX_HAND. `ids` = the player's chosen cards
   // to pitch (auto-picks lowest values if omitted / short). Discards go to the ENERGY pile
@@ -1365,7 +1318,7 @@
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
     var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, discardPending: null, shieldResponse: null, stack: [], roundWinResult: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
-    var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
+    var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : START_SHIELDS;   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
     for (var p = 0; p < np; p++) {
       var pl = newPlayer();
@@ -2638,7 +2591,6 @@
     var winner = st.lastPlayer;
     st.preFightHandled = false;                                                // new round → fresh pre-fight windows
     var wonWithCombo = st.pile.combo.size > 1;                                 // only Specials strip shields
-    if (APEX_INF && APEX_NOSTRIP && hasApex(st.pile.combo.cards)) wonWithCombo = false;   // only the no-strip variant declaws the apex
     var losers = livingNonWinners(st, winner);
     // who takes a shield loss (Specials only): 'all' = every loser; 'chosen' = the winner's one pick
     var strikeTargets = [];
@@ -2800,7 +2752,6 @@
   // Ladder (low->high): 3 4 5 6 7 8 9 10 J(11) Q(12) K(13) A(1) 2 . Rank stays the card's identity (1-13).
   function fightValue(card) {
     var r = card.rank, v = (r >= 3 && r <= 13) ? r : (r === 1 ? 14 : (r === 2 ? 15 : r));   // 3..10, J, Q, K, A(14), 2(15 apex)
-    if (APEX_INF && r === 2) return Infinity;   // apex rework: a 2 is unbeatable (and strips no shield — see applyRoundLoss)
     return v + (card.valueBonus || 0);   // Counterfeit copies can carry a +value bonus (Pandora/Hermes)
   }
   // Energy to activate a card's effect. J/Q/K cost a flat 10 to transform into the zone; Ace keeps cost 1;
@@ -2816,8 +2767,7 @@
     result = result || {};
     if (result.drawn) return result;
     result.draws = [];
-    var perRound = drawCountFor(st);
-    for (var r = 0; r < st.numPlayers; r++) result.draws[r] = st.players[r].eliminated ? 0 : drawCards(st.players[r], perRound);
+    for (var r = 0; r < st.numPlayers; r++) result.draws[r] = st.players[r].eliminated ? 0 : drawCards(st.players[r], DRAW_PER_ROUND);
     result.drawn = true;
     // deck-out: the new leader has no card to lead with. Duel → they lose; N-player → they're eliminated.
     if (st.players[st.turn].hand.length === 0) {
@@ -2876,12 +2826,7 @@
     canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, reorderEnergy: reorderEnergy, promoteEnergy: promoteEnergy, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
     discardToLimit: discardToLimit, MAX_HAND: MAX_HAND,
     effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, opponentCanRespond: opponentCanRespond, useEquipment: useEquipment, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
-    START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
-    setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
-    drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
-    setApexInfinity: setApexInfinity, isApexInfinity: isApexInfinity,
-    setApexNoStrip: setApexNoStrip, isApexNoStrip: isApexNoStrip,
-    setDrawPerPlayer: setDrawPerPlayer, isDrawPerPlayer: isDrawPerPlayer
+    START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenEngine = API;
@@ -3192,57 +3137,9 @@
   function rankCounts(hand) { var m = {}; hand.forEach(function (c) { m[c.rank] = (m[c.rank] || 0) + 1; }); return m; }
 
   // Demon-Lord "strategic pass": concede a winnable JAB to conserve hand for Specials when running
-  // low. A/B tested (mirror Demon duels, 3600 games/threshold) — hand<=5 wins ~59% vs always-contest,
-  // independently reproduced in 2026-08 by `passsim.js` at +17.3 points. 1v1 only — see the note below for
-  // what that gate really buys, which is not what the old comment claimed.
-  /* STUDIED AND SETTLED (2026-08-23, `passsim.js`): the 1v1 gate STAYS, but the reason above was wrong.
-   * "Conceding hands the trick to several opponents" implies harm. There is no harm — in a free-for-all the
-   * strategic pass is simply INERT. Measured as a within-game A/B (same table, half the seats allowed to pass,
-   * seats rotated, one deck and one tier for everyone), win-rate delta to the passing arm:
-   *     demon DUEL          +17.3 pts   REAL — and it reproduces the original "~59% vs always-contest"
-   *     knight duel          +1.5 pts   noise (so the duel edge is a DEMON edge, not a smart-tier edge)
-   *     6p, thresholds 5-10  +0.6 / -1.7 / +1.7 / -0.9 / -2.2   all noise, even firing 8x per game
-   *     4p / 3p, 3200 games  -0.1 / +0.9                        noise
-   * Why: conserving a card is a TWO-BODY attrition edge. Against five opponents the marginal card stops
-   * mattering, so the policy fires and changes nothing. Raising the threshold only makes it fire more often
-   * for the same zero.
-   * A second policy was tried — Aj's own reasoning from play: concede a jab because you HOLD a Special you
-   * mean to lead (`setStratPassMode('combo')`), which has nothing to do with hand size. It is the only variant
-   * with a consistent positive sign, +0.9 at both 3p and 4p over 3200 games — still inside noise. A promising
-   * low-power reading of +4.0 regressed to +0.9 at 6x the games, which is what noise does.
-   * The knobs below stay because `passsim.js` needs them, and because it also reports INITIATIVE
-   * CONCENTRATION — the busiest leader holds 1.6-1.9x its fair share of rounds — which is the open question
-   * this study actually turned up. See NEXT-SESSION.md. */
-  var STRAT_PASS_MAX = 5;                      // pass a winnable jab when hand length <= this
-  var STRAT_PASS_MP = false;                   // allow it in 3+ player games at all
-  var STRAT_PASS_SEATS = null;                 // study hook: only these seats may (null = every seat)
-  function setStratPassMP(v) { STRAT_PASS_MP = !!v; }
-  function setStratPassSeats(m) { STRAT_PASS_SEATS = m || null; }
-  /* Study instrumentation: how OFTEN does the pass actually fire? A policy that never triggers measures as
-   * "neutral", which is indistinguishable from "harmless" unless you count the firings. */
-  /* Two DIFFERENT pass policies, and conflating them is the trap:
-   *   'hand'  — the shipped one: concede a jab when the HAND IS LOW, to conserve cards. A duel edge
-   *             (+17 pts for demon, measured), and inert in a free-for-all.
-   *   'combo' — Aj's, from actual play: concede a jab because you HOLD A SPECIAL you intend to lead, and
-   *             answering costs you the pieces. Nothing to do with hand size, and never tested. */
-  var STRAT_PASS_MODE = 'hand';
-  function setStratPassMode(m) { STRAT_PASS_MODE = (m === 'combo') ? 'combo' : 'hand'; }
-  function wantsStratPass(st, p) {
-    var pl = st.players[p];
-    if (STRAT_PASS_MODE === 'combo') return hasCombo(pl.hand);   // holding a Special: don't spend into a jab
-    return pl.hand.length <= STRAT_PASS_MAX;
-  }
-  var stratPasses = 0;
-  function stratPassCount() { return stratPasses; }
-  function resetStratPassCount() { stratPasses = 0; }
-  function mayStratPass(st, p) {
-    // The study override is checked FIRST and at every player count. It used to sit last, after an early
-    // `numPlayers === 2 -> true`, which let BOTH seats of a duel pass and made passsim's 2-player arm a
-    // comparison of a policy against itself — a vacuous 50/50.
-    if (STRAT_PASS_SEATS) return !!STRAT_PASS_SEATS[p];
-    if (st.numPlayers === 2) return true;                                   // shipped behaviour: duels only
-    return STRAT_PASS_MP;
-  }
+  // low. A/B tested (mirror Demon duels, 3600 games/threshold) — hand<=5 wins ~59% vs always-contest.
+  // 1v1 only: in 3-4 player, conceding hands the trick to several opponents, so it's gated off there.
+  var STRAT_PASS_MAX = 5;                      // pass a winnable jab when hand length <= this (1v1 only)
 
   function chooseMove(st, p, diff) {
     var strategicPass = isSmart(diff); var top = isTop(diff); if (diff === 'demonpass') diff = 'knight';
@@ -3298,7 +3195,7 @@
       });
       if (safe.length) {
         // strategic pass (Demon only, 1v1): conserve hand for Specials by conceding a jab when low
-        if (strategicPass && mayStratPass(st, p) && wantsStratPass(st, p)) { stratPasses++; return { action: 'pass' }; }
+        if (strategicPass && st.numPlayers === 2 && st.players[p].hand.length <= STRAT_PASS_MAX) return { action: 'pass' };
         safe.sort(function (a, b) { return a.combo.value - b.combo.value; }); return { action: 'play', cards: safe[0].cards };
       }
       return { action: 'pass' };
@@ -3622,7 +3519,7 @@
     if (aiPreFightLock(st, q, activeP, diff)) { var bs = lockoutQuick(st, q); if (bs) return { cast: bs.id, card: { rank: bs.rank, suit: bs.suit, id: bs.id } }; }
     return { pass: true };
   }
-  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
+  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
@@ -3767,14 +3664,8 @@ window.CardFace = {};
   E.setDeferRoundDraw(true);   // the UI draws the new round's cards AFTER the end-of-round hand-limit trim (see resolveRoundCeremony)
   E.setShieldCards(true);      // CATCH-UP M1: shields are cards — a broken shield returns to its owner's hand (the trailing player refuels)
   E.setLoserMill(true);        // CATCH-UP M2: the round's loser mills (winning-play size) cards into their Energy Pile (energy parity; deck-out guarded)
-  /* MP RULES, 2026-08-25. Measured: with 'chosen'+'targeted' a Special win cost the table exactly ONE shield
-     however many people were at it, so total shields scaled with the table while damage did not and a 6-player
-     game ran 33 rounds against a duel's 11. 'all'+'universal' scales damage too — hit everyone, pay everyone —
-     which is also the only other COHERENT pairing (punishment and catch-up stay linked). With shields = 2 +
-     numPlayers that lands 6p at ~15 rounds, and 10 runs per arm found it balance-NEUTRAL at every count. Both
-     modes are no-ops at 2 players, so duels are untouched. */
-  E.setSpecialLossMode('all');    // MP: a Special win costs EVERY non-winner a shield. No-op at 2p.
-  E.setMillScope('universal');    // MP: every non-winner mills catch-up cards, so the compensation matches the damage. No-op at 2p.
+  E.setSpecialLossMode('chosen'); // MP: on a Special win the victor strips ONE chosen rival's shield (not the whole table). No-op at 2p.
+  E.setMillScope('targeted');     // MP: only the struck rival(s) mill catch-up cards, not every non-winner. No-op at 2p. (Cutthroat combo — flattens 3–6p balance; see CARD-STATS.md.)
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
   var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',straightflush:'Straight Flush'};
@@ -5862,9 +5753,7 @@ window.CardFace = {};
     /* One neutral line for everyone (Aj's wording), instead of "You draw 2, Rival draws 2" — which could not
      * be phrased for 3-6 seats and named the wrong player in a free-for-all. Per-seat detail that actually
      * matters (your own fizzle) still follows. */
-    // The per-round draw SCALES with the table (= numPlayers), so ask the engine — E.DRAW_PER_ROUND is the
-    // duel value and would have announced "draws 2" at a 6-player table that actually drew 6.
-    var per=(E.drawCountFor&&state)?E.drawCountFor(state):((E.DRAW_PER_ROUND!=null)?E.DRAW_PER_ROUND:2);
+    var per=(E.DRAW_PER_ROUND!=null)?E.DRAW_PER_ROUND:2;
     say(null, '<b>Round '+rn+'</b> begins. Each player draws '+per+'.', 'round');
     if(res.draws && res.draws[YOU]===0) logMsg('Draw fizzled — your deck &amp; shuffle pile are empty. Spend energy on effects to recycle cards back into your deck.', 'warn');
   }
@@ -5888,8 +5777,7 @@ window.CardFace = {};
     if(res.opening) return 'Jabs only';
     if(res.draws && res.draws[YOU]===0) return 'Deck empty — spend energy to recycle';
     if(res.newRound===2) return 'Specials unlocked!';
-    var n=(E.drawCountFor&&state)?E.drawCountFor(state):2;
-    return 'Each player draws '+n+(n===1?' card':' cards');
+    return 'Each player draws 2 cards';
   }
   /* The between-rounds ceremony beats. This was the THIRD site deriving the loser as "whichever of YOU/RIVAL
    * didn't win" (Aj caught it after v1.29.6 fixed the other two): with P2 beating P3, `youWon` is false, so
@@ -7144,7 +7032,7 @@ window.CardFace = {};
       '<p class="rIntro">You’re a Cardman. Each turn you <b>Activate</b> card effects, then <b>Fight</b> — lead a card or beat the one on the table. Win <b>Specials</b> to strip your Rival’s shields; land the finisher and the duel is yours.</p>'+
 
       '<h3>The basics</h3><ul>'+
-      '<li><b>Goal:</b> strip your opponents’ <b>'+baseShields()+' shields</b>'+(MP()?' (a bigger table starts with more)':'')+'. Once they’re at 0, your next <b>Special</b> win is the <b>Fighter Kick</b> — game over, you win.</li>'+
+      '<li><b>Goal:</b> strip your Rival’s <b>4 shields</b>. Once they’re at 0, your next <b>Special</b> win is the <b>Fighter Kick</b> — game over, you win.</li>'+
       '<li><b>Jab vs Special:</b> a <b>jab</b> is a single card; a <b>Special</b> is any combo — pair, trio, straight, or full house. <span class="rNote">(Same suit doesn’t matter — a run of one suit is just a straight.)</span> Only <b>Specials strip a shield</b> — a jab win just takes the round (no shield lost). Round 1 is jabs only — Specials open up from round 2.</li>'+
       '<li><b>Beating a play:</b> you must go <b>strictly higher</b> — equal values <b>tie</b>, and a tie doesn’t win. The ladder runs <b>3 (low) → 4 … 10</b>, then the trumps: <b>A</b>, and at the very top <b>2 — the apex, which beats everything</b>. So your 2 is the strongest card, your Ace second. <span class="rNote">(In Full mode J/Q/K sit on the rungs between 10 and A — see below.)</span></li>'+
       '<li><b>Shields are cards (catch-up):</b> when one of your shields breaks, that card returns to <b>your hand</b>. And every round you <b>lose</b>, you move cards from your deck into your <b>energy</b> to match what the winner banked. Falling behind re-arms you — leads still win, they just don’t snowball away.</li>'+
@@ -7867,7 +7755,7 @@ window.CardFace = {};
     // Unified start for 2–6 players. Seat 0 = host; seats 1..k = the joined remote clients (each with its lobby pick).
     // 2p keeps the awaitRival flow; 3–6p uses the netDriveN driver (both entered via driveRival, gated on MP()).
     function hostStartRealN(hostDeck){
-      E.setShieldCards(true); E.setLoserMill(true); E.setSpecialLossMode('all'); E.setMillScope('universal');
+      E.setShieldCards(true); E.setLoserMill(true); E.setSpecialLossMode('chosen'); E.setMillScope('targeted');
       gameBasics=false;                                // online is always the Full game (Basics is a solo learn-the-ropes mode for now)
       started=true; hideOverlay(); hideNetroot();
       var joined=nextSeat-1, n=Math.max(2, joined+1);
