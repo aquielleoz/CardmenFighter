@@ -31,7 +31,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 131 + 28 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 208 + 28 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -40,7 +40,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 131 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 208 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction — 28, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (13)
 node nettest_names.js                           # netplay player names, both directions (7)
@@ -50,10 +50,10 @@ node viewtest.js                                # 🔍 View card reader gating o
 node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (64)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
-node piletest.js                                # energy/shuffle pile viewers + promote (21)
+node piletest.js                                # energy/shuffle pile viewers + promote (30)
 node revealtest.js                              # Outbalance's hand read: the modal, and that it never
                                                 # reaches `state` (12)
-node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (74)
+node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (82)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -205,7 +205,11 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of v1.26.3 — **all 21 green.**
+Status as of v1.31.4 — green. Counts verified 2026-08-24: `test` 208, `netview` 28, `mptest` 82,
+`piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
+`landscapetest` 64, `nettest_log` 13, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
+`nettest_prefight` 13, `nettest_full` 5. **If a count here disagrees with a suite, the suite is right —
+fix this line.**
 
 **These suites go stale silently** — they were unrunnable for however long `/opt/pw-browsers/chromium` was
 missing, and *three* had quietly rotted against product changes while nobody could run them (all fixed in

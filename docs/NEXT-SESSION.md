@@ -1,79 +1,104 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**208**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**52** — free-for-all parity) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node browsertest.js` (12-duel smoke) · the `nettest_*.js` netplay suite (**run one at a time**; `nettest_log`/`nettest_full` are position-dependent — verify alone). Balance: `node analysis.js 130 on` · `node mpsim.js` · `node recyclesim.js 400`.
+Test: `npm test` = `node test.js` (**208**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.29.8**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.4**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
-## ☀️ START HERE — where we left off (night of 2026-08-22)
+## ☀️ START HERE — where we left off (2026-08-24)
 
-Everything is **merged, pushed and green.** `main` is at **v1.29.6**, working tree clean, and `node build.js`
-reproduces the committed HTML byte-for-byte. Nothing is half-done and no branch is waiting.
+`main` is at **v1.31.4**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
+HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
 
 ```bash
 npm test && node mptest.js
 ```
-Expect **190 / 0**, **28 / 0**, **52 / 0**. If those pass, the repo is exactly as it was left.
 
-### What got done, in one breath
-The **MP parity audit is fully closed** — every finding fixed: A1/A2 (pre-fight + response windows for seats
-past the first), A3 (the AI could never use *any* Form-granted Quick — it had never sprung Back Stab in any
-mode), B1 (opponents' Equipment/Forms are reachable and targetable), C1 (opponents' turns are actually
-presented), C2 + D1 (round results name real seats; the "you lost a shield" mislabel is gone). Plus, from
-playtest: the popover no longer flattens the log, the Respond? modal says **who cast what at whom**, and
-targeting now **confirms before it fires**.
+Expect **208 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
 
-### Three good places to start, easiest first
+### What just shipped
+**v1.31.4 — the ♠ Back Stab line, re-laid.** Base Back Stab locks the whole **round**; Perseus makes it a
+**Quick**; Hermes makes it hit **every** rival; Pandora's Outbalance now lets you **look at the target's hand**.
+The AI got a timing model (`lockoutWorth` in `ai.js`) that asks *"is the play I want to make under threat from
+THIS rival"*. Balance-neutral, 8 runs per arm. Full detail in the changelog below.
 
-1. **Player names** — *the one you asked for.* Every naming site now flows through a single **`logName(seat)`**,
-   which was the whole point of doing D1 first. So this is: add a name per seat (netplay already carries a
-   per-seat identity in the lobby), let the setup screen collect them, and return them from `logName`. One
-   function plus a UI field. Nothing else needs to change.
-2. **The reorderable-energy follow-ups** in the backlog below — a tutorial lesson for the pile viewers, and the
-   deferred "view-only opponent pile inspection", which is now cheap since the mirror already ships every pile.
-3. **The landscape-phone layout branch** — untouched, self-contained, and independent of everything above.
+### ⚠️ Two stale beliefs this doc used to carry — do not act on them
+- **v1.31.0's multiplayer rules package was REVERTED** (v1.31.2). Shields are **flat 4** at every player
+  count and `SPECIAL_LOSS_MODE` is **`chosen`**, not `all`. The *only* part of that package that shipped is
+  **draw = numPlayers** (v1.31.3). An older "START HERE" block described the whole package as live; it wasn't.
+- **The apex-2 A/B is still open but its framing moved.** `setApexInfinity`/`setApexNoStrip` exist and are
+  **off**; the "balance-neutral at 10 runs" claim behind them came from the broken positional-flag study (see
+  PATCHNOTES 0j) and has **never been re-measured**. Treat it as unmeasured, not as neutral.
+
+### The next three, in Aj's order (2026-08-24)
+1. **Netplay reveal** — a client casting Outbalance can't see the hand it revealed. Backlog entry below.
+2. **Game export** — it is duel-shaped and loses multiplayer data. Backlog entry below.
+3. **Two-player wordings** — six cards still speak duel-only, three of them *understate* what they do at a
+   full table. Backlog entry below, with the audit already done.
 
 ### One loose thread, deliberately left
 `nettest_log` and `nettest_full` are **position-dependent**: they pass alone (13/0 and 5/0) but fail or time out
 late in a long serial sweep. An A/B of the actual builds cleared our changes of causing it — the accumulation
 behind it is still unisolated. **Confirm any sweep failure by running that suite alone before believing it.**
 
-### Two hard-won habits worth keeping
-- **A/B the actual builds** before believing a diagnosis. Three times this session a "product bug" turned out to
-  be tooling (busy-wait loops, orphaned ports, `pkill` killing a live test). The A/B took ~4 minutes and was
-  right every time; confident code-reading was wrong every time.
+### Three hard-won habits worth keeping
+- **A/B the actual builds** before believing a diagnosis. Repeatedly, a "product bug" turned out to be tooling
+  (busy-wait loops, orphaned ports, `pkill` killing a live test). The A/B takes ~4 minutes and has been right
+  every time; confident code-reading was wrong every time.
+- **Read the printed CONFIG of any sim you are drawing conclusions from.** Positional flags once made all four
+  arms of a 40-run study run the identical config, and the "balance-neutral" conclusion shipped a real
+  regression. `mpsim` now prints its resolved config and aborts on a failed behavioural self-check.
 - **Measure layout, don't eyeball it.** A passing assertion that enforces the *wrong* invariant is worse than
   none — one of them actively locked in the bug that flattened the battle log.
 
 ---
 
-## ☀️ START HERE
-
-**v1.31.0 shipped the multiplayer rules package** (see the changelog below). What is still open:
-
-1. **The apex-2 A/B — Aj's explicit next task.** Two variants, both behind flags, to be tested *with* strip and
-   *without*: `E.setApexInfinity(true)` makes a 2 unbeatable (no boost can pass it) and is **free** — 6p length
-   unchanged and balance-neutral at 10 runs. `+ E.setApexNoStrip(true)` additionally makes a winning play
-   containing a 2 strip no shield, which costs **6p length 15 -> 38 rounds**. Aj wants both measured for feel,
-   not just numbers.
-2. **Play the shipped rules.** Nobody has actually played a 6-player game at ~15 rounds with 8 shields and a
-   draw of 6. The number most likely to surprise: **mean energy nearly doubles** (8.6 -> 14.4 at 6p), so every
-   fixed activation cost is relatively much cheaper. No win-rate figure shows that.
-3. **Initiative is still concentrated ~1.8x** at 6p and no lever tried has moved it. Only
-   `st.initiative = winner` (`engine.js` ~1685) will. Note the shipped package may have changed the picture —
-   worth re-measuring with `passsim.js` before designing anything.
-
 
 ## BACKLOG (open work only — completed items live in the changelog below)
-- **Netplay: a CLIENT casting Outbalance never sees the hand it revealed** (v1.31.4, known gap). Solo and
-  local MP show the reveal modal; over the wire the **host** resolves the effect and there is no
-  private-to-one-seat message — every existing channel is either host-local or broadcast, and a revealed hand
-  is the one payload that must reach exactly one seat. Needs a targeted `t:'reveal'` frame addressed to the
-  caster's seat, sent from the host's cast handler. Until then the card is honest in solo/local and silently
-  weaker online. The engine side is already safe: `E.takeReveal(p)` is seat-checked, so a client cannot pick
-  up a read that is not its own.
+### ⭐ PRIORITISED 2026-08-24 (Aj's order)
+
+**1. Netplay: a CLIENT casting Outbalance never sees the hand it revealed.** Solo and local MP show the reveal
+modal; over the wire the **host** resolves the effect and there is no private-to-one-seat message. Every
+existing channel is either host-local or broadcast, and a revealed hand is the one payload that must reach
+exactly one seat. Needs a targeted `t:'reveal'` frame addressed to the caster's absolute seat, sent from the
+host's cast handler, and the client calling `showRevealIfAny()` on receipt. The engine side is already safe:
+`E.takeReveal(p)` is **seat-checked**, so a client cannot pick up a read that is not its own. Until then the
+card is honest in solo/local and silently weaker online. Guard it with a `nettest_reveal.js` in the shape of
+`revealtest.js` — and assert the *negative*: the frame must not reach the other seats.
+
+**2. The game export is DUEL-SHAPED and loses multiplayer data.** Established by reading
+`CardmenFighter.template.html` (line numbers as of v1.31.4) — worth re-verifying before you build on it, but
+the three call sites are unambiguous:
+  - `pkey(pl)` (~1628) returns `'you'` or `'rival'`, so at a six-player table **all five opponents collapse
+    into one "rival" bucket**. You cannot tell which of them did anything.
+  - `bumpFight` (~1631) has exactly **one call site**: `bumpFight(YOU, …)` (~2600). So `rival.jabs` and
+    `rival.specials` are **always 0 in every exported game, duels included**. Opponents' *techniques* are
+    recorded (`bumpEffect` is called with real seats), fights are not.
+  - `recordGame` (~1634) writes no **player count** at all, and `winner` is just `'you'`/`'rival'` — a
+    six-player game and a duel are indistinguishable in the file, and a loss does not say who won.
+  - Consequence for the analysis already done: any multiplayer game in an exported log had its opponents merged
+    and its fight counts blanked. Re-read old conclusions with that in mind.
+  - Shape of the fix: key stats by **absolute seat**, add `numPlayers`, `winnerSeat`, per-seat deck + persona,
+    and call `bumpFight` from the N-player driver as well as the duel one. Bump the record `v:` string so old
+    files stay parseable.
+
+**3. Two-player wordings — the audit is done, the edits are not.** Six cards still speak duel-only. Three of
+them are **mechanically wrong at a full table**, because the effect loops over every opponent while the text
+names one:
+  - **Caltrops (♠7)** and **Spiked Armor (♣9)** — "the Rival's highest card … reduced by 2". `equipDelta`
+    (`engine.js` ~726) sums `oppDelta` across **every** opponent, so one of these is −2 against all five at a
+    six-player table. The text undersells the card badly.
+  - **Giant Ram (♠J)** — "the Rival's first effect each turn costs 1 more energy". `rideCostDelta`
+    (`engine.js` ~758) loops every opponent, so it taxes the **whole table**.
+  - The other three are duel-flavoured but mechanically fine: **Counterfeit (♠8)** ("the Rival's current play"
+    = whoever owns the pile), **Armor Piercing (♣7)** (resolves on the chosen target), **Giant Swan (♥J)**
+    (verify which opponents it answers before rewording).
+  - Already MP-correct, use these as the house pattern: Telekinesis, Ultima Attack, Outbalance, Critical Hit,
+    Back Stab all say **"Target Rival"**.
+  - After any text edit, **run `node gen-cardlist.js`** or the published card list goes stale.
+
 - **Rogue "slash": an on-demand card that LOWERS the current pile's value** (Aj, 2026-08-25 — filed for when
   Rogue needs a boost in balancing; nothing built). Distinct from Caltrops, which is a standing `oppDelta` debuff
   on opponents' cards. Aj's example: pile is a boosted pair of 4s at effective 6, you hold a pair of 5s; a
@@ -1312,11 +1337,36 @@ playtest toggle is gone.**
 - **Variation to try:** Forms *expire once their boost is used* (Aj's idea) instead of persisting — still parked.
 - **Art:** Fighter ♣ / Rogue ♠ faces are still placeholders (see Art section below); apex-2 / A face art too.
 
-**Balance status** — see "Recent changes (v0.85)" up top for the current picture. In short: Cleric retuned to
-~48–50% (Sanctuary made symmetric), **Fighter over-tuned ~60%** (redundancy finding — the Instant Recovery
-reclaim engine is the open lever, NOT equipment durations), Wizard low ~44–45%. Re-measure with
-`analysis.js 130 on x rework`. *(The old v0.7x snapshot that used to live here — Cleric #1 62.8%, Fighter
-"fixed" at 51.8% — is superseded; that history is in `REWORK-HISTORY.md`.)*
+**Balance status — measured 2026-08-24 on v1.31.4** (`mpsim.js 400 knight`, 8 runs per player count). The
+v0.85 numbers that used to sit here (Cleric ~48-50%, Fighter ~60%, Wizard ~44-45%) are superseded; that
+history is in `REWORK-HISTORY.md`.
+
+| deck | 1v1 (fair 50%) | 3p (33.3%) | 4p (25%) | 6p (16.7%) |
+| --- | --- | --- | --- | --- |
+| Pure Cleric | 52.3 | 39.4 | **32.4** | **20.3** |
+| Sage (Wiz+Cle) | 53.2 | **41.5** | 31.1 | 19.7 |
+| Paladin (Cle+Fig) | 44.7 | 32.9 | 26.2 | **20.6** |
+| Mage Knight (Wiz+Fig) | 54.4 | 32.7 | 24.8 | 19.8 |
+| Bard (Cle+Rog) | 47.0 | 34.2 | 25.2 | 19.1 |
+| Pure Wizard | 54.4 | 33.6 | 27.6 | 17.9 |
+| Full Set | 41.7 | 33.3 | 22.8 | 15.9 |
+| Pure Fighter | **56.7** | 33.6 | 23.1 | 14.5 |
+| Berserker (Fig+Rog) | 40.4 | 32.1 | 17.8 | 13.0 |
+| Warlock (Wiz+Rog) | 49.9 | 27.1 | 25.0 | 11.9 |
+| Pure Rogue | 54.6 | 28.4 | 19.2 | **9.8** |
+
+Spreads: 2p 16.3 · 3p 14.4 · 4p 14.6 · 6p 10.8 points.
+
+Three patterns, and they are the live balance agenda:
+- **Cleric owns multiplayer.** Cleric-containing decks take four of the top five at 6p, while Pure Cleric is
+  merely mid-pack in a duel. Extra opponents convert into wins for it.
+- **Fighter is the mirror image** — best deck in a duel (56.7%), below fair at 4p and 6p. Winning fights does
+  not translate into breaking shields when there are five rivals to strip instead of one.
+- **Rogue is the problem and it worsens with every seat:** 1.09x → 0.85x → 0.77x → **0.59x**. Its two hybrids
+  are the other bottom entries at 6p. The Rogue "slash" card in the BACKLOG is the intended lever.
+
+Caveat on all of it: this is `knight` AI piloting every deck, so it measures decks *in the AI's hands*.
+Cleric's control kit is easy for a bot; Rogue's tempo tricks need a plan. Aj's own games are the check.
 
 ### ★ PARKED — "Rival: Aj" signature AI (AFTER balance + cards are done)
 A selectable rival that plays like Aj, so people can duel "him" offline. The playstyle profile is already the

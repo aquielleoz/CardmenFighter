@@ -1,5 +1,7 @@
 /* Multiplayer balance sim: N-player free-for-alls, random deck per seat, track each deck's win rate + placement.
- * Matches the live game: rework + catch-up (shields-as-cards, loser-mill), SPECIAL_LOSS_MODE='all', MILL_SCOPE='universal'.
+ * DEFAULTS MATCH THE LIVE GAME, which since the v1.31.2 revert is: rework + catch-up (shields-as-cards,
+ * loser-mill), SPECIAL_LOSS_MODE='chosen', MILL_SCOPE='targeted', flat 4 shields, draw = numPlayers.
+ * (This line used to claim loss='all' / mill='universal' were live. They are not — they are A/B flags.)
  * Player counts 2/3/4/6 swept automatically. See the flag list below — and CHECK THE PRINTED CONFIG. */
 var E = require('./engine.js');
 var AI = require('./ai.js');

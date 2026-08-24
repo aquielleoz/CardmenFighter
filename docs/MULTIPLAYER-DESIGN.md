@@ -27,6 +27,12 @@ opponent it hits (Telekinesis, Outbalance, Ultima Attack, Critical Hit, Armor Pi
 Spiked Armor/Caltrops' target, etc.). Effects worded plural — "Rivals'", "every player", "all" — still hit
 **all** opponents (Cursed Pendant, Poison the Air, Giant Ram's tax, etc.).
 
+> **Open gap (v1.31.4): a CLIENT casting Outbalance cannot see the hand it revealed.** The host resolves the
+> effect and there is no private-to-one-seat channel — every frame we have is host-local or broadcast, and a
+> revealed hand is the one payload that must reach exactly one seat. The engine hands the cards over via
+> `E.takeReveal(p)`, which is seat-checked and one-shot, so the safety is already there; what is missing is a
+> targeted `t:'reveal'` frame from the host's cast handler. See BACKLOG priority 1 in NEXT-SESSION.md.
+
 **Win condition.** **Last Rider standing** (elimination). The game ends when only one player remains.
 
 **Fighter Kick = a death (knockout).** A Fighter Kick knocks **one** player out of the game. This is separated
