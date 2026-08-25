@@ -469,6 +469,72 @@ play already beats the pile and so looks high. `lockoutStats()` tallies the bran
 - `docs/PLAYER-PROFILE.md` is a living read on how Aj actually plays — consult it for AI tuning and balance,
   and append exported games to its ingestion log.
 
+## Branches and PRs
+
+Written 2026-08-25 after a cleanup found **18 merged branches** still on the remote and **both `feat/` and
+`feature/`** in use. Every rule here is a mistake that actually happened in this repo.
+
+**Never commit to `main`.** Not even docs. A feature once went straight to main and had to be unwound with
+`push --force-with-lease` back to the previous merge — recoverable, but only because it was caught immediately.
+Branch first, always.
+
+**Five prefixes, no synonyms.** `feature/` is dead; it is `feat/`.
+
+| Prefix | For | Example |
+| --- | --- | --- |
+| `feat/` | new player-visible behaviour | `feat/emotes-and-names` |
+| `fix/` | a defect, in the game **or in a suite** | `fix/landscape-dialog-clipping` |
+| `docs/` | docs, handoff, backlog only | `docs/branch-and-pr-rules` |
+| `exp/` | a balance experiment that **may be reverted** | `exp/shields-scale-down` |
+| `parked/` | built, green, deliberately unmerged | `parked/qr-scanning` |
+
+**`exp/` exists because reverts are normal here.** v1.31.0's multiplayer package shipped and was reverted by
+v1.31.2, which produced the branch pair `feature/mp-scaling` and `fix/revert-mp-scaling` — a shape that reads as
+a mistake when it was a measurement working correctly. Name a balance change `exp/` and reverting it is the
+expected outcome, not an embarrassment.
+
+**Name the OUTCOME, kebab-case, two to four words.** `feature/landscape` and `feature/landscape-floor` were two
+branches in one area and neither said what it did. `fix/landscape-dialog-clipping` says it.
+
+**`parked/` branches must be documented or they are just litter.** A parked branch needs a BACKLOG entry giving
+**why it is not merged** and **the condition that would revive it** — see the QR-scanning entry. Without that,
+the next session either rebuilds the work or re-argues a settled decision. (`feat/qr-scanning` keeps its old name:
+renaming it would stale the closed PR that carries its reasoning.)
+
+**One version bump per PR, and the PR title IS the changelog heading.** `v1.31.19 — share sheet + tolerant
+paste`. If a PR wants two bumps it is two PRs.
+
+**Before opening a PR:**
+1. `npm test` — 0 FAIL, non-negotiable — plus every suite whose area you touched.
+2. `node build.js && cp CardmenFighter.html ../CardmenFighter.html`, then confirm `git status` is clean, so the
+   built file provably matches the template.
+3. A changelog entry at the top of `docs/NEXT-SESSION.md`, the `**Status:**` line in `README.md` bumped (the UI
+   stamp is derived from it), and any completed BACKLOG item moved out.
+4. `node gen-cardlist.js` if a card's name, cost, or text changed.
+
+**Say what you are unsure about IN THE PR, and do not merge on a guess.** PR #31 shipped with an unresolved
+`nettest_full` question written into it, including the fact that the first A/B supporting the doubt was
+**invalid** (arms run in blocks at different times, on a machine under external load). A PR that admits an open
+question is cheap; a merge that buries one is not.
+
+**Merge with `gh pr merge --merge --delete-branch`,** then prune locally:
+
+```bash
+git branch --merged main | grep -v '^\*\|main' | tr -d ' ' | xargs -r git branch -d
+```
+
+To prune the remote, loop — **this shell is zsh, which does not word-split an unquoted `$var`**, so passing a
+collected list to one `git push --delete` fails with a single invalid refspec:
+
+```bash
+for b in $(git branch -r --merged origin/main | grep -v 'origin/main$' | sed 's|.*origin/||' | tr -d ' '); do
+  git push origin --delete "$b"
+done
+```
+
+That `--merged` filter is also the safety rail: an open PR's branch and a `parked/` branch are unmerged by
+definition, so it cannot delete them.
+
 ## Docs map
 
 - `docs/NEXT-SESSION.md` — **start here**: build/test header, backlog, full changelog.
