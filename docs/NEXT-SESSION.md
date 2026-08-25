@@ -291,6 +291,50 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.6a — Counterfeit investigated: the card is fine, the docs were not *(docs only — the build is byte-identical to v1.31.6)*
+
+Aj asked to check Counterfeit after Phantasmal Illusion, expecting the same story. It is **not** the same
+story, and the investigation is worth keeping because I got it wrong first.
+
+**What I claimed, and why it was wrong.** I measured every real Counterfeit chance (holding it, following,
+round ≥ 2, affordable, and actually losing the fight) and reported that the base card *"can never beat a pair —
+0 out of 122"*, concluding it was structurally dead because a copy's rank always already appears in the pile
+and ties never win. Aj corrected it: the copy takes the **base card values**, and then **your boosts and
+debuffs apply** — the same principle he had just restored on Phantasmal Illusion.
+
+His line, verified in the engine as written:
+
+```
+their pair of 10s, effective value with your Caltrops out: 8   (oppDelta −2)
+Counterfeit cast: true | copied: 10D
+play your pair of 10s: true
+you now hold the pile: true | value 10
+```
+
+So 0-out-of-122 was a measurement over boards where nobody happened to have a modifier out — reported as if it
+were a property of the card. **That is the third time in two sessions a number was quoted as a verdict.**
+
+**What is actually true**, re-measured on the right condition (300 games, an *edge* = my buffs + however much
+their pile is debuffed):
+
+| | chances with an edge | Counterfeit helps | helps with no edge |
+| --- | --- | --- | --- |
+| 1v1 | 4.7% of chances | **25.0%** | 3.7% |
+| 6p | 3.1% of chances | **39.4%** | 2.9% |
+
+About **10x more useful when the enabling condition is on the board.** Counterfeit is a **combo card**, and the
+combo is in-suit by design — Caltrops is ♠7, Counterfeit ♠8, and a Rogue deck holds both. The AI simply never
+sets one up for the other, so the edge exists on ~3% of its chances and the card reads as dead in every sim.
+
+**No card change.** The mechanism Aj designed already works. What is left is either a player who builds the
+board, or an AI that values Caltrops as a Counterfeit enabler — the latter is a real option but a large change
+for one narrow line, and it would be a competence upgrade that only Rogue decks receive (see the `nice`-flag
+lesson in the persona notes before doing it).
+
+**Docs corrected.** `CARD-STATS.md`'s "AI blind spots" paragraph called out three cards as 0.00-cast; all three
+lines were stale and two of them caused wrong claims in conversation this week. Each now carries its
+re-measured rate and the reason the old number was not a verdict.
+
 ### v1.31.6 — Phantasmal Illusion is the copy again (Aj's original card, restored)
 
 Aj went looking for a tweak to Phantasmal Illusion and did not recognise the card he found. He was right not

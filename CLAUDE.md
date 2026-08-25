@@ -310,6 +310,11 @@ opponents' fights were always 0; and no player count was recorded at all. Oppone
 **`buildOppBeats`**, the one place both drivers funnel through — the same reason readability features belong
 there. Any multiplayer export older than v1.31.5 is merged and fight-blank, and cannot be repaired.
 
+**A COMBO card reads as dead in every sim.** Counterfeit (♠8) helps on 25%/39% of its chances when the caster
+has an edge (own buff, or their pile debuffed by Caltrops ♠7 — both Rogue, both in the same deck), and ~3% when
+they don't. The bots never set one up for the other, so the edge exists on ~3% of chances and the card measures
+as 0.01. Before "fixing" a low-cast card, check whether its enabling condition is something the AI builds.
+
 **A 0.00 cast rate is not a verdict on a card.** PATCHNOTES says so explicitly, and it was ignored once
 already: Phantasmal Illusion was replaced wholesale in v1.13 because sims showed 0.00, when the real cause was
 a *narrow trigger* (its swap was mandatory, and one swap cannot raise a matched set, so it needed a straight or
