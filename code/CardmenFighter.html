@@ -2825,7 +2825,12 @@
     var a = []; for (var i = 0; i < st.numPlayers; i++) if (i !== p && !st.players[i].eliminated) a.push(i);
     return a;
   }
-  var SPECIAL_LOSS_MODE = 'all', MILL_SCOPE = 'universal';
+  /* DEFAULTS MATCH THE SHIPPED GAME. They used to be 'all' / 'universal' — the v1.31.0 multiplayer package,
+   * which was REVERTED in v1.31.2 for breaking deck balance. The template has set 'chosen' / 'targeted'
+   * explicitly ever since, so the engine's own defaults disagreed with the only game anyone plays: any probe,
+   * sim or test that did not set them got non-shipped rules and silently measured a different game. That is
+   * exactly how a v1.31.8 probe "showed" a Hermes Back Stab stripping three shields when it strips one. */
+  var SPECIAL_LOSS_MODE = 'chosen', MILL_SCOPE = 'targeted';
   function setSpecialLossMode(m) { SPECIAL_LOSS_MODE = (m === 'chosen') ? 'chosen' : 'all'; }
   function setMillScope(m) { MILL_SCOPE = (m === 'targeted') ? 'targeted' : 'universal'; }
   // Who the round-winner strips in 'chosen' mode. Injectable (AI tiers / human UI set it); default = the leader
@@ -3363,27 +3368,45 @@
   function lockoutStats() { return lockStats; }
   function resetLockoutStats() { lockStats = {}; }
   /* Worth silencing `t`? Returns the REASON (handy in a log or a test) or '' for "hold the card". */
-  var LOCK_CAST = { duel: 1, 'read-threat': 1, 'plan-vulnerable': 1, 'crowd-thin': 1 };   // anything else is a HOLD
-  function lockoutWorth(st, p, t) {
-    var why = lockoutReason(st, p, t);
+  var LOCK_CAST = { duel: 1, 'read-threat': 1, 'plan-vulnerable': 1, 'crowd-thin': 1, 'super-sweep': 1 };   // anything else is a HOLD
+  function lockoutWorth(st, p, t, all) {
+    var why = lockoutReason(st, p, t, all);
     lockStats[why] = (lockStats[why] || 0) + 1;    // holds are tallied BY NAME: "why didn't it fire" is the useful question
     return LOCK_CAST[why] ? why : '';
   }
-  function lockoutReason(st, p, t) {
+  function lockoutReason(st, p, t, all) {
+    /* You have to be able to ACT on the tempo you just bought. A lock does NOT remove their existing pile, so
+     * silencing a rival you cannot out-play hands them the round anyway. Measured in duels, 800 games:
+     *   follow-up available  special  44 casts -> won 93.2% of those rounds
+     *                        jab      11 casts -> 100.0%
+     *                        NOTHING  51 casts ->   7.8%   (baseline is 50%)
+     * and that last group was 48% of every duel cast. Any legal play is enough — it need not be a Special. */
+    if (!E.legalFightPlays(st, p).length) return 'no-follow-up';
     if (st.numPlayers === 2) return 'duel';                          // one rival: a skipped round is a free round
     var plan = plannedSpecialValue(st, p), read = st.players[p]._read && st.players[p]._read[t];
+    if (!plan) return 'no-special';                                  // nothing to protect — checked BEFORE the read,
+                                                                     // or a read would license a cast we cannot follow
+    /* Hermes (eff.all) locks EVERY rival for the round, so nothing about ONE rival's hand can matter — whatever
+     * special we put down wins the round outright, down to the smallest pair in the game. Every check below
+     * this line reasons about a single target, so skip them. Measured: the target-specific holds were firing on
+     * ~9% of Hermes turns, refusing rounds that were already won. */
+    if (all) return 'super-sweep';
     if (read && read.round === st.round) {                           // we have SEEN the hand: no guessing needed
       return (read.pairs >= 1 && read.best > plan) ? 'read-threat' : 'read-harmless';   // can't answer us -> keep the energy
     }
-    if (!plan) return 'no-special';                                  // nothing to protect yet
     if (st.players[t].hand.length < 3) return 'thin-hand';           // too few cards left to assemble an answer
     var seen = st._seen && st._seen[t];
     if (seen && seen.round === st.round && tierOf(seen.hi) === 'high') return 'highs-spent';   // their highs are already spent
     if (tierOf(plan) !== 'high') return 'plan-vulnerable';           // a low/mid special is answerable: lock them
-    return (E.aliveCount(st) <= LOCKOUT_MAX_ALIVE) ? 'crowd-thin' : 'crowded';   // a high special mostly defends itself
+    return (E.aliveCount(st) <= LOCKOUT_MAX_ALIVE) ? 'crowd-thin' : 'crowded';   // see LOCKOUT_MAX_ALIVE — default never holds
   }
 
-  var LOCKOUT_MAX_ALIVE = 3;
+  /* "A high special defends itself, don't bother locking" was the biggest DISCRETIONARY hold in the model —
+   * 15% of every evaluation at six players — and measured 2026-08-25 it bought nothing. Casting in those spots
+   * instead DOUBLES the cast rate (25.6 -> 50.3 per 100 six-player games) with round-win over the same
+   * chance-rounds unchanged (24.1% -> 25.4%, 0.9 s.e.) and deck spread unmoved (largest 2.0 s.e., 8 runs per
+   * arm). 6 = never holds at any legal table size; the knob stays for future study. */
+  var LOCKOUT_MAX_ALIVE = 6;
   function setLockoutMaxAlive(n) { LOCKOUT_MAX_ALIVE = n | 0; }
   var STRAT_PASS_MAX = 5;                      // pass a winnable jab when hand length <= this
   var STRAT_PASS_MP = false;                   // allow it in 3+ player games at all
@@ -3571,7 +3594,7 @@
          * threat from THIS rival. Balance-neutral (8 runs/arm, nothing over 3 s.e. across 44 deck
          * comparisons), and it casts LESS often on purpose: 6p 38 -> 16 casts per 200 games.
          * A lockout that hit EVERY rival would not need any of this — see setLockoutAll. */
-        var loWorth = loV ? lockoutWorth(st, p, loT) : '';    // see the timing model above
+        var loWorth = loV ? lockoutWorth(st, p, loT, !!E.effectFor(st, p, lo).all) : '';    // see the timing model above
         if (loV && loWorth && !loV.eliminated && !loV.lockSkip && !loV.lockRound && loV.hand.length >= 2 &&
             act(st, p, lo.id, log, 'LOCKOUT', humans, loT)) continue;
       }

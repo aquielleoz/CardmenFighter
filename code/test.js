@@ -579,8 +579,8 @@ function cards(ids) { return ids.map(card); }
   E.play(g, 0, [g.players[0].hand[0], g.players[0].hand[1]]); E.pass(g, 2);   // p1 is out; only p2 left to pass
   ok(g.finished && g.winner === 0 && g.players[0].kicksLanded === 2, 'MP: last Rider standing — p0 wins, 2 kicks landed');
 
-  // reset toggles for any later suites
-  E.setSpecialLossMode('all'); E.setMillScope('universal'); E.setShieldTargetChooser(null);
+  // reset toggles for any later suites — back to the SHIPPED defaults, not the reverted v1.31.0 ones
+  E.setSpecialLossMode('chosen'); E.setMillScope('targeted'); E.setShieldTargetChooser(null);
 })();
 
 // ===== N-PLAYER TARGETING + RESPONSE PRIORITY (Phase 2) =====
@@ -657,6 +657,18 @@ function cards(ids) { return ids.map(card); }
   // --- the timing model: Aj's own heuristic, scenario by scenario
   var d2 = tbl(2); d2.players[0].hand = [mkc(9, 'S'), mkc(9, 'H')];
   ok(AI.lockoutWorth(d2, 0, 1) === 'duel', 'lockout model: in a duel a skipped round is always worth it');
+  /* …but only if we can ACT on it. A lock does not remove their existing pile, so silencing a rival we cannot
+   * out-play hands them the round anyway. Measured in duels: casting with nothing to follow won 7.8% of those
+   * rounds against a 50% baseline, and it was 48% of every duel cast. */
+  var nf = tbl(2); nf.players[0].hand = [mkc(3, 'S'), mkc(4, 'H')];
+  var hi2 = E.detectCombo([mkc(13, 'D', 'a'), mkc(13, 'C', 'b')]);          // a pair of Kings we cannot beat
+  nf.pile = { combo: hi2, byPlayer: 1, raw: hi2.value, rawKey0: hi2.key[0], lockedDelta: 0, mod: 0 };
+  nf.lastPlayer = 1;
+  ok(E.legalFightPlays(nf, 0).length === 0, 'staged: no legal play against their pair of Kings');
+  ok(AI.lockoutWorth(nf, 0, 1) === '', 'lockout model: with NO legal play it holds the card, even in a duel');
+  var nf2 = tbl(2); nf2.players[0].hand = [mkc(1, 'S'), mkc(4, 'H')];       // an Ace beats a pair? no — but we LEAD
+  nf2.pile = null; nf2.lastPlayer = null;
+  ok(AI.lockoutWorth(nf2, 0, 1) === 'duel', 'lockout model: leading counts as a follow-up — any legal play does');
   function midPlan(np) { var g = tbl(np); g.players[0].hand = [mkc(9, 'S'), mkc(9, 'H'), mkc(4, 'C')]; return g; }
   var hi = midPlan(4);
   hi.pile = { byPlayer: 2, combo: { type: 'pair', size: 2, value: 13 } }; AI.observe(hi); hi.pile = null;
@@ -671,8 +683,26 @@ function cards(ids) { return ids.map(card); }
   var rs = midPlan(4); rs.players[0]._read = { 2: { round: 2, best: 5, pairs: 0, size: 3 } };
   ok(AI.lockoutWorth(rs, 0, 2) === 'plan-vulnerable', 'lockout model: a STALE read is ignored, not trusted');
   function highPlan(np) { var g = tbl(np); g.players[0].hand = [mkc(13, 'S'), mkc(13, 'H'), mkc(4, 'C')]; return g; }
-  ok(AI.lockoutWorth(highPlan(6), 0, 2) === '', 'lockout model: a high special defends itself at a full table');
-  ok(AI.lockoutWorth(highPlan(3), 0, 2) === 'crowd-thin', 'lockout model: a high special still worth protecting when few rivals remain');
+  // v1.31.8: the "a high special defends itself" hold measured worthless (it was 15% of every evaluation at
+  // six players and bought nothing), so LOCKOUT_MAX_ALIVE defaults to 6 and the model casts at any table size.
+  ok(AI.lockoutWorth(highPlan(6), 0, 2) === 'crowd-thin', 'lockout model: a high plan is cast at a FULL table too');
+  ok(AI.lockoutWorth(highPlan(3), 0, 2) === 'crowd-thin', 'lockout model: …and when few rivals remain');
+  AI.setLockoutMaxAlive(3);
+  ok(AI.lockoutWorth(highPlan(6), 0, 2) === '', 'lockout model: the old hold is still reachable via setLockoutMaxAlive (A/B knob)');
+  AI.setLockoutMaxAlive(6);
+  /* HERMES (eff.all) locks EVERY rival for the round, so any special wins it outright — down to the smallest
+   * pair in the game. Every target-specific hold below reasons about ONE rival and cannot apply; they were
+   * firing on ~9% of Hermes turns and refusing rounds that were already won. */
+  var sw = midPlan(6); sw.players[2].hand = [mkc(3, 'D'), mkc(4, 'H')];        // target too thin to answer
+  ok(AI.lockoutWorth(sw, 0, 2) === '', 'lockout model: a thin target is normally not worth locking');
+  ok(AI.lockoutWorth(sw, 0, 2, true) === 'super-sweep', 'lockout model: under HERMES that hold does not apply — cast');
+  var sw2 = midPlan(6);
+  sw2.pile = { byPlayer: 2, combo: { type: 'pair', size: 2, value: 13 } }; AI.observe(sw2); sw2.pile = null;
+  ok(AI.lockoutWorth(sw2, 0, 2) === '', 'lockout model: a rival who dumped a high is normally not worth locking');
+  ok(AI.lockoutWorth(sw2, 0, 2, true) === 'super-sweep', 'lockout model: under HERMES that does not apply either — cast');
+  var sw3 = tbl(6); sw3.players[0].hand = [mkc(9, 'S'), mkc(4, 'C')];          // no special at all
+  ok(AI.lockoutWorth(sw3, 0, 2, true) === '', 'lockout model: HERMES still needs a Special to be worth 10 energy');
+
   var nn = tbl(4); nn.players[0].hand = [mkc(9, 'S'), mkc(4, 'C')];
   ok(AI.lockoutWorth(nn, 0, 2) === '', 'lockout model: nothing to protect, nothing to spend');
   var th = midPlan(4); th.players[2].hand = [mkc(3, 'D'), mkc(4, 'H')];

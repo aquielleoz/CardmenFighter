@@ -1704,7 +1704,12 @@
     var a = []; for (var i = 0; i < st.numPlayers; i++) if (i !== p && !st.players[i].eliminated) a.push(i);
     return a;
   }
-  var SPECIAL_LOSS_MODE = 'all', MILL_SCOPE = 'universal';
+  /* DEFAULTS MATCH THE SHIPPED GAME. They used to be 'all' / 'universal' — the v1.31.0 multiplayer package,
+   * which was REVERTED in v1.31.2 for breaking deck balance. The template has set 'chosen' / 'targeted'
+   * explicitly ever since, so the engine's own defaults disagreed with the only game anyone plays: any probe,
+   * sim or test that did not set them got non-shipped rules and silently measured a different game. That is
+   * exactly how a v1.31.8 probe "showed" a Hermes Back Stab stripping three shields when it strips one. */
+  var SPECIAL_LOSS_MODE = 'chosen', MILL_SCOPE = 'targeted';
   function setSpecialLossMode(m) { SPECIAL_LOSS_MODE = (m === 'chosen') ? 'chosen' : 'all'; }
   function setMillScope(m) { MILL_SCOPE = (m === 'targeted') ? 'targeted' : 'universal'; }
   // Who the round-winner strips in 'chosen' mode. Injectable (AI tiers / human UI set it); default = the leader

@@ -1,13 +1,13 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**222**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.7**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.8**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-24)
 
-`main` is at **v1.31.7**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
+`main` is at **v1.31.8**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
 HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
@@ -16,7 +16,7 @@ HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 npm test && node mptest.js
 ```
 
-Expect **222 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
+Expect **231 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
 
 ### What just shipped
 **v1.31.5 — Aj's three priorities**, each of which was worse than its one-line description: the netplay reveal
@@ -290,6 +290,164 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.8c — did the Back Stab AI work hurt multiplayer? No. (And the first answer was wrong.)
+
+Aj: *"fixing backstab's ai made it worse for multiplayer?"* The honest first answer was **the A/Bs cannot
+tell you** — they were powered for spread, not for one deck's share (see 1.31.8b). So a focused instrument:
+Pure Rogue at six players, deterministic balanced field, seat **rotated** (seat 0 leads round 1, so pinning a
+deck there inflates it), 4,000 games per arm.
+
+| | Pure Rogue at 6p | Back Stab casts |
+| --- | --- | --- |
+| before all three changes | 9.85% ±0.47 | 6,318 |
+| after | 9.53% ±0.46 | 7,871 (**+25%**) |
+
+**−0.3 at 0.5 s.e. — flat.** The AI work is neutral for Rogue in multiplayer, and the ~10% share is real and
+long-standing rather than caused by this PR. Also informative: **casting Back Stab 25% more does nothing for
+Rogue's win rate** — the card is neither Rogue's problem nor its solution.
+
+**The first version of this measurement was garbage, and the way it failed is worth keeping.** The harness
+passed lowercase deck keys (`'rogue'`), which are invalid — and `newGame` does not throw, it falls back to the
+full 52-card set. So all six seats played the same Full Set deck, Pure Rogue was never in the game, and both
+arms returned an identical **16.65%**, which is exactly 1/6 and looks like a clean null result. The tell was
+the counts being identical to the unit. Deck keys are **capitalised** (`E.DECKS`), and the harness now also
+counts Back Stab casts so a silent zero cannot pass as a finding.
+
+### v1.31.8b — the per-deck noise floor, measured
+
+Aj, seeing Pure Rogue's 6p share read 10.9 then 8.6 across snapshots: *"it's only been buffs to ai for
+backstab so far… why is it dropping?"* It wasn't. The same build, run eight times, puts Pure Rogue at 6p
+anywhere from **5.2 to 18.1** — a run-to-run **sd of ~3.3 points**. An 8-run mean carries ~1.2 s.e., so
+10.9 → 8.6 is 1.4 s.e. and inside the noise.
+
+Two reasons this is the noisiest cell in the table: `mpsim` assigns decks **randomly per seat**, so one
+400-game run gives a given deck only a few hundred games at six players; and Rogue's share is *low* (~10%),
+so the same absolute wobble is a larger relative one.
+
+Practical consequence, now in CLAUDE.md: **the standard 8-run A/B is powered for the SPREAD, not for one
+low-share deck.** Resolving a 2-point change in Rogue-at-6p at 3σ needs roughly **22 runs per arm** (~8,800
+games). Every A/B run this session was correctly powered for what it claimed (spread) and would NOT have
+detected a 2-point single-deck move either way.
+
+### v1.31.8a — the engine's own defaults disagreed with the shipped game
+
+`SPECIAL_LOSS_MODE` defaulted to **`'all'`** and `MILL_SCOPE` to **`'universal'`** — the v1.31.0 multiplayer
+package that was **REVERTED in v1.31.2**. The template has set `'chosen'` / `'targeted'` explicitly ever
+since, so every real consumer was fine, but **any probe, sim or test that did not set them measured a
+different game than anyone plays.** That is exactly how a v1.31.8 probe "showed" a Hermes Back Stab stripping
+three shields when the shipped game strips one.
+
+Defaults now match the shipped game. Every sim already set them explicitly, so no measurement changes;
+`test.js`'s reset-after-block line was restoring the reverted values and now restores the shipped ones.
+
+### v1.31.8 — Back Stab: the AI was buying a round it couldn't spend
+
+Aj asked how Back Stab was doing after the v1.31.4 redesign. Cast rate was healthy (17.3 / 18.3 / 25.8 per
+100 games at 2/4/6 players) and casting it correlated with winning the round — but the **duel** number was
+oddly weak, +8.6 points over baseline where multiplayer showed +44.
+
+The duel branch of `lockoutWorth` returned `'duel'` **unconditionally**: one rival, so a skipped round is a
+free round. That reasoning has a hole. **A lock does not remove their existing pile.** If they already hold
+the initiative and you cannot beat it, silencing them changes nothing — you pass, and they take the round
+anyway.
+
+Measured over 800 duels, splitting every cast by what the caster could actually follow up with:
+
+| follow-up available | casts | round won |
+| --- | --- | --- |
+| a Special | 44 | 93.2% |
+| only a jab | 11 | 100.0% |
+| **nothing** | 51 | **7.8%** |
+
+Baseline round-win is 50%. So **48% of every duel cast was thrown away**, on rounds it then lost.
+
+The fix is one line — `if (!E.legalFightPlays(st, p).length) return 'no-follow-up';` — and note the condition
+is **any legal play, not a Special**: a jab wins the round just as reliably (100% vs 93.2%) because a
+whole-round lock means nobody can answer it.
+
+**Do NOT read the obvious headline.** "Round-win after casting 58.6% → 94.2%" is close to a **tautology**:
+the change removes losing states from the denominator, so the conditional win rate had to rise. It was the
+first framing written here and it oversold the result — the same error this repo flags when a 0.00 cast rate
+gets read as a verdict. The honest measurement fixes the denominator: **every round where a seat held Back
+Stab and could afford it**, counted identically in both arms (~750 rounds per arm, 4000 duels):
+
+| | duel round-win | energy spent that round |
+| --- | --- | --- |
+| before | 54.5% ±1.9 | 7.68 |
+| after | **59.9% ±1.7** | **6.52** |
+
+**+5.4 points at 2.1 s.e. — under the bar.** Suggestive, not proven.
+
+And the "51 casts won 7.8%" group above were states with **no legal play at all** — they were losing those
+rounds regardless, so the cast was not *causing* the loss. It was wasting 10 energy in a round already gone.
+The one mechanical (not inferred) effect is therefore **1.2 energy saved per chance-round**.
+
+Play rate did **not** improve from that half, and was never meant to: 1v1 **17.2 → 14.0** casts per 100 games,
+4p and 6p flat within noise.
+
+**Then Aj: "i want ai to cast it more and win with it… maybe those opportunities just don't come up much."**
+He was right, and the funnel puts a number on it. Over ~1,800 evaluations in 800 six-player games:
+
+| what the model saw | share |
+| --- | --- |
+| **no legal play at all** | **69%** |
+| `crowded` — "a high special defends itself" | 15% |
+| `plan-vulnerable` → cast | 11% |
+| `highs-spent` hold | 4% |
+
+69% of the time the AI holds Back Stab, can afford it, and simply has nothing to follow it with. That is the
+ceiling on how often the card can ever fire, and it is a property of the game, not the AI.
+
+The 15% `crowded` bucket was the only large **discretionary** hold, and it measured worthless. Flipping it
+(`LOCKOUT_MAX_ALIVE` 3 → 6, i.e. never hold):
+
+| | casts per 100 games (6p) | round-win over the same chance-rounds |
+| --- | --- | --- |
+| hold at 4+ alive | 25.6 | 24.1% ±1.0 |
+| **always cast** | **50.3** | **25.4% ±1.0** |
+
+Double the casts, round-win unchanged (+1.3, 0.9 s.e.), deck spread unmoved (largest 2.0 s.e., 8 runs per
+arm; ♠ decks move −1.4 to −0.9, all under 1.0 s.e.). **This is not a buff — it is removing a hold that bought
+nothing.** Kept as a knob (`setLockoutMaxAlive`) for future study.
+
+Both halves together, casts per 100 games: **1v1 17.2 → 11.5** (waste removed), **4p 17.8 → 25.9**,
+**6p 27.5 → 44.7**.
+
+**Third: Hermes makes the whole target model moot, and the AI didn't know.** Aj: *"if it was in super mode…
+you could play the smallest pair (a pair of 3s) and still win with it… does it do that?"* Verified in the
+engine — under Hermes every rival skips the round, so a **pair of 3s** wins it outright and strips a shield.
+(Note the raw engine default is `loss='all'`; the shipped game sets `'chosen'`, so it is **one** shield, not
+the whole table. A probe that skips the template's setup will show three.)
+
+It mostly did — 68% of Hermes turns — but the model's target-specific holds were still running, and they
+reason about whether **one** rival can answer when **all** of them are locked:
+
+| Hermes turns at 6p | before | after |
+| --- | --- | --- |
+| cast | 68% | **76%** (`super-sweep`) |
+| `no-follow-up` hold (nothing to play) | 19% | 24% |
+| `no-special` hold (only a jab) | 4% | 8% |
+| **`thin-hand` / `highs-spent` hold** | **9%** | **0%** |
+
+`lockoutReason` now takes an `all` flag and short-circuits to `super-sweep` before any single-target check.
+The two remaining holds are legitimate. `no-special` is deliberately kept: under Hermes a jab would also win
+the round, but a jab does not break a shield and this is a 10-energy card.
+
+Balance, 6 runs per arm: spread −0.9 / −3.5 / −0.8 / +0.2, largest 1.5 s.e.; biggest per-deck move Berserker
++2.5 at 6p (1.7 s.e.), right direction and under the bar. The change is small enough that it is **not**
+resolvable at this sample size — it is justified as correctness, not as a measured gain.
+
+Multiplayer is untouched by design — it already required a plan; the `no-follow-up` check just names the same
+hold earlier, which is why `no-special` collapsed from 361 to 2 in the branch tally. One related tightening:
+`!plan` is now tested **before** the Outbalance read, since otherwise a fresh read could license a cast with
+nothing to follow it.
+
+Balance, 8 runs per arm: spread 19.1→19.7 (2p), 18.5→17.6 (3p), 17.8→19.9 (4p), 16.7→14.2 (6p) — largest
+2.1 s.e. Pure Rogue +1.9 in duels (2.3 s.e.), the right direction and still under the bar. As with Counterfeit:
+**the AI plays the card materially better, and no deck's win rate moved measurably.**
+
+Tests: **231** (was 222) — the no-legal-play hold, that leading counts as a follow-up, that a high plan now casts at a full table, and that the old hold is still reachable through the A/B knob.
 
 ### v1.31.7 — Counterfeit: the card was fine, the AI's own rule was vetoing it
 
