@@ -524,11 +524,10 @@
   // Aug-12 card set. Cards whose machinery already exists are impl:true; the genuinely new
   // mechanics (value boost, round-long shield immunity, on-win trigger, full lockout, shield-absorb
   // equipment) are impl:false for now — they sit in the deck as plain fight bodies until wired.
-  var STOPPER_TEXT = 'During a fight, commit matching Stoppers (1 vs a single, 2 vs a pair, 3 vs a trio) to cancel the play and seize the Initiative. This cannot cancel 5 card combos.';
   var EFFECTS = {
     D: { // Wizard — Tempo / Energy
+      2: { name: 'Skillful Teleport' },   // the apex 2 is a vanilla trump — NAME only, no activated effect (see effectOf)
       1: { kind: 'ramp', n: 3, name: 'Gather Energy', type: 'Technique', impl: true, text: 'Put the top 3 cards of your deck into your Energy Pile.' },
-      2: { kind: 'stopper', name: 'Skillful Teleport', type: 'Technique', impl: true, text: STOPPER_TEXT },
       3: { kind: 'discardOpp', n: 2, name: 'Telekinesis', type: 'Technique', impl: true, text: 'Target Rival discards 2 cards.' },
       4: { kind: 'counter', quick: true, name: 'Counter Spell', type: 'Quick Technique', impl: true, text: "Counter target Technique as it is played. The countered card goes to its owner's Shuffle Pile." },
       5: { kind: 'valueBoost', boost: 4, name: 'Infuse with Magic', type: 'Technique', impl: true, text: 'Increase the value of your next play by 4.' },
@@ -539,8 +538,8 @@
       10: { kind: 'phantasm', name: 'Phantasmal Illusion', type: 'Technique', impl: true, text: 'Conjure a copy of the current play at its base values. You MAY swap one copied card for one from your hand. Your boosts and Equipment apply to the illusion; the copied cards vanish after the round.' }
     },
     H: { // Cleric — Mid / value
+      2: { name: 'Divine Intervention' },   // the apex 2 is a vanilla trump — NAME only, no activated effect (see effectOf)
       1: { kind: 'valueBoost', boost: 2, name: 'Imbue with Power', type: 'Technique', impl: true, text: 'Increase the value of your next play by 2.' },
-      2: { kind: 'stopper', name: 'Divine Intervention', type: 'Technique', impl: true, text: STOPPER_TEXT },
       3: { kind: 'ramp', n: 5, name: 'Pray for Strength', type: 'Technique', impl: true, text: 'Put the top 5 cards of your deck into your Energy Pile.' },
       4: { kind: 'draw', draw: 2, name: 'Pray for Guidance', type: 'Technique', impl: true, text: 'Draw 2 cards.' },
       5: { kind: 'protect', quick: true, name: 'Annoint', type: 'Quick Technique', impl: true, text: "Target Equipment can't be destroyed or disarmed until the end of the round." },
@@ -551,8 +550,8 @@
       10: { kind: 'equip', absorb: true, counters: 1, decay: false, name: 'Holy Shroud', type: 'Equipment', impl: true, text: 'If you would lose a shield, remove 1 counter from Holy Shroud instead.' }
     },
     S: { // Rogue — Control / disruption   (♠ spades)
+      2: { name: 'Masterful Block' },   // the apex 2 is a vanilla trump — NAME only, no activated effect (see effectOf)
       1: { kind: 'discardOpp', n: 1, name: 'Outbalance', type: 'Technique', impl: true, text: 'Target Rival discards 1 card.' },
-      2: { kind: 'stopper', name: 'Sleight of Hand', type: 'Technique', impl: true, text: STOPPER_TEXT },
       3: { kind: 'draw', draw: 2, quick: true, name: 'Hand-to-Hand Mastery', type: 'Quick Technique', impl: true, text: 'Draw 2 cards.' },
       4: { kind: 'recycle', scope: 'all', name: 'Poison the Air', type: 'Technique', impl: true, text: "Move every player's Energy Pile to their Shuffle Pile." },
       5: { kind: 'removeEquip', mode: 'destroy', name: 'Sabotage', type: 'Technique', impl: true, text: 'Destroy target Equipment.' },
@@ -563,8 +562,8 @@
       10: { kind: 'lockout', quick: true, name: 'Back Stab', type: 'Quick Technique', impl: true, text: "Play in response. Target Rival skips their next turn — no fights, no Techniques (an effect already in progress still resolves)." }
     },
     C: { // Fighter — Aggro   (♣ clubs)
+      2: { name: 'Sleight of Hand' },   // the apex 2 is a vanilla trump — NAME only, no activated effect (see effectOf)
       1: { kind: 'draw', draw: 2, name: 'Prepare for Combat', type: 'Technique', impl: true, text: 'Draw 2 cards.' },
-      2: { kind: 'stopper', name: 'Masterful Block', type: 'Technique', impl: true, text: STOPPER_TEXT },
       3: { kind: 'valueBoost', boost: 2, name: 'Brilliant Tactic', type: 'Technique', impl: true, text: 'Increase the value of your next play by 2.' },
       4: { kind: 'removeEquip', mode: 'energy', name: 'Disarm', type: 'Technique', impl: true, text: "Disarm target Equipment: move it to its owner's Energy Pile and its effects stop." },
       5: { kind: 'equip', delta: 1, counters: 5, name: "Hero's Sword", type: 'Equipment', impl: true, text: 'While equipped, your highest card each fight has its value increased by 1.' },
@@ -664,7 +663,7 @@
   }
   function effectOf(card) {
     if (card.temp) return null;                        // Counterfeit copies / illusions are pure fight bodies — no activated effect
-    if (card.rank === 2) return null;                  // apex "2" is a vanilla trump — STOPPER retired as an activated effect
+    if (card.rank === 2) return null;                  // the apex "2" is a vanilla trump: no activated effect at all
     var spec = EFFECTS[card.suit] && EFFECTS[card.suit][card.rank];
     if (!spec) return null;                          // blanks / no effect = plain fight card
     var out = { id: card.suit + card.rank, cost: activationCost(card), quick: !!spec.quick, impl: !!spec.impl, archetype: ARCHETYPE[card.suit] };
@@ -850,7 +849,6 @@
     if (!eff) return { ok: false, reason: 'That card has no effect.' };
     if (!eff.impl) return { ok: false, reason: 'That effect is not available yet.' };
     // Quicks are castable proactively too (they fizzle if there's no valid target — never illegal, §0.4).
-    if (eff.kind === 'stopper') return { ok: false, reason: 'STOPPERs are committed during a fight (see stopper()), not activated.' };
     if (eff.kind === 'phantasm') return { ok: false, reason: 'Phantasmal Illusion is cast during a fight (see phantasm()), not activated.' };
     if (eff.kind === 'counterfeit' && (!st.pile || st.pile.byPlayer === p)) return { ok: false, reason: "Counterfeit needs the Rival's current play to copy — cast it while facing an attack." };
     if (eff.kind === 'removeEquip' && removeTargets(st, p, eff).length === 0) return { ok: false, reason: 'No Equipment or zone card on the board to target.' };
@@ -1374,48 +1372,6 @@
     return { ok: true, state: st };
   }
 
-  // STOPPER retired — the apex "2" is the stopper by value now, not an activated cancel. Always 0.
-  function stopperNeed(st) { return 0; }
-  // Commit N STOPPERs to cancel the current play. N must equal the play's size (1/2/3).
-  // Each committed STOPPER pays its own cost (1 pip of its suit) and is removed from the game.
-  // The play is voided and you seize the initiative (you lead next). No shield is stripped.
-  function stopper(st, p, ids) {
-    if (st.finished) return { ok: false, reason: 'Game over.' };
-    if (p !== st.turn) return { ok: false, reason: 'Not your turn.' };
-    var pl = st.players[p];
-    if (!st.pile) return { ok: false, reason: 'Nothing to cancel — you have the lead.' };
-    var need = stopperNeed(st);
-    if (need === 0) return { ok: false, reason: 'STOPPERs cannot cancel a 5-card combo.' };
-    if (!ids || ids.length !== need) return { ok: false, reason: 'Commit exactly ' + need + ' STOPPER' + (need > 1 ? 's' : '') + ' to cancel a ' + st.pile.combo.type + '.' };
-    var cards = [], seen = {};
-    for (var i = 0; i < ids.length; i++) {
-      if (seen[ids[i]]) return { ok: false, reason: 'Duplicate card.' };
-      seen[ids[i]] = true;
-      var c = pl.hand.filter(function (h) { return h.id === ids[i]; })[0];
-      if (!c) return { ok: false, reason: "You don't hold that card." };
-      var ef = effectOf(c);
-      if (!ef || ef.kind !== 'stopper') return { ok: false, reason: 'That is not a STOPPER.' };
-      cards.push(c);
-    }
-    if (pl.hand.length - need < 1) return { ok: false, reason: 'Cancelling would leave you no card to lead — keep at least one.' };
-    // Each STOPPER is a Technique: you pay its FULL cost (its value — colored pips of its suit
-    // plus a generic remainder), like any other card. Dry-run on a copy of the pile first so a
-    // partial multi-STOPPER commit can never over-draw your energy.
-    var probe = { energy: pl.energy.slice(), shuffle: [] };
-    for (var j = 0; j < cards.length; j++) {
-      if (!canAfford(probe, cards[j])) return { ok: false, reason: 'Not enough Fighter Energy to commit those STOPPERs (each costs ' + costHint(cards[j]) + ').' };
-      payEnergy(probe, cards[j]);
-    }
-    cards.forEach(function (c) {
-      pl.hand = pl.hand.filter(function (h) { return h.id !== c.id; });
-      payEnergy(pl, c);                                          // pay the STOPPER's full cost
-      spendCard(pl, c);                                        // Techniques recycle (spendCard)
-    });
-    var cancelled = st.pile.combo.type;
-    st.pile = null; st.lastPlayer = p; st.passes = 0; st.turn = p; // voided; you take the initiative — no shield stripped
-    return { ok: true, state: st, cancelled: cancelled, committed: need };
-  }
-
   /* Phantasmal Illusion: conjure a copy of the current play at its BASE card values, then apply your side of
    * the board to it. The copied cards are illusions and vanish; only a card you choose to swap in is really
    * spent. Three things can push the copy past the play it copied, and you need at least one of them — a bare
@@ -1724,9 +1680,8 @@
     var best = cands[0]; for (var c = 1; c < cands.length; c++) if (st.players[cands[c]].shields > st.players[best].shields) best = cands[c];
     return best;   // default: pressure the leader
   }
-  // EXPERIMENT (default OFF): don't exile used Techniques/STOPPERs — send the spent card to the Shuffle
-  // Pile so it can recycle back into the deck (like the apex "2" will, once it's a plain card, not a
-  // self-exiling STOPPER technique). spendCard() is the single disposal hook.
+  // EXPERIMENT (default OFF): don't exile used Techniques — send the spent card to the Shuffle
+  // Pile so it can recycle back into the deck. spendCard() is the single disposal hook.
   var RECYCLE_TECH = false;
   function setRecycleTech(v) { RECYCLE_TECH = !!v; }
   function spendCard(pl, card) { (RECYCLE_TECH ? pl.shuffle : pl.removed).push(card); }
@@ -1830,7 +1785,7 @@
     makeDeck: makeDeck, shuffle: shuffle, sortHand: sortHand,
     detectCombo: detectCombo, beats: beats, detectStraight: detectStraight,
     enumerateCombos: enumerateCombos, legalFightPlays: legalFightPlays, combinations: combinations,
-    newGame: newGame, play: play, pass: pass, stopper: stopper, stopperNeed: stopperNeed, phantasm: phantasm, drawCards: drawCards, isLocked: isLocked,
+    newGame: newGame, play: play, pass: pass, phantasm: phantasm, drawCards: drawCards, isLocked: isLocked,
     setDeferRoundDraw: setDeferRoundDraw, roundDraw: roundDraw, setShieldCards: setShieldCards, setLoserMill: setLoserMill, setRecycleTech: setRecycleTech,
     setHostileAll: setHostileAll, setDamageAll: setDamageAll, setLockoutAll: setLockoutAll,
     isDamageAll: isDamageAll, isLockoutAll: isLockoutAll,

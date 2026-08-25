@@ -3,11 +3,11 @@
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
 Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.11**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.13**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
-`main` is at **v1.31.11**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
+`main` is at **v1.31.13**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
 HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
@@ -82,23 +82,9 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
-- **Delete the orphaned STOPPER mechanic** (found 2026-08-25). No card has `kind:'stopper'` — the rework
-  retired it — but the implementation is still live-looking in three layers: `E.stopper()`/`stopperNeed()`
-  (engine), `pickStoppers()` (ai), and a full UI flow (a `pick` kind, `stopperFlash`, the context button;
-  ~65 references in the template). Same shape as the `phantasm` orphan that cost hours of confusion this
-  session. Wants its own change with the suites run around it, since the UI flow is interwoven with the
-  context button. Alternatively, if STOPPERs should come BACK, the whole implementation is sitting there.
-### ⭐ PRIORITISED 2026-08-24 — ALL THREE SHIPPED in v1.31.5 (see the changelog)
-*Netplay reveal · multiplayer-aware game export · the duel-only card wordings. Kept here only as a pointer;
-the detail, including what each one turned out to actually be, is in the v1.31.5 entry below.*
-
-**Follow-ups these left behind:**
 - **Old exported logs are v1.0 and merged.** Anything analysed from a multiplayer export before v1.31.5 had
   every opponent collapsed into one bucket and their fight counts stuck at 0. If those files still exist they
   cannot be repaired — the information was never recorded. New exports are `v:'2.0-mp'`; check the field.
-- **Netplay stats are local-page only.** `recordGame` writes what the local page observed, so a client's
-  record of an online game sees opponents only through the beats it was shown. Fine for solo/local; treat
-  online exports as partial until someone decides what an online record should contain.
 - **A duel export still has `rival` = seats[1]** (not merged), so old duel analysis is unaffected.
 
 - **Rogue "slash": an on-demand card that LOWERS the current pile's value** (Aj, 2026-08-25 — filed for when
@@ -271,6 +257,40 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.13 — STOPPER deleted, and the netplay record is now the host's
+
+**Two known gaps closed.**
+
+**1. The orphaned STOPPER mechanic is gone.** No card had `kind:'stopper'` — the rework retired it — but the
+implementation was still live-looking in three layers. Removed: `stopper()` / `stopperNeed()` and the four
+unreachable rank-2 card entries (engine), `pickStoppers()` and the commit branch (ai), and the whole UI flow —
+`stopInfo`/`doStopper`/`pickStoppersUI`/`openStopperPick`, the `pick` kind, the context-button branch, the
+`stoppers` stat, the dead CSS and art glyph (template). **The build shrank ~12KB.**
+
+Two things deliberately kept: **the apex 2's flavour names** (Skillful Teleport / Divine Intervention / Sleight
+of Hand / Masterful Block) as name-only entries, because `cardName()` reads them even though `effectOf()`
+returns null — a test caught that removing them stripped the apex of its name; and **`#stopfx`**, which
+`quickFlash` has reused since the rework.
+
+*Worth recording how nearly this shipped broken:* the first build after the removal **failed** on a mangled
+ternary, and because `build.js` refuses to write on a syntax error, the suites that ran next were testing the
+**previous** HTML and all reported green. The 12KB size drop is what gave it away. `build.js`'s output must be
+read, not assumed — it is the guard, and it works.
+
+**2. The netplay record is authored by the host and adopted by everyone** (Aj's call over host-only and
+per-page-perspective). A client never runs the drivers that count opponents' plays, so a client-written record
+reads all-zeroes for every opponent. The host now broadcasts its finished record at game end (`t:'record'`) and
+clients store *that* — one canonical game per table. The payload is public: what was played, never anyone's
+hand. `adoptedBySeat` is stamped on adoption so later analysis cannot mistake a client's copy for the host's,
+while `yourSeat` keeps naming the author.
+
+*And the first version of that test was invalid.* Both netplay pages share one browser context and therefore
+**one `localStorage`**, so every assertion about "the client's stored record" passed trivially against the
+host's own write — the client's adoption had never happened at all. Verified through a page-local seam
+(`__cmf.adopted()`) instead. This trap is already documented in CLAUDE.md; it is easy to walk into anyway.
+
+New suite **`nettest_record.js`** (12). Full sweep 21/21, with `nettest_full` green at position 21.
 
 ### v1.31.11 — "STOPPERs have zero engagement" — because STOPPERs are not in the game
 
