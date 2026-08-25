@@ -126,19 +126,13 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
     (the v1.31.0 fix, mirrored).
   - The one objection that *did* survive: the **leader-snowball is worse under coins**, because a win advances
     only the winner where a shield hit damages everyone, and initiative is already 1.8x concentrated.
-- **Game export cannot represent a free-for-all** (found 2026-08-24 in Aj's playtest exports; 6 of 14 games
-  were MP). The record has a two-player schema — `you` / `rival` — so in an MP game seats 2+ are simply lost;
-  2 of the 6 recorded `rival: 0/0/0/0` (everything gone) and the rest captured one seat only. There is **no
-  player-count field**, so an MP game can only be identified by grepping its log for "P2"/"P3". Fix: a `seats`
-  array plus `numPlayers`, and keep `you`/`rival` as aliases for duel compatibility if anything reads them.
-- **Two-player wording still reachable in MP narration** (same source):
-  - `Rival discarded N to hand size → energy pile.` — `CardmenFighter.template.html` ~3315 hardcodes `RIVAL`,
-    so only seat 1's hand-limit trim is *announced*. Not a correctness bug (`finishRoundWin`, `engine.js` ~1726,
-    trims every seat), but seats 2+ trim silently and the label is wrong at a 6-player table. Route through
-    `logName(seat)`.
-  - **16 card texts in `engine.js` say "the Rival's ..."** (e.g. Spiked Armor). Reads wrong in a free-for-all.
-    Needs a decision, not just a find-replace: card text is static, so it probably wants neutral phrasing
-    ("the target's", "an opponent's") rather than a seat name.
+- **One duel-only line left in MP narration.** `Rival discarded N to hand size → energy pile.` —
+  `CardmenFighter.template.html` ~3397 hardcodes `RIVAL`, so only seat 1's hand-limit trim is *announced*. Not
+  a correctness bug (`finishRoundWin` trims every seat), but seats 2+ trim silently and the label is wrong at a
+  six-player table. Route it through `logName(seat)`. Cheap.
+  - *The card-TEXT half of this item is done* (v1.31.5): the four texts that actually understated their effect
+    were fixed, and a re-count leaves exactly one card saying "the Rival" — Armor Piercing's "the Rival you
+    strike", which is correct target-specific phrasing.
 - **STOPPERs have zero engagement in real play** (0 uses across 14 games and 958 log lines, in both the stats
   and the logs — genuine non-use, not a recording gap; see PLAYER-PROFILE). The AI uses the reactive layer at
   about the rate the sims predict, so this is a human-facing problem: either the cost is wrong, the prompt is
@@ -159,24 +153,6 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
     scaling down with player count instead.
   - Measure with the one-off in this session's history (median/mean/max rounds by player count for both
     pairings); worth turning into a small committed harness if this is picked up.
-- **Draw = number of players** (Aj's idea, 2026-08-24 — measured once, verdict OPEN, flag shipped OFF as
-  `E.setDrawPerPlayer()`). Aimed squarely at what `optionsim.js` found: legal plays per turn collapse as the
-  table grows (4.5 at 2p to 2.3 at 6p) and a fixed draw of 2 does not scale with that. Making the draw scale
-  **works on its target**: options per turn go flat across player counts — 4.5 / 4.1 / 4.3 / **4.4** instead of
-  4.5 / 3.2 / 2.9 / **2.3**.
-  - **But the felt problem got worse.** Turns with NO legal play rose 65% -> **70%** at 6p, and when following a
-    pile, stuck rose 79% -> **85%**. Same trap as the jab cantrip: give everyone more resources and the pile is
-    raised more times before it reaches you, so the bar climbs as fast as your hand does. *Average* options up,
-    *ability to act at all* down.
-  - Side effect worth deciding about: mid-round hands reach **12.9** against a `MAX_HAND` of 10, so ~3 cards per
-    player per round are discarded to energy at Clean-up. That is a large cycling boost — and it means much of
-    the extra draw is converted straight into energy rather than into playable options.
-  - **The balance read is UNRESOLVED, and for a methodological reason.** It first looked like the 6-player
-    spread tightened 18.5 -> 14.4 points, but `mpsim` turned out to be non-deterministic (the AI uses unseeded
-    `Math.random()`), and three identical baseline runs gave Cleric 28.0 / 24.9 / 24.1. The apparent gain was
-    inside run noise. Re-measure with 3+ runs per arm, or seed the AI first. See PATCHNOTES principle 0c.
-  - If it comes back, the interesting variant is a draw that scales but is **capped below MAX_HAND**, so it buys
-    options without spilling into energy — e.g. `min(numPlayers, MAX_HAND - hand.length)`.
 - **The "outbid" pass model for the AI** (Aj — parked 2026-08-24, may come back). The AI currently picks the
   *lowest safe single* to contest a jab, and never asks *"will this card even survive five opponents?"* Aj's
   reason #3 for passing was exactly that: middling values get outbid, so spending them is waste. Unlike the
@@ -280,15 +256,6 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
   named characters, grouped into five tiers, each with a distinct play style and a name that already flows
   through the whole naming funnel. A collection/progression layer has something to collect now.
 
-- **Player names** (Aj) — *the cheapest good thing left.* Let players type a name instead of `P2`/`P3`. Every
-  naming site already funnels through a single **`logName(seat)`** (that was the point of doing D1 first), and
-  netplay already carries a per-seat identity in the lobby. So: collect a name per seat on the setup screen +
-  in the lobby, store it, and return it from `logName`. One function plus a UI field; nothing else changes.
-- **Mobile layout — landscape follow-up** (optional): the v1.20.0 pass covered portrait phones. Landscape
-  phones are *wide* (>720px) but *short*, so the `max-width:720px` mobile rules don't apply — they fall into
-  the 3-column desktop layout with a cramped height. If landscape matters, add a short-viewport branch (e.g.
-  `@media (max-height:520px)`) that collapses to a single scroll column + the 🔍 View reader regardless of
-  width. Not blocking; portrait is the common case.
 - **Suit ≠ class — future direction** (Aj, design intent, not yet built): the current 1:1 map (♦ Wizard,
   ♥ Cleric, ♣ Fighter, ♠ Rogue) is temporary. There will stay **only 4 suits**, but eventually **more than one
   class per suit**, and **hybrid classes** — e.g. an **assassin** that is *both* Fighter and Rogue, with **its
