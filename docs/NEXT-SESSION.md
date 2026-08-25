@@ -316,13 +316,25 @@ The fix is one line — `if (!E.legalFightPlays(st, p).length) return 'no-follow
 is **any legal play, not a Special**: a jab wins the round just as reliably (100% vs 93.2%) because a
 whole-round lock means nobody can answer it.
 
-| | before | after |
+**Do NOT read the obvious headline.** "Round-win after casting 58.6% → 94.2%" is close to a **tautology**:
+the change removes losing states from the denominator, so the conditional win rate had to rise. It was the
+first framing written here and it oversold the result — the same error this repo flags when a 0.00 cast rate
+gets read as a verdict. The honest measurement fixes the denominator: **every round where a seat held Back
+Stab and could afford it**, counted identically in both arms (~750 rounds per arm, 4000 duels):
+
+| | duel round-win | energy spent that round |
 | --- | --- | --- |
-| 1v1 round-win after casting | 58.6% | **94.2%** |
-| 4p | 73.0% | 76.4% |
-| 6p | 65.3% | 70.4% |
-| 1v1 casts per 100 games | 17.3 | 11.3 |
-| wasted duel casts (nothing to follow) | 51 | **3** |
+| before | 54.5% ±1.9 | 7.68 |
+| after | **59.9% ±1.7** | **6.52** |
+
+**+5.4 points at 2.1 s.e. — under the bar.** Suggestive, not proven.
+
+And the "51 casts won 7.8%" group above were states with **no legal play at all** — they were losing those
+rounds regardless, so the cast was not *causing* the loss. It was wasting 10 energy in a round already gone.
+The one mechanical (not inferred) effect is therefore **1.2 energy saved per chance-round**.
+
+Play rate did **not** improve, and was never meant to: 1v1 **17.2 → 14.0** casts per 100 games, 4p and 6p flat
+within noise (3 runs of 400 games per arm).
 
 Multiplayer is untouched by design — it already required a plan; the `no-follow-up` check just names the same
 hold earlier, which is why `no-special` collapsed from 361 to 2 in the branch tally. One related tightening:
