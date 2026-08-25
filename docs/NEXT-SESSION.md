@@ -3,11 +3,11 @@
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
 Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.10**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.11**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
-`main` is at **v1.31.10**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
+`main` is at **v1.31.11**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
 HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
@@ -82,6 +82,12 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **Delete the orphaned STOPPER mechanic** (found 2026-08-25). No card has `kind:'stopper'` — the rework
+  retired it — but the implementation is still live-looking in three layers: `E.stopper()`/`stopperNeed()`
+  (engine), `pickStoppers()` (ai), and a full UI flow (a `pick` kind, `stopperFlash`, the context button;
+  ~65 references in the template). Same shape as the `phantasm` orphan that cost hours of confusion this
+  session. Wants its own change with the suites run around it, since the UI flow is interwoven with the
+  context button. Alternatively, if STOPPERs should come BACK, the whole implementation is sitting there.
 ### ⭐ PRIORITISED 2026-08-24 — ALL THREE SHIPPED in v1.31.5 (see the changelog)
 *Netplay reveal · multiplayer-aware game export · the duel-only card wordings. Kept here only as a pointer;
 the detail, including what each one turned out to actually be, is in the v1.31.5 entry below.*
@@ -126,11 +132,6 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
     (the v1.31.0 fix, mirrored).
   - The one objection that *did* survive: the **leader-snowball is worse under coins**, because a win advances
     only the winner where a shield hit damages everyone, and initiative is already 1.8x concentrated.
-- **STOPPERs have zero engagement in real play** (0 uses across 14 games and 958 log lines, in both the stats
-  and the logs — genuine non-use, not a recording gap; see PLAYER-PROFILE). The AI uses the reactive layer at
-  about the rate the sims predict, so this is a human-facing problem: either the cost is wrong, the prompt is
-  missed, or players do not know it exists. **Check the UI surfacing before touching the card.** Also 0
-  Emergency Maintenance casts where the sim rate predicts ~3.
 - **6-player games run 33 rounds; duels run 11. That is probably the root cause.** (2026-08-24, from Aj's
   question "is it weird that everybody mills but not everybody loses a shield?") Under the live
   `SPECIAL_LOSS_MODE='chosen'` + `MILL_SCOPE='targeted'` pairing a Special win costs the table **one** shield
@@ -270,6 +271,25 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.11 — "STOPPERs have zero engagement" — because STOPPERs are not in the game
+
+A backlog item, from Aj's playtest exports, recorded **0 STOPPER uses across 14 games and 958 log lines** and
+treated it as an engagement problem. It is not: **no card has `kind:'stopper'`.** The rework retired the
+mechanic (the apex 2 wins by value instead), so `effectOf` on any 2 returns *no effect at all* — the playtest
+was measuring a mechanic that had already been removed. Confirmed by simulation too: across 11,149 duel turns
+and 69,789 six-player turns, a STOPPER was held **0 times**, while the same 2s were played as the apex 1,017
+and 8,163 times.
+
+**This is the SECOND orphaned mechanic found today by the same check**, after Phantasmal Illusion's
+`kind:'phantasm'`. The dead code is substantial and looks alive in all three layers: `E.stopper()` /
+`stopperNeed()` in engine.js, `pickStoppers()` in ai.js, and a whole UI flow in the template (a `pick` kind, a
+`stopperFlash`, the context button, ~65 references). Two live call sites — `E.stopperNeed(state)` and
+`E.stopper(...)` — can never fire, because the hand can never hold the card that opens them.
+
+Not deleted here: that is a real removal and wants its own change with the suites run around it. Recorded so
+nobody debugs it a third time. **The check that finds this class of bug is `grep -c "kind: 'x'" engine.js`
+returning 0** — it is in CLAUDE.md, and it has now paid for itself twice in one day.
 
 ### v1.31.10 — the clean-up phase existed only for seat 1
 

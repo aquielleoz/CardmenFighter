@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.10**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.11**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -329,6 +329,12 @@ a *narrow trigger* (its swap was mandatory, and one swap cannot raise a matched 
 full house on the pile). v1.31.6 restored the card with the swap OPTIONAL and board modifiers applying, and it
 now casts 1.8/6.3/8.3 per 100 games at 2/4/6 players. Before deleting a card for being uncast, find out what it
 is waiting for.
+
+**Effect KINDS can be orphaned and stay orphaned — this has now happened TWICE.** Besides `phantasm` below,
+**`stopper` is orphaned too**: no card has `kind:'stopper'` (the rework retired it — the apex 2 wins by value
+and has no activated effect), yet `E.stopper()`/`stopperNeed()`, `pickStoppers()` in ai.js and a whole UI flow
+(~65 template references) are still there. A playtest even reported "0 STOPPER uses in 14 games" as an
+engagement problem. Run the grep before believing any "this card/mechanic is unused" claim.
 
 **Effect KINDS can be orphaned and stay orphaned.** That rework left `E.phantasm()`, `tryPhantasm()` in ai.js,
 a whole UI picker flow, and the `phantasmPlus` boost hook all keyed to `kind:'phantasm'` — which no card had,
