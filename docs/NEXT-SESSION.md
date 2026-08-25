@@ -1,9 +1,9 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** + **qr.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.18**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.19**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
@@ -140,10 +140,32 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
        - **Shortening the payload (item 3 below) is no longer a blocker — it is a robustness win.** It shrinks
          the version and improves every number at once, which is what would buy the landscape case and
          scanning at arm's length rather than up close.
-    2. **Share-sheet handoff.** `navigator.share()` on the invite code — one tap into any messaging app the two
-       players already use, instead of select-copy-switch-paste. Two lines of code.
+    2. **Share-sheet handoff — now the TOP item in this section.** `navigator.share()` on the invite code: one
+       tap into whatever chat the two players are already using, instead of select-copy-switch-paste. Aj,
+       2026-08-25, on settling for browser-only: *"you can always copy paste the code to a chat program"* —
+       which is precisely the manual version of this. Genuinely ~2 lines, works on Android Chrome today, and it
+       degrades to the existing Copy button where `navigator.share` is absent (desktop Firefox, older Safari).
+       Cheapest real win left in joining.
     3. **Shorter codes.** The blob is a whole SDP. Trimming to the fields that matter and compressing would make
        it hand-typeable, which is the actual pain when the two devices cannot talk to each other at all.
+  - **AN ANDROID APK WAS CONSIDERED AND DECLINED (2026-08-25). Do not re-propose it.** It would genuinely solve
+    two things: a WebView using `WebViewAssetLoader` serves the page from `https://appassets.androidplatform.net/`,
+    a real secure origin, so camera scanning would work; and **native UDP/mDNS makes LAN discovery actually
+    possible**, which is impossible for a browser page and was Aj's original ask. It is still a NO:
+    - **Android toolchain churn is the dealbreaker** (Aj: *"too much of a hassle with the api churn"*). Target
+      API bumps and Gradle churn are permanent recurring maintenance, in a repo whose entire dependency list is
+      "Playwright, for tests". The Kotlin side would be ~150 lines; the toolchain is the whole cost.
+    - Also: two artifacts to keep in sync, signing/distribution, iPhone players still on the web build anyway,
+      and `BarcodeDetector` is **not guaranteed in Android WebView** — so "the APK fixes scanning" was never
+      even verified.
+    - **Cross-play was NOT the objection, and it is worth knowing why:** a WebView APK runs the same HTML in the
+      same Chromium engine, so netplay with desktop Chrome works by construction. The asymmetry would be in
+      *discovery only* (app↔app), which lands where it costs least, since desktop pairings are exactly the ones
+      where pasting a code is already easy.
+    - **The one real cross-play risk it surfaced is worth fixing anyway: VERSION SKEW.** Netplay has no protocol
+      version negotiation, so two builds can mismatch and just misbehave. Both sides already exchange
+      `t:'join'`/`t:'setup'`, so carrying a version and warning on mismatch is ~20 lines plus a suite. Aj's own
+      stale phone build already proved this happens in the wild. **This is worth doing independently.**
   - **The one thing that would give true discovery** is a rendezvous service — even a 20-line local one — and
     that breaks "no server, no install, runs offline", which is the project's whole shape. If it is ever wanted,
     make it strictly **opt-in** and keep the code path as the default.
@@ -375,6 +397,25 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.19 — one tap into any chat, and a paste that forgives
+
+Aj, settling on browser-only: *"you can always copy paste the code to a chat program"* — so this automates
+exactly that. `navigator.share()` on the invite and reply codes: one tap into whatever chat the two players
+already use, instead of select-copy-switch-paste. Where `navigator.share` is absent (desktop Firefox, older
+Safari) the button simply is not offered and Copy is untouched.
+
+**It shares the RAW code and nothing else.** A friendly lead-in would read better in the chat, but the recipient
+pastes whatever arrives, and a build without the tolerant `dec()` below would reject it. There are demonstrably
+stale copies of this game in the wild — one cost us a bug report — so the payload stays exactly what every
+version can already parse. `sharetest.js` asserts that byte-for-byte rather than merely asserting "share was
+called", because the payload *is* the risk.
+
+**And the paste side now forgives.** A code that has travelled through a chat app arrives with "here you go:" in
+front or a stray newline behind, so `dec()` falls back to the longest base64 run in whatever was pasted. The
+suite asserts both halves of that: a code wrapped in a sentence is accepted **and produces a real reply** (not
+merely "no error was shown" — an error that never renders would make the weaker assertion pass on a broken
+build), while actual rubbish is still rejected, so the tolerance is not a wildcard.
 
 ### v1.31.18 — the build stamps itself
 

@@ -5233,7 +5233,14 @@ __QR__
     function newPC(){ return new RTCPeerConnection(useStun?{ iceServers:[{ urls:'stun:stun.l.google.com:19302' }] }:undefined); }
     function gather(p){ return new Promise(function(res){ var done=false; function fin(){ if(!done){ done=true; res(); } } if(p.iceGatheringState==='complete') return fin(); p.onicegatheringstatechange=function(){ if(p.iceGatheringState==='complete') fin(); }; setTimeout(fin, 4000); }); }
     function enc(desc){ try{ return btoa(JSON.stringify({ t:desc.type, s:desc.sdp })); }catch(e){ return ''; } }
-    function dec(code){ try{ var o=JSON.parse(atob(code.trim())); return { type:o.t, sdp:o.s }; }catch(e){ return null; } }
+    function b64json(x){ try{ return JSON.parse(atob(x)); }catch(e){ return null; } }
+    /* Tolerant on purpose: a code travels through chat apps now, and people paste it with a "here you go:" in
+     * front or a stray newline behind. Falls back to the longest base64 run in whatever arrived. */
+    function dec(code){
+      var t=(code||'').trim(), o=b64json(t);
+      if(!o){ var m=t.match(/[A-Za-z0-9+\/=]{80,}/); if(m) o=b64json(m[0]); }
+      return o ? { type:o.t, sdp:o.s } : null;
+    }
     function startSignaling(){
       if(isHost()){
         hubMode=true; connected=true;   // the host runs a hub of N-1 channels; each client gets its own invite/reply
@@ -5873,6 +5880,7 @@ __QR__
           qrBlockHTML('qrInvite', 'Point their phone\u2019s camera at this \u2014 or send them the code below.')+
           '<textarea id="sigOut" class="sigbox" readonly>'+sig.offer+'</textarea>'+
           '<button id="sigCopy" class="netbtn alt">⧉ Copy invite code</button>'+
+          shareBtnHTML('Send it')+
           '<h3>Step 2 — paste their reply code here</h3>'+
           '<textarea id="sigIn" class="sigbox" placeholder="Paste the reply code your friend sends back…"></textarea>'+
           '<button id="sigGo" class="netbtn go">Connect ▶</button>'+
@@ -5888,6 +5896,7 @@ __QR__
           qrBlockHTML('qrReply', 'Let your host scan this \u2014 or send them the code below.')+
           '<textarea id="sigOut" class="sigbox" readonly>'+sig.answer+'</textarea>'+
           '<button id="sigCopy" class="netbtn alt">⧉ Copy reply code</button>'+
+          shareBtnHTML('Send it back')+
           '<p class="nethint">Waiting for your host to connect… the game starts automatically once they paste it.</p>';
       }
       // the name row goes FIRST on this screen — it is the client's first sight of the game
@@ -5895,6 +5904,7 @@ __QR__
       wireNameRow();
       qrInto('qrInvite', sig.offer); qrInto('qrReply', sig.answer);   // SHOW only — phase 1
       var copy=$('sigCopy'); if(copy) copy.addEventListener('click', function(){ var t=$('sigOut'); if(t){ t.select(); try{ navigator.clipboard.writeText(t.value); }catch(e){} try{ document.execCommand('copy'); }catch(e){} copy.textContent='✓ Copied'; } });
+      shareWire();
       var go=$('sigGo'); if(go) go.addEventListener('click', function(){ var v=($('sigIn')||{}).value||''; if(isHost()) hostAcceptAnswer(v); else joinAcceptOffer(v); });
     }
     /* Render a QR of whatever is in a code box, so the other player can point a camera at the screen instead of
@@ -5921,6 +5931,25 @@ __QR__
         return info;
       }
       catch(e){ cv.style.display='none'; return null; }                      // too long to encode → the code box still works
+    }
+    /* SHARE SHEET (v1.31.19). Aj, settling for browser-only: "you can always copy paste the code to a chat
+     * program" — so automate exactly that. One tap into whatever chat the two players already use, instead of
+     * select-copy-switch-paste. Where `navigator.share` is absent (desktop Firefox, older Safari) the Copy
+     * button is unchanged and this simply is not offered.
+     *
+     * It shares the RAW code and nothing else. A friendly lead-in would read better in the chat, but the
+     * recipient pastes whatever they receive, and a build without the tolerant `dec()` below would reject it.
+     * There are stale copies of this game in the wild — one of them cost us a bug report — so the payload stays
+     * exactly what every version can already parse. */
+    function shareBtnHTML(label){
+      return (navigator.share) ? '<button id="sigShare" class="netbtn alt">\u2197 '+label+'</button>' : '';
+    }
+    function shareWire(){
+      var sh=$('sigShare'); if(!sh) return;
+      sh.addEventListener('click', function(){
+        var t=$('sigOut'); if(!t || !t.value) return;
+        try{ var r=navigator.share({ text:t.value }); if(r && r.catch) r.catch(function(){}); }catch(e){}
+      });                                                    // a cancelled share rejects; that is not an error
     }
     function qrBlockHTML(id, hint){
       return '<div class="qrWrap"><span class="qrFrame"><canvas id="'+id+'" class="qrCanvas"></canvas></span>'+
@@ -5993,7 +6022,7 @@ __QR__
       else if(sig.step==='host-invite'){
         body+='<h3>Invite a player — send them this</h3>'+
           qrBlockHTML('qrInvite', 'Point their phone\u2019s camera at this \u2014 or send them the code below.')+
-          '<textarea id="sigOut" class="sigbox" readonly>'+sig.offer+'</textarea><button id="sigCopy" class="netbtn alt">⧉ Copy invite</button>'+
+          '<textarea id="sigOut" class="sigbox" readonly>'+sig.offer+'</textarea><button id="sigCopy" class="netbtn alt">⧉ Copy invite</button>'+shareBtnHTML('Send it')+
           '<h3>Paste their reply code</h3><textarea id="sigIn" class="sigbox" placeholder="Paste the reply from the player you invited…"></textarea>'+
           '<button id="sigGo" class="netbtn go">Connect this player ▶</button>';
       } else {
@@ -6009,6 +6038,7 @@ __QR__
       var sel=$('deckSel'); if(sel){ sel.value=myDeck; sel.addEventListener('change', function(){ myDeck=sel.value; }); }
       qrInto('qrInvite', sig.offer);
       var copy=$('sigCopy'); if(copy) copy.addEventListener('click', function(){ var t=$('sigOut'); if(t){ t.select(); try{ navigator.clipboard.writeText(t.value); }catch(e){} try{ document.execCommand('copy'); }catch(e){} copy.textContent='✓ Copied'; } });
+      shareWire();
       var go=$('sigGo'); if(go) go.addEventListener('click', function(){ hostAcceptAnswer(($('sigIn')||{}).value||''); });
       var inv=$('inviteBtn'); if(inv) inv.addEventListener('click', function(){ hostNewInvite(); });
       var start=$('lobbyGo'); if(start) start.addEventListener('click', function(){ myDeck=($('deckSel')||{}).value||myDeck; if(nextSeat-1>=1) hostStartRealN(myDeck); });
