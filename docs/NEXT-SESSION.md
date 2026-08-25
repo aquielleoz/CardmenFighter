@@ -3,11 +3,11 @@
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
 Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.8**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.9**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
-`main` is at **v1.31.8**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
+`main` is at **v1.31.9**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
 HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
@@ -267,11 +267,8 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
   must be migrated.
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
-- **The position-dependent netplay suites** — `nettest_log` and `nettest_full` pass alone (13/0, 5/0) but fail
-  or time out late in a long serial sweep. **Not a regression** — an A/B of the actual builds, four runs each,
-  behaved identically before and after our changes. The accumulation behind it is still unisolated. Until it
-  is, confirm any sweep failure by running that suite alone. Two real harness facts found while chasing it:
-  three suites share port **8303** (`concede3`/`elim3`/`energy` — fine serially, never concurrently), and every
+- **Two real harness facts found while chasing the (now fixed, v1.31.9) position-dependent suites:** three
+  suites share port **8303** (`concede3`/`elim3`/`energy` — fine serially, never concurrently), and every
   suite awaits `srv.listen` with **no error handler**, so a genuine port collision hangs silently instead of
   failing.
 
@@ -280,6 +277,32 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.9 — the position-dependent netplay suites: it was the TESTS, not the environment
+
+`nettest_full` and `nettest_log` passed alone and failed late in a long serial sweep. This had been recorded as
+unexplained environmental accumulation, with three hypotheses tested and disproved (CPU contention, orphaned
+ports, stale `chromium_headless_shell` processes).
+
+**The documented failure signature was the clue and nobody read it as one:** `nettest_full` reported
+`maxRound=2 acted=80` — it acted on *every* step and none of it landed. `waitTurnEnds()` returned **void**
+after 40×80ms = 3.2s, so the caller could not distinguish "the turn ended" from "I gave up", and then acted
+into a board still mid-mirror-round-trip. Under load that is every step.
+
+`nettest_log` was one impatient loop: a 9s budget for the turn to reach the client. Blow through it and the
+turn assertion fails, the client then finds no legal jab, and both log assertions fail with it — **the "~4
+timing assertions" in the old note were one root cause, not four.**
+
+Fixes: `waitTurnEnds` returns a boolean and the driver re-waits rather than acting; the loop is bounded by
+**wall clock and productive actions** instead of a raw iteration count (a transition used to burn budget);
+budgets are generous; and a missing log line fails an assertion instead of throwing on `undefined`.
+
+Verified **20/20 with `nettest_log` at position 19 and `nettest_full` at position 20** of a serial sweep — the
+exact positions they were documented to fail at — and `acted` fell 80 → 10.
+
+**The principle, now in CLAUDE.md: a slow machine should make a suite SLOWER, never red.** Any fixed `wait(n)`
+followed by an assertion is this bug waiting to happen. One clean sweep is evidence rather than proof, since
+the original failure was intermittent.
 
 ### v1.31.8c — did the Back Stab AI work hurt multiplayer? No. (And the first answer was wrong.)
 
