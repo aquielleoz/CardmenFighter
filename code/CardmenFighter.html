@@ -3370,12 +3370,20 @@
     return LOCK_CAST[why] ? why : '';
   }
   function lockoutReason(st, p, t) {
+    /* You have to be able to ACT on the tempo you just bought. A lock does NOT remove their existing pile, so
+     * silencing a rival you cannot out-play hands them the round anyway. Measured in duels, 800 games:
+     *   follow-up available  special  44 casts -> won 93.2% of those rounds
+     *                        jab      11 casts -> 100.0%
+     *                        NOTHING  51 casts ->   7.8%   (baseline is 50%)
+     * and that last group was 48% of every duel cast. Any legal play is enough — it need not be a Special. */
+    if (!E.legalFightPlays(st, p).length) return 'no-follow-up';
     if (st.numPlayers === 2) return 'duel';                          // one rival: a skipped round is a free round
     var plan = plannedSpecialValue(st, p), read = st.players[p]._read && st.players[p]._read[t];
+    if (!plan) return 'no-special';                                  // nothing to protect — checked BEFORE the read,
+                                                                     // or a read would license a cast we cannot follow
     if (read && read.round === st.round) {                           // we have SEEN the hand: no guessing needed
       return (read.pairs >= 1 && read.best > plan) ? 'read-threat' : 'read-harmless';   // can't answer us -> keep the energy
     }
-    if (!plan) return 'no-special';                                  // nothing to protect yet
     if (st.players[t].hand.length < 3) return 'thin-hand';           // too few cards left to assemble an answer
     var seen = st._seen && st._seen[t];
     if (seen && seen.round === st.round && tierOf(seen.hi) === 'high') return 'highs-spent';   // their highs are already spent

@@ -657,6 +657,18 @@ function cards(ids) { return ids.map(card); }
   // --- the timing model: Aj's own heuristic, scenario by scenario
   var d2 = tbl(2); d2.players[0].hand = [mkc(9, 'S'), mkc(9, 'H')];
   ok(AI.lockoutWorth(d2, 0, 1) === 'duel', 'lockout model: in a duel a skipped round is always worth it');
+  /* …but only if we can ACT on it. A lock does not remove their existing pile, so silencing a rival we cannot
+   * out-play hands them the round anyway. Measured in duels: casting with nothing to follow won 7.8% of those
+   * rounds against a 50% baseline, and it was 48% of every duel cast. */
+  var nf = tbl(2); nf.players[0].hand = [mkc(3, 'S'), mkc(4, 'H')];
+  var hi2 = E.detectCombo([mkc(13, 'D', 'a'), mkc(13, 'C', 'b')]);          // a pair of Kings we cannot beat
+  nf.pile = { combo: hi2, byPlayer: 1, raw: hi2.value, rawKey0: hi2.key[0], lockedDelta: 0, mod: 0 };
+  nf.lastPlayer = 1;
+  ok(E.legalFightPlays(nf, 0).length === 0, 'staged: no legal play against their pair of Kings');
+  ok(AI.lockoutWorth(nf, 0, 1) === '', 'lockout model: with NO legal play it holds the card, even in a duel');
+  var nf2 = tbl(2); nf2.players[0].hand = [mkc(1, 'S'), mkc(4, 'H')];       // an Ace beats a pair? no — but we LEAD
+  nf2.pile = null; nf2.lastPlayer = null;
+  ok(AI.lockoutWorth(nf2, 0, 1) === 'duel', 'lockout model: leading counts as a follow-up — any legal play does');
   function midPlan(np) { var g = tbl(np); g.players[0].hand = [mkc(9, 'S'), mkc(9, 'H'), mkc(4, 'C')]; return g; }
   var hi = midPlan(4);
   hi.pile = { byPlayer: 2, combo: { type: 'pair', size: 2, value: 13 } }; AI.observe(hi); hi.pile = null;

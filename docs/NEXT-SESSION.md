@@ -1,13 +1,13 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**222**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**225**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.7**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.8**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-24)
 
-`main` is at **v1.31.7**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
+`main` is at **v1.31.8**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
 HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
@@ -16,7 +16,7 @@ HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 npm test && node mptest.js
 ```
 
-Expect **222 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
+Expect **225 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
 
 ### What just shipped
 **v1.31.5 — Aj's three priorities**, each of which was worse than its one-line description: the netplay reveal
@@ -290,6 +290,50 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.8 — Back Stab: the AI was buying a round it couldn't spend
+
+Aj asked how Back Stab was doing after the v1.31.4 redesign. Cast rate was healthy (17.3 / 18.3 / 25.8 per
+100 games at 2/4/6 players) and casting it correlated with winning the round — but the **duel** number was
+oddly weak, +8.6 points over baseline where multiplayer showed +44.
+
+The duel branch of `lockoutWorth` returned `'duel'` **unconditionally**: one rival, so a skipped round is a
+free round. That reasoning has a hole. **A lock does not remove their existing pile.** If they already hold
+the initiative and you cannot beat it, silencing them changes nothing — you pass, and they take the round
+anyway.
+
+Measured over 800 duels, splitting every cast by what the caster could actually follow up with:
+
+| follow-up available | casts | round won |
+| --- | --- | --- |
+| a Special | 44 | 93.2% |
+| only a jab | 11 | 100.0% |
+| **nothing** | 51 | **7.8%** |
+
+Baseline round-win is 50%. So **48% of every duel cast was thrown away**, on rounds it then lost.
+
+The fix is one line — `if (!E.legalFightPlays(st, p).length) return 'no-follow-up';` — and note the condition
+is **any legal play, not a Special**: a jab wins the round just as reliably (100% vs 93.2%) because a
+whole-round lock means nobody can answer it.
+
+| | before | after |
+| --- | --- | --- |
+| 1v1 round-win after casting | 58.6% | **94.2%** |
+| 4p | 73.0% | 76.4% |
+| 6p | 65.3% | 70.4% |
+| 1v1 casts per 100 games | 17.3 | 11.3 |
+| wasted duel casts (nothing to follow) | 51 | **3** |
+
+Multiplayer is untouched by design — it already required a plan; the `no-follow-up` check just names the same
+hold earlier, which is why `no-special` collapsed from 361 to 2 in the branch tally. One related tightening:
+`!plan` is now tested **before** the Outbalance read, since otherwise a fresh read could license a cast with
+nothing to follow it.
+
+Balance, 8 runs per arm: spread 19.1→19.7 (2p), 18.5→17.6 (3p), 17.8→19.9 (4p), 16.7→14.2 (6p) — largest
+2.1 s.e. Pure Rogue +1.9 in duels (2.3 s.e.), the right direction and still under the bar. As with Counterfeit:
+**the AI plays the card materially better, and no deck's win rate moved measurably.**
+
+Tests: **225** (was 222) — the no-legal-play hold, and that leading counts as a follow-up.
 
 ### v1.31.7 — Counterfeit: the card was fine, the AI's own rule was vetoing it
 

@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.7**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.8**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -209,7 +209,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of v1.31.6 — green. Counts verified 2026-08-25: `test` 222, `netview` 28, `mptest` 82,
+Status as of v1.31.6 — green. Counts verified 2026-08-25: `test` 225, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
 `landscapetest` 64, `nettest_log` 13, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
@@ -338,6 +338,11 @@ the engine hands the cards over through `E.takeReveal(p)`, which is **seat-check
 only a derived summary on the caster (`pl._read[seat] = {round, best, pairs, size}`). `test.js` asserts the
 cards never appear in `JSON.stringify(st)`. It is a pickup rather than a return value because an Outbalance can
 sit in a response window, and by the time it resolves `settleWindows()` hands its caller no result.
+
+**A lock does not remove their existing pile.** Back Stab's AI must check it can actually ACT on the tempo it
+buys (`E.legalFightPlays(...).length`) — the duel branch cast unconditionally until v1.31.8, and 48% of those
+casts had nothing to follow up with and won 7.8% of their rounds against a 50% baseline. Any legal play
+suffices; it need not be a Special.
 
 **Back Stab's AI is a TIMING model, not a gate** (`lockoutWorth` in `ai.js`). It answers "is the play I want to
 make under threat from THIS rival", from a fresh Outbalance read or else from `observe()`'s memory of public
