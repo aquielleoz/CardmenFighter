@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.14**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.15**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -99,6 +99,12 @@ npx playwright install chromium
 
 Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` is a shared
 helper, not a suite — don't run it directly.
+
+**Netplay must be startable WITHOUT navigating.** `NET.start(role, kind, opts)` enters it in place; `?net=`
+still works and every `nettest_*` suite uses it, but the UI buttons must never set `location.search` — on
+Android a downloaded HTML opens as a **`content://` URI, which cannot carry a query string**, so the old
+`location.search='?net=rtchost'` navigated to an unresolvable URI and the game vanished into
+ERR_FILE_NOT_FOUND (v1.31.15). Same for Leave: only clear a query that actually exists.
 
 **Player names go through `seatName`/`logName` only.** `seatNames` is indexed in the **LOCAL** frame; a netplay
 client rotates the host's absolute-seat table on arrival (`t:'setup'`), so no call site needs rotation

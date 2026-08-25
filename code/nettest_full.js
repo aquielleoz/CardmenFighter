@@ -33,15 +33,20 @@ async function waitTurnEnds(p){ for(let i=0;i<150;i++){ if(!(await snap(p)).your
 
   /* Bound by WALL CLOCK and by productive actions, not by a raw iteration count: a transition or a slow mirror
    * used to burn a step, so the budget could be exhausted without the game ever advancing. */
-  let maxRound=1, acted=0, hostPlayed=0, joinPlayed=0, stalled=0; const beaten={};
+  /* Patience is measured in TIME SINCE PROGRESS, not in iterations. The first version of this used
+   * `stalled < 40` — and at 150ms a go that is six seconds, which is the same impatient-counter bug this
+   * rewrite existed to remove, one layer up. Under load the mirror round-trip alone can exceed it. */
+  let maxRound=1, acted=0, hostPlayed=0, joinPlayed=0; const beaten={};
   const deadline=Date.now()+180000;
-  while(maxRound<4 && acted<80 && stalled<40 && Date.now()<deadline){
+  const STALL_MS=60000; let lastProgress=Date.now();
+  const progressed=()=>{ lastProgress=Date.now(); };
+  while(maxRound<4 && acted<80 && (Date.now()-lastProgress)<STALL_MS && Date.now()<deadline){
     let who=null; const h=await snap(host), j=await snap(join);
     if(h.yourTurn) who=['host',host]; else if(j.yourTurn) who=['join',join];
-    if(!who){ stalled++; await wait(150); continue; }   // ceremony/transition — costs no action budget
-    stalled=0;
+    if(!who){ await wait(150); continue; }              // ceremony/transition — costs no action budget
+
     const [role,p]=who; const s=await snap(p);
-    if(s.pile===0){ await play(p, s.hand[0]); acted++; role==='host'?hostPlayed++:joinPlayed++; }
+    if(s.pile===0){ await play(p, s.hand[0]); acted++; progressed(); role==='host'?hostPlayed++:joinPlayed++; }
     else if(!beaten[role+':'+s.round]){                          // beat once per player per round, else pass (bounds the war)
       beaten[role+':'+s.round]=1;
       await play(p, s.hand[s.hand.length-1]); await wait(300);
@@ -51,8 +56,10 @@ async function waitTurnEnds(p){ for(let i=0;i<150;i++){ if(!(await snap(p)).your
       acted++;
     } else { await passT(p); acted++; }
     // if the turn has NOT actually ended, loop round and wait again rather than acting into a stale board
-    if(!(await waitTurnEnds(p))){ stalled++; continue; }
-    const hr=(await snap(host)).round, jr=(await snap(join)).round; maxRound=Math.max(maxRound,hr,jr);
+    if(!(await waitTurnEnds(p))){ continue; }           // still their turn: wait again, never act blind
+    const hr=(await snap(host)).round, jr=(await snap(join)).round;
+    const before=maxRound; maxRound=Math.max(maxRound,hr,jr);
+    if(maxRound>before) progressed();                    // a resolved round is the only real progress
     if(errs.length) break;
   }
   const hf=await snap(host), jf=await snap(join);

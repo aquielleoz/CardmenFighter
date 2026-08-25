@@ -7722,8 +7722,9 @@ window.CardFace = {};
       '</div>'+
       '<p style="margin-top:16px;color:#9fb0c4;font-size:13px">Just testing on one computer? Open this file in two browser tabs and add <code>?net=host&room=x</code> to one and <code>?net=join&room=x</code> to the other.</p>'+
       '<button id="onBack" class="ghostBtn">← Back</button>');
-    $('onHost').addEventListener('click', function(){ location.search='?net=rtchost'; });
-    $('onJoin').addEventListener('click', function(){ location.search='?net=rtcjoin'; });
+    // In-page, NOT a navigation: see NET.start — a content:// URL cannot take a query string.
+    $('onHost').addEventListener('click', function(){ hideOverlay(); NET.start('host','rtc',{}); });
+    $('onJoin').addEventListener('click', function(){ hideOverlay(); NET.start('join','rtc',{}); });
     $('onBack').addEventListener('click', openSetup);
     overlayDismiss = openSetup;   // click-outside backs out to New Duel too
   }
@@ -7748,19 +7749,31 @@ window.CardFace = {};
     function bcTransport(ch){ var cb=null; ch.onmessage=function(e){ if(cb) cb(e.data); }; return { send:function(o){ try{ ch.postMessage(o); }catch(e){} }, setOnMessage:function(c){ cb=c; }, close:function(){ try{ ch.close(); }catch(e){} } }; }
     function rtcTransport(pconn, chan){ var cb=null; chan.onmessage=function(e){ var m; try{ m=JSON.parse(e.data); }catch(_){ return; } if(cb) cb(m); }; return { send:function(o){ try{ chan.send(JSON.stringify(o)); }catch(e){} }, setOnMessage:function(c){ cb=c; }, close:function(){ try{ chan.close(); }catch(e){} try{ pconn.close(); }catch(e){} } }; }
 
+    /* `?net=` still works (links, and every nettest_* suite uses it), but netplay must ALSO be enterable with
+     * NO navigation. On Android a downloaded HTML file opens as `content://…`, and that scheme cannot carry a
+     * query string — so the old `location.search='?net=rtchost'` navigated to a URI the provider cannot
+     * resolve and the game vanished into ERR_FILE_NOT_FOUND. Reported by Aj from his phone, 2026-08-25. */
     function boot(){
       var q; try{ q=new URLSearchParams(location.search); }catch(e){ return false; }
       var m=q.get('net'); var map={ host:['host','bc'], join:['join','bc'], rtchost:['host','rtc'], rtcjoin:['join','rtc'] };
       if(!map[m]) return false;
-      role=map[m][0]; kind=map[m][1]; room=q.get('room')||'kf'; deckPick=q.get('deck')||'full'; myDeck=deckPick; useStun=(q.get('stun')!=='0');
+      return start(map[m][0], map[m][1], { room:q.get('room')||'kf', deck:q.get('deck')||'full', stun:q.get('stun')!=='0' });
+    }
+    function start(theRole, theKind, opts){
+      if(role) return true;                                   // already online
+      opts = opts || {};
+      role=theRole; kind=theKind; room=opts.room||'kf'; deckPick=opts.deck||'full'; myDeck=deckPick;
+      useStun=(opts.stun!==false);
       var st=document.createElement('style'); st.textContent=NETCSS; document.head.appendChild(st);
       var root=document.createElement('div'); root.id='netroot'; document.body.appendChild(root);
-      // Persistent exit — netplay is entered by a page reload (?net=…), so leaving = reload to the plain game.
-      // Lives on <body> (not #netroot, which renderNet keeps rewriting) so it's always reachable.
+      // Persistent exit. Entered via ?net= → clear the query; entered in-page (mobile, content://) → a plain
+      // reload returns to the game, because the URL was never touched. Lives on <body> (not #netroot, which
+      // renderNet keeps rewriting) so it's always reachable.
       var leave=document.createElement('button'); leave.id='netLeave'; leave.textContent='← Leave online';
       leave.title='Exit online play and go back to the game';
       leave.style.cssText='position:fixed;top:10px;right:10px;z-index:99999;font:inherit;font-size:13px;font-weight:700;padding:8px 12px;border-radius:9px;border:1px solid #3a2a08;background:#e8c37a;color:#3a2a08;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.5)';
-      leave.onclick=function(){ try{ if(transport) transport.close(); }catch(e){} location.search=''; };
+      leave.onclick=function(){ try{ if(transport) transport.close(); }catch(e){}
+        if(/[?&]net=/.test(location.search)) location.search=''; else location.reload(); };
       document.body.appendChild(leave);
       if(kind==='bc'){
         var ch; try{ ch=new BroadcastChannel('cardmen:'+room); }catch(e){ root.innerHTML='<div class="netbar">This browser does not support BroadcastChannel netplay.</div>'; return true; }
@@ -8617,7 +8630,7 @@ window.CardFace = {};
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
+    return { boot:boot, start:start, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:99999;background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     '#netroot .netbar{background:#161c26;border:1px solid #263140;border-radius:8px;padding:8px 12px;margin-bottom:10px}'+

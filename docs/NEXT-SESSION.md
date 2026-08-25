@@ -3,11 +3,11 @@
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
 Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.14**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.15**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
-`main` is at **v1.31.14**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
+`main` is at **v1.31.15**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
 HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
@@ -236,6 +236,43 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.15 — netplay could not be started from a file opened on a phone
+
+Aj, from his phone: tapping **Host** on a downloaded copy of the HTML killed the game outright —
+`ERR_FILE_NOT_FOUND`, URL `content://com.and…`.
+
+**Cause.** Netplay was entered by *reloading with a query string*:
+
+```js
+$('onHost').addEventListener('click', function(){ location.search='?net=rtchost'; });
+```
+
+The code even documented it — *"netplay is entered by a page reload (?net=…)"*. On Android a downloaded file
+opens as a **`content://` provider URI, and that scheme cannot carry a query string**. So the tap navigated to
+a URI the provider could not resolve and the page was simply gone. Nothing about netplay ran at all; this was
+never an online-play bug, it was a navigation bug.
+
+**Fix.** `boot()` split into a URL parser plus an imperative **`start(role, kind, opts)`**, and the Host/Join
+buttons call `start` directly — **no navigation, the URL never changes.** `?net=` still works, because links
+use it and every `nettest_*` suite enters that way. The Leave control had the same defect (`location.search=''`
+is a navigation): it now clears the query only when there *was* one, and otherwise reloads the untouched URL.
+
+Also checked, since a `content://` origin is opaque: every `localStorage` access is already inside a
+`try/catch`, so storage being unavailable degrades to the in-memory fallback rather than throwing.
+
+**What this does NOT prove.** It removes the crash — the game stays alive and the invite-code UI appears.
+Whether the WebRTC handshake completes between two phones can only be confirmed on real devices; that needs
+Aj to try it.
+
+New suite **`nettest_inpage.js`** (10) asserts the thing that actually matters — after tapping Host, netplay is
+live **and `location.href` is byte-identical to before** — plus that the `?net=` path still boots.
+
+**Bonus, found while verifying: my own v1.31.9 fix still had an impatient counter in it.** `nettest_full`
+guarded stalls with `stalled < 40`, which at 150ms a go is **six seconds** — the same class of bug that rewrite
+existed to remove, one layer up. Patience is now measured as **time since progress** (60s), with a resolved
+round or a completed action counting as progress. Verified under **five concurrent browser suites**, heavier
+than any serial-sweep position: `PASS: 5, acted=21` — it worked harder and still got there.
 
 ### v1.31.14 — dialogs are landscape-safe, and the panels track the header
 
