@@ -20,6 +20,17 @@ const play=(p,id)=>p.evaluate(function(id){ var c=document.querySelector('#hand 
  * i.e. it acted on every step and none of it landed. The budget is generous on purpose — a slow machine should
  * make the suite SLOWER, never failing. */
 async function waitTurnEnds(p){ for(let i=0;i<150;i++){ if(!(await snap(p)).yourTurn) return true; await wait(80); } return false; }
+/* Play a card and report whether the BOARD actually changed. "The click was dispatched" is not the same as "the
+ * play happened", and treating them as the same is what made this suite load-sensitive. */
+async function playLanded(p, before){
+  await play(p, before.hand[0]);
+  for(let i=0;i<40;i++){
+    const now=await snap(p);
+    if(now.pile>before.pile || now.hand.length<before.hand.length) return true;
+    await wait(100);
+  }
+  return false;
+}
 (async()=>{
   await new Promise(r=>srv.listen(PORT,r));
   const b=await chromium.launch(LAUNCH);
@@ -46,7 +57,20 @@ async function waitTurnEnds(p){ for(let i=0;i<150;i++){ if(!(await snap(p)).your
     if(!who){ await wait(150); continue; }              // ceremony/transition — costs no action budget
 
     const [role,p]=who; const s=await snap(p);
-    if(s.pile===0){ await play(p, s.hand[0]); acted++; progressed(); role==='host'?hostPlayed++:joinPlayed++; }
+    /* VERIFY THE PLAY LANDED before crediting it. This branch used to count the play and call progressed()
+     * unconditionally, which under load produced the whole failure: a click that does not register (the board is
+     * briefly locked mid-mirror-update, so fightBtn is disabled) was counted anyway, the stall guard was reset by
+     * the step that had not worked, the pile was still empty and still our turn — so waitTurnEnds burned its full
+     * 12s and the loop picked the same player again. ~14 rounds of that hits the 180s deadline and reports
+     * `host 16, client 0, maxRound=2`: TWO failed assertions from ONE stuck loop, and a client that was never
+     * once selected because the host's turn never ended. Same lesson as v1.31.9, one layer deeper: that fix
+     * taught the driver not to ACT into a stale board; this one stops it believing its own unverified action. */
+    if(s.pile===0){
+      const landed=await playLanded(p, s);
+      acted++;
+      if(landed){ progressed(); role==='host'?hostPlayed++:joinPlayed++; }
+      else { await wait(250); continue; }               // nothing happened: retry, and do NOT reset the stall guard
+    }
     else if(!beaten[role+':'+s.round]){                          // beat once per player per round, else pass (bounds the war)
       beaten[role+':'+s.round]=1;
       await play(p, s.hand[s.hand.length-1]); await wait(300);
