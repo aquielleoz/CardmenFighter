@@ -3,11 +3,11 @@
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
 Test: `npm test` = `node test.js` (**208**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.4**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.5**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-24)
 
-`main` is at **v1.31.4**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
+`main` is at **v1.31.5**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
 HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
@@ -19,7 +19,10 @@ npm test && node mptest.js
 Expect **208 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
 
 ### What just shipped
-**v1.31.4 — the ♠ Back Stab line, re-laid.** Base Back Stab locks the whole **round**; Perseus makes it a
+**v1.31.5 — Aj's three priorities**, each of which was worse than its one-line description: the netplay reveal
+(and a mirror that wiped the modal a frame after it opened), an export that recorded **zero** opponent fights
+and no player count, and four card texts that *understated* their own effect at a full table. Detail in the
+changelog. Before it, **v1.31.4 — the ♠ Back Stab line, re-laid.** Base Back Stab locks the whole **round**; Perseus makes it a
 **Quick**; Hermes makes it hit **every** rival; Pandora's Outbalance now lets you **look at the target's hand**.
 The AI got a timing model (`lockoutWorth` in `ai.js`) that asks *"is the play I want to make under threat from
 THIS rival"*. Balance-neutral, 8 runs per arm. Full detail in the changelog below.
@@ -32,11 +35,10 @@ THIS rival"*. Balance-neutral, 8 runs per arm. Full detail in the changelog belo
   **off**; the "balance-neutral at 10 runs" claim behind them came from the broken positional-flag study (see
   PATCHNOTES 0j) and has **never been re-measured**. Treat it as unmeasured, not as neutral.
 
-### The next three, in Aj's order (2026-08-24)
-1. **Netplay reveal** — a client casting Outbalance can't see the hand it revealed. Backlog entry below.
-2. **Game export** — it is duel-shaped and loses multiplayer data. Backlog entry below.
-3. **Two-player wordings** — six cards still speak duel-only, three of them *understate* what they do at a
-   full table. Backlog entry below, with the audit already done.
+### Aj's three priorities are DONE (v1.31.5)
+Netplay reveal, the multiplayer-aware export, and the six duel-only card texts all shipped. What is open now is
+the balance agenda: **Rogue at 0.59x fair share at six players** (the "slash" card is the intended lever), the
+count-up class, and the unmeasured apex-2 A/B. See the BACKLOG.
 
 ### One loose thread, deliberately left
 `nettest_log` and `nettest_full` are **position-dependent**: they pass alone (13/0 and 5/0) but fail or time out
@@ -57,47 +59,18 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
-### ⭐ PRIORITISED 2026-08-24 (Aj's order)
+### ⭐ PRIORITISED 2026-08-24 — ALL THREE SHIPPED in v1.31.5 (see the changelog)
+*Netplay reveal · multiplayer-aware game export · the duel-only card wordings. Kept here only as a pointer;
+the detail, including what each one turned out to actually be, is in the v1.31.5 entry below.*
 
-**1. Netplay: a CLIENT casting Outbalance never sees the hand it revealed.** Solo and local MP show the reveal
-modal; over the wire the **host** resolves the effect and there is no private-to-one-seat message. Every
-existing channel is either host-local or broadcast, and a revealed hand is the one payload that must reach
-exactly one seat. Needs a targeted `t:'reveal'` frame addressed to the caster's absolute seat, sent from the
-host's cast handler, and the client calling `showRevealIfAny()` on receipt. The engine side is already safe:
-`E.takeReveal(p)` is **seat-checked**, so a client cannot pick up a read that is not its own. Until then the
-card is honest in solo/local and silently weaker online. Guard it with a `nettest_reveal.js` in the shape of
-`revealtest.js` — and assert the *negative*: the frame must not reach the other seats.
-
-**2. The game export is DUEL-SHAPED and loses multiplayer data.** Established by reading
-`CardmenFighter.template.html` (line numbers as of v1.31.4) — worth re-verifying before you build on it, but
-the three call sites are unambiguous:
-  - `pkey(pl)` (~1628) returns `'you'` or `'rival'`, so at a six-player table **all five opponents collapse
-    into one "rival" bucket**. You cannot tell which of them did anything.
-  - `bumpFight` (~1631) has exactly **one call site**: `bumpFight(YOU, …)` (~2600). So `rival.jabs` and
-    `rival.specials` are **always 0 in every exported game, duels included**. Opponents' *techniques* are
-    recorded (`bumpEffect` is called with real seats), fights are not.
-  - `recordGame` (~1634) writes no **player count** at all, and `winner` is just `'you'`/`'rival'` — a
-    six-player game and a duel are indistinguishable in the file, and a loss does not say who won.
-  - Consequence for the analysis already done: any multiplayer game in an exported log had its opponents merged
-    and its fight counts blanked. Re-read old conclusions with that in mind.
-  - Shape of the fix: key stats by **absolute seat**, add `numPlayers`, `winnerSeat`, per-seat deck + persona,
-    and call `bumpFight` from the N-player driver as well as the duel one. Bump the record `v:` string so old
-    files stay parseable.
-
-**3. Two-player wordings — the audit is done, the edits are not.** Six cards still speak duel-only. Three of
-them are **mechanically wrong at a full table**, because the effect loops over every opponent while the text
-names one:
-  - **Caltrops (♠7)** and **Spiked Armor (♣9)** — "the Rival's highest card … reduced by 2". `equipDelta`
-    (`engine.js` ~726) sums `oppDelta` across **every** opponent, so one of these is −2 against all five at a
-    six-player table. The text undersells the card badly.
-  - **Giant Ram (♠J)** — "the Rival's first effect each turn costs 1 more energy". `rideCostDelta`
-    (`engine.js` ~758) loops every opponent, so it taxes the **whole table**.
-  - The other three are duel-flavoured but mechanically fine: **Counterfeit (♠8)** ("the Rival's current play"
-    = whoever owns the pile), **Armor Piercing (♣7)** (resolves on the chosen target), **Giant Swan (♥J)**
-    (verify which opponents it answers before rewording).
-  - Already MP-correct, use these as the house pattern: Telekinesis, Ultima Attack, Outbalance, Critical Hit,
-    Back Stab all say **"Target Rival"**.
-  - After any text edit, **run `node gen-cardlist.js`** or the published card list goes stale.
+**Follow-ups these left behind:**
+- **Old exported logs are v1.0 and merged.** Anything analysed from a multiplayer export before v1.31.5 had
+  every opponent collapsed into one bucket and their fight counts stuck at 0. If those files still exist they
+  cannot be repaired — the information was never recorded. New exports are `v:'2.0-mp'`; check the field.
+- **Netplay stats are local-page only.** `recordGame` writes what the local page observed, so a client's
+  record of an online game sees opponents only through the beats it was shown. Fine for solo/local; treat
+  online exports as partial until someone decides what an online record should contain.
+- **A duel export still has `rival` = seats[1]** (not merged), so old duel analysis is unaffected.
 
 - **Rogue "slash": an on-demand card that LOWERS the current pile's value** (Aj, 2026-08-25 — filed for when
   Rogue needs a boost in balancing; nothing built). Distinct from Caltrops, which is a standing `oppDelta` debuff
@@ -317,6 +290,65 @@ names one:
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.5 — the netplay reveal, an export that knows multiplayer exists, and six duel-only card texts
+
+The three items Aj prioritised, all three of which turned out to be worse than the one-line description.
+
+**1. A netplay CLIENT casting Outbalance now sees the hand.** The effect resolves on the *host*, so the caster
+got nothing. The host now pushes a `t:'reveal'` frame to the caster's seat (`hostFlushReveals`), called both
+right after the cast and again after windows settle — an Outbalance can sit in a response window and resolve
+later. Sweeping every seat is safe because `E.takeReveal(p)` is seat-checked and one-shot: at most one seat
+returns anything, and it is always the caster.
+
+**The bug inside the fix, which the test caught and a human would have hated:** `applyMirrorNow()` calls
+`hideOverlay()` on every mirror update unless *state* vouches for the open modal — and the reveal is
+deliberately not on state. So the first version worked and then the host's very next broadcast wiped it: the
+caster saw their hand read for one frame. Fixed with a `revealOpen` flag that the mirror respects, cleared
+centrally inside `hideOverlay()` so every dismissal path clears it, and outranked by any window the game
+actually owes you.
+
+**Privacy, stated precisely rather than assumed.** `sendTo(seat, …)` is genuinely point-to-point *only* in RTC
+hub mode; over BroadcastChannel it falls through to a broadcast that the recipient filters by seat. BC netplay
+is same-browser play, where the host tab already holds every hand and devtools reaches it, so this does not
+widen that threat model — but it is **not** a transport for players who do not trust each other, and the code
+says so at the call site.
+
+**2. The playtest export was duel-shaped in three separate ways**, and every one of them silently corrupted
+multiplayer data:
+- stats were keyed `'you' | 'rival'`, so **all five opponents at a six-player table merged into one bucket**;
+- `bumpFight` had exactly **one call site** — `bumpFight(YOU, …)` — so opponents' jabs and specials were
+  **always 0, in duels too**;
+- the record carried **no player count at all**, so a duel and a six-player game were indistinguishable, and a
+  loss did not say who won.
+
+Now: stats keyed by absolute seat; `numPlayers`, `mode`, `yourSeat`, `winnerSeat`; a `seats[]` array carrying
+each seat's name, deck, difficulty, persona, fights, techniques, shields lost, final shields and elimination;
+and opponents' fights recorded in `buildOppBeats`, the one place **both** drivers funnel through. `v` is bumped
+to `2.0-mp`. The legacy `you`/`rival` fields stay so old analysis parses — but `rival` is now an **honest**
+merge of every opponent (it always claimed to be that) and is flagged with `rivalIsMerged`.
+
+**This means earlier conclusions drawn from exported multiplayer logs were drawn from merged opponents and
+blank fight counts.** Re-read them with that in mind.
+
+**3. Six cards still spoke duel-only, and four of them UNDERSTATED what they do.** The effects loop over every
+opponent while the text named one:
+- **Caltrops (♠7)** and **Spiked Armor (♣9)** — `equipDelta` (`engine.js` ~726) sums `oppDelta` across every
+  opponent, so one Caltrops is −2 against all five at a six-player table. Now "EVERY Rival's highest card".
+- **Giant Ram (♠J)** — `rideCostDelta` (~758) loops every opponent: it taxes the whole table. Now "every
+  Rival's first effect".
+- **Giant Swan (♥J)** — `swanValue` resists whoever tries to beat your play. Now "when a Rival tries to beat".
+- **Armor Piercing (♣7)** resolves on the seat you strike → "the Rival you strike"; **Counterfeit (♠8)** copies
+  from the pile whoever owns it → "the current play on the pile".
+
+The house pattern for a single-target card stays **"Target Rival"** (Telekinesis, Ultima Attack, Outbalance,
+Critical Hit, Back Stab). `docs/CARD-LIST.md` regenerated.
+
+Tests: two new full-UI suites — **`nettest_reveal.js`** (10, three players over BroadcastChannel) which asserts
+the caster sees the right cards named in its **own** frame *and* the negative half, that neither the host nor
+the uninvolved third seat pops a reveal; and **`exporttest.js`** (14) which drives a real 3-player game and
+asserts the export would contain both opponents' fights per seat. `__solo` gained `stats()`/`record()`/`games()`
+so the export can be asserted without playing to a natural finish.
 
 ### v1.31.4 — Back Stab locks the ROUND, Outbalance reads the hand, and the AI learns to time it
 
