@@ -116,6 +116,20 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   - **The one thing that would give true discovery** is a rendezvous service — even a 20-line local one — and
     that breaks "no server, no install, runs offline", which is the project's whole shape. If it is ever wanted,
     make it strictly **opt-in** and keep the code path as the default.
+- **Show the build version somewhere in the UI** (filed 2026-08-25, from a false bug report — mine as much as
+  Aj's). Aj reported *"the client view does not have an input field for the name"* with a screenshot of the
+  client lobby showing only the deck picker and Ready. **It was a stale download**: his phone had a
+  `content://` file saved before v1.31.16, and the screenshot matches pre-v1.31.16 exactly. Verified against
+  the current build at his own viewport (393×873, dpr 3) — `#netName` is present, `display:block`, 365×40px.
+  - **The gap this exposes is real.** A single downloaded HTML file has **no way to tell you which build it
+    is**, so an old copy presents as a missing feature, and the person holding it has no way to self-diagnose.
+    That cost a round-trip here and will cost more as features land.
+  - Cheap fix: a version string somewhere quiet — the setup dialog's footer or next to the title — fed from one
+    constant that the release checklist already bumps. It also makes *every future* bug report answerable,
+    because the screenshot would carry the build.
+  - Related habit worth keeping: **when a shipped feature is reported missing, check the reporter's build
+    before reading the code.** The code was right and the report was honest; only the binary was old.
+
 - **A real one-tap rematch over netplay** (Aj, 2026-08-25 — the `🔄 Rematch?` emote is the expression; this is
   the action). Today the win overlay's "New Game" just calls `openSetup()`, so an online pair must redo the
   whole invite-code exchange to play again. Wants: the host restarting the engine and re-broadcasting `t:'setup'`
