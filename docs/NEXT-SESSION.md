@@ -147,6 +147,75 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   - **The one thing that would give true discovery** is a rendezvous service — even a 20-line local one — and
     that breaks "no server, no install, runs offline", which is the project's whole shape. If it is ever wanted,
     make it strictly **opt-in** and keep the code path as the default.
+- **A HOMEBREW RULES MENU** (Aj's idea, 2026-08-25: *"it's not the default or intended way to play the game, but
+  it certainly is A way to play the game"*). Before a game starts, the host ticks the rules they want — kits,
+  `loss=all`, mill uncoupled from the shield loss, the apex experiments, no effects — and the table plays that way.
+  - **Most of it already EXISTS.** Six setters with matching getters are in `engine.js` today:
+    `setSpecialLossMode` · `setMillScope` · `setShieldsPerPlayer` · `setDrawPerPlayer` · `setApexInfinity` ·
+    `setApexNoStrip`. Plus `basics` mode, which is already a player-facing rules toggle (it disables transforms).
+    This is mostly **surfacing**, not building.
+  - **It also gives vestigial code a home.** Those flags survive today defended only by a comment saying "for
+    A/B only". And it turns the reverted v1.31.0 package from a failure into a feature: that work measured
+    **well** on pacing (6p length 33 → 15 rounds, jab share 24% → 10%) and badly on deck balance (spread 15.5 →
+    40.7). As an **opt-in "big table" ruleset** that is exactly what it should have been. See PATCHNOTES 0j.
+  - **SHIPPING REQUIREMENT, not a follow-up: the playtest export must stamp the rule set.** The record is
+    `v:'2.0-mp'` with difficulty and seats and **no rules field**. Export a homebrew game into
+    `PLAYER-PROFILE.md`'s ingestion log without it and the whole log becomes unanalysable — a weird statistic is
+    indistinguishable from a weird ruleset. Exactly the pre-v1.31.5 mistake, which merged every opponent and
+    **cannot be repaired** because the information was never recorded. Bump the schema (`v:'2.1-mp'`).
+  - **Netplay needs a SERIALISED rules string, and the version handshake FIRST.** Follow the precedent already
+    in the code: a custom deck serialises to `custom:D1H2C1` specifically so netplay carries the composition
+    rather than a name the host must recognise. Rules should do the same, ride in `t:'setup'`, and stay
+    host-authoritative (a client must not be able to lie about them). **A client on an older build that silently
+    ignores an unknown rule is WORSE than no menu** — two people playing different games without knowing. That
+    makes the version handshake (filed above) a prerequisite, not a nice-to-have.
+  - **The AI does not adapt, and the menu must say so.** `ai.js` is tuned against the shipped rules; under
+    `loss='all'` at six players the measured result was Pure Wizard 44% vs **Pure Rogue 1.7%**. Label it
+    ("the Rival is tuned for the default rules") rather than gating it. Homebrew is **unmeasured by
+    construction** — a combinatorial menu cannot be measured, and this repo's whole culture is "measured or it
+    isn't true", so the menu has to admit that in the UI.
+  - **Toggles become a COMPATIBILITY SURFACE.** Today those flags can be changed or deleted freely; once players
+    use them, they cannot. Worth paying, but knowingly.
+  - **The two apex flags are the least understood things in the engine** (Aj confirmed these are the ones he
+    means). `setApexInfinity`/`setApexNoStrip` are **never measured** — the "balance-neutral at 10 runs" claim
+    behind them came from the broken positional-flag study (PATCHNOTES 0j). Either measure them before offering
+    them, or label them as untested more loudly than the rest.
+  - **Test discipline:** cover each toggle **individually** against the default in `test.js`, assert the rules
+    string round-trips, and do **not** promise anything about combinations.
+  - **Recommended order**, because it front-loads what makes the menu safe:
+    1. the version handshake (~20 lines, filed above),
+    2. rules serialisation + export stamping in the engine — pure logic, headless-testable, no UI,
+    3. the menu UI, with the toggles that already exist,
+    4. **kits separately** (below) — it is a new shape, not a flag flip — and then it becomes a menu item.
+
+- **KITS: sequences of consecutive pairs** (a player asked for them, 2026-08-25 — *"2kits, 3kits"*, e.g. a pair
+  of 4s with a pair of 5s). Aj's read was that this is a local variant; the analysis says otherwise, and it
+  matters, because it changes this from a house rule to a restoration.
+  - **The SHAPE is standard family furniture; the NAME is what is local.** Consecutive pairs appear across the
+    family — 连对 (*lián duì*) in Dou Dizhu, *đôi thông* in Tiến lên, where it is famously the shape that answers
+    a lone 2. Both set a **three**-pair minimum. Pagat omitting it documents one variant, not the family.
+    **Two players independently remembering kits is evidence of inheritance, not coincidence.** (Verify the
+    foreign names before publishing them.)
+  - **It is coherent here in a way FLUSH was not.** v1.14 cut flush and straight flush for a structural reason:
+    suits never beat each other, so a flush has nothing to compare on. Kits compare on rank, so that objection
+    does not transfer — adding kits is not re-opening the door v1.14 closed.
+  - **Deck-neutral by construction (verified).** Every legal deck is 4 parts × 13 ranks, so **every** deck holds
+    exactly 4 copies of each rank value — Pure Rogue and Mage Knight alike. No deck can form kits more easily
+    than another. That matters because v1.31.0's failure was a change that multiplied value *differentially*
+    across decks; kits have no such mechanism. Only the effects being spent differ.
+  - **A 2-pair kit MUST be legal here**, which is a deliberate break from the family's 3-pair floor. That floor
+    assumes hands of 17-20 cards; this game deals 6 and caps at 10, so a 3-kit is six of your ten cards and the
+    shape would be near-dead.
+  - **It will NOT fix stuckness, so do not sell it that way.** Being stuck is a *following* problem and a kit is
+    its own shape, so it can only be **led**, never used to answer a pair. `stucksim` measures 62-72% of stuck
+    turns as VALUE-stuck; kits do not touch that. What they give is a way for the **leader** to dump four low
+    cards at once, which drains the low-card glut indirectly. The "slash" card is still the direct answer.
+  - **Expect shorter games** — any multi-card play is a special that breaks a shield, and a 2-kit is easy to hold
+    at 10 cards. Measure against current 6-player pacing before assuming that is an improvement.
+  - **Build note: it would be the first VARIABLE-LENGTH shape** (pair 2, trio 3, straight 5, full house 5 are all
+    fixed). Shape detection, `legalFightPlays`, the AI's enumerator and `stucksim`'s shape-vs-value split all have
+    to learn that. Contained, but not a one-liner.
+
 - **A real one-tap rematch over netplay** (Aj, 2026-08-25 — the `🔄 Rematch?` emote is the expression; this is
   the action). Today the win overlay's "New Game" just calls `openSetup()`, so an online pair must redo the
   whole invite-code exchange to play again. Wants: the host restarting the engine and re-broadcasting `t:'setup'`
