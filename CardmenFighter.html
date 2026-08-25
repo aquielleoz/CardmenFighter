@@ -1657,7 +1657,7 @@
       7: { kind: 'removeEquip', mode: 'hand', name: 'Forceful Strip', type: 'Technique', impl: true, text: "Return Target Equipment to its owner's hand." },
       8: { kind: 'equip', oppDelta: -2, counters: 5, name: 'Cursed Pendant', type: 'Equipment', impl: true, text: "At the beginning of each round, remove 1 counter from Cursed Pendant. Your Rivals' highest card each fight has its value reduced by 2." },
       9: { kind: 'reclaim', half: true, immune: true, cantLose: true, quick: true, name: 'Leyline Ascension', type: 'Quick Technique', impl: true, text: "Shuffle your Shuffle Pile into your Deck and then put half of your deck into your Energy Pile. You can't lose this round (no shield loss — and at 0 shields, no Fighter Kick either)." },
-      10: { kind: 'valueBoost', boost: 6, name: 'Phantasmal Illusion', type: 'Technique', impl: true, text: 'Conjure a phantom of your strike — increase the value of your next play by 6.' }
+      10: { kind: 'phantasm', name: 'Phantasmal Illusion', type: 'Technique', impl: true, text: 'Conjure a copy of the current play at its base values. You MAY swap one copied card for one from your hand. Your boosts and Equipment apply to the illusion; the copied cards vanish after the round.' }
     },
     H: { // Cleric — Mid / value
       1: { kind: 'valueBoost', boost: 2, name: 'Imbue with Power', type: 'Technique', impl: true, text: 'Increase the value of your next play by 2.' },
@@ -1757,7 +1757,7 @@
   var BOOSTS = {
     D: {
       queen: { 1: { n: 4, desc: 'Gather 1 more — put the top 4 of your deck into Energy.' }, 4: { desc: 'Counter Spell can also counter an Equipment as it is played.' }, 7: { eqMode: 'deckTop', desc: "Forceful Strip puts the target Equipment on TOP of its owner's deck (they must redraw it) instead of into their hand." } },
-      king:  { 5: { boost: 5, desc: 'Boost your next play by 1 more (to +5).' }, 6: { draw: 4, desc: 'Look 1 deeper — top 4, keep 3 (draw 2→3).' }, 10: { boost: 7, desc: 'The illusion swells — boost your next play by 1 more (to +7).' } },
+      king:  { 5: { boost: 5, desc: 'Boost your next play by 1 more (to +5).' }, 6: { draw: 4, desc: 'Look 1 deeper — top 4, keep 3 (draw 2→3).' }, 10: { phantasmPlus: 1, desc: 'The illusion swells — the copy is conjured at +1 value.' } },
       super: { 7: { ride: true, form: true, eqMode: 'deckTop', desc: "Forceful Strip puts a stripped Equipment on TOP of its owner's deck, and can also return a Ride OR a Form to its owner's hand." }, 9: { kind: 'reclaim', half: true, immune: true, cantLose: true, desc: 'Also recycle — shuffle your Shuffle Pile into your deck and ramp half of it into Energy.' } }
     },
     H: {
@@ -1919,7 +1919,7 @@
   // (offensive) is deliberately excluded (it only helps you attack, never holds a pile). refreshPile recomputes
   // the live equipment contribution from scratch, so it's correct whether an equipment was just added or removed.
   function refreshPile(st) {
-    if (!st.pile || !st.pile.combo || st.pile.phantom || st.pile.raw == null) return;   // phantom (Illusion) piles lock their own value
+    if (!st.pile || !st.pile.combo || st.pile.raw == null) return;   // (an Illusion pile carries raw/lockedDelta too, so it tracks the board like any play)
     var totalDelta = (st.pile.lockedDelta || 0) + equipDelta(st, st.pile.byPlayer);
     var c = st.pile.combo;
     c.value = st.pile.raw + totalDelta;
@@ -2537,12 +2537,17 @@
     return { ok: true, state: st, cancelled: cancelled, committed: need };
   }
 
-  // Phantasmal Illusion: conjure a copy of the Rival's WHOLE current play, then swap one card —
-  // drop one of theirs, add one from your hand — to make a same-size Special that overtakes it.
-  // Only the one added card is really spent (into Energy); the copied cards are illusions that
-  // vanish. Because you swap just one card, it can slide a straight up OR flip a full house
-  // (copy 88899, drop an 8, add your 9 -> 99988). It can't beat a plain pair/trio: one swap
-  // can't raise a matched set.
+  /* Phantasmal Illusion: conjure a copy of the current play at its BASE card values, then apply your side of
+   * the board to it. The copied cards are illusions and vanish; only a card you choose to swap in is really
+   * spent. Three things can push the copy past the play it copied, and you need at least one of them — a bare
+   * copy TIES, and ties never win:
+   *   1. your value modifiers (Equipment, pre-fight boost, Giant Boar) — applyEquip, exactly as a real play;
+   *      note a debuff on THEIR play works too, since the pile's own value already carries it;
+   *   2. Odysseus (K♦), which conjures the illusion at +1 (`phantasmPlus`);
+   *   3. an OPTIONAL swap — drop one copied card, add one from your hand.
+   * The swap used to be mandatory, which is what made this card need a straight or full house on the pile to do
+   * anything at all (one swap cannot raise a matched set) — the trigger was so narrow the card was replaced
+   * outright in v1.13. Optional + modifiers is Aj's original design and answers a pair or trio too. */
   function phantasm(st, p, opts) {
     opts = opts || {};
     if (st.finished) return { ok: false, reason: 'Game over.' };
@@ -2555,28 +2560,45 @@
     if (!pc) return { ok: false, reason: "You don't hold Phantasmal Illusion." };
     var pe = effectFor(st, p, pc);                     // effectFor: Odysseus (K♦) conjures the illusion at +value
     if (!pe || pe.kind !== 'phantasm') return { ok: false, reason: 'That is not Phantasmal Illusion.' };
-    if (!canAfford(pl, pc)) return { ok: false, reason: 'Not enough Fighter Energy (need ' + costHint(pc) + ').' };
-    var add = pl.hand.filter(function (c) { return c.id === opts.addId; })[0];
-    if (!add || add.id === pc.id) return { ok: false, reason: 'Choose a card from your hand to add to the illusion.' };
+    if (!canAfford(pl, pc)) return { ok: false, reason: 'Not enough Wizard Energy (need ' + costHint(pc) + ').' };
     var base = st.pile.combo.cards;
-    if (opts.removeIdx == null || opts.removeIdx < 0 || opts.removeIdx >= base.length) return { ok: false, reason: 'Choose which copied card to drop.' };
-    if (pl.hand.length - 2 < 1 && (pl.deck.length + pl.shuffle.length) === 0) return { ok: false, reason: 'Keep a card to lead — not enough cards to spend on the illusion.' };
-    var phantom = [];
-    for (var i = 0; i < base.length; i++) {
-      if (i === opts.removeIdx) continue;
+    if (!base || !base.length) return { ok: false, reason: 'There is nothing on the pile to copy.' };
+    if (st.pile.combo.size < 2) return { ok: false, reason: 'Phantasmal Illusion copies a Special, not a jab.' };   // AI and UI enforce this too
+    var add = (opts.addId != null) ? pl.hand.filter(function (c) { return c.id === opts.addId; })[0] : null;
+    var swapping = !!add;
+    if (opts.addId != null && (!add || add.id === pc.id)) return { ok: false, reason: "You don't hold that card." };
+    if (swapping) {
+      if (opts.removeIdx == null || opts.removeIdx < 0 || opts.removeIdx >= base.length) return { ok: false, reason: 'Choose which copied card to drop.' };
+      if (pl.hand.length - 2 < 1 && (pl.deck.length + pl.shuffle.length) === 0) return { ok: false, reason: 'Keep a card to lead — not enough cards to spend on the illusion.' };
+    }
+    var phantom = [], i;
+    for (i = 0; i < base.length; i++) {
+      if (swapping && i === opts.removeIdx) continue;
       st.copySeq = (st.copySeq || 0) + 1;
       phantom.push({ rank: base[i].rank, suit: base[i].suit, id: 'PH' + base[i].rank + base[i].suit + '#' + st.copySeq, temp: true });
     }
-    var candCards = phantom.concat([{ rank: add.rank, suit: add.suit, id: add.id }]);
+    var candCards = swapping ? phantom.concat([{ rank: add.rank, suit: add.suit, id: add.id }]) : phantom;
     var cand = detectCombo(candCards);
     if (!cand) return { ok: false, reason: 'That swap does not form a legal Special.' };
-    if (pe.phantasmPlus) cand = { type: cand.type, size: cand.size, value: cand.value + pe.phantasmPlus, key: [cand.key[0] + pe.phantasmPlus].concat(cand.key.slice(1)), cards: cand.cards };   // Odysseus: +value
-    if (!beats(cand, st.pile.combo)) return { ok: false, reason: "The new Special doesn't beat the current play." };
+    // Your side of the board, exactly as a real play gets it, plus Odysseus's boost to the illusion itself.
+    var plus = (pe.phantasmPlus || 0);
+    var eff = applyEquip(cand, p, st);
+    if (plus) eff = { type: eff.type, size: eff.size, value: eff.value + plus, key: [eff.key[0] + plus].concat(eff.key.slice(1)), cards: eff.cards };
+    if (!beats(eff, st.pile.combo)) {
+      return { ok: false, reason: swapping ? "The illusion doesn't beat the current play."
+                                           : "A bare copy only ties — swap a card in, or add a boost." };
+    }
     pl.hand = pl.hand.filter(function (c) { return c.id !== pc.id; }); payEnergy(pl, pc); spendCard(pl, pc);   // the Illusion card is spent
-    pl.hand = pl.hand.filter(function (c) { return c.id !== add.id; }); pl.energy.push(add);                     // your one real card is really played
-    st.pile = { combo: cand, byPlayer: p, phantom: true };
+    if (swapping) { pl.hand = pl.hand.filter(function (c) { return c.id !== add.id; }); pl.energy.push(add); } // your one real card is really played
+    /* Stored like any other play so refreshPile() keeps tracking the board: raw base value, plus the deltas
+     * frozen at play time. `phantom` still marks it for the UI and the netplay mirror. */
+    var swan = swanValue(st, p), lockedDelta = playBoost(st, p) + swan + plus;
+    var stored = { type: cand.type, size: cand.size, value: cand.value + lockedDelta, key: [cand.key[0] + lockedDelta].concat(cand.key.slice(1)), cards: candCards };
+    st.pile = { combo: stored, byPlayer: p, raw: cand.value, rawKey0: cand.key[0], lockedDelta: lockedDelta, mod: 0, phantom: true };
+    refreshPile(st);
+    pl.nextPlayBoost = 0;                              // a pre-fight boost is spent by the illusion it powered
     st.lastPlayer = p; st.passes = 0; st.turn = nextPlayer(st, p); st._effUsed = false;
-    return { ok: true, state: st, made: cand.type, value: cand.value };
+    return { ok: true, state: st, made: stored.type, value: stored.value, swapped: swapping };
   }
 
   // A held card that can be SPRUNG in response to a shield threat to become immune this round (Leyline Ascension).
@@ -2995,25 +3017,36 @@
     });
   }
 
-  // Phantasmal Illusion: copy the Rival's whole play, swap one card (drop one of theirs, add one
-  // of yours) to form a higher same-size Special. Search drop-index × hand-card for a completion.
-  // Beats straights and full houses (a one-card swap can't raise a plain pair/trio).
+  /* Phantasmal Illusion: copy the current play at its base values and see whether anything we have pushes the
+   * copy past it — our Equipment/boosts (applyEquip, the same call the engine makes), Odysseus's +1, or an
+   * OPTIONAL one-card swap. Try the free options FIRST: a bare copy that already beats costs no card at all.
+   * The swap used to be mandatory here and in the engine, which is why this only ever fired against a straight
+   * or a full house — one swap cannot raise a matched set — and therefore effectively never. */
+  function phantasmValue(st, p, cards, plus) {
+    var cand = E.detectCombo(cards); if (!cand) return null;
+    var eff = E.applyEquip ? E.applyEquip(cand, p, st) : cand;
+    if (plus) eff = { type: eff.type, size: eff.size, value: eff.value + plus, key: [eff.key[0] + plus].concat(eff.key.slice(1)), cards: eff.cards };
+    return eff;
+  }
   function tryPhantasm(st, p) {
     if (!st.pile || st.lastPlayer === p || st.pile.combo.size < 2) return null;
     var pl = st.players[p];
     var pc = pl.hand.filter(function (c) { var ef = E.effectOf(c); return ef && ef.impl && ef.kind === 'phantasm' && E.canAfford(pl, c); })[0];
     if (!pc) return null;
-    if (pl.hand.length - 2 < 1 && (pl.deck.length + pl.shuffle.length) === 0) return null;   // keep a card to lead if no reserves
     var pp = E.effectFor ? (E.effectFor(st, p, pc).phantasmPlus || 0) : 0;                    // Odysseus: +value on the illusion
-    var base = st.pile.combo.cards;
-    for (var ri = 0; ri < base.length; ri++) {
-      for (var h = 0; h < pl.hand.length; h++) {
+    var base = st.pile.combo.cards, i, h, ri;
+    var plain = [];
+    for (i = 0; i < base.length; i++) plain.push({ rank: base[i].rank, suit: base[i].suit });
+    var bare = phantasmValue(st, p, plain, pp);                                               // free: no card spent
+    if (bare && E.beats(bare, st.pile.combo)) return { cardId: pc.id };
+    if (pl.hand.length - 2 < 1 && (pl.deck.length + pl.shuffle.length) === 0) return null;    // a swap needs a card to spare
+    for (ri = 0; ri < base.length; ri++) {
+      for (h = 0; h < pl.hand.length; h++) {
         var add = pl.hand[h];
         if (add.id === pc.id) continue;
         var phantom = [];
-        for (var i = 0; i < base.length; i++) if (i !== ri) phantom.push({ rank: base[i].rank, suit: base[i].suit });
-        var cand = E.detectCombo(phantom.concat([{ rank: add.rank, suit: add.suit }]));
-        if (cand && pp) cand = { type: cand.type, size: cand.size, value: cand.value + pp, key: [cand.key[0] + pp].concat(cand.key.slice(1)), cards: cand.cards };
+        for (i = 0; i < base.length; i++) if (i !== ri) phantom.push({ rank: base[i].rank, suit: base[i].suit });
+        var cand = phantasmValue(st, p, phantom.concat([{ rank: add.rank, suit: add.suit }]), pp);
         if (cand && E.beats(cand, st.pile.combo)) return { cardId: pc.id, removeIdx: ri, addId: add.id };
       }
     }
@@ -5491,7 +5524,8 @@ window.CardFace = {};
       // selection mode — Sort still works (tidies the cards; your picks are kept)
       sort.style.display=(pick.kind==='handlimit'||pick.kind==='discard')?'':'none';
       var n=Object.keys(pick.chosen).length;
-      fight.textContent='Confirm'; fight.classList.add('confirm'); fight.disabled=(n!==pick.need);
+      fight.textContent='Confirm'; fight.classList.add('confirm');
+      fight.disabled=(pick.kind==='phantasm' && pick.bare) ? (n>pick.need) : (n!==pick.need);   // a bare illusion needs no card
       if(pick.kind==='phantasm'||pick.kind==='stopper'){ pass.style.display=''; pass.disabled=false; pass.textContent='Cancel'; }   // casting the illusion / committing STOPPERs is optional
       else pass.style.display='none';            // discards & hand-limit are mandatory — no cancel
       clear.style.display='';
@@ -5503,7 +5537,9 @@ window.CardFace = {};
         : pick.kind==='stopper'
         ? 'Choose '+pick.need+' STOPPERs to cancel the '+kindLabel(state.pile.combo.type)+' ('+n+'/'+pick.need+' picked).'
         : pick.kind==='phantasm'
-        ? 'Phantasmal Illusion — choose 1 card to complete a higher Special over the '+kindLabel(state.pile.combo.type)+' ('+n+'/1 picked).'
+        ? (pick.bare
+            ? 'Phantasmal Illusion — Confirm to copy the '+kindLabel(state.pile.combo.type)+' as it is, or add 1 card to reshape it ('+n+'/1 optional).'
+            : 'Phantasmal Illusion — choose 1 card to complete a higher Special over the '+kindLabel(state.pile.combo.type)+' ('+n+'/1 picked).')
         : 'Choose 1 card to put on top of your deck ('+n+'/1 picked).');
       return;
     }
@@ -5537,7 +5573,7 @@ window.CardFace = {};
     ctxBtn.style.display=''; ctxBtn.disabled=false; ctxBtn.textContent=ctx.label;
     ctxBtn.classList.toggle('off', !ctx.ok);   // usable = normal button, unusable = greyed (no extra highlight)
     ctxBtn.title = ctx.ok ? (ctx.mode==='stopper' ? 'Commit STOPPERs to cancel the play'
-        : ctx.mode==='phantasm' ? 'Warp the Special into a higher one' : "Activate this card's effect") : ctx.reason;
+        : ctx.mode==='phantasm' ? 'Copy the Special on the pile' : "Activate this card's effect") : ctx.reason;
     var actCard=activatableCardSelected();               // the single selected effect card (may not be usable yet)
     var actBlock=actCard?activateBlock(actCard):null;      // reason it can't fire right now, or null
     if(actCard){
@@ -5572,7 +5608,9 @@ window.CardFace = {};
   function confirmPick(){
     if(!pick) return;
     var ids=Object.keys(pick.chosen);
-    if(ids.length!==pick.need) return;
+    // Phantasmal Illusion's swap is OPTIONAL when a bare copy already beats — 0 cards is a legal confirm there.
+    var optional=(pick.kind==='phantasm' && pick.bare);
+    if(optional ? (ids.length>pick.need) : (ids.length!==pick.need)) return;
     if(pick.kind==='stopper'){                                             // commit the STOPPERs you selected
       var cancelledS=kindLabel(state.pile.combo.type), needS=pick.need;
       var rs=E.stopper(state, YOU, ids);
@@ -5585,12 +5623,15 @@ window.CardFace = {};
       render();
       return;
     }
-    if(pick.kind==='phantasm'){                                            // Phantasmal Illusion — add the chosen card
-      var addCard=cardById(ids[0]);
-      var ri=phantasmSolve(addCard, pick.cardId);
-      if(ri<0){ setMessage('That card won’t complete a higher Special — choose another.'); pick.chosen={}; render(); return; }
-      var warped=kindLabel(state.pile.combo.type);
-      var r=E.phantasm(state, YOU, { cardId:pick.cardId, removeIdx:ri, addId:ids[0] });
+    if(pick.kind==='phantasm'){                                            // Phantasmal Illusion — the swap is optional
+      var warped=kindLabel(state.pile.combo.type), opts={ cardId:pick.cardId };
+      if(ids.length){
+        var addCard=cardById(ids[0]);
+        var ri=phantasmSolve(addCard, pick.cardId);
+        if(ri<0){ setMessage('That card won’t complete a higher Special — choose another.'); pick.chosen={}; render(); return; }
+        opts.removeIdx=ri; opts.addId=ids[0];
+      }
+      var r=E.phantasm(state, YOU, opts);
       if(!r.ok){ setMessage(r.reason); pick.chosen={}; render(); return; }
       pick=null; selected={};
       setMessage('🎭 You warped the '+warped+' into a higher <b>'+kindLabel(r.made)+'</b> — you take the initiative.');
@@ -5968,12 +6009,26 @@ window.CardFace = {};
     var you=state.players[YOU];
     var pc=you.hand.filter(function(c){ var ef=E.effectOf(c); return ef && ef.kind==='phantasm'; })[0];
     if(!pc) return null;                                              // no button unless you hold it
-    if(state.pile.combo.size<2) return { show:true, ok:false, reason:'Phantasmal only warps a Special (a straight or full house) — not a jab.' };
+    if(state.pile.combo.size<2) return { show:true, ok:false, reason:'Phantasmal Illusion copies a Special — not a jab.' };
     if(!E.canAfford(you, pc)) return { show:true, ok:false, reason:'Not enough ♦ energy to cast Phantasmal Illusion.' };
     if(you.hand.length-2<1 && (you.deck.length+you.shuffle.length)===0) return { show:true, ok:false, reason:'Keep a card to lead — not enough cards to spend on the illusion.' };
-    var solvable=you.hand.some(function(c){ return c.id!==pc.id && phantasmSolve(c, pc.id)>=0; });
-    if(!solvable) return { show:true, ok:false, reason:'No card in your hand completes a higher Special over this play.' };
-    return { show:true, ok:true, cardId:pc.id };
+    // v1.31.6: the swap is OPTIONAL. A bare copy takes the play's base values and then your boosts, Equipment
+    // and Odysseus's +1 apply — so it can already beat without spending a card. Only fall back to the swap search.
+    var bare=phantasmBare(pc.id);
+    var solvable=bare || you.hand.some(function(c){ return c.id!==pc.id && phantasmSolve(c, pc.id)>=0; });
+    if(!solvable) return { show:true, ok:false, reason:'A bare copy only ties, and no card in your hand completes a higher Special over this play.' };
+    return { show:true, ok:true, cardId:pc.id, bare:!!bare };
+  }
+  // Would a copy with NO swap already beat? Same math the engine runs: base values + applyEquip + Odysseus.
+  function phantasmBare(phantId){
+    var base=state.pile.combo.cards, plain=[];
+    for(var i=0;i<base.length;i++) plain.push({rank:base[i].rank, suit:base[i].suit});
+    var cand=E.detectCombo(plain); if(!cand) return false;
+    var phCard=state.players[YOU].hand.filter(function(c){return c.id===phantId;})[0];
+    var pp=(phCard && E.effectFor)?(E.effectFor(state, YOU, phCard).phantasmPlus||0):0;
+    var eff=E.applyEquip?E.applyEquip(cand, YOU, state):cand;
+    if(pp) eff={type:eff.type,size:eff.size,value:eff.value+pp,key:[eff.key[0]+pp].concat(eff.key.slice(1)),cards:eff.cards};
+    return E.beats(eff, state.pile.combo);
   }
   // find the remove-index that lets `addCard` form a higher Special over the current pile.
   function phantasmSolve(addCard, phantId){
@@ -5983,6 +6038,7 @@ window.CardFace = {};
     for(var ri=0; ri<base.length; ri++){
       var phantom=[]; for(var i=0;i<base.length;i++){ if(i!==ri) phantom.push({rank:base[i].rank,suit:base[i].suit}); }
       var cand=E.detectCombo(phantom.concat([{rank:addCard.rank,suit:addCard.suit}]));
+      if(cand && E.applyEquip) cand=E.applyEquip(cand, YOU, state);      // your Equipment/boosts reach the illusion
       if(cand && pp) cand={type:cand.type,size:cand.size,value:cand.value+pp,key:[cand.key[0]+pp].concat(cand.key.slice(1)),cards:cand.cards};
       if(cand && E.beats(cand, state.pile.combo)) return ri;
     }
@@ -5992,9 +6048,10 @@ window.CardFace = {};
     if(busy||pick||targeting||targetPick) return;
     var info=phantInfo(); if(!info) return;
     if(!info.ok){ showTip($('ctxBtn'), info.reason); if(e&&e.stopPropagation) e.stopPropagation(); return; }
-    pick={ kind:'phantasm', need:1, chosen:{}, cardId:info.cardId };   // choose 1 hand card to lend the illusion
+    pick={ kind:'phantasm', need:1, chosen:{}, cardId:info.cardId, bare:!!info.bare };   // the swap is OPTIONAL
     selected={};
-    setMessage('Choose one card from your hand to add to the illusion — it must complete a higher Special.');
+    setMessage(info.bare ? 'Your illusion already beats this play — Confirm to conjure it, or add one card first.'
+                         : 'Choose one card from your hand to add to the illusion — it must complete a higher Special.');
     render();
   }
   // End of your turn: if you're over the hand cap, discard down before the Rival acts.

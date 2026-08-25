@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.5**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.6**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -54,6 +54,8 @@ node piletest.js                                # energy/shuffle pile viewers + 
 node revealtest.js                              # Outbalance's hand read: the modal, and that it never
                                                 # reaches `state` (12)
 node exporttest.js                              # the playtest export at 3 players — per-seat stats (14)
+node phantasmtest.js                            # Phantasmal Illusion: all three routes + the bare-copy
+                                                # refusal, in the real page (12)
 node nettest_reveal.js                          # the hand read over netplay, incl. who must NOT see it (10)
 node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (82)
 ```
@@ -207,8 +209,8 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of v1.31.5 — green. Counts verified 2026-08-25: `test` 208, `netview` 28, `mptest` 82,
-`exporttest` 14, `nettest_reveal` 10,
+Status as of v1.31.6 — green. Counts verified 2026-08-25: `test` 218, `netview` 28, `mptest` 82,
+`exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
 `landscapetest` 64, `nettest_log` 13, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
 `nettest_prefight` 13, `nettest_full` 5. **If a count here disagrees with a suite, the suite is right —
@@ -307,6 +309,18 @@ nowhere else.
 opponents' fights were always 0; and no player count was recorded at all. Opponents' fights are counted in
 **`buildOppBeats`**, the one place both drivers funnel through — the same reason readability features belong
 there. Any multiplayer export older than v1.31.5 is merged and fight-blank, and cannot be repaired.
+
+**A 0.00 cast rate is not a verdict on a card.** PATCHNOTES says so explicitly, and it was ignored once
+already: Phantasmal Illusion was replaced wholesale in v1.13 because sims showed 0.00, when the real cause was
+a *narrow trigger* (its swap was mandatory, and one swap cannot raise a matched set, so it needed a straight or
+full house on the pile). v1.31.6 restored the card with the swap OPTIONAL and board modifiers applying, and it
+now casts 1.8/6.3/8.3 per 100 games at 2/4/6 players. Before deleting a card for being uncast, find out what it
+is waiting for.
+
+**Effect KINDS can be orphaned and stay orphaned.** That rework left `E.phantasm()`, `tryPhantasm()` in ai.js,
+a whole UI picker flow, and the `phantasmPlus` boost hook all keyed to `kind:'phantasm'` — which no card had,
+for eighteen versions. `grep -c "kind: 'phantasm'" engine.js` returning 0 is the check that finds this class of
+bug; the code looks alive in all three layers.
 
 **Card text speaks to a TABLE, not a duel.** Four texts understated their own effect because the code loops
 every opponent while the text named one — `equipDelta` (Caltrops, Spiked Armor), `rideCostDelta` (Giant Ram),

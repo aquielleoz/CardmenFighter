@@ -114,7 +114,7 @@ benders, and the **Super keystone**. They landed as two clean mirror pairs:
 | 7 | Forceful Strip | return an Equipment to hand |
 | 8 | Cursed Pendant | Equipment — Rival highest −2 |
 | 9 | Leyline Ascension | **Quick** — can't-lose-round  ⤵ *(recycle moved to Athena)* |
-| 10 | Phantasmal Illusion | copy a Special into a bigger one *(AI must be fixed to cast this)* |
+| 10 | Phantasmal Illusion | copy the Special on the pile at base values; boosts/debuffs apply; MAY swap 1 card |
 
 - **Ride — J♦ · Giant Owl:** your first effect each turn costs 1 less to activate.
 - **Queen Form — Q♦ · Penelope:**
@@ -124,7 +124,7 @@ benders, and the **Super keystone**. They landed as two clean mirror pairs:
 - **King Form — K♦ · Odysseus:**
   - Infuse with Magic → **+5**
   - Back to the Books → draw **4**
-  - Phantasmal Illusion → copy special **+ value +1**
+  - Phantasmal Illusion → the copy is conjured at **+1 value**
 - **Super — Athena** *(supersedes; tune post-build — reads thinner than the other Supers):*
   - Forceful Strip → return an Equipment **or Ride or Form**
   - Leyline Ascension → **Quick** — **recycle + can't-lose-round**
@@ -235,7 +235,7 @@ independent tuning knob.
 - **Rogue slot 6 (Never Out of Options)** — now a near-identical twin of Fighter's Superior Training: both
   dig 3, put 2 to Energy, keep 1 (Never Out at cost 6, Superior Training at cost 5). Revisit if the overlap
   feels redundant in play.
-- **Phantasmal Illusion AI** — the AI never casts it today, so Odysseus's third boost is dead for AI decks.
+- ~~**Phantasmal Illusion AI**~~ — fixed in v1.31.6. The card was replaced by a +6 valueBoost in v1.13 for showing 0.00 casts; the real cause was a mandatory swap (one swap cannot raise a matched set). With the swap optional and board modifiers applying it casts 1.8/6.3/8.3 per 100 games at 2/4/6 players.
   Fix the AI (or reassign that K♦ slot) before trusting sim numbers on Wizard.
 - **Apollo & Athena** — flagged for post-build tuning (Apollo likely too strong given Cleric's catch-up tilt;
   Athena likely too thin next to Ares/Apollo). Placeholder-good, not final.

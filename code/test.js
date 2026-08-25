@@ -469,11 +469,12 @@ function cards(ids) { return ids.map(card); }
     ok(E.effectFor(g7, 0, sc(7, 'C')).quick === true, 'REWORK: Hippolyta → Armor Piercing becomes Quick');
     g7.players[0].forms = [{ rank: 13, suit: 'C', tier: 'king' }];
     ok(E.effectFor(g7, 0, sc(6, 'C')).delta === 2, 'REWORK: Meleager → Hero’s Javelin +2 (rank 6)');
-    // Odysseus boosts Phantasmal Illusion (now a valueBoost): +6 → +7
+    // Odysseus conjures the ILLUSION at +1 (v1.31.6 restored the copy; v1.13's +6 valueBoost is gone)
     var g8 = E.newGame(null, { starter: 0 });
-    ok(E.effectFor(g8, 0, sc(10, 'D')).boost === 6, 'REWORK: base Phantasmal Illusion is +6');
+    ok(E.effectOf(sc(10, 'D')).kind === 'phantasm', 'REWORK: Phantasmal Illusion copies the current play');
+    ok(!E.effectFor(g8, 0, sc(10, 'D')).phantasmPlus, 'REWORK: the base copy gets no free value');
     g8.players[0].forms = [{ rank: 13, suit: 'D', tier: 'king' }];
-    ok(E.effectFor(g8, 0, sc(10, 'D')).boost === 7, 'REWORK 4b: Odysseus lifts Phantasmal Illusion to +7');
+    ok(E.effectFor(g8, 0, sc(10, 'D')).phantasmPlus === 1, 'REWORK 4b: Odysseus → the illusion is conjured at +1');
   })();
   // ---- Phase 4b: zone removal (Sabotage→Ride, Forceful Strip→Ride/Form) ----
   (function () {
@@ -676,6 +677,64 @@ function cards(ids) { return ids.map(card); }
   ok(AI.lockoutWorth(nn, 0, 2) === '', 'lockout model: nothing to protect, nothing to spend');
   var th = midPlan(4); th.players[2].hand = [mkc(3, 'D'), mkc(4, 'H')];
   ok(AI.lockoutWorth(th, 0, 2) === '', 'lockout model: a rival down to 2 cards cannot answer — hold the card');
+})();
+
+
+// ===== PHANTASMAL ILLUSION — the copy, restored (v1.31.6) =====
+// Aj's design: the copy takes the BASE card values, is then subject to boosts and debuffs, and you MAY swap
+// one card in. A bare copy ties, and ties never win — so you always need one of the three.
+(function () {
+  function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function table(pileCards, myHand) {
+    var g = E.newGame(null, { numPlayers: 2 });
+    g.round = 3; g.turn = 0; g.passes = 0;
+    g.players[0].hand = myHand.concat([mk(10, 'D')]);                 // Phantasmal Illusion
+    g.players[0].energy = []; for (var i = 0; i < 12; i++) g.players[0].energy.push(mk(4, 'D', 'e' + i));
+    var combo = E.detectCombo(pileCards);
+    g.pile = { combo: combo, byPlayer: 1, raw: combo.value, rawKey0: combo.key[0], lockedDelta: 0, mod: 0 };
+    g.lastPlayer = 1;
+    return g;
+  }
+  var pair9 = [mk(9, 'H', 'a'), mk(9, 'C', 'b')];
+
+  // 1. a bare copy TIES — refused, and the reason says why
+  var g1 = table(pair9, [mk(3, 'D'), mk(4, 'H')]);
+  var r1 = E.phantasm(g1, 0, { cardId: '10D' });
+  ok(r1.ok === false && /ties/i.test(r1.reason), 'Phantasm: a bare copy only ties, so it is refused ("' + r1.reason + '")');
+
+  // 2. the OPTIONAL swap makes it beat — and this is what used to be mandatory
+  var g2 = table([mk(8, 'H', 'a'), mk(8, 'C', 'b'), mk(8, 'S', 'c'), mk(9, 'H', 'd'), mk(9, 'C', 'e')], [mk(9, 'D')]);
+  var r2 = E.phantasm(g2, 0, { cardId: '10D', removeIdx: 0, addId: '9D' });   // copy 88899, drop an 8, add your 9 -> 99988
+  ok(r2.ok === true && r2.swapped === true, 'Phantasm: swapping one card flips their full house into yours');
+  ok(g2.lastPlayer === 0 && g2.pile.byPlayer === 0, 'Phantasm: …and you take the initiative');
+  ok(g2.players[0].hand.filter(function (c) { return c.id === '9D'; }).length === 0,
+     'Phantasm: only the ONE swapped card is really spent — the copies are illusions');
+
+  // 3. no swap, but YOUR equipment lifts the illusion over the play it copied
+  var g3 = table(pair9, [mk(3, 'D'), mk(4, 'H')]);
+  g3.players[0].equipment = [{ id: 'eq1', name: "Hero's Sword", delta: 2, oppDelta: 0, counters: 3, decay: true }];
+  var r3 = E.phantasm(g3, 0, { cardId: '10D' });
+  ok(r3.ok === true && r3.swapped === false, 'Phantasm: your Equipment lifts a bare copy over the original');
+
+  // 4. no swap, but a DEBUFF on their play left the pile low enough for a base-value copy to pass it
+  var g4 = table(pair9, [mk(3, 'D'), mk(4, 'H')]);
+  g4.players[0].equipment = [{ id: 'eq2', name: 'Caltrops', delta: 0, oppDelta: -2, counters: 3, decay: true }];
+  E.refreshPile(g4);                                              // the debuff is live on the pile
+  var r4 = E.phantasm(g4, 0, { cardId: '10D' });
+  ok(r4.ok === true, 'Phantasm: debuffing THEIR play works too — the copy keeps its base values');
+
+  // 5. no swap, no equipment — Odysseus alone conjures it at +1
+  var g5 = table(pair9, [mk(3, 'D'), mk(4, 'H')]);
+  g5.players[0].forms = [{ rank: 13, suit: 'D', tier: 'king', id: 'zKD' }];
+  var r5 = E.phantasm(g5, 0, { cardId: '10D' });
+  ok(r5.ok === true, 'Phantasm: Odysseus alone (+1 on the copy) is enough');
+
+  // 6. it answers a PAIR — the exact case the mandatory swap could never handle
+  ok(r3.ok && g3.pile.combo.type === 'pair', 'Phantasm: it can now answer a plain PAIR (one swap never could)');
+
+  // 7. leading means there is nothing to copy
+  var g7 = table(pair9, [mk(3, 'D')]); g7.pile = null;
+  ok(E.phantasm(g7, 0, { cardId: '10D' }).ok === false, 'Phantasm: nothing to copy when you hold the lead');
 })();
 
 
