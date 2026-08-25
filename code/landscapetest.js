@@ -123,6 +123,71 @@ const CASES=[
     await p.context().close();
   }
 
+
+  /* ---- DIALOGS, not the board (v1.31.14) ------------------------------------------------------------------
+   * The v1.30.x landscape work fixed the in-game board and left every dialog alone. `.modal` had no max-height
+   * and no overflow while `.overlay` CENTRES, so a modal taller than the viewport hung off the top AND the
+   * bottom with nothing to scroll — the top half was simply unreachable. Measured on the setup dialog, which
+   * is 812px tall: it clipped at 568x320 (top -246), 844x390, 667x375 AND desktop 1280x800. There is only one
+   * .overlay/.modal pair in the markup, so setup, settings, the codex, the cheat sheet, the win overlay, the
+   * name editor and the pile viewers all share this fix.
+   * Reachability is asserted the way the board cases do it: SCROLL, then re-measure. */
+  for(const [w,h,what] of [[568,320,'SE-1st/iPod'],[844,390,'iPhone 14'],[667,375,'iPhone 8'],[390,780,'portrait phone'],[1280,800,'desktop']]){
+    const p=await open(w,h,2);
+    await p.evaluate(()=>{ const n=document.getElementById('newBtn'); if(n)n.click(); }); await wait(400);
+    const tag=`dialog ${w}x${h} (${what})`;
+    const m=await p.evaluate(()=>{
+      const ov=document.getElementById('overlay'), md=document.getElementById('modal');
+      if(!ov||!ov.classList.contains('show')) return null;
+      const r=md.getBoundingClientRect();
+      return { top:Math.round(r.top), bottom:Math.round(r.bottom), vh:window.innerHeight,
+               capped:getComputedStyle(md).maxHeight!=='none', scrolls:md.scrollHeight>md.clientHeight+1 };
+    });
+    ok(!!m, `${tag}: the setup dialog opened`);
+    if(m){
+      ok(m.top>=0 && m.bottom<=m.vh+1,
+         `${tag}: fully on screen — top ${m.top}, bottom ${m.bottom} of ${m.vh} (it used to hang off BOTH edges)`);
+      ok(m.capped, `${tag}: the modal height is capped, which is what makes centring safe`);
+      // the primary control must be REACHABLE, which below the fold means after scrolling the modal itself
+      const reach=await p.evaluate(()=>{
+        const md=document.getElementById('modal'); md.scrollTop=md.scrollHeight;
+        const btns=md.querySelectorAll('button'); const last=btns[btns.length-1];
+        if(!last) return null;
+        const r=last.getBoundingClientRect();
+        return { on:(r.top>=0 && r.bottom<=window.innerHeight+1), label:last.textContent.trim().slice(0,16) };
+      });
+      ok(reach && reach.on, `${tag}: its last control is reachable after scrolling ("${reach&&reach.label}")`);
+    }
+    await p.context().close();
+  }
+
+  /* The panels that do NOT go through the shared overlay, so one fix could not cover them.
+   * #disconBar was pinned at a hardcoded top:54px, which assumed the 56px DESKTOP header — it floated 17px
+   * low in landscape (37px header) and sat 38px INSIDE a wrapped portrait header (92px), over the controls.
+   * The header's height depends on wrapping, so it is now MEASURED into --headerH at runtime. */
+  for(const [w,h,what] of [[568,320,'landscape'],[844,390,'landscape'],[390,780,'portrait (header wraps)'],[1280,800,'desktop']]){
+    const p=await open(w,h,2);
+    const g=await p.evaluate(()=>{
+      const hd=document.querySelector('header'), db=document.getElementById('disconBar'), tp=document.getElementById('tutPanel');
+      const hr=hd.getBoundingClientRect();
+      db.style.display='block'; const dr=db.getBoundingClientRect(); db.style.display='';
+      tp.style.display='block'; tp.innerHTML='<h3>T</h3>'+'<p>line</p>'.repeat(14);
+      const tr=tp.getBoundingClientRect(); const tcap=getComputedStyle(tp).maxHeight!=='none';
+      tp.style.display=''; tp.innerHTML='';
+      return { headerH:Math.round(hr.height), varH:getComputedStyle(document.documentElement).getPropertyValue('--headerH').trim(),
+               dbTop:Math.round(dr.top), tpTop:Math.round(tr.top), tpBottom:Math.round(tr.bottom), tpCapped:tcap, vh:window.innerHeight };
+    });
+    const tag=`panels ${w}x${h} (${what})`;
+    // within 1px: --headerH comes from offsetHeight (integer) and this measures a sub-pixel rect
+    const varPx=parseFloat(g.varH)||0;
+    ok(Math.abs(varPx-g.headerH)<=1, `${tag}: --headerH tracks the real header (${g.varH} vs ${g.headerH}px measured)`);
+    ok(g.dbTop < g.headerH + 6 && g.dbTop > g.headerH - 12,
+       `${tag}: #disconBar tucks just under the header at ${g.dbTop}px, not at a hardcoded 54`);
+    ok(g.tpCapped && g.tpTop>=0 && g.tpBottom<=g.vh+1,
+       `${tag}: the coach panel is capped and on screen — top ${g.tpTop}, bottom ${g.tpBottom} of ${g.vh}`);
+    await p.context().close();
+  }
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
