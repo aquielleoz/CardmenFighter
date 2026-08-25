@@ -103,7 +103,29 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     purpose. Automatic "games near you" is **not achievable** while the game stays a serverless single file —
     that is a real constraint of the platform, not a missing feature.
   - **What DOES cut the hassle, in rough order of value per effort:**
-    1. **QR invite codes — phase 1 SHIPPED in v1.31.17 (show only).** What is left is **phase 2: SCANNING.**
+    1. **QR invite codes — phase 1 SHIPPED (v1.31.17, show only). Phase 2, SCANNING, is BUILT AND GREEN BUT
+       DELIBERATELY NOT MERGED** — branch `feat/qr-scanning`, PR #29 closed 2026-08-25, 21/0.
+       - **Why it is not in the game.** Scanning needs an origin that can be granted camera access. A file opened
+         from Android's Downloads is **`content://` — an opaque origin**, so Chrome rejects `getUserMedia`
+         **without ever prompting**. Aj's symptom was exactly that: site settings read "Ask first" and it never
+         asked. Confirmed by a clean A/B on the same phone — an https site detects the camera and offers to
+         prompt; the `content://` page never gets asked. **This is not a permission that can be un-denied.**
+       - **The two real fixes were both declined or impractical.** Hosting the game at a URL (GitHub Pages) makes
+         it a permanently public playable link and shifts the project away from "one offline file" — Aj said no.
+         A local server app on the phone works (`http://localhost` IS a secure context) but needs a separate app.
+         Note that serving over the LAN does **not** work: `http://192.168.x.x` is not a secure context, so the
+         obvious "keep it local" idea fails on exactly the thing it would be for.
+       - **And desktop-only is not worth it.** The remaining configuration is holding a phone up to a laptop
+         webcam, which is not clearly better than copy-pasting into a chat both players already have open. The
+         case where scanning genuinely wins is **phone↔phone**, which is the blocked one. Aj, on facing two
+         laptops at each other: *"like they're kissing ahahhaa"* — the objection is correct.
+       - **Reviving it is a merge, not a rebuild.** The branch is green and rebases onto v1.31.18 cleanly.
+         Revisit **only** if the game is ever served from a grantable origin. Do not rebuild it from scratch,
+         and do not re-litigate the origin question — it is settled above.
+       - **Still unverified by a camera: the LANDSCAPE phone case** for *showing* a QR, the weakest geometry at
+         **2.0 CSS px per module** (height-capped on purpose so the whole symbol stays on screen). Desktop is
+         3.0, portrait phone 2.67, and `qrtest.js` asserts those floors.
+
        - Reading needs a camera (`getUserMedia`) plus a decoder. `BarcodeDetector` is **Chromium-only**, so
          Firefox and Safari need an inlined JS decoder behind it — that is the real cost of phase 2, not the
          camera plumbing.
