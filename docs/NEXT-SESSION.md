@@ -14,8 +14,10 @@ Current version: **v1.31.19**. The 2-apex + Forms **rework is simply the game** 
   works; its only working configuration is not worth it. The blocker is the **origin**, not the code (a file
   opened from Android Downloads is `content://`, an opaque origin, so Chrome rejects the camera without ever
   prompting). Full reasoning in the BACKLOG. **Reviving it is a merge, not a rebuild.**
-- **PR #34 is open** — a real defect fixed in `nettest_full` (it credited plays it never verified), which does
-  **not** fix that suite's flake. Read the PR before re-diagnosing it; three A/Bs are already done and recorded.
+- **`nettest_full` and `nettest_log` still FLAKE.** PR #34 (merged) fixed a real defect in the `nettest_full`
+  harness — it credited plays it never verified — but that does **not** fix the flake, and the fix should not be
+  read as closing it. Read #34 and the BACKLOG item before re-diagnosing either suite: three A/Bs are already
+  done and recorded, and one of them produced a confident wrong answer.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
 
