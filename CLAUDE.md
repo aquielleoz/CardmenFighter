@@ -339,6 +339,14 @@ only a derived summary on the caster (`pl._read[seat] = {round, best, pairs, siz
 cards never appear in `JSON.stringify(st)`. It is a pickup rather than a return value because an Outbalance can
 sit in a response window, and by the time it resolves `settleWindows()` hands its caller no result.
 
+**DECK KEYS ARE CAPITALISED** — `Wizard`, `Cleric`, `Fighter`, `Rogue`, `Sage`, `MageKnight`, `Warlock`,
+`Paladin`, `Bard`, `Berserker` (read them from `E.DECKS`). A wrong key does **not** throw: `newGame` silently
+falls back to the full 52-card set. A 2026-08-25 harness used lowercase keys, so all six seats played the same
+Full Set deck, "Pure Rogue" was never in the game, and both arms of an A/B returned an identical 16.65% — i.e.
+exactly 1/6 — which reads like a clean null result. **If an A/B returns identical counts in both arms, suspect
+the instrument, not the code.** Assert the staging (e.g. that seat 0's deck really is one suit) and count the
+thing you are studying, so a silent zero cannot pass as a finding.
+
 **KNOW THE NOISE FLOOR BEFORE READING A PER-DECK NUMBER.** `mpsim` assigns decks randomly per seat, so a
 400-game run gives any one deck only a few hundred games at six players. Measured 2026-08-25, the SAME build
 run eight times: **Pure Rogue at 6p has a run-to-run sd of ~3.3 points** and produced 7.8 and 18.1 in adjacent

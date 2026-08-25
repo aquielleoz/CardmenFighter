@@ -291,6 +291,29 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.8c — did the Back Stab AI work hurt multiplayer? No. (And the first answer was wrong.)
+
+Aj: *"fixing backstab's ai made it worse for multiplayer?"* The honest first answer was **the A/Bs cannot
+tell you** — they were powered for spread, not for one deck's share (see 1.31.8b). So a focused instrument:
+Pure Rogue at six players, deterministic balanced field, seat **rotated** (seat 0 leads round 1, so pinning a
+deck there inflates it), 4,000 games per arm.
+
+| | Pure Rogue at 6p | Back Stab casts |
+| --- | --- | --- |
+| before all three changes | 9.85% ±0.47 | 6,318 |
+| after | 9.53% ±0.46 | 7,871 (**+25%**) |
+
+**−0.3 at 0.5 s.e. — flat.** The AI work is neutral for Rogue in multiplayer, and the ~10% share is real and
+long-standing rather than caused by this PR. Also informative: **casting Back Stab 25% more does nothing for
+Rogue's win rate** — the card is neither Rogue's problem nor its solution.
+
+**The first version of this measurement was garbage, and the way it failed is worth keeping.** The harness
+passed lowercase deck keys (`'rogue'`), which are invalid — and `newGame` does not throw, it falls back to the
+full 52-card set. So all six seats played the same Full Set deck, Pure Rogue was never in the game, and both
+arms returned an identical **16.65%**, which is exactly 1/6 and looks like a clean null result. The tell was
+the counts being identical to the unit. Deck keys are **capitalised** (`E.DECKS`), and the harness now also
+counts Back Stab casts so a silent zero cannot pass as a finding.
+
 ### v1.31.8b — the per-deck noise floor, measured
 
 Aj, seeing Pure Rogue's 6p share read 10.9 then 8.6 across snapshots: *"it's only been buffs to ai for
