@@ -7,8 +7,12 @@ Current version: **v1.31.17**. The 2-apex + Forms **rework is simply the game** 
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
-`main` is at **v1.31.16**; **v1.31.17 (QR invite codes, phase 1) is built, green and on a branch awaiting a
-PR.** Nothing else is half-done.
+`main` is at **v1.31.17** (QR invite codes, phase 1), merged via PR #27, working tree clean, and
+`node build.js` reproduces the committed HTML byte-for-byte. Nothing is half-done and no branch is waiting.
+
+**Two things filed rather than built**, both small and both from Aj's own phone testing: a **version stamp in
+the UI** (a stale download is currently indistinguishable from a missing feature — see the BACKLOG) and
+**phase 2 of QR, camera scanning**, which is now de-risked because a real phone reads the shipped symbol.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
 
@@ -19,7 +23,7 @@ npm test && node mptest.js
 Expect **231 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
 
 ### What just shipped
-**v1.31.9 → v1.31.16, and the shape of it: most of today's bugs were in the TOOLING or in my own reasoning, not
+**v1.31.9 → v1.31.17, and the shape of it: most of today's bugs were in the TOOLING or in my own reasoning, not
 in the game.**
 
 - **v1.31.9** — the two "position-dependent" netplay suites were **the tests**, not the environment. The
@@ -35,6 +39,9 @@ in the game.**
   query string, and `content://` cannot carry one. Aj confirmed the fix works on his phone.
 - **v1.31.16** — **emotes** (7, with sound, on the existing intent channel) and a **name field on every lobby
   screen**, plus a host **ping**.
+- **v1.31.17** — **QR invite codes** (show only). The encoder's format bits were placed **LSB-first**, which
+  passed every structural check *and* a by-hand read-back, and only a diff against macOS's own encoder found
+  it. Aj confirmed a real phone scans the result.
 
 ### The QR feature shipped — and the lesson from it is about VERIFICATION, not QR
 **v1.31.17** renders the invite code as a QR on the host and joiner screens (show only, as scoped). The part
