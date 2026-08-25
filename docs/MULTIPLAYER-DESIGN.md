@@ -173,16 +173,22 @@ Design is **locked** — ready to start the engine audit (Phase 1 below).
      (host = full deck).*
    - **v2 — ✅ DONE (cross-machine, internet P2P, no server).** Transport is now **pluggable** (`{send, setOnMessage,
      close}`): BroadcastChannel for same-machine (`?net=host/join`), **WebRTC DataChannel for the internet**
-     (`?net=rtchost` / `?net=rtcjoin`). Signaling is **manual copy-paste** — host generates an invite code (base64
+     (`?net=rtchost` / `?net=rtcjoin`). Signaling is **manual, out-of-band** — host generates an invite code (base64
      offer+ICE, non-trickle), friend pastes it and returns a reply code, host pastes that → connected peer-to-peer.
-     **No game server, no accounts, $0** — the code travels over any chat the players already use; Google public
+     **No game server, no accounts, $0** — the code travels over any chat the players already use, and since
+     v1.31.17/v1.31.19 it can travel as a **QR to point a camera at** or through the OS **share sheet** rather
+     than select-copy-switch-paste. (Camera *scanning* was built and declined — see the BACKLOG.) Note also that
+     since v1.31.15 the UI enters netplay **in place** via `NET.start()`; the `?net=` queries below still work and
+     every `nettest_*` suite uses them, but the buttons must never set `location.search` — a downloaded HTML on
+     Android opens as `content://`, which cannot carry a query string. Google public
      STUN handles NAT (`&stun=0` disables it for LAN/loopback). Symmetric host-authoritative model unchanged; only
      the transport swaps. Reliability fix: the joiner re-announces `join` until its first snapshot lands (WebRTC
-     drops messages that arrive before the channel opens, so a one-shot join could be lost). Verified: `rtctest.js`
-     drives the full copy-paste handshake between two headless peers and plays a complete game over the DataChannel
-     — 9/9 checks, **6/6 consecutive runs** after the fix, zero JS errors. Shipped game still byte-identical
+     drops messages that arrive before the channel opens, so a one-shot join could be lost). Verified at the time by `rtctest.js` — 9/9 checks, **6/6 consecutive runs** after the fix, zero JS errors.
+     **`rtctest.js` no longer exists**: it drove the old functional board and was retired, superseded by
+     `nettest_rtc.js` (11) and `nettest_full.js` (5). Use those. Shipped game still byte-identical
      (647 + duel smoke); BroadcastChannel netplay still 7/7.
-     *v2 limits / next: still 2 players (WebRTC star topology for N-player later); TURN relay not configured (a
+     *v2 limits / next: **N-player over WebRTC has since SHIPPED** — the host runs a hub of N-1 channels
+     (`hubMode`), covered by `nettest_rtc3.js` (10). The "still 2 players" limit below is historical. TURN relay not configured (a
      minority of strict-symmetric-NAT pairs may fail on STUN alone — free public TURN / a tiny relay is the
      fallback); codes ~860 chars (could deflate); deck picker + pre-fight timing + ornate ceremony still open.*
 

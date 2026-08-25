@@ -31,10 +31,12 @@ code/                    ← source + build + tests
   ai.js                  the effect-using duel AI (drives the Rival + sims)
   art.js                 inlined card art (faces.js = retired layouts, not inlined)
   netview.js             per-seat redacted snapshots for online play
+  qr.js                  byte-mode QR encoder — renders the online invite code as a scannable symbol
   build.js               inlines the modules → code/CardmenFighter.html
   test.js                engine + AI unit/sim suite
   netview.test.js        netplay snapshot tests
   nettest_*.js           full-UI netplay (Playwright) suites
+  qrtest.js / qrref.js   the QR encoder: decoded back by a real decoder, and diffed against macOS CoreImage
   analysis.js / mpsim.js balance round-robin + multiplayer sims
 docs/                    ← design docs & handoff notes (see below)
 assets/                  ← tutorial-demo.gif
@@ -44,9 +46,9 @@ assets/                  ← tutorial-demo.gif
 
 ```bash
 cd code
-node build.js          # inline engine/ai/art/netview → code/CardmenFighter.html
+node build.js          # inline engine/ai/art/netview/qr → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # keep the repo-root copy in sync
-node test.js           # engine + AI suite (131 assertions, must be 0 FAIL)
+node test.js           # engine + AI suite (231 assertions, must be 0 FAIL)
 node netview.test.js   # netplay snapshot tests (28)
 ```
 

@@ -7,12 +7,15 @@ Current version: **v1.31.19**. The 2-apex + Forms **rework is simply the game** 
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
-`main` is at **v1.31.18** (QR invite codes + the build stamp), working tree clean, and
-`node build.js` reproduces the committed HTML byte-for-byte. Nothing is half-done and no branch is waiting.
+`main` is at **v1.31.19**, working tree clean, and `node build.js` reproduces the committed HTML byte-for-byte.
 
-**One thing filed rather than built:** **phase 2 of QR, camera scanning** — de-risked now, because a real phone
-reads the shipped symbol. Its open cost is that `BarcodeDetector` is Chromium-only, so Firefox and Safari would
-need an inlined JS decoder.
+**Two things are deliberately NOT on main, and neither is half-done:**
+- **`feat/qr-scanning` is PARKED** — camera scanning, built and green at 21/0, closed unmerged as PR #29. It
+  works; its only working configuration is not worth it. The blocker is the **origin**, not the code (a file
+  opened from Android Downloads is `content://`, an opaque origin, so Chrome rejects the camera without ever
+  prompting). Full reasoning in the BACKLOG. **Reviving it is a merge, not a rebuild.**
+- **PR #34 is open** — a real defect fixed in `nettest_full` (it credited plays it never verified), which does
+  **not** fix that suite's flake. Read the PR before re-diagnosing it; three A/Bs are already done and recorded.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
 
@@ -44,6 +47,8 @@ in the game.**
   it. Aj confirmed a real phone scans the result.
 - **v1.31.18** — **the build stamps itself**, because a false bug report showed that a downloaded copy could
   not be told apart from a stale one.
+- **v1.31.19** — **share sheet** on the invite code (one tap into any chat) and a **tolerant paste**, so a code
+  arriving inside a sentence still works. QR camera scanning was built, measured, and **declined** — see above.
 
 ### The QR feature shipped — and the lesson from it is about VERIFICATION, not QR
 **v1.31.17** renders the invite code as a QR on the host and joiner screens (show only, as scoped). The part
@@ -243,10 +248,28 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   whole invite-code exchange to play again. Wants: the host restarting the engine and re-broadcasting `t:'setup'`
   over the **live** connection, seats and decks reused, both sides confirming — plus its own netplay suite. The
   emote set already covers the negotiation ("Rematch?" → "Yes!"), so this is purely the mechanism.
-- **Two more suites have the fixed-wait flake** (seen 2026-08-25): `exporttest` and `nettest_names` each failed
-  once at a late position in a long sweep and each passed alone. Same class as the v1.31.9 pair — a fixed
-  `wait(n)` followed by an assertion, rather than polling for the condition. Cheap to fix the same way:
-  return a boolean from the wait, poll generously, and never assert on a state you have not confirmed.
+- **FOUR suites have the fixed-wait flake** — including **both** suites the v1.31.9 fix declared solved, so that
+  fix was real but incomplete and its "verified 20/20" no longer holds.
+  - **`nettest_log` (measured 2026-08-25).** Failed at position 18 of a 23-suite sweep **and again running
+    alone**, then passed alone next run — so it is intermittent, not position-dependent. Fails as **exactly 4
+    assertions together (9/4)**, the documented pre-v1.31.9 signature: the client's log never gets the host's
+    broadcast in time, the turn assertion goes, the client then finds no legal jab, and both log assertions
+    follow. One impatient wait, four failures.
+  - **`nettest_full` (measured 2026-08-25).** One real defect found and fixed in PR #34 — the driver credited a
+    play it never verified and called `progressed()` on that non-event, resetting the 60s stall guard with the
+    very step that was not working, which produced the misleading `host 16, client 0` (plays that never
+    happened). **The flake survives the fix.** Interleaved under load held stable at ~7.5 on 16 cores: pre-fix
+    PASS/PASS, post-fix PASS/FAIL. Do NOT repeat these, they are done: it is not the product (the identical
+    failure reproduces on builds that cannot contain the suspect change, and the suite runs over
+    BroadcastChannel anyway); it is not sustained load (both arms mostly pass at a stable 7.5 — failures cluster
+    around load **transitions**); and a **blocked** A/B lies here, because ambient load confounds the arms — it
+    produced a confident wrong answer, and interleaving gave Fisher p≈0.31, i.e. no signal.
+    **Next probe:** log the client's rotated `turn` and `busy` every driver iteration during a failing run, to
+    separate "the mirror stalled" from "the client legitimately had no legal play".
+  - **`exporttest` and `nettest_names`** each failed once late in a long sweep and each passed alone. Same class,
+    no data yet. Cheap to harden the same way: return a boolean from the wait, poll generously, and never assert
+    on a state you have not confirmed.
+
 - **Old exported logs are v1.0 and merged.** Anything analysed from a multiplayer export before v1.31.5 had
   every opponent collapsed into one bucket and their fight counts stuck at 0. If those files still exist they
   cannot be repaired — the information was never recorded. New exports are `v:'2.0-mp'`; check the field.

@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.16**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.19**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -48,7 +48,7 @@ node nettest_names.js                           # netplay player names, both dir
 node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens (10)
-node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (64)
+node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (96)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node piletest.js                                # energy/shuffle pile viewers + promote (30)
@@ -59,6 +59,12 @@ node phantasmtest.js                            # Phantasmal Illusion: all three
                                                 # refusal, in the real page (12)
 node nettest_reveal.js                          # the hand read over netplay, incl. who must NOT see it (10)
 node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (82)
+node qrtest.js                                  # the QR encoder, every symbol decoded back by a real decoder,
+                                                # plus the geometry a camera actually needs (19)
+node qrref.js                                   # the same encoder diffed module-for-module against macOS
+                                                # CoreImage — darwin only, CORROBORATES rather than gates (26)
+node versiontest.js                             # the build stamp: README -> build -> both screens (10)
+node sharetest.js                               # the share sheet + the tolerant paste (14)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -116,6 +122,27 @@ drift is worse than none, because it makes a stale build look current. It exists
 ("the client has no name field") was a *stale download* of a feature shipped two versions earlier, and nothing
 on screen could say so; `versiontest.js` asserts the whole chain including the **repo-root copy**, which is the
 file people download. When a shipped feature is reported missing, check the reporter's build before the code.
+
+**A CAMERA FEATURE IS TESTABLE — never hand-check one.** Proven on the parked `feat/qr-scanning` branch (PR #29,
+closed): Chromium accepts `--use-file-for-fake-video-capture=<file.y4m>` with `--use-fake-device-for-media-stream`
+and `--use-fake-ui-for-media-stream`, plus Playwright `permissions:['camera']`, so a frame containing a QR built
+by our own encoder can be fed in as if held to the lens. Y4M is trivial to write from Node: a header line, then
+per frame `FRAME\n` + a full-size Y plane + half-size U and V planes (128 = grey). Three things to know:
+- **The page must be a SECURE CONTEXT** or `navigator.mediaDevices` is `undefined`. `file://` qualifies; a
+  `data:` URL does **not**, which looks exactly like a missing API.
+- **The flag is read at LAUNCH**, so a test needing real data in the frame runs in two phases: capture the data
+  with one browser, write the Y4M, relaunch pointed at it.
+- **A blank feed is what makes the negative cases deterministic** — a real feed decodes on the first frame, so
+  "cancel" and "nothing to scan" would otherwise be races.
+
+**Feature-detect `getSupportedFormats()`, never the `BarcodeDetector` constructor** — it can exist without
+`qr_code`. That distinction is what cleared the decoder when `qr.js` itself was at fault, and it is the check
+that turns "nothing decodes" from a mystery into a bug in our own code.
+
+**Camera scanning is NOT in the game, and the reason is the origin, not the code.** A file opened from Android's
+Downloads is `content://` — an opaque origin — so Chrome rejects `getUserMedia` **without prompting** (symptom:
+site settings read "Ask first" and it never asks). Confirmed by A/B on one phone. LAN `http://192.168.x.x` is not
+a secure context either. See the BACKLOG before re-proposing it.
 
 **`qr.js` is verified against a REFERENCE IMPLEMENTATION, and that is the only reason hand-writing it was safe.**
 Its first version placed the format bits **LSB-first instead of MSB-first**. Every check a careful person would
@@ -237,6 +264,33 @@ rather than hardcoding a path, which is what these files used to do and why they
 browser pages; two suites at once flake on CPU contention (`nettest_rtc` in particular fails at `maxRound=0`
 concurrently and passes 11/0 alone). A serial sweep of all 21 takes a few minutes.
 
+**BOTH `nettest_full` AND `nettest_log` STILL FLAKE (2026-08-25) — the v1.31.9 fix below was real but NOT
+complete, and its "verified 20/20" is over-claimed.** Read this before re-diagnosing either.
+
+**`nettest_log`** failed at position 18 of a 23-suite sweep **and again running ALONE**, then passed alone on the
+next run — so "position-dependent" is the wrong frame; it is simply intermittent. Its failure is **exactly 4
+assertions together (9/4)**, which is the pre-v1.31.9 signature described below verbatim: the client's log never
+receives the host's broadcast in time, so the turn assertion goes, then the client finds no legal jab, then both
+log assertions follow — four failures from one impatient wait. The count is still 13; 9+4 is the same 13.
+
+**`nettest_full`** was measured much harder. Interleaved, under CPU load held stable at ~7.5 on 16 cores: the
+pre-fix harness passed twice, the post-fix harness passed once and **failed once**. Both versions fail sometimes
+and neither fails reliably. Established facts, so nobody repeats the experiments:
+- **It is not the product.** The identical failure reproduces on builds that cannot contain the change under
+  suspicion. Reachability confirms it: the suite enters via `?net=host/join`, i.e. BroadcastChannel.
+- **It is not sustained load.** At a stable 7.5 both arms mostly pass. Failures cluster around load
+  **transitions** — bursty contention starving the page mid-round-trip breaks a fixed budget where uniform
+  slowness is absorbed by polling. A hypothesis, not a finding.
+- **Do not trust a blocked A/B here.** Running the arms in two blocks at different times confounds them with
+  ambient load and produced a confident, wrong answer ("4/6 vs 0/3"). Interleave the arms. Fisher on the full
+  tally was p≈0.31 — no signal.
+- **One real defect WAS found and fixed** (PR #34): the driver credited a play it never verified and called
+  `progressed()` on that non-event, resetting the 60s stall guard with the very step that was not working. That
+  produced the misleading `host 16, client 0` — plays that never happened. Failures are honest now; they are
+  still failures.
+- **Next probe:** log the client's rotated `turn` and `busy` on every driver iteration during a failing run, to
+  separate "the mirror stalled" from "the client legitimately had no legal play".
+
 **FIXED in v1.31.9 — `nettest_full` and `nettest_log` were position-dependent, and it was the TESTS.** For
 months this was recorded as unexplained environmental accumulation: both passed alone but failed as the
 13th-and-later entries of a long serial sweep, and three environment hypotheses had been tested and disproved
@@ -252,8 +306,9 @@ both log assertions went with it — **four failures from one impatient loop.**
 Fixes: `waitTurnEnds` returns a boolean and the driver re-waits instead of acting; the loop is bounded by
 **wall clock and productive actions** rather than a raw iteration count (a transition used to burn budget);
 budgets are generous; and a missing log line now fails an assertion instead of throwing on `undefined`.
-Verified 20/20 with `nettest_log` at position 19 and `nettest_full` at position 20 of a serial sweep, and
-`acted` dropped 80 → 10.
+Verified 20/20 at the time with `nettest_log` at position 19 and `nettest_full` at position 20 of a serial
+sweep, and `acted` dropped 80 → 10. **That verification did not hold** — see the correction above; both suites
+flake again, and `nettest_log` fails alone, so a clean sweep is weak evidence for either.
 
 **The principle: a slow machine should make a suite SLOWER, never red.** Any fixed `wait(n)` followed by an
 assertion is this bug waiting to happen — poll for the condition instead. One clean late-position sweep is
@@ -281,11 +336,11 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of v1.31.6 — green. Counts verified 2026-08-25: `test` 231, `netview` 28, `mptest` 82,
+Status as of v1.31.19 — green apart from `nettest_full`, which still flakes (see below). Counts verified 2026-08-25: `test` 231, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
 `landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 13, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5. **If a count here disagrees with a suite, the suite is right —
+`nettest_prefight` 13, `nettest_full` 5, `sharetest` 14. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
 **These suites go stale silently** — they were unrunnable for however long `/opt/pw-browsers/chromium` was
