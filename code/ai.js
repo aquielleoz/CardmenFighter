@@ -301,19 +301,6 @@
   // Offensive Quick boost (Brilliant Tactic): when we'd otherwise pass, find the cheapest play
   // that beats the pile ONLY with the +boost, and spring it to overtake. Returns {cards, boostId} or null.
 
-  // Pick `need` STOPPER card ids from p's hand that p can fully afford together (each pays its
-  // full cost), or null. Dry-runs the payments on a copy of the energy pile.
-  function pickStoppers(st, p, need) {
-    var pl = st.players[p];
-    var stoppers = pl.hand.filter(function (c) { var ef = E.effectOf(c); return ef && ef.kind === 'stopper'; });
-    if (stoppers.length < need) return null;
-    var probe = { energy: pl.energy.slice(), shuffle: [] }, chosen = [];
-    for (var i = 0; i < stoppers.length && chosen.length < need; i++) {
-      if (E.canAfford(probe, stoppers[i])) { E.payEnergy(probe, stoppers[i]); chosen.push(stoppers[i].id); }
-    }
-    return chosen.length === need ? chosen : null;
-  }
-
   function rankCounts(hand) { var m = {}; hand.forEach(function (c) { m[c.rank] = (m[c.rank] || 0) + 1; }); return m; }
 
   // Demon-Lord "strategic pass": concede a winnable JAB to conserve hand for Specials when running
@@ -464,7 +451,6 @@
 
     // "keep score": how much we DON'T want to throw this card away as fodder. Dump the lowest.
     var counts = rankCounts(st.players[p].hand);
-    var canStopper = !!pickStoppers(st, p, 1);       // could we actually commit a STOPPER right now?
     var shields = st.players[p].shields;
     function keepValue(card) {
       var v = card.rank;                                         // high cards win fights / anchor combos
@@ -472,11 +458,7 @@
       if (counts[card.rank] >= 2) v += 10 + card.rank;           // part of a Special — prize it (more when higher)
       var ef = E.effectOf(card);
       if (ef) {
-        if (ef.kind === 'stopper') {                 // a STOPPER is a scarce interrupt — hold it even
-          v += 9;                                    //   before you can afford it (energy accrues as you fight),
-          if (canStopper) v += 4;                    //   a bit more once it's actually usable,
-          if (shields <= 2) v += 6;                  //   and hard when you're in danger.
-        } else if (ef.quick) v += 6;                 // hold a Quick (Counter/Anoint/Brilliant Tactic)
+        if (ef.quick) v += 6;                                    // hold a Quick (Counter / Annoint / Brilliant Tactic)
       }
       return v;
     }
@@ -505,7 +487,7 @@
         var c = x.cards[0];
         if (counts[c.rank] >= 2) return false;                              // don't break a Special
         var ef = E.effectOf(c);
-        if (ef && (ef.kind === 'stopper' || ef.quick)) return false;        // don't burn a STOPPER/Quick on a jab
+        if (ef && ef.quick) return false;                                  // don't burn a Quick on a jab
         return true;
       });
       if (safe.length) {
@@ -819,21 +801,6 @@
     if (mv.action === 'pass') {
       // (Brilliant Tactic is now a technique-speed pre-fight boost — handled proactively in
       // playPhase via pickValueBoost, no reactive overtake here.)
-      // Defensive STOPPER (fighter/demon): a pair/trio we can't beat would strip a shield.
-      // Commit matching STOPPERs to cancel it and seize the lead, then lead our own play.
-      var need = E.stopperNeed(st);
-      if (diff !== 'minion' && need >= 2) {                          // don't spend stoppers on a jab (no shield at stake)
-        var chosen = pickStoppers(st, p, need);
-        if (chosen && st.players[p].hand.length - need >= 1) {
-          var sr = E.stopper(st, p, chosen);
-          if (sr.ok) {
-            log.push({ stopper: need, cancelled: sr.cancelled });
-            var lead = chooseMove(st, p, diff);
-            if (lead.action === 'play') { fight(st, p, lead.cards, log); return log; }
-            st.finished = true; st.winner = (p === 0 ? 1 : 0); log.push({ stuck: true }); return log;  // guard holds a card, so this is unreachable
-          }
-        }
-      }
       // Phantasmal Illusion: warp a Special we can't otherwise beat (a straight) into a higher one.
       if (diff !== 'minion') {
         var ph = tryPhantasm(st, p);

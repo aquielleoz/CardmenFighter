@@ -367,7 +367,6 @@
   #playbar .lbl{font-size:11px; opacity:.55; font-weight:700; text-transform:uppercase; letter-spacing:.4px; margin-right:2px;}
   .chip{font:inherit; font-size:12px; font-weight:700; color:var(--txt); background:rgba(90,200,250,.14); border:1px solid rgba(90,200,250,.4); border-radius:16px; padding:5px 11px; cursor:pointer;}
   .chip:disabled{opacity:.35; cursor:default;}
-  .chip.stopper{background:rgba(232,195,122,.16); border-color:rgba(232,195,122,.5); color:var(--gold);}
 
   #handWrap{flex:0 0 auto; border-top:1px solid var(--line); background:rgba(0,0,0,.24); padding:8px 8px 10px;}
   #handMeta{display:flex; justify-content:space-between; align-items:center; margin:0 4px 6px; font-size:12.5px; gap:8px; flex-wrap:wrap;}
@@ -605,7 +604,7 @@
   #hint{flex:1; font-size:12.5px; min-height:16px; opacity:.9;}
   #hint.good{color:var(--good);} #hint.bad{color:var(--bad);} #hint.pick{color:var(--pick);}
   #actions button{font:inherit; font-weight:800; font-size:15px; padding:11px 16px; border-radius:11px; border:1px solid var(--line); cursor:pointer; color:var(--txt); background:var(--panel);}
-  #actions button:disabled,#actions button.off{opacity:.38; color:var(--txt); cursor:not-allowed;}   /* clearly grey out unusable actions (Stopper/Phantasm/Fight when you can't) */
+  #actions button:disabled,#actions button.off{opacity:.38; color:var(--txt); cursor:not-allowed;}   /* clearly grey out unusable actions (Phantasm/Fight when you can't) */
   #sortBtn{font-size:13px; padding:11px 13px;}
   #fightBtn{background:var(--gold); color:#3a2a08; border-color:transparent;}
   #fightBtn.confirm{background:var(--pick); color:#2a0a3a;}
@@ -811,7 +810,7 @@
   #roundfx .rfInner.fizzle .rfSub{ color:#ffcf6b; opacity:1; border-top-color:rgba(255,207,107,.5); }
   @keyframes rfIn{ 0%{ opacity:0; transform:translateY(11px) scale(.9); } 60%{ opacity:1; } 100%{ opacity:1; transform:none; } }
   @media (prefers-reduced-motion: reduce){ #roundfx.show{ animation:none; backdrop-filter:none; -webkit-backdrop-filter:none; } #roundfx .rfInner.in{ animation:none; opacity:1; } }
-  /* STOPPER interrupt flash — a quick center-stage cue when a play is cancelled (either side) */
+  /* Center-stage interrupt flash — the QUICK cue lives here (it began as the STOPPER cue, which the rework retired) */
   #stopfx{ position:absolute; inset:0; z-index:8; display:none; align-items:center; justify-content:center; pointer-events:none; }
   #stopfx.show{ display:flex; }
   #stopfx .stx{ position:relative; text-align:center; opacity:0; padding:12px 26px; }
@@ -824,7 +823,7 @@
   #stopfx.you .stxMain{ color:#8fdcff; text-shadow:0 0 26px rgba(120,210,255,.55), 0 2px 10px rgba(0,0,0,.7); }
   #stopfx .stxSub{ font-size:clamp(13px,3vw,18px); font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:var(--txt); opacity:.9; margin-top:8px; }
   @keyframes stxPop{ 0%{opacity:0; transform:translateY(10px) scale(.82);} 13%{opacity:1; transform:none;} 76%{opacity:1;} 100%{opacity:0;} }
-  /* Quick-response cue — reuses #stopfx (STOPPER retired); gold "⏩ QUICK" for the rival, cyan for you */
+  /* Quick-response cue — #stopfx; gold "⏩ QUICK" for the rival, cyan for you */
   #stopfx.quick .stx::before{ background:radial-gradient(ellipse at center, rgba(232,195,122,.18), transparent 62%); }
   #stopfx.quick.you .stx::before{ background:radial-gradient(ellipse at center, rgba(120,210,255,.16), transparent 62%); }
   #stopfx.quick .stxMain{ color:#f0c85a; text-shadow:0 0 26px rgba(232,195,122,.55), 0 2px 10px rgba(0,0,0,.7); }
@@ -1645,11 +1644,10 @@
   // Aug-12 card set. Cards whose machinery already exists are impl:true; the genuinely new
   // mechanics (value boost, round-long shield immunity, on-win trigger, full lockout, shield-absorb
   // equipment) are impl:false for now — they sit in the deck as plain fight bodies until wired.
-  var STOPPER_TEXT = 'During a fight, commit matching Stoppers (1 vs a single, 2 vs a pair, 3 vs a trio) to cancel the play and seize the Initiative. This cannot cancel 5 card combos.';
   var EFFECTS = {
     D: { // Wizard — Tempo / Energy
+      2: { name: 'Skillful Teleport' },   // the apex 2 is a vanilla trump — NAME only, no activated effect (see effectOf)
       1: { kind: 'ramp', n: 3, name: 'Gather Energy', type: 'Technique', impl: true, text: 'Put the top 3 cards of your deck into your Energy Pile.' },
-      2: { kind: 'stopper', name: 'Skillful Teleport', type: 'Technique', impl: true, text: STOPPER_TEXT },
       3: { kind: 'discardOpp', n: 2, name: 'Telekinesis', type: 'Technique', impl: true, text: 'Target Rival discards 2 cards.' },
       4: { kind: 'counter', quick: true, name: 'Counter Spell', type: 'Quick Technique', impl: true, text: "Counter target Technique as it is played. The countered card goes to its owner's Shuffle Pile." },
       5: { kind: 'valueBoost', boost: 4, name: 'Infuse with Magic', type: 'Technique', impl: true, text: 'Increase the value of your next play by 4.' },
@@ -1660,8 +1658,8 @@
       10: { kind: 'phantasm', name: 'Phantasmal Illusion', type: 'Technique', impl: true, text: 'Conjure a copy of the current play at its base values. You MAY swap one copied card for one from your hand. Your boosts and Equipment apply to the illusion; the copied cards vanish after the round.' }
     },
     H: { // Cleric — Mid / value
+      2: { name: 'Divine Intervention' },   // the apex 2 is a vanilla trump — NAME only, no activated effect (see effectOf)
       1: { kind: 'valueBoost', boost: 2, name: 'Imbue with Power', type: 'Technique', impl: true, text: 'Increase the value of your next play by 2.' },
-      2: { kind: 'stopper', name: 'Divine Intervention', type: 'Technique', impl: true, text: STOPPER_TEXT },
       3: { kind: 'ramp', n: 5, name: 'Pray for Strength', type: 'Technique', impl: true, text: 'Put the top 5 cards of your deck into your Energy Pile.' },
       4: { kind: 'draw', draw: 2, name: 'Pray for Guidance', type: 'Technique', impl: true, text: 'Draw 2 cards.' },
       5: { kind: 'protect', quick: true, name: 'Annoint', type: 'Quick Technique', impl: true, text: "Target Equipment can't be destroyed or disarmed until the end of the round." },
@@ -1672,8 +1670,8 @@
       10: { kind: 'equip', absorb: true, counters: 1, decay: false, name: 'Holy Shroud', type: 'Equipment', impl: true, text: 'If you would lose a shield, remove 1 counter from Holy Shroud instead.' }
     },
     S: { // Rogue — Control / disruption   (♠ spades)
+      2: { name: 'Masterful Block' },   // the apex 2 is a vanilla trump — NAME only, no activated effect (see effectOf)
       1: { kind: 'discardOpp', n: 1, name: 'Outbalance', type: 'Technique', impl: true, text: 'Target Rival discards 1 card.' },
-      2: { kind: 'stopper', name: 'Sleight of Hand', type: 'Technique', impl: true, text: STOPPER_TEXT },
       3: { kind: 'draw', draw: 2, quick: true, name: 'Hand-to-Hand Mastery', type: 'Quick Technique', impl: true, text: 'Draw 2 cards.' },
       4: { kind: 'recycle', scope: 'all', name: 'Poison the Air', type: 'Technique', impl: true, text: "Move every player's Energy Pile to their Shuffle Pile." },
       5: { kind: 'removeEquip', mode: 'destroy', name: 'Sabotage', type: 'Technique', impl: true, text: 'Destroy target Equipment.' },
@@ -1684,8 +1682,8 @@
       10: { kind: 'lockout', quick: true, name: 'Back Stab', type: 'Quick Technique', impl: true, text: "Play in response. Target Rival skips their next turn — no fights, no Techniques (an effect already in progress still resolves)." }
     },
     C: { // Fighter — Aggro   (♣ clubs)
+      2: { name: 'Sleight of Hand' },   // the apex 2 is a vanilla trump — NAME only, no activated effect (see effectOf)
       1: { kind: 'draw', draw: 2, name: 'Prepare for Combat', type: 'Technique', impl: true, text: 'Draw 2 cards.' },
-      2: { kind: 'stopper', name: 'Masterful Block', type: 'Technique', impl: true, text: STOPPER_TEXT },
       3: { kind: 'valueBoost', boost: 2, name: 'Brilliant Tactic', type: 'Technique', impl: true, text: 'Increase the value of your next play by 2.' },
       4: { kind: 'removeEquip', mode: 'energy', name: 'Disarm', type: 'Technique', impl: true, text: "Disarm target Equipment: move it to its owner's Energy Pile and its effects stop." },
       5: { kind: 'equip', delta: 1, counters: 5, name: "Hero's Sword", type: 'Equipment', impl: true, text: 'While equipped, your highest card each fight has its value increased by 1.' },
@@ -1785,7 +1783,7 @@
   }
   function effectOf(card) {
     if (card.temp) return null;                        // Counterfeit copies / illusions are pure fight bodies — no activated effect
-    if (card.rank === 2) return null;                  // apex "2" is a vanilla trump — STOPPER retired as an activated effect
+    if (card.rank === 2) return null;                  // the apex "2" is a vanilla trump: no activated effect at all
     var spec = EFFECTS[card.suit] && EFFECTS[card.suit][card.rank];
     if (!spec) return null;                          // blanks / no effect = plain fight card
     var out = { id: card.suit + card.rank, cost: activationCost(card), quick: !!spec.quick, impl: !!spec.impl, archetype: ARCHETYPE[card.suit] };
@@ -1971,7 +1969,6 @@
     if (!eff) return { ok: false, reason: 'That card has no effect.' };
     if (!eff.impl) return { ok: false, reason: 'That effect is not available yet.' };
     // Quicks are castable proactively too (they fizzle if there's no valid target — never illegal, §0.4).
-    if (eff.kind === 'stopper') return { ok: false, reason: 'STOPPERs are committed during a fight (see stopper()), not activated.' };
     if (eff.kind === 'phantasm') return { ok: false, reason: 'Phantasmal Illusion is cast during a fight (see phantasm()), not activated.' };
     if (eff.kind === 'counterfeit' && (!st.pile || st.pile.byPlayer === p)) return { ok: false, reason: "Counterfeit needs the Rival's current play to copy — cast it while facing an attack." };
     if (eff.kind === 'removeEquip' && removeTargets(st, p, eff).length === 0) return { ok: false, reason: 'No Equipment or zone card on the board to target.' };
@@ -2495,48 +2492,6 @@
     return { ok: true, state: st };
   }
 
-  // STOPPER retired — the apex "2" is the stopper by value now, not an activated cancel. Always 0.
-  function stopperNeed(st) { return 0; }
-  // Commit N STOPPERs to cancel the current play. N must equal the play's size (1/2/3).
-  // Each committed STOPPER pays its own cost (1 pip of its suit) and is removed from the game.
-  // The play is voided and you seize the initiative (you lead next). No shield is stripped.
-  function stopper(st, p, ids) {
-    if (st.finished) return { ok: false, reason: 'Game over.' };
-    if (p !== st.turn) return { ok: false, reason: 'Not your turn.' };
-    var pl = st.players[p];
-    if (!st.pile) return { ok: false, reason: 'Nothing to cancel — you have the lead.' };
-    var need = stopperNeed(st);
-    if (need === 0) return { ok: false, reason: 'STOPPERs cannot cancel a 5-card combo.' };
-    if (!ids || ids.length !== need) return { ok: false, reason: 'Commit exactly ' + need + ' STOPPER' + (need > 1 ? 's' : '') + ' to cancel a ' + st.pile.combo.type + '.' };
-    var cards = [], seen = {};
-    for (var i = 0; i < ids.length; i++) {
-      if (seen[ids[i]]) return { ok: false, reason: 'Duplicate card.' };
-      seen[ids[i]] = true;
-      var c = pl.hand.filter(function (h) { return h.id === ids[i]; })[0];
-      if (!c) return { ok: false, reason: "You don't hold that card." };
-      var ef = effectOf(c);
-      if (!ef || ef.kind !== 'stopper') return { ok: false, reason: 'That is not a STOPPER.' };
-      cards.push(c);
-    }
-    if (pl.hand.length - need < 1) return { ok: false, reason: 'Cancelling would leave you no card to lead — keep at least one.' };
-    // Each STOPPER is a Technique: you pay its FULL cost (its value — colored pips of its suit
-    // plus a generic remainder), like any other card. Dry-run on a copy of the pile first so a
-    // partial multi-STOPPER commit can never over-draw your energy.
-    var probe = { energy: pl.energy.slice(), shuffle: [] };
-    for (var j = 0; j < cards.length; j++) {
-      if (!canAfford(probe, cards[j])) return { ok: false, reason: 'Not enough Fighter Energy to commit those STOPPERs (each costs ' + costHint(cards[j]) + ').' };
-      payEnergy(probe, cards[j]);
-    }
-    cards.forEach(function (c) {
-      pl.hand = pl.hand.filter(function (h) { return h.id !== c.id; });
-      payEnergy(pl, c);                                          // pay the STOPPER's full cost
-      spendCard(pl, c);                                        // Techniques recycle (spendCard)
-    });
-    var cancelled = st.pile.combo.type;
-    st.pile = null; st.lastPlayer = p; st.passes = 0; st.turn = p; // voided; you take the initiative — no shield stripped
-    return { ok: true, state: st, cancelled: cancelled, committed: need };
-  }
-
   /* Phantasmal Illusion: conjure a copy of the current play at its BASE card values, then apply your side of
    * the board to it. The copied cards are illusions and vanish; only a card you choose to swap in is really
    * spent. Three things can push the copy past the play it copied, and you need at least one of them — a bare
@@ -2845,9 +2800,8 @@
     var best = cands[0]; for (var c = 1; c < cands.length; c++) if (st.players[cands[c]].shields > st.players[best].shields) best = cands[c];
     return best;   // default: pressure the leader
   }
-  // EXPERIMENT (default OFF): don't exile used Techniques/STOPPERs — send the spent card to the Shuffle
-  // Pile so it can recycle back into the deck (like the apex "2" will, once it's a plain card, not a
-  // self-exiling STOPPER technique). spendCard() is the single disposal hook.
+  // EXPERIMENT (default OFF): don't exile used Techniques — send the spent card to the Shuffle
+  // Pile so it can recycle back into the deck. spendCard() is the single disposal hook.
   var RECYCLE_TECH = false;
   function setRecycleTech(v) { RECYCLE_TECH = !!v; }
   function spendCard(pl, card) { (RECYCLE_TECH ? pl.shuffle : pl.removed).push(card); }
@@ -2951,7 +2905,7 @@
     makeDeck: makeDeck, shuffle: shuffle, sortHand: sortHand,
     detectCombo: detectCombo, beats: beats, detectStraight: detectStraight,
     enumerateCombos: enumerateCombos, legalFightPlays: legalFightPlays, combinations: combinations,
-    newGame: newGame, play: play, pass: pass, stopper: stopper, stopperNeed: stopperNeed, phantasm: phantasm, drawCards: drawCards, isLocked: isLocked,
+    newGame: newGame, play: play, pass: pass, phantasm: phantasm, drawCards: drawCards, isLocked: isLocked,
     setDeferRoundDraw: setDeferRoundDraw, roundDraw: roundDraw, setShieldCards: setShieldCards, setLoserMill: setLoserMill, setRecycleTech: setRecycleTech,
     setHostileAll: setHostileAll, setDamageAll: setDamageAll, setLockoutAll: setLockoutAll,
     isDamageAll: isDamageAll, isLockoutAll: isLockoutAll,
@@ -3284,19 +3238,6 @@
   // Offensive Quick boost (Brilliant Tactic): when we'd otherwise pass, find the cheapest play
   // that beats the pile ONLY with the +boost, and spring it to overtake. Returns {cards, boostId} or null.
 
-  // Pick `need` STOPPER card ids from p's hand that p can fully afford together (each pays its
-  // full cost), or null. Dry-runs the payments on a copy of the energy pile.
-  function pickStoppers(st, p, need) {
-    var pl = st.players[p];
-    var stoppers = pl.hand.filter(function (c) { var ef = E.effectOf(c); return ef && ef.kind === 'stopper'; });
-    if (stoppers.length < need) return null;
-    var probe = { energy: pl.energy.slice(), shuffle: [] }, chosen = [];
-    for (var i = 0; i < stoppers.length && chosen.length < need; i++) {
-      if (E.canAfford(probe, stoppers[i])) { E.payEnergy(probe, stoppers[i]); chosen.push(stoppers[i].id); }
-    }
-    return chosen.length === need ? chosen : null;
-  }
-
   function rankCounts(hand) { var m = {}; hand.forEach(function (c) { m[c.rank] = (m[c.rank] || 0) + 1; }); return m; }
 
   // Demon-Lord "strategic pass": concede a winnable JAB to conserve hand for Specials when running
@@ -3447,7 +3388,6 @@
 
     // "keep score": how much we DON'T want to throw this card away as fodder. Dump the lowest.
     var counts = rankCounts(st.players[p].hand);
-    var canStopper = !!pickStoppers(st, p, 1);       // could we actually commit a STOPPER right now?
     var shields = st.players[p].shields;
     function keepValue(card) {
       var v = card.rank;                                         // high cards win fights / anchor combos
@@ -3455,11 +3395,7 @@
       if (counts[card.rank] >= 2) v += 10 + card.rank;           // part of a Special — prize it (more when higher)
       var ef = E.effectOf(card);
       if (ef) {
-        if (ef.kind === 'stopper') {                 // a STOPPER is a scarce interrupt — hold it even
-          v += 9;                                    //   before you can afford it (energy accrues as you fight),
-          if (canStopper) v += 4;                    //   a bit more once it's actually usable,
-          if (shields <= 2) v += 6;                  //   and hard when you're in danger.
-        } else if (ef.quick) v += 6;                 // hold a Quick (Counter/Anoint/Brilliant Tactic)
+        if (ef.quick) v += 6;                                    // hold a Quick (Counter / Annoint / Brilliant Tactic)
       }
       return v;
     }
@@ -3488,7 +3424,7 @@
         var c = x.cards[0];
         if (counts[c.rank] >= 2) return false;                              // don't break a Special
         var ef = E.effectOf(c);
-        if (ef && (ef.kind === 'stopper' || ef.quick)) return false;        // don't burn a STOPPER/Quick on a jab
+        if (ef && ef.quick) return false;                                  // don't burn a Quick on a jab
         return true;
       });
       if (safe.length) {
@@ -3802,21 +3738,6 @@
     if (mv.action === 'pass') {
       // (Brilliant Tactic is now a technique-speed pre-fight boost — handled proactively in
       // playPhase via pickValueBoost, no reactive overtake here.)
-      // Defensive STOPPER (fighter/demon): a pair/trio we can't beat would strip a shield.
-      // Commit matching STOPPERs to cancel it and seize the lead, then lead our own play.
-      var need = E.stopperNeed(st);
-      if (diff !== 'minion' && need >= 2) {                          // don't spend stoppers on a jab (no shield at stake)
-        var chosen = pickStoppers(st, p, need);
-        if (chosen && st.players[p].hand.length - need >= 1) {
-          var sr = E.stopper(st, p, chosen);
-          if (sr.ok) {
-            log.push({ stopper: need, cancelled: sr.cancelled });
-            var lead = chooseMove(st, p, diff);
-            if (lead.action === 'play') { fight(st, p, lead.cards, log); return log; }
-            st.finished = true; st.winner = (p === 0 ? 1 : 0); log.push({ stuck: true }); return log;  // guard holds a card, so this is unreachable
-          }
-        }
-      }
       // Phantasmal Illusion: warp a Special we can't otherwise beat (a straight) into a higher one.
       if (diff !== 'minion') {
         var ph = tryPhantasm(st, p);
@@ -4304,7 +4225,6 @@ window.CardFace = {};
       shieldImmune: shieldBlue,
       onWin: shieldRed+'<path d="M10.9 3.8L9.1 9l2.1 1-1.7 5.4" fill="none" stroke="#fff" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/>',
       counter:'<circle cx="12" cy="12" r="9" fill="none" stroke="#c8402f" stroke-width="2.6"/><line x1="5.6" y1="18.4" x2="18.4" y2="5.6" stroke="#c8402f" stroke-width="2.6" stroke-linecap="round"/>',
-      stopper:'<g fill="#efe9df" stroke="#8a6a4a" stroke-width=".7" stroke-linejoin="round"><rect x="6.3" y="9.6" width="11.4" height="10" rx="3.4"/><rect x="6.7" y="5.2" width="2.6" height="7.4" rx="1.3"/><rect x="9.6" y="3" width="2.6" height="9.6" rx="1.3"/><rect x="12.5" y="3.4" width="2.6" height="9.2" rx="1.3"/><rect x="15.3" y="5.6" width="2.6" height="7" rx="1.3"/><path d="M6.5 12.4c-2.4-.3-4 .8-4.2 2.3-.15 1.1.7 1.8 1.7 1.5l2.7-1z"/></g>',
       counterfeit: copy, phantasm: copy,
       reclaim: recycle,
       leyline: recycle+'<g transform="translate(10.6,10.4) scale(.62)">'+shieldBlue+'</g>',
@@ -4485,20 +4405,31 @@ window.CardFace = {};
   /* Stats are keyed by ABSOLUTE SEAT (v1.31.5). They used to be keyed by `pkey(pl)` -> 'you' | 'rival', which
    * collapsed all five opponents at a six-player table into one bucket, so an exported free-for-all could not
    * say who did anything — and a duel and a six-player game were indistinguishable in the file. */
-  function blankStat(){ return {jabs:0, specials:0, techniques:0, stoppers:0, shieldsLost:0, eff:{}}; }
+  function blankStat(){ return {jabs:0, specials:0, techniques:0, shieldsLost:0, eff:{}}; }
   function resetStats(){ stats={seats:[]}; for(var si=0; si<6; si++) stats.seats[si]=blankStat(); gameStartTs=Date.now(); lastEndType=null; }
   function statOf(pl){ return (stats && stats.seats && typeof pl==='number') ? stats.seats[pl] : null; }
   function bumpFight(pl, type){ var s=statOf(pl); if(!s) return; if(type==='single') s.jabs++; else s.specials++; }
-  function bumpEffect(pl, eff){ var s=statOf(pl); if(!s||!eff) return; s.techniques++; if(eff.kind==='stopper') s.stoppers++; s.eff[eff.id]=(s.eff[eff.id]||0)+1; }
+  function bumpEffect(pl, eff){ var s=statOf(pl); if(!s||!eff) return; s.techniques++; s.eff[eff.id]=(s.eff[eff.id]||0)+1; }
   function getGames(){ try{ var a=JSON.parse(localStorage.getItem(LOG_KEY)||'[]'); return Array.isArray(a)?a:memGames; }catch(e){ return memGames; } }
-  function recordGame(){
-    if(!stats || stats.recorded) return; stats.recorded=true;
+  /* `adopted` — a finished record pushed by the netplay HOST. A client only ever observed its own plays (every
+   * bumpFight/bumpEffect call site is in the local drivers, which a client does not run), so its own record
+   * would show every opponent at zero. The host is the authority and its record is complete, so it broadcasts
+   * it at game end and clients store THAT instead. The payload is public information — plays, never hands. */
+  var lastAdopted = null;                     // test seam: the netplay record this page ADOPTED from the host
+  function adoptRecord(rec){ lastAdopted = rec || null; return recordGame(rec); }
+  function recordGame(adopted){
+    if(!stats || stats.recorded) return null; stats.recorded=true;
+    if(adopted){
+      try{ var aa=getGames(); aa.push(adopted); if(aa.length>300) aa=aa.slice(aa.length-300); localStorage.setItem(LOG_KEY, JSON.stringify(aa)); memGames=aa; }
+      catch(e){ memGames.push(adopted); }
+      return adopted;
+    }
     var np=(state&&state.numPlayers)||2;
     function snap(i){
       var s=statOf(i)||blankStat(), pl=(state&&state.players[i])||null, per=personaOf(i);
       return { seat:i, name:(seatName?seatName(i):null), deck:(seatDecks&&seatDecks[i])||(i===YOU?youDeck:(i===1?rivalDeck:null))||null,
                difficulty:(seatDiffs&&seatDiffs[i])||null, persona:(per&&per.name)||null,
-               jabs:s.jabs, specials:s.specials, techniques:s.techniques, stoppers:s.stoppers,
+               jabs:s.jabs, specials:s.specials, techniques:s.techniques,
                shieldsLost:s.shieldsLost, finalShields:(pl?pl.shields:null), eliminated:!!(pl&&pl.eliminated), eff:s.eff };
     }
     var seats=[], i; for(i=0;i<np;i++) seats.push(snap(i));
@@ -4508,7 +4439,7 @@ window.CardFace = {};
     var merged=blankStat();
     for(i=0;i<np;i++){ if(i===YOU) continue; var o=seats[i];
       merged.jabs+=o.jabs; merged.specials+=o.specials; merged.techniques+=o.techniques;
-      merged.stoppers+=o.stoppers; merged.shieldsLost+=o.shieldsLost;
+      merged.shieldsLost+=o.shieldsLost;
       for(var k in o.eff) merged.eff[k]=(merged.eff[k]||0)+o.eff[k]; }
     var net=(typeof NET!=='undefined' && NET.active && NET.active());
     var rec={ v:'2.0-mp', ts:new Date().toISOString(), difficulty:difficulty,
@@ -4519,6 +4450,7 @@ window.CardFace = {};
       log:Array.prototype.map.call($('log').children, function(el){return el.textContent;}) };
     try{ var a=getGames(); a.push(rec); if(a.length>300) a=a.slice(a.length-300); localStorage.setItem(LOG_KEY, JSON.stringify(a)); memGames=a; }
     catch(e){ memGames.push(rec); }
+    return rec;
   }
   function exportGames(){
     var data=JSON.stringify(getGames(),null,2);
@@ -4920,16 +4852,6 @@ window.CardFace = {};
     wrap.style.setProperty('--flashdur', dur+'ms');   // the pop/fade animation runs the full flash length so it doesn't vanish early
     flashArt._t=setTimeout(function(){ if(g===gen){ wrap.classList.remove('show','you'); var fc=wrap.querySelector('.flashCard'); if(fc) fc.remove(); img.style.display=''; cap.classList.remove('showText'); } }, dur);
   }
-  // Center-stage STOPPER cue (art-independent, works for any suit). `who` = 'You' / 'Rival'.
-  function stopperFlash(who, cancelledLabel, n){
-    var fx=$('stopfx'); if(!fx || reduceMotion()) return;
-    var inner=fx.querySelector('.stx'), me=(who==='You');
-    inner.innerHTML='<div class="stxMain">🛑 STOPPER'+(n>1?' ×'+n:'')+'</div><div class="stxSub">'+who+' cancel'+(me?'':'s')+' the '+cancelledLabel+'</div>';
-    fx.className=''; void fx.offsetWidth;                       // restart the pop if it fires twice
-    fx.className='show '+(me?'you':'rival');
-    clearTimeout(stopperFlash._t); var g=gen;
-    stopperFlash._t=setTimeout(function(){ if(g===gen){ fx.className=''; inner.innerHTML=''; } }, 1200);
-  }
   // Center-stage QUICK cue — fires whenever either side plays a Quick in response, so instant-speed answers read.
   function quickFlash(who, name, countered){
     var fx=$('stopfx'); if(!fx || reduceMotion()) return;
@@ -4938,7 +4860,7 @@ window.CardFace = {};
     inner.innerHTML='<div class="stxMain">⏩ QUICK'+(countered?'!':'')+'</div><div class="stxSub">'+verb+' with '+name+'</div>';
     fx.className=''; void fx.offsetWidth;
     fx.className='show quick '+(me?'you':'rival');
-    clearTimeout(stopperFlash._t); clearTimeout(quickFlash._t); var g=gen;
+    clearTimeout(quickFlash._t); var g=gen;
     quickFlash._t=setTimeout(function(){ if(g===gen){ fx.className=''; inner.innerHTML=''; } }, 1400);
   }
   function revealEffect(card, who){
@@ -5141,12 +5063,12 @@ window.CardFace = {};
 
   // An effect is activatable if it's your turn, the selected card carries a proactive effect you
   // can afford, and its target/timing conditions are met. Selecting ONE such card reveals Activate.
-  // Is this card an effect card that gets an Activate button at all? (Quick boosts, STOPPERs and
+  // Is this card an effect card that gets an Activate button at all? (Quick boosts and
   // Phantasm have their own buttons and never use Activate.) This decides whether the button SHOWS.
   function activatableCard(card){
     if(!card || state.turn!==YOU || state.finished || busy || pick || targeting || targetPick) return false;
     var eff=E.effectOf(card);
-    if(!eff || !eff.impl || eff.kind==='stopper' || eff.kind==='phantasm') return false;   // quicks are proactively castable now (fizzle if no target)
+    if(!eff || !eff.impl || eff.kind==='phantasm') return false;   // quicks are proactively castable now (fizzle if no target)
     if(eff.kind==='transform' && state && state.basics) return false;                       // BASICS: J/Q/K are plain high cards — no ⚡ transform
     return true;
   }
@@ -5486,16 +5408,6 @@ window.CardFace = {};
   function toggle(id){ if(state.turn!==YOU||state.finished||busy||pick||targeting||targetPick) return;
     var card=state.players[YOU].hand.filter(function(c){return c.id===id;})[0]; if(card) showCard(card);
     if(selected[id]) delete selected[id]; else selected[id]=true; render(); }
-  // Open the STOPPER selection prompt so the player chooses WHICH STOPPERs to commit.
-  function openStopperPick(){
-    var info=stopInfo(); if(!info||!info.ok) return;
-    var cancelled=kindLabel(state.pile.combo.type);
-    pick={kind:'stopper', need:info.need, chosen:{}};
-    selected={};
-    setMessage('Select <b>'+info.need+'</b> STOPPER'+(info.need>1?'s':'')+' to cancel the <b>'+cancelled+'</b>, then Confirm.');
-    render();
-  }
-
   // The human's affordable Brilliant Tactic (Quick value-boost) not currently among the fight cards, or null.
   function boostCard(){
     var pl=state.players[YOU];
@@ -5512,7 +5424,7 @@ window.CardFace = {};
     return E.beats(eff, state.pile?state.pile.combo:null) ? combo : null;
   }
 
-  // The single context-aware action for the current selection: Activate (default), Stopper, or Phantasm.
+  // The single context-aware action for the current selection: Activate (default) or Phantasm.
   function ctxAction(){
     var sel=selectedCards();
     // a staged target waits on an explicit confirm — the button IS the confirm
@@ -5520,11 +5432,6 @@ window.CardFace = {};
       return {mode:'activate', label:'⚡ Activate', ok:true, reason:'', gold:true, run:function(){ confirmTargetPick(); }};
     if(targetPick)
       return {mode:'activate', label:'🎯 Pick a target', ok:false, reason:'Tap the rival you want to hit, then press ⚡ Activate.', run:null};
-    if(sel.length>=1 && sel.every(function(c){ var e=E.effectOf(c); return e && e.kind==='stopper'; })){
-      var si=stopInfo();
-      if(si && si.show) return {mode:'stopper', label: si.ok?('Stopper ×'+si.need):'Stopper', ok:!!si.ok, reason:si.reason||'', run:doStopper};
-      return {mode:'stopper', label:'Stopper', ok:false, reason:'Nothing to cancel — STOPPERs answer the Rival’s play.', run:null};
-    }
     if(sel.length===1){
       var eff=E.effectOf(sel[0]);
       if(eff && eff.kind==='phantasm'){
@@ -5557,7 +5464,7 @@ window.CardFace = {};
       var n=Object.keys(pick.chosen).length;
       fight.textContent='Confirm'; fight.classList.add('confirm');
       fight.disabled=(pick.kind==='phantasm' && pick.bare) ? (n>pick.need) : (n!==pick.need);   // a bare illusion needs no card
-      if(pick.kind==='phantasm'||pick.kind==='stopper'){ pass.style.display=''; pass.disabled=false; pass.textContent='Cancel'; }   // casting the illusion / committing STOPPERs is optional
+      if(pick.kind==='phantasm'){ pass.style.display=''; pass.disabled=false; pass.textContent='Cancel'; }   // casting the illusion is optional
       else pass.style.display='none';            // discards & hand-limit are mandatory — no cancel
       clear.style.display='';
       hint.className='pick';
@@ -5565,8 +5472,6 @@ window.CardFace = {};
         ? 'Over the hand limit — choose '+pick.need+' card'+(pick.need>1?'s':'')+' to discard ('+n+'/'+pick.need+' picked).'
         : pick.kind==='discard'
         ? 'Choose '+pick.need+' card'+(pick.need>1?'s':'')+' to send to your Energy Pile — keep your Specials! ('+n+'/'+pick.need+' picked).'
-        : pick.kind==='stopper'
-        ? 'Choose '+pick.need+' STOPPERs to cancel the '+kindLabel(state.pile.combo.type)+' ('+n+'/'+pick.need+' picked).'
         : pick.kind==='phantasm'
         ? (pick.bare
             ? 'Phantasmal Illusion — Confirm to copy the '+kindLabel(state.pile.combo.type)+' as it is, or add 1 card to reshape it ('+n+'/1 optional).'
@@ -5599,12 +5504,12 @@ window.CardFace = {};
     var chargeTag=(charged?' ⚡+'+charged+' charged':'')+(state.players[YOU].finishingBlow?' 🛡‍💥 Armor Piercing armed (next win strips +1)':'');
     var bc=boostCard();
     var sel=selectedCards();
-    // ONE context-aware button: Activate by default, Stopper if a STOPPER is selected, Phantasm for the Phantasmal card
+    // ONE context-aware button: Activate by default, Phantasm for the Phantasmal card
     var ctx=ctxAction();
     ctxBtn.style.display=''; ctxBtn.disabled=false; ctxBtn.textContent=ctx.label;
     ctxBtn.classList.toggle('off', !ctx.ok);   // usable = normal button, unusable = greyed (no extra highlight)
-    ctxBtn.title = ctx.ok ? (ctx.mode==='stopper' ? 'Commit STOPPERs to cancel the play'
-        : ctx.mode==='phantasm' ? 'Copy the Special on the pile' : "Activate this card's effect") : ctx.reason;
+    ctxBtn.title = ctx.ok ? (ctx.mode==='phantasm' ? 'Copy the Special on the pile'
+                            : "Activate this card's effect") : ctx.reason;
     var actCard=activatableCardSelected();               // the single selected effect card (may not be usable yet)
     var actBlock=actCard?activateBlock(actCard):null;      // reason it can't fire right now, or null
     if(actCard){
@@ -5629,7 +5534,6 @@ window.CardFace = {};
   /* ---- selection (pick) mode for DISCARD4 / DRAW2TOP1 ---- */
   function togglePick(id){
     if(!pick || id===pick.cardId) return;
-    if(pick.kind==='stopper'){ var sc=cardById(id), se=sc&&E.effectOf(sc); if(!se||se.kind!=='stopper') return; }   // only STOPPERs are selectable here
     if(pick.from && pick.from.indexOf(id)<0) return;   // dig discard: only the looked cards are eligible
     var card=state.players[YOU].hand.filter(function(c){return c.id===id;})[0]; if(card) showCard(card);
     if(pick.chosen[id]) delete pick.chosen[id];
@@ -5642,18 +5546,6 @@ window.CardFace = {};
     // Phantasmal Illusion's swap is OPTIONAL when a bare copy already beats — 0 cards is a legal confirm there.
     var optional=(pick.kind==='phantasm' && pick.bare);
     if(optional ? (ids.length>pick.need) : (ids.length!==pick.need)) return;
-    if(pick.kind==='stopper'){                                             // commit the STOPPERs you selected
-      var cancelledS=kindLabel(state.pile.combo.type), needS=pick.need;
-      var rs=E.stopper(state, YOU, ids);
-      if(!rs.ok){ setMessage(rs.reason); pick.chosen={}; render(); return; }
-      pick=null; selected={};
-      var stS=statOf(YOU); if(stS) stS.stoppers += needS;
-      setMessage('🛑 You cancelled the <b>'+cancelledS+'</b> with '+needS+' STOPPER'+(needS>1?'s':'')+' — you take the initiative.');
-      logMsg('<b>You</b> cancelled a '+cancelledS+' with '+needS+' STOPPER'+(needS>1?'s':'')+' — you lead.', 'you');
-      stopperFlash('You', cancelledS, needS);
-      render();
-      return;
-    }
     if(pick.kind==='phantasm'){                                            // Phantasmal Illusion — the swap is optional
       var warped=kindLabel(state.pile.combo.type), opts={ cardId:pick.cardId };
       if(ids.length){
@@ -5706,8 +5598,8 @@ window.CardFace = {};
     render();
   }
   function cancelPick(){
-    // Phantasmal Illusion and STOPPER commits are optional — allow backing out. Discards / hand-limit / top stay mandatory.
-    if(pick && (pick.kind==='phantasm'||pick.kind==='stopper')){ var k=pick.kind; pick=null; selected={}; setMessage(k==='stopper'?'STOPPER cancelled.':'Illusion cancelled.'); render(); }
+    // Phantasmal Illusion is optional — allow backing out. Discards / hand-limit / top stay mandatory.
+    if(pick && pick.kind==='phantasm'){ pick=null; selected={}; setMessage('Phantasmal cancelled.'); render(); return true; }
   }
   function cardById(id){ return state.players[YOU].hand.filter(function(c){return c.id===id;})[0]; }
 
@@ -5790,8 +5682,7 @@ window.CardFace = {};
       return;
     }
     var pitchNote=r.pitched?(' <span class="subtle">(pitched '+cardSym(r.pitched)+')</span>'):'';
-    if(eff.kind==='stopper'){ setMessage('<b>STOPPER!</b> You reset the fight and take the lead.'); }
-    else { setMessage('You played <b>'+eff.name+'</b>.'+pitchNote); }
+    setMessage('You played <b>'+eff.name+'</b>.'+pitchNote);
     say(YOU, '{who} played '+effPhrase(card)+(r.pitched?' — pitched '+cardSym(r.pitched):'')+'.', 'you');
     bumpEffect(YOU, eff);
     TUT.note('activate', eff);
@@ -5960,49 +5851,6 @@ window.CardFace = {};
     var fr=(rpl.shields<=2) ? E.shieldGuard(state, RIVAL, state.shieldResponse.guardId) : E.shieldGuardPass(state, RIVAL);
     if(fr.guarded){ if(gcard) flashArt(gcard, 'Rival'); quickFlash('Rival', fr.guardName, false); setMessage('🛡 <b>Rival sprang '+fr.guardName+' — its shield holds!</b>'); logMsg('<b>Rival</b> sprang '+fr.guardName+' in response — its shield holds.', 'rival'); }
     else { logMsg('<b>Rival</b> took the hit.', 'dim'); }
-  }
-  // STOPPER (fight action): commit N affordable STOPPERs to cancel a single/pair/trio + seize the lead.
-  function pickStoppersUI(need){
-    var you=state.players[YOU];
-    var stoppers=you.hand.filter(function(c){ var ef=E.effectOf(c); return ef && ef.kind==='stopper'; });
-    if(stoppers.length<need) return null;
-    var probe={ energy:you.energy.slice(), shuffle:[] }, chosen=[];   // each STOPPER pays its full cost
-    for(var i=0;i<stoppers.length && chosen.length<need;i++){
-      if(E.canAfford(probe, stoppers[i])){ E.payEnergy(probe, stoppers[i]); chosen.push(stoppers[i].id); }
-    }
-    return chosen.length===need ? chosen : null;
-  }
-  // While you are FOLLOWING a play it is always shown; `ok` says whether you can commit it,
-  // and `reason` explains why not (so the button greys out with an explanation instead of vanishing).
-  function stopInfo(){
-    if(state.turn!==YOU || !state.pile || state.finished || busy) return null;   // not following — no button at all
-    var you=state.players[YOU];
-    var held=you.hand.filter(function(c){ var ef=E.effectOf(c); return ef && ef.kind==='stopper'; }).length;
-    var need=E.stopperNeed(state);
-    if(need===0) return { show:true, ok:false, need:0, reason:'5-card combos can’t be stopped.' };
-    if(held===0) return { show:true, ok:false, need:need, reason:'You have no STOPPER in hand.' };
-    if(held<need) return { show:true, ok:false, need:need, reason:'Need '+need+' STOPPERs to cancel a '+kindLabel(state.pile.combo.type)+' — you hold '+held+'.' };
-    if(you.hand.length - need < 1) return { show:true, ok:false, need:need, reason:'Keep at least one card to lead — can’t commit your last cards.' };
-    var ids=pickStoppersUI(need);
-    if(!ids) return { show:true, ok:false, need:need, reason:'Not enough energy of the right suit to commit '+need+' STOPPER'+(need>1?'s':'')+'.' };
-    return { show:true, ok:true, need:need, ids:ids };
-  }
-  function doStopper(e){
-    if(busy||pick||targeting||targetPick) return;
-    var info=stopInfo(); if(!info) return;
-    if(!info.ok){ showTip($('ctxBtn'), info.reason); if(e&&e.stopPropagation) e.stopPropagation(); return; }
-    var cancelled = kindLabel(state.pile.combo.type);
-    var selSt=selectedCards().filter(function(c){ var ef=E.effectOf(c); return ef&&ef.kind==='stopper'; });
-    var ids = (selSt.length===info.need) ? selSt.map(function(c){return c.id;}) : null;   // you already picked exactly the right STOPPERs
-    if(info.need>=2 && !ids){ openStopperPick(); return; }   // otherwise let the player choose WHICH STOPPERs to commit
-    var r=E.stopper(state, YOU, ids||info.ids);
-    if(!r.ok){ setMessage(r.reason); return; }
-    selected={};
-    var stI=statOf(YOU); if(stI) stI.stoppers += info.need;   // record STOPPER commits (they don't go through activate)
-    setMessage('🛑 You cancelled the <b>'+cancelled+'</b> with '+info.need+' STOPPER'+(info.need>1?'s':'')+' — you take the initiative.');
-    logMsg('<b>You</b> cancelled a '+cancelled+' with '+info.need+' STOPPER'+(info.need>1?'s':'')+' — you lead.', 'you');
-    stopperFlash('You', cancelled, info.need);
-    render();   // it's now your turn to lead
   }
   // COUNTERFEIT: choose a card from the Rival's current play to copy into your hand.
   function promptCounterfeit(cardId){
@@ -6311,7 +6159,6 @@ window.CardFace = {};
         beats.push({ dwell:1500, run:function(){ say(seat, '{who} played '+playPhrase(e.combo)+(e.boost?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'rival'); bumpFight(RIVAL, e.combo.type); setMessage('<b>'+who+'</b> played '+kindPhrase(e.combo.type)+'.'); render(); } }); }
         else if(e.phantasm){ beats.push({ dwell:1300, run:function(){ say(seat, '{who} conjured a Phantasmal Illusion — a '+kindLabel(e.made)+' overtakes the pile.', 'rival'); setMessage('🎭 <b>Rival warped your play with a Phantasmal Illusion!</b>'); render(); } }); }
         else if(e.fight==='pass'){ beats.push({ dwell:950, run:function(){ say(seat, '{who} passed.', 'rival'); setMessage('<b>'+who+'</b> passed.'); render(); } }); }
-        else if(e.stopper){ beats.push({ dwell:1150, run:function(){ say(seat, '{who} cancelled a '+kindLabel(e.cancelled)+' with '+e.stopper+' STOPPER'+(e.stopper>1?'s':'')+' — '+who+' leads.', 'rival'); if(stats) stats[pkey(RIVAL)].stoppers += e.stopper; setMessage('🛑 <b>Rival cancelled your '+kindLabel(e.cancelled)+'!</b>'); stopperFlash('Rival', kindLabel(e.cancelled), e.stopper); render(); } }); }
         else if(e.discard){ beats.push({ dwell:600, run:function(){ say(seat, '{who} discarded '+e.discard+' to hand size.', 'rival'); } }); }
         else if(e.forcedDiscard){ beats.push({ dwell:750, run:function(){ say(seat, '{who} discarded '+e.forcedDiscard+' card'+(e.forcedDiscard>1?'s':'')+'.', 'rival'); } }); }
         else if(e.lockedSkip){ beats.push({ dwell:650, run:function(){ say(seat, '{who} is locked out — turn skipped.', 'warn'); setMessage('<b>'+who+'</b> is locked out — turn skipped.'); render(); } }); }
@@ -6342,7 +6189,7 @@ window.CardFace = {};
         return finishStep(pres, g, log.filter(function(e){return e.play;}));   // finishStep renders (with the ceremony's held draw/shield)
       }
       // Turn the Rival's actions into paced "beats". Effect activations reveal the card in the side
-      // panel and dwell so you can read them; the fight/pass/stopper beats render the board.
+      // panel and dwell so you can read them; the fight/pass beats render the board.
       var beats=buildOppBeats(log, RIVAL);
       playBeats(beats, g, function(){
         if(g!==gen) return;
@@ -6585,7 +6432,7 @@ window.CardFace = {};
       var beats=buildOppBeats(log, p);
       playBeats(beats, g, function(){
         if(g!==gen) return;
-        var passed=log.filter(function(e){ return e.fight==='pass' || e.stopper; })[0];
+        var passed=log.filter(function(e){ return e.fight==='pass'; })[0];
         var res=passed && passed.result;
         if(res && res.roundWinner!=null){                                                             // a round resolved on this seat's pass
           if(res.needsLossTarget){                                                                    // YOU won with a Special → pick whose shield to strip
@@ -6675,7 +6522,13 @@ window.CardFace = {};
   function endGame(){
     busy=false; $('rivalStatus').textContent=''; pick=null; TUT.stop();
     if(typeof NET!=='undefined' && NET.clearDiscon) NET.clearDiscon();   // netplay: game's over — clear any disconnect banner/timer
-    recordGame();
+    /* A netplay CLIENT does not write its own record: it never ran the drivers that count opponents' plays, so
+     * it would store a game with every opponent at zero. It adopts the host's complete record instead. */
+    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ /* the host will push it */ }
+    else {
+      var recOut=recordGame();
+      if(recOut && typeof NET!=='undefined' && NET.sendRecord) NET.sendRecord(recOut);
+    }
     var youWin=state.winner===YOU;
     var winnerName=MP()?seatName(state.winner):'Rival';
     var showWin=function(){
@@ -8144,6 +7997,12 @@ window.CardFace = {};
           logMsg('Online duel — you play <b>'+deckLabel(youDeck)+'</b>. Round 1, jabs only.', 'round'); }   // adopt this seat's concrete deck (for the board labels)
         else if(m.t==='mirror' && m.seat===mySeat){ connected=true; applyMirror(m.st); }
         else if(m.t==='ceremony' && m.seat===mySeat){ clientPlayCeremony(m.res); }
+        else if(m.t==='record'){                              // adopt the host's complete playtest record
+          /* `yourSeat` stays the HOST's — the record is stored verbatim so every seat keeps the identical
+           * canonical game. Stamp who adopted it, or later analysis reads a client's copy as the host's own. */
+          if(m.rec) m.rec.adoptedBySeat = mySeat;
+          adoptRecord(m.rec);
+        }
         else if(m.t==='reveal' && m.seat===mySeat){           // Outbalance: the host resolved it, so the host pushes the cards
           var rn=(state&&state.numPlayers)||2;                // `of` is ABSOLUTE — rotate it into our frame, like the log handler
           showRevealModal(((((m.of-mySeat)%rn)+rn)%rn), m.cards||[]);
@@ -8377,6 +8236,11 @@ window.CardFace = {};
       if(res.eliminated) o.eliminated=res.eliminated.map(rot);
       return o;
     }
+    /* At game end the host ships its FINISHED record to everyone. A client cannot build one: it never runs the
+     * drivers that count opponents' plays, so its own would read all-zeroes for every opponent. Broadcast is
+     * right here — the payload is public (what was played, never anyone's hand) and every seat wants the same
+     * canonical game. Aj's call, 2026-08-25, over host-only and per-page-perspective. */
+    function sendRecord(rec){ if(isHost() && started && rec) send({t:'record', rec:rec}); }
     function sendCeremony(res){ if(isHost() && started && hostState){ for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'ceremony', seat:s, res:ceremonyResFor(res, s)}); } }   // per-seat, rotated (from hostFinishRound / finishPassRound / netDriveN)
     function hostFinishRound(r, g){
       announceRoundWin(r);
@@ -8745,7 +8609,7 @@ window.CardFace = {};
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
+    return { boot:boot, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:99999;background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     '#netroot .netbar{background:#161c26;border:1px solid #263140;border-radius:8px;padding:8px 12px;margin-bottom:10px}'+
@@ -8759,7 +8623,7 @@ window.CardFace = {};
     '#netroot .deckSel:disabled{opacity:.55}#netroot .lobbyStatus{margin:12px 0;padding:10px 12px;background:#141a24;border:1px solid #263140;border-radius:8px;color:#cdd8e6}';
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
   if(!NET.boot()) openSetup();   // netplay when ?net= is present; otherwise the normal game (byte-identical)
   if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, setPulse:function(b){pulseDetail=b;}, activate:function(id,o){ return activate(id,o); },
       seatName:seatName, logName:logName, persona:function(i){ var q=personaOf(i); return q?q.name:null; },   // tests assert the RIGHT seat is named, with personas live

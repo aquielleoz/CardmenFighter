@@ -162,8 +162,11 @@ function cards(ids) { return ids.map(card); }
   ok(E.detectCombo([sc(11, 'D'), sc(12, 'D'), sc(13, 'D'), sc(1, 'D'), sc(2, 'D')]).type === 'straight', 'REWORK: J-Q-K-A-2 same suit = straight (no straight-flush tier)');
   ok(E.detectCombo([sc(10, 'C'), sc(11, 'D'), sc(12, 'H'), sc(13, 'S'), sc(1, 'C')]).value === 14, 'REWORK: 10-J-Q-K-A straight tops at Ace (14)');
   ok(E.detectCombo([sc(1, 'D'), sc(2, 'D'), sc(3, 'D'), sc(4, 'D'), sc(5, 'D')]) === null, 'REWORK: old A-2-3-4-5 low straight no longer a combo');
-  ok(E.effectOf(sc(2, 'D')) === null, 'REWORK: apex 2 has no activated effect (STOPPER retired)');
-  ok(E.stopperNeed({ pile: { combo: { size: 1 } } }) === 0, 'REWORK: stopperNeed always 0');
+  // The apex 2 is a vanilla trump. The STOPPER mechanic it used to carry was retired by the rework and its
+  // implementation was DELETED in v1.31.12 — it had sat unreachable in three layers, and a playtest even
+  // reported "0 STOPPER uses in 14 games" as an engagement problem.
+  ok(E.effectOf(sc(2, 'D')) === null, 'REWORK: apex 2 has no activated effect');
+  ok(!E.stopper && !E.stopperNeed, 'REWORK: the STOPPER implementation is gone, not just unreachable');
   var ace = E.effectOf(sc(1, 'D'));
   ok(ace && ace.name === 'Gather Energy' && ace.cost === 1, 'REWORK: Ace keeps its effect at cost 1');
   // J/Q/K are transform cards: activating one (10 energy) sends it to the Forms & Rides Zone
