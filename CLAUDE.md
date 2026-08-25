@@ -339,6 +339,10 @@ only a derived summary on the caster (`pl._read[seat] = {round, best, pairs, siz
 cards never appear in `JSON.stringify(st)`. It is a pickup rather than a return value because an Outbalance can
 sit in a response window, and by the time it resolves `settleWindows()` hands its caller no result.
 
+**The engine's defaults are the SHIPPED rules** (`SPECIAL_LOSS_MODE='chosen'`, `MILL_SCOPE='targeted'`) as of
+v1.31.8a. They used to default to the reverted v1.31.0 values, so a probe that forgot to configure them
+silently measured a game nobody plays.
+
 **Under Hermes the target model is MOOT.** `eff.all` locks every rival for the round, so any special wins it
 outright (a pair of 3s strips a shield). `lockoutReason` takes an `all` flag and returns `super-sweep` before
 any single-target check — the target-specific holds were firing on ~9% of Hermes turns, refusing rounds that

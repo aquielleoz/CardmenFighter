@@ -579,8 +579,8 @@ function cards(ids) { return ids.map(card); }
   E.play(g, 0, [g.players[0].hand[0], g.players[0].hand[1]]); E.pass(g, 2);   // p1 is out; only p2 left to pass
   ok(g.finished && g.winner === 0 && g.players[0].kicksLanded === 2, 'MP: last Rider standing — p0 wins, 2 kicks landed');
 
-  // reset toggles for any later suites
-  E.setSpecialLossMode('all'); E.setMillScope('universal'); E.setShieldTargetChooser(null);
+  // reset toggles for any later suites — back to the SHIPPED defaults, not the reverted v1.31.0 ones
+  E.setSpecialLossMode('chosen'); E.setMillScope('targeted'); E.setShieldTargetChooser(null);
 })();
 
 // ===== N-PLAYER TARGETING + RESPONSE PRIORITY (Phase 2) =====

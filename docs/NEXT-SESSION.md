@@ -291,6 +291,17 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.8a — the engine's own defaults disagreed with the shipped game
+
+`SPECIAL_LOSS_MODE` defaulted to **`'all'`** and `MILL_SCOPE` to **`'universal'`** — the v1.31.0 multiplayer
+package that was **REVERTED in v1.31.2**. The template has set `'chosen'` / `'targeted'` explicitly ever
+since, so every real consumer was fine, but **any probe, sim or test that did not set them measured a
+different game than anyone plays.** That is exactly how a v1.31.8 probe "showed" a Hermes Back Stab stripping
+three shields when the shipped game strips one.
+
+Defaults now match the shipped game. Every sim already set them explicitly, so no measurement changes;
+`test.js`'s reset-after-block line was restoring the reverted values and now restores the shipped ones.
+
 ### v1.31.8 — Back Stab: the AI was buying a round it couldn't spend
 
 Aj asked how Back Stab was doing after the v1.31.4 redesign. Cast rate was healthy (17.3 / 18.3 / 25.8 per
