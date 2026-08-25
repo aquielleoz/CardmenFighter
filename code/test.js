@@ -738,5 +738,44 @@ function cards(ids) { return ids.map(card); }
 })();
 
 
+// ===== COUNTERFEIT — the AI's evaluation (v1.31.7) =====
+// The copy takes the pile card's BASE value and then the board applies, which is what lets it exceed instead
+// of tie (Aj: Caltrops on their pair of 10s makes the pile an 8, so your copied 10 + your own 10 beats it).
+(function () {
+  function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function table(pileCards, hand, equip) {
+    var g = E.newGame(null, { numPlayers: 2 });
+    g.round = 3; g.turn = 0; g.passes = 0;
+    g.players[0].hand = hand;
+    g.players[0].energy = []; for (var i = 0; i < 14; i++) g.players[0].energy.push(mk(4, 'S', 'e' + i));
+    g.players[0].equipment = equip || [];
+    var combo = E.detectCombo(pileCards);
+    g.pile = { combo: combo, byPlayer: 1, raw: combo.value, rawKey0: combo.key[0], lockedDelta: 0, mod: 0 };
+    g.lastPlayer = 1; E.refreshPile(g);
+    return g;
+  }
+  var CALTROPS = [{ id: 'clt', name: 'Caltrops', delta: 0, oppDelta: -2, counters: 3, decay: true }];
+  var cf = mk(8, 'S');                                     // Counterfeit is ♠8
+
+  // Aj's line: their pair of 10s reads as 8 under Caltrops, so copying a 10 to pair with ours wins.
+  var g1 = table([mk(10, 'D', 'a'), mk(10, 'C', 'b')], [cf, mk(10, 'H', 'm')], CALTROPS);
+  ok(g1.pile.combo.value === 8, 'Caltrops debuffs the LIVE pile (pair of 10s reads as ' + g1.pile.combo.value + ')');
+  ok(AI.counterfeitHelps(g1, 0, g1.pile.combo.cards, cf) === true,
+     'Counterfeit AI: with the pile debuffed, copying their 10 to pair with ours is seen as a win');
+
+  // …and without the debuff the same board is just a tie, so it declines.
+  var g2 = table([mk(10, 'D', 'a'), mk(10, 'C', 'b')], [cf, mk(10, 'H', 'm')], null);
+  ok(AI.counterfeitHelps(g2, 0, g2.pile.combo.cards, cf) === false,
+     'Counterfeit AI: with no edge the copy only ties, so it declines');
+
+  /* The card is SPENT by the cast, so a play that leans on the ♠8 itself is not available afterwards.
+   * Evaluating with it still in hand let the AI approve exactly that. Here the only "winning" pair would be
+   * the copied 8 married to the Counterfeit's own ♠8. */
+  var g3 = table([mk(8, 'D', 'a'), mk(8, 'C', 'b')], [cf, mk(3, 'H')], CALTROPS);
+  ok(AI.counterfeitHelps(g3, 0, g3.pile.combo.cards, cf) === false,
+     'Counterfeit AI: it does NOT count a play built on the ♠8 the cast spends');
+})();
+
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);
