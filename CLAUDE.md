@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.8**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.11**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -173,20 +173,28 @@ rather than hardcoding a path, which is what these files used to do and why they
 browser pages; two suites at once flake on CPU contention (`nettest_rtc` in particular fails at `maxRound=0`
 concurrently and passes 11/0 alone). A serial sweep of all 21 takes a few minutes.
 
-**Two suites are position-dependent late in a long sweep — `nettest_full` and `nettest_log`.** Run individually
-both pass (5/0 in ~3s, 13/0 in ~5s); run as the 13th-and-later entries of a full 24-suite serial sweep,
-`nettest_full` times out at >240s and `nettest_log` fails ~4 timing assertions. **This is environmental
-accumulation, not a code regression** — established by A/B'ing the actual builds, four runs each:
+**FIXED in v1.31.9 — `nettest_full` and `nettest_log` were position-dependent, and it was the TESTS.** For
+months this was recorded as unexplained environmental accumulation: both passed alone but failed as the
+13th-and-later entries of a long serial sweep, and three environment hypotheses had been tested and disproved
+(CPU contention, orphaned ports, stale `chromium_headless_shell` processes — don't re-run those).
 
-| build | result |
-| --- | --- |
-| before the v1.29.1 log migration | 4/4 pass, 3.0-3.7s |
-| after it | 4/4 pass, 3.0-3.7s |
+The cause was **impatient waiting in the suites themselves**, and the documented failure signature was the
+clue: `nettest_full` reported `maxRound=2 acted=80` — it acted on *every* step and none of it landed.
+`waitTurnEnds()` returned **void** after 40×80ms = 3.2s, so the caller could not tell "the turn ended" from "I
+gave up", and then acted into a board still mid-mirror-round-trip. `nettest_log` had one 9s wait for the turn
+to reach the client; blowing through it failed the turn assertion, then the client found no legal jab, then
+both log assertions went with it — **four failures from one impatient loop.**
 
-Three hypotheses were tested and **all three were wrong**, so don't re-run them: CPU contention from other work
-(it reproduces with nothing else running), orphaned ports from `kill -9`'d runs (it reproduces on a clean sweep),
-and stale `chromium_headless_shell` processes (reaping them between suites changes nothing). The actual cause is
-still unisolated. Until it is, **confirm any sweep failure by running that suite alone** before believing it.
+Fixes: `waitTurnEnds` returns a boolean and the driver re-waits instead of acting; the loop is bounded by
+**wall clock and productive actions** rather than a raw iteration count (a transition used to burn budget);
+budgets are generous; and a missing log line now fails an assertion instead of throwing on `undefined`.
+Verified 20/20 with `nettest_log` at position 19 and `nettest_full` at position 20 of a serial sweep, and
+`acted` dropped 80 → 10.
+
+**The principle: a slow machine should make a suite SLOWER, never red.** Any fixed `wait(n)` followed by an
+assertion is this bug waiting to happen — poll for the condition instead. One clean late-position sweep is
+evidence, not proof, since the original failure was intermittent; if it recurs, look for another fixed wait
+before blaming the environment.
 
 Unrelated but real: **three suites share port 8303** (`nettest_concede3`, `nettest_elim3`, `nettest_energy`).
 They pass serially because each closes its server, but never run those three concurrently. Also note
@@ -321,6 +329,12 @@ a *narrow trigger* (its swap was mandatory, and one swap cannot raise a matched 
 full house on the pile). v1.31.6 restored the card with the swap OPTIONAL and board modifiers applying, and it
 now casts 1.8/6.3/8.3 per 100 games at 2/4/6 players. Before deleting a card for being uncast, find out what it
 is waiting for.
+
+**Effect KINDS can be orphaned and stay orphaned — this has now happened TWICE.** Besides `phantasm` below,
+**`stopper` is orphaned too**: no card has `kind:'stopper'` (the rework retired it — the apex 2 wins by value
+and has no activated effect), yet `E.stopper()`/`stopperNeed()`, `pickStoppers()` in ai.js and a whole UI flow
+(~65 template references) are still there. A playtest even reported "0 STOPPER uses in 14 games" as an
+engagement problem. Run the grep before believing any "this card/mechanic is unused" claim.
 
 **Effect KINDS can be orphaned and stay orphaned.** That rework left `E.phantasm()`, `tryPhantasm()` in ai.js,
 a whole UI picker flow, and the `phantasmPlus` boost hook all keyed to `kind:'phantasm'` — which no card had,
