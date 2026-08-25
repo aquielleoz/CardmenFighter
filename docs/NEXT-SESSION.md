@@ -82,6 +82,24 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **Make joining less of a hassle — ideally "find games on my network"** (Aj, 2026-08-25: *"the code thingies
+  are amazing and wow you can really play with anyone anywhere… but it's also a bit of the hassle"*).
+  - **The hard limit first, so nobody spends a day on it:** a browser page **cannot discover peers on a LAN.**
+    There is no mDNS, no UDP broadcast, and no socket API; WebRTC's local candidates are mDNS-obfuscated on
+    purpose. Automatic "games near you" is **not achievable** while the game stays a serverless single file —
+    that is a real constraint of the platform, not a missing feature.
+  - **What DOES cut the hassle, in rough order of value per effort:**
+    1. **QR codes.** The host renders its invite as a QR; the joiner scans it with the camera and the reply code
+       goes back the same way. Still pure peer-to-peer, still no server, and on two phones in the same room it
+       turns copy-paste-and-message into point-and-scan. A tiny QR encoder inlines in a few KB; *reading* one
+       needs `BarcodeDetector` (Android Chrome has it) with a paste box as the fallback.
+    2. **Share-sheet handoff.** `navigator.share()` on the invite code — one tap into any messaging app the two
+       players already use, instead of select-copy-switch-paste. Two lines of code.
+    3. **Shorter codes.** The blob is a whole SDP. Trimming to the fields that matter and compressing would make
+       it hand-typeable, which is the actual pain when the two devices cannot talk to each other at all.
+  - **The one thing that would give true discovery** is a rendezvous service — even a 20-line local one — and
+    that breaks "no server, no install, runs offline", which is the project's whole shape. If it is ever wanted,
+    make it strictly **opt-in** and keep the code path as the default.
 - **A real one-tap rematch over netplay** (Aj, 2026-08-25 — the `🔄 Rematch?` emote is the expression; this is
   the action). Today the win overlay's "New Game" just calls `openSetup()`, so an online pair must redo the
   whole invite-code exchange to play again. Wants: the host restarting the engine and re-broadcasting `t:'setup'`
