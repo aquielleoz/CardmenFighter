@@ -109,6 +109,27 @@ handled **before every turn gate** (reacting off-turn is the point); a client ca
 the emote bar is built INSIDE the NET IIFE, so a helper sharing a name with a NET function is silently shadowed
 — NET's broadcaster is `emoteBroadcast` for exactly that reason.
 
+**A CAMERA FEATURE IS TESTABLE — use the fake camera, do not hand-check it.** Chromium accepts
+`--use-file-for-fake-video-capture=<file.y4m>` (with `--use-fake-device-for-media-stream` and
+`--use-fake-ui-for-media-stream`, plus Playwright `permissions:['camera']`), so `scantest.js` feeds in a frame
+containing a QR built by our own encoder. Y4M is trivial to write from Node: a header line, then per frame
+`FRAME\n` + a full-size Y plane + half-size U and V planes (128 = grey). Two things to know:
+- **The page must be a SECURE CONTEXT** or `navigator.mediaDevices` is `undefined`. `file://` qualifies; a
+  `data:` URL does **not**, which looks exactly like a missing API.
+- **The flag is read at LAUNCH**, so a test needing real data in the frame must run in two phases: capture the
+  data with one browser, write the Y4M, then relaunch pointed at it. `scantest` captures a real invite offer
+  from a real host page, then drives the joiner through scanning it — and a **blank** feed is what makes the
+  Cancel/nothing-to-scan cases deterministic, since the real feed decodes on the first frame.
+
+**Feature-detect `getSupportedFormats()`, never the `BarcodeDetector` constructor** — it can exist without
+`qr_code`, and that distinction is what cleared the decoder when phase 1's encoder was at fault. The probe is
+async, so it caches into `scanReady` and calls `renderNet()` when it resolves; a test must POLL for the Scan
+button rather than assume it is there on the first render.
+
+**Never leave a camera running.** `scanStop()` is called on success, Cancel, `pagehide`, Leave, and **any
+re-render** — a re-render throws away the `<video>` the track is attached to, so the aggressive stop costs one
+tap where the alternative leaves the camera light on with nothing on screen to explain it.
+
 **The UI version stamp is DERIVED from `README.md`, never declared twice.** `build.js` reads the `**Status:**`
 line, substitutes `__VERSION__`, and hard-fails if it cannot find one; `GAME_VERSION`/`verTag()` render it in
 the setup dialog footer and the netplay lobby bar. **Do not add a second version constant** — a stamp that can
@@ -284,7 +305,7 @@ stray processes before suspecting the code. And never wait on work with `while p
 Status as of v1.31.6 — green. Counts verified 2026-08-25: `test` 231, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
-`landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 13, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
+`landscapetest` 96, `versiontest` 10, `scantest` 21, `qrtest` 19, `qrref` 26, `nettest_log` 13, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
 `nettest_prefight` 13, `nettest_full` 5. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 

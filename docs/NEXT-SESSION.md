@@ -1,18 +1,19 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** + **qr.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node scantest.js` (21 — QR camera scanning, driven through a FAKE CAMERA) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.18**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.19**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
-`main` is at **v1.31.18** (QR invite codes + the build stamp), working tree clean, and
+`main` is at **v1.31.19** (QR invite codes, both phases, + the build stamp), working tree clean, and
 `node build.js` reproduces the committed HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 
-**One thing filed rather than built:** **phase 2 of QR, camera scanning** — de-risked now, because a real phone
-reads the shipped symbol. Its open cost is that `BarcodeDetector` is Chromium-only, so Firefox and Safari would
-need an inlined JS decoder.
+**The joining flow is now as short as it gets without a server:** the host shows a QR, the joiner scans it, the
+joiner shows a QR back, the host scans that. Copy-paste is still there as the fallback and on non-Chromium
+browsers. What is left is **shortening the payload** — see the BACKLOG — which is a robustness win rather than a
+blocker.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
 
@@ -44,6 +45,8 @@ in the game.**
   it. Aj confirmed a real phone scans the result.
 - **v1.31.18** — **the build stamps itself**, because a false bug report showed that a downloaded copy could
   not be told apart from a stale one.
+- **v1.31.19** — **QR phase 2: camera scanning**, tested end-to-end through Chromium's **fake camera** so it is
+  not a hand-checked feature.
 
 ### The QR feature shipped — and the lesson from it is about VERIFICATION, not QR
 **v1.31.17** renders the invite code as a QR on the host and joiner screens (show only, as scoped). The part
@@ -103,21 +106,14 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     purpose. Automatic "games near you" is **not achievable** while the game stays a serverless single file —
     that is a real constraint of the platform, not a missing feature.
   - **What DOES cut the hassle, in rough order of value per effort:**
-    1. **QR invite codes — phase 1 SHIPPED in v1.31.17 (show only).** What is left is **phase 2: SCANNING.**
-       - Reading needs a camera (`getUserMedia`) plus a decoder. `BarcodeDetector` is **Chromium-only**, so
-         Firefox and Safari need an inlined JS decoder behind it — that is the real cost of phase 2, not the
-         camera plumbing.
-       - **CONFIRMED SCANNABLE on a real phone** (Aj, 2026-08-25: *"wee my phone could read it"*). That was the
-         open question phase 1 ended on, and no test could answer it — a decoder is handed a perfect bitmap and
-         will read a symbol far too small for any camera. A v23 / 109-module symbol at the shipped geometry
-         works with a real camera, so the geometry is no longer a risk to phase 2.
-       - **Still unverified: the LANDSCAPE phone case**, which is the weakest geometry at **2.0 CSS px per
-         module** (height-capped on purpose, so the whole symbol stays on screen without scrolling). Desktop is
-         3.0 and a portrait phone 2.67. `qrtest.js` asserts those floors, so a payload growing past ~v29 shows
-         up as a failure rather than as an unscannable code in someone's hand.
-       - **Shortening the payload (item 3 below) is no longer a blocker — it is a robustness win.** It shrinks
-         the version and improves every number at once, which is what would buy the landscape case and
-         scanning at arm's length rather than up close.
+    1. **QR invite codes — DONE, both phases** (v1.31.17 show, v1.31.19 scan). Scanning is Chromium-only by
+       necessity; an **inlined JS decoder for Firefox and Safari** is the only remaining piece, and it is a much
+       larger job than the encoder was (binarisation, finder detection under perspective, grid sampling, then RS
+       decode). Not worth it until someone actually wants to join from one of those browsers — the paste box
+       still works everywhere, and the UI says so rather than hiding the button silently.
+       - **Still unverified by a camera: the LANDSCAPE phone case**, the weakest geometry at **2.0 CSS px per
+         module** (height-capped on purpose so the whole symbol stays on screen). Desktop is 3.0, portrait phone
+         2.67, and `qrtest.js` asserts those floors.
     2. **Share-sheet handoff.** `navigator.share()` on the invite code — one tap into any messaging app the two
        players already use, instead of select-copy-switch-paste. Two lines of code.
     3. **Shorter codes.** The blob is a whole SDP. Trimming to the fields that matter and compressing would make
@@ -284,6 +280,43 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.19 — QR phase 2: point your camera at the other screen
+
+Phase 1 put the invite code on screen. This reads one *off* another screen, which is the half that removes the
+copy-paste entirely: **the host shows a QR, the joiner scans it, the joiner shows one back, the host scans that.**
+A scan fills the box and **advances without a second tap** — removing taps is the whole point — but the code
+still lands in the box first, so scanning the wrong thing is visible rather than mysterious.
+
+**It is strictly additive.** Scanning needs `BarcodeDetector`, which is Chromium-only; where it is missing the
+paste box is unchanged and the screen says so ("Chrome and Edge can scan the code with a camera instead")
+rather than hiding a button for no visible reason. The headings adapt too — "Scan or paste" becomes "Paste".
+
+**What is feature-detected matters, and it is the lesson from phase 1.** Not `window.BarcodeDetector` but
+`getSupportedFormats()` containing `qr_code`: the constructor can exist without QR support, and that exact
+distinction is what proved the decoder innocent when phase 1's *encoder* was the thing at fault.
+
+**The camera is never left running.** It is stopped on a successful scan, on Cancel, on `pagehide`, on Leave,
+and on **any re-render** — that last one deliberately aggressive, because a re-render mid-scan costs one tap
+while an orphaned track leaves the camera light on with nothing on screen to explain it.
+
+**The reason this is a real feature and not a hand-checked one: `scantest.js` drives it through a FAKE CAMERA.**
+Chromium can be pointed at a Y4M file instead of a device (`--use-file-for-fake-video-capture`), so a frame
+containing a QR built by our own reference-verified encoder is fed in as if held up to the lens. The flag is
+read at launch, which forces a two-phase run: capture a **real** invite offer from a real host page, close the
+browser, write that offer into a Y4M, then relaunch and drive the joiner through scanning it. A synthetic
+string would have proved the plumbing; a real offer proves the path, because the joiner accepts it and produces
+a genuine answer (the host being gone by then is fine — `createAnswer` needs no peer).
+
+**21/0**, including the parts that are easy to fake and worth not faking: the scanned code is **byte-identical**
+to the host's invite, the scan auto-advances into a real reply, the camera stops afterwards, and — on a
+deliberately **blank** feed, because the real feed decodes on the first frame and would make it a race —
+pointing at nothing keeps looking without inventing anything, and Cancel stops the camera and closes the
+viewfinder. A first draft of that last case fell through to a vacuous `ok(true)`; a passing assertion that
+enforces nothing is worse than no assertion.
+
+**Measured while building it:** the real 1,036-char invite (v23, 109 modules) decodes off a **640×480** frame at
+**3 camera px per module, on the first frame**. That is why phase 2 did not have to wait for a shorter payload.
 
 ### v1.31.18 — the build stamps itself
 

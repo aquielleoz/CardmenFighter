@@ -5083,8 +5083,10 @@ __QR__
       var leave=document.createElement('button'); leave.id='netLeave'; leave.textContent='← Leave online';
       leave.title='Exit online play and go back to the game';
       leave.style.cssText='position:fixed;top:10px;right:10px;z-index:99999;font:inherit;font-size:13px;font-weight:700;padding:8px 12px;border-radius:9px;border:1px solid #3a2a08;background:#e8c37a;color:#3a2a08;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.5)';
-      leave.onclick=function(){ try{ if(transport) transport.close(); }catch(e){}
+      leave.onclick=function(){ scanStop(); try{ if(transport) transport.close(); }catch(e){}
         if(/[?&]net=/.test(location.search)) location.search=''; else location.reload(); };
+      window.addEventListener('pagehide', scanStop);       // never leave a camera running behind a closed page
+      scanProbe();
       document.body.appendChild(leave);
       if(kind==='bc'){
         var ch; try{ ch=new BroadcastChannel('cardmen:'+room); }catch(e){ root.innerHTML='<div class="netbar">This browser does not support BroadcastChannel netplay.</div>'; return true; }
@@ -5873,13 +5875,15 @@ __QR__
           qrBlockHTML('qrInvite', 'Point their phone\u2019s camera at this \u2014 or send them the code below.')+
           '<textarea id="sigOut" class="sigbox" readonly>'+sig.offer+'</textarea>'+
           '<button id="sigCopy" class="netbtn alt">⧉ Copy invite code</button>'+
-          '<h3>Step 2 — paste their reply code here</h3>'+
+          '<h3>Step 2 — '+scanVerb()+' their reply</h3>'+
+          scanBlockHTML()+
           '<textarea id="sigIn" class="sigbox" placeholder="Paste the reply code your friend sends back…"></textarea>'+
           '<button id="sigGo" class="netbtn go">Connect ▶</button>'+
           '<p class="nethint">Send the code over any chat (Discord, email, SMS). You connect directly — nothing goes through a server.</p>';
       }
       else if(!isHost() && sig.step==='join-need'){
-        body='<h3>Step 1 — paste the invite code from your host</h3>'+
+        body='<h3>Step 1 — '+scanVerb()+' your host\u2019s invite</h3>'+
+          scanBlockHTML()+
           '<textarea id="sigIn" class="sigbox" placeholder="Paste the invite code Player 1 sent you…"></textarea>'+
           '<button id="sigGo" class="netbtn go">Generate my reply ▶</button>';
       }
@@ -5892,8 +5896,8 @@ __QR__
       }
       // the name row goes FIRST on this screen — it is the client's first sight of the game
       root.innerHTML=head+nameRowHTML(false)+body+'</div>';
-      wireNameRow();
-      qrInto('qrInvite', sig.offer); qrInto('qrReply', sig.answer);   // SHOW only — phase 1
+      wireNameRow(); scanWire();
+      qrInto('qrInvite', sig.offer); qrInto('qrReply', sig.answer);
       var copy=$('sigCopy'); if(copy) copy.addEventListener('click', function(){ var t=$('sigOut'); if(t){ t.select(); try{ navigator.clipboard.writeText(t.value); }catch(e){} try{ document.execCommand('copy'); }catch(e){} copy.textContent='✓ Copied'; } });
       var go=$('sigGo'); if(go) go.addEventListener('click', function(){ var v=($('sigIn')||{}).value||''; if(isHost()) hostAcceptAnswer(v); else joinAcceptOffer(v); });
     }
@@ -5921,6 +5925,83 @@ __QR__
         return info;
       }
       catch(e){ cv.style.display='none'; return null; }                      // too long to encode → the code box still works
+    }
+    /* CAMERA SCANNING (phase 2). Phase 1 put the invite on screen; this reads one off another screen, which is
+     * the half that removes the copy-paste entirely. Chromium-only by necessity: `BarcodeDetector` is the only
+     * decoder we have, and an inlined JS one is a much larger job than the encoder was. When it is missing the
+     * paste box is still the whole flow, so nothing is lost — this is strictly additive.
+     *
+     * Note WHAT is feature-detected: not `window.BarcodeDetector` but `getSupportedFormats()` containing
+     * `qr_code`. The constructor can exist without QR support, and that exact distinction is what proved the
+     * decoder innocent when phase 1's encoder was the thing at fault. */
+    var SCAN={ stream:null, timer:null };
+    var scanReady=false, scanProbed=false;
+    function scanProbe(){
+      if(scanProbed) return; scanProbed=true;
+      if(!window.isSecureContext || !window.BarcodeDetector) return;
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+      try{
+        window.BarcodeDetector.getSupportedFormats().then(function(f){
+          if(f && f.indexOf('qr_code')>=0){ scanReady=true; renderNet(); }   // re-render: the button was not offered yet
+        }, function(){});
+      }catch(e){}
+    }
+    function scanBlockHTML(){
+      if(!scanReady) return '<p class="nethint">Tip: Chrome and Edge can scan the code with a camera instead of pasting.</p>';
+      return '<button id="scanBtn" class="netbtn alt">📷 Scan it with my camera</button>'+
+             '<div id="scanPanel" class="scanPanel"><video id="scanVid" autoplay muted playsinline></video>'+
+             '<div id="scanMsg" class="nethint">Starting the camera…</div>'+
+             '<button id="scanCancel" class="netbtn">Cancel</button></div>';
+    }
+    function scanVerb(){ return scanReady ? 'Scan or paste' : 'Paste'; }
+    function scanSay(m){ var el=$('scanMsg'); if(el) el.textContent=m; }
+    function scanWire(){
+      var b=$('scanBtn'); if(b) b.addEventListener('click', scanOpen);
+      var c=$('scanCancel'); if(c) c.addEventListener('click', scanStop);
+    }
+    function scanOpen(){
+      var panel=$('scanPanel'); if(!panel || SCAN.stream) return;
+      panel.classList.add('open'); scanSay('Starting the camera…');
+      var btn=$('scanBtn'); if(btn) btn.style.display='none';        // the viewfinder replaces its own button
+      navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} } })
+        .then(scanRun, function(e){
+          var n=e&&e.name;
+          scanSay(n==='NotAllowedError' ? 'Camera permission denied — paste the code instead.'
+                : n==='NotFoundError'   ? 'No camera found — paste the code instead.'
+                : 'Could not start the camera — paste the code instead.');
+        });
+    }
+    function scanRun(stream){
+      SCAN.stream=stream;
+      var v=$('scanVid');
+      if(!v){ scanStop(); return; }                              // re-rendered under us: never leave the camera on
+      v.srcObject=stream; try{ v.play(); }catch(e){}
+      var det; try{ det=new window.BarcodeDetector({formats:['qr_code']}); }
+      catch(e){ scanSay('This browser cannot scan — paste the code instead.'); scanStop(); return; }
+      scanSay('Point your camera at the other screen.');
+      SCAN.timer=setInterval(function(){
+        if(!SCAN.stream) return;
+        det.detect(v).then(function(found){
+          if(!SCAN.stream || !found || !found.length) return;
+          var txt=found[0].rawValue||''; if(!txt) return;
+          scanHit(txt);
+        }, function(){});                                        // a frame that cannot be read is normal, not an error
+      }, 140);
+    }
+    /* A scan is unambiguous intent, so it advances without a second tap — the point is to remove taps. The code
+     * still lands in the box first, so a scan of the wrong thing is visible rather than mysterious. */
+    function scanHit(txt){
+      scanStop();
+      var box=$('sigIn'); if(box) box.value=txt;
+      try{ SFX.play('joined'); }catch(e){}                        // audible: you are looking at the OTHER screen
+      if(isHost()) hostAcceptAnswer(txt); else joinAcceptOffer(txt);
+    }
+    function scanStop(){
+      if(SCAN.timer){ clearInterval(SCAN.timer); SCAN.timer=null; }
+      if(SCAN.stream){ try{ SCAN.stream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} SCAN.stream=null; }
+      var v=$('scanVid'); if(v){ try{ v.srcObject=null; }catch(e){} }
+      var p=$('scanPanel'); if(p) p.classList.remove('open');
+      var btn=$('scanBtn'); if(btn) btn.style.display='';
     }
     function qrBlockHTML(id, hint){
       return '<div class="qrWrap"><span class="qrFrame"><canvas id="'+id+'" class="qrCanvas"></canvas></span>'+
@@ -5967,7 +6048,7 @@ __QR__
           : '<button id="lobbyGo" class="netbtn go">Ready ▶</button><p class="nethint">Pick your deck, then hit Ready — the host starts the game.</p>';
       }
       root.innerHTML=head+body+'</div>';
-      wireNameRow();
+      wireNameRow(); scanWire();
       var pingB=$('lobbyPing'); if(pingB) pingB.addEventListener('click', hostPing);
       var sel=$('deckSel'); if(sel){ sel.value=myDeck; sel.disabled=(!isHost()&&iReady); sel.addEventListener('change', function(){
         if(sel.value===BUILD_DECK_OPT){                                  // "✏️ Custom deck…" → build one, then re-render the lobby
@@ -5994,7 +6075,8 @@ __QR__
         body+='<h3>Invite a player — send them this</h3>'+
           qrBlockHTML('qrInvite', 'Point their phone\u2019s camera at this \u2014 or send them the code below.')+
           '<textarea id="sigOut" class="sigbox" readonly>'+sig.offer+'</textarea><button id="sigCopy" class="netbtn alt">⧉ Copy invite</button>'+
-          '<h3>Paste their reply code</h3><textarea id="sigIn" class="sigbox" placeholder="Paste the reply from the player you invited…"></textarea>'+
+          '<h3>'+scanVerb()+' their reply</h3>'+scanBlockHTML()+
+          '<textarea id="sigIn" class="sigbox" placeholder="Paste the reply from the player you invited…"></textarea>'+
           '<button id="sigGo" class="netbtn go">Connect this player ▶</button>';
       } else {
         body+='<div class="lobbyStatus">'+(joined>0?('✓ <b>'+joined+'</b> player'+(joined>1?'s':'')+' connected — a <b>'+total+'</b>-Rider game.'):'No players yet.')+'</div>'+
@@ -6004,7 +6086,7 @@ __QR__
         '<p class="nethint">Invite each player, then Start (2–6). Picks stay hidden — no counter-picking.</p>'+
         (joined>0?'<button id="lobbyPing" class="netbtn">🔔 Ping the table</button><div id="lobbyPingMsg" class="nethint"></div>':'');
       root.innerHTML=head+body+'</div>';
-      wireNameRow();
+      wireNameRow(); scanWire();
       var pingB=$('lobbyPing'); if(pingB) pingB.addEventListener('click', hostPing);
       var sel=$('deckSel'); if(sel){ sel.value=myDeck; sel.addEventListener('change', function(){ myDeck=sel.value; }); }
       qrInto('qrInvite', sig.offer);
@@ -6015,6 +6097,10 @@ __QR__
     }
     function renderNet(){
       var root=$('netroot'); if(!root) return;
+      /* Any re-render throws away the <video> this stream is attached to. Stopping here is deliberately
+       * aggressive: a re-render mid-scan costs the user one tap, while an orphaned track leaves the camera
+       * light on with nothing on screen to explain it. */
+      if(SCAN.stream) scanStop();
       if(started) return;                                       // the real single-player board (render()) has taken over
       if(kind==='rtc' && isHost()){ return renderHostRtcLobby(root); }        // host: multi-invite hub lobby
       if(!connected && kind==='rtc'){ return renderSignaling(root); }         // client: still exchanging signaling codes
@@ -6022,12 +6108,15 @@ __QR__
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
+    return { boot:boot, start:start, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, scanLive:function(){ return !!SCAN.stream; }, scanReady:function(){ return scanReady; }, scanStop:scanStop, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:99999;background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     '#netroot .qrWrap{margin:10px 0;text-align:center}'+
     '#netroot .qrFrame{display:inline-block;background:#fff;border-radius:8px;padding:6px;line-height:0}'+
     '#netroot .qrCanvas{display:block;max-width:100%;background:#fff}'+
+    '#netroot .scanPanel{display:none;margin:8px 0}'+
+    '#netroot .scanPanel.open{display:block}'+
+    '#netroot .scanPanel video{display:block;width:100%;max-width:420px;margin:0 auto;border-radius:10px;background:#000;aspect-ratio:4/3;object-fit:cover}'+
     '#netroot .verStamp{opacity:.65;font-variant-numeric:tabular-nums;white-space:nowrap}'+
     '#netroot .netname{display:block;text-align:left;margin:0 0 4px;font-weight:700}'+
     '#netroot .netname input{display:block;width:100%;margin-top:5px;box-sizing:border-box;font:inherit;padding:9px 11px;border-radius:9px;border:1px solid #2f3b4d;background:#101620;color:#e8edf5}'+
@@ -6043,7 +6132,7 @@ __QR__
     '#netroot .deckSel:disabled{opacity:.55}#netroot .lobbyStatus{margin:12px 0;padding:10px 12px;background:#141a24;border:1px solid #263140;border-radius:8px;color:#cdd8e6}';
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, scanLive:function(){ return NET.scanLive(); }, scanReady:function(){ return NET.scanReady(); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
   /* --headerH: measured, not hardcoded. #disconBar hangs off it, and the header's height is not a constant —
    * 56px on desktop, 37px in the landscape band, and ~92px on a portrait phone where it WRAPS to two rows.
    * A hardcoded 54px floated it 17px low in landscape and put it 38px INSIDE the wrapped portrait header,
