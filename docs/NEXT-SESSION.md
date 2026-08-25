@@ -1,14 +1,14 @@
 # Cardmen Fighter — backlog & handoff
 
-Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
+Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** + **qr.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
+Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.16**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.17**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
-`main` is at **v1.31.16**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
-HTML byte-for-byte. Nothing is half-done and no branch is waiting.
+`main` is at **v1.31.16**; **v1.31.17 (QR invite codes, phase 1) is built, green and on a branch awaiting a
+PR.** Nothing else is half-done.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
 
@@ -36,11 +36,20 @@ in the game.**
 - **v1.31.16** — **emotes** (7, with sound, on the existing intent channel) and a **name field on every lobby
   screen**, plus a host **ping**.
 
-### Next up: QR invite codes — scoped, measured, decided
-See the BACKLOG's first item. The short version: the invite code is **1,036 chars** and a single QR holds
-~2,953, so it fits with 2.8x headroom; **phase 1 is SHOW only**; the encoder is **hand-written** to keep the
-zero-dependency property; and it is **self-verifying** because the harness can decode its own rendered QR and
-assert the string round-trips. Nothing is started — it is ready to pick up cold.
+### The QR feature shipped — and the lesson from it is about VERIFICATION, not QR
+**v1.31.17** renders the invite code as a QR on the host and joiner screens (show only, as scoped). The part
+worth carrying forward: the hand-written encoder had a bug that **every plausible check passed**.
+
+The format bits were placed **LSB-first instead of MSB-first**. The symbol looked perfect — finders, timing
+patterns, separators and dark module all correct — and when I read the format bits back by hand they matched a
+published format string, because reading them in the same wrong order is self-consistent. Meanwhile a real
+decoder found *nothing at all*, at every version, which reads exactly like a broken detector.
+
+What settled it in minutes after an hour of code-reading: **diffing against a reference implementation.**
+macOS ships one (`CIQRCodeGenerator`), so `qrref.js` compiles a Swift snippet on the fly, reads the version,
+ECC level and mask back out of *Apple's* format bits, builds the same symbol here, and compares every module.
+It is now byte-identical to Apple up to **v35** at all four ECC levels. **When a hand-written implementation of
+a published spec misbehaves, find something that already implements it and diff — do not re-read the code.**
 
 ### ⚠️ Two stale beliefs this doc used to carry — do not act on them
 - **v1.31.0's multiplayer rules package was REVERTED** (v1.31.2). Shields are **flat 4** at every player
@@ -55,10 +64,14 @@ Netplay reveal, the multiplayer-aware export, and the six duel-only card texts a
 the balance agenda: **Rogue at 0.59x fair share at six players** (the "slash" card is the intended lever), the
 count-up class, and the unmeasured apex-2 A/B. See the BACKLOG.
 
-### One loose thread, deliberately left
-`nettest_log` and `nettest_full` are **position-dependent**: they pass alone (13/0 and 5/0) but fail or time out
-late in a long serial sweep. An A/B of the actual builds cleared our changes of causing it — the accumulation
-behind it is still unisolated. **Confirm any sweep failure by running that suite alone before believing it.**
+### That "position-dependent suites" thread is CLOSED (v1.31.9) — this section used to say otherwise
+`nettest_log` and `nettest_full` were not environment-sensitive; **the tests were impatient.** `waitTurnEnds`
+returned void, so the driver could not tell "the turn ended" from "I gave up" and acted into a board still
+mid-round-trip. Fixed by returning a boolean, bounding the loop by wall clock and productive actions, and
+failing an assertion rather than throwing on a missing log line. Verified 20/20 with those two at positions 19
+and 20 of a serial sweep; `acted` dropped 80 → 10. Two suites still carry the same shape — see the BACKLOG's
+`exporttest` / `nettest_names` item. **The general rule: a slow machine should make a suite slower, never red,
+so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 ### Three hard-won habits worth keeping
 - **A/B the actual builds** before believing a diagnosis. Repeatedly, a "product bug" turned out to be tooling
@@ -81,29 +94,17 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
     purpose. Automatic "games near you" is **not achievable** while the game stays a serverless single file —
     that is a real constraint of the platform, not a missing feature.
   - **What DOES cut the hassle, in rough order of value per effort:**
-    1. **QR invite codes — SCOPED AND DECIDED, ready to build (2026-08-25).**
-       - **It fits.** Measured the real invite code: **1,036 characters**, already base64
-         (`eyJ0Ijoib2ZmZXIi…` = `{"t":"offer","s":"v=0…`). A single QR holds ~2,953 bytes, so that is **~2.8x
-         headroom** — no multi-part QR, no protocol surgery. `deflateRaw`+base64 takes it to ~910 if a less
-         dense symbol is ever wanted. **Assert the length in the test**: 1,036 was headless with STUN on, and a
-         real machine with more network interfaces will produce a longer offer, so we want to find that out in
-         CI rather than in someone's hand.
-       - **Desktop works too** — measured on the `file://` origin the game actually runs from: `isSecureContext`
-         is **true**, and `getUserMedia` and `BarcodeDetector` are both present in the Chromium family. Running
-         as a local file does not block the camera, which was the obvious worry.
-       - **The asymmetry is SHOW vs READ, not desktop vs mobile.** Showing needs no permissions and no API;
-         reading needs a camera plus a decoder, and `BarcodeDetector` is Chromium-only (Firefox and Safari want
-         an inlined JS decoder behind it).
-       - **Decided: phase 1 is SHOW only.** It already buys the desktop-hosts/phone-joins win, and it cannot
-         break anything — it is an extra rendering of a string the screen already displays. Phase 2 (camera
-         scanning) waits until the QR has been held up to a real phone once.
-       - **Decided: hand-write a minimal byte-mode encoder** (~250 lines: version pick, Reed-Solomon, masking)
-         rather than vendor a library — the project is deliberately zero-dependency and hand-inlined.
-       - **The encoder is self-verifying, which is why hand-writing it is safe.** `BarcodeDetector` exists in the
-         harness, so the suite can **render a QR, decode its own output, and assert the string round-trips.** A
-         subtly wrong QR looks perfectly fine to a human, so this test is the whole safety argument.
-       - Value by pairing: **desktop ↔ phone is the big win**, **phone ↔ phone** the best case,
-         **desktop ↔ desktop** barely needs it (copy-paste over any chat is already easy there).
+    1. **QR invite codes — phase 1 SHIPPED in v1.31.17 (show only).** What is left is **phase 2: SCANNING.**
+       - Reading needs a camera (`getUserMedia`) plus a decoder. `BarcodeDetector` is **Chromium-only**, so
+         Firefox and Safari need an inlined JS decoder behind it — that is the real cost of phase 2, not the
+         camera plumbing.
+       - **Hold the shipped QR up to a real phone before building it.** The measured geometry is tight: the
+         1,036-char invite is **version 23 = 109 modules**, which is 3.0 CSS px per module on desktop, 2.67 on
+         a portrait phone, and 2.0 on a landscape phone (height-capped, deliberately, so the whole symbol stays
+         on screen without scrolling). `qrtest.js` asserts those floors, so if the payload grows past ~v29 the
+         suite says so — but whether 2.0 actually scans is a question for a camera, not a test.
+       - **Shortening the payload (backlog item 3 below) is the highest-value follow-up**, because it shrinks
+         the version and every scannability number improves at once.
     2. **Share-sheet handoff.** `navigator.share()` on the invite code — one tap into any messaging app the two
        players already use, instead of select-copy-switch-paste. Two lines of code.
     3. **Shorter codes.** The blob is a whole SDP. Trimming to the fields that matter and compressing would make
@@ -270,6 +271,57 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.17 — QR invite codes, and a hand-written encoder verified against Apple's
+
+Aj: *"if its qr you can also do that with desktop browsers right?"* — yes, and that is the pairing this is for:
+**a desktop hosts, a phone joins.** The host and joiner screens now render the invite code as a QR beside the
+text box. Phase 1 is **show only**, exactly as scoped: no camera, no permissions, nothing that can break — it
+is an extra rendering of a string the screen already displayed. The text box is untouched and still works.
+
+**`code/qr.js` (new, ~330 lines, inlined by `build.js` via `__QR__`)** — a byte-mode encoder: version pick,
+GF(256) Reed-Solomon, the capacity/block tables for all 40 versions × 4 ECC levels, interleaved blocks, all 8
+masks scored by the spec's penalty rules, and BCH format/version info. Hand-written rather than vendored
+because the game is deliberately zero-dependency and hand-inlined. It renders at **level L** (most payload per
+symbol) and throws rather than emitting a silently corrupt symbol if a payload ever exceeds v40.
+
+**The bug worth recording, because it defeated every check except one.** The format bits went in **LSB-first
+instead of MSB-first**. Consequences: the symbol was structurally flawless to the eye, and reading the format
+bits back by hand produced a *valid published format string* — because reading them in the same wrong order is
+self-consistent. A real decoder meanwhile returned nothing at all, at **every** version including v1, which
+looks far more like a broken detector than a one-line bug. Two things were needed to get out of that hole:
+
+1. **A control on the instrument.** `BarcodeDetector.getSupportedFormats()` proved the decoder really did
+   support `qr_code` here, so "nothing decodes" had to be our fault. Without that, hours could go into
+   suspecting headless Chromium.
+2. **A reference implementation to diff against.** macOS ships `CIQRCodeGenerator`. `qrref.js` compiles a Swift
+   snippet on the fly, reads the version/ECC/mask back out of *Apple's* own format bits, builds the same symbol
+   with our encoder and compares **every module**. The first diff pinpointed the reversal immediately, and 32
+   reference symbols then settled the exact bit order and the 7/8 split of the second copy — questions that
+   memory and code-reading had both got wrong.
+
+A second real bug fell out of the same diff: the second format copy was split **8/7** instead of **7/8**,
+writing one bit onto the dark module and leaving `m[8][size-8]` blank. Decoders that fall back to copy 2 would
+have failed on symbols that otherwise looked fine.
+
+**Verification.** `node qrref.js` — byte-identical to Apple's encoder up to **v35**, all four ECC levels
+(darwin only; it skips with a notice elsewhere, since it corroborates rather than gates). `node qrtest.js` —
+**19/0**, every case rendering a real symbol and decoding it back with `BarcodeDetector`, including a full
+synthetic invite at v29 and the *actual* invite code from a live host screen.
+
+**Scannability is asserted, because decoding the bitmap cannot tell you about it.** A decoder is handed a
+perfect bitmap and will happily read a symbol far too small for any camera. What a camera needs is physical
+size and crisp edges, so the QR now renders **1:1 in device pixels**: it asks for the largest whole number of
+device px per module that fits its container, then sets the CSS size to exactly that many. The first attempt
+looked fine and was not — `padding` with `box-sizing:border-box` shrank the content box and re-introduced
+fractional scaling, and measuring "the first ancestor with a real width" found the canvas's own default 300px
+placeholder, so every screen size rendered an identical 234px symbol. Now: **3.0 CSS px per module on desktop**
+(351px for a v23 symbol), 2.67 on a portrait phone at dpr 3, 2.0 on a landscape phone where height is the
+binding constraint. The suite asserts the CSS floor, the whole-number device-pixel ratio, and the 1:1 mapping.
+
+**Measured, so phase 2 can be planned:** the real invite is **1,036 chars → version 23, 109 modules**, against
+a single-symbol ceiling of **2,956 bytes** at level L. Shortening the SDP would lower the version and improve
+every scannability number at once — that is now the highest-value follow-up.
 
 ### v1.31.16 — emotes with sound, and a name field where you can actually see it
 

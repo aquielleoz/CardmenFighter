@@ -1144,6 +1144,7 @@ __ART__
 __FACES__
 /* ==== NETVIEW (inlined; per-seat redacted snapshots for netplay) =========== */
 __NETVIEW__
+__QR__
 /* ==== UI =================================================================== */
 (function(){
   'use strict';
@@ -5859,7 +5860,8 @@ __NETVIEW__
       var body='';                        // NB: the branches below ASSIGN body, so the name row is prepended
       if(isHost() && sig.step==='host-gen'){ body='<p>Generating your invite code…</p>'; }
       else if(isHost() && sig.step==='host-wait'){
-        body='<h3>Step 1 — send this invite code to your friend</h3>'+
+        body='<h3>Step 1 — send this invite to your friend</h3>'+
+          qrBlockHTML('qrInvite', 'Point their phone\u2019s camera at this \u2014 or send them the code below.')+
           '<textarea id="sigOut" class="sigbox" readonly>'+sig.offer+'</textarea>'+
           '<button id="sigCopy" class="netbtn alt">⧉ Copy invite code</button>'+
           '<h3>Step 2 — paste their reply code here</h3>'+
@@ -5873,7 +5875,8 @@ __NETVIEW__
           '<button id="sigGo" class="netbtn go">Generate my reply ▶</button>';
       }
       else if(!isHost() && sig.step==='join-reply'){
-        body='<h3>Step 2 — send this reply code back to your host</h3>'+
+        body='<h3>Step 2 — send this reply back to your host</h3>'+
+          qrBlockHTML('qrReply', 'Let your host scan this \u2014 or send them the code below.')+
           '<textarea id="sigOut" class="sigbox" readonly>'+sig.answer+'</textarea>'+
           '<button id="sigCopy" class="netbtn alt">⧉ Copy reply code</button>'+
           '<p class="nethint">Waiting for your host to connect… the game starts automatically once they paste it.</p>';
@@ -5881,8 +5884,38 @@ __NETVIEW__
       // the name row goes FIRST on this screen — it is the client's first sight of the game
       root.innerHTML=head+nameRowHTML(false)+body+'</div>';
       wireNameRow();
+      qrInto('qrInvite', sig.offer); qrInto('qrReply', sig.answer);   // SHOW only — phase 1
       var copy=$('sigCopy'); if(copy) copy.addEventListener('click', function(){ var t=$('sigOut'); if(t){ t.select(); try{ navigator.clipboard.writeText(t.value); }catch(e){} try{ document.execCommand('copy'); }catch(e){} copy.textContent='✓ Copied'; } });
       var go=$('sigGo'); if(go) go.addEventListener('click', function(){ var v=($('sigIn')||{}).value||''; if(isHost()) hostAcceptAnswer(v); else joinAcceptOffer(v); });
+    }
+    /* Render a QR of whatever is in a code box, so the other player can point a camera at the screen instead of
+     * copying, switching apps, pasting. Phase 1 is SHOW ONLY — scanning needs a camera permission and a decoder
+     * and can wait until this has been held up to a real phone. Measured: the invite is ~1,036 chars and one QR
+     * holds 2,956 bytes at level L, so it fits at version 23 (109 modules) with headroom. */
+    function qrInto(canvasId, text){
+      var cv=$(canvasId); if(!cv || !text || typeof CardmenQR==='undefined') return null;
+      /* Render 1:1 in DEVICE pixels: ask for the largest whole number of device px per module that fits, then
+       * set the CSS size to exactly that many device pixels. A 1,036-char invite is version 23 — 109 modules —
+       * so the modules are tiny and any fractional scaling smears their edges into a code no camera will read.
+       * This is the difference between a QR that works across a table and one that only works in a screenshot. */
+      /* Measure the .qrWrap BLOCK, not the nearest sized ancestor. The .qrFrame in between is an inline-block
+       * sized by its child, and an un-rendered canvas defaults to 300px wide — so "first ancestor with a real
+       * width" finds the canvas's own placeholder size and every screen renders the same 234px symbol. */
+      var wrap=cv.parentNode;
+      while (wrap && wrap !== document.body && !/qrWrap/.test(wrap.className || '')) wrap = wrap.parentNode;
+      var availW=(wrap && wrap.clientWidth > 60 ? wrap.clientWidth - 14 : Math.floor(window.innerWidth*0.92));
+      var avail=Math.min(availW, window.innerHeight*0.66, 460);
+      var dpr=window.devicePixelRatio || 1;
+      try{
+        var info=CardmenQR.toCanvas(cv, text, { px:Math.round(avail*dpr), level:'L' });   // L: most payload per symbol
+        cv.style.width=Math.round(cv.width/dpr)+'px'; cv.style.height=cv.style.width;
+        return info;
+      }
+      catch(e){ cv.style.display='none'; return null; }                      // too long to encode → the code box still works
+    }
+    function qrBlockHTML(id, hint){
+      return '<div class="qrWrap"><span class="qrFrame"><canvas id="'+id+'" class="qrCanvas"></canvas></span>'+
+             '<p class="nethint">'+(hint || 'Point the other device\u2019s camera at this, or use the code below.')+'</p></div>';
     }
     /* One shared name row for EVERY lobby screen (Aj: "so people can double check their names before cards
      * start flying"). The name already travels — a client sends it with t:'join' and the host seeds
@@ -5949,7 +5982,8 @@ __NETVIEW__
       var body=nameRowHTML(false)+'<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>';
       if(sig.step==='host-gen'){ body+='<p>Generating an invite code…</p>'; }
       else if(sig.step==='host-invite'){
-        body+='<h3>Invite a player — send them this code</h3>'+
+        body+='<h3>Invite a player — send them this</h3>'+
+          qrBlockHTML('qrInvite', 'Point their phone\u2019s camera at this \u2014 or send them the code below.')+
           '<textarea id="sigOut" class="sigbox" readonly>'+sig.offer+'</textarea><button id="sigCopy" class="netbtn alt">⧉ Copy invite</button>'+
           '<h3>Paste their reply code</h3><textarea id="sigIn" class="sigbox" placeholder="Paste the reply from the player you invited…"></textarea>'+
           '<button id="sigGo" class="netbtn go">Connect this player ▶</button>';
@@ -5964,6 +5998,7 @@ __NETVIEW__
       wireNameRow();
       var pingB=$('lobbyPing'); if(pingB) pingB.addEventListener('click', hostPing);
       var sel=$('deckSel'); if(sel){ sel.value=myDeck; sel.addEventListener('change', function(){ myDeck=sel.value; }); }
+      qrInto('qrInvite', sig.offer);
       var copy=$('sigCopy'); if(copy) copy.addEventListener('click', function(){ var t=$('sigOut'); if(t){ t.select(); try{ navigator.clipboard.writeText(t.value); }catch(e){} try{ document.execCommand('copy'); }catch(e){} copy.textContent='✓ Copied'; } });
       var go=$('sigGo'); if(go) go.addEventListener('click', function(){ hostAcceptAnswer(($('sigIn')||{}).value||''); });
       var inv=$('inviteBtn'); if(inv) inv.addEventListener('click', function(){ hostNewInvite(); });
@@ -5981,6 +6016,9 @@ __NETVIEW__
     return { boot:boot, start:start, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:99999;background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
+    '#netroot .qrWrap{margin:10px 0;text-align:center}'+
+    '#netroot .qrFrame{display:inline-block;background:#fff;border-radius:8px;padding:6px;line-height:0}'+
+    '#netroot .qrCanvas{display:block;max-width:100%;background:#fff}'+
     '#netroot .netname{display:block;text-align:left;margin:0 0 4px;font-weight:700}'+
     '#netroot .netname input{display:block;width:100%;margin-top:5px;box-sizing:border-box;font:inherit;padding:9px 11px;border-radius:9px;border:1px solid #2f3b4d;background:#101620;color:#e8edf5}'+
     '#netroot .netname input:disabled{opacity:.55}'+
