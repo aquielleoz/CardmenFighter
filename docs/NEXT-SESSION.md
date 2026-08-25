@@ -5,7 +5,7 @@ Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) �
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
 Current version: **v1.31.8**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
-## ☀️ START HERE — where we left off (2026-08-24)
+## ☀️ START HERE — where we left off (2026-08-25)
 
 `main` is at **v1.31.8**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
 HTML byte-for-byte. Nothing is half-done and no branch is waiting.
@@ -19,13 +19,36 @@ npm test && node mptest.js
 Expect **231 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
 
 ### What just shipped
-**v1.31.5 — Aj's three priorities**, each of which was worse than its one-line description: the netplay reveal
-(and a mirror that wiped the modal a frame after it opened), an export that recorded **zero** opponent fights
-and no player count, and four card texts that *understated* their own effect at a full table. Detail in the
-changelog. Before it, **v1.31.4 — the ♠ Back Stab line, re-laid.** Base Back Stab locks the whole **round**; Perseus makes it a
-**Quick**; Hermes makes it hit **every** rival; Pandora's Outbalance now lets you **look at the target's hand**.
-The AI got a timing model (`lockoutWorth` in `ai.js`) that asks *"is the play I want to make under threat from
-THIS rival"*. Balance-neutral, 8 runs per arm. Full detail in the changelog below.
+**v1.31.4 → v1.31.8, and the through-line is one sentence: four cards read as dead in the sims, and not one of
+them was a broken card.**
+
+- **v1.31.4 — the ♠ Back Stab line, re-laid.** Base locks the whole **round**; Perseus makes it a **Quick**;
+  Hermes hits **every** rival; Pandora's Outbalance lets you **look at the target's hand**. Plus a timing model
+  (`lockoutWorth`) that asks *"is the play I want to make under threat from THIS rival"*.
+- **v1.31.5 — Aj's three priorities**, each worse than its one-line description: the netplay reveal (and a
+  mirror that wiped the modal a frame after it opened), an export that recorded **zero** opponent fights and no
+  player count, and four card texts that *understated* their own effect at a full table.
+- **v1.31.6 — Phantasmal Illusion restored** to Aj's original copy-a-Special design. It had been replaced in
+  v1.13 by a +6 valueBoost *because a sim showed 0.00 casts* — against this repo's own written warning that a
+  0.00 is a measurement artifact. The old implementation had sat unreachable in three layers for 18 versions.
+- **v1.31.7 — Counterfeit.** The card was fine; the AI's own `avoidCombo` rule vetoed it on **81%** of the
+  turns it would have won, and the evaluation counted a card the cast was about to spend.
+- **v1.31.8 — Back Stab's AI**: stop casting with no legal play to follow (48% of duel casts), cast at a full
+  table (the "a high special defends itself" hold bought nothing), and skip the target model entirely under
+  Hermes, where every rival is locked. Plus **v1.31.8a**: the engine's own defaults were the *reverted*
+  v1.31.0 rules, so any probe that forgot to configure them measured a game nobody plays.
+
+### The one open balance problem
+**Pure Rogue at six players: ~9.7%, against a 16.7% fair share (0.58x).** Unchanged all session, and now known
+*not* to be a card-logic problem — measured directly, casting Back Stab 25% more moves Rogue's share by
+**−0.3 ±0.7**, i.e. nothing. Its real defect is in the backlog and already measured: Rogue is the **least**
+shape-blocked deck but has the highest share of **deficit-of-one** losses — right shape, one point short, over
+and over. The **"slash" card** (lower the current pile's value) is the intended lever.
+
+Two measurement guard-rails learned the hard way this session are in CLAUDE.md: **the 8-run A/B is powered for
+the SPREAD, not for one low-share deck** (Rogue at 6p has a ~3.3-point run-to-run sd — the same build gave 7.8
+and 18.1 in adjacent runs), and **deck keys are capitalised** — a lowercase key silently falls back to the full
+52-card set, which once made both arms of an A/B return an identical, innocent-looking 1/6.
 
 ### ⚠️ Two stale beliefs this doc used to carry — do not act on them
 - **v1.31.0's multiplayer rules package was REVERTED** (v1.31.2). Shields are **flat 4** at every player
