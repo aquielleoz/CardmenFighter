@@ -14,7 +14,12 @@ async function snap(p){ return p.evaluate(()=>({
 const clear=p=>p.evaluate(()=>{var c=document.getElementById('clearBtn'); if(c)c.click();});
 const passT=p=>p.evaluate(()=>{var b=document.getElementById('passBtn'); if(b)b.click();});
 const play=(p,id)=>p.evaluate(function(id){ var c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click(); var f=document.getElementById('fightBtn'); if(f)f.click(); }, id);
-async function waitTurnEnds(p){ for(let i=0;i<40;i++){ if(!(await snap(p)).yourTurn) return; await wait(80); } }
+/* Returns TRUE only if the turn really ended. It used to return void after 40x80ms = 3.2s, so under load the
+ * caller could not tell "turn over" from "gave up" — and then acted into a board still mid-round-trip. That is
+ * the documented position-dependence: late in a long serial sweep this suite reported `maxRound=2 acted=80`,
+ * i.e. it acted on every step and none of it landed. The budget is generous on purpose — a slow machine should
+ * make the suite SLOWER, never failing. */
+async function waitTurnEnds(p){ for(let i=0;i<150;i++){ if(!(await snap(p)).yourTurn) return true; await wait(80); } return false; }
 (async()=>{
   await new Promise(r=>srv.listen(PORT,r));
   const b=await chromium.launch(LAUNCH);
@@ -26,11 +31,15 @@ async function waitTurnEnds(p){ for(let i=0;i<40;i++){ if(!(await snap(p)).yourT
   const hs0=await snap(host), js0=await snap(join);
   ok(hs0.hand.length===6 && js0.hand.length===6,'both real boards dealt 6 cards');
 
-  let maxRound=1, acted=0, hostPlayed=0, joinPlayed=0; const beaten={};
-  for(let step=0; step<80 && maxRound<4; step++){
+  /* Bound by WALL CLOCK and by productive actions, not by a raw iteration count: a transition or a slow mirror
+   * used to burn a step, so the budget could be exhausted without the game ever advancing. */
+  let maxRound=1, acted=0, hostPlayed=0, joinPlayed=0, stalled=0; const beaten={};
+  const deadline=Date.now()+180000;
+  while(maxRound<4 && acted<80 && stalled<40 && Date.now()<deadline){
     let who=null; const h=await snap(host), j=await snap(join);
     if(h.yourTurn) who=['host',host]; else if(j.yourTurn) who=['join',join];
-    if(!who){ await wait(150); continue; }   // ceremony/transition
+    if(!who){ stalled++; await wait(150); continue; }   // ceremony/transition — costs no action budget
+    stalled=0;
     const [role,p]=who; const s=await snap(p);
     if(s.pile===0){ await play(p, s.hand[0]); acted++; role==='host'?hostPlayed++:joinPlayed++; }
     else if(!beaten[role+':'+s.round]){                          // beat once per player per round, else pass (bounds the war)
@@ -41,7 +50,8 @@ async function waitTurnEnds(p){ for(let i=0;i<40;i++){ if(!(await snap(p)).yourT
       else { role==='host'?hostPlayed++:joinPlayed++; }
       acted++;
     } else { await passT(p); acted++; }
-    await waitTurnEnds(p);
+    // if the turn has NOT actually ended, loop round and wait again rather than acting into a stale board
+    if(!(await waitTurnEnds(p))){ stalled++; continue; }
     const hr=(await snap(host)).round, jr=(await snap(join)).round; maxRound=Math.max(maxRound,hr,jr);
     if(errs.length) break;
   }
