@@ -817,6 +817,15 @@
   #roundfx .rfInner.fizzle .rfSub{ color:#ffcf6b; opacity:1; border-top-color:rgba(255,207,107,.5); }
   @keyframes rfIn{ 0%{ opacity:0; transform:translateY(11px) scale(.9); } 60%{ opacity:1; } 100%{ opacity:1; transform:none; } }
   @media (prefers-reduced-motion: reduce){ #roundfx.show{ animation:none; backdrop-filter:none; -webkit-backdrop-filter:none; } #roundfx .rfInner.in{ animation:none; opacity:1; } }
+  /* Emote bar (netplay only). Bottom-LEFT so it never sits under the hand's right-side action cluster, and
+   * collapsed behind one 💬 tap on short/narrow screens where seven buttons would cost real board height. */
+  #emoteBar{position:fixed; left:10px; bottom:10px; z-index:99998; display:flex; align-items:flex-end; gap:6px;}
+  #emoteBar #emoteToggle{font:inherit; font-size:17px; line-height:1; padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:var(--panel); color:var(--txt); cursor:pointer;}
+  #emoteBar #emoteList{display:none; flex-wrap:wrap; gap:5px; max-width:min(62vw,420px);}
+  #emoteBar.open #emoteList{display:flex;}
+  #emoteBar .emoteBtn{font:inherit; font-size:13px; font-weight:700; padding:7px 9px; border-radius:10px; border:1px solid var(--line); background:var(--panel); color:var(--txt); cursor:pointer; display:flex; align-items:center; gap:5px;}
+  #emoteBar .emoteBtn:hover{border-color:var(--gold);}
+  @media (max-width:720px), (max-height:520px){ #emoteBar .emoteBtn span{display:none;} #emoteBar .emoteBtn{font-size:16px; padding:7px 8px;} }
   /* Center-stage interrupt flash — the QUICK cue lives here (it began as the STOPPER cue, which the rework retired) */
   #stopfx{ position:absolute; inset:0; z-index:8; display:none; align-items:center; justify-content:center; pointer-events:none; }
   #stopfx.show{ display:flex; }
@@ -4156,6 +4165,21 @@ window.CardFace = {};
   function lessonDone(id){ try{ return !!localStorage.getItem(lessonKey(id)); }catch(e){ return false; } }
   function setLessonDone(id){ try{ localStorage.setItem(lessonKey(id),'1'); }catch(e){} }
   var stats=null, gameStartTs=0, lastEndType=null;
+  /* EMOTES (v1.31.16, netplay only — there is nobody to talk to in a solo game). Aj's set, plus "Nice!" for
+   * reacting to a play (the most common card-game emote) and "One sec" because netplay has a 90s disconnect
+   * grace and players otherwise sit wondering whether the other side is still there.
+   * `Rematch?` is an EXPRESSION for now: the opponent answers with Yes!/No!, which the set already covers.
+   * A real one-tap rematch needs a restart handshake over the live connection — filed separately. */
+  var EMOTES=[
+    { key:'hi',      icon:'👋', label:'Hi!',       says:'says hi!',            sfx:'emHi' },
+    { key:'nice',    icon:'👏', label:'Nice!',     says:'says nice play!',     sfx:'emNice' },
+    { key:'yes',     icon:'👍', label:'Yes!',      says:'says yes!',           sfx:'emYes' },
+    { key:'no',      icon:'👎', label:'No!',       says:'says no!',            sfx:'emNo' },
+    { key:'wait',    icon:'⏳', label:'One sec',   says:'needs a second…',     sfx:'emWait' },
+    { key:'gg',      icon:'🤝', label:'GG',        says:'says good game!',     sfx:'emGG' },
+    { key:'rematch', icon:'🔄', label:'Rematch?',  says:'wants a rematch!',    sfx:'emRematch' }
+  ];
+  function emoteOf(key){ for(var i=0;i<EMOTES.length;i++) if(EMOTES[i].key===key) return EMOTES[i]; return null; }
   var $=function(id){return document.getElementById(id);};
   // HTML-escape for anything the player typed (custom deck names go straight into <option> markup).
   function esc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -4189,6 +4213,16 @@ window.CardFace = {};
       src.connect(f); f.connect(g); g.connect(master); src.start(t0); src.stop(t0+dur+0.03);
     }
     var CUES={
+      // Emotes (v1.31.16). Short, distinct, and quiet enough to hear over the game's own cues.
+      ping:      function(){ voice({type:'sine', f0:1046, dur:0.10, gain:0.14}); voice({type:'sine', f0:1568, dur:0.16, gain:0.11, when:0.08}); },
+      joined:    function(){ voice({type:'triangle', f0:659, dur:0.12, gain:0.11}); voice({type:'triangle', f0:988, dur:0.16, gain:0.10, when:0.08}); },
+      emHi:      function(){ voice({type:'sine', f0:660, f1:990, dur:0.12, gain:0.13}); voice({type:'sine', f0:1320, dur:0.10, gain:0.07, when:0.07}); },
+      emNice:    function(){ [784,988,1319].forEach(function(f,i){ voice({type:'triangle', f0:f, dur:0.16, gain:0.11, when:i*0.06}); }); },
+      emYes:     function(){ voice({type:'triangle', f0:523, f1:784, dur:0.13, gain:0.14}); },
+      emNo:      function(){ voice({type:'sawtooth', f0:330, f1:196, dur:0.16, gain:0.13}); },
+      emWait:    function(){ voice({type:'sine', f0:440, dur:0.11, gain:0.10}); voice({type:'sine', f0:440, dur:0.11, gain:0.10, when:0.18}); },
+      emGG:      function(){ [523,659,784].forEach(function(f,i){ voice({type:'sine', f0:f, dur:0.26, gain:0.11, when:i*0.10}); }); },
+      emRematch: function(){ voice({type:'square', f0:587, f1:880, dur:0.10, gain:0.09}); voice({type:'square', f0:880, f1:587, dur:0.12, gain:0.09, when:0.11}); },
       draw:       function(){ noise({dur:0.09, freq:2600, filter:'highpass', gain:0.11}); },
       jab:        function(){ voice({type:'triangle', f0:300, f1:170, dur:0.11, gain:0.26}); },
       special:    function(){ voice({type:'sawtooth', f0:330, f1:500, dur:0.16, gain:0.15}); voice({type:'triangle', f0:495, f1:740, dur:0.22, gain:0.13, when:0.04}); },
@@ -4870,6 +4904,39 @@ window.CardFace = {};
     fx.className='show quick '+(me?'you':'rival');
     clearTimeout(quickFlash._t); var g=gen;
     quickFlash._t=setTimeout(function(){ if(g===gen){ fx.className=''; inner.innerHTML=''; } }, 1400);
+  }
+  /* Show an emote from `seat`. Narration goes through `say`, so it renders in each reader's own frame ("You
+   * say hi!" vs "Aj says hi!") and, on the host, broadcasts the template — the same funnel every game event
+   * uses. The bubble reuses #stopfx, the centre-stage flash box the QUICK cue already shares. */
+  function showEmote(seat, key){
+    var em=emoteOf(key); if(!em) return;
+    say(seat, '{who} '+em.says, 'emote');     // host: this also BROADCASTS the line, so clients must not re-log
+    emoteFx(seat, key);
+  }
+  /* Bubble + sound only. A client uses THIS, never showEmote: the host's say() already sent it the log line,
+   * and calling say() again on the client would print every emote twice. */
+  function emoteFx(seat, key){
+    var em=emoteOf(key); if(!em) return;
+    SFX.play(em.sfx);
+    var fx=$('stopfx'); if(!fx || reduceMotion()) return;
+    var inner=fx.querySelector('.stx'), me=(seat===YOU);
+    inner.innerHTML='<div class="stxMain">'+em.icon+' '+esc(em.label)+'</div><div class="stxSub">'+esc(logName(seat))+'</div>';
+    fx.className=''; void fx.offsetWidth;
+    fx.className='show quick '+(me?'you':'rival');
+    clearTimeout(showEmote._t); var g=gen;
+    showEmote._t=setTimeout(function(){ if(g===gen){ fx.className=''; inner.innerHTML=''; } }, 1300);
+  }
+  /* Sending. Netplay only, and rate-limited: one every 1.2s. Without a cooldown a single player can bury the
+   * battle log, and the wire cost is per-tap. The HOST shows-and-broadcasts directly; a CLIENT sends an intent
+   * and waits to be told, so the host stays the single authority on what everyone saw. */
+  var _emoteAt=0;
+  function sendEmote(key){
+    if(!emoteOf(key)) return;
+    var now=Date.now(); if(now-_emoteAt < 1200) return; _emoteAt=now;
+    if(typeof NET==='undefined' || !NET.active || !NET.active()) return;
+    if(NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'emote', key:key}); return; }
+    showEmote(YOU, key);
+    if(NET.emoteBroadcast) NET.emoteBroadcast(YOU, key);   // NB: distinct name — see emoteBroadcast
   }
   function revealEffect(card, who){
     if(!card) return;
@@ -7769,6 +7836,19 @@ window.CardFace = {};
       // Persistent exit. Entered via ?net= → clear the query; entered in-page (mobile, content://) → a plain
       // reload returns to the game, because the URL was never touched. Lives on <body> (not #netroot, which
       // renderNet keeps rewriting) so it's always reachable.
+      /* Emote bar. Lives on <body> next to Leave (not inside #netroot, which renderNet rewrites), and it is
+       * created ONLY in netplay — there is nobody to talk to in a solo game. Collapsed to a single 💬 tap on a
+       * phone, where a 7-button row would eat the board. */
+      var eb=document.createElement('div'); eb.id='emoteBar';
+      eb.innerHTML='<button id="emoteToggle" title="Emotes">💬</button><div id="emoteList">'+
+        EMOTES.map(function(e){ return '<button class="emoteBtn" data-em="'+e.key+'" title="'+esc(e.label)+'">'+e.icon+'<span>'+esc(e.label)+'</span></button>'; }).join('')+
+        '</div>';
+      document.body.appendChild(eb);
+      eb.addEventListener('click', function(ev){
+        var t=ev.target.closest ? ev.target.closest('button') : null; if(!t) return;
+        if(t.id==='emoteToggle'){ eb.classList.toggle('open'); return; }
+        var k=t.getAttribute('data-em'); if(k){ sendEmote(k); eb.classList.remove('open'); }
+      });
       var leave=document.createElement('button'); leave.id='netLeave'; leave.textContent='← Leave online';
       leave.title='Exit online play and go back to the game';
       leave.style.cssText='position:fixed;top:10px;right:10px;z-index:99999;font:inherit;font-size:13px;font-weight:700;padding:8px 12px;border-radius:9px;border:1px solid #3a2a08;background:#e8c37a;color:#3a2a08;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.5)';
@@ -8018,6 +8098,11 @@ window.CardFace = {};
           logMsg('Online duel — you play <b>'+deckLabel(youDeck)+'</b>. Round 1, jabs only.', 'round'); }   // adopt this seat's concrete deck (for the board labels)
         else if(m.t==='mirror' && m.seat===mySeat){ connected=true; applyMirror(m.st); }
         else if(m.t==='ceremony' && m.seat===mySeat){ clientPlayCeremony(m.res); }
+        else if(m.t==='ping'){ SFX.play('ping'); setMessage('🔔 The host is ready — pinged you.'); }
+        else if(m.t==='emote'){                               // includes our OWN, echoed back by the host
+          var en=(state&&state.numPlayers)||2;                 // `seat` is ABSOLUTE — rotate into our frame
+          emoteFx(((((m.seat-mySeat)%en)+en)%en), m.key);
+        }
         else if(m.t==='record'){                              // adopt the host's complete playtest record
           /* `yourSeat` stays the HOST's — the record is stored verbatim so every seat keeps the identical
            * canonical game. Stamp who adopted it, or later analysis reads a client's copy as the host's own. */
@@ -8097,6 +8182,7 @@ window.CardFace = {};
     var netSettle=null;   // parked: the host is waiting on the remote's respond/decline to an open stack window
     function hostApplyMove(it){
       if(!hostState || hostState.finished || !it || typeof it.op!=='string') return;
+      if(it.op==='emote') return hostEmote(1, it.key);   // never turn-gated
       if(it.op==='reorderEnergy') return hostReorderEnergy(1, it);   // the remote seat in a duel is always 1
       var g=gen, r;
       // ---- stack windows the remote (seat 1) owes: apply, then re-enter the parked settle continuation ----
@@ -8262,6 +8348,17 @@ window.CardFace = {};
      * right here — the payload is public (what was played, never anyone's hand) and every seat wants the same
      * canonical game. Aj's call, 2026-08-25, over host-only and per-page-perspective. */
     function sendRecord(rec){ if(isHost() && started && rec) send({t:'record', rec:rec}); }
+    function emoteBroadcast(seat, key){ if(isHost() && started) send({t:'emote', seat:seat, key:key}); }
+    /* A client's emote arrives as an intent. Emotes are NOT turn-gated — being able to react when it is not
+     * your turn is most of the point — so this is handled before every op that checks whose turn it is. The
+     * host re-checks the cooldown per seat, because a client controls its own clock. */
+    var _emAt={};
+    function hostEmote(seat, key){
+      if(!isHost() || !started || !emoteOf(key)) return;
+      var now=Date.now(); if(now-(_emAt[seat]||0) < 1200) return; _emAt[seat]=now;
+      showEmote(seat, key);                       // the host's own log + bubble (say() broadcasts the line)
+      send({t:'emote', seat:seat, key:key});      // and everyone pops the bubble
+    }
     function sendCeremony(res){ if(isHost() && started && hostState){ for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'ceremony', seat:s, res:ceremonyResFor(res, s)}); } }   // per-seat, rotated (from hostFinishRound / finishPassRound / netDriveN)
     function hostFinishRound(r, g){
       announceRoundWin(r);
@@ -8336,6 +8433,7 @@ window.CardFace = {};
     }
     function hostApplyMoveN(seat, it){
       if(!hostState || hostState.finished || !it || typeof it.op!=='string') return;
+      if(it.op==='emote') return hostEmote(seat, it.key);   // never turn-gated
       var n=hostState.numPlayers;
       // ---- energy reorder: never interacts with a window, so handle it before anything else ----
       if(it.op==='reorderEnergy') return hostReorderEnergy(seat, it);
@@ -8537,7 +8635,7 @@ window.CardFace = {};
       var errHTML = sig.err ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
         '<div class="netbar">Peer-to-peer · '+(isHost()?'Hosting (Player 1)':'Joining (Player 2)')+' · no server, no accounts</div>'+errHTML;
-      var body='';
+      var body='';                        // NB: the branches below ASSIGN body, so the name row is prepended
       if(isHost() && sig.step==='host-gen'){ body='<p>Generating your invite code…</p>'; }
       else if(isHost() && sig.step==='host-wait'){
         body='<h3>Step 1 — send this invite code to your friend</h3>'+
@@ -8559,15 +8657,38 @@ window.CardFace = {};
           '<button id="sigCopy" class="netbtn alt">⧉ Copy reply code</button>'+
           '<p class="nethint">Waiting for your host to connect… the game starts automatically once they paste it.</p>';
       }
-      root.innerHTML=head+body+'</div>';
+      // the name row goes FIRST on this screen — it is the client's first sight of the game
+      root.innerHTML=head+nameRowHTML(false)+body+'</div>';
+      wireNameRow();
       var copy=$('sigCopy'); if(copy) copy.addEventListener('click', function(){ var t=$('sigOut'); if(t){ t.select(); try{ navigator.clipboard.writeText(t.value); }catch(e){} try{ document.execCommand('copy'); }catch(e){} copy.textContent='✓ Copied'; } });
       var go=$('sigGo'); if(go) go.addEventListener('click', function(){ var v=($('sigIn')||{}).value||''; if(isHost()) hostAcceptAnswer(v); else joinAcceptOffer(v); });
+    }
+    /* One shared name row for EVERY lobby screen (Aj: "so people can double check their names before cards
+     * start flying"). The name already travels — a client sends it with t:'join' and the host seeds
+     * seatNames[0] — this is just the last chance to read it. Locked once a client has readied, like the deck
+     * picker, because the name is sent with Ready and editing after that would not reach anyone. */
+    function nameRowHTML(locked){
+      return '<label class="netname">Your name '+
+             '<input id="netName" type="text" maxlength="14" placeholder="'+(isHost()?'Player 1':'Player 2')+'" '+
+             'autocomplete="off" spellcheck="false" value="'+esc(myName)+'"'+(locked?' disabled':'')+'></label>'+
+             '<p class="nethint">Blank shows as “Rival”. This is what your opponent sees in the battle log.</p>';
+    }
+    function wireNameRow(){
+      var el=$('netName'); if(!el) return;
+      el.addEventListener('input', function(){ saveMyName(this.value); paintWhoLabels(); });
+    }
+    /* Host "ready ping": a nudge with a sound, for when the other side has wandered off. Same relay shape as an
+     * emote, but it works BEFORE the game starts, which is exactly when it is needed. */
+    function hostPing(){
+      if(!isHost()) return;
+      SFX.play('ping'); send({t:'ping'});
+      var st=$('lobbyPingMsg'); if(st){ st.textContent='🔔 Pinged your table.'; setTimeout(function(){ if($('lobbyPingMsg')) $('lobbyPingMsg').textContent=''; }, 2200); }
     }
     // Lobby: after the transport connects, each side picks a deck before the host starts the real board.
     function renderLobby(root){
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
         '<div class="netbar">Room <b>'+room+'</b> · You are '+(isHost()?'Player 1 (host)':'Player 2')+' · '+connLabel()+'</div>';
-      var body='<h3>Choose your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>';
+      var body=nameRowHTML(!isHost() && iReady)+'<h3>Choose your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>';
       if(isHost()){
         var joined=nextSeat-1;   // clients who have readied
         var total=joined+1;
@@ -8575,13 +8696,16 @@ window.CardFace = {};
               ? ('✓ <b>'+joined+'</b> player'+(joined>1?'s':'')+' joined — <b>'+total+'</b>-Rider'+(total>2?' free-for-all':' duel')+'. Picks stay hidden until you start.'+(joined<MAX_SEATS-1?' More can still join.':' (table full).'))
               : '⏳ Waiting for players to join…')+'</div>'+
           '<button id="lobbyGo" class="netbtn go"'+(joined>0?'':' disabled')+'>Start '+(total>2?('('+total+' Riders)'):'Duel')+' ▶</button>'+
-          '<p class="nethint">You lead round 1. Start whenever your table is full (2–6). No one can see another’s pick — no counter-picking.</p>';
+          '<p class="nethint">You lead round 1. Start whenever your table is full (2–6). No one can see another’s pick — no counter-picking.</p>'+
+          '<button id="lobbyPing" class="netbtn">🔔 Ping the table</button><div id="lobbyPingMsg" class="nethint"></div>';
       } else {
         body+= iReady
           ? '<div class="lobbyStatus">✓ You’re ready (<b>'+deckLabel(myDeck)+'</b>)'+(typeof mySeat==='number'?' — you are Player '+(mySeat+1):'')+'. Waiting for the host to start…</div>'
           : '<button id="lobbyGo" class="netbtn go">Ready ▶</button><p class="nethint">Pick your deck, then hit Ready — the host starts the game.</p>';
       }
       root.innerHTML=head+body+'</div>';
+      wireNameRow();
+      var pingB=$('lobbyPing'); if(pingB) pingB.addEventListener('click', hostPing);
       var sel=$('deckSel'); if(sel){ sel.value=myDeck; sel.disabled=(!isHost()&&iReady); sel.addEventListener('change', function(){
         if(sel.value===BUILD_DECK_OPT){                                  // "✏️ Custom deck…" → build one, then re-render the lobby
           var prev=myDeck;
@@ -8601,7 +8725,7 @@ window.CardFace = {};
       var joined=nextSeat-1, total=joined+1, full=(joined>=MAX_SEATS-1);
       var errHTML = (sig&&sig.err) ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · no server · '+joined+' connected</div>'+errHTML;
-      var body='<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>';
+      var body=nameRowHTML(false)+'<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>';
       if(sig.step==='host-gen'){ body+='<p>Generating an invite code…</p>'; }
       else if(sig.step==='host-invite'){
         body+='<h3>Invite a player — send them this code</h3>'+
@@ -8613,8 +8737,11 @@ window.CardFace = {};
           (full?'<p class="nethint">Table full (6).</p>':'<button id="inviteBtn" class="netbtn alt">＋ Invite '+(joined>0?'another ':'a ')+'player</button>');
       }
       body+='<button id="lobbyGo" class="netbtn go"'+(joined>0?'':' disabled')+'>Start '+(total>2?('('+total+' Riders)'):'Duel')+' ▶</button>'+
-        '<p class="nethint">Invite each player, then Start (2–6). Picks stay hidden — no counter-picking.</p>';
+        '<p class="nethint">Invite each player, then Start (2–6). Picks stay hidden — no counter-picking.</p>'+
+        (joined>0?'<button id="lobbyPing" class="netbtn">🔔 Ping the table</button><div id="lobbyPingMsg" class="nethint"></div>':'');
       root.innerHTML=head+body+'</div>';
+      wireNameRow();
+      var pingB=$('lobbyPing'); if(pingB) pingB.addEventListener('click', hostPing);
       var sel=$('deckSel'); if(sel){ sel.value=myDeck; sel.addEventListener('change', function(){ myDeck=sel.value; }); }
       var copy=$('sigCopy'); if(copy) copy.addEventListener('click', function(){ var t=$('sigOut'); if(t){ t.select(); try{ navigator.clipboard.writeText(t.value); }catch(e){} try{ document.execCommand('copy'); }catch(e){} copy.textContent='✓ Copied'; } });
       var go=$('sigGo'); if(go) go.addEventListener('click', function(){ hostAcceptAnswer(($('sigIn')||{}).value||''); });
@@ -8630,9 +8757,12 @@ window.CardFace = {};
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
+    return { boot:boot, start:start, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:99999;background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
+    '#netroot .netname{display:block;text-align:left;margin:0 0 4px;font-weight:700}'+
+    '#netroot .netname input{display:block;width:100%;margin-top:5px;box-sizing:border-box;font:inherit;padding:9px 11px;border-radius:9px;border:1px solid #2f3b4d;background:#101620;color:#e8edf5}'+
+    '#netroot .netname input:disabled{opacity:.55}'+
     '#netroot .netbar{background:#161c26;border:1px solid #263140;border-radius:8px;padding:8px 12px;margin-bottom:10px}'+
     '#netroot .ok{color:#5fd08a}#netroot .wait{color:#e0b055}'+
     '#netroot .netmsg{background:#161c26;border:1px solid #263140;border-radius:8px;padding:8px 12px;margin-bottom:10px;min-height:20px}#netroot .netmsg.err{border-color:#c0563a;color:#ff9d7d}'+
