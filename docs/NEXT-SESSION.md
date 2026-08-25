@@ -89,10 +89,18 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
     purpose. Automatic "games near you" is **not achievable** while the game stays a serverless single file —
     that is a real constraint of the platform, not a missing feature.
   - **What DOES cut the hassle, in rough order of value per effort:**
-    1. **QR codes.** The host renders its invite as a QR; the joiner scans it with the camera and the reply code
-       goes back the same way. Still pure peer-to-peer, still no server, and on two phones in the same room it
-       turns copy-paste-and-message into point-and-scan. A tiny QR encoder inlines in a few KB; *reading* one
-       needs `BarcodeDetector` (Android Chrome has it) with a paste box as the fallback.
+    1. **QR codes — and they work on DESKTOP too** (Aj asked; measured 2026-08-25 rather than assumed). On the
+       `file://` origin the game actually runs from: `isSecureContext` is **true**, and both `getUserMedia` and
+       `BarcodeDetector` are present in the Chromium family. So the camera path is *not* blocked by running as a
+       local file, which was the obvious worry.
+       The real asymmetry is **show vs read**, not desktop vs mobile:
+       - **Showing** a QR works everywhere — no permissions, no API, a few KB of inline encoder.
+       - **Reading** needs a camera plus a decoder. `BarcodeDetector` covers Chromium; **Firefox and Safari do
+         not implement it**, so cross-browser wants an inlined JS decoder (a few KB more) with a paste box
+         behind it.
+       Practical value by pairing: **desktop ↔ phone is the big win** (desktop shows the invite, phone scans;
+       the reply goes back by webcam scan or share-sheet), **phone ↔ phone** is the best case, and
+       **desktop ↔ desktop** barely needs it since copy-paste over any chat is already easy there.
     2. **Share-sheet handoff.** `navigator.share()` on the invite code — one tap into any messaging app the two
        players already use, instead of select-copy-switch-paste. Two lines of code.
     3. **Shorter codes.** The blob is a whole SDP. Trimming to the fields that matter and compressing would make
