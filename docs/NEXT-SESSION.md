@@ -98,13 +98,17 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
        - Reading needs a camera (`getUserMedia`) plus a decoder. `BarcodeDetector` is **Chromium-only**, so
          Firefox and Safari need an inlined JS decoder behind it — that is the real cost of phase 2, not the
          camera plumbing.
-       - **Hold the shipped QR up to a real phone before building it.** The measured geometry is tight: the
-         1,036-char invite is **version 23 = 109 modules**, which is 3.0 CSS px per module on desktop, 2.67 on
-         a portrait phone, and 2.0 on a landscape phone (height-capped, deliberately, so the whole symbol stays
-         on screen without scrolling). `qrtest.js` asserts those floors, so if the payload grows past ~v29 the
-         suite says so — but whether 2.0 actually scans is a question for a camera, not a test.
-       - **Shortening the payload (backlog item 3 below) is the highest-value follow-up**, because it shrinks
-         the version and every scannability number improves at once.
+       - **CONFIRMED SCANNABLE on a real phone** (Aj, 2026-08-25: *"wee my phone could read it"*). That was the
+         open question phase 1 ended on, and no test could answer it — a decoder is handed a perfect bitmap and
+         will read a symbol far too small for any camera. A v23 / 109-module symbol at the shipped geometry
+         works with a real camera, so the geometry is no longer a risk to phase 2.
+       - **Still unverified: the LANDSCAPE phone case**, which is the weakest geometry at **2.0 CSS px per
+         module** (height-capped on purpose, so the whole symbol stays on screen without scrolling). Desktop is
+         3.0 and a portrait phone 2.67. `qrtest.js` asserts those floors, so a payload growing past ~v29 shows
+         up as a failure rather than as an unscannable code in someone's hand.
+       - **Shortening the payload (item 3 below) is no longer a blocker — it is a robustness win.** It shrinks
+         the version and improves every number at once, which is what would buy the landscape case and
+         scanning at arm's length rather than up close.
     2. **Share-sheet handoff.** `navigator.share()` on the invite code — one tap into any messaging app the two
        players already use, instead of select-copy-switch-paste. Two lines of code.
     3. **Shorter codes.** The blob is a whole SDP. Trimming to the fields that matter and compressing would make

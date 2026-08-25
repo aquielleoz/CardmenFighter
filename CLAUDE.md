@@ -138,6 +138,8 @@ fractional scaling, and "walk up to the first ancestor with a real width" finds 
 300px default**, so every viewport rendered the same 234px symbol. Measure the `.qrWrap` block. Current geometry:
 the 1,036-char invite is **v23 / 109 modules** — 3.0 CSS px per module on desktop, 2.67 on a portrait phone,
 2.0 in landscape where height binds. Shrinking the payload lowers the version and improves all of it at once.
+**Aj confirmed a real phone reads it (2026-08-25)**, so the shipped geometry is proven; the landscape 2.0 case
+is the one still unverified by a camera.
 
 **Netplay must be startable WITHOUT navigating.** `NET.start(role, kind, opts)` enters it in place; `?net=`
 still works and every `nettest_*` suite uses it, but the UI buttons must never set `location.search` — on
