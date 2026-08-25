@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.4**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.5**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -53,6 +53,8 @@ node lessontest_energy.js                       # the "Energy Order" tutorial le
 node piletest.js                                # energy/shuffle pile viewers + promote (30)
 node revealtest.js                              # Outbalance's hand read: the modal, and that it never
                                                 # reaches `state` (12)
+node exporttest.js                              # the playtest export at 3 players — per-seat stats (14)
+node nettest_reveal.js                          # the hand read over netplay, incl. who must NOT see it (10)
 node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (82)
 ```
 
@@ -205,7 +207,8 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of v1.31.4 — green. Counts verified 2026-08-24: `test` 208, `netview` 28, `mptest` 82,
+Status as of v1.31.5 — green. Counts verified 2026-08-25: `test` 208, `netview` 28, `mptest` 82,
+`exporttest` 14, `nettest_reveal` 10,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
 `landscapetest` 64, `nettest_log` 13, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
 `nettest_prefight` 13, `nettest_full` 5. **If a count here disagrees with a suite, the suite is right —
@@ -290,6 +293,25 @@ comments and test names still *say* "REWORK:" as a label; that's just naming, no
   Shields stay flat 4 at every count. Read the draw with **`E.drawCountFor(st)`**, never `E.DRAW_PER_ROUND`
   (the duel value) — reading the constant in the UI is what made the round banner announce "draws 2" at a table
   drawing 6, twice.
+
+**A netplay CLIENT's reveal is PUSHED by the host** (`hostFlushReveals` → `t:'reveal'`), because the effect
+resolves on the host. Two traps live here. First, `applyMirrorNow()` calls `hideOverlay()` on every mirror
+update unless *state* vouches for the modal — and the reveal is deliberately not on state — so the modal needs
+the `revealOpen` flag or the host's next broadcast wipes it a frame after it opens. Second, **`sendTo(seat,…)`
+is point-to-point only in RTC hub mode**; over BroadcastChannel it broadcasts and the recipient filters. BC
+netplay is same-browser play where the host tab already holds every hand, so that is acceptable there and
+nowhere else.
+
+**The playtest export is keyed by ABSOLUTE SEAT (v1.31.5), and `v:'2.0-mp'` marks it.** It used to key stats
+`'you' | 'rival'`, which merged every opponent into one bucket; `bumpFight` had a single call site so
+opponents' fights were always 0; and no player count was recorded at all. Opponents' fights are counted in
+**`buildOppBeats`**, the one place both drivers funnel through — the same reason readability features belong
+there. Any multiplayer export older than v1.31.5 is merged and fight-blank, and cannot be repaired.
+
+**Card text speaks to a TABLE, not a duel.** Four texts understated their own effect because the code loops
+every opponent while the text named one — `equipDelta` (Caltrops, Spiked Armor), `rideCostDelta` (Giant Ram),
+`swanValue` (Giant Swan). The house pattern for a genuinely single-target card is **"Target Rival"**. After any
+text edit run `node gen-cardlist.js`.
 
 **A revealed hand must never touch `st`.** Pandora's Outbalance lets the caster look at the target's hand
 (v1.31.4). Anything on state travels in netplay snapshots — including back to the player whose hand it is — so

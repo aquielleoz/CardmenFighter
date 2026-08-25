@@ -1678,8 +1678,8 @@
       4: { kind: 'recycle', scope: 'all', name: 'Poison the Air', type: 'Technique', impl: true, text: "Move every player's Energy Pile to their Shuffle Pile." },
       5: { kind: 'removeEquip', mode: 'destroy', name: 'Sabotage', type: 'Technique', impl: true, text: 'Destroy target Equipment.' },
       6: { kind: 'draw', draw: 4, discard: 2, name: 'Never Out of Options', type: 'Technique', impl: true, text: 'Look at the top 4 cards of your deck. Put 2 into your Energy Pile and draw the other 2.' },
-      7: { kind: 'equip', oppDelta: -2, counters: 5, name: 'Caltrops', type: 'Equipment', impl: true, text: "While equipped, the Rival's highest card each fight has its value reduced by 2." },
-      8: { kind: 'counterfeit', name: 'Counterfeit', type: 'Technique', impl: true, text: "Copy a card from the Rival's current play into your hand. You must play the copy in a fight this round — at the round's end it fades away." },
+      7: { kind: 'equip', oppDelta: -2, counters: 5, name: 'Caltrops', type: 'Equipment', impl: true, text: "While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
+      8: { kind: 'counterfeit', name: 'Counterfeit', type: 'Technique', impl: true, text: "Copy a card from the current play on the pile into your hand. You must play the copy in a fight this round — at the round's end it fades away." },
       9: { kind: 'destroyShield', n: 1, name: 'Critical Hit', type: 'Technique', impl: true, text: 'Target Rival loses 1 shield.' },
       10: { kind: 'lockout', quick: true, name: 'Back Stab', type: 'Quick Technique', impl: true, text: "Play in response. Target Rival skips their next turn — no fights, no Techniques (an effect already in progress still resolves)." }
     },
@@ -1690,9 +1690,9 @@
       4: { kind: 'removeEquip', mode: 'energy', name: 'Disarm', type: 'Technique', impl: true, text: "Disarm target Equipment: move it to its owner's Energy Pile and its effects stop." },
       5: { kind: 'equip', delta: 1, counters: 5, name: "Hero's Sword", type: 'Equipment', impl: true, text: 'While equipped, your highest card each fight has its value increased by 1.' },
       6: { kind: 'discardOpp', n: 2, name: 'Discombobulate', type: 'Technique', impl: true, text: 'Target Rival discards 2 cards.' },
-      7: { kind: 'onWin', extraShield: 1, quick: true, name: 'Armor Piercing', type: 'Quick Technique', impl: true, text: 'The next fight you win this round, the Rival loses 1 additional shield (never overkills).' },
+      7: { kind: 'onWin', extraShield: 1, quick: true, name: 'Armor Piercing', type: 'Quick Technique', impl: true, text: 'The next fight you win this round, the Rival you strike loses 1 additional shield (never overkills).' },
       8: { kind: 'reclaim', draw: 1, name: 'Instant Recovery', type: 'Technique', impl: true, text: 'Shuffle your Shuffle Pile into your deck, then draw 1 card.' },
-      9: { kind: 'equip', oppDelta: -1, counters: 5, name: 'Spiked Armor', type: 'Equipment', impl: true, text: "While equipped, the Rival's highest card each fight has its value reduced by 1." },
+      9: { kind: 'equip', oppDelta: -1, counters: 5, name: 'Spiked Armor', type: 'Equipment', impl: true, text: "While equipped, EVERY Rival's highest card each fight has its value reduced by 1." },
       10: { kind: 'destroyShield', n: 1, name: 'Ultima Attack', type: 'Technique', impl: true, text: 'Target Rival loses 1 shield.' }
     }
   };
@@ -1706,9 +1706,9 @@
   };
   var RIDE_TEXT = {
     D: 'While in your zone: the first effect you activate each turn costs 1 less energy. (Super keystone.)',
-    H: 'While in your zone: your plays are +1 value when the Rival tries to beat them — defensive. (Super keystone.)',
+    H: 'While in your zone: your plays are +1 value when a Rival tries to beat them — defensive. (Super keystone.)',
     C: 'While in your zone: your plays fight at +1 value on your turn — offensive. (Super keystone.)',
-    S: "While in your zone: the Rival's first effect each turn costs 1 more energy. (Super keystone.)"
+    S: "While in your zone: every Rival's first effect each turn costs 1 more energy. (Super keystone.)"
   };
   (function () {
     var tier = { 11: 'ride', 12: 'queen', 13: 'king' }, tname = { 11: 'Ride', 12: 'Form Change', 13: 'Form Change' };
@@ -1735,15 +1735,15 @@
     C: {  // Fighter: Hero's Sword renamed Hero's Javelin; Discombobulate→Superior Training (a dig); Armor Piercing loses Quick (moved to Hippolyta); Instant Recovery draw 2 (v1.13 restored the over-nerf to 1); Spiked Armor −1→−2
       5: { kind: 'draw', draw: 4, discard: 2, name: 'Superior Training', type: 'Technique', impl: true, text: 'Look at the top 4 cards of your deck. Put 2 into your Energy Pile and draw the other 2.' },
       6: { kind: 'equip', delta: 1, counters: 3, name: "Hero's Javelin", type: 'Equipment', impl: true, text: 'Equipment — lasts 3 rounds (1 counter spent at the start of each round; then it retires to your Energy). While equipped, your highest card each fight has its value increased by 1.' },
-      7: { kind: 'onWin', extraShield: 1, pitchHigh: true, name: 'Armor Piercing', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). The next fight you win this round, the Rival loses 1 additional shield (never overkills).' },
+      7: { kind: 'onWin', extraShield: 1, pitchHigh: true, name: 'Armor Piercing', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). The next fight you win this round, the Rival you strike loses 1 additional shield (never overkills).' },
       8: { kind: 'reclaim', draw: 2, name: 'Instant Recovery', type: 'Technique', impl: true, text: 'Shuffle your Shuffle Pile into your deck, then draw 2 cards.' },
-      9: { kind: 'equip', oppDelta: -2, counters: 3, name: 'Spiked Armor', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds (retires to your Energy after). While equipped, the Rival's highest card each fight has its value reduced by 2." },
+      9: { kind: 'equip', oppDelta: -2, counters: 3, name: 'Spiked Armor', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds (retires to your Energy after). While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
       10: { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Ultima Attack', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield.' }
     },
     S: {  // Rogue: Hand-to-Hand and Back Stab lose Quick (moved to Perseus / Hermes); Never Out of Options dig 4→3; Caltrops 5→3 counters
       3:  { kind: 'draw', draw: 2, name: 'Hand-to-Hand Mastery', type: 'Technique', impl: true, text: 'Draw 2 cards.' },
       6:  { kind: 'draw', draw: 3, discard: 2, name: 'Never Out of Options', type: 'Technique', impl: true, text: 'Look at the top 3 cards of your deck. Put 2 into your Energy Pile and draw the other 1.' },
-      7:  { kind: 'equip', oppDelta: -2, counters: 3, name: 'Caltrops', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds (retires to your Energy after). While equipped, the Rival's highest card each fight has its value reduced by 2." },
+      7:  { kind: 'equip', oppDelta: -2, counters: 3, name: 'Caltrops', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds (retires to your Energy after). While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
       9:  { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Critical Hit', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield.' },
       10: { kind: 'lockout', lockRound: true, name: 'Back Stab', type: 'Technique', impl: true, text: 'Target Rival skips the whole round — no fights, no Techniques.' }
     }
@@ -4296,7 +4296,7 @@ window.CardFace = {};
     var slots=el.children;
     if(prev!=null && !reduceMotion()){
       if(n<prev){                                              // took damage
-        if(stats) stats[pkey(player)].shieldsLost += (prev-n);
+        var slS=statOf(player); if(slS) slS.shieldsLost += (prev-n);
         for(var i=n;i<prev && i<slots.length;i++) shatterShield(slots[i]);
         el.classList.remove('shake-shield'); void el.offsetWidth; el.classList.add('shake-shield');
         (function(c){ setTimeout(function(){ c.classList.remove('shake-shield'); }, 500); })(el);
@@ -4418,18 +4418,40 @@ window.CardFace = {};
   }
 
   /* ---- playtest logging (localStorage, with in-memory fallback) ---- */
-  function pkey(pl){ return pl===YOU?'you':'rival'; }
+  /* Stats are keyed by ABSOLUTE SEAT (v1.31.5). They used to be keyed by `pkey(pl)` -> 'you' | 'rival', which
+   * collapsed all five opponents at a six-player table into one bucket, so an exported free-for-all could not
+   * say who did anything — and a duel and a six-player game were indistinguishable in the file. */
   function blankStat(){ return {jabs:0, specials:0, techniques:0, stoppers:0, shieldsLost:0, eff:{}}; }
-  function resetStats(){ stats={you:blankStat(), rival:blankStat()}; gameStartTs=Date.now(); lastEndType=null; }
-  function bumpFight(pl, type){ if(!stats) return; var s=stats[pkey(pl)]; if(type==='single') s.jabs++; else s.specials++; }
-  function bumpEffect(pl, eff){ if(!stats||!eff) return; var s=stats[pkey(pl)]; s.techniques++; if(eff.kind==='stopper') s.stoppers++; s.eff[eff.id]=(s.eff[eff.id]||0)+1; }
+  function resetStats(){ stats={seats:[]}; for(var si=0; si<6; si++) stats.seats[si]=blankStat(); gameStartTs=Date.now(); lastEndType=null; }
+  function statOf(pl){ return (stats && stats.seats && typeof pl==='number') ? stats.seats[pl] : null; }
+  function bumpFight(pl, type){ var s=statOf(pl); if(!s) return; if(type==='single') s.jabs++; else s.specials++; }
+  function bumpEffect(pl, eff){ var s=statOf(pl); if(!s||!eff) return; s.techniques++; if(eff.kind==='stopper') s.stoppers++; s.eff[eff.id]=(s.eff[eff.id]||0)+1; }
   function getGames(){ try{ var a=JSON.parse(localStorage.getItem(LOG_KEY)||'[]'); return Array.isArray(a)?a:memGames; }catch(e){ return memGames; } }
   function recordGame(){
     if(!stats || stats.recorded) return; stats.recorded=true;
-    function snap(w, idx){ var s=stats[w]; return {jabs:s.jabs, specials:s.specials, techniques:s.techniques, stoppers:s.stoppers, shieldsLost:s.shieldsLost, finalShields:state.players[idx].shields, eff:s.eff}; }
-    var rec={ v:'1.0-rework', ts:new Date().toISOString(), difficulty:difficulty,
-      winner:(state.winner===YOU?'you':'rival'), end:(lastEndType||'deckout'), rounds:state.round,
-      durationMs:Date.now()-gameStartTs, you:snap('you',YOU), rival:snap('rival',RIVAL),
+    var np=(state&&state.numPlayers)||2;
+    function snap(i){
+      var s=statOf(i)||blankStat(), pl=(state&&state.players[i])||null, per=personaOf(i);
+      return { seat:i, name:(seatName?seatName(i):null), deck:(seatDecks&&seatDecks[i])||(i===YOU?youDeck:(i===1?rivalDeck:null))||null,
+               difficulty:(seatDiffs&&seatDiffs[i])||null, persona:(per&&per.name)||null,
+               jabs:s.jabs, specials:s.specials, techniques:s.techniques, stoppers:s.stoppers,
+               shieldsLost:s.shieldsLost, finalShields:(pl?pl.shields:null), eliminated:!!(pl&&pl.eliminated), eff:s.eff };
+    }
+    var seats=[], i; for(i=0;i<np;i++) seats.push(snap(i));
+    /* The v1.0 `rival` field claimed to be "the opponent" but at 3+ players it silently held a merge of all of
+     * them — with fight counts stuck at 0, since bumpFight was only ever called for YOU. Keep the field so old
+     * analysis still parses, but make it an HONEST merge, and mark it. */
+    var merged=blankStat();
+    for(i=0;i<np;i++){ if(i===YOU) continue; var o=seats[i];
+      merged.jabs+=o.jabs; merged.specials+=o.specials; merged.techniques+=o.techniques;
+      merged.stoppers+=o.stoppers; merged.shieldsLost+=o.shieldsLost;
+      for(var k in o.eff) merged.eff[k]=(merged.eff[k]||0)+o.eff[k]; }
+    var net=(typeof NET!=='undefined' && NET.active && NET.active());
+    var rec={ v:'2.0-mp', ts:new Date().toISOString(), difficulty:difficulty,
+      numPlayers:np, mode:(net?'net':(np>2?'local-mp':'solo')), yourSeat:YOU,
+      winner:(state.winner===YOU?'you':'rival'), winnerSeat:(state.winner!=null?state.winner:null),
+      end:(lastEndType||'deckout'), rounds:state.round, durationMs:Date.now()-gameStartTs,
+      seats:seats, you:seats[YOU], rival:(np===2?seats[1]:merged), rivalIsMerged:(np>2),
       log:Array.prototype.map.call($('log').children, function(el){return el.textContent;}) };
     try{ var a=getGames(); a.push(rec); if(a.length>300) a=a.slice(a.length-300); localStorage.setItem(LOG_KEY, JSON.stringify(a)); memGames=a; }
     catch(e){ memGames.push(rec); }
@@ -5556,7 +5578,7 @@ window.CardFace = {};
       var rs=E.stopper(state, YOU, ids);
       if(!rs.ok){ setMessage(rs.reason); pick.chosen={}; render(); return; }
       pick=null; selected={};
-      if(stats) stats[pkey(YOU)].stoppers += needS;
+      var stS=statOf(YOU); if(stS) stS.stoppers += needS;
       setMessage('🛑 You cancelled the <b>'+cancelledS+'</b> with '+needS+' STOPPER'+(needS>1?'s':'')+' — you take the initiative.');
       logMsg('<b>You</b> cancelled a '+cancelledS+' with '+needS+' STOPPER'+(needS>1?'s':'')+' — you lead.', 'you');
       stopperFlash('You', cancelledS, needS);
@@ -5711,21 +5733,34 @@ window.CardFace = {};
       render();
     });
   }
-  /* Pandora's Outbalance promises "look at the target's hand", so show it. The engine hands the cards over
-   * exactly once and seat-checked (E.takeReveal) and never puts them on state — a revealed hand on `st` would
-   * ride along in every netplay snapshot, i.e. to the player whose hand it is. `next` runs once you dismiss. */
-  function showRevealIfAny(next){
+  /* Pandora's Outbalance promises "look at the target's hand", so show it. `seat` is in the LOCAL frame (a
+   * netplay client rotates before calling). Shared by the local path and the netplay one so the two cannot
+   * drift apart. `next` runs once you dismiss. */
+  /* Open across mirror updates: the reveal is deliberately NOT on state, and applyMirrorNow() closes any
+   * overlay that state does not vouch for — so without this flag the host's very next broadcast wipes the
+   * modal, and a netplay caster sees their hand read flash for a frame and vanish. */
+  var revealOpen=false;
+  function showRevealModal(seat, cards, next){
     next = next || function(){};
-    var rv = (E.takeReveal ? E.takeReveal(YOU) : null);
-    if(!rv || !rv.cards || !rv.cards.length){ next(); return false; }
-    showModal('<h2>👁 '+logName(rv.seat)+'\u2019s hand</h2>'+
+    if(!cards || !cards.length){ next(); return false; }
+    showModal('<h2>👁 '+logName(seat)+'’s hand</h2>'+
       '<p class="subtle">Outbalance lets you look before they pitch. Remember what you can — you only see it once.</p>'+
       '<div class="revealHand" id="revealHand"></div>'+
       '<button id="revOk">Got it</button>');
     var box=$('revealHand');
-    rv.cards.forEach(function(c){ box.appendChild(cardEl(c, 'sm')); });
+    cards.forEach(function(c){ box.appendChild(cardEl(c, 'sm')); });
+    revealOpen=true;
     $('revOk').addEventListener('click', function(){ hideOverlay(); next(); });
     return true;
+  }
+  /* The LOCAL pickup (solo, local MP, and the host's own casts). The engine hands the cards over exactly once
+   * and seat-checked (E.takeReveal) and never puts them on state — a revealed hand on `st` would ride along in
+   * every netplay snapshot, i.e. back to the player whose hand it is. A netplay CLIENT gets its reveal pushed
+   * by the host instead (t:'reveal'), because the host is where the effect actually resolves. */
+  function showRevealIfAny(next){
+    var rv = (E.takeReveal ? E.takeReveal(YOU) : null);
+    if(!rv){ if(next) next(); return false; }
+    return showRevealModal(rv.seat, rv.cards, next);
   }
   // After one of YOUR actions resolves, deal with any forced discard it created:
   // your own (draw-and-pitch) opens the picker; the Rival's (you played a discard on them) auto-resolves.
@@ -5891,7 +5926,7 @@ window.CardFace = {};
     var r=E.stopper(state, YOU, ids||info.ids);
     if(!r.ok){ setMessage(r.reason); return; }
     selected={};
-    if(stats) stats[pkey(YOU)].stoppers += info.need;   // record STOPPER commits (they don't go through activate)
+    var stI=statOf(YOU); if(stI) stI.stoppers += info.need;   // record STOPPER commits (they don't go through activate)
     setMessage('🛑 You cancelled the <b>'+cancelled+'</b> with '+info.need+' STOPPER'+(info.need>1?'s':'')+' — you take the initiative.');
     logMsg('<b>You</b> cancelled a '+cancelled+' with '+info.need+' STOPPER'+(info.need>1?'s':'')+' — you lead.', 'you');
     stopperFlash('You', cancelled, info.need);
@@ -6178,7 +6213,8 @@ window.CardFace = {};
           }});
         }
         else if(e.useEquip){ beats.push({ dwell:750, run:function(){ say(seat, '{who} spent a '+e.name+' counter — drew a card.', 'rival'); } }); }
-        else if(e.fight==='play'){ beats.push({ dwell:1500, run:function(){ say(seat, '{who} played '+playPhrase(e.combo)+(e.boost?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'rival'); bumpFight(RIVAL, e.combo.type); setMessage('<b>'+who+'</b> played '+kindPhrase(e.combo.type)+'.'); render(); } }); }
+        else if(e.fight==='play'){ bumpFight(seat, e.combo&&e.combo.type);   // opponents' fights were never counted — see recordGame
+        beats.push({ dwell:1500, run:function(){ say(seat, '{who} played '+playPhrase(e.combo)+(e.boost?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'rival'); bumpFight(RIVAL, e.combo.type); setMessage('<b>'+who+'</b> played '+kindPhrase(e.combo.type)+'.'); render(); } }); }
         else if(e.phantasm){ beats.push({ dwell:1300, run:function(){ say(seat, '{who} conjured a Phantasmal Illusion — a '+kindLabel(e.made)+' overtakes the pile.', 'rival'); setMessage('🎭 <b>Rival warped your play with a Phantasmal Illusion!</b>'); render(); } }); }
         else if(e.fight==='pass'){ beats.push({ dwell:950, run:function(){ say(seat, '{who} passed.', 'rival'); setMessage('<b>'+who+'</b> passed.'); render(); } }); }
         else if(e.stopper){ beats.push({ dwell:1150, run:function(){ say(seat, '{who} cancelled a '+kindLabel(e.cancelled)+' with '+e.stopper+' STOPPER'+(e.stopper>1?'s':'')+' — '+who+' leads.', 'rival'); if(stats) stats[pkey(RIVAL)].stoppers += e.stopper; setMessage('🛑 <b>Rival cancelled your '+kindLabel(e.cancelled)+'!</b>'); stopperFlash('Rival', kindLabel(e.cancelled), e.stopper); render(); } }); }
@@ -6592,7 +6628,7 @@ window.CardFace = {};
     rows+='<div class="ctxRow"><span class="ctxLbl">Your energy</span><span><b>'+you.energy.length+'</b>⚡ '+bits.join('')+'</span></div>';
     return '<div class="ctxBox">'+rows+'</div>';
   }
-  function hideOverlay(){ peeking=false; var ov=$('overlay'); ov.classList.remove('show'); ov.classList.remove('peeking'); document.body.classList.remove('peeking-board'); var bar=$('peekBar'); if(bar) bar.remove(); }
+  function hideOverlay(){ peeking=false; revealOpen=false; var ov=$('overlay'); ov.classList.remove('show'); ov.classList.remove('peeking'); document.body.classList.remove('peeking-board'); var bar=$('peekBar'); if(bar) bar.remove(); }
 
   // ============ Guided tutorial — a coached first duel (Basics, 2p vs a gentle AI) ============
   var TUT = (function(){
@@ -8014,6 +8050,10 @@ window.CardFace = {};
           logMsg('Online duel — you play <b>'+deckLabel(youDeck)+'</b>. Round 1, jabs only.', 'round'); }   // adopt this seat's concrete deck (for the board labels)
         else if(m.t==='mirror' && m.seat===mySeat){ connected=true; applyMirror(m.st); }
         else if(m.t==='ceremony' && m.seat===mySeat){ clientPlayCeremony(m.res); }
+        else if(m.t==='reveal' && m.seat===mySeat){           // Outbalance: the host resolved it, so the host pushes the cards
+          var rn=(state&&state.numPlayers)||2;                // `of` is ABSOLUTE — rotate it into our frame, like the log handler
+          showRevealModal(((((m.of-mySeat)%rn)+rn)%rn), m.cards||[]);
+        }
         else if(m.t==='concede'){ onOpponentConcede(); }
         else if(m.t==='peer'){ clientPeerDown=(m.ev==='back'?false:m.ev); renderDisconBar(); }    // host: another player dropped('drop') / Passo covering('passo') / back(false)
         else if(m.t==='err'){ if(m.seat==null || m.seat===mySeat) setMessage('⚠ '+(m.reason||'Illegal move.')); }
@@ -8153,6 +8193,21 @@ window.CardFace = {};
     function hostLive(){ return isHost() && started; }
     // N-player settle of the host's OWN cast: the host answers via its modal; each opponent's response window parks
     // for that remote seat (netReact); when the stack clears, run `done` (the cast's continuation → hostAfterOwnCast).
+    /* Push a hand READ to the client that cast it. The engine holds the cards in a transient, seat-checked,
+     * one-shot slot (E.takeReveal), so sweeping every seat is safe: at most one returns non-null, and it is
+     * always the caster. Called both right after the cast (immediate resolution) and after windows settle,
+     * because an Outbalance can sit in a response window and only resolve later.
+     * PRIVACY, precisely: `sendTo` is genuinely point-to-point only in RTC hub mode. Over BroadcastChannel it
+     * falls through to a broadcast that the recipient filters by seat — so on BC every tab receives the frame.
+     * BC netplay is same-browser play, where the host tab already holds every hand and devtools reaches it, so
+     * this does not widen that threat model; it is NOT a transport for players who do not trust each other. */
+    function hostFlushReveals(){
+      if(!hostState || !E.takeReveal) return;
+      for(var s=1; s<hostState.numPlayers; s++){
+        var rv=E.takeReveal(s);
+        if(rv && rv.cards && rv.cards.length) sendTo(s, {t:'reveal', seat:s, of:rv.seat, cards:rv.cards});
+      }
+    }
     function hostSettleN(g, done){
       if(g!==gen) return;
       if(!hostState){ return done && done(); }
@@ -8161,6 +8216,7 @@ window.CardFace = {};
         netParked=null; netReact={ kind:'respond', seat:hostState.respondFor, g:g, resume:function(){ hostSettleN(g, done); } };
         busy=true; render(); broadcastMirror(); maybePasso(netReact.seat); return;
       }
+      hostFlushReveals();                 // an Outbalance that waited out a response window resolves here
       render(); if(done) done();
     }
     // Windows owed to the REMOTE Rival (seat 1): a round-win shield-guard they can spring (Leyline), or a forced
@@ -8358,6 +8414,7 @@ window.CardFace = {};
           r=E.activate(hostState, seat, it.id, { target:tgt, copyId:it.copyId, discard:it.discard, toTop:it.toTop });
           if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
           say(seat, '{who} played '+(ae?ae.name:'a Technique')+'.', 'rival');
+          hostFlushReveals();          // Outbalance: hand the read to the caster (no-op for every other card)
         } else return;
       }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Move rejected.'}); broadcastMirror(); return; }
       netParked=null;
@@ -8404,7 +8461,8 @@ window.CardFace = {};
       var owedModal = !!((st.pending && st.respondFor===YOU) || (st.shieldResponse && st.shieldResponse.q===YOU) || (st.preFightQ===YOU));   // overlay windows — keep them up (don't flicker away)
       var owedDiscard = !!(st.discardPending && st.discardPending.player===YOU);                                     // interactive hand-picker — must stay unlocked
       var owedLoss = !!(st.pendingLossChoice && st.pendingLossChoice.winner===YOU);                                 // panel-pick: whose shield to strip
-      if(!owedModal) hideOverlay();
+      if(owedModal) revealOpen=false;                    // a window the GAME owes you outranks a look at a hand
+      if(!owedModal && !revealOpen) hideOverlay();
       hideNetroot();
       busy = owedModal || owedLoss || (!owedDiscard && (state.turn!==YOU)) || !!state.finished;   // locked during modal windows / opponent's turn / loss-pick; unlocked to pick discards
       render();
@@ -8615,7 +8673,9 @@ window.CardFace = {};
       // ceremony wording DIRECTLY instead of playing random games until a shield-loss ceremony happens
       // (which failed ~1 run in 3 by simply never reaching one).
       beats:function(res){ return buildPreDrawBeats(res||{}); },
-      names:function(list){ setSeatNames(list); render(); } }; }   // test hook: inspect/mutate solo state for layout/pulse verification
+      names:function(list){ setSeatNames(list); render(); },
+      // playtest-log hooks: assert what an EXPORT would actually contain without playing to a real finish
+      stats:function(){ return stats; }, record:function(){ return recordGame(); }, games:function(){ return getGames(); } }; }   // test hook: inspect/mutate solo state for layout/pulse verification
 })();
 </script>
 </body>

@@ -557,8 +557,8 @@
       4: { kind: 'recycle', scope: 'all', name: 'Poison the Air', type: 'Technique', impl: true, text: "Move every player's Energy Pile to their Shuffle Pile." },
       5: { kind: 'removeEquip', mode: 'destroy', name: 'Sabotage', type: 'Technique', impl: true, text: 'Destroy target Equipment.' },
       6: { kind: 'draw', draw: 4, discard: 2, name: 'Never Out of Options', type: 'Technique', impl: true, text: 'Look at the top 4 cards of your deck. Put 2 into your Energy Pile and draw the other 2.' },
-      7: { kind: 'equip', oppDelta: -2, counters: 5, name: 'Caltrops', type: 'Equipment', impl: true, text: "While equipped, the Rival's highest card each fight has its value reduced by 2." },
-      8: { kind: 'counterfeit', name: 'Counterfeit', type: 'Technique', impl: true, text: "Copy a card from the Rival's current play into your hand. You must play the copy in a fight this round — at the round's end it fades away." },
+      7: { kind: 'equip', oppDelta: -2, counters: 5, name: 'Caltrops', type: 'Equipment', impl: true, text: "While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
+      8: { kind: 'counterfeit', name: 'Counterfeit', type: 'Technique', impl: true, text: "Copy a card from the current play on the pile into your hand. You must play the copy in a fight this round — at the round's end it fades away." },
       9: { kind: 'destroyShield', n: 1, name: 'Critical Hit', type: 'Technique', impl: true, text: 'Target Rival loses 1 shield.' },
       10: { kind: 'lockout', quick: true, name: 'Back Stab', type: 'Quick Technique', impl: true, text: "Play in response. Target Rival skips their next turn — no fights, no Techniques (an effect already in progress still resolves)." }
     },
@@ -569,9 +569,9 @@
       4: { kind: 'removeEquip', mode: 'energy', name: 'Disarm', type: 'Technique', impl: true, text: "Disarm target Equipment: move it to its owner's Energy Pile and its effects stop." },
       5: { kind: 'equip', delta: 1, counters: 5, name: "Hero's Sword", type: 'Equipment', impl: true, text: 'While equipped, your highest card each fight has its value increased by 1.' },
       6: { kind: 'discardOpp', n: 2, name: 'Discombobulate', type: 'Technique', impl: true, text: 'Target Rival discards 2 cards.' },
-      7: { kind: 'onWin', extraShield: 1, quick: true, name: 'Armor Piercing', type: 'Quick Technique', impl: true, text: 'The next fight you win this round, the Rival loses 1 additional shield (never overkills).' },
+      7: { kind: 'onWin', extraShield: 1, quick: true, name: 'Armor Piercing', type: 'Quick Technique', impl: true, text: 'The next fight you win this round, the Rival you strike loses 1 additional shield (never overkills).' },
       8: { kind: 'reclaim', draw: 1, name: 'Instant Recovery', type: 'Technique', impl: true, text: 'Shuffle your Shuffle Pile into your deck, then draw 1 card.' },
-      9: { kind: 'equip', oppDelta: -1, counters: 5, name: 'Spiked Armor', type: 'Equipment', impl: true, text: "While equipped, the Rival's highest card each fight has its value reduced by 1." },
+      9: { kind: 'equip', oppDelta: -1, counters: 5, name: 'Spiked Armor', type: 'Equipment', impl: true, text: "While equipped, EVERY Rival's highest card each fight has its value reduced by 1." },
       10: { kind: 'destroyShield', n: 1, name: 'Ultima Attack', type: 'Technique', impl: true, text: 'Target Rival loses 1 shield.' }
     }
   };
@@ -585,9 +585,9 @@
   };
   var RIDE_TEXT = {
     D: 'While in your zone: the first effect you activate each turn costs 1 less energy. (Super keystone.)',
-    H: 'While in your zone: your plays are +1 value when the Rival tries to beat them — defensive. (Super keystone.)',
+    H: 'While in your zone: your plays are +1 value when a Rival tries to beat them — defensive. (Super keystone.)',
     C: 'While in your zone: your plays fight at +1 value on your turn — offensive. (Super keystone.)',
-    S: "While in your zone: the Rival's first effect each turn costs 1 more energy. (Super keystone.)"
+    S: "While in your zone: every Rival's first effect each turn costs 1 more energy. (Super keystone.)"
   };
   (function () {
     var tier = { 11: 'ride', 12: 'queen', 13: 'king' }, tname = { 11: 'Ride', 12: 'Form Change', 13: 'Form Change' };
@@ -614,15 +614,15 @@
     C: {  // Fighter: Hero's Sword renamed Hero's Javelin; Discombobulate→Superior Training (a dig); Armor Piercing loses Quick (moved to Hippolyta); Instant Recovery draw 2 (v1.13 restored the over-nerf to 1); Spiked Armor −1→−2
       5: { kind: 'draw', draw: 4, discard: 2, name: 'Superior Training', type: 'Technique', impl: true, text: 'Look at the top 4 cards of your deck. Put 2 into your Energy Pile and draw the other 2.' },
       6: { kind: 'equip', delta: 1, counters: 3, name: "Hero's Javelin", type: 'Equipment', impl: true, text: 'Equipment — lasts 3 rounds (1 counter spent at the start of each round; then it retires to your Energy). While equipped, your highest card each fight has its value increased by 1.' },
-      7: { kind: 'onWin', extraShield: 1, pitchHigh: true, name: 'Armor Piercing', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). The next fight you win this round, the Rival loses 1 additional shield (never overkills).' },
+      7: { kind: 'onWin', extraShield: 1, pitchHigh: true, name: 'Armor Piercing', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). The next fight you win this round, the Rival you strike loses 1 additional shield (never overkills).' },
       8: { kind: 'reclaim', draw: 2, name: 'Instant Recovery', type: 'Technique', impl: true, text: 'Shuffle your Shuffle Pile into your deck, then draw 2 cards.' },
-      9: { kind: 'equip', oppDelta: -2, counters: 3, name: 'Spiked Armor', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds (retires to your Energy after). While equipped, the Rival's highest card each fight has its value reduced by 2." },
+      9: { kind: 'equip', oppDelta: -2, counters: 3, name: 'Spiked Armor', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds (retires to your Energy after). While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
       10: { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Ultima Attack', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield.' }
     },
     S: {  // Rogue: Hand-to-Hand and Back Stab lose Quick (moved to Perseus / Hermes); Never Out of Options dig 4→3; Caltrops 5→3 counters
       3:  { kind: 'draw', draw: 2, name: 'Hand-to-Hand Mastery', type: 'Technique', impl: true, text: 'Draw 2 cards.' },
       6:  { kind: 'draw', draw: 3, discard: 2, name: 'Never Out of Options', type: 'Technique', impl: true, text: 'Look at the top 3 cards of your deck. Put 2 into your Energy Pile and draw the other 1.' },
-      7:  { kind: 'equip', oppDelta: -2, counters: 3, name: 'Caltrops', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds (retires to your Energy after). While equipped, the Rival's highest card each fight has its value reduced by 2." },
+      7:  { kind: 'equip', oppDelta: -2, counters: 3, name: 'Caltrops', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds (retires to your Energy after). While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
       9:  { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Critical Hit', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield.' },
       10: { kind: 'lockout', lockRound: true, name: 'Back Stab', type: 'Technique', impl: true, text: 'Target Rival skips the whole round — no fights, no Techniques.' }
     }
