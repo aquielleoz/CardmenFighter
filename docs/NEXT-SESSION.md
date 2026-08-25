@@ -19,36 +19,28 @@ npm test && node mptest.js
 Expect **231 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
 
 ### What just shipped
-**v1.31.4 → v1.31.8, and the through-line is one sentence: four cards read as dead in the sims, and not one of
-them was a broken card.**
+**v1.31.9 → v1.31.16, and the shape of it: most of today's bugs were in the TOOLING or in my own reasoning, not
+in the game.**
 
-- **v1.31.4 — the ♠ Back Stab line, re-laid.** Base locks the whole **round**; Perseus makes it a **Quick**;
-  Hermes hits **every** rival; Pandora's Outbalance lets you **look at the target's hand**. Plus a timing model
-  (`lockoutWorth`) that asks *"is the play I want to make under threat from THIS rival"*.
-- **v1.31.5 — Aj's three priorities**, each worse than its one-line description: the netplay reveal (and a
-  mirror that wiped the modal a frame after it opened), an export that recorded **zero** opponent fights and no
-  player count, and four card texts that *understated* their own effect at a full table.
-- **v1.31.6 — Phantasmal Illusion restored** to Aj's original copy-a-Special design. It had been replaced in
-  v1.13 by a +6 valueBoost *because a sim showed 0.00 casts* — against this repo's own written warning that a
-  0.00 is a measurement artifact. The old implementation had sat unreachable in three layers for 18 versions.
-- **v1.31.7 — Counterfeit.** The card was fine; the AI's own `avoidCombo` rule vetoed it on **81%** of the
-  turns it would have won, and the evaluation counted a card the cast was about to spend.
-- **v1.31.8 — Back Stab's AI**: stop casting with no legal play to follow (48% of duel casts), cast at a full
-  table (the "a high special defends itself" hold bought nothing), and skip the target model entirely under
-  Hermes, where every rival is locked. Plus **v1.31.8a**: the engine's own defaults were the *reverted*
-  v1.31.0 rules, so any probe that forgot to configure them measured a game nobody plays.
+- **v1.31.9** — the two "position-dependent" netplay suites were **the tests**, not the environment. The
+  documented signature (`maxRound=2 acted=80`) was the clue for months: `waitTurnEnds` returned void, so the
+  driver could not tell "turn over" from "gave up" and acted into a stale board.
+- **v1.31.10** — the clean-up phase only ever trimmed and announced **seat 1**.
+- **v1.31.11 / v1.31.13** — "STOPPERs have zero engagement" because **STOPPERs are not in the game**; the
+  mechanic was retired by the rework and the implementation sat unreachable in three layers. Now deleted
+  (build ~12KB smaller). The netplay record is also authored by the **host** and adopted by everyone.
+- **v1.31.14** — every dialog was clipped off **both** edges on a short viewport, desktop included; `#disconBar`
+  assumed a 56px header when landscape is 37px and a wrapped portrait header is 92px.
+- **v1.31.15** — netplay **could not be started from a file opened on a phone**: it entered by reloading with a
+  query string, and `content://` cannot carry one. Aj confirmed the fix works on his phone.
+- **v1.31.16** — **emotes** (7, with sound, on the existing intent channel) and a **name field on every lobby
+  screen**, plus a host **ping**.
 
-### The one open balance problem
-**Pure Rogue at six players: ~9.7%, against a 16.7% fair share (0.58x).** Unchanged all session, and now known
-*not* to be a card-logic problem — measured directly, casting Back Stab 25% more moves Rogue's share by
-**−0.3 ±0.7**, i.e. nothing. Its real defect is in the backlog and already measured: Rogue is the **least**
-shape-blocked deck but has the highest share of **deficit-of-one** losses — right shape, one point short, over
-and over. The **"slash" card** (lower the current pile's value) is the intended lever.
-
-Two measurement guard-rails learned the hard way this session are in CLAUDE.md: **the 8-run A/B is powered for
-the SPREAD, not for one low-share deck** (Rogue at 6p has a ~3.3-point run-to-run sd — the same build gave 7.8
-and 18.1 in adjacent runs), and **deck keys are capitalised** — a lowercase key silently falls back to the full
-52-card set, which once made both arms of an A/B return an identical, innocent-looking 1/6.
+### Next up: QR invite codes — scoped, measured, decided
+See the BACKLOG's first item. The short version: the invite code is **1,036 chars** and a single QR holds
+~2,953, so it fits with 2.8x headroom; **phase 1 is SHOW only**; the encoder is **hand-written** to keep the
+zero-dependency property; and it is **self-verifying** because the harness can decode its own rendered QR and
+assert the string round-trips. Nothing is started — it is ready to pick up cold.
 
 ### ⚠️ Two stale beliefs this doc used to carry — do not act on them
 - **v1.31.0's multiplayer rules package was REVERTED** (v1.31.2). Shields are **flat 4** at every player
@@ -89,18 +81,29 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
     purpose. Automatic "games near you" is **not achievable** while the game stays a serverless single file —
     that is a real constraint of the platform, not a missing feature.
   - **What DOES cut the hassle, in rough order of value per effort:**
-    1. **QR codes — and they work on DESKTOP too** (Aj asked; measured 2026-08-25 rather than assumed). On the
-       `file://` origin the game actually runs from: `isSecureContext` is **true**, and both `getUserMedia` and
-       `BarcodeDetector` are present in the Chromium family. So the camera path is *not* blocked by running as a
-       local file, which was the obvious worry.
-       The real asymmetry is **show vs read**, not desktop vs mobile:
-       - **Showing** a QR works everywhere — no permissions, no API, a few KB of inline encoder.
-       - **Reading** needs a camera plus a decoder. `BarcodeDetector` covers Chromium; **Firefox and Safari do
-         not implement it**, so cross-browser wants an inlined JS decoder (a few KB more) with a paste box
-         behind it.
-       Practical value by pairing: **desktop ↔ phone is the big win** (desktop shows the invite, phone scans;
-       the reply goes back by webcam scan or share-sheet), **phone ↔ phone** is the best case, and
-       **desktop ↔ desktop** barely needs it since copy-paste over any chat is already easy there.
+    1. **QR invite codes — SCOPED AND DECIDED, ready to build (2026-08-25).**
+       - **It fits.** Measured the real invite code: **1,036 characters**, already base64
+         (`eyJ0Ijoib2ZmZXIi…` = `{"t":"offer","s":"v=0…`). A single QR holds ~2,953 bytes, so that is **~2.8x
+         headroom** — no multi-part QR, no protocol surgery. `deflateRaw`+base64 takes it to ~910 if a less
+         dense symbol is ever wanted. **Assert the length in the test**: 1,036 was headless with STUN on, and a
+         real machine with more network interfaces will produce a longer offer, so we want to find that out in
+         CI rather than in someone's hand.
+       - **Desktop works too** — measured on the `file://` origin the game actually runs from: `isSecureContext`
+         is **true**, and `getUserMedia` and `BarcodeDetector` are both present in the Chromium family. Running
+         as a local file does not block the camera, which was the obvious worry.
+       - **The asymmetry is SHOW vs READ, not desktop vs mobile.** Showing needs no permissions and no API;
+         reading needs a camera plus a decoder, and `BarcodeDetector` is Chromium-only (Firefox and Safari want
+         an inlined JS decoder behind it).
+       - **Decided: phase 1 is SHOW only.** It already buys the desktop-hosts/phone-joins win, and it cannot
+         break anything — it is an extra rendering of a string the screen already displays. Phase 2 (camera
+         scanning) waits until the QR has been held up to a real phone once.
+       - **Decided: hand-write a minimal byte-mode encoder** (~250 lines: version pick, Reed-Solomon, masking)
+         rather than vendor a library — the project is deliberately zero-dependency and hand-inlined.
+       - **The encoder is self-verifying, which is why hand-writing it is safe.** `BarcodeDetector` exists in the
+         harness, so the suite can **render a QR, decode its own output, and assert the string round-trips.** A
+         subtly wrong QR looks perfectly fine to a human, so this test is the whole safety argument.
+       - Value by pairing: **desktop ↔ phone is the big win**, **phone ↔ phone** the best case,
+         **desktop ↔ desktop** barely needs it (copy-paste over any chat is already easy there).
     2. **Share-sheet handoff.** `navigator.share()` on the invite code — one tap into any messaging app the two
        players already use, instead of select-copy-switch-paste. Two lines of code.
     3. **Shorter codes.** The blob is a whole SDP. Trimming to the fields that matter and compressing would make
