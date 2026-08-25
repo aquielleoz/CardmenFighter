@@ -109,6 +109,14 @@ handled **before every turn gate** (reacting off-turn is the point); a client ca
 the emote bar is built INSIDE the NET IIFE, so a helper sharing a name with a NET function is silently shadowed
 — NET's broadcaster is `emoteBroadcast` for exactly that reason.
 
+**The UI version stamp is DERIVED from `README.md`, never declared twice.** `build.js` reads the `**Status:**`
+line, substitutes `__VERSION__`, and hard-fails if it cannot find one; `GAME_VERSION`/`verTag()` render it in
+the setup dialog footer and the netplay lobby bar. **Do not add a second version constant** — a stamp that can
+drift is worse than none, because it makes a stale build look current. It exists because a real bug report
+("the client has no name field") was a *stale download* of a feature shipped two versions earlier, and nothing
+on screen could say so; `versiontest.js` asserts the whole chain including the **repo-root copy**, which is the
+file people download. When a shipped feature is reported missing, check the reporter's build before the code.
+
 **`qr.js` is verified against a REFERENCE IMPLEMENTATION, and that is the only reason hand-writing it was safe.**
 Its first version placed the format bits **LSB-first instead of MSB-first**. Every check a careful person would
 run passed: finders, timing, separators and dark module were all correct, and reading the format bits back by
@@ -276,7 +284,7 @@ stray processes before suspecting the code. And never wait on work with `while p
 Status as of v1.31.6 — green. Counts verified 2026-08-25: `test` 231, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
-`landscapetest` 96, `qrtest` 19, `qrref` 26, `nettest_log` 13, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
+`landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 13, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
 `nettest_prefight` 13, `nettest_full` 5. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
