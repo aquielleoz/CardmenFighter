@@ -683,8 +683,13 @@ function cards(ids) { return ids.map(card); }
   var rs = midPlan(4); rs.players[0]._read = { 2: { round: 2, best: 5, pairs: 0, size: 3 } };
   ok(AI.lockoutWorth(rs, 0, 2) === 'plan-vulnerable', 'lockout model: a STALE read is ignored, not trusted');
   function highPlan(np) { var g = tbl(np); g.players[0].hand = [mkc(13, 'S'), mkc(13, 'H'), mkc(4, 'C')]; return g; }
-  ok(AI.lockoutWorth(highPlan(6), 0, 2) === '', 'lockout model: a high special defends itself at a full table');
-  ok(AI.lockoutWorth(highPlan(3), 0, 2) === 'crowd-thin', 'lockout model: a high special still worth protecting when few rivals remain');
+  // v1.31.8: the "a high special defends itself" hold measured worthless (it was 15% of every evaluation at
+  // six players and bought nothing), so LOCKOUT_MAX_ALIVE defaults to 6 and the model casts at any table size.
+  ok(AI.lockoutWorth(highPlan(6), 0, 2) === 'crowd-thin', 'lockout model: a high plan is cast at a FULL table too');
+  ok(AI.lockoutWorth(highPlan(3), 0, 2) === 'crowd-thin', 'lockout model: …and when few rivals remain');
+  AI.setLockoutMaxAlive(3);
+  ok(AI.lockoutWorth(highPlan(6), 0, 2) === '', 'lockout model: the old hold is still reachable via setLockoutMaxAlive (A/B knob)');
+  AI.setLockoutMaxAlive(6);
   var nn = tbl(4); nn.players[0].hand = [mkc(9, 'S'), mkc(4, 'C')];
   ok(AI.lockoutWorth(nn, 0, 2) === '', 'lockout model: nothing to protect, nothing to spend');
   var th = midPlan(4); th.players[2].hand = [mkc(3, 'D'), mkc(4, 'H')];

@@ -1,7 +1,7 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**225**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**226**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
 Current version: **v1.31.8**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
@@ -16,7 +16,7 @@ HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 npm test && node mptest.js
 ```
 
-Expect **225 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
+Expect **226 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
 
 ### What just shipped
 **v1.31.5 — Aj's three priorities**, each of which was worse than its one-line description: the netplay reveal
@@ -333,8 +333,36 @@ And the "51 casts won 7.8%" group above were states with **no legal play at all*
 rounds regardless, so the cast was not *causing* the loss. It was wasting 10 energy in a round already gone.
 The one mechanical (not inferred) effect is therefore **1.2 energy saved per chance-round**.
 
-Play rate did **not** improve, and was never meant to: 1v1 **17.2 → 14.0** casts per 100 games, 4p and 6p flat
-within noise (3 runs of 400 games per arm).
+Play rate did **not** improve from that half, and was never meant to: 1v1 **17.2 → 14.0** casts per 100 games,
+4p and 6p flat within noise.
+
+**Then Aj: "i want ai to cast it more and win with it… maybe those opportunities just don't come up much."**
+He was right, and the funnel puts a number on it. Over ~1,800 evaluations in 800 six-player games:
+
+| what the model saw | share |
+| --- | --- |
+| **no legal play at all** | **69%** |
+| `crowded` — "a high special defends itself" | 15% |
+| `plan-vulnerable` → cast | 11% |
+| `highs-spent` hold | 4% |
+
+69% of the time the AI holds Back Stab, can afford it, and simply has nothing to follow it with. That is the
+ceiling on how often the card can ever fire, and it is a property of the game, not the AI.
+
+The 15% `crowded` bucket was the only large **discretionary** hold, and it measured worthless. Flipping it
+(`LOCKOUT_MAX_ALIVE` 3 → 6, i.e. never hold):
+
+| | casts per 100 games (6p) | round-win over the same chance-rounds |
+| --- | --- | --- |
+| hold at 4+ alive | 25.6 | 24.1% ±1.0 |
+| **always cast** | **50.3** | **25.4% ±1.0** |
+
+Double the casts, round-win unchanged (+1.3, 0.9 s.e.), deck spread unmoved (largest 2.0 s.e., 8 runs per
+arm; ♠ decks move −1.4 to −0.9, all under 1.0 s.e.). **This is not a buff — it is removing a hold that bought
+nothing.** Kept as a knob (`setLockoutMaxAlive`) for future study.
+
+Both halves together, casts per 100 games: **1v1 17.2 → 11.5** (waste removed), **4p 17.8 → 25.9**,
+**6p 27.5 → 44.7**.
 
 Multiplayer is untouched by design — it already required a plan; the `no-follow-up` check just names the same
 hold earlier, which is why `no-special` collapsed from 361 to 2 in the branch tally. One related tightening:
@@ -345,7 +373,7 @@ Balance, 8 runs per arm: spread 19.1→19.7 (2p), 18.5→17.6 (3p), 17.8→19.9 
 2.1 s.e. Pure Rogue +1.9 in duels (2.3 s.e.), the right direction and still under the bar. As with Counterfeit:
 **the AI plays the card materially better, and no deck's win rate moved measurably.**
 
-Tests: **225** (was 222) — the no-legal-play hold, and that leading counts as a follow-up.
+Tests: **226** (was 222) — the no-legal-play hold, that leading counts as a follow-up, that a high plan now casts at a full table, and that the old hold is still reachable through the A/B knob.
 
 ### v1.31.7 — Counterfeit: the card was fine, the AI's own rule was vetoing it
 

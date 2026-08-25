@@ -3388,10 +3388,15 @@
     var seen = st._seen && st._seen[t];
     if (seen && seen.round === st.round && tierOf(seen.hi) === 'high') return 'highs-spent';   // their highs are already spent
     if (tierOf(plan) !== 'high') return 'plan-vulnerable';           // a low/mid special is answerable: lock them
-    return (E.aliveCount(st) <= LOCKOUT_MAX_ALIVE) ? 'crowd-thin' : 'crowded';   // a high special mostly defends itself
+    return (E.aliveCount(st) <= LOCKOUT_MAX_ALIVE) ? 'crowd-thin' : 'crowded';   // see LOCKOUT_MAX_ALIVE — default never holds
   }
 
-  var LOCKOUT_MAX_ALIVE = 3;
+  /* "A high special defends itself, don't bother locking" was the biggest DISCRETIONARY hold in the model —
+   * 15% of every evaluation at six players — and measured 2026-08-25 it bought nothing. Casting in those spots
+   * instead DOUBLES the cast rate (25.6 -> 50.3 per 100 six-player games) with round-win over the same
+   * chance-rounds unchanged (24.1% -> 25.4%, 0.9 s.e.) and deck spread unmoved (largest 2.0 s.e., 8 runs per
+   * arm). 6 = never holds at any legal table size; the knob stays for future study. */
+  var LOCKOUT_MAX_ALIVE = 6;
   function setLockoutMaxAlive(n) { LOCKOUT_MAX_ALIVE = n | 0; }
   var STRAT_PASS_MAX = 5;                      // pass a winnable jab when hand length <= this
   var STRAT_PASS_MP = false;                   // allow it in 3+ player games at all

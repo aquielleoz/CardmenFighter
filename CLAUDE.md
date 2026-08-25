@@ -209,7 +209,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of v1.31.6 — green. Counts verified 2026-08-25: `test` 225, `netview` 28, `mptest` 82,
+Status as of v1.31.6 — green. Counts verified 2026-08-25: `test` 226, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
 `landscapetest` 64, `nettest_log` 13, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
