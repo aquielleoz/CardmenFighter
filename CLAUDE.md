@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.6**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.7**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -209,7 +209,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of v1.31.6 — green. Counts verified 2026-08-25: `test` 218, `netview` 28, `mptest` 82,
+Status as of v1.31.6 — green. Counts verified 2026-08-25: `test` 222, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
 `landscapetest` 64, `nettest_log` 13, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
@@ -309,6 +309,11 @@ nowhere else.
 opponents' fights were always 0; and no player count was recorded at all. Opponents' fights are counted in
 **`buildOppBeats`**, the one place both drivers funnel through — the same reason readability features belong
 there. Any multiplayer export older than v1.31.5 is merged and fight-blank, and cannot be repaired.
+
+**A COMBO card reads as dead in every sim.** Counterfeit (♠8) helps on 25%/39% of its chances when the caster
+has an edge (own buff, or their pile debuffed by Caltrops ♠7 — both Rogue, both in the same deck), and ~3% when
+they don't. The bots never set one up for the other, so the edge exists on ~3% of chances and the card measures
+as 0.01. Before "fixing" a low-cast card, check whether its enabling condition is something the AI builds.
 
 **A 0.00 cast rate is not a verdict on a card.** PATCHNOTES says so explicitly, and it was ignored once
 already: Phantasmal Illusion was replaced wholesale in v1.13 because sims showed 0.00, when the real cause was

@@ -2997,9 +2997,13 @@
   // LOSING follow into an actual WIN — i.e. the copy completes a combo that BEATS the pile (accounting for
   // our equipment + any charged value boost). Merely matching a rank to TIE it (e.g. copy a 4 vs their pair
   // of 4s → our pair of 4s only ties) is a wasted card, so we skip it unless a boost pushes us over.
-  function counterfeitHelps(st, p, pool) {
+  function counterfeitHelps(st, p, pool, cfCard) {
     var pl = st.players[p], cur = st.pile ? st.pile.combo : null;
     if (!cur) return false;
+    /* The Counterfeit card is SPENT by the cast, so the play it enables must stand WITHOUT it. Evaluating
+     * with it still in hand let the AI approve a winning play that leaned on the very card it was about to
+     * spend — e.g. "I'll have a pair of 8s" built on the ♠8 that IS the Counterfeit. */
+    var rest = cfCard ? pl.hand.filter(function (c) { return c.id !== cfCard.id; }) : pl.hand;
     var boost = pl.nextPlayBoost || 0;
     function beatsCur(hand) {
       return E.enumerateCombos(hand).some(function (x) {
@@ -3013,7 +3017,7 @@
     var seen = {};
     return pool.some(function (c) {                     // does copying this rank turn the losing follow into a win?
       if (seen[c.rank]) return false; seen[c.rank] = true;
-      return beatsCur(pl.hand.concat([{ rank: c.rank, suit: c.suit, id: 'cf#' + c.rank + c.suit }]));
+      return beatsCur(rest.concat([{ rank: c.rank, suit: c.suit, id: 'cf#' + c.rank + c.suit }]));
     });
   }
 
@@ -3586,8 +3590,12 @@
       var dw = pick(function (ef) { return ef.kind === 'draw'; }, true);
       if (dw && pl.hand.length <= drawT && act(st, p, dw.id, log, 'DRAW', humans)) continue;       // dig for cards (not by breaking a Special)
       if (!basic && !pl.nextPlayBoost) { var vbp = pickValueBoost(st, p); if (vbp && act(st, p, vbp.id, log, 'BOOST', humans)) continue; }   // smallest boost that converts a losing follow into an overtake
-      var cf = pick(function (ef) { return ef.kind === 'counterfeit'; }, true);
-      if (cf && !basic && st.pile && st.pile.byPlayer !== p && st.round >= 2 && counterfeitHelps(st, p, st.pile.combo.cards) && act(st, p, cf.id, log, 'COPY', humans)) continue;   // copy a card from the Rival's play to complete a winning Special
+      /* NOT `avoidCombo` — that rule ("don't break a Special for this effect") vetoed Counterfeit whenever the
+       * hand held a second 8, which at six players suppressed it on 81% of the turns where it would actually
+       * have won the fight. It is the wrong rule for the one card whose job is to MAKE a Special, and
+       * counterfeitHelps has already proved the resulting play beats the pile without the spent card. */
+      var cf = pick(function (ef) { return ef.kind === 'counterfeit'; });
+      if (cf && !basic && st.pile && st.pile.byPlayer !== p && st.round >= 2 && counterfeitHelps(st, p, st.pile.combo.cards, cf) && act(st, p, cf.id, log, 'COPY', humans)) continue;   // copy a card from the Rival's play to complete a winning Special
       var dis = pick(function (ef) { return ef.kind === 'discardOpp'; }, true);
       if (dis && !basic && anyOpp(st, p, function (o) { return o.hand.length >= 5; }) && act(st, p, dis.id, log, 'DISCARD', humans)) continue;     // strip a Rival's hand
       var den = pick(function (ef) { return ef.kind === 'energyDenyOpp'; }, true);
@@ -3815,7 +3823,7 @@
     if (aiPreFightLock(st, q, activeP, diff)) { var bs = lockoutQuick(st, q); if (bs) return { cast: bs.id, card: { rank: bs.rank, suit: bs.suit, id: bs.id } }; }
     return { pass: true };
   }
-  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe,
+  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
     lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;

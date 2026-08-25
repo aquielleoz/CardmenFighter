@@ -72,7 +72,7 @@ outlier (52 cards dilute its consistency at specials).
 | Back to the Books | 6 | 0.16 | 52.4 | draw/dig |
 | Forceful Strip | 7 | 0.44 | 43.7 | removeEquip |
 | Cursed Pendant | 8 | 0.48 | 49.4 | equip |
-| Phantasmal Illusion | 10 | 0.00 | — | phantasm (AI never casts) |
+| Phantasmal Illusion | 10 | 0.00 | — | phantasm — **stale, see the banner: 1.8/6.3/8.3 per 100 games as of v1.31.6** |
 
 ### ♥ Cleric
 | Card | Cost | Cast | Win% | Kind |
@@ -131,8 +131,17 @@ correlate with winning. It does neither. Part of the low win% is the recovery-ca
 but the low castRate says the AI mostly doesn't want it. Fighter's real edge now reads as **Giant Boar + persistent
 equipment + broad competence**, not one engine.
 
-**AI blind spots** (0.00 cast, not necessarily weak): Back Stab (a reactive Quick the AI springs in the pre-fight
-window, not proactively), Phantasmal Illusion (the AI never pilots it), and Counterfeit (0.01, highly situational).
+**AI blind spots** (0.00 cast, not necessarily weak) — *all three lines below are superseded; re-measured
+2026-08-25:*
+- **Back Stab** — no longer a reactive Quick at base (v1.31.4 made it a round-long lockout). Casts **19.5 / 18.5
+  / 24.3 per 100 games** at 2/4/6 players, roughly Critical Hit's band in a duel.
+- **Phantasmal Illusion** — "the AI never pilots it" was true of the *mandatory-swap* version and was the stated
+  reason it was replaced in v1.13. Restored in v1.31.6 with the swap optional; casts **1.8 / 6.3 / 8.3**.
+- **Counterfeit** — the 0.01 is real but it is **not** a verdict. It is a COMBO card: measured over 300 games,
+  when the caster has an edge on the board (their own buff, or the pile debuffed by e.g. Caltrops) Counterfeit
+  helps on **25% (2p) / 39.4% (6p)** of its chances — about 10x the no-edge rate. That edge exists on only ~3%
+  of chances **in AI play**, because the bots never set Caltrops (♠7) up for Counterfeit (♠8), though a Rogue
+  deck holds both. A sim will always under-report a card whose combo it does not build.
 
 ---
 

@@ -1,13 +1,13 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**218**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**222**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.6**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.7**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-24)
 
-`main` is at **v1.31.6**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
+`main` is at **v1.31.7**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
 HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
@@ -16,7 +16,7 @@ HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 npm test && node mptest.js
 ```
 
-Expect **218 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
+Expect **222 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
 
 ### What just shipped
 **v1.31.5 — Aj's three priorities**, each of which was worse than its one-line description: the netplay reveal
@@ -290,6 +290,79 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.7 — Counterfeit: the card was fine, the AI's own rule was vetoing it
+
+Aj asked to check Counterfeit after Phantasmal Illusion, expecting the same story. It is **not** the same
+story, and the investigation is worth keeping because I got it wrong first.
+
+**What I claimed, and why it was wrong.** I measured every real Counterfeit chance (holding it, following,
+round ≥ 2, affordable, and actually losing the fight) and reported that the base card *"can never beat a pair —
+0 out of 122"*, concluding it was structurally dead because a copy's rank always already appears in the pile
+and ties never win. Aj corrected it: the copy takes the **base card values**, and then **your boosts and
+debuffs apply** — the same principle he had just restored on Phantasmal Illusion.
+
+His line, verified in the engine as written:
+
+```
+their pair of 10s, effective value with your Caltrops out: 8   (oppDelta −2)
+Counterfeit cast: true | copied: 10D
+play your pair of 10s: true
+you now hold the pile: true | value 10
+```
+
+So 0-out-of-122 was a measurement over boards where nobody happened to have a modifier out — reported as if it
+were a property of the card. **That is the third time in two sessions a number was quoted as a verdict.**
+
+**What is actually true**, re-measured on the right condition (300 games, an *edge* = my buffs + however much
+their pile is debuffed):
+
+| | chances with an edge | Counterfeit helps | helps with no edge |
+| --- | --- | --- | --- |
+| 1v1 | 4.7% of chances | **25.0%** | 3.7% |
+| 6p | 3.1% of chances | **39.4%** | 2.9% |
+
+About **10x more useful when the enabling condition is on the board.** Counterfeit is a **combo card**, and the
+combo is in-suit by design — Caltrops is ♠7, Counterfeit ♠8, and a Rogue deck holds both. The AI simply never
+sets one up for the other, so the edge exists on ~3% of its chances and the card reads as dead in every sim.
+
+**No card change.** The mechanism Aj designed already works. What is left is either a player who builds the
+board, or an AI that values Caltrops as a Counterfeit enabler — the latter is a real option but a large change
+for one narrow line, and it would be a competence upgrade that only Rogue decks receive (see the `nice`-flag
+lesson in the persona notes before doing it).
+
+**Docs corrected.** `CARD-STATS.md`'s "AI blind spots" paragraph called out three cards as 0.00-cast; all three
+lines were stale and two of them caused wrong claims in conversation this week. Each now carries its
+re-measured rate and the reason the old number was not a verdict.
+
+**Then the AI half, which is what Aj actually asked for: "how can we teach the ai to use those cards… that
+they combo with buffs and debuffs?"** It turned out the AI's *evaluation* was already right — both
+`counterfeitHelps` and `tryPhantasm` call `applyEquip`, so they see buffs and debuffs. Two other things were
+wrong.
+
+**1. The AI's own guard was vetoing the card.** `pick(pred, avoidCombo)` skips any card whose rank appears
+twice in hand — "don't break a Special for this effect". Counterfeit is ♠8, so **holding any second 8
+suppressed it entirely**, and at six players that vetoed it on **81% of the turns where it would actually have
+won the fight** (35 of 43). It is the wrong rule for the one card whose job is to *make* a Special.
+
+**2. The evaluation counted a card it was about to spend.** `counterfeitHelps` tested
+`beatsCur(pl.hand.concat([copy]))` with the ♠8 **still in hand** — so the AI could approve a winning play that
+leaned on the very Counterfeit it was casting. It now evaluates the hand minus that card.
+
+Cast rate, `knight`, 400 games: **0.5 → 1.3 (2p), 1.8 → 6.8 (4p), 3.0 → 9.3 (6p)** per 100 games — roughly
+Phantasmal Illusion's rate.
+
+**And the combo now happens on its own.** Equipping a debuff updates the LIVE pile (verified: Caltrops drops
+their pair of 10s to 8 the instant it lands), and the AI's effect loop `continue`s after equipping, so it can
+equip and then copy in the same turn. Of 40 six-player Counterfeit casts: **8 are a same-turn equip→copy
+chain**, 18 have equipment already out, 14 are bare shape-completions — **65% now fire with a modifier on the
+board.** No "combo logic" was added; removing the veto was enough.
+
+Balance, 8 runs per arm: spread 18.5→18.8 (2p), 16.4→19.3 (3p), 18.8→18.1 (4p), 12.9→14.7 (6p) — largest
+2.1 s.e., nothing at the bar. Pure Rogue +1.1 at 2p, not significant: the AI plays the card better, but no deck
+win rate moved measurably. The 3p spread is the one to re-check if it drifts again.
+
+Tests: **222** (was 218) — Aj's Caltrops line as a unit test, the no-edge decline, and the spent-card case.
 
 ### v1.31.6 — Phantasmal Illusion is the copy again (Aj's original card, restored)
 
