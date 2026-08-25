@@ -690,6 +690,19 @@ function cards(ids) { return ids.map(card); }
   AI.setLockoutMaxAlive(3);
   ok(AI.lockoutWorth(highPlan(6), 0, 2) === '', 'lockout model: the old hold is still reachable via setLockoutMaxAlive (A/B knob)');
   AI.setLockoutMaxAlive(6);
+  /* HERMES (eff.all) locks EVERY rival for the round, so any special wins it outright — down to the smallest
+   * pair in the game. Every target-specific hold below reasons about ONE rival and cannot apply; they were
+   * firing on ~9% of Hermes turns and refusing rounds that were already won. */
+  var sw = midPlan(6); sw.players[2].hand = [mkc(3, 'D'), mkc(4, 'H')];        // target too thin to answer
+  ok(AI.lockoutWorth(sw, 0, 2) === '', 'lockout model: a thin target is normally not worth locking');
+  ok(AI.lockoutWorth(sw, 0, 2, true) === 'super-sweep', 'lockout model: under HERMES that hold does not apply — cast');
+  var sw2 = midPlan(6);
+  sw2.pile = { byPlayer: 2, combo: { type: 'pair', size: 2, value: 13 } }; AI.observe(sw2); sw2.pile = null;
+  ok(AI.lockoutWorth(sw2, 0, 2) === '', 'lockout model: a rival who dumped a high is normally not worth locking');
+  ok(AI.lockoutWorth(sw2, 0, 2, true) === 'super-sweep', 'lockout model: under HERMES that does not apply either — cast');
+  var sw3 = tbl(6); sw3.players[0].hand = [mkc(9, 'S'), mkc(4, 'C')];          // no special at all
+  ok(AI.lockoutWorth(sw3, 0, 2, true) === '', 'lockout model: HERMES still needs a Special to be worth 10 energy');
+
   var nn = tbl(4); nn.players[0].hand = [mkc(9, 'S'), mkc(4, 'C')];
   ok(AI.lockoutWorth(nn, 0, 2) === '', 'lockout model: nothing to protect, nothing to spend');
   var th = midPlan(4); th.players[2].hand = [mkc(3, 'D'), mkc(4, 'H')];

@@ -385,13 +385,13 @@
   function lockoutStats() { return lockStats; }
   function resetLockoutStats() { lockStats = {}; }
   /* Worth silencing `t`? Returns the REASON (handy in a log or a test) or '' for "hold the card". */
-  var LOCK_CAST = { duel: 1, 'read-threat': 1, 'plan-vulnerable': 1, 'crowd-thin': 1 };   // anything else is a HOLD
-  function lockoutWorth(st, p, t) {
-    var why = lockoutReason(st, p, t);
+  var LOCK_CAST = { duel: 1, 'read-threat': 1, 'plan-vulnerable': 1, 'crowd-thin': 1, 'super-sweep': 1 };   // anything else is a HOLD
+  function lockoutWorth(st, p, t, all) {
+    var why = lockoutReason(st, p, t, all);
     lockStats[why] = (lockStats[why] || 0) + 1;    // holds are tallied BY NAME: "why didn't it fire" is the useful question
     return LOCK_CAST[why] ? why : '';
   }
-  function lockoutReason(st, p, t) {
+  function lockoutReason(st, p, t, all) {
     /* You have to be able to ACT on the tempo you just bought. A lock does NOT remove their existing pile, so
      * silencing a rival you cannot out-play hands them the round anyway. Measured in duels, 800 games:
      *   follow-up available  special  44 casts -> won 93.2% of those rounds
@@ -403,6 +403,11 @@
     var plan = plannedSpecialValue(st, p), read = st.players[p]._read && st.players[p]._read[t];
     if (!plan) return 'no-special';                                  // nothing to protect — checked BEFORE the read,
                                                                      // or a read would license a cast we cannot follow
+    /* Hermes (eff.all) locks EVERY rival for the round, so nothing about ONE rival's hand can matter — whatever
+     * special we put down wins the round outright, down to the smallest pair in the game. Every check below
+     * this line reasons about a single target, so skip them. Measured: the target-specific holds were firing on
+     * ~9% of Hermes turns, refusing rounds that were already won. */
+    if (all) return 'super-sweep';
     if (read && read.round === st.round) {                           // we have SEEN the hand: no guessing needed
       return (read.pairs >= 1 && read.best > plan) ? 'read-threat' : 'read-harmless';   // can't answer us -> keep the energy
     }
@@ -606,7 +611,7 @@
          * threat from THIS rival. Balance-neutral (8 runs/arm, nothing over 3 s.e. across 44 deck
          * comparisons), and it casts LESS often on purpose: 6p 38 -> 16 casts per 200 games.
          * A lockout that hit EVERY rival would not need any of this — see setLockoutAll. */
-        var loWorth = loV ? lockoutWorth(st, p, loT) : '';    // see the timing model above
+        var loWorth = loV ? lockoutWorth(st, p, loT, !!E.effectFor(st, p, lo).all) : '';    // see the timing model above
         if (loV && loWorth && !loV.eliminated && !loV.lockSkip && !loV.lockRound && loV.hand.length >= 2 &&
             act(st, p, lo.id, log, 'LOCKOUT', humans, loT)) continue;
       }

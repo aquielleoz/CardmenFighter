@@ -1,7 +1,7 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**226**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
 Current version: **v1.31.8**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
@@ -16,7 +16,7 @@ HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 npm test && node mptest.js
 ```
 
-Expect **226 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
+Expect **231 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
 
 ### What just shipped
 **v1.31.5 — Aj's three priorities**, each of which was worse than its one-line description: the netplay reveal
@@ -364,6 +364,30 @@ nothing.** Kept as a knob (`setLockoutMaxAlive`) for future study.
 Both halves together, casts per 100 games: **1v1 17.2 → 11.5** (waste removed), **4p 17.8 → 25.9**,
 **6p 27.5 → 44.7**.
 
+**Third: Hermes makes the whole target model moot, and the AI didn't know.** Aj: *"if it was in super mode…
+you could play the smallest pair (a pair of 3s) and still win with it… does it do that?"* Verified in the
+engine — under Hermes every rival skips the round, so a **pair of 3s** wins it outright and strips a shield.
+(Note the raw engine default is `loss='all'`; the shipped game sets `'chosen'`, so it is **one** shield, not
+the whole table. A probe that skips the template's setup will show three.)
+
+It mostly did — 68% of Hermes turns — but the model's target-specific holds were still running, and they
+reason about whether **one** rival can answer when **all** of them are locked:
+
+| Hermes turns at 6p | before | after |
+| --- | --- | --- |
+| cast | 68% | **76%** (`super-sweep`) |
+| `no-follow-up` hold (nothing to play) | 19% | 24% |
+| `no-special` hold (only a jab) | 4% | 8% |
+| **`thin-hand` / `highs-spent` hold** | **9%** | **0%** |
+
+`lockoutReason` now takes an `all` flag and short-circuits to `super-sweep` before any single-target check.
+The two remaining holds are legitimate. `no-special` is deliberately kept: under Hermes a jab would also win
+the round, but a jab does not break a shield and this is a 10-energy card.
+
+Balance, 6 runs per arm: spread −0.9 / −3.5 / −0.8 / +0.2, largest 1.5 s.e.; biggest per-deck move Berserker
++2.5 at 6p (1.7 s.e.), right direction and under the bar. The change is small enough that it is **not**
+resolvable at this sample size — it is justified as correctness, not as a measured gain.
+
 Multiplayer is untouched by design — it already required a plan; the `no-follow-up` check just names the same
 hold earlier, which is why `no-special` collapsed from 361 to 2 in the branch tally. One related tightening:
 `!plan` is now tested **before** the Outbalance read, since otherwise a fresh read could license a cast with
@@ -373,7 +397,7 @@ Balance, 8 runs per arm: spread 19.1→19.7 (2p), 18.5→17.6 (3p), 17.8→19.9 
 2.1 s.e. Pure Rogue +1.9 in duels (2.3 s.e.), the right direction and still under the bar. As with Counterfeit:
 **the AI plays the card materially better, and no deck's win rate moved measurably.**
 
-Tests: **226** (was 222) — the no-legal-play hold, that leading counts as a follow-up, that a high plan now casts at a full table, and that the old hold is still reachable through the A/B knob.
+Tests: **231** (was 222) — the no-legal-play hold, that leading counts as a follow-up, that a high plan now casts at a full table, and that the old hold is still reachable through the A/B knob.
 
 ### v1.31.7 — Counterfeit: the card was fine, the AI's own rule was vetoing it
 
