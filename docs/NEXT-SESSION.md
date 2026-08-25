@@ -291,6 +291,22 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.8b — the per-deck noise floor, measured
+
+Aj, seeing Pure Rogue's 6p share read 10.9 then 8.6 across snapshots: *"it's only been buffs to ai for
+backstab so far… why is it dropping?"* It wasn't. The same build, run eight times, puts Pure Rogue at 6p
+anywhere from **5.2 to 18.1** — a run-to-run **sd of ~3.3 points**. An 8-run mean carries ~1.2 s.e., so
+10.9 → 8.6 is 1.4 s.e. and inside the noise.
+
+Two reasons this is the noisiest cell in the table: `mpsim` assigns decks **randomly per seat**, so one
+400-game run gives a given deck only a few hundred games at six players; and Rogue's share is *low* (~10%),
+so the same absolute wobble is a larger relative one.
+
+Practical consequence, now in CLAUDE.md: **the standard 8-run A/B is powered for the SPREAD, not for one
+low-share deck.** Resolving a 2-point change in Rogue-at-6p at 3σ needs roughly **22 runs per arm** (~8,800
+games). Every A/B run this session was correctly powered for what it claimed (spread) and would NOT have
+detected a 2-point single-deck move either way.
+
 ### v1.31.8a — the engine's own defaults disagreed with the shipped game
 
 `SPECIAL_LOSS_MODE` defaulted to **`'all'`** and `MILL_SCOPE` to **`'universal'`** — the v1.31.0 multiplayer

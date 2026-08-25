@@ -339,6 +339,13 @@ only a derived summary on the caster (`pl._read[seat] = {round, best, pairs, siz
 cards never appear in `JSON.stringify(st)`. It is a pickup rather than a return value because an Outbalance can
 sit in a response window, and by the time it resolves `settleWindows()` hands its caller no result.
 
+**KNOW THE NOISE FLOOR BEFORE READING A PER-DECK NUMBER.** `mpsim` assigns decks randomly per seat, so a
+400-game run gives any one deck only a few hundred games at six players. Measured 2026-08-25, the SAME build
+run eight times: **Pure Rogue at 6p has a run-to-run sd of ~3.3 points** and produced 7.8 and 18.1 in adjacent
+runs. An 8-run mean therefore carries ~1.2 s.e., so a 2-point shift in one deck's 6p share is **noise** —
+resolving it at 3σ needs roughly **22 runs per arm**. The standard 8-run A/B is powered for the SPREAD, not
+for one low-share deck. Low-share decks are the worst case: the same absolute wobble is a bigger relative one.
+
 **The engine's defaults are the SHIPPED rules** (`SPECIAL_LOSS_MODE='chosen'`, `MILL_SCOPE='targeted'`) as of
 v1.31.8a. They used to default to the reverted v1.31.0 values, so a probe that forgot to configure them
 silently measured a game nobody plays.
