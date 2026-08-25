@@ -6249,9 +6249,15 @@ window.CardFace = {};
   // End-of-round hand-limit trim — runs BEFORE the new draw. Over the cap? prompt the human to pitch
   // (to Energy); confirmPick calls `cb` when done. Otherwise proceed immediately.
   function endOfRoundTrimThen(cb){
-    // Clean-up Phase: both players discard down to hand size (to Energy), no priority. Rival auto-trims; you pick.
-    var rOver = state.players[RIVAL].hand.length - E.MAX_HAND;
-    if(rOver>0){ E.discardToLimit(state, RIVAL); logMsg('<b>Rival</b> discarded '+rOver+' to hand size → energy pile.', 'rival'); }
+    /* Clean-up Phase: everyone discards down to hand size (to Energy), no priority. Opponents auto-trim; you
+     * pick. This used to trim and announce seat 1 ONLY — so at a six-player table seats 2+ were never trimmed
+     * here and their clean-up was invisible in the log. Narration goes through `say`, which renders {who} in
+     * each reader's own frame and broadcasts in netplay. */
+    for(var ci=0; ci<state.numPlayers; ci++){
+      if(ci===YOU || state.players[ci].eliminated) continue;
+      var cOver = state.players[ci].hand.length - E.MAX_HAND;
+      if(cOver>0){ E.discardToLimit(state, ci); say(ci, '{who} discarded '+cOver+' to hand size → energy pile.', 'rival'); }
+    }
     var over = state.players[YOU].hand.length - E.MAX_HAND;
     if(over>0){
       clearRoundfx();                                          // hide the banner so the hand + pick are visible

@@ -3,11 +3,11 @@
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
 Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.9**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.10**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
-`main` is at **v1.31.9**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
+`main` is at **v1.31.10**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
 HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
@@ -126,13 +126,6 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
     (the v1.31.0 fix, mirrored).
   - The one objection that *did* survive: the **leader-snowball is worse under coins**, because a win advances
     only the winner where a shield hit damages everyone, and initiative is already 1.8x concentrated.
-- **One duel-only line left in MP narration.** `Rival discarded N to hand size → energy pile.` —
-  `CardmenFighter.template.html` ~3397 hardcodes `RIVAL`, so only seat 1's hand-limit trim is *announced*. Not
-  a correctness bug (`finishRoundWin` trims every seat), but seats 2+ trim silently and the label is wrong at a
-  six-player table. Route it through `logName(seat)`. Cheap.
-  - *The card-TEXT half of this item is done* (v1.31.5): the four texts that actually understated their effect
-    were fixed, and a re-count leaves exactly one card saying "the Rival" — Armor Piercing's "the Rival you
-    strike", which is correct target-specific phrasing.
 - **STOPPERs have zero engagement in real play** (0 uses across 14 games and 958 log lines, in both the stats
   and the logs — genuine non-use, not a recording gap; see PLAYER-PROFILE). The AI uses the reactive layer at
   about the rate the sims predict, so this is a human-facing problem: either the cost is wrong, the prompt is
@@ -277,6 +270,22 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.10 — the clean-up phase existed only for seat 1
+
+`endOfRoundTrimThen` trimmed and announced **seat 1 only** — `E.discardToLimit(state, RIVAL)` with a hardcoded
+`<b>Rival</b>` in the log. At a six-player table that meant seats 2+ were never trimmed by the UI path and
+their clean-up was invisible. Now it loops every living opponent and narrates through **`say`**, so the line
+renders in each reader's own frame and reaches netplay clients.
+
+Verified in a real 4-player game: seat 2 staged to 15 cards is trimmed to 10 and the log reads
+*"Knuckles discarded 5 to hand size → energy pile."* — named, not "Rival".
+
+Worth knowing why this was only a *narration* gap and not lost cards: the engine's own clean-up
+(`finishRoundWin`, gated on `!DEFER_DRAW`) already trims **every** seat before the round draw, and
+`setDeferRoundDraw` is never called anywhere, so that path is always live. The UI trim is the *post-draw* pass
+— `roundDraw` deals `numPlayers` cards with no cap check, so a hand legitimately sits above `MAX_HAND` between
+the draw and the next clean-up. The cap is a clean-up threshold, not a hard limit.
 
 ### v1.31.9 — the position-dependent netplay suites: it was the TESTS, not the environment
 
