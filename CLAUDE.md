@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.13**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.14**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -146,6 +146,15 @@ structure** and only reclaims vertical space; if you add anything to the vertica
 untouched. The landscape block must stay **after** the phone branch in the stylesheet: at 667×375 both match
 and landscape has to win.
 
+**Dialogs are covered too, since v1.31.14** — every dialog shares ONE `.overlay`/`.modal` pair, which had no
+`max-height` and no `overflow` while the overlay centres, so a tall modal hung off both edges with nothing to
+scroll (the 812px setup dialog clipped even at desktop 1280×800). `#disconBar` no longer hardcodes `top:54px`:
+`--headerH` is **measured at runtime and observed**, because the header is 56px on desktop, 37px in landscape
+and ~92px on a portrait phone where it WRAPS. **That runtime sync must write only on a real change** — an
+unconditional `setProperty` inside the `ResizeObserver` callback re-enters it every frame and starves the page,
+and it presents as unrelated netplay flakiness (`nettest_full` went `client 4` → `client 0` while every layout
+assertion still passed).
+
 **Two FLOORS, and they are about width as well as height:** `max-height:340px` at any width, and
 `max-height:364px` when also `max-width:720px`. 800×360 is short but WIDE and fits on one screen with 13px to
 spare, so narrow-and-short is the thing that cannot fit — not short alone. `#hint` and `#message` are pinned to
@@ -220,7 +229,7 @@ stray processes before suspecting the code. And never wait on work with `while p
 Status as of v1.31.6 — green. Counts verified 2026-08-25: `test` 231, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
-`landscapetest` 64, `nettest_log` 13, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
+`landscapetest` 96, `nettest_log` 13, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
 `nettest_prefight` 13, `nettest_full` 5. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 

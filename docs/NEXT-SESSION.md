@@ -3,11 +3,11 @@
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
 Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.13**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.14**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
-`main` is at **v1.31.13**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
+`main` is at **v1.31.14**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
 HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
@@ -82,6 +82,10 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **Two more suites have the fixed-wait flake** (seen 2026-08-25): `exporttest` and `nettest_names` each failed
+  once at a late position in a long sweep and each passed alone. Same class as the v1.31.9 pair — a fixed
+  `wait(n)` followed by an assertion, rather than polling for the condition. Cheap to fix the same way:
+  return a boolean from the wait, poll generously, and never assert on a state you have not confirmed.
 - **Old exported logs are v1.0 and merged.** Anything analysed from a multiplayer export before v1.31.5 had
   every opponent collapsed into one bucket and their fight counts stuck at 0. If those files still exist they
   cannot be repaired — the information was never recorded. New exports are `v:'2.0-mp'`; check the field.
@@ -206,31 +210,6 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
     watch both the win rates and how many jab exchanges a game contains. Do this BEFORE designing an initiative
     fix — the jab-spam may be partly an AI artefact rather than a rules problem, and it would be embarrassing
     to redesign initiative to fix a missing `if`.
-- **Overlays and modals are not landscape-safe** (Aj, screenshot 2026-08-23 — the setup dialog clipped at both
-  top AND bottom in a short window). v1.30.1/v1.30.2 fixed the in-game **board** only; every dialog was
-  untouched, and the cause is a single point:
-
-  ```
-  .overlay{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:20px; }
-  .modal  { max-width:470px; width:100%; padding:24px; }        /* no max-height, no overflow */
-  ```
-
-  A modal taller than the viewport is **centred**, so it overflows equally off the top and the bottom and the
-  top half becomes unreachable — there is nothing to scroll. That is exactly the screenshot: "Your name" is
-  cut off above and the roll button below.
-
-  - **There is only ONE `.overlay`/`.modal` pair in the markup** (`<div class="overlay" id="overlay">`), filled
-    by `showModal(html)`. So setup, settings, the card codex, the specials cheat sheet, how-to-play, the win
-    overlay, the name editor and the pile viewers **all share it** — one fix covers every dialog. Likely:
-    `max-height:calc(100dvh - 40px); overflow-y:auto;` on `.modal`, plus `align-items:flex-start` (or
-    `safe center`) so a too-tall modal pins to the top instead of centring off both edges.
-  - **Check these separately** — they are `position:fixed` panels that do NOT go through the shared overlay:
-    `#cardFull` (the 🔍 full-card reader, `inset:0`), `#tutPanel` (bottom-anchored, `width:min(500px…)`),
-    `#kick`, `#artFlash`, `.peekBar`, `#disconBar` (which sits at `top:54px` — a hardcoded offset that assumes
-    the **56px desktop header**, and the landscape header is **37px**, so it will float 17px low).
-  - `landscapetest.js` covers the board only. This wants a sibling pass in the same suite: open each dialog at
-    568x320 / 844x390 and assert it is fully on screen or scrollable, and that its primary button is reachable.
-    Reuse the floor/one-screen split already encoded there.
 - **A gacha-style storyline** (Aj, idea — parked, ahead of netplay AI in the queue, not designed). Nothing
   specified yet. Worth noting that **v1.30.0 just built the substrate for it by accident**: a roster of 32
   named characters, grouped into five tiers, each with a distinct play style and a name that already flows
@@ -257,6 +236,50 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.14 — dialogs are landscape-safe, and the panels track the header
+
+The v1.30.x landscape work fixed the in-game **board** and left every dialog alone. `.modal` had no
+`max-height` and no `overflow` while `.overlay` **centres**, so a modal taller than the viewport hung off the
+top *and* the bottom with nothing to scroll — the top half simply unreachable. Aj found it in a screenshot.
+
+**Measured before touching anything**, on the setup dialog (812px tall):
+
+| viewport | modal top | bottom | clipped |
+| --- | --- | --- | --- |
+| 568×320 | −246 | 566 | both edges |
+| 844×390 | −211 | 601 | both edges |
+| 667×375 | −218 | 594 | both edges |
+| **1280×800 desktop** | **−6** | **806** | **both edges** |
+
+So this was never only a landscape bug — the setup dialog overflowed the *desktop* viewport too, just barely.
+Capping the height (`max-height:calc(100dvh - 40px); overflow-y:auto`) lets it scroll inside itself, which
+makes centring safe at every size. There is only one `.overlay`/`.modal` pair in the markup, so setup,
+settings, the codex, the cheat sheet, how-to-play, the win overlay, the name editor and the pile viewers all
+got fixed at once.
+
+**`#tutPanel`** had the same uncapped-height bug: 565px tall at a 320px viewport, hanging 247px off the top.
+Capped in both its anchorings (bottom-centred, and the desktop right-hand dock at `top:150px`).
+
+**`#disconBar` was pinned at a hardcoded `top:54px`**, which assumed the 56px desktop header. Measured: the
+landscape header is **37px** (so it floated 17px low) and a **portrait phone header WRAPS to 92px** (so it sat
+38px *inside* the header, over the controls — a bug nobody had reported). Since wrapping depends on content,
+no per-breakpoint constant is right either: `--headerH` is now **measured at runtime** and observed.
+
+**The regression this introduced, and how it was caught.** The runtime sync wrote `--headerH` unconditionally,
+which re-entered its own `ResizeObserver` every frame and starved the page. It broke **netplay**, not layout:
+`nettest_full` went from `client 4` to `client 0` — the client never getting a turn — while every layout
+assertion still passed. A/B'ing the actual builds isolated it in two runs (CSS-only build: fine; header sync
+on: broken), and the fix is idempotence — write only on a real change. **An unconditional write inside a
+ResizeObserver callback is a page-starving loop, and it presents as unrelated flakiness.**
+
+`landscapetest.js` grows from 64 to **96** assertions: every dialog at 568×320 / 844×390 / 667×375 / portrait /
+desktop must be fully on screen with its height capped and its last control reachable **after scrolling** (the
+same reachability-not-visibility standard the board cases already use), plus `--headerH` tracking the real
+header and both panels on screen at every size.
+
+*Two unrelated flakes seen while sweeping:* `exporttest` (once) and `nettest_names` (once), each at a late
+sweep position, each passing alone. Same fixed-wait class as the v1.31.9 pair — filed below.
 
 ### v1.31.13 — STOPPER deleted, and the netplay record is now the host's
 

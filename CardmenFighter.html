@@ -7,6 +7,7 @@
 <title>Cardmen Fighter</title>
 <style>
   :root{
+    --headerH:56px;   /* the desktop header. The landscape band overrides it — #disconBar hangs off this. */
     --bg:#160e1e; --bg2:#241633; --line:rgba(255,255,255,.12); --gold:#e8c37a;
     --red:#ff5a5a; --txt:#f2ecf6; --panel:rgba(0,0,0,.3); --good:#43c06a; --bad:#e2624a;
     --nrg:#5ac8fa; --shield:#e8c37a; --pick:#c98bff;
@@ -211,12 +212,12 @@
   .matchupTag{font-size:12px; opacity:.82; margin-right:8px; white-space:nowrap;}
   .basicsTag{color:#8fd8ff; letter-spacing:.5px;}   /* Basics-mode badge in the matchup line */
   /* ---- Guided tutorial: coach panel + spotlight ---- */
-  #tutPanel{position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:80; width:min(500px,calc(100vw - 24px)); background:linear-gradient(180deg,#241533,#1a0f28); border:1px solid var(--gold); border-radius:14px; box-shadow:0 12px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(240,200,80,.15); padding:14px 16px; display:none; animation:tutIn .25s ease;}
+  #tutPanel{position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:80; width:min(500px,calc(100vw - 24px)); background:linear-gradient(180deg,#241533,#1a0f28); border:1px solid var(--gold); border-radius:14px; box-shadow:0 12px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(240,200,80,.15); padding:14px 16px; display:none; animation:tutIn .25s ease; max-height:calc(100vh - 28px); max-height:calc(100dvh - 28px); overflow-y:auto; overscroll-behavior:contain;}   /* uncapped it grew to 565px and hung 247px off the top of a 320px-tall landscape viewport */
   #tutPanel.show{display:block;}
   @keyframes tutIn{from{opacity:0; transform:translate(-50%,12px);} to{opacity:1; transform:translate(-50%,0);}}
   /* Desktop (3-column board): dock the coach over the empty right-side description column — clear of the hand (bottom) and the pile (center). Mobile keeps the bottom-center default above. */
   @media (min-width:721px){
-    #tutPanel{ left:auto; right:16px; bottom:auto; top:150px; transform:none; width:clamp(250px,26vw,360px); animation-name:tutInR; }
+    #tutPanel{ left:auto; right:16px; bottom:auto; top:150px; transform:none; width:clamp(250px,26vw,360px); animation-name:tutInR; max-height:calc(100vh - 166px); max-height:calc(100dvh - 166px); }   /* docked 150px down: cap to what is left below it */
   }
   /* Staged: for steps that ask you to READ the description box, park the coach up in the play area so the box below is visible (overrides both mobile bottom + desktop right). */
   #tutPanel.atStage{ left:50% !important; right:auto !important; bottom:auto !important; top:96px !important; transform:translateX(-50%) !important; }
@@ -526,7 +527,7 @@
   #hand .card.picked{transform:translateY(-14px) scale(1.04); outline:3px solid var(--pick); box-shadow:0 10px 20px rgba(0,0,0,.45), 0 0 15px rgba(201,139,255,.6);}
   #hand.disabled{opacity:.55; pointer-events:none;}
   /* Disconnect / reconnect banner (netplay) — amber alert strip pinned to the top of the table */
-  #disconBar{display:none; position:fixed; top:54px; left:50%; transform:translateX(-50%); z-index:400; max-width:92vw;
+  #disconBar{display:none; position:fixed; top:calc(var(--headerH) - 2px); left:50%; transform:translateX(-50%); z-index:400; max-width:92vw;
     background:linear-gradient(180deg,#3a2a08,#241a06); border:1px solid var(--gold); border-radius:12px; box-shadow:0 8px 26px rgba(0,0,0,.55);
     padding:10px 14px; display:none; align-items:center; gap:14px; font-size:14px; color:#ffe9b8;}
   #disconBar.show{display:flex;}
@@ -614,7 +615,13 @@
 
   .overlay{position:fixed; inset:0; background:rgba(10,4,16,.8); backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:30; padding:20px;}
   .overlay.show{display:flex;}
-  .modal{background:linear-gradient(180deg,#2a1840,#1b1026); border:1px solid var(--gold); border-radius:18px; padding:24px; max-width:470px; width:100%; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.55);}
+  /* A modal taller than the viewport used to be CENTRED with no cap and no overflow, so it hung off the top AND
+   * the bottom and the top half was unreachable — there was nothing to scroll. Measured on the setup dialog,
+   * which is 812px tall: it clipped at 568x320 (top -246), at 844x390, at 667x375 AND at desktop 1280x800.
+   * Capping the height lets it scroll INSIDE itself, so centring stays correct at every size. `dvh` second so
+   * it wins where supported (mobile browser chrome) and `vh` covers the rest. */
+  .modal{background:linear-gradient(180deg,#2a1840,#1b1026); border:1px solid var(--gold); border-radius:18px; padding:24px; max-width:470px; width:100%; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.55);
+         max-height:calc(100vh - 40px); max-height:calc(100dvh - 40px); overflow-y:auto; overscroll-behavior:contain;}
   .modal h2{margin:0 0 8px; color:var(--gold); font-size:26px;}
   .modal p{font-size:14px; line-height:1.55; margin:6px 0;}
   .modal .rules{text-align:left; font-size:12.5px; line-height:1.5; opacity:.95; max-height:56dvh; overflow:auto; margin:10px 0;}
@@ -926,6 +933,7 @@
      that is the thing you actually read mid-play, and it is the part that had no room at all.
      Comes AFTER the phone branch on purpose: at 667x375 both match, and this one must win. */
   @media (orientation:landscape) and (max-height:520px){
+    :root{ --headerH:37px; }        /* measured: the landscape header is 37px, so a hardcoded 54px floated 17px low */
     :root{ --cs:.82; --pm:1.15; }                              /* pile = .82 x 1.15 = .94, near full size */
     header{padding:3px 10px; gap:6px;}
     header h1{font-size:13px;}
@@ -8624,6 +8632,27 @@ window.CardFace = {};
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
+  /* --headerH: measured, not hardcoded. #disconBar hangs off it, and the header's height is not a constant —
+   * 56px on desktop, 37px in the landscape band, and ~92px on a portrait phone where it WRAPS to two rows.
+   * A hardcoded 54px floated it 17px low in landscape and put it 38px INSIDE the wrapped portrait header,
+   * on top of the controls. Wrapping depends on content, so a per-breakpoint value cannot be right either. */
+  var _headerH = null;
+  function syncHeaderH(){
+    var hd=document.querySelector('header'); if(!hd) return;
+    var px = hd.offsetHeight;
+    /* Write ONLY on a real change. An unconditional setProperty re-entered the ResizeObserver every frame and
+     * starved the page — measured: nettest_full went from `client 4` to `client 0`, the netplay client never
+     * getting a turn, while the CSS-only build was fine. Idempotence is what breaks the feedback loop. */
+    if (px === _headerH) return;
+    _headerH = px;
+    document.documentElement.style.setProperty('--headerH', px+'px');
+  }
+  syncHeaderH();
+  window.addEventListener('resize', syncHeaderH);
+  window.addEventListener('orientationchange', syncHeaderH);
+  /* The header also changes height from CONTENT, not just from viewport size — it wraps to two rows on a
+   * portrait phone and grew 87px -> 92px once a game started, leaving the boot-time value stale. Observe it. */
+  if(window.ResizeObserver){ var hdEl=document.querySelector('header'); if(hdEl) new ResizeObserver(syncHeaderH).observe(hdEl); }
   if(!NET.boot()) openSetup();   // netplay when ?net= is present; otherwise the normal game (byte-identical)
   if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, setPulse:function(b){pulseDetail=b;}, activate:function(id,o){ return activate(id,o); },
       seatName:seatName, logName:logName, persona:function(i){ var q=personaOf(i); return q?q.name:null; },   // tests assert the RIGHT seat is named, with personas live
