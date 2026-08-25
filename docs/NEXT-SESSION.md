@@ -140,10 +140,32 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
        - **Shortening the payload (item 3 below) is no longer a blocker — it is a robustness win.** It shrinks
          the version and improves every number at once, which is what would buy the landscape case and
          scanning at arm's length rather than up close.
-    2. **Share-sheet handoff.** `navigator.share()` on the invite code — one tap into any messaging app the two
-       players already use, instead of select-copy-switch-paste. Two lines of code.
+    2. **Share-sheet handoff — now the TOP item in this section.** `navigator.share()` on the invite code: one
+       tap into whatever chat the two players are already using, instead of select-copy-switch-paste. Aj,
+       2026-08-25, on settling for browser-only: *"you can always copy paste the code to a chat program"* —
+       which is precisely the manual version of this. Genuinely ~2 lines, works on Android Chrome today, and it
+       degrades to the existing Copy button where `navigator.share` is absent (desktop Firefox, older Safari).
+       Cheapest real win left in joining.
     3. **Shorter codes.** The blob is a whole SDP. Trimming to the fields that matter and compressing would make
        it hand-typeable, which is the actual pain when the two devices cannot talk to each other at all.
+  - **AN ANDROID APK WAS CONSIDERED AND DECLINED (2026-08-25). Do not re-propose it.** It would genuinely solve
+    two things: a WebView using `WebViewAssetLoader` serves the page from `https://appassets.androidplatform.net/`,
+    a real secure origin, so camera scanning would work; and **native UDP/mDNS makes LAN discovery actually
+    possible**, which is impossible for a browser page and was Aj's original ask. It is still a NO:
+    - **Android toolchain churn is the dealbreaker** (Aj: *"too much of a hassle with the api churn"*). Target
+      API bumps and Gradle churn are permanent recurring maintenance, in a repo whose entire dependency list is
+      "Playwright, for tests". The Kotlin side would be ~150 lines; the toolchain is the whole cost.
+    - Also: two artifacts to keep in sync, signing/distribution, iPhone players still on the web build anyway,
+      and `BarcodeDetector` is **not guaranteed in Android WebView** — so "the APK fixes scanning" was never
+      even verified.
+    - **Cross-play was NOT the objection, and it is worth knowing why:** a WebView APK runs the same HTML in the
+      same Chromium engine, so netplay with desktop Chrome works by construction. The asymmetry would be in
+      *discovery only* (app↔app), which lands where it costs least, since desktop pairings are exactly the ones
+      where pasting a code is already easy.
+    - **The one real cross-play risk it surfaced is worth fixing anyway: VERSION SKEW.** Netplay has no protocol
+      version negotiation, so two builds can mismatch and just misbehave. Both sides already exchange
+      `t:'join'`/`t:'setup'`, so carrying a version and warning on mismatch is ~20 lines plus a suite. Aj's own
+      stale phone build already proved this happens in the wild. **This is worth doing independently.**
   - **The one thing that would give true discovery** is a rendezvous service — even a 20-line local one — and
     that breaks "no server, no install, runs offline", which is the project's whole shape. If it is ever wanted,
     make it strictly **opt-in** and keep the code path as the default.
