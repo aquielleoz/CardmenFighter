@@ -1,18 +1,18 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** + **qr.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.17**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.18**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
-`main` is at **v1.31.17** (QR invite codes, phase 1), merged via PR #27, working tree clean, and
+`main` is at **v1.31.18** (QR invite codes + the build stamp), working tree clean, and
 `node build.js` reproduces the committed HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 
-**Two things filed rather than built**, both small and both from Aj's own phone testing: a **version stamp in
-the UI** (a stale download is currently indistinguishable from a missing feature — see the BACKLOG) and
-**phase 2 of QR, camera scanning**, which is now de-risked because a real phone reads the shipped symbol.
+**One thing filed rather than built:** **phase 2 of QR, camera scanning** — de-risked now, because a real phone
+reads the shipped symbol. Its open cost is that `BarcodeDetector` is Chromium-only, so Firefox and Safari would
+need an inlined JS decoder.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
 
@@ -42,6 +42,8 @@ in the game.**
 - **v1.31.17** — **QR invite codes** (show only). The encoder's format bits were placed **LSB-first**, which
   passed every structural check *and* a by-hand read-back, and only a diff against macOS's own encoder found
   it. Aj confirmed a real phone scans the result.
+- **v1.31.18** — **the build stamps itself**, because a false bug report showed that a downloaded copy could
+  not be told apart from a stale one.
 
 ### The QR feature shipped — and the lesson from it is about VERIFICATION, not QR
 **v1.31.17** renders the invite code as a QR on the host and joiner screens (show only, as scoped). The part
@@ -123,20 +125,6 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   - **The one thing that would give true discovery** is a rendezvous service — even a 20-line local one — and
     that breaks "no server, no install, runs offline", which is the project's whole shape. If it is ever wanted,
     make it strictly **opt-in** and keep the code path as the default.
-- **Show the build version somewhere in the UI** (filed 2026-08-25, from a false bug report — mine as much as
-  Aj's). Aj reported *"the client view does not have an input field for the name"* with a screenshot of the
-  client lobby showing only the deck picker and Ready. **It was a stale download**: his phone had a
-  `content://` file saved before v1.31.16, and the screenshot matches pre-v1.31.16 exactly. Verified against
-  the current build at his own viewport (393×873, dpr 3) — `#netName` is present, `display:block`, 365×40px.
-  - **The gap this exposes is real.** A single downloaded HTML file has **no way to tell you which build it
-    is**, so an old copy presents as a missing feature, and the person holding it has no way to self-diagnose.
-    That cost a round-trip here and will cost more as features land.
-  - Cheap fix: a version string somewhere quiet — the setup dialog's footer or next to the title — fed from one
-    constant that the release checklist already bumps. It also makes *every future* bug report answerable,
-    because the screenshot would carry the build.
-  - Related habit worth keeping: **when a shipped feature is reported missing, check the reporter's build
-    before reading the code.** The code was right and the report was honest; only the binary was old.
-
 - **A real one-tap rematch over netplay** (Aj, 2026-08-25 — the `🔄 Rematch?` emote is the expression; this is
   the action). Today the win overlay's "New Game" just calls `openSetup()`, so an online pair must redo the
   whole invite-code exchange to play again. Wants: the host restarting the engine and re-broadcasting `t:'setup'`
@@ -296,6 +284,32 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.18 — the build stamps itself
+
+Aj reported that the client lobby had no name field, with a screenshot. The field had shipped **two versions
+earlier**; his phone was holding a `content://` file downloaded before it. The report was honest and the code
+was right — and **nothing on either screen could have told us that.** Diagnosing it took a headless run at his
+exact viewport to prove the field renders. That is a round-trip that should never have been needed.
+
+So the build now names itself, in the two places a bug report is actually taken from: the **setup dialog**
+footer (`Cardmen Fighter v1.31.18`) and the **netplay lobby bar** — the latter specifically because that is the
+screen Aj screenshotted, and a netplay mismatch is where a stale copy does real damage.
+
+**The version is derived, not declared.** `build.js` reads it from **README.md's `**Status:**` line** and
+substitutes a `__VERSION__` placeholder, and hard-fails if it cannot find one. There is deliberately no second
+constant to bump: **a stamp that can drift is worse than no stamp**, because it makes a stale build look
+current, and the release checklist already bumps README. Bumping this release's own version was the
+demonstration — README changed, the stamp followed, no other edit.
+
+`node versiontest.js` — **10/0** — asserts the whole chain rather than just the presence of some text: README
+names a version, no `__VERSION__` survives into the page, the built page's constant equals README's, **the
+repo-root copy carries the same stamp** (that is the file people actually download, and a mismatch there would
+be the same class of confusion), both screens show it, and each is really rendered rather than merely present
+in the DOM.
+
+**The habit worth keeping, which is the reason this exists:** when a shipped feature is reported missing,
+**check the reporter's build before reading the code.**
 
 ### v1.31.17 — QR invite codes, and a hand-written encoder verified against Apple's
 

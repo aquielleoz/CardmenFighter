@@ -686,6 +686,8 @@
   .modal .confirmBtns{display:flex; gap:8px; margin-top:14px;}
   .modal .confirmBtns button{flex:1 1 0; min-width:0; margin-top:0;}
   .modal .setupReset{text-align:right; margin:3px 0 0; min-height:18px;}
+  .modal .verRow{text-align:center; margin:10px 0 0; font-size:12px; opacity:.5;}
+  .modal .verRow .verStamp{font-variant-numeric:tabular-nums;}
   .modal .linkBtn{background:none; border:none; color:var(--txt); opacity:.5; font:inherit; font-size:12px; font-weight:700; cursor:pointer; padding:2px 3px; margin:0; text-decoration:underline;}
   .modal .linkBtn:hover{opacity:.9;}
   .modal .galFilters{display:flex; flex-wrap:wrap; gap:7px; justify-content:center; margin:6px 0 12px;}
@@ -4255,6 +4257,12 @@ window.CardFace = {};
   E.setLoserMill(true);        // CATCH-UP M2: the round's loser mills (winning-play size) cards into their Energy Pile (energy parity; deck-out guarded)
   E.setSpecialLossMode('chosen'); // MP: on a Special win the victor strips ONE chosen rival's shield (not the whole table). No-op at 2p.
   E.setMillScope('targeted');     // MP: only the struck rival(s) mill catch-up cards, not every non-winner. No-op at 2p. (Cutthroat combo — flattens 3–6p balance; see CARD-STATS.md.)
+  /* The build stamp. Substituted by build.js from README.md's `**Status:**` line — see the note there. It
+   * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
+   * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
+   * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
+  var GAME_VERSION='v1.31.18';
+  function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
   var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',straightflush:'Straight Flush'};
@@ -7868,7 +7876,8 @@ window.CardFace = {};
       '<div class="setupBtns">'+
         '<button id="howToBtn" class="ghostBtn">📖 Rules / How to play</button>'+
         '<button id="browseBtn" class="ghostBtn">🃏 Browse all cards</button>'+
-      '</div>';
+      '</div>'+
+      '<div class="verRow">Cardmen Fighter '+verTag()+'</div>';
     showModal(html);
     $('setYouDeck').value=sel.you; $('setRivalDeck').value=sel.rival; $('setDiff').value=sel.diff; $('setPlayers').value=String(sel.players||2);
     if($('setName')){ $('setName').value=myName; $('setName').addEventListener('input', function(){ saveMyName(this.value); }); }
@@ -8957,7 +8966,7 @@ window.CardFace = {};
     function renderSignaling(root){
       var errHTML = sig.err ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
-        '<div class="netbar">Peer-to-peer · '+(isHost()?'Hosting (Player 1)':'Joining (Player 2)')+' · no server, no accounts</div>'+errHTML;
+        '<div class="netbar">Peer-to-peer · '+(isHost()?'Hosting (Player 1)':'Joining (Player 2)')+' · no server · '+verTag()+'</div>'+errHTML;
       var body='';                        // NB: the branches below ASSIGN body, so the name row is prepended
       if(isHost() && sig.step==='host-gen'){ body='<p>Generating your invite code…</p>'; }
       else if(isHost() && sig.step==='host-wait'){
@@ -9042,7 +9051,7 @@ window.CardFace = {};
     // Lobby: after the transport connects, each side picks a deck before the host starts the real board.
     function renderLobby(root){
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
-        '<div class="netbar">Room <b>'+room+'</b> · You are '+(isHost()?'Player 1 (host)':'Player 2')+' · '+connLabel()+'</div>';
+        '<div class="netbar">Room <b>'+room+'</b> · You are '+(isHost()?'Player 1 (host)':'Player 2')+' · '+connLabel()+' · '+verTag()+'</div>';
       var body=nameRowHTML(!isHost() && iReady)+'<h3>Choose your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>';
       if(isHost()){
         var joined=nextSeat-1;   // clients who have readied
@@ -9079,7 +9088,7 @@ window.CardFace = {};
     function renderHostRtcLobby(root){
       var joined=nextSeat-1, total=joined+1, full=(joined>=MAX_SEATS-1);
       var errHTML = (sig&&sig.err) ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
-      var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · no server · '+joined+' connected</div>'+errHTML;
+      var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · no server · '+joined+' connected · '+verTag()+'</div>'+errHTML;
       var body=nameRowHTML(false)+'<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>';
       if(sig.step==='host-gen'){ body+='<p>Generating an invite code…</p>'; }
       else if(sig.step==='host-invite'){
@@ -9120,6 +9129,7 @@ window.CardFace = {};
     '#netroot .qrWrap{margin:10px 0;text-align:center}'+
     '#netroot .qrFrame{display:inline-block;background:#fff;border-radius:8px;padding:6px;line-height:0}'+
     '#netroot .qrCanvas{display:block;max-width:100%;background:#fff}'+
+    '#netroot .verStamp{opacity:.65;font-variant-numeric:tabular-nums;white-space:nowrap}'+
     '#netroot .netname{display:block;text-align:left;margin:0 0 4px;font-weight:700}'+
     '#netroot .netname input{display:block;width:100%;margin-top:5px;box-sizing:border-box;font:inherit;padding:9px 11px;border-radius:9px;border:1px solid #2f3b4d;background:#101620;color:#e8edf5}'+
     '#netroot .netname input:disabled{opacity:.55}'+
