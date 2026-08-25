@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.15**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.16**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -99,6 +99,14 @@ npx playwright install chromium
 
 Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` is a shared
 helper, not a suite — don't run it directly.
+
+**Emotes ride the intent channel, not a new one** (v1.31.16). A client sends `{op:'emote'}`; the host narrates
+with `say()` (reader-relative + broadcast) and then broadcasts `t:'emote'` for the bubble. Three rules: they are
+handled **before every turn gate** (reacting off-turn is the point); a client calls **`emoteFx` only**, never
+`showEmote`, or `say()`'s broadcast plus a local re-log prints each emote twice; and the cooldown is enforced
+**on the host per seat**, since a client controls its own clock. Note the trap that cost the whole feature once:
+the emote bar is built INSIDE the NET IIFE, so a helper sharing a name with a NET function is silently shadowed
+— NET's broadcaster is `emoteBroadcast` for exactly that reason.
 
 **Netplay must be startable WITHOUT navigating.** `NET.start(role, kind, opts)` enters it in place; `?net=`
 still works and every `nettest_*` suite uses it, but the UI buttons must never set `location.search` — on

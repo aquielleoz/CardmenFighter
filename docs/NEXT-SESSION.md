@@ -3,11 +3,11 @@
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
 Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.15**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.16**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
-`main` is at **v1.31.15**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
+`main` is at **v1.31.16**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
 HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
@@ -82,6 +82,11 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **A real one-tap rematch over netplay** (Aj, 2026-08-25 — the `🔄 Rematch?` emote is the expression; this is
+  the action). Today the win overlay's "New Game" just calls `openSetup()`, so an online pair must redo the
+  whole invite-code exchange to play again. Wants: the host restarting the engine and re-broadcasting `t:'setup'`
+  over the **live** connection, seats and decks reused, both sides confirming — plus its own netplay suite. The
+  emote set already covers the negotiation ("Rematch?" → "Yes!"), so this is purely the mechanism.
 - **Two more suites have the fixed-wait flake** (seen 2026-08-25): `exporttest` and `nettest_names` each failed
   once at a late position in a long sweep and each passed alone. Same class as the v1.31.9 pair — a fixed
   `wait(n)` followed by an assertion, rather than polling for the condition. Cheap to fix the same way:
@@ -236,6 +241,52 @@ behind it is still unisolated. **Confirm any sweep failure by running that suite
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.16 — emotes with sound, and a name field where you can actually see it
+
+**Confirmed first:** Aj tried v1.31.15 on his phone and online play worked — *"swimmingly"*. That closes the
+one thing the previous entry said it could not prove (the crash was fixed; the WebRTC handshake completing
+between two real devices needed his device).
+
+**Names.** Almost all of this already existed — a persisted `myName`, `t:'join'` carrying it, the host seeding
+`seatNames[0]`, and `logName` rendering it per-reader. The gap was only that **Play online never asked**, so
+anyone who skipped the New Duel screen hosted as "Rival". A shared `nameRowHTML()` now appears on **every**
+lobby screen: the BC lobby, the RTC host lobby, and the client's signalling screen — which is a client's very
+first sight of the game. Locked once a client hits Ready, like the deck picker, because the name travels *with*
+Ready and editing after that would reach nobody.
+
+**A host "ready ping"** (`🔔 Ping the table`) with its own cue, because the lobby is exactly where someone
+wanders off. Same relay shape as an emote but it works *before* the game starts, which is when it is needed.
+
+**Emotes — seven, netplay only.** Aj's five plus two:
+
+| | | why |
+| --- | --- | --- |
+| 👋 Hi! · 👍 Yes! · 👎 No! · 🤝 GG · 🔄 Rematch? | Aj's set | greeting, agree, disagree, sportsmanship, continue |
+| 👏 Nice! | added | reacting to a play is the commonest card-game emote, and the most generous |
+| ⏳ One sec | added | netplay has a 90s disconnect grace; "I'm still here" prevents the worst online moment |
+
+They compose: **"Rematch? → Yes!/No!" is a whole negotiation with no extra vocabulary.** `Rematch?` is an
+*expression* for now — a real one-tap rematch needs a restart handshake over the live connection, and is filed
+below. Sounds are new `CUES` entries in the existing procedural synth, so the file stays asset-free and the
+existing SFX mute covers them.
+
+**Built on the existing plumbing rather than a new channel.** A client sends `{op:'emote'}` as an intent; the
+host narrates with **`say()`** — which renders `{who}` in each reader's own frame *and* broadcasts the template
+— then broadcasts `t:'emote'` so every seat pops the bubble. Consequences worth knowing:
+- **Emotes are handled BEFORE every turn gate** in both `hostApplyMove` and `hostApplyMoveN`. Reacting when it
+  is *not* your turn is most of the point.
+- **A client must never call `showEmote`** — only `emoteFx`. `say()` on the host already broadcast the line, so
+  re-logging locally prints every emote twice. The suite asserts the count is exactly 1.
+- **Cooldown on both ends**, 1.2s. The host re-checks per seat, because a client controls its own clock.
+
+**The bug worth remembering: a name collision cost the whole feature.** The emote bar is built *inside* the NET
+IIFE, so `sendEmote(k)` resolved to NET's own `sendEmote(seat, key)` — passing the emote key as a seat number.
+Taps registered, no log line, no bubble, no error. The inner one is now `emoteBroadcast`.
+
+New suite **`nettest_emote.js`** (15): both directions cross the wire, the log is reader-relative ("You" vs the
+sender's name), it works off-turn, the double-log is absent, and a three-tap burst yields at most one line.
+Full sweep 22/22.
 
 ### v1.31.15 — netplay could not be started from a file opened on a phone
 
