@@ -39,25 +39,36 @@
     });
   }
 
-  // Phantasmal Illusion: copy the Rival's whole play, swap one card (drop one of theirs, add one
-  // of yours) to form a higher same-size Special. Search drop-index × hand-card for a completion.
-  // Beats straights and full houses (a one-card swap can't raise a plain pair/trio).
+  /* Phantasmal Illusion: copy the current play at its base values and see whether anything we have pushes the
+   * copy past it — our Equipment/boosts (applyEquip, the same call the engine makes), Odysseus's +1, or an
+   * OPTIONAL one-card swap. Try the free options FIRST: a bare copy that already beats costs no card at all.
+   * The swap used to be mandatory here and in the engine, which is why this only ever fired against a straight
+   * or a full house — one swap cannot raise a matched set — and therefore effectively never. */
+  function phantasmValue(st, p, cards, plus) {
+    var cand = E.detectCombo(cards); if (!cand) return null;
+    var eff = E.applyEquip ? E.applyEquip(cand, p, st) : cand;
+    if (plus) eff = { type: eff.type, size: eff.size, value: eff.value + plus, key: [eff.key[0] + plus].concat(eff.key.slice(1)), cards: eff.cards };
+    return eff;
+  }
   function tryPhantasm(st, p) {
     if (!st.pile || st.lastPlayer === p || st.pile.combo.size < 2) return null;
     var pl = st.players[p];
     var pc = pl.hand.filter(function (c) { var ef = E.effectOf(c); return ef && ef.impl && ef.kind === 'phantasm' && E.canAfford(pl, c); })[0];
     if (!pc) return null;
-    if (pl.hand.length - 2 < 1 && (pl.deck.length + pl.shuffle.length) === 0) return null;   // keep a card to lead if no reserves
     var pp = E.effectFor ? (E.effectFor(st, p, pc).phantasmPlus || 0) : 0;                    // Odysseus: +value on the illusion
-    var base = st.pile.combo.cards;
-    for (var ri = 0; ri < base.length; ri++) {
-      for (var h = 0; h < pl.hand.length; h++) {
+    var base = st.pile.combo.cards, i, h, ri;
+    var plain = [];
+    for (i = 0; i < base.length; i++) plain.push({ rank: base[i].rank, suit: base[i].suit });
+    var bare = phantasmValue(st, p, plain, pp);                                               // free: no card spent
+    if (bare && E.beats(bare, st.pile.combo)) return { cardId: pc.id };
+    if (pl.hand.length - 2 < 1 && (pl.deck.length + pl.shuffle.length) === 0) return null;    // a swap needs a card to spare
+    for (ri = 0; ri < base.length; ri++) {
+      for (h = 0; h < pl.hand.length; h++) {
         var add = pl.hand[h];
         if (add.id === pc.id) continue;
         var phantom = [];
-        for (var i = 0; i < base.length; i++) if (i !== ri) phantom.push({ rank: base[i].rank, suit: base[i].suit });
-        var cand = E.detectCombo(phantom.concat([{ rank: add.rank, suit: add.suit }]));
-        if (cand && pp) cand = { type: cand.type, size: cand.size, value: cand.value + pp, key: [cand.key[0] + pp].concat(cand.key.slice(1)), cards: cand.cards };
+        for (i = 0; i < base.length; i++) if (i !== ri) phantom.push({ rank: base[i].rank, suit: base[i].suit });
+        var cand = phantasmValue(st, p, phantom.concat([{ rank: add.rank, suit: add.suit }]), pp);
         if (cand && E.beats(cand, st.pile.combo)) return { cardId: pc.id, removeIdx: ri, addId: add.id };
       }
     }

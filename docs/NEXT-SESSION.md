@@ -1,13 +1,13 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**208**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**218**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (64) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · plus the `nettest_*` netplay suites. Counts verified 2026-08-24 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.5**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.6**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-24)
 
-`main` is at **v1.31.5**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
+`main` is at **v1.31.6**, merged and pushed, working tree clean, and `node build.js` reproduces the committed
 HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
@@ -16,7 +16,7 @@ HTML byte-for-byte. Nothing is half-done and no branch is waiting.
 npm test && node mptest.js
 ```
 
-Expect **208 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
+Expect **218 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
 
 ### What just shipped
 **v1.31.5 — Aj's three priorities**, each of which was worse than its one-line description: the netplay reveal
@@ -290,6 +290,66 @@ the detail, including what each one turned out to actually be, is in the v1.31.5
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.6 — Phantasmal Illusion is the copy again (Aj's original card, restored)
+
+Aj went looking for a tweak to Phantasmal Illusion and did not recognise the card he found. He was right not
+to: **♦10 had been a different card since v1.13**, and his design was still sitting in the codebase,
+unreachable.
+
+**What happened.** v1.13's balance pass replaced the copy-a-Special `phantasm` mechanic with a clean
+**+6 valueBoost**, stated reason: *"The AI pilots valueBoosts, so it's alive now."* The card had shown a 0.00
+cast rate in sims. But PATCHNOTES had already written down why that number was not a verdict:
+
+> "Cards whose trigger conditions the bots rarely create will show ~0.00 castRate and no win data. This is a
+> **measurement artifact, not a verdict on the card.** Phantasmal Illusion needs to face a straight or full
+> house; the AI rarely leads one, so it almost never fires in sims — yet it **correctly strips a shield when
+> it resolves** (verified)."
+
+So a working card was traded away to move a number in a sim, against this repo's own written warning. Worth
+remembering the next time a card reads 0.00.
+
+**The old implementation was never deleted** — `E.phantasm()`, `tryPhantasm()` in ai.js, a full UI picker, and
+the `phantasmPlus` boost hook all keyed off `kind: 'phantasm'`, which **no card had**. Three layers of dead
+code carrying the name of a live card, which is what made this so confusing to diagnose.
+
+**Why the original really failed, and why Aj's version doesn't.** The swap was **mandatory** in all three
+layers, and one swap cannot raise a matched set — so the card needed a straight or full house on the pile to
+do anything at all. That is the narrow trigger, not a dumb AI. Aj's design (which the implementation never
+matched): the copy takes the play's **base card values**, is then **subject to boosts and debuffs**, and you
+**MAY** swap one card in. Any of the three can carry it, so it answers a pair or trio too.
+
+| route | what it costs |
+| --- | --- |
+| your Equipment / boost lifts the copy | nothing but the Illusion card |
+| a debuff on THEIR play left the pile low | nothing but the Illusion card |
+| Odysseus (♦K) conjures it at **+1** | nothing but the Illusion card |
+| the optional swap | one real card, into your Energy |
+
+A bare copy with none of them **ties, and ties never win** — confirmed with Aj, and the engine says so in the
+refusal text.
+
+**Odysseus points back at the copy** (`phantasmPlus: 1`) instead of upgrading the +6 to +7.
+
+**The illusion is now a pile like any other.** It stores `raw`/`rawKey0`/`lockedDelta` and `refreshPile()` no
+longer skips it, so its value tracks equipment coming and going exactly as a real play does. `phantom` still
+marks it for the UI and the netplay mirror.
+
+**Measured.** The AI casts it again — **1.8 / 6.3 / 8.3 per 100 games** at 2/4/6 players, against 0.00 for the
+version that was deleted for being uncastable. That is *less* than the +6 valueBoost it replaces (2.8 / 11.3 /
+25.0), which is expected: it is a conditional answer, not a generic pump.
+
+Balance, 8 runs per arm A/B'd against the +6 build: deck spread **18.6 → 17.4 (2p), 18.6 → 18.0 (3p),
+18.1 → 17.7 (4p), 14.7 → 14.1 (6p)** — nothing above 1.1 s.e. One per-deck result sat at the bar, **2p Warlock
++2.7 (3.4 s.e.)**, with a plausible mechanism (Warlock is Wizard+Rogue, and Caltrops debuffing the pile is
+exactly what enables a bare copy). **It did not reproduce:** a second independent 8-run sample gave
++1.1 (0.9 s.e.), pooling to +1.9 (2.5 s.e.) over 16 runs — under the bar. Same shape as the Pure Fighter
+scare in v1.31.4. A significant-looking single sample with a good story attached is still a single sample.
+
+Tests: **218** (was 208) plus **`phantasmtest.js`** (12), which drives the real page through all three routes
+and asserts the bare copy is refused when nothing backs it. Two of the new assertions were passing *vacuously*
+at first — they read an unchanged pile — and one raced the Rival's asynchronous turn for the pile; both were
+rewritten to poll for the conjure and to check the card actually left hand.
 
 ### v1.31.5 — the netplay reveal, an export that knows multiplayer exists, and six duel-only card texts
 

@@ -2698,7 +2698,8 @@ __NETVIEW__
       // selection mode — Sort still works (tidies the cards; your picks are kept)
       sort.style.display=(pick.kind==='handlimit'||pick.kind==='discard')?'':'none';
       var n=Object.keys(pick.chosen).length;
-      fight.textContent='Confirm'; fight.classList.add('confirm'); fight.disabled=(n!==pick.need);
+      fight.textContent='Confirm'; fight.classList.add('confirm');
+      fight.disabled=(pick.kind==='phantasm' && pick.bare) ? (n>pick.need) : (n!==pick.need);   // a bare illusion needs no card
       if(pick.kind==='phantasm'||pick.kind==='stopper'){ pass.style.display=''; pass.disabled=false; pass.textContent='Cancel'; }   // casting the illusion / committing STOPPERs is optional
       else pass.style.display='none';            // discards & hand-limit are mandatory — no cancel
       clear.style.display='';
@@ -2710,7 +2711,9 @@ __NETVIEW__
         : pick.kind==='stopper'
         ? 'Choose '+pick.need+' STOPPERs to cancel the '+kindLabel(state.pile.combo.type)+' ('+n+'/'+pick.need+' picked).'
         : pick.kind==='phantasm'
-        ? 'Phantasmal Illusion — choose 1 card to complete a higher Special over the '+kindLabel(state.pile.combo.type)+' ('+n+'/1 picked).'
+        ? (pick.bare
+            ? 'Phantasmal Illusion — Confirm to copy the '+kindLabel(state.pile.combo.type)+' as it is, or add 1 card to reshape it ('+n+'/1 optional).'
+            : 'Phantasmal Illusion — choose 1 card to complete a higher Special over the '+kindLabel(state.pile.combo.type)+' ('+n+'/1 picked).')
         : 'Choose 1 card to put on top of your deck ('+n+'/1 picked).');
       return;
     }
@@ -2744,7 +2747,7 @@ __NETVIEW__
     ctxBtn.style.display=''; ctxBtn.disabled=false; ctxBtn.textContent=ctx.label;
     ctxBtn.classList.toggle('off', !ctx.ok);   // usable = normal button, unusable = greyed (no extra highlight)
     ctxBtn.title = ctx.ok ? (ctx.mode==='stopper' ? 'Commit STOPPERs to cancel the play'
-        : ctx.mode==='phantasm' ? 'Warp the Special into a higher one' : "Activate this card's effect") : ctx.reason;
+        : ctx.mode==='phantasm' ? 'Copy the Special on the pile' : "Activate this card's effect") : ctx.reason;
     var actCard=activatableCardSelected();               // the single selected effect card (may not be usable yet)
     var actBlock=actCard?activateBlock(actCard):null;      // reason it can't fire right now, or null
     if(actCard){
@@ -2779,7 +2782,9 @@ __NETVIEW__
   function confirmPick(){
     if(!pick) return;
     var ids=Object.keys(pick.chosen);
-    if(ids.length!==pick.need) return;
+    // Phantasmal Illusion's swap is OPTIONAL when a bare copy already beats — 0 cards is a legal confirm there.
+    var optional=(pick.kind==='phantasm' && pick.bare);
+    if(optional ? (ids.length>pick.need) : (ids.length!==pick.need)) return;
     if(pick.kind==='stopper'){                                             // commit the STOPPERs you selected
       var cancelledS=kindLabel(state.pile.combo.type), needS=pick.need;
       var rs=E.stopper(state, YOU, ids);
@@ -2792,12 +2797,15 @@ __NETVIEW__
       render();
       return;
     }
-    if(pick.kind==='phantasm'){                                            // Phantasmal Illusion — add the chosen card
-      var addCard=cardById(ids[0]);
-      var ri=phantasmSolve(addCard, pick.cardId);
-      if(ri<0){ setMessage('That card won’t complete a higher Special — choose another.'); pick.chosen={}; render(); return; }
-      var warped=kindLabel(state.pile.combo.type);
-      var r=E.phantasm(state, YOU, { cardId:pick.cardId, removeIdx:ri, addId:ids[0] });
+    if(pick.kind==='phantasm'){                                            // Phantasmal Illusion — the swap is optional
+      var warped=kindLabel(state.pile.combo.type), opts={ cardId:pick.cardId };
+      if(ids.length){
+        var addCard=cardById(ids[0]);
+        var ri=phantasmSolve(addCard, pick.cardId);
+        if(ri<0){ setMessage('That card won’t complete a higher Special — choose another.'); pick.chosen={}; render(); return; }
+        opts.removeIdx=ri; opts.addId=ids[0];
+      }
+      var r=E.phantasm(state, YOU, opts);
       if(!r.ok){ setMessage(r.reason); pick.chosen={}; render(); return; }
       pick=null; selected={};
       setMessage('🎭 You warped the '+warped+' into a higher <b>'+kindLabel(r.made)+'</b> — you take the initiative.');
@@ -3175,12 +3183,26 @@ __NETVIEW__
     var you=state.players[YOU];
     var pc=you.hand.filter(function(c){ var ef=E.effectOf(c); return ef && ef.kind==='phantasm'; })[0];
     if(!pc) return null;                                              // no button unless you hold it
-    if(state.pile.combo.size<2) return { show:true, ok:false, reason:'Phantasmal only warps a Special (a straight or full house) — not a jab.' };
+    if(state.pile.combo.size<2) return { show:true, ok:false, reason:'Phantasmal Illusion copies a Special — not a jab.' };
     if(!E.canAfford(you, pc)) return { show:true, ok:false, reason:'Not enough ♦ energy to cast Phantasmal Illusion.' };
     if(you.hand.length-2<1 && (you.deck.length+you.shuffle.length)===0) return { show:true, ok:false, reason:'Keep a card to lead — not enough cards to spend on the illusion.' };
-    var solvable=you.hand.some(function(c){ return c.id!==pc.id && phantasmSolve(c, pc.id)>=0; });
-    if(!solvable) return { show:true, ok:false, reason:'No card in your hand completes a higher Special over this play.' };
-    return { show:true, ok:true, cardId:pc.id };
+    // v1.31.6: the swap is OPTIONAL. A bare copy takes the play's base values and then your boosts, Equipment
+    // and Odysseus's +1 apply — so it can already beat without spending a card. Only fall back to the swap search.
+    var bare=phantasmBare(pc.id);
+    var solvable=bare || you.hand.some(function(c){ return c.id!==pc.id && phantasmSolve(c, pc.id)>=0; });
+    if(!solvable) return { show:true, ok:false, reason:'A bare copy only ties, and no card in your hand completes a higher Special over this play.' };
+    return { show:true, ok:true, cardId:pc.id, bare:!!bare };
+  }
+  // Would a copy with NO swap already beat? Same math the engine runs: base values + applyEquip + Odysseus.
+  function phantasmBare(phantId){
+    var base=state.pile.combo.cards, plain=[];
+    for(var i=0;i<base.length;i++) plain.push({rank:base[i].rank, suit:base[i].suit});
+    var cand=E.detectCombo(plain); if(!cand) return false;
+    var phCard=state.players[YOU].hand.filter(function(c){return c.id===phantId;})[0];
+    var pp=(phCard && E.effectFor)?(E.effectFor(state, YOU, phCard).phantasmPlus||0):0;
+    var eff=E.applyEquip?E.applyEquip(cand, YOU, state):cand;
+    if(pp) eff={type:eff.type,size:eff.size,value:eff.value+pp,key:[eff.key[0]+pp].concat(eff.key.slice(1)),cards:eff.cards};
+    return E.beats(eff, state.pile.combo);
   }
   // find the remove-index that lets `addCard` form a higher Special over the current pile.
   function phantasmSolve(addCard, phantId){
@@ -3190,6 +3212,7 @@ __NETVIEW__
     for(var ri=0; ri<base.length; ri++){
       var phantom=[]; for(var i=0;i<base.length;i++){ if(i!==ri) phantom.push({rank:base[i].rank,suit:base[i].suit}); }
       var cand=E.detectCombo(phantom.concat([{rank:addCard.rank,suit:addCard.suit}]));
+      if(cand && E.applyEquip) cand=E.applyEquip(cand, YOU, state);      // your Equipment/boosts reach the illusion
       if(cand && pp) cand={type:cand.type,size:cand.size,value:cand.value+pp,key:[cand.key[0]+pp].concat(cand.key.slice(1)),cards:cand.cards};
       if(cand && E.beats(cand, state.pile.combo)) return ri;
     }
@@ -3199,9 +3222,10 @@ __NETVIEW__
     if(busy||pick||targeting||targetPick) return;
     var info=phantInfo(); if(!info) return;
     if(!info.ok){ showTip($('ctxBtn'), info.reason); if(e&&e.stopPropagation) e.stopPropagation(); return; }
-    pick={ kind:'phantasm', need:1, chosen:{}, cardId:info.cardId };   // choose 1 hand card to lend the illusion
+    pick={ kind:'phantasm', need:1, chosen:{}, cardId:info.cardId, bare:!!info.bare };   // the swap is OPTIONAL
     selected={};
-    setMessage('Choose one card from your hand to add to the illusion — it must complete a higher Special.');
+    setMessage(info.bare ? 'Your illusion already beats this play — Confirm to conjure it, or add one card first.'
+                         : 'Choose one card from your hand to add to the illusion — it must complete a higher Special.');
     render();
   }
   // End of your turn: if you're over the hand cap, discard down before the Rival acts.

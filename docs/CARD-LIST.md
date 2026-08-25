@@ -53,7 +53,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 | 7 | Forceful Strip | 7 | Return Target Equipment to its owner's hand. |
 | 8 | Cursed Pendant | 8 | Equipment — lasts 4 rounds (1 counter spent at the start of each round; then it retires to your Energy). Your Rivals' highest card each fight has its value reduced by 2. |
 | 9 | Leyline Ascension *(Quick)* | 9 | You can't lose this round — no shield loss, and at 0 shields no Fighter Kick either. |
-| 10 | Phantasmal Illusion | 10 | Conjure a phantom of your strike — increase the value of your next play by 6. |
+| 10 | Phantasmal Illusion | 10 | Conjure a copy of the current play at its base values. You MAY swap one copied card for one from your hand. Your boosts and Equipment apply to the illusion; the copied cards vanish after the round. |
 | 2 | — | — | *Apex trump — no effect; the highest fight value in the game.* |
 
 **Ride — J♦ · Giant Owl** (Super keystone): While in your zone: the first effect you activate each turn costs 1 less energy.
@@ -66,7 +66,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 **King Form — ♦K · Odysseus Form**:
 - **Infuse with Magic** → Boost your next play by 1 more (to +5).
 - **Back to the Books** → Look 1 deeper — top 4, keep 3 (draw 2→3).
-- **Phantasmal Illusion** → The illusion swells — boost your next play by 1 more (to +7).
+- **Phantasmal Illusion** → The illusion swells — the copy is conjured at +1 value.
 
 **Super Mode — ♦ · Athena Mode** *(J+Q+K in zone)*:
 - **Forceful Strip** → Forceful Strip puts a stripped Equipment on TOP of its owner's deck, and can also return a Ride OR a Form to its owner's hand.
