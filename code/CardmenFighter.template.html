@@ -5104,7 +5104,7 @@ __QR__
       joinRetry=setInterval(function(){
         if(started){ clearInterval(joinRetry); joinRetry=null; return; }
         if(++joinTries>40){ clearInterval(joinRetry); joinRetry=null; if(sig){ sig.err='Could not sync with the host. Re-check the codes and reload both tabs.'; renderNet(); } return; }
-        send({t:'join', deck:myDeck, cid:myId, name:myName});
+        send({t:'join', deck:myDeck, cid:myId, name:myName, v:netVersion()});
       }, 350);
     }
     function connectWith(t){ attachTransport(t); kickoff(); }   // BroadcastChannel: attach + kick off together (already listening)
@@ -5310,14 +5310,16 @@ __QR__
           seatNames[jseat]=cleanName(m.name);   // untrusted text: cleanName strips markup chars and caps length
           seatNames[0]=myName;                  // the host's own, so clients can be told everyone's
           if(srcChan){ var ci=dcs.indexOf(srcChan); if(ci>=0) chanSeat[ci]=jseat; }   // RTC: bind this channel to its seat (authoritative)
-          sendTo(jseat, {t:'welcome', seat:jseat, cid:cid});
+          if(noteVersion(m.v)) renderNet();                              // a build mismatch is worth seeing before Start
+          sendTo(jseat, {t:'welcome', seat:jseat, cid:cid, v:netVersion()});
           if(started) hostOnPeerBack(jseat);                             // re-join (same cid): a held seat resumes; an already-dropped seat rejoins to spectate
           if(started) broadcastMirror(); else if(isNew) renderNet();     // re-render the lobby only for a genuinely new joiner (retries fire every 350ms)
         }
         else if(m.t==='move'){ var sseat = srcChan ? seatOfChan(srcChan) : (typeof m.seat==='number'?m.seat:1); if(sseat!=null){ if(MP()) hostApplyMoveN(sseat, m.intent); else hostApplyMove(m.intent); } }
         else if(m.t==='concede'){ onOpponentConcede(srcChan?seatOfChan(srcChan):m.seat); }
       } else {
-        if(m.t==='welcome'){ if(m.cid && m.cid!==myId) return; mySeat=(typeof m.seat==='number'?m.seat:1); connected=true; }
+        if(m.t==='welcome'){ if(m.cid && m.cid!==myId) return; mySeat=(typeof m.seat==='number'?m.seat:1); connected=true;
+          if(noteVersion(m.v)) renderNet(); }
         else if(m.t==='full'){ if(!m.cid || m.cid===myId){ if(sig) sig.err='This game is full (6 players max).'; setMessage('⚠ This game is full.'); renderNet(); } }
         else if(m.t==='log'){                                   // public narration — resolve {who} in OUR frame
           var n=(state&&state.numPlayers)||2, r=((((m.actor-mySeat)%n)+n)%n), who;
@@ -5879,11 +5881,35 @@ __QR__
     }
 
     // ---------- view ----------
+    /* VERSION HANDSHAKE. Netplay had no protocol negotiation at all: two different builds would connect happily
+     * and then simply misbehave, with nothing on screen to say why. That is not hypothetical here — a stale
+     * downloaded copy has already produced one false bug report, and once a homebrew rules menu exists a peer
+     * silently ignoring an unknown rule would be worse than no menu.
+     * It WARNS rather than refuses: a patch-level difference is usually harmless, and locking two friends out of
+     * a game because of it would be a worse failure than the mismatch. `?ver=` overrides the reported version so
+     * the mismatch path is testable; it is inert without `dbg=1`. */
+    var verWarn=null;
+    function netVersion(){
+      var m=/[?&]ver=([^&]+)/.exec(location.search);
+      return (m && /[?&]dbg=1/.test(location.search)) ? decodeURIComponent(m[1]) : GAME_VERSION;
+    }
+    function noteVersion(theirs){
+      if(!theirs || theirs===netVersion()) return false;
+      if(verWarn) return true;                                  // already reported; do not spam the log
+      verWarn={ mine:netVersion(), theirs:theirs };
+      logMsg('⚠ Build mismatch — you are on <b>'+esc(verWarn.mine)+'</b>, your opponent is on <b>'+
+             esc(verWarn.theirs)+'</b>. Play may behave differently; download the same build to be sure.', 'bad');
+      return true;
+    }
+    function verWarnHTML(){
+      return verWarn ? '<div class="netmsg err">⚠ Build mismatch — you are on <b>'+esc(verWarn.mine)+
+             '</b>, they are on <b>'+esc(verWarn.theirs)+'</b>. You can still play, but download the same build to be sure.</div>' : '';
+    }
     function connLabel(){ return connected ? '<span class="ok">● connected</span>' : '<span class="wait">○ waiting for opponent…</span>'; }
     function renderSignaling(root){
       var errHTML = sig.err ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
-        '<div class="netbar">Peer-to-peer · '+(isHost()?'Hosting (Player 1)':'Joining (Player 2)')+' · no server · '+verTag()+'</div>'+errHTML;
+        '<div class="netbar">Peer-to-peer · '+(isHost()?'Hosting (Player 1)':'Joining (Player 2)')+' · no server · '+verTag()+'</div>'+errHTML+verWarnHTML();
       var body='';                        // NB: the branches below ASSIGN body, so the name row is prepended
       if(isHost() && sig.step==='host-gen'){ body='<p>Generating your invite code…</p>'; }
       else if(isHost() && sig.step==='host-wait'){
@@ -5990,7 +6016,7 @@ __QR__
     // Lobby: after the transport connects, each side picks a deck before the host starts the real board.
     function renderLobby(root){
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
-        '<div class="netbar">Room <b>'+room+'</b> · You are '+(isHost()?'Player 1 (host)':'Player 2')+' · '+connLabel()+' · '+verTag()+'</div>';
+        '<div class="netbar">Room <b>'+room+'</b> · You are '+(isHost()?'Player 1 (host)':'Player 2')+' · '+connLabel()+' · '+verTag()+'</div>'+verWarnHTML();
       var body=nameRowHTML(!isHost() && iReady)+'<h3>Choose your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>';
       if(isHost()){
         var joined=nextSeat-1;   // clients who have readied
@@ -6020,14 +6046,14 @@ __QR__
       var go=$('lobbyGo'); if(go) go.addEventListener('click', function(){
         myDeck=($('deckSel')||{}).value||myDeck;
         if(isHost()){ if(nextSeat-1<1) return; hostStartRealN(myDeck); }
-        else { iReady=true; send({t:'join', deck:myDeck, cid:myId, name:myName}); startJoinRetry(); renderNet(); }
+        else { iReady=true; send({t:'join', deck:myDeck, cid:myId, name:myName, v:netVersion()}); startJoinRetry(); renderNet(); }
       });
     }
     // HOST over WebRTC: a combined lobby — deck picker + invite one player at a time (each becomes a hub channel) + Start.
     function renderHostRtcLobby(root){
       var joined=nextSeat-1, total=joined+1, full=(joined>=MAX_SEATS-1);
       var errHTML = (sig&&sig.err) ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
-      var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · no server · '+joined+' connected · '+verTag()+'</div>'+errHTML;
+      var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · no server · '+joined+' connected · '+verTag()+'</div>'+errHTML+verWarnHTML();
       var body=nameRowHTML(false)+'<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>';
       if(sig.step==='host-gen'){ body+='<p>Generating an invite code…</p>'; }
       else if(sig.step==='host-invite'){
