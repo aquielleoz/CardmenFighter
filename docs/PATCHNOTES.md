@@ -290,6 +290,41 @@ So `all` cannot be repaired by patching cards one at a time. The options are: gi
 of their own, change `all` so it does not multiply mitigation, or leave it as the homebrew toggle it is now.
 **Do not re-open this with another offence-side idea** — that avenue is measured and closed.
 
+**SHARE HOLY SHROUD TOO (Aj) AND `all` BECOMES ARGUABLY PLAYABLE.** Leyline alone left the crown with Cleric,
+whose Holy Shroud and Sanctuary were untouched — so share the Shroud as well. It is counter-limited *equipment*,
+so sharing it is not simply "everyone is protected": one counter still absorbs exactly one hit, it just no longer
+matters whose. The loser's own absorber is tried first, so nothing changes when only they have one.
+
+Both cards shared (6 interleaved runs of 1,500; pacing from `rulesim`, medians):
+
+| | base | `all` | `all`+ward | `all`+ward+shields2+N |
+| --- | --- | --- | --- | --- |
+| 6p spread | 13.0 | **32.1** | **18.3** | 23.3 |
+| 4p spread | 15.7 | 29.9 | 18.3 | 22.3 |
+| 2p spread | 13.2 | 12.8 | **8.4** | 9.3 |
+| 6p rounds | 30 | 9 | **11** | 17 |
+| Spearman rho | — | 0.34 | 0.55 | 0.62 |
+| Pure Wizard @6p | 15.6% | **34.8% (#1)** | 24.3% (#2) | 27.2% (#2) |
+| Pure Fighter @6p | 16.3% | **4.1% (#11)** | **9.7%** | 9.0% |
+| Pure Rogue @6p | 10.7% | 4.6% | **8.2%** | 5.3% |
+
+**This is the first version of `loss=all` that is arguably playable.** It keeps almost all of `all`'s pacing win
+(6p 30 → 11 rounds) while cutting the balance damage by roughly two thirds (spread 32.1 → 18.3), and the
+annihilated decks roughly double (4% → 8-10%). It is also **good for duels** (2p spread 13.2 → 8.4).
+
+**It is still not the shipped game.** 18.3 against a baseline 13.0 is materially wider, Fighter and Rogue sit at
+8-10% against a fair share of 16.7%, and rho 0.55 means the order is only half restored. And adding Aj's
+shields-2+N trades back: pacing improves to 17 rounds (the documented middle ground) but the spread widens again
+to 23.3, because more shields means more rounds in which mitigation matters.
+
+**The remaining asymmetry is Sanctuary (♥, +shield).** It is shield *gain* rather than loss-prevention, so it was
+left alone here — it is the obvious next thing to try if anyone wants to push `all` further.
+
+**Method note:** `mpsim` now self-checks the ward behaviourally, not just by echoing the flag — seat 1 owns the
+only Shroud, seat 0 wins a Special under `loss=all`, and it asserts that a **non-owner** keeps its shield, which
+is impossible unless the ward really is shared. The first version of the engine patch edited only the `reclaim`
+branch; the base card is `kind:'ward'`, so it would have measured nothing at all.
+
 **Worth knowing separately: on the SHIPPED rules, sharing the ward is balance-neutral** — spread 11.6 vs 12.3 at
 6p and rho **0.94**, with Pure Fighter drifting up (#7 → #5) and nothing else moving. So "Leyline protects the
 table" is available as a design option or a menu toggle in its own right, independent of `all`.

@@ -298,11 +298,27 @@
   // Holy Shroud: spend one of its counters to EAT the hit (a physical absorb — works vs a shield loss OR,
   // at 0 shields, the Fighter Kick). Returns true (and spends a counter) if an absorber is available.
   function retireEquip(pl, e) { if (e && e.card) pl.energy.push(e.card); }   // worn-out / spent Equipment → its card becomes Energy (recyclable via the shuffle cycle)
+  /* WARD_ALL also shares Holy Shroud (Aj, 2026-08-26): its counters can absorb a hit for ANYONE, not only its
+   * owner. Note the difference from Leyline — Shroud is counter-limited equipment, so sharing it does NOT simply
+   * hand everyone protection: one counter still absorbs exactly one hit, it just no longer matters whose. Under
+   * `all` that turns a per-owner save into a single table-wide save, which is the asymmetry being removed.
+   * The loser's OWN absorber is always tried first, so behaviour is unchanged whenever only they have one. */
+  function findAbsorber(st, q) {
+    var own = st.players[q].equipment.filter(function (e) { return e.absorb && e.counters > 0; })[0];
+    if (own) return { owner: q, e: own };
+    if (!WARD_ALL) return null;
+    for (var w = 0; w < st.numPlayers; w++) {
+      if (w === q || st.players[w].eliminated) continue;
+      var e2 = st.players[w].equipment.filter(function (e) { return e.absorb && e.counters > 0; })[0];
+      if (e2) return { owner: w, e: e2 };
+    }
+    return null;
+  }
   function absorbSaved(st, q) {
-    var pl = st.players[q];
-    var shroud = pl.equipment.filter(function (e) { return e.absorb && e.counters > 0; })[0];
-    if (!shroud) return false;
-    shroud.counters -= 1; if (shroud.counters <= 0) { retireEquip(pl, shroud); pl.equipment = pl.equipment.filter(function (e) { return e !== shroud; }); }
+    var hit = findAbsorber(st, q);
+    if (!hit) return false;
+    var owner = st.players[hit.owner], shroud = hit.e;
+    shroud.counters -= 1; if (shroud.counters <= 0) { retireEquip(owner, shroud); owner.equipment = owner.equipment.filter(function (e) { return e !== shroud; }); }
     return true;
   }
   // Would player q's shield loss be prevented WITHOUT costing a shield? Sphere = free round-long
@@ -317,7 +333,8 @@
   // plain shield-immunity can't save a shield you don't have, so it must NOT suppress the guard window there.
   function wouldBeSaved(st, q) {
     var pl = st.players[q];
-    var hasAbsorb = pl.equipment.some(function (e) { return e.absorb && e.counters > 0; });
+    var hasAbsorb = !!findAbsorber(st, q);            // table-wide under WARD_ALL, so the guard window and the
+                                                     // actual resolution cannot disagree
     if (pl.shields <= 0) return !!pl.cantLoseRound || hasAbsorb;                  // at 0, the kick is prevented only by "can't lose this round" or a Holy Shroud counter
     if (pl.shieldImmune || pl.cantLoseRound || pl.preventShield) return true;
     if (hasAbsorb || pl.equipment.some(function (e) { return e.protect === 'special'; })) return true;

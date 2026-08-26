@@ -93,7 +93,26 @@ console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' draw
   wg.players[0].energy = []; for (i = 0; i < 14; i++) wg.players[0].energy.push(hk(4, 'D'));
   E.activate(wg, 0, 'sc9D', {});
   var warded = [0, 1, 2, 3].filter(function (q) { return !!wg.players[q].cantLoseRound; }).length;
-  console.log('SELF-CHECK ward: Leyline protected ' + warded + ' player(s) (expect ' + (WALL ? 4 : 1) + ')');
+  /* Holy Shroud shared: seat 1 OWNS the only Shroud, seat 0 wins a Special under loss=all, and we count how
+   * many rivals actually keep their shield. Without the flag exactly one is saved (the owner). With it the
+   * single counter still saves exactly one player, but it may be a NON-owner — so the thing to assert is that a
+   * seat with no equipment of its own gets saved, which is impossible unless the ward is shared. */
+  var sg = E.newGame(null, { numPlayers: 4 });
+  sg.round = 3; sg.pile = null; sg.turn = 0; sg.passes = 0;
+  sg.players[0].hand = [hk(9, 'H'), hk(9, 'D')];
+  for (i = 1; i < 4; i++) sg.players[i].hand = [hk(3, 'S')];
+  sg.players[1].equipment = [{ id: 'scHS', name: 'Holy Shroud', absorb: true, counters: 1, decay: false,
+                               card: { rank: 10, suit: 'H', id: 'scHS10H' } }];
+  var sBefore = [sg.players[1].shields, sg.players[2].shields, sg.players[3].shields];
+  E.play(sg, 0, [hk(9, 'H'), hk(9, 'D')]);
+  for (i = 1; i < 4 && !sg.finished; i++) { if (sg.turn === i) E.pass(sg, i); }
+  if (sg.pendingLossChoice) E.chooseLossTarget(sg, sg.pendingLossChoice.cands ? sg.pendingLossChoice.cands[0] : 1);
+  var sAfter = [sg.players[1].shields, sg.players[2].shields, sg.players[3].shields];
+  var shroudSpent = !sg.players[1].equipment.some(function (e) { return e.absorb && e.counters > 0; });
+  var nonOwnerSaved = (sAfter[1] === sBefore[1]) || (sAfter[2] === sBefore[2]);   // seat 2 or 3 kept its shield
+  console.log('SELF-CHECK ward: Leyline protected ' + warded + ' player(s) (expect ' + (WALL ? 4 : 1) + ')' +
+              '   Shroud spent=' + shroudSpent + ' non-owner saved=' + nonOwnerSaved +
+              (LM === 'all' ? ' (expect a non-owner save only with wardall)' : ' (loss=chosen: not probed)'));
   console.log('SELF-CHECK hostile: Critical Hit struck ' + hStruck + ' (expect ' + (DALL ? 3 : (DHALF ? 2 : 1)) +
               '), Back Stab locked ' + bLock + ' (expect ' + (LALL ? 3 : 1) + ', whole-round ' + bRound + ')');
   var bad = (shields !== (SHP ? 6 : 4)) || (draw !== (DPP ? 4 : 2)) || (struck !== (LM === 'all' ? 3 : 1)) ||
