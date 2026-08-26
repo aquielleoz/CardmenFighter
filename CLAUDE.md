@@ -276,6 +276,18 @@ turn over), so the host sat on its own turn with a dead board — permanently. `
 players; the duel path was missing it. `nettest_roundstall.js` reproduces it deterministically by staging the
 host with the apex 2, so the client must pass and the round always ends on the client's action.
 
+**Why it looked environmental:** it only fires when the round ends on the client's action AND the host wins,
+which depends on the deal and play order. Load never caused it — load only changed how often that configuration
+came up. **Aj had hit it in real games and assumed it was a laggy connection**, which is the tell worth
+remembering: a wedged host stops broadcasting, so the client sits on "Rival is fighting…" and reads it as a
+dropped opponent, while the host sees its own board die and reads it as a disconnect. **When netplay "lags",
+suspect a stuck `busy` before the transport.** Only the host can wedge — a client recomputes `busy` from every
+mirror, so it self-heals the moment the host broadcasts again.
+
+**Read the trace before theorising about load.** The tell was one self-contradictory line: the host showing
+`your turn` with an empty pile while `rivalStatus` still read "Waiting for opponent…". No amount of load
+analysis would ever have found it.
+
 **`nettest_log` — SOLVED (2026-08-26), and it was never a timing flake either.** It was **deal-dependent**. The
 suite had the host play whatever card happened to be first in its hand and then asserted the client could answer
 it. The apex 2 is unbeatable by definition (value 15) and an Ace nearly is, so whenever the deal handed the host
@@ -284,18 +296,6 @@ client-log ones, and the log-length one. That is the whole "9 pass / 4 fail" sig
 observation that made it look environmental: it fails alone, at any position, and passes on the next run with a
 new shuffle. Measured: leads of 6♦/3♥/6♥/Q♠/8♠ all passed; the failing run had led **2♣**. Both hands are now
 staged with `__cmf.force()` — the host leads a 4, the client holds a 10 — so the deal is irrelevant. 8/8 green.
-
-**Why it looked environmental:** it only fires when the round ends on the client's action AND the host wins,
-which depends on the deal and play order. Load never caused it — load only changed how often that configuration
-came up. **Aj had hit it in real games and assumed it was a laggy connection**, which is the tell worth
-remembering: a wedged host stops broadcasting, so the client sits on "Rival is fighting…" and reads it as a
-dropped opponent, while the host sees its own board die and reads it as a disconnect. **When netplay "lags",
-suspect a stuck `busy` before the transport.** Only the host can wedge — a client recomputes `busy` from every
-mirror, so it self-heals the moment the host broadcasts again. **Read the trace before theorising about load:** the tell was the host showing `your turn` with an
-empty pile and `rivalStatus` still reading "Waiting for opponent…", which is self-contradictory and points
-straight at a stuck `busy`.
-
-**`nettest_log` was ALSO not a timing flake** — it was DEAL-DEPENDENT (fixed 2026-08-26); see the note below.
 
 **So both suites on the historical "position-dependent" list had real, findable causes, and neither was the
 environment.** Three environment hypotheses were tested and disproved years-deep in this file; the lesson is
