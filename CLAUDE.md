@@ -43,7 +43,7 @@ node build.js                                   # engine+ai+art+netview → code
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
 node test.js                                    # engine + AI suite — 208 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction — 28, must end 0 FAIL
-node nettest_log.js                             # netplay public battle log, both frames (13)
+node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (7)
 node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
@@ -267,11 +267,16 @@ concurrently and passes 11/0 alone). A serial sweep of all 21 takes a few minute
 **BOTH `nettest_full` AND `nettest_log` STILL FLAKE (2026-08-25) — the v1.31.9 fix below was real but NOT
 complete, and its "verified 20/20" is over-claimed.** Read this before re-diagnosing either.
 
-**`nettest_log`** failed at position 18 of a 23-suite sweep **and again running ALONE**, then passed alone on the
-next run — so "position-dependent" is the wrong frame; it is simply intermittent. Its failure is **exactly 4
-assertions together (9/4)**, which is the pre-v1.31.9 signature described below verbatim: the client's log never
-receives the host's broadcast in time, so the turn assertion goes, then the client finds no legal jab, then both
-log assertions follow — four failures from one impatient wait. The count is still 13; 9+4 is the same 13.
+**`nettest_log` — SOLVED (2026-08-26), and it was never a timing flake.** It was **deal-dependent**. The suite had
+the host play whatever card happened to be first in its hand and then asserted the client could answer it. The
+apex 2 is unbeatable by definition (value 15) and an Ace nearly is, so whenever the deal handed the host one of
+those, the client had no legal jab and **four assertions fell together** — the legal-jab one, both client-log
+ones, and the log-length one. That is the whole "9 pass / 4 fail" signature, and it explains every observation
+that made it look environmental: it fails alone, at any position, and passes on the next run with a new shuffle.
+Measured: leads of 6♦/3♥/6♥/Q♠/8♠ all passed; the failing run had led **2♣**. Both hands are now staged with
+`__cmf.force()` — the host leads a 4, the client holds a 10 — so the deal is irrelevant. 8/8 runs green.
+**The lesson is the one already in this file: ask whether the product moved, or whether the TEST depends on
+something it never meant to.** A narration test had no business depending on the shuffle.
 
 **`nettest_full`** was measured much harder. Interleaved, under CPU load held stable at ~7.5 on 16 cores: the
 pre-fix harness passed twice, the post-fix harness passed once and **failed once**. Both versions fail sometimes
@@ -339,7 +344,7 @@ stray processes before suspecting the code. And never wait on work with `while p
 Status as of v1.31.19 — green apart from `nettest_full`, which still flakes (see below). Counts verified 2026-08-25: `test` 231, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
-`landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 13, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
+`landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
 `nettest_prefight` 13, `nettest_full` 5, `sharetest` 14. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
