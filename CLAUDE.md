@@ -65,6 +65,7 @@ node qrref.js                                   # the same encoder diffed module
                                                 # CoreImage — darwin only, CORROBORATES rather than gates (26)
 node versiontest.js                             # the build stamp: README -> build -> both screens (10)
 node sharetest.js                               # the share sheet + the tolerant paste (14)
+node nettest_roundstall.js                      # the host must get the board back after winning a round (9)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -264,37 +265,37 @@ rather than hardcoding a path, which is what these files used to do and why they
 browser pages; two suites at once flake on CPU contention (`nettest_rtc` in particular fails at `maxRound=0`
 concurrently and passes 11/0 alone). A serial sweep of all 21 takes a few minutes.
 
-**BOTH `nettest_full` AND `nettest_log` STILL FLAKE (2026-08-25) — the v1.31.9 fix below was real but NOT
-complete, and its "verified 20/20" is over-claimed.** Read this before re-diagnosing either.
+**`nettest_full` WAS NOT A FLAKE — it was reporting a REAL netplay bug, fixed in v1.31.20.** This file
+previously recorded "it is not the product" as an established fact. That was wrong, and the reasoning behind it
+was worthless: the failure reproduced on builds that could not contain the change under suspicion, which is true
+but says nothing, because the bug predated all of them.
 
-**`nettest_log` — SOLVED (2026-08-26), and it was never a timing flake.** It was **deal-dependent**. The suite had
-the host play whatever card happened to be first in its hand and then asserted the client could answer it. The
-apex 2 is unbeatable by definition (value 15) and an Ace nearly is, so whenever the deal handed the host one of
-those, the client had no legal jab and **four assertions fell together** — the legal-jab one, both client-log
-ones, and the log-length one. That is the whole "9 pass / 4 fail" signature, and it explains every observation
-that made it look environmental: it fails alone, at any position, and passes on the next run with a new shuffle.
-Measured: leads of 6♦/3♥/6♥/Q♠/8♠ all passed; the failing run had led **2♣**. Both hands are now staged with
-`__cmf.force()` — the host leads a 4, the client holds a 10 — so the deal is irrelevant. 8/8 runs green.
-**The lesson is the one already in this file: ask whether the product moved, or whether the TEST depends on
-something it never meant to.** A narration test had no business depending on the shuffle.
+**The bug:** in a duel, when the CLIENT's move ends a round the HOST wins, `hostFinishRound →
+resolveRoundCeremony → afterHumanAction` never cleared `busy` (set by `awaitRival()` when the host handed the
+turn over), so the host sat on its own turn with a dead board — permanently. `driveN` does that clear for 3-6
+players; the duel path was missing it. `nettest_roundstall.js` reproduces it deterministically by staging the
+host with the apex 2, so the client must pass and the round always ends on the client's action.
 
-**`nettest_full`** was measured much harder. Interleaved, under CPU load held stable at ~7.5 on 16 cores: the
-pre-fix harness passed twice, the post-fix harness passed once and **failed once**. Both versions fail sometimes
-and neither fails reliably. Established facts, so nobody repeats the experiments:
-- **It is not the product.** The identical failure reproduces on builds that cannot contain the change under
-  suspicion. Reachability confirms it: the suite enters via `?net=host/join`, i.e. BroadcastChannel.
-- **It is not sustained load.** At a stable 7.5 both arms mostly pass. Failures cluster around load
-  **transitions** — bursty contention starving the page mid-round-trip breaks a fixed budget where uniform
-  slowness is absorbed by polling. A hypothesis, not a finding.
-- **Do not trust a blocked A/B here.** Running the arms in two blocks at different times confounds them with
-  ambient load and produced a confident, wrong answer ("4/6 vs 0/3"). Interleave the arms. Fisher on the full
-  tally was p≈0.31 — no signal.
-- **One real defect WAS found and fixed** (PR #34): the driver credited a play it never verified and called
-  `progressed()` on that non-event, resetting the 60s stall guard with the very step that was not working. That
-  produced the misleading `host 16, client 0` — plays that never happened. Failures are honest now; they are
-  still failures.
-- **Next probe:** log the client's rotated `turn` and `busy` on every driver iteration during a failing run, to
-  separate "the mirror stalled" from "the client legitimately had no legal play".
+**`nettest_log` — SOLVED (2026-08-26), and it was never a timing flake either.** It was **deal-dependent**. The
+suite had the host play whatever card happened to be first in its hand and then asserted the client could answer
+it. The apex 2 is unbeatable by definition (value 15) and an Ace nearly is, so whenever the deal handed the host
+one of those, the client had no legal jab and **four assertions fell together** — the legal-jab one, both
+client-log ones, and the log-length one. That is the whole "9 pass / 4 fail" signature, and it explains every
+observation that made it look environmental: it fails alone, at any position, and passes on the next run with a
+new shuffle. Measured: leads of 6♦/3♥/6♥/Q♠/8♠ all passed; the failing run had led **2♣**. Both hands are now
+staged with `__cmf.force()` — the host leads a 4, the client holds a 10 — so the deal is irrelevant. 8/8 green.
+
+**Why it looked environmental:** it only fires when the round ends on the client's action AND the host wins,
+which depends on the deal and play order. Load never caused it — load only changed how often that configuration
+came up. **Read the trace before theorising about load:** the tell was the host showing `your turn` with an
+empty pile and `rivalStatus` still reading "Waiting for opponent…", which is self-contradictory and points
+straight at a stuck `busy`.
+
+**`nettest_log` was ALSO not a timing flake** — it was DEAL-DEPENDENT (fixed 2026-08-26); see the note below.
+
+**So both suites on the historical "position-dependent" list had real, findable causes, and neither was the
+environment.** Three environment hypotheses were tested and disproved years-deep in this file; the lesson is
+that when a suite is intermittent, the answer has still been a real dependency every single time.
 
 **FIXED in v1.31.9 — `nettest_full` and `nettest_log` were position-dependent, and it was the TESTS.** For
 months this was recorded as unexplained environmental accumulation: both passed alone but failed as the
@@ -341,11 +342,11 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of v1.31.19 — green apart from `nettest_full`, which still flakes (see below). Counts verified 2026-08-25: `test` 231, `netview` 28, `mptest` 82,
+Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 231, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
 `landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `sharetest` 14. **If a count here disagrees with a suite, the suite is right —
+`nettest_prefight` 13, `nettest_full` 5, `sharetest` 14, `nettest_roundstall` 9. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
 **These suites go stale silently** — they were unrunnable for however long `/opt/pw-browsers/chromium` was

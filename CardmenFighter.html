@@ -4261,7 +4261,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.19';
+  var GAME_VERSION='v1.31.20';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -8703,7 +8703,18 @@ window.CardFace = {};
       announceRoundWin(r);
       if(state.finished){ busy=false; render(); broadcastMirror(); return endGame(); }
       sendCeremony(r);                                          // client replays the pre-draw + threshold beats
-      resolveRoundCeremony(r, g, function(){ if(g===gen){ broadcastMirror(); afterHumanAction(); } });
+      /* Hand the board BACK if the host won: this round was resolved by the CLIENT's move, so `busy` is still
+       * true from the awaitRival() that handed the turn over, and afterHumanAction() only renders — it never
+       * clears it. The host would sit on its own turn with a dead board and the duel would be over in practice.
+       * driveN does exactly this for 3-6 players; the duel path was simply missing it. Found by tracing what
+       * looked like a nettest_full harness flake: the host stuck on `your turn`, empty pile, inert hand, with
+       * rivalStatus still reading "Waiting for opponent…". nettest_roundstall.js reproduces it deterministically. */
+      resolveRoundCeremony(r, g, function(){
+        if(g!==gen) return;
+        broadcastMirror();
+        if(!hostState.finished && hostState.turn===YOU){ busy=false; $('rivalStatus').textContent=''; }
+        afterHumanAction();
+      });
     }
 
     // ================= N-player (3–6) host driver =================
