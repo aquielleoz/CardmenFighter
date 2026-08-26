@@ -1,24 +1,24 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** + **qr.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node nettest_roundstall.js` (9 — the host must get the board back after winning a round) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.19**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.20**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
-`main` is at **v1.31.19**, working tree clean, and `node build.js` reproduces the committed HTML byte-for-byte.
+`main` is at **v1.31.20**, working tree clean, and `node build.js` reproduces the committed HTML byte-for-byte.
 
 **Two things are deliberately NOT on main, and neither is half-done:**
 - **`feat/qr-scanning` is PARKED** — camera scanning, built and green at 21/0, closed unmerged as PR #29. It
   works; its only working configuration is not worth it. The blocker is the **origin**, not the code (a file
   opened from Android Downloads is `content://`, an opaque origin, so Chrome rejects the camera without ever
   prompting). Full reasoning in the BACKLOG. **Reviving it is a merge, not a rebuild.**
-- **`nettest_log` is SOLVED (2026-08-26) — and it was never a timing flake — it was DEAL-DEPENDENT.** See the
-  changelog. `nettest_full` still flakes; PR #34 fixed a real defect there (it credited plays it never verified)
-  but did not close it. Read the BACKLOG item before re-diagnosing: four A/Bs are done and recorded, one gave a
-  confident wrong answer, and CPU-throttling the client 12x does **not** reproduce it — so impatient waiting is
-  probably the wrong theory for that one too.
+- **Both "flaky" netplay suites had REAL causes — neither was the environment.** `nettest_full` was reporting a
+  genuine game bug: **the host could be locked out of a round it just won** (fixed v1.31.20, see the changelog).
+  `nettest_log` was **deal-dependent** (fixed separately). Four A/Bs were spent on a load hypothesis and none of
+  it was load. The remaining candidates — `exporttest`, `nettest_names` — deserve the same treatment: look for a
+  real dependency before blaming timing, and read a failing trace first.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
 
@@ -251,27 +251,15 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   whole invite-code exchange to play again. Wants: the host restarting the engine and re-broadcasting `t:'setup'`
   over the **live** connection, seats and decks reused, both sides confirming — plus its own netplay suite. The
   emote set already covers the negotiation ("Rematch?" → "Yes!"), so this is purely the mechanism.
-- **THREE suites may have the fixed-wait flake** (a fourth, `nettest_log`, turned out to be something else) — including **both** suites the v1.31.9 fix declared solved, so that
-  fix was real but incomplete and its "verified 20/20" no longer holds.
-  - **`nettest_log` — FIXED 2026-08-26, and the cause was not timing at all.** It was **deal-dependent**: the
-    host played whatever card was first in its hand, then the suite asserted the client could beat it. The apex 2
-    is unbeatable and an Ace nearly always is, so a bad shuffle took out four assertions at once. Hands are now
-    staged with `__cmf.force()`. This is worth remembering when reading the remaining entries: the "4 failures
-    together" signature was recorded for months as an impatient-wait flake and it never was one.
-  - **`nettest_full` (measured 2026-08-25).** One real defect found and fixed in PR #34 — the driver credited a
-    play it never verified and called `progressed()` on that non-event, resetting the 60s stall guard with the
-    very step that was not working, which produced the misleading `host 16, client 0` (plays that never
-    happened). **The flake survives the fix.** Interleaved under load held stable at ~7.5 on 16 cores: pre-fix
-    PASS/PASS, post-fix PASS/FAIL. Do NOT repeat these, they are done: it is not the product (the identical
-    failure reproduces on builds that cannot contain the suspect change, and the suite runs over
-    BroadcastChannel anyway); it is not sustained load (both arms mostly pass at a stable 7.5 — failures cluster
-    around load **transitions**); and a **blocked** A/B lies here, because ambient load confounds the arms — it
-    produced a confident wrong answer, and interleaving gave Fisher p≈0.31, i.e. no signal.
-    **Next probe:** log the client's rotated `turn` and `busy` every driver iteration during a failing run, to
-    separate "the mirror stalled" from "the client legitimately had no legal play".
-  - **`exporttest` and `nettest_names`** each failed once late in a long sweep and each passed alone. Same class,
-    no data yet. Cheap to harden the same way: return a boolean from the wait, poll generously, and never assert
-    on a state you have not confirmed.
+- **TWO suites remain on the fixed-wait list: `exporttest` and `nettest_names`.** Each failed once late in a
+  long sweep and each passed alone. **Before assuming timing, look for a real dependency** — that is what both
+  of the other "flakes" turned out to be:
+  - `nettest_full` was reporting an actual netplay bug (v1.31.20 — the host locked out of a round it won).
+  - `nettest_log` depended on the **deal**: the host played whatever card was first in its hand and the suite
+    asserted the client could beat it, so the apex 2 or an Ace took out four assertions at once.
+  **Read a failing trace before theorising.** The tell for `nettest_full` was one self-contradictory line: the
+  host showing `your turn` with an empty pile while `rivalStatus` still read "Waiting for opponent…" — which
+  points straight at a stuck `busy` flag, and no amount of load analysis would ever have found it.
 
 - **Old exported logs are v1.0 and merged.** Anything analysed from a multiplayer export before v1.31.5 had
   every opponent collapsed into one bucket and their fight counts stuck at 0. If those files still exist they
@@ -423,6 +411,47 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.20 — the host could be locked out of a round it just won
+
+**This was a real netplay bug, and it had been hiding as a flaky test for months.**
+
+In a duel, when the **client's** move ends a round that the **host** wins, the host's board stayed locked: its
+own turn, an empty pile, an inert hand, and `rivalStatus` still reading "Waiting for opponent…". Not slow —
+*permanently* dead. A real player would simply watch the game stop.
+
+The path is `hostAfterRivalMove → hostFinishRound → resolveRoundCeremony → afterHumanAction`, and
+`afterHumanAction` is `if(state.turn!==YOU) driveRival(); else render();` — it never clears `busy`, which
+`awaitRival()` set to true when the host handed the turn over. **`driveN` does exactly this clear for 3-6
+players; the duel path was missing it.** One line, and the duel was unfinishable whenever the configuration
+came up.
+
+**Why it read as an environment flake for so long.** It only fires when the round ends on the *client's* action
+AND the host wins — which depends on the deal and the play order, so it looked random. Load never caused it; it
+only changed how often that configuration arose. `nettest_full` was reporting a genuine defect every time.
+
+**Aj had hit this in real play and put it down to a laggy connection** (2026-08-26: *"oh fudge! i had that bug!
+i thought it was just a laggy connection"*). That is the important part of this story. **It presents as lag from
+either seat**: the frozen host stops broadcasting, so the client sits on "Rival is fighting…" indefinitely and
+reads it as an opponent who has dropped, while the host sees its own board die and reads it as a disconnect.
+Nothing about the symptom suggests the game locked *itself*. So the bug fooled a player and a test harness in
+exactly the same way, and both of us blamed the network. **When netplay "lags", check for a stuck `busy` before
+believing the transport** — the connection was fine every time.
+
+(The client cannot get permanently stuck this way on its own: `applyMirrorNow` recomputes `busy` from every
+mirror it receives, so it self-heals as soon as the host broadcasts again. Only the host could wedge.)
+
+**`nettest_roundstall.js` (new, 9 assertions) reproduces it deterministically** by staging the host with the
+apex 2 — unbeatable, so the client *must* pass, which forces the round to end on the client's action with the
+host winning. Verified as an A/B: without the fix the suite reports "the host is LOCKED OUT of its own turn";
+with it, 9/0.
+
+**Two corrections to yesterday's notes, both mine.** CLAUDE.md recorded "it is not the product" as an
+established fact — the reasoning was that the failure reproduced on builds that could not contain the change
+under suspicion, which is true but says nothing, because the bug predates all of them. And my first repro used
+a fixed 1,200ms wait and failed on the *fixed* build, because the round ceremony legitimately holds the board
+for a couple of seconds. It polls now. That is the fourth time in two days that a fixed wait produced a false
+signal.
 
 ### v1.31.19 — one tap into any chat, and a paste that forgives
 

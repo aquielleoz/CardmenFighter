@@ -5602,7 +5602,18 @@ __QR__
       announceRoundWin(r);
       if(state.finished){ busy=false; render(); broadcastMirror(); return endGame(); }
       sendCeremony(r);                                          // client replays the pre-draw + threshold beats
-      resolveRoundCeremony(r, g, function(){ if(g===gen){ broadcastMirror(); afterHumanAction(); } });
+      /* Hand the board BACK if the host won: this round was resolved by the CLIENT's move, so `busy` is still
+       * true from the awaitRival() that handed the turn over, and afterHumanAction() only renders — it never
+       * clears it. The host would sit on its own turn with a dead board and the duel would be over in practice.
+       * driveN does exactly this for 3-6 players; the duel path was simply missing it. Found by tracing what
+       * looked like a nettest_full harness flake: the host stuck on `your turn`, empty pile, inert hand, with
+       * rivalStatus still reading "Waiting for opponent…". nettest_roundstall.js reproduces it deterministically. */
+      resolveRoundCeremony(r, g, function(){
+        if(g!==gen) return;
+        broadcastMirror();
+        if(!hostState.finished && hostState.turn===YOU){ busy=false; $('rivalStatus').textContent=''; }
+        afterHumanAction();
+      });
     }
 
     // ================= N-player (3–6) host driver =================
