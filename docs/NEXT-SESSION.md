@@ -251,15 +251,37 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   whole invite-code exchange to play again. Wants: the host restarting the engine and re-broadcasting `t:'setup'`
   over the **live** connection, seats and decks reused, both sides confirming — plus its own netplay suite. The
   emote set already covers the negotiation ("Rematch?" → "Yes!"), so this is purely the mechanism.
-- **TWO suites remain on the fixed-wait list: `exporttest` and `nettest_names`.** Each failed once late in a
-  long sweep and each passed alone. **Before assuming timing, look for a real dependency** — that is what both
-  of the other "flakes" turned out to be:
-  - `nettest_full` was reporting an actual netplay bug (v1.31.20 — the host locked out of a round it won).
-  - `nettest_log` depended on the **deal**: the host played whatever card was first in its hand and the suite
-    asserted the client could beat it, so the apex 2 or an Ace took out four assertions at once.
-  **Read a failing trace before theorising.** The tell for `nettest_full` was one self-contradictory line: the
-  host showing `your turn` with an empty pile while `rivalStatus` still read "Waiting for opponent…" — which
-  points straight at a stuck `busy` flag, and no amount of load analysis would ever have found it.
+- **The "fixed-wait flake" list is EMPTY, and it was never about fixed waits.** Three of the four suites had a
+  real dependency; the fourth would not reproduce at all.
+  - `nettest_full` was reporting an actual game bug (v1.31.20 — the host locked out of a round it won).
+  - `nettest_log` and `nettest_names` were both **deal-dependent** in the same way: the host played whatever card
+    was first in its hand and the suite then required the client to beat it. The apex 2 is unbeatable and an Ace
+    nearly always is, so a bad shuffle took out the client-narration assertions together — 4 of them in
+    `nettest_log`, 2 in `nettest_names` (measured **2 failures in 10 runs** before the fix, the same two every
+    time). Both now stage hands with `__cmf.force()`.
+  - `exporttest` **would not reproduce: 10/10 clean.** Left alone deliberately — fixing a suite that is not
+    failing is speculation. If it fails again, look for a real dependency before touching a timeout.
+
+- **TEACH `nettest_full`'S DRIVER TO ACTIVATE TECHNIQUES — attempted 2026-08-26, reverted, worth doing properly.**
+  The core-loop suite only ever jabs and passes, so a Technique's response window — and any wedge behind one — is
+  invisible to it. That is a real gap: the v1.31.20 lockout was found through this suite, and a second stall
+  behind an activation would not be.
+  - **What was tried:** stage energy via `__cmf.forceAll(null,[E,E])` (it skips falsy entries, so hands stay as
+    dealt), then activate every third action, with generic handlers to dismiss overlays and resolve pickers.
+  - **Why it was reverted: it made the suite fail 5 runs in 10.** A suite that unreliable is worse than the gap,
+    especially this one — its whole value is that a red run means something.
+  - **What was learned, so the next attempt starts here:**
+    - A Technique can force a **discard**, which is an inline hand picker (the hint reads "Choose N cards to send
+      to your Energy Pile"), **not an overlay** — so an overlay-dismissing handler cannot see it and the host
+      waits forever on a prompt nobody answers. `fightBtn` doubles as that picker's confirm.
+    - Targeting is **confirm-first**: the context button reads "Choose target" until a target is staged, and no
+      energy is spent until the confirm, so abandoning via Clear is free.
+    - Handling those two generically was still not enough — new stall modes appeared, so the interaction between
+      picker clicks and fight-selection state needs modelling, not pattern-matching.
+    - **Count only what resolved.** Comparing energy before/after is the honest check; counting activation
+      attempts would let the coverage pass while doing nothing.
+  - Suggested shape for a real attempt: a **separate** suite that drives activation deliberately with staged
+    hands (like `nettest_roundstall`), rather than bolting randomness onto the core fight loop.
 
 - **Old exported logs are v1.0 and merged.** Anything analysed from a multiplayer export before v1.31.5 had
   every opponent collapsed into one bucket and their fight counts stuck at 0. If those files still exist they

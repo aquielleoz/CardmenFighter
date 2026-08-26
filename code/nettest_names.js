@@ -28,8 +28,23 @@ async function waitHand(p){ for(let i=0;i<60;i++){ if((await p.evaluate(()=>docu
   await startDuel(host, join); await wait(900);
   ok(await waitHand(host) && await waitHand(join),'duel started with both names set');
 
+  /* STAGE BOTH HANDS. This suite is about NAMES, and it had no business depending on the shuffle — but it did:
+   * the host played whatever card happened to be first in its hand and the client then had to find something
+   * that beat it. The apex 2 is unbeatable (value 15) and an Ace nearly always is, so a bad deal meant the
+   * client never played, and the two assertions about ITS narration failed together. Measured before this fix:
+   * 2 failures in 10 runs, both times exactly those two assertions — the same deal-dependence found in
+   * nettest_log the same day. Host leads a 4, the client holds a 10, so an answer is guaranteed. */
+  await host.evaluate(()=>{
+    const C=(n,su)=>({rank:n, suit:su, id:'nm'+n+su});
+    window.__cmf.force([C(4,'D'),C(5,'H'),C(6,'C'),C(7,'S')],
+                       [C(10,'C'),C(9,'S'),C(8,'H'),C(7,'D')]);
+  });
+  await wait(400);
+  ok(await host.evaluate(()=>!!document.querySelector('#hand .card[data-id="nm4D"]')),
+     'hands staged, so this suite no longer depends on the deal');
+
   // the HOST plays: the client must see "Aj", never "Rival"
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="nm4D"]'); if(c)c.click();
     const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
   ok(await hasLog(join,/^Aj played/),'the client sees the host by name ("Aj played …"), not "Rival"');
   ok(!(await log(join)).some(l=>/^Rival played/.test(l)),'…and no line falls back to "Rival"');
