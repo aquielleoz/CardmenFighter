@@ -430,6 +430,17 @@ came up.
 AND the host wins — which depends on the deal and the play order, so it looked random. Load never caused it; it
 only changed how often that configuration arose. `nettest_full` was reporting a genuine defect every time.
 
+**Aj had hit this in real play and put it down to a laggy connection** (2026-08-26: *"oh fudge! i had that bug!
+i thought it was just a laggy connection"*). That is the important part of this story. **It presents as lag from
+either seat**: the frozen host stops broadcasting, so the client sits on "Rival is fighting…" indefinitely and
+reads it as an opponent who has dropped, while the host sees its own board die and reads it as a disconnect.
+Nothing about the symptom suggests the game locked *itself*. So the bug fooled a player and a test harness in
+exactly the same way, and both of us blamed the network. **When netplay "lags", check for a stuck `busy` before
+believing the transport** — the connection was fine every time.
+
+(The client cannot get permanently stuck this way on its own: `applyMirrorNow` recomputes `busy` from every
+mirror it receives, so it self-heals as soon as the host broadcasts again. Only the host could wedge.)
+
 **`nettest_roundstall.js` (new, 9 assertions) reproduces it deterministically** by staging the host with the
 apex 2 — unbeatable, so the client *must* pass, which forces the round to end on the client's action with the
 host winning. Verified as an A/B: without the fix the suite reports "the host is LOCKED OUT of its own turn";

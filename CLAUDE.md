@@ -287,7 +287,11 @@ staged with `__cmf.force()` — the host leads a 4, the client holds a 10 — so
 
 **Why it looked environmental:** it only fires when the round ends on the client's action AND the host wins,
 which depends on the deal and play order. Load never caused it — load only changed how often that configuration
-came up. **Read the trace before theorising about load:** the tell was the host showing `your turn` with an
+came up. **Aj had hit it in real games and assumed it was a laggy connection**, which is the tell worth
+remembering: a wedged host stops broadcasting, so the client sits on "Rival is fighting…" and reads it as a
+dropped opponent, while the host sees its own board die and reads it as a disconnect. **When netplay "lags",
+suspect a stuck `busy` before the transport.** Only the host can wedge — a client recomputes `busy` from every
+mirror, so it self-heals the moment the host broadcasts again. **Read the trace before theorising about load:** the tell was the host showing `your turn` with an
 empty pile and `rivalStatus` still reading "Waiting for opponent…", which is self-contradictory and points
 straight at a stuck `busy`.
 
