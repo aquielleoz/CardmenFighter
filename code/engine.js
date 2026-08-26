@@ -1657,13 +1657,35 @@
     for (r in counts) if (counts[r] >= 2) pairs++;
     return { best: best, pairs: pairs, size: pl.hand.length };
   }
+  /* DAMAGE_SPAN (Aj, 2026-08-26): how many rivals the SHIELD-BREAK cards hit — Critical Hit (Rogue) and Ultima
+   * Attack (Fighter). `damageAll` proved too blunt a dial: it lifted those decks by only ~2 points under
+   * loss=all while handing Warlock (Rogue offence + Wizard defence) a jump to #3, so Aj asked for a middle
+   * setting. 1 = the chosen target (shipped), 'half' = ceil(living rivals / 2), 'all' = every living rival.
+   * The splash goes to the rivals with the MOST shields after the chosen target, so the dial scales toward the
+   * leaders rather than by seat order — seat order would bake a positional bias into every measurement.
+   * The span deliberately does NOT apply to the lockout card: engine's own note is that scaling a turn skip is
+   * worth closer to a free round, a much bigger multiplier, so it keeps its own boolean. */
+  var DAMAGE_SPAN = 1;
+  function setDamageSpan(v) { DAMAGE_SPAN = (v === 'all' || v === 'half') ? v : Math.max(1, v | 0); }
+  function isDamageSpan() { return DAMAGE_ALL ? 'all' : DAMAGE_SPAN; }
   function hostileTargets(st, p, oppIdx, which, eff) {
     // `eff.all` is a property of the CARD (Hermes Back Stab), not of the research flags — a form-granted
     // upgrade must work with the flags off, which is how it ships.
+    var i, alive = [];
+    for (i = 0; i < st.numPlayers; i++) if (i !== p && !st.players[i].eliminated) alive.push(i);
     var on = (eff && eff.all) || ((which === 'lockout') ? LOCKOUT_ALL : DAMAGE_ALL);
-    if (!on) return (oppIdx == null || oppIdx < 0) ? [] : [oppIdx];
-    var a = []; for (var i = 0; i < st.numPlayers; i++) if (i !== p && !st.players[i].eliminated) a.push(i);
-    return a;
+    if (on) return alive;
+    var span = (which === 'lockout') ? 1 : DAMAGE_SPAN;
+    var one = (oppIdx == null || oppIdx < 0) ? [] : [oppIdx];
+    if (span === 1 || alive.length <= 1) return one;
+    var want = (span === 'all') ? alive.length
+             : (span === 'half') ? Math.ceil(alive.length / 2)
+             : Math.min(span, alive.length);
+    var out = one.slice();
+    alive.filter(function (x) { return x !== oppIdx; })
+         .sort(function (a, b) { return st.players[b].shields - st.players[a].shields; })
+         .forEach(function (x) { if (out.length < want) out.push(x); });
+    return out;
   }
   /* DEFAULTS MATCH THE SHIPPED GAME. They used to be 'all' / 'universal' — the v1.31.0 multiplayer package,
    * which was REVERTED in v1.31.2 for breaking deck balance. The template has set 'chosen' / 'targeted'
@@ -1797,6 +1819,7 @@
     newGame: newGame, play: play, pass: pass, phantasm: phantasm, drawCards: drawCards, isLocked: isLocked,
     setDeferRoundDraw: setDeferRoundDraw, roundDraw: roundDraw, setShieldCards: setShieldCards, setLoserMill: setLoserMill, setRecycleTech: setRecycleTech,
     setHostileAll: setHostileAll, setDamageAll: setDamageAll, setLockoutAll: setLockoutAll,
+    setDamageSpan: setDamageSpan, isDamageSpan: isDamageSpan,
     isDamageAll: isDamageAll, isLockoutAll: isLockoutAll,
     setSpecialLossMode: setSpecialLossMode, setMillScope: setMillScope,
     isSpecialLossMode: isSpecialLossMode, isMillScope: isMillScope, setShieldTargetChooser: setShieldTargetChooser, setLossTargetInteractive: setLossTargetInteractive, chooseLossTarget: chooseLossTarget, concede: concede, aliveCount: aliveCount, lastAlive: lastAlive,

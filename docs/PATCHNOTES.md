@@ -208,6 +208,56 @@ loss/mill pairing is a **length** lever, not a balance one. **Lesson: a balance 
 life — re-date it before reusing it to veto an idea — and check that the arm you are testing is a design
 someone would actually ship.**
 
+### 0n. `loss=all` is broken by a DEFENSIVE card, not by unscaled offence. (2026-08-26)
+
+Following 0m's rank finding — that `all` does not widen the deck table but **reorders** it, with Wizard/Cleric up
+and Fighter/Rogue/Berserker collapsing — Aj asked the obvious next question: if the offensive decks lose because
+their damage does not scale, does scaling it fix them? Two dials, both measured, both no.
+
+- **`damageAll`** — Critical Hit (Rogue) and Ultima Attack (Fighter) hit every living rival.
+- **`damageSpan='half'`** (new, Aj's suggestion when `all` looked too harsh) — those cards hit
+  `ceil(living rivals / 2)`: the chosen target plus the rivals with the **most shields**, so the splash scales
+  toward the leaders rather than by seat order, which would bake positional bias into every measurement.
+  Note it is a **no-op at 3 players** (2 rivals → ceil(2/2) = 1 = shipped), which the numbers show.
+
+Spread, 6 interleaved runs of 1,500 games:
+
+| | base | `all` | `all`+half | `all`+dmgAll |
+| --- | --- | --- | --- | --- |
+| 3p | 13.4 | 23.5 | 24.1 | 16.0 |
+| 4p | 16.5 | 29.0 | 27.3 | 24.1 |
+| 6p | 12.6 | **33.5** | **26.2** | **26.8** |
+
+6p per-deck, sorted by baseline rank — the three intended beneficiaries and the runaway leader:
+
+| deck | base | `all` | `all`+half | `all`+dmgAll |
+| --- | --- | --- | --- | --- |
+| Pure Wizard | 16.0% | **36.4% (#1)** | **31.8% (#1)** | **32.8% (#1)** |
+| Pure Fighter | 16.4% | 4.3% | 6.4% (#11) | 6.5% (#11) |
+| Pure Rogue | 9.5% | 4.1% | 6.5% (#10) | 6.5% (#10) |
+| Berserker | 13.7% | 3.8% | 7.4% (#9) | 6.8% (#9) |
+| Warlock (Wiz+Rog) | 13.6% | 17.2% | 20.7% (#4) | 22.4% (#3) |
+
+Both dials buy the offensive decks **2-3 points and no rank movement**, they leave the spread at roughly double
+baseline, and Spearman rho against the baseline order gets *worse* (0.36 → 0.31 → 0.22). The clearest tell is
+that the biggest beneficiary is **Warlock** — Rogue offence *plus* Wizard defence — not the pure attackers.
+
+**THE MECHANISM: `Leyline Ascension` (♦9) is the only card in the game that prevents shield loss.** Checked all
+four suits; Hearts, Clubs and Spades have nothing. Under `chosen` a blank saves a shield only on the rounds you
+happen to be picked. Under `all` you are hit on **every** Special round, so the blank saves one **every time** —
+its value multiplies by (N-1) in exactly the same way `all` multiplies the value of landing a Special. Pure
+Wizard holds **four copies**, and it is a Quick, so it can be sprung reactively.
+
+**So `all` is not an offence-scaling problem, and no amount of tuning the attack cards will fix it.** The
+symmetric lever is the defensive one: under `all`, make protection *not* scale — e.g. Leyline blanks a single
+incoming loss rather than the whole round. That is the experiment worth running next; scaling the offence is
+finished and the answer was no.
+
+**Instrument note:** `mpsim`'s hostile SELF-CHECK aborted the first `half` run, expecting Critical Hit to strike
+1 when it struck 2. That is the check working — it had no knowledge of the new span. Taught it (`DALL ? 3 :
+DHALF ? 2 : 1` at the 4-player probe) and the CONFIG line now prints `damageSpan=1|half|all` instead of a
+boolean.
+
 ### 0m. The apex-2 flags, measured — and two framing errors of mine corrected. (2026-08-26)
 
 These were the only never-measured flags in the engine; their "balance-neutral at 10 runs" claim came from the
