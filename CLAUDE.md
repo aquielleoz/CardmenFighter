@@ -318,6 +318,12 @@ observation that made it look environmental: it fails alone, at any position, an
 new shuffle. Measured: leads of 6♦/3♥/6♥/Q♠/8♠ all passed; the failing run had led **2♣**. Both hands are now
 staged with `__cmf.force()` — the host leads a 4, the client holds a 10 — so the deal is irrelevant. 8/8 green.
 
+**`nettest_full` had a THIRD instance of it, in its beat branch (fixed 2026-08-26).** It played
+`hand[hand.length-1]` once and passed if that did not land, so whether a player ever managed a beat depended on
+the deal — and "BOTH players led/beat" then failed with `client 0`. It now tries **every** card until one lands,
+deselecting between attempts. 14/14, half the runs in sequence. **Three suites, one root cause: a UI-driving
+suite that gambles on an arbitrary card is depending on the shuffle whether it means to or not.**
+
 **`nettest_names` was the SAME deal-dependence** (fixed 2026-08-26; measured 2 failures in 10 before, 10/10
 after), and **`exporttest` would not reproduce at all** (10/10), so it was deliberately left alone — fixing a
 suite that is not failing is speculation.

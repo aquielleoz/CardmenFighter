@@ -12,6 +12,28 @@ async function snap(p){ return p.evaluate(()=>({
   hand: [].slice.call(document.querySelectorAll('#hand .card')).map(c=>c.dataset.id),
 })); }
 const clear=p=>p.evaluate(()=>{var c=document.getElementById('clearBtn'); if(c)c.click();});
+/* Try EVERY card until one beats the pile, instead of gambling on a single arbitrary card.
+ * The old branch played `hand[hand.length-1]` once and passed if it did not land, so whether a player ever
+ * managed a beat depended entirely on the deal — and "BOTH players led/beat" then failed with `client 0`. That
+ * is the same deal-dependence already fixed in nettest_log and nettest_names: a suite about the core loop had
+ * no business depending on the shuffle.
+ * Deselects between attempts, because a leftover multi-card selection is staged as a different play entirely. */
+const beatAny=p=>p.evaluate(()=>{
+  var clr=document.getElementById('clearBtn'), f=document.getElementById('fightBtn');
+  function reset(){
+    if(clr && !clr.disabled) clr.click();
+    [].slice.call(document.querySelectorAll('#hand .card.sel')).forEach(function(c){ c.click(); });
+  }
+  var ids=[].slice.call(document.querySelectorAll('#hand .card')).map(function(c){ return c.dataset.id; });
+  for(var i=0;i<ids.length;i++){
+    reset();
+    var c=document.querySelector('#hand .card[data-id="'+ids[i]+'"]'); if(!c) continue;
+    c.click();
+    if(f && !f.disabled){ f.click(); return ids[i]; }
+  }
+  reset();
+  return null;                                                 // genuinely nothing beats it — passing is correct
+});
 const passT=p=>p.evaluate(()=>{var b=document.getElementById('passBtn'); if(b)b.click();});
 const play=(p,id)=>p.evaluate(function(id){ var c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click(); var f=document.getElementById('fightBtn'); if(f)f.click(); }, id);
 /* Returns TRUE only if the turn really ended. It used to return void after 40x80ms = 3.2s, so under load the
@@ -73,10 +95,14 @@ async function playLanded(p, before){
     }
     else if(!beaten[role+':'+s.round]){                          // beat once per player per round, else pass (bounds the war)
       beaten[role+':'+s.round]=1;
-      await play(p, s.hand[s.hand.length-1]); await wait(300);
-      const s2=await snap(p);
-      if(s2.yourTurn && s2.hand.length===s.hand.length){ await clear(p); await passT(p); }
-      else { role==='host'?hostPlayed++:joinPlayed++; }
+      const beatId=await beatAny(p);
+      if(beatId){
+        await wait(300);
+        const s2=await snap(p);
+        // still our turn with the same hand = the click did not take; treat it as no beat, never as a play
+        if(s2.yourTurn && s2.hand.length===s.hand.length){ await clear(p); await passT(p); }
+        else { role==='host'?hostPlayed++:joinPlayed++; progressed(); }
+      } else { await passT(p); }
       acted++;
     } else { await passT(p); acted++; }
     // if the turn has NOT actually ended, loop round and wait again rather than acting into a stale board
