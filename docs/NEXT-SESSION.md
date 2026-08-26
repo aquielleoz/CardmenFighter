@@ -194,6 +194,14 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
       removed** (engine ~1512), so all three are now expressible and measurable.
     - `mpsim`'s CONFIG print used to report `apex=off` for the nostrip-only arm — fixed, since "read the printed
       CONFIG" is only useful if the print is honest.
+  - **WHEN AN APEX TOGGLE LANDS, THE PANEL'S HEADER NOTE MUST CHANGE.** It currently reads *"These change 3–6
+    player games; a duel plays the same either way"*, which is true of all four shipped toggles and **false** the
+    moment an apex rule is added — that is the whole point of it being the first duel-relevant rule. `rulestest`
+    asserts that sentence (`/duel plays the same/`), so the suite will catch it rather than letting the panel lie.
+  - **Aj's read (2026-08-26), and it matches the numbers:** *"no strip is nice in 2p but bad in 6p so players
+    could play with that on as a homebrew qol"*. The two effects line up — the balance gain is in duels (spread
+    15.8 → 12.8) and the length cost is at 6p (+70%, while a duel only goes 11 → 12 rounds). So it reads as a
+    **duel houserule**, not a general toggle, and should probably be labelled that way.
   - **Kits** would be the other duel-relevant rule — see the entry below.
   - Everything else about the menu is built: the panel, all three entry points, netplay propagation, un-ready,
     persistence, and the export stamp.
