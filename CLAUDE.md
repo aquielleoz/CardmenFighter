@@ -581,6 +581,25 @@ plays. The trap: the "plan" it protects is the **cheapest legal special, not the
 play, the model's own branch fired 6 times in 200 six-player games, because when you are following every legal
 play already beats the pile and so looks high. `lockoutStats()` tallies the branches, holds included by name.
 
+## Balance & the colour pie
+
+**LET CLASSES BE CLASSES** (Aj, 2026-08-26: *"let colors be colors, we'll balance some other way"*). The four
+suits are a colour pie, and it has the usual structure: some aspects are **shared by every class** (draw, some
+ramp), some are **exclusive** (buffs, debuffs), and classes are **allies on one axis and opponents on another**
+— ♦ and ♥ agree on shield protection and disagree on equipment buffs.
+
+Two corollaries, both learned by getting them wrong:
+- **Do not move a mechanic between classes to fix a balance number.** ♦/♥ sharing shield protection is not a pie
+  break, and neither giving ♣/♠ mitigation nor relocating Leyline to ♥ is an acceptable fix. Both are the same
+  cross-pie mistake from opposite directions.
+- **Do not reason about a class from a Magic analogy.** ♦ Wizard is the **ramp** class — it affords its card
+  draw rather than being best at it. Calling it "the draw class" (i.e. blue) produced a confident, wrong
+  conclusion that Leyline Ascension was misfiled. **Read `docs/CARD-LIST.md` before claiming what a class is.**
+
+**When a rule makes a class's intended weakness FATAL rather than costly, the rule is what is wrong.** That is
+`loss=all` exactly: ♣/♠ own no shield mitigation, `all` multiplies mitigation's value by (N-1), and the result is
+not a class problem but a rules problem. The lever belongs at the rules level — see PATCHNOTES 0n.
+
 ## Conventions
 
 - **Plain ES5 in an IIFE.** `var`, `function`, no modules, no transpiler, no arrow functions in `engine.js` /

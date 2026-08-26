@@ -5,28 +5,42 @@ Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) �
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
 Current version: **v1.31.23**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
-## ☀️ START HERE — where we left off (2026-08-25)
+## ☀️ START HERE — where we left off (2026-08-26)
 
-`main` is at **v1.31.20**, working tree clean, and `node build.js` reproduces the committed HTML byte-for-byte.
+`main` is at **v1.31.23**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
+the full suite is green.
 
-**Two things are deliberately NOT on main, and neither is half-done:**
-- **`feat/qr-scanning` is PARKED** — camera scanning, built and green at 21/0, closed unmerged as PR #29. It
-  works; its only working configuration is not worth it. The blocker is the **origin**, not the code (a file
-  opened from Android Downloads is `content://`, an opaque origin, so Chrome rejects the camera without ever
-  prompting). Full reasoning in the BACKLOG. **Reviving it is a merge, not a rebuild.**
-- **Both "flaky" netplay suites had REAL causes — neither was the environment.** `nettest_full` was reporting a
-  genuine game bug: **the host could be locked out of a round it just won** (fixed v1.31.20, see the changelog).
-  `nettest_log` was **deal-dependent** (fixed separately). Four A/Bs were spent on a load hypothesis and none of
-  it was load. The remaining candidates — `exporttest`, `nettest_names` — deserve the same treatment: look for a
-  real dependency before blaming timing, and read a failing trace first.
-
-**Sanity check before you touch anything** (from `code/`, ~15 seconds):
+**Sanity check before you touch anything** (from `code/`, ~20 seconds):
 
 ```bash
-npm test && node mptest.js
+npm test && node mptest.js && node rulestest.js
 ```
 
-Expect **231 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
+Expect **231 / 0**, **28 / 0**, **82 / 0**, **33 / 0**. If those pass, the repo is exactly as it was left.
+
+**Three branches exist off main, and none of them is half-done:**
+- **`exp/shield-break-all` — OPEN, unmerged.** The whole `loss=all` investigation (PATCHNOTES **0n**): why it
+  breaks deck balance, why scaling the offence cannot fix it, and the shared-ward repair that mostly does. Adds
+  `setWardAll` and `setDamageSpan` to the engine — **both default off** — plus behavioural self-checks in
+  `mpsim` and rows E-M in `rulesim`. Nothing here changes the shipped game.
+- **`feat/qr-scanning` — PARKED.** Camera scanning, built and green at 21/0, closed unmerged as PR #29. It
+  works; its only working configuration is not worth it. The blocker is the **origin**, not the code (a file
+  opened from Android Downloads is `content://`, an opaque origin, so Chrome rejects the camera without ever
+  prompting). Reviving it is a merge, not a rebuild.
+- Everything else is merged and the remote is pruned.
+
+**The one thing most worth reading before touching balance:** PATCHNOTES **0n**. It closes the offence-scaling
+avenue with measurements, states the law that explains the whole `loss=all` reordering (mitigation multiplies by
+N-1 and only two of four classes have any), and records the colour-pie constraint Aj set — *"let colors be
+colors, we'll balance some other way"* — which rules out the two obvious fixes.
+
+**Next up, in the order they are worth doing:**
+1. **The one-loss cap** — under `all`, protection prevents ONE incoming loss instead of the whole round. The
+   pie-respecting lever: no class identity moves, only the scaling is removed. Unmeasured, one flag, harness
+   already built.
+2. **Kits** — consecutive pairs, the first genuinely duel-relevant new shape. Design work is done in the BACKLOG
+   (2-pair floor, deck-neutral, lead-side only, first variable-length shape); nothing is built.
+3. **Sanctuary is NOT a lever** — it is already symmetric (`shieldAll`). Do not re-derive that.
 
 ### What just shipped
 **v1.31.9 → v1.31.17, and the shape of it: most of today's bugs were in the TOOLING or in my own reasoning, not
