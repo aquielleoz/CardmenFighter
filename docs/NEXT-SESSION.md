@@ -448,6 +448,11 @@ from a weird ruleset — and it cannot be repaired later because the information
 the pre-v1.31.5 mistake. `exporttest` and `nettest_record` were updated for the bump; `exporttest` gained an
 assertion for the new field.
 
+**The warning names no decks** (Aj: *"no need to say which ones haha"*). It says the Rival will not adapt and
+that some decks suit these rules much better than others, and stops there — the measured figures (Pure Wizard
+44% against Pure Rogue 1.7% under `loss=all` at six players) belong in PATCHNOTES, not in a player's face where
+they also pre-judge a deck before anyone has tried it.
+
 Also added `E.isSpecialLossMode()` / `E.isMillScope()`, for symmetry with the other rule flags — a rules menu
 needs its effect on the engine to be assertable rather than inferred from gameplay.
 

@@ -7516,8 +7516,11 @@ window.CardFace = {};
         '<b>These change 3–6 player games; a duel plays the same either way.</b></p>'+
       (ro ? '<div class="netmsg">'+(opts.why||'These are the rules this game is using. Rules are chosen before a game starts.')+'</div>' : '')+
       '<div class="settings">'+RULE_DEFS.map(rowHTML).join('')+'</div>'+
-      '<p class="ruleWarn">⚠ The Rival is tuned for the default rules and will not adapt. At six players, '+
-        '“a shield for each rival” alone measured Pure Wizard 44% against Pure Rogue 1.7%.</p>'+
+      /* Deliberately unspecific (Aj: "no need to say which ones haha"). Naming the decks and their win rates is
+       * developer detail, and it pre-judges a deck for the player. The measured figures live in the changelog
+       * and PATCHNOTES, where they are actually useful. */
+      '<p class="ruleWarn">⚠ The Rival is tuned for the default rules and will not adapt — and some decks are '+
+        'much better suited to these rules than others.</p>'+
       '<button id="ruleDone">Done</button>');
     if(!ro) Array.prototype.forEach.call(document.querySelectorAll('.settingRow[data-rule]'), function(btn){
       btn.addEventListener('click', function(){
