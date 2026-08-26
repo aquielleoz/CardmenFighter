@@ -1,9 +1,9 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** + **qr.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node nettest_roundstall.js` (9 — the host must get the board back after winning a round) · `node nettest_actloop.js` (22 — play keeps moving after a Technique) · `node nettest_version.js` (14 — the netplay build handshake) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node nettest_roundstall.js` (9 — the host must get the board back after winning a round) · `node nettest_actloop.js` (22 — play keeps moving after a Technique) · `node nettest_version.js` (14 — the netplay build handshake) · `node rulestest.js` (28 — the custom rules menu) · `node nettest_rules.js` (18 — rules over netplay + un-ready) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.21**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.22**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
@@ -177,47 +177,15 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   - **The one thing that would give true discovery** is a rendezvous service — even a 20-line local one — and
     that breaks "no server, no install, runs offline", which is the project's whole shape. If it is ever wanted,
     make it strictly **opt-in** and keep the code path as the default.
-- **A HOMEBREW RULES MENU** (Aj's idea, 2026-08-25: *"it's not the default or intended way to play the game, but
-  it certainly is A way to play the game"*). Before a game starts, the host ticks the rules they want — kits,
-  `loss=all`, mill uncoupled from the shield loss, the apex experiments, no effects — and the table plays that way.
-  - **Most of it already EXISTS.** Six setters with matching getters are in `engine.js` today:
-    `setSpecialLossMode` · `setMillScope` · `setShieldsPerPlayer` · `setDrawPerPlayer` · `setApexInfinity` ·
-    `setApexNoStrip`. Plus `basics` mode, which is already a player-facing rules toggle (it disables transforms).
-    This is mostly **surfacing**, not building.
-  - **It also gives vestigial code a home.** Those flags survive today defended only by a comment saying "for
-    A/B only". And it turns the reverted v1.31.0 package from a failure into a feature: that work measured
-    **well** on pacing (6p length 33 → 15 rounds, jab share 24% → 10%) and badly on deck balance (spread 15.5 →
-    40.7). As an **opt-in "big table" ruleset** that is exactly what it should have been. See PATCHNOTES 0j.
-  - **SHIPPING REQUIREMENT, not a follow-up: the playtest export must stamp the rule set.** The record is
-    `v:'2.0-mp'` with difficulty and seats and **no rules field**. Export a homebrew game into
-    `PLAYER-PROFILE.md`'s ingestion log without it and the whole log becomes unanalysable — a weird statistic is
-    indistinguishable from a weird ruleset. Exactly the pre-v1.31.5 mistake, which merged every opponent and
-    **cannot be repaired** because the information was never recorded. Bump the schema (`v:'2.1-mp'`).
-  - **Netplay needs a SERIALISED rules string. The version handshake is DONE (v1.31.21), so that prerequisite is
-    cleared.** Follow the precedent already
-    in the code: a custom deck serialises to `custom:D1H2C1` specifically so netplay carries the composition
-    rather than a name the host must recognise. Rules should do the same, ride in `t:'setup'`, and stay
-    host-authoritative (a client must not be able to lie about them). **A client on an older build that silently
-    ignores an unknown rule is WORSE than no menu** — two people playing different games without knowing. That
-    makes the version handshake (filed above) a prerequisite, not a nice-to-have.
-  - **The AI does not adapt, and the menu must say so.** `ai.js` is tuned against the shipped rules; under
-    `loss='all'` at six players the measured result was Pure Wizard 44% vs **Pure Rogue 1.7%**. Label it
-    ("the Rival is tuned for the default rules") rather than gating it. Homebrew is **unmeasured by
-    construction** — a combinatorial menu cannot be measured, and this repo's whole culture is "measured or it
-    isn't true", so the menu has to admit that in the UI.
-  - **Toggles become a COMPATIBILITY SURFACE.** Today those flags can be changed or deleted freely; once players
-    use them, they cannot. Worth paying, but knowingly.
-  - **The two apex flags are the least understood things in the engine** (Aj confirmed these are the ones he
-    means). `setApexInfinity`/`setApexNoStrip` are **never measured** — the "balance-neutral at 10 runs" claim
-    behind them came from the broken positional-flag study (PATCHNOTES 0j). Either measure them before offering
-    them, or label them as untested more loudly than the rest.
-  - **Test discipline:** cover each toggle **individually** against the default in `test.js`, assert the rules
-    string round-trips, and do **not** promise anything about combinations.
-  - **Recommended order**, because it front-loads what makes the menu safe:
-    1. the version handshake (~20 lines, filed above),
-    2. rules serialisation + export stamping in the engine — pure logic, headless-testable, no UI,
-    3. the menu UI, with the toggles that already exist,
-    4. **kits separately** (below) — it is a new shape, not a flag flip — and then it becomes a menu item.
+- **The homebrew rules menu SHIPPED in v1.31.22** (four multiplayer toggles, all defaulting off; rules travel to
+  clients and un-ready the table; the export stamps them as `v:'2.1-mp'`). What is left of the idea:
+  - **The apex pair — two separate toggles, but MEASURE FIRST** (Aj, 2026-08-26: *"let's run the numbers
+    correctly first before adding it in"*). `setApexInfinity` and `setApexNoStrip` are the only never-measured
+    flags in the engine — their "balance-neutral" claim came from the broken positional-flag study (PATCHNOTES
+    0j). They are also the first **duel-relevant** rules, so they widen the menu's reach as well as its depth.
+  - **Kits** would be the other duel-relevant rule — see the entry below.
+  - Everything else about the menu is built: the panel, all three entry points, netplay propagation, un-ready,
+    persistence, and the export stamp.
 
 - **KITS: sequences of consecutive pairs** (a player asked for them, 2026-08-25 — *"2kits, 3kits"*, e.g. a pair
   of 4s with a pair of 5s). Aj's read was that this is a local variant; the analysis says otherwise, and it
@@ -432,6 +400,61 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.22 — custom rules, and the export finally records which rules you played
+
+Aj's idea: *"it's not the default or intended way to play the game, but it certainly is A way to play the game."*
+Mostly **surfacing** rather than building — the engine already had every one of these behind a setter — which is
+why the risk lived entirely in the wiring, and two wiring bugs turned up before this shipped.
+
+**Four toggles, and every default is OFF.** That is deliberate: it makes "is this game customised?" a plain
+`.some()` instead of a comparison against a defaults map, and it is why the draw toggle is phrased as the
+NEGATIVE of the shipped rule (*"Draw does not scale with the table"*), since draw-scaling ships on.
+
+| Toggle | Flag |
+| --- | --- |
+| Special fights destroy a shield for each rival | `setSpecialLossMode('all')` |
+| All round losers send cards to their Energy Pile | `setMillScope('universal')` |
+| Shields scale with the table (2 + players) | `setShieldsPerPlayer(true)` |
+| Draw does not scale with the table | `setDrawPerPlayer(false)` |
+
+**The panel admits it is multiplayer-only**, because checking that claim turned out to make it true of all four:
+the engine's own comment marks the first two as no-ops at 2 players, `startShieldsFor(2)` is 2+2=4 (the flat
+default), and `drawCountFor` at 2 players is `max(2,2)`=2 (also the default). A duel plays identically with every
+box ticked, so the panel says so rather than letting someone wonder. **Kits and the apex pair would be the first
+duel-relevant rules.**
+
+**One panel, three entry points, one rule about editability** — setup dialog and the host's netplay lobby are
+editable; ⚙️ Settings opens the same panel **read-only while a game is live**. That last one is the point of
+having it in Settings at all (Aj: *"if something weird happens, i can check why my game is not behaving in the
+ruleset i'm expecting"*) while making a mid-duel edit impossible, since it would be either silently ignored or
+incoherent.
+
+**A rules change un-readies the table** (Aj: *"yes, un-ready that. so we can ping them again"*). Readiness is
+stamped with the rules generation it was given under, and a seat counts as ready only while its stamp is
+current. Seat/channel bindings are untouched — un-readying is not a disconnect.
+
+**Two wiring bugs caught before shipping, both of which would have been quiet:**
+- `hostStartRealN` **hardcoded `setSpecialLossMode('chosen'); setMillScope('targeted')`**, so every online game
+  would have silently ignored the menu — and inconsistently, since it never touched shields or draw. It calls
+  `applyRules()` now.
+- A first pass replaced `nextSeat-1` with a readiness count **everywhere**, including the start path that
+  indexes seats `1..joined` — which would have mis-assigned decks when a stale seat sat before a ready one.
+  Readiness gates the Start *button*; it does not renumber seats.
+
+**The export records the rule set (`v:'2.1-mp'`), and that shipped WITH the menu, not after.** An unstamped
+homebrew game makes PLAYER-PROFILE.md's ingestion log unreadable — a weird statistic becomes indistinguishable
+from a weird ruleset — and it cannot be repaired later because the information was never written down. Exactly
+the pre-v1.31.5 mistake. `exporttest` and `nettest_record` were updated for the bump; `exporttest` gained an
+assertion for the new field.
+
+**The warning names no decks** (Aj: *"no need to say which ones haha"*). It says the Rival will not adapt and
+that some decks suit these rules much better than others, and stops there — the measured figures (Pure Wizard
+44% against Pure Rogue 1.7% under `loss=all` at six players) belong in PATCHNOTES, not in a player's face where
+they also pre-judge a deck before anyone has tried it.
+
+Also added `E.isSpecialLossMode()` / `E.isMillScope()`, for symmetry with the other rule flags — a rules menu
+needs its effect on the engine to be assertable rather than inferred from gameplay.
 
 ### v1.31.21 — netplay tells you when the two builds differ
 

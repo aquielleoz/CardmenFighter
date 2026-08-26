@@ -1668,6 +1668,10 @@
   var SPECIAL_LOSS_MODE = 'chosen', MILL_SCOPE = 'targeted';
   function setSpecialLossMode(m) { SPECIAL_LOSS_MODE = (m === 'chosen') ? 'chosen' : 'all'; }
   function setMillScope(m) { MILL_SCOPE = (m === 'targeted') ? 'targeted' : 'universal'; }
+  /* Getters, for symmetry with the other rule flags (isShieldsPerPlayer / isDrawPerPlayer / isApexInfinity) —
+   * the custom-rules menu needs its effect on the engine to be assertable, not inferred from gameplay. */
+  function isSpecialLossMode() { return SPECIAL_LOSS_MODE; }
+  function isMillScope() { return MILL_SCOPE; }
   // Who the round-winner strips in 'chosen' mode. Injectable (AI tiers / human UI set it); default = the leader
   // (most shields) among living opponents. At 2 players there's only one opponent, so it's a no-op.
   var shieldTargetChooser = null;
@@ -1789,7 +1793,8 @@
     setDeferRoundDraw: setDeferRoundDraw, roundDraw: roundDraw, setShieldCards: setShieldCards, setLoserMill: setLoserMill, setRecycleTech: setRecycleTech,
     setHostileAll: setHostileAll, setDamageAll: setDamageAll, setLockoutAll: setLockoutAll,
     isDamageAll: isDamageAll, isLockoutAll: isLockoutAll,
-    setSpecialLossMode: setSpecialLossMode, setMillScope: setMillScope, setShieldTargetChooser: setShieldTargetChooser, setLossTargetInteractive: setLossTargetInteractive, chooseLossTarget: chooseLossTarget, concede: concede, aliveCount: aliveCount, lastAlive: lastAlive,
+    setSpecialLossMode: setSpecialLossMode, setMillScope: setMillScope,
+    isSpecialLossMode: isSpecialLossMode, isMillScope: isMillScope, setShieldTargetChooser: setShieldTargetChooser, setLossTargetInteractive: setLossTargetInteractive, chooseLossTarget: chooseLossTarget, concede: concede, aliveCount: aliveCount, lastAlive: lastAlive,
     setNoStraightFlush: setNoStraightFlush, fightValue: fightValue, activationCost: activationCost, takeReveal: takeReveal, hasSuper: hasSuper, effectFor: effectFor, boostInfo: boostInfo, rideCostDelta: rideCostDelta, effectiveCost: effectiveCost, removeTargets: removeTargets,
     setTransformCost: setTransformCost, setTransformDraw: setTransformDraw, setTransformGate: setTransformGate, transformGateOK: transformGateOK, transformGateStatus: transformGateStatus, transformCost: transformCost, transformDraw: transformDraw, setBoostScale: setBoostScale, setFormSuitMatch: setFormSuitMatch,
     openPreFight: openPreFight, preFightCast: preFightCast, preFightPass: preFightPass,

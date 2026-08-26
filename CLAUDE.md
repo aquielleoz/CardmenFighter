@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.21**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.22**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -68,6 +68,8 @@ node sharetest.js                               # the share sheet + the tolerant
 node nettest_roundstall.js                      # the host must get the board back after winning a round (9)
 node nettest_actloop.js                         # play must keep moving AFTER a Technique, both seats (22)
 node nettest_version.js                         # the netplay build handshake, both seats + no false alarm (14)
+node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (28)
+node nettest_rules.js                           # custom rules over netplay: propagation + un-ready (18)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -195,6 +197,28 @@ still works and every `nettest_*` suite uses it, but the UI buttons must never s
 Android a downloaded HTML opens as a **`content://` URI, which cannot carry a query string**, so the old
 `location.search='?net=rtchost'` navigated to an unresolvable URI and the game vanished into
 ERR_FILE_NOT_FOUND (v1.31.15). Same for Leave: only clear a query that actually exists.
+
+**CUSTOM RULES (v1.31.22): every default is OFF, and that is load-bearing.** `RULE_DEFS` + `RULES` in the
+template drive four engine flags, and "is this game customised?" is therefore `RULE_DEFS.some(...)` rather than a
+comparison against a defaults map — which is why the draw toggle is phrased as the NEGATIVE of the shipped rule
+(`flatDraw` → `setDrawPerPlayer(false)`). Serialised self-describingly (`'lossAll,millAll'`) like the custom-deck
+key, so netplay and the export carry the RULES, not a name the other end must recognise.
+- **`applyRules()` must be called at every game start.** There are exactly two: `startGame()` (the single
+  `newGame` call site) and `hostStartRealN()`. That second one used to **hardcode** `setSpecialLossMode('chosen');
+  setMillScope('targeted')`, so every online game would have silently ignored the menu.
+- **All four are MULTIPLAYER-ONLY in effect** — the engine marks the first two as no-ops at 2 players,
+  `startShieldsFor(2)` is 2+2=4 and `drawCountFor` at 2 players is 2, both identical to the defaults. The panel
+  says so out loud. Kits and the apex pair would be the first duel-relevant rules.
+- **Editability is the design:** setup dialog and the host's lobby edit; ⚙️ Settings is **read-only while a game
+  is live**. A mid-game edit would be either silently ignored or incoherent.
+- **A rules change un-readies the table.** Readiness is stamped with `rulesGen` and counts only while current
+  (`readyCount()`); seat/channel bindings are untouched. Note the trap: readiness gates the Start BUTTON only —
+  `hostStartRealN` still uses `nextSeat-1`, because it indexes seats `1..joined` and a readiness-based count
+  would mis-assign decks when a stale seat sits before a ready one. And a **re-ready reuses the same cid**, so
+  the host's `isNew` repaint test had to grow an `|| !wasReady`, or Start stays disabled after the table
+  re-confirms.
+- **The export stamps the rule set (`v:'2.1-mp'`), and it shipped WITH the menu.** An unstamped homebrew game
+  makes the ingestion log unreadable and cannot be repaired afterwards — the pre-v1.31.5 mistake exactly.
 
 **Netplay carries a BUILD VERSION and warns on a mismatch (v1.31.21).** The client sends `v` with `t:'join'`,
 the host returns its own on `t:'welcome'`, and `noteVersion()` banners + logs a difference on both seats,
@@ -381,7 +405,7 @@ Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 231, `netvie
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
 `landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14. **If a count here disagrees with a suite, the suite is right —
+`nettest_prefight` 13, `nettest_full` 5, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 28, `nettest_rules` 18, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
 **These suites go stale silently** — they were unrunnable for however long `/opt/pw-browsers/chromium` was
@@ -437,8 +461,7 @@ winning a round forces you to strike someone. The faithful analogue is TIT FOR T
 `SPECIAL_LOSS_MODE='all'`, `MILL_SCOPE='universal'`. It fixed pacing (6p length 33 → 15 rounds, jab share
 24% → 10%) and **broke deck balance**: 6p spread 15.5 → 40.7 points, Pure Wizard 44% vs Pure Rogue 1.7%.
 Isolated to `loss='all'` alone, because **`all` multiplies the value of landing a Special by (N-1)** — at six
-players the best Special-lander gains against five people at once. The flags survive
-(`setShieldsPerPlayer`/`setDrawPerPlayer`, default **off**) for A/B only. **Read `startShieldsFor(n)` /
+players the best Special-lander gains against five people at once. `setShieldsPerPlayer` defaults **off**; `setDrawPerPlayer` defaults **ON** (draw = numPlayers shipped in v1.31.3 — this file used to claim both were off). Both are now player-facing through the custom rules menu. **Read `startShieldsFor(n)` /
 `drawCountFor(st)`, never the bare constants** — reading `E.DRAW_PER_ROUND` in the UI is what once made the
 round banner announce "draws 2" at a table drawing 6. Full post-mortem: PATCHNOTES **0j**; the promising
 re-land direction (shields scaling **down**) is **0k**.
