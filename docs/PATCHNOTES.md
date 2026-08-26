@@ -323,6 +323,35 @@ at 3p and 4p. So the pairing inherits the entire reason `all` was reverted in v1
 on an apex is nowhere near enough to defuse it. **A tempting pacing result that does not survive the balance
 check — which is exactly the trap 0j was written about.**
 
+**AND THE SPREAD IS NOT THE SAME ORDER MADE WIDER — `all` REORDERS THE TABLE** (Aj's question). Spearman rho
+against the baseline order is **0.36** for `all` and 0.77 for `all`+`nostrip`. Per-deck 6p win%, 6 runs of 1,500,
+sorted by baseline rank:
+
+| deck | base | `all` | `all`+`nostrip` |
+| --- | --- | --- | --- |
+| Paladin (Cle+Fig) | 21.7% (#1) | 10.1% (#8) | 17.3% (#4) |
+| Sage (Wiz+Cle) | 21.1% (#2) | **36.3% (#1)** | 34.1% (#1) |
+| Pure Cleric | 20.1% (#3) | 27.4% (#3) | 31.2% (#2) |
+| Mage Knight (Wiz+Fig) | 17.9% (#4) | 15.3% (#6) | 17.0% (#5) |
+| Full Set | 17.4% (#5) | 12.3% (#7) | 12.6% (#7) |
+| Bard (Cle+Rog) | 16.6% (#6) | 15.4% (#5) | 16.8% (#6) |
+| Pure Fighter | 16.5% (#7) | **4.1% (#10)** | 5.3% (#9) |
+| Pure Wizard | 15.6% (#8) | **35.3% (#2)** | 30.0% (#3) |
+| Berserker (Fig+Rog) | 13.6% (#9) | 4.3% (#9) | 3.4% (#10) |
+| Warlock (Wiz+Rog) | 13.1% (#10) | 17.7% (#4) | 12.5% (#8) |
+| Pure Rogue | 9.3% (#11) | 3.9% (#11) | 2.5% (#11) |
+| **spread** | **12.4** | **32.4** | **31.6** |
+
+The direction is systematic and mechanical: the winners are the **Wizard/Cleric** decks and the losers are
+**Fighter/Rogue**. When every Special win costs *every* opponent a shield, a deck that can protect shields
+survives the crossfire and a deck that can only attack gets shredded — precisely what the `HOSTILE_ALL` note in
+CLAUDE.md predicted about "the classes whose whole kit is offensive and who own no shield protection at all".
+This reproduces 0j's Pure Wizard / Pure Rogue headline with the whole table behind it.
+
+`all`+`nostrip` keeps the width but sits closer to the baseline ORDER (rho 0.77): same top three and bottom
+three as `all`, mid-table roughly restored. So no-strip softens the reshuffle without touching the extremes,
+which is another way of saying it does not address the mechanism.
+
 `nostrip` alone stays close to baseline at every count. (Its duel improvement replicates in direction across two
 studies — −3.0 at 6.7σ and −1.8 at 2.4σ — so call it real but modest.) **`mill=universal`'s balance was not
 measured separately here**; 0j isolated the damage to `loss=all` alone, so it is the lower risk of the two.

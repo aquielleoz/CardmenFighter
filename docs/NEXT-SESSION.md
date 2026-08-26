@@ -1,9 +1,9 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** + **qr.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node nettest_roundstall.js` (9 — the host must get the board back after winning a round) · `node nettest_actloop.js` (22 — play keeps moving after a Technique) · `node nettest_version.js` (14 — the netplay build handshake) · `node rulestest.js` (28 — the custom rules menu) · `node nettest_rules.js` (18 — rules over netplay + un-ready) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node nettest_roundstall.js` (9 — the host must get the board back after winning a round) · `node nettest_actloop.js` (22 — play keeps moving after a Technique) · `node nettest_version.js` (14 — the netplay build handshake) · `node rulestest.js` (33 — the custom rules menu) · `node nettest_rules.js` (18 — rules over netplay + un-ready) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.22**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.23**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
@@ -179,29 +179,9 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     make it strictly **opt-in** and keep the code path as the default.
 - **The homebrew rules menu SHIPPED in v1.31.22** (four multiplayer toggles, all defaulting off; rules travel to
   clients and un-ready the table; the export stamps them as `v:'2.1-mp'`). What is left of the idea:
-  - **The apex pair — MEASURED 2026-08-26 (PATCHNOTES 0m). THREE opt-in variants, none fit to be a default.**
-    They would be the first menu items that change a duel at all.
-    - **`inf` only** — a 2 ranks at infinity so no boost can pass it. **Pacing-free** (medians identical to
-      baseline) and it fixes the real complaint, but it **widens the duel spread** (+4.4, 7.1σ at 8×2000) and
-      **kills the contested exchange**: apex plays beaten in the same round drop from ~28% to **1%** at 6p.
-    - **`nostrip` only** — a 2 that deals no damage but **can still be beaten**. This is the variant that plays
-      the way the proposal imagines: the contest rate holds at **19% at 4p / 27% at 6p**, and it *improves* duel
-      spread (−3.0, 6.7σ) while widening 3p (+4.4, 4.4σ). Cost: **6p games ~70% longer**, for an arithmetic
-      reason — ~45% of 6p rounds end on an apex play, and under no-strip those deal no damage, which predicts
-      ~1.8x rounds and measures 30 → 52. **That cannot be tuned away.**
-    - **Both** — the literal original proposal; the length cost of `nostrip` with none of its exchange.
-    - The engine used to gate `nostrip` behind `inf`, which made the standalone flag a silent no-op. **Gate
-      removed** (engine ~1512), so all three are now expressible and measurable.
-    - `mpsim`'s CONFIG print used to report `apex=off` for the nostrip-only arm — fixed, since "read the printed
-      CONFIG" is only useful if the print is honest.
-  - **WHEN AN APEX TOGGLE LANDS, THE PANEL'S HEADER NOTE MUST CHANGE.** It currently reads *"These change 3–6
-    player games; a duel plays the same either way"*, which is true of all four shipped toggles and **false** the
-    moment an apex rule is added — that is the whole point of it being the first duel-relevant rule. `rulestest`
-    asserts that sentence (`/duel plays the same/`), so the suite will catch it rather than letting the panel lie.
-  - **Aj's read (2026-08-26), and it matches the numbers:** *"no strip is nice in 2p but bad in 6p so players
-    could play with that on as a homebrew qol"*. The two effects line up — the balance gain is in duels (spread
-    15.8 → 12.8) and the length cost is at 6p (+70%, while a duel only goes 11 → 12 rounds). So it reads as a
-    **duel houserule**, not a general toggle, and should probably be labelled that way.
+  - **SHIPPED in v1.31.23 as two independent toggles.** The measurement (PATCHNOTES 0m) is what set the design:
+    `inf` is pacing-free but widens the duel spread and kills the contested exchange (28% → 1%); `nostrip`
+    tightens the duel spread and keeps the exchange but costs ~70% more rounds at 6p. Neither is a default.
   - **Interactions, measured (PATCHNOTES 0m).** No-strip sets `wonWithCombo=false`, which drives BOTH the shield
     strip and the mill target — so an apex win resolves exactly like a JAB win: no shield, and every loser mills.
     That bypasses `SPECIAL_LOSS_MODE` and `MILL_SCOPE` on apex rounds.
@@ -428,6 +408,32 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.23 — the apex-2 rules join the menu, as two independent toggles
+
+Measured first (PATCHNOTES 0m), then added — Aj: *"let's run the numbers correctly first before adding it in"*,
+and then *"i think we can move forward with adding inf and nostrip."*
+
+| Toggle | Flag | What the measurement said |
+| --- | --- | --- |
+| The 2 cannot be beaten — not even by a boost | `setApexInfinity` | Pacing-free; widens the duel spread; drops the apex contest rate from ~28% to 1% |
+| Fights won with a 2 destroy no shields | `setApexNoStrip` | Tightens the duel spread; keeps the contest rate; makes 6p games ~70% longer |
+
+**They are independent, which they were not before.** The engine used to require `APEX_INF && APEX_NOSTRIP`, so
+the standalone no-strip flag was a silent no-op — and that is the variant Aj argued for and the numbers favour: a
+2 that deals no damage **but can still be beaten** is a *contestable* tempo play, where the unbeatable version
+ends the round outright and nothing can answer it.
+
+**These are the first toggles that change a DUEL, so the panel's copy had to change.** It used to say *"These
+change 3–6 player games; a duel plays the same either way"* — true of the original four, false the moment these
+landed. It now reads *"The first four only change 3–6 player games; the last two change duels too"*, and every
+row carries its own scope tag (`3–6 PLAYERS` / `ALL PLAYER COUNTS`) so nobody has to count. `rulestest` asserts
+both the sentence and the tags, which is what will catch the copy next time the set changes.
+
+Costs are stated on each row **qualitatively** — "makes 6-player games much longer" rather than a table of win
+rates, following the same call as the Rival warning: measurements belong in PATCHNOTES, not in a player's face.
+
+Still every default OFF, still serialised self-describingly, still stamped into the export.
 
 ### v1.31.22 — custom rules, and the export finally records which rules you played
 
