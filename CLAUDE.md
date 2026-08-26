@@ -44,7 +44,7 @@ cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sy
 node test.js                                    # engine + AI suite — 208 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction — 28, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
-node nettest_names.js                           # netplay player names, both directions (7)
+node nettest_names.js                           # netplay player names, both directions (8)
 node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens (10)
@@ -297,8 +297,12 @@ observation that made it look environmental: it fails alone, at any position, an
 new shuffle. Measured: leads of 6♦/3♥/6♥/Q♠/8♠ all passed; the failing run had led **2♣**. Both hands are now
 staged with `__cmf.force()` — the host leads a 4, the client holds a 10 — so the deal is irrelevant. 8/8 green.
 
-**So both suites on the historical "position-dependent" list had real, findable causes, and neither was the
-environment.** Three environment hypotheses were tested and disproved years-deep in this file; the lesson is
+**`nettest_names` was the SAME deal-dependence** (fixed 2026-08-26; measured 2 failures in 10 before, 10/10
+after), and **`exporttest` would not reproduce at all** (10/10), so it was deliberately left alone — fixing a
+suite that is not failing is speculation.
+
+**So every suite on the historical "position-dependent" / fixed-wait list had a real, findable cause, and none
+of them was the environment.** Three environment hypotheses were tested and disproved years-deep in this file; the lesson is
 that when a suite is intermittent, the answer has still been a real dependency every single time.
 
 **FIXED in v1.31.9 — `nettest_full` and `nettest_log` were position-dependent, and it was the TESTS.** For
@@ -349,7 +353,7 @@ stray processes before suspecting the code. And never wait on work with `while p
 Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 231, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
-`landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 7, `nettest_discard` 7, `nettest_target3` 6,
+`landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
 `nettest_prefight` 13, `nettest_full` 5, `sharetest` 14, `nettest_roundstall` 9. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
