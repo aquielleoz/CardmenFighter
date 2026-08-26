@@ -30,8 +30,25 @@ async function waitTurn(p,seat){ for(let i=0;i<200;i++){ if((await turnOf(p))===
   await startDuel(host, join);
   ok(await waitHand(host) && await waitHand(join),'duel started, both boards dealt');
 
+  /* STAGE BOTH HANDS. This suite is about NARRATION, and it has no business depending on the shuffle — but it
+   * did, completely. The host played whatever card happened to be first in its hand; when that was unbeatable
+   * the client had no legal answer and FOUR assertions fell together (the legal-jab one, both client-log ones,
+   * and the log-length one). That is the documented "9 pass / 4 fail" signature, and it was mis-recorded for
+   * months as an impatient-wait flake: it fails ALONE, at any position, whenever the deal goes against it.
+   * The apex 2 is always fatal (nothing beats value 15) and an Ace nearly always is.
+   * Measured before the fix: leads of 6♦/3♥/6♥/Q♠/8♠ all passed; the failing run had led 2♣.
+   * Now the host leads a 4 and the client holds a 10, so the answer is guaranteed and the deal is irrelevant. */
+  await host.evaluate(()=>{
+    const C=(n,su)=>({rank:n, suit:su, id:'lg'+n+su});
+    window.__cmf.force([C(4,'D'),C(5,'H'),C(6,'C'),C(7,'S'),C(8,'D'),C(9,'H')],    // host leads the 4
+                       [C(10,'C'),C(9,'S'),C(8,'H'),C(7,'D'),C(6,'S'),C(5,'C')]);  // client can always answer
+  });
+  await wait(400);                                  // let the forced mirror reach the client
+  ok(await host.evaluate(()=>!!document.querySelector('#hand .card[data-id="lg4D"]')),
+     'hands staged, so this suite no longer depends on the deal');
+
   // the HOST plays: the host reads "You", the client must read "Rival"
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="lg4D"]'); if(c)c.click(); const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
   ok(await waitLog(host,/^You played/),'host log: "You played …"');
   ok(await waitLog(join,/^Rival played/),'CLIENT log now shows the host\'s play as "Rival played …" (was empty before)');
   const hp=(await log(host)).find(l=>/^You played/.test(l)), jp=(await log(join)).find(l=>/^Rival played/.test(l));

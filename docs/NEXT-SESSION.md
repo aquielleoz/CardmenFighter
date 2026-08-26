@@ -14,10 +14,11 @@ Current version: **v1.31.19**. The 2-apex + Forms **rework is simply the game** 
   works; its only working configuration is not worth it. The blocker is the **origin**, not the code (a file
   opened from Android Downloads is `content://`, an opaque origin, so Chrome rejects the camera without ever
   prompting). Full reasoning in the BACKLOG. **Reviving it is a merge, not a rebuild.**
-- **`nettest_full` and `nettest_log` still FLAKE.** PR #34 (merged) fixed a real defect in the `nettest_full`
-  harness — it credited plays it never verified — but that does **not** fix the flake, and the fix should not be
-  read as closing it. Read #34 and the BACKLOG item before re-diagnosing either suite: three A/Bs are already
-  done and recorded, and one of them produced a confident wrong answer.
+- **`nettest_log` is SOLVED (2026-08-26) — and it was never a timing flake — it was DEAL-DEPENDENT.** See the
+  changelog. `nettest_full` still flakes; PR #34 fixed a real defect there (it credited plays it never verified)
+  but did not close it. Read the BACKLOG item before re-diagnosing: four A/Bs are done and recorded, one gave a
+  confident wrong answer, and CPU-throttling the client 12x does **not** reproduce it — so impatient waiting is
+  probably the wrong theory for that one too.
 
 **Sanity check before you touch anything** (from `code/`, ~15 seconds):
 
@@ -250,13 +251,13 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   whole invite-code exchange to play again. Wants: the host restarting the engine and re-broadcasting `t:'setup'`
   over the **live** connection, seats and decks reused, both sides confirming — plus its own netplay suite. The
   emote set already covers the negotiation ("Rematch?" → "Yes!"), so this is purely the mechanism.
-- **FOUR suites have the fixed-wait flake** — including **both** suites the v1.31.9 fix declared solved, so that
+- **THREE suites may have the fixed-wait flake** (a fourth, `nettest_log`, turned out to be something else) — including **both** suites the v1.31.9 fix declared solved, so that
   fix was real but incomplete and its "verified 20/20" no longer holds.
-  - **`nettest_log` (measured 2026-08-25).** Failed at position 18 of a 23-suite sweep **and again running
-    alone**, then passed alone next run — so it is intermittent, not position-dependent. Fails as **exactly 4
-    assertions together (9/4)**, the documented pre-v1.31.9 signature: the client's log never gets the host's
-    broadcast in time, the turn assertion goes, the client then finds no legal jab, and both log assertions
-    follow. One impatient wait, four failures.
+  - **`nettest_log` — FIXED 2026-08-26, and the cause was not timing at all.** It was **deal-dependent**: the
+    host played whatever card was first in its hand, then the suite asserted the client could beat it. The apex 2
+    is unbeatable and an Ace nearly always is, so a bad shuffle took out four assertions at once. Hands are now
+    staged with `__cmf.force()`. This is worth remembering when reading the remaining entries: the "4 failures
+    together" signature was recorded for months as an impatient-wait flake and it never was one.
   - **`nettest_full` (measured 2026-08-25).** One real defect found and fixed in PR #34 — the driver credited a
     play it never verified and called `progressed()` on that non-event, resetting the 60s stall guard with the
     very step that was not working, which produced the misleading `host 16, client 0` (plays that never
