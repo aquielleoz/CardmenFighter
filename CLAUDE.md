@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.19**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.21**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -67,6 +67,7 @@ node versiontest.js                             # the build stamp: README -> bui
 node sharetest.js                               # the share sheet + the tolerant paste (14)
 node nettest_roundstall.js                      # the host must get the board back after winning a round (9)
 node nettest_actloop.js                         # play must keep moving AFTER a Technique, both seats (22)
+node nettest_version.js                         # the netplay build handshake, both seats + no false alarm (14)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -194,6 +195,14 @@ still works and every `nettest_*` suite uses it, but the UI buttons must never s
 Android a downloaded HTML opens as a **`content://` URI, which cannot carry a query string**, so the old
 `location.search='?net=rtchost'` navigated to an unresolvable URI and the game vanished into
 ERR_FILE_NOT_FOUND (v1.31.15). Same for Leave: only clear a query that actually exists.
+
+**Netplay carries a BUILD VERSION and warns on a mismatch (v1.31.21).** The client sends `v` with `t:'join'`,
+the host returns its own on `t:'welcome'`, and `noteVersion()` banners + logs a difference on both seats,
+reader-relative ("you are on X, they are on Y"). **It warns, it does not refuse** — a patch-level difference is
+usually harmless and locking two friends out would be the worse failure. `?ver=` overrides the reported version
+for testing and is dbg-gated. Matched builds must stay **silent**; `nettest_version` asserts that too, because a
+warning that cried wolf would be worse than none. This is the prerequisite for any homebrew rules menu: a peer
+silently ignoring an unknown rule means two people playing different games without knowing.
 
 **Player names go through `seatName`/`logName` only.** `seatNames` is indexed in the **LOCAL** frame; a netplay
 client rotates the host's absolute-seat table on arrival (`t:'setup'`), so no call site needs rotation
@@ -366,7 +375,7 @@ Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 231, `netvie
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
 `landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22. **If a count here disagrees with a suite, the suite is right —
+`nettest_prefight` 13, `nettest_full` 5, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
 **These suites go stale silently** — they were unrunnable for however long `/opt/pw-browsers/chromium` was

@@ -1,9 +1,9 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** + **qr.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node nettest_roundstall.js` (9 — the host must get the board back after winning a round) · `node nettest_actloop.js` (22 — play keeps moving after a Technique) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node nettest_roundstall.js` (9 — the host must get the board back after winning a round) · `node nettest_actloop.js` (22 — play keeps moving after a Technique) · `node nettest_version.js` (14 — the netplay build handshake) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.20**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.21**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-25)
 
@@ -193,7 +193,8 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     `PLAYER-PROFILE.md`'s ingestion log without it and the whole log becomes unanalysable — a weird statistic is
     indistinguishable from a weird ruleset. Exactly the pre-v1.31.5 mistake, which merged every opponent and
     **cannot be repaired** because the information was never recorded. Bump the schema (`v:'2.1-mp'`).
-  - **Netplay needs a SERIALISED rules string, and the version handshake FIRST.** Follow the precedent already
+  - **Netplay needs a SERIALISED rules string. The version handshake is DONE (v1.31.21), so that prerequisite is
+    cleared.** Follow the precedent already
     in the code: a custom deck serialises to `custom:D1H2C1` specifically so netplay carries the composition
     rather than a name the host must recognise. Rules should do the same, ride in `t:'setup'`, and stay
     host-authoritative (a client must not be able to lie about them). **A client on an older build that silently
@@ -428,6 +429,27 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.21 — netplay tells you when the two builds differ
+
+Netplay had **no protocol negotiation at all**: two different builds connected happily and then simply
+misbehaved, with nothing on screen to say why. Not hypothetical — a stale downloaded copy already produced one
+false bug report ("the client has no name field", from a build two versions old), and it took a headless run at
+the reporter's exact viewport to prove the code was fine.
+
+The client now sends its version with `t:'join'` and the host sends its own back on `t:'welcome'`, so **both
+seats know within a moment of connecting**. A mismatch shows a banner in the lobby naming both builds, written
+from each reader's own side ("you are on X, they are on Y"), and is logged so it survives leaving the lobby.
+
+**It warns; it does not refuse.** A patch-level difference is usually harmless, and locking two friends out of a
+game over one would be a worse failure than the mismatch itself. `nettest_version.js` asserts both halves — that
+a mismatch is reported on **both** seats with both version numbers, and that matched builds say **nothing at
+all**, because a warning that cried wolf would be worse than none.
+
+**This was the prerequisite for the homebrew rules menu.** A peer silently ignoring an unknown rule means two
+people playing different games without knowing it, which is worse than having no menu.
+
+Testable because `?ver=` overrides the reported version — dbg-gated, inert in the shipped game.
 
 ### v1.31.20 — the host could be locked out of a round it just won
 
