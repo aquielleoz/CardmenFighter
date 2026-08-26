@@ -1,7 +1,7 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** + **qr.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node nettest_roundstall.js` (9 — the host must get the board back after winning a round) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node nettest_roundstall.js` (9 — the host must get the board back after winning a round) · `node nettest_actloop.js` (22 — play keeps moving after a Technique) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
 Current version: **v1.31.20**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
@@ -262,26 +262,21 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   - `exporttest` **would not reproduce: 10/10 clean.** Left alone deliberately — fixing a suite that is not
     failing is speculation. If it fails again, look for a real dependency before touching a timeout.
 
-- **TEACH `nettest_full`'S DRIVER TO ACTIVATE TECHNIQUES — attempted 2026-08-26, reverted, worth doing properly.**
-  The core-loop suite only ever jabs and passes, so a Technique's response window — and any wedge behind one — is
-  invisible to it. That is a real gap: the v1.31.20 lockout was found through this suite, and a second stall
-  behind an activation would not be.
-  - **What was tried:** stage energy via `__cmf.forceAll(null,[E,E])` (it skips falsy entries, so hands stay as
-    dealt), then activate every third action, with generic handlers to dismiss overlays and resolve pickers.
-  - **Why it was reverted: it made the suite fail 5 runs in 10.** A suite that unreliable is worse than the gap,
-    especially this one — its whole value is that a red run means something.
-  - **What was learned, so the next attempt starts here:**
-    - A Technique can force a **discard**, which is an inline hand picker (the hint reads "Choose N cards to send
-      to your Energy Pile"), **not an overlay** — so an overlay-dismissing handler cannot see it and the host
-      waits forever on a prompt nobody answers. `fightBtn` doubles as that picker's confirm.
-    - Targeting is **confirm-first**: the context button reads "Choose target" until a target is staged, and no
-      energy is spent until the confirm, so abandoning via Clear is free.
-    - Handling those two generically was still not enough — new stall modes appeared, so the interaction between
-      picker clicks and fight-selection state needs modelling, not pattern-matching.
-    - **Count only what resolved.** Comparing energy before/after is the honest check; counting activation
-      attempts would let the coverage pass while doing nothing.
-  - Suggested shape for a real attempt: a **separate** suite that drives activation deliberately with staged
-    hands (like `nettest_roundstall`), rather than bolting randomness onto the core fight loop.
+- **Activation coverage — DONE 2026-08-26 as `nettest_actloop.js` (22), a separate staged suite.** The gap was
+  real: `nettest_full` drives the core loop but only jabs and passes, so nothing that goes wrong *around* an
+  activation was visible to it — and the v1.31.20 host-lockout was found by exactly that kind of "does the game
+  still move" check. `nettest_activate` / `nettest_counter` / `nettest_discard` each verify one activation in
+  isolation; none then plays on through a round transition, which is where a wedge strands a real game.
+  - **What it covers:** the host activates mid-turn (asserting a Technique does **not** consume the turn), keeps
+    playing, the round resolves, and the WINNER's board is usable — then the same from the client's seat with the
+    host being offered a Counter and **declining** it, so the response window is genuinely exercised.
+  - **Why it is a separate suite:** bolting random activations onto `nettest_full`'s fight loop was tried first
+    and made that suite fail **5 runs in 10**. Everything is staged here instead — hands, energy, and the exact
+    Technique (Gather Energy A♦: no target, no forced discard, because a forced discard is an inline hand picker
+    rather than an overlay, which is what wedged the in-loop attempt).
+  - **Two traps it cost, both worth knowing:** a probe that clicks a card to test interactivity must click back,
+    or the leftover selection is staged as a FIGHT and Activate goes `off` permanently; and `clearBtn` can itself
+    be disabled, so deselect by clicking every `.card.sel` too. Verified **14/14**, half of the runs in sequence.
 
 - **Old exported logs are v1.0 and merged.** Anything analysed from a multiplayer export before v1.31.5 had
   every opponent collapsed into one bucket and their fight counts stuck at 0. If those files still exist they

@@ -66,6 +66,7 @@ node qrref.js                                   # the same encoder diffed module
 node versiontest.js                             # the build stamp: README -> build -> both screens (10)
 node sharetest.js                               # the share sheet + the tolerant paste (14)
 node nettest_roundstall.js                      # the host must get the board back after winning a round (9)
+node nettest_actloop.js                         # play must keep moving AFTER a Technique, both seats (22)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -176,6 +177,17 @@ the 1,036-char invite is **v23 / 109 modules** — 3.0 CSS px per module on desk
 2.0 in landscape where height binds. Shrinking the payload lowers the version and improves all of it at once.
 **Aj confirmed a real phone reads it (2026-08-25)**, so the shipped geometry is proven; the landscape 2.0 case
 is the one still unverified by a camera.
+
+**A UI-DRIVING SUITE MUST LEAVE NO SELECTION BEHIND.** `nettest_actloop` failed 1 run in 10 with the Activate
+control stuck `off` — because its own board probe clicked a card to see whether Fight enabled and never
+deselected it. A leftover multi-card selection is staged as a **FIGHT** ("Special Pair — fight!"), and you cannot
+activate a pair, so both Activate controls go `off` and no amount of polling helps. Two rules fall out of it:
+- **Any probe that clicks must click back.** Reading interactivity by clicking is fine; leaving the click is not.
+- **`clearBtn` alone does not guarantee a clean slate** — it can be disabled. Deselect by clicking every
+  `#hand .card.sel` as well.
+And the reason it was found at all: the assertion prints the refusal state (energy, turn, pile, both controls'
+text/disabled/class, the hint). **A red run should explain itself** — the hint `"Special Pair — fight!"` named the
+cause outright.
 
 **Netplay must be startable WITHOUT navigating.** `NET.start(role, kind, opts)` enters it in place; `?net=`
 still works and every `nettest_*` suite uses it, but the UI buttons must never set `location.search` — on
@@ -354,7 +366,7 @@ Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 231, `netvie
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
 `landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `sharetest` 14, `nettest_roundstall` 9. **If a count here disagrees with a suite, the suite is right —
+`nettest_prefight` 13, `nettest_full` 5, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
 **These suites go stale silently** — they were unrunnable for however long `/opt/pw-browsers/chromium` was
