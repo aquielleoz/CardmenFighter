@@ -254,7 +254,10 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   emote set already covers the negotiation ("Rematch?" → "Yes!"), so this is purely the mechanism.
 - **The "fixed-wait flake" list is EMPTY, and it was never about fixed waits.** Three of the four suites had a
   real dependency; the fourth would not reproduce at all.
-  - `nettest_full` was reporting an actual game bug (v1.31.20 — the host locked out of a round it won).
+  - `nettest_full` was reporting an actual game bug (v1.31.20 — the host locked out of a round it won). It ALSO
+    had a deal-dependence of its own in the beat branch, fixed separately: it played one arbitrary card and
+    passed if that did not land, so "BOTH players led/beat" could fail with `client 0` purely on the shuffle.
+    It now tries every card until one lands (14/14, half the runs in sequence).
   - `nettest_log` and `nettest_names` were both **deal-dependent** in the same way: the host played whatever card
     was first in its hand and the suite then required the client to beat it. The apex 2 is unbeatable and an Ace
     nearly always is, so a bad shuffle took out the client-narration assertions together — 4 of them in
