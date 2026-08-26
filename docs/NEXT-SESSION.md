@@ -210,9 +210,18 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   - **Sanctuary is already symmetric** (`shieldAll`) — an earlier draft of 0n wrongly called it the remaining
     asymmetry. After Leyline and Shroud are shared there is no asymmetric protection CARD left; the only
     remainder is Form-granted (Apollo's caster-only lock), and it is Super-gated and rare.
-  - **If anyone wants to push further,** the lever is giving ♣/♠ mitigation of their own, not touching the
-    Wizard/Cleric cards again. The flags (`setWardAll`, `setDamageSpan`) are on `exp/shield-break-all`, default
-    off, with behavioural self-checks in `mpsim`.
+  - **DO NOT "fix" this by moving mitigation between classes** (Aj, 2026-08-26: *"let colors be colors, we'll
+    balance some other way"*). ♦ and ♥ being **allied on shield protection** is legitimate colour-pie design —
+    some aspects are shared by every class (draw, some ramp), some are exclusive (buffs/debuffs), and classes
+    are allies on one axis and opponents on another. Giving ♣/♠ mitigation, or relocating Leyline to ♥, are the
+    same cross-pie mistake from opposite directions. (An earlier draft of this entry recommended the first, off
+    a bad analogy: ♦ is the **ramp** class, not a draw class, so Leyline sitting there is not misfiled.)
+  - **The pie-respecting lever is the RULE, not the cards: under `all`, protection should prevent ONE incoming
+    loss rather than the whole round.** The problem was never that ♦/♥ have protection — it is that `all`
+    multiplies protection's value by (N-1), the same multiplier it applies to Special damage. Cap that and no
+    class identity has to move. UNMEASURED; one flag, and the harness already exists.
+  - The flags (`setWardAll`, `setDamageSpan`) are on `exp/shield-break-all`, default off, with behavioural
+    self-checks in `mpsim`.
 
 - **KITS: sequences of consecutive pairs** (a player asked for them, 2026-08-25 — *"2kits, 3kits"*, e.g. a pair
   of 4s with a pair of 5s). Aj's read was that this is a local variant; the analysis says otherwise, and it
