@@ -687,6 +687,11 @@
   .modal .confirmBtns button{flex:1 1 0; min-width:0; margin-top:0;}
   .modal .setupReset{text-align:right; margin:3px 0 0; min-height:18px;}
   .modal .verRow{text-align:center; margin:10px 0 0; font-size:12px; opacity:.5;}
+  .modal .ruleIntro{margin:2px 0 10px; font-size:13px; line-height:1.45; opacity:.85;}
+  .modal .ruleWarn{margin:10px 0 0; font-size:12px; line-height:1.45; color:#f2b8b8;}
+  .modal .settingRow.ro{opacity:.72; cursor:default;}
+  .ruleChip{display:inline-block; margin-left:6px; padding:1px 7px; border-radius:999px; font-size:11px;
+    font-weight:700; background:#3a2d55; color:#d8c9ff; border:1px solid #52407a; white-space:nowrap;}
   .modal .verRow .verStamp{font-variant-numeric:tabular-nums;}
   .modal .linkBtn{background:none; border:none; color:var(--txt); opacity:.5; font:inherit; font-size:12px; font-weight:700; cursor:pointer; padding:2px 3px; margin:0; text-decoration:underline;}
   .modal .linkBtn:hover{opacity:.9;}
@@ -2807,6 +2812,10 @@
   var SPECIAL_LOSS_MODE = 'chosen', MILL_SCOPE = 'targeted';
   function setSpecialLossMode(m) { SPECIAL_LOSS_MODE = (m === 'chosen') ? 'chosen' : 'all'; }
   function setMillScope(m) { MILL_SCOPE = (m === 'targeted') ? 'targeted' : 'universal'; }
+  /* Getters, for symmetry with the other rule flags (isShieldsPerPlayer / isDrawPerPlayer / isApexInfinity) —
+   * the custom-rules menu needs its effect on the engine to be assertable, not inferred from gameplay. */
+  function isSpecialLossMode() { return SPECIAL_LOSS_MODE; }
+  function isMillScope() { return MILL_SCOPE; }
   // Who the round-winner strips in 'chosen' mode. Injectable (AI tiers / human UI set it); default = the leader
   // (most shields) among living opponents. At 2 players there's only one opponent, so it's a no-op.
   var shieldTargetChooser = null;
@@ -2928,7 +2937,8 @@
     setDeferRoundDraw: setDeferRoundDraw, roundDraw: roundDraw, setShieldCards: setShieldCards, setLoserMill: setLoserMill, setRecycleTech: setRecycleTech,
     setHostileAll: setHostileAll, setDamageAll: setDamageAll, setLockoutAll: setLockoutAll,
     isDamageAll: isDamageAll, isLockoutAll: isLockoutAll,
-    setSpecialLossMode: setSpecialLossMode, setMillScope: setMillScope, setShieldTargetChooser: setShieldTargetChooser, setLossTargetInteractive: setLossTargetInteractive, chooseLossTarget: chooseLossTarget, concede: concede, aliveCount: aliveCount, lastAlive: lastAlive,
+    setSpecialLossMode: setSpecialLossMode, setMillScope: setMillScope,
+    isSpecialLossMode: isSpecialLossMode, isMillScope: isMillScope, setShieldTargetChooser: setShieldTargetChooser, setLossTargetInteractive: setLossTargetInteractive, chooseLossTarget: chooseLossTarget, concede: concede, aliveCount: aliveCount, lastAlive: lastAlive,
     setNoStraightFlush: setNoStraightFlush, fightValue: fightValue, activationCost: activationCost, takeReveal: takeReveal, hasSuper: hasSuper, effectFor: effectFor, boostInfo: boostInfo, rideCostDelta: rideCostDelta, effectiveCost: effectiveCost, removeTargets: removeTargets,
     setTransformCost: setTransformCost, setTransformDraw: setTransformDraw, setTransformGate: setTransformGate, transformGateOK: transformGateOK, transformGateStatus: transformGateStatus, transformCost: transformCost, transformDraw: transformDraw, setBoostScale: setBoostScale, setFormSuitMatch: setFormSuitMatch,
     openPreFight: openPreFight, preFightCast: preFightCast, preFightPass: preFightPass,
@@ -4261,7 +4271,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.21';
+  var GAME_VERSION='v1.31.22';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -4324,6 +4334,47 @@ window.CardFace = {};
   // ---- N-player (3–6) ----
   var mpCount=2;                          // chosen player count (2 = duel)
   var gameBasics=false;                   // Basics mode: deck has no J/Q/K transform layer
+  /* HOMEBREW RULES (v1.31.22). Aj: "it's not the default or intended way to play the game, but it certainly is A
+   * way to play the game." The engine already had every one of these behind a setter — this surfaces them.
+   *
+   * EVERY DEFAULT IS OFF, deliberately: that makes "is this game customised?" a plain `.some()` rather than a
+   * comparison against a defaults map, and it is why `flatDraw` is phrased as the NEGATIVE of the shipped rule
+   * (draw-scales-with-table ships ON, so the toggle turns it off).
+   *
+   * All four are MULTIPLAYER-ONLY in effect, which the panel says out loud: the engine's own comment marks the
+   * first two as no-ops at 2 players, `startShieldsFor(2)` is 2+2=4 (the flat default), and `drawCountFor` at 2
+   * players is max(2,2)=2 (also the default). A duel plays identically with all four ticked. Kits and the apex
+   * pair would be the first duel-relevant rules. */
+  var RULES_KEY='cmf_rules_v1';
+  var RULE_DEFS=[
+    { key:'lossAll',     mp:true,  label:'Special fights destroy a shield for each rival',
+      note:'Normally the winner picks one rival to strike.' },
+    { key:'millAll',     mp:true,  label:'All round losers send cards to their Energy Pile',
+      note:'Normally only the rival whose shield you strike does.' },
+    { key:'shieldScale', mp:true,  label:'Shields scale with the table (2 + players)',
+      note:'Normally 4 shields at every player count.' },
+    { key:'flatDraw',    mp:true,  label:'Draw does not scale with the table',
+      note:'Every round draws a flat 2 cards instead of one per player.' }
+  ];
+  var RULES={}; RULE_DEFS.forEach(function(d){ RULES[d.key]=false; });
+  function customRules(){ return RULE_DEFS.some(function(d){ return !!RULES[d.key]; }); }
+  /* Self-describing, like the custom-deck key: netplay and the playtest export carry the RULES, not a name the
+   * other end would have to recognise. '' means "the shipped game". */
+  function rulesKey(){ var on=RULE_DEFS.filter(function(d){ return !!RULES[d.key]; }).map(function(d){ return d.key; }); return on.length?on.join(','):''; }
+  function setRulesFromKey(k){
+    var want={}; String(k||'').split(',').forEach(function(x){ if(x) want[x]=1; });
+    RULE_DEFS.forEach(function(d){ RULES[d.key]=!!want[d.key]; });
+    applyRules();
+  }
+  function applyRules(){
+    if(E.setSpecialLossMode) E.setSpecialLossMode(RULES.lossAll ? 'all' : 'chosen');
+    if(E.setMillScope)       E.setMillScope(RULES.millAll ? 'universal' : 'targeted');
+    if(E.setShieldsPerPlayer) E.setShieldsPerPlayer(!!RULES.shieldScale);
+    if(E.setDrawPerPlayer)    E.setDrawPerPlayer(!RULES.flatDraw);     // NOTE the inversion
+  }
+  function saveRules(){ try{ localStorage.setItem(RULES_KEY, rulesKey()); }catch(e){} }
+  (function loadRules(){ try{ var k=localStorage.getItem(RULES_KEY); if(k!=null) setRulesFromKey(k); }catch(e){} })();
+  function rulesChip(){ return customRules() ? '<span class="ruleChip" title="This game uses custom rules">⚗️ Custom rules</span>' : ''; }
   var tutorialMode=false;                 // guided-tutorial flag: rigs a controlled deal + runs the coach
   var currentLesson=null;                 // the active tutorial lesson object (see LESSONS) — drives the rig + step script
   var tutShields=2;                       // tutorial games use fewer shields so the shields→Fighter Kick arc fits a short lesson
@@ -4815,7 +4866,10 @@ window.CardFace = {};
       merged.shieldsLost+=o.shieldsLost;
       for(var k in o.eff) merged.eff[k]=(merged.eff[k]||0)+o.eff[k]; }
     var net=(typeof NET!=='undefined' && NET.active && NET.active());
-    var rec={ v:'2.0-mp', ts:new Date().toISOString(), difficulty:difficulty,
+    /* v2.1-mp: the RULE SET is recorded. Without it a homebrew game silently poisons PLAYER-PROFILE.md's
+     * ingestion log — a weird statistic becomes indistinguishable from a weird ruleset — and that is exactly the
+     * pre-v1.31.5 mistake, which could not be repaired because the information was never written down. */
+    var rec={ v:'2.1-mp', ts:new Date().toISOString(), difficulty:difficulty, rules:rulesKey(),
       numPlayers:np, mode:(net?'net':(np>2?'local-mp':'solo')), yourSeat:YOU,
       winner:(state.winner===YOU?'you':'rival'), winnerSeat:(state.winner!=null?state.winner:null),
       end:(lastEndType||'deckout'), rounds:state.round, durationMs:Date.now()-gameStartTs,
@@ -5297,6 +5351,7 @@ window.CardFace = {};
 
   function startGame(starter){
     if(starter==null) starter=YOU;
+    applyRules();                          // the ONE newGame call site, so a game always starts under the chosen rules
     var ngOpts = (mpCount>2)
       ? { numPlayers:mpCount, starter:starter, decks: seatDecks.slice(0,mpCount).map(function(d){ return (d==='full'||!d)?null:d; }), basics:gameBasics }
       : { decks:[ youDeck==='full'?null:youDeck, rivalDeck==='full'?null:rivalDeck ], starter:starter, basics:gameBasics };
@@ -7438,6 +7493,45 @@ window.CardFace = {};
     overlayDismiss=hideOverlay;
   }
   // Settings modal — opt-in display prefs (persisted). Sound mirrors the header 🔊; language is a future placeholder.
+  /* The rules panel. ONE panel, three entry points, one rule about editability:
+   *   · setup dialog      — editable (no game running)
+   *   · netplay lobby     — editable for the HOST; a client sees it read-only before Ready
+   *   · ⚙️ Settings        — READ-ONLY while a game is live, editable when idle
+   * That last one is the whole reason it is reachable from Settings at all (Aj: "if something weird happens, i
+   * can check why my game is not behaving in the ruleset i'm expecting") — while still making a mid-duel edit
+   * impossible, which would be either silently ignored or incoherent. */
+  function showRules(opts){
+    opts=opts||{};
+    var ro=!!opts.readonly, back=opts.back||hideOverlay;
+    function rowHTML(d){
+      var on=!!RULES[d.key];
+      return '<button type="button" class="settingRow'+(on?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'"'+
+        (ro?' disabled':'')+' role="switch" aria-checked="'+(on?'true':'false')+'">'+
+        '<span class="settingBox">'+(on?'✓':'')+'</span>'+
+        '<span class="settingBody"><span class="settingLbl">'+d.label+'</span>'+
+        '<span class="settingNote">'+d.note+'</span></span></button>';
+    }
+    showModal('<h2>⚗️ Custom rules</h2>'+
+      '<p class="ruleIntro">Not the default or intended way to play — but certainly <i>a</i> way to play. '+
+        '<b>These change 3–6 player games; a duel plays the same either way.</b></p>'+
+      (ro ? '<div class="netmsg">'+(opts.why||'These are the rules this game is using. Rules are chosen before a game starts.')+'</div>' : '')+
+      '<div class="settings">'+RULE_DEFS.map(rowHTML).join('')+'</div>'+
+      '<p class="ruleWarn">⚠ The Rival is tuned for the default rules and will not adapt. At six players, '+
+        '“a shield for each rival” alone measured Pure Wizard 44% against Pure Rogue 1.7%.</p>'+
+      '<button id="ruleDone">Done</button>');
+    if(!ro) Array.prototype.forEach.call(document.querySelectorAll('.settingRow[data-rule]'), function(btn){
+      btn.addEventListener('click', function(){
+        var k=this.getAttribute('data-rule');
+        RULES[k]=!RULES[k]; applyRules(); saveRules();
+        this.classList.toggle('on', !!RULES[k]);
+        this.setAttribute('aria-checked', RULES[k]?'true':'false');
+        this.querySelector('.settingBox').textContent=RULES[k]?'✓':'';
+        if(opts.onChange) opts.onChange();
+      });
+    });
+    $('ruleDone').addEventListener('click', back);
+    overlayDismiss=back;
+  }
   function showSettings(){
     function rowHTML(id, on, label, note){
       return '<button type="button" class="settingRow'+(on?' on':'')+'" id="'+id+'" role="switch" aria-checked="'+(on?'true':'false')+'">'+
@@ -7450,10 +7544,16 @@ window.CardFace = {};
         rowHTML('setSound', !SFX.isMuted(), 'Sound effects', 'Card, shield, and finisher sound cues.')+
         '<div class="settingSoon">🌐 Language options — coming later.</div>'+
       '</div>'+
+      '<button id="setRules" class="ghostBtn">⚗️ Custom rules'+(customRules()?' · on':'')+'</button>'+
       '<button id="setDone">Done</button>');
     function repaint(btn, on){ btn.classList.toggle('on', on); btn.setAttribute('aria-checked', on?'true':'false'); btn.querySelector('.settingBox').textContent=on?'✓':''; }
     $('setPulse').addEventListener('click', function(){ pulseDetail=!pulseDetail; try{ localStorage.setItem(PULSE_KEY, pulseDetail?'1':'0'); }catch(e){} repaint(this, pulseDetail); });
     $('setSound').addEventListener('click', function(){ SFX.toggle(); paintSfxBtn(); repaint(this, !SFX.isMuted()); });
+    $('setRules').addEventListener('click', function(){
+      var live=!!(state && !state.finished);
+      showRules({ readonly:live, back:showSettings,
+                  why:'This game is already running, so its rules are fixed. Start a new game to change them.' });
+    });
     $('setDone').addEventListener('click', hideOverlay);
     overlayDismiss=hideOverlay;
   }
@@ -7877,6 +7977,9 @@ window.CardFace = {};
         '<button id="howToBtn" class="ghostBtn">📖 Rules / How to play</button>'+
         '<button id="browseBtn" class="ghostBtn">🃏 Browse all cards</button>'+
       '</div>'+
+      '<div class="setupBtns">'+
+        '<button id="rulesBtn" class="ghostBtn">⚗️ Custom rules'+(customRules()?' · on':'')+'</button>'+
+      '</div>'+
       '<div class="verRow">Cardmen Fighter '+verTag()+'</div>';
     showModal(html);
     $('setYouDeck').value=sel.you; $('setRivalDeck').value=sel.rival; $('setDiff').value=sel.diff; $('setPlayers').value=String(sel.players||2);
@@ -7952,6 +8055,7 @@ window.CardFace = {};
     if($('tutKnowBtn')) $('tutKnowBtn').addEventListener('click', function(){ setTutDone(true); openSetup(); });   // "I already know" → hide the guided-duel button (still in Rules)
     $('howToBtn').addEventListener('click', function(){ showHelp(true); });
     $('browseBtn').addEventListener('click', openGallery);
+    var rb=$('rulesBtn'); if(rb) rb.addEventListener('click', function(){ showRules({ back:openSetup }); });
     $('onlineBtn').addEventListener('click', openOnlineDialog);
     // First-ever visit: pop the rules once so new players aren't dropped in cold. Never again after.
     try{ if(!localStorage.getItem(SEEN_HELP_KEY)){ localStorage.setItem(SEEN_HELP_KEY,'1'); showHelp(true); } }catch(e){}
@@ -8198,6 +8302,18 @@ window.CardFace = {};
     }
     // attach the transport (and its message handler) EARLY so no inbound message is dropped; kick off on open.
     var joinRetry=null, joinTries=0;
+    /* A rules change must UN-READY everyone (Aj: "yes, un-ready that. so we can ping them again"): if the host
+     * edits after you readied, you agreed to a different game. Readiness is therefore stamped with the rules
+     * generation it was given under, and a seat only counts as ready while its stamp is current. Seat/channel
+     * bindings are deliberately untouched — un-readying is not a disconnect. */
+    var rulesGen=0, seatRuleGen={};
+    function readyCount(){ var n=0; for(var k in seatRuleGen){ if(seatRuleGen[k]===rulesGen) n++; } return n; }
+    function stopJoinRetry(){ if(joinRetry){ clearInterval(joinRetry); joinRetry=null; } }
+    function hostRulesChanged(){
+      rulesGen++;                                        // every existing readiness stamp is now stale
+      send({t:'rules', k:rulesKey(), gen:rulesGen});
+      renderNet();
+    }
     function attachTransport(t){ transport=t; transport.setOnMessage(onMsg); }
     function kickoff(){ connected=true; renderNet(); }   // connected → show the deck-picker lobby; the client sends 'join' (with its deck) when it clicks Ready
     function startJoinRetry(){                 // re-announce 'join' (carrying our chosen deck) until our first mirror lands (covers a 'join' dropped before the host's channel opened)
@@ -8412,15 +8528,24 @@ window.CardFace = {};
           seatNames[0]=myName;                  // the host's own, so clients can be told everyone's
           if(srcChan){ var ci=dcs.indexOf(srcChan); if(ci>=0) chanSeat[ci]=jseat; }   // RTC: bind this channel to its seat (authoritative)
           if(noteVersion(m.v)) renderNet();                              // a build mismatch is worth seeing before Start
-          sendTo(jseat, {t:'welcome', seat:jseat, cid:cid, v:netVersion()});
+          var wasReady=(seatRuleGen[jseat]===rulesGen);
+          seatRuleGen[jseat]=rulesGen;                                    // readied under the CURRENT rules
+          sendTo(jseat, {t:'welcome', seat:jseat, cid:cid, v:netVersion(), rules:rulesKey()});
           if(started) hostOnPeerBack(jseat);                             // re-join (same cid): a held seat resumes; an already-dropped seat rejoins to spectate
-          if(started) broadcastMirror(); else if(isNew) renderNet();     // re-render the lobby only for a genuinely new joiner (retries fire every 350ms)
+          /* Re-render for a new joiner OR for a seat that has just become ready again. The `isNew` test alone
+           * was enough before rules could un-ready anybody: a re-READY reuses the same cid, so the host
+           * re-stamped readiness and never repainted, leaving Start disabled after the table had re-confirmed. */
+          if(started) broadcastMirror(); else if(isNew || !wasReady) renderNet();   // (join retries fire every 350ms)
         }
         else if(m.t==='move'){ var sseat = srcChan ? seatOfChan(srcChan) : (typeof m.seat==='number'?m.seat:1); if(sseat!=null){ if(MP()) hostApplyMoveN(sseat, m.intent); else hostApplyMove(m.intent); } }
         else if(m.t==='concede'){ onOpponentConcede(srcChan?seatOfChan(srcChan):m.seat); }
       } else {
         if(m.t==='welcome'){ if(m.cid && m.cid!==myId) return; mySeat=(typeof m.seat==='number'?m.seat:1); connected=true;
+          if(typeof m.rules==='string') setRulesFromKey(m.rules);        // the HOST's rules are the game's rules
           if(noteVersion(m.v)) renderNet(); }
+        else if(m.t==='rules'){                                          // the host edited mid-lobby: adopt and un-ready
+          setRulesFromKey(m.k||''); iReady=false; stopJoinRetry(); renderNet();
+          setMessage('⚗️ The host changed the rules — check them and hit Ready again.'); }
         else if(m.t==='full'){ if(!m.cid || m.cid===myId){ if(sig) sig.err='This game is full (6 players max).'; setMessage('⚠ This game is full.'); renderNet(); } }
         else if(m.t==='log'){                                   // public narration — resolve {who} in OUR frame
           var n=(state&&state.numPlayers)||2, r=((((m.actor-mySeat)%n)+n)%n), who;
@@ -8480,9 +8605,15 @@ window.CardFace = {};
     // Unified start for 2–6 players. Seat 0 = host; seats 1..k = the joined remote clients (each with its lobby pick).
     // 2p keeps the awaitRival flow; 3–6p uses the netDriveN driver (both entered via driveRival, gated on MP()).
     function hostStartRealN(hostDeck){
-      E.setShieldCards(true); E.setLoserMill(true); E.setSpecialLossMode('chosen'); E.setMillScope('targeted');
+      /* applyRules() rather than hardcoding the defaults here: this line used to force 'chosen'/'targeted' on
+       * every online game, which would have silently overridden the custom-rules menu — and inconsistently,
+       * since it never touched shields or draw. The host's rules are the game's rules. */
+      E.setShieldCards(true); E.setLoserMill(true); applyRules();
       gameBasics=false;                                // online is always the Full game (Basics is a solo learn-the-ropes mode for now)
       started=true; hideOverlay(); hideNetroot();
+      /* Seat topology, NOT readiness: the loop below indexes seats 1..joined, so a readiness-based count would
+       * skip a seat whose stamp is stale and mis-assign its deck. Un-readying gates the Start BUTTON (see the
+       * lobby renderers); it deliberately does not renumber seats. */
       var joined=nextSeat-1, n=Math.max(2, joined+1);
       mpCount=n;
       youDeck=resolveDeck(hostDeck||'full');
@@ -8494,7 +8625,7 @@ window.CardFace = {};
       for(var s2=1;s2<n;s2++) seatCtrl[s2]='remote';    // every opponent seat is a remote human (override resetControllers' 'ai')
       hostState=state;
       seatNames[0]=myName;
-      send({t:'setup', decks:seatDecks.slice(0), hostDeck:youDeck, clientDeck:seatDecks[1], names:seatNames.slice(0, mpCount)});   // clients read decks[mySeat] for their own label
+      send({t:'setup', decks:seatDecks.slice(0), hostDeck:youDeck, clientDeck:seatDecks[1], names:seatNames.slice(0, mpCount), rules:rulesKey()});   // clients read decks[mySeat] for their own label
       broadcastMirror();
     }
     /* A remote seat reordered its energy pile. The client is UNTRUSTED — E.reorderEnergy re-validates that
@@ -9117,10 +9248,11 @@ window.CardFace = {};
     // Lobby: after the transport connects, each side picks a deck before the host starts the real board.
     function renderLobby(root){
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
-        '<div class="netbar">Room <b>'+room+'</b> · You are '+(isHost()?'Player 1 (host)':'Player 2')+' · '+connLabel()+' · '+verTag()+'</div>'+verWarnHTML();
-      var body=nameRowHTML(!isHost() && iReady)+'<h3>Choose your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>';
+        '<div class="netbar">Room <b>'+room+'</b> · You are '+(isHost()?'Player 1 (host)':'Player 2')+' · '+connLabel()+' · '+verTag()+rulesChip()+'</div>'+verWarnHTML();
+      var body=nameRowHTML(!isHost() && iReady)+'<h3>Choose your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
+        '<button id="lobbyRules" class="netbtn">'+(isHost()?'⚗️ Custom rules':'⚗️ View the rules')+(customRules()?' · on':'')+'</button>'+''
       if(isHost()){
-        var joined=nextSeat-1;   // clients who have readied
+        var joined=readyCount();   // clients who have readied
         var total=joined+1;
         body+='<div class="lobbyStatus">'+(joined>0
               ? ('✓ <b>'+joined+'</b> player'+(joined>1?'s':'')+' joined — <b>'+total+'</b>-Rider'+(total>2?' free-for-all':' duel')+'. Picks stay hidden until you start.'+(joined<MAX_SEATS-1?' More can still join.':' (table full).'))
@@ -9144,6 +9276,13 @@ window.CardFace = {};
         }
         myDeck=sel.value;
       }); }
+      var lr=$('lobbyRules'); if(lr) lr.addEventListener('click', function(){
+        /* The host EDITS (and every readied seat is un-readied); a client can only LOOK, because only the
+         * host's rules count and a client toggling them would be a lie. */
+        if(isHost()) showRules({ back:function(){ hideOverlay(); hostRulesChanged(); }, onChange:null });
+        else showRules({ readonly:true, back:hideOverlay,
+                         why:'The host chooses the rules for the table. These are the ones you are about to play.' });
+      });
       var go=$('lobbyGo'); if(go) go.addEventListener('click', function(){
         myDeck=($('deckSel')||{}).value||myDeck;
         if(isHost()){ if(nextSeat-1<1) return; hostStartRealN(myDeck); }
@@ -9152,10 +9291,11 @@ window.CardFace = {};
     }
     // HOST over WebRTC: a combined lobby — deck picker + invite one player at a time (each becomes a hub channel) + Start.
     function renderHostRtcLobby(root){
-      var joined=nextSeat-1, total=joined+1, full=(joined>=MAX_SEATS-1);
+      var joined=readyCount(), total=joined+1, full=(joined>=MAX_SEATS-1);
       var errHTML = (sig&&sig.err) ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
-      var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · no server · '+joined+' connected · '+verTag()+'</div>'+errHTML+verWarnHTML();
-      var body=nameRowHTML(false)+'<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>';
+      var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · no server · '+joined+' connected · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML();
+      var body=nameRowHTML(false)+'<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
+        '<button id="lobbyRules" class="netbtn">'+(isHost()?'⚗️ Custom rules':'⚗️ View the rules')+(customRules()?' · on':'')+'</button>'+''
       if(sig.step==='host-gen'){ body+='<p>Generating an invite code…</p>'; }
       else if(sig.step==='host-invite'){
         body+='<h3>Invite a player — send them this</h3>'+
@@ -9179,6 +9319,9 @@ window.CardFace = {};
       shareWire();
       var go=$('sigGo'); if(go) go.addEventListener('click', function(){ hostAcceptAnswer(($('sigIn')||{}).value||''); });
       var inv=$('inviteBtn'); if(inv) inv.addEventListener('click', function(){ hostNewInvite(); });
+      var lr2=$('lobbyRules'); if(lr2) lr2.addEventListener('click', function(){
+        showRules({ back:function(){ hideOverlay(); hostRulesChanged(); } });     // this renderer is host-only
+      });
       var start=$('lobbyGo'); if(start) start.addEventListener('click', function(){ myDeck=($('deckSel')||{}).value||myDeck; if(nextSeat-1>=1) hostStartRealN(myDeck); });
     }
     function renderNet(){

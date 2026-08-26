@@ -67,7 +67,7 @@ async function waitFor(fn,t=200,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok(oppFights>0, 'it contains the HOST\'s plays — data a client-written record could not have ('+oppFights+')');
   ok(!!jr && jr.adoptedBySeat===1, 'the adopter stamps its OWN seat, so analysis cannot mistake a client copy for the host\'s (adoptedBySeat='+(jr&&jr.adoptedBySeat)+')');
   ok(!!jr && jr.yourSeat===0, 'while `yourSeat` still names the AUTHOR (the host), stored verbatim');
-  ok(!!jr && jr.v==='2.0-mp', 'and it keeps the v2.0-mp schema ("'+((jr&&jr.v)||'(none)')+'")');
+  ok(!!jr && jr.v==='2.1-mp', 'and it keeps the v2.1-mp schema ("'+((jr&&jr.v)||'(none)')+'")');
   ok(await host.evaluate(()=>!window.__cmf.adopted()), 'the HOST adopted nothing — it authored its own');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
