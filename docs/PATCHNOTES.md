@@ -253,6 +253,47 @@ symmetric lever is the defensive one: under `all`, make protection *not* scale �
 incoming loss rather than the whole round. That is the experiment worth running next; scaling the offence is
 finished and the answer was no.
 
+**AJ'S FIX WORKS ON THE CAUSE — and then reveals that the cause is structural.** Instead of nerfing Leyline,
+share it: `WARD_ALL` makes it protect **everyone's** shields, not just the caster's. The idea is to remove the
+ASYMMETRY rather than the card — it still stops the round's damage, it just stops it for the table, so casting it
+no longer buys a private edge.
+
+| | base | `all` | `all`+ward | ward only |
+| --- | --- | --- | --- | --- |
+| 3p spread | 13.0 | 23.8 | 22.6 | 12.9 |
+| 4p spread | 16.7 | 31.0 | 24.7 | 15.4 |
+| 6p spread | 12.3 | **31.7** | **27.3** | **11.6** |
+| Pure Wizard @6p | 16.2% (#8) | **35.2% (#1)** | **18.5% (#4)** | 14.5% (#8) |
+| Pure Cleric @6p | 21.2% (#1) | 27.1% (#3) | **32.7% (#1)** | 20.5% (#2) |
+| Spearman rho | — | 0.45 | **0.73** | **0.94** |
+
+**It is by far the most effective lever tried:** Pure Wizard's runaway collapses 35.2% → 18.5%, and the rank
+order substantially returns (rho 0.45 → 0.73, against 0.31-0.36 for every damage dial). The diagnosis was right.
+
+**But `all` is still not viable, because the crown simply moves to Pure Cleric (27.1% → 32.7%, #1).** Auditing
+every mitigation effect in the game explains why — it lives in only **two of the four classes**:
+
+| suit | shield mitigation |
+| --- | --- |
+| ♦ Wizard | Leyline Ascension (immune, cantLose) |
+| ♥ Cleric | Holy Shroud (absorb), Sanctuary (+shield) |
+| ♣ Fighter | **none** |
+| ♠ Rogue | **none** |
+
+**THE LAW: under `all`, any shield-loss mitigation multiplies in value by (N-1), and half the classes have
+none.** That is the whole reordering in one sentence — the top three under `all` are Wizard, Sage (Wiz+Cle) and
+Cleric; the bottom three are exactly Fighter, Rogue and Berserker (Fig+Rog), the decks with zero mitigation.
+Leyline was the largest instance, not the only one, which is why sharing it hands the crown to Cleric instead of
+closing the spread, and why scaling the OFFENCE never touched the problem at all.
+
+So `all` cannot be repaired by patching cards one at a time. The options are: give Fighter and Rogue mitigation
+of their own, change `all` so it does not multiply mitigation, or leave it as the homebrew toggle it is now.
+**Do not re-open this with another offence-side idea** — that avenue is measured and closed.
+
+**Worth knowing separately: on the SHIPPED rules, sharing the ward is balance-neutral** — spread 11.6 vs 12.3 at
+6p and rho **0.94**, with Pure Fighter drifting up (#7 → #5) and nothing else moving. So "Leyline protects the
+table" is available as a design option or a menu toggle in its own right, independent of `all`.
+
 **Instrument note:** `mpsim`'s hostile SELF-CHECK aborted the first `half` run, expecting Critical Hit to strike
 1 when it struck 2. That is the check working — it had no knowledge of the new span. Taught it (`DALL ? 3 :
 DHALF ? 2 : 1` at the 4-player probe) and the CONFIG line now prints `damageSpan=1|half|all` instead of a

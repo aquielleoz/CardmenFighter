@@ -1103,8 +1103,10 @@
         if (eff.draw) drawCards(pl, eff.draw);
         spendCard(pl, card); break;
       case 'ward':                                         // Leyline base: pure can't-lose, no ramp/recycle
-        if (eff.immune) pl.shieldImmune = true;
-        if (eff.cantLose) pl.cantLoseRound = true;
+        // WARD_ALL shares it with the table — see the note in `reclaim`. THIS is the base card's branch; the
+        // reclaim branch is the boosted variant, and both must honour the flag or the study measures nothing.
+        if (eff.immune) { pl.shieldImmune = true; if (WARD_ALL) wardTable(st, 'shieldImmune'); }
+        if (eff.cantLose) { pl.cantLoseRound = true; if (WARD_ALL) wardTable(st, 'cantLoseRound'); }
         spendCard(pl, card); break;
       case 'valueBoost':                                  // Infuse / Imbue / Divine Tactic: charge your next play
         pl.nextPlayBoost = (pl.nextPlayBoost || 0) + (eff.boost || 0);
@@ -1165,8 +1167,14 @@
         }
         if (eff.half) { var half = Math.floor(pl.deck.length / 2); for (var iH = 0; iH < half; iH++) { var hc = pl.deck.shift(); if (hc) pl.energy.push(hc); } }
         if (eff.draw) drawCards(pl, eff.draw);
-        if (eff.immune) pl.shieldImmune = true;           // Leyline Ascension folds in Sphere's round-long shield immunity
-        if (eff.cantLose) pl.cantLoseRound = true;        // …and, unlike Sphere, also blocks the Fighter Kick at 0 shields ("can't lose this round")
+        /* WARD_ALL (Aj, 2026-08-26): Leyline protects EVERYONE's shields, not just the caster's. Aimed at the
+         * reason loss=all breaks deck balance — Leyline (♦9) is the only shield-protection card in the game, so
+         * under `all`, where every Special win hits every rival, its value multiplies by (N-1) in the caster's
+         * favour and Wizard decks run away with it. Sharing the ward removes the ASYMMETRY rather than nerfing
+         * the card: it still stops the round's damage, it just stops it for the table, so casting it no longer
+         * buys a private edge. Flag, default off. */
+        if (eff.immune) { pl.shieldImmune = true; if (WARD_ALL) wardTable(st, 'shieldImmune'); }
+        if (eff.cantLose) { pl.cantLoseRound = true; if (WARD_ALL) wardTable(st, 'cantLoseRound'); }
         spendCard(pl, card); break;
       case 'counterfeit':                                 // Counterfeit: copy a card from the Rival's current play into hand as a temp
         var poolCF = (st.pile && st.pile.byPlayer !== p) ? st.pile.combo.cards : null, srcCF = null;
@@ -1668,6 +1676,12 @@
   var DAMAGE_SPAN = 1;
   function setDamageSpan(v) { DAMAGE_SPAN = (v === 'all' || v === 'half') ? v : Math.max(1, v | 0); }
   function isDamageSpan() { return DAMAGE_ALL ? 'all' : DAMAGE_SPAN; }
+  var WARD_ALL = false;
+  function setWardAll(v) { WARD_ALL = !!v; }
+  function isWardAll() { return WARD_ALL; }
+  function wardTable(st, field) {                        // share a shield ward with every living player
+    for (var w = 0; w < st.numPlayers; w++) if (!st.players[w].eliminated) st.players[w][field] = true;
+  }
   function hostileTargets(st, p, oppIdx, which, eff) {
     // `eff.all` is a property of the CARD (Hermes Back Stab), not of the research flags — a form-granted
     // upgrade must work with the flags off, which is how it ships.
@@ -1820,6 +1834,7 @@
     setDeferRoundDraw: setDeferRoundDraw, roundDraw: roundDraw, setShieldCards: setShieldCards, setLoserMill: setLoserMill, setRecycleTech: setRecycleTech,
     setHostileAll: setHostileAll, setDamageAll: setDamageAll, setLockoutAll: setLockoutAll,
     setDamageSpan: setDamageSpan, isDamageSpan: isDamageSpan,
+    setWardAll: setWardAll, isWardAll: isWardAll,
     isDamageAll: isDamageAll, isLockoutAll: isLockoutAll,
     setSpecialLossMode: setSpecialLossMode, setMillScope: setMillScope,
     isSpecialLossMode: isSpecialLossMode, isMillScope: isMillScope, setShieldTargetChooser: setShieldTargetChooser, setLossTargetInteractive: setLossTargetInteractive, chooseLossTarget: chooseLossTarget, concede: concede, aliveCount: aliveCount, lastAlive: lastAlive,

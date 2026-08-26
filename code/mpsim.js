@@ -29,7 +29,8 @@ var SHP = flag('noshp') ? false : (flag('shp') || E.isShieldsPerPlayer());
 var DPP = flag('nodpp') ? false : (flag('dpp') || E.isDrawPerPlayer());
 var APEX = flag('apex'), NOSTRIP = flag('nostrip');
 var DALL = flag('damageall') || flag('hostileall');
-var DHALF = flag('damagehalf');                      // ...or HALF the table (ceil of living rivals / 2)   // Critical Hit / Ultima Attack -> all rivals
+var DHALF = flag('damagehalf');
+var WALL = flag('wardall');                           // Leyline protects EVERYONE's shields, not just the caster's                      // ...or HALF the table (ceil of living rivals / 2)   // Critical Hit / Ultima Attack -> all rivals
 var LALL = flag('lockoutall') || flag('hostileall');  // Back Stab -> all rivals
 E.setShieldCards(true); E.setLoserMill(true);
 E.setSpecialLossMode(LM); E.setMillScope(MS);
@@ -37,12 +38,13 @@ E.setShieldsPerPlayer(SHP); E.setDrawPerPlayer(DPP);
 var LMAX=parseInt((FLAGS.match(/lockmax=(\d+)/)||[0,0])[1],10); if(LMAX && AI.setLockoutMaxAlive) AI.setLockoutMaxAlive(LMAX);
 E.setApexInfinity(APEX); E.setApexNoStrip(NOSTRIP); E.setDamageAll(DALL); E.setLockoutAll(LALL);
 if (E.setDamageSpan) E.setDamageSpan(DHALF ? 'half' : 1);
+if (E.setWardAll) E.setWardAll(WALL);
 console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' drawN=' + DPP +
             /* Report the two apex flags INDEPENDENTLY. This used to print `apex=off` whenever infinity was off,
              * even with no-strip set — a lie, and a dangerous one given this file's own rule is "check the
              * printed CONFIG". No-strip stopped requiring infinity on 2026-08-26 (engine ~1512). */
             ' apex=' + (APEX ? (NOSTRIP ? 'unbeatable+nostrip' : 'unbeatable') : (NOSTRIP ? 'nostrip-only(beatable 2)' : 'off')) +
-            ' damageSpan=' + (DALL ? 'all' : (DHALF ? 'half' : 1)) + ' lockoutAll=' + LALL + (LMAX ? ' lockoutMaxAlive=' + LMAX : ''));
+            ' damageSpan=' + (DALL ? 'all' : (DHALF ? 'half' : 1)) + ' wardAll=' + WALL + ' lockoutAll=' + LALL + (LMAX ? ' lockoutMaxAlive=' + LMAX : ''));
 
 /* SELF-CHECK — prove the config took EFFECT, behaviourally. Echoing the flags back is not enough: the flags
  * were right and the parser was wrong, so every arm of a 40-run study silently ran the same rules. This probes
@@ -83,10 +85,20 @@ console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' draw
   E.activate(bg, 0, 'sc10S', { target: 1 });
   var bLock = [1, 2, 3].filter(function (q) { return bg.players[q].lockSkip; }).length;
   var bRound = [1, 2, 3].filter(function (q) { return bg.players[q].lockRound; }).length;   // base Back Stab locks the ROUND (v1.31.4)
+  /* Leyline's ward: with wardall on, one cast must protect EVERY living player. A flag that silently fails to
+   * take effect is how a study measures the shipped game and reports it as a finding. */
+  var wg = E.newGame(null, { numPlayers: 4 });
+  wg.round = 3; wg.turn = 0; wg.pile = null;
+  wg.players[0].hand = [hk(9, 'D'), hk(5, 'C')];
+  wg.players[0].energy = []; for (i = 0; i < 14; i++) wg.players[0].energy.push(hk(4, 'D'));
+  E.activate(wg, 0, 'sc9D', {});
+  var warded = [0, 1, 2, 3].filter(function (q) { return !!wg.players[q].cantLoseRound; }).length;
+  console.log('SELF-CHECK ward: Leyline protected ' + warded + ' player(s) (expect ' + (WALL ? 4 : 1) + ')');
   console.log('SELF-CHECK hostile: Critical Hit struck ' + hStruck + ' (expect ' + (DALL ? 3 : (DHALF ? 2 : 1)) +
               '), Back Stab locked ' + bLock + ' (expect ' + (LALL ? 3 : 1) + ', whole-round ' + bRound + ')');
   var bad = (shields !== (SHP ? 6 : 4)) || (draw !== (DPP ? 4 : 2)) || (struck !== (LM === 'all' ? 3 : 1)) ||
-            (hStruck !== (DALL ? 3 : (DHALF ? 2 : 1))) || (bLock !== (LALL ? 3 : 1)) || (bRound !== bLock);
+            (hStruck !== (DALL ? 3 : (DHALF ? 2 : 1))) || (bLock !== (LALL ? 3 : 1)) || (bRound !== bLock) ||
+            (warded !== (WALL ? 4 : 1));
   if (bad) { console.log('*** SELF-CHECK FAILED — the config did not take effect. These numbers are worthless. ***'); process.exit(3); }
 })();
 
