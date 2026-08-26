@@ -15,6 +15,7 @@ async function until(fn,t=80,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retur
 const flags=p=>p.evaluate(()=>({
   loss: CardmenEngine.isSpecialLossMode(), mill: CardmenEngine.isMillScope(),
   shieldScale: CardmenEngine.isShieldsPerPlayer(), drawScales: CardmenEngine.isDrawPerPlayer(),
+  apexInf: CardmenEngine.isApexInfinity(), apexNoStrip: CardmenEngine.isApexNoStrip(),
 }));
 const openRules=async p=>{ await p.evaluate(()=>document.getElementById('rulesBtn').click()); await wait(300); };
 const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[data-rule="'+k+'"]'); if(b)b.click(); return !!b; }, k);
@@ -26,31 +27,38 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   await p.goto(HTML); await wait(500);
 
   // ---------- defaults: the shipped game, and EVERY toggle off
-  ok(JSON.stringify(await flags(p))===JSON.stringify({loss:'chosen',mill:'targeted',shieldScale:false,drawScales:true}),
-     'the shipped defaults are chosen / targeted / flat shields / scaling draw');
+  ok(JSON.stringify(await flags(p))===JSON.stringify({loss:'chosen',mill:'targeted',shieldScale:false,drawScales:true,
+       apexInf:false, apexNoStrip:false}),
+     'the shipped defaults are chosen / targeted / flat shields / scaling draw / no apex rules');
   await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(300);
   ok(await p.evaluate(()=>!!document.getElementById('rulesBtn')), 'the setup dialog offers ⚗️ Custom rules');
   await openRules(p);
   const keys=await p.evaluate(()=>[].map.call(document.querySelectorAll('.settingRow[data-rule]'),b=>b.getAttribute('data-rule')));
-  ok(JSON.stringify(keys)===JSON.stringify(['lossAll','millAll','shieldScale','flatDraw']), `four toggles, in order (${keys.join(', ')})`);
+  ok(JSON.stringify(keys)===JSON.stringify(['lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip']),
+     `six toggles, in order (${keys.join(', ')})`);
   ok(await p.evaluate(()=>[].every.call(document.querySelectorAll('.settingRow[data-rule]'),b=>!/\bon\b/.test(b.className))),
      'and every one of them is OFF by default — so "customised?" is just "is anything on?"');
-  /* The panel must admit that a duel is unaffected: all four are no-ops at 2 players, and someone ticking four
-   * boxes before a duel deserves to be told rather than left wondering. */
-  ok(await p.evaluate(()=>/duel plays the same/i.test((document.querySelector('.ruleIntro')||{}).textContent||'')),
-     'the panel says out loud that these change 3-6 player games, not duels');
+  /* The panel must be honest about SCOPE. It used to say a duel plays the same either way, which was true while
+   * every toggle was a 2-player no-op — and became FALSE the moment the apex rules landed, since those are the
+   * first two that change a duel. This assertion is what forces the copy to keep up. */
+  ok(await p.evaluate(()=>/first four only change 3–6 player games/i.test((document.querySelector('.ruleIntro')||{}).textContent||'')),
+     'the panel distinguishes the multiplayer-only toggles from the ones that change duels');
+  const scopes=await p.evaluate(()=>[].map.call(document.querySelectorAll('.settingRow[data-rule] .ruleScope'),e=>e.textContent.trim()));
+  ok(scopes.length===6 && scopes.slice(0,4).every(t=>/3–6/.test(t)) && scopes.slice(4).every(t=>/all player counts/i.test(t)),
+     `and every row carries its own scope tag (${scopes.join(' | ')})`);
   ok(await p.evaluate(()=>/tuned for the default rules/i.test((document.querySelector('.ruleWarn')||{}).textContent||'')),
      'and warns that the Rival does not adapt');
 
   // ---------- each toggle must actually reach the engine
   for(const [key, field, want] of [['lossAll','loss','all'],['millAll','mill','universal'],
-                                   ['shieldScale','shieldScale',true],['flatDraw','drawScales',false]]){
+                                   ['shieldScale','shieldScale',true],['flatDraw','drawScales',false],
+                                   ['apexInf','apexInf',true],['apexNoStrip','apexNoStrip',true]]){
     ok(await toggle(p,key), `toggling ${key}`);
     await wait(120);
     const f=await flags(p);
     ok(f[field]===want, `  → the engine now reports ${field}=${JSON.stringify(f[field])}`);
   }
-  ok((await p.evaluate(()=>localStorage.getItem('cmf_rules_v1')))==='lossAll,millAll,shieldScale,flatDraw',
+  ok((await p.evaluate(()=>localStorage.getItem('cmf_rules_v1')))==='lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip',
      'the choice is serialised self-describingly, like the custom-deck key');
 
   // ---------- a real game must be played under them

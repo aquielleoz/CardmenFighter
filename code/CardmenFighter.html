@@ -690,6 +690,9 @@
   .modal .ruleIntro{margin:2px 0 10px; font-size:13px; line-height:1.45; opacity:.85;}
   .modal .ruleWarn{margin:10px 0 0; font-size:12px; line-height:1.45; color:#f2b8b8;}
   .modal .settingRow.ro{opacity:.72; cursor:default;}
+  .modal .ruleScope{display:inline-block; margin-left:7px; padding:0 6px; border-radius:999px; font-size:10px;
+    font-weight:700; letter-spacing:.02em; text-transform:uppercase; background:#2b2440; color:#b6a8d8;
+    border:1px solid #453a63; vertical-align:1px; white-space:nowrap;}
   .ruleChip{display:inline-block; margin-left:6px; padding:1px 7px; border-radius:999px; font-size:11px;
     font-weight:700; background:#3a2d55; color:#d8c9ff; border:1px solid #52407a; white-space:nowrap;}
   .modal .verRow .verStamp{font-variant-numeric:tabular-nums;}
@@ -4276,7 +4279,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.22';
+  var GAME_VERSION='v1.31.23';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -4359,7 +4362,16 @@ window.CardFace = {};
     { key:'shieldScale', mp:true,  label:'Shields scale with the table (2 + players)',
       note:'Normally 4 shields at every player count.' },
     { key:'flatDraw',    mp:true,  label:'Draw does not scale with the table',
-      note:'Every round draws a flat 2 cards instead of one per player.' }
+      note:'Every round draws a flat 2 cards instead of one per player.' },
+    /* The first two toggles that change a DUEL. Measured 2026-08-26 (PATCHNOTES 0m) and each carries a real
+     * cost, stated qualitatively — numbers and deck names belong in the docs, not in a player's face. They are
+     * independent flags: no-strip stopped requiring infinity the same day, because a 2 that deals no damage but
+     * CAN still be beaten is the contestable version of the idea, and the measurements say that is the one that
+     * actually plays the way the proposal imagines. */
+    { key:'apexInf',     duel:true, label:'The 2 cannot be beaten — not even by a boost',
+      note:'Normally a boosted Ace can out-value the apex 2. Ends the round outright, so no rival can answer it.' },
+    { key:'apexNoStrip', duel:true, label:'Fights won with a 2 destroy no shields',
+      note:'The 2 becomes a way to seize the lead without dealing damage, and rivals can still beat it — unless the rule above is also on. Makes 6-player games much longer.' }
   ];
   var RULES={}; RULE_DEFS.forEach(function(d){ RULES[d.key]=false; });
   function customRules(){ return RULE_DEFS.some(function(d){ return !!RULES[d.key]; }); }
@@ -4376,6 +4388,8 @@ window.CardFace = {};
     if(E.setMillScope)       E.setMillScope(RULES.millAll ? 'universal' : 'targeted');
     if(E.setShieldsPerPlayer) E.setShieldsPerPlayer(!!RULES.shieldScale);
     if(E.setDrawPerPlayer)    E.setDrawPerPlayer(!RULES.flatDraw);     // NOTE the inversion
+      if(E.setApexInfinity)     E.setApexInfinity(!!RULES.apexInf);
+      if(E.setApexNoStrip)      E.setApexNoStrip(!!RULES.apexNoStrip);
   }
   function saveRules(){ try{ localStorage.setItem(RULES_KEY, rulesKey()); }catch(e){} }
   (function loadRules(){ try{ var k=localStorage.getItem(RULES_KEY); if(k!=null) setRulesFromKey(k); }catch(e){} })();
@@ -7513,12 +7527,13 @@ window.CardFace = {};
       return '<button type="button" class="settingRow'+(on?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'"'+
         (ro?' disabled':'')+' role="switch" aria-checked="'+(on?'true':'false')+'">'+
         '<span class="settingBox">'+(on?'✓':'')+'</span>'+
-        '<span class="settingBody"><span class="settingLbl">'+d.label+'</span>'+
+        '<span class="settingBody"><span class="settingLbl">'+d.label+
+        '<span class="ruleScope">'+(d.duel?'all player counts':'3–6 players')+'</span></span>'+
         '<span class="settingNote">'+d.note+'</span></span></button>';
     }
     showModal('<h2>⚗️ Custom rules</h2>'+
       '<p class="ruleIntro">Not the default or intended way to play — but certainly <i>a</i> way to play. '+
-        '<b>These change 3–6 player games; a duel plays the same either way.</b></p>'+
+        '<b>The first four only change 3–6 player games; the last two change duels too.</b></p>'+
       (ro ? '<div class="netmsg">'+(opts.why||'These are the rules this game is using. Rules are chosen before a game starts.')+'</div>' : '')+
       '<div class="settings">'+RULE_DEFS.map(rowHTML).join('')+'</div>'+
       /* Deliberately unspecific (Aj: "no need to say which ones haha"). Naming the decks and their win rates is
