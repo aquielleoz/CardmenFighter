@@ -23,16 +23,24 @@ function mul(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15
 E.setShieldCards(true); E.setLoserMill(true);
 /* apex column: '' off | 'inf' = 2 ranks at infinity, shields STILL strip (the narrow fix for the real
  * complaint: boosts can currently exceed the apex) | 'nostrip' = infinity AND no shield strip (the literal
- * proposal). Split because the length cost belongs to the no-strip half. */
+ * proposal) | 'nostripOnly' = no shield strip while the 2 stays BEATABLE, so seizing the lead with it can be
+ * contested. Split because the length cost belongs to the no-strip half. */
 var CFG=[
  ['A LIVE baseline (chosen, flat 4, draw=N)',        'chosen','targeted', false,true, ''],
  ['B  + loss = all           (flat 4 shields)',      'all','targeted',    false,true, ''],
  ['C  + loss = all + shields 2+N',                   'all','targeted',    true, true, ''],
- ['D  loss = chosen + shields 2+N (for contrast)',   'chosen','targeted', true, true, '']
+ ['D  loss = chosen + shields 2+N (for contrast)',   'chosen','targeted', true, true, ''],
+ /* The apex rows this file's own header describes had been dropped from CFG, so the harness no longer produced
+  * the numbers it documented. Restored 2026-08-26 to measure them properly rather than trusting the comment. */
+ ['E LIVE + apex-2 inf (shields still strip)',       'chosen','targeted', false,true, 'inf'],
+ ['F LIVE + apex-2 inf+nostrip (both halves)',       'chosen','targeted', false,true, 'nostrip'],
+ /* G is the variant that could not be measured until the engine stopped gating no-strip behind infinity: a 2
+  * that deals no damage but CAN be beaten, so taking the lead with it is contestable rather than final. */
+ ['G LIVE + apex-2 nostrip ONLY (beatable 2)',       'chosen','targeted', false,true, 'nostripOnly']
 ];
 function run(loss,mill,sh,dp,ap,P,n){
   E.setSpecialLossMode(loss); E.setMillScope(mill); E.setShieldsPerPlayer(sh); E.setDrawPerPlayer(dp);
-  E.setApexInfinity(ap === 'inf' || ap === 'nostrip'); E.setApexNoStrip(ap === 'nostrip');
+  E.setApexInfinity(ap === 'inf' || ap === 'nostrip'); E.setApexNoStrip(ap === 'nostrip' || ap === 'nostripOnly');
   var rounds=[], jb=0, sp=0, leadTop=0, leadN=0;
   for(var s=1;s<=n;s++){
     var decks=[]; for(var d=0;d<P;d++) decks.push(null);

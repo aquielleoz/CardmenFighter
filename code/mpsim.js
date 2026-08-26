@@ -36,7 +36,10 @@ E.setShieldsPerPlayer(SHP); E.setDrawPerPlayer(DPP);
 var LMAX=parseInt((FLAGS.match(/lockmax=(\d+)/)||[0,0])[1],10); if(LMAX && AI.setLockoutMaxAlive) AI.setLockoutMaxAlive(LMAX);
 E.setApexInfinity(APEX); E.setApexNoStrip(NOSTRIP); E.setDamageAll(DALL); E.setLockoutAll(LALL);
 console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' drawN=' + DPP +
-            ' apex=' + (APEX ? (NOSTRIP ? 'unbeatable+nostrip' : 'unbeatable') : 'off') +
+            /* Report the two apex flags INDEPENDENTLY. This used to print `apex=off` whenever infinity was off,
+             * even with no-strip set — a lie, and a dangerous one given this file's own rule is "check the
+             * printed CONFIG". No-strip stopped requiring infinity on 2026-08-26 (engine ~1512). */
+            ' apex=' + (APEX ? (NOSTRIP ? 'unbeatable+nostrip' : 'unbeatable') : (NOSTRIP ? 'nostrip-only(beatable 2)' : 'off')) +
             ' damageAll=' + DALL + ' lockoutAll=' + LALL + (LMAX ? ' lockoutMaxAlive=' + LMAX : ''));
 
 /* SELF-CHECK — prove the config took EFFECT, behaviourally. Echoing the flags back is not enough: the flags

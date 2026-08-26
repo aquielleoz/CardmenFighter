@@ -208,6 +208,88 @@ loss/mill pairing is a **length** lever, not a balance one. **Lesson: a balance 
 life — re-date it before reusing it to veto an idea — and check that the arm you are testing is a design
 someone would actually ship.**
 
+### 0m. The apex-2 flags, measured — and two framing errors of mine corrected. (2026-08-26)
+
+These were the only never-measured flags in the engine; their "balance-neutral at 10 runs" claim came from the
+broken positional-flag study (0j). Aj: *"let's run the numbers correctly first before adding it in."*
+
+**The complaint being fixed is real:** the apex 2 is only **15**, and boosts stack on top of `fightValue`, so a
+boosted Ace at 14+7 beats it. The apex is not an apex.
+- `APEX_INF` — a 2 ranks at infinity, so no boost can pass it. Shields still strip.
+- `APEX_NOSTRIP` — a winning play containing a 2 strips no shield.
+
+**CORRECTION 1: I reported that no-strip is "inert without infinity". That was a statement about the ENGINE, not
+the design, and I passed it off as the latter.** The engine gated it (`APEX_INF && APEX_NOSTRIP`), so the
+standalone flag did nothing — but the *variant* is coherent, and Aj's case for it is the interesting one: a 2
+that deals no damage **but can still be beaten** is a *contestable* tempo play. You take the lead for free; a
+rival who sees the opening escalates with a boosted pair of Aces, takes the round back, and puts the damage on
+you. The unbeatable version cannot produce that exchange at all, because nothing answers it. **The gate is now
+removed** (engine ~1512) so the variant can exist and be measured.
+
+**CORRECTION 2: I measured whether no-strip reduces initiative CONCENTRATION and reported "does not fix
+initiative, which was its whole rationale". Nobody claimed that.** The framing came from a comment in `rulesim`
+("judge it on initiative"), not from the proposal. Adding an initiative *tool* and flattening the busiest
+leader's *share* are different things, and L was the wrong metric for the claim.
+
+**PACING** (`rulesim`, median rounds, 5 runs). `rulesim` seeds the deal but `ai.js` uses unseeded
+`Math.random()`, so it is stable to about ±1 round, **not** exact — an earlier draft of this entry claimed
+"seeded, so exact" off a single run.
+
+| config | 2p | 3p | 4p | 6p | 6p jab% |
+| --- | --- | --- | --- | --- | --- |
+| A live baseline | 11 | 14–15 | 19–20 | 30–31 | j8–9 |
+| E + `inf` | 11 | 14–15 | 19–20 | **30** | j9–10 |
+| F + `inf`+`nostrip` | 12 | 19 | 30–33 | **52–55** | j15 |
+| G + `nostrip` only | 12 | 18 | 29 | **51–52** | j13 |
+
+`inf` is **indistinguishable from baseline**. Both no-strip forms cost roughly **+70% at 6p** — and making the 2
+beatable barely helps, which surprised me.
+
+**WHY, quantified.** A dedicated probe counted apex plays and what happened to them:
+
+| arm | contested % (apex plays beaten in the same round) | rounds won by an apex play |
+| --- | --- | --- |
+| baseline | 9 / 16 / 28 (2p/4p/6p) | 19 / 36 / 48% |
+| `inf` only | 0 / 1 / 1 | 21 / 37 / 49% |
+| `inf`+`nostrip` | 0 / 1 / 1 | 20 / 39 / 49% |
+| `nostrip` only | **7 / 19 / 27** | 20 / 35 / 45% |
+
+**Aj's exchange is real and frequent** — about one apex play in five contested at 4p, one in four at 6p — and
+`inf` destroys it, dropping the contest rate to 1%. So no-strip-only is the variant that matches the design
+intent, and infinity is what kills it.
+
+**But the length cost is arithmetic.** At 6p, **~45% of rounds end on a play containing a 2**. Under no-strip
+those rounds deal no damage, so the game needs about `1/(1-0.45)` ≈ 1.8x as many rounds: 30 → ~54, against a
+measured 51–52. The 27% contest rate is nowhere near enough to offset it. **The length is not a side effect to
+be tuned away — it is the share of rounds that stop dealing damage.**
+
+**BALANCE** (`mpsim`, arms INTERLEAVED, spread = max-min win% across decks; 8 runs of 1,200 games):
+
+| | base | `inf` | `nostrip` only | both |
+| --- | --- | --- | --- | --- |
+| 2p | 15.8 ± 1.0 | 18.2 ± 2.3 *(+2.4, 2.7σ)* | **12.8 ± 0.8** *(−3.0, 6.7σ)* | 11.3 ± 2.2 |
+| 3p | 13.5 ± 2.0 | 11.2 ± 2.1 | **17.9 ± 2.0** *(+4.4, 4.4σ)* | 16.1 ± 3.1 |
+| 4p | 16.7 ± 2.3 | 16.1 ± 2.8 | 19.5 ± 2.6 *(+2.8, 2.3σ)* | 18.6 ± 2.5 |
+| 6p | 13.2 ± 1.2 | 13.8 ± 2.4 | 14.2 ± 1.7 | 13.6 ± 1.6 |
+
+The two flags pull in **opposite directions**: `inf` widens the duel spread and slightly tightens 3–4p;
+`nostrip`-only tightens the duel and widens 3p. A separate, better-powered run (8 × 2,000) put `inf`'s duel cost
+at +4.4 (7.1σ). **Spread magnitudes are not comparable across game counts** — fewer games per deck inflates
+spread — so compare only within a study.
+
+**Instrument bug found and fixed:** `mpsim`'s CONFIG line printed `apex=off` whenever infinity was off, *even
+with no-strip set*, because the print encoded the old pairing. The flag was applied correctly, but the report
+denied it — and this file's own rule is "check the printed CONFIG". Now printed independently.
+
+**And a replication failure worth keeping:** a first pass (10 × 800) had 3p improving under `inf` by −4.6 at
+3.4σ. It did not replicate (−0.6, 0.7σ). **A 3σ result from one study is a hypothesis, not a finding.**
+
+**Verdict: none of the three belongs in the DEFAULT rules, and all three are legitimate opt-in toggles.**
+`inf` alone is the cheapest — pacing-free, fixes the boost-beats-apex complaint — but it costs duel balance and
+kills the contested exchange. `nostrip`-only is the variant that actually plays the way the proposal imagines,
+and it *improves* duel balance, but it makes a 6-player game ~70% longer for arithmetic reasons that cannot be
+tuned out. That is a taste call, not a numbers call, which is exactly what a homebrew menu is for.
+
 ### 0f. The live loss/mill pairing is why a 6-player game runs 3x as long as a duel. (2026-08-24)
 Chasing Aj's shields question turned up the biggest number of the session. Median game length, 120 games each:
 
