@@ -284,6 +284,49 @@ denied it — and this file's own rule is "check the printed CONFIG". Now printe
 **And a replication failure worth keeping:** a first pass (10 × 800) had 3p improving under `inf` by −4.6 at
 3.4σ. It did not replicate (−0.6, 0.7σ). **A 3σ result from one study is a hypothesis, not a finding.**
 
+**INTERACTIONS with `loss=all` and `mill=universal`** (Aj's question, 2026-08-26). The mechanism first, because
+it explains everything below: no-strip sets `wonWithCombo = false`, and that **one variable drives both**
+downstream decisions — the shield strip *and* `millTargets`. So under no-strip an apex win is resolved **exactly
+like a jab win**: no shield comes off (so `SPECIAL_LOSS_MODE` is bypassed entirely) and *every* loser mills
+(so `MILL_SCOPE` is bypassed too, in the universal direction).
+
+Median rounds:
+
+| config | 2p | 3p | 4p | 6p |
+| --- | --- | --- | --- | --- |
+| A baseline | 11 | 15 | 20 | 31 |
+| B `loss=all` alone | 11 | 9 | 9 | **9** (the documented overshoot) |
+| G `nostrip` alone | 12 | 18 | 28 | **52** |
+| H `all` + `nostrip` | 12 | 12 | 14 | **19** |
+| I `universal` + `nostrip` | 12 | 18 | 31 | 47 |
+| J `all` + `universal` + `nostrip` | 12 | 12 | 14 | 21 |
+
+**`mill=universal` is nearly redundant with no-strip** — predicted by the code and confirmed: 52 → 47 alone, and
+adding it on top of H changes nothing (19 → 21). No-strip already forces universal milling on apex rounds.
+
+**`loss=all` + `nostrip` is a genuinely attractive PACING pairing.** Each fixes the other's failure: `all` alone
+is far too short at 6p (9 rounds), `nostrip` alone far too long (52), and together they land at **12/12/14/19 —
+flat across player counts**, better than baseline's 11/15/20/31.
+
+**And it does NOT rescue `all`'s balance.** Spread, 6 interleaved runs of 1,000 games:
+
+| | base | `all` | `all`+`nostrip` | `nostrip` |
+| --- | --- | --- | --- | --- |
+| 2p | 15.7 ± 1.2 | 15.9 ± 2.5 | 14.1 ± 3.1 | 13.9 ± 1.4 |
+| 3p | 13.0 ± 2.2 | 22.4 ± 1.4 | 25.3 ± 2.0 | 15.6 ± 3.6 |
+| 4p | 17.1 ± 2.2 | 29.5 ± 2.5 | 32.7 ± 2.1 | 17.1 ± 4.3 |
+| 6p | 13.6 ± 3.0 | **32.8 ± 2.0** | **31.2 ± 1.2** | 14.9 ± 1.3 |
+
+`all`+`nostrip` sits at **31.2 against `all`'s 32.8 (Δ1.6, 1.7σ — no difference)** and is *worse* than `all` alone
+at 3p and 4p. So the pairing inherits the entire reason `all` was reverted in v1.31.2, and 0j's mechanism holds:
+`all` multiplies the value of landing a Special by (N-1), and suppressing damage on the ~45% of rounds that end
+on an apex is nowhere near enough to defuse it. **A tempting pacing result that does not survive the balance
+check — which is exactly the trap 0j was written about.**
+
+`nostrip` alone stays close to baseline at every count. (Its duel improvement replicates in direction across two
+studies — −3.0 at 6.7σ and −1.8 at 2.4σ — so call it real but modest.) **`mill=universal`'s balance was not
+measured separately here**; 0j isolated the damage to `loss=all` alone, so it is the lower risk of the two.
+
 **Verdict: none of the three belongs in the DEFAULT rules, and all three are legitimate opt-in toggles.**
 `inf` alone is the cheapest — pacing-free, fixes the boost-beats-apex complaint — but it costs duel balance and
 kills the contested exchange. `nostrip`-only is the variant that actually plays the way the proposal imagines,

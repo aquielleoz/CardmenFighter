@@ -202,6 +202,15 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     could play with that on as a homebrew qol"*. The two effects line up — the balance gain is in duels (spread
     15.8 → 12.8) and the length cost is at 6p (+70%, while a duel only goes 11 → 12 rounds). So it reads as a
     **duel houserule**, not a general toggle, and should probably be labelled that way.
+  - **Interactions, measured (PATCHNOTES 0m).** No-strip sets `wonWithCombo=false`, which drives BOTH the shield
+    strip and the mill target — so an apex win resolves exactly like a JAB win: no shield, and every loser mills.
+    That bypasses `SPECIAL_LOSS_MODE` and `MILL_SCOPE` on apex rounds.
+    - `mill=universal` is therefore **nearly redundant** with no-strip (6p 52 → 47; adding it to `all`+`nostrip`
+      does nothing, 19 → 21).
+    - `loss=all` + `nostrip` is a lovely **pacing** pairing — each fixes the other's failure, landing at
+      12/12/14/19, flat. **But it does not rescue `all`'s balance**: 6p spread 31.2 vs `all`'s 32.8 (no
+      difference) against baseline 13.6, and *worse* than `all` at 3p/4p. It inherits the whole reason v1.31.2
+      reverted `all`. Do not be tempted by the length numbers alone.
   - **Kits** would be the other duel-relevant rule — see the entry below.
   - Everything else about the menu is built: the panel, all three entry points, netplay propagation, un-ready,
     persistence, and the export stamp.

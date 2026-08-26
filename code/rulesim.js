@@ -36,7 +36,13 @@ var CFG=[
  ['F LIVE + apex-2 inf+nostrip (both halves)',       'chosen','targeted', false,true, 'nostrip'],
  /* G is the variant that could not be measured until the engine stopped gating no-strip behind infinity: a 2
   * that deals no damage but CAN be beaten, so taking the lead with it is contestable rather than final. */
- ['G LIVE + apex-2 nostrip ONLY (beatable 2)',       'chosen','targeted', false,true, 'nostripOnly']
+ ['G LIVE + apex-2 nostrip ONLY (beatable 2)',       'chosen','targeted', false,true, 'nostripOnly'],
+ /* INTERACTIONS (2026-08-26, Aj's question). no-strip sets wonWithCombo=false, and that ONE variable drives both
+  * the shield decision and the mill decision — so an apex win is resolved exactly like a JAB win: no strip at
+  * all (SPECIAL_LOSS_MODE bypassed) and every loser mills (MILL_SCOPE bypassed, in the universal direction). */
+ ['H  loss=all + nostrip only',                      'all','targeted',    false,true, 'nostripOnly'],
+ ['I  mill=universal + nostrip only',                'chosen','universal',false,true, 'nostripOnly'],
+ ['J  all + universal + nostrip only',               'all','universal',   false,true, 'nostripOnly']
 ];
 function run(loss,mill,sh,dp,ap,P,n){
   E.setSpecialLossMode(loss); E.setMillScope(mill); E.setShieldsPerPlayer(sh); E.setDrawPerPlayer(dp);
