@@ -1116,7 +1116,10 @@
           if (SHIELD_CARDS && swho.shieldPile) { for (var sgi = 0; sgi < sgain; sgi++) { var sgc = drawOne(swho); if (sgc) swho.shieldPile.push(sgc); swho.shields += 1; } }   // Mechanic 1: a gained shield pulls a card from that player's own deck
           else swho.shields += sgain;
         }
-        if (eff.shieldImmune) pl.shieldImmune = true;      // Apollo (Super): Sanctuary also locks the CASTER's shields for the round (caster-only)
+        /* Apollo (Super): Sanctuary also locks the CASTER's shields for the round. The base card is already
+         * symmetric (`shieldAll` — every player gains a shield, a wash on the shield race), so THIS is the only
+         * asymmetric protection left once Leyline and Holy Shroud are shared, and WARD_ALL shares it too. */
+        if (eff.shieldImmune) { pl.shieldImmune = true; if (WARD_ALL) wardTable(st, 'shieldImmune'); }
         if (eff.draw) drawCards(pl, eff.draw);
         spendCard(pl, card); break;
       case 'ward':                                         // Leyline base: pure can't-lose, no ramp/recycle

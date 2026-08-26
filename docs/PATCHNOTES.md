@@ -276,7 +276,7 @@ every mitigation effect in the game explains why — it lives in only **two of t
 | suit | shield mitigation |
 | --- | --- |
 | ♦ Wizard | Leyline Ascension (immune, cantLose) |
-| ♥ Cleric | Holy Shroud (absorb), Sanctuary (+shield) |
+| ♥ Cleric | Holy Shroud (absorb) — plus Sanctuary, which is **already symmetric** (`shieldAll`: every player gains) |
 | ♣ Fighter | **none** |
 | ♠ Rogue | **none** |
 
@@ -317,8 +317,17 @@ annihilated decks roughly double (4% → 8-10%). It is also **good for duels** (
 shields-2+N trades back: pacing improves to 17 rounds (the documented middle ground) but the spread widens again
 to 23.3, because more shields means more rounds in which mitigation matters.
 
-**The remaining asymmetry is Sanctuary (♥, +shield).** It is shield *gain* rather than loss-prevention, so it was
-left alone here — it is the obvious next thing to try if anyone wants to push `all` further.
+**CORRECTION — Sanctuary is NOT an asymmetry, and this entry first said it was.** Aj: *"sanctuary gains everyone
+a shield it's already symmetric"*. He is right: it carries `shieldAll: true` ("Every player gains 1 Shield"), and
+the engine's own comment calls it *"a wash on the shield race (the nerf)"*. The suit audit above listed it as
+Cleric mitigation without noting that, which made the conclusion wrong in a way that mattered — after sharing
+Leyline and Holy Shroud there is **no asymmetric protection CARD left at all**, so the residual 18.3 spread is
+not explained by another one.
+
+**The one real remainder is FORM-granted, not card-granted:** under **Apollo Mode** (♥ Super), Sanctuary
+additionally locks the **caster's** shields for the round (`eff.shieldImmune`, caster-only). `WARD_ALL` now
+shares that too, for consistency — though it is Super-gated (needs a Ride plus J+Q+K), so it is rare enough that
+it cannot account for much.
 
 **Method note:** `mpsim` now self-checks the ward behaviourally, not just by echoing the flag — seat 1 owns the
 only Shroud, seat 0 wins a Special under `loss=all`, and it asserts that a **non-owner** keeps its shield, which

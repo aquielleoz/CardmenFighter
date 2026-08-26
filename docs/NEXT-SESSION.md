@@ -195,6 +195,25 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   - Everything else about the menu is built: the panel, all three entry points, netplay propagation, un-ready,
     persistence, and the export stamp.
 
+- **`loss=all` IS REPAIRABLE, and the whole avenue is now measured (PATCHNOTES 0n).** Everything below is done;
+  do not re-derive it.
+  - **The law:** under `all`, any shield-loss mitigation multiplies in value by (N-1), and only **two of four
+    classes have any** (♦ Leyline; ♥ Holy Shroud). That is the entire reordering — Wizard/Sage/Cleric to the top,
+    Fighter/Rogue/Berserker (the decks with none) to the bottom.
+  - **Scaling the OFFENCE does not work and is closed.** `damageAll` and `damageSpan='half'` buy the crushed
+    decks 2-3 points and no rank movement; the biggest beneficiary is Warlock, which already had defence.
+  - **Sharing the mitigation DOES work.** `WARD_ALL` (Leyline + Holy Shroud + Apollo's caster-only lock protect
+    the table, not the owner) takes the 6p spread from 32.1 to **18.3** while keeping the pacing win (30 → 11
+    rounds), roughly doubles Fighter/Rogue, and *improves duels* (2p spread 13.2 → 8.4).
+  - **Still not the shipped game:** 18.3 vs baseline 13.0, Fighter/Rogue at 8-10% against a 16.7% fair share,
+    rho 0.55. Adding shields-2+N trades back (pacing 17 rounds, spread 23.3).
+  - **Sanctuary is already symmetric** (`shieldAll`) — an earlier draft of 0n wrongly called it the remaining
+    asymmetry. After Leyline and Shroud are shared there is no asymmetric protection CARD left; the only
+    remainder is Form-granted (Apollo's caster-only lock), and it is Super-gated and rare.
+  - **If anyone wants to push further,** the lever is giving ♣/♠ mitigation of their own, not touching the
+    Wizard/Cleric cards again. The flags (`setWardAll`, `setDamageSpan`) are on `exp/shield-break-all`, default
+    off, with behavioural self-checks in `mpsim`.
+
 - **KITS: sequences of consecutive pairs** (a player asked for them, 2026-08-25 — *"2kits, 3kits"*, e.g. a pair
   of 4s with a pair of 5s). Aj's read was that this is a local variant; the analysis says otherwise, and it
   matters, because it changes this from a house rule to a restoration.
