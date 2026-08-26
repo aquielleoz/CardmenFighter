@@ -1509,7 +1509,12 @@
     var winner = st.lastPlayer;
     st.preFightHandled = false;                                                // new round → fresh pre-fight windows
     var wonWithCombo = st.pile.combo.size > 1;                                 // only Specials strip shields
-    if (APEX_INF && APEX_NOSTRIP && hasApex(st.pile.combo.cards)) wonWithCombo = false;   // only the no-strip variant declaws the apex
+    /* NO-STRIP IS INDEPENDENT OF INFINITY (2026-08-26). This used to require both, which quietly made
+     * `nostrip` alone a no-op — and that is a coherent variant, not a broken one. Aj's case for it: a 2 that
+     * strips no shield but CAN still be beaten is a *contestable* tempo play. You take the initiative for free,
+     * and a rival who sees the opening escalates — a boosted pair of Aces takes the round back and puts the
+     * damage on you. The unbeatable version cannot produce that exchange at all, because nothing answers it. */
+    if (APEX_NOSTRIP && hasApex(st.pile.combo.cards)) wonWithCombo = false;   // a winning play containing a 2 deals no damage
     var losers = livingNonWinners(st, winner);
     // who takes a shield loss (Specials only): 'all' = every loser; 'chosen' = the winner's one pick
     var strikeTargets = [];

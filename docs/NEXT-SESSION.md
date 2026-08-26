@@ -179,10 +179,38 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     make it strictly **opt-in** and keep the code path as the default.
 - **The homebrew rules menu SHIPPED in v1.31.22** (four multiplayer toggles, all defaulting off; rules travel to
   clients and un-ready the table; the export stamps them as `v:'2.1-mp'`). What is left of the idea:
-  - **The apex pair — two separate toggles, but MEASURE FIRST** (Aj, 2026-08-26: *"let's run the numbers
-    correctly first before adding it in"*). `setApexInfinity` and `setApexNoStrip` are the only never-measured
-    flags in the engine — their "balance-neutral" claim came from the broken positional-flag study (PATCHNOTES
-    0j). They are also the first **duel-relevant** rules, so they widen the menu's reach as well as its depth.
+  - **The apex pair — MEASURED 2026-08-26 (PATCHNOTES 0m). THREE opt-in variants, none fit to be a default.**
+    They would be the first menu items that change a duel at all.
+    - **`inf` only** — a 2 ranks at infinity so no boost can pass it. **Pacing-free** (medians identical to
+      baseline) and it fixes the real complaint, but it **widens the duel spread** (+4.4, 7.1σ at 8×2000) and
+      **kills the contested exchange**: apex plays beaten in the same round drop from ~28% to **1%** at 6p.
+    - **`nostrip` only** — a 2 that deals no damage but **can still be beaten**. This is the variant that plays
+      the way the proposal imagines: the contest rate holds at **19% at 4p / 27% at 6p**, and it *improves* duel
+      spread (−3.0, 6.7σ) while widening 3p (+4.4, 4.4σ). Cost: **6p games ~70% longer**, for an arithmetic
+      reason — ~45% of 6p rounds end on an apex play, and under no-strip those deal no damage, which predicts
+      ~1.8x rounds and measures 30 → 52. **That cannot be tuned away.**
+    - **Both** — the literal original proposal; the length cost of `nostrip` with none of its exchange.
+    - The engine used to gate `nostrip` behind `inf`, which made the standalone flag a silent no-op. **Gate
+      removed** (engine ~1512), so all three are now expressible and measurable.
+    - `mpsim`'s CONFIG print used to report `apex=off` for the nostrip-only arm — fixed, since "read the printed
+      CONFIG" is only useful if the print is honest.
+  - **WHEN AN APEX TOGGLE LANDS, THE PANEL'S HEADER NOTE MUST CHANGE.** It currently reads *"These change 3–6
+    player games; a duel plays the same either way"*, which is true of all four shipped toggles and **false** the
+    moment an apex rule is added — that is the whole point of it being the first duel-relevant rule. `rulestest`
+    asserts that sentence (`/duel plays the same/`), so the suite will catch it rather than letting the panel lie.
+  - **Aj's read (2026-08-26), and it matches the numbers:** *"no strip is nice in 2p but bad in 6p so players
+    could play with that on as a homebrew qol"*. The two effects line up — the balance gain is in duels (spread
+    15.8 → 12.8) and the length cost is at 6p (+70%, while a duel only goes 11 → 12 rounds). So it reads as a
+    **duel houserule**, not a general toggle, and should probably be labelled that way.
+  - **Interactions, measured (PATCHNOTES 0m).** No-strip sets `wonWithCombo=false`, which drives BOTH the shield
+    strip and the mill target — so an apex win resolves exactly like a JAB win: no shield, and every loser mills.
+    That bypasses `SPECIAL_LOSS_MODE` and `MILL_SCOPE` on apex rounds.
+    - `mill=universal` is therefore **nearly redundant** with no-strip (6p 52 → 47; adding it to `all`+`nostrip`
+      does nothing, 19 → 21).
+    - `loss=all` + `nostrip` is a lovely **pacing** pairing — each fixes the other's failure, landing at
+      12/12/14/19, flat. **But it does not rescue `all`'s balance**: 6p spread 31.2 vs `all`'s 32.8 (no
+      difference) against baseline 13.6, and *worse* than `all` at 3p/4p. It inherits the whole reason v1.31.2
+      reverted `all`. Do not be tempted by the length numbers alone.
   - **Kits** would be the other duel-relevant rule — see the entry below.
   - Everything else about the menu is built: the panel, all three entry points, netplay propagation, un-ready,
     persistence, and the export stamp.
