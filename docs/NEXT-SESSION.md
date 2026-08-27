@@ -7,7 +7,7 @@ Current version: **v1.31.25**. The 2-apex + Forms **rework is simply the game** 
 
 ## ☀️ START HERE — where we left off (2026-08-27)
 
-`main` is at **v1.31.37**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
+`main` is at **v1.31.38**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
 nothing is in flight — every PR is merged and every branch pruned.
 
 **Sanity check before you touch anything** (from `code/`, ~30 seconds):
@@ -16,7 +16,7 @@ nothing is in flight — every PR is merged and every branch pruned.
 npm test && node mptest.js && node rulestest.js
 ```
 
-Expect **287 / 0**, **28 / 0**, **82 / 0**, **100 / 0**. If a count disagrees, the suite is right — fix the
+Expect **292 / 0**, **28 / 0**, **82 / 0**, **104 / 0**. If a count disagrees, the suite is right — fix the
 number here.
 
 **What the last stretch was about**, newest first, all of it in the changelog below: the chop (v1.31.33), rule
@@ -28,8 +28,8 @@ layer where clients suggest and the host decides (v1.31.31), the deck picker's t
 1. ~~**BRING THE PRESET BUTTONS NEXT TO THE RULES THEY CHANGE**~~ **SHIPPED in v1.31.37** — four sections, both presets in
    the `Shapes & chops` heading, and scope moved from thirteen rows onto the four headings (every section turned
    out to hold rules of a single scope). See the changelog.
-2. **Chop strip or not.** Note the subtlety recorded in the BACKLOG: "did this play *chop* something" is not
-   visible from the pile.
+2. ~~**Chop strip or not.**~~ **SHIPPED in v1.31.38** as `chopNoStrip`, with the flag stamped at play time —
+   the pile genuinely cannot answer the question afterwards. See the changelog.
 3. Then the remaining Dou Dizhu shapes — trio+single, four+two, the airplane. (The **Tiến lên preset** shipped
    in v1.31.34.)
 
@@ -580,6 +580,48 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.38 — chops destroy no shields (an option), and why it needed a flag
+
+The fourteenth rule, and the counterpart to *"Fights won with a 2 destroy no shields"* — that one is about the
+play, this one about the **answer**. A round won **by a chop** costs nobody a shield: the chop buys you the lead
+and nothing else.
+
+**Why it could not simply read the pile, which is what Aj asked.** `apexNoStrip` gets away with
+`hasApex(st.pile.combo.cards)` at resolve time because "was the winning play made of 2s?" is a property of the
+play *itself* — the cards are right there. "Did this play **chop**?" is a property of the play **and what it
+beat**, and `play()` replaces the pile the moment a play is accepted, discarding the beaten combo. Demonstrated
+before writing any of it — three different actions, byte-identical piles:
+
+| what the player did | resulting pile |
+| --- | --- |
+| led a Quadro into an empty pile | `quadro/4 key [7] byPlayer 0 cards 7D,7H,7C,7S` |
+| beat a lower Quadro with it | `quadro/4 key [7] byPlayer 0 cards 7D,7H,7C,7S` |
+| **chopped a pair of 2s with it** | `quadro/4 key [7] byPlayer 0 cards 7D,7H,7C,7S` |
+
+So the fact is recorded where it is still knowable: `play()` stamps `st.pile.chopped` between validating the play
+against the old pile and replacing it. It travels in netplay snapshots like the rest of the pile, and a later
+play in the same round overwrites it — correctly, since a chop that is then beaten by a higher Quadro did not win
+the round.
+
+**One definition of "chops", shared.** `isChopOf(cand, cur)` is now used by `beats()` to allow the play *and* by
+`play()` to stamp it. The rule that lets a chop through and the record that it happened cannot drift apart —
+which they would, being four hundred lines apart in the file.
+
+Note `wonWithCombo=false` drives **both** the shield strip and the mill target, so a no-strip chop resolves
+exactly like a jab win, as `apexNoStrip` does.
+
+**The wide layout tightened to absorb it.** Every rule costs a grid row (~76px), which took the panel to 941px
+and pushed a 14-inch MacBook Pro back into scrolling. Trimming the wide-only rhythm — gap 9→7px, row padding
+12→10px, section margins 10→6px — brought it to **881px**: fits at 1080p, at 1900×1000, and at 1512×945. A 13-inch
+Air (1440×900) is 23px over, and 1280×800 scrolls as before. **This is a treadmill: the next rule costs another
+~76px**, so expect to trim again or accept the threshold rising.
+
+**A note on my own tooling, because it cost time three times today:** an edit script that asserts each anchor and
+writes once at the end discards *every* earlier edit when a later assert throws — twice it looked like a change
+had landed when nothing had been written. Write after each edit instead.
+
+Suites: `test` 287 → **292**, `rulestest` 102 → **104**.
 
 ### v1.31.37 — the rules panel gets sections, and the presets move into theirs
 
