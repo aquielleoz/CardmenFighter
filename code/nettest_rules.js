@@ -29,6 +29,7 @@ const modalOnTop=p=>p.evaluate(()=>{
   return !!(el && m.contains(el));
 });
 const flags=p=>p.evaluate(()=>({ loss:CardmenEngine.isSpecialLossMode(), shieldScale:CardmenEngine.isShieldsPerPlayer(), dblPair:CardmenEngine.isDoublePair() }));
+const basicsOf=p=>p.evaluate(()=>!!(window.__cmfNetState ? window.__cmfNetState.basics : (window.__cmf && __cmf.basics && __cmf.basics())));
 const startEnabled=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); return !!(g && !g.disabled && /Start/i.test(g.textContent||'')); });
 const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); return !!(g && /Ready/i.test(g.textContent||'')); });
 (async()=>{
@@ -103,6 +104,28 @@ const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); r
   ok(await until(async()=>(await host.evaluate(()=>document.querySelectorAll('#hand .card').length))>0), 'the duel starts');
   ok((await flags(host)).loss==='all',
      'and it is played under the custom rules — hostStartRealN used to hardcode the defaults here and would have silently ignored the menu');
+
+  /* ---------- THE GAME MODE TRAVELS NOW (v1.31.32). It used to be `sel.mode` in the setup dialog and
+   * hostStartRealN hardcoded `gameBasics=false`, so picking Basics was silently ignored in every online game.
+   * As a rule it propagates like the rest — asserted on BOTH seats, since a host-only Basics game and a
+   * client-only one are each a table playing two different games. */
+  ok(await until(async()=>await basicsOf(join)===false), 'the duel just played is NOT in Basics (the default)');
+  const room2='RB'+Date.now().toString().slice(-3);
+  const h2=await ctx.newPage(); h2.on('pageerror',e=>errs.push('h2: '+e.message));
+  const j2=await ctx.newPage(); j2.on('pageerror',e=>errs.push('j2: '+e.message));
+  await h2.goto(url('host').replace(/room=[^&]*/,'room='+room2));
+  await j2.goto(url('join').replace(/room=[^&]*/,'room='+room2));
+  await h2.evaluate(()=>{ try{ localStorage.setItem('cmf_rules_v1','basics=basics'); }catch(e){} });
+  await h2.reload(); await wait(600);
+  ok(await until(()=>j2.evaluate(()=>!!document.getElementById('lobbyGo'))), 'a second table forms, the host on Basics');
+  await j2.evaluate(()=>{ const g=document.getElementById('lobbyGo'); if(g)g.click(); });
+  ok(await until(async()=>await h2.evaluate(()=>{ const g=document.getElementById('lobbyGo'); return !!(g&&!g.disabled&&/Start/i.test(g.textContent||'')); })),
+     'the client readies');
+  await h2.evaluate(()=>{ const g=document.getElementById('lobbyGo'); if(g && !g.disabled)g.click(); });
+  ok(await until(async()=>(await h2.evaluate(()=>document.querySelectorAll('#hand .card').length))>0), 'the Basics duel starts');
+  ok(await until(async()=>await basicsOf(h2)===true), 'the HOST is in Basics');
+  ok(await until(async()=>await basicsOf(j2)===true),
+     'and so is the CLIENT — before v1.31.32 the host hardcoded Full and the choice was dropped on the floor');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);

@@ -40,8 +40,8 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   ok(await p.evaluate(()=>!!document.getElementById('rulesBtn')), 'the setup dialog offers ⚗️ Custom rules');
   await openRules(p);
   const keys=await p.evaluate(()=>[].map.call(document.querySelectorAll('.settingRow[data-rule]'),b=>b.getAttribute('data-rule')));
-  ok(JSON.stringify(keys)===JSON.stringify(['lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','dblPair','kits3','quadro']),
-     `nine rules, in order (${keys.join(', ')})`);
+  ok(JSON.stringify(keys)===JSON.stringify(['basics','lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','dblPair','kits3','quadro']),
+     `ten rules, with the game mode first (${keys.join(', ')})`);
   /* ORDER IS LOAD-BEARING here: apexNoStrip's note says "unless the rule above is also on", meaning apexInf.
    * Kits were first inserted between them, which silently pointed that sentence at the wrong rule. */
   ok(keys.indexOf('apexNoStrip')===keys.indexOf('apexInf')+1,
@@ -51,10 +51,16 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   /* The panel must be honest about SCOPE. It used to say a duel plays the same either way, which was true while
    * every toggle was a 2-player no-op — and became FALSE the moment the apex rules landed, since those are the
    * first two that change a duel. This assertion is what forces the copy to keep up. */
-  ok(await p.evaluate(()=>/first four only change 3–6 player games/i.test((document.querySelector('.ruleIntro')||{}).textContent||'')),
-     'the panel distinguishes the multiplayer-only toggles from the ones that change duels');
+  /* THE INTRO NO LONGER COUNTS ROWS. It used to say "the first four … the last three", and went stale on every
+   * added rule — twice shipping a wrong number. It now points at the per-row scope tags, which are asserted
+   * just below, so the two cannot disagree. */
+  ok(await p.evaluate(()=>/each rule says whether it changes a duel/i.test((document.querySelector('.ruleIntro')||{}).textContent||'')
+                       && !/first (four|five|three)/i.test((document.querySelector('.ruleIntro')||{}).textContent||'')),
+     'the intro points at each row\'s own scope tag instead of counting rows');
   const scopes=await p.evaluate(()=>[].map.call(document.querySelectorAll('.settingRow[data-rule] .ruleScope'),e=>e.textContent.trim()));
-  ok(scopes.length===9 && scopes.slice(0,4).every(t=>/3–6/.test(t)) && scopes.slice(4).every(t=>/all player counts/i.test(t)),
+  /* The game-mode row sits FIRST and is all-counts, then the four multiplayer-only ones, then the rest. */
+  ok(scopes.length===10 && /all player counts/i.test(scopes[0])
+     && scopes.slice(1,5).every(t=>/3–6/.test(t)) && scopes.slice(5).every(t=>/all player counts/i.test(t)),
      `and every row carries its own scope tag (${scopes.join(' | ')})`);
   ok(await p.evaluate(()=>/tuned for the default rules/i.test((document.querySelector('.ruleWarn')||{}).textContent||'')),
      'and warns that the Rival does not adapt');
@@ -165,6 +171,26 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   }), 'and clicking a read-only segment changes nothing in the engine — not merely greyed out');
   ok(await p.evaluate(()=>/already running/i.test((document.querySelector('.modal .netmsg')||{}).textContent||'')),
      'with a line saying why, rather than a dead control');
+  /* ---------- THE GAME MODE (v1.31.32), moved here out of the setup dialog. It is only observable on a live
+   * game, so this starts one — and it is the row that closed a real gap: hostStartRealN used to hardcode
+   * gameBasics=false, so an online game silently ignored the choice. Rules travel to clients, so now it cannot. */
+  const p4=await ctx.newPage(); p4.on('pageerror',e=>errs.push('p4: '+e.message));
+  await p4.goto(HTML); await wait(500);
+  await p4.evaluate(()=>window.__solo.setRulesFromKey('basics=basics'));
+  ok((await p4.evaluate(()=>window.__solo.rulesKey()))==='basics=basics',
+     'Basics serialises like any other mode rule, so it reaches a netplay client and the export');
+  await p4.evaluate(()=>document.getElementById('newBtn').click()); await wait(300);
+  ok(await p4.evaluate(()=>/Basics/.test((document.getElementById('modeHint')||{}).textContent||'')
+                       && /Custom rules/.test((document.getElementById('modeHint')||{}).textContent||'')),
+     'the setup dialog still SHOWS the mode and names where to change it — Basics is the beginner ramp, so it must not go invisible');
+  ok(!(await p4.evaluate(()=>!!document.getElementById('setMode'))),
+     'and the old segmented control is gone from the setup dialog');
+  await p4.evaluate(()=>{ const g=document.getElementById('goFirstBtn'); if(g)g.click(); });
+  ok(await until(async()=>!!(await p4.evaluate(()=>window.__solo && window.__solo.st()))), 'a duel starts under it');
+  ok(await p4.evaluate(()=>window.__solo.st().basics===true),
+     'and the game is really in Basics — the rule reaches newGame, not just the panel');
+  await p4.evaluate(()=>window.__solo.setRulesFromKey(''));
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   await ctx.close();
 

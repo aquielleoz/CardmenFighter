@@ -262,6 +262,7 @@
   .modal .bulkBtn.clear{margin-left:auto;}
   .modal .bulkBtn:disabled{opacity:.35; cursor:default;}
   /* In-play vs suggested, and who wants what. Both live under the note, inside .settingBody. */
+  .segHint .hintWhere{opacity:.65; font-weight:700;}
   .modal .ruleLive{display:block; margin-top:3px; font-size:11px; font-weight:800; color:var(--gold); opacity:.9;}
   .modal .ruleVotes{display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;}
   .modal .ruleVote{font-size:11px; font-weight:700; padding:2px 7px; border-radius:8px; background:#241634; border:1px solid var(--line); color:var(--txt); opacity:.9;}
@@ -1269,6 +1270,16 @@ __QR__
    * pair would be the first duel-relevant rules. */
   var RULES_KEY='cmf_rules_v1';
   var RULE_DEFS=[
+    /* GAME MODE, moved out of the setup dialog in v1.31.32 (Aj: "move this choice to the custom rules. full
+     * game is of course the default"). It is a MODE row, and 'full' is its first value, so it is "off" by the
+     * panel's own definition and Basics reads as a customised game — which it is. Note this is the one row that
+     * is NOT homebrew: Basics is the supported way to learn, so its note says so rather than leaning on the
+     * panel's "not the intended way to play" framing.
+     * Moving it here also FIXED a real gap: hostStartRealN used to hardcode gameBasics=false, so choosing
+     * Basics was silently ignored in every online game. Rules travel to clients, so now it does not. */
+    { key:'basics',      duel:true, label:'Game mode',
+      mode:[{v:'full',label:'Full game'},{v:'basics',label:'Basics'}],
+      note:'“Full game” is the whole thing, J/Q/K Rides &amp; Form Changes included. “Basics” drops the transform layer for a clean 3–10 + A + 2 game — the way to learn the ladder, effects and energy first.' },
     { key:'lossAll',     mp:true,  label:'Special fights destroy a shield for each rival',
       note:'Normally the winner picks one rival to strike.' },
     { key:'millAll',     mp:true,  label:'All round losers send cards to their Energy Pile',
@@ -1410,6 +1421,17 @@ __QR__
   function saveRules(){ try{ localStorage.setItem(RULES_KEY, myRulesKey()); }catch(e){} }
   function ownRules(){ RULE_DEFS.forEach(function(d){ MY_RULES[d.key]=RULES[d.key]; }); saveRules(); }  // your picks ARE the rules
   (function loadRules(){ try{ var k=localStorage.getItem(RULES_KEY); if(k!=null) setMyRulesFromKey(k); }catch(e){} })();
+  /* MIGRATION (v1.31.32): the game mode used to live in the setup selection as `sel.mode`. A player who last
+   * played Basics must not be silently moved to the Full game, so a saved 'basics' is folded into the rules
+   * once and then dropped from the selection. Runs after loadRules so an explicit rule key still wins. */
+  (function migrateMode(){
+    try{
+      var raw=localStorage.getItem(SETUP_KEY); if(!raw) return;
+      var o=JSON.parse(raw); if(!o || o.mode!=='basics') return;
+      if(RULES.basics!=='basics'){ RULES.basics='basics'; MY_RULES.basics='basics'; applyRules(); saveRules(); }
+      delete o.mode; localStorage.setItem(SETUP_KEY, JSON.stringify(o));
+    }catch(e){}
+  })();
   function rulesChip(){ return customRules() ? '<span class="ruleChip" title="This game uses custom rules">⚗️ Custom rules</span>' : ''; }
   var tutorialMode=false;                 // guided-tutorial flag: rigs a controlled deal + runs the coach
   var currentLesson=null;                 // the active tutorial lesson object (see LESSONS) — drives the rig + step script
@@ -1556,7 +1578,7 @@ __QR__
         rival:validDeck(s.rival)? s.rival: DEFAULT_SEL.rival,
         diff: validDiff(s.diff) ? s.diff : DEFAULT_SEL.diff,
         players: (s.players>=2 && s.players<=6) ? s.players : DEFAULT_SEL.players,
-        mode: validMode(s.mode) ? s.mode : DEFAULT_SEL.mode,
+        mode: validMode(s.mode) ? s.mode : DEFAULT_SEL.mode,   // kept only to migrate — see migrateMode()
         opps: Array.isArray(s.opps) ? s.opps : [] };
     }catch(e){}
     return {you:DEFAULT_SEL.you, rival:DEFAULT_SEL.rival, diff:DEFAULT_SEL.diff, players:DEFAULT_SEL.players, mode:DEFAULT_SEL.mode, opps:[]};
@@ -4472,7 +4494,8 @@ __QR__
     currentLesson=lsn;
     hideOverlay();
     var basics=(lsn.basics!==false);   // Basics lessons hide transforms; Advanced lessons run in Full mode
-    sel.mode=basics?'basics':'full'; saveSel();
+    /* The lesson overrides the RUNTIME flag only, and deliberately does not touch RULES: a tutorial choosing
+     * Basics for you must not rewrite the mode you picked for your own games. It used to write sel.mode. */
     gameBasics=basics; tutorialMode=true; mpCount=2; difficulty='minion';
     youDeck='full'; rivalDeck='full'; seatDecks=['full','full']; seatDiffs=[null,'minion'];
     clearPersonas();   // a persona from the game before would otherwise linger — the tutorial wants a plain "Rival"
@@ -4577,8 +4600,11 @@ __QR__
         '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span></button>';
     }
     showModal('<h2>⚗️ '+(sug?'Rules &amp; suggestions':'Custom rules')+'</h2>'+
-      '<p class="ruleIntro">Not the default or intended way to play — but certainly <i>a</i> way to play. '+
-        '<b>The first four only change 3–6 player games; the last five change duels too.</b></p>'+
+      /* NO ROW COUNTING. This sentence said "the first four … the last three", then four, then five — it went
+       * stale every time a rule was added, and twice shipped wrong. Every row already carries its own scope
+       * tag, which is asserted, so point at those instead of restating them positionally. */
+      '<p class="ruleIntro">Mostly not the default or intended way to play — but certainly <i>a</i> way to play. '+
+        '<b>Each rule says whether it changes a duel or only 3–6 player games.</b></p>'+
       (sug ? '<div class="netmsg">The <b>host</b> sets the rules for the table. What you pick here is a '+
              '<b>suggestion</b> — everyone can see it, including the host, who decides.</div>' : '')+
       (ro ? '<div class="netmsg">'+(opts.why||'These are the rules this game is using. Rules are chosen before a game starts.')+'</div>' : '')+
@@ -5095,10 +5121,9 @@ __QR__
     TUT.stop(); currentLesson=null;   // leaving to set up a fresh duel ends any running tutorial
     var html='<h2>New Duel</h2>'+
       '<div class="setup">'+
-        '<div class="setRow modeRow"><span class="segToggle" id="setMode" role="radiogroup" aria-label="Game mode">'+
-          '<button type="button" class="segBtn" data-mode="full" role="radio" title="The complete game — adds the J/Q/K Rides &amp; Form Changes layer on top of the basics.">Full game</button>'+
-          '<button type="button" class="segBtn" data-mode="basics" role="radio" title="No transforms — a clean 3–10 + A + 2 game to learn the ladder, effects, and energy first.">Basics</button>'+
-        '</span></div>'+
+        /* The CONTROL moved to ⚗️ Custom rules, but the ANSWER stays here: Basics is the beginner ramp, and a
+         * mode you cannot see from the New Duel screen is a mode a new player never finds. One line, and it
+         * names where to change it. */
         '<div class="segHint" id="modeHint"></div>'+
         '<label class="setRow"><span>Players</span><select id="setPlayers"><option value="2">2 · Duel</option><option value="3">3 · Free-for-all</option><option value="4">4 · Free-for-all</option><option value="5">5 · Free-for-all</option><option value="6">6 · Free-for-all</option></select></label>'+
         '<label class="setRow"><span>Your name</span><input id="setName" type="text" maxlength="14" placeholder="You" autocomplete="off" spellcheck="false"></label>'+
@@ -5141,9 +5166,8 @@ __QR__
     $('setYouDeck').value=sel.you; $('setRivalDeck').value=sel.rival; $('setDiff').value=sel.diff; $('setPlayers').value=String(sel.players||2);
     if($('setName')){ $('setName').value=myName; $('setName').addEventListener('input', function(){ saveMyName(this.value); }); }
     var MODE_HINT={ full:'Full game — with Rides &amp; Forms (J/Q/K).', basics:'Basics — no transforms; learn the ladder, effects &amp; energy first.' };
-    function paintMode(){ var m=sel.mode||'full'; Array.prototype.forEach.call(document.querySelectorAll('#setMode .segBtn'), function(btn){ var on=btn.getAttribute('data-mode')===m; btn.classList.toggle('active', on); btn.setAttribute('aria-checked', on?'true':'false'); }); var h=$('modeHint'); if(h) h.innerHTML=MODE_HINT[m]||''; }
-    function pickMode(m){ if((sel.mode||'full')===m) return; sel.mode=m; saveSel(); paintMode(); refreshReset(); }
-    Array.prototype.forEach.call(document.querySelectorAll('#setMode .segBtn'), function(btn){ btn.addEventListener('click', function(){ pickMode(btn.getAttribute('data-mode')); }); });
+    function modeHintHTML(){ return (MODE_HINT[RULES.basics]||MODE_HINT.full)+' <span class="hintWhere">Change it in ⚗️ Custom rules.</span>'; }
+    function paintMode(){ var h=$('modeHint'); if(h) h.innerHTML=modeHintHTML(); }
     paintMode();
     function refreshReset(){ var r=$('resetSetup'); if(r) r.style.visibility=isDefaultSel()?'hidden':'visible'; }
     // "✏️ Custom deck…" is a sentinel, not a deck: open the builder, then re-open Setup so every picker
@@ -5221,7 +5245,7 @@ __QR__
     sel.you=$('setYouDeck').value; sel.rival=$('setRivalDeck').value; sel.diff=$('setDiff').value; sel.players=parseInt($('setPlayers').value,10)||2; saveSel();
     youDeck=resolveDeck(sel.you); rivalDeck=resolveDeck(sel.rival); difficulty=resolveDiff(sel.diff);
     tutorialMode=false; currentLesson=null;   // a normal duel from setup is never rigged
-    gameBasics=(sel.mode==='basics');
+    gameBasics=(RULES.basics==='basics');   // the rules own the mode now (see RULE_DEFS)
     mpCount=Math.max(2,Math.min(6,sel.players||2));
     if(mpCount>2){
       seatDecks=[youDeck]; seatDiffs=[null];
@@ -5810,7 +5834,7 @@ __QR__
        * every online game, which would have silently overridden the custom-rules menu — and inconsistently,
        * since it never touched shields or draw. The host's rules are the game's rules. */
       E.setShieldCards(true); E.setLoserMill(true); applyRules();
-      gameBasics=false;                                // online is always the Full game (Basics is a solo learn-the-ropes mode for now)
+      gameBasics=(RULES.basics==='basics');            // the host's rules are the table's rules, Basics included
       started=true; hideOverlay(); hideNetroot();
       /* Seat topology, NOT readiness: the loop below indexes seats 1..joined, so a readiness-based count would
        * skip a seat whose stamp is stale and mis-assign its deck. Un-readying gates the Start BUTTON (see the
@@ -6555,7 +6579,7 @@ __QR__
     '#netroot .deckSel:disabled{opacity:.55}#netroot .lobbyStatus{margin:12px 0;padding:10px 12px;background:#141a24;border:1px solid #263140;border-radius:8px;color:#cdd8e6}';
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
   /* --headerH: measured, not hardcoded. #disconBar hangs off it, and the header's height is not a constant —
    * 56px on desktop, 37px in the landscape band, and ~92px on a portrait phone where it WRAPS to two rows.
    * A hardcoded 54px floated it 17px low in landscape and put it 38px INSIDE the wrapped portrait header,
