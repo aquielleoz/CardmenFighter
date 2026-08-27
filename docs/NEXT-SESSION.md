@@ -607,13 +607,27 @@ smaller sibling, its bigger relative, the trio version of a run, and a length un
 | Trio + one spare card | 三带一 | trio + any single, size 4 | the trio |
 | Four of a kind + two spare cards | 四带二 | quad + a pair or two singles, size 6 | the quad |
 | Airplane | 飞机 | two or more **consecutive** trios | the top trio |
-| Straights can run longer than five | 单顺 | a straight of any length 5..hand | value, at equal length |
+| **Straight length** (a mode) | 单顺 | `Exactly 5` / `3 or more` / `5 or more` | value, at equal length |
 
-**单顺 is not a new shape, and that matters.** A five-card chain and our straight are the same cards, so a
-parallel type would have been ambiguous — the four-card-slot problem again. It unlocks the **length** of the
-existing straight instead, and `beats()` already demands equal size, so a six-card run and a five-card run never
-meet. That is the family's own rule and it is what stops "longer" from meaning "simply better". `detectStraight`
-was generalised from exactly-5 to any length ≥5 so there is one definition of "is this a run" rather than two.
+**单顺 is not a new shape — it is the straight's MINIMUM LENGTH, and it is a mode** (Aj: *"turns straights into
+something similar to the 2 pair group — OFF / 3 or more / 5 or more"*). A five-card chain and our straight are the
+same cards, so a parallel type would have been ambiguous; and **"3 or more" is a strict superset of "5 or more"**,
+which is exactly the relationship that forced the four-card double-pair slot to be a mode rather than two
+booleans. `Exactly 5` is the shipped rule, so "off" here is a *length* like the others, not a disabled state.
+`3 or more` is Tiến lên's floor, `5 or more` is Dou Dizhu's 单顺.
+
+`beats()` already demands equal size, so a six-card run and a five-card run never meet — the family's own rule,
+and what stops "longer" from meaning "simply better". `detectStraight` was generalised from exactly-5 to any
+length ≥3, and the size-3 and size-5 blocks in `detectCombo` had to stop returning `null` early so a run could
+still be claimed after the same-value shapes have had their say. **Getting that wrong is what made "3 or more"
+see a four-card run but not a three-card one, and made every five-card run illegal** — the matrix across all
+three modes is what caught it.
+
+A three-card run is `[1,1,1]` where a trio is `[3]`, so they are never the same cards — but they *are* the same
+size, and `beats()` keys on type too, so they cannot answer each other. That is the family's behaviour, asserted.
+
+Measured at 6 players: pacing unmoved (27.9 / 28.4 / 28.3 rounds for off / 5+ / 3+), options per turn 4.9 → 5.0
+→ **5.8**, the rise at "3 or more" being simply that short runs are plentiful.
 
 **No mode was needed, because nothing is ambiguous.** Checked before building, by value-count signature:
 

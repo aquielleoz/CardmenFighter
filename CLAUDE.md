@@ -353,7 +353,7 @@ Three more things worth knowing before touching them:
   re-renders the panel, since the dependent row's live/dead state moved.
 - **THE DOU DIZHU SHAPES (v1.31.39), and the one that is not a shape.** 三带一 (`trioOne`), 四带二 (`fourTwo`)
   and 飞机 (`airplane`) are new types keyed by their trio/quad/top-trio — the attachment is baggage, which is not
-  a new idea here because **our full house IS 三带二**. 单顺 (`chainLong`) is **not a new type**: a five-card chain
+  a new idea here because **our full house IS 三带二**. 单顺 is **not a new type**: a five-card chain
   and our straight are the same cards, so it unlocks the STRAIGHT's length (`detectStraight` now takes any length
   ≥5) and `beats()`'s equal-size rule stops a longer run from simply being better. **They are independent toggles
   because no two share a value-count signature at the same size** (`[3+1]` vs `[2+2]` vs `[4]` at size 4;

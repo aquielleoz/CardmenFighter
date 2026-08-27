@@ -74,7 +74,7 @@
    * own — it just stops there being two copies of "is this a run". */
   function detectStraight(cards) {
     var n = cards.length;
-    if (n < 5) return null;
+    if (n < 3) return null;
     // Ordered by FIGHT VALUE — contiguous 3..15 (3..10, J=11, Q=12, K=13, A=14, apex 2=15)
     // (…10, J=11, Q=12, K=13, A=14, 2=15), so a run is consecutive values just like the old 1..10.
     var rs = cards.map(fightValue).sort(function (a, b) { return a - b; });
@@ -145,7 +145,10 @@
     var same = ranks.every(function (r) { return r === ranks[0]; });
     if (n === 1) return { type: 'single', value: ranks[0], size: 1, key: [ranks[0]], cards: cards };
     if (n === 2) return same ? { type: 'pair', value: ranks[0], size: 2, key: [ranks[0]], cards: cards } : null;
-    if (n === 3) return same ? { type: 'trio', value: ranks[0], size: 3, key: [ranks[0]], cards: cards } : null;
+    /* n===3 and n===5 FALL THROUGH rather than returning null, because the unified straight check at the bottom
+     * may still claim them — a run of three, or the ordinary five. Returning null here is what made "min=3" see
+     * a 4-run but not a 3-run, and made every 5-run illegal. */
+    if (n === 3 && same) return { type: 'trio', value: ranks[0], size: 3, key: [ranks[0]], cards: cards };
     /* Ahead of the double-pair slot, which returns early for anything that is not two pairs. No ambiguity is
      * possible: four cards of ONE value can never be two pairs or a kit, both of which need two values. */
     if (n === 4 && quadroOn() && same) return { type: 'quadro', value: ranks[0], size: 4, key: [ranks[0]], cards: cards };
@@ -180,12 +183,6 @@
       var kt = detectKit(cards);
       if (kt && kt.pairs >= 3) return { type: 'kit', value: kt.top, size: n, key: [kt.top], cards: cards };
     }
-    /* 单顺 — the straight's length unlocked. Handled before the n===5 block so one code path serves both, and
-     * only for n>5: at exactly 5 the existing block already does it. */
-    if (CHAIN_LONG && n > 5 && n <= MAX_HAND) {
-      var ch = detectStraight(cards);
-      if (ch) return { type: 'straight', value: ch.top, size: n, key: [ch.top], cards: cards };
-    }
     if (n === 5) {
       var counts = {}; ranks.forEach(function (r) { counts[r] = (counts[r] || 0) + 1; });
       var keys = Object.keys(counts);
@@ -193,7 +190,8 @@
         var a = +keys[0], b = +keys[1];
         var trio = counts[a] === 3 ? a : (counts[b] === 3 ? b : null);
         var ok = (counts[a] === 3 && counts[b] === 2) || (counts[a] === 2 && counts[b] === 3);
-        return (trio !== null && ok) ? { type: 'fullhouse', value: trio, size: 5, key: [trio], cards: cards } : null;
+        if (trio !== null && ok) return { type: 'fullhouse', value: trio, size: 5, key: [trio], cards: cards };
+        return null;                                 // two values, five cards, and not a full house — nothing fits
       }
       /* THE `straightflush` TYPE IS GONE (v1.31.33). Aj, on finding the dead clause in beats(): "if we're
        * adding straight flushes to the detection because of the bomb option, i want them to only be detected as
@@ -201,11 +199,15 @@
        * one." So a same-suit run is a STRAIGHT like any other and is compared by value; being one suit matters
        * only to `chopRank` under the `sflush` chop. That deletes the mono-suit advantage in ordinary play — it
        * came entirely from the old "a straight flush beats ANY straight" clause, not from the bomb. */
+    }                                                /* falls through to the unified straight check below */
+    /* ONE straight check for every length, after the same-value shapes have had their say — a run of three is
+     * [1,1,1] where a trio is [3], and a run of four is [1,1,1,1] where the four-card shapes are [4]/[3+1]/[2+2],
+     * so nothing here can be claimed twice. */
+    if (straightLenOK(n)) {
       var st = detectStraight(cards);
-      if (st) return { type: 'straight', value: st.top, size: 5, key: [st.top], cards: cards };
-      return null;
+      if (st) return { type: 'straight', value: st.top, size: n, key: [st.top], cards: cards };
     }
-    return null; // 4 cards or 6+ = not a legal combo (no bomb)
+    return null;
   }
   /* THE CHOPPING LADDER. Scaled so a Quadro sits between 3 Kits and 4 Kits, which is the family's ordering:
    *   3 Kits (30)  <  Quadro (35)  <  4 Kits (40)  <  5 Kits (50)
@@ -352,12 +354,12 @@
         }
       }
     }
-    if (CHAIN_LONG) {                                                             // 单顺 — runs longer than five
+    if (STRAIGHT_MIN !== 'off') {                                                 // every allowed length
       for (var clo = 3; clo <= 15; clo++) {
         var crun = [];
         for (var cv = clo; cv <= 15 && byRank[cv]; cv++) {
           crun.push(byRank[cv][0]);
-          if (crun.length > 5 && crun.length <= MAX_HAND) out.push(crun.slice());
+          if (crun.length !== 5 && straightLenOK(crun.length)) out.push(crun.slice());   // 5 is emitted below
         }
       }
     }
@@ -2050,7 +2052,11 @@
    *             5). A 5-card chain and our straight are the same cards, so a parallel type would be ambiguous.
    *             beats() already demands equal size, so a 6-chain cannot beat a 5-straight — the family's rule,
    *             free. */
-  var TRIO_ONE = false, FOUR_TWO = false, AIRPLANE = false, CHAIN_LONG = false;
+  var TRIO_ONE = false, FOUR_TWO = false, AIRPLANE = false;
+  /* STRAIGHT LENGTH IS A MODE, not a boolean (Aj, 2026-08-28): 'off' is the shipped exactly-five, '3' is Tiến
+   * lên's floor and '5' is Dou Dizhu's 单顺. They are three settings of one dial — a minimum — so a mode is the
+   * honest control, the same reason the four-card slot is one. Note '3' is a strict superset of '5'. */
+  var STRAIGHT_MIN = 'off';
   var QUADRO = false;
   var DBL_PAIR = 'off', KITS3 = false;
   /* A MODE, like the four-card double-pair slot (Aj, 2026-08-27: "let's do it like the Four-card double
@@ -2072,8 +2078,13 @@
   function isFourTwo()     { return FOUR_TWO; }
   function setAirplane(v)  { AIRPLANE = !!v; }
   function isAirplane()    { return AIRPLANE; }
-  function setChainLong(v) { CHAIN_LONG = !!v; }
-  function isChainLong()   { return CHAIN_LONG; }
+  function setStraightMin(m) { STRAIGHT_MIN = (m === '3' || m === '5') ? m : 'off'; }
+  function isStraightMin()   { return STRAIGHT_MIN; }
+  /* 'off' means EXACTLY five — the shipped rule — so it is a length test, not a disabled one. */
+  function straightLenOK(n) {
+    if (STRAIGHT_MIN === 'off') return n === 5;
+    return n >= (STRAIGHT_MIN === '3' ? 3 : 5) && n <= MAX_HAND;
+  }
   function setChopStrips(v) { CHOP_STRIPS = !!v; }
   function isChopStrips() { return CHOP_STRIPS; }
   function isChopQuadro() { return CHOP_Q; }
@@ -2218,7 +2229,8 @@
     setChopQuadro: setChopQuadro, setChopKits: setChopKits, setChopSflush: setChopSflush,
     setChopStrips: setChopStrips, isChopStrips: isChopStrips,
     setTrioOne: setTrioOne, isTrioOne: isTrioOne, setFourTwo: setFourTwo, isFourTwo: isFourTwo,
-    setAirplane: setAirplane, isAirplane: isAirplane, setChainLong: setChainLong, isChainLong: isChainLong,
+    setAirplane: setAirplane, isAirplane: isAirplane,
+    setStraightMin: setStraightMin, isStraightMin: isStraightMin,
     isChopQuadro: isChopQuadro, isChopKits: isChopKits, isChopSflush: isChopSflush, chopRank: chopRank,
     setQuadro: setQuadro, isQuadro: isQuadro,
     setDoublePair: setDoublePair, isDoublePair: isDoublePair,

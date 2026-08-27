@@ -1077,16 +1077,34 @@ function cards(ids) { return ids.map(card); }
     ok(a && a.type === 'airplane' && a.size === 6 && a.key[0] === 8, '飞机 is two consecutive trios, keyed by the top one');
     ok(E.detectCombo(planeGap) === null, 'and the trios must be CONSECUTIVE — 777 999 is nothing');
 
-    /* 单顺 is NOT a new shape: it unlocks the straight's length. A five-card chain and our straight are the same
-     * cards, so a parallel type would have been ambiguous — the four-card-slot problem again. */
-    E.setChainLong(true);
-    var r6 = E.detectCombo(run6);
-    ok(r6 && r6.type === 'straight' && r6.size === 6, 'a six-card run is a STRAIGHT of size 6, not a new type');
-    ok(E.beats(r6, E.detectCombo(run5)) === false && E.beats(E.detectCombo(run5), r6) === false,
-       'and length must match to beat, so a 6-run and a 5-run never meet — what stops longer being simply better');
-    E.setChainLong(false);
+    /* 单顺 IS NOT A NEW SHAPE: it is the straight's MINIMUM LENGTH, as a mode — 'off' is the shipped exactly-five,
+     * '3' is Tiến lên's floor, '5' is Dou Dizhu's. A five-card chain and our straight are the same cards, so a
+     * parallel type would have been ambiguous; and '3' is a strict superset of '5', which is the same reason the
+     * four-card slot had to be a mode rather than two booleans. */
+    var run3 = [C(4, 'D'), C(5, 'H'), C(6, 'C')];
+    var run4 = run3.concat([C(7, 'S')]);
+    var run5hi = [C(5, 'D'), C(6, 'H'), C(7, 'C'), C(8, 'S'), C(9, 'D')];
+    ok(E.detectCombo(run5).type === 'straight' && E.detectCombo(run3) === null && E.detectCombo(run6) === null,
+       'min=off is the shipped rule: exactly five, so a 3-run and a 6-run are both illegal');
+    E.setStraightMin('5');
+    ok(E.detectCombo(run6).size === 6 && E.detectCombo(run3) === null,
+       'min=5 (Dou Dizhu) allows longer runs but not shorter ones');
+    E.setStraightMin('3');
+    ok(E.detectCombo(run3).type === 'straight' && E.detectCombo(run3).size === 3
+       && E.detectCombo(run4).size === 4 && E.detectCombo(run6).size === 6,
+       'min=3 (Tiến lên) allows every length from three up — a strict superset of min=5');
+    /* A 3-run is [1,1,1] and a trio is [3], so they are never the same cards — but they ARE the same SIZE, and
+     * beats() keys on type as well, so they cannot answer each other. That is the family's behaviour. */
+    var trio3 = [C(7, 'D'), C(7, 'H'), C(7, 'C')];
+    ok(E.detectCombo(trio3).type === 'trio' && E.beats(E.detectCombo(trio3), E.detectCombo(run3)) === false
+       && E.beats(E.detectCombo(run3), E.detectCombo(trio3)) === false,
+       'and a trio and a three-card run never answer each other, being different types at the same size');
+    ok(E.beats(E.detectCombo(run6), E.detectCombo(run5)) === false,
+       'length must still match to beat — what stops a longer run being simply better');
+    ok(E.beats(E.detectCombo(run5hi), E.detectCombo(run5)) === true, 'while equal lengths compare by value as usual');
+    E.setStraightMin('off');
     ok(E.detectCombo(run6) === null && E.detectCombo(run5).type === 'straight',
-       'with it off the six-card run is illegal again and the five-card one is untouched');
+       'and off restores exactly-five, leaving the ordinary straight untouched');
 
     E.setTrioOne(false); E.setFourTwo(false); E.setAirplane(false);
   })();

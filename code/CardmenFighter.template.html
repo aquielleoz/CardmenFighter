@@ -1417,8 +1417,13 @@ __QR__
       note:'四带二. All four copies of one value plus two more cards — a pair or two singles — compared by the <b>four</b>. In Dou Dizhu the bomb is the BARE four of a kind, so this is the choice to spend it as an ordinary big shape instead of as a chop.' },
     { key:'airplane',    duel:true, label:'Airplane — consecutive trios',
       note:'飞机. Two or more trios of consecutive values (777888), compared by the top trio. The winged variants that carry extra cards are not included: at ten cards a bare airplane already needs six of them.' },
-    { key:'chainLong',   duel:true, label:'Straights can run longer than five',
-      note:'单顺. A straight may be any length from five up to your whole hand, not exactly five. Length still has to match to beat it, so a six-card run and a five-card run never meet — that is the family\u2019s rule, and it is what stops a longer straight being simply better.' }
+    /* A MODE, not a toggle: these are three settings of one dial — the straight's MINIMUM length — and "3 or
+     * more" is a strict superset of "5 or more", which is the same relationship that forced the four-card slot
+     * to be a mode. "Off" is the shipped rule, exactly five, so it is a length like the others rather than a
+     * disabled state. */
+    { key:'straightLen', duel:true, label:'Straight length',
+      mode:[{v:'off',label:'Exactly 5'},{v:'3',label:'3 or more'},{v:'5',label:'5 or more'}],
+      note:'How long a straight may be. <b>Exactly 5</b> is this game as it ships. <b>3 or more</b> is Tiến lên\u2019s rule, <b>5 or more</b> is Dou Dizhu\u2019s 单顺 — up to your whole hand either way. Length still has to match to beat it, so a six-card run and a five-card run never meet: that is what stops a longer straight from being simply better. A three-card run and a trio are different shapes and never answer each other.' }
   ];
   /* TWO STORES, and the split is what makes suggestions possible (v1.31.31). RULES is what is IN PLAY — on a
    * netplay client the host overwrites it wholesale, so anything kept there is not yours. MY_RULES is THIS
@@ -1447,7 +1452,7 @@ __QR__
      * property the sections exist for: a preset belongs in the heading of the group it changes, and Chikicha
      * Specials sets a shape AND a chop, so it spanned both. The family a shape came from belongs in its note. */
     { key:'shapes', title:'Shapes & chops',
-      keys:['dblPair','kits3','quadro','trioOne','fourTwo','airplane','chainLong',
+      keys:['dblPair','kits3','quadro','trioOne','fourTwo','airplane','straightLen',
             'chopQuadro','chopKits','chopSflush','chopStrips'],
       presets:true }
   ];
@@ -1479,7 +1484,7 @@ __QR__
      * One honest divergence, recorded rather than papered over: a Dou Dizhu 炸弹 beats ANY non-bomb play, while
      * our chop only reaches the all-2s shapes. chopQuadro is the closest thing we have, not the same thing. */
     { key:'doudizhu', label:'Dou Dizhu Specials', title:'The fullest set: 3 Kits, long straights, trio+1, four+two, the airplane, and the bomb',
-      rules:{ kits3:true, chainLong:true, trioOne:true, fourTwo:true, airplane:true,
+      rules:{ kits3:true, straightLen:'5', trioOne:true, fourTwo:true, airplane:true,
               quadro:true, chopQuadro:true } }
   ];
   function presetValue(p,d){ return p.rules[d.key]!==undefined ? p.rules[d.key] : ruleOff(d); }
@@ -1544,7 +1549,7 @@ __QR__
       if(E.setTrioOne)          E.setTrioOne(!!RULES.trioOne);
       if(E.setFourTwo)          E.setFourTwo(!!RULES.fourTwo);
       if(E.setAirplane)         E.setAirplane(!!RULES.airplane);
-      if(E.setChainLong)        E.setChainLong(!!RULES.chainLong);
+      if(E.setStraightMin)      E.setStraightMin(RULES.straightLen);
   }
   function valLabel(d,v){
     if(!d.mode) return v?'On':'Off';       // capitalised to match a mode row's own labels, which sit beside it
