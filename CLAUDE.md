@@ -128,7 +128,9 @@ the setup dialog footer and the netplay lobby bar. **Do not add a second version
 drift is worse than none, because it makes a stale build look current. It exists because a real bug report
 ("the client has no name field") was a *stale download* of a feature shipped two versions earlier, and nothing
 on screen could say so; `versiontest.js` asserts the whole chain including the **repo-root copy**, which is the
-file people download. When a shipped feature is reported missing, check the reporter's build before the code.
+file people download — **and, since v1.31.33, that `docs/NEXT-SESSION.md` carries a `### vX.Y.Z` heading for
+that version.** The stamp is derived and cannot drift; a hand-written changelog silently can, and v1.31.33
+nearly shipped with no entry because the script writing it threw on a stale anchor *before* its write. When a shipped feature is reported missing, check the reporter's build before the code.
 
 **A CAMERA FEATURE IS TESTABLE — never hand-check one.** Proven on the parked `feat/qr-scanning` branch (PR #29,
 closed): Chromium accepts `--use-file-for-fake-video-capture=<file.y4m>` with `--use-fake-device-for-media-stream`
@@ -289,6 +291,51 @@ Three more things worth knowing before touching them:
 - **The floor is TWO pairs, not the family's three** (连对 / đôi thông). Those games deal 17-20 cards; this one
   deals 6 and caps at 10, so a three-pair floor would make the shape dead. Values must be consecutive — the panel
   copy says the values must be consecutive, because that is exactly what separates a kit from poker's two pair.
+- **THE CHOPS (v1.31.33) ARE THREE INDEPENDENT TOGGLES, NOT A MODE** — `chopQuadro`, `chopKits`, `chopSflush`.
+  The four-card double-pair slot has to be a mode because `4♦4♥5♣5♠` is genuinely both shapes; a Quadro, a 3-Kit
+  and a same-suit straight are distinguishable, so nothing forces a choice and there is no "off" segment. Each
+  toggle **enables its own shape** (`quadroOn()`/`kits3On()`), so a selected chopper is never unplayable — and
+  the panel declares that as a real dependency (`needs`), ticking the shape's own row with it and unticking the
+  chop when the shape goes off. **Both directions matter:** the engine enables the shape either way, so a box
+  that disagrees with it is the UI lying about the game about to be played.
+- **THE `straightflush` TYPE IS DELETED (v1.31.33), NOT DISABLED.** Since v1.14 `detectCombo` never produced it,
+  which made the `beats()` clause granting it priority over any straight **unreachable dead code** — easy to
+  misread as live behaviour, and I did. A same-suit run is an ordinary straight compared by value; one suit
+  matters **only** to `chopRank` under `chopSflush`. Deleting it halved the mono-suit tilt (pure decks +0.9 /
+  mixed −0.6 over three interleaved replicates, from +1.8 / −1.2), and the residue is the chop's own. **Do not
+  reintroduce a straight-flush TYPE to implement a straight-flush rule** — rank the shape, don't retype it.
+- **NO CHOPPER BEATS ANOTHER, and that is a decision with reasons** (2026-08-27). `chopRank` returns the same
+  value for every enabled chopper, so chop-vs-chop **falls through** to the ordinary same-type/same-size/value
+  comparison — a chop is answered in kind. Do not add an early `return false` there: that made every chop
+  unanswerable including by its own shape, which the in-kind assertions catch. Why peers: pagat puts three-pairs
+  and a quad at the *same* tier; the scarcity argument fails on measurement (Quadro 1.1% of 10-card hands vs
+  3-Kit 1.3–1.6% — play counts implied the opposite because the AI plays the cheapest sufficient Special, not the
+  scarcest); and a 3-Kit costs six cards for what a Quadro does with four. **Reach is uniform at a lone 2 or a
+  pair** — an eight-card run appears in 0.0–0.1% of hands, so the old trio tier was decoration. Ranking them is
+  `chopRank` and nothing else.
+- **A CHOPPING SHAPE'S AVAILABILITY IS WILDLY DECK-DEPENDENT for the straight, and not for the others.** Of
+  10-card hands: Quadro ~1.1% and 3-Kit ~1.3–1.6% in *every* deck (a class deck is four copies of one suit, so
+  values are evenly stocked), but a same-suit straight is **23.1%** in a pure class deck against **0.3%** in the
+  Full Set. That 77× spread is the sharpest statement of the mono-suit issue — much sharper than the ±0.9-point
+  win-share figure — and it is why `chopSflush`'s note names it.
+- **THE CHOPS COMPOSE with `apexInf` rather than fighting it.**
+  `chopRank` is a scaled ladder — 3 Kits 30, Quadro 35, 4 Kits 40, 5 Kits 50 — so a Quadro sits between 3 and 4
+  Kits, and **equal rank deliberately falls through**
+  **THE REACH TABLE IS OURS, NOT THE FAMILY'S, AND DELIBERATELY SO.** 3 Kits and Quadro are both real chops
+  (ba đôi thông, tứ quý), but [pagat](https://www.pagat.com/climbing/thirteen.html) caps both at a **lone** 2 —
+  a pair of 2s needs *five* consecutive pairs and a trio *seven*. At `MAX_HAND=10` that is ten cards and fourteen
+  cards, i.e. the whole hand and impossible. Measured: **0 of 88 chops at 6p were against a lone 2** (nearly all
+  were against a pair), so the faithful ladder would make the rule almost never fire. Do not "restore fidelity"
+  here without re-measuring — the extension IS the feature. to the ordinary same-type/same-size value comparison, which
+  is what makes "chop a chop with a higher one of the same shape" work with no extra code. `chopReach` decides how
+  far up the all-2s shapes each rank reaches (single / pair / trio).
+  **`apexInf` and the chop are not a contradiction**: `apexInf` makes the 2 unbeatable **by value** (it ranks the
+  card at Infinity) and a chop is a **shape** answer, so the chop is the counterplay to an unbeatable 2 — which is
+  what lets `inf` be played without `nostrip`. `apexOnlyPlay` accepts the Infinity key for exactly that, and there
+  is deliberately **no** `APEX_INF` guard in the chop branch. Both panel notes say so; do not "fix" it.
+  Measured: Quadro goes from 17 to 956 plays per 250 six-player games — the chop is what gives it a job — while
+  pacing and initiative concentration do not move at all. **At 2 players it is nearly inert** (2 chops in 498
+  2-plays).
 - **QUADRO (v1.31.29) shares the four-card slot and cannot collide with it** — four cards of one value can never
   be two pairs or a kit, so its check sits *ahead* of the double-pair block, which returns early for anything
   that is not two pairs. It is a **plain shape**: beats a lower Quadro, nothing else. The chop is separate.
@@ -299,7 +346,7 @@ Three more things worth knowing before touching them:
   times per game, because the AI plays the **cheapest sufficient** Special and a Quadro spends four cards on a
   round a pair would win. Leading one is near-unbeatable (only a higher Quadro answers it), which is a human
   use the AI's policy never values.
-- **A NEW SHAPE ADDS OPTIONS, NOT TEMPO.** Measured on THREE shapes now — kits, poker two-pair, and Quadro all
+- **A NEW SHAPE ADDS OPTIONS, NOT TEMPO.** Measured on FOUR rules now — kits, poker two-pair, Quadro and the chop all
   leave pacing untouched at every player count. Treat it as the default expectation. Kits change game length by
   nothing at all (11/14/20/31 vs
   11/14/20/30) and are balance-neutral (rho 0.91), *despite* firing 0.75 times per duel and 13.4 times per
@@ -510,11 +557,11 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 263, `netview` 28, `mptest` 82,
+Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 276, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 42, `viewtest` 10,
-`landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 63, `nettest_rules` 27, `nettest_suggest` 34, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
+`landscapetest` 96, `versiontest` 15, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
+`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 65, `nettest_rules` 27, `nettest_suggest` 34, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
 **A SUITE CAN BE GREEN AND BLIND. Three shapes of it, all found in one 2026-08-27 sweep and all fixed:**

@@ -116,7 +116,7 @@
     if (n === 3) return same ? { type: 'trio', value: ranks[0], size: 3, key: [ranks[0]], cards: cards } : null;
     /* Ahead of the double-pair slot, which returns early for anything that is not two pairs. No ambiguity is
      * possible: four cards of ONE value can never be two pairs or a kit, both of which need two values. */
-    if (n === 4 && QUADRO && same) return { type: 'quadro', value: ranks[0], size: 4, key: [ranks[0]], cards: cards };
+    if (n === 4 && quadroOn() && same) return { type: 'quadro', value: ranks[0], size: 4, key: [ranks[0]], cards: cards };
     if (n === 4 && DBL_PAIR !== 'off') {            // the double-pair slot — one mode, so never ambiguous
       var pc = {}, pi, pvv;
       for (pi = 0; pi < 4; pi++) { pvv = fightValue(cards[pi]); pc[pvv] = (pc[pvv] || 0) + 1; }
@@ -126,7 +126,7 @@
       if (pvals[0] === pvals[1] + 1) return { type: 'kit', value: pvals[0], size: 4, key: [pvals[0]], cards: cards };
       return null;                                 // 'kits' mode and the values are not consecutive
     }
-    if (KITS3 && n >= 6 && n % 2 === 0) {          // runs of 3+ pairs; size 6/8/10 cannot shadow a 5-card shape
+    if (kits3On() && n >= 6 && n % 2 === 0) {          // runs of 3+ pairs; size 6/8/10 cannot shadow a 5-card shape
       var kt = detectKit(cards);
       if (kt && kt.pairs >= 3) return { type: 'kit', value: kt.top, size: n, key: [kt.top], cards: cards };
     }
@@ -139,20 +139,83 @@
         var ok = (counts[a] === 3 && counts[b] === 2) || (counts[a] === 2 && counts[b] === 3);
         return (trio !== null && ok) ? { type: 'fullhouse', value: trio, size: 5, key: [trio], cards: cards } : null;
       }
-      var sameSuit = cards.every(function (c) { return c.suit === cards[0].suit; });
+      /* THE `straightflush` TYPE IS GONE (v1.31.33). Aj, on finding the dead clause in beats(): "if we're
+       * adding straight flushes to the detection because of the bomb option, i want them to only be detected as
+       * bombs and not as a mixed shape for straights and flushes (that beats both). i made a mistake on that
+       * one." So a same-suit run is a STRAIGHT like any other and is compared by value; being one suit matters
+       * only to `chopRank` under the `sflush` chop. That deletes the mono-suit advantage in ordinary play — it
+       * came entirely from the old "a straight flush beats ANY straight" clause, not from the bomb. */
       var st = detectStraight(cards);
-      if (sameSuit && st && !NO_STRAIGHT_FLUSH) return { type: 'straightflush', value: st.top, size: 5, key: [st.top], cards: cards };
-      // Plain flushes are NOT a legal special (never were). Straight flushes are also disabled by
-      // default (NO_STRAIGHT_FLUSH) — a same-suit run just scores as a straight. Same rule for all decks.
       if (st) return { type: 'straight', value: st.top, size: 5, key: [st.top], cards: cards };
       return null;
     }
     return null; // 4 cards or 6+ = not a legal combo (no bomb)
   }
+  /* THE CHOPPING LADDER. Scaled so a Quadro sits between 3 Kits and 4 Kits, which is the family's ordering:
+   *   3 Kits (30)  <  Quadro (35)  <  4 Kits (40)  <  5 Kits (50)
+   * A bigger chop answers a smaller one, and equal rank falls through to the ordinary same-type/same-size
+   * comparison — so Quadro-over-Quadro and 3-Kits-over-3-Kits are still decided by value, for free. 0 = not a
+   * chopping shape. Only shapes that are ENABLED can be enumerated, so the chop does nothing on its own; the
+   * panel copy says as much. */
+  /* Only the CHOSEN shape chops. Within the kits mode the rank still scales with size, so 4 Kits chop 3 Kits;
+   * Quadro-over-Quadro and straight-flush-over-straight-flush fall through to the ordinary value comparison. */
+  /* NO LADDER BETWEEN CHOPPERS (Aj, 2026-08-27: "ordering is hard really... let's not make them beat each other
+   * for now?"). Every enabled chopper ranks the same, so a chop is answered only IN KIND — the same shape at a
+   * higher value, through the ordinary comparison below. Reasons, in order of weight:
+   *   · pagat puts them at the SAME tier: three consecutive pairs OR a four of a kind beats a lone 2, with no
+   *     ranking between them. Secondary sources rank quads higher; others drop bomb hierarchy entirely. It is a
+   *     house call, not a fact to look up.
+   *   · the scarcity argument for ranking them does not survive measurement — of 10-card hands a Quadro appears
+   *     in 1.1% and a 3-Kit in 1.3-1.6%, so the 3-Kit is if anything MORE available. (Play counts implied the
+   *     opposite, but that was the AI's cheapest-first policy, not availability.)
+   *   · a 3-Kit costs SIX cards for what a Quadro does with four, so ranking the Quadro above it made the
+   *     dearer play strictly worse.
+   * Ranking them later is this function and nothing else. */
+  function chopRank(c) {
+    if (!c) return 0;
+    if (CHOP_Q && c.type === 'quadro') return 1;
+    if (CHOP_SF && c.type === 'straight' && oneSuit(c.cards)) return 1;
+    if (CHOP_K && c.type === 'kit' && c.size >= 6) return 1;
+    return 0;
+  }
+  /* How far up the all-2s shapes a chop reaches. The family only has the single and the pair (there are no
+   * trios in Tiến lên); the trio tier is this game's own extension, since a trio of 2s is legal here. */
+  /* REACH IS UNIFORM, and deliberately more generous than the source. pagat caps three-pairs and a quad at a
+   * LONE 2; a pair of 2s needs five consecutive pairs (ten cards — the whole hand here) and a trio needs seven,
+   * which is impossible. Measured on an earlier ladder: 0 of 88 chops at 6p were against a lone 2, so fidelity
+   * there would make the rule almost never fire. So every chopper reaches a lone 2 or a PAIR of them and no
+   * further: the "4+ Kits reach a trio" tier went with the ladder, and it was decoration anyway — an eight-card
+   * consecutive run turns up in 0.0-0.1% of hands. */
+  var CHOP_REACH = 2;
+  function apexOnlyPlay(c) {
+    if (!c || (c.type !== 'single' && c.type !== 'pair' && c.type !== 'trio')) return false;
+    var v = c.key && c.key[0];
+    return v === 15 || v === Infinity;                          // 15 normally; Infinity under APEX_INF
+  }
+  function oneSuit(cards) {
+    if (!cards || !cards.length) return false;
+    for (var i = 1; i < cards.length; i++) if (cards[i].suit !== cards[0].suit) return false;
+    return true;
+  }
   function beats(cand, cur) {
     if (!cand) return false;
     if (!cur) return true;
-    if (cand.type === 'straightflush' && (cur.type === 'straight' || cur.type === 'flush')) return true;
+    if (anyChop()) {
+      var cr = chopRank(cand);
+      if (cr) {
+        var rr = chopRank(cur);
+        /* NO early return for chop-vs-chop: fall through to the ordinary same-type/same-size/value comparison,
+         * which is what "answered only in kind" means — a higher Quadro over a lower one, a higher 3-Kit over a
+         * lower one. Returning false here instead made every chop unanswerable, including by its own shape. */
+        /* A CHOP BEATS AN INFINITE 2 (Aj, 2026-08-27: "a chop would deal with inf 2s btw"). The two rules
+         * COMPOSE rather than one voiding the other, and the reason is the mechanism: APEX_INF makes the 2
+         * unbeatable BY VALUE — it ranks the card at Infinity — and a chop is not a value answer at all, it is
+         * a shape answer. So the chop is precisely the counterplay to an unbeatable 2, which is also what makes
+         * `inf` playable without `nostrip`. Hence no APEX_INF guard here, and `apexOnlyPlay` accepts the
+         * Infinity key for exactly this case. */
+        if (!rr && apexOnlyPlay(cur) && cur.size <= CHOP_REACH) return true;
+      }
+    }
     if (cand.type !== cur.type || cand.size !== cur.size) return false;
     return lexCmp(cand.key, cur.key) > 0;
   }
@@ -187,7 +250,7 @@
       var window = [lo, lo + 1, lo + 2, lo + 3, lo + 4];
       if (window.every(function (v) { return byRank[v]; })) out.push(window.map(function (v) { return byRank[v][0]; }));
     }
-    if (QUADRO) {                                                                 // four of a kind
+    if (quadroOn()) {                                                             // four of a kind
       Object.keys(byRank).forEach(function (r) {
         var g = byRank[r]; if (g.length >= 4) out.push([g[0], g[1], g[2], g[3]]);
       });
@@ -197,7 +260,7 @@
       for (var ta = 0; ta < tp.length; ta++) for (var tb = ta + 1; tb < tp.length; tb++)
         out.push([byRank[tp[ta]][0], byRank[tp[ta]][1], byRank[tp[tb]][0], byRank[tp[tb]][1]]);
     }
-    if (DBL_PAIR === 'kits' || KITS3) {                                           // consecutive-pair runs
+    if (DBL_PAIR === 'kits' || kits3On()) {                                           // consecutive-pair runs
       var canPair = {};
       Object.keys(byRank).forEach(function (r) { if (byRank[r].length >= 2) canPair[+r] = true; });
       for (var kv = 3; kv <= 15; kv++) {
@@ -207,7 +270,7 @@
           run.push(w);
           // length 2 belongs to the double-pair slot; 3+ belongs to KITS3. Emitting one without its rule on
           // would offer a play detectCombo then refuses, which reads to a player as a dead control.
-          var okLen = (run.length === 2) ? (DBL_PAIR === 'kits') : (run.length >= 3 && KITS3);
+          var okLen = (run.length === 2) ? (DBL_PAIR === 'kits') : (run.length >= 3 && kits3On());
           if (okLen) {
             var kc = [];
             run.forEach(function (v) { kc.push(byRank[v][0], byRank[v][1]); });
@@ -1834,14 +1897,45 @@
   /* QUADRO — four of a kind, homebrew and default OFF (Aj: "new players will just break"). It is a PLAIN
    * shape here: it beats a lower quadro and nothing else. The CHOP — a quadro beating a shape it does not
    * match — needs cross-shape overrides in beats() and is a separate rule; see the BACKLOG. */
+  /* THE CHOP (v1.31.33) — the first rule where a shape beats something it does not match, and the reason the
+   * family's big shapes exist at all: in Tiến lên a tứ quý or ba đôi thông "chops" the heo, which in this game
+   * is the apex 2. So the chop is what makes the 2 ANSWERABLE without touching either apex flag, and what gives
+   * Quadro a job (measured near-decorative without it — PATCHNOTES / v1.31.29).
+   * There is precedent for the cross-shape override right below in beats(): a straight flush already beats a
+   * plain straight. The chop is the same idea with a ladder. */
+  /* THREE INDEPENDENT CHOPPERS, not a mode (Aj, 2026-08-27: "we can't actually do it like Four-card double
+   * pairs huh? because we can check just quadro, or all the chops"). Exactly right, and the difference is
+   * ambiguity: `4♦4♥5♣5♠` really is both a 2-kit and a poker two-pair, so that slot HAD to pick one. A Quadro,
+   * a 3-Kit and a same-suit straight are three distinguishable patterns — nothing forces a choice, so nothing
+   * should impose one, and there is no "off" segment either: they are ordinary toggles. Each flag also ENABLES
+   * its own shape, so no setting can be dead. */
+  var CHOP_Q = false, CHOP_K = false, CHOP_SF = false;
   var QUADRO = false;
   var DBL_PAIR = 'off', KITS3 = false;
+  /* A MODE, like the four-card double-pair slot (Aj, 2026-08-27: "let's do it like the Four-card double
+   * pairs — OFF, Quadro, 3kits, Straight Flush"). One chopper at a time, which also dissolves the ordering
+   * question between a Quadro and a straight flush: they are never both live.
+   * The mode ENABLES ITS OWN SHAPE, so the setting can never be dead. Without that, picking "Quadro" as the
+   * chopper while the Quadro rule was off would enumerate no quadros and the chop would silently do nothing.
+   * The shape rows stay for "I want this shape but no chop". */
+  function setChopQuadro(v) { CHOP_Q = !!v; }
+  function setChopKits(v)   { CHOP_K = !!v; }
+  function setChopSflush(v) { CHOP_SF = !!v; }
+  function isChopQuadro() { return CHOP_Q; }
+  function isChopKits()   { return CHOP_K; }
+  function isChopSflush() { return CHOP_SF; }
+  function anyChop() { return CHOP_Q || CHOP_K || CHOP_SF; }
+  function quadroOn() { return QUADRO || CHOP_Q; }
+  function kits3On()  { return KITS3  || CHOP_K; }
+
   function setQuadro(v) { QUADRO = !!v; }
   function isQuadro() { return QUADRO; }
   function setDoublePair(m) { DBL_PAIR = (m === 'kits' || m === 'poker') ? m : 'off'; }
   function isDoublePair() { return DBL_PAIR; }
   function setKits3(v) { KITS3 = !!v; }
   function isKits3() { return KITS3; }
+  /* NO_STRAIGHT_FLUSH is retired: there is no straight-flush tier to switch, since the type no longer exists.
+   * The setter stays a no-op so an old caller cannot throw. */
   var NO_STRAIGHT_FLUSH = true;    // SHIPPED: no straight-flush tier — a same-suit run scores as a plain straight (universal rule, same for every deck). Plain flushes were never a legal special. Setter kept for A/B sims only.
   function setNoStraightFlush(v) { NO_STRAIGHT_FLUSH = !!v; }
   // Transform economy (tunable for A/B balance tests; defaults = the shipped rework: cost 10, no draw, energy-gated).
@@ -1966,6 +2060,8 @@
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
+    setChopQuadro: setChopQuadro, setChopKits: setChopKits, setChopSflush: setChopSflush,
+    isChopQuadro: isChopQuadro, isChopKits: isChopKits, isChopSflush: isChopSflush, chopRank: chopRank,
     setQuadro: setQuadro, isQuadro: isQuadro,
     setDoublePair: setDoublePair, isDoublePair: isDoublePair,
     setKits3: setKits3, isKits3: isKits3, detectKit: detectKit,

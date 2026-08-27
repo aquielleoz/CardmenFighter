@@ -61,7 +61,11 @@ var CFG=[
  ['R  LIVE + Poker + 3 Kits',                        'chosen','targeted', false,true, '', false, 'pokerK3'],
  /* S: QUADRO on the live rules. Four of a kind as a plain shape — it breaks a shield like any Special, so the
   * naive read is again "shorter games". Kits and poker both said otherwise; this row is how we find out. */
- ['S  LIVE + Quadro (four of a kind)',               'chosen','targeted', false,true, '', false, 'quadro']
+ ['S  LIVE + Quadro (four of a kind)',               'chosen','targeted', false,true, '', false, 'quadro'],
+ /* T/U: THE CHOP. T is the Chikicha Specials preset (kits + quadro + chop); U is the same shapes with the chop
+  * OFF, which is the arm that says whether the chop is what gives those shapes a job. */
+ ['T  Chikicha Specials (kits+quadro+chop)',         'chosen','targeted', false,true, '', false, 'chikicha'],
+ ['U  the same shapes, chop OFF (control)',          'chosen','targeted', false,true, '', false, 'shapesonly']
 ];
 function run(loss,mill,sh,dp,ap,P,n,ward){
   E.setSpecialLossMode(loss); E.setMillScope(mill); E.setShieldsPerPlayer(sh); E.setDrawPerPlayer(dp);
@@ -69,9 +73,12 @@ function run(loss,mill,sh,dp,ap,P,n,ward){
   /* `pair` names one of the family's configurations rather than a boolean, because the four-card slot is a MODE
    * (2 Kits and Poker are alternatives) and 3-Kits-and-up is independent of it. */
   var pair = arguments[8] || '';
-  if (E.setDoublePair) E.setDoublePair(pair==='kits2'||pair==='both' ? 'kits' : (pair==='poker'||pair==='pokerK3' ? 'poker' : 'off'));
-  if (E.setKits3) E.setKits3(pair==='kits3'||pair==='both'||pair==='pokerK3');
-  if (E.setQuadro) E.setQuadro(pair==='quadro');
+  if (E.setDoublePair) E.setDoublePair(pair==='kits2'||pair==='both'||pair==='chikicha'||pair==='shapesonly' ? 'kits' : (pair==='poker'||pair==='pokerK3' ? 'poker' : 'off'));
+  if (E.setKits3) E.setKits3(pair==='kits3'||pair==='both'||pair==='pokerK3'||pair==='chikicha'||pair==='shapesonly');
+  if (E.setQuadro) E.setQuadro(pair==='quadro'||pair==='chikicha'||pair==='shapesonly');
+  if (E.setChopQuadro) E.setChopQuadro(pair==='chikicha');
+  if (E.setChopKits) E.setChopKits(false);
+  if (E.setChopSflush) E.setChopSflush(false);
   E.setApexInfinity(ap === 'inf' || ap === 'nostrip'); E.setApexNoStrip(ap === 'nostrip' || ap === 'nostripOnly');
   var rounds=[], jb=0, sp=0, leadTop=0, leadN=0;
   for(var s=1;s<=n;s++){
@@ -105,4 +112,4 @@ CFG.forEach(function(c){
   });
   console.log(out);
 });
-E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false); E.setApexNoStrip(false); if(E.setWardAll) E.setWardAll(false); if(E.setDoublePair) E.setDoublePair('off'); if(E.setKits3) E.setKits3(false); if(E.setQuadro) E.setQuadro(false);
+E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false); E.setApexNoStrip(false); if(E.setWardAll) E.setWardAll(false); if(E.setDoublePair) E.setDoublePair('off'); if(E.setKits3) E.setKits3(false); if(E.setQuadro) E.setQuadro(false); if(E.setChopQuadro){E.setChopQuadro(false);E.setChopKits(false);E.setChopSflush(false);}

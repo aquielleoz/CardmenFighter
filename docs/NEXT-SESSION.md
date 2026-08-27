@@ -5,18 +5,41 @@ Test: `npm test` = `node test.js` (**246**) + `node netview.test.js` (**28**) �
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
 Current version: **v1.31.25**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
-## ☀️ START HERE — where we left off (2026-08-26)
+## ☀️ START HERE — where we left off (2026-08-27)
 
-`main` is at **v1.31.23**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
-the full suite is green.
+`main` is at **v1.31.31**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte.
 
-**Sanity check before you touch anything** (from `code/`, ~20 seconds):
+**One PR is in flight: [#60](https://github.com/aquielleoz/CardmenFighter/pull/60) — v1.31.33, the chop.** Green
+and ready to merge; it was left open only because Aj was heading off. It carries the eleventh-to-thirteenth
+rules (`chopQuadro` / `chopKits` / `chopSflush`) and **deletes the `straightflush` type**. If it is already
+merged when you read this, delete this paragraph and bump the version above.
+
+**Sanity check before you touch anything** (from `code/`, ~30 seconds):
 
 ```bash
 npm test && node mptest.js && node rulestest.js
 ```
 
-Expect **231 / 0**, **28 / 0**, **82 / 0**, **33 / 0**. If those pass, the repo is exactly as it was left.
+On `main` expect **263 / 0**, **28 / 0**, **82 / 0**, **69 / 0**; on the #60 branch **287 / 0**, **28 / 0**,
+**82 / 0**, **75 / 0**. If a count disagrees, the suite is right — fix the number here.
+
+**What the last stretch was about**, newest first, all of it in the changelog below: the chop (v1.31.33), rule
+presets and Clear all (v1.31.30) plus the game mode moving into the rules panel (v1.31.32), the rule-suggestion
+layer where clients suggest and the host decides (v1.31.31), the deck picker's three defaults (v1.31.28), Quadro
+(v1.31.29), and the pair shapes (v1.31.24/26).
+
+**Queued, in the order Aj raised them:**
+1. **Rule descriptions into tooltips** behind a `?` — his own request, its own PR. The BACKLOG entry lists what
+   will bite (click not hover, stacking above `.overlay`, and the suites that assert note TEXT).
+2. **Chop strip or not.** Note the subtlety recorded in the BACKLOG: "did this play *chop* something" is not
+   visible from the pile.
+3. **A Tiến lên preset**, which is where `chopKits` belongs (deliberately not in Chikicha Specials).
+4. Then the remaining Dou Dizhu shapes — trio+single, four+two, the airplane.
+
+**Two things worth reading before touching the rules panel:** every rule defaults OFF and "is this customised?"
+is therefore `RULE_DEFS.some(ruleOn)`, and the panel now has four control shapes (button rows, mode segments,
+bulk buttons, `needs` dependencies) — each needs covering in BOTH the editable and the read-only half, which is
+a lesson learned twice.
 
 **Three branches exist off main, and none of them is half-done:**
 - **`exp/shield-break-all` — OPEN, unmerged.** The whole `loss=all` investigation (PATCHNOTES **0n**): why it
@@ -366,7 +389,44 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     default off, as a plain shape (it beats a lower Quadro and nothing else). Measured close to decorative
     without the chop: legal on 3.9% of turns at 6p but played 0.07 times per game, because the AI plays the
     cheapest sufficient Special and a Quadro spends four cards on a round a pair would win. See the changelog.
-  - **The CHOP is the one structural addition.** Every shape today beats only its own type at its own size. A
+  - ~~**The CHOP is the one structural addition.**~~ **SHIPPED in v1.31.33** as the eleventh rule. It does make
+    the apex answerable — 14% of 2-plays chopped at six players — but the hoped-for effect on initiative
+    concentration never appeared; the aggregate leader share is unchanged. What it did do is give Quadro a job:
+    17 → 956 plays per 250 six-player games. See the changelog.
+  - **MOVE THE RULE DESCRIPTIONS INTO TOOLTIPS (Aj, 2026-08-27: "let's move all these descriptions into
+    tooltips, maybe accessible by click on a `?` next to the option name"). Its own PR.** Thirteen rules with a
+    two-to-three-line note each is a very long panel — the reason the modal grew a `max-height` and scroll in
+    v1.31.14. Things to get right: it must be **click**, not hover, because the panel is used on a phone and
+    hover does not exist there (the landscape band and the 340px floor are the sizes to check); the `?` needs a
+    real tap target next to the label without pushing the scope tag around; the popover has to clear the modal's
+    own stacking (`.overlay` is `z-index:100000` and sits above `#netroot`, so anything above it needs a number,
+    not luck); and `rulestest`/`nettest_rules` currently assert note TEXT in places — a hidden note must still be
+    findable, or those assertions quietly stop checking anything. Note the panel already has three control
+    shapes (button rows, mode segments, bulk buttons); a fourth needs the same both-halves coverage, read-only
+    included.
+  - **CHOP STRIP OR NOT — an option (Aj, 2026-08-27: "an option we can add for the chop is if it strips or
+    not").** A round won by a chop destroys no shield, in the shape of `apexNoStrip`. The subtlety: `apexNoStrip`
+    can read the winning pile (`hasApex(pile.combo.cards)`), but "did this play CHOP something" is **not visible
+    from the pile** — the beaten combo is gone by then. So it needs a flag stamped when a play is accepted through
+    the chop path, not a test at resolve time. Note `wonWithCombo=false` drives BOTH the shield strip and the
+    mill target, so a no-strip chop resolves like a jab win, exactly as `apexNoStrip` does.
+  - **STRAIGHT FLUSHES AS CHOPS — decided, and measured before building (Aj, 2026-08-27).** *"We'll have
+    straight flushes beat our quadros then… they're only counted as straight flushes when selected as an
+    option"* — so the option both lifts `NO_STRAIGHT_FLUSH` and makes the shape a chop; with it off, a same-suit
+    run stays a plain straight as it has since v1.14. Ladder slot: **between Quadro and 4 Kits** (rank 37, reach
+    2) — above the Quadro per [pagat's](https://www.pagat.com/climbing/bigtwo.html) Big Two ordering (straight <
+    flush < full house < four of a kind < **straight flush**, with a known variant where only a *royal* flush
+    beats quads), below 4 Kits because this game's ladder already treats longer pair-runs as bigger. Tiến lên's
+    chop family has no straight flush at all, so the combined ladder is our call.
+    **THE STRUCTURAL HALF IS DECISIVE AND IS NOT ABOUT THE BOMB.** Of the 5-card straights a deck can make,
+    **100%** are same-suit in a pure class deck, **6%** in a two-suit deck, **0%** in the Full Set — a class deck
+    is four copies of ONE suit. And `beats()` already says a straight flush beats *any* straight regardless of
+    value, so the larger effect of switching this on is that **every mono-suit straight beats every mixed
+    straight for free.** Win share, three *interleaved* replicates at 6 players, 600 games each: **pure decks
+    +1.8 points, mixed decks −1.2**, same sign in all three (pure +2.9 / +1.5 / +1.0). A real ~3-point tilt
+    between the groups — modest beside `loss=all`'s 40-point blowout, but exactly the "a mono suit player shanks
+    every non-mono player" effect Aj predicted, so **the rule's note must say it out loud.** The SPREAD figure is
+    not readable at this sample size (−2.0 / −7.0 / +9.5 across replicates) — do not quote it. Every shape today beats only its own type at its own size. A
     quadro beating a lone 2 — or 3 kits beating a lone 2, which is exactly what đôi thông does — needs
     cross-shape overrides in `beats()`. Note it would also make the apex 2 answerable **without** touching the
     apex flags.
@@ -530,6 +590,121 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.33 — the chop: big shapes beat the 2
+
+The first rule where a shape beats one it **does not match**, and the reason the family's big shapes exist at
+all. In Tiến lên a tứ quý or ba đôi thông *chops* the heo — and in this game the heo is the apex 2. So the chop
+is what makes the 2 answerable, and what finally gives Quadro a job.
+
+**A chop ticks its own shape on** (Aj: *"1st one should probably auto check the quadros option"*). The engine
+already treated a chopper's shape as enabled — `quadroOn()` is `QUADRO || CHOP_Q` — so an unticked Quadro box
+beside a ticked "Quadro chops" box was telling the player something **false** about the game they were about to
+play. `needs` makes it a real dependency, and it holds in **both** directions: unticking the shape takes its chop
+with it, or the panel simply lies the other way round. The Straight Flush chop needs no shape row, being the only
+way that shape exists at all.
+
+**Three independent toggles, not one rule and not a mode.** The first pass made it a single boolean, then a
+mode row like the four-card slot — both wrong, and Aj caught each: *"we can't actually do it like Four-card
+double pairs huh? because we can check just quadro, or all the chops"*, and *"since it functions like a normal
+toggle, we can drop the OFF"*. The distinction is **ambiguity**: `4♦4♥5♣5♠` really is both a 2-kit and a poker
+two-pair, so that slot has to pick one. A Quadro, a 3-Kit and a same-suit straight are three distinguishable
+patterns — nothing forces a choice, so nothing should impose one. Each toggle also **enables its own shape**, so
+a chopper you cannot actually play is impossible.
+
+**THE `straightflush` TYPE IS DELETED, and that was the real prize** (Aj: *"i think it's better to remove that
+dead code then… i want them to only be detected as bombs and not as a mixed shape for straights and flushes
+that beats both. i made a mistake on that one, and it seems i'm still paying for it in technical debt"*). Since
+v1.14 a same-suit run has scored as a plain straight, which made the `beats()` clause granting a straight flush
+priority over any straight **unreachable dead code** — and I had misread it as live. It is gone, along with the
+type, the `NO_STRAIGHT_FLUSH` gate and the orphaned `TYPE` label. A same-suit run is an ordinary straight,
+compared by value; being one suit now matters **only** to `chopRank`.
+That deletion **halved the mono-suit tilt**: pure decks +0.9 / mixed −0.6 across three interleaved replicates,
+down from +1.8 / −1.2 when the type existed. Half the effect was the dead clause waking up; the residue is the
+chop's own — single-suit decks assemble the shape more easily — and cannot be removed without removing the
+option.
+
+**NO CHOPPER BEATS ANOTHER** (Aj: *"ordering is hard really… let's not make them beat each other for now?"*).
+Every chop ranks the same, and a chop is answered **in kind** — its own shape at a higher value, through the
+ordinary comparison. Three reasons, in order of weight:
+- **[pagat](https://www.pagat.com/climbing/thirteen.html) puts them at the same tier**: three consecutive pairs
+  *or* a four of a kind beats a lone 2, with no ranking between them. Secondary sources rank quads higher; others
+  drop bomb hierarchy entirely. It is a house call, not a fact to look up — which is exactly why not picking one
+  is the honest default.
+- **The scarcity argument does not survive measurement.** Of 10-card hands a Quadro appears in **1.1%** and a
+  3-Kit in **1.3–1.6%** — the 3-Kit is if anything *more* available. (Play counts implied the opposite by a
+  factor of 125, but that was the AI's cheapest-first policy, not availability. Nearly argued from it.)
+- **A 3-Kit costs six cards for what a Quadro does with four**, so ranking the Quadro above it made the dearer
+  play strictly worse.
+
+**Reach is uniform too:** a lone 2 or a pair of them, for every chopper. The "4+ Kits reach a trio" tier went
+with the ladder, and it was decoration regardless — an eight-card consecutive run appears in **0.0–0.1%** of
+hands.
+
+**The ladder that was.** 3 Kits and Quadro are both chops in the family — ba đôi thông and tứ quý — and
+[pagat](https://www.pagat.com/climbing/thirteen.html) is explicit that either "can beat a single two (but not
+any other single card)", with a **pair** of twos needing *five* consecutive pairs and a trio needing *seven*.
+**Our reach table is deliberately more generous than that, and it has to be:** five consecutive pairs is ten
+cards — the entire maximum hand — and seven is fourteen, which is impossible here. Measured on the shipped
+ladder, **0 of 88 chops at six players were against a lone 2**; essentially all were against a pair of 2s. A
+faithful ladder would therefore make the chop almost never fire. The finer ordering (does a quad outrank three
+pairs?) varies by house anyway, so both the rank order and the reach below are **our** choice:
+
+| | rank | reaches |
+| --- | --- | --- |
+| 3 Kits (size 6) | 30 | a lone 2 or a pair of them |
+| **Quadro** (size 4) | 35 | the same |
+| **Five in a row, one suit** | 37 | the same — and it outranks a Quadro, per Big Two |
+| 4 Kits (size 8) | 40 | a trio of 2s too — and everything above |
+| 5 Kits (size 10) | 50 | the same, and 4 Kits |
+
+A bigger chop answers a smaller one. **Equal rank falls through to the ordinary same-shape/higher-value
+comparison**, so a Quadro is chopped by a higher Quadro and 3 Kits by higher 3 Kits — for free, with no new code
+(Aj: *"you can actually chop another chop… if you followed the shape and played a value higher"* — that already
+works). There was precedent for the cross-shape override sitting right there in `beats()`: a straight flush
+already beat a plain straight.
+
+**The chop and "the 2 cannot be beaten" COMPOSE** (Aj: *"a chop would deal with inf 2s btw"*). I had built them
+to conflict, with `apexInf` winning — wrong, and the mechanism says why: `apexInf` makes the 2 unbeatable **by
+value** (it ranks the card at Infinity), and a chop is not a value answer at all, it is a **shape** answer. So
+the chop is precisely the counterplay to an unbeatable 2 — which is what makes `inf` playable without `nostrip`.
+Both rows' copy was rewritten to say so, and there is deliberately **no** `APEX_INF` guard in the chop branch.
+
+**Measured — and this is the rule that finally makes Quadro worth playing.** 250 games per cell, same seeds:
+
+| | Quadros played | 3 Kits | 4 Kits | 2-plays chopped | rounds/game |
+| --- | --- | --- | --- | --- | --- |
+| 6p, shapes only | 17 | 2149 | 528 | 0% | 28.5 |
+| 6p, shapes + chop | **956** | 1611 | 902 | **14%** | 28.2 |
+| 4p, shapes only | 23 | 365 | 74 | 0% | 18.6 |
+| 4p, shapes + chop | **88** | 350 | 109 | **7%** | 18.7 |
+| 2p, shapes + chop | 7 | 34 | 1 | ~0% (2 of 498) | 10.9 |
+
+Quadro goes from near-decorative (v1.31.29 measured 0.07 plays/game) to **956 plays in 250 six-player games**,
+because it finally answers something. 14% of all 2-plays get chopped at six players. **At two players the chop
+is nearly inert** — holding a Quadro or 3 Kits at the moment you face a lone 2 almost never happens in a duel —
+so in effect it is a multiplayer rule, though it is correctly tagged as changing all player counts.
+
+**Pacing and initiative do not move** (`rulesim` rows T/U vs A: medians 11/15/20/31, leader share 56/48/39/35,
+all within noise). **Fourth shape-rule in a row to say so.** Note the backlog hoped the chop would loosen
+initiative concentration by making the apex answerable; it does answer it, and the aggregate number does not
+budge.
+
+**My own probe lied first, and the control caught it.** The chop counter matched "a big shape played after a
+2-play", which also matches the *lead of the next round* — so it reported chops in the arm where the chop was
+**off**. Fixed by reading `g.pile.combo` before the turn, after which the off arm reads a clean 0. **An arm that
+should read zero is the cheapest instrument check there is** — same lesson as the identical-A/B and the `flag()`
+substring bug.
+
+The chop joins **Chikicha Specials** (Aj: *"the chop would also be checked in chikicha specials"*), which fixes
+the preset offering Quadro without the thing that gives it a job.
+
+**And a process note: this entry nearly did not exist.** The script that wrote it asserted on a stale anchor and
+threw *before* its write, and I read a confirmation that had not printed. `versiontest` now asserts that
+`docs/NEXT-SESSION.md` carries a `### vX.Y.Z` heading for the version in `README.md`, so a missing changelog
+fails the gate instead of shipping quietly.
+
+Suites: `test` 263 → **276**, `rulestest` 65, `versiontest` 14 → **15**.
 
 ### v1.31.32 — the game mode is a rule now, and online play finally honours it
 
