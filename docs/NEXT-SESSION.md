@@ -5,18 +5,41 @@ Test: `npm test` = `node test.js` (**246**) + `node netview.test.js` (**28**) �
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
 Current version: **v1.31.25**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
-## ☀️ START HERE — where we left off (2026-08-26)
+## ☀️ START HERE — where we left off (2026-08-27)
 
-`main` is at **v1.31.23**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
-the full suite is green.
+`main` is at **v1.31.31**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte.
 
-**Sanity check before you touch anything** (from `code/`, ~20 seconds):
+**One PR is in flight: [#60](https://github.com/aquielleoz/CardmenFighter/pull/60) — v1.31.33, the chop.** Green
+and ready to merge; it was left open only because Aj was heading off. It carries the eleventh-to-thirteenth
+rules (`chopQuadro` / `chopKits` / `chopSflush`) and **deletes the `straightflush` type**. If it is already
+merged when you read this, delete this paragraph and bump the version above.
+
+**Sanity check before you touch anything** (from `code/`, ~30 seconds):
 
 ```bash
 npm test && node mptest.js && node rulestest.js
 ```
 
-Expect **231 / 0**, **28 / 0**, **82 / 0**, **33 / 0**. If those pass, the repo is exactly as it was left.
+On `main` expect **263 / 0**, **28 / 0**, **82 / 0**, **69 / 0**; on the #60 branch **287 / 0**, **28 / 0**,
+**82 / 0**, **75 / 0**. If a count disagrees, the suite is right — fix the number here.
+
+**What the last stretch was about**, newest first, all of it in the changelog below: the chop (v1.31.33), rule
+presets and Clear all (v1.31.30) plus the game mode moving into the rules panel (v1.31.32), the rule-suggestion
+layer where clients suggest and the host decides (v1.31.31), the deck picker's three defaults (v1.31.28), Quadro
+(v1.31.29), and the pair shapes (v1.31.24/26).
+
+**Queued, in the order Aj raised them:**
+1. **Rule descriptions into tooltips** behind a `?` — his own request, its own PR. The BACKLOG entry lists what
+   will bite (click not hover, stacking above `.overlay`, and the suites that assert note TEXT).
+2. **Chop strip or not.** Note the subtlety recorded in the BACKLOG: "did this play *chop* something" is not
+   visible from the pile.
+3. **A Tiến lên preset**, which is where `chopKits` belongs (deliberately not in Chikicha Specials).
+4. Then the remaining Dou Dizhu shapes — trio+single, four+two, the airplane.
+
+**Two things worth reading before touching the rules panel:** every rule defaults OFF and "is this customised?"
+is therefore `RULE_DEFS.some(ruleOn)`, and the panel now has four control shapes (button rows, mode segments,
+bulk buttons, `needs` dependencies) — each needs covering in BOTH the editable and the read-only half, which is
+a lesson learned twice.
 
 **Three branches exist off main, and none of them is half-done:**
 - **`exp/shield-break-all` — OPEN, unmerged.** The whole `loss=all` investigation (PATCHNOTES **0n**): why it
