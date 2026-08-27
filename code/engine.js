@@ -1694,10 +1694,11 @@
      * and a rival who sees the opening escalates — a boosted pair of Aces takes the round back and puts the
      * damage on you. The unbeatable version cannot produce that exchange at all, because nothing answers it. */
     if (APEX_NOSTRIP && hasApex(st.pile.combo.cards)) wonWithCombo = false;   // a winning play containing a 2 deals no damage
-    /* A round WON BY A CHOP deals no damage. Reads the flag stamped at play time — see the comment at the stamp
-     * for why it cannot be worked out from the pile here. Like apexNoStrip, clearing wonWithCombo drives BOTH the
-     * shield strip and the mill target, so such a round resolves exactly like a jab win. */
-    if (CHOP_NOSTRIP && st.pile.chopped) wonWithCombo = false;
+    /* A round WON BY A CHOP deals no damage, unless CHOP_STRIPS says otherwise. Reads the flag stamped at play
+     * time — see the comment at the stamp for why it cannot be worked out from the pile here. Like apexNoStrip,
+     * clearing wonWithCombo drives BOTH the shield strip and the mill target, so such a round resolves exactly
+     * like a jab win. */
+    if (st.pile.chopped && !CHOP_STRIPS) wonWithCombo = false;
     var losers = livingNonWinners(st, winner);
     // who takes a shield loss (Specials only): 'all' = every loser; 'chosen' = the winner's one pick
     var strikeTargets = [];
@@ -1928,7 +1929,7 @@
    * a 3-Kit and a same-suit straight are three distinguishable patterns — nothing forces a choice, so nothing
    * should impose one, and there is no "off" segment either: they are ordinary toggles. Each flag also ENABLES
    * its own shape, so no setting can be dead. */
-  var CHOP_Q = false, CHOP_K = false, CHOP_SF = false, CHOP_NOSTRIP = false;
+  var CHOP_Q = false, CHOP_K = false, CHOP_SF = false, CHOP_STRIPS = false;
   var QUADRO = false;
   var DBL_PAIR = 'off', KITS3 = false;
   /* A MODE, like the four-card double-pair slot (Aj, 2026-08-27: "let's do it like the Four-card double
@@ -1940,8 +1941,12 @@
   function setChopQuadro(v) { CHOP_Q = !!v; }
   function setChopKits(v)   { CHOP_K = !!v; }
   function setChopSflush(v) { CHOP_SF = !!v; }
-  function setChopNoStrip(v) { CHOP_NOSTRIP = !!v; }
-  function isChopNoStrip() { return CHOP_NOSTRIP; }
+  /* CHOPS DEAL NO DAMAGE BY DEFAULT (Aj, 2026-08-27: "the default is that chops don't destroy shields"). A chop
+   * buys the lead, not a shield. The toggle is therefore phrased as the POSITIVE — `chopStrips` makes them deal
+   * damage — because every rule in the panel must default OFF: "is this game customised?" is literally "is any
+   * rule on?", so a rule whose off state changed the game would break that. Same inversion as `flatDraw`. */
+  function setChopStrips(v) { CHOP_STRIPS = !!v; }
+  function isChopStrips() { return CHOP_STRIPS; }
   function isChopQuadro() { return CHOP_Q; }
   function isChopKits()   { return CHOP_K; }
   function isChopSflush() { return CHOP_SF; }
@@ -2082,7 +2087,7 @@
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
     setChopQuadro: setChopQuadro, setChopKits: setChopKits, setChopSflush: setChopSflush,
-    setChopNoStrip: setChopNoStrip, isChopNoStrip: isChopNoStrip,
+    setChopStrips: setChopStrips, isChopStrips: isChopStrips,
     isChopQuadro: isChopQuadro, isChopKits: isChopKits, isChopSflush: isChopSflush, chopRank: chopRank,
     setQuadro: setQuadro, isQuadro: isQuadro,
     setDoublePair: setDoublePair, isDoublePair: isDoublePair,

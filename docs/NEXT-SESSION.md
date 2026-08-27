@@ -581,17 +581,30 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
-### v1.31.38 — chops destroy no shields (an option), and why it needed a flag
+### v1.31.38 — chops deal no damage, and why that is the default
 
-The fourteenth rule, and the counterpart to *"Fights won with a 2 destroy no shields"* — that one is about the
-play, this one about the **answer**. A round won **by a chop** costs nobody a shield: the chop buys you the lead
-and nothing else.
+**A round won by a chop costs nobody a shield.** Aj's reason is a design one, not a balance one:
 
-**Why it could not simply read the pile, which is what Aj asked.** `apexNoStrip` gets away with
-`hasApex(st.pile.combo.cards)` at resolve time because "was the winning play made of 2s?" is a property of the
-play *itself* — the cards are right there. "Did this play **chop**?" is a property of the play **and what it
-beat**, and `play()` replaces the pile the moment a play is accepted, discarding the beaten combo. Demonstrated
-before writing any of it — three different actions, byte-identical piles:
+> *"that'll be lines for players to think. nothing wrong with making them valid shapes… but making them chops is
+> more non linear play."*
+
+A chop already bends the one rule every other shape obeys — beat the same shape at a higher value. Its payoff is
+therefore the **lead**, not a shield; paying damage as well would make the non-linear play the strongest play
+too. This **changes what v1.31.33 shipped**, where chops stripped like any Special.
+
+**The toggle is phrased as the positive — `chopStrips` — and that is load-bearing.** Every rule in the panel
+must default OFF, because "is this game customised?" is literally `RULE_DEFS.some(ruleOn)`. A rule whose *off*
+state changed the game would break that, so the option is "Chops destroy shields too", exactly the inversion
+`flatDraw` uses.
+
+Measured: at six players the default costs almost nothing in pacing — 28.5 rounds per game against 28.1 with
+chops stripping — which is what you would expect from a rule that fires on ~14% of 2-plays.
+
+**Why it needed a flag on the pile at all** — the thing Aj asked me to elaborate. `apexNoStrip` reads
+`hasApex(st.pile.combo.cards)` at resolve time because *"was the winning play made of 2s?"* is a property of the
+play **itself**. *"Did this play chop?"* is a property of the play **and what it beat**, and `play()` replaces the
+pile the moment a play is accepted. Demonstrated before writing any of it — three different actions, byte-identical
+piles:
 
 | what the player did | resulting pile |
 | --- | --- |
@@ -599,27 +612,26 @@ before writing any of it — three different actions, byte-identical piles:
 | beat a lower Quadro with it | `quadro/4 key [7] byPlayer 0 cards 7D,7H,7C,7S` |
 | **chopped a pair of 2s with it** | `quadro/4 key [7] byPlayer 0 cards 7D,7H,7C,7S` |
 
-So the fact is recorded where it is still knowable: `play()` stamps `st.pile.chopped` between validating the play
-against the old pile and replacing it. It travels in netplay snapshots like the rest of the pile, and a later
-play in the same round overwrites it — correctly, since a chop that is then beaten by a higher Quadro did not win
-the round.
+So `play()` stamps `st.pile.chopped` between validating against the old pile and replacing it. It travels in
+netplay snapshots with the rest of the pile, and a later play in the round overwrites it — correctly, since a chop
+that is then beaten did not win. **`isChopOf(cand, cur)` is the single definition of "chops"**, used by `beats()`
+to allow the play and by `play()` to record it; as two copies 400 lines apart they would drift, and the failure
+would be a no-strip chop that strips.
 
-**One definition of "chops", shared.** `isChopOf(cand, cur)` is now used by `beats()` to allow the play *and* by
-`play()` to stamp it. The rule that lets a chop through and the record that it happened cannot drift apart —
-which they would, being four hundred lines apart in the file.
+Note `wonWithCombo=false` drives **both** the shield strip and the mill target, so such a round resolves exactly
+like a jab win, as `apexNoStrip` does.
 
-Note `wonWithCombo=false` drives **both** the shield strip and the mill target, so a no-strip chop resolves
-exactly like a jab win, as `apexNoStrip` does.
+**The wide layout tightened to absorb the fourteenth rule.** Every rule costs a grid row (~76px), which took the
+panel to 941px and pushed a 14-inch MacBook Pro back into scrolling. Trimming the wide-only rhythm — gap 9→7px,
+row padding 12→10px, section margins 10→6px — brought it to **881px**: fits at 1080p, at 1900×1000 and at
+1512×945. A 13-inch Air (1440×900) is 23px over, and 1280×800 scrolls as before. **A treadmill: the next rule
+costs another ~76px.**
 
-**The wide layout tightened to absorb it.** Every rule costs a grid row (~76px), which took the panel to 941px
-and pushed a 14-inch MacBook Pro back into scrolling. Trimming the wide-only rhythm — gap 9→7px, row padding
-12→10px, section margins 10→6px — brought it to **881px**: fits at 1080p, at 1900×1000, and at 1512×945. A 13-inch
-Air (1440×900) is 23px over, and 1280×800 scrolls as before. **This is a treadmill: the next rule costs another
-~76px**, so expect to trim again or accept the threshold rising.
-
-**A note on my own tooling, because it cost time three times today:** an edit script that asserts each anchor and
-writes once at the end discards *every* earlier edit when a later assert throws — twice it looked like a change
-had landed when nothing had been written. Write after each edit instead.
+**Two of my own mistakes, both caught by things built earlier this week.** An edit script that asserts each anchor
+and writes once at the end discards *every* earlier edit when a later assert throws — it looked twice like a change
+had landed when nothing had been written; write after each edit. And slicing between two anchors that turned out to
+be in the opposite order **duplicated** a block of `RULE_DEFS`, which surfaced immediately as a **"Uncategorised"**
+section in the panel — the safety net added in v1.31.37 catching the person who added it.
 
 Suites: `test` 287 → **292**, `rulestest` 102 → **104**.
 

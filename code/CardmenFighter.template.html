@@ -1381,12 +1381,17 @@ __QR__
       note:'A run of three or more Kits does the same. Switches 3 Kits on with it.' },
     { key:'chopSflush',  duel:true, label:'The chop: a Straight Flush beats the 2',
       note:'Five in a row, all one suit, does the same. This is <b>only</b> a chop — a same-suit run is an ordinary straight the rest of the time and never beats a higher straight. Single-suit class decks make these far more easily than mixed ones: they turn up in about one hand in four, against one in three hundred for the Full Set.' },
-    /* The counterpart to "Fights won with a 2 destroy no shields", for the answer rather than the play. It reads
-     * a flag stamped when the play was accepted, because by the time a round resolves the beaten combo is gone
-     * and a chop is indistinguishable from a lead. */
-    { key:'chopNoStrip', duel:true, label:'Chops destroy no shields',
-      note:'A round won BY A CHOP costs nobody a shield — the chop buys you the lead and nothing else. Only applies when a chop actually happened: leading one of these shapes, or beating one with a higher one of the same shape, still deals damage as usual.' }
-
+    /* CHOPS DEAL NO DAMAGE BY DEFAULT, and Aj's reason is the design one (2026-08-27): "that'll be lines for
+     * players to think. nothing wrong with making them valid shapes... but making them chops is more non linear
+     * play." A chop already breaks the one rule every other shape obeys — beat the same shape at a higher value —
+     * so its payoff is the LEAD, not a shield. Paying damage as well would make the non-linear play the strongest
+     * play too.
+     * The toggle is phrased as the POSITIVE (`chopStrips` makes them deal damage) because every rule in this
+     * panel must default OFF: "is this game customised?" is literally "is any rule on?". Same inversion as
+     * `flatDraw`. And it reads a flag stamped when the play was accepted — by the time a round resolves the
+     * beaten combo is gone and a chop is indistinguishable from a lead. */
+    { key:'chopStrips',  duel:true, label:'Chops destroy shields too',
+      note:'By default a round won <b>by a chop</b> costs nobody a shield — a chop already bends the shape-matching rule, so what it buys you is the lead. Switch this on and a chop deals damage like any other Special. Either way it only concerns rounds a chop actually won: leading one of these shapes, or beating one with a higher one of the same shape, always deals damage.' },
   ];
   /* TWO STORES, and the split is what makes suggestions possible (v1.31.31). RULES is what is IN PLAY — on a
    * netplay client the host overwrites it wholesale, so anything kept there is not yours. MY_RULES is THIS
@@ -1408,7 +1413,7 @@ __QR__
     { key:'mode',   title:'The game',       keys:['basics'] },
     { key:'table',  title:'Table rules',    keys:['lossAll','millAll','shieldScale','flatDraw'] },
     { key:'apex',   title:'The 2',          keys:['apexInf','apexNoStrip'] },
-    { key:'shapes', title:'Shapes & chops', keys:['dblPair','kits3','quadro','chopQuadro','chopKits','chopSflush','chopNoStrip'],
+    { key:'shapes', title:'Shapes & chops', keys:['dblPair','kits3','quadro','chopQuadro','chopKits','chopSflush','chopStrips'],
       presets:true }
   ];
   var RULES={}, MY_RULES={};
@@ -1491,7 +1496,7 @@ __QR__
       if(E.setChopQuadro)       E.setChopQuadro(!!RULES.chopQuadro);
       if(E.setChopKits)         E.setChopKits(!!RULES.chopKits);
       if(E.setChopSflush)       E.setChopSflush(!!RULES.chopSflush);
-      if(E.setChopNoStrip)      E.setChopNoStrip(!!RULES.chopNoStrip);
+      if(E.setChopStrips)       E.setChopStrips(!!RULES.chopStrips);
   }
   function valLabel(d,v){
     if(!d.mode) return v?'On':'Off';       // capitalised to match a mode row's own labels, which sit beside it

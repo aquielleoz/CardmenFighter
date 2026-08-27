@@ -328,12 +328,18 @@ Three more things worth knowing before touching them:
   `hasApex(st.pile.combo.cards)` at resolve time because "was the play made of 2s" is a property of the play
   itself. A chop is a property of the play **and what it beat**, and `play()` replaces the pile the moment a play
   is accepted — a Quadro led, a Quadro over a lower Quadro, and a Quadro that chopped a pair of 2s leave
-  **byte-identical** piles. So `chopNoStrip` reads `st.pile.chopped`, stamped in `play()` between the `beats()`
-  check and the pile replacement. **`isChopOf(cand, cur)` is the single definition of "chops", used by `beats()`
+  **byte-identical** piles. So a chop's damage is decided by `st.pile.chopped`, stamped in `play()` between the
+  `beats()` check and the pile replacement. **`isChopOf(cand, cur)` is the single definition of "chops", used by `beats()`
   to allow the play and by `play()` to record it** — do not inline either copy, they are 400 lines apart and
   would drift. A later play in the round overwrites the flag, which is correct: a chop that is then beaten did
   not win. And `wonWithCombo=false` drives both the shield strip and the mill target, so a no-strip chop resolves
   like a jab win.
+- **CHOPS DEAL NO DAMAGE BY DEFAULT (v1.31.38), and the toggle is the POSITIVE (`chopStrips`).** Aj's reason is
+  design, not balance: a chop already bends the one rule every other shape obeys, so its payoff is the lead, and
+  paying damage too would make the non-linear play the strongest play. The toggle has to be phrased as "chops
+  destroy shields too" because every rule in the panel must default OFF — `RULE_DEFS.some(ruleOn)` *is* the
+  definition of "customised". Same inversion as `flatDraw`. Pacing cost of the default is ~nil (28.5 vs 28.1
+  rounds at 6p).
 - **THE WIDE PANEL IS ON A TREADMILL:** every rule added costs a grid row, ~76px. v1.31.38's fourteenth rule
   pushed a 14-inch MBP back into scrolling until the wide-only rhythm was trimmed (gap 9→7, row padding 12→10,
   section margins 10→6) for 881px. Measure `scrollHeight > clientHeight` at 1512×945 after adding a rule.

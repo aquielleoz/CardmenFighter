@@ -1012,9 +1012,12 @@ function cards(ids) { return ids.map(card); }
     g.players[1].hand = two.slice(); g.turn = 1; E.play(g, 1, two); g.turn = 0;
     g.players[0].hand = Q(); E.play(g, 0, g.players[0].hand.slice());
     ok(g.pile.chopped === true, 'but chopping a pair of 2s IS, and the pile records it');
-    /* THE RULE ITSELF: same chop, with and without the toggle. Shields are what the player notices. */
-    function chopRound(noStrip) {
-      E.setChopNoStrip(noStrip);
+    /* THE RULE ITSELF, and note which way round the default goes: a chop deals NO damage unless you ask for it
+     * (Aj: "the default is that chops don't destroy shields... making them chops is more non linear play" — a
+     * chop already bends the shape-matching rule, so its payoff is the lead). The toggle is the positive so that
+     * every rule in the panel still defaults off. */
+    function chopRound(strips) {
+      E.setChopStrips(strips);
       var h = fresh();
       var t = [C(2, 'D'), C(2, 'H')];
       h.players[1].hand = t.slice(); h.turn = 1; E.play(h, 1, t); h.turn = 0;
@@ -1023,10 +1026,11 @@ function cards(ids) { return ids.map(card); }
       h.passes = 0; E.pass(h, 1);                             // the beaten seat gives up the round
       return { before: before, after: h.players[1].shields };
     }
-    var on = chopRound(true), off = chopRound(false);
-    ok(off.after === off.before - 1, 'with the rule OFF a chop strips a shield like any Special (' + off.before + '->' + off.after + ')');
-    ok(on.after === on.before, 'with it ON the chop costs nobody a shield (' + on.before + '->' + on.after + ')');
-    E.setChopNoStrip(false); E.setChopQuadro(false);
+    var dflt = chopRound(false), strips = chopRound(true);
+    ok(dflt.after === dflt.before, 'BY DEFAULT a chop costs nobody a shield (' + dflt.before + '->' + dflt.after + ')');
+    ok(strips.after === strips.before - 1,
+       'and `chopStrips` makes it deal damage like any other Special (' + strips.before + '->' + strips.after + ')');
+    E.setChopStrips(false); E.setChopQuadro(false);
   })();
 
   E.setQuadro(false); E.setKits3(false); E.setDoublePair('off');
