@@ -293,7 +293,13 @@ Three more things worth knowing before touching them:
   copy says the values must be consecutive, because that is exactly what separates a kit from poker's two pair.
 - **THE CHOP (v1.31.33) IS THE ONLY CROSS-SHAPE RULE, and it composes with `apexInf` rather than fighting it.**
   `chopRank` is a scaled ladder — 3 Kits 30, Quadro 35, 4 Kits 40, 5 Kits 50 — so a Quadro sits between 3 and 4
-  Kits, and **equal rank deliberately falls through** to the ordinary same-type/same-size value comparison, which
+  Kits, and **equal rank deliberately falls through**
+  **THE REACH TABLE IS OURS, NOT THE FAMILY'S, AND DELIBERATELY SO.** 3 Kits and Quadro are both real chops
+  (ba đôi thông, tứ quý), but [pagat](https://www.pagat.com/climbing/thirteen.html) caps both at a **lone** 2 —
+  a pair of 2s needs *five* consecutive pairs and a trio *seven*. At `MAX_HAND=10` that is ten cards and fourteen
+  cards, i.e. the whole hand and impossible. Measured: **0 of 88 chops at 6p were against a lone 2** (nearly all
+  were against a pair), so the faithful ladder would make the rule almost never fire. Do not "restore fidelity"
+  here without re-measuring — the extension IS the feature. to the ordinary same-type/same-size value comparison, which
   is what makes "chop a chop with a higher one of the same shape" work with no extra code. `chopReach` decides how
   far up the all-2s shapes each rank reaches (single / pair / trio).
   **`apexInf` and the chop are not a contradiction**: `apexInf` makes the 2 unbeatable **by value** (it ranks the

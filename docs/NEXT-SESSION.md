@@ -563,7 +563,14 @@ The first rule where a shape beats one it **does not match**, and the reason the
 all. In Tiến lên a tứ quý or ba đôi thông *chops* the heo — and in this game the heo is the apex 2. So the chop
 is what makes the 2 answerable, and what finally gives Quadro a job.
 
-**The ladder**, scaled so a Quadro sits between 3 and 4 Kits, which is the family's own ordering:
+**The ladder.** 3 Kits and Quadro are both chops in the family — ba đôi thông and tứ quý — and
+[pagat](https://www.pagat.com/climbing/thirteen.html) is explicit that either "can beat a single two (but not
+any other single card)", with a **pair** of twos needing *five* consecutive pairs and a trio needing *seven*.
+**Our reach table is deliberately more generous than that, and it has to be:** five consecutive pairs is ten
+cards — the entire maximum hand — and seven is fourteen, which is impossible here. Measured on the shipped
+ladder, **0 of 88 chops at six players were against a lone 2**; essentially all were against a pair of 2s. A
+faithful ladder would therefore make the chop almost never fire. The finer ordering (does a quad outrank three
+pairs?) varies by house anyway, so both the rank order and the reach below are **our** choice:
 
 | | rank | reaches |
 | --- | --- | --- |
