@@ -49,16 +49,20 @@ const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); r
   ok(await join.evaluate(()=>!!document.getElementById('lobbyRules')), 'the client is offered a way to READ the rules');
   await join.evaluate(()=>document.getElementById('lobbyRules').click()); await wait(350);
   ok(await modalOnTop(join), 'the panel is actually VISIBLE over the lobby, not just present in the DOM');
-  /* A MODE row is a <div> and cannot be `disabled` — its segments carry it (see rulestest). Checking only
-   * `row.disabled` would pass a client that could still change the mode locally, which over netplay means two
-   * people playing different games: the whole failure the version handshake exists to prevent. */
-  ok(await join.evaluate(()=>[].every.call(document.querySelectorAll('.settingRow[data-rule]'),
-       r=>r.hasAttribute('data-mode') ? [].every.call(r.querySelectorAll('.segBtn'),b=>b.disabled) : r.disabled)),
-     'and it is read-only for the client — only the host\'s rules count');
-  ok(await join.evaluate(()=>[].every.call(document.querySelectorAll('.ruleBulk .bulkBtn'),b=>b.disabled)),
-     '  including the presets and Clear all — a client applying a preset locally is two different games');
-  ok(await join.evaluate(()=>/host chooses the rules/i.test((document.querySelector('.modal .netmsg')||{}).textContent||'')),
-     'with a line saying the host decides, rather than a dead control');
+  /* SINCE v1.31.31 the client's controls are LIVE — they edit its own suggestion, not the rules (the whole of
+   * that feature is covered by nettest_suggest). What must still hold here is the invariant the old read-only
+   * panel was protecting: a client cannot change the rules IN PLAY. Assert that directly, on the engine, rather
+   * than asserting that the controls are dead — the control being dead was only ever the mechanism. */
+  ok(await join.evaluate(()=>/host/i.test((document.querySelector('.modal .netmsg')||{}).textContent||'')
+                          && /suggestion/i.test((document.querySelector('.modal .netmsg')||{}).textContent||'')),
+     'the client is told the host decides and that its own picks are suggestions');
+  const clientBefore=await flags(join);
+  await join.evaluate(()=>{ const r=document.querySelector('.settingRow[data-rule="lossAll"]'); if(r&&r.click)r.click(); });
+  await join.evaluate(()=>{ const b=document.querySelector('.segBtn[data-mode-for="dblPair"][data-mode-v="poker"]'); if(b)b.click(); });
+  await join.evaluate(()=>{ const b=document.querySelector('.bulkBtn[data-preset="chikicha"]'); if(b)b.click(); });
+  await wait(350);
+  ok(JSON.stringify(await flags(join))===JSON.stringify(clientBefore),
+     'and nothing it does in that panel — a toggle, a mode, even a whole preset — moves the rules in play');
   await join.evaluate(()=>document.getElementById('ruleDone').click()); await wait(250);
 
   // ---------- the client readies
