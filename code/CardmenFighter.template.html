@@ -1190,7 +1190,7 @@ __QR__
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
-  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',straightflush:'Straight Flush',kit:'Kits',twopair:'Two Pair',quadro:'Quadro'};
+  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',kit:'Kits',twopair:'Two Pair',quadro:'Quadro'};
   /* Kits are the first VARIABLE-LENGTH shape, so a fixed name is not enough — a run of two pairs and a run of
    * three are different plays. Where the combo object is in hand, say which ("2 Kits"); the bare TYPE entry
    * covers the call sites that only carry a type string. */
@@ -1294,7 +1294,7 @@ __QR__
      * CAN still be beaten is the contestable version of the idea, and the measurements say that is the one that
      * actually plays the way the proposal imagines. */
     { key:'apexInf',     duel:true, label:'The 2 cannot be beaten — not even by a boost',
-      note:'Normally a boosted Ace can out-value the apex 2. No card can out-value it at all — the only answer left is The chop, below.' },
+      note:'Normally a boosted Ace can out-value the apex 2. No card can out-value it at all — the only answers left are the chops, below.' },
     { key:'apexNoStrip', duel:true, label:'Fights won with a 2 destroy no shields',
       note:'The 2 becomes a way to seize the lead without dealing damage, and rivals can still beat it — unless the rule above is also on. Makes 6-player games much longer.' },
     /* THE DOUBLE-PAIR SLOT IS A MODE. Poker's two pair is a SUPERSET of a 2-kit at the same size, so as two
@@ -1314,8 +1314,15 @@ __QR__
     /* THE CHOP is a modifier on the shapes above it, so it is last and its note says outright that it does
      * nothing without them. It is also the only rule that makes the apex 2 answerable, which is why the note
      * names the conflict with "The 2 cannot be beaten" rather than leaving two rules to contradict each other. */
-    { key:'chop',        duel:true, label:'The chop — big shapes beat the 2',
-      note:'A Quadro or a run of 3+ Kits beats a 2 it does not match: 3 Kits take a lone 2, a Quadro a lone 2 or a pair, 4 Kits a trio or a Quadro. A chop answers a 2 by SHAPE, so it works even on an unbeatable one. Needs those shapes switched on.' }
+    /* THREE INDEPENDENT CHOPS, not a mode. They are distinguishable shapes, so nothing forces a choice — you
+     * can take one, or all of them — and each toggle enables its own shape, so no setting is ever dead. The
+     * ladder between them is 3 Kits < Quadro < same-suit straight < 4+ Kits. */
+    { key:'chopQuadro',  duel:true, label:'The chop: a Quadro beats the 2',
+      note:'Four of a kind beats a 2 it does not match — a lone 2 or a pair of them. A chop answers by SHAPE, so it works even on a 2 that cannot be beaten. Switching this on makes Quadros playable by itself.' },
+    { key:'chopKits',    duel:true, label:'The chop: 3+ Kits beat the 2',
+      note:'A run of three or more Kits does the same, and 4+ Kits reach a trio of 2s and outrank the other chops. Switching this on makes those runs playable by itself.' },
+    { key:'chopSflush',  duel:true, label:'The chop: five in a row, one suit, beats the 2',
+      note:'Same reach, and it outranks a Quadro. This is <b>only</b> a chop: a same-suit run is an ordinary straight the rest of the time and never beats a higher straight. Single-suit class decks make these far more easily than mixed ones.' }
   ];
   /* TWO STORES, and the split is what makes suggestions possible (v1.31.31). RULES is what is IN PLAY — on a
    * netplay client the host overwrites it wholesale, so anything kept there is not yours. MY_RULES is THIS
@@ -1334,7 +1341,7 @@ __QR__
    * offering it now would name a rule set the build cannot actually play. */
   var RULE_PRESETS=[
     { key:'chikicha', label:'Chikicha Specials', title:'The Kits and Quadro shapes, with the chop that gives them a job — and nothing else',
-      rules:{ dblPair:'kits', kits3:true, quadro:true, chop:true } }
+      rules:{ dblPair:'kits', kits3:true, quadro:true, chopQuadro:true } }
   ];
   function presetValue(p,d){ return p.rules[d.key]!==undefined ? p.rules[d.key] : ruleOff(d); }
   function presetActive(p,src){ src=src||RULES; return RULE_DEFS.every(function(d){ return src[d.key]===presetValue(p,d); }); }
@@ -1391,7 +1398,9 @@ __QR__
       if(E.setDoublePair)       E.setDoublePair(RULES.dblPair);
       if(E.setKits3)            E.setKits3(!!RULES.kits3);
       if(E.setQuadro)           E.setQuadro(!!RULES.quadro);
-      if(E.setChop)             E.setChop(!!RULES.chop);
+      if(E.setChopQuadro)       E.setChopQuadro(!!RULES.chopQuadro);
+      if(E.setChopKits)         E.setChopKits(!!RULES.chopKits);
+      if(E.setChopSflush)       E.setChopSflush(!!RULES.chopSflush);
   }
   function valLabel(d,v){
     if(!d.mode) return v?'On':'Off';       // capitalised to match a mode row's own labels, which sit beside it

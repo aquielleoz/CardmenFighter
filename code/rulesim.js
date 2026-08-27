@@ -76,7 +76,9 @@ function run(loss,mill,sh,dp,ap,P,n,ward){
   if (E.setDoublePair) E.setDoublePair(pair==='kits2'||pair==='both'||pair==='chikicha'||pair==='shapesonly' ? 'kits' : (pair==='poker'||pair==='pokerK3' ? 'poker' : 'off'));
   if (E.setKits3) E.setKits3(pair==='kits3'||pair==='both'||pair==='pokerK3'||pair==='chikicha'||pair==='shapesonly');
   if (E.setQuadro) E.setQuadro(pair==='quadro'||pair==='chikicha'||pair==='shapesonly');
-  if (E.setChop) E.setChop(pair==='chikicha');
+  if (E.setChopQuadro) E.setChopQuadro(pair==='chikicha');
+  if (E.setChopKits) E.setChopKits(false);
+  if (E.setChopSflush) E.setChopSflush(false);
   E.setApexInfinity(ap === 'inf' || ap === 'nostrip'); E.setApexNoStrip(ap === 'nostrip' || ap === 'nostripOnly');
   var rounds=[], jb=0, sp=0, leadTop=0, leadN=0;
   for(var s=1;s<=n;s++){
@@ -110,4 +112,4 @@ CFG.forEach(function(c){
   });
   console.log(out);
 });
-E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false); E.setApexNoStrip(false); if(E.setWardAll) E.setWardAll(false); if(E.setDoublePair) E.setDoublePair('off'); if(E.setKits3) E.setKits3(false); if(E.setQuadro) E.setQuadro(false); if(E.setChop) E.setChop(false);
+E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false); E.setApexNoStrip(false); if(E.setWardAll) E.setWardAll(false); if(E.setDoublePair) E.setDoublePair('off'); if(E.setKits3) E.setKits3(false); if(E.setQuadro) E.setQuadro(false); if(E.setChopQuadro){E.setChopQuadro(false);E.setChopKits(false);E.setChopSflush(false);}

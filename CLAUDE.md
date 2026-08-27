@@ -291,7 +291,17 @@ Three more things worth knowing before touching them:
 - **The floor is TWO pairs, not the family's three** (连对 / đôi thông). Those games deal 17-20 cards; this one
   deals 6 and caps at 10, so a three-pair floor would make the shape dead. Values must be consecutive — the panel
   copy says the values must be consecutive, because that is exactly what separates a kit from poker's two pair.
-- **THE CHOP (v1.31.33) IS THE ONLY CROSS-SHAPE RULE, and it composes with `apexInf` rather than fighting it.**
+- **THE CHOPS (v1.31.33) ARE THREE INDEPENDENT TOGGLES, NOT A MODE** — `chopQuadro`, `chopKits`, `chopSflush`.
+  The four-card double-pair slot has to be a mode because `4♦4♥5♣5♠` is genuinely both shapes; a Quadro, a 3-Kit
+  and a same-suit straight are distinguishable, so nothing forces a choice and there is no "off" segment. Each
+  toggle **enables its own shape** (`quadroOn()`/`kits3On()`), so a selected chopper is never unplayable.
+- **THE `straightflush` TYPE IS DELETED (v1.31.33), NOT DISABLED.** Since v1.14 `detectCombo` never produced it,
+  which made the `beats()` clause granting it priority over any straight **unreachable dead code** — easy to
+  misread as live behaviour, and I did. A same-suit run is an ordinary straight compared by value; one suit
+  matters **only** to `chopRank` under `chopSflush`. Deleting it halved the mono-suit tilt (pure decks +0.9 /
+  mixed −0.6 over three interleaved replicates, from +1.8 / −1.2), and the residue is the chop's own. **Do not
+  reintroduce a straight-flush TYPE to implement a straight-flush rule** — rank the shape, don't retype it.
+- **THE CHOPS COMPOSE with `apexInf` rather than fighting it.**
   `chopRank` is a scaled ladder — 3 Kits 30, Quadro 35, 4 Kits 40, 5 Kits 50 — so a Quadro sits between 3 and 4
   Kits, and **equal rank deliberately falls through**
   **THE REACH TABLE IS OURS, NOT THE FAMILY'S, AND DELIBERATELY SO.** 3 Kits and Quadro are both real chops

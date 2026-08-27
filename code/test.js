@@ -922,32 +922,61 @@ function cards(ids) { return ids.map(card); }
   var kit4 = kit3.concat([C(7, 'C'), C(7, 'S')]);
   ok(E.beats(E.detectCombo(q7), E.detectCombo(one2)) === false,
      'chop OFF (the shipped game): a Quadro cannot touch a lone 2');
-  E.setChop(true);
-  ok(E.beats(E.detectCombo(kit3), E.detectCombo(one2)) === true, 'chop: 3 Kits take a lone 2');
-  ok(E.beats(E.detectCombo(kit3), E.detectCombo(two2)) === false, 'but 3 Kits do NOT reach a pair of 2s');
-  ok(E.beats(E.detectCombo(q7), E.detectCombo(two2)) === true, 'a Quadro takes a lone 2 or a pair of them');
-  ok(E.beats(E.detectCombo(q7), E.detectCombo(three2)) === false, 'and stops short of a trio of 2s');
-  ok(E.beats(E.detectCombo(kit4), E.detectCombo(three2)) === true, '4 Kits reach the trio');
-  /* THE LADDER, which is why chopRank is scaled rather than a boolean: a Quadro sits BETWEEN 3 and 4 Kits. */
-  ok(E.beats(E.detectCombo(kit4), E.detectCombo(q7)) === true, '4 Kits chop a Quadro');
-  ok(E.beats(E.detectCombo(kit3), E.detectCombo(q7)) === false, 'and 3 Kits do not — the Quadro outranks them');
+  /* THREE INDEPENDENT CHOPPERS, not a mode: a Quadro, a 3-Kit and a same-suit straight are distinguishable
+   * patterns, so nothing forces a choice (unlike the four-card slot, where 4♦4♥5♣5♠ really is both shapes).
+   * Each toggle also ENABLES its own shape, so a chopper you cannot enumerate is impossible. */
+  var sf   = [C(4, 'D'), C(5, 'D'), C(6, 'D'), C(7, 'D'), C(8, 'D')];
+  var mixHi = [C(5, 'D'), C(6, 'H'), C(7, 'C'), C(8, 'S'), C(9, 'D')];
+  E.setQuadro(false); E.setKits3(false);          // the chop toggles alone must be enough
+  E.setChopQuadro(true);
+  ok(E.detectCombo(q7) && E.detectCombo(q7).type === 'quadro',
+     'chopQuadro makes Quadros playable on its own — a chopper you cannot enumerate would be a dead setting');
+  ok(E.beats(E.detectCombo(q7), E.detectCombo(one2)) === true && E.beats(E.detectCombo(q7), E.detectCombo(two2)) === true,
+     'and it chops a lone 2 or a pair of them');
+  ok(E.beats(E.detectCombo(q7), E.detectCombo(three2)) === false, 'but stops short of a trio');
+  ok(E.detectCombo(kit3) === null, 'and it does not drag the Kits in with it — the toggles are independent');
+  ok(E.beats(E.detectCombo(sf), E.detectCombo(one2)) === false, 'nor the same-suit straight');
   ok(E.beats(E.detectCombo(q8), E.detectCombo(q7)) === true,
      'equal rank still falls through to value, so Quadro-over-Quadro is unchanged');
   ok(E.beats(E.detectCombo(one2), E.detectCombo(q7)) === false, 'and a 2 cannot answer a chop');
-  /* THE CHOP AND APEX_INF COMPOSE (Aj: "a chop would deal with inf 2s"). They look like a contradiction and
-   * are not: APEX_INF makes the 2 unbeatable BY VALUE (it ranks the card at Infinity), and a chop is a SHAPE
-   * answer, not a value one. So the chop is the counterplay to an unbeatable 2 — which is what lets `inf` be
-   * played without `nostrip` at all. */
+
+  E.setChopKits(true);
+  ok(E.beats(E.detectCombo(kit3), E.detectCombo(two2)) === true, 'chopKits: 3 Kits chop a lone 2 or a pair');
+  ok(E.beats(E.detectCombo(kit4), E.detectCombo(three2)) === true, 'and 4 Kits reach a trio');
+  ok(E.beats(E.detectCombo(kit4), E.detectCombo(kit3)) === true, '4 Kits chop 3 Kits — the kits ladder is by size');
+  ok(E.beats(E.detectCombo(q7), E.detectCombo(kit3)) === true && E.beats(E.detectCombo(kit3), E.detectCombo(q7)) === false,
+     'a Quadro outranks 3 Kits, both being live at once');
+
+  /* THE `straightflush` TYPE IS GONE (Aj: "i want them to only be detected as bombs and not as a mixed shape
+   * for straights and flushes"). A same-suit run is an ordinary straight — the old clause letting one beat ANY
+   * straight was dead code since v1.14 and is deleted, which is also what removes the mono-suit tilt from
+   * ordinary play. The one suit now matters ONLY to chopRank. */
+  ok(E.detectCombo(sf).type === 'straight', 'a same-suit run is a plain straight, whatever the chops say');
+  ok(E.beats(E.detectCombo(sf), E.detectCombo(mixHi)) === false,
+     'so a low same-suit run does NOT beat a higher mixed one — that clause is deleted, not merely disabled');
+  ok(E.beats(E.detectCombo(mixHi), E.detectCombo(sf)) === true, 'and the higher mixed straight wins normally');
+  E.setChopSflush(true);
+  ok(E.beats(E.detectCombo(sf), E.detectCombo(two2)) === true, 'chopSflush: five in a row, one suit, chops a 2');
+  ok(E.beats(E.detectCombo(mixHi), E.detectCombo(one2)) === false, 'while a MIXED straight of the same size cannot');
+  ok(E.beats(E.detectCombo(sf), E.detectCombo(mixHi)) === false,
+     'and it still does not beat a higher ordinary straight — it is a chop, not a better shape');
+  ok(E.beats(E.detectCombo(sf), E.detectCombo(q7)) === true && E.beats(E.detectCombo(q7), E.detectCombo(sf)) === false,
+     'the straight outranks a Quadro (Big Two ordering, per Aj), and 4 Kits outrank it in turn: '
+     + E.beats(E.detectCombo(kit4), E.detectCombo(sf)));
+
+  /* THE CHOPS AND APEX_INF COMPOSE (Aj: "a chop would deal with inf 2s"). apexInf makes the 2 unbeatable BY
+   * VALUE; a chop is a SHAPE answer, so it is the counterplay to an unbeatable 2. */
   E.setApexInfinity(true);
   ok(E.beats(E.detectCombo(one2), E.detectCombo([C(1, 'D')])) === true
      && E.beats(E.detectCombo([C(1, 'D')]), E.detectCombo(one2)) === false,
      'apexInf still makes the 2 unbeatable by VALUE — no Ace passes it');
-  ok(E.beats(E.detectCombo(q7), E.detectCombo(one2)) === true,
-     'but a Quadro chops it anyway: a chop is a shape answer, so the two rules compose');
-  ok(E.beats(E.detectCombo(kit3), E.detectCombo(two2)) === false,
-     'and the reach still applies under it — 3 Kits do not reach a pair of infinite 2s either');
+  ok(E.beats(E.detectCombo(q7), E.detectCombo(one2)) === true, 'but a Quadro chops it anyway');
   E.setApexInfinity(false);
-  E.setChop(false); E.setQuadro(false); E.setKits3(false); E.setDoublePair('off');
+  E.setChopQuadro(false); E.setChopKits(false); E.setChopSflush(false);
+  ok(E.beats(E.detectCombo(q7), E.detectCombo(one2)) === false && E.detectCombo(q7) === null,
+     'and with every chop off the shapes are gone again');
+
+  E.setQuadro(false); E.setKits3(false); E.setDoublePair('off');
 })();
 
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);

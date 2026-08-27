@@ -563,6 +563,26 @@ The first rule where a shape beats one it **does not match**, and the reason the
 all. In Tiến lên a tứ quý or ba đôi thông *chops* the heo — and in this game the heo is the apex 2. So the chop
 is what makes the 2 answerable, and what finally gives Quadro a job.
 
+**Three independent toggles, not one rule and not a mode.** The first pass made it a single boolean, then a
+mode row like the four-card slot — both wrong, and Aj caught each: *"we can't actually do it like Four-card
+double pairs huh? because we can check just quadro, or all the chops"*, and *"since it functions like a normal
+toggle, we can drop the OFF"*. The distinction is **ambiguity**: `4♦4♥5♣5♠` really is both a 2-kit and a poker
+two-pair, so that slot has to pick one. A Quadro, a 3-Kit and a same-suit straight are three distinguishable
+patterns — nothing forces a choice, so nothing should impose one. Each toggle also **enables its own shape**, so
+a chopper you cannot actually play is impossible.
+
+**THE `straightflush` TYPE IS DELETED, and that was the real prize** (Aj: *"i think it's better to remove that
+dead code then… i want them to only be detected as bombs and not as a mixed shape for straights and flushes
+that beats both. i made a mistake on that one, and it seems i'm still paying for it in technical debt"*). Since
+v1.14 a same-suit run has scored as a plain straight, which made the `beats()` clause granting a straight flush
+priority over any straight **unreachable dead code** — and I had misread it as live. It is gone, along with the
+type, the `NO_STRAIGHT_FLUSH` gate and the orphaned `TYPE` label. A same-suit run is an ordinary straight,
+compared by value; being one suit now matters **only** to `chopRank`.
+That deletion **halved the mono-suit tilt**: pure decks +0.9 / mixed −0.6 across three interleaved replicates,
+down from +1.8 / −1.2 when the type existed. Half the effect was the dead clause waking up; the residue is the
+chop's own — single-suit decks assemble the shape more easily — and cannot be removed without removing the
+option.
+
 **The ladder.** 3 Kits and Quadro are both chops in the family — ba đôi thông and tứ quý — and
 [pagat](https://www.pagat.com/climbing/thirteen.html) is explicit that either "can beat a single two (but not
 any other single card)", with a **pair** of twos needing *five* consecutive pairs and a trio needing *seven*.
@@ -574,9 +594,10 @@ pairs?) varies by house anyway, so both the rank order and the reach below are *
 
 | | rank | reaches |
 | --- | --- | --- |
-| 3 Kits (size 6) | 30 | a lone 2 |
-| **Quadro** (size 4) | 35 | a lone 2, or a pair of them |
-| 4 Kits (size 8) | 40 | a trio of 2s — and a Quadro |
+| 3 Kits (size 6) | 30 | a lone 2 or a pair of them |
+| **Quadro** (size 4) | 35 | the same |
+| **Five in a row, one suit** | 37 | the same — and it outranks a Quadro, per Big Two |
+| 4 Kits (size 8) | 40 | a trio of 2s too — and everything above |
 | 5 Kits (size 10) | 50 | the same, and 4 Kits |
 
 A bigger chop answers a smaller one. **Equal rank falls through to the ordinary same-shape/higher-value

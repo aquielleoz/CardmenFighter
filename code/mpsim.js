@@ -38,7 +38,9 @@ var KITS = flag('kits');                              // shorthand: the 2-kit sl
 var TWOPAIR = flag('twopair');                        // the 4-card slot in POKER mode (gaps allowed) instead
 var KITS3 = flag('kits3') || KITS;                    // 3+ consecutive-pair runs on their own
 var QUADRO = flag('quadro');                          // four of a kind
-var CHOP = flag('chop');                              // big shapes beat the apex 2 (needs the shapes above)                           // Leyline protects EVERYONE's shields, not just the caster's                      // ...or HALF the table (ceil of living rivals / 2)   // Critical Hit / Ultima Attack -> all rivals
+var CHOPQ = flag('chopq');                            // a Quadro chops the 2
+var CHOPK = flag('chopk');                            // 3+ Kits chop the 2
+var CHOPSF = flag('chopsf');                          // five in a row, one suit, chops the 2                           // Leyline protects EVERYONE's shields, not just the caster's                      // ...or HALF the table (ceil of living rivals / 2)   // Critical Hit / Ultima Attack -> all rivals
 var LALL = flag('lockoutall') || flag('hostileall');  // Back Stab -> all rivals
 E.setShieldCards(true); E.setLoserMill(true);
 E.setSpecialLossMode(LM); E.setMillScope(MS);
@@ -50,13 +52,15 @@ if (E.setWardAll) E.setWardAll(WALL);
 if (E.setDoublePair) E.setDoublePair(TWOPAIR ? 'poker' : (KITS ? 'kits' : 'off'));
 if (E.setKits3) E.setKits3(KITS3);
 if (E.setQuadro) E.setQuadro(QUADRO);
-if (E.setChop) E.setChop(CHOP);
+if (E.setChopQuadro) E.setChopQuadro(CHOPQ);
+if (E.setChopKits) E.setChopKits(CHOPK);
+if (E.setChopSflush) E.setChopSflush(CHOPSF);
 console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' drawN=' + DPP +
             /* Report the two apex flags INDEPENDENTLY. This used to print `apex=off` whenever infinity was off,
              * even with no-strip set — a lie, and a dangerous one given this file's own rule is "check the
              * printed CONFIG". No-strip stopped requiring infinity on 2026-08-26 (engine ~1512). */
             ' apex=' + (APEX ? (NOSTRIP ? 'unbeatable+nostrip' : 'unbeatable') : (NOSTRIP ? 'nostrip-only(beatable 2)' : 'off')) +
-            ' damageSpan=' + (DALL ? 'all' : (DHALF ? 'half' : 1)) + ' wardAll=' + WALL + ' dblPair=' + (TWOPAIR ? 'poker' : (KITS ? 'kits' : 'off')) + ' kits3=' + KITS3 + ' quadro=' + QUADRO + ' chop=' + CHOP + ' lockoutAll=' + LALL + (LMAX ? ' lockoutMaxAlive=' + LMAX : ''));
+            ' damageSpan=' + (DALL ? 'all' : (DHALF ? 'half' : 1)) + ' wardAll=' + WALL + ' dblPair=' + (TWOPAIR ? 'poker' : (KITS ? 'kits' : 'off')) + ' kits3=' + KITS3 + ' quadro=' + QUADRO + ' chop=' + [CHOPQ?'Q':'',CHOPK?'K':'',CHOPSF?'SF':''].join('') + ' lockoutAll=' + LALL + (LMAX ? ' lockoutMaxAlive=' + LMAX : ''));
 
 /* SELF-CHECK — prove the config took EFFECT, behaviourally. Echoing the flags back is not enough: the flags
  * were right and the parser was wrong, so every arm of a 40-run study silently ran the same rules. This probes
