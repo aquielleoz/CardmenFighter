@@ -1,9 +1,9 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** + **qr.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node nettest_roundstall.js` (9 — the host must get the board back after winning a round) · `node nettest_actloop.js` (22 — play keeps moving after a Technique) · `node nettest_version.js` (14 — the netplay build handshake) · `node rulestest.js` (33 — the custom rules menu) · `node nettest_rules.js` (18 — rules over netplay + un-ready) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**246**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node nettest_roundstall.js` (9 — the host must get the board back after winning a round) · `node nettest_actloop.js` (22 — play keeps moving after a Technique) · `node nettest_version.js` (14 — the netplay build handshake) · `node rulestest.js` (36 — the custom rules menu) · `node nettest_rules.js` (18 — rules over netplay + un-ready) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.23**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.24**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
 ## ☀️ START HERE — where we left off (2026-08-26)
 
@@ -248,33 +248,10 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   - The flags (`setWardAll`, `setDamageSpan`) are on `exp/shield-break-all`, default off, with behavioural
     self-checks in `mpsim`.
 
-- **KITS: sequences of consecutive pairs** (a player asked for them, 2026-08-25 — *"2kits, 3kits"*, e.g. a pair
-  of 4s with a pair of 5s). Aj's read was that this is a local variant; the analysis says otherwise, and it
-  matters, because it changes this from a house rule to a restoration.
-  - **The SHAPE is standard family furniture; the NAME is what is local.** Consecutive pairs appear across the
-    family — 连对 (*lián duì*) in Dou Dizhu, *đôi thông* in Tiến lên, where it is famously the shape that answers
-    a lone 2. Both set a **three**-pair minimum. Pagat omitting it documents one variant, not the family.
-    **Two players independently remembering kits is evidence of inheritance, not coincidence.** (Verify the
-    foreign names before publishing them.)
-  - **It is coherent here in a way FLUSH was not.** v1.14 cut flush and straight flush for a structural reason:
-    suits never beat each other, so a flush has nothing to compare on. Kits compare on rank, so that objection
-    does not transfer — adding kits is not re-opening the door v1.14 closed.
-  - **Deck-neutral by construction (verified).** Every legal deck is 4 parts × 13 ranks, so **every** deck holds
-    exactly 4 copies of each rank value — Pure Rogue and Mage Knight alike. No deck can form kits more easily
-    than another. That matters because v1.31.0's failure was a change that multiplied value *differentially*
-    across decks; kits have no such mechanism. Only the effects being spent differ.
-  - **A 2-pair kit MUST be legal here**, which is a deliberate break from the family's 3-pair floor. That floor
-    assumes hands of 17-20 cards; this game deals 6 and caps at 10, so a 3-kit is six of your ten cards and the
-    shape would be near-dead.
-  - **It will NOT fix stuckness, so do not sell it that way.** Being stuck is a *following* problem and a kit is
-    its own shape, so it can only be **led**, never used to answer a pair. `stucksim` measures 62-72% of stuck
-    turns as VALUE-stuck; kits do not touch that. What they give is a way for the **leader** to dump four low
-    cards at once, which drains the low-card glut indirectly. The "slash" card is still the direct answer.
-  - **Expect shorter games** — any multi-card play is a special that breaks a shield, and a 2-kit is easy to hold
-    at 10 cards. Measure against current 6-player pacing before assuming that is an improvement.
-  - **Build note: it would be the first VARIABLE-LENGTH shape** (pair 2, trio 3, straight 5, full house 5 are all
-    fixed). Shape detection, `legalFightPlays`, the AI's enumerator and `stucksim`'s shape-vs-value split all have
-    to learn that. Contained, but not a one-liner.
+- **KITS — SHIPPED in v1.31.24** as the seventh rules toggle, shown as "2 Pair" / "3 Pair". Measured
+  pacing-neutral and balance-neutral (PATCHNOTES 0o); they add options, not tempo. Remaining thread if anyone
+  wants it: they cannot answer a pair, so the VALUE-stuck problem is still open and the "slash" card is still
+  its intended lever.
 
 - **A real one-tap rematch over netplay** (Aj, 2026-08-25 — the `🔄 Rematch?` emote is the expression; this is
   the action). Today the win overlay's "New Game" just calls `openSetup()`, so an online pair must redo the
@@ -461,6 +438,31 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.24 — kits, shown as "2 Pair", as the seventh homebrew toggle
+
+A player asked for them from memory of having played with them — the strongest argument a homebrew rule can
+have. A **run of consecutive pairs**: a pair of 4s with a pair of 5s is **2 Pair**, add a pair of 6s for
+**3 Pair**. Only a higher run of the *same length* beats it, which `beats()` gave for free since it already
+required equal type and equal size.
+
+Floor of **two** pairs rather than the family's three (连对, đôi thông), because those games deal 17-20 cards and
+this one deals 6 and caps at 10 — a three-pair floor would have made the shape dead on arrival. Values must be
+**consecutive**, unlike poker's "two pair", and the panel copy says so.
+
+**Measured before believing anything about it (PATCHNOTES 0o):**
+- **Pacing: no effect at all** (11/14/20/31 against 11/14/20/30). I had predicted shorter games, on the grounds
+  that a kit is a Special and so should break more shields. Wrong: a kit **replaces** a Special the player would
+  have made anyway, and a round still has one winner and one strip. **A new shape adds options, not tempo** —
+  which is 0a from another angle.
+- **It is not rare enough to be decorative:** 0.75 kits per duel, 13.4 per 6-player game, legal on 4.7-13.8% of
+  turns and played on about half of those.
+- **Balance: neutral** — 6p spread 12.1 → 13.5 (inside noise), Spearman rho **0.91**. The deck-neutrality
+  argument held: every deck is 4 parts × 13 ranks, so all hold 4 copies of each rank value.
+- **What they are for:** a lead-side outlet for low cards. A kit cannot answer a pair, so it does *not* touch the
+  measured VALUE-stuck problem. Judge on feel and hand-churn.
+
+Internal type stays `kit` (the family's name, and the player's); only the label is "N Pair".
 
 ### v1.31.23 — the apex-2 rules join the menu, as two independent toggles
 

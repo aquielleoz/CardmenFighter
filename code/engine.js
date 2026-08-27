@@ -79,6 +79,34 @@
     var topCard = cards.filter(function (c) { return fightValue(c) === top; })[0];
     return { top: top, topCard: topCard };
   }
+  /* KITS — shown to players as "2 Pair" / "3 Pair" (Aj's naming, 2026-08-27). The internal name stays `kit`
+   * because that is what the player who asked for them called them and what the family literature uses; only
+   * the LABEL is "N Pair". Note the difference from poker, which is called out in the panel copy: here the pair
+   * values must be CONSECUTIVE.
+   * (a player asked for them, 2026-08-25): a run of CONSECUTIVE PAIRS — a pair of 4s with a
+   * pair of 5s is 2 Pair, adding a pair of 6s makes 3 Pair. Standard across this card family (连对 in Dou Dizhu, đôi thông in
+   * Tiến lên), where the minimum is THREE pairs; here the floor is TWO, because those games deal 17-20 cards
+   * and this one deals 6 and caps at 10 — a 3-kit would be six of your ten cards and the shape would be dead.
+   *
+   * It is coherent here in a way FLUSH was not (retired v1.14): a flush needs suits to rank, and they never do,
+   * whereas a kit compares on fight value like everything else. And it is deck-NEUTRAL by construction, since
+   * every legal deck is 4 parts x 13 ranks and therefore holds exactly 4 copies of each rank value.
+   *
+   * Note it is the first VARIABLE-LENGTH shape. `beats()` already requires equal `type` AND equal `size`, so a
+   * 2-kit cannot beat a 3-kit for free — that is the family's rule and it falls out of the existing comparison.
+   * Under APEX_INF a 2 ranks at Infinity, so a kit containing 2s is rejected (Infinity is not v+1) — the same
+   * thing already happens to straights, and it is consistent: an unbeatable card does not sit inside a run. */
+  function detectKit(cards) {
+    var n = cards.length;
+    if (n < 4 || n % 2) return null;
+    var counts = {}, i;
+    for (i = 0; i < n; i++) { var v = fightValue(cards[i]); counts[v] = (counts[v] || 0) + 1; }
+    var vals = Object.keys(counts).map(Number).sort(function (a, b) { return a - b; });
+    if (vals.length !== n / 2) return null;                                    // exactly n/2 distinct values
+    for (i = 0; i < vals.length; i++) if (counts[vals[i]] !== 2) return null;   // each one exactly a pair
+    for (i = 1; i < vals.length; i++) if (vals[i] !== vals[i - 1] + 1) return null;   // consecutive, no wrap
+    return { top: vals[vals.length - 1], pairs: vals.length };
+  }
   function detectCombo(cards) {
     if (!cards || !cards.length) return null;
     var n = cards.length, ranks = cards.map(fightValue);   // "ranks" here = fight VALUES, not raw ranks (A=14, 2=15)
@@ -86,6 +114,10 @@
     if (n === 1) return { type: 'single', value: ranks[0], size: 1, key: [ranks[0]], cards: cards };
     if (n === 2) return same ? { type: 'pair', value: ranks[0], size: 2, key: [ranks[0]], cards: cards } : null;
     if (n === 3) return same ? { type: 'trio', value: ranks[0], size: 3, key: [ranks[0]], cards: cards } : null;
+    if (KITS) {                                    // even sizes 4/6/8/10; can never shadow the 5-card shapes
+      var kt = detectKit(cards);
+      if (kt) return { type: 'kit', value: kt.top, size: n, key: [kt.top], cards: cards };
+    }
     if (n === 5) {
       var counts = {}; ranks.forEach(function (r) { counts[r] = (counts[r] || 0) + 1; });
       var keys = Object.keys(counts);
@@ -142,6 +174,22 @@
     for (var lo = loMin; lo <= loMax; lo++) {
       var window = [lo, lo + 1, lo + 2, lo + 3, lo + 4];
       if (window.every(function (v) { return byRank[v]; })) out.push(window.map(function (v) { return byRank[v][0]; }));
+    }
+    if (KITS) {                                                                   // consecutive-pair runs, length 2+
+      var canPair = {};
+      Object.keys(byRank).forEach(function (r) { if (byRank[r].length >= 2) canPair[+r] = true; });
+      for (var kv = 3; kv <= 15; kv++) {
+        if (!canPair[kv]) continue;
+        var run = [];
+        for (var w = kv; w <= 15 && canPair[w]; w++) {
+          run.push(w);
+          if (run.length >= 2) {
+            var kc = [];
+            run.forEach(function (v) { kc.push(byRank[v][0], byRank[v][1]); });
+            out.push(kc);
+          }
+        }
+      }
     }
     var bySuit = {};
     hand.forEach(function (c) { (bySuit[c.suit] = bySuit[c.suit] || []).push(c); });
@@ -1750,6 +1798,9 @@
   var RECYCLE_TECH = false;
   function setRecycleTech(v) { RECYCLE_TECH = !!v; }
   function spendCard(pl, card) { (RECYCLE_TECH ? pl.shuffle : pl.removed).push(card); }
+  var KITS = false;                // OFF: homebrew. Consecutive pairs — see detectKit.
+  function setKits(v) { KITS = !!v; }
+  function isKits() { return KITS; }
   var NO_STRAIGHT_FLUSH = true;    // SHIPPED: no straight-flush tier — a same-suit run scores as a plain straight (universal rule, same for every deck). Plain flushes were never a legal special. Setter kept for A/B sims only.
   function setNoStraightFlush(v) { NO_STRAIGHT_FLUSH = !!v; }
   // Transform economy (tunable for A/B balance tests; defaults = the shipped rework: cost 10, no draw, energy-gated).
@@ -1874,6 +1925,7 @@
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
+    setKits: setKits, isKits: isKits, detectKit: detectKit,
     setApexInfinity: setApexInfinity, isApexInfinity: isApexInfinity,
     setApexNoStrip: setApexNoStrip, isApexNoStrip: isApexNoStrip,
     setDrawPerPlayer: setDrawPerPlayer, isDrawPerPlayer: isDrawPerPlayer
