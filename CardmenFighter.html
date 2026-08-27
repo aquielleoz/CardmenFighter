@@ -4546,7 +4546,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.33';
+  var GAME_VERSION='v1.31.34';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -4705,7 +4705,15 @@ window.CardFace = {};
    * offering it now would name a rule set the build cannot actually play. */
   var RULE_PRESETS=[
     { key:'chikicha', label:'Chikicha Specials', title:'The Kits and Quadro shapes, with the chop that gives them a job — and nothing else',
-      rules:{ dblPair:'kits', kits3:true, quadro:true, chopQuadro:true } }
+      rules:{ dblPair:'kits', kits3:true, quadro:true, chopQuadro:true } },
+    /* TIẾN LÊN — the family this game keeps borrowing from. Its bombs are đôi thông (three or more consecutive
+     * pairs) and tứ quý (four of a kind), and BOTH chop the heo, which here is the apex 2. So this is the preset
+     * `chopKits` was always for: Aj put it here deliberately rather than in Chikicha Specials.
+     * Deliberately NOT in it: the four-card double-pair slot (the family's floor is three pairs, not two, so a
+     * 2-kit is not one of its shapes and poker's two pair certainly is not), and the straight-flush chop, which
+     * belongs to Big Two rather than to Tiến lên. */
+    { key:'tienlen', label:'Tiến lên', title:'The family’s own bombs: 3+ Kits and Quadro, both chopping the 2',
+      rules:{ kits3:true, quadro:true, chopKits:true, chopQuadro:true } }
   ];
   function presetValue(p,d){ return p.rules[d.key]!==undefined ? p.rules[d.key] : ruleOff(d); }
   function presetActive(p,src){ src=src||RULES; return RULE_DEFS.every(function(d){ return src[d.key]===presetValue(p,d); }); }

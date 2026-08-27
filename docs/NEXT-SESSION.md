@@ -7,7 +7,7 @@ Current version: **v1.31.25**. The 2-apex + Forms **rework is simply the game** 
 
 ## ☀️ START HERE — where we left off (2026-08-27)
 
-`main` is at **v1.31.33**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
+`main` is at **v1.31.34**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
 nothing is in flight — every PR is merged and every branch pruned.
 
 **Sanity check before you touch anything** (from `code/`, ~30 seconds):
@@ -16,7 +16,7 @@ nothing is in flight — every PR is merged and every branch pruned.
 npm test && node mptest.js && node rulestest.js
 ```
 
-Expect **287 / 0**, **28 / 0**, **82 / 0**, **75 / 0**. If a count disagrees, the suite is right — fix the
+Expect **287 / 0**, **28 / 0**, **82 / 0**, **79 / 0**. If a count disagrees, the suite is right — fix the
 number here.
 
 **What the last stretch was about**, newest first, all of it in the changelog below: the chop (v1.31.33), rule
@@ -29,8 +29,8 @@ layer where clients suggest and the host decides (v1.31.31), the deck picker's t
    will bite (click not hover, stacking above `.overlay`, and the suites that assert note TEXT).
 2. **Chop strip or not.** Note the subtlety recorded in the BACKLOG: "did this play *chop* something" is not
    visible from the pile.
-3. **A Tiến lên preset**, which is where `chopKits` belongs (deliberately not in Chikicha Specials).
-4. Then the remaining Dou Dizhu shapes — trio+single, four+two, the airplane.
+3. Then the remaining Dou Dizhu shapes — trio+single, four+two, the airplane. (The **Tiến lên preset** shipped
+   in v1.31.34.)
 
 **Two things worth reading before touching the rules panel:** every rule defaults OFF and "is this customised?"
 is therefore `RULE_DEFS.some(ruleOn)`, and the panel now has four control shapes (button rows, mode segments,
@@ -586,6 +586,27 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.34 — the Tiến lên preset
+
+The second preset, and the one `chopKits` was always for — Aj put 3 Kits-as-a-chopper here rather than in
+Chikicha Specials on purpose. Tiến lên's bombs are **đôi thông** (three or more consecutive pairs) and **tứ quý**
+(four of a kind), and both chop the *heo*, which in this game is the apex 2. So the preset is exactly:
+`kits3, quadro, chopQuadro, chopKits`.
+
+**Deliberately left out:** the four-card double-pair slot, because the family's floor is *three* consecutive
+pairs — a 2-kit is not one of its shapes and poker's two pair certainly is not — and the straight-flush chop,
+which belongs to Big Two rather than Tiến lên.
+
+That last point is what the new assertions are really for: **switching presets REPLACES the rule set rather than
+adding to it.** Coming from Chikicha Specials, Tiến lên has to turn the four-card slot back *off*, which is only
+true because a preset is an exact state (v1.31.30). Its active marker moves too, and two presets can never both
+read active.
+
+One test-shape fix in passing: the bulk-row assertions indexed `[1]` for Clear all, which a second preset
+shifted. They look it up by `id` now — an added preset should not be able to break an unrelated assertion.
+
+Suites: `rulestest` 75 → **79**.
 
 ### v1.31.33 — the chop: big shapes beat the 2
 

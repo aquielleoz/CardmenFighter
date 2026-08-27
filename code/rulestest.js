@@ -140,9 +140,9 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   const bulk = p => p.evaluate(() => [].map.call(document.querySelectorAll('.ruleBulk .bulkBtn'),
     b => ({ preset: b.getAttribute('data-preset'), id: b.id, txt: b.textContent.trim(), off: b.disabled, active: b.classList.contains('active') })));
   let row = await bulk(p);
-  ok(row.length === 2 && row[0].preset === 'chikicha' && row[1].id === 'ruleClear',
-     `the panel offers a preset and a Clear all (${row.map(r => r.txt).join(' | ')})`);
-  ok(!row[1].off, 'Clear all is live while rules are on');
+  ok(row.length === 3 && row[0].preset === 'chikicha' && row[1].preset === 'tienlen' && row[2].id === 'ruleClear',
+     `the panel offers two presets and a Clear all (${row.map(r => r.txt).join(' | ')})`);
+  ok(!row.filter(b => b.id === 'ruleClear')[0].off, 'Clear all is live while rules are on');
   /* A PRESET IS AN EXACT STATE, not an additive one — Aj named Chikicha Specials as "kits + quadro and nothing
    * else", so applying it over a table full of other rules must turn those OFF. Every rule is on at this point
    * in the suite, which is exactly the case that would catch an additive implementation. */
@@ -157,7 +157,22 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   ok((await p.evaluate(() => window.__solo.rulesKey())) === 'dblPair=kits,kits3,quadro,chopQuadro',
      'the serialised key is exactly the preset, so netplay and the export carry the rules and not its name');
   row = await bulk(p);
-  ok(row[0].active, 'and the preset button reads active, because "exactly these rules" is a checkable claim');
+  ok(row[0].active && !row[1].active,
+     'and only THAT preset reads active — "exactly these rules" is a checkable claim, so two cannot both be it');
+  /* TIẾN LÊN is where `chopKits` belongs (Aj put it here rather than in Chikicha Specials). It is also the
+   * check that a second preset does not inherit the first's rules: the four-card double-pair slot must go OFF,
+   * since the family's floor is three consecutive pairs, not two. */
+  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="tienlen"]').click()); await wait(250);
+  const tl = await flags(p);
+  ok(tl.kits3 === true && tl.quadro === true && tl.chopKits === true && tl.chopQuadro === true,
+     'Tiến lên turns on both of the family\'s bombs and chops with both');
+  ok(tl.dblPair === 'off' && tl.chopSflush === false,
+     'and leaves out the four-card slot and the straight-flush chop — neither is a Tiến lên shape');
+  ok((await p.evaluate(() => window.__solo.rulesKey())) === 'kits3,quadro,chopQuadro,chopKits',
+     'so switching presets REPLACES the rule set rather than adding to it');
+  row = await bulk(p);
+  ok(row[1].active && !row[0].active, 'and the active marker moves with it');
+  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="chikicha"]').click()); await wait(250);
   await toggle(p, 'lossAll'); await wait(150);
   ok(!(await bulk(p))[0].active, 'one further change and it stops reading active');
 
@@ -168,7 +183,8 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
        chopQuadro: false, chopKits: false, chopSflush: false }),
      'and the engine is back on the shipped game, mode rows included');
   ok((await p.evaluate(() => localStorage.getItem('cmf_rules_v1'))) === '', 'the cleared state is saved too');
-  ok((await bulk(p))[1].off, 'and Clear all disables itself once there is nothing to clear');
+  ok((await bulk(p)).filter(b => b.id === 'ruleClear')[0].off,
+     'and Clear all disables itself once there is nothing to clear');   // by id: an added preset shifts indices
   ok(await p.evaluate(() => !/· on/.test((document.getElementById('rulesBtn') || {}).textContent || '')),
      'the setup button drops its "· on" marker');
 
