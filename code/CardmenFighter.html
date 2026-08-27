@@ -613,7 +613,11 @@
   /* one context-aware button — normal when usable, greyed when not (no special highlight) */
   #ctxBtn.off{background:var(--panel); color:var(--txt); opacity:.5; border-color:var(--line); cursor:not-allowed;}
 
-  .overlay{position:fixed; inset:0; background:rgba(10,4,16,.8); backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:30; padding:20px;}
+  /* z-index ABOVE #netroot (99999) and its Leave button. A modal is the topmost UI by definition, and while a
+   * netplay lobby is on screen netroot covers everything — so at z-index 30 the Custom rules modal opened
+   * correctly and was simply invisible behind it. Nothing in the DOM looked wrong, which is exactly why
+   * nettest_rules passed: it asserted the modal's DOM, and DOM existence cannot see a stacking bug. */
+  .overlay{position:fixed; inset:0; background:rgba(10,4,16,.8); backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:100000; padding:20px;}
   .overlay.show{display:flex;}
   /* A modal taller than the viewport used to be CENTRED with no cap and no overflow, so it hung off the top AND
    * the bottom and the top half was unreachable — there was nothing to scroll. Measured on the setup dialog,
@@ -4389,7 +4393,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.24';
+  var GAME_VERSION='v1.31.25';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};

@@ -13,6 +13,16 @@ const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn,t=90,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } return false; }
+/* IS THE MODAL ACTUALLY ON SCREEN? DOM presence is not visibility, and that distinction was a real shipped bug:
+ * `.overlay` sat at z-index 30 while `#netroot` sits at 99999, so in a netplay lobby the Custom rules modal
+ * opened correctly and rendered entirely BEHIND the lobby. Every DOM assertion passed. This hit-tests the centre
+ * of the viewport instead, which is the only thing that can tell "open" from "open and visible". */
+const modalOnTop=p=>p.evaluate(()=>{
+  const m=document.getElementById('modal');
+  if(!m || !document.getElementById('overlay').classList.contains('show')) return false;
+  const el=document.elementFromPoint(Math.round(innerWidth/2), Math.round(innerHeight/2));
+  return !!(el && m.contains(el));
+});
 const flags=p=>p.evaluate(()=>({ loss:CardmenEngine.isSpecialLossMode(), shieldScale:CardmenEngine.isShieldsPerPlayer() }));
 const startEnabled=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); return !!(g && !g.disabled && /Start/i.test(g.textContent||'')); });
 const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); return !!(g && /Ready/i.test(g.textContent||'')); });
@@ -33,6 +43,7 @@ const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); r
 
   ok(await join.evaluate(()=>!!document.getElementById('lobbyRules')), 'the client is offered a way to READ the rules');
   await join.evaluate(()=>document.getElementById('lobbyRules').click()); await wait(350);
+  ok(await modalOnTop(join), 'the panel is actually VISIBLE over the lobby, not just present in the DOM');
   ok(await join.evaluate(()=>[].every.call(document.querySelectorAll('.settingRow[data-rule]'),x=>x.disabled)),
      'and it is read-only for the client — only the host\'s rules count');
   ok(await join.evaluate(()=>/host chooses the rules/i.test((document.querySelector('.modal .netmsg')||{}).textContent||'')),
@@ -46,6 +57,7 @@ const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); r
   // ---------- the host changes a rule
   ok(await host.evaluate(()=>!!document.getElementById('lobbyRules')), 'the host is offered ⚗️ Custom rules in the lobby');
   await host.evaluate(()=>document.getElementById('lobbyRules').click()); await wait(350);
+  ok(await modalOnTop(host), 'and visible for the HOST too — this is the seat the bug was reported from');
   ok(await host.evaluate(()=>![].every.call(document.querySelectorAll('.settingRow[data-rule]'),x=>x.disabled)),
      'and for the HOST it is editable');
   await host.evaluate(()=>{ const r=document.querySelector('.settingRow[data-rule="lossAll"]'); if(r)r.click(); }); await wait(200);

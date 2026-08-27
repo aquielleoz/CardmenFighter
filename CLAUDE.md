@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.24**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.25**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -69,7 +69,7 @@ node nettest_roundstall.js                      # the host must get the board ba
 node nettest_actloop.js                         # play must keep moving AFTER a Technique, both seats (22)
 node nettest_version.js                         # the netplay build handshake, both seats + no false alarm (14)
 node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (36)
-node nettest_rules.js                           # custom rules over netplay: propagation + un-ready (18)
+node nettest_rules.js                           # custom rules over netplay: propagation + un-ready (20)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -191,6 +191,15 @@ activate a pair, so both Activate controls go `off` and no amount of polling hel
 And the reason it was found at all: the assertion prints the refusal state (energy, turn, pile, both controls'
 text/disabled/class, the hint). **A red run should explain itself** — the hint `"Special Pair — fight!"` named the
 cause outright.
+
+**A MODAL MUST OUTRANK `#netroot`, AND DOM PRESENCE IS NOT VISIBILITY.** `#netroot` is `z-index:99999`; `.overlay`
+was **30**, so for three versions the Custom rules panel opened in a netplay lobby and rendered completely behind
+it — populated, wired, and invisible. `.overlay` is now `100000`.
+The lesson is the test one: `nettest_rules` asserted the panel's DOM (rows present, correct disabled state, host
+vs client) and every assertion was TRUE. **No DOM assertion can see a stacking bug.** Where visibility is the
+thing that matters, hit-test it — `document.elementFromPoint(cx, cy)` and check the modal contains the result.
+Note it only bit while netroot was on screen (lobby / signalling); mid-game netroot is hidden, so response
+windows were always fine, which is how it survived unnoticed.
 
 **Netplay must be startable WITHOUT navigating.** `NET.start(role, kind, opts)` enters it in place; `?net=`
 still works and every `nettest_*` suite uses it, but the UI buttons must never set `location.search` — on
@@ -429,7 +438,7 @@ Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 246, `netvie
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
 `landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 36, `nettest_rules` 18, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
+`nettest_prefight` 13, `nettest_full` 5, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 36, `nettest_rules` 20, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
 **These suites go stale silently** — they were unrunnable for however long `/opt/pw-browsers/chromium` was
