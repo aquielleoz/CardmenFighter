@@ -602,12 +602,18 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 292, `netview` 28, `mptest` 82,
-`exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
-`piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 42, `viewtest` 10,
-`landscapetest` 96, `versiontest` 15, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 104, `nettest_rules` 28, `nettest_suggest` 34, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
-fix this line.**
+Status as of **v1.31.38 — green, all 37 suites plus `browsertest`, run serially 2026-08-27**:
+`test` 292, `netview` 28, `mptest` 82, `rulestest` 109, `nettest_rules` 28, `nettest_suggest` 34,
+`landscapetest` 96, `decktest` 42, `viewtest` 10, `piletest` 30, `revealtest` 12, `phantasmtest` 12,
+`exporttest` 15, `lessontest` 19, `lessontest_energy` 14, `versiontest` 15, `sharetest` 14, `qrtest` 19,
+`qrref` 26 (darwin only), `nettest_full` 5, `nettest_log` 14, `nettest_names` 8, `nettest_version` 14,
+`nettest_emote` 19, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_3p` 7, `nettest_activate` 6,
+`nettest_ceremony` 9, `nettest_concede3` 8, `nettest_counter` 8, `nettest_customdeck` 18, `nettest_deckout3` 8,
+`nettest_discard` 7, `nettest_discon3` 22, `nettest_elim3` 15, `nettest_energy` 10, `nettest_guard` 8,
+`nettest_inpage` 10, `nettest_losspick3` 7, `nettest_losspick_remote3` 6, `nettest_prefight` 13,
+`nettest_react3` 7, `nettest_record` 12, `nettest_reveal` 10, `nettest_rtc` 11, `nettest_rtc3` 10,
+`nettest_rtc_discon` 5, `nettest_target3` 6.
+**If a count here disagrees with a suite, the suite is right — fix this line.**
 
 **A SUITE CAN BE GREEN AND BLIND. Three shapes of it, all found in one 2026-08-27 sweep and all fixed:**
 - **A vacuous assertion.** `nettest_emote` had `ok(await waitLog(...) || true, 'duel started')` — literally

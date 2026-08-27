@@ -16,7 +16,7 @@ nothing is in flight — every PR is merged and every branch pruned.
 npm test && node mptest.js && node rulestest.js
 ```
 
-Expect **292 / 0**, **28 / 0**, **82 / 0**, **104 / 0**. If a count disagrees, the suite is right — fix the
+Expect **292 / 0**, **28 / 0**, **82 / 0**, **109 / 0**. If a count disagrees, the suite is right — fix the
 number here.
 
 **What the last stretch was about**, newest first, all of it in the changelog below: the chop (v1.31.33), rule
