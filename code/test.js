@@ -825,12 +825,12 @@ function cards(ids) { return ids.map(card); }
   var trip1 = [C(4, 'D'), C(4, 'H'), C(4, 'C'), C(5, 'S')];
   var apex  = [C(1, 'D'), C(1, 'H'), C(2, 'C'), C(2, 'S')];          // A-A-2-2 → values 14,14,15,15
 
-  E.setKits(false);
+  E.setDoublePair('off'); E.setKits3(false);
   ok(E.detectCombo(k45) === null && E.detectCombo(k456) === null,
      'kits OFF (the shipped game): consecutive pairs are not a legal combo');
   ok(E.detectCombo(quad) === null, 'kits OFF: four of a kind is still not a combo (there is no bomb)');
 
-  E.setKits(true);
+  E.setDoublePair('kits'); E.setKits3(true);
   var c45 = E.detectCombo(k45), c456 = E.detectCombo(k456), c67 = E.detectCombo(k67);
   ok(c45 && c45.type === 'kit' && c45.size === 4 && c45.value === 5, 'a 2-kit (4s+5s) is a kit of size 4, valued on its TOP pair');
   ok(c456 && c456.type === 'kit' && c456.size === 6 && c456.value === 6, 'a 3-kit (4s-5s-6s) is size 6');
@@ -859,8 +859,27 @@ function cards(ids) { return ids.map(card); }
   ok(E.legalFightPlays(st, 0).filter(function (x) { return x.combo.size > 1; }).length === 0,
      'round 1 still locks kits along with every other special');
 
-  E.setKits(false);
-  ok(E.detectCombo(k45) === null, 'and the flag really turns them back off');
+  /* THE MODE IS WHY POKER TWO-PAIR AND A 2-KIT CAN COEXIST AS A DESIGN. Non-consecutive two pair is a SUPERSET
+   * of a 2-kit at the same size, so as two independent flags they could never beat each other and a four-card
+   * play would be ambiguously classified. Exactly one mode is ever live, so the ambiguity cannot arise. */
+  E.setDoublePair('poker');
+  var tp = E.detectCombo(gap);
+  ok(tp && tp.type === 'twopair' && tp.size === 4, 'poker mode: pairs with a GAP are a legal two-pair');
+  ok(JSON.stringify(tp.key) === JSON.stringify([6, 4]),
+     'and it is keyed high-pair-first, so lexCmp compares the top pair before the bottom (' + JSON.stringify(tp.key) + ')');
+  var tpLow = E.detectCombo([C(6, 'D'), C(6, 'H'), C(3, 'C'), C(3, 'S')]);
+  ok(E.beats(tp, tpLow) === true && E.beats(tpLow, tp) === false,
+     'two-pairs with the same high pair are separated by the low one (6s+4s beats 6s+3s)');
+  ok(E.detectCombo(k45) && E.detectCombo(k45).type === 'twopair',
+     'in poker mode a CONSECUTIVE double pair is a two-pair, not a kit — one classification, never both');
+  ok(E.detectCombo(quad) === null, 'poker mode still rejects four of a kind: it is two values or nothing');
+
+  E.setDoublePair('off'); E.setKits3(true);
+  ok(E.detectCombo(k45) === null && E.detectCombo(k456) !== null,
+     'mode off + 3 Kits on is the family\'s ORIGINAL form: runs of three or more only, no 2-kit');
+
+  E.setDoublePair('off'); E.setKits3(false);
+  ok(E.detectCombo(k45) === null, 'and the settings really turn them back off');
 })();
 
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);

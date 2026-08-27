@@ -226,7 +226,7 @@ key, so netplay and the export carry the RULES, not a name the other end must re
   resolves exactly like a JAB win: `SPECIAL_LOSS_MODE` and `MILL_SCOPE` are both bypassed on those rounds.
 - **The original four are MULTIPLAYER-ONLY in effect** — the engine marks the first two as no-ops at 2 players,
   `startShieldsFor(2)` is 2+2=4 and `drawCountFor` at 2 players is 2, both identical to the defaults. The panel
-  says so out loud. Kits and the apex pair would be the first duel-relevant rules.
+  says so out loud. The apex pair and the pair shapes are the duel-relevant ones.
 - **Editability is the design:** setup dialog and the host's lobby edit; ⚙️ Settings is **read-only while a game
   is live**. A mid-game edit would be either silently ignored or incoherent.
 - **A rules change un-readies the table.** Readiness is stamped with `rulesGen` and counts only while current
@@ -238,9 +238,32 @@ key, so netplay and the export carry the RULES, not a name the other end must re
 - **The export stamps the rule set (`v:'2.1-mp'`), and it shipped WITH the menu.** An unstamped homebrew game
   makes the ingestion log unreadable and cannot be repaired afterwards — the pre-v1.31.5 mistake exactly.
 
-**KITS are shown to players as "2 Kits" / "3 Kits" — NOT "2 Pair".** Poker's "two pair" allows gaps, so it
-names a different shape, and a non-consecutive variant is a separate planned rule; the two must not share a name. A run of CONSECUTIVE pairs,
-behind `setKits()` and default off (v1.31.24). Three things worth knowing before touching them:
+**THE FOUR-CARD DOUBLE-PAIR SLOT IS A MODE, NOT A TOGGLE (v1.31.26).** `setDoublePair('off'|'kits'|'poker')`
+plus an independent `setKits3(bool)` for runs of three pairs and up. It has to be a mode: poker's two pair
+allows gaps, so it is a strict SUPERSET of a 2-kit at the same size — as two booleans they could never beat each
+other and `4♦4♥5♣5♠` would be ambiguously classified. `setKits()` is **gone**; a saved `kits` key from v1.31.24
+migrates to `dblPair=kits,kits3` in `setRulesFromKey`, so an old localStorage value (or one from an older peer)
+does not silently turn the rule off. `kits3` stays separate because 3+ runs are size 6 and never collide with
+the 4-card slot — which is what lets the family's original form (3+ only) be played without the 2-kit.
+- **The names are load-bearing:** "2 Kits" / "3 Kits" for consecutive, "Poker" for gapped. They are different
+  shapes and must not share a name. Internal types are `kit` and `twopair`; a two-pair is keyed
+  `[highPair, lowPair]`, so `lexCmp` compares the top pair before the bottom for free.
+- **A MODE ROW IS A `<div>`, NOT A `<button>`** — nesting buttons is invalid HTML, so the segments are the
+  buttons and *they* carry `disabled` in read-only mode. Two suites asserted only `row.disabled` and both
+  therefore passed a panel whose segments were still live: `rulestest` (mid-game) and `nettest_rules` (the
+  client, where a live segment means two people playing different games). Any new control shape needs both
+  halves of the panel's interaction model covered.
+- **`dblPair=poker` is the first rule whose serialised form carries a VALUE**, so the netplay/export key now has
+  an `=` in it. `nettest_rules` propagates a mode specifically — a client falling back to `'off'` would look
+  exactly like a host who never changed it.
+- **A POKER TWO-PAIR IS A PAIR SINK, and that is its whole footprint.** Measured at 2p over 300 games: pairs
+  played fall 2529 → 1681 while 843 two-pairs appear — one two-pair per two pairs consumed — and the residue is
+  odd singles, so jabs rise 1299 → 1788 and the jab share goes **28% → 34%**. Kits barely do it (240 plays)
+  because gaps are refused. Pacing is unchanged in every configuration (medians within ±1 of the LIVE baseline
+  at 2/3/4/6 players; `rulesim` rows N–R). So the shape trades pair-rounds for jab-rounds rather than adding
+  tempo — the same "options, not tempo" result as kits, by a different route.
+
+Three more things worth knowing before touching them:
 - **`beats()` gave the length rule for free** — it already required equal `type` AND equal `size`, so a 2 Pair
   cannot beat a 3 Pair without any new code. `detectKit` is the whole shape; `enumerateCombos` emits every run.
 - **The floor is TWO pairs, not the family's three** (连对 / đôi thông). Those games deal 17-20 cards; this one
@@ -577,6 +600,14 @@ Full Set deck, "Pure Rogue" was never in the game, and both arms of an A/B retur
 exactly 1/6 — which reads like a clean null result. **If an A/B returns identical counts in both arms, suspect
 the instrument, not the code.** Assert the staging (e.g. that seat 0's deck really is one suit) and count the
 thing you are studying, so a silent zero cannot pass as a finding.
+
+**`mpsim`'s `flag()` MATCHED SUBSTRINGS until v1.31.26.** `FLAGS` is the joined argument STRING and `flag(name)`
+was `FLAGS.indexOf(name) >= 0`, so `flag('kits')` matched inside the argument `kits3` and asking for `kits3`
+silently switched the 2-kit slot on as well — the two arms of that A/B were the same configuration. It is now a
+whole-token match. **The self-check caught it, and only because the self-check counts a BEHAVIOUR** (how many
+4-card plays are offered from `4♦4♥5♣5♠`) rather than echoing the flag back to itself; an assertion that reads
+the parsed flag would have agreed with the parser and passed. Prefer flag names that are not prefixes of each
+other anyway.
 
 **KNOW THE NOISE FLOOR BEFORE READING A PER-DECK NUMBER.** `mpsim` assigns decks randomly per seat, so a
 400-game run gives any one deck only a few hundred games at six players. Measured 2026-08-25, the SAME build

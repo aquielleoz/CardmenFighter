@@ -16,7 +16,7 @@ const flags=p=>p.evaluate(()=>({
   loss: CardmenEngine.isSpecialLossMode(), mill: CardmenEngine.isMillScope(),
   shieldScale: CardmenEngine.isShieldsPerPlayer(), drawScales: CardmenEngine.isDrawPerPlayer(),
   apexInf: CardmenEngine.isApexInfinity(), apexNoStrip: CardmenEngine.isApexNoStrip(),
-  kits: CardmenEngine.isKits(),
+  dblPair: CardmenEngine.isDoublePair(), kits3: CardmenEngine.isKits3(),
 }));
 const openRules=async p=>{ await p.evaluate(()=>document.getElementById('rulesBtn').click()); await wait(300); };
 const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[data-rule="'+k+'"]'); if(b)b.click(); return !!b; }, k);
@@ -29,14 +29,14 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
 
   // ---------- defaults: the shipped game, and EVERY toggle off
   ok(JSON.stringify(await flags(p))===JSON.stringify({loss:'chosen',mill:'targeted',shieldScale:false,drawScales:true,
-       apexInf:false, apexNoStrip:false, kits:false}),
-     'the shipped defaults are chosen / targeted / flat shields / scaling draw / no apex rules / no kits');
+       apexInf:false, apexNoStrip:false, dblPair:'off', kits3:false}),
+     'the shipped defaults are chosen / targeted / flat shields / scaling draw / no apex rules / no pair shapes');
   await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(300);
   ok(await p.evaluate(()=>!!document.getElementById('rulesBtn')), 'the setup dialog offers ⚗️ Custom rules');
   await openRules(p);
   const keys=await p.evaluate(()=>[].map.call(document.querySelectorAll('.settingRow[data-rule]'),b=>b.getAttribute('data-rule')));
-  ok(JSON.stringify(keys)===JSON.stringify(['lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','kits']),
-     `seven toggles, in order (${keys.join(', ')})`);
+  ok(JSON.stringify(keys)===JSON.stringify(['lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','dblPair','kits3']),
+     `eight rules, in order (${keys.join(', ')})`);
   /* ORDER IS LOAD-BEARING here: apexNoStrip's note says "unless the rule above is also on", meaning apexInf.
    * Kits were first inserted between them, which silently pointed that sentence at the wrong rule. */
   ok(keys.indexOf('apexNoStrip')===keys.indexOf('apexInf')+1,
@@ -49,7 +49,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   ok(await p.evaluate(()=>/first four only change 3–6 player games/i.test((document.querySelector('.ruleIntro')||{}).textContent||'')),
      'the panel distinguishes the multiplayer-only toggles from the ones that change duels');
   const scopes=await p.evaluate(()=>[].map.call(document.querySelectorAll('.settingRow[data-rule] .ruleScope'),e=>e.textContent.trim()));
-  ok(scopes.length===7 && scopes.slice(0,4).every(t=>/3–6/.test(t)) && scopes.slice(4).every(t=>/all player counts/i.test(t)),
+  ok(scopes.length===8 && scopes.slice(0,4).every(t=>/3–6/.test(t)) && scopes.slice(4).every(t=>/all player counts/i.test(t)),
      `and every row carries its own scope tag (${scopes.join(' | ')})`);
   ok(await p.evaluate(()=>/tuned for the default rules/i.test((document.querySelector('.ruleWarn')||{}).textContent||'')),
      'and warns that the Rival does not adapt');
@@ -58,14 +58,36 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   for(const [key, field, want] of [['lossAll','loss','all'],['millAll','mill','universal'],
                                    ['shieldScale','shieldScale',true],['flatDraw','drawScales',false],
                                    ['apexInf','apexInf',true],['apexNoStrip','apexNoStrip',true],
-                                   ['kits','kits',true]]){
+                                   ['kits3','kits3',true]]){
     ok(await toggle(p,key), `toggling ${key}`);
     await wait(120);
     const f=await flags(p);
     ok(f[field]===want, `  → the engine now reports ${field}=${JSON.stringify(f[field])}`);
   }
-  ok((await p.evaluate(()=>localStorage.getItem('cmf_rules_v1')))==='lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,kits',
-     'the choice is serialised self-describingly, like the custom-deck key');
+  /* THE MODE ROW IS DRIVEN BY ITS SEGMENTS, not by clicking the row — a mode row is a <div> wrapping three
+   * <button>s, because nesting buttons is invalid HTML. So the panel has two interaction shapes and both need
+   * covering; a suite that only clicked rows would silently never exercise the segments. */
+  const seg=(p,k,v)=>p.evaluate(([k,v])=>{
+    const b=document.querySelector('.segBtn[data-mode-for="'+k+'"][data-mode-v="'+v+'"]');
+    if(b) b.click(); return !!b;
+  },[k,v]);
+  for(const v of ['kits','poker']){
+    ok(await seg(p,'dblPair',v), `picking dblPair=${v}`);
+    await wait(120);
+    ok((await flags(p)).dblPair===v, `  → the engine now reports dblPair=${v}`);
+  }
+  ok(await p.evaluate(()=>{
+    const a=[].filter.call(document.querySelectorAll('.segBtn[data-mode-for="dblPair"]'),b=>b.classList.contains('active'));
+    return a.length===1 && a[0].getAttribute('data-mode-v')==='poker' && a[0].getAttribute('aria-checked')==='true';
+  }), 'and exactly ONE segment reads active — the modes are alternatives, never both');
+  ok((await p.evaluate(()=>localStorage.getItem('cmf_rules_v1')))==='lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3',
+     'the choice is serialised self-describingly, like the custom-deck key — the mode row carries its VALUE');
+  /* The v1.31.24 boolean `kits` meant "consecutive runs of any length", which is now two settings. An old saved
+   * key — or one from an older peer — must land on both halves, not silently turn the rule off. */
+  ok(await p.evaluate(()=>{ window.__solo.setRulesFromKey('kits');
+    return CardmenEngine.isDoublePair()==='kits' && CardmenEngine.isKits3()===true; }),
+     'and a legacy `kits` key migrates to dblPair=kits + kits3, rather than quietly reverting to off');
+  await p.evaluate(()=>window.__solo.setRulesFromKey('lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3'));
 
   // ---------- a real game must be played under them
   await p.evaluate(()=>document.getElementById('ruleDone').click()); await wait(300);
@@ -83,8 +105,18 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   await p.evaluate(()=>document.getElementById('settingsBtn').click()); await wait(300);
   ok(await p.evaluate(()=>!!document.getElementById('setRules')), 'Settings offers the rules too — where you look when a game feels wrong');
   await p.evaluate(()=>document.getElementById('setRules').click()); await wait(300);
-  ok(await p.evaluate(()=>[].every.call(document.querySelectorAll('.settingRow[data-rule]'),b=>b.disabled)),
+  /* BOTH SHAPES. A mode row is a <div>, which cannot be `disabled` at all — its SEGMENTS carry it, and the
+   * click wiring is skipped wholesale. Checking only `row.disabled` would have passed a panel whose segments
+   * were still live, which is exactly the mid-game edit this is here to prevent. */
+  ok(await p.evaluate(()=>[].every.call(document.querySelectorAll('.settingRow[data-rule]'),
+       r=>r.hasAttribute('data-mode') ? [].every.call(r.querySelectorAll('.segBtn'),b=>b.disabled) : r.disabled)),
      'and mid-game every row is disabled — rules are chosen before a game, not during one');
+  ok(await p.evaluate(()=>{
+    const before=CardmenEngine.isDoublePair();
+    const other=[].filter.call(document.querySelectorAll('.segBtn[data-mode-for="dblPair"]'),b=>!b.classList.contains('active'))[0];
+    if(other) other.click();
+    return CardmenEngine.isDoublePair()===before;
+  }), 'and clicking a read-only segment changes nothing in the engine — not merely greyed out');
   ok(await p.evaluate(()=>/already running/i.test((document.querySelector('.modal .netmsg')||{}).textContent||'')),
      'with a line saying why, rather than a dead control');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));

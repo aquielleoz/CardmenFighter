@@ -23,7 +23,7 @@ const modalOnTop=p=>p.evaluate(()=>{
   const el=document.elementFromPoint(Math.round(innerWidth/2), Math.round(innerHeight/2));
   return !!(el && m.contains(el));
 });
-const flags=p=>p.evaluate(()=>({ loss:CardmenEngine.isSpecialLossMode(), shieldScale:CardmenEngine.isShieldsPerPlayer() }));
+const flags=p=>p.evaluate(()=>({ loss:CardmenEngine.isSpecialLossMode(), shieldScale:CardmenEngine.isShieldsPerPlayer(), dblPair:CardmenEngine.isDoublePair() }));
 const startEnabled=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); return !!(g && !g.disabled && /Start/i.test(g.textContent||'')); });
 const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); return !!(g && /Ready/i.test(g.textContent||'')); });
 (async()=>{
@@ -44,7 +44,11 @@ const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); r
   ok(await join.evaluate(()=>!!document.getElementById('lobbyRules')), 'the client is offered a way to READ the rules');
   await join.evaluate(()=>document.getElementById('lobbyRules').click()); await wait(350);
   ok(await modalOnTop(join), 'the panel is actually VISIBLE over the lobby, not just present in the DOM');
-  ok(await join.evaluate(()=>[].every.call(document.querySelectorAll('.settingRow[data-rule]'),x=>x.disabled)),
+  /* A MODE row is a <div> and cannot be `disabled` — its segments carry it (see rulestest). Checking only
+   * `row.disabled` would pass a client that could still change the mode locally, which over netplay means two
+   * people playing different games: the whole failure the version handshake exists to prevent. */
+  ok(await join.evaluate(()=>[].every.call(document.querySelectorAll('.settingRow[data-rule]'),
+       r=>r.hasAttribute('data-mode') ? [].every.call(r.querySelectorAll('.segBtn'),b=>b.disabled) : r.disabled)),
      'and it is read-only for the client — only the host\'s rules count');
   ok(await join.evaluate(()=>/host chooses the rules/i.test((document.querySelector('.modal .netmsg')||{}).textContent||'')),
      'with a line saying the host decides, rather than a dead control');
@@ -61,11 +65,18 @@ const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); r
   ok(await host.evaluate(()=>![].every.call(document.querySelectorAll('.settingRow[data-rule]'),x=>x.disabled)),
      'and for the HOST it is editable');
   await host.evaluate(()=>{ const r=document.querySelector('.settingRow[data-rule="lossAll"]'); if(r)r.click(); }); await wait(200);
+  /* A MODE rule as well, because it is the first rule whose serialised form carries a VALUE (`dblPair=poker`).
+   * The key is split on ',' and then on '=', so a mode crossing the wire exercises a parser path that no
+   * boolean rule ever touches — and a client that silently fell back to 'off' would look identical to a host
+   * who never changed it. */
+  await host.evaluate(()=>{ const b=document.querySelector('.segBtn[data-mode-for="dblPair"][data-mode-v="poker"]'); if(b)b.click(); }); await wait(200);
   await host.evaluate(()=>document.getElementById('ruleDone').click()); await wait(400);
-  ok((await flags(host)).loss==='all', 'the host\'s engine takes the new rule');
+  ok((await flags(host)).loss==='all' && (await flags(host)).dblPair==='poker', 'the host\'s engine takes the new rules');
 
   // ---------- the decisive pair: the client adopts it, and is un-readied
   ok(await until(async()=>(await flags(join)).loss==='all'), 'the CLIENT adopts the host\'s rules over the wire');
+  ok((await flags(join)).dblPair==='poker',
+     'including the MODE rule\'s value, not just a boolean — `dblPair=poker` survives the round trip');
   ok(await until(async()=>await readyBtn(join)),
      'and the client is UN-READIED — it agreed to a different game, so it must confirm again');
   ok(!(await startEnabled(host)), 'so the host cannot Start until the table re-readies');
