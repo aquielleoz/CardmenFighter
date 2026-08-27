@@ -24,6 +24,8 @@ const flags=p=>p.evaluate(()=>({
   dblPair: CardmenEngine.isDoublePair(), kits3: CardmenEngine.isKits3(), quadro: CardmenEngine.isQuadro(),
   chopQuadro: CardmenEngine.isChopQuadro(), chopKits: CardmenEngine.isChopKits(), chopSflush: CardmenEngine.isChopSflush(),
   chopStrips: CardmenEngine.isChopStrips(),
+  trioOne: CardmenEngine.isTrioOne(), fourTwo: CardmenEngine.isFourTwo(),
+  airplane: CardmenEngine.isAirplane(), chainLong: CardmenEngine.isChainLong(),
 }));
 const openRules=async p=>{ await p.evaluate(()=>document.getElementById('rulesBtn').click()); await wait(300); };
 const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[data-rule="'+k+'"]'); if(b)b.click(); return !!b; }, k);
@@ -37,14 +39,15 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   // ---------- defaults: the shipped game, and EVERY toggle off
   ok(JSON.stringify(await flags(p))===JSON.stringify({loss:'chosen',mill:'targeted',shieldScale:false,drawScales:true,
        apexInf:false, apexNoStrip:false, dblPair:'off', kits3:false, quadro:false,
-       chopQuadro:false, chopKits:false, chopSflush:false, chopStrips:false}),
+       chopQuadro:false, chopKits:false, chopSflush:false, chopStrips:false,
+       trioOne:false, fourTwo:false, airplane:false, chainLong:false}),
      'the shipped defaults are chosen / targeted / flat shields / scaling draw / no apex rules / no pair shapes');
   await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(300);
   ok(await p.evaluate(()=>!!document.getElementById('rulesBtn')), 'the setup dialog offers ⚗️ Custom rules');
   await openRules(p);
   const keys=await p.evaluate(()=>[].map.call(document.querySelectorAll('.settingRow[data-rule]'),b=>b.getAttribute('data-rule')));
-  ok(JSON.stringify(keys)===JSON.stringify(['basics','lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','dblPair','kits3','quadro','chopQuadro','chopKits','chopSflush','chopStrips']),
-     `fourteen rules, the game mode first and the chops last (${keys.join(', ')})`);
+  ok(JSON.stringify(keys)===JSON.stringify(['basics','lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','dblPair','kits3','quadro','chopQuadro','chopKits','chopSflush','chopStrips','trioOne','fourTwo','airplane','chainLong']),
+     `eighteen rules, the game mode first and the Dou Dizhu shapes last (${keys.join(', ')})`);
   /* ORDER IS LOAD-BEARING here: apexNoStrip's note says "unless the rule above is also on", meaning apexInf.
    * Kits were first inserted between them, which silently pointed that sentence at the wrong rule. */
   ok(keys.indexOf('apexNoStrip')===keys.indexOf('apexInf')+1,
@@ -63,14 +66,14 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   const scopes=await p.evaluate(()=>[].map.call(document.querySelectorAll('.ruleSect .ruleScope'),e=>e.textContent.trim()));
   /* SCOPE MOVED TO THE SECTION (v1.31.37). Every section holds rules of one scope — checked, all four are
    * homogeneous — so thirteen identical chips became four, and a row carries none. */
-  ok(scopes.length===4 && /all player counts/i.test(scopes[0]) && /3–6/.test(scopes[1])
-     && /all player counts/i.test(scopes[2]) && /all player counts/i.test(scopes[3]),
-     `four section scope tags, not thirteen row ones (${scopes.join(' | ')})`);
+  ok(scopes.length===5 && /all player counts/i.test(scopes[0]) && /3–6/.test(scopes[1])
+     && scopes.slice(2).every(t=>/all player counts/i.test(t)),
+     `five section scope tags, not eighteen row ones (${scopes.join(' | ')})`);
   ok(await p.evaluate(()=>document.querySelectorAll('.settingRow .ruleScope').length===0),
      'and no row repeats what its section already said');
   const sects = await p.evaluate(()=>[].map.call(document.querySelectorAll('.ruleSect .sectName'),e=>e.textContent.trim()));
-  ok(JSON.stringify(sects)===JSON.stringify(['The game','Table rules','The 2','Shapes & chops']),
-     `the panel is four sections (${sects.join(' | ')})`);
+  ok(JSON.stringify(sects)===JSON.stringify(['The game','Table rules','The 2','Shapes & chops','Dou Dizhu shapes']),
+     `the panel is five sections (${sects.join(' | ')})`);
   ok(sects.indexOf('Uncategorised')<0,
      'and no rule fell outside them — an unclaimed rule renders under a visible Uncategorised heading, never vanishes');
   ok(await p.evaluate(()=>{
@@ -88,7 +91,9 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
                                    ['kits3','kits3',true],['quadro','quadro',true],
                                    ['chopQuadro','chopQuadro',true],['chopKits','chopKits',true],
                                    ['chopSflush','chopSflush',true],
-                                   ['chopStrips','chopStrips',true]]){
+                                   ['chopStrips','chopStrips',true],
+                                   ['trioOne','trioOne',true],['fourTwo','fourTwo',true],
+                                   ['airplane','airplane',true],['chainLong','chainLong',true]]){
     ok(await toggle(p,key), `toggling ${key}`);
     await wait(120);
     const f=await flags(p);
@@ -110,7 +115,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
     const a=[].filter.call(document.querySelectorAll('.segBtn[data-mode-for="dblPair"]'),b=>b.classList.contains('active'));
     return a.length===1 && a[0].getAttribute('data-mode-v')==='poker' && a[0].getAttribute('aria-checked')==='true';
   }), 'and exactly ONE segment reads active — the modes are alternatives, never both');
-  ok((await p.evaluate(()=>localStorage.getItem('cmf_rules_v1')))==='lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chopQuadro,chopKits,chopSflush,chopStrips',
+  ok((await p.evaluate(()=>localStorage.getItem('cmf_rules_v1')))==='lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chopQuadro,chopKits,chopSflush,chopStrips,trioOne,fourTwo,airplane,chainLong',
      'the choice is serialised self-describingly, like the custom-deck key — the mode row carries its VALUE');
   /* The v1.31.24 boolean `kits` meant "consecutive runs of any length", which is now two settings. An old saved
    * key — or one from an older peer — must land on both halves, not silently turn the rule off. */
@@ -184,7 +189,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
    * before this was built. offsetParent is null for a display:none element. */
   const qCount = await p.evaluate(()=>document.querySelectorAll('.ruleQ[data-note-for]').length);
   const rowCount = await p.evaluate(()=>document.querySelectorAll('.settingRow[data-rule]').length);
-  ok(qCount === rowCount && rowCount === 14, `every rule carries a ? (${qCount} of ${rowCount})`);
+  ok(qCount === rowCount && rowCount === 18, `every rule carries a ? (${qCount} of ${rowCount})`);
   const noteShown = k => p.evaluate(k=>{
     const n=document.querySelector('.settingRow[data-rule="'+k+'"] .settingNote');
     return !!(n && n.offsetParent);
@@ -277,7 +282,8 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   ok((await p.evaluate(() => window.__solo.rulesKey())) === '', 'Clear all empties the whole rule set');
   ok(JSON.stringify(await flags(p)) === JSON.stringify({ loss: 'chosen', mill: 'targeted', shieldScale: false,
        drawScales: true, apexInf: false, apexNoStrip: false, dblPair: 'off', kits3: false, quadro: false,
-       chopQuadro: false, chopKits: false, chopSflush: false, chopStrips: false }),
+       chopQuadro: false, chopKits: false, chopSflush: false, chopStrips: false,
+       trioOne: false, fourTwo: false, airplane: false, chainLong: false }),
      'and the engine is back on the shipped game, mode rows included');
   ok((await p.evaluate(() => localStorage.getItem('cmf_rules_v1'))) === '', 'the cleared state is saved too');
   ok((await bulk(p)).filter(b => b.id === 'ruleClear')[0].off,
@@ -379,9 +385,23 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   };
   const wide = await layout({ width: 1500, height: 950 });
   ok(wide.cols === 3, `at 1500px the rules go three columns (${wide.cols})`);
-  ok(wide.fits, 'and the whole panel fits without scrolling — which was the actual request');
+  /* NOT a fit claim any more, and that is the treadmill being honest: eighteen rules do not fit a 1500px
+   * screen in three columns (1021px against a 908px cap). The fit assertion lives at the four-column tier
+   * below. What must hold here is that the sticky footer keeps the panel usable while it scrolls. */
+  ok(await p.evaluate(()=>{
+       const m=document.getElementById('modal'), f=document.querySelector('.ruleFoot');
+       if(!f) return false;
+       m.scrollTop = 0;
+       const mr=m.getBoundingClientRect(), fr=f.getBoundingClientRect();
+       const el=document.elementFromPoint(Math.round(fr.left+fr.width/2), Math.round(fr.top+fr.height/2));
+       return Math.abs(mr.bottom-fr.bottom)<=2 && !!(el && f.contains(el));
+     }), 'and where it does not fit, the sticky footer is still pinned and clickable');
   ok(wide.setup === 470, `while the SETUP dialog stays narrow (${wide.setup}px) — .modal is shared by every dialog`);
   ok(wide.afterW === 470, `and the width does not leak into the next dialog (${wide.afterW}px after Done)`);
+  /* A FOURTH column arrives at 1780px, because eighteen rules no longer fit a desktop in three. */
+  const four = await layout({ width: 1900, height: 1000 });
+  ok(four.cols === 4, `at 1900px the rules go four columns (${four.cols})`);
+  ok(four.fits, 'and the whole panel fits again — which is the width Aj actually screenshotted');
   const mid = await layout({ width: 1100, height: 900 });
   ok(mid.cols === 2, `at 1100px it is two columns (${mid.cols})`);
   const narrow = await layout({ width: 900, height: 1000 });

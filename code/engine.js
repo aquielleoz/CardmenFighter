@@ -69,13 +69,17 @@
   }
 
   // ---- combo detection ----
+  /* ANY length from 5 up, so the 单顺 chain rule reuses this rather than duplicating it. The shipped game only
+   * ever passes 5 (detectCombo gates on the CHAIN_LONG flag), so a generalised length changes nothing on its
+   * own — it just stops there being two copies of "is this a run". */
   function detectStraight(cards) {
-    if (cards.length !== 5) return null;
+    var n = cards.length;
+    if (n < 5) return null;
     // Ordered by FIGHT VALUE — contiguous 3..15 (3..10, J=11, Q=12, K=13, A=14, apex 2=15)
-    // (…10, J=11, Q=12, K=13, A=14, 2=15), so a run is 5 consecutive values just like the old 1..10.
+    // (…10, J=11, Q=12, K=13, A=14, 2=15), so a run is consecutive values just like the old 1..10.
     var rs = cards.map(fightValue).sort(function (a, b) { return a - b; });
-    for (var i = 1; i < 5; i++) if (rs[i] !== rs[i - 1] + 1) return null; // consecutive & distinct
-    var top = rs[4];
+    for (var i = 1; i < n; i++) if (rs[i] !== rs[i - 1] + 1) return null; // consecutive & distinct
+    var top = rs[n - 1];
     var topCard = cards.filter(function (c) { return fightValue(c) === top; })[0];
     return { top: top, topCard: topCard };
   }
@@ -107,6 +111,34 @@
     for (i = 1; i < vals.length; i++) if (vals[i] !== vals[i - 1] + 1) return null;   // consecutive, no wrap
     return { top: vals[vals.length - 1], pairs: vals.length };
   }
+  /* Value -> how many of it. Three of the new shapes are pure signature tests ([3,1], [4,2]/[4,1,1], [3,3]),
+   * and no two of them share a signature at the same size, which is why they can be independent toggles rather
+   * than a mode like the four-card double-pair slot. */
+  function valueCounts(cards) {
+    var c = {}, i, v;
+    for (i = 0; i < cards.length; i++) { v = fightValue(cards[i]); c[v] = (c[v] || 0) + 1; }
+    return c;
+  }
+  function countsOf(c) {
+    var out = [], k;
+    for (k in c) out.push(c[k]);
+    out.sort(function (a, b) { return b - a; });
+    return out;
+  }
+  function topWithCount(c, n) {                       // highest value held exactly/at least n times
+    var best = null, k;
+    for (k in c) if (c[k] >= n && (best === null || +k > best)) best = +k;
+    return best;
+  }
+  /* Consecutive trios, ascending, for the airplane. Returns the top trio value or null. */
+  function detectAirplane(cards) {
+    var c = valueCounts(cards), vals = [], k;
+    for (k in c) { if (c[k] !== 3) return null; vals.push(+k); }      // every value must appear EXACTLY 3 times
+    if (vals.length < 2) return null;
+    vals.sort(function (a, b) { return a - b; });
+    for (var i = 1; i < vals.length; i++) if (vals[i] !== vals[i - 1] + 1) return null;
+    return vals[vals.length - 1];
+  }
   function detectCombo(cards) {
     if (!cards || !cards.length) return null;
     var n = cards.length, ranks = cards.map(fightValue);   // "ranks" here = fight VALUES, not raw ranks (A=14, 2=15)
@@ -117,6 +149,24 @@
     /* Ahead of the double-pair slot, which returns early for anything that is not two pairs. No ambiguity is
      * possible: four cards of ONE value can never be two pairs or a kit, both of which need two values. */
     if (n === 4 && quadroOn() && same) return { type: 'quadro', value: ranks[0], size: 4, key: [ranks[0]], cards: cards };
+    if (n === 4 && TRIO_ONE) {                       // 三带一 — trio + one spare, compared by the trio
+      var t1 = valueCounts(cards), t1c = countsOf(t1);
+      if (t1c.length === 2 && t1c[0] === 3 && t1c[1] === 1) {
+        var tv = topWithCount(t1, 3);
+        return { type: 'trioone', value: tv, size: 4, key: [tv], cards: cards };
+      }
+    }
+    if (n === 6 && FOUR_TWO) {                       // 四带二 — quad + two spares (a pair or two singles)
+      var f2 = valueCounts(cards), f2c = countsOf(f2);
+      if (f2c[0] === 4 && (f2c.length === 2 || f2c.length === 3)) {
+        var qv = topWithCount(f2, 4);
+        return { type: 'fourtwo', value: qv, size: 6, key: [qv], cards: cards };
+      }
+    }
+    if (AIRPLANE && n >= 6 && n % 3 === 0) {         // 飞机 — consecutive trios, bare
+      var ap = detectAirplane(cards);
+      if (ap !== null) return { type: 'airplane', value: ap, size: n, key: [ap], cards: cards };
+    }
     if (n === 4 && DBL_PAIR !== 'off') {            // the double-pair slot — one mode, so never ambiguous
       var pc = {}, pi, pvv;
       for (pi = 0; pi < 4; pi++) { pvv = fightValue(cards[pi]); pc[pvv] = (pc[pvv] || 0) + 1; }
@@ -129,6 +179,12 @@
     if (kits3On() && n >= 6 && n % 2 === 0) {          // runs of 3+ pairs; size 6/8/10 cannot shadow a 5-card shape
       var kt = detectKit(cards);
       if (kt && kt.pairs >= 3) return { type: 'kit', value: kt.top, size: n, key: [kt.top], cards: cards };
+    }
+    /* 单顺 — the straight's length unlocked. Handled before the n===5 block so one code path serves both, and
+     * only for n>5: at exactly 5 the existing block already does it. */
+    if (CHAIN_LONG && n > 5 && n <= MAX_HAND) {
+      var ch = detectStraight(cards);
+      if (ch) return { type: 'straight', value: ch.top, size: n, key: [ch.top], cards: cards };
     }
     if (n === 5) {
       var counts = {}; ranks.forEach(function (r) { counts[r] = (counts[r] || 0) + 1; });
@@ -255,6 +311,55 @@
     for (var lo = loMin; lo <= loMax; lo++) {
       var window = [lo, lo + 1, lo + 2, lo + 3, lo + 4];
       if (window.every(function (v) { return byRank[v]; })) out.push(window.map(function (v) { return byRank[v][0]; }));
+    }
+    /* ONE REPRESENTATIVE PER SHAPE AND TOP VALUE, not every combination. A 三带一's strength is its trio, so
+     * every choice of spare card is an equal-strength play — enumerating them all would flood the hand's legal
+     * options with dozens of identical offers. The representative sheds the LOWEST spare, which is what a player
+     * would do; selecting any other spare by hand still validates, because play() calls detectCombo directly. */
+    var lowFirst = hand.slice().sort(function (a, b) { return fightValue(a) - fightValue(b); });
+    function spares(used, k) {                                    // k lowest cards not already in the play
+      var out = [], i;
+      for (i = 0; i < lowFirst.length && out.length < k; i++) if (!used[lowFirst[i].id]) out.push(lowFirst[i]);
+      return out.length === k ? out : null;
+    }
+    if (TRIO_ONE) {                                                               // 三带一
+      trioRanks.forEach(function (tr) {
+        var t = [byRank[tr][0], byRank[tr][1], byRank[tr][2]], used = {};
+        t.forEach(function (c) { used[c.id] = true; });
+        var sp = spares(used, 1);
+        if (sp) out.push(t.concat(sp));
+      });
+    }
+    if (FOUR_TWO) {                                                               // 四带二
+      Object.keys(byRank).forEach(function (r) {
+        var g = byRank[r]; if (g.length < 4) return;
+        var q = [g[0], g[1], g[2], g[3]], used = {};
+        q.forEach(function (c) { used[c.id] = true; });
+        var sp = spares(used, 2);
+        if (sp) out.push(q.concat(sp));
+      });
+    }
+    if (AIRPLANE) {                                                               // 飞机 — consecutive trios
+      var canTrio = {};
+      Object.keys(byRank).forEach(function (r) { if (byRank[r].length >= 3) canTrio[+r] = true; });
+      for (var av = 3; av <= 15; av++) {
+        if (!canTrio[av]) continue;
+        var arun = [], acards = [];
+        for (var aw = av; aw <= 15 && canTrio[aw]; aw++) {
+          arun.push(aw);
+          acards = acards.concat([byRank[aw][0], byRank[aw][1], byRank[aw][2]]);
+          if (arun.length >= 2 && acards.length <= MAX_HAND) out.push(acards.slice());
+        }
+      }
+    }
+    if (CHAIN_LONG) {                                                             // 单顺 — runs longer than five
+      for (var clo = 3; clo <= 15; clo++) {
+        var crun = [];
+        for (var cv = clo; cv <= 15 && byRank[cv]; cv++) {
+          crun.push(byRank[cv][0]);
+          if (crun.length > 5 && crun.length <= MAX_HAND) out.push(crun.slice());
+        }
+      }
     }
     if (quadroOn()) {                                                             // four of a kind
       Object.keys(byRank).forEach(function (r) {
@@ -1934,6 +2039,18 @@
    * should impose one, and there is no "off" segment either: they are ordinary toggles. Each flag also ENABLES
    * its own shape, so no setting can be dead. */
   var CHOP_Q = false, CHOP_K = false, CHOP_SF = false, CHOP_STRIPS = false;
+  /* DOU DIZHU SHAPES (v1.31.39). Three genuinely new ones plus a length unlock:
+   *   TRIO_ONE  三带一 — trio + one spare card, size 4, compared by the TRIO. The spare is baggage, exactly as
+   *             the pair is in our full house, which IS 三带二 — so this idea is already in the game.
+   *   FOUR_TWO  四带二 — quad + two spare cards, size 6, compared by the QUAD. In Dou Dizhu the bomb is the BARE
+   *             quad, so this is the choice to spend four of a kind as an ordinary big shape instead.
+   *   AIRPLANE  飞机 — two or more CONSECUTIVE trios. Bare only; the winged variants add attachments and the
+   *             shape is already at 0.2% of hands without them.
+   *   CHAIN_LONG 单顺 — not a new shape at all: it unlocks the STRAIGHT's length (5..MAX_HAND instead of exactly
+   *             5). A 5-card chain and our straight are the same cards, so a parallel type would be ambiguous.
+   *             beats() already demands equal size, so a 6-chain cannot beat a 5-straight — the family's rule,
+   *             free. */
+  var TRIO_ONE = false, FOUR_TWO = false, AIRPLANE = false, CHAIN_LONG = false;
   var QUADRO = false;
   var DBL_PAIR = 'off', KITS3 = false;
   /* A MODE, like the four-card double-pair slot (Aj, 2026-08-27: "let's do it like the Four-card double
@@ -1949,6 +2066,14 @@
    * buys the lead, not a shield. The toggle is therefore phrased as the POSITIVE — `chopStrips` makes them deal
    * damage — because every rule in the panel must default OFF: "is this game customised?" is literally "is any
    * rule on?", so a rule whose off state changed the game would break that. Same inversion as `flatDraw`. */
+  function setTrioOne(v)   { TRIO_ONE = !!v; }
+  function isTrioOne()     { return TRIO_ONE; }
+  function setFourTwo(v)   { FOUR_TWO = !!v; }
+  function isFourTwo()     { return FOUR_TWO; }
+  function setAirplane(v)  { AIRPLANE = !!v; }
+  function isAirplane()    { return AIRPLANE; }
+  function setChainLong(v) { CHAIN_LONG = !!v; }
+  function isChainLong()   { return CHAIN_LONG; }
   function setChopStrips(v) { CHOP_STRIPS = !!v; }
   function isChopStrips() { return CHOP_STRIPS; }
   function isChopQuadro() { return CHOP_Q; }
@@ -2092,6 +2217,8 @@
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
     setChopQuadro: setChopQuadro, setChopKits: setChopKits, setChopSflush: setChopSflush,
     setChopStrips: setChopStrips, isChopStrips: isChopStrips,
+    setTrioOne: setTrioOne, isTrioOne: isTrioOne, setFourTwo: setFourTwo, isFourTwo: isFourTwo,
+    setAirplane: setAirplane, isAirplane: isAirplane, setChainLong: setChainLong, isChainLong: isChainLong,
     isChopQuadro: isChopQuadro, isChopKits: isChopKits, isChopSflush: isChopSflush, chopRank: chopRank,
     setQuadro: setQuadro, isQuadro: isQuadro,
     setDoublePair: setDoublePair, isDoublePair: isDoublePair,

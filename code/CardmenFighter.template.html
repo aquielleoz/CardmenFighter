@@ -706,6 +706,13 @@
     .modal.rulesPanel .settingRow{padding:10px 12px;}
     .modal.rulesPanel .ruleSect{margin:6px 0 1px;}
   }
+  /* A FOURTH column once there are enough rules to need it (eighteen, as of v1.31.39). Same principle as the
+   * third: the modal grows with it so a column keeps roughly the width it had, or the labels wrap more and the
+   * extra column gives back what it saved. */
+  @media (min-width:1780px){
+    .modal.rulesPanel{max-width:1440px;}
+    .modal.rulesPanel .settings{grid-template-columns:1fr 1fr 1fr 1fr;}
+  }
   .modal .ghostBtn{background:var(--panel); color:var(--txt); border:1px solid var(--line); font-weight:700; font-size:14px; width:100%; margin-top:8px;}
   .modal .setupBtns{display:flex; gap:8px; margin-top:8px;}
   .modal .setupBtns .ghostBtn{flex:1 1 0; min-width:0; margin-top:0;}
@@ -1244,7 +1251,7 @@ __QR__
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
-  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',kit:'Kits',twopair:'Two Pair',quadro:'Quadro'};
+  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',kit:'Kits',twopair:'Two Pair',quadro:'Quadro',trioone:'Trio + 1',fourtwo:'Four + 2',airplane:'Airplane'};
   /* Kits are the first VARIABLE-LENGTH shape, so a fixed name is not enough — a run of two pairs and a run of
    * three are different plays. Where the combo object is in hand, say which ("2 Kits"); the bare TYPE entry
    * covers the call sites that only carry a type string. */
@@ -1393,6 +1400,18 @@ __QR__
     { key:'chopStrips',  duel:true, label:'Chops destroy shields too',
       needsAny:['chopQuadro','chopKits','chopSflush'],
       note:'By default a round won <b>by a chop</b> costs nobody a shield — a chop already bends the shape-matching rule, so what it buys you is the lead. Switch this on and a chop deals damage like any other Special. Either way it only concerns rounds a chop actually won: leading one of these shapes, or beating one with a higher one of the same shape, always deals damage. Needs a chop switched on to mean anything, so it stays inert until one is — and clears itself if the last one goes off.' },
+    /* DOU DIZHU SHAPES (v1.31.39). Their own section, both to keep "Shapes & chops" from becoming a wall and to
+     * give the eventual Dou Dizhu preset a heading to live in — the pattern from v1.31.37.
+     * Note the family's TRIO + PAIR (三带二) is already in the game: it is our full house. So these are its
+     * smaller sibling, its bigger relative, the trio version of a run, and a length unlock. */
+    { key:'trioOne',     duel:true, label:'Trio + one spare card',
+      note:'三带一. A trio plus any single card, compared by the <b>trio</b> — the spare is baggage you are shedding, exactly as the pair is in a full house (which is this family\u2019s 三带二). Answered only by a higher trio-plus-one.' },
+    { key:'fourTwo',     duel:true, label:'Four of a kind + two spare cards',
+      note:'四带二. All four copies of one value plus two more cards — a pair or two singles — compared by the <b>four</b>. In Dou Dizhu the bomb is the BARE four of a kind, so this is the choice to spend it as an ordinary big shape instead of as a chop.' },
+    { key:'airplane',    duel:true, label:'Airplane — consecutive trios',
+      note:'飞机. Two or more trios of consecutive values (777888), compared by the top trio. The winged variants that carry extra cards are not included: at ten cards a bare airplane already needs six of them.' },
+    { key:'chainLong',   duel:true, label:'Straights can run longer than five',
+      note:'单顺. A straight may be any length from five up to your whole hand, not exactly five. Length still has to match to beat it, so a six-card run and a five-card run never meet — that is the family\u2019s rule, and it is what stops a longer straight being simply better.' }
   ];
   /* TWO STORES, and the split is what makes suggestions possible (v1.31.31). RULES is what is IN PLAY — on a
    * netplay client the host overwrites it wholesale, so anything kept there is not yours. MY_RULES is THIS
@@ -1415,7 +1434,8 @@ __QR__
     { key:'table',  title:'Table rules',    keys:['lossAll','millAll','shieldScale','flatDraw'] },
     { key:'apex',   title:'The 2',          keys:['apexInf','apexNoStrip'] },
     { key:'shapes', title:'Shapes & chops', keys:['dblPair','kits3','quadro','chopQuadro','chopKits','chopSflush','chopStrips'],
-      presets:true }
+      presets:true },
+    { key:'dou',    title:'Dou Dizhu shapes', keys:['trioOne','fourTwo','airplane','chainLong'] }
   ];
   var RULES={}, MY_RULES={};
   RULE_DEFS.forEach(function(d){ RULES[d.key]= d.mode ? d.mode[0].v : false; MY_RULES[d.key]=RULES[d.key]; });
@@ -1498,6 +1518,10 @@ __QR__
       if(E.setChopKits)         E.setChopKits(!!RULES.chopKits);
       if(E.setChopSflush)       E.setChopSflush(!!RULES.chopSflush);
       if(E.setChopStrips)       E.setChopStrips(!!RULES.chopStrips);
+      if(E.setTrioOne)          E.setTrioOne(!!RULES.trioOne);
+      if(E.setFourTwo)          E.setFourTwo(!!RULES.fourTwo);
+      if(E.setAirplane)         E.setAirplane(!!RULES.airplane);
+      if(E.setChainLong)        E.setChainLong(!!RULES.chainLong);
   }
   function valLabel(d,v){
     if(!d.mode) return v?'On':'Off';       // capitalised to match a mode row's own labels, which sit beside it

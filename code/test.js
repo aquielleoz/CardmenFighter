@@ -1033,6 +1033,64 @@ function cards(ids) { return ids.map(card); }
     E.setChopStrips(false); E.setChopQuadro(false);
   })();
 
+  /* ---- DOU DIZHU SHAPES (v1.31.39). Three new shapes plus a length unlock. Note the family's TRIO + PAIR
+   * (三带二) is already in the game as our full house, so the "attachment is baggage" idea is not new here —
+   * these are its smaller sibling, its bigger relative, the trio version of a run, and 单顺. */
+  (function () {
+    var t3 = [C(7, 'D'), C(7, 'H'), C(7, 'C')];
+    var trioOne = t3.concat([C(3, 'S')]);
+    var trioOneHi = [C(9, 'D'), C(9, 'H'), C(9, 'C'), C(13, 'S')];
+    var q4 = [C(7, 'D'), C(7, 'H'), C(7, 'C'), C(7, 'S')];
+    var fourPair = q4.concat([C(3, 'D'), C(3, 'H')]);
+    var fourTwoSingles = q4.concat([C(3, 'D'), C(4, 'H')]);
+    var plane = t3.concat([C(8, 'S'), C(8, 'D'), C(8, 'H')]);
+    var planeGap = t3.concat([C(9, 'S'), C(9, 'D'), C(9, 'H')]);
+    var run5 = [C(4, 'D'), C(5, 'H'), C(6, 'C'), C(7, 'S'), C(8, 'D')];
+    var run6 = run5.concat([C(9, 'H')]);
+
+    ok(E.detectCombo(trioOne) === null && E.detectCombo(fourPair) === null && E.detectCombo(plane) === null
+       && E.detectCombo(run6) === null,
+       'all four Dou Dizhu shapes are illegal in the shipped game');
+
+    E.setTrioOne(true);
+    var d = E.detectCombo(trioOne);
+    ok(d && d.type === 'trioone' && d.size === 4 && d.key[0] === 7,
+       '三带一 is a shape of size 4, keyed by the TRIO — the spare card is not in the key at all');
+    ok(E.beats(E.detectCombo(trioOneHi), d) === true,
+       'so 999+K beats 777+3: the trio decides and the spare is baggage, exactly as in a full house');
+    ok(E.beats(E.detectCombo(t3), d) === false && E.beats(d, E.detectCombo(t3)) === false,
+       'and a bare trio and a trio+one never meet — different sizes, as the family requires');
+
+    E.setFourTwo(true);
+    var f = E.detectCombo(fourPair);
+    ok(f && f.type === 'fourtwo' && f.size === 6 && f.key[0] === 7, '四带二 takes a quad plus a pair, keyed by the quad');
+    ok(E.detectCombo(fourTwoSingles).type === 'fourtwo', 'or a quad plus two singles — both are the same shape');
+    /* THE INTERESTING PART: the same four cards are a Quadro (a chop) or the core of a 四带二 (an ordinary big
+     * shape). In Dou Dizhu the bomb is the BARE quad, which is what makes that a real choice. */
+    E.setQuadro(true);
+    ok(E.detectCombo(q4).type === 'quadro' && E.detectCombo(fourPair).type === 'fourtwo',
+       'and the bare quad is still a Quadro — four cards or six, the player chooses which shape to spend them as');
+    E.setQuadro(false);
+
+    E.setAirplane(true);
+    var a = E.detectCombo(plane);
+    ok(a && a.type === 'airplane' && a.size === 6 && a.key[0] === 8, '飞机 is two consecutive trios, keyed by the top one');
+    ok(E.detectCombo(planeGap) === null, 'and the trios must be CONSECUTIVE — 777 999 is nothing');
+
+    /* 单顺 is NOT a new shape: it unlocks the straight's length. A five-card chain and our straight are the same
+     * cards, so a parallel type would have been ambiguous — the four-card-slot problem again. */
+    E.setChainLong(true);
+    var r6 = E.detectCombo(run6);
+    ok(r6 && r6.type === 'straight' && r6.size === 6, 'a six-card run is a STRAIGHT of size 6, not a new type');
+    ok(E.beats(r6, E.detectCombo(run5)) === false && E.beats(E.detectCombo(run5), r6) === false,
+       'and length must match to beat, so a 6-run and a 5-run never meet — what stops longer being simply better');
+    E.setChainLong(false);
+    ok(E.detectCombo(run6) === null && E.detectCombo(run5).type === 'straight',
+       'with it off the six-card run is illegal again and the five-card one is untouched');
+
+    E.setTrioOne(false); E.setFourTwo(false); E.setAirplane(false);
+  })();
+
   E.setQuadro(false); E.setKits3(false); E.setDoublePair('off');
 })();
 
