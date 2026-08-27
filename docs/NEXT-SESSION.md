@@ -309,6 +309,12 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     quadro beating a lone 2 — or 3 kits beating a lone 2, which is exactly what đôi thông does — needs
     cross-shape overrides in `beats()`. Note it would also make the apex 2 answerable **without** touching the
     apex flags.
+  - **BULK ACTIONS IN THE PANEL, presets and Clear All together** (Aj, 2026-08-27: *"can we add a button to the
+    custom rules. a Clear All button maybe? maybe we can do that together with the presets"*). They are one
+    concern — a preset switches several rules on at once, so the panel needs the opposite move too, and building
+    them separately would mean touching the same row of controls twice. Note **Clear All must go through the same
+    path as a single toggle**: it has to call `applyRules()` and `saveRules()`, and in a netplay lobby it must
+    trigger the un-ready broadcast, or the table would silently be readied for rules that no longer apply.
   - **PRESET BUNDLES.** `Raw Chikicha` = **kits + quadro** and nothing else (Aj, from the game he played: *"there
     were no variable length straights. those are scary"*). A `Dou Dizhu` bundle would add trio+single (三带一),
     four+two (四带二), airplane (飞机/三顺), variable-length straights and the chop. Presets stay honest with the
