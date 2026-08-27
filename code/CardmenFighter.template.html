@@ -666,6 +666,22 @@
   .modal .logNote{opacity:.55; font-size:11px; margin-top:8px; line-height:1.45;}
   /* --- Card Codex (browse-all gallery) --- */
   .modal.wide{max-width:860px;}
+  /* The rules panel is thirteen short rows once the notes are hidden, so on a screen with the room it goes two
+   * abreast and stops scrolling altogether. 860px matches the Codex, the game's existing widest dialog. The
+   * breakpoint is on the VIEWPORT, not the modal, because below it the single column is what fits. */
+  .modal.rulesPanel{max-width:860px;}
+  @media (min-width:1040px){
+    .modal.rulesPanel .settings{display:grid; grid-template-columns:1fr 1fr; align-items:start;}
+    /* mode rows join the grid too — their segmented controls fit a half-width column, and giving each of them a
+     * full row of its own was most of what still made the panel scroll. */
+  }
+  /* A third column on a genuinely wide screen, which is the case Aj screenshotted. The modal grows with it so a
+   * column stays about the width it has at two — otherwise the labels wrap more and the rows get taller, giving
+   * back what the extra column saved. */
+  @media (min-width:1400px){
+    .modal.rulesPanel{max-width:1120px;}
+    .modal.rulesPanel .settings{grid-template-columns:1fr 1fr 1fr;}
+  }
   .modal .ghostBtn{background:var(--panel); color:var(--txt); border:1px solid var(--line); font-weight:700; font-size:14px; width:100%; margin-top:8px;}
   .modal .setupBtns{display:flex; gap:8px; margin-top:8px;}
   .modal .setupBtns .ghostBtn{flex:1 1 0; min-width:0; margin-top:0;}
@@ -4104,7 +4120,11 @@ __QR__
     else showWin();
   }
   var overlayDismiss=null;   // set to a fn by dismissible modals (Card Codex); backdrop click invokes it. null = not dismissible (e.g. duel setup)
-  function showModal(html){ overlayDismiss=null; closeCardFull(); $('modal').innerHTML=html; $('overlay').classList.add('show'); }
+  /* RESETS THE CLASS LIST. Two dialogs widen themselves by adding a class after this call (the Codex, and the
+   * rules panel since v1.31.36); resetting here means neither can leak its width into whatever opens next,
+   * however that dialog was closed. */
+  function showModal(html, cls){ overlayDismiss=null; closeCardFull(); var m=$('modal');
+    m.className='modal'+(cls?' '+cls:''); m.innerHTML=html; $('overlay').classList.add('show'); }
   $('overlay').addEventListener('click', function(e){ if(e.target===$('overlay') && overlayDismiss){ var d=overlayDismiss; overlayDismiss=null; d(); } });
   // ---- Peek at the table: temporarily hide the modal (keeping the overlay on top so the board stays
   // non-interactive) to review the pile / energy / logs, then a floating pill restores the modal. ----
@@ -4645,6 +4665,9 @@ __QR__
         '<span class="settingBody"><span class="settingLbl">'+d.label+qMark(d)+'</span>'+scopeTag(d)+
         '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span></button>';
     }
+    /* WIDER, AND TWO COLUMNS WHERE THERE IS ROOM (Aj, 2026-08-27: "what i'd hope to solve was the scrolling on
+     * desktop. because really you can fit more with all this real estate"). Scoped to this panel by class, NOT
+     * applied to `.modal`, which every dialog in the game shares. */
     showModal('<h2>⚗️ '+(sug?'Rules &amp; suggestions':'Custom rules')+'</h2>'+
       /* NO ROW COUNTING. This sentence said "the first four … the last three", then four, then five — it went
        * stale every time a rule was added, and twice shipped wrong. Every row already carries its own scope
@@ -4668,7 +4691,7 @@ __QR__
        * and PATCHNOTES, where they are actually useful. */
       '<p class="ruleWarn">⚠ The Rival is tuned for the default rules and will not adapt — and some decks are '+
         'much better suited to these rules than others.</p>'+
-      '<button id="ruleDone">Done</button>');
+      '<button id="ruleDone">Done</button>', 'rulesPanel');
     /* THE BULK ROW IS DERIVED STATE, so any single change has to refresh it — otherwise a preset button stays
      * lit after you toggle one more rule, which is a lie about what is in play, and Clear all stays greyed out
      * after the first rule goes on. The rows patch themselves in place, so this is the one shared touch-up. */
