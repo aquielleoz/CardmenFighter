@@ -90,7 +90,9 @@ node mpsim.js 1000 knight     # 3/4/6p free-for-all. NAMED flags: mill= loss= ap
                              # every arm of two studies run the SAME config; see PATCHNOTES 0j.
 node recyclesim.js 400       # how often a game reaches the reshuffle (deck-cycling pressure)
 node personasim.js 150 demon  # AI persona parity — args: gamesPerRotation tier [control]
-node passsim.js 200 6 knight   # strategic-pass study + initiative concentration
+node passsim.js 200 6 knight   # strategic-pass study + initiative concentration. `drawplayers` is a NAMED
+                             # flag now, valid in any position, and stripped before the positional slots are
+                             # read — it used to be argv[7] and a typo silently ran the default. Prints CONFIG.
 node optionsim.js             # legal plays per turn by player count — the OPTIONS-vs-cards measurement
 node rulesim.js               # rule-config sweep: length / jab share / initiative, by player count
 node roundsim.js              # share of ROUNDS decided by a jab vs a Special, by tier and player count
@@ -461,8 +463,28 @@ Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 246, `netvie
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
 `landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 36, `nettest_rules` 20, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
+`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 36, `nettest_rules` 20, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
+
+**A SUITE CAN BE GREEN AND BLIND. Three shapes of it, all found in one 2026-08-27 sweep and all fixed:**
+- **A vacuous assertion.** `nettest_emote` had `ok(await waitLog(...) || true, 'duel started')` — literally
+  unfailable — and `nettest_actloop` had `ok(true, offered ? … : …)`, a branch report wearing an assertion's
+  clothes. Where both branches are legitimate, assert the invariant that holds **either way** (there: that no
+  response window is left open) rather than asserting nothing.
+- **A negative asserted after a fixed wait fails SILENTLY.** `nettest_emote`'s cooldown check fired three
+  emotes inside the *previous* emote's 1.2s window, so all three were dropped and `added<=1` passed on
+  **added=0** — it would have passed with the cooldown deleted and the wire dead. Wait the window out first, so
+  one must get through and the rest must not: **both directions, or the test proves nothing.**
+- **A poll whose result is discarded.** Most `waitFor`/`until` calls are staging steps, so a poll that gave up
+  used to be invisible and surfaced later as an unrelated assertion failing on a board still mid-round-trip —
+  the v1.31.9 `waitTurnEnds` bug in its general form. Every one of the 27 helpers now prints
+  `⏱ poll TIMED OUT: <condition source>`. **Never assert on the other peer's state after a fixed `wait(n)`** —
+  poll it (`nettest_rtc`, `nettest_energy` both did, and were fixed).
+
+**A CLIENT-SIDE GATE IS NOT THE GATE.** `sendEmote`'s 1.2s cooldown is a courtesy; `hostEmote`'s per-seat one
+is the real check, because a client controls its own clock. Driving the UI only ever exercises the courtesy
+copy, so the host's check went untested until `__cmf.clientSend` let a suite bypass the client gate the same way
+a modified or laggy client does. **Any host-side re-check needs a test that skips the client's UI.**
 
 **These suites go stale silently** — they were unrunnable for however long `/opt/pw-browsers/chromium` was
 missing, and *three* had quietly rotted against product changes while nobody could run them (all fixed in
@@ -668,6 +690,9 @@ not a class problem but a rules problem. The lever belongs at the rules level �
   out of `## BACKLOG`.
 - Debug hooks exist and are URL-gated: `?dbg=1` (netplay) and `?dbgsolo=1` (exposes `window.__solo` with
   `st()/render()/setPulse()` for headless UI checks). Keep new hooks inert without their flag.
+  `__solo.rulesKey/setRulesFromKey` reach the rules serialiser; **`__cmf.clientSend(msg)` sends a raw client
+  intent**, which is the only way to test a HOST-side authority check — a client's own gate is a courtesy, and
+  going through the UI exercises that copy instead of the one that matters.
 - `docs/PLAYER-PROFILE.md` is a living read on how Aj actually plays — consult it for AI tuning and balance,
   and append exported games to its ingestion log.
 

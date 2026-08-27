@@ -20,15 +20,24 @@
  * — Aj's actual complaint was "three rounds in a row throwing jab after jab", so that is a headline number. */
 var E = require('./engine.js');
 var AI = require('./ai.js');
-var _dpp=(process.argv[7]||'').toLowerCase()==='drawplayers'; E.setDrawPerPlayer(_dpp);
+/* NAMED, WHOLE-TOKEN flags — never positional. `drawplayers` used to be read from process.argv[7], i.e. the
+ * SIXTH positional slot, so setting it required getting five earlier args right and a typo silently ran the
+ * default instead. That is the PATCHNOTES 0j trap (positional args once made every arm of two studies run the
+ * same config) and mpsim's substring bug in the same family: the instrument agreeing with itself. */
+var NAMED=['drawplayers'];                             // extend here, and the positional slots stay stable
+var ARGV=process.argv.slice(2).map(function(x){ return String(x).toLowerCase(); });
+/* Named flags are REMOVED before the positional slots are read. Without that, `passsim 40 4 knight drawplayers`
+ * puts the flag in THRESH's slot and parseInt gives NaN — a config the run then reports as its own. */
+var POS=ARGV.filter(function(x){ return NAMED.indexOf(x) < 0; });
+var _dpp=ARGV.indexOf('drawplayers') >= 0; E.setDrawPerPlayer(_dpp);
 E.setShieldCards(true); E.setLoserMill(true); E.setSpecialLossMode('chosen'); E.setMillScope('targeted');
 
-var GAMES = parseInt(process.argv[2] || '200', 10);
-var P     = parseInt(process.argv[3] || '6', 10);
-var TIER  = process.argv[4] || 'knight';        // must be a SMART tier — only those strategic-pass at all
-var THRESH= parseInt(process.argv[5] || '5', 10);
+var GAMES = parseInt(POS[0] || '200', 10);
+var P     = parseInt(POS[1] || '6', 10);
+var TIER  = POS[2] || 'knight';        // must be a SMART tier — only those strategic-pass at all
+var THRESH= parseInt(POS[3] || '5', 10);
 AI.setStratPassMax(THRESH);
-var MODE = (process.argv[6] || 'hand');   // 'hand' = the shipped policy (low hand) · 'combo' = Aj's (holding a Special)
+var MODE = (POS[4] || 'hand');   // 'hand' = the shipped policy (low hand) · 'combo' = Aj's (holding a Special)
 AI.setStratPassMode(MODE);
 
 function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
@@ -94,6 +103,8 @@ var pctPass = 100 * winPass / nPass, pctCont = 100 * winCont / nCont;
 var fair = 100 / P;
 // paired-ish comparison, so quote the noise floor: se of a win rate at the fair share, per arm
 var se = 100 * Math.sqrt((fair / 100) * (1 - fair / 100) / nPass);
+console.log('CONFIG: games=' + GAMES + ' players=' + P + ' tier=' + TIER + ' passMax=' + THRESH +
+            ' policy=' + MODE + ' drawplayers=' + _dpp);   // READ THIS LINE — a mis-typed flag shows up here
 console.log('\n=== STRATEGIC PASS in ' + P + '-player free-for-all — ' + games + ' games, ' + TIER + ', policy=' + MODE +
             (MODE === 'hand' ? ' (hand<=' + THRESH + ')' : ' (holding a Special)') + ' ===');
 console.log('arm                       seats/game   win%     wins');

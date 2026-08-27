@@ -32,7 +32,7 @@ async function waitLog(p,re,t=80){ for(let i=0;i<t;i++){ if((await log(p)).some(
   ok(await host.evaluate(()=>!!document.getElementById('netName')), 'the lobby offers a name field (host)');
   ok(await join.evaluate(()=>!!document.getElementById('netName')), 'the lobby offers a name field (client)');
   await startDuel(host, join);
-  ok(await waitLog(host,/Round 1/i) || true, 'duel started');
+  ok(await waitLog(host,/Round 1/i), 'duel started');   // `|| true` used to make this pass unconditionally
   ok(await host.evaluate(()=>!!document.getElementById('emoteBar')), 'the emote bar exists in netplay');
   ok(await host.evaluate(()=>document.querySelectorAll('#emoteBar .emoteBtn').length===7), 'all seven emotes are offered');
 
@@ -51,12 +51,36 @@ async function waitLog(p,re,t=80){ for(let i=0;i<t;i++){ if((await log(p)).some(
   ok(await waitLog(host,/Aj says nice play!/), 'the HOST sees the client\'s emote by NAME, off-turn');
   ok(await waitLog(join,/^You says nice play!|^You say/i), 'and the client reads its own as "You"');
 
-  // ---- the cooldown
+  /* ---- the cooldown. THIS USED TO BE VACUOUS: it fired the burst immediately after the emote above, still
+   * inside that 1.2s window, so the client's own gate dropped all three and `added<=1` passed on added=0 —
+   * an assertion that would also have passed with the cooldown deleted and the wire dead. It now waits the
+   * window out first, so ONE must get through and the other two must not: both directions, or nothing. */
+  await wait(1300);
   const before=(await log(host)).length;
   await emote(join,'no'); await emote(join,'yes'); await emote(join,'gg');   // three in a row, instantly
-  await wait(900);
+  let arrived=false;
+  for(let i=0;i<60;i++){ if((await log(host)).length>before){ arrived=true; break; } await wait(150); }
+  ok(arrived, 'the first of a burst DOES reach the host — so the count below is not measuring an empty wire');
+  await wait(900);                                     // settle: give the other two every chance to appear
   const added=(await log(host)).length - before;
-  ok(added<=1, 'the cooldown drops a burst — three instant taps produced at most one line ('+added+')');
+  ok(added===1, 'and the cooldown drops the rest — three instant taps produced exactly one line ('+added+')');
+
+  /* ---- the HOST's per-seat gate, which is the half that matters: a client controls its own clock, so
+   * `sendEmote`'s check is a courtesy and `hostEmote`'s is the real one. Going through NET.clientSend skips the
+   * client-side gate entirely — the same thing a modified or laggy client does by accident. */
+  await wait(1300);
+  const before2=(await log(host)).length;
+  ok(await join.evaluate(()=>{
+    if(!(window.__cmf && __cmf.clientSend)) return false;
+    ['no','yes','gg'].forEach(function(k){ __cmf.clientSend({op:'emote', key:k}); });
+    return true;
+  }), 'the client sends three emote intents straight down the wire, bypassing its own cooldown');
+  let arrived2=false;
+  for(let i=0;i<60;i++){ if((await log(host)).length>before2){ arrived2=true; break; } await wait(150); }
+  ok(arrived2, 'the host accepts the first of them');
+  await wait(900);
+  const added2=(await log(host)).length - before2;
+  ok(added2===1, 'and the HOST\'s own per-seat cooldown drops the other two ('+added2+') — it does not trust the client\'s clock');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);

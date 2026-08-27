@@ -11,7 +11,12 @@
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
 const HTML='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
-async function until(fn,t=80,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } return false; }
+/* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll
+ * that gave up used to be invisible and surfaced later as an unrelated assertion failing on a board that
+ * was still mid-round-trip — the v1.31.9 waitTurnEnds bug, in the general case. A red run must explain
+ * itself, so name the condition that never came true. */
+function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,100)); }
+async function until(fn,t=80,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
 const flags=p=>p.evaluate(()=>({
   loss: CardmenEngine.isSpecialLossMode(), mill: CardmenEngine.isMillScope(),
   shieldScale: CardmenEngine.isShieldsPerPlayer(), drawScales: CardmenEngine.isDrawPerPlayer(),

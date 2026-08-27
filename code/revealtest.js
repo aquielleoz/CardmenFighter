@@ -12,7 +12,12 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const p=await (await b.newContext({viewport:{width:1400,height:1000}})).newPage();
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
-  const waitFor=async (fn,n)=>{ for(let i=0;i<(n||60);i++){ if(await fn()) return true; await wait(150);} return false; };
+/* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll
+ * that gave up used to be invisible and surfaced later as an unrelated assertion failing on a board that
+ * was still mid-round-trip — the v1.31.9 waitTurnEnds bug, in the general case. A red run must explain
+ * itself, so name the condition that never came true. */
+function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,100)); }
+  const waitFor=async (fn,n)=>{ for(let i=0;i<(n||60);i++){ if(await fn()) return true; await wait(150);} pollTimedOut(fn); return false; };
 
   await p.goto(URL); await wait(700);
   await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
