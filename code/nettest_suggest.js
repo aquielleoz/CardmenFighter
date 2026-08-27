@@ -61,6 +61,13 @@ const setName=(p,n)=>p.evaluate(n=>{ const i=document.getElementById('netName');
   ok(JSON.stringify(await flags(c1))===JSON.stringify(before),
      'toggling one changes NOTHING about the rules in play on the client — it is only an opinion');
   ok((await inPlayTag(c1,'lossAll'))!=='', `and the row says what is actually in play (${await inPlayTag(c1,'lossAll')})`);
+  /* IMMEDIATELY, with no wait. The chip is derived state and the rows patch themselves in place, so it used to
+   * appear only when the host's echo re-rendered the whole panel — i.e. ~250ms late, and never at all for a
+   * client that is not connected. Waiting here would let the echo hide that. */
+  await c1.evaluate(()=>{ const r=document.querySelector('.settingRow[data-rule="apexInf"]'); if(r&&r.click)r.click(); });
+  ok((await inPlayTag(c1,'apexInf'))!=='', 'the in-play line appears at once on a local toggle, not on the host\'s echo');
+  await c1.evaluate(()=>{ const r=document.querySelector('.settingRow[data-rule="apexInf"]'); if(r&&r.click)r.click(); });
+  ok((await inPlayTag(c1,'apexInf'))==='', 'and goes away again when your pick matches what is in play');
 
   // ---------- the host sees it, by name, on that row
   ok(await openRules(host), 'the host opens its own panel');
@@ -111,6 +118,14 @@ const setName=(p,n)=>p.evaluate(n=>{ const i=document.getElementById('netName');
      'and it can see ANOTHER seat\'s suggestion — a late joiner gets the whole map, not just changes since it arrived');
   ok(await until(async()=>{ const v=await votes(host,'quadro'); return !!(v&&v.length); },10)===false,
      'nothing is invented: a rule nobody suggested still carries no chip');
+
+  /* Reader-relative, like every other name in this game. The host is never in the map — its picks are the
+   * rules — so this only ever shows on a client, and getting it wrong would have you reading your own vote as
+   * a stranger's. */
+  ok(await until(async()=>{ const v=await votes(c1,'lossAll'); return !!(v&&v.length && /You/.test(v.join(' '))); }),
+     'a client reads its OWN suggestion as "You", not by name');
+  ok(!(await votes(c1,'lossAll')||[]).join(' ').includes('Aj'),
+     'and not as both at once');
 
   // ---------- the host VALIDATES: an untrusted client's key is sanitised, not displayed
   ok(await c2.evaluate(()=>{
