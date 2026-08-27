@@ -718,6 +718,10 @@
   .modal .settingRow.ro{opacity:.72; cursor:default;}
   .modal .settingRow.modeSetting{display:flex; flex-direction:column; align-items:stretch; gap:8px; cursor:default;}
   .modal .settingRow.modeSetting .segToggle{min-width:0;}
+  /* ITS OWN LINE, below the name and the `?` (Aj, 2026-08-27). That is also what lets the `?` sit directly
+   * after the name without shoving the chip around on a wrapped label — the problem the chip-then-? order was
+   * working around. .settingBody is a column flex, so a sibling gets its own row for free. */
+  .modal .settingBody > .ruleScope{align-self:flex-start; margin-left:0; margin-top:1px;}
   .modal .ruleScope{display:inline-block; margin-left:7px; padding:0 6px; border-radius:999px; font-size:10px;
     font-weight:700; letter-spacing:.02em; text-transform:uppercase; background:#2b2440; color:#b6a8d8;
     border:1px solid #453a63; vertical-align:1px; white-space:nowrap;}
@@ -4630,7 +4634,7 @@ __QR__
                  (src[d.key]===m.v?'true':'false')+'">'+m.label+'</button>';
         }).join('');
         return '<div class="settingRow modeSetting'+(ruleOnIn(src,d)?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'" data-mode="1">'+
-          '<span class="settingBody"><span class="settingLbl">'+d.label+scopeTag(d)+qMark(d)+'</span>'+
+          '<span class="settingBody"><span class="settingLbl">'+d.label+qMark(d)+'</span>'+scopeTag(d)+
           '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span>'+
           '<span class="segToggle" role="radiogroup" aria-label="'+d.label+'">'+segs+'</span></div>';
       }
@@ -4638,7 +4642,7 @@ __QR__
       return '<button type="button" class="settingRow'+(on?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'"'+
         (ro?' disabled':'')+' role="switch" aria-checked="'+(on?'true':'false')+'">'+
         '<span class="settingBox">'+(on?'✓':'')+'</span>'+
-        '<span class="settingBody"><span class="settingLbl">'+d.label+scopeTag(d)+qMark(d)+'</span>'+
+        '<span class="settingBody"><span class="settingLbl">'+d.label+qMark(d)+'</span>'+scopeTag(d)+
         '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span></button>';
     }
     showModal('<h2>⚗️ '+(sug?'Rules &amp; suggestions':'Custom rules')+'</h2>'+

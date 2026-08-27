@@ -25,9 +25,17 @@ layer where clients suggest and the host decides (v1.31.31), the deck picker's t
 (v1.31.29), and the pair shapes (v1.31.24/26).
 
 **Queued, in the order Aj raised them:**
-1. **Chop strip or not.** Note the subtlety recorded in the BACKLOG: "did this play *chop* something" is not
+1. **THE PANEL SCROLLS ON DESKTOP WHEN IT DOES NOT HAVE TO** (Aj, 2026-08-27, with a screenshot: *"what i'd
+   hope to solve was the scrolling on desktop. because really you can fit more with all this real estate"*).
+   Hiding the notes (v1.31.35) took the panel from ~2100px to 1060px, which fixes the phone but not this: the
+   modal keeps a fixed `max-width` while a 1900px desktop has room for two columns of rules side by side. The
+   thing to be careful of is that `.modal` is shared by **every** dialog in the game, so widening or
+   column-splitting has to be scoped to the rules panel specifically — and `landscapetest` (96 assertions across
+   8 device sizes, including the 340px floor) is the guard that a wide-screen change must not disturb the narrow
+   ones.
+2. **Chop strip or not.** Note the subtlety recorded in the BACKLOG: "did this play *chop* something" is not
    visible from the pile.
-2. Then the remaining Dou Dizhu shapes — trio+single, four+two, the airplane. (The **Tiến lên preset** shipped
+3. Then the remaining Dou Dizhu shapes — trio+single, four+two, the airplane. (The **Tiến lên preset** shipped
    in v1.31.34.)
 
 **Two things worth reading before touching the rules panel:** every rule defaults OFF and "is this customised?"
@@ -608,9 +616,11 @@ what the BACKLOG entry predicted before this was built. They check `offsetParent
 silently weakened in the event: `grep settingNote *test*.js` was empty, so no existing suite was reading note
 text.)
 
-Layout note: the `?` sits **after** the scope chip rather than immediately after the label. Straight after the
-name it landed mid-sentence on wrapped labels and pushed the chip onto its own line — visible on the phone
-screenshot, which is why it was worth taking one.
+**Layout, as Aj specified it:** the `?` sits **directly after the option name**, and the player-count chip moves
+to **its own line** beneath. My first attempt put the `?` after the chip, because straight after the name it
+landed mid-sentence on wrapped labels and shoved the chip onto a second line — and Aj's answer dissolves that
+instead of working around it: if the chip is on its own line by design, nothing gets shoved. `.settingBody` is
+already a column flex, so the chip only had to become a sibling of the label rather than a child.
 
 Suites: `rulestest` 79 → **89**, `nettest_rules` 27 → **28**.
 
