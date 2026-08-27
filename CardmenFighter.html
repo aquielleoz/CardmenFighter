@@ -4423,7 +4423,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.27';
+  var GAME_VERSION='v1.31.28';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -8124,17 +8124,25 @@ window.CardFace = {};
   // ---- Pre-game setup: pick decks + AI strength (with Random), then roll for initiative ----
   var BUILD_DECK_OPT='__builddeck__';   // the "✏️ Custom deck…" sentinel — intercepted on change, never a real deck value
   // Every deck picker (solo, each local seat, and both netplay lobbies) is built from this one list.
+  /* ORDER IS A RECOMMENDATION. Random leads because it is the default; the ten class decks are the game as it
+   * is meant to be played; Full Set sits at the BOTTOM (Aj, 2026-08-27) because all 52 cards is the least
+   * characterful option and used to be the first thing a player's thumb landed on. ✏️ Custom deck… stays last
+   * of all — it is an action, not a deck. */
   function deckOptionsHTML(){
-    var h='<option value="random">🎲 Random class</option><option value="full">Full Set (all 52)</option>';
+    var h='<option value="random">🎲 Random class</option>';
     E.DECK_ORDER.forEach(function(k){ h+='<option value="'+k+'">'+esc(E.DECKS[k].name)+'</option>'; });
     if(savedDecks.length){
       h+='<optgroup label="Your decks">';
       savedDecks.forEach(function(d){ var k=E.partsKey(d.parts); h+='<option value="'+k+'">'+esc(d.name)+' ('+deckPartsLabel(d.parts)+')</option>'; });
       h+='</optgroup>';
     }
+    h+='<option value="full">Full Set (all 52)</option>';
     h+='<option value="'+BUILD_DECK_OPT+'">✏️ Custom deck…</option>';
     return h;
   }
+  /* 🎲 Random NEVER rolls the Full Set — E.DECK_ORDER holds only the ten class decks, and that is deliberate
+   * (Aj, 2026-08-27: "impossible is fine actually"). Random means "surprise me with a class"; the 52-card set is
+   * the absence of a class, so it is a thing you choose on purpose, from the bottom of the list. */
   function resolveDeck(v){ return v==='random' ? E.DECK_ORDER[Math.floor(Math.random()*E.DECK_ORDER.length)] : v; }
   function resolveDiff(v){ if(v!=='random') return v; var d=['minion','recruit','fighter','knight','demon']; return d[Math.floor(Math.random()*d.length)]; }
   // Header button: reads "🏳 Concede" during a live duel (forfeit) and "New Duel" otherwise (open setup).
@@ -8471,7 +8479,7 @@ window.CardFace = {};
    * v1 scope: 2 players; pre-fight Quick timing is deferred (Quicks still work as responses to activated effects). */
   var NET = (function(){
     var transport=null, role=null, kind='bc', room=null, mySeat=0, hostState=null, deckPick='full', connected=false, lastErr='';
-    var myDeck='full', oppDeck=null, oppReady=false, iReady=false;   // lobby deck-picker state (each side chooses before the host starts)
+    var myDeck='random', oppDeck=null, oppReady=false, iReady=false;   // lobby deck-picker state (each side chooses before the host starts)
     var myId='c'+(''+Math.random()).slice(2,10)+(''+Math.random()).slice(2,6);   // this client's stable id (so the host can tell a new joiner from a 350ms retry on the shared bus)
     var hostSeatOf={}, seatDeckMap={}, nextSeat=1, MAX_SEATS=6;                   // host: cid→seat, seat→deck, next free seat
     var useStun=true, sig=null, pc=null, dc=null;   // WebRTC signaling state
@@ -8491,12 +8499,12 @@ window.CardFace = {};
       var q; try{ q=new URLSearchParams(location.search); }catch(e){ return false; }
       var m=q.get('net'); var map={ host:['host','bc'], join:['join','bc'], rtchost:['host','rtc'], rtcjoin:['join','rtc'] };
       if(!map[m]) return false;
-      return start(map[m][0], map[m][1], { room:q.get('room')||'kf', deck:q.get('deck')||'full', stun:q.get('stun')!=='0' });
+      return start(map[m][0], map[m][1], { room:q.get('room')||'kf', deck:q.get('deck')||'random', stun:q.get('stun')!=='0' });
     }
     function start(theRole, theKind, opts){
       if(role) return true;                                   // already online
       opts = opts || {};
-      role=theRole; kind=theKind; room=opts.room||'kf'; deckPick=opts.deck||'full'; myDeck=deckPick;
+      role=theRole; kind=theKind; room=opts.room||'kf'; deckPick=opts.deck||'random'; myDeck=deckPick;
       useStun=(opts.stun!==false);
       var st=document.createElement('style'); st.textContent=NETCSS; document.head.appendChild(st);
       var root=document.createElement('div'); root.id='netroot'; document.body.appendChild(root);
@@ -8847,10 +8855,10 @@ window.CardFace = {};
        * lobby renderers); it deliberately does not renumber seats. */
       var joined=nextSeat-1, n=Math.max(2, joined+1);
       mpCount=n;
-      youDeck=resolveDeck(hostDeck||'full');
+      youDeck=resolveDeck(hostDeck||'random');
       seatDecks=[youDeck]; seatDiffs=[null];
       clearPersonaStyles();   // drop any style a solo game left behind, but KEEP the names: the joined players' own names are already in seatNames by now, and wiping them cost nettest_names 3 assertions
-      for(var s=1;s<=joined;s++){ seatDecks[s]=resolveDeck(seatDeckMap[s]||'full'); seatDiffs[s]='fighter'; }   // 'fighter' = AI fallback for the round-win chooser only
+      for(var s=1;s<=joined;s++){ seatDecks[s]=resolveDeck(seatDeckMap[s]||'random'); seatDiffs[s]='fighter'; }   // 'fighter' = AI fallback for the round-win chooser only
       rivalDeck=seatDecks[1]||'full';
       startGame(YOU);                                   // host leads round 1
       for(var s2=1;s2<n;s2++) seatCtrl[s2]='remote';    // every opponent seat is a remote human (override resetControllers' 'ai')
@@ -9608,7 +9616,7 @@ window.CardFace = {};
    * portrait phone and grew 87px -> 92px once a game started, leaving the boot-time value stale. Observe it. */
   if(window.ResizeObserver){ var hdEl=document.querySelector('header'); if(hdEl) new ResizeObserver(syncHeaderH).observe(hdEl); }
   if(!NET.boot()) openSetup();   // netplay when ?net= is present; otherwise the normal game (byte-identical)
-  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, rulesKey:rulesKey, setRulesFromKey:setRulesFromKey, setPulse:function(b){pulseDetail=b;}, activate:function(id,o){ return activate(id,o); },
+  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, rulesKey:rulesKey, setRulesFromKey:setRulesFromKey, resolveDeck:resolveDeck, setPulse:function(b){pulseDetail=b;}, activate:function(id,o){ return activate(id,o); },
       seatName:seatName, logName:logName, persona:function(i){ var q=personaOf(i); return q?q.name:null; },   // tests assert the RIGHT seat is named, with personas live
       // buildPreDrawBeats is a pure function of the round result — exposing it lets a test assert the
       // ceremony wording DIRECTLY instead of playing random games until a shield-loss ceremony happens

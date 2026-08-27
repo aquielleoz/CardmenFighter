@@ -105,6 +105,35 @@ const URL = 'file://' + path.resolve(__dirname, 'CardmenFighter.html') + '?dbgso
   ok(await p.evaluate(() => { var o = JSON.parse(localStorage.getItem('cmf_setup_v1') || '{}'); return !!(o.opps && o.opps[0] && o.opps[0].deck === 'custom:S4'); }), 'the seat pick persists to the setup store');
   ok(await p.evaluate(() => document.querySelectorAll('#setPlayers option').length > 0 && document.getElementById('setPlayers').value === '3'), 'the player count survives the builder round-trip');
 
+  /* ---- the picker's ORDER and its DEFAULT (v1.31.28). Full Set used to be the second option, so it was the
+   * first thing a thumb landed on, and it was the netplay lobby's default outright. */
+  const opts = await p.evaluate(() => [].map.call(document.querySelectorAll('#setYouDeck option'), o => o.value));
+  ok(opts[0] === 'random', `🎲 Random leads the list (${opts[0]})`);
+  const iFull = opts.indexOf('full'), iBuild = opts.indexOf('__builddeck__');
+  ok(iFull === iBuild - 1 && iBuild === opts.length - 1,
+     `Full Set is the LAST deck, with only the ✏️ Custom deck… action after it (full at ${iFull} of ${opts.length - 1})`);
+  ok(opts.indexOf('Wizard') > 0 && opts.indexOf('Wizard') < iFull, 'and every class deck sits above it');
+  /* On a FRESH store — a saved pick must still win, which is why this clears cmf_setup_v1 first rather than
+   * asserting mid-suite where an earlier custom deck is legitimately remembered. */
+  await p.evaluate(() => { try { localStorage.removeItem('cmf_setup_v1'); } catch (e) {} });
+  await p.goto(URL); await p.waitForTimeout(700); await openSetup();
+  ok(await p.evaluate(() => document.getElementById('setYouDeck').value === 'random'
+                         && document.getElementById('setRivalDeck').value === 'random'),
+     'on a first run both setup pickers default to Random, not to the Full Set');
+
+  /* 🎲 Random means "surprise me with a CLASS" — it must never roll the 52-card set (Aj: "impossible is fine
+   * actually"), nor a saved deck, nor the builder sentinel. 20k rolls, so a 1-in-20 leak would show up ~1000
+   * times and even a 1-in-2000 one would almost certainly appear at least once. */
+  const roll = await p.evaluate(() => {
+    const n = 20000, tally = {};
+    for (let i = 0; i < n; i++) { const d = window.__solo.resolveDeck('random'); tally[d] = (tally[d] || 0) + 1; }
+    return { n, tally, classes: CardmenEngine.DECK_ORDER.slice() };
+  });
+  ok(!roll.tally.full, `Random never rolls the Full Set (${roll.tally.full || 0} of ${roll.n})`);
+  ok(roll.classes.every(k => (roll.tally[k] || 0) > 0), 'and every one of the ten class decks is reachable');
+  ok(Object.keys(roll.tally).every(k => roll.classes.indexOf(k) >= 0),
+     'nothing else comes out of it either — no saved deck, no builder sentinel');
+
   ok(errs.length === 0, 'no JS errors' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
   console.log('\n' + (fail ? 'FAIL' : 'PASS') + ': ' + pass + '  FAIL: ' + fail);
   await b.close(); process.exit(fail ? 1 : 0);
