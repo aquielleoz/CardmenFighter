@@ -289,6 +289,18 @@ Three more things worth knowing before touching them:
 - **The floor is TWO pairs, not the family's three** (连对 / đôi thông). Those games deal 17-20 cards; this one
   deals 6 and caps at 10, so a three-pair floor would make the shape dead. Values must be consecutive — the panel
   copy says the values must be consecutive, because that is exactly what separates a kit from poker's two pair.
+- **THE CHOP (v1.31.33) IS THE ONLY CROSS-SHAPE RULE, and it composes with `apexInf` rather than fighting it.**
+  `chopRank` is a scaled ladder — 3 Kits 30, Quadro 35, 4 Kits 40, 5 Kits 50 — so a Quadro sits between 3 and 4
+  Kits, and **equal rank deliberately falls through** to the ordinary same-type/same-size value comparison, which
+  is what makes "chop a chop with a higher one of the same shape" work with no extra code. `chopReach` decides how
+  far up the all-2s shapes each rank reaches (single / pair / trio).
+  **`apexInf` and the chop are not a contradiction**: `apexInf` makes the 2 unbeatable **by value** (it ranks the
+  card at Infinity) and a chop is a **shape** answer, so the chop is the counterplay to an unbeatable 2 — which is
+  what lets `inf` be played without `nostrip`. `apexOnlyPlay` accepts the Infinity key for exactly that, and there
+  is deliberately **no** `APEX_INF` guard in the chop branch. Both panel notes say so; do not "fix" it.
+  Measured: Quadro goes from 17 to 956 plays per 250 six-player games — the chop is what gives it a job — while
+  pacing and initiative concentration do not move at all. **At 2 players it is nearly inert** (2 chops in 498
+  2-plays).
 - **QUADRO (v1.31.29) shares the four-card slot and cannot collide with it** — four cards of one value can never
   be two pairs or a kit, so its check sits *ahead* of the double-pair block, which returns early for anything
   that is not two pairs. It is a **plain shape**: beats a lower Quadro, nothing else. The chop is separate.
@@ -299,7 +311,7 @@ Three more things worth knowing before touching them:
   times per game, because the AI plays the **cheapest sufficient** Special and a Quadro spends four cards on a
   round a pair would win. Leading one is near-unbeatable (only a higher Quadro answers it), which is a human
   use the AI's policy never values.
-- **A NEW SHAPE ADDS OPTIONS, NOT TEMPO.** Measured on THREE shapes now — kits, poker two-pair, and Quadro all
+- **A NEW SHAPE ADDS OPTIONS, NOT TEMPO.** Measured on FOUR rules now — kits, poker two-pair, Quadro and the chop all
   leave pacing untouched at every player count. Treat it as the default expectation. Kits change game length by
   nothing at all (11/14/20/31 vs
   11/14/20/30) and are balance-neutral (rho 0.91), *despite* firing 0.75 times per duel and 13.4 times per
@@ -510,11 +522,11 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 263, `netview` 28, `mptest` 82,
+Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 276, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 42, `viewtest` 10,
 `landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 63, `nettest_rules` 27, `nettest_suggest` 34, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
+`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 65, `nettest_rules` 27, `nettest_suggest` 34, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
 **A SUITE CAN BE GREEN AND BLIND. Three shapes of it, all found in one 2026-08-27 sweep and all fixed:**

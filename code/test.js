@@ -914,7 +914,40 @@ function cards(ids) { return ids.map(card); }
      'a single-class deck still holds four copies of every value, so a quadro is reachable in it');
   ok(new Set(wall.map(function (c) { return c.id; })).size === wall.length,
      'and those copies carry distinct ids, so the UI can select four of them');
-  E.setQuadro(false); E.setDoublePair('off');
+  /* ---- THE CHOP (v1.31.33): the first rule where a shape beats one it does not match. The family's point is
+   * the heo, which here is the apex 2 — so this is what makes the 2 answerable without either apex flag. */
+  E.setQuadro(true); E.setKits3(true); E.setDoublePair('off');
+  var one2 = [C(2, 'D')], two2 = [C(2, 'D'), C(2, 'H')], three2 = [C(2, 'D'), C(2, 'H'), C(2, 'C')];
+  var kit3 = [C(4, 'D'), C(4, 'H'), C(5, 'C'), C(5, 'S'), C(6, 'D'), C(6, 'H')];
+  var kit4 = kit3.concat([C(7, 'C'), C(7, 'S')]);
+  ok(E.beats(E.detectCombo(q7), E.detectCombo(one2)) === false,
+     'chop OFF (the shipped game): a Quadro cannot touch a lone 2');
+  E.setChop(true);
+  ok(E.beats(E.detectCombo(kit3), E.detectCombo(one2)) === true, 'chop: 3 Kits take a lone 2');
+  ok(E.beats(E.detectCombo(kit3), E.detectCombo(two2)) === false, 'but 3 Kits do NOT reach a pair of 2s');
+  ok(E.beats(E.detectCombo(q7), E.detectCombo(two2)) === true, 'a Quadro takes a lone 2 or a pair of them');
+  ok(E.beats(E.detectCombo(q7), E.detectCombo(three2)) === false, 'and stops short of a trio of 2s');
+  ok(E.beats(E.detectCombo(kit4), E.detectCombo(three2)) === true, '4 Kits reach the trio');
+  /* THE LADDER, which is why chopRank is scaled rather than a boolean: a Quadro sits BETWEEN 3 and 4 Kits. */
+  ok(E.beats(E.detectCombo(kit4), E.detectCombo(q7)) === true, '4 Kits chop a Quadro');
+  ok(E.beats(E.detectCombo(kit3), E.detectCombo(q7)) === false, 'and 3 Kits do not — the Quadro outranks them');
+  ok(E.beats(E.detectCombo(q8), E.detectCombo(q7)) === true,
+     'equal rank still falls through to value, so Quadro-over-Quadro is unchanged');
+  ok(E.beats(E.detectCombo(one2), E.detectCombo(q7)) === false, 'and a 2 cannot answer a chop');
+  /* THE CHOP AND APEX_INF COMPOSE (Aj: "a chop would deal with inf 2s"). They look like a contradiction and
+   * are not: APEX_INF makes the 2 unbeatable BY VALUE (it ranks the card at Infinity), and a chop is a SHAPE
+   * answer, not a value one. So the chop is the counterplay to an unbeatable 2 — which is what lets `inf` be
+   * played without `nostrip` at all. */
+  E.setApexInfinity(true);
+  ok(E.beats(E.detectCombo(one2), E.detectCombo([C(1, 'D')])) === true
+     && E.beats(E.detectCombo([C(1, 'D')]), E.detectCombo(one2)) === false,
+     'apexInf still makes the 2 unbeatable by VALUE — no Ace passes it');
+  ok(E.beats(E.detectCombo(q7), E.detectCombo(one2)) === true,
+     'but a Quadro chops it anyway: a chop is a shape answer, so the two rules compose');
+  ok(E.beats(E.detectCombo(kit3), E.detectCombo(two2)) === false,
+     'and the reach still applies under it — 3 Kits do not reach a pair of infinite 2s either');
+  E.setApexInfinity(false);
+  E.setChop(false); E.setQuadro(false); E.setKits3(false); E.setDoublePair('off');
 })();
 
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);

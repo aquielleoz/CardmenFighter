@@ -1314,10 +1314,44 @@
     }
     return null; // 4 cards or 6+ = not a legal combo (no bomb)
   }
+  /* THE CHOPPING LADDER. Scaled so a Quadro sits between 3 Kits and 4 Kits, which is the family's ordering:
+   *   3 Kits (30)  <  Quadro (35)  <  4 Kits (40)  <  5 Kits (50)
+   * A bigger chop answers a smaller one, and equal rank falls through to the ordinary same-type/same-size
+   * comparison — so Quadro-over-Quadro and 3-Kits-over-3-Kits are still decided by value, for free. 0 = not a
+   * chopping shape. Only shapes that are ENABLED can be enumerated, so the chop does nothing on its own; the
+   * panel copy says as much. */
+  function chopRank(c) {
+    if (!CHOP || !c) return 0;
+    if (c.type === 'quadro') return 35;
+    if (c.type === 'kit' && c.size >= 6) return c.size * 5;    // 3 Kits -> 30, 4 Kits -> 40, 5 Kits -> 50
+    return 0;
+  }
+  /* How far up the all-2s shapes a chop reaches. The family only has the single and the pair (there are no
+   * trios in Tiến lên); the trio tier is this game's own extension, since a trio of 2s is legal here. */
+  function chopReach(rank) { return rank >= 40 ? 3 : (rank >= 35 ? 2 : 1); }
+  function apexOnlyPlay(c) {
+    if (!c || (c.type !== 'single' && c.type !== 'pair' && c.type !== 'trio')) return false;
+    var v = c.key && c.key[0];
+    return v === 15 || v === Infinity;                          // 15 normally; Infinity under APEX_INF
+  }
   function beats(cand, cur) {
     if (!cand) return false;
     if (!cur) return true;
     if (cand.type === 'straightflush' && (cur.type === 'straight' || cur.type === 'flush')) return true;
+    if (CHOP) {
+      var cr = chopRank(cand);
+      if (cr) {
+        var rr = chopRank(cur);
+        if (rr && cr !== rr) return cr > rr;                    // a bigger chop answers a smaller one
+        /* A CHOP BEATS AN INFINITE 2 (Aj, 2026-08-27: "a chop would deal with inf 2s btw"). The two rules
+         * COMPOSE rather than one voiding the other, and the reason is the mechanism: APEX_INF makes the 2
+         * unbeatable BY VALUE — it ranks the card at Infinity — and a chop is not a value answer at all, it is
+         * a shape answer. So the chop is precisely the counterplay to an unbeatable 2, which is also what makes
+         * `inf` playable without `nostrip`. Hence no APEX_INF guard here, and `apexOnlyPlay` accepts the
+         * Infinity key for exactly this case. */
+        if (!rr && apexOnlyPlay(cur) && cur.size <= chopReach(cr)) return true;
+      }
+    }
     if (cand.type !== cur.type || cand.size !== cur.size) return false;
     return lexCmp(cand.key, cur.key) > 0;
   }
@@ -2999,8 +3033,17 @@
   /* QUADRO — four of a kind, homebrew and default OFF (Aj: "new players will just break"). It is a PLAIN
    * shape here: it beats a lower quadro and nothing else. The CHOP — a quadro beating a shape it does not
    * match — needs cross-shape overrides in beats() and is a separate rule; see the BACKLOG. */
+  /* THE CHOP (v1.31.33) — the first rule where a shape beats something it does not match, and the reason the
+   * family's big shapes exist at all: in Tiến lên a tứ quý or ba đôi thông "chops" the heo, which in this game
+   * is the apex 2. So the chop is what makes the 2 ANSWERABLE without touching either apex flag, and what gives
+   * Quadro a job (measured near-decorative without it — PATCHNOTES / v1.31.29).
+   * There is precedent for the cross-shape override right below in beats(): a straight flush already beats a
+   * plain straight. The chop is the same idea with a ladder. */
+  var CHOP = false;
   var QUADRO = false;
   var DBL_PAIR = 'off', KITS3 = false;
+  function setChop(v) { CHOP = !!v; }
+  function isChop() { return CHOP; }
   function setQuadro(v) { QUADRO = !!v; }
   function isQuadro() { return QUADRO; }
   function setDoublePair(m) { DBL_PAIR = (m === 'kits' || m === 'poker') ? m : 'off'; }
@@ -3131,6 +3174,7 @@
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
+    setChop: setChop, isChop: isChop, chopRank: chopRank,
     setQuadro: setQuadro, isQuadro: isQuadro,
     setDoublePair: setDoublePair, isDoublePair: isDoublePair,
     setKits3: setKits3, isKits3: isKits3, detectKit: detectKit,
@@ -4450,7 +4494,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.32';
+  var GAME_VERSION='v1.31.33';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -4558,7 +4602,7 @@ window.CardFace = {};
      * CAN still be beaten is the contestable version of the idea, and the measurements say that is the one that
      * actually plays the way the proposal imagines. */
     { key:'apexInf',     duel:true, label:'The 2 cannot be beaten — not even by a boost',
-      note:'Normally a boosted Ace can out-value the apex 2. Ends the round outright, so no rival can answer it.' },
+      note:'Normally a boosted Ace can out-value the apex 2. No card can out-value it at all — the only answer left is The chop, below.' },
     { key:'apexNoStrip', duel:true, label:'Fights won with a 2 destroy no shields',
       note:'The 2 becomes a way to seize the lead without dealing damage, and rivals can still beat it — unless the rule above is also on. Makes 6-player games much longer.' },
     /* THE DOUBLE-PAIR SLOT IS A MODE. Poker's two pair is a SUPERSET of a 2-kit at the same size, so as two
@@ -4574,7 +4618,12 @@ window.CardFace = {};
      * break"). It is also a plain shape here — it beats a lower quadro and nothing else. A quadro beating a
      * shape it does not match is the CHOP, a separate rule that needs cross-shape overrides in beats(). */
     { key:'quadro',      duel:true, label:'Quadro — four of a kind',
-      note:'All four copies of one value. Beats a lower Quadro only: it does not beat other shapes, and nothing outranks the 2 by being big.' }
+      note:'All four copies of one value. On its own it beats a lower Quadro and nothing else — switch on The chop below to give it a job.' },
+    /* THE CHOP is a modifier on the shapes above it, so it is last and its note says outright that it does
+     * nothing without them. It is also the only rule that makes the apex 2 answerable, which is why the note
+     * names the conflict with "The 2 cannot be beaten" rather than leaving two rules to contradict each other. */
+    { key:'chop',        duel:true, label:'The chop — big shapes beat the 2',
+      note:'A Quadro or a run of 3+ Kits beats a 2 it does not match: 3 Kits take a lone 2, a Quadro a lone 2 or a pair, 4 Kits a trio or a Quadro. A chop answers a 2 by SHAPE, so it works even on an unbeatable one. Needs those shapes switched on.' }
   ];
   /* TWO STORES, and the split is what makes suggestions possible (v1.31.31). RULES is what is IN PLAY — on a
    * netplay client the host overwrites it wholesale, so anything kept there is not yours. MY_RULES is THIS
@@ -4592,8 +4641,8 @@ window.CardFace = {};
    * More presets arrive as their shapes do — Dou Dizhu needs trio+single, four+two and the airplane first, so
    * offering it now would name a rule set the build cannot actually play. */
   var RULE_PRESETS=[
-    { key:'chikicha', label:'Chikicha Specials', title:'The Kits and Quadro shapes, and nothing else',
-      rules:{ dblPair:'kits', kits3:true, quadro:true } }
+    { key:'chikicha', label:'Chikicha Specials', title:'The Kits and Quadro shapes, with the chop that gives them a job — and nothing else',
+      rules:{ dblPair:'kits', kits3:true, quadro:true, chop:true } }
   ];
   function presetValue(p,d){ return p.rules[d.key]!==undefined ? p.rules[d.key] : ruleOff(d); }
   function presetActive(p,src){ src=src||RULES; return RULE_DEFS.every(function(d){ return src[d.key]===presetValue(p,d); }); }
@@ -4650,6 +4699,7 @@ window.CardFace = {};
       if(E.setDoublePair)       E.setDoublePair(RULES.dblPair);
       if(E.setKits3)            E.setKits3(!!RULES.kits3);
       if(E.setQuadro)           E.setQuadro(!!RULES.quadro);
+      if(E.setChop)             E.setChop(!!RULES.chop);
   }
   function valLabel(d,v){
     if(!d.mode) return v?'On':'Off';       // capitalised to match a mode row's own labels, which sit beside it

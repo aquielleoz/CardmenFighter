@@ -149,10 +149,44 @@
     }
     return null; // 4 cards or 6+ = not a legal combo (no bomb)
   }
+  /* THE CHOPPING LADDER. Scaled so a Quadro sits between 3 Kits and 4 Kits, which is the family's ordering:
+   *   3 Kits (30)  <  Quadro (35)  <  4 Kits (40)  <  5 Kits (50)
+   * A bigger chop answers a smaller one, and equal rank falls through to the ordinary same-type/same-size
+   * comparison — so Quadro-over-Quadro and 3-Kits-over-3-Kits are still decided by value, for free. 0 = not a
+   * chopping shape. Only shapes that are ENABLED can be enumerated, so the chop does nothing on its own; the
+   * panel copy says as much. */
+  function chopRank(c) {
+    if (!CHOP || !c) return 0;
+    if (c.type === 'quadro') return 35;
+    if (c.type === 'kit' && c.size >= 6) return c.size * 5;    // 3 Kits -> 30, 4 Kits -> 40, 5 Kits -> 50
+    return 0;
+  }
+  /* How far up the all-2s shapes a chop reaches. The family only has the single and the pair (there are no
+   * trios in Tiến lên); the trio tier is this game's own extension, since a trio of 2s is legal here. */
+  function chopReach(rank) { return rank >= 40 ? 3 : (rank >= 35 ? 2 : 1); }
+  function apexOnlyPlay(c) {
+    if (!c || (c.type !== 'single' && c.type !== 'pair' && c.type !== 'trio')) return false;
+    var v = c.key && c.key[0];
+    return v === 15 || v === Infinity;                          // 15 normally; Infinity under APEX_INF
+  }
   function beats(cand, cur) {
     if (!cand) return false;
     if (!cur) return true;
     if (cand.type === 'straightflush' && (cur.type === 'straight' || cur.type === 'flush')) return true;
+    if (CHOP) {
+      var cr = chopRank(cand);
+      if (cr) {
+        var rr = chopRank(cur);
+        if (rr && cr !== rr) return cr > rr;                    // a bigger chop answers a smaller one
+        /* A CHOP BEATS AN INFINITE 2 (Aj, 2026-08-27: "a chop would deal with inf 2s btw"). The two rules
+         * COMPOSE rather than one voiding the other, and the reason is the mechanism: APEX_INF makes the 2
+         * unbeatable BY VALUE — it ranks the card at Infinity — and a chop is not a value answer at all, it is
+         * a shape answer. So the chop is precisely the counterplay to an unbeatable 2, which is also what makes
+         * `inf` playable without `nostrip`. Hence no APEX_INF guard here, and `apexOnlyPlay` accepts the
+         * Infinity key for exactly this case. */
+        if (!rr && apexOnlyPlay(cur) && cur.size <= chopReach(cr)) return true;
+      }
+    }
     if (cand.type !== cur.type || cand.size !== cur.size) return false;
     return lexCmp(cand.key, cur.key) > 0;
   }
@@ -1834,8 +1868,17 @@
   /* QUADRO — four of a kind, homebrew and default OFF (Aj: "new players will just break"). It is a PLAIN
    * shape here: it beats a lower quadro and nothing else. The CHOP — a quadro beating a shape it does not
    * match — needs cross-shape overrides in beats() and is a separate rule; see the BACKLOG. */
+  /* THE CHOP (v1.31.33) — the first rule where a shape beats something it does not match, and the reason the
+   * family's big shapes exist at all: in Tiến lên a tứ quý or ba đôi thông "chops" the heo, which in this game
+   * is the apex 2. So the chop is what makes the 2 ANSWERABLE without touching either apex flag, and what gives
+   * Quadro a job (measured near-decorative without it — PATCHNOTES / v1.31.29).
+   * There is precedent for the cross-shape override right below in beats(): a straight flush already beats a
+   * plain straight. The chop is the same idea with a ladder. */
+  var CHOP = false;
   var QUADRO = false;
   var DBL_PAIR = 'off', KITS3 = false;
+  function setChop(v) { CHOP = !!v; }
+  function isChop() { return CHOP; }
   function setQuadro(v) { QUADRO = !!v; }
   function isQuadro() { return QUADRO; }
   function setDoublePair(m) { DBL_PAIR = (m === 'kits' || m === 'poker') ? m : 'off'; }
@@ -1966,6 +2009,7 @@
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
+    setChop: setChop, isChop: isChop, chopRank: chopRank,
     setQuadro: setQuadro, isQuadro: isQuadro,
     setDoublePair: setDoublePair, isDoublePair: isDoublePair,
     setKits3: setKits3, isKits3: isKits3, detectKit: detectKit,

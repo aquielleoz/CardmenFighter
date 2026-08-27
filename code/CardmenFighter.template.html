@@ -1294,7 +1294,7 @@ __QR__
      * CAN still be beaten is the contestable version of the idea, and the measurements say that is the one that
      * actually plays the way the proposal imagines. */
     { key:'apexInf',     duel:true, label:'The 2 cannot be beaten — not even by a boost',
-      note:'Normally a boosted Ace can out-value the apex 2. Ends the round outright, so no rival can answer it.' },
+      note:'Normally a boosted Ace can out-value the apex 2. No card can out-value it at all — the only answer left is The chop, below.' },
     { key:'apexNoStrip', duel:true, label:'Fights won with a 2 destroy no shields',
       note:'The 2 becomes a way to seize the lead without dealing damage, and rivals can still beat it — unless the rule above is also on. Makes 6-player games much longer.' },
     /* THE DOUBLE-PAIR SLOT IS A MODE. Poker's two pair is a SUPERSET of a 2-kit at the same size, so as two
@@ -1310,7 +1310,12 @@ __QR__
      * break"). It is also a plain shape here — it beats a lower quadro and nothing else. A quadro beating a
      * shape it does not match is the CHOP, a separate rule that needs cross-shape overrides in beats(). */
     { key:'quadro',      duel:true, label:'Quadro — four of a kind',
-      note:'All four copies of one value. Beats a lower Quadro only: it does not beat other shapes, and nothing outranks the 2 by being big.' }
+      note:'All four copies of one value. On its own it beats a lower Quadro and nothing else — switch on The chop below to give it a job.' },
+    /* THE CHOP is a modifier on the shapes above it, so it is last and its note says outright that it does
+     * nothing without them. It is also the only rule that makes the apex 2 answerable, which is why the note
+     * names the conflict with "The 2 cannot be beaten" rather than leaving two rules to contradict each other. */
+    { key:'chop',        duel:true, label:'The chop — big shapes beat the 2',
+      note:'A Quadro or a run of 3+ Kits beats a 2 it does not match: 3 Kits take a lone 2, a Quadro a lone 2 or a pair, 4 Kits a trio or a Quadro. A chop answers a 2 by SHAPE, so it works even on an unbeatable one. Needs those shapes switched on.' }
   ];
   /* TWO STORES, and the split is what makes suggestions possible (v1.31.31). RULES is what is IN PLAY — on a
    * netplay client the host overwrites it wholesale, so anything kept there is not yours. MY_RULES is THIS
@@ -1328,8 +1333,8 @@ __QR__
    * More presets arrive as their shapes do — Dou Dizhu needs trio+single, four+two and the airplane first, so
    * offering it now would name a rule set the build cannot actually play. */
   var RULE_PRESETS=[
-    { key:'chikicha', label:'Chikicha Specials', title:'The Kits and Quadro shapes, and nothing else',
-      rules:{ dblPair:'kits', kits3:true, quadro:true } }
+    { key:'chikicha', label:'Chikicha Specials', title:'The Kits and Quadro shapes, with the chop that gives them a job — and nothing else',
+      rules:{ dblPair:'kits', kits3:true, quadro:true, chop:true } }
   ];
   function presetValue(p,d){ return p.rules[d.key]!==undefined ? p.rules[d.key] : ruleOff(d); }
   function presetActive(p,src){ src=src||RULES; return RULE_DEFS.every(function(d){ return src[d.key]===presetValue(p,d); }); }
@@ -1386,6 +1391,7 @@ __QR__
       if(E.setDoublePair)       E.setDoublePair(RULES.dblPair);
       if(E.setKits3)            E.setKits3(!!RULES.kits3);
       if(E.setQuadro)           E.setQuadro(!!RULES.quadro);
+      if(E.setChop)             E.setChop(!!RULES.chop);
   }
   function valLabel(d,v){
     if(!d.mode) return v?'On':'Off';       // capitalised to match a mode row's own labels, which sit beside it
