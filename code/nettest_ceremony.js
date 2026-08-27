@@ -19,7 +19,12 @@ const logText=p=>p.evaluate(()=>(document.getElementById('log')||{}).textContent
 const leadCombo=(p,ids)=>p.evaluate(function(ids){ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); ids.forEach(function(id){ var c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click(); }); var f=document.getElementById('fightBtn'); if(f)f.click(); }, ids);
 const leadFirst=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card'); if(c)c.click(); var f=document.getElementById('fightBtn'); if(f)f.click(); });
 const passC=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var b=document.getElementById('passBtn'); if(b)b.click(); });
-async function waitFor(fn,tries=70,ms=120){ for(let i=0;i<tries;i++){ if(await fn()) return true; await wait(ms); } return false; }
+/* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll
+ * that gave up used to be invisible and surfaced later as an unrelated assertion failing on a board that
+ * was still mid-round-trip — the v1.31.9 waitTurnEnds bug, in the general case. A red run must explain
+ * itself, so name the condition that never came true. */
+function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,100)); }
+async function waitFor(fn,tries=70,ms=120){ for(let i=0;i<tries;i++){ if(await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
 (async()=>{
   await new Promise(r=>srv.listen(PORT,r));
   const b=await chromium.launch(LAUNCH);

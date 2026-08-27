@@ -23,7 +23,12 @@ async function snap(p){ return p.evaluate(()=>({
 const clear=p=>p.evaluate(()=>{var c=document.getElementById('clearBtn'); if(c)c.click();});
 const passT=p=>p.evaluate(()=>{var c=document.getElementById('clearBtn'); if(c)c.click(); var b=document.getElementById('passBtn'); if(b)b.click();});
 const play=(p,id)=>p.evaluate(function(id){ var c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click(); var f=document.getElementById('fightBtn'); if(f)f.click(); }, id);
-async function waitFor(fn,tries=80,ms=150){ for(let i=0;i<tries;i++){ if(await fn()) return true; await wait(ms); } return false; }
+/* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll
+ * that gave up used to be invisible and surfaced later as an unrelated assertion failing on a board that
+ * was still mid-round-trip — the v1.31.9 waitTurnEnds bug, in the general case. A red run must explain
+ * itself, so name the condition that never came true. */
+function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,100)); }
+async function waitFor(fn,tries=80,ms=150){ for(let i=0;i<tries;i++){ if(await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
 async function waitTurnEnds(p){ for(let i=0;i<50;i++){ if(!(await snap(p)).yourTurn) return; await wait(80); } }
 (async()=>{
   await new Promise(r=>srv.listen(PORT,r));
@@ -53,9 +58,12 @@ async function waitTurnEnds(p){ for(let i=0;i<50;i++){ if(!(await snap(p)).yourT
   ok(await waitFor(async()=>await modalUp(join), 50, 150),'client response modal appeared over WebRTC');
   const clicked=await join.evaluate(()=>{ var q=document.querySelector('.respQuick'); if(q){ q.click(); return true; } return false; });
   ok(clicked,'client sent a Counter over the DataChannel');
-  await wait(1000);
-  ok(await host.evaluate(()=>window.__cmf.pending())===false,'stack settled on the host after the wire Counter');
-  ok(await host.evaluate(()=>/[Cc]ounter/.test((document.getElementById('log')||{}).textContent||'')),'host log records the counter');
+  /* POLL, never a fixed wait, for anything that has to cross the wire — a slow machine must make this suite
+   * SLOWER, not red. This pair used to assert 1000ms after the client's click. */
+  ok(await waitFor(async()=>await host.evaluate(()=>window.__cmf.pending())===false, 60, 150),
+     'stack settled on the host after the wire Counter');
+  ok(await waitFor(async()=>await host.evaluate(()=>/[Cc]ounter/.test((document.getElementById('log')||{}).textContent||'')), 40, 150),
+     'host log records the counter');
 
   // 3) Core loop over the wire — a couple of rounds.
   let maxRound=(await snap(host)).round, hostPlayed=0, joinPlayed=0; const beaten={};

@@ -11,7 +11,12 @@ const setSigIn=(p,v)=>p.evaluate(v=>{ var t=document.getElementById('sigIn'); if
 const clickGo=p=>p.evaluate(()=>{ var g=document.getElementById('sigGo'); if(g)g.click(); });
 const barShown=p=>p.evaluate(()=>window.__cmf?window.__cmf.disconShown():null);
 const handCount=p=>p.evaluate(()=>document.querySelectorAll('#hand .card').length);
-async function waitFor(fn,tries=140,ms=200){ for(let i=0;i<tries;i++){ if(await fn()) return true; await wait(ms); } return false; }
+/* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll
+ * that gave up used to be invisible and surfaced later as an unrelated assertion failing on a board that
+ * was still mid-round-trip — the v1.31.9 waitTurnEnds bug, in the general case. A red run must explain
+ * itself, so name the condition that never came true. */
+function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,100)); }
+async function waitFor(fn,tries=140,ms=200){ for(let i=0;i<tries;i++){ if(await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
 (async()=>{
   await new Promise(r=>srv.listen(PORT,r));
   const b=await chromium.launch(Object.assign({}, LAUNCH, { args:['--disable-features=WebRtcHideLocalIpsWithMdns'] }));

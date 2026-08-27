@@ -469,6 +469,46 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.27 — the suites could be green and blind: three shapes of it, fixed
+
+v1.31.26 found two suites passing a control they never actually tested. That was worth a sweep of the other 30,
+looking for the same class of thing rather than the same instance. It found three shapes, all real:
+
+**1. Assertions that cannot fail.** `nettest_emote` had `ok(await waitLog(...) || true, 'duel started')` —
+unfailable by construction — and `nettest_actloop` had `ok(true, offered ? … : …)`, a branch report wearing an
+assertion's clothes. The actloop one is now the invariant that holds **either way**: after declining, the host
+must have no response window left open. A stuck overlay wedges play, which is the exact failure that suite
+exists to catch.
+
+**2. A negative asserted after a fixed wait fails silently.** `nettest_emote`'s cooldown check fired three
+emotes immediately after the previous emote, still inside its 1.2s window — so the client's own gate dropped all
+three and `added<=1` passed on **added = 0**. It would have passed with the cooldown deleted and the wire dead.
+It now waits the window out first and asserts `added === 1`: one gets through, the other two do not. Both
+directions, or the test proves nothing.
+
+That fix exposed a real coverage gap next to it. `sendEmote`'s cooldown is a **courtesy** — a client controls its
+own clock — and `hostEmote`'s per-seat check is the one that matters, but driving the UI only ever exercises the
+courtesy copy. `?dbg=1` now exposes **`__cmf.clientSend(msg)`**, which sends a raw client intent, so the suite
+can bypass the client's gate the same way a modified or laggy client does. The host holds: three intents down
+the wire, one line logged.
+
+**3. A poll whose result is discarded.** 40-odd `waitFor`/`until` calls are staging steps, so a poll that gave up
+was invisible — and surfaced later as an unrelated assertion failing on a board still mid-round-trip. That is
+the v1.31.9 `waitTurnEnds` bug in its general form. All **27** helpers now print
+`⏱ poll TIMED OUT: <condition source>` when they give up, naming the condition that never came true. And two
+suites asserted the *other* peer's state after a fixed wait — `nettest_rtc` (1000ms, then the host's settled
+stack) and `nettest_energy` (700ms, then the client's mirror) — both now poll. A slow machine must make a suite
+slower, never red.
+
+**Also: `passsim`'s rule flag was positional.** `drawplayers` was read from `process.argv[7]`, the sixth
+positional slot, so setting it meant getting five earlier args right and a typo silently ran the default — the
+PATCHNOTES 0j trap, and the same family as v1.31.26's substring-matching `flag()`. It is a named, whole-token
+flag now, valid in any position and **stripped before the positional slots are read** (otherwise it lands in
+`THRESH`'s slot and `parseInt` yields NaN, which the run then reports as its own config). It prints a `CONFIG:`
+line like `mpsim`.
+
+Every suite re-run serially and green. Counts that moved: `nettest_emote` 16 → **19**.
+
 ### v1.31.26 — the double-pair slot splits into a mode: 2 Kits or Poker
 
 v1.31.24 shipped kits as one boolean meaning "runs of consecutive pairs, any length". Aj asked for the family's

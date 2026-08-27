@@ -8,6 +8,12 @@ const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const logOf=p=>p.evaluate(()=>(document.getElementById('log')||{}).textContent||'');
+/* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll
+ * that gave up used to be invisible and surfaced later as an unrelated assertion failing on a board that
+ * was still mid-round-trip — the v1.31.9 waitTurnEnds bug, in the general case. A red run must explain
+ * itself, so name the condition that never came true. */
+function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,100)); }
+async function until(fn,t=60,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
 (async()=>{
   await new Promise(r=>srv.listen(PORT,r));
   const b=await chromium.launch(LAUNCH);
@@ -24,8 +30,10 @@ const logOf=p=>p.evaluate(()=>(document.getElementById('log')||{}).textContent||
     const mk=(r,s)=>({rank:r,suit:s,id:r+s+'#e'});
     window.__cmf.forceAll(null, [ [mk(2,'D')], [mk(3,'H'),mk(4,'S'),mk(5,'H'),mk(6,'C')] ], null, { turn:1 });
   });
-  await wait(700);
-  ok(await join.evaluate(()=>window.__cmfNetState && window.__cmfNetState.players[0].energy.length===4),'the client sees its own 4-card energy pile in the mirror');
+  /* The mirror is a WIRE round trip, so poll for it. Asserting a fixed 700ms after the host staged the deal is
+   * the documented flake shape: on a loaded machine the snapshot simply has not arrived yet. */
+  ok(await until(async()=>await join.evaluate(()=>!!(window.__cmfNetState && window.__cmfNetState.players[0].energy.length===4))),
+     'the client sees its own 4-card energy pile in the mirror');
 
   // the client promotes its LAST energy card to the front, through the real UI
   await join.evaluate(()=>document.getElementById('youNrgBtn').click()); await wait(400);

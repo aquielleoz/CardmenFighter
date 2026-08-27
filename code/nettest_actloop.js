@@ -23,7 +23,12 @@ const roundOf=p=>p.evaluate(()=>{const t=document.getElementById('roundTag'); re
 const pileOf=p=>p.evaluate(()=>document.querySelectorAll('#pile .card').length);
 /* Poll, never sleep-then-assert: a ceremony legitimately holds the board for seconds, and a fixed wait here is
  * the bug that produced four false signals in two days. */
-async function until(fn,t=140,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } return false; }
+/* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll
+ * that gave up used to be invisible and surfaced later as an unrelated assertion failing on a board that
+ * was still mid-round-trip — the v1.31.9 waitTurnEnds bug, in the general case. A red run must explain
+ * itself, so name the condition that never came true. */
+function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,100)); }
+async function until(fn,t=140,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
 /* Deselect EVERYTHING before staging anything. Clear alone is not enough: a leftover multi-card selection is
  * staged as a FIGHT ("Special Pair — fight!"), and you cannot activate a pair — both Activate controls go `off`
  * and the attempt reads as "not offerable" forever. That was a 1-in-10 red run, and the culprit was this
@@ -157,7 +162,14 @@ const boardUsable=p=>p.evaluate(()=>{
     return !!(ov && ov.classList.contains('show') && document.getElementById('respDecline'));
   }), 30);
   if(offered) await host.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d)d.click(); });
-  ok(true, offered ? 'the host was offered a Counter and declined it' : 'no response window was owed (host held no springable Quick)');
+  /* This was `ok(true, ...)` — not an assertion at all, just a branch report. Both branches are legitimate, so
+   * assert the invariant that holds EITHER WAY: after this step the host must have no response window left
+   * open. A stuck overlay wedges play, which is exactly the failure mode this suite exists for. */
+  ok(await until(async()=>await host.evaluate(()=>{
+       const ov=document.getElementById('overlay'); return !(ov && ov.classList.contains('show'));
+     }), 30),
+     offered ? 'the host was offered a Counter, declined it, and the window closed'
+             : 'no response window was owed (host held no springable Quick) — and none is left open');
   /* Gated on the activation having actually been offered. Unconditional, this passed once while NOTHING had
    * been cast — the client's energy had changed for an unrelated reason (a round draw), which is a vacuous
    * assertion of exactly the kind this file exists to avoid. */
