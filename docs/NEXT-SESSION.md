@@ -601,7 +601,24 @@ down from +1.8 / −1.2 when the type existed. Half the effect was the dead clau
 chop's own — single-suit decks assemble the shape more easily — and cannot be removed without removing the
 option.
 
-**The ladder.** 3 Kits and Quadro are both chops in the family — ba đôi thông and tứ quý — and
+**NO CHOPPER BEATS ANOTHER** (Aj: *"ordering is hard really… let's not make them beat each other for now?"*).
+Every chop ranks the same, and a chop is answered **in kind** — its own shape at a higher value, through the
+ordinary comparison. Three reasons, in order of weight:
+- **[pagat](https://www.pagat.com/climbing/thirteen.html) puts them at the same tier**: three consecutive pairs
+  *or* a four of a kind beats a lone 2, with no ranking between them. Secondary sources rank quads higher; others
+  drop bomb hierarchy entirely. It is a house call, not a fact to look up — which is exactly why not picking one
+  is the honest default.
+- **The scarcity argument does not survive measurement.** Of 10-card hands a Quadro appears in **1.1%** and a
+  3-Kit in **1.3–1.6%** — the 3-Kit is if anything *more* available. (Play counts implied the opposite by a
+  factor of 125, but that was the AI's cheapest-first policy, not availability. Nearly argued from it.)
+- **A 3-Kit costs six cards for what a Quadro does with four**, so ranking the Quadro above it made the dearer
+  play strictly worse.
+
+**Reach is uniform too:** a lone 2 or a pair of them, for every chopper. The "4+ Kits reach a trio" tier went
+with the ladder, and it was decoration regardless — an eight-card consecutive run appears in **0.0–0.1%** of
+hands.
+
+**The ladder that was.** 3 Kits and Quadro are both chops in the family — ba đôi thông and tứ quý — and
 [pagat](https://www.pagat.com/climbing/thirteen.html) is explicit that either "can beat a single two (but not
 any other single card)", with a **pair** of twos needing *five* consecutive pairs and a trio needing *seven*.
 **Our reach table is deliberately more generous than that, and it has to be:** five consecutive pairs is ten

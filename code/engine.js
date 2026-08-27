@@ -159,26 +159,34 @@
    * panel copy says as much. */
   /* Only the CHOSEN shape chops. Within the kits mode the rank still scales with size, so 4 Kits chop 3 Kits;
    * Quadro-over-Quadro and straight-flush-over-straight-flush fall through to the ordinary value comparison. */
-  /* THE LADDER, now that several choppers can be live at once:
-   *   3 Kits (30) < Quadro (35) < same-suit straight (37) < 4 Kits (40) < 5 Kits (50)
-   * The straight sits above the Quadro on Aj's call, which follows Big Two: pagat ranks five-card hands
-   * straight < flush < full house < four of a kind < straight flush. It stays below 4 Kits because this game's
-   * ladder already treats longer pair-runs as bigger. A bigger chop answers a smaller one; equal rank falls
-   * through to the ordinary value comparison. */
+  /* NO LADDER BETWEEN CHOPPERS (Aj, 2026-08-27: "ordering is hard really... let's not make them beat each other
+   * for now?"). Every enabled chopper ranks the same, so a chop is answered only IN KIND — the same shape at a
+   * higher value, through the ordinary comparison below. Reasons, in order of weight:
+   *   · pagat puts them at the SAME tier: three consecutive pairs OR a four of a kind beats a lone 2, with no
+   *     ranking between them. Secondary sources rank quads higher; others drop bomb hierarchy entirely. It is a
+   *     house call, not a fact to look up.
+   *   · the scarcity argument for ranking them does not survive measurement — of 10-card hands a Quadro appears
+   *     in 1.1% and a 3-Kit in 1.3-1.6%, so the 3-Kit is if anything MORE available. (Play counts implied the
+   *     opposite, but that was the AI's cheapest-first policy, not availability.)
+   *   · a 3-Kit costs SIX cards for what a Quadro does with four, so ranking the Quadro above it made the
+   *     dearer play strictly worse.
+   * Ranking them later is this function and nothing else. */
   function chopRank(c) {
     if (!c) return 0;
-    if (CHOP_Q && c.type === 'quadro') return 35;
-    if (CHOP_SF && c.type === 'straight' && oneSuit(c.cards)) return 37;
-    if (CHOP_K && c.type === 'kit' && c.size >= 6) return c.size * 5;
+    if (CHOP_Q && c.type === 'quadro') return 1;
+    if (CHOP_SF && c.type === 'straight' && oneSuit(c.cards)) return 1;
+    if (CHOP_K && c.type === 'kit' && c.size >= 6) return 1;
     return 0;
   }
   /* How far up the all-2s shapes a chop reaches. The family only has the single and the pair (there are no
    * trios in Tiến lên); the trio tier is this game's own extension, since a trio of 2s is legal here. */
-  /* REACH IS DELIBERATELY MORE GENEROUS THAN THE SOURCE. pagat caps three-pairs and a quad at a LONE 2; a pair
-   * of 2s needs five consecutive pairs (ten cards — the whole hand here) and a trio needs seven (impossible).
-   * Measured on the earlier ladder: 0 of 88 chops at 6p were against a lone 2, so fidelity would make the rule
-   * almost never fire. Every chopper therefore reaches a pair, and 4+ Kits reach a trio. */
-  function chopReach(rank) { return rank >= 40 ? 3 : 2; }
+  /* REACH IS UNIFORM, and deliberately more generous than the source. pagat caps three-pairs and a quad at a
+   * LONE 2; a pair of 2s needs five consecutive pairs (ten cards — the whole hand here) and a trio needs seven,
+   * which is impossible. Measured on an earlier ladder: 0 of 88 chops at 6p were against a lone 2, so fidelity
+   * there would make the rule almost never fire. So every chopper reaches a lone 2 or a PAIR of them and no
+   * further: the "4+ Kits reach a trio" tier went with the ladder, and it was decoration anyway — an eight-card
+   * consecutive run turns up in 0.0-0.1% of hands. */
+  var CHOP_REACH = 2;
   function apexOnlyPlay(c) {
     if (!c || (c.type !== 'single' && c.type !== 'pair' && c.type !== 'trio')) return false;
     var v = c.key && c.key[0];
@@ -196,14 +204,16 @@
       var cr = chopRank(cand);
       if (cr) {
         var rr = chopRank(cur);
-        if (rr && cr !== rr) return cr > rr;                    // a bigger chop answers a smaller one
+        /* NO early return for chop-vs-chop: fall through to the ordinary same-type/same-size/value comparison,
+         * which is what "answered only in kind" means — a higher Quadro over a lower one, a higher 3-Kit over a
+         * lower one. Returning false here instead made every chop unanswerable, including by its own shape. */
         /* A CHOP BEATS AN INFINITE 2 (Aj, 2026-08-27: "a chop would deal with inf 2s btw"). The two rules
          * COMPOSE rather than one voiding the other, and the reason is the mechanism: APEX_INF makes the 2
          * unbeatable BY VALUE — it ranks the card at Infinity — and a chop is not a value answer at all, it is
          * a shape answer. So the chop is precisely the counterplay to an unbeatable 2, which is also what makes
          * `inf` playable without `nostrip`. Hence no APEX_INF guard here, and `apexOnlyPlay` accepts the
          * Infinity key for exactly this case. */
-        if (!rr && apexOnlyPlay(cur) && cur.size <= chopReach(cr)) return true;
+        if (!rr && apexOnlyPlay(cur) && cur.size <= CHOP_REACH) return true;
       }
     }
     if (cand.type !== cur.type || cand.size !== cur.size) return false;

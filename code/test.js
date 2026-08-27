@@ -942,10 +942,19 @@ function cards(ids) { return ids.map(card); }
 
   E.setChopKits(true);
   ok(E.beats(E.detectCombo(kit3), E.detectCombo(two2)) === true, 'chopKits: 3 Kits chop a lone 2 or a pair');
-  ok(E.beats(E.detectCombo(kit4), E.detectCombo(three2)) === true, 'and 4 Kits reach a trio');
-  ok(E.beats(E.detectCombo(kit4), E.detectCombo(kit3)) === true, '4 Kits chop 3 Kits — the kits ladder is by size');
-  ok(E.beats(E.detectCombo(q7), E.detectCombo(kit3)) === true && E.beats(E.detectCombo(kit3), E.detectCombo(q7)) === false,
-     'a Quadro outranks 3 Kits, both being live at once');
+  /* NO CHOPPER BEATS ANOTHER (Aj: "ordering is hard really... let's not make them beat each other for now").
+   * pagat puts three-pairs and a quad at the SAME tier, the scarcity argument for ranking them does not survive
+   * measurement (Quadro 1.1% of hands vs 3-Kit 1.3-1.6%), and a 3-Kit costs six cards for what a Quadro does
+   * with four. A chop is answered IN KIND — its own shape at a higher value — which is the fall-through. */
+  ok(E.beats(E.detectCombo(q7), E.detectCombo(kit3)) === false
+     && E.beats(E.detectCombo(kit3), E.detectCombo(q7)) === false,
+     'a Quadro and 3 Kits cannot beat each other, in either direction');
+  ok(E.beats(E.detectCombo(kit4), E.detectCombo(kit3)) === false, 'nor do 4 Kits outrank 3 Kits');
+  ok(E.beats(E.detectCombo(kit4), E.detectCombo(three2)) === false,
+     'and reach is uniform: no chopper touches a trio of 2s (the 4-Kit tier was decoration at 0.0% of hands)');
+  var kit3hi = [C(5, 'D'), C(5, 'H'), C(6, 'C'), C(6, 'S'), C(7, 'D'), C(7, 'H')];
+  ok(E.beats(E.detectCombo(kit3hi), E.detectCombo(kit3)) === true,
+     'but a HIGHER 3-Kit answers a 3-Kit — "in kind" is the ordinary comparison, not a dead end');
 
   /* THE `straightflush` TYPE IS GONE (Aj: "i want them to only be detected as bombs and not as a mixed shape
    * for straights and flushes"). A same-suit run is an ordinary straight — the old clause letting one beat ANY
@@ -960,9 +969,11 @@ function cards(ids) { return ids.map(card); }
   ok(E.beats(E.detectCombo(mixHi), E.detectCombo(one2)) === false, 'while a MIXED straight of the same size cannot');
   ok(E.beats(E.detectCombo(sf), E.detectCombo(mixHi)) === false,
      'and it still does not beat a higher ordinary straight — it is a chop, not a better shape');
-  ok(E.beats(E.detectCombo(sf), E.detectCombo(q7)) === true && E.beats(E.detectCombo(q7), E.detectCombo(sf)) === false,
-     'the straight outranks a Quadro (Big Two ordering, per Aj), and 4 Kits outrank it in turn: '
-     + E.beats(E.detectCombo(kit4), E.detectCombo(sf)));
+  ok(E.beats(E.detectCombo(sf), E.detectCombo(q7)) === false && E.beats(E.detectCombo(q7), E.detectCombo(sf)) === false,
+     'and it neither outranks a Quadro nor is outranked by one — no chopper beats another');
+  var sfHi = [C(5, 'D'), C(6, 'D'), C(7, 'D'), C(8, 'D'), C(9, 'D')];
+  ok(E.beats(E.detectCombo(sfHi), E.detectCombo(sf)) === true,
+     'a higher same-suit run answers it, being simply a higher straight');
 
   /* THE CHOPS AND APEX_INF COMPOSE (Aj: "a chop would deal with inf 2s"). apexInf makes the 2 unbeatable BY
    * VALUE; a chop is a SHAPE answer, so it is the counterplay to an unbeatable 2. */

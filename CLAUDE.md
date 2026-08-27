@@ -304,6 +304,20 @@ Three more things worth knowing before touching them:
   matters **only** to `chopRank` under `chopSflush`. Deleting it halved the mono-suit tilt (pure decks +0.9 /
   mixed −0.6 over three interleaved replicates, from +1.8 / −1.2), and the residue is the chop's own. **Do not
   reintroduce a straight-flush TYPE to implement a straight-flush rule** — rank the shape, don't retype it.
+- **NO CHOPPER BEATS ANOTHER, and that is a decision with reasons** (2026-08-27). `chopRank` returns the same
+  value for every enabled chopper, so chop-vs-chop **falls through** to the ordinary same-type/same-size/value
+  comparison — a chop is answered in kind. Do not add an early `return false` there: that made every chop
+  unanswerable including by its own shape, which the in-kind assertions catch. Why peers: pagat puts three-pairs
+  and a quad at the *same* tier; the scarcity argument fails on measurement (Quadro 1.1% of 10-card hands vs
+  3-Kit 1.3–1.6% — play counts implied the opposite because the AI plays the cheapest sufficient Special, not the
+  scarcest); and a 3-Kit costs six cards for what a Quadro does with four. **Reach is uniform at a lone 2 or a
+  pair** — an eight-card run appears in 0.0–0.1% of hands, so the old trio tier was decoration. Ranking them is
+  `chopRank` and nothing else.
+- **A CHOPPING SHAPE'S AVAILABILITY IS WILDLY DECK-DEPENDENT for the straight, and not for the others.** Of
+  10-card hands: Quadro ~1.1% and 3-Kit ~1.3–1.6% in *every* deck (a class deck is four copies of one suit, so
+  values are evenly stocked), but a same-suit straight is **23.1%** in a pure class deck against **0.3%** in the
+  Full Set. That 77× spread is the sharpest statement of the mono-suit issue — much sharper than the ±0.9-point
+  win-share figure — and it is why `chopSflush`'s note names it.
 - **THE CHOPS COMPOSE with `apexInf` rather than fighting it.**
   `chopRank` is a scaled ladder — 3 Kits 30, Quadro 35, 4 Kits 40, 5 Kits 50 — so a Quadro sits between 3 and 4
   Kits, and **equal rank deliberately falls through**
