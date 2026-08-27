@@ -295,13 +295,9 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 - **MORE FAMILY SHAPES, one at a time (Aj, 2026-08-27).** Kits shipped; these are the agreed follow-ups, in his
   intended order. **Do not bundle them into one PR** — Aj: *"let's not bloat the kits PR tho"*.
-  - **The double-pair slot must be a MODE, not two toggles.** Non-consecutive "two pair" is a SUPERSET of a
-    2-kit (4♦4♥5♣5♠ satisfies both, same size), so as independent flags they could never beat each other and the
-    play would be ambiguously classified. Aj's UI answer, which resolves it outright: one row, segmented —
-    `2 pair — ( ) 2 kits ( ) poker`. Engine shape: `setDoublePair('off'|'kits'|'poker')`, with `poker` keyed
-    `[topPair, lowPair]` so `lexCmp` orders it correctly. **`3 kits` stays a separate boolean** because 3+ runs
-    are size 6 and never collide with the 4-card slot — which also lets the Dou Dizhu form (3+ only) be played
-    without the 2-kit at all. The rules panel currently only knows booleans, so a "mode" row is new UI.
+  - ~~**The double-pair slot must be a MODE, not two toggles.**~~ **SHIPPED in v1.31.26** — segmented row,
+    `setDoublePair('off'|'kits'|'poker')` + an independent `setKits3`, with the v1.31.24 `kits` key migrating to
+    both halves. Measurement and the two suite gaps it exposed are in the changelog.
   - **Quadro (four of a kind) — NOT in the default game** (Aj): the game already asks players to juggle
     shape-matching *and* card effects, and a shape that beats things outside its own type is a third system.
     *"New players will just break."* That is a cognitive-load argument, not a balance one.
@@ -472,6 +468,65 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.26 — the double-pair slot splits into a mode: 2 Kits or Poker
+
+v1.31.24 shipped kits as one boolean meaning "runs of consecutive pairs, any length". Aj asked for the family's
+shapes **separately** — 2 kits, 3 kits, and non-consecutive two pair — so the seventh toggle becomes two rules:
+
+| Rule | Shape | Type |
+| --- | --- | --- |
+| **Four-card double pairs** — `Off` / `2 Kits` / `Poker` | consecutive `4♦4♥5♣5♠`, or any two pairs `4♦4♥9♣9♠` | `kit` / `twopair` |
+| **3 Kits and up** | three or more pairs of consecutive values | `kit` |
+
+**The four-card slot had to be a MODE rather than two checkboxes.** Poker's two pair allows gaps, so it is a
+strict superset of a 2-kit at the same size: as independent flags they could never beat each other, and
+`4♦4♥5♣5♠` would satisfy both with no way to say which shape it is. One segmented row — Aj's own UI answer —
+makes exactly one classification live at a time and the ambiguity cannot arise. `3 Kits` stays an independent
+boolean because a 3-kit is size 6 and never collides with the 4-card slot; **mode `Off` + `3 Kits` on is the
+family's original form** (连对 / đôi thông, runs of three or more only), now playable on its own.
+
+A two-pair is keyed `[highPair, lowPair]`, so `lexCmp` compares the top pair before the bottom for free —
+6s+4s beats 6s+3s. As always `beats()` gives the length rule at no cost, since it already required equal `type`
+and equal `size`.
+
+**A POKER TWO-PAIR IS A PAIR SINK — that is its whole footprint.** Measured at 2 players over 300 games, same
+seeds in every arm:
+
+| | pairs played | two-pairs / kits | singles played | jab share |
+| --- | --- | --- | --- | --- |
+| Off (live) | 2529 | — | 1299 | 28% |
+| 2 Kits | 2237 | 240 | 1398 | 31% |
+| Poker | **1681** | **843** | **1788** | **34%** |
+
+Pairs fall by 848 while 843 two-pairs appear — one two-pair per two pairs consumed — and what is left in hand is
+odd singles, so jab-led rounds go up. Kits barely do it (240 plays) because gaps are refused. **Pacing does not
+move in any configuration**: medians land within ±1 of the LIVE baseline at 2/3/4/6 players (`rulesim` rows N–R,
+which are seed-identical and so act as each other's controls). Same "a new shape adds options, not tempo"
+result as kits, reached by a different mechanism.
+
+**Migration is handled.** `setKits()` is gone; a saved `kits` key from v1.31.24 — in localStorage, or arriving
+from an older peer — maps to `dblPair=kits,kits3` rather than silently reverting to off. `dblPair=poker` is also
+the first rule whose serialised form carries a **value**, so the netplay and export key now contains an `=`;
+`nettest_rules` propagates a mode specifically, because a client falling back to `'off'` would look identical to
+a host who never touched it.
+
+**Two suites were passing a control they never actually tested.** A mode row is a `<div>` wrapping three
+`<button>`s (nesting buttons is invalid HTML), so `disabled` lands on the *segments*. `rulestest` and
+`nettest_rules` both asserted only `row.disabled`, which a `<div>` never has — so both would have passed a panel
+whose segments were still live: a mid-game rules edit, and a netplay client able to change the mode locally,
+which means two people playing different games. Both now check the segments, and `rulestest` additionally
+asserts that clicking a read-only segment changes nothing in the engine, rather than merely looking greyed out.
+
+**And `mpsim`'s flag parser was matching substrings.** `FLAGS` is the joined argument string and `flag(name)`
+was `FLAGS.indexOf(name) >= 0`, so `flag('kits')` matched inside `kits3`: asking for `kits3` alone silently
+switched the 2-kit slot on too, making both arms of that comparison the same configuration. Whole-token match
+now. It was caught by the behavioural self-check — which counts how many 4-card plays are actually offered from
+`4♦4♥5♣5♠` — and would **not** have been caught by an assertion that read the parsed flag back, since that
+agrees with the broken parser.
+
+Panel copy follows: eight rules now, "the first four only change 3–6 player games; the last four change duels
+too". Suites: `test` 252, `rulestest` 43, `nettest_rules` 21.
 
 ### v1.31.25 — the Custom rules panel was invisible in a netplay lobby
 

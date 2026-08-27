@@ -50,13 +50,24 @@ var CFG=[
  /* M: K plus Aj's shields-2+N, because K alone lands at 11 rounds at 6p and this file already records 9 as an
   * overshoot — shields scaling was the documented middle ground for exactly that. */
  ['M  all + shared ward + shields 2+N',              'all','targeted',    true, true, '', true],
- /* N: KITS on the live rules. A kit is a Special, so it breaks a shield — expect SHORTER games. */
- ['N  LIVE + kits (consecutive pairs)',              'chosen','targeted', false,true, '', false, true]
+ /* N-R: THE PAIR-SHAPE FAMILY, one row per configuration, because they are now separate settings and the
+  * v1.31.24 measurement of the two together said nothing about either half. A pair shape is a Special, so it
+  * breaks a shield, and the naive prediction is SHORTER games — that prediction was already measured wrong
+  * once (kits changed pacing not at all), which is exactly why each arm gets its own row. */
+ ['N  LIVE + 2 Kits only',                           'chosen','targeted', false,true, '', false, 'kits2'],
+ ['O  LIVE + 3 Kits and up only',                    'chosen','targeted', false,true, '', false, 'kits3'],
+ ['P  LIVE + 2 Kits + 3 Kits (the v1.31.24 rule)',   'chosen','targeted', false,true, '', false, 'both'],
+ ['Q  LIVE + Poker two pair',                        'chosen','targeted', false,true, '', false, 'poker'],
+ ['R  LIVE + Poker + 3 Kits',                        'chosen','targeted', false,true, '', false, 'pokerK3']
 ];
 function run(loss,mill,sh,dp,ap,P,n,ward){
   E.setSpecialLossMode(loss); E.setMillScope(mill); E.setShieldsPerPlayer(sh); E.setDrawPerPlayer(dp);
   if (E.setWardAll) E.setWardAll(!!ward);
-  if (E.setKits) E.setKits(!!arguments[8]);      // homebrew: consecutive-pair runs as a legal Special       // shared Leyline + Holy Shroud (the mitigation-side counterweight)
+  /* `pair` names one of the family's configurations rather than a boolean, because the four-card slot is a MODE
+   * (2 Kits and Poker are alternatives) and 3-Kits-and-up is independent of it. */
+  var pair = arguments[8] || '';
+  if (E.setDoublePair) E.setDoublePair(pair==='kits2'||pair==='both' ? 'kits' : (pair==='poker'||pair==='pokerK3' ? 'poker' : 'off'));
+  if (E.setKits3) E.setKits3(pair==='kits3'||pair==='both'||pair==='pokerK3');
   E.setApexInfinity(ap === 'inf' || ap === 'nostrip'); E.setApexNoStrip(ap === 'nostrip' || ap === 'nostripOnly');
   var rounds=[], jb=0, sp=0, leadTop=0, leadN=0;
   for(var s=1;s<=n;s++){
@@ -90,4 +101,4 @@ CFG.forEach(function(c){
   });
   console.log(out);
 });
-E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false); E.setApexNoStrip(false); if(E.setWardAll) E.setWardAll(false); if(E.setKits) E.setKits(false);
+E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false); E.setApexNoStrip(false); if(E.setWardAll) E.setWardAll(false); if(E.setDoublePair) E.setDoublePair('off'); if(E.setKits3) E.setKits3(false);
