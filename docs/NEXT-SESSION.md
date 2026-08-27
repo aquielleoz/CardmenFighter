@@ -248,7 +248,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   - The flags (`setWardAll`, `setDamageSpan`) are on `exp/shield-break-all`, default off, with behavioural
     self-checks in `mpsim`.
 
-- **KITS — SHIPPED in v1.31.24** as the seventh rules toggle, shown as "2 Pair" / "3 Pair". Measured
+- **KITS — SHIPPED in v1.31.24** as the seventh rules toggle, shown as "2 Kits" / "3 Kits". Measured
   pacing-neutral and balance-neutral (PATCHNOTES 0o); they add options, not tempo. Remaining thread if anyone
   wants it: they cannot answer a pair, so the VALUE-stuck problem is still open and the "slash" card is still
   its intended lever.
@@ -292,6 +292,34 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   every opponent collapsed into one bucket and their fight counts stuck at 0. If those files still exist they
   cannot be repaired — the information was never recorded. New exports are `v:'2.0-mp'`; check the field.
 - **A duel export still has `rival` = seats[1]** (not merged), so old duel analysis is unaffected.
+
+- **MORE FAMILY SHAPES, one at a time (Aj, 2026-08-27).** Kits shipped; these are the agreed follow-ups, in his
+  intended order. **Do not bundle them into one PR** — Aj: *"let's not bloat the kits PR tho"*.
+  - **The double-pair slot must be a MODE, not two toggles.** Non-consecutive "two pair" is a SUPERSET of a
+    2-kit (4♦4♥5♣5♠ satisfies both, same size), so as independent flags they could never beat each other and the
+    play would be ambiguously classified. Aj's UI answer, which resolves it outright: one row, segmented —
+    `2 pair — ( ) 2 kits ( ) poker`. Engine shape: `setDoublePair('off'|'kits'|'poker')`, with `poker` keyed
+    `[topPair, lowPair]` so `lexCmp` orders it correctly. **`3 kits` stays a separate boolean** because 3+ runs
+    are size 6 and never collide with the 4-card slot — which also lets the Dou Dizhu form (3+ only) be played
+    without the 2-kit at all. The rules panel currently only knows booleans, so a "mode" row is new UI.
+  - **Quadro (four of a kind) — NOT in the default game** (Aj): the game already asks players to juggle
+    shape-matching *and* card effects, and a shape that beats things outside its own type is a third system.
+    *"New players will just break."* That is a cognitive-load argument, not a balance one.
+  - **The CHOP is the one structural addition.** Every shape today beats only its own type at its own size. A
+    quadro beating a lone 2 — or 3 kits beating a lone 2, which is exactly what đôi thông does — needs
+    cross-shape overrides in `beats()`. Note it would also make the apex 2 answerable **without** touching the
+    apex flags.
+  - **PRESET BUNDLES.** `Raw Chikicha` = **kits + quadro** and nothing else (Aj, from the game he played: *"there
+    were no variable length straights. those are scary"*). A `Dou Dizhu` bundle would add trio+single (三带一),
+    four+two (四带二), airplane (飞机/三顺), variable-length straights and the chop. Presets stay honest with the
+    existing serialisation because `rulesKey()` records the FLAGS, not the preset name.
+  - **FLUSH is optional-and-degenerate, not just unfair.** A Pure deck is **52 cards of one suit** (verified:
+    `Pure Wizard {"D":52}`), so with flush enabled *every* five cards in its hand is a flush, on demand, every
+    turn — while a Full Set deck holds 13 per suit and sees one occasionally. Aj's instinct (*"they're
+    effectively shanking every non mono suit player"*) understates it. Straight flush is trivial for them too.
+    This is a better reason than "suits do not rank" for why v1.14 cut them.
+  - Still missing from the family and NOT yet wanted: trio+single, four+two, airplane, variable-length straights.
+    Rocket (双王) needs jokers, which this deck does not have.
 
 - **Rogue "slash": an on-demand card that LOWERS the current pile's value** (Aj, 2026-08-25 — filed for when
   Rogue needs a boost in balancing; nothing built). Distinct from Caltrops, which is a standing `oppDelta` debuff
@@ -439,11 +467,11 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
-### v1.31.24 — kits, shown as "2 Pair", as the seventh homebrew toggle
+### v1.31.24 — kits, as the seventh homebrew toggle
 
 A player asked for them from memory of having played with them — the strongest argument a homebrew rule can
-have. A **run of consecutive pairs**: a pair of 4s with a pair of 5s is **2 Pair**, add a pair of 6s for
-**3 Pair**. Only a higher run of the *same length* beats it, which `beats()` gave for free since it already
+have. A **run of consecutive pairs**: a pair of 4s with a pair of 5s is **2 Kits**, add a pair of 6s for
+**3 Kits** — deliberately not "2 Pair", because poker's two pair allows gaps and so names a different shape. Only a higher run of the *same length* beats it, which `beats()` gave for free since it already
 required equal type and equal size.
 
 Floor of **two** pairs rather than the family's three (连对, đôi thông), because those games deal 17-20 cards and
@@ -462,7 +490,7 @@ this one deals 6 and caps at 10 — a three-pair floor would have made the shape
 - **What they are for:** a lead-side outlet for low cards. A kit cannot answer a pair, so it does *not* touch the
   measured VALUE-stuck problem. Judge on feel and hand-churn.
 
-Internal type stays `kit` (the family's name, and the player's); only the label is "N Pair".
+Internal type is `kit`, and the label is "N Kits".
 
 ### v1.31.23 — the apex-2 rules join the menu, as two independent toggles
 

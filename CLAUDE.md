@@ -229,13 +229,14 @@ key, so netplay and the export carry the RULES, not a name the other end must re
 - **The export stamps the rule set (`v:'2.1-mp'`), and it shipped WITH the menu.** An unstamped homebrew game
   makes the ingestion log unreadable and cannot be repaired afterwards — the pre-v1.31.5 mistake exactly.
 
-**KITS are shown to players as "2 Pair" / "3 Pair" — the internal type stays `kit`.** A run of CONSECUTIVE pairs,
+**KITS are shown to players as "2 Kits" / "3 Kits" — NOT "2 Pair".** Poker's "two pair" allows gaps, so it
+names a different shape, and a non-consecutive variant is a separate planned rule; the two must not share a name. A run of CONSECUTIVE pairs,
 behind `setKits()` and default off (v1.31.24). Three things worth knowing before touching them:
 - **`beats()` gave the length rule for free** — it already required equal `type` AND equal `size`, so a 2 Pair
   cannot beat a 3 Pair without any new code. `detectKit` is the whole shape; `enumerateCombos` emits every run.
 - **The floor is TWO pairs, not the family's three** (连对 / đôi thông). Those games deal 17-20 cards; this one
   deals 6 and caps at 10, so a three-pair floor would make the shape dead. Values must be consecutive — the panel
-  copy says "unlike poker" because "two pair" means something looser there.
+  copy says the values must be consecutive, because that is exactly what separates a kit from poker's two pair.
 - **A NEW SHAPE ADDS OPTIONS, NOT TEMPO.** Measured: kits change game length by nothing at all (11/14/20/31 vs
   11/14/20/30) and are balance-neutral (rho 0.91), *despite* firing 0.75 times per duel and 13.4 times per
   6-player game. A kit REPLACES a Special the player would have made anyway, and a round still has one winner and

@@ -1226,10 +1226,10 @@
     var topCard = cards.filter(function (c) { return fightValue(c) === top; })[0];
     return { top: top, topCard: topCard };
   }
-  /* KITS — shown to players as "2 Pair" / "3 Pair" (Aj's naming, 2026-08-27). The internal name stays `kit`
-   * because that is what the player who asked for them called them and what the family literature uses; only
-   * the LABEL is "N Pair". Note the difference from poker, which is called out in the panel copy: here the pair
-   * values must be CONSECUTIVE.
+  /* KITS — shown to players as "2 Kits" / "3 Kits". Named for what the table that plays them calls them, and
+   * NOT "2 Pair": poker's "two pair" allows gaps, so reusing that name would describe a DIFFERENT shape (a
+   * non-consecutive two-pair variant is planned separately — see the BACKLOG — and the two must not share a
+   * name). Here the pair values must be CONSECUTIVE.
    * (a player asked for them, 2026-08-25): a run of CONSECUTIVE PAIRS — a pair of 4s with a
    * pair of 5s is 2 Pair, adding a pair of 6s makes 3 Pair. Standard across this card family (连对 in Dou Dizhu, đôi thông in
    * Tiến lên), where the minimum is THREE pairs; here the floor is TWO, because those games deal 17-20 cards
@@ -4393,13 +4393,13 @@ window.CardFace = {};
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
-  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',straightflush:'Straight Flush',kit:'Pair Run'};
+  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',straightflush:'Straight Flush',kit:'Kits'};
   /* Kits are the first VARIABLE-LENGTH shape, so a fixed name is not enough — a run of two pairs and a run of
    * three are different plays. Where the combo object is in hand, say which ("2 Kits"); the bare TYPE entry
    * covers the call sites that only carry a type string. */
   function comboName(combo){
     if(!combo) return 'Special';
-    if(combo.type==='kit') return (combo.size/2)+' Pair';        // "2 Pair", "3 Pair" — Aj's naming
+    if(combo.type==='kit') return (combo.size/2)+' Kits';        // "2 Kits", "3 Kits" — the table's own name
     return TYPE[combo.type]||'Special';
   }
   var REWORK_LABEL={1:'A',11:'J',12:'Q',13:'K'};                                // REWORK playtest: ranks show as A/J/Q/K on the 2-as-apex ladder
@@ -4493,8 +4493,8 @@ window.CardFace = {};
     /* KITS — consecutive pairs. A player asked for them from memory of having played with them, which is the
      * best argument a homebrew rule can have. Duel-relevant, and the first NEW SHAPE rather than a tweak to an
      * existing rule. Expect shorter games: a kit is a Special, so it breaks a shield. */
-    { key:'kits',        duel:true, label:'Pair runs — play 2 Pair, 3 Pair and up',
-      note:'A pair of 4s with a pair of 5s is \u201c2 Pair\u201d; add a pair of 6s for \u201c3 Pair\u201d. The values must be CONSECUTIVE (unlike poker), and only a higher run of the same length beats it.' }
+    { key:'kits',        duel:true, label:'Kits — runs of consecutive pairs',
+      note:'A pair of 4s with a pair of 5s is \u201c2 Kits\u201d; add a pair of 6s for \u201c3 Kits\u201d. The values must be consecutive \u2014 4s with 9s is not a run \u2014 and only a higher run of the same length beats it.' }
   ];
   var RULES={}; RULE_DEFS.forEach(function(d){ RULES[d.key]=false; });
   function customRules(){ return RULE_DEFS.some(function(d){ return !!RULES[d.key]; }); }

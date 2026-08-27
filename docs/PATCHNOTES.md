@@ -208,16 +208,19 @@ loss/mill pairing is a **length** lever, not a balance one. **Lesson: a balance 
 life — re-date it before reusing it to veto an idea — and check that the arm you are testing is a design
 someone would actually ship.**
 
-### 0o. Kits (shown as "2 Pair") add OPTIONS, not tempo — and that is why length did not move. (2026-08-27)
+### 0o. Kits add OPTIONS, not tempo — and that is why length did not move. (2026-08-27)
 
 A player asked for kits from memory of having played with them, which is the strongest argument a homebrew rule
-can have. Shape: a run of **consecutive pairs**. Player-facing name is **"2 Pair" / "3 Pair"** (Aj); the internal
-type stays `kit`, matching the family literature (连对, đôi thông) and the player who asked.
+can have. Shape: a run of **consecutive pairs**. Player-facing name is **"2 Kits" / "3 Kits"** — the name the
+table that plays them uses, and deliberately **not** "2 Pair": poker's "two pair" allows gaps, so it names a
+different shape, and a non-consecutive variant is planned separately (see the BACKLOG). The internal type is
+`kit`, matching the family literature (连对 / 双顺, đôi thông).
 
 **Design decisions, and why:**
 - **Floor of TWO pairs**, not the family's three. Dou Dizhu and Tiến lên deal 17-20 cards; this game deals 6 and
   caps at 10, so a 3-pair run is six of your ten cards and the shape would be dead on arrival.
-- **Consecutive values required** — unlike poker's "two pair", which the panel copy says out loud.
+- **Consecutive values required.** This is what makes it a different shape from poker's "two pair", and the
+  reason the two must not share a name.
 - **Coherent here in a way FLUSH was not** (retired v1.14): a flush needs suits to rank and they never do, while
   a kit compares on fight value like everything else.
 - **`beats()` already required equal type AND equal size**, so "a 2 Pair cannot beat a 3 Pair" fell out for free.

@@ -79,10 +79,10 @@
     var topCard = cards.filter(function (c) { return fightValue(c) === top; })[0];
     return { top: top, topCard: topCard };
   }
-  /* KITS — shown to players as "2 Pair" / "3 Pair" (Aj's naming, 2026-08-27). The internal name stays `kit`
-   * because that is what the player who asked for them called them and what the family literature uses; only
-   * the LABEL is "N Pair". Note the difference from poker, which is called out in the panel copy: here the pair
-   * values must be CONSECUTIVE.
+  /* KITS — shown to players as "2 Kits" / "3 Kits". Named for what the table that plays them calls them, and
+   * NOT "2 Pair": poker's "two pair" allows gaps, so reusing that name would describe a DIFFERENT shape (a
+   * non-consecutive two-pair variant is planned separately — see the BACKLOG — and the two must not share a
+   * name). Here the pair values must be CONSECUTIVE.
    * (a player asked for them, 2026-08-25): a run of CONSECUTIVE PAIRS — a pair of 4s with a
    * pair of 5s is 2 Pair, adding a pair of 6s makes 3 Pair. Standard across this card family (连对 in Dou Dizhu, đôi thông in
    * Tiến lên), where the minimum is THREE pairs; here the floor is TWO, because those games deal 17-20 cards
