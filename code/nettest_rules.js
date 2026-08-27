@@ -55,6 +55,8 @@ const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); r
   ok(await join.evaluate(()=>[].every.call(document.querySelectorAll('.settingRow[data-rule]'),
        r=>r.hasAttribute('data-mode') ? [].every.call(r.querySelectorAll('.segBtn'),b=>b.disabled) : r.disabled)),
      'and it is read-only for the client — only the host\'s rules count');
+  ok(await join.evaluate(()=>[].every.call(document.querySelectorAll('.ruleBulk .bulkBtn'),b=>b.disabled)),
+     '  including the presets and Clear all — a client applying a preset locally is two different games');
   ok(await join.evaluate(()=>/host chooses the rules/i.test((document.querySelector('.modal .netmsg')||{}).textContent||'')),
      'with a line saying the host decides, rather than a dead control');
   await join.evaluate(()=>document.getElementById('ruleDone').click()); await wait(250);

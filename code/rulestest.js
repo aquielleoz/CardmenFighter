@@ -94,6 +94,45 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
      'and a legacy `kits` key migrates to dblPair=kits + kits3, rather than quietly reverting to off');
   await p.evaluate(()=>window.__solo.setRulesFromKey('lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro'));
 
+  // ---------- presets + Clear all (v1.31.30): one row that moves every rule at once
+  const bulk = p => p.evaluate(() => [].map.call(document.querySelectorAll('.ruleBulk .bulkBtn'),
+    b => ({ preset: b.getAttribute('data-preset'), id: b.id, txt: b.textContent.trim(), off: b.disabled, active: b.classList.contains('active') })));
+  let row = await bulk(p);
+  ok(row.length === 2 && row[0].preset === 'chikicha' && row[1].id === 'ruleClear',
+     `the panel offers a preset and a Clear all (${row.map(r => r.txt).join(' | ')})`);
+  ok(!row[1].off, 'Clear all is live while rules are on');
+  /* A PRESET IS AN EXACT STATE, not an additive one — Aj named Raw Chikicha as "kits + quadro and nothing
+   * else", so applying it over a table full of other rules must turn those OFF. Every rule is on at this point
+   * in the suite, which is exactly the case that would catch an additive implementation. */
+  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="chikicha"]').click()); await wait(250);
+  const after = await flags(p);
+  ok(after.dblPair === 'kits' && after.kits3 === true && after.quadro === true,
+     'Raw Chikicha turns on 2 Kits, 3 Kits and Quadro');
+  ok(after.loss === 'chosen' && after.mill === 'targeted' && after.shieldScale === false
+     && after.drawScales === true && after.apexInf === false && after.apexNoStrip === false,
+     'and turns everything else back OFF — "and nothing else" is part of the preset');
+  ok((await p.evaluate(() => window.__solo.rulesKey())) === 'dblPair=kits,kits3,quadro',
+     'the serialised key is exactly the preset, so netplay and the export carry the rules and not its name');
+  row = await bulk(p);
+  ok(row[0].active, 'and the preset button reads active, because "exactly these rules" is a checkable claim');
+  await toggle(p, 'lossAll'); await wait(150);
+  ok(!(await bulk(p))[0].active, 'one further change and it stops reading active');
+
+  await p.evaluate(() => document.getElementById('ruleClear').click()); await wait(250);
+  ok((await p.evaluate(() => window.__solo.rulesKey())) === '', 'Clear all empties the whole rule set');
+  ok(JSON.stringify(await flags(p)) === JSON.stringify({ loss: 'chosen', mill: 'targeted', shieldScale: false,
+       drawScales: true, apexInf: false, apexNoStrip: false, dblPair: 'off', kits3: false, quadro: false }),
+     'and the engine is back on the shipped game, mode rows included');
+  ok((await p.evaluate(() => localStorage.getItem('cmf_rules_v1'))) === '', 'the cleared state is saved too');
+  ok((await bulk(p))[1].off, 'and Clear all disables itself once there is nothing to clear');
+  ok(await p.evaluate(() => !/· on/.test((document.getElementById('rulesBtn') || {}).textContent || '')),
+     'the setup button drops its "· on" marker');
+
+  // put a customised set back, since the rest of the suite plays a game under it
+  await p.evaluate(() => window.__solo.setRulesFromKey('shieldScale,flatDraw'));
+  await p.evaluate(() => document.getElementById('ruleDone').click()); await wait(200);
+  await openRules(p);
+
   // ---------- a real game must be played under them
   await p.evaluate(()=>document.getElementById('ruleDone').click()); await wait(300);
   ok(await p.evaluate(()=>/· on/.test((document.getElementById('rulesBtn')||{}).textContent||'')),
@@ -116,6 +155,8 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   ok(await p.evaluate(()=>[].every.call(document.querySelectorAll('.settingRow[data-rule]'),
        r=>r.hasAttribute('data-mode') ? [].every.call(r.querySelectorAll('.segBtn'),b=>b.disabled) : r.disabled)),
      'and mid-game every row is disabled — rules are chosen before a game, not during one');
+  ok(await p.evaluate(()=>[].every.call(document.querySelectorAll('.ruleBulk .bulkBtn'),b=>b.disabled)),
+     'and so are the preset and Clear all buttons — a bulk edit is still an edit');
   ok(await p.evaluate(()=>{
     const before=CardmenEngine.isDoublePair();
     const other=[].filter.call(document.querySelectorAll('.segBtn[data-mode-for="dblPair"]'),b=>!b.classList.contains('active'))[0];

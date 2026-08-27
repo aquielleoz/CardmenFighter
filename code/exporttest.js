@@ -39,8 +39,18 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
       if(f&&!f.disabled){ f.click(); if(/Confirm/i.test(f.textContent||'') && !f.disabled) f.click(); }
     });
     await wait(120);
-    const rounds=await p.evaluate(()=>{ const st=window.__solo.st(); return st?st.round:0; });
-    if(rounds>=4) break;                       // four rounds is plenty of opponent turns
+    /* EXIT ON WHAT THE ASSERTIONS NEED, not on a round count. "Four rounds is plenty of opponent turns" is
+     * true usually — and usually is how a suite becomes deal-dependent: an opponent that passes through those
+     * rounds, or is eliminated in them, records no fight at all, and the per-seat assertion below then fails
+     * about 1 run in 6. Measured, not guessed. The round cap stays as a safety valve so a pathological game
+     * fails the assertion loudly instead of spinning. */
+    const prog=await p.evaluate(()=>{
+      const s=window.__solo.stats(), st=window.__solo.st();
+      const f=i=>(s&&s.seats&&s.seats[i])?(s.seats[i].jabs+s.seats[i].specials):0;
+      return { round: st?st.round:0, o1:f(1), o2:f(2) };
+    });
+    if(prog.round>=4 && prog.o1>0 && prog.o2>0) break;
+    if(prog.round>=14) break;
   }
 
   const seatStats=await p.evaluate(()=>{
