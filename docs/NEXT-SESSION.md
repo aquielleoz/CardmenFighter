@@ -202,9 +202,26 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     preference — which is already what `localStorage['cmf_rules_v1']` holds, and which `setRulesFromKey`
     deliberately does **not** save over. Leave does `location.reload()`, so `loadRules()` restores the device's
     own picks on exit; nothing is lost today, and nothing may start being lost.
+  - **SUGGESTIONS ARE VISIBLE TO THE WHOLE TABLE (Aj, 2026-08-27), and the host's picks are simply the rules.**
+    So this is a real suggestion *layer* on the rules dialog, not a private note to the host.
+  - **The sequence, confirmed by Aj:** a player suggests → the intent goes to the host → the host broadcasts it
+    to the table. That is exactly the emote path (`{op:'emote'}` → `hostEmote` validates and rate-limits →
+    `send({t:'emote'})`), and for the same reason: the host is the single authority on anything everyone sees.
   - **Wire shape: the intent channel, like emotes.** `{op:'suggest', key:'lossAll,dblPair=poker'}`, sent on join
     (so a late joiner is counted) and on each change while in the lobby. Host keeps `seatSuggest[seat]`. Not a
     new channel — see the emote precedent, including the shadowing trap that cost that feature once.
+  - **BROADCAST THE WHOLE MAP, NOT THE DELTA — a suggestion is STATE, an emote is an EVENT.** That distinction
+    decides two things the emote code gets to ignore. First, the host sends the full table
+    (`{t:'suggest', all:{2:'lossAll', 3:'dblPair=poker'}}`), so a dropped message or a late joiner self-heals
+    instead of leaving one seat permanently stale — same argument as a mirror snapshot over deltas, and it lets
+    `t:'welcome'` carry the map for free. Second, the host-side rate limit must **coalesce, not drop**: dropping
+    a burst is right for an event, but for state it strands the table on a stale value while the sender's own
+    panel shows something else. Keep the latest per seat and re-broadcast on a timer.
+  - **The map is in ABSOLUTE seats, so rotate once on receipt** — the `seatNames` precedent exactly, so no call
+    site needs rotation awareness. A reader's own suggestion renders as "You" through `logName`.
+  - **The host does not appear in the map.** Its picks are the rules; there is nothing to suggest to itself.
+  - **Withdrawing has to be possible**, since a table-visible suggestion is a social signal — the backlogged
+    **Clear All** button doubles as "withdraw mine", and an empty key is a legitimate suggestion of "no changes".
   - **THE HOST MUST VALIDATE IT.** The key comes from an untrusted client, so parse it against `RULE_DEFS` and
     **drop** unknown keys and invalid mode values, exactly as `cleanName()` treats a player-typed name. A rule
     from a newer peer must be discarded, not displayed — otherwise the panel starts advertising rules this build
@@ -224,10 +241,12 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     suggestion shows its value · the host adopting one goes through the normal rules path (client adopts, table
     un-readies) · a suggestion **alone** does not un-ready · a garbage or unknown key is dropped · the host-side
     burst limit holds via `__cmf.clientSend` · the client's own suggestions survive a host rules edit (the
-    two-store split) · and "in play" vs "you suggest" is distinguishable by more than DOM presence.
-  - **Open questions for Aj, not decisions to make alone:** should clients see *each other's* suggestions (the
-    lean is no — it keeps the lobby out of lobbying), and should the host's own picks show as a self-suggestion
-    (the lean is no; the host's picks are simply the rules).
+    two-store split) · "in play" vs "you suggest" is distinguishable by more than DOM presence · **a third seat
+    sees the second seat's suggestion** (the table-visible half, which no host-only test would cover) · a seat
+    that joins AFTER a suggestion still receives it (the whole-map argument) · and a burst COALESCES to the
+    latest value rather than stranding the table on an older one.
+  - **Both open questions are ANSWERED (Aj, 2026-08-27):** the table sees each other's suggestions, and the
+    host's picks are the rules — no self-suggestion row.
   - Note this would be the first client→host message whose only effect is on the **host's UI** rather than on
     game state.
 - **The homebrew rules menu SHIPPED in v1.31.22** (four multiplayer toggles, all defaulting off; rules travel to
