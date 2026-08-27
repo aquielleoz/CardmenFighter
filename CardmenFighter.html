@@ -261,7 +261,15 @@
   .modal .ruleSect .ruleBulk{margin:0 0 0 auto;}      /* presets ride the right end of their own heading */
   /* on a phone they wrap onto their own line, where being pushed right reads as a stray indent */
   @media (max-width:720px){ .modal .ruleSect .ruleBulk{margin-left:0;} }
-  .modal .ruleFoot{display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center; margin-top:6px;}
+  /* STICKY, not duplicated (Aj asked for either a second copy at the top or "one of those floating things").
+   * A second Done is a second place to look, and a second Clear all doubles the chance of mis-tapping the
+   * destructive one — a bar that is always there serves the same need with one of each. It bleeds through the
+   * modal's 24px padding so rows cannot scroll past it in the gap, and `bottom:-24px` pins it flush to the
+   * bottom edge rather than floating 24px above it. Where the panel does not scroll (desktop) sticky is inert. */
+  .modal .ruleFoot{display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center;
+    position:sticky; bottom:-24px; z-index:2;
+    margin:8px -24px -24px; padding:12px 24px;
+    background:#1b1026; border-top:1px solid var(--line); border-radius:0 0 17px 17px;}
   .modal .ruleFoot #ruleDone{margin:0;}
   .modal .ruleFoot .bulkBtn.clear{margin-left:0;}   /* undo the old bulk-row rule that pushed it to the right */
   .modal .ruleBulk{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:0 0 10px;}

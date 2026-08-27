@@ -612,8 +612,16 @@ chip is a property of the **section**, and a row repeating it was pure noise. Ea
 `rulestest` asserts both halves: four section chips, and zero row chips. The intro line changed with it ("Each
 section says which player counts its rules affect") — it now describes the sections rather than the rows.
 
-**Clear all moved to the footer, beside Done.** Once the presets went down into their section, a lone Clear all
-above the sections read like a section heading of its own. Both are whole-panel actions, so they belong together.
+**Clear all moved to the footer, beside Done, and the footer is STICKY.** Once the presets went down into their
+section, a lone Clear all above the sections read like a section heading of its own — and both are whole-panel
+actions, so they belong together. Aj asked for either a second copy of the pair at the top or *"one of those
+floating things"*: **a sticky footer needs only one of each**, which is the argument for it. A second Done is a
+second place to look, and a second Clear all doubles the chance of mis-tapping the destructive one.
+It is a **sticky action bar** — the bar rides along pinned while its resting place is off-screen and **docks**
+into the flow when you reach it, which is simply what `position: sticky` does. Measured on a phone at three
+scroll positions: pinned 1px above the modal edge throughout, docked at the end, and **hit-tested clickable at
+every one of them** — a bar that is present but covered is the v1.31.25 stacking bug again, and no DOM assertion
+can see that. It bleeds through the modal's 24px padding, or rows would scroll past it in the gap.
 
 **A rule that belongs to no section renders under a visible "Uncategorised" heading rather than vanishing**, and
 `rulestest` asserts that heading is absent. The sections own their rule keys — one list to read — and the cost of

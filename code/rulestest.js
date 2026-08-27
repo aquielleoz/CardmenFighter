@@ -190,6 +190,26 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
        const c=document.getElementById('ruleClear'); const f=c&&c.closest('.ruleFoot');
        return !!(f && f.querySelector('#ruleDone'));
      }), 'Clear all sits with Done, both being whole-panel actions rather than rules');
+  /* AND IT STAYS PUT WHILE SCROLLING (Aj asked for either a second copy at the top or a floating bar; a bar
+   * needs only one of each button). Hit-tested, not merely measured — a bar that is present but covered is the
+   * v1.31.25 stacking bug all over again, and no DOM assertion can see it. */
+  const footAt = async top => p.evaluate(t => {
+    const m = document.getElementById('modal'); m.scrollTop = t;
+    const f = document.querySelector('.ruleFoot'), mr = m.getBoundingClientRect(), fr = f.getBoundingClientRect();
+    const el = document.elementFromPoint(Math.round(fr.left + fr.width / 2), Math.round(fr.top + fr.height / 2));
+    return { pinned: Math.abs(mr.bottom - fr.bottom) <= 2, clickable: !!(el && f.contains(el)) };
+  }, top);
+  const scrollable = await p.evaluate(() => { const m = document.getElementById('modal'); return m.scrollHeight > m.clientHeight + 1; });
+  if (scrollable) {
+    const a = await footAt(0), mid = await footAt(300), end = await footAt(99999);
+    ok(a.pinned && mid.pinned && end.pinned, 'the footer stays pinned to the modal edge at every scroll position');
+    ok(a.clickable && mid.clickable && end.clickable, '  and is hit-testable there, not merely present in the DOM');
+    await p.evaluate(() => { document.getElementById('modal').scrollTop = 0; });
+  } else {
+    /* At this viewport the panel fits, so there is nothing to stick to — assert the invariant that holds either
+     * way rather than reporting a branch (see nettest_actloop's `ok(true, ...)`). */
+    ok((await footAt(0)).clickable, 'the panel fits at this size, and the footer is reachable regardless');
+  }
   ok(!row.filter(b => b.id === 'ruleClear')[0].off, 'Clear all is live while rules are on');
   /* A PRESET IS AN EXACT STATE, not an additive one — Aj named Chikicha Specials as "kits + quadro and nothing
    * else", so applying it over a table full of other rules must turn those OFF. Every rule is on at this point
