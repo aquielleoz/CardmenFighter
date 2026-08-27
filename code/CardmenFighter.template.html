@@ -694,6 +694,8 @@
   .modal .ruleIntro{margin:2px 0 10px; font-size:13px; line-height:1.45; opacity:.85;}
   .modal .ruleWarn{margin:10px 0 0; font-size:12px; line-height:1.45; color:#f2b8b8;}
   .modal .settingRow.ro{opacity:.72; cursor:default;}
+  .modal .settingRow.modeSetting{display:flex; flex-direction:column; align-items:stretch; gap:8px; cursor:default;}
+  .modal .settingRow.modeSetting .segToggle{min-width:0;}
   .modal .ruleScope{display:inline-block; margin-left:7px; padding:0 6px; border-radius:999px; font-size:10px;
     font-weight:700; letter-spacing:.02em; text-transform:uppercase; background:#2b2440; color:#b6a8d8;
     border:1px solid #453a63; vertical-align:1px; white-space:nowrap;}
@@ -1273,20 +1275,42 @@ __QR__
       note:'Normally a boosted Ace can out-value the apex 2. Ends the round outright, so no rival can answer it.' },
     { key:'apexNoStrip', duel:true, label:'Fights won with a 2 destroy no shields',
       note:'The 2 becomes a way to seize the lead without dealing damage, and rivals can still beat it — unless the rule above is also on. Makes 6-player games much longer.' },
-    /* KITS — consecutive pairs. A player asked for them from memory of having played with them, which is the
-     * best argument a homebrew rule can have. Duel-relevant, and the first NEW SHAPE rather than a tweak to an
-     * existing rule. Expect shorter games: a kit is a Special, so it breaks a shield. */
-    { key:'kits',        duel:true, label:'Kits — runs of consecutive pairs',
-      note:'A pair of 4s with a pair of 5s is \u201c2 Kits\u201d; add a pair of 6s for \u201c3 Kits\u201d. The values must be consecutive \u2014 4s with 9s is not a run \u2014 and only a higher run of the same length beats it.' }
+    /* THE DOUBLE-PAIR SLOT IS A MODE. Poker's two pair is a SUPERSET of a 2-kit at the same size, so as two
+     * checkboxes they could never beat each other and a four-card play would be ambiguously classified. One
+     * segmented row means exactly one classification is ever live. `kits3` is a plain boolean because 3+ runs
+     * are size 6 and never collide — and mode 'off' with kits3 ON is the Dou Dizhu form (3+ pairs only). */
+    { key:'dblPair',     duel:true, label:'Four-card double pairs',
+      mode:[{v:'off',label:'Off'},{v:'kits',label:'2 Kits'},{v:'poker',label:'Poker'}],
+      note:'“2 Kits” needs the two pairs CONSECUTIVE (4s+5s). “Poker” allows any two pairs (4s+9s) and compares the high pair first. They are alternatives, not both.' },
+    { key:'kits3',       duel:true, label:'3 Kits and up — longer runs of consecutive pairs',
+      note:'Three pairs of consecutive values, or more. Independent of the row above, so you can play the family\u2019s original form \u2014 runs of three or more only.' }
   ];
-  var RULES={}; RULE_DEFS.forEach(function(d){ RULES[d.key]=false; });
-  function customRules(){ return RULE_DEFS.some(function(d){ return !!RULES[d.key]; }); }
+  var RULES={}; RULE_DEFS.forEach(function(d){ RULES[d.key]= d.mode ? d.mode[0].v : false; });
+  function ruleOn(d){ return d.mode ? (RULES[d.key]!==d.mode[0].v) : !!RULES[d.key]; }
+  function customRules(){ return RULE_DEFS.some(ruleOn); }
   /* Self-describing, like the custom-deck key: netplay and the playtest export carry the RULES, not a name the
    * other end would have to recognise. '' means "the shipped game". */
-  function rulesKey(){ var on=RULE_DEFS.filter(function(d){ return !!RULES[d.key]; }).map(function(d){ return d.key; }); return on.length?on.join(','):''; }
+  function rulesKey(){
+    var on=RULE_DEFS.filter(ruleOn).map(function(d){ return d.mode ? (d.key+'='+RULES[d.key]) : d.key; });
+    return on.length?on.join(','):'';
+  }
   function setRulesFromKey(k){
-    var want={}; String(k||'').split(',').forEach(function(x){ if(x) want[x]=1; });
-    RULE_DEFS.forEach(function(d){ RULES[d.key]=!!want[d.key]; });
+    var want={}, modes={};
+    String(k||'').split(',').forEach(function(x){
+      if(!x) return;
+      var eq=x.indexOf('=');
+      if(eq>0) modes[x.slice(0,eq)]=x.slice(eq+1); else want[x]=1;
+    });
+    /* MIGRATION: v1.31.24 shipped a single boolean `kits` meaning "consecutive runs of any length". That is now
+     * a mode plus a boolean, so an old saved key (or one arriving from an older peer) maps to both halves rather
+     * than silently turning the rule off. */
+    if(want.kits){ modes.dblPair='kits'; want.kits3=1; }
+    RULE_DEFS.forEach(function(d){
+      if(d.mode){
+        var v=modes[d.key], ok=d.mode.some(function(m){ return m.v===v; });
+        RULES[d.key]= ok ? v : d.mode[0].v;
+      } else RULES[d.key]=!!want[d.key];
+    });
     applyRules();
   }
   function applyRules(){
@@ -1296,7 +1320,8 @@ __QR__
     if(E.setDrawPerPlayer)    E.setDrawPerPlayer(!RULES.flatDraw);     // NOTE the inversion
       if(E.setApexInfinity)     E.setApexInfinity(!!RULES.apexInf);
       if(E.setApexNoStrip)      E.setApexNoStrip(!!RULES.apexNoStrip);
-      if(E.setKits)             E.setKits(!!RULES.kits);
+      if(E.setDoublePair)       E.setDoublePair(RULES.dblPair);
+      if(E.setKits3)            E.setKits3(!!RULES.kits3);
   }
   function saveRules(){ try{ localStorage.setItem(RULES_KEY, rulesKey()); }catch(e){} }
   (function loadRules(){ try{ var k=localStorage.getItem(RULES_KEY); if(k!=null) setRulesFromKey(k); }catch(e){} })();
@@ -4429,13 +4454,27 @@ __QR__
   function showRules(opts){
     opts=opts||{};
     var ro=!!opts.readonly, back=opts.back||hideOverlay;
+    function scopeTag(d){ return '<span class="ruleScope">'+(d.duel?'all player counts':'3–6 players')+'</span>'; }
     function rowHTML(d){
+      /* A MODE row is a <div> with a segmented control, not a <button> — nesting buttons inside a button is
+       * invalid, and the alternatives are mutually exclusive rather than independently checkable, which is the
+       * whole point of the mode (see RULE_DEFS). It still carries data-rule so the suites enumerate it. */
+      if(d.mode){
+        var segs=d.mode.map(function(m){
+          return '<button type="button" class="segBtn'+(RULES[d.key]===m.v?' active':'')+'"'+(ro?' disabled':'')+
+                 ' data-mode-for="'+d.key+'" data-mode-v="'+m.v+'" role="radio" aria-checked="'+
+                 (RULES[d.key]===m.v?'true':'false')+'">'+m.label+'</button>';
+        }).join('');
+        return '<div class="settingRow modeSetting'+(ruleOn(d)?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'" data-mode="1">'+
+          '<span class="settingBody"><span class="settingLbl">'+d.label+scopeTag(d)+'</span>'+
+          '<span class="settingNote">'+d.note+'</span></span>'+
+          '<span class="segToggle" role="radiogroup" aria-label="'+d.label+'">'+segs+'</span></div>';
+      }
       var on=!!RULES[d.key];
       return '<button type="button" class="settingRow'+(on?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'"'+
         (ro?' disabled':'')+' role="switch" aria-checked="'+(on?'true':'false')+'">'+
         '<span class="settingBox">'+(on?'✓':'')+'</span>'+
-        '<span class="settingBody"><span class="settingLbl">'+d.label+
-        '<span class="ruleScope">'+(d.duel?'all player counts':'3–6 players')+'</span></span>'+
+        '<span class="settingBody"><span class="settingLbl">'+d.label+scopeTag(d)+'</span>'+
         '<span class="settingNote">'+d.note+'</span></span></button>';
     }
     showModal('<h2>⚗️ Custom rules</h2>'+
@@ -4449,7 +4488,20 @@ __QR__
       '<p class="ruleWarn">⚠ The Rival is tuned for the default rules and will not adapt — and some decks are '+
         'much better suited to these rules than others.</p>'+
       '<button id="ruleDone">Done</button>');
-    if(!ro) Array.prototype.forEach.call(document.querySelectorAll('.settingRow[data-rule]'), function(btn){
+    if(!ro) Array.prototype.forEach.call(document.querySelectorAll('.segBtn[data-mode-for]'), function(seg){
+      seg.addEventListener('click', function(){
+        var k=this.getAttribute('data-mode-for'), v=this.getAttribute('data-mode-v');
+        RULES[k]=v; applyRules(); saveRules();
+        var row=this.closest('.settingRow');
+        Array.prototype.forEach.call(row.querySelectorAll('.segBtn[data-mode-for="'+k+'"]'), function(o){
+          var act=o.getAttribute('data-mode-v')===v;
+          o.classList.toggle('active', act); o.setAttribute('aria-checked', act?'true':'false');
+        });
+        row.classList.toggle('on', ruleOn(RULE_DEFS.filter(function(d){ return d.key===k; })[0]));
+        if(opts.onChange) opts.onChange();
+      });
+    });
+    if(!ro) Array.prototype.forEach.call(document.querySelectorAll('button.settingRow[data-rule]'), function(btn){
       btn.addEventListener('click', function(){
         var k=this.getAttribute('data-rule');
         RULES[k]=!RULES[k]; applyRules(); saveRules();

@@ -114,9 +114,18 @@
     if (n === 1) return { type: 'single', value: ranks[0], size: 1, key: [ranks[0]], cards: cards };
     if (n === 2) return same ? { type: 'pair', value: ranks[0], size: 2, key: [ranks[0]], cards: cards } : null;
     if (n === 3) return same ? { type: 'trio', value: ranks[0], size: 3, key: [ranks[0]], cards: cards } : null;
-    if (KITS) {                                    // even sizes 4/6/8/10; can never shadow the 5-card shapes
+    if (n === 4 && DBL_PAIR !== 'off') {            // the double-pair slot — one mode, so never ambiguous
+      var pc = {}, pi, pvv;
+      for (pi = 0; pi < 4; pi++) { pvv = fightValue(cards[pi]); pc[pvv] = (pc[pvv] || 0) + 1; }
+      var pvals = Object.keys(pc).map(Number).sort(function (a, b) { return b - a; });   // high pair first
+      if (!(pvals.length === 2 && pc[pvals[0]] === 2 && pc[pvals[1]] === 2)) return null;
+      if (DBL_PAIR === 'poker') return { type: 'twopair', value: pvals[0], size: 4, key: pvals, cards: cards };
+      if (pvals[0] === pvals[1] + 1) return { type: 'kit', value: pvals[0], size: 4, key: [pvals[0]], cards: cards };
+      return null;                                 // 'kits' mode and the values are not consecutive
+    }
+    if (KITS3 && n >= 6 && n % 2 === 0) {          // runs of 3+ pairs; size 6/8/10 cannot shadow a 5-card shape
       var kt = detectKit(cards);
-      if (kt) return { type: 'kit', value: kt.top, size: n, key: [kt.top], cards: cards };
+      if (kt && kt.pairs >= 3) return { type: 'kit', value: kt.top, size: n, key: [kt.top], cards: cards };
     }
     if (n === 5) {
       var counts = {}; ranks.forEach(function (r) { counts[r] = (counts[r] || 0) + 1; });
@@ -175,7 +184,12 @@
       var window = [lo, lo + 1, lo + 2, lo + 3, lo + 4];
       if (window.every(function (v) { return byRank[v]; })) out.push(window.map(function (v) { return byRank[v][0]; }));
     }
-    if (KITS) {                                                                   // consecutive-pair runs, length 2+
+    if (DBL_PAIR === 'poker') {                                                   // any two pairs, gaps allowed
+      var tp = Object.keys(byRank).filter(function (r) { return byRank[r].length >= 2; }).map(Number);
+      for (var ta = 0; ta < tp.length; ta++) for (var tb = ta + 1; tb < tp.length; tb++)
+        out.push([byRank[tp[ta]][0], byRank[tp[ta]][1], byRank[tp[tb]][0], byRank[tp[tb]][1]]);
+    }
+    if (DBL_PAIR === 'kits' || KITS3) {                                           // consecutive-pair runs
       var canPair = {};
       Object.keys(byRank).forEach(function (r) { if (byRank[r].length >= 2) canPair[+r] = true; });
       for (var kv = 3; kv <= 15; kv++) {
@@ -183,7 +197,10 @@
         var run = [];
         for (var w = kv; w <= 15 && canPair[w]; w++) {
           run.push(w);
-          if (run.length >= 2) {
+          // length 2 belongs to the double-pair slot; 3+ belongs to KITS3. Emitting one without its rule on
+          // would offer a play detectCombo then refuses, which reads to a player as a dead control.
+          var okLen = (run.length === 2) ? (DBL_PAIR === 'kits') : (run.length >= 3 && KITS3);
+          if (okLen) {
             var kc = [];
             run.forEach(function (v) { kc.push(byRank[v][0], byRank[v][1]); });
             out.push(kc);
@@ -1798,9 +1815,19 @@
   var RECYCLE_TECH = false;
   function setRecycleTech(v) { RECYCLE_TECH = !!v; }
   function spendCard(pl, card) { (RECYCLE_TECH ? pl.shuffle : pl.removed).push(card); }
-  var KITS = false;                // OFF: homebrew. Consecutive pairs — see detectKit.
-  function setKits(v) { KITS = !!v; }
-  function isKits() { return KITS; }
+  /* THE DOUBLE-PAIR SLOT IS A MODE, NOT TWO FLAGS (Aj, 2026-08-27). Non-consecutive "two pair" is a SUPERSET of
+   * a 2-kit — 4♦4♥5♣5♠ satisfies both, at the same size — so as independent toggles they could never beat each
+   * other (`beats` needs equal type) and a play would be ambiguously classified. One mode removes that outright:
+   *   'off'   — four cards are not a combo (the shipped game)
+   *   'kits'  — CONSECUTIVE pairs only: the family shape (连对 / 双顺, đôi thông), type 'kit'
+   *   'poker' — any two pairs, gaps allowed: type 'twopair', compared top pair then bottom pair
+   * KITS3 is separate and independent, because 3+ runs are size 6 and can never collide with the 4-card slot —
+   * which is also what lets the Dou Dizhu form (3+ pairs only) be played without the 2-kit at all. */
+  var DBL_PAIR = 'off', KITS3 = false;
+  function setDoublePair(m) { DBL_PAIR = (m === 'kits' || m === 'poker') ? m : 'off'; }
+  function isDoublePair() { return DBL_PAIR; }
+  function setKits3(v) { KITS3 = !!v; }
+  function isKits3() { return KITS3; }
   var NO_STRAIGHT_FLUSH = true;    // SHIPPED: no straight-flush tier — a same-suit run scores as a plain straight (universal rule, same for every deck). Plain flushes were never a legal special. Setter kept for A/B sims only.
   function setNoStraightFlush(v) { NO_STRAIGHT_FLUSH = !!v; }
   // Transform economy (tunable for A/B balance tests; defaults = the shipped rework: cost 10, no draw, energy-gated).
@@ -1925,7 +1952,8 @@
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
-    setKits: setKits, isKits: isKits, detectKit: detectKit,
+    setDoublePair: setDoublePair, isDoublePair: isDoublePair,
+    setKits3: setKits3, isKits3: isKits3, detectKit: detectKit,
     setApexInfinity: setApexInfinity, isApexInfinity: isApexInfinity,
     setApexNoStrip: setApexNoStrip, isApexNoStrip: isApexNoStrip,
     setDrawPerPlayer: setDrawPerPlayer, isDrawPerPlayer: isDrawPerPlayer
