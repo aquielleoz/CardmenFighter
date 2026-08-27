@@ -58,7 +58,10 @@ var CFG=[
  ['O  LIVE + 3 Kits and up only',                    'chosen','targeted', false,true, '', false, 'kits3'],
  ['P  LIVE + 2 Kits + 3 Kits (the v1.31.24 rule)',   'chosen','targeted', false,true, '', false, 'both'],
  ['Q  LIVE + Poker two pair',                        'chosen','targeted', false,true, '', false, 'poker'],
- ['R  LIVE + Poker + 3 Kits',                        'chosen','targeted', false,true, '', false, 'pokerK3']
+ ['R  LIVE + Poker + 3 Kits',                        'chosen','targeted', false,true, '', false, 'pokerK3'],
+ /* S: QUADRO on the live rules. Four of a kind as a plain shape — it breaks a shield like any Special, so the
+  * naive read is again "shorter games". Kits and poker both said otherwise; this row is how we find out. */
+ ['S  LIVE + Quadro (four of a kind)',               'chosen','targeted', false,true, '', false, 'quadro']
 ];
 function run(loss,mill,sh,dp,ap,P,n,ward){
   E.setSpecialLossMode(loss); E.setMillScope(mill); E.setShieldsPerPlayer(sh); E.setDrawPerPlayer(dp);
@@ -68,6 +71,7 @@ function run(loss,mill,sh,dp,ap,P,n,ward){
   var pair = arguments[8] || '';
   if (E.setDoublePair) E.setDoublePair(pair==='kits2'||pair==='both' ? 'kits' : (pair==='poker'||pair==='pokerK3' ? 'poker' : 'off'));
   if (E.setKits3) E.setKits3(pair==='kits3'||pair==='both'||pair==='pokerK3');
+  if (E.setQuadro) E.setQuadro(pair==='quadro');
   E.setApexInfinity(ap === 'inf' || ap === 'nostrip'); E.setApexNoStrip(ap === 'nostrip' || ap === 'nostripOnly');
   var rounds=[], jb=0, sp=0, leadTop=0, leadN=0;
   for(var s=1;s<=n;s++){
@@ -101,4 +105,4 @@ CFG.forEach(function(c){
   });
   console.log(out);
 });
-E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false); E.setApexNoStrip(false); if(E.setWardAll) E.setWardAll(false); if(E.setDoublePair) E.setDoublePair('off'); if(E.setKits3) E.setKits3(false);
+E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false); E.setApexNoStrip(false); if(E.setWardAll) E.setWardAll(false); if(E.setDoublePair) E.setDoublePair('off'); if(E.setKits3) E.setKits3(false); if(E.setQuadro) E.setQuadro(false);

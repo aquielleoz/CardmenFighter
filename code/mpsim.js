@@ -36,7 +36,8 @@ var DHALF = flag('damagehalf');
 var WALL = flag('wardall');
 var KITS = flag('kits');                              // shorthand: the 2-kit slot AND 3+ runs
 var TWOPAIR = flag('twopair');                        // the 4-card slot in POKER mode (gaps allowed) instead
-var KITS3 = flag('kits3') || KITS;                    // 3+ consecutive-pair runs on their own                           // Leyline protects EVERYONE's shields, not just the caster's                      // ...or HALF the table (ceil of living rivals / 2)   // Critical Hit / Ultima Attack -> all rivals
+var KITS3 = flag('kits3') || KITS;                    // 3+ consecutive-pair runs on their own
+var QUADRO = flag('quadro');                          // four of a kind, as a plain shape (no chop)                           // Leyline protects EVERYONE's shields, not just the caster's                      // ...or HALF the table (ceil of living rivals / 2)   // Critical Hit / Ultima Attack -> all rivals
 var LALL = flag('lockoutall') || flag('hostileall');  // Back Stab -> all rivals
 E.setShieldCards(true); E.setLoserMill(true);
 E.setSpecialLossMode(LM); E.setMillScope(MS);
@@ -47,12 +48,13 @@ if (E.setDamageSpan) E.setDamageSpan(DHALF ? 'half' : 1);
 if (E.setWardAll) E.setWardAll(WALL);
 if (E.setDoublePair) E.setDoublePair(TWOPAIR ? 'poker' : (KITS ? 'kits' : 'off'));
 if (E.setKits3) E.setKits3(KITS3);
+if (E.setQuadro) E.setQuadro(QUADRO);
 console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' drawN=' + DPP +
             /* Report the two apex flags INDEPENDENTLY. This used to print `apex=off` whenever infinity was off,
              * even with no-strip set — a lie, and a dangerous one given this file's own rule is "check the
              * printed CONFIG". No-strip stopped requiring infinity on 2026-08-26 (engine ~1512). */
             ' apex=' + (APEX ? (NOSTRIP ? 'unbeatable+nostrip' : 'unbeatable') : (NOSTRIP ? 'nostrip-only(beatable 2)' : 'off')) +
-            ' damageSpan=' + (DALL ? 'all' : (DHALF ? 'half' : 1)) + ' wardAll=' + WALL + ' dblPair=' + (TWOPAIR ? 'poker' : (KITS ? 'kits' : 'off')) + ' kits3=' + KITS3 + ' lockoutAll=' + LALL + (LMAX ? ' lockoutMaxAlive=' + LMAX : ''));
+            ' damageSpan=' + (DALL ? 'all' : (DHALF ? 'half' : 1)) + ' wardAll=' + WALL + ' dblPair=' + (TWOPAIR ? 'poker' : (KITS ? 'kits' : 'off')) + ' kits3=' + KITS3 + ' quadro=' + QUADRO + ' lockoutAll=' + LALL + (LMAX ? ' lockoutMaxAlive=' + LMAX : ''));
 
 /* SELF-CHECK — prove the config took EFFECT, behaviourally. Echoing the flags back is not enough: the flags
  * were right and the parser was wrong, so every arm of a 40-run study silently ran the same rules. This probes
@@ -124,6 +126,16 @@ console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' draw
   var kitsFound = E.legalFightPlays(kg, 0).filter(function (x) {
     return x.combo.type === 'kit' || x.combo.type === 'twopair';
   }).length;
+  /* BEHAVIOURAL, like the kits one: count what the engine actually OFFERS from a staged hand, never read the
+   * parsed flag back — an assertion that reads the flag agrees with the parser, which is how the substring bug
+   * in flag() survived (see v1.31.26). */
+  var qg = E.newGame(null, { numPlayers: 4 });
+  qg.round = 3; qg.pile = null; qg.turn = 0;
+  qg.players[0].hand = [hk(7, 'D'), hk(7, 'H'), hk(7, 'C'), hk(7, 'S')];
+  var quadFound = E.legalFightPlays(qg, 0).filter(function (x) { return x.combo.type === 'quadro'; }).length;
+  console.log('SELF-CHECK quadro: quadro plays offered from 7-7-7-7 = ' + quadFound +
+              ' (expect ' + (QUADRO ? 1 : 0) + ')');
+  if (quadFound !== (QUADRO ? 1 : 0)) { console.log('SELF-CHECK FAILED — quadro flag did not reach the engine'); process.exit(3); }
   console.log('SELF-CHECK kits: 4-card plays offered from 4-4-5-5 = ' + kitsFound +
               ' (expect ' + ((KITS || TWOPAIR) ? 1 : 0) + ')');
   console.log('SELF-CHECK ward: Leyline protected ' + warded + ' player(s) (expect ' + (WALL ? 4 : 1) + ')' +

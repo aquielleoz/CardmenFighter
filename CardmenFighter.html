@@ -1267,6 +1267,9 @@
     if (n === 1) return { type: 'single', value: ranks[0], size: 1, key: [ranks[0]], cards: cards };
     if (n === 2) return same ? { type: 'pair', value: ranks[0], size: 2, key: [ranks[0]], cards: cards } : null;
     if (n === 3) return same ? { type: 'trio', value: ranks[0], size: 3, key: [ranks[0]], cards: cards } : null;
+    /* Ahead of the double-pair slot, which returns early for anything that is not two pairs. No ambiguity is
+     * possible: four cards of ONE value can never be two pairs or a kit, both of which need two values. */
+    if (n === 4 && QUADRO && same) return { type: 'quadro', value: ranks[0], size: 4, key: [ranks[0]], cards: cards };
     if (n === 4 && DBL_PAIR !== 'off') {            // the double-pair slot — one mode, so never ambiguous
       var pc = {}, pi, pvv;
       for (pi = 0; pi < 4; pi++) { pvv = fightValue(cards[pi]); pc[pvv] = (pc[pvv] || 0) + 1; }
@@ -1336,6 +1339,11 @@
     for (var lo = loMin; lo <= loMax; lo++) {
       var window = [lo, lo + 1, lo + 2, lo + 3, lo + 4];
       if (window.every(function (v) { return byRank[v]; })) out.push(window.map(function (v) { return byRank[v][0]; }));
+    }
+    if (QUADRO) {                                                                 // four of a kind
+      Object.keys(byRank).forEach(function (r) {
+        var g = byRank[r]; if (g.length >= 4) out.push([g[0], g[1], g[2], g[3]]);
+      });
     }
     if (DBL_PAIR === 'poker') {                                                   // any two pairs, gaps allowed
       var tp = Object.keys(byRank).filter(function (r) { return byRank[r].length >= 2; }).map(Number);
@@ -2976,7 +2984,13 @@
    *   'poker' — any two pairs, gaps allowed: type 'twopair', compared top pair then bottom pair
    * KITS3 is separate and independent, because 3+ runs are size 6 and can never collide with the 4-card slot —
    * which is also what lets the Dou Dizhu form (3+ pairs only) be played without the 2-kit at all. */
+  /* QUADRO — four of a kind, homebrew and default OFF (Aj: "new players will just break"). It is a PLAIN
+   * shape here: it beats a lower quadro and nothing else. The CHOP — a quadro beating a shape it does not
+   * match — needs cross-shape overrides in beats() and is a separate rule; see the BACKLOG. */
+  var QUADRO = false;
   var DBL_PAIR = 'off', KITS3 = false;
+  function setQuadro(v) { QUADRO = !!v; }
+  function isQuadro() { return QUADRO; }
   function setDoublePair(m) { DBL_PAIR = (m === 'kits' || m === 'poker') ? m : 'off'; }
   function isDoublePair() { return DBL_PAIR; }
   function setKits3(v) { KITS3 = !!v; }
@@ -3105,6 +3119,7 @@
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
+    setQuadro: setQuadro, isQuadro: isQuadro,
     setDoublePair: setDoublePair, isDoublePair: isDoublePair,
     setKits3: setKits3, isKits3: isKits3, detectKit: detectKit,
     setApexInfinity: setApexInfinity, isApexInfinity: isApexInfinity,
@@ -4423,11 +4438,11 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.28';
+  var GAME_VERSION='v1.31.29';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
-  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',straightflush:'Straight Flush',kit:'Kits'};
+  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',straightflush:'Straight Flush',kit:'Kits',twopair:'Two Pair',quadro:'Quadro'};
   /* Kits are the first VARIABLE-LENGTH shape, so a fixed name is not enough — a run of two pairs and a run of
    * three are different plays. Where the combo object is in hand, say which ("2 Kits"); the bare TYPE entry
    * covers the call sites that only carry a type string. */
@@ -4532,7 +4547,12 @@ window.CardFace = {};
       mode:[{v:'off',label:'Off'},{v:'kits',label:'2 Kits'},{v:'poker',label:'Poker'}],
       note:'“2 Kits” needs the two pairs CONSECUTIVE (4s+5s). “Poker” allows any two pairs (4s+9s) and compares the high pair first. They are alternatives, not both.' },
     { key:'kits3',       duel:true, label:'3 Kits and up — longer runs of consecutive pairs',
-      note:'Three pairs of consecutive values, or more. Independent of the row above, so you can play the family\u2019s original form \u2014 runs of three or more only.' }
+      note:'Three pairs of consecutive values, or more. Independent of the row above, so you can play the family\u2019s original form \u2014 runs of three or more only.' },
+    /* QUADRO is off by default for a COGNITIVE-LOAD reason, not a balance one (Aj: "new players will just
+     * break"). It is also a plain shape here — it beats a lower quadro and nothing else. A quadro beating a
+     * shape it does not match is the CHOP, a separate rule that needs cross-shape overrides in beats(). */
+    { key:'quadro',      duel:true, label:'Quadro — four of a kind',
+      note:'All four copies of one value. Beats a lower Quadro only: it does not beat other shapes, and nothing outranks the 2 by being big.' }
   ];
   var RULES={}; RULE_DEFS.forEach(function(d){ RULES[d.key]= d.mode ? d.mode[0].v : false; });
   function ruleOn(d){ return d.mode ? (RULES[d.key]!==d.mode[0].v) : !!RULES[d.key]; }
@@ -4571,6 +4591,7 @@ window.CardFace = {};
       if(E.setApexNoStrip)      E.setApexNoStrip(!!RULES.apexNoStrip);
       if(E.setDoublePair)       E.setDoublePair(RULES.dblPair);
       if(E.setKits3)            E.setKits3(!!RULES.kits3);
+      if(E.setQuadro)           E.setQuadro(!!RULES.quadro);
   }
   function saveRules(){ try{ localStorage.setItem(RULES_KEY, rulesKey()); }catch(e){} }
   (function loadRules(){ try{ var k=localStorage.getItem(RULES_KEY); if(k!=null) setRulesFromKey(k); }catch(e){} })();
@@ -7728,7 +7749,7 @@ window.CardFace = {};
     }
     showModal('<h2>⚗️ Custom rules</h2>'+
       '<p class="ruleIntro">Not the default or intended way to play — but certainly <i>a</i> way to play. '+
-        '<b>The first four only change 3–6 player games; the last four change duels too.</b></p>'+
+        '<b>The first four only change 3–6 player games; the last five change duels too.</b></p>'+
       (ro ? '<div class="netmsg">'+(opts.why||'These are the rules this game is using. Rules are chosen before a game starts.')+'</div>' : '')+
       '<div class="settings">'+RULE_DEFS.map(rowHTML).join('')+'</div>'+
       /* Deliberately unspecific (Aj: "no need to say which ones haha"). Naming the decks and their win rates is
