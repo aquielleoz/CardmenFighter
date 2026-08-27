@@ -298,11 +298,27 @@
   // Holy Shroud: spend one of its counters to EAT the hit (a physical absorb — works vs a shield loss OR,
   // at 0 shields, the Fighter Kick). Returns true (and spends a counter) if an absorber is available.
   function retireEquip(pl, e) { if (e && e.card) pl.energy.push(e.card); }   // worn-out / spent Equipment → its card becomes Energy (recyclable via the shuffle cycle)
+  /* WARD_ALL also shares Holy Shroud (Aj, 2026-08-26): its counters can absorb a hit for ANYONE, not only its
+   * owner. Note the difference from Leyline — Shroud is counter-limited equipment, so sharing it does NOT simply
+   * hand everyone protection: one counter still absorbs exactly one hit, it just no longer matters whose. Under
+   * `all` that turns a per-owner save into a single table-wide save, which is the asymmetry being removed.
+   * The loser's OWN absorber is always tried first, so behaviour is unchanged whenever only they have one. */
+  function findAbsorber(st, q) {
+    var own = st.players[q].equipment.filter(function (e) { return e.absorb && e.counters > 0; })[0];
+    if (own) return { owner: q, e: own };
+    if (!WARD_ALL) return null;
+    for (var w = 0; w < st.numPlayers; w++) {
+      if (w === q || st.players[w].eliminated) continue;
+      var e2 = st.players[w].equipment.filter(function (e) { return e.absorb && e.counters > 0; })[0];
+      if (e2) return { owner: w, e: e2 };
+    }
+    return null;
+  }
   function absorbSaved(st, q) {
-    var pl = st.players[q];
-    var shroud = pl.equipment.filter(function (e) { return e.absorb && e.counters > 0; })[0];
-    if (!shroud) return false;
-    shroud.counters -= 1; if (shroud.counters <= 0) { retireEquip(pl, shroud); pl.equipment = pl.equipment.filter(function (e) { return e !== shroud; }); }
+    var hit = findAbsorber(st, q);
+    if (!hit) return false;
+    var owner = st.players[hit.owner], shroud = hit.e;
+    shroud.counters -= 1; if (shroud.counters <= 0) { retireEquip(owner, shroud); owner.equipment = owner.equipment.filter(function (e) { return e !== shroud; }); }
     return true;
   }
   // Would player q's shield loss be prevented WITHOUT costing a shield? Sphere = free round-long
@@ -317,7 +333,8 @@
   // plain shield-immunity can't save a shield you don't have, so it must NOT suppress the guard window there.
   function wouldBeSaved(st, q) {
     var pl = st.players[q];
-    var hasAbsorb = pl.equipment.some(function (e) { return e.absorb && e.counters > 0; });
+    var hasAbsorb = !!findAbsorber(st, q);            // table-wide under WARD_ALL, so the guard window and the
+                                                     // actual resolution cannot disagree
     if (pl.shields <= 0) return !!pl.cantLoseRound || hasAbsorb;                  // at 0, the kick is prevented only by "can't lose this round" or a Holy Shroud counter
     if (pl.shieldImmune || pl.cantLoseRound || pl.preventShield) return true;
     if (hasAbsorb || pl.equipment.some(function (e) { return e.protect === 'special'; })) return true;
@@ -1099,12 +1116,17 @@
           if (SHIELD_CARDS && swho.shieldPile) { for (var sgi = 0; sgi < sgain; sgi++) { var sgc = drawOne(swho); if (sgc) swho.shieldPile.push(sgc); swho.shields += 1; } }   // Mechanic 1: a gained shield pulls a card from that player's own deck
           else swho.shields += sgain;
         }
-        if (eff.shieldImmune) pl.shieldImmune = true;      // Apollo (Super): Sanctuary also locks the CASTER's shields for the round (caster-only)
+        /* Apollo (Super): Sanctuary also locks the CASTER's shields for the round. The base card is already
+         * symmetric (`shieldAll` — every player gains a shield, a wash on the shield race), so THIS is the only
+         * asymmetric protection left once Leyline and Holy Shroud are shared, and WARD_ALL shares it too. */
+        if (eff.shieldImmune) { pl.shieldImmune = true; if (WARD_ALL) wardTable(st, 'shieldImmune'); }
         if (eff.draw) drawCards(pl, eff.draw);
         spendCard(pl, card); break;
       case 'ward':                                         // Leyline base: pure can't-lose, no ramp/recycle
-        if (eff.immune) pl.shieldImmune = true;
-        if (eff.cantLose) pl.cantLoseRound = true;
+        // WARD_ALL shares it with the table — see the note in `reclaim`. THIS is the base card's branch; the
+        // reclaim branch is the boosted variant, and both must honour the flag or the study measures nothing.
+        if (eff.immune) { pl.shieldImmune = true; if (WARD_ALL) wardTable(st, 'shieldImmune'); }
+        if (eff.cantLose) { pl.cantLoseRound = true; if (WARD_ALL) wardTable(st, 'cantLoseRound'); }
         spendCard(pl, card); break;
       case 'valueBoost':                                  // Infuse / Imbue / Divine Tactic: charge your next play
         pl.nextPlayBoost = (pl.nextPlayBoost || 0) + (eff.boost || 0);
@@ -1165,8 +1187,14 @@
         }
         if (eff.half) { var half = Math.floor(pl.deck.length / 2); for (var iH = 0; iH < half; iH++) { var hc = pl.deck.shift(); if (hc) pl.energy.push(hc); } }
         if (eff.draw) drawCards(pl, eff.draw);
-        if (eff.immune) pl.shieldImmune = true;           // Leyline Ascension folds in Sphere's round-long shield immunity
-        if (eff.cantLose) pl.cantLoseRound = true;        // …and, unlike Sphere, also blocks the Fighter Kick at 0 shields ("can't lose this round")
+        /* WARD_ALL (Aj, 2026-08-26): Leyline protects EVERYONE's shields, not just the caster's. Aimed at the
+         * reason loss=all breaks deck balance — Leyline (♦9) is the only shield-protection card in the game, so
+         * under `all`, where every Special win hits every rival, its value multiplies by (N-1) in the caster's
+         * favour and Wizard decks run away with it. Sharing the ward removes the ASYMMETRY rather than nerfing
+         * the card: it still stops the round's damage, it just stops it for the table, so casting it no longer
+         * buys a private edge. Flag, default off. */
+        if (eff.immune) { pl.shieldImmune = true; if (WARD_ALL) wardTable(st, 'shieldImmune'); }
+        if (eff.cantLose) { pl.cantLoseRound = true; if (WARD_ALL) wardTable(st, 'cantLoseRound'); }
         spendCard(pl, card); break;
       case 'counterfeit':                                 // Counterfeit: copy a card from the Rival's current play into hand as a temp
         var poolCF = (st.pile && st.pile.byPlayer !== p) ? st.pile.combo.cards : null, srcCF = null;
@@ -1657,13 +1685,41 @@
     for (r in counts) if (counts[r] >= 2) pairs++;
     return { best: best, pairs: pairs, size: pl.hand.length };
   }
+  /* DAMAGE_SPAN (Aj, 2026-08-26): how many rivals the SHIELD-BREAK cards hit — Critical Hit (Rogue) and Ultima
+   * Attack (Fighter). `damageAll` proved too blunt a dial: it lifted those decks by only ~2 points under
+   * loss=all while handing Warlock (Rogue offence + Wizard defence) a jump to #3, so Aj asked for a middle
+   * setting. 1 = the chosen target (shipped), 'half' = ceil(living rivals / 2), 'all' = every living rival.
+   * The splash goes to the rivals with the MOST shields after the chosen target, so the dial scales toward the
+   * leaders rather than by seat order — seat order would bake a positional bias into every measurement.
+   * The span deliberately does NOT apply to the lockout card: engine's own note is that scaling a turn skip is
+   * worth closer to a free round, a much bigger multiplier, so it keeps its own boolean. */
+  var DAMAGE_SPAN = 1;
+  function setDamageSpan(v) { DAMAGE_SPAN = (v === 'all' || v === 'half') ? v : Math.max(1, v | 0); }
+  function isDamageSpan() { return DAMAGE_ALL ? 'all' : DAMAGE_SPAN; }
+  var WARD_ALL = false;
+  function setWardAll(v) { WARD_ALL = !!v; }
+  function isWardAll() { return WARD_ALL; }
+  function wardTable(st, field) {                        // share a shield ward with every living player
+    for (var w = 0; w < st.numPlayers; w++) if (!st.players[w].eliminated) st.players[w][field] = true;
+  }
   function hostileTargets(st, p, oppIdx, which, eff) {
     // `eff.all` is a property of the CARD (Hermes Back Stab), not of the research flags — a form-granted
     // upgrade must work with the flags off, which is how it ships.
+    var i, alive = [];
+    for (i = 0; i < st.numPlayers; i++) if (i !== p && !st.players[i].eliminated) alive.push(i);
     var on = (eff && eff.all) || ((which === 'lockout') ? LOCKOUT_ALL : DAMAGE_ALL);
-    if (!on) return (oppIdx == null || oppIdx < 0) ? [] : [oppIdx];
-    var a = []; for (var i = 0; i < st.numPlayers; i++) if (i !== p && !st.players[i].eliminated) a.push(i);
-    return a;
+    if (on) return alive;
+    var span = (which === 'lockout') ? 1 : DAMAGE_SPAN;
+    var one = (oppIdx == null || oppIdx < 0) ? [] : [oppIdx];
+    if (span === 1 || alive.length <= 1) return one;
+    var want = (span === 'all') ? alive.length
+             : (span === 'half') ? Math.ceil(alive.length / 2)
+             : Math.min(span, alive.length);
+    var out = one.slice();
+    alive.filter(function (x) { return x !== oppIdx; })
+         .sort(function (a, b) { return st.players[b].shields - st.players[a].shields; })
+         .forEach(function (x) { if (out.length < want) out.push(x); });
+    return out;
   }
   /* DEFAULTS MATCH THE SHIPPED GAME. They used to be 'all' / 'universal' — the v1.31.0 multiplayer package,
    * which was REVERTED in v1.31.2 for breaking deck balance. The template has set 'chosen' / 'targeted'
@@ -1797,6 +1853,8 @@
     newGame: newGame, play: play, pass: pass, phantasm: phantasm, drawCards: drawCards, isLocked: isLocked,
     setDeferRoundDraw: setDeferRoundDraw, roundDraw: roundDraw, setShieldCards: setShieldCards, setLoserMill: setLoserMill, setRecycleTech: setRecycleTech,
     setHostileAll: setHostileAll, setDamageAll: setDamageAll, setLockoutAll: setLockoutAll,
+    setDamageSpan: setDamageSpan, isDamageSpan: isDamageSpan,
+    setWardAll: setWardAll, isWardAll: isWardAll,
     isDamageAll: isDamageAll, isLockoutAll: isLockoutAll,
     setSpecialLossMode: setSpecialLossMode, setMillScope: setMillScope,
     isSpecialLossMode: isSpecialLossMode, isMillScope: isMillScope, setShieldTargetChooser: setShieldTargetChooser, setLossTargetInteractive: setLossTargetInteractive, chooseLossTarget: chooseLossTarget, concede: concede, aliveCount: aliveCount, lastAlive: lastAlive,

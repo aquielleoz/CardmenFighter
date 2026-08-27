@@ -208,6 +208,141 @@ loss/mill pairing is a **length** lever, not a balance one. **Lesson: a balance 
 life — re-date it before reusing it to veto an idea — and check that the arm you are testing is a design
 someone would actually ship.**
 
+### 0n. `loss=all` is broken by a DEFENSIVE card, not by unscaled offence. (2026-08-26)
+
+Following 0m's rank finding — that `all` does not widen the deck table but **reorders** it, with Wizard/Cleric up
+and Fighter/Rogue/Berserker collapsing — Aj asked the obvious next question: if the offensive decks lose because
+their damage does not scale, does scaling it fix them? Two dials, both measured, both no.
+
+- **`damageAll`** — Critical Hit (Rogue) and Ultima Attack (Fighter) hit every living rival.
+- **`damageSpan='half'`** (new, Aj's suggestion when `all` looked too harsh) — those cards hit
+  `ceil(living rivals / 2)`: the chosen target plus the rivals with the **most shields**, so the splash scales
+  toward the leaders rather than by seat order, which would bake positional bias into every measurement.
+  Note it is a **no-op at 3 players** (2 rivals → ceil(2/2) = 1 = shipped), which the numbers show.
+
+Spread, 6 interleaved runs of 1,500 games:
+
+| | base | `all` | `all`+half | `all`+dmgAll |
+| --- | --- | --- | --- | --- |
+| 3p | 13.4 | 23.5 | 24.1 | 16.0 |
+| 4p | 16.5 | 29.0 | 27.3 | 24.1 |
+| 6p | 12.6 | **33.5** | **26.2** | **26.8** |
+
+6p per-deck, sorted by baseline rank — the three intended beneficiaries and the runaway leader:
+
+| deck | base | `all` | `all`+half | `all`+dmgAll |
+| --- | --- | --- | --- | --- |
+| Pure Wizard | 16.0% | **36.4% (#1)** | **31.8% (#1)** | **32.8% (#1)** |
+| Pure Fighter | 16.4% | 4.3% | 6.4% (#11) | 6.5% (#11) |
+| Pure Rogue | 9.5% | 4.1% | 6.5% (#10) | 6.5% (#10) |
+| Berserker | 13.7% | 3.8% | 7.4% (#9) | 6.8% (#9) |
+| Warlock (Wiz+Rog) | 13.6% | 17.2% | 20.7% (#4) | 22.4% (#3) |
+
+Both dials buy the offensive decks **2-3 points and no rank movement**, they leave the spread at roughly double
+baseline, and Spearman rho against the baseline order gets *worse* (0.36 → 0.31 → 0.22). The clearest tell is
+that the biggest beneficiary is **Warlock** — Rogue offence *plus* Wizard defence — not the pure attackers.
+
+**THE MECHANISM: `Leyline Ascension` (♦9) is the only card in the game that prevents shield loss.** Checked all
+four suits; Hearts, Clubs and Spades have nothing. Under `chosen` a blank saves a shield only on the rounds you
+happen to be picked. Under `all` you are hit on **every** Special round, so the blank saves one **every time** —
+its value multiplies by (N-1) in exactly the same way `all` multiplies the value of landing a Special. Pure
+Wizard holds **four copies**, and it is a Quick, so it can be sprung reactively.
+
+**So `all` is not an offence-scaling problem, and no amount of tuning the attack cards will fix it.** The
+symmetric lever is the defensive one: under `all`, make protection *not* scale — e.g. Leyline blanks a single
+incoming loss rather than the whole round. That is the experiment worth running next; scaling the offence is
+finished and the answer was no.
+
+**AJ'S FIX WORKS ON THE CAUSE — and then reveals that the cause is structural.** Instead of nerfing Leyline,
+share it: `WARD_ALL` makes it protect **everyone's** shields, not just the caster's. The idea is to remove the
+ASYMMETRY rather than the card — it still stops the round's damage, it just stops it for the table, so casting it
+no longer buys a private edge.
+
+| | base | `all` | `all`+ward | ward only |
+| --- | --- | --- | --- | --- |
+| 3p spread | 13.0 | 23.8 | 22.6 | 12.9 |
+| 4p spread | 16.7 | 31.0 | 24.7 | 15.4 |
+| 6p spread | 12.3 | **31.7** | **27.3** | **11.6** |
+| Pure Wizard @6p | 16.2% (#8) | **35.2% (#1)** | **18.5% (#4)** | 14.5% (#8) |
+| Pure Cleric @6p | 21.2% (#1) | 27.1% (#3) | **32.7% (#1)** | 20.5% (#2) |
+| Spearman rho | — | 0.45 | **0.73** | **0.94** |
+
+**It is by far the most effective lever tried:** Pure Wizard's runaway collapses 35.2% → 18.5%, and the rank
+order substantially returns (rho 0.45 → 0.73, against 0.31-0.36 for every damage dial). The diagnosis was right.
+
+**But `all` is still not viable, because the crown simply moves to Pure Cleric (27.1% → 32.7%, #1).** Auditing
+every mitigation effect in the game explains why — it lives in only **two of the four classes**:
+
+| suit | shield mitigation |
+| --- | --- |
+| ♦ Wizard | Leyline Ascension (immune, cantLose) |
+| ♥ Cleric | Holy Shroud (absorb) — plus Sanctuary, which is **already symmetric** (`shieldAll`: every player gains) |
+| ♣ Fighter | **none** |
+| ♠ Rogue | **none** |
+
+**THE LAW: under `all`, any shield-loss mitigation multiplies in value by (N-1), and half the classes have
+none.** That is the whole reordering in one sentence — the top three under `all` are Wizard, Sage (Wiz+Cle) and
+Cleric; the bottom three are exactly Fighter, Rogue and Berserker (Fig+Rog), the decks with zero mitigation.
+Leyline was the largest instance, not the only one, which is why sharing it hands the crown to Cleric instead of
+closing the spread, and why scaling the OFFENCE never touched the problem at all.
+
+So `all` cannot be repaired by patching cards one at a time. The options are: give Fighter and Rogue mitigation
+of their own, change `all` so it does not multiply mitigation, or leave it as the homebrew toggle it is now.
+**Do not re-open this with another offence-side idea** — that avenue is measured and closed.
+
+**SHARE HOLY SHROUD TOO (Aj) AND `all` BECOMES ARGUABLY PLAYABLE.** Leyline alone left the crown with Cleric,
+whose Holy Shroud and Sanctuary were untouched — so share the Shroud as well. It is counter-limited *equipment*,
+so sharing it is not simply "everyone is protected": one counter still absorbs exactly one hit, it just no longer
+matters whose. The loser's own absorber is tried first, so nothing changes when only they have one.
+
+Both cards shared (6 interleaved runs of 1,500; pacing from `rulesim`, medians):
+
+| | base | `all` | `all`+ward | `all`+ward+shields2+N |
+| --- | --- | --- | --- | --- |
+| 6p spread | 13.0 | **32.1** | **18.3** | 23.3 |
+| 4p spread | 15.7 | 29.9 | 18.3 | 22.3 |
+| 2p spread | 13.2 | 12.8 | **8.4** | 9.3 |
+| 6p rounds | 30 | 9 | **11** | 17 |
+| Spearman rho | — | 0.34 | 0.55 | 0.62 |
+| Pure Wizard @6p | 15.6% | **34.8% (#1)** | 24.3% (#2) | 27.2% (#2) |
+| Pure Fighter @6p | 16.3% | **4.1% (#11)** | **9.7%** | 9.0% |
+| Pure Rogue @6p | 10.7% | 4.6% | **8.2%** | 5.3% |
+
+**This is the first version of `loss=all` that is arguably playable.** It keeps almost all of `all`'s pacing win
+(6p 30 → 11 rounds) while cutting the balance damage by roughly two thirds (spread 32.1 → 18.3), and the
+annihilated decks roughly double (4% → 8-10%). It is also **good for duels** (2p spread 13.2 → 8.4).
+
+**It is still not the shipped game.** 18.3 against a baseline 13.0 is materially wider, Fighter and Rogue sit at
+8-10% against a fair share of 16.7%, and rho 0.55 means the order is only half restored. And adding Aj's
+shields-2+N trades back: pacing improves to 17 rounds (the documented middle ground) but the spread widens again
+to 23.3, because more shields means more rounds in which mitigation matters.
+
+**CORRECTION — Sanctuary is NOT an asymmetry, and this entry first said it was.** Aj: *"sanctuary gains everyone
+a shield it's already symmetric"*. He is right: it carries `shieldAll: true` ("Every player gains 1 Shield"), and
+the engine's own comment calls it *"a wash on the shield race (the nerf)"*. The suit audit above listed it as
+Cleric mitigation without noting that, which made the conclusion wrong in a way that mattered — after sharing
+Leyline and Holy Shroud there is **no asymmetric protection CARD left at all**, so the residual 18.3 spread is
+not explained by another one.
+
+**The one real remainder is FORM-granted, not card-granted:** under **Apollo Mode** (♥ Super), Sanctuary
+additionally locks the **caster's** shields for the round (`eff.shieldImmune`, caster-only). `WARD_ALL` now
+shares that too, for consistency — though it is Super-gated (needs a Ride plus J+Q+K), so it is rare enough that
+it cannot account for much.
+
+**Method note:** `mpsim` now self-checks the ward behaviourally, not just by echoing the flag — seat 1 owns the
+only Shroud, seat 0 wins a Special under `loss=all`, and it asserts that a **non-owner** keeps its shield, which
+is impossible unless the ward really is shared. The first version of the engine patch edited only the `reclaim`
+branch; the base card is `kind:'ward'`, so it would have measured nothing at all.
+
+**Worth knowing separately: on the SHIPPED rules, sharing the ward is balance-neutral** — spread 11.6 vs 12.3 at
+6p and rho **0.94**, with Pure Fighter drifting up (#7 → #5) and nothing else moving. So "Leyline protects the
+table" is available as a design option or a menu toggle in its own right, independent of `all`.
+
+**Instrument note:** `mpsim`'s hostile SELF-CHECK aborted the first `half` run, expecting Critical Hit to strike
+1 when it struck 2. That is the check working — it had no knowledge of the new span. Taught it (`DALL ? 3 :
+DHALF ? 2 : 1` at the 4-player probe) and the CONFIG line now prints `damageSpan=1|half|all` instead of a
+boolean.
+
 ### 0m. The apex-2 flags, measured — and two framing errors of mine corrected. (2026-08-26)
 
 These were the only never-measured flags in the engine; their "balance-neutral at 10 runs" claim came from the

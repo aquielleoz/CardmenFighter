@@ -28,19 +28,23 @@ var LM = (opt('loss','chosen') === 'all') ? 'all' : 'chosen';
 var SHP = flag('noshp') ? false : (flag('shp') || E.isShieldsPerPlayer());
 var DPP = flag('nodpp') ? false : (flag('dpp') || E.isDrawPerPlayer());
 var APEX = flag('apex'), NOSTRIP = flag('nostrip');
-var DALL = flag('damageall') || flag('hostileall');   // Critical Hit / Ultima Attack -> all rivals
+var DALL = flag('damageall') || flag('hostileall');
+var DHALF = flag('damagehalf');
+var WALL = flag('wardall');                           // Leyline protects EVERYONE's shields, not just the caster's                      // ...or HALF the table (ceil of living rivals / 2)   // Critical Hit / Ultima Attack -> all rivals
 var LALL = flag('lockoutall') || flag('hostileall');  // Back Stab -> all rivals
 E.setShieldCards(true); E.setLoserMill(true);
 E.setSpecialLossMode(LM); E.setMillScope(MS);
 E.setShieldsPerPlayer(SHP); E.setDrawPerPlayer(DPP);
 var LMAX=parseInt((FLAGS.match(/lockmax=(\d+)/)||[0,0])[1],10); if(LMAX && AI.setLockoutMaxAlive) AI.setLockoutMaxAlive(LMAX);
 E.setApexInfinity(APEX); E.setApexNoStrip(NOSTRIP); E.setDamageAll(DALL); E.setLockoutAll(LALL);
+if (E.setDamageSpan) E.setDamageSpan(DHALF ? 'half' : 1);
+if (E.setWardAll) E.setWardAll(WALL);
 console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' drawN=' + DPP +
             /* Report the two apex flags INDEPENDENTLY. This used to print `apex=off` whenever infinity was off,
              * even with no-strip set — a lie, and a dangerous one given this file's own rule is "check the
              * printed CONFIG". No-strip stopped requiring infinity on 2026-08-26 (engine ~1512). */
             ' apex=' + (APEX ? (NOSTRIP ? 'unbeatable+nostrip' : 'unbeatable') : (NOSTRIP ? 'nostrip-only(beatable 2)' : 'off')) +
-            ' damageAll=' + DALL + ' lockoutAll=' + LALL + (LMAX ? ' lockoutMaxAlive=' + LMAX : ''));
+            ' damageSpan=' + (DALL ? 'all' : (DHALF ? 'half' : 1)) + ' wardAll=' + WALL + ' lockoutAll=' + LALL + (LMAX ? ' lockoutMaxAlive=' + LMAX : ''));
 
 /* SELF-CHECK — prove the config took EFFECT, behaviourally. Echoing the flags back is not enough: the flags
  * were right and the parser was wrong, so every arm of a 40-run study silently ran the same rules. This probes
@@ -81,10 +85,39 @@ console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' draw
   E.activate(bg, 0, 'sc10S', { target: 1 });
   var bLock = [1, 2, 3].filter(function (q) { return bg.players[q].lockSkip; }).length;
   var bRound = [1, 2, 3].filter(function (q) { return bg.players[q].lockRound; }).length;   // base Back Stab locks the ROUND (v1.31.4)
-  console.log('SELF-CHECK hostile: Critical Hit struck ' + hStruck + ' (expect ' + (DALL ? 3 : 1) +
+  /* Leyline's ward: with wardall on, one cast must protect EVERY living player. A flag that silently fails to
+   * take effect is how a study measures the shipped game and reports it as a finding. */
+  var wg = E.newGame(null, { numPlayers: 4 });
+  wg.round = 3; wg.turn = 0; wg.pile = null;
+  wg.players[0].hand = [hk(9, 'D'), hk(5, 'C')];
+  wg.players[0].energy = []; for (i = 0; i < 14; i++) wg.players[0].energy.push(hk(4, 'D'));
+  E.activate(wg, 0, 'sc9D', {});
+  var warded = [0, 1, 2, 3].filter(function (q) { return !!wg.players[q].cantLoseRound; }).length;
+  /* Holy Shroud shared: seat 1 OWNS the only Shroud, seat 0 wins a Special under loss=all, and we count how
+   * many rivals actually keep their shield. Without the flag exactly one is saved (the owner). With it the
+   * single counter still saves exactly one player, but it may be a NON-owner — so the thing to assert is that a
+   * seat with no equipment of its own gets saved, which is impossible unless the ward is shared. */
+  var sg = E.newGame(null, { numPlayers: 4 });
+  sg.round = 3; sg.pile = null; sg.turn = 0; sg.passes = 0;
+  sg.players[0].hand = [hk(9, 'H'), hk(9, 'D')];
+  for (i = 1; i < 4; i++) sg.players[i].hand = [hk(3, 'S')];
+  sg.players[1].equipment = [{ id: 'scHS', name: 'Holy Shroud', absorb: true, counters: 1, decay: false,
+                               card: { rank: 10, suit: 'H', id: 'scHS10H' } }];
+  var sBefore = [sg.players[1].shields, sg.players[2].shields, sg.players[3].shields];
+  E.play(sg, 0, [hk(9, 'H'), hk(9, 'D')]);
+  for (i = 1; i < 4 && !sg.finished; i++) { if (sg.turn === i) E.pass(sg, i); }
+  if (sg.pendingLossChoice) E.chooseLossTarget(sg, sg.pendingLossChoice.cands ? sg.pendingLossChoice.cands[0] : 1);
+  var sAfter = [sg.players[1].shields, sg.players[2].shields, sg.players[3].shields];
+  var shroudSpent = !sg.players[1].equipment.some(function (e) { return e.absorb && e.counters > 0; });
+  var nonOwnerSaved = (sAfter[1] === sBefore[1]) || (sAfter[2] === sBefore[2]);   // seat 2 or 3 kept its shield
+  console.log('SELF-CHECK ward: Leyline protected ' + warded + ' player(s) (expect ' + (WALL ? 4 : 1) + ')' +
+              '   Shroud spent=' + shroudSpent + ' non-owner saved=' + nonOwnerSaved +
+              (LM === 'all' ? ' (expect a non-owner save only with wardall)' : ' (loss=chosen: not probed)'));
+  console.log('SELF-CHECK hostile: Critical Hit struck ' + hStruck + ' (expect ' + (DALL ? 3 : (DHALF ? 2 : 1)) +
               '), Back Stab locked ' + bLock + ' (expect ' + (LALL ? 3 : 1) + ', whole-round ' + bRound + ')');
   var bad = (shields !== (SHP ? 6 : 4)) || (draw !== (DPP ? 4 : 2)) || (struck !== (LM === 'all' ? 3 : 1)) ||
-            (hStruck !== (DALL ? 3 : 1)) || (bLock !== (LALL ? 3 : 1)) || (bRound !== bLock);
+            (hStruck !== (DALL ? 3 : (DHALF ? 2 : 1))) || (bLock !== (LALL ? 3 : 1)) || (bRound !== bLock) ||
+            (warded !== (WALL ? 4 : 1));
   if (bad) { console.log('*** SELF-CHECK FAILED — the config did not take effect. These numbers are worthless. ***'); process.exit(3); }
 })();
 

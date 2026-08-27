@@ -42,10 +42,18 @@ var CFG=[
   * all (SPECIAL_LOSS_MODE bypassed) and every loser mills (MILL_SCOPE bypassed, in the universal direction). */
  ['H  loss=all + nostrip only',                      'all','targeted',    false,true, 'nostripOnly'],
  ['I  mill=universal + nostrip only',                'chosen','universal',false,true, 'nostripOnly'],
- ['J  all + universal + nostrip only',               'all','universal',   false,true, 'nostripOnly']
+ ['J  all + universal + nostrip only',               'all','universal',   false,true, 'nostripOnly'],
+ /* K/L: the mitigation-side counterweight. `all` multiplies the value of shield protection by (N-1), and only
+  * two of four classes have any — so share it (Leyline + Holy Shroud protect the table, not just the owner). */
+ ['K  loss = all + shared ward',                     'all','targeted',    false,true, '', true],
+ ['L  LIVE + shared ward (for contrast)',            'chosen','targeted', false,true, '', true],
+ /* M: K plus Aj's shields-2+N, because K alone lands at 11 rounds at 6p and this file already records 9 as an
+  * overshoot — shields scaling was the documented middle ground for exactly that. */
+ ['M  all + shared ward + shields 2+N',              'all','targeted',    true, true, '', true]
 ];
-function run(loss,mill,sh,dp,ap,P,n){
+function run(loss,mill,sh,dp,ap,P,n,ward){
   E.setSpecialLossMode(loss); E.setMillScope(mill); E.setShieldsPerPlayer(sh); E.setDrawPerPlayer(dp);
+  if (E.setWardAll) E.setWardAll(!!ward);       // shared Leyline + Holy Shroud (the mitigation-side counterweight)
   E.setApexInfinity(ap === 'inf' || ap === 'nostrip'); E.setApexNoStrip(ap === 'nostrip' || ap === 'nostripOnly');
   var rounds=[], jb=0, sp=0, leadTop=0, leadN=0;
   for(var s=1;s<=n;s++){
@@ -74,9 +82,9 @@ console.log('config                                      2p              3p     
 CFG.forEach(function(c){
   var out=c[0].padEnd(44);
   [2,3,4,6].forEach(function(P){
-    var r=run(c[1],c[2],c[3],c[4],c[5],P,90);
+    var r=run(c[1],c[2],c[3],c[4],c[5],P,90,c[6]);
     out += (String(r.med)+'('+r.max+') j'+r.jabPct+' L'+r.lead).padEnd(16);
   });
   console.log(out);
 });
-E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false); E.setApexNoStrip(false);
+E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false); E.setApexNoStrip(false); if(E.setWardAll) E.setWardAll(false);

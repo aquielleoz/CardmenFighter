@@ -5,28 +5,42 @@ Test: `npm test` = `node test.js` (**231**) + `node netview.test.js` (**28**) �
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
 Current version: **v1.31.23**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
-## ☀️ START HERE — where we left off (2026-08-25)
+## ☀️ START HERE — where we left off (2026-08-26)
 
-`main` is at **v1.31.20**, working tree clean, and `node build.js` reproduces the committed HTML byte-for-byte.
+`main` is at **v1.31.23**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
+the full suite is green.
 
-**Two things are deliberately NOT on main, and neither is half-done:**
-- **`feat/qr-scanning` is PARKED** — camera scanning, built and green at 21/0, closed unmerged as PR #29. It
-  works; its only working configuration is not worth it. The blocker is the **origin**, not the code (a file
-  opened from Android Downloads is `content://`, an opaque origin, so Chrome rejects the camera without ever
-  prompting). Full reasoning in the BACKLOG. **Reviving it is a merge, not a rebuild.**
-- **Both "flaky" netplay suites had REAL causes — neither was the environment.** `nettest_full` was reporting a
-  genuine game bug: **the host could be locked out of a round it just won** (fixed v1.31.20, see the changelog).
-  `nettest_log` was **deal-dependent** (fixed separately). Four A/Bs were spent on a load hypothesis and none of
-  it was load. The remaining candidates — `exporttest`, `nettest_names` — deserve the same treatment: look for a
-  real dependency before blaming timing, and read a failing trace first.
-
-**Sanity check before you touch anything** (from `code/`, ~15 seconds):
+**Sanity check before you touch anything** (from `code/`, ~20 seconds):
 
 ```bash
-npm test && node mptest.js
+npm test && node mptest.js && node rulestest.js
 ```
 
-Expect **231 / 0**, **28 / 0**, **82 / 0**. If those pass, the repo is exactly as it was left.
+Expect **231 / 0**, **28 / 0**, **82 / 0**, **33 / 0**. If those pass, the repo is exactly as it was left.
+
+**Three branches exist off main, and none of them is half-done:**
+- **`exp/shield-break-all` — OPEN, unmerged.** The whole `loss=all` investigation (PATCHNOTES **0n**): why it
+  breaks deck balance, why scaling the offence cannot fix it, and the shared-ward repair that mostly does. Adds
+  `setWardAll` and `setDamageSpan` to the engine — **both default off** — plus behavioural self-checks in
+  `mpsim` and rows E-M in `rulesim`. Nothing here changes the shipped game.
+- **`feat/qr-scanning` — PARKED.** Camera scanning, built and green at 21/0, closed unmerged as PR #29. It
+  works; its only working configuration is not worth it. The blocker is the **origin**, not the code (a file
+  opened from Android Downloads is `content://`, an opaque origin, so Chrome rejects the camera without ever
+  prompting). Reviving it is a merge, not a rebuild.
+- Everything else is merged and the remote is pruned.
+
+**The one thing most worth reading before touching balance:** PATCHNOTES **0n**. It closes the offence-scaling
+avenue with measurements, states the law that explains the whole `loss=all` reordering (mitigation multiplies by
+N-1 and only two of four classes have any), and records the colour-pie constraint Aj set — *"let colors be
+colors, we'll balance some other way"* — which rules out the two obvious fixes.
+
+**Next up, in the order they are worth doing:**
+1. **The one-loss cap** — under `all`, protection prevents ONE incoming loss instead of the whole round. The
+   pie-respecting lever: no class identity moves, only the scaling is removed. Unmeasured, one flag, harness
+   already built.
+2. **Kits** — consecutive pairs, the first genuinely duel-relevant new shape. Design work is done in the BACKLOG
+   (2-pair floor, deck-neutral, lead-side only, first variable-length shape); nothing is built.
+3. **Sanctuary is NOT a lever** — it is already symmetric (`shieldAll`). Do not re-derive that.
 
 ### What just shipped
 **v1.31.9 → v1.31.17, and the shape of it: most of today's bugs were in the TOOLING or in my own reasoning, not
@@ -194,6 +208,34 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   - **Kits** would be the other duel-relevant rule — see the entry below.
   - Everything else about the menu is built: the panel, all three entry points, netplay propagation, un-ready,
     persistence, and the export stamp.
+
+- **`loss=all` IS REPAIRABLE, and the whole avenue is now measured (PATCHNOTES 0n).** Everything below is done;
+  do not re-derive it.
+  - **The law:** under `all`, any shield-loss mitigation multiplies in value by (N-1), and only **two of four
+    classes have any** (♦ Leyline; ♥ Holy Shroud). That is the entire reordering — Wizard/Sage/Cleric to the top,
+    Fighter/Rogue/Berserker (the decks with none) to the bottom.
+  - **Scaling the OFFENCE does not work and is closed.** `damageAll` and `damageSpan='half'` buy the crushed
+    decks 2-3 points and no rank movement; the biggest beneficiary is Warlock, which already had defence.
+  - **Sharing the mitigation DOES work.** `WARD_ALL` (Leyline + Holy Shroud + Apollo's caster-only lock protect
+    the table, not the owner) takes the 6p spread from 32.1 to **18.3** while keeping the pacing win (30 → 11
+    rounds), roughly doubles Fighter/Rogue, and *improves duels* (2p spread 13.2 → 8.4).
+  - **Still not the shipped game:** 18.3 vs baseline 13.0, Fighter/Rogue at 8-10% against a 16.7% fair share,
+    rho 0.55. Adding shields-2+N trades back (pacing 17 rounds, spread 23.3).
+  - **Sanctuary is already symmetric** (`shieldAll`) — an earlier draft of 0n wrongly called it the remaining
+    asymmetry. After Leyline and Shroud are shared there is no asymmetric protection CARD left; the only
+    remainder is Form-granted (Apollo's caster-only lock), and it is Super-gated and rare.
+  - **DO NOT "fix" this by moving mitigation between classes** (Aj, 2026-08-26: *"let colors be colors, we'll
+    balance some other way"*). ♦ and ♥ being **allied on shield protection** is legitimate colour-pie design —
+    some aspects are shared by every class (draw, some ramp), some are exclusive (buffs/debuffs), and classes
+    are allies on one axis and opponents on another. Giving ♣/♠ mitigation, or relocating Leyline to ♥, are the
+    same cross-pie mistake from opposite directions. (An earlier draft of this entry recommended the first, off
+    a bad analogy: ♦ is the **ramp** class, not a draw class, so Leyline sitting there is not misfiled.)
+  - **The pie-respecting lever is the RULE, not the cards: under `all`, protection should prevent ONE incoming
+    loss rather than the whole round.** The problem was never that ♦/♥ have protection — it is that `all`
+    multiplies protection's value by (N-1), the same multiplier it applies to Special damage. Cap that and no
+    class identity has to move. UNMEASURED; one flag, and the harness already exists.
+  - The flags (`setWardAll`, `setDamageSpan`) are on `exp/shield-break-all`, default off, with behavioural
+    self-checks in `mpsim`.
 
 - **KITS: sequences of consecutive pairs** (a player asked for them, 2026-08-25 — *"2kits, 3kits"*, e.g. a pair
   of 4s with a pair of 5s). Aj's read was that this is a local variant; the analysis says otherwise, and it
