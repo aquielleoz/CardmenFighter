@@ -229,6 +229,17 @@ key, so netplay and the export carry the RULES, not a name the other end must re
 - **The original four are MULTIPLAYER-ONLY in effect** — the engine marks the first two as no-ops at 2 players,
   `startShieldsFor(2)` is 2+2=4 and `drawCountFor` at 2 players is 2, both identical to the defaults. The panel
   says so out loud. The apex pair and the pair shapes are the duel-relevant ones.
+- **THE GAME MODE IS A RULE (v1.31.32), not a setup control.** `RULES.basics` (`'full'|'basics'`) is the first
+  row; `gameBasics` is derived from it at **both** game starts, and `startGame` is the single `newGame` site that
+  passes it. `hostStartRealN` used to hardcode `gameBasics=false`, so **Basics was silently ignored online** —
+  as a rule it travels with `rulesKey()`. Two things about this row are deliberate: it is the one entry that is
+  **not homebrew** (Basics is the supported way to learn, so its note explains the mode instead of leaning on
+  the panel's framing), and the setup dialog still **shows** the mode and names where to change it, because
+  burying the beginner ramp behind a menu called Custom rules is how a new player never finds it. The tutorial
+  overrides the runtime flag only and never writes `RULES`. A saved `sel.mode` migrates once.
+- **THE PANEL'S INTRO MUST NOT COUNT ROWS.** "The first four … the last three" went stale on every added rule
+  and shipped wrong twice. It points at the per-row scope tags now, and `rulestest` asserts the absence of a
+  count as well as the presence of the tags.
 - **A PRESET IS AN EXACT STATE (v1.31.30).** `RULE_PRESETS` entries name only the rules they turn on, and
   `applyPreset` sets **every** rule — the unnamed ones to their off value — because Aj specified Chikicha Specials as
   "kits + quadro and nothing else". That is also what makes a preset button able to read as *active*. Presets
@@ -503,7 +514,7 @@ Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 263, `netvie
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 42, `viewtest` 10,
 `landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 58, `nettest_rules` 21, `nettest_suggest` 30, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
+`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 63, `nettest_rules` 27, `nettest_suggest` 34, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
 **A SUITE CAN BE GREEN AND BLIND. Three shapes of it, all found in one 2026-08-27 sweep and all fixed:**

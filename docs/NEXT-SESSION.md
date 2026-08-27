@@ -531,6 +531,39 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.32 — the game mode is a rule now, and online play finally honours it
+
+Aj: *"move this choice to the custom rules. full game is of course the default."* The **Full game / Basics**
+segmented control leaves the New Duel dialog and becomes the **first** row of ⚗️ Custom rules — a mode row whose
+first value is `full`, so it is "off" by the panel's own definition and a Basics game reads as customised, which
+it is.
+
+**It closed a real bug on the way in.** `hostStartRealN` hardcoded `gameBasics=false`, with a comment saying
+online is always the Full game — so picking Basics was **silently ignored in every online game**. As a rule it
+travels with `rulesKey()` like everything else, so the host's mode is now the table's mode. `nettest_rules`
+asserts it on **both** seats, because a host-only Basics game and a client-only one are each a table playing two
+different games.
+
+**Basics stays visible from the New Duel screen.** Moving the control there and nothing else would have buried
+the beginner ramp behind a menu called *Custom rules* — the mode a new player most needs is the one they would
+never find. The hint line under the title now reads the current mode and names where to change it
+("Basics — no transforms… **Change it in ⚗️ Custom rules**"), and `rulestest` asserts both halves plus the
+absence of the old control.
+
+**One row is not homebrew, and the copy says so.** Basics is the supported way to learn, so its note explains
+the mode rather than leaning on the panel's framing, and the intro softened to "**Mostly** not the default…".
+
+**The intro stopped counting rows.** It said "the first four … the last three", then four, then five — it went
+stale on every added rule and shipped wrong twice. It now points at the per-row scope tags, which are asserted
+directly beneath, so the two cannot disagree.
+
+Migration: a saved `sel.mode==='basics'` is folded into the rules once and dropped from the stored selection, so
+a player mid-Basics is not silently moved to the Full game. The tutorial overrides the **runtime** flag only and
+deliberately never touches `RULES` — a lesson choosing Basics for you must not rewrite the mode you picked for
+your own games.
+
+Suites: `rulestest` 58 → **63**, `nettest_rules` 21 → **27**.
+
 ### v1.31.31 — the suggestion layer: everyone suggests, the host decides
 
 Aj's idea, and his own sequence, confirmed: *"they can 'suggest' a rule, it is sent to the host as a suggestion
