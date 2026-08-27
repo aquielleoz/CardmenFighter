@@ -1178,7 +1178,7 @@ __QR__
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
-  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',straightflush:'Straight Flush',kit:'Kits'};
+  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',straightflush:'Straight Flush',kit:'Kits',twopair:'Two Pair',quadro:'Quadro'};
   /* Kits are the first VARIABLE-LENGTH shape, so a fixed name is not enough — a run of two pairs and a run of
    * three are different plays. Where the combo object is in hand, say which ("2 Kits"); the bare TYPE entry
    * covers the call sites that only carry a type string. */
@@ -1283,7 +1283,12 @@ __QR__
       mode:[{v:'off',label:'Off'},{v:'kits',label:'2 Kits'},{v:'poker',label:'Poker'}],
       note:'“2 Kits” needs the two pairs CONSECUTIVE (4s+5s). “Poker” allows any two pairs (4s+9s) and compares the high pair first. They are alternatives, not both.' },
     { key:'kits3',       duel:true, label:'3 Kits and up — longer runs of consecutive pairs',
-      note:'Three pairs of consecutive values, or more. Independent of the row above, so you can play the family\u2019s original form \u2014 runs of three or more only.' }
+      note:'Three pairs of consecutive values, or more. Independent of the row above, so you can play the family\u2019s original form \u2014 runs of three or more only.' },
+    /* QUADRO is off by default for a COGNITIVE-LOAD reason, not a balance one (Aj: "new players will just
+     * break"). It is also a plain shape here — it beats a lower quadro and nothing else. A quadro beating a
+     * shape it does not match is the CHOP, a separate rule that needs cross-shape overrides in beats(). */
+    { key:'quadro',      duel:true, label:'Quadro — four of a kind',
+      note:'All four copies of one value. Beats a lower Quadro only: it does not beat other shapes, and nothing outranks the 2 by being big.' }
   ];
   var RULES={}; RULE_DEFS.forEach(function(d){ RULES[d.key]= d.mode ? d.mode[0].v : false; });
   function ruleOn(d){ return d.mode ? (RULES[d.key]!==d.mode[0].v) : !!RULES[d.key]; }
@@ -1322,6 +1327,7 @@ __QR__
       if(E.setApexNoStrip)      E.setApexNoStrip(!!RULES.apexNoStrip);
       if(E.setDoublePair)       E.setDoublePair(RULES.dblPair);
       if(E.setKits3)            E.setKits3(!!RULES.kits3);
+      if(E.setQuadro)           E.setQuadro(!!RULES.quadro);
   }
   function saveRules(){ try{ localStorage.setItem(RULES_KEY, rulesKey()); }catch(e){} }
   (function loadRules(){ try{ var k=localStorage.getItem(RULES_KEY); if(k!=null) setRulesFromKey(k); }catch(e){} })();
@@ -4479,7 +4485,7 @@ __QR__
     }
     showModal('<h2>⚗️ Custom rules</h2>'+
       '<p class="ruleIntro">Not the default or intended way to play — but certainly <i>a</i> way to play. '+
-        '<b>The first four only change 3–6 player games; the last four change duels too.</b></p>'+
+        '<b>The first four only change 3–6 player games; the last five change duels too.</b></p>'+
       (ro ? '<div class="netmsg">'+(opts.why||'These are the rules this game is using. Rules are chosen before a game starts.')+'</div>' : '')+
       '<div class="settings">'+RULE_DEFS.map(rowHTML).join('')+'</div>'+
       /* Deliberately unspecific (Aj: "no need to say which ones haha"). Naming the decks and their win rates is

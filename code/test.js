@@ -880,6 +880,41 @@ function cards(ids) { return ids.map(card); }
 
   E.setDoublePair('off'); E.setKits3(false);
   ok(E.detectCombo(k45) === null, 'and the settings really turn them back off');
+
+  /* ---- QUADRO (v1.31.29), homebrew and default off. A PLAIN shape: it beats a lower quadro and nothing else.
+   * A quadro beating a shape it does not match is the CHOP, a separate rule needing cross-shape overrides. */
+  var q7 = [C(7, 'D'), C(7, 'H'), C(7, 'C'), C(7, 'S')];
+  var q8 = [C(8, 'D'), C(8, 'H'), C(8, 'C'), C(8, 'S')];
+  ok(E.detectCombo(q7) === null, 'quadro OFF (the shipped game): four of a kind is not a legal combo');
+  E.setQuadro(true);
+  var qd = E.detectCombo(q7);
+  ok(qd && qd.type === 'quadro' && qd.size === 4, 'quadro ON: four of a kind is a Special of size 4');
+  ok(E.beats(E.detectCombo(q8), qd) === true && E.beats(qd, E.detectCombo(q8)) === false,
+     'a higher quadro beats a lower one, and not the reverse');
+  ok(E.beats(qd, E.detectCombo([C(3, 'D'), C(3, 'H')])) === false,
+     'and a quadro CANNOT answer a pair — no chop until beats() gains cross-shape overrides');
+  ok(E.beats(E.detectCombo([C(2, 'D'), C(2, 'H'), C(2, 'C'), C(2, 'S')]), qd) === true,
+     'the apex 2 makes the highest quadro, since fightValue orders it at 15');
+  /* THE FOUR-CARD SLOT IS NOW SHARED, and the two shapes cannot collide: four cards of ONE value can never be
+   * two pairs or a kit, both of which need two distinct values. Asserted in every mode. */
+  ['off', 'kits', 'poker'].forEach(function (m) {
+    E.setDoublePair(m);
+    var d = E.detectCombo(q7);
+    ok(d && d.type === 'quadro', 'a quadro stays a quadro with the double-pair slot set to ' + m);
+  });
+  E.setDoublePair('poker');
+  ok(E.detectCombo(gap).type === 'twopair', 'and a real two-pair is still a two-pair alongside it');
+  /* Quadro is DECK-NEUTRAL by construction, which is the opposite of the intuition that four of a kind needs
+   * four suits: a class deck is four COPIES of one suit's thirteen cards, so every deck holds exactly four of
+   * each value. Worth asserting, because a change to deck building would silently kill the shape. */
+  var wiz = E.newGame(Math.random, { numPlayers: 2, decks: ['Wizard', null] });
+  var wall = wiz.players[0].hand.concat(wiz.players[0].deck), wc = {};
+  wall.forEach(function (c) { wc[c.rank] = (wc[c.rank] || 0) + 1; });
+  ok(Object.keys(wc).length === 13 && Object.keys(wc).every(function (r) { return wc[r] === 4; }),
+     'a single-class deck still holds four copies of every value, so a quadro is reachable in it');
+  ok(new Set(wall.map(function (c) { return c.id; })).size === wall.length,
+     'and those copies carry distinct ids, so the UI can select four of them');
+  E.setQuadro(false); E.setDoublePair('off');
 })();
 
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);

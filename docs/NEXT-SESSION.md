@@ -357,9 +357,10 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   - ~~**The double-pair slot must be a MODE, not two toggles.**~~ **SHIPPED in v1.31.26** — segmented row,
     `setDoublePair('off'|'kits'|'poker')` + an independent `setKits3`, with the v1.31.24 `kits` key migrating to
     both halves. Measurement and the two suite gaps it exposed are in the changelog.
-  - **Quadro (four of a kind) — NOT in the default game** (Aj): the game already asks players to juggle
-    shape-matching *and* card effects, and a shape that beats things outside its own type is a third system.
-    *"New players will just break."* That is a cognitive-load argument, not a balance one.
+  - ~~**Quadro (four of a kind) — NOT in the default game.**~~ **SHIPPED in v1.31.29** as the ninth rule,
+    default off, as a plain shape (it beats a lower Quadro and nothing else). Measured close to decorative
+    without the chop: legal on 3.9% of turns at 6p but played 0.07 times per game, because the AI plays the
+    cheapest sufficient Special and a Quadro spends four cards on a round a pair would win. See the changelog.
   - **The CHOP is the one structural addition.** Every shape today beats only its own type at its own size. A
     quadro beating a lone 2 — or 3 kits beating a lone 2, which is exactly what đôi thông does — needs
     cross-shape overrides in `beats()`. Note it would also make the apex 2 answerable **without** touching the
@@ -527,6 +528,47 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.29 — Quadro, the ninth homebrew rule (and it is nearly decorative without the chop)
+
+Four of a kind, as a **plain shape**: it beats a lower Quadro and nothing else. Default off, for the reason Aj
+gave when filing it — *"new players will just break"* — which is a cognitive-load argument, not a balance one.
+
+**It shares the four-card slot with the double-pair modes and cannot collide with them.** Four cards of one
+value can never be two pairs or a kit, both of which need two distinct values, so the check sits ahead of the
+double-pair block (which returns early for anything that is not two pairs). Asserted in all three modes.
+
+**Quadro is deck-neutral, which is the opposite of the intuition.** "Four of a kind needs four suits" would
+make it a Full-Set-only shape — but a class deck is four **copies** of one suit's thirteen cards, so *every*
+deck holds exactly four of each value and every deck can make a Quadro at the same rate. Those copies carry
+distinct ids (`7D#26`), so the UI can select four of them. Both facts are now asserted, because a change to deck
+building would otherwise kill the shape silently.
+
+**Measured, and the honest reading is that it is close to decorative right now.** 200 games per cell, same
+seeds:
+
+| | legal on … of turns | Quadros played per game | rounds/game (off → on) | jab share |
+| --- | --- | --- | --- | --- |
+| 2p | 0.4% | 0.04 | 10.8 → 10.8 | 28% → 28% |
+| 4p | 1.7% | 0.04 | 18.4 → 18.4 | 11% → 11% |
+| 6p | 3.9% | 0.07 | 28.3 → 28.1 | 7% → 7% |
+
+So it is **offered** regularly at a big table and almost never **taken**. The mechanism is straightforward: the
+AI plays the cheapest sufficient Special, and a Quadro spends four cards to win a round a pair would have won.
+Reasoning rather than measurement, but it follows from the rules: a Quadro can only be answered by a *higher*
+Quadro, which makes leading one a near-unbeatable grab for initiative — a use the AI's cheapest-first policy
+never values and a human very well might. **Its real power arrives with the chop**, which is what makes a Quadro
+beat shapes it does not match; that stays a separate rule and a separate PR.
+
+Pacing does not move, at any player count (`rulesim` row S vs row A). **Third shape in a row to say so** — kits,
+poker two-pair, and now Quadro. Treat "a new shape adds options, not tempo" as the default expectation.
+
+**Fixed in passing: a poker two-pair was labelled "Special".** `TYPE` had no `twopair` entry, so `comboName`
+fell through to its generic name for every two-pair played since v1.31.26. `twopair` → "Two Pair" and `quadro` →
+"Quadro" now.
+
+Panel copy follows: nine rules, "the first four only change 3–6 player games; the last five change duels too".
+Suites: `test` 252 → **263**, `rulestest` 43 → **45**, `mpsim` gains a behavioural `quadro` self-check.
 
 ### v1.31.28 — the deck picker stops recommending the Full Set
 

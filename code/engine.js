@@ -114,6 +114,9 @@
     if (n === 1) return { type: 'single', value: ranks[0], size: 1, key: [ranks[0]], cards: cards };
     if (n === 2) return same ? { type: 'pair', value: ranks[0], size: 2, key: [ranks[0]], cards: cards } : null;
     if (n === 3) return same ? { type: 'trio', value: ranks[0], size: 3, key: [ranks[0]], cards: cards } : null;
+    /* Ahead of the double-pair slot, which returns early for anything that is not two pairs. No ambiguity is
+     * possible: four cards of ONE value can never be two pairs or a kit, both of which need two values. */
+    if (n === 4 && QUADRO && same) return { type: 'quadro', value: ranks[0], size: 4, key: [ranks[0]], cards: cards };
     if (n === 4 && DBL_PAIR !== 'off') {            // the double-pair slot — one mode, so never ambiguous
       var pc = {}, pi, pvv;
       for (pi = 0; pi < 4; pi++) { pvv = fightValue(cards[pi]); pc[pvv] = (pc[pvv] || 0) + 1; }
@@ -183,6 +186,11 @@
     for (var lo = loMin; lo <= loMax; lo++) {
       var window = [lo, lo + 1, lo + 2, lo + 3, lo + 4];
       if (window.every(function (v) { return byRank[v]; })) out.push(window.map(function (v) { return byRank[v][0]; }));
+    }
+    if (QUADRO) {                                                                 // four of a kind
+      Object.keys(byRank).forEach(function (r) {
+        var g = byRank[r]; if (g.length >= 4) out.push([g[0], g[1], g[2], g[3]]);
+      });
     }
     if (DBL_PAIR === 'poker') {                                                   // any two pairs, gaps allowed
       var tp = Object.keys(byRank).filter(function (r) { return byRank[r].length >= 2; }).map(Number);
@@ -1823,7 +1831,13 @@
    *   'poker' — any two pairs, gaps allowed: type 'twopair', compared top pair then bottom pair
    * KITS3 is separate and independent, because 3+ runs are size 6 and can never collide with the 4-card slot —
    * which is also what lets the Dou Dizhu form (3+ pairs only) be played without the 2-kit at all. */
+  /* QUADRO — four of a kind, homebrew and default OFF (Aj: "new players will just break"). It is a PLAIN
+   * shape here: it beats a lower quadro and nothing else. The CHOP — a quadro beating a shape it does not
+   * match — needs cross-shape overrides in beats() and is a separate rule; see the BACKLOG. */
+  var QUADRO = false;
   var DBL_PAIR = 'off', KITS3 = false;
+  function setQuadro(v) { QUADRO = !!v; }
+  function isQuadro() { return QUADRO; }
   function setDoublePair(m) { DBL_PAIR = (m === 'kits' || m === 'poker') ? m : 'off'; }
   function isDoublePair() { return DBL_PAIR; }
   function setKits3(v) { KITS3 = !!v; }
@@ -1952,6 +1966,7 @@
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
+    setQuadro: setQuadro, isQuadro: isQuadro,
     setDoublePair: setDoublePair, isDoublePair: isDoublePair,
     setKits3: setKits3, isKits3: isKits3, detectKit: detectKit,
     setApexInfinity: setApexInfinity, isApexInfinity: isApexInfinity,
