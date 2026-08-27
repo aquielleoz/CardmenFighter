@@ -259,6 +259,8 @@
   .modal .ruleSect:first-child{margin-top:2px;}
   .modal .ruleSect .sectName{font-weight:900; font-size:13px; letter-spacing:.4px; text-transform:uppercase; color:var(--gold);}
   .modal .ruleSect .ruleBulk{margin:0 0 0 auto;}      /* presets ride the right end of their own heading */
+  /* on a phone they wrap onto their own line, where being pushed right reads as a stray indent */
+  @media (max-width:720px){ .modal .ruleSect .ruleBulk{margin-left:0;} }
   .modal .ruleFoot{display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center; margin-top:6px;}
   .modal .ruleFoot #ruleDone{margin:0;}
   .modal .ruleFoot .bulkBtn.clear{margin-left:0;}   /* undo the old bulk-row rule that pushed it to the right */
@@ -4769,7 +4771,7 @@ window.CardFace = {};
      * Deliberately NOT in it: the four-card double-pair slot (the family's floor is three pairs, not two, so a
      * 2-kit is not one of its shapes and poker's two pair certainly is not), and the straight-flush chop, which
      * belongs to Big Two rather than to Tiến lên. */
-    { key:'tienlen', label:'Tiến lên', title:'The family’s own bombs: 3+ Kits and Quadro, both chopping the 2',
+    { key:'tienlen', label:'Tiến lên Specials', title:'The family’s own bombs: 3+ Kits and Quadro, both chopping the 2',
       rules:{ kits3:true, quadro:true, chopKits:true, chopQuadro:true } }
   ];
   function presetValue(p,d){ return p.rules[d.key]!==undefined ? p.rules[d.key] : ruleOff(d); }

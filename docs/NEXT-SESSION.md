@@ -593,6 +593,13 @@ mobile?"* The panel is four sections now, and both presets live in the heading o
 | **The 2** | all player counts | the apex pair |
 | **Shapes & chops** | all player counts | the pair shapes, Quadro, the three chops — **and both presets** |
 
+**The Tiến lên preset is renamed "Tiến lên Specials"** (Aj), matching Chikicha Specials — and the pair reads
+right, because that is what both of them are: sets of special shapes, and the only presets that touch nothing
+outside this one section. The internal key stays `tienlen`; it is not serialised anywhere (`rulesKey()` carries
+the resulting rules), but stable keys are the habit that saved the `recruit` difficulty tier.
+On a phone the two buttons wrap onto their own line under the heading, where they are **left-aligned** with it —
+the desktop rule pushes them to the right end of the heading, which on a wrapped line read as a stray indent.
+
 **The mobile question answers itself:** a section heading is a full-width row in either layout, so the presets
 need no horizontal room at all. On desktop the heading spans the columns and the buttons ride its right end; on a
 phone they simply sit under the heading. Nothing about the idea needed the wide modal.
