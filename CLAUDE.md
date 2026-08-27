@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.23**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.24**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -68,7 +68,7 @@ node sharetest.js                               # the share sheet + the tolerant
 node nettest_roundstall.js                      # the host must get the board back after winning a round (9)
 node nettest_actloop.js                         # play must keep moving AFTER a Technique, both seats (22)
 node nettest_version.js                         # the netplay build handshake, both seats + no false alarm (14)
-node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (33)
+node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (36)
 node nettest_rules.js                           # custom rules over netplay: propagation + un-ready (18)
 ```
 
@@ -228,6 +228,21 @@ key, so netplay and the export carry the RULES, not a name the other end must re
   re-confirms.
 - **The export stamps the rule set (`v:'2.1-mp'`), and it shipped WITH the menu.** An unstamped homebrew game
   makes the ingestion log unreadable and cannot be repaired afterwards — the pre-v1.31.5 mistake exactly.
+
+**KITS are shown to players as "2 Kits" / "3 Kits" — NOT "2 Pair".** Poker's "two pair" allows gaps, so it
+names a different shape, and a non-consecutive variant is a separate planned rule; the two must not share a name. A run of CONSECUTIVE pairs,
+behind `setKits()` and default off (v1.31.24). Three things worth knowing before touching them:
+- **`beats()` gave the length rule for free** — it already required equal `type` AND equal `size`, so a 2 Pair
+  cannot beat a 3 Pair without any new code. `detectKit` is the whole shape; `enumerateCombos` emits every run.
+- **The floor is TWO pairs, not the family's three** (连对 / đôi thông). Those games deal 17-20 cards; this one
+  deals 6 and caps at 10, so a three-pair floor would make the shape dead. Values must be consecutive — the panel
+  copy says the values must be consecutive, because that is exactly what separates a kit from poker's two pair.
+- **A NEW SHAPE ADDS OPTIONS, NOT TEMPO.** Measured: kits change game length by nothing at all (11/14/20/31 vs
+  11/14/20/30) and are balance-neutral (rho 0.91), *despite* firing 0.75 times per duel and 13.4 times per
+  6-player game. A kit REPLACES a Special the player would have made anyway, and a round still has one winner and
+  one shield strip. **Do not expect a new shape to move pacing or damage** — see PATCHNOTES 0o and 0a. Also note
+  a kit cannot ANSWER a pair (it is its own shape, so it can only be led), which is why it does not touch the
+  VALUE-stuck problem.
 
 **Netplay carries a BUILD VERSION and warns on a mismatch (v1.31.21).** The client sends `v` with `t:'join'`,
 the host returns its own on `t:'welcome'`, and `noteVersion()` banners + logs a difference on both seats,
@@ -410,11 +425,11 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 231, `netview` 28, `mptest` 82,
+Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 246, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
 `landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 33, `nettest_rules` 18, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
+`nettest_prefight` 13, `nettest_full` 5, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 36, `nettest_rules` 18, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
 **These suites go stale silently** — they were unrunnable for however long `/opt/pw-browsers/chromium` was

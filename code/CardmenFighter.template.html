@@ -1172,7 +1172,15 @@ __QR__
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
-  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',straightflush:'Straight Flush'};
+  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',straightflush:'Straight Flush',kit:'Kits'};
+  /* Kits are the first VARIABLE-LENGTH shape, so a fixed name is not enough — a run of two pairs and a run of
+   * three are different plays. Where the combo object is in hand, say which ("2 Kits"); the bare TYPE entry
+   * covers the call sites that only carry a type string. */
+  function comboName(combo){
+    if(!combo) return 'Special';
+    if(combo.type==='kit') return (combo.size/2)+' Kits';        // "2 Kits", "3 Kits" — the table's own name
+    return TYPE[combo.type]||'Special';
+  }
   var REWORK_LABEL={1:'A',11:'J',12:'Q',13:'K'};                                // REWORK playtest: ranks show as A/J/Q/K on the 2-as-apex ladder
   function rankLabel(r){ return REWORK_LABEL[r]||r; }
   function cardSym(c){ return rankLabel(c.rank)+SUIT_SYMBOL[c.suit]; }          // deck reads 3..10,J,Q,K,A,2 under REWORK (else 1..10)
@@ -1185,7 +1193,7 @@ __QR__
   // fight play → phrase after "played ":  "a Jab - 4♥"  /  "a Special - Straight (5♠, 6♥, 7♠, 8♥, 9♦)"
   function playPhrase(combo){
     if(combo.type==='single') return 'a Jab - '+cardSym(combo.cards[0]);
-    return 'a Special - '+TYPE[combo.type]+' ('+cardSymList(combo.cards)+')';
+    return 'a Special - '+comboName(combo)+' ('+cardSymList(combo.cards)+')';
   }
   // effect activation → phrase after "played ", from the card: "a Technique - 2♦ Book Smarts — Draw 3 cards"
   function effPhrase(card){
@@ -1260,7 +1268,12 @@ __QR__
     { key:'apexInf',     duel:true, label:'The 2 cannot be beaten — not even by a boost',
       note:'Normally a boosted Ace can out-value the apex 2. Ends the round outright, so no rival can answer it.' },
     { key:'apexNoStrip', duel:true, label:'Fights won with a 2 destroy no shields',
-      note:'The 2 becomes a way to seize the lead without dealing damage, and rivals can still beat it — unless the rule above is also on. Makes 6-player games much longer.' }
+      note:'The 2 becomes a way to seize the lead without dealing damage, and rivals can still beat it — unless the rule above is also on. Makes 6-player games much longer.' },
+    /* KITS — consecutive pairs. A player asked for them from memory of having played with them, which is the
+     * best argument a homebrew rule can have. Duel-relevant, and the first NEW SHAPE rather than a tweak to an
+     * existing rule. Expect shorter games: a kit is a Special, so it breaks a shield. */
+    { key:'kits',        duel:true, label:'Kits — runs of consecutive pairs',
+      note:'A pair of 4s with a pair of 5s is \u201c2 Kits\u201d; add a pair of 6s for \u201c3 Kits\u201d. The values must be consecutive \u2014 4s with 9s is not a run \u2014 and only a higher run of the same length beats it.' }
   ];
   var RULES={}; RULE_DEFS.forEach(function(d){ RULES[d.key]=false; });
   function customRules(){ return RULE_DEFS.some(function(d){ return !!RULES[d.key]; }); }
@@ -1279,6 +1292,7 @@ __QR__
     if(E.setDrawPerPlayer)    E.setDrawPerPlayer(!RULES.flatDraw);     // NOTE the inversion
       if(E.setApexInfinity)     E.setApexInfinity(!!RULES.apexInf);
       if(E.setApexNoStrip)      E.setApexNoStrip(!!RULES.apexNoStrip);
+      if(E.setKits)             E.setKits(!!RULES.kits);
   }
   function saveRules(){ try{ localStorage.setItem(RULES_KEY, rulesKey()); }catch(e){} }
   (function loadRules(){ try{ var k=localStorage.getItem(RULES_KEY); if(k!=null) setRulesFromKey(k); }catch(e){} })();
@@ -3937,7 +3951,7 @@ __QR__
     if(pile && pile.combo){
       var owner=pile.byPlayer===YOU?'Your':'Rival’s';
       var cs=pile.combo.cards.map(function(c){ return '<span class="ctxCard'+(c.suit==='D'||c.suit==='H'?' red':'')+'">'+cardSym(c)+'</span>'; }).join('');
-      rows+='<div class="ctxRow"><span class="ctxLbl">On the table</span><span>'+owner+' <b>'+(TYPE[pile.combo.type]||'play')+'</b> '+cs+'</span></div>';
+      rows+='<div class="ctxRow"><span class="ctxLbl">On the table</span><span>'+owner+' <b>'+comboName(pile.combo)+'</b> '+cs+'</span></div>';
     }
     var order=['D','H','C','S'], bits=[];
     order.forEach(function(s){ var n=you.energy.filter(function(c){return c.suit===s;}).length; if(n) bits.push('<span class="ctxCard'+(s==='D'||s==='H'?' red':'')+'">'+n+SUIT_SYMBOL[s]+'</span>'); });
@@ -4422,7 +4436,7 @@ __QR__
     }
     showModal('<h2>⚗️ Custom rules</h2>'+
       '<p class="ruleIntro">Not the default or intended way to play — but certainly <i>a</i> way to play. '+
-        '<b>The first four only change 3–6 player games; the last two change duels too.</b></p>'+
+        '<b>The first four only change 3–6 player games; the last three change duels too.</b></p>'+
       (ro ? '<div class="netmsg">'+(opts.why||'These are the rules this game is using. Rules are chosen before a game starts.')+'</div>' : '')+
       '<div class="settings">'+RULE_DEFS.map(rowHTML).join('')+'</div>'+
       /* Deliberately unspecific (Aj: "no need to say which ones haha"). Naming the decks and their win rates is

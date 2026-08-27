@@ -30,7 +30,8 @@ var DPP = flag('nodpp') ? false : (flag('dpp') || E.isDrawPerPlayer());
 var APEX = flag('apex'), NOSTRIP = flag('nostrip');
 var DALL = flag('damageall') || flag('hostileall');
 var DHALF = flag('damagehalf');
-var WALL = flag('wardall');                           // Leyline protects EVERYONE's shields, not just the caster's                      // ...or HALF the table (ceil of living rivals / 2)   // Critical Hit / Ultima Attack -> all rivals
+var WALL = flag('wardall');
+var KITS = flag('kits');                              // homebrew: runs of consecutive pairs are a legal Special                           // Leyline protects EVERYONE's shields, not just the caster's                      // ...or HALF the table (ceil of living rivals / 2)   // Critical Hit / Ultima Attack -> all rivals
 var LALL = flag('lockoutall') || flag('hostileall');  // Back Stab -> all rivals
 E.setShieldCards(true); E.setLoserMill(true);
 E.setSpecialLossMode(LM); E.setMillScope(MS);
@@ -39,12 +40,13 @@ var LMAX=parseInt((FLAGS.match(/lockmax=(\d+)/)||[0,0])[1],10); if(LMAX && AI.se
 E.setApexInfinity(APEX); E.setApexNoStrip(NOSTRIP); E.setDamageAll(DALL); E.setLockoutAll(LALL);
 if (E.setDamageSpan) E.setDamageSpan(DHALF ? 'half' : 1);
 if (E.setWardAll) E.setWardAll(WALL);
+if (E.setKits) E.setKits(KITS);
 console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' drawN=' + DPP +
             /* Report the two apex flags INDEPENDENTLY. This used to print `apex=off` whenever infinity was off,
              * even with no-strip set — a lie, and a dangerous one given this file's own rule is "check the
              * printed CONFIG". No-strip stopped requiring infinity on 2026-08-26 (engine ~1512). */
             ' apex=' + (APEX ? (NOSTRIP ? 'unbeatable+nostrip' : 'unbeatable') : (NOSTRIP ? 'nostrip-only(beatable 2)' : 'off')) +
-            ' damageSpan=' + (DALL ? 'all' : (DHALF ? 'half' : 1)) + ' wardAll=' + WALL + ' lockoutAll=' + LALL + (LMAX ? ' lockoutMaxAlive=' + LMAX : ''));
+            ' damageSpan=' + (DALL ? 'all' : (DHALF ? 'half' : 1)) + ' wardAll=' + WALL + ' kits=' + KITS + ' lockoutAll=' + LALL + (LMAX ? ' lockoutMaxAlive=' + LMAX : ''));
 
 /* SELF-CHECK — prove the config took EFFECT, behaviourally. Echoing the flags back is not enough: the flags
  * were right and the parser was wrong, so every arm of a 40-run study silently ran the same rules. This probes
@@ -110,6 +112,11 @@ console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' draw
   var sAfter = [sg.players[1].shields, sg.players[2].shields, sg.players[3].shields];
   var shroudSpent = !sg.players[1].equipment.some(function (e) { return e.absorb && e.counters > 0; });
   var nonOwnerSaved = (sAfter[1] === sBefore[1]) || (sAfter[2] === sBefore[2]);   // seat 2 or 3 kept its shield
+  var kg = E.newGame(null, { numPlayers: 4 });
+  kg.round = 3; kg.pile = null; kg.turn = 0;
+  kg.players[0].hand = [hk(4, 'D'), hk(4, 'H'), hk(5, 'C'), hk(5, 'S')];
+  var kitsFound = E.legalFightPlays(kg, 0).filter(function (x) { return x.combo.type === 'kit'; }).length;
+  console.log('SELF-CHECK kits: runs offered from 4-4-5-5 = ' + kitsFound + ' (expect ' + (KITS ? 1 : 0) + ')');
   console.log('SELF-CHECK ward: Leyline protected ' + warded + ' player(s) (expect ' + (WALL ? 4 : 1) + ')' +
               '   Shroud spent=' + shroudSpent + ' non-owner saved=' + nonOwnerSaved +
               (LM === 'all' ? ' (expect a non-owner save only with wardall)' : ' (loss=chosen: not probed)'));
@@ -117,7 +124,7 @@ console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' draw
               '), Back Stab locked ' + bLock + ' (expect ' + (LALL ? 3 : 1) + ', whole-round ' + bRound + ')');
   var bad = (shields !== (SHP ? 6 : 4)) || (draw !== (DPP ? 4 : 2)) || (struck !== (LM === 'all' ? 3 : 1)) ||
             (hStruck !== (DALL ? 3 : (DHALF ? 2 : 1))) || (bLock !== (LALL ? 3 : 1)) || (bRound !== bLock) ||
-            (warded !== (WALL ? 4 : 1));
+            (warded !== (WALL ? 4 : 1)) || (kitsFound !== (KITS ? 1 : 0));
   if (bad) { console.log('*** SELF-CHECK FAILED — the config did not take effect. These numbers are worthless. ***'); process.exit(3); }
 })();
 

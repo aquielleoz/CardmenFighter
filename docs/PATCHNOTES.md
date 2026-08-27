@@ -208,6 +208,57 @@ loss/mill pairing is a **length** lever, not a balance one. **Lesson: a balance 
 life — re-date it before reusing it to veto an idea — and check that the arm you are testing is a design
 someone would actually ship.**
 
+### 0o. Kits add OPTIONS, not tempo — and that is why length did not move. (2026-08-27)
+
+A player asked for kits from memory of having played with them, which is the strongest argument a homebrew rule
+can have. Shape: a run of **consecutive pairs**. Player-facing name is **"2 Kits" / "3 Kits"** — the name the
+table that plays them uses, and deliberately **not** "2 Pair": poker's "two pair" allows gaps, so it names a
+different shape, and a non-consecutive variant is planned separately (see the BACKLOG). The internal type is
+`kit`, matching the family literature (连对 / 双顺, đôi thông).
+
+**Design decisions, and why:**
+- **Floor of TWO pairs**, not the family's three. Dou Dizhu and Tiến lên deal 17-20 cards; this game deals 6 and
+  caps at 10, so a 3-pair run is six of your ten cards and the shape would be dead on arrival.
+- **Consecutive values required.** This is what makes it a different shape from poker's "two pair", and the
+  reason the two must not share a name.
+- **Coherent here in a way FLUSH was not** (retired v1.14): a flush needs suits to rank and they never do, while
+  a kit compares on fight value like everything else.
+- **`beats()` already required equal type AND equal size**, so "a 2 Pair cannot beat a 3 Pair" fell out for free.
+- **The apex 2 participates** (A-A-2-2 is legal), consistent with straights already allowing J-Q-K-A-2.
+
+**I predicted shorter games. That was wrong.** A kit is a Special, so the reasoning was "more Specials land, more
+shields break, games shorten". Measured (`rulesim`, medians):
+
+| | 2p | 3p | 4p | 6p |
+| --- | --- | --- | --- | --- |
+| live baseline | 11 | 14 | 20 | 30 |
+| live + kits | 11 | 14 | 20 | 31 |
+
+**Nothing.** And the frequency numbers show it is not because the shape never fires:
+
+| players | kits played per game | turns where a kit was legal | played per 100 turns |
+| --- | --- | --- | --- |
+| 2p | 0.75 | 4.7% | 2.67 |
+| 3p | 1.89 | 7.2% | 3.66 |
+| 4p | 4.63 | 11.0% | 5.46 |
+| 6p | 13.35 | 13.8% | 7.71 |
+
+So kits are played on roughly **half the turns where they are available**, and a 6-player game sees about
+thirteen of them. **The reason length does not move is that a kit REPLACES a Special the player would have made
+anyway.** A round still has one winner and one shield strip, so a new shape cannot add damage — it adds *options*.
+That is PATCHNOTES **0a** again from a different direction: the binding constraint is options, not cards.
+
+**Balance: neutral, as the deck-neutrality argument predicted.** 6p spread 12.1 → 13.5 (sd 0.7 / 1.9, i.e. inside
+noise) and **Spearman rho 0.91** against the baseline order. That was the argument's strongest claim and it
+holds: every legal deck is 4 parts × 13 ranks, so all of them hold exactly 4 copies of each rank value and none
+can form runs more easily than another. Pure Fighter drifts up (#7 → #4, 16.3% → 18.3%) and Pure Rogue down
+(10.0% → 8.8%), both small enough to want replication before being believed.
+
+**What kits are actually for, then:** a lead-side outlet for low cards. They cannot answer a pair — a kit is its
+own shape, so it can only be led — which means they do not address the measured VALUE-stuck problem
+(`stucksim`: 62-72% of stuck following turns). They give the leader a way to shed four cards at once. Judge them
+on feel and on hand-churn, not on pacing or balance, because measurably they move neither.
+
 ### 0n. `loss=all` is broken by a DEFENSIVE card, not by unscaled offence. (2026-08-26)
 
 Following 0m's rank finding — that `all` does not widen the deck table but **reorders** it, with Wizard/Cleric up

@@ -810,5 +810,58 @@ function cards(ids) { return ids.map(card); }
 })();
 
 
+/* ---- KITS: consecutive pairs, homebrew and default OFF -----------------------------------------------------
+ * A player asked for these ("2kits, 3kits"). The shape is standard across this card family — 连对 in Dou Dizhu,
+ * đôi thông in Tiến lên — where the floor is THREE pairs; here it is TWO, because those games deal 17-20 cards
+ * and this one deals 6 and caps at 10, so a 3-kit would be six of your ten cards and the shape would be dead.
+ * The default-OFF half is asserted first: with the flag down, every one of these must stay illegal. */
+(function kits() {
+  var C = function (r, su) { return { rank: r, suit: su, id: 'k' + r + su }; };
+  var k45   = [C(4, 'D'), C(4, 'H'), C(5, 'C'), C(5, 'S')];
+  var k456  = [C(4, 'D'), C(4, 'H'), C(5, 'C'), C(5, 'S'), C(6, 'D'), C(6, 'H')];
+  var k67   = [C(6, 'D'), C(6, 'H'), C(7, 'C'), C(7, 'S')];
+  var gap   = [C(4, 'D'), C(4, 'H'), C(6, 'C'), C(6, 'S')];
+  var quad  = [C(4, 'D'), C(4, 'H'), C(4, 'C'), C(4, 'S')];
+  var trip1 = [C(4, 'D'), C(4, 'H'), C(4, 'C'), C(5, 'S')];
+  var apex  = [C(1, 'D'), C(1, 'H'), C(2, 'C'), C(2, 'S')];          // A-A-2-2 → values 14,14,15,15
+
+  E.setKits(false);
+  ok(E.detectCombo(k45) === null && E.detectCombo(k456) === null,
+     'kits OFF (the shipped game): consecutive pairs are not a legal combo');
+  ok(E.detectCombo(quad) === null, 'kits OFF: four of a kind is still not a combo (there is no bomb)');
+
+  E.setKits(true);
+  var c45 = E.detectCombo(k45), c456 = E.detectCombo(k456), c67 = E.detectCombo(k67);
+  ok(c45 && c45.type === 'kit' && c45.size === 4 && c45.value === 5, 'a 2-kit (4s+5s) is a kit of size 4, valued on its TOP pair');
+  ok(c456 && c456.type === 'kit' && c456.size === 6 && c456.value === 6, 'a 3-kit (4s-5s-6s) is size 6');
+  ok(E.detectCombo(gap) === null, 'pairs with a GAP (4s+6s) are not a kit — the run must be consecutive');
+  ok(E.detectCombo(quad) === null, 'four of a kind is not a kit: two values are required, not one');
+  ok(E.detectCombo(trip1) === null, 'a trio plus a spare card is not a kit — every value must be exactly a pair');
+  var ca = E.detectCombo(apex);
+  ok(ca && ca.type === 'kit' && ca.value === 15,
+     'A-A-2-2 IS a kit: the apex 2 sits in a run, consistent with straights already allowing J-Q-K-A-2');
+
+  ok(E.beats(c67, c45) === true, 'a higher kit beats a lower one of the same length');
+  ok(E.beats(c45, c67) === false, 'and not the other way round');
+  ok(E.beats(c456, c45) === false,
+     'a 3-kit does NOT beat a 2-kit — beats() requires equal size, which is this family\'s rule for free');
+  ok(E.beats(E.detectCombo([C(13, 'D'), C(13, 'H')]), c45) === false, 'a pair cannot answer a kit: different shape');
+
+  /* The enumerator is what the AI and the UI's "can I play this?" both read, so a shape the engine accepts but
+   * nobody can find is worse than no shape at all. */
+  var hand = [C(4, 'D'), C(4, 'H'), C(5, 'C'), C(5, 'S'), C(6, 'D'), C(6, 'H'), C(9, 'C')];
+  var st = E.newGame(null, { numPlayers: 2 });
+  st.round = 3; st.pile = null; st.turn = 0; st.players[0].hand = hand;
+  var found = E.legalFightPlays(st, 0).filter(function (x) { return x.combo.type === 'kit'; });
+  ok(found.length === 3, 'the enumerator offers every run in the hand — 4+5, 5+6 and 4-5-6 (' + found.length + ')');
+
+  st.round = 1;
+  ok(E.legalFightPlays(st, 0).filter(function (x) { return x.combo.size > 1; }).length === 0,
+     'round 1 still locks kits along with every other special');
+
+  E.setKits(false);
+  ok(E.detectCombo(k45) === null, 'and the flag really turns them back off');
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

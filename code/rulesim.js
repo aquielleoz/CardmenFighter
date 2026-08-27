@@ -49,11 +49,14 @@ var CFG=[
  ['L  LIVE + shared ward (for contrast)',            'chosen','targeted', false,true, '', true],
  /* M: K plus Aj's shields-2+N, because K alone lands at 11 rounds at 6p and this file already records 9 as an
   * overshoot — shields scaling was the documented middle ground for exactly that. */
- ['M  all + shared ward + shields 2+N',              'all','targeted',    true, true, '', true]
+ ['M  all + shared ward + shields 2+N',              'all','targeted',    true, true, '', true],
+ /* N: KITS on the live rules. A kit is a Special, so it breaks a shield — expect SHORTER games. */
+ ['N  LIVE + kits (consecutive pairs)',              'chosen','targeted', false,true, '', false, true]
 ];
 function run(loss,mill,sh,dp,ap,P,n,ward){
   E.setSpecialLossMode(loss); E.setMillScope(mill); E.setShieldsPerPlayer(sh); E.setDrawPerPlayer(dp);
-  if (E.setWardAll) E.setWardAll(!!ward);       // shared Leyline + Holy Shroud (the mitigation-side counterweight)
+  if (E.setWardAll) E.setWardAll(!!ward);
+  if (E.setKits) E.setKits(!!arguments[8]);      // homebrew: consecutive-pair runs as a legal Special       // shared Leyline + Holy Shroud (the mitigation-side counterweight)
   E.setApexInfinity(ap === 'inf' || ap === 'nostrip'); E.setApexNoStrip(ap === 'nostrip' || ap === 'nostripOnly');
   var rounds=[], jb=0, sp=0, leadTop=0, leadN=0;
   for(var s=1;s<=n;s++){
@@ -82,9 +85,9 @@ console.log('config                                      2p              3p     
 CFG.forEach(function(c){
   var out=c[0].padEnd(44);
   [2,3,4,6].forEach(function(P){
-    var r=run(c[1],c[2],c[3],c[4],c[5],P,90,c[6]);
+    var r=run(c[1],c[2],c[3],c[4],c[5],P,90,c[6],c[7]);
     out += (String(r.med)+'('+r.max+') j'+r.jabPct+' L'+r.lead).padEnd(16);
   });
   console.log(out);
 });
-E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false); E.setApexNoStrip(false); if(E.setWardAll) E.setWardAll(false);
+E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false); E.setApexNoStrip(false); if(E.setWardAll) E.setWardAll(false); if(E.setKits) E.setKits(false);
