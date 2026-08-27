@@ -366,9 +366,9 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     cross-shape overrides in `beats()`. Note it would also make the apex 2 answerable **without** touching the
     apex flags.
   - ~~**BULK ACTIONS IN THE PANEL, presets and Clear All together.**~~ **SHIPPED in v1.31.30** — one bulk row,
-    with Raw Chikicha (kits + quadro) and Clear all. A preset is an exact state, so it reads as active only when
+    with Chikicha Specials (kits + quadro) and Clear all. A preset is an exact state, so it reads as active only when
     it matches exactly. Dou Dizhu still waits on trio+single, four+two and the airplane.
-  - **PRESET BUNDLES — the mechanism SHIPPED in v1.31.30 with `Raw Chikicha` (kits + quadro) as its only entry.**
+  - **PRESET BUNDLES — the mechanism SHIPPED in v1.31.30 with `Chikicha Specials` (kits + quadro) as its only entry.**
     What is left is the bundles whose shapes do not exist yet. A `Dou Dizhu` bundle would add trio+single (三带一),
     four+two (四带二), airplane (飞机/三顺), variable-length straights and the chop. Presets stay honest with the
     existing serialisation because `rulesKey()` records the FLAGS, not the preset name.
@@ -529,12 +529,17 @@ C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do
 ### v1.31.30 — rule presets and Clear all
 
 Nine toggles is enough that setting them one at a time is a chore, so the panel gains a bulk row above the list:
-**Raw Chikicha** and **Clear all**.
+**Chikicha Specials** and **Clear all**.
 
-**A preset is an EXACT state, not an additive one.** Aj named Raw Chikicha as *"kits + quadro and nothing
+**A preset is an EXACT state, not an additive one.** Aj named Chikicha Specials as *"kits + quadro and nothing
 else"*, so applying it turns everything else **off** as well. That is what lets a preset button read as
 **active**: "these are exactly the rules" is a claim you can check, where "at least these" is not. `rulestest`
 applies it over a table with all nine rules on, which is the case that would catch an additive implementation.
+
+**The name is "Chikicha Specials", not "Raw Chikicha"** (Aj, 2026-08-27). "Raw" would claim the table is
+playing Chikicha, and it is not — this game has a whole layer of card effects that game never had. What the
+preset actually turns on is Chikicha's **special shapes**, so that is what it is named after. Worth keeping
+straight: a preset names a set of rules, and overclaiming what it is would mislead the person picking it.
 
 **Only one preset ships, and that is deliberate.** Dou Dizhu needs trio+single, four+two and the airplane
 first; offering it now would name a rule set this build cannot actually play. More arrive as their shapes do.

@@ -101,13 +101,13 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   ok(row.length === 2 && row[0].preset === 'chikicha' && row[1].id === 'ruleClear',
      `the panel offers a preset and a Clear all (${row.map(r => r.txt).join(' | ')})`);
   ok(!row[1].off, 'Clear all is live while rules are on');
-  /* A PRESET IS AN EXACT STATE, not an additive one — Aj named Raw Chikicha as "kits + quadro and nothing
+  /* A PRESET IS AN EXACT STATE, not an additive one — Aj named Chikicha Specials as "kits + quadro and nothing
    * else", so applying it over a table full of other rules must turn those OFF. Every rule is on at this point
    * in the suite, which is exactly the case that would catch an additive implementation. */
   await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="chikicha"]').click()); await wait(250);
   const after = await flags(p);
   ok(after.dblPair === 'kits' && after.kits3 === true && after.quadro === true,
-     'Raw Chikicha turns on 2 Kits, 3 Kits and Quadro');
+     'Chikicha Specials turns on 2 Kits, 3 Kits and Quadro');
   ok(after.loss === 'chosen' && after.mill === 'targeted' && after.shieldScale === false
      && after.drawScales === true && after.apexInf === false && after.apexNoStrip === false,
      'and turns everything else back OFF — "and nothing else" is part of the preset');

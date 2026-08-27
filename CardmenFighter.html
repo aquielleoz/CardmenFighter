@@ -4564,13 +4564,13 @@ window.CardFace = {};
   var RULES={}; RULE_DEFS.forEach(function(d){ RULES[d.key]= d.mode ? d.mode[0].v : false; });
   function ruleOn(d){ return d.mode ? (RULES[d.key]!==d.mode[0].v) : !!RULES[d.key]; }
   function ruleOff(d){ return d.mode ? d.mode[0].v : false; }              // this rule's "not on" value
-  /* PRESETS ARE AN EXACT STATE, NOT AN ADDITIVE ONE — Aj named Raw Chikicha as "kits + quadro and NOTHING
+  /* PRESETS ARE AN EXACT STATE, NOT AN ADDITIVE ONE — Aj named Chikicha Specials as "kits + quadro and NOTHING
    * else", so applying one must also turn off whatever else was on. That is what makes a preset button able to
    * read as active: "these are exactly the rules" is a claim you can check, "at least these" is not.
    * More presets arrive as their shapes do — Dou Dizhu needs trio+single, four+two and the airplane first, so
    * offering it now would name a rule set the build cannot actually play. */
   var RULE_PRESETS=[
-    { key:'chikicha', label:'Raw Chikicha', title:'Kits and Quadro, and nothing else',
+    { key:'chikicha', label:'Chikicha Specials', title:'The Kits and Quadro shapes, and nothing else',
       rules:{ dblPair:'kits', kits3:true, quadro:true } }
   ];
   function presetValue(p,d){ return p.rules[d.key]!==undefined ? p.rules[d.key] : ruleOff(d); }

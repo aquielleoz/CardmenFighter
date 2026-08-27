@@ -230,7 +230,7 @@ key, so netplay and the export carry the RULES, not a name the other end must re
   `startShieldsFor(2)` is 2+2=4 and `drawCountFor` at 2 players is 2, both identical to the defaults. The panel
   says so out loud. The apex pair and the pair shapes are the duel-relevant ones.
 - **A PRESET IS AN EXACT STATE (v1.31.30).** `RULE_PRESETS` entries name only the rules they turn on, and
-  `applyPreset` sets **every** rule — the unnamed ones to their off value — because Aj specified Raw Chikicha as
+  `applyPreset` sets **every** rule — the unnamed ones to their off value — because Aj specified Chikicha Specials as
   "kits + quadro and nothing else". That is also what makes a preset button able to read as *active*. Presets
   never serialise: `rulesKey()` carries the resulting rules, so the far end never has to know a name.
   **The bulk row is DERIVED state** — the rows patch themselves in place, so `syncBulk()` must run on every
