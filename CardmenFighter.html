@@ -4989,7 +4989,16 @@ window.CardFace = {};
      * 2-kit is not one of its shapes and poker's two pair certainly is not), and the straight-flush chop, which
      * belongs to Big Two rather than to Tiến lên. */
     { key:'tienlen', label:'Tiến lên Specials', title:'The family’s own bombs: 3+ Kits and Quadro, both chopping the 2',
-      rules:{ kits3:true, quadro:true, chopKits:true, chopQuadro:true } }
+      rules:{ kits3:true, quadro:true, chopKits:true, chopQuadro:true } },
+    /* DOU DIZHU — the fullest set, because that game has the most shapes. 连对 is our 3 Kits (its floor is three
+     * consecutive pairs, so the four-card slot stays OFF, as in Tiến lên), 单顺 is the unlocked straight, and its
+     * 炸弹 is the bare four of a kind, which is why Quadro comes with the chop. Its 三带二 needs no rule: that is
+     * our full house, always in the game.
+     * One honest divergence, recorded rather than papered over: a Dou Dizhu 炸弹 beats ANY non-bomb play, while
+     * our chop only reaches the all-2s shapes. chopQuadro is the closest thing we have, not the same thing. */
+    { key:'doudizhu', label:'Dou Dizhu Specials', title:'The fullest set: 3 Kits, long straights, trio+1, four+two, the airplane, and the bomb',
+      rules:{ kits3:true, chainLong:true, trioOne:true, fourTwo:true, airplane:true,
+              quadro:true, chopQuadro:true } }
   ];
   function presetValue(p,d){ return p.rules[d.key]!==undefined ? p.rules[d.key] : ruleOff(d); }
   function presetActive(p,src){ src=src||RULES; return RULE_DEFS.every(function(d){ return src[d.key]===presetValue(p,d); }); }

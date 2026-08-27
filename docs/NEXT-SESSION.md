@@ -32,7 +32,12 @@ layer where clients suggest and the host decides (v1.31.31), the deck picker's t
    the pile genuinely cannot answer the question afterwards. See the changelog.
 3. ~~**The remaining Dou Dizhu shapes.**~~ **SHIPPED in v1.31.39** — trio+1, four+two, the airplane, and the
    chain (as a length unlock on the straight). What is left of the family:
-   - **A Dou Dizhu preset**, now that there is a set to bundle. Its section heading already exists for it.
+   - **SPLIT THE CHOPS INTO THEIR OWN SECTION, put the presets on their own line, and drop "Specials" from all
+     three names** (Aj, 2026-08-28). Its own PR: it is panel architecture, and it revises v1.31.39's merge — but
+     legitimately, because shapes-vs-chops is a split by **kind**, which is the axis that survived, unlike
+     provenance. The presets would then span two sections, so a dedicated preset line is the consequence rather
+     than a preference. Watch: `rulestest` asserts the presets live inside a `.ruleSect` heading, `syncBulk()`
+     finds them by `.ruleBulk .bulkBtn`, and the section count and scope-tag count are both asserted.
    - **THE 2 OUT OF STRAIGHTS, as an option, and Aj wants it in the Chikicha preset** (2026-08-28). Our top
      straight window is `J-Q-K-A-2` because we ladder the 2 at 15; Big Two allows it, Tiến lên and Dou Dizhu both
      bar the heo/2 from chains. With the chain unlocked this matters more: a long run becomes a way to launder
@@ -647,6 +652,15 @@ that it *does* scroll, and that the **sticky footer stays pinned and hit-testabl
 the rule count has outgrown.
 
 Suites: `test` 292 → **304**, `rulestest` 109 → **119**. `mpsim` gains `trioone fourtwo airplane chain`.
+
+**And a Dou Dizhu Specials preset**, now that there is a set to bundle: `kits3, chainLong, trioOne, fourTwo,
+airplane, quadro, chopQuadro`. 连对 is our 3 Kits — its floor is three consecutive pairs, so the four-card slot
+stays off as in Tiến lên — 单顺 is the unlocked straight, and its 炸弹 is the bare four of a kind, which is why
+Quadro arrives with the chop. Its 三带二 needs no rule at all: that is our full house.
+**One divergence, recorded rather than papered over:** a Dou Dizhu 炸弹 beats *any* non-bomb play, while our chop
+only reaches the all-2s shapes. `chopQuadro` is the closest thing we have, not the same thing.
+It is also the sharpest test of "a preset is an exact state": coming from Tiến lên it has to turn `chopKits` back
+**off**, which `rulestest` asserts.
 
 **Not built, deliberately:** the winged airplane variants (飞机带翅膀) — a bare airplane already needs six of ten
 cards. And the **landlord rule** (斗地主 is literally "fight the landlord": bidding, a 3-card kitty, one player

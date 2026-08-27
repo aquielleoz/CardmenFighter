@@ -217,9 +217,9 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   const bulk = p => p.evaluate(() => [].map.call(document.querySelectorAll('.modal .bulkBtn'),
     b => ({ preset: b.getAttribute('data-preset'), id: b.id, txt: b.textContent.trim(), off: b.disabled, active: b.classList.contains('active') })));
   let row = await bulk(p);
-  ok(row.length === 3 && row[0].preset === 'chikicha' && row[1].preset === 'tienlen'
-     && row.filter(r => r.id === 'ruleClear').length === 1,
-     `two presets and a Clear all (${row.map(r => r.txt).join(' | ')})`);
+  ok(row.length === 4 && row[0].preset === 'chikicha' && row[1].preset === 'tienlen'
+     && row[2].preset === 'doudizhu' && row.filter(r => r.id === 'ruleClear').length === 1,
+     `three presets and a Clear all (${row.map(r => r.txt).join(' | ')})`);
   ok(await p.evaluate(()=>{
        const c=document.getElementById('ruleClear'); const f=c&&c.closest('.ruleFoot');
        return !!(f && f.querySelector('#ruleDone'));
@@ -248,6 +248,19 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   /* A PRESET IS AN EXACT STATE, not an additive one — Aj named Chikicha Specials as "kits + quadro and nothing
    * else", so applying it over a table full of other rules must turn those OFF. Every rule is on at this point
    * in the suite, which is exactly the case that would catch an additive implementation. */
+  /* DOU DIZHU is the fullest set — six shapes plus the bomb's chop — so it is also the sharpest test that a
+   * preset REPLACES rather than adds: coming from Tiến lên it must turn chopKits back off, and the four-card slot
+   * must stay off, because 连对's floor is three consecutive pairs. */
+  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="doudizhu"]').click()); await wait(250);
+  const dd = await flags(p);
+  ok(dd.kits3 && dd.chainLong && dd.trioOne && dd.fourTwo && dd.airplane && dd.quadro && dd.chopQuadro,
+     'Dou Dizhu turns on 3 Kits, long straights, trio+1, four+two, the airplane and the bomb');
+  ok(dd.dblPair === 'off' && dd.chopKits === false && dd.chopSflush === false,
+     'and nothing else — the four-card slot stays off (连对 needs three pairs) and Tiến lên\'s kit-chop is cleared');
+  ok((await p.evaluate(() => window.__solo.rulesKey())) === 'kits3,quadro,chopQuadro,trioOne,fourTwo,airplane,chainLong',
+     'so the three presets are three exact states, not three accumulations');
+  ok((await bulk(p)).filter(b => b.active).length === 1, 'and exactly one reads active at a time');
+
   await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="chikicha"]').click()); await wait(250);
   const after = await flags(p);
   ok(after.dblPair === 'kits' && after.kits3 === true && after.quadro === true && after.chopQuadro === true
