@@ -1310,19 +1310,23 @@ __QR__
      * break"). It is also a plain shape here — it beats a lower quadro and nothing else. A quadro beating a
      * shape it does not match is the CHOP, a separate rule that needs cross-shape overrides in beats(). */
     { key:'quadro',      duel:true, label:'Quadro — four of a kind',
-      note:'All four copies of one value. On its own it beats a lower Quadro and nothing else — switch on The chop below to give it a job.' },
+      note:'All four copies of one value. Beats a lower Quadro.' },
     /* THE CHOP is a modifier on the shapes above it, so it is last and its note says outright that it does
      * nothing without them. It is also the only rule that makes the apex 2 answerable, which is why the note
      * names the conflict with "The 2 cannot be beaten" rather than leaving two rules to contradict each other. */
     /* THREE INDEPENDENT CHOPS, not a mode. They are distinguishable shapes, so nothing forces a choice — you
      * can take one, or all of them — and each toggle enables its own shape, so no setting is ever dead. The
      * ladder between them is 3 Kits < Quadro < same-suit straight < 4+ Kits. */
-    { key:'chopQuadro',  duel:true, label:'The chop: a Quadro beats the 2',
-      note:'Four of a kind beats a 2 it does not match — a lone 2 or a pair of them. A chop answers by SHAPE, so it works even on a 2 that cannot be beaten. Switching this on makes Quadros playable by itself.' },
-    { key:'chopKits',    duel:true, label:'The chop: 3+ Kits beat the 2',
-      note:'A run of three or more Kits does the same, and 4+ Kits reach a trio of 2s and outrank the other chops. Switching this on makes those runs playable by itself.' },
-    { key:'chopSflush',  duel:true, label:'The chop: five in a row, one suit, beats the 2',
-      note:'Same reach, and it outranks a Quadro. This is <b>only</b> a chop: a same-suit run is an ordinary straight the rest of the time and never beats a higher straight. Single-suit class decks make these far more easily than mixed ones.' }
+    /* `needs` is a REAL dependency, not a hint. The engine already treats a chopper's shape as enabled
+     * (`quadroOn()` is `QUADRO || CHOP_Q`), so leaving the shape's own box unticked told the player something
+     * false about the game they were about to play. The panel now ticks it with them, and unticking the shape
+     * takes its chop with it — the dependency holds in both directions or the display lies again. */
+    { key:'chopQuadro',  duel:true, label:'The chop: a Quadro beats the 2', needs:'quadro',
+      note:'Four of a kind beats a 2 it does not match — a lone 2 or a pair of them. A chop answers by SHAPE, so it works even on a 2 that cannot be beaten. Switches Quadro on with it.' },
+    { key:'chopKits',    duel:true, label:'The chop: 3+ Kits beat the 2', needs:'kits3',
+      note:'A run of three or more Kits does the same, and 4+ Kits reach a trio of 2s and outrank the other chops. Switches 3 Kits on with it.' },
+    { key:'chopSflush',  duel:true, label:'The chop: a Straight Flush beats the 2',
+      note:'Five in a row, all one suit. Same reach as a Quadro, and it outranks one. This is <b>only</b> a chop — a same-suit run is an ordinary straight the rest of the time and never beats a higher straight. Single-suit class decks make these far more easily than mixed ones.' }
   ];
   /* TWO STORES, and the split is what makes suggestions possible (v1.31.31). RULES is what is IN PLAY — on a
    * netplay client the host overwrites it wholesale, so anything kept there is not yours. MY_RULES is THIS
@@ -4686,8 +4690,15 @@ __QR__
     });
     if(!ro) Array.prototype.forEach.call(document.querySelectorAll('button.settingRow[data-rule]'), function(btn){
       btn.addEventListener('click', function(){
-        var k=this.getAttribute('data-rule');
-        src[k]=!src[k]; commit();
+        var k=this.getAttribute('data-rule'), def=RULE_DEFS.filter(function(d){ return d.key===k; })[0];
+        src[k]=!src[k];
+        /* A dependency moves OTHER rows, so re-open the panel rather than patching this one — the per-row
+         * handlers only know how to update themselves (same reason a bulk action re-renders). */
+        var moved=false;
+        if(src[k] && def && def.needs && !src[def.needs]){ src[def.needs]=true; moved=true; }
+        if(!src[k]) RULE_DEFS.forEach(function(o){ if(o.needs===k && src[o.key]){ src[o.key]=false; moved=true; } });
+        commit();
+        if(moved){ if(opts.onChange) opts.onChange(); showRules(opts); return; }
         this.classList.toggle('on', !!src[k]);
         this.setAttribute('aria-checked', src[k]?'true':'false');
         this.querySelector('.settingBox').textContent=src[k]?'✓':'';

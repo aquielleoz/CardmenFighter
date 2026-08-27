@@ -370,6 +370,17 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     the apex answerable — 14% of 2-plays chopped at six players — but the hoped-for effect on initiative
     concentration never appeared; the aggregate leader share is unchanged. What it did do is give Quadro a job:
     17 → 956 plays per 250 six-player games. See the changelog.
+  - **MOVE THE RULE DESCRIPTIONS INTO TOOLTIPS (Aj, 2026-08-27: "let's move all these descriptions into
+    tooltips, maybe accessible by click on a `?` next to the option name"). Its own PR.** Thirteen rules with a
+    two-to-three-line note each is a very long panel — the reason the modal grew a `max-height` and scroll in
+    v1.31.14. Things to get right: it must be **click**, not hover, because the panel is used on a phone and
+    hover does not exist there (the landscape band and the 340px floor are the sizes to check); the `?` needs a
+    real tap target next to the label without pushing the scope tag around; the popover has to clear the modal's
+    own stacking (`.overlay` is `z-index:100000` and sits above `#netroot`, so anything above it needs a number,
+    not luck); and `rulestest`/`nettest_rules` currently assert note TEXT in places — a hidden note must still be
+    findable, or those assertions quietly stop checking anything. Note the panel already has three control
+    shapes (button rows, mode segments, bulk buttons); a fourth needs the same both-halves coverage, read-only
+    included.
   - **CHOP STRIP OR NOT — an option (Aj, 2026-08-27: "an option we can add for the chop is if it strips or
     not").** A round won by a chop destroys no shield, in the shape of `apexNoStrip`. The subtlety: `apexNoStrip`
     can read the winning pile (`hasApex(pile.combo.cards)`), but "did this play CHOP something" is **not visible
@@ -562,6 +573,13 @@ C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do
 The first rule where a shape beats one it **does not match**, and the reason the family's big shapes exist at
 all. In Tiến lên a tứ quý or ba đôi thông *chops* the heo — and in this game the heo is the apex 2. So the chop
 is what makes the 2 answerable, and what finally gives Quadro a job.
+
+**A chop ticks its own shape on** (Aj: *"1st one should probably auto check the quadros option"*). The engine
+already treated a chopper's shape as enabled — `quadroOn()` is `QUADRO || CHOP_Q` — so an unticked Quadro box
+beside a ticked "Quadro chops" box was telling the player something **false** about the game they were about to
+play. `needs` makes it a real dependency, and it holds in **both** directions: unticking the shape takes its chop
+with it, or the panel simply lies the other way round. The Straight Flush chop needs no shape row, being the only
+way that shape exists at all.
 
 **Three independent toggles, not one rule and not a mode.** The first pass made it a single boolean, then a
 mode row like the four-card slot — both wrong, and Aj caught each: *"we can't actually do it like Four-card

@@ -294,7 +294,10 @@ Three more things worth knowing before touching them:
 - **THE CHOPS (v1.31.33) ARE THREE INDEPENDENT TOGGLES, NOT A MODE** — `chopQuadro`, `chopKits`, `chopSflush`.
   The four-card double-pair slot has to be a mode because `4♦4♥5♣5♠` is genuinely both shapes; a Quadro, a 3-Kit
   and a same-suit straight are distinguishable, so nothing forces a choice and there is no "off" segment. Each
-  toggle **enables its own shape** (`quadroOn()`/`kits3On()`), so a selected chopper is never unplayable.
+  toggle **enables its own shape** (`quadroOn()`/`kits3On()`), so a selected chopper is never unplayable — and
+  the panel declares that as a real dependency (`needs`), ticking the shape's own row with it and unticking the
+  chop when the shape goes off. **Both directions matter:** the engine enables the shape either way, so a box
+  that disagrees with it is the UI lying about the game about to be played.
 - **THE `straightflush` TYPE IS DELETED (v1.31.33), NOT DISABLED.** Since v1.14 `detectCombo` never produced it,
   which made the `beats()` clause granting it priority over any straight **unreachable dead code** — easy to
   misread as live behaviour, and I did. A same-suit run is an ordinary straight compared by value; one suit

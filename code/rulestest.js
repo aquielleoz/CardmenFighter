@@ -104,6 +104,38 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
      'and a legacy `kits` key migrates to dblPair=kits + kits3, rather than quietly reverting to off');
   await p.evaluate(()=>window.__solo.setRulesFromKey('lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chop'));
 
+  /* ---------- THE CHOP DEPENDENCY (v1.31.33). The engine treats a chopper's shape as enabled either way
+   * (`quadroOn()` is `QUADRO || CHOP_Q`), so an unticked Quadro box next to a ticked "Quadro chops" box told the
+   * player something FALSE about the game. The panel ticks it with them — and unticking the shape must take its
+   * chop with it, or the display lies again in the other direction. */
+  await p.evaluate(()=>window.__solo.setRulesFromKey('')); await wait(120);
+  await p.evaluate(()=>document.getElementById('ruleDone').click()); await wait(150);
+  await openRules(p);
+  const rulesOn = () => p.evaluate(()=>[].filter.call(document.querySelectorAll('.settingRow[data-rule]'),
+    r=>/\bon\b/.test(r.className)).map(r=>r.getAttribute('data-rule')));
+  await toggle(p,'chopQuadro'); await wait(200);
+  let depOn = await rulesOn();
+  ok(depOn.indexOf('quadro')>=0 && depOn.indexOf('chopQuadro')>=0,
+     `turning on the Quadro chop ticks Quadro with it (${depOn.join(', ')})`);
+  ok((await flags(p)).quadro===true, '  and the engine agrees, so the box is not decorative');
+  await toggle(p,'quadro'); await wait(200);
+  depOn = await rulesOn();
+  ok(depOn.indexOf('quadro')<0 && depOn.indexOf('chopQuadro')<0,
+     `unticking Quadro takes its chop with it (${depOn.join(', ')||'none'}) — the dependency holds both ways`);
+  await toggle(p,'chopKits'); await wait(200);
+  depOn = await rulesOn();
+  ok(depOn.indexOf('kits3')>=0 && depOn.indexOf('chopKits')>=0, '3 Kits behaves the same way');
+  await toggle(p,'chopSflush'); await wait(200);
+  depOn = await rulesOn();
+  ok(depOn.indexOf('chopSflush')>=0 && depOn.length===3,
+     'while the Straight Flush chop needs no shape row — it is the only way that shape exists');
+  ok(await p.evaluate(()=>/Straight Flush beats the 2/.test(
+       (document.querySelector('.settingRow[data-rule="chopSflush"] .settingLbl')||{}).textContent||'')),
+     'and it is named for the shape a player would call it, with the definition in the note');
+  await p.evaluate(()=>window.__solo.setRulesFromKey('lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chopQuadro,chopKits,chopSflush'));
+  await p.evaluate(()=>document.getElementById('ruleDone').click()); await wait(150);
+  await openRules(p);
+
   // ---------- presets + Clear all (v1.31.30): one row that moves every rule at once
   const bulk = p => p.evaluate(() => [].map.call(document.querySelectorAll('.ruleBulk .bulkBtn'),
     b => ({ preset: b.getAttribute('data-preset'), id: b.id, txt: b.textContent.trim(), off: b.disabled, active: b.classList.contains('active') })));
