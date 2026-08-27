@@ -700,6 +700,11 @@
   @media (min-width:1400px){
     .modal.rulesPanel{max-width:1120px;}
     .modal.rulesPanel .settings{grid-template-columns:1fr 1fr 1fr;}
+    /* Every rule added costs a grid row (~76px), so the wide layout tightens its rhythm to keep a margin: the
+     * rows are short here and the extra breathing room was doing nothing that the columns do not already do. */
+    .modal.rulesPanel .settings{gap:7px;}
+    .modal.rulesPanel .settingRow{padding:10px 12px;}
+    .modal.rulesPanel .ruleSect{margin:6px 0 1px;}
   }
   .modal .ghostBtn{background:var(--panel); color:var(--txt); border:1px solid var(--line); font-weight:700; font-size:14px; width:100%; margin-top:8px;}
   .modal .setupBtns{display:flex; gap:8px; margin-top:8px;}
@@ -1411,23 +1416,29 @@
     for (var i = 1; i < cards.length; i++) if (cards[i].suit !== cards[0].suit) return false;
     return true;
   }
+  /* "Does `cand` CHOP `cur`?" — one definition, used by beats() to allow the play and by play() to stamp the
+   * pile. They must not drift: the rule that lets a chop through and the record that it happened have to agree,
+   * or a no-strip chop would resolve as an ordinary win (or the reverse). */
+  function isChopOf(cand, cur) {
+    if (!cur || !chopRank(cand)) return false;
+    if (chopRank(cur)) return false;                       // chop vs chop is answered in kind, not a chop
+    return apexOnlyPlay(cur) && cur.size <= CHOP_REACH;
+  }
   function beats(cand, cur) {
     if (!cand) return false;
     if (!cur) return true;
     if (anyChop()) {
       var cr = chopRank(cand);
       if (cr) {
-        var rr = chopRank(cur);
         /* NO early return for chop-vs-chop: fall through to the ordinary same-type/same-size/value comparison,
          * which is what "answered only in kind" means — a higher Quadro over a lower one, a higher 3-Kit over a
-         * lower one. Returning false here instead made every chop unanswerable, including by its own shape. */
-        /* A CHOP BEATS AN INFINITE 2 (Aj, 2026-08-27: "a chop would deal with inf 2s btw"). The two rules
+         * lower one. Returning false here instead made every chop unanswerable, including by its own shape.
+         * A CHOP BEATS AN INFINITE 2 (Aj, 2026-08-27: "a chop would deal with inf 2s btw"). The two rules
          * COMPOSE rather than one voiding the other, and the reason is the mechanism: APEX_INF makes the 2
          * unbeatable BY VALUE — it ranks the card at Infinity — and a chop is not a value answer at all, it is
          * a shape answer. So the chop is precisely the counterplay to an unbeatable 2, which is also what makes
-         * `inf` playable without `nostrip`. Hence no APEX_INF guard here, and `apexOnlyPlay` accepts the
-         * Infinity key for exactly this case. */
-        if (!rr && apexOnlyPlay(cur) && cur.size <= CHOP_REACH) return true;
+         * `inf` playable without `nostrip`. `apexOnlyPlay` accepts the Infinity key for exactly this case. */
+        if (isChopOf(cand, cur)) return true;
       }
     }
     if (cand.type !== cur.type || cand.size !== cur.size) return false;
@@ -2725,8 +2736,15 @@
     // helps you BEAT a pile, never hold one. Equipment is NOT frozen here; refreshPile() layers the live
     // equipment delta on top, so the pile's value keeps tracking the board as equipment is added or removed.
     var swan = swanValue(st, p), lockedDelta = playBoost(st, p) + swan;
+    /* `chopped` HAS TO BE STAMPED HERE, because the next line throws away the thing that was beaten. At resolve
+     * time a Quadro led into an empty pile, a Quadro played over a lower Quadro, and a Quadro that chopped a pair
+     * of 2s leave byte-identical piles — same type, size, key, cards and player — so "did this win by chopping?"
+     * is unanswerable from the pile alone. `apexNoStrip` gets away with reading the pile because "was the play
+     * made of 2s" is a property of the play itself; this is a property of the play AND its target. */
+    var choppedNow = isChopOf(eff, st.pile ? st.pile.combo : null);
     var stored = { type: combo.type, size: combo.size, value: combo.value, key: combo.key.slice(), cards: eff.cards };
-    st.pile = { combo: stored, byPlayer: p, raw: combo.value, rawKey0: combo.key[0], lockedDelta: lockedDelta, mod: 0 };
+    st.pile = { combo: stored, byPlayer: p, raw: combo.value, rawKey0: combo.key[0], lockedDelta: lockedDelta, mod: 0,
+                chopped: choppedNow };
     refreshPile(st);                                                    // fold in the current equipment contribution (== play-time value, and re-evaluated whenever equipment changes)
     pl.nextPlayBoost = 0;                                               // a pre-fight boost is spent by the play it powers
     st.lastPlayer = p; st.passes = 0;
@@ -2806,8 +2824,10 @@
     /* Stored like any other play so refreshPile() keeps tracking the board: raw base value, plus the deltas
      * frozen at play time. `phantom` still marks it for the UI and the netplay mirror. */
     var swan = swanValue(st, p), lockedDelta = playBoost(st, p) + swan + plus;
+    var phChopped = isChopOf(cand, st.pile ? st.pile.combo : null);   // an Illusion copy can chop too
     var stored = { type: cand.type, size: cand.size, value: cand.value + lockedDelta, key: [cand.key[0] + lockedDelta].concat(cand.key.slice(1)), cards: candCards };
-    st.pile = { combo: stored, byPlayer: p, raw: cand.value, rawKey0: cand.key[0], lockedDelta: lockedDelta, mod: 0, phantom: true };
+    st.pile = { combo: stored, byPlayer: p, raw: cand.value, rawKey0: cand.key[0], lockedDelta: lockedDelta, mod: 0, phantom: true,
+                chopped: phChopped };
     refreshPile(st);
     pl.nextPlayBoost = 0;                              // a pre-fight boost is spent by the illusion it powered
     st.lastPlayer = p; st.passes = 0; st.turn = nextPlayer(st, p); st._effUsed = false;
@@ -2893,6 +2913,11 @@
      * and a rival who sees the opening escalates — a boosted pair of Aces takes the round back and puts the
      * damage on you. The unbeatable version cannot produce that exchange at all, because nothing answers it. */
     if (APEX_NOSTRIP && hasApex(st.pile.combo.cards)) wonWithCombo = false;   // a winning play containing a 2 deals no damage
+    /* A round WON BY A CHOP deals no damage, unless CHOP_STRIPS says otherwise. Reads the flag stamped at play
+     * time — see the comment at the stamp for why it cannot be worked out from the pile here. Like apexNoStrip,
+     * clearing wonWithCombo drives BOTH the shield strip and the mill target, so such a round resolves exactly
+     * like a jab win. */
+    if (st.pile.chopped && !CHOP_STRIPS) wonWithCombo = false;
     var losers = livingNonWinners(st, winner);
     // who takes a shield loss (Specials only): 'all' = every loser; 'chosen' = the winner's one pick
     var strikeTargets = [];
@@ -3123,7 +3148,7 @@
    * a 3-Kit and a same-suit straight are three distinguishable patterns — nothing forces a choice, so nothing
    * should impose one, and there is no "off" segment either: they are ordinary toggles. Each flag also ENABLES
    * its own shape, so no setting can be dead. */
-  var CHOP_Q = false, CHOP_K = false, CHOP_SF = false;
+  var CHOP_Q = false, CHOP_K = false, CHOP_SF = false, CHOP_STRIPS = false;
   var QUADRO = false;
   var DBL_PAIR = 'off', KITS3 = false;
   /* A MODE, like the four-card double-pair slot (Aj, 2026-08-27: "let's do it like the Four-card double
@@ -3135,6 +3160,12 @@
   function setChopQuadro(v) { CHOP_Q = !!v; }
   function setChopKits(v)   { CHOP_K = !!v; }
   function setChopSflush(v) { CHOP_SF = !!v; }
+  /* CHOPS DEAL NO DAMAGE BY DEFAULT (Aj, 2026-08-27: "the default is that chops don't destroy shields"). A chop
+   * buys the lead, not a shield. The toggle is therefore phrased as the POSITIVE — `chopStrips` makes them deal
+   * damage — because every rule in the panel must default OFF: "is this game customised?" is literally "is any
+   * rule on?", so a rule whose off state changed the game would break that. Same inversion as `flatDraw`. */
+  function setChopStrips(v) { CHOP_STRIPS = !!v; }
+  function isChopStrips() { return CHOP_STRIPS; }
   function isChopQuadro() { return CHOP_Q; }
   function isChopKits()   { return CHOP_K; }
   function isChopSflush() { return CHOP_SF; }
@@ -3275,6 +3306,7 @@
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
     setChopQuadro: setChopQuadro, setChopKits: setChopKits, setChopSflush: setChopSflush,
+    setChopStrips: setChopStrips, isChopStrips: isChopStrips,
     isChopQuadro: isChopQuadro, isChopKits: isChopKits, isChopSflush: isChopSflush, chopRank: chopRank,
     setQuadro: setQuadro, isQuadro: isQuadro,
     setDoublePair: setDoublePair, isDoublePair: isDoublePair,
@@ -4595,7 +4627,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.37';
+  var GAME_VERSION='v1.31.38';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -4735,7 +4767,19 @@ window.CardFace = {};
     { key:'chopKits',    duel:true, label:'The chop: 3+ Kits beat the 2', needs:'kits3',
       note:'A run of three or more Kits does the same. Switches 3 Kits on with it.' },
     { key:'chopSflush',  duel:true, label:'The chop: a Straight Flush beats the 2',
-      note:'Five in a row, all one suit, does the same. This is <b>only</b> a chop — a same-suit run is an ordinary straight the rest of the time and never beats a higher straight. Single-suit class decks make these far more easily than mixed ones: they turn up in about one hand in four, against one in three hundred for the Full Set.' }
+      note:'Five in a row, all one suit, does the same. This is <b>only</b> a chop — a same-suit run is an ordinary straight the rest of the time and never beats a higher straight. Single-suit class decks make these far more easily than mixed ones: they turn up in about one hand in four, against one in three hundred for the Full Set.' },
+    /* CHOPS DEAL NO DAMAGE BY DEFAULT, and Aj's reason is the design one (2026-08-27): "that'll be lines for
+     * players to think. nothing wrong with making them valid shapes... but making them chops is more non linear
+     * play." A chop already breaks the one rule every other shape obeys — beat the same shape at a higher value —
+     * so its payoff is the LEAD, not a shield. Paying damage as well would make the non-linear play the strongest
+     * play too.
+     * The toggle is phrased as the POSITIVE (`chopStrips` makes them deal damage) because every rule in this
+     * panel must default OFF: "is this game customised?" is literally "is any rule on?". Same inversion as
+     * `flatDraw`. And it reads a flag stamped when the play was accepted — by the time a round resolves the
+     * beaten combo is gone and a chop is indistinguishable from a lead. */
+    { key:'chopStrips',  duel:true, label:'Chops destroy shields too',
+      needsAny:['chopQuadro','chopKits','chopSflush'],
+      note:'By default a round won <b>by a chop</b> costs nobody a shield — a chop already bends the shape-matching rule, so what it buys you is the lead. Switch this on and a chop deals damage like any other Special. Either way it only concerns rounds a chop actually won: leading one of these shapes, or beating one with a higher one of the same shape, always deals damage. Needs a chop switched on to mean anything, so it stays inert until one is — and clears itself if the last one goes off.' },
   ];
   /* TWO STORES, and the split is what makes suggestions possible (v1.31.31). RULES is what is IN PLAY — on a
    * netplay client the host overwrites it wholesale, so anything kept there is not yours. MY_RULES is THIS
@@ -4757,7 +4801,7 @@ window.CardFace = {};
     { key:'mode',   title:'The game',       keys:['basics'] },
     { key:'table',  title:'Table rules',    keys:['lossAll','millAll','shieldScale','flatDraw'] },
     { key:'apex',   title:'The 2',          keys:['apexInf','apexNoStrip'] },
-    { key:'shapes', title:'Shapes & chops', keys:['dblPair','kits3','quadro','chopQuadro','chopKits','chopSflush'],
+    { key:'shapes', title:'Shapes & chops', keys:['dblPair','kits3','quadro','chopQuadro','chopKits','chopSflush','chopStrips'],
       presets:true }
   ];
   var RULES={}, MY_RULES={};
@@ -4840,6 +4884,7 @@ window.CardFace = {};
       if(E.setChopQuadro)       E.setChopQuadro(!!RULES.chopQuadro);
       if(E.setChopKits)         E.setChopKits(!!RULES.chopKits);
       if(E.setChopSflush)       E.setChopSflush(!!RULES.chopSflush);
+      if(E.setChopStrips)       E.setChopStrips(!!RULES.chopStrips);
   }
   function valLabel(d,v){
     if(!d.mode) return v?'On':'Off';       // capitalised to match a mode row's own labels, which sit beside it
@@ -8040,6 +8085,10 @@ window.CardFace = {};
      * `?` is the one thing that stays live. */
     function qMark(d){ return '<span class="ruleQ" role="button" tabindex="0" aria-expanded="false" data-note-for="'+
                               d.key+'" title="What does this do?">?</span>'; }
+    /* `needsAny` — inert while none of its group is on (Aj: "this option should uncheck if chops were not
+     * available"). A checked box that cannot do anything is worse than a greyed one, so the control is dead
+     * until it means something, and the handler clears it when the last of the group goes off. */
+    function depOk(d){ return !d.needsAny || d.needsAny.some(function(k){ return !!src[k]; }); }
     function rowHTML(d){
       /* A MODE row is a <div> with a segmented control, not a <button> — nesting buttons inside a button is
        * invalid, and the alternatives are mutually exclusive rather than independently checkable, which is the
@@ -8060,9 +8109,9 @@ window.CardFace = {};
           '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span>'+
           '<span class="segToggle" role="radiogroup" aria-label="'+d.label+'">'+segs+'</span></div>';
       }
-      var on=!!src[d.key];
-      return '<button type="button" class="settingRow'+(on?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'"'+
-        (ro?' disabled':'')+' role="switch" aria-checked="'+(on?'true':'false')+'">'+
+      var on=!!src[d.key], dead=!depOk(d);
+      return '<button type="button" class="settingRow'+(on?' on':'')+((ro||dead)?' ro':'')+'" data-rule="'+d.key+'"'+
+        ((ro||dead)?' disabled':'')+' role="switch" aria-checked="'+(on?'true':'false')+'">'+
         '<span class="settingBox">'+(on?'✓':'')+'</span>'+
         '<span class="settingBody"><span class="settingLbl">'+d.label+qMark(d)+'</span>'+
         '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span></button>';
@@ -8165,6 +8214,13 @@ window.CardFace = {};
         var moved=false;
         if(src[k] && def && def.needs && !src[def.needs]){ src[def.needs]=true; moved=true; }
         if(!src[k]) RULE_DEFS.forEach(function(o){ if(o.needs===k && src[o.key]){ src[o.key]=false; moved=true; } });
+        /* A member of a `needsAny` group moved, so the dependent row's own live/dead state changed — and if the
+         * group is now empty the dependent rule is cleared. Either way other rows move, so re-render. */
+        RULE_DEFS.forEach(function(o){
+          if(!o.needsAny || o.needsAny.indexOf(k)<0) return;
+          if(!o.needsAny.some(function(x){ return !!src[x]; }) && src[o.key]) src[o.key]=false;
+          moved=true;
+        });
         commit();
         if(moved){ if(opts.onChange) opts.onChange(); showRules(opts); return; }
         this.classList.toggle('on', !!src[k]);

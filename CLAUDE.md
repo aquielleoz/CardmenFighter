@@ -324,6 +324,31 @@ Three more things worth knowing before touching them:
   matters **only** to `chopRank` under `chopSflush`. Deleting it halved the mono-suit tilt (pure decks +0.9 /
   mixed −0.6 over three interleaved replicates, from +1.8 / −1.2), and the residue is the chop's own. **Do not
   reintroduce a straight-flush TYPE to implement a straight-flush rule** — rank the shape, don't retype it.
+- **"DID THIS PLAY CHOP?" IS NOT ANSWERABLE FROM THE PILE (v1.31.38).** `apexNoStrip` reads
+  `hasApex(st.pile.combo.cards)` at resolve time because "was the play made of 2s" is a property of the play
+  itself. A chop is a property of the play **and what it beat**, and `play()` replaces the pile the moment a play
+  is accepted — a Quadro led, a Quadro over a lower Quadro, and a Quadro that chopped a pair of 2s leave
+  **byte-identical** piles. So a chop's damage is decided by `st.pile.chopped`, stamped in `play()` between the
+  `beats()` check and the pile replacement. **`isChopOf(cand, cur)` is the single definition of "chops", used by `beats()`
+  to allow the play and by `play()` to record it** — do not inline either copy, they are 400 lines apart and
+  would drift. A later play in the round overwrites the flag, which is correct: a chop that is then beaten did
+  not win. And `wonWithCombo=false` drives both the shield strip and the mill target, so a no-strip chop resolves
+  like a jab win.
+- **CHOPS DEAL NO DAMAGE BY DEFAULT (v1.31.38), and the toggle is the POSITIVE (`chopStrips`).** Aj's reason is
+  design, not balance: a chop already bends the one rule every other shape obeys, so its payoff is the lead, and
+  paying damage too would make the non-linear play the strongest play. The toggle has to be phrased as "chops
+  destroy shields too" because every rule in the panel must default OFF — `RULE_DEFS.some(ruleOn)` *is* the
+  definition of "customised". Same inversion as `flatDraw`. Pacing cost of the default is ~nil (28.5 vs 28.1
+  rounds at 6p).
+- **TWO KINDS OF DEPENDENCY IN THE PANEL, and they behave differently.** `needs:'quadro'` is *all of one* — it
+  ticks the named rule on with itself and unticks itself when that rule goes off. `needsAny:[...]` is *any of a
+  group*: the row is **inert** while none of the group is on (disabled, and clicking it genuinely does nothing,
+  which is asserted rather than assumed) and **clears itself** when the last of the group goes off. `chopStrips`
+  is the case — it modifies the chops, so with no chop enabled it can only mislead. Any change to a group member
+  re-renders the panel, since the dependent row's live/dead state moved.
+- **THE WIDE PANEL IS ON A TREADMILL:** every rule added costs a grid row, ~76px. v1.31.38's fourteenth rule
+  pushed a 14-inch MBP back into scrolling until the wide-only rhythm was trimmed (gap 9→7, row padding 12→10,
+  section margins 10→6) for 881px. Measure `scrollHeight > clientHeight` at 1512×945 after adding a rule.
 - **NO CHOPPER BEATS ANOTHER, and that is a decision with reasons** (2026-08-27). `chopRank` returns the same
   value for every enabled chopper, so chop-vs-chop **falls through** to the ordinary same-type/same-size/value
   comparison — a chop is answered in kind. Do not add an early `return false` there: that made every chop
@@ -577,11 +602,11 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 276, `netview` 28, `mptest` 82,
+Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 292, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 42, `viewtest` 10,
 `landscapetest` 96, `versiontest` 15, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 100, `nettest_rules` 28, `nettest_suggest` 34, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
+`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 104, `nettest_rules` 28, `nettest_suggest` 34, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
 **A SUITE CAN BE GREEN AND BLIND. Three shapes of it, all found in one 2026-08-27 sweep and all fixed:**

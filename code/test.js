@@ -987,6 +987,52 @@ function cards(ids) { return ids.map(card); }
   ok(E.beats(E.detectCombo(q7), E.detectCombo(one2)) === false && E.detectCombo(q7) === null,
      'and with every chop off the shapes are gone again');
 
+  /* ---- CHOPS DESTROY NO SHIELDS (v1.31.38). The flag is stamped when the play is ACCEPTED, not worked out at
+   * resolve time — by then the beaten combo is gone and a Quadro that chopped a pair of 2s is byte-identical to
+   * one that was led: same type, size, key, cards and player. `isChopOf` is the single definition of "chops",
+   * shared by beats() and the stamp, so the rule and the record cannot disagree. */
+  (function () {
+    function fresh() {
+      var g = E.newGame(Math.random, { numPlayers: 2, decks: [null, null] });
+      g.round = 3; g.turn = 0; g.pile = null; g.passes = 0;
+      return g;
+    }
+    var Q = function () { return [C(7, 'D'), C(7, 'H'), C(7, 'C'), C(7, 'S')]; };
+    E.setChopQuadro(true);
+    var g = fresh();                                          // LED, nothing chopped
+    g.players[0].hand = Q(); E.play(g, 0, g.players[0].hand.slice());
+    ok(g.pile.chopped === false, 'a Quadro LED into an empty pile is not a chop');
+    g = fresh();                                              // over a lower Quadro, still not a chop
+    var lo = [C(5, 'D'), C(5, 'H'), C(5, 'C'), C(5, 'S')];
+    g.players[1].hand = lo.slice(); g.turn = 1; E.play(g, 1, lo); g.turn = 0;
+    g.players[0].hand = Q(); E.play(g, 0, g.players[0].hand.slice());
+    ok(g.pile.chopped === false, 'nor is beating a lower Quadro with a higher one');
+    g = fresh();                                              // over a pair of 2s — a chop
+    var two = [C(2, 'D'), C(2, 'H')];
+    g.players[1].hand = two.slice(); g.turn = 1; E.play(g, 1, two); g.turn = 0;
+    g.players[0].hand = Q(); E.play(g, 0, g.players[0].hand.slice());
+    ok(g.pile.chopped === true, 'but chopping a pair of 2s IS, and the pile records it');
+    /* THE RULE ITSELF, and note which way round the default goes: a chop deals NO damage unless you ask for it
+     * (Aj: "the default is that chops don't destroy shields... making them chops is more non linear play" — a
+     * chop already bends the shape-matching rule, so its payoff is the lead). The toggle is the positive so that
+     * every rule in the panel still defaults off. */
+    function chopRound(strips) {
+      E.setChopStrips(strips);
+      var h = fresh();
+      var t = [C(2, 'D'), C(2, 'H')];
+      h.players[1].hand = t.slice(); h.turn = 1; E.play(h, 1, t); h.turn = 0;
+      h.players[0].hand = Q(); E.play(h, 0, h.players[0].hand.slice());
+      var before = h.players[1].shields;
+      h.passes = 0; E.pass(h, 1);                             // the beaten seat gives up the round
+      return { before: before, after: h.players[1].shields };
+    }
+    var dflt = chopRound(false), strips = chopRound(true);
+    ok(dflt.after === dflt.before, 'BY DEFAULT a chop costs nobody a shield (' + dflt.before + '->' + dflt.after + ')');
+    ok(strips.after === strips.before - 1,
+       'and `chopStrips` makes it deal damage like any other Special (' + strips.before + '->' + strips.after + ')');
+    E.setChopStrips(false); E.setChopQuadro(false);
+  })();
+
   E.setQuadro(false); E.setKits3(false); E.setDoublePair('off');
 })();
 

@@ -700,6 +700,11 @@
   @media (min-width:1400px){
     .modal.rulesPanel{max-width:1120px;}
     .modal.rulesPanel .settings{grid-template-columns:1fr 1fr 1fr;}
+    /* Every rule added costs a grid row (~76px), so the wide layout tightens its rhythm to keep a margin: the
+     * rows are short here and the extra breathing room was doing nothing that the columns do not already do. */
+    .modal.rulesPanel .settings{gap:7px;}
+    .modal.rulesPanel .settingRow{padding:10px 12px;}
+    .modal.rulesPanel .ruleSect{margin:6px 0 1px;}
   }
   .modal .ghostBtn{background:var(--panel); color:var(--txt); border:1px solid var(--line); font-weight:700; font-size:14px; width:100%; margin-top:8px;}
   .modal .setupBtns{display:flex; gap:8px; margin-top:8px;}
@@ -1375,7 +1380,19 @@ __QR__
     { key:'chopKits',    duel:true, label:'The chop: 3+ Kits beat the 2', needs:'kits3',
       note:'A run of three or more Kits does the same. Switches 3 Kits on with it.' },
     { key:'chopSflush',  duel:true, label:'The chop: a Straight Flush beats the 2',
-      note:'Five in a row, all one suit, does the same. This is <b>only</b> a chop — a same-suit run is an ordinary straight the rest of the time and never beats a higher straight. Single-suit class decks make these far more easily than mixed ones: they turn up in about one hand in four, against one in three hundred for the Full Set.' }
+      note:'Five in a row, all one suit, does the same. This is <b>only</b> a chop — a same-suit run is an ordinary straight the rest of the time and never beats a higher straight. Single-suit class decks make these far more easily than mixed ones: they turn up in about one hand in four, against one in three hundred for the Full Set.' },
+    /* CHOPS DEAL NO DAMAGE BY DEFAULT, and Aj's reason is the design one (2026-08-27): "that'll be lines for
+     * players to think. nothing wrong with making them valid shapes... but making them chops is more non linear
+     * play." A chop already breaks the one rule every other shape obeys — beat the same shape at a higher value —
+     * so its payoff is the LEAD, not a shield. Paying damage as well would make the non-linear play the strongest
+     * play too.
+     * The toggle is phrased as the POSITIVE (`chopStrips` makes them deal damage) because every rule in this
+     * panel must default OFF: "is this game customised?" is literally "is any rule on?". Same inversion as
+     * `flatDraw`. And it reads a flag stamped when the play was accepted — by the time a round resolves the
+     * beaten combo is gone and a chop is indistinguishable from a lead. */
+    { key:'chopStrips',  duel:true, label:'Chops destroy shields too',
+      needsAny:['chopQuadro','chopKits','chopSflush'],
+      note:'By default a round won <b>by a chop</b> costs nobody a shield — a chop already bends the shape-matching rule, so what it buys you is the lead. Switch this on and a chop deals damage like any other Special. Either way it only concerns rounds a chop actually won: leading one of these shapes, or beating one with a higher one of the same shape, always deals damage. Needs a chop switched on to mean anything, so it stays inert until one is — and clears itself if the last one goes off.' },
   ];
   /* TWO STORES, and the split is what makes suggestions possible (v1.31.31). RULES is what is IN PLAY — on a
    * netplay client the host overwrites it wholesale, so anything kept there is not yours. MY_RULES is THIS
@@ -1397,7 +1414,7 @@ __QR__
     { key:'mode',   title:'The game',       keys:['basics'] },
     { key:'table',  title:'Table rules',    keys:['lossAll','millAll','shieldScale','flatDraw'] },
     { key:'apex',   title:'The 2',          keys:['apexInf','apexNoStrip'] },
-    { key:'shapes', title:'Shapes & chops', keys:['dblPair','kits3','quadro','chopQuadro','chopKits','chopSflush'],
+    { key:'shapes', title:'Shapes & chops', keys:['dblPair','kits3','quadro','chopQuadro','chopKits','chopSflush','chopStrips'],
       presets:true }
   ];
   var RULES={}, MY_RULES={};
@@ -1480,6 +1497,7 @@ __QR__
       if(E.setChopQuadro)       E.setChopQuadro(!!RULES.chopQuadro);
       if(E.setChopKits)         E.setChopKits(!!RULES.chopKits);
       if(E.setChopSflush)       E.setChopSflush(!!RULES.chopSflush);
+      if(E.setChopStrips)       E.setChopStrips(!!RULES.chopStrips);
   }
   function valLabel(d,v){
     if(!d.mode) return v?'On':'Off';       // capitalised to match a mode row's own labels, which sit beside it
@@ -4680,6 +4698,10 @@ __QR__
      * `?` is the one thing that stays live. */
     function qMark(d){ return '<span class="ruleQ" role="button" tabindex="0" aria-expanded="false" data-note-for="'+
                               d.key+'" title="What does this do?">?</span>'; }
+    /* `needsAny` — inert while none of its group is on (Aj: "this option should uncheck if chops were not
+     * available"). A checked box that cannot do anything is worse than a greyed one, so the control is dead
+     * until it means something, and the handler clears it when the last of the group goes off. */
+    function depOk(d){ return !d.needsAny || d.needsAny.some(function(k){ return !!src[k]; }); }
     function rowHTML(d){
       /* A MODE row is a <div> with a segmented control, not a <button> — nesting buttons inside a button is
        * invalid, and the alternatives are mutually exclusive rather than independently checkable, which is the
@@ -4700,9 +4722,9 @@ __QR__
           '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span>'+
           '<span class="segToggle" role="radiogroup" aria-label="'+d.label+'">'+segs+'</span></div>';
       }
-      var on=!!src[d.key];
-      return '<button type="button" class="settingRow'+(on?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'"'+
-        (ro?' disabled':'')+' role="switch" aria-checked="'+(on?'true':'false')+'">'+
+      var on=!!src[d.key], dead=!depOk(d);
+      return '<button type="button" class="settingRow'+(on?' on':'')+((ro||dead)?' ro':'')+'" data-rule="'+d.key+'"'+
+        ((ro||dead)?' disabled':'')+' role="switch" aria-checked="'+(on?'true':'false')+'">'+
         '<span class="settingBox">'+(on?'✓':'')+'</span>'+
         '<span class="settingBody"><span class="settingLbl">'+d.label+qMark(d)+'</span>'+
         '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span></button>';
@@ -4805,6 +4827,13 @@ __QR__
         var moved=false;
         if(src[k] && def && def.needs && !src[def.needs]){ src[def.needs]=true; moved=true; }
         if(!src[k]) RULE_DEFS.forEach(function(o){ if(o.needs===k && src[o.key]){ src[o.key]=false; moved=true; } });
+        /* A member of a `needsAny` group moved, so the dependent row's own live/dead state changed — and if the
+         * group is now empty the dependent rule is cleared. Either way other rows move, so re-render. */
+        RULE_DEFS.forEach(function(o){
+          if(!o.needsAny || o.needsAny.indexOf(k)<0) return;
+          if(!o.needsAny.some(function(x){ return !!src[x]; }) && src[o.key]) src[o.key]=false;
+          moved=true;
+        });
         commit();
         if(moved){ if(opts.onChange) opts.onChange(); showRules(opts); return; }
         this.classList.toggle('on', !!src[k]);

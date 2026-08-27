@@ -7,7 +7,7 @@ Current version: **v1.31.25**. The 2-apex + Forms **rework is simply the game** 
 
 ## ☀️ START HERE — where we left off (2026-08-27)
 
-`main` is at **v1.31.37**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
+`main` is at **v1.31.38**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
 nothing is in flight — every PR is merged and every branch pruned.
 
 **Sanity check before you touch anything** (from `code/`, ~30 seconds):
@@ -16,7 +16,7 @@ nothing is in flight — every PR is merged and every branch pruned.
 npm test && node mptest.js && node rulestest.js
 ```
 
-Expect **287 / 0**, **28 / 0**, **82 / 0**, **100 / 0**. If a count disagrees, the suite is right — fix the
+Expect **292 / 0**, **28 / 0**, **82 / 0**, **104 / 0**. If a count disagrees, the suite is right — fix the
 number here.
 
 **What the last stretch was about**, newest first, all of it in the changelog below: the chop (v1.31.33), rule
@@ -28,8 +28,8 @@ layer where clients suggest and the host decides (v1.31.31), the deck picker's t
 1. ~~**BRING THE PRESET BUTTONS NEXT TO THE RULES THEY CHANGE**~~ **SHIPPED in v1.31.37** — four sections, both presets in
    the `Shapes & chops` heading, and scope moved from thirteen rows onto the four headings (every section turned
    out to hold rules of a single scope). See the changelog.
-2. **Chop strip or not.** Note the subtlety recorded in the BACKLOG: "did this play *chop* something" is not
-   visible from the pile.
+2. ~~**Chop strip or not.**~~ **SHIPPED in v1.31.38** as `chopNoStrip`, with the flag stamped at play time —
+   the pile genuinely cannot answer the question afterwards. See the changelog.
 3. Then the remaining Dou Dizhu shapes — trio+single, four+two, the airplane. (The **Tiến lên preset** shipped
    in v1.31.34.)
 
@@ -580,6 +580,67 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.38 — chops deal no damage, and why that is the default
+
+**A round won by a chop costs nobody a shield.** Aj's reason is a design one, not a balance one:
+
+> *"that'll be lines for players to think. nothing wrong with making them valid shapes… but making them chops is
+> more non linear play."*
+
+A chop already bends the one rule every other shape obeys — beat the same shape at a higher value. Its payoff is
+therefore the **lead**, not a shield; paying damage as well would make the non-linear play the strongest play
+too. This **changes what v1.31.33 shipped**, where chops stripped like any Special.
+
+**The toggle is phrased as the positive — `chopStrips` — and that is load-bearing.** Every rule in the panel
+must default OFF, because "is this game customised?" is literally `RULE_DEFS.some(ruleOn)`. A rule whose *off*
+state changed the game would break that, so the option is "Chops destroy shields too", exactly the inversion
+`flatDraw` uses.
+
+**And the option is inert without a chop to modify** (Aj: *"this option should uncheck if chops were not
+available"*). `needsAny:['chopQuadro','chopKits','chopSflush']` is a second kind of dependency alongside `needs`:
+the row is dead while none of its group is on — clicking it changes nothing, asserted rather than merely styled —
+comes to life when a chop is enabled, and **clears itself when the last one goes off**. A checked box that cannot
+do anything is worse than a greyed one, and a rule left switched on for a game nobody is playing is exactly the
+kind of thing that makes a rules panel untrustworthy.
+
+Measured: at six players the default costs almost nothing in pacing — 28.5 rounds per game against 28.1 with
+chops stripping — which is what you would expect from a rule that fires on ~14% of 2-plays.
+
+**Why it needed a flag on the pile at all** — the thing Aj asked me to elaborate. `apexNoStrip` reads
+`hasApex(st.pile.combo.cards)` at resolve time because *"was the winning play made of 2s?"* is a property of the
+play **itself**. *"Did this play chop?"* is a property of the play **and what it beat**, and `play()` replaces the
+pile the moment a play is accepted. Demonstrated before writing any of it — three different actions, byte-identical
+piles:
+
+| what the player did | resulting pile |
+| --- | --- |
+| led a Quadro into an empty pile | `quadro/4 key [7] byPlayer 0 cards 7D,7H,7C,7S` |
+| beat a lower Quadro with it | `quadro/4 key [7] byPlayer 0 cards 7D,7H,7C,7S` |
+| **chopped a pair of 2s with it** | `quadro/4 key [7] byPlayer 0 cards 7D,7H,7C,7S` |
+
+So `play()` stamps `st.pile.chopped` between validating against the old pile and replacing it. It travels in
+netplay snapshots with the rest of the pile, and a later play in the round overwrites it — correctly, since a chop
+that is then beaten did not win. **`isChopOf(cand, cur)` is the single definition of "chops"**, used by `beats()`
+to allow the play and by `play()` to record it; as two copies 400 lines apart they would drift, and the failure
+would be a no-strip chop that strips.
+
+Note `wonWithCombo=false` drives **both** the shield strip and the mill target, so such a round resolves exactly
+like a jab win, as `apexNoStrip` does.
+
+**The wide layout tightened to absorb the fourteenth rule.** Every rule costs a grid row (~76px), which took the
+panel to 941px and pushed a 14-inch MacBook Pro back into scrolling. Trimming the wide-only rhythm — gap 9→7px,
+row padding 12→10px, section margins 10→6px — brought it to **881px**: fits at 1080p, at 1900×1000 and at
+1512×945. A 13-inch Air (1440×900) is 23px over, and 1280×800 scrolls as before. **A treadmill: the next rule
+costs another ~76px.**
+
+**Two of my own mistakes, both caught by things built earlier this week.** An edit script that asserts each anchor
+and writes once at the end discards *every* earlier edit when a later assert throws — it looked twice like a change
+had landed when nothing had been written; write after each edit. And slicing between two anchors that turned out to
+be in the opposite order **duplicated** a block of `RULE_DEFS`, which surfaced immediately as a **"Uncategorised"**
+section in the panel — the safety net added in v1.31.37 catching the person who added it.
+
+Suites: `test` 287 → **292**, `rulestest` 102 → **104**.
 
 ### v1.31.37 — the rules panel gets sections, and the presets move into theirs
 

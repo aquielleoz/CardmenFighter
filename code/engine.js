@@ -197,23 +197,29 @@
     for (var i = 1; i < cards.length; i++) if (cards[i].suit !== cards[0].suit) return false;
     return true;
   }
+  /* "Does `cand` CHOP `cur`?" — one definition, used by beats() to allow the play and by play() to stamp the
+   * pile. They must not drift: the rule that lets a chop through and the record that it happened have to agree,
+   * or a no-strip chop would resolve as an ordinary win (or the reverse). */
+  function isChopOf(cand, cur) {
+    if (!cur || !chopRank(cand)) return false;
+    if (chopRank(cur)) return false;                       // chop vs chop is answered in kind, not a chop
+    return apexOnlyPlay(cur) && cur.size <= CHOP_REACH;
+  }
   function beats(cand, cur) {
     if (!cand) return false;
     if (!cur) return true;
     if (anyChop()) {
       var cr = chopRank(cand);
       if (cr) {
-        var rr = chopRank(cur);
         /* NO early return for chop-vs-chop: fall through to the ordinary same-type/same-size/value comparison,
          * which is what "answered only in kind" means — a higher Quadro over a lower one, a higher 3-Kit over a
-         * lower one. Returning false here instead made every chop unanswerable, including by its own shape. */
-        /* A CHOP BEATS AN INFINITE 2 (Aj, 2026-08-27: "a chop would deal with inf 2s btw"). The two rules
+         * lower one. Returning false here instead made every chop unanswerable, including by its own shape.
+         * A CHOP BEATS AN INFINITE 2 (Aj, 2026-08-27: "a chop would deal with inf 2s btw"). The two rules
          * COMPOSE rather than one voiding the other, and the reason is the mechanism: APEX_INF makes the 2
          * unbeatable BY VALUE — it ranks the card at Infinity — and a chop is not a value answer at all, it is
          * a shape answer. So the chop is precisely the counterplay to an unbeatable 2, which is also what makes
-         * `inf` playable without `nostrip`. Hence no APEX_INF guard here, and `apexOnlyPlay` accepts the
-         * Infinity key for exactly this case. */
-        if (!rr && apexOnlyPlay(cur) && cur.size <= CHOP_REACH) return true;
+         * `inf` playable without `nostrip`. `apexOnlyPlay` accepts the Infinity key for exactly this case. */
+        if (isChopOf(cand, cur)) return true;
       }
     }
     if (cand.type !== cur.type || cand.size !== cur.size) return false;
@@ -1511,8 +1517,15 @@
     // helps you BEAT a pile, never hold one. Equipment is NOT frozen here; refreshPile() layers the live
     // equipment delta on top, so the pile's value keeps tracking the board as equipment is added or removed.
     var swan = swanValue(st, p), lockedDelta = playBoost(st, p) + swan;
+    /* `chopped` HAS TO BE STAMPED HERE, because the next line throws away the thing that was beaten. At resolve
+     * time a Quadro led into an empty pile, a Quadro played over a lower Quadro, and a Quadro that chopped a pair
+     * of 2s leave byte-identical piles — same type, size, key, cards and player — so "did this win by chopping?"
+     * is unanswerable from the pile alone. `apexNoStrip` gets away with reading the pile because "was the play
+     * made of 2s" is a property of the play itself; this is a property of the play AND its target. */
+    var choppedNow = isChopOf(eff, st.pile ? st.pile.combo : null);
     var stored = { type: combo.type, size: combo.size, value: combo.value, key: combo.key.slice(), cards: eff.cards };
-    st.pile = { combo: stored, byPlayer: p, raw: combo.value, rawKey0: combo.key[0], lockedDelta: lockedDelta, mod: 0 };
+    st.pile = { combo: stored, byPlayer: p, raw: combo.value, rawKey0: combo.key[0], lockedDelta: lockedDelta, mod: 0,
+                chopped: choppedNow };
     refreshPile(st);                                                    // fold in the current equipment contribution (== play-time value, and re-evaluated whenever equipment changes)
     pl.nextPlayBoost = 0;                                               // a pre-fight boost is spent by the play it powers
     st.lastPlayer = p; st.passes = 0;
@@ -1592,8 +1605,10 @@
     /* Stored like any other play so refreshPile() keeps tracking the board: raw base value, plus the deltas
      * frozen at play time. `phantom` still marks it for the UI and the netplay mirror. */
     var swan = swanValue(st, p), lockedDelta = playBoost(st, p) + swan + plus;
+    var phChopped = isChopOf(cand, st.pile ? st.pile.combo : null);   // an Illusion copy can chop too
     var stored = { type: cand.type, size: cand.size, value: cand.value + lockedDelta, key: [cand.key[0] + lockedDelta].concat(cand.key.slice(1)), cards: candCards };
-    st.pile = { combo: stored, byPlayer: p, raw: cand.value, rawKey0: cand.key[0], lockedDelta: lockedDelta, mod: 0, phantom: true };
+    st.pile = { combo: stored, byPlayer: p, raw: cand.value, rawKey0: cand.key[0], lockedDelta: lockedDelta, mod: 0, phantom: true,
+                chopped: phChopped };
     refreshPile(st);
     pl.nextPlayBoost = 0;                              // a pre-fight boost is spent by the illusion it powered
     st.lastPlayer = p; st.passes = 0; st.turn = nextPlayer(st, p); st._effUsed = false;
@@ -1679,6 +1694,11 @@
      * and a rival who sees the opening escalates — a boosted pair of Aces takes the round back and puts the
      * damage on you. The unbeatable version cannot produce that exchange at all, because nothing answers it. */
     if (APEX_NOSTRIP && hasApex(st.pile.combo.cards)) wonWithCombo = false;   // a winning play containing a 2 deals no damage
+    /* A round WON BY A CHOP deals no damage, unless CHOP_STRIPS says otherwise. Reads the flag stamped at play
+     * time — see the comment at the stamp for why it cannot be worked out from the pile here. Like apexNoStrip,
+     * clearing wonWithCombo drives BOTH the shield strip and the mill target, so such a round resolves exactly
+     * like a jab win. */
+    if (st.pile.chopped && !CHOP_STRIPS) wonWithCombo = false;
     var losers = livingNonWinners(st, winner);
     // who takes a shield loss (Specials only): 'all' = every loser; 'chosen' = the winner's one pick
     var strikeTargets = [];
@@ -1909,7 +1929,7 @@
    * a 3-Kit and a same-suit straight are three distinguishable patterns — nothing forces a choice, so nothing
    * should impose one, and there is no "off" segment either: they are ordinary toggles. Each flag also ENABLES
    * its own shape, so no setting can be dead. */
-  var CHOP_Q = false, CHOP_K = false, CHOP_SF = false;
+  var CHOP_Q = false, CHOP_K = false, CHOP_SF = false, CHOP_STRIPS = false;
   var QUADRO = false;
   var DBL_PAIR = 'off', KITS3 = false;
   /* A MODE, like the four-card double-pair slot (Aj, 2026-08-27: "let's do it like the Four-card double
@@ -1921,6 +1941,12 @@
   function setChopQuadro(v) { CHOP_Q = !!v; }
   function setChopKits(v)   { CHOP_K = !!v; }
   function setChopSflush(v) { CHOP_SF = !!v; }
+  /* CHOPS DEAL NO DAMAGE BY DEFAULT (Aj, 2026-08-27: "the default is that chops don't destroy shields"). A chop
+   * buys the lead, not a shield. The toggle is therefore phrased as the POSITIVE — `chopStrips` makes them deal
+   * damage — because every rule in the panel must default OFF: "is this game customised?" is literally "is any
+   * rule on?", so a rule whose off state changed the game would break that. Same inversion as `flatDraw`. */
+  function setChopStrips(v) { CHOP_STRIPS = !!v; }
+  function isChopStrips() { return CHOP_STRIPS; }
   function isChopQuadro() { return CHOP_Q; }
   function isChopKits()   { return CHOP_K; }
   function isChopSflush() { return CHOP_SF; }
@@ -2061,6 +2087,7 @@
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
     setChopQuadro: setChopQuadro, setChopKits: setChopKits, setChopSflush: setChopSflush,
+    setChopStrips: setChopStrips, isChopStrips: isChopStrips,
     isChopQuadro: isChopQuadro, isChopKits: isChopKits, isChopSflush: isChopSflush, chopRank: chopRank,
     setQuadro: setQuadro, isQuadro: isQuadro,
     setDoublePair: setDoublePair, isDoublePair: isDoublePair,
