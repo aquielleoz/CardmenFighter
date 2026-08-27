@@ -136,6 +136,35 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   await p.evaluate(()=>document.getElementById('ruleDone').click()); await wait(150);
   await openRules(p);
 
+  /* ---------- NOTES BEHIND A `?` (v1.31.35). Thirteen rules with a two-to-three-line note each was a wall of
+   * text. These assertions are about VISIBILITY, not text: `textContent` still returns a hidden note's words, so
+   * a text assertion would pass on a note nobody can ever reach — the exact trap the BACKLOG entry warned about
+   * before this was built. offsetParent is null for a display:none element. */
+  const qCount = await p.evaluate(()=>document.querySelectorAll('.ruleQ[data-note-for]').length);
+  const rowCount = await p.evaluate(()=>document.querySelectorAll('.settingRow[data-rule]').length);
+  ok(qCount === rowCount && rowCount === 13, `every rule carries a ? (${qCount} of ${rowCount})`);
+  const noteShown = k => p.evaluate(k=>{
+    const n=document.querySelector('.settingRow[data-rule="'+k+'"] .settingNote');
+    return !!(n && n.offsetParent);
+  }, k);
+  const clickQ = k => p.evaluate(k=>{ const q=document.querySelector('.ruleQ[data-note-for="'+k+'"]'); if(q)q.click(); return !!q; }, k);
+  ok((await noteShown('quadro'))===false, 'notes start hidden — the panel is a scannable list, not a wall');
+  const wasOn = await p.evaluate(()=>CardmenEngine.isQuadro());
+  ok(await clickQ('quadro'), 'the ? is clickable');
+  await wait(150);
+  ok(await noteShown('quadro'), 'and it opens that note');
+  ok((await p.evaluate(()=>CardmenEngine.isQuadro()))===wasOn,
+     'WITHOUT toggling the rule underneath — the row IS a <button>, so the ? has to stop propagation');
+  ok((await noteShown('chopKits'))===false, 'and only that one — each note opens on its own');
+  await clickQ('quadro'); await wait(150);
+  ok((await noteShown('quadro'))===false, 'clicking it again closes the note');
+  /* KEYBOARD: Enter only. Space is deliberately left alone, because inside a <button> row the browser uses it to
+   * activate the row itself, which would toggle the rule while you were trying to read about it. */
+  await p.evaluate(()=>{ const q=document.querySelector('.ruleQ[data-note-for="quadro"]');
+    q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); }); await wait(150);
+  ok(await noteShown('quadro'), 'Enter opens it too');
+  await clickQ('quadro'); await wait(150);
+
   // ---------- presets + Clear all (v1.31.30): one row that moves every rule at once
   const bulk = p => p.evaluate(() => [].map.call(document.querySelectorAll('.ruleBulk .bulkBtn'),
     b => ({ preset: b.getAttribute('data-preset'), id: b.id, txt: b.textContent.trim(), off: b.disabled, active: b.classList.contains('active') })));
@@ -217,6 +246,15 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
      'and mid-game every row is disabled — rules are chosen before a game, not during one');
   ok(await p.evaluate(()=>[].every.call(document.querySelectorAll('.ruleBulk .bulkBtn'),b=>b.disabled)),
      'and so are the preset and Clear all buttons — a bulk edit is still an edit');
+  /* READING IS THE ONE THING READ-ONLY MUST NOT DISABLE. The point of a mid-game panel is to explain the rules
+   * you are playing under, so the ? stays live while every other control is dead. */
+  ok((await p.evaluate(()=>{
+       const n=document.querySelector('.settingRow[data-rule="quadro"] .settingNote'); return !!(n&&n.offsetParent);
+     }))===false, 'mid-game the notes start hidden as usual');
+  await p.evaluate(()=>{ const q=document.querySelector('.ruleQ[data-note-for="quadro"]'); if(q)q.click(); }); await wait(150);
+  ok(await p.evaluate(()=>{
+       const n=document.querySelector('.settingRow[data-rule="quadro"] .settingNote'); return !!(n&&n.offsetParent);
+     }), 'but the ? still opens one — read-only disables editing, not reading');
   ok(await p.evaluate(()=>{
     const before=CardmenEngine.isDoublePair();
     const other=[].filter.call(document.querySelectorAll('.segBtn[data-mode-for="dblPair"]'),b=>!b.classList.contains('active'))[0];

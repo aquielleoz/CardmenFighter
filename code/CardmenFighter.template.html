@@ -263,6 +263,16 @@
   .modal .bulkBtn:disabled{opacity:.35; cursor:default;}
   /* In-play vs suggested, and who wants what. Both live under the note, inside .settingBody. */
   .segHint .hintWhere{opacity:.65; font-weight:700;}
+  /* NOTES ARE BEHIND A `?` (v1.31.35). Thirteen rules with a two-to-three-line note each was a wall of text.
+   * The `?` is a SPAN, not a button: a boolean rule row IS a <button>, and nesting buttons is invalid HTML —
+   * the same trap the mode rows hit. It stops propagation so opening a note never toggles the rule. */
+  .modal .settingNote{display:none;}
+  .modal .settingRow.showNote .settingNote{display:block;}
+  .modal .ruleQ{display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; margin:0 0 0 6px; border-radius:50%;
+    border:1px solid var(--line); background:#160c22; color:var(--txt); font:inherit; font-size:13px; font-weight:800; line-height:1;
+    opacity:.75; cursor:pointer; vertical-align:middle; flex:0 0 auto;}
+  .modal .ruleQ:hover{opacity:1; border-color:var(--gold);}
+  .modal .settingRow.showNote .ruleQ{background:var(--gold); color:#3a2a08; border-color:var(--gold); opacity:1;}
   .modal .ruleLive{display:block; margin-top:3px; font-size:11px; font-weight:800; color:var(--gold); opacity:.9;}
   .modal .ruleVotes{display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;}
   .modal .ruleVote{font-size:11px; font-weight:700; padding:2px 7px; border-radius:8px; background:#241634; border:1px solid var(--line); color:var(--txt); opacity:.9;}
@@ -4599,6 +4609,11 @@ __QR__
     var sug=!!opts.suggest && !ro, src=sug?MY_RULES:RULES;
     var votes=(sug||isHostSeat()) ? netSuggestions() : null;
     function scopeTag(d){ return '<span class="ruleScope">'+(d.duel?'all player counts':'3–6 players')+'</span>'; }
+    /* READING IS NEVER DISABLED — not even mid-game, and not for a client. Every other control in this panel is
+     * dead in read-only mode; the whole point of the note is to explain the rules you are playing under, so the
+     * `?` is the one thing that stays live. */
+    function qMark(d){ return '<span class="ruleQ" role="button" tabindex="0" aria-expanded="false" data-note-for="'+
+                              d.key+'" title="What does this do?">?</span>'; }
     function rowHTML(d){
       /* A MODE row is a <div> with a segmented control, not a <button> — nesting buttons inside a button is
        * invalid, and the alternatives are mutually exclusive rather than independently checkable, which is the
@@ -4615,7 +4630,7 @@ __QR__
                  (src[d.key]===m.v?'true':'false')+'">'+m.label+'</button>';
         }).join('');
         return '<div class="settingRow modeSetting'+(ruleOnIn(src,d)?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'" data-mode="1">'+
-          '<span class="settingBody"><span class="settingLbl">'+d.label+scopeTag(d)+'</span>'+
+          '<span class="settingBody"><span class="settingLbl">'+d.label+scopeTag(d)+qMark(d)+'</span>'+
           '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span>'+
           '<span class="segToggle" role="radiogroup" aria-label="'+d.label+'">'+segs+'</span></div>';
       }
@@ -4623,7 +4638,7 @@ __QR__
       return '<button type="button" class="settingRow'+(on?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'"'+
         (ro?' disabled':'')+' role="switch" aria-checked="'+(on?'true':'false')+'">'+
         '<span class="settingBox">'+(on?'✓':'')+'</span>'+
-        '<span class="settingBody"><span class="settingLbl">'+d.label+scopeTag(d)+'</span>'+
+        '<span class="settingBody"><span class="settingLbl">'+d.label+scopeTag(d)+qMark(d)+'</span>'+
         '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span></button>';
     }
     showModal('<h2>⚗️ '+(sug?'Rules &amp; suggestions':'Custom rules')+'</h2>'+
@@ -4737,6 +4752,19 @@ __QR__
       });
     }
     function closePanel(){ rulesPanelOpen=null; back(); }
+    /* Wired unconditionally — see qMark(). Click, not hover: this panel is used on a phone, where hover does
+     * not exist. Keyboard gets Enter as well; Space is left alone because inside a <button> row the browser
+     * uses it to activate the row itself. */
+    Array.prototype.forEach.call(document.querySelectorAll('.ruleQ[data-note-for]'), function(q){
+      function toggleNote(e){
+        e.preventDefault(); e.stopPropagation();          // never toggle the rule underneath
+        var row=q.closest('.settingRow'); if(!row) return;
+        var open=row.classList.toggle('showNote');
+        q.setAttribute('aria-expanded', open?'true':'false');
+      }
+      q.addEventListener('click', toggleNote);
+      q.addEventListener('keydown', function(e){ if(e.key==='Enter') toggleNote(e); });
+    });
     $('ruleDone').addEventListener('click', closePanel);
     overlayDismiss=closePanel;
   }

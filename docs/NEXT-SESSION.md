@@ -7,7 +7,7 @@ Current version: **v1.31.25**. The 2-apex + Forms **rework is simply the game** 
 
 ## ☀️ START HERE — where we left off (2026-08-27)
 
-`main` is at **v1.31.34**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
+`main` is at **v1.31.35**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
 nothing is in flight — every PR is merged and every branch pruned.
 
 **Sanity check before you touch anything** (from `code/`, ~30 seconds):
@@ -16,7 +16,7 @@ nothing is in flight — every PR is merged and every branch pruned.
 npm test && node mptest.js && node rulestest.js
 ```
 
-Expect **287 / 0**, **28 / 0**, **82 / 0**, **79 / 0**. If a count disagrees, the suite is right — fix the
+Expect **287 / 0**, **28 / 0**, **82 / 0**, **89 / 0**. If a count disagrees, the suite is right — fix the
 number here.
 
 **What the last stretch was about**, newest first, all of it in the changelog below: the chop (v1.31.33), rule
@@ -25,11 +25,9 @@ layer where clients suggest and the host decides (v1.31.31), the deck picker's t
 (v1.31.29), and the pair shapes (v1.31.24/26).
 
 **Queued, in the order Aj raised them:**
-1. **Rule descriptions into tooltips** behind a `?` — his own request, its own PR. The BACKLOG entry lists what
-   will bite (click not hover, stacking above `.overlay`, and the suites that assert note TEXT).
-2. **Chop strip or not.** Note the subtlety recorded in the BACKLOG: "did this play *chop* something" is not
+1. **Chop strip or not.** Note the subtlety recorded in the BACKLOG: "did this play *chop* something" is not
    visible from the pile.
-3. Then the remaining Dou Dizhu shapes — trio+single, four+two, the airplane. (The **Tiến lên preset** shipped
+2. Then the remaining Dou Dizhu shapes — trio+single, four+two, the airplane. (The **Tiến lên preset** shipped
    in v1.31.34.)
 
 **Two things worth reading before touching the rules panel:** every rule defaults OFF and "is this customised?"
@@ -389,17 +387,10 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     the apex answerable — 14% of 2-plays chopped at six players — but the hoped-for effect on initiative
     concentration never appeared; the aggregate leader share is unchanged. What it did do is give Quadro a job:
     17 → 956 plays per 250 six-player games. See the changelog.
-  - **MOVE THE RULE DESCRIPTIONS INTO TOOLTIPS (Aj, 2026-08-27: "let's move all these descriptions into
-    tooltips, maybe accessible by click on a `?` next to the option name"). Its own PR.** Thirteen rules with a
-    two-to-three-line note each is a very long panel — the reason the modal grew a `max-height` and scroll in
-    v1.31.14. Things to get right: it must be **click**, not hover, because the panel is used on a phone and
-    hover does not exist there (the landscape band and the 340px floor are the sizes to check); the `?` needs a
-    real tap target next to the label without pushing the scope tag around; the popover has to clear the modal's
-    own stacking (`.overlay` is `z-index:100000` and sits above `#netroot`, so anything above it needs a number,
-    not luck); and `rulestest`/`nettest_rules` currently assert note TEXT in places — a hidden note must still be
-    findable, or those assertions quietly stop checking anything. Note the panel already has three control
-    shapes (button rows, mode segments, bulk buttons); a fourth needs the same both-halves coverage, read-only
-    included.
+  - ~~**MOVE THE RULE DESCRIPTIONS INTO TOOLTIPS.**~~ **SHIPPED in v1.31.35.** Every trap this entry listed was
+    real: the `?` had to be a `<span>` (a boolean row IS a button), it needed `stopPropagation` so reading never
+    toggles, and the visibility assertions had to use `offsetParent` rather than text — a hidden note's
+    `textContent` reads perfectly well.
   - **CHOP STRIP OR NOT — an option (Aj, 2026-08-27: "an option we can add for the chop is if it strips or
     not").** A round won by a chop destroys no shield, in the shape of `apexNoStrip`. The subtlety: `apexNoStrip`
     can read the winning pile (`hasApex(pile.combo.cards)`), but "did this play CHOP something" is **not visible
@@ -586,6 +577,42 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.35 — the rule notes go behind a `?`
+
+Aj's request: *"let's move all these descriptions into tooltips, maybe accessible by click on a `?` next to the
+option name."* Thirteen rules with a two-to-three-line note each had turned the panel into a wall of text. The
+notes are hidden by default now, and each row carries a `?` that opens its own.
+
+**Measured effect on the panel:** ~2100px → **960px** at desktop width, and **804px** on a 390px phone. That is
+the whole point — you can now see the list.
+
+**The `?` is a `<span>`, not a `<button>`, and that is forced.** A boolean rule row *is* a `<button>`, and
+nesting buttons is invalid HTML — the same trap the mode rows hit in v1.31.26. So it is a
+`<span role="button" tabindex="0">` that calls `stopPropagation()`, because a click that opened a note **and**
+toggled the rule would be the worst possible outcome. Asserted directly: the engine's flag is unchanged across
+opening a note.
+
+**Reading is the one thing read-only does not disable.** Every other control in this panel is dead mid-game, and
+dead for a client that did not choose the rules — but the point of the panel on those seats is to explain the
+game you are playing under, so the `?` stays live. Asserted in `rulestest` (mid-game) and `nettest_rules` (the
+client). A client that cannot read the rules cannot meaningfully agree to them.
+
+**Click, not hover** — the panel is used on a phone, where hover does not exist. Enter works too; **Space is
+deliberately left alone**, because inside a `<button>` row the browser uses it to activate the row, which would
+toggle the rule while you were trying to read about it.
+
+**The assertions are about VISIBILITY, not text, and that distinction is the whole test.** `textContent` returns
+a hidden note's words perfectly well, so a text assertion would pass on a note nobody can ever reach — exactly
+what the BACKLOG entry predicted before this was built. They check `offsetParent` instead. (Nothing was
+silently weakened in the event: `grep settingNote *test*.js` was empty, so no existing suite was reading note
+text.)
+
+Layout note: the `?` sits **after** the scope chip rather than immediately after the label. Straight after the
+name it landed mid-sentence on wrapped labels and pushed the chip onto its own line — visible on the phone
+screenshot, which is why it was worth taking one.
+
+Suites: `rulestest` 79 → **89**, `nettest_rules` 27 → **28**.
 
 ### v1.31.34 — the Tiến lên preset
 

@@ -64,6 +64,12 @@ const readyBtn=p=>p.evaluate(()=>{ const g=document.getElementById('lobbyGo'); r
   await wait(350);
   ok(JSON.stringify(await flags(join))===JSON.stringify(clientBefore),
      'and nothing it does in that panel — a toggle, a mode, even a whole preset — moves the rules in play');
+  /* And it must still be able to READ what it is agreeing to (v1.31.35). The notes live behind a `?` now, so on
+   * the seat that did not choose the rules, that control is the only way to find out what they are. */
+  ok(await join.evaluate(()=>{ const q=document.querySelector('.ruleQ[data-note-for="lossAll"]'); if(!q) return false;
+       q.click(); const n=document.querySelector('.settingRow[data-rule="lossAll"] .settingNote');
+       return !!(n && n.offsetParent); }),
+     'and the ? still opens a note for it — a client that cannot read the rules cannot meaningfully agree to them');
   await join.evaluate(()=>document.getElementById('ruleDone').click()); await wait(250);
 
   // ---------- the client readies
