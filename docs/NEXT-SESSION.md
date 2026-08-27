@@ -633,12 +633,18 @@ every choice of spare is an equal-strength play; enumerating them all would have
 identical offers. The representative sheds the lowest spare, and any other spare still validates by hand, because
 `play()` calls `detectCombo` directly.
 
-**Their own section, and the panel needed a fourth column.** "Dou Dizhu shapes" is the fifth section — partly to
-keep "Shapes & chops" from becoming a wall, partly to give the eventual Dou Dizhu preset a heading to live in.
-Eighteen rules took the panel to 1021px, which scrolled everywhere; a fourth column at ≥1780px (modal 1440px)
-brings it to **856px** and it fits again at 1080p and wider. A 14-inch MBP now scrolls — the treadmill catching
-up, and what makes that acceptable is the sticky footer, which `rulestest` asserts stays pinned and clickable at
-that size rather than claiming a fit that no longer holds.
+**One section, not one per source game.** I first gave these four their own "Dou Dizhu shapes" heading, and Aj
+asked why — correctly. **That section was already full of family shapes:** the kits are 连对/đôi thông, the Quadro
+is 炸弹/tứ quý, poker's two pair is Big Two. Splitting the newest four out named one section by **kind** and the
+other by **provenance**, and it broke the property the sections exist for — a preset belongs in the heading of the
+group it changes, and Chikicha Specials sets a shape *and* a chop, so it spanned both. Merged back, and the panel
+got **shorter** for it (one fewer heading). Which game a shape came from belongs in its note.
+
+**The panel needed a fourth column, though.** Eighteen rules took it to 1107px in two columns. Four columns from
+**1500px** (modal 1340px, growing to 1440px at 1780px) brings it to 826–843px, so it fits at everything from a
+14-inch laptop upward. Below that it scrolls, and the assertion says so honestly: at 1280px it checks two columns,
+that it *does* scroll, and that the **sticky footer stays pinned and hit-testable** — rather than claiming a fit
+the rule count has outgrown.
 
 Suites: `test` 292 → **304**, `rulestest` 109 → **119**. `mpsim` gains `trioone fourtwo airplane chain`.
 

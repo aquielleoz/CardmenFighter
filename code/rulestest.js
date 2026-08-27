@@ -66,14 +66,14 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   const scopes=await p.evaluate(()=>[].map.call(document.querySelectorAll('.ruleSect .ruleScope'),e=>e.textContent.trim()));
   /* SCOPE MOVED TO THE SECTION (v1.31.37). Every section holds rules of one scope — checked, all four are
    * homogeneous — so thirteen identical chips became four, and a row carries none. */
-  ok(scopes.length===5 && /all player counts/i.test(scopes[0]) && /3–6/.test(scopes[1])
+  ok(scopes.length===4 && /all player counts/i.test(scopes[0]) && /3–6/.test(scopes[1])
      && scopes.slice(2).every(t=>/all player counts/i.test(t)),
-     `five section scope tags, not eighteen row ones (${scopes.join(' | ')})`);
+     `four section scope tags, not eighteen row ones (${scopes.join(' | ')})`);
   ok(await p.evaluate(()=>document.querySelectorAll('.settingRow .ruleScope').length===0),
      'and no row repeats what its section already said');
   const sects = await p.evaluate(()=>[].map.call(document.querySelectorAll('.ruleSect .sectName'),e=>e.textContent.trim()));
-  ok(JSON.stringify(sects)===JSON.stringify(['The game','Table rules','The 2','Shapes & chops','Dou Dizhu shapes']),
-     `the panel is five sections (${sects.join(' | ')})`);
+  ok(JSON.stringify(sects)===JSON.stringify(['The game','Table rules','The 2','Shapes & chops']),
+     `the panel is four sections — shapes are grouped by KIND, not by which game they came from (${sects.join(' | ')})`);
   ok(sects.indexOf('Uncategorised')<0,
      'and no rule fell outside them — an unclaimed rule renders under a visible Uncategorised heading, never vanishes');
   ok(await p.evaluate(()=>{
@@ -371,9 +371,13 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
     const out = await q.evaluate(() => {
       const m = document.getElementById('modal');
       const rows = [].slice.call(document.querySelectorAll('.settingRow[data-rule]'));
+      const f = document.querySelector('.ruleFoot');
+      const mr = m.getBoundingClientRect(), fr = f.getBoundingClientRect();
+      const el = document.elementFromPoint(Math.round(fr.left + fr.width / 2), Math.round(fr.top + fr.height / 2));
       return { setup: 0, w: Math.round(m.getBoundingClientRect().width),
                cols: new Set(rows.map(r => Math.round(r.getBoundingClientRect().left))).size,
-               fits: m.scrollHeight <= m.clientHeight + 1 };
+               fits: m.scrollHeight <= m.clientHeight + 1,
+               footPinned: Math.abs(mr.bottom - fr.bottom) <= 2 && !!(el && f.contains(el)) };
     });
     out.setup = setupW;
     /* THE LEAK GUARD: the width is a class on the shared #modal, so the dialog that opens NEXT must not inherit
@@ -384,24 +388,15 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
     return out;
   };
   const wide = await layout({ width: 1500, height: 950 });
-  ok(wide.cols === 3, `at 1500px the rules go three columns (${wide.cols})`);
-  /* NOT a fit claim any more, and that is the treadmill being honest: eighteen rules do not fit a 1500px
-   * screen in three columns (1021px against a 908px cap). The fit assertion lives at the four-column tier
-   * below. What must hold here is that the sticky footer keeps the panel usable while it scrolls. */
-  ok(await p.evaluate(()=>{
-       const m=document.getElementById('modal'), f=document.querySelector('.ruleFoot');
-       if(!f) return false;
-       m.scrollTop = 0;
-       const mr=m.getBoundingClientRect(), fr=f.getBoundingClientRect();
-       const el=document.elementFromPoint(Math.round(fr.left+fr.width/2), Math.round(fr.top+fr.height/2));
-       return Math.abs(mr.bottom-fr.bottom)<=2 && !!(el && f.contains(el));
-     }), 'and where it does not fit, the sticky footer is still pinned and clickable');
+  ok(wide.cols === 4, `at 1500px the rules go four columns (${wide.cols})`);
+  ok(wide.fits, 'and the whole panel fits — eighteen rules need the fourth column to do that');
   ok(wide.setup === 470, `while the SETUP dialog stays narrow (${wide.setup}px) — .modal is shared by every dialog`);
   ok(wide.afterW === 470, `and the width does not leak into the next dialog (${wide.afterW}px after Done)`);
-  /* A FOURTH column arrives at 1780px, because eighteen rules no longer fit a desktop in three. */
-  const four = await layout({ width: 1900, height: 1000 });
-  ok(four.cols === 4, `at 1900px the rules go four columns (${four.cols})`);
-  ok(four.fits, 'and the whole panel fits again — which is the width Aj actually screenshotted');
+  /* WHERE IT GENUINELY DOES NOT FIT, the sticky footer is what keeps the panel usable — asserted by hit-test at a
+   * size below the four-column tier, rather than claiming a fit that the rule count has outgrown. */
+  const tight = await layout({ width: 1280, height: 800 });
+  ok(tight.cols === 2 && !tight.fits, `at 1280px it is two columns and does scroll (${tight.cols} col)`);
+  ok(tight.footPinned, '  and the sticky footer stays pinned and clickable there');
   const mid = await layout({ width: 1100, height: 900 });
   ok(mid.cols === 2, `at 1100px it is two columns (${mid.cols})`);
   const narrow = await layout({ width: 900, height: 1000 });

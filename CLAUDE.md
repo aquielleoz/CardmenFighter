@@ -249,6 +249,11 @@ key, so netplay and the export carry the RULES, not a name the other end must re
   **The bulk row is DERIVED state** — the rows patch themselves in place, so `syncBulk()` must run on every
   single toggle or a preset button stays lit after one further change and Clear all stays greyed out after the
   first rule goes on. A bulk *action* re-opens the panel instead, since nine rows move at once.
+- **SECTIONS GROUP BY KIND, NEVER BY SOURCE GAME (v1.31.39).** A "Dou Dizhu shapes" section was added and then
+  removed the same day: `Shapes & chops` was *already* full of family shapes (kits = 连对/đôi thông, Quadro =
+  炸弹/tứ quý, two pair = Big Two), so splitting the newest four out named one section by kind and the other by
+  provenance. It also broke the preset property — Chikicha Specials sets a shape AND a chop, so it spanned both
+  sections. **Which game a shape came from belongs in its note, not in the structure.**
 - **THE PANEL IS FOUR SECTIONS (v1.31.37), and `RULE_SECTIONS` owns the rule keys** — one list to read rather
   than a `sect` field on thirteen defs. The cost of that choice is a rule belonging to no section, so an
   unclaimed rule renders under a visible **"Uncategorised"** heading and `rulestest` asserts that heading is
