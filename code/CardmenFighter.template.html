@@ -1258,7 +1258,7 @@ __QR__
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
-  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',kit:'Kits',twopair:'Two Pair',quadro:'Quadro',trioone:'Trio + 1',fourtwo:'Four + 2',airplane:'Airplane'};
+  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',kit:'Kits',twopair:'Two Pair',quadro:'Four of a Kind',trioone:'Trio + 1',fourtwo:'Four + 2',airplane:'Airplane'};
   /* Kits are the first VARIABLE-LENGTH shape, so a fixed name is not enough — a run of two pairs and a run of
    * three are different plays. Where the combo object is in hand, say which ("2 Kits"); the bare TYPE entry
    * covers the call sites that only carry a type string. */
@@ -1377,20 +1377,24 @@ __QR__
     /* QUADRO is off by default for a COGNITIVE-LOAD reason, not a balance one (Aj: "new players will just
      * break"). It is also a plain shape here — it beats a lower quadro and nothing else. A quadro beating a
      * shape it does not match is the CHOP, a separate rule that needs cross-shape overrides in beats(). */
-    { key:'quadro',      duel:true, label:'Quadro — four of a kind',
-      note:'All four copies of one value. Beats a lower Quadro.' },
+    /* Named "Four of a kind" rather than "Quadro" (Aj, 2026-08-28) — with 四带二 sitting two rows away as "Four
+     * of a kind + two spare cards", two names for the same four cards read as two different shapes. The KEY
+     * stays `quadro`: it is in saved rule sets and in the netplay key, and stable keys are the habit that saved
+     * the `recruit` difficulty tier. */
+    { key:'quadro',      duel:true, label:'Four of a kind',
+      note:'All four copies of one value. Beats a lower four of a kind.' },
     /* THE CHOP is a modifier on the shapes above it, so it is last and its note says outright that it does
      * nothing without them. It is also the only rule that makes the apex 2 answerable, which is why the note
      * names the conflict with "The 2 cannot be beaten" rather than leaving two rules to contradict each other. */
     /* THREE INDEPENDENT CHOPS, not a mode. They are distinguishable shapes, so nothing forces a choice — you
      * can take one, or all of them — and each toggle enables its own shape, so no setting is ever dead. The
-     * ladder between them is 3 Kits < Quadro < same-suit straight < 4+ Kits. */
+     * ladder between them is 3 Kits < four of a kind < same-suit straight < 4+ Kits. */
     /* `needs` is a REAL dependency, not a hint. The engine already treats a chopper's shape as enabled
      * (`quadroOn()` is `QUADRO || CHOP_Q`), so leaving the shape's own box unticked told the player something
      * false about the game they were about to play. The panel now ticks it with them, and unticking the shape
      * takes its chop with it — the dependency holds in both directions or the display lies again. */
-    { key:'chopQuadro',  duel:true, label:'The chop: a Quadro beats the 2', needs:'quadro',
-      note:'Four of a kind beats a 2 it does not match — a lone 2 or a pair of them. A chop answers by SHAPE, so it works even on a 2 that cannot be beaten, and no chop beats another: they are answered by their own shape at a higher value. Switches Quadro on with it.' },
+    { key:'chopQuadro',  duel:true, label:'The chop: four of a kind beats the 2', needs:'quadro',
+      note:'Four of a kind beats a 2 it does not match — a lone 2 or a pair of them. A chop answers by SHAPE, so it works even on a 2 that cannot be beaten, and no chop beats another: they are answered by their own shape at a higher value. Switches Four of a kind on with it.' },
     { key:'chopKits',    duel:true, label:'The chop: 3+ Kits beat the 2', needs:'kits3',
       note:'A run of three or more Kits does the same. Switches 3 Kits on with it.' },
     { key:'chopSflush',  duel:true, label:'The chop: a Straight Flush beats the 2',
@@ -1467,7 +1471,7 @@ __QR__
    * More presets arrive as their shapes do — Dou Dizhu needs trio+single, four+two and the airplane first, so
    * offering it now would name a rule set the build cannot actually play. */
   var RULE_PRESETS=[
-    { key:'chikicha', label:'Chikicha Specials', title:'The Kits and Quadro shapes, with the chop that gives them a job — and nothing else',
+    { key:'chikicha', label:'Chikicha Specials', title:'The Kits and four-of-a-kind shapes, with the chop that gives them a job — and nothing else',
       rules:{ dblPair:'kits', kits3:true, quadro:true, chopQuadro:true } },
     /* TIẾN LÊN — the family this game keeps borrowing from. Its bombs are đôi thông (three or more consecutive
      * pairs) and tứ quý (four of a kind), and BOTH chop the heo, which here is the apex 2. So this is the preset
@@ -1475,11 +1479,11 @@ __QR__
      * Deliberately NOT in it: the four-card double-pair slot (the family's floor is three pairs, not two, so a
      * 2-kit is not one of its shapes and poker's two pair certainly is not), and the straight-flush chop, which
      * belongs to Big Two rather than to Tiến lên. */
-    { key:'tienlen', label:'Tiến lên Specials', title:'The family’s own bombs: 3+ Kits and Quadro, both chopping the 2',
+    { key:'tienlen', label:'Tiến lên Specials', title:'The family’s own bombs: 3+ Kits and four of a kind, both chopping the 2',
       rules:{ kits3:true, quadro:true, chopKits:true, chopQuadro:true } },
     /* DOU DIZHU — the fullest set, because that game has the most shapes. 连对 is our 3 Kits (its floor is three
      * consecutive pairs, so the four-card slot stays OFF, as in Tiến lên), 单顺 is the unlocked straight, and its
-     * 炸弹 is the bare four of a kind, which is why Quadro comes with the chop. Its 三带二 needs no rule: that is
+     * 炸弹 is the bare four of a kind, which is why it comes with the chop. Its 三带二 needs no rule: that is
      * our full house, always in the game.
      * One honest divergence, recorded rather than papered over: a Dou Dizhu 炸弹 beats ANY non-bomb play, while
      * our chop only reaches the all-2s shapes. chopQuadro is the closest thing we have, not the same thing. */

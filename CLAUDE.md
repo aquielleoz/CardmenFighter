@@ -406,6 +406,11 @@ Three more things worth knowing before touching them:
   Measured: Quadro goes from 17 to 956 plays per 250 six-player games — the chop is what gives it a job — while
   pacing and initiative concentration do not move at all. **At 2 players it is nearly inert** (2 chops in 498
   2-plays).
+- **"QUADRO" IS THE INTERNAL NAME; PLAYERS SEE "Four of a kind" (v1.31.39).** The rule key, the combo `type`, the
+  setters and every test message stay `quadro` — the key travels in saved rule sets and the netplay string, and
+  stable keys are the habit that saved the `recruit` tier. Only the label, the chop's label, the preset tooltips
+  and the played-combo name were renamed, because 四带二 sits two rows away as "Four of a kind + two spare cards"
+  and two names for the same four cards read as two shapes. **Do not unify them.**
 - **QUADRO (v1.31.29) shares the four-card slot and cannot collide with it** — four cards of one value can never
   be two pairs or a kit, so its check sits *ahead* of the double-pair block, which returns early for anything
   that is not two pairs. It is a **plain shape**: beats a lower Quadro, nothing else. The chop is separate.

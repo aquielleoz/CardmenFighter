@@ -667,6 +667,13 @@ the rule count has outgrown.
 
 Suites: `test` 292 → **304**, `rulestest` 109 → **119**. `mpsim` gains `trioone fourtwo airplane chain`.
 
+**"Quadro" is now "Four of a kind" on screen** (Aj, 2026-08-28). With 四带二 sitting two rows away as "Four of a
+kind + two spare cards", two names for the same four cards read as two different shapes. Renamed in the rule
+label, the chop's label, both preset tooltips and the combo name shown when one is played.
+**The key and the internal name stay `quadro`**: the key is in saved rule sets and in the netplay/export string,
+and stable keys are the habit that saved the `recruit` difficulty tier from a silent break. So the tests and code
+comments still say Quadro, deliberately — that is the shape's name in the engine, not on screen.
+
 **And a Dou Dizhu Specials preset**, now that there is a set to bundle: `kits3, chainLong, trioOne, fourTwo,
 airplane, quadro, chopQuadro`. 连对 is our 3 Kits — its floor is three consecutive pairs, so the four-card slot
 stays off as in Tiến lên — 单顺 is the unlocked straight, and its 炸弹 is the bare four of a kind, which is why
