@@ -28,6 +28,17 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   const rootCopy=fs.readFileSync(path.resolve(__dirname,'..','CardmenFighter.html'),'utf8');
   ok((rootCopy.match(/GAME_VERSION='([^']+)'/)||[])[1]===want, 'the repo-root copy carries the same stamp — that is the file people download');
 
+  /* THE BUILD MUST BE CURRENT. build.js inlines each module VERBATIM between its placeholders, so the built page
+   * must literally contain the text of every source file. That makes staleness exactly checkable — and it needed
+   * checking: on 2026-08-26 two engine commits shipped to main with an HTML built before them. `test.js` passed
+   * (it runs on engine.js directly), `versiontest` passed (the stamp was right), and nothing noticed that the
+   * page and the source had diverged. The flags involved were default-off so no behaviour changed, which is
+   * exactly why it went unseen. */
+  for (const mod of ['engine.js','ai.js','netview.js','qr.js']) {
+    const src=fs.readFileSync(path.resolve(__dirname,mod),'utf8');
+    ok(built.indexOf(src)>=0, `the built page contains the CURRENT ${mod} verbatim — a stale build cannot hide behind default-off flags`);
+  }
+
   const b=await chromium.launch(LAUNCH);
   const p=await (await b.newContext({viewport:{width:1100,height:900}})).newPage();
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
