@@ -7,12 +7,8 @@ Current version: **v1.31.25**. The 2-apex + Forms **rework is simply the game** 
 
 ## ☀️ START HERE — where we left off (2026-08-27)
 
-`main` is at **v1.31.31**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte.
-
-**One PR is in flight: [#60](https://github.com/aquielleoz/CardmenFighter/pull/60) — v1.31.33, the chop.** Green
-and ready to merge; it was left open only because Aj was heading off. It carries the eleventh-to-thirteenth
-rules (`chopQuadro` / `chopKits` / `chopSflush`) and **deletes the `straightflush` type**. If it is already
-merged when you read this, delete this paragraph and bump the version above.
+`main` is at **v1.31.33**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
+nothing is in flight — every PR is merged and every branch pruned.
 
 **Sanity check before you touch anything** (from `code/`, ~30 seconds):
 
@@ -20,8 +16,8 @@ merged when you read this, delete this paragraph and bump the version above.
 npm test && node mptest.js && node rulestest.js
 ```
 
-On `main` expect **263 / 0**, **28 / 0**, **82 / 0**, **69 / 0**; on the #60 branch **287 / 0**, **28 / 0**,
-**82 / 0**, **75 / 0**. If a count disagrees, the suite is right — fix the number here.
+Expect **287 / 0**, **28 / 0**, **82 / 0**, **75 / 0**. If a count disagrees, the suite is right — fix the
+number here.
 
 **What the last stretch was about**, newest first, all of it in the changelog below: the chop (v1.31.33), rule
 presets and Clear all (v1.31.30) plus the game mode moving into the rules panel (v1.31.32), the rule-suggestion
