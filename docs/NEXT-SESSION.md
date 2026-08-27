@@ -190,6 +190,46 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   - **The one thing that would give true discovery** is a rendezvous service — even a 20-line local one — and
     that breaks "no server, no install, runs offline", which is the project's whole shape. If it is ever wanted,
     make it strictly **opt-in** and keep the code path as the default.
+- **CLIENTS SUGGEST RULES TO THE HOST (Aj, 2026-08-27).** A client's own custom rules do not travel with it —
+  the host's rules are the game's rules — but a client *can* read them. The feature: a client picks rules on its
+  own device, and the host sees those picks as **suggestions** inside its own Custom rules panel. Advisory only:
+  no quorum, no auto-adopt, the host decides. Aj's framing was "a voting thing", and the deliberate narrowing is
+  that only the host's panel counts the votes.
+  - **IT NEEDS A SECOND STORE, and that is the whole implementation problem.** There is exactly one `RULES`
+    object today, and joining overwrites it with the host's key (`t:'welcome'` → `setRulesFromKey`, and again on
+    every `t:'rules'`). So a suggestion held in `RULES` would be clobbered by the host's next edit, or worse,
+    read as the rules in play. Split it: `RULES` = what is in play (host-authoritative), plus the device's own
+    preference — which is already what `localStorage['cmf_rules_v1']` holds, and which `setRulesFromKey`
+    deliberately does **not** save over. Leave does `location.reload()`, so `loadRules()` restores the device's
+    own picks on exit; nothing is lost today, and nothing may start being lost.
+  - **Wire shape: the intent channel, like emotes.** `{op:'suggest', key:'lossAll,dblPair=poker'}`, sent on join
+    (so a late joiner is counted) and on each change while in the lobby. Host keeps `seatSuggest[seat]`. Not a
+    new channel — see the emote precedent, including the shadowing trap that cost that feature once.
+  - **THE HOST MUST VALIDATE IT.** The key comes from an untrusted client, so parse it against `RULE_DEFS` and
+    **drop** unknown keys and invalid mode values, exactly as `cleanName()` treats a player-typed name. A rule
+    from a newer peer must be discarded, not displayed — otherwise the panel starts advertising rules this build
+    does not have, which is the mismatch the v1.31.21 handshake exists to surface, not to import.
+  - **Rate-limit per seat, ON THE HOST.** Same reason as the emote cooldown: a client controls its own clock, so
+    its own gate is a courtesy. Test it through `__cmf.clientSend`, which is what v1.31.27 added it for.
+  - **A SUGGESTION MUST NOT UN-READY THE TABLE.** Only the host's actual rule change does that (`rulesGen`). A
+    suggestion changes nothing about the game, and if it un-readied, one player idly flipping switches could stop
+    the table from ever starting.
+  - **The UI risk is misreading, not the wiring.** The client's lobby panel is read-only today; it becomes two
+    parts — *in play* (the host's, read-only) and *your suggestions* (editable) — and the distinction has to be
+    unmissable, because a client seeing its own toggles lit will otherwise read them as the game's rules. On the
+    host's side each row carries a count, and **the mode row must name the VALUE** ("2 want Poker"), since a
+    `dblPair` suggestion is not a boolean. Names through `logName(seat)`, so it stays reader-relative. Lobby
+    only: rules are locked mid-game, so the mid-game read-only panel is untouched.
+  - **Tests — a new `nettest_suggest.js`:** a suggestion reaches the host's panel with a count · a *mode*
+    suggestion shows its value · the host adopting one goes through the normal rules path (client adopts, table
+    un-readies) · a suggestion **alone** does not un-ready · a garbage or unknown key is dropped · the host-side
+    burst limit holds via `__cmf.clientSend` · the client's own suggestions survive a host rules edit (the
+    two-store split) · and "in play" vs "you suggest" is distinguishable by more than DOM presence.
+  - **Open questions for Aj, not decisions to make alone:** should clients see *each other's* suggestions (the
+    lean is no — it keeps the lobby out of lobbying), and should the host's own picks show as a self-suggestion
+    (the lean is no; the host's picks are simply the rules).
+  - Note this would be the first client→host message whose only effect is on the **host's UI** rather than on
+    game state.
 - **The homebrew rules menu SHIPPED in v1.31.22** (four multiplayer toggles, all defaulting off; rules travel to
   clients and un-ready the table; the export stamps them as `v:'2.1-mp'`). What is left of the idea:
   - **SHIPPED in v1.31.23 as two independent toggles.** The measurement (PATCHNOTES 0m) is what set the design:
