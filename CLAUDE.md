@@ -249,6 +249,14 @@ key, so netplay and the export carry the RULES, not a name the other end must re
   **The bulk row is DERIVED state** — the rows patch themselves in place, so `syncBulk()` must run on every
   single toggle or a preset button stays lit after one further change and Clear all stays greyed out after the
   first rule goes on. A bulk *action* re-opens the panel instead, since nine rows move at once.
+- **THE NOTES LIVE BEHIND A `?` (v1.31.35), and the control is a `<span>` because it has to be.** A boolean rule
+  row IS a `<button>`, so a nested `<button>` would be invalid HTML — same trap as the mode rows. It is
+  `<span role="button" tabindex="0">` with `stopPropagation()`, since a click that opened a note *and* toggled
+  the rule is the worst outcome available. **Reading is the one thing read-only does not disable** — mid-game and
+  on a client every other control is dead and the `?` stays live, because the panel's job on those seats is to
+  explain the game being played. Enter works; **Space is left alone** (inside a button row the browser uses it to
+  activate the row). **Assert VISIBILITY, never note text:** `textContent` returns a hidden note's words, so a
+  text assertion passes on a note nobody can reach — use `offsetParent`.
 - **Editability is the design:** setup dialog and the host's lobby edit; ⚙️ Settings is **read-only while a game
   is live**. A mid-game edit would be either silently ignored or incoherent.
 - **A rules change un-readies the table.** Readiness is stamped with `rulesGen` and counts only while current
@@ -561,7 +569,7 @@ Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 276, `netvie
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 42, `viewtest` 10,
 `landscapetest` 96, `versiontest` 15, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 65, `nettest_rules` 27, `nettest_suggest` 34, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
+`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 89, `nettest_rules` 28, `nettest_suggest` 34, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
 **A SUITE CAN BE GREEN AND BLIND. Three shapes of it, all found in one 2026-08-27 sweep and all fixed:**
