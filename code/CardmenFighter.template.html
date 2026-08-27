@@ -255,6 +255,13 @@
   .modal .segBtn.active{background:var(--gold); color:#3a2a08; opacity:1;}
   .modal .modeRow .segToggle{flex:1 1 auto;}   /* no "Mode" label — the toggle spans the row */
   /* Presets + Clear all. One row, above the toggles, because they act on the whole list. */
+  .modal .ruleSect{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:10px 0 2px; text-align:left;}
+  .modal .ruleSect:first-child{margin-top:2px;}
+  .modal .ruleSect .sectName{font-weight:900; font-size:13px; letter-spacing:.4px; text-transform:uppercase; color:var(--gold);}
+  .modal .ruleSect .ruleBulk{margin:0 0 0 auto;}      /* presets ride the right end of their own heading */
+  .modal .ruleFoot{display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center; margin-top:6px;}
+  .modal .ruleFoot #ruleDone{margin:0;}
+  .modal .ruleFoot .bulkBtn.clear{margin-left:0;}   /* undo the old bulk-row rule that pushed it to the right */
   .modal .ruleBulk{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:0 0 10px;}
   .modal .bulkBtn{font:inherit; font-weight:800; font-size:12px; padding:6px 11px; border-radius:9px; border:1px solid var(--line); background:#160c22; color:var(--txt); opacity:.85; cursor:pointer;}
   .modal .bulkBtn:hover:not(:disabled){opacity:1; border-color:var(--gold);}
@@ -672,6 +679,8 @@
   .modal.rulesPanel{max-width:860px;}
   @media (min-width:1040px){
     .modal.rulesPanel .settings{display:grid; grid-template-columns:1fr 1fr; align-items:start;}
+    /* a heading spans the columns, which also forces its rules to start a fresh grid row */
+    .modal.rulesPanel .settings .ruleSect{grid-column:1 / -1;}
     /* mode rows join the grid too — their segmented controls fit a half-width column, and giving each of them a
      * full row of its own was most of what still made the panel scroll. */
   }
@@ -1363,6 +1372,24 @@ __QR__
    * DEVICE's own picks: it is what localStorage holds, it is what a client suggests to the table, and it is
    * never touched by an incoming host key. When you are the one setting the rules, your picks ARE the rules,
    * so the panel writes both. */
+  /* SECTIONS (v1.31.37) — Aj: "i want to bring the preset buttons closer to the rules it actually changes".
+   * The sections own their rule keys rather than each rule naming its section, so there is one list to read.
+   * Two things fall out of it:
+   *   · every section turns out to be SCOPE-HOMOGENEOUS (checked: mode=duel, table=3-6, the 2=duel,
+   *     shapes=duel), so the "3-6 PLAYERS" chip moves from all thirteen rows onto four headings;
+   *   · the presets live in the heading of the group they change, which is possible because both of them touch
+   *     a contiguous block inside `shapes` and nothing outside it.
+   * A rule missing from every section is rendered under a visible "Uncategorised" heading rather than silently
+   * disappearing — `rulestest` asserts that heading is absent. */
+  var RULE_SECTIONS=[
+    /* "The game", not "Game mode" — the single rule inside it is already called Game mode, and a heading that
+     * repeats its only row is just noise. */
+    { key:'mode',   title:'The game',       keys:['basics'] },
+    { key:'table',  title:'Table rules',    keys:['lossAll','millAll','shieldScale','flatDraw'] },
+    { key:'apex',   title:'The 2',          keys:['apexInf','apexNoStrip'] },
+    { key:'shapes', title:'Shapes & chops', keys:['dblPair','kits3','quadro','chopQuadro','chopKits','chopSflush'],
+      presets:true }
+  ];
   var RULES={}, MY_RULES={};
   RULE_DEFS.forEach(function(d){ RULES[d.key]= d.mode ? d.mode[0].v : false; MY_RULES[d.key]=RULES[d.key]; });
   function ruleOff(d){ return d.mode ? d.mode[0].v : false; }              // this rule's "not on" value
@@ -4632,7 +4659,12 @@ __QR__
      * (mid-game) writes nothing. */
     var sug=!!opts.suggest && !ro, src=sug?MY_RULES:RULES;
     var votes=(sug||isHostSeat()) ? netSuggestions() : null;
-    function scopeTag(d){ return '<span class="ruleScope">'+(d.duel?'all player counts':'3–6 players')+'</span>'; }
+    /* SCOPE BELONGS TO THE SECTION now: every section holds rules of one scope, so thirteen identical chips
+     * became four. The row keeps no chip at all. */
+    function scopeOf(keys){
+      var d=RULE_DEFS.filter(function(x){ return keys.indexOf(x.key)>=0; })[0];
+      return '<span class="ruleScope">'+(d && d.duel ? 'all player counts' : '3–6 players')+'</span>';
+    }
     /* READING IS NEVER DISABLED — not even mid-game, and not for a client. Every other control in this panel is
      * dead in read-only mode; the whole point of the note is to explain the rules you are playing under, so the
      * `?` is the one thing that stays live. */
@@ -4654,7 +4686,7 @@ __QR__
                  (src[d.key]===m.v?'true':'false')+'">'+m.label+'</button>';
         }).join('');
         return '<div class="settingRow modeSetting'+(ruleOnIn(src,d)?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'" data-mode="1">'+
-          '<span class="settingBody"><span class="settingLbl">'+d.label+qMark(d)+'</span>'+scopeTag(d)+
+          '<span class="settingBody"><span class="settingLbl">'+d.label+qMark(d)+'</span>'+
           '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span>'+
           '<span class="segToggle" role="radiogroup" aria-label="'+d.label+'">'+segs+'</span></div>';
       }
@@ -4662,36 +4694,52 @@ __QR__
       return '<button type="button" class="settingRow'+(on?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'"'+
         (ro?' disabled':'')+' role="switch" aria-checked="'+(on?'true':'false')+'">'+
         '<span class="settingBox">'+(on?'✓':'')+'</span>'+
-        '<span class="settingBody"><span class="settingLbl">'+d.label+qMark(d)+'</span>'+scopeTag(d)+
+        '<span class="settingBody"><span class="settingLbl">'+d.label+qMark(d)+'</span>'+
         '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span></button>';
     }
     /* WIDER, AND TWO COLUMNS WHERE THERE IS ROOM (Aj, 2026-08-27: "what i'd hope to solve was the scrolling on
      * desktop. because really you can fit more with all this real estate"). Scoped to this panel by class, NOT
      * applied to `.modal`, which every dialog in the game shares. */
+    function presetsHTML(){
+      return '<span class="ruleBulk">'+RULE_PRESETS.map(function(pr){
+        return '<button type="button" class="bulkBtn'+(presetActive(pr,src)?' active':'')+'" data-preset="'+pr.key+
+               '" title="'+esc(pr.title)+'"'+(ro?' disabled':'')+'>'+esc(pr.label)+'</button>';
+      }).join('')+'</span>';
+    }
+    function sectionsHTML(){
+      var claimed={}, out='';
+      RULE_SECTIONS.forEach(function(sec){
+        var rows=RULE_DEFS.filter(function(d){ return sec.keys.indexOf(d.key)>=0; });
+        if(!rows.length) return;
+        rows.forEach(function(d){ claimed[d.key]=1; });
+        out+='<div class="ruleSect"><span class="sectName">'+esc(sec.title)+'</span>'+scopeOf(sec.keys)+
+             (sec.presets?presetsHTML():'')+'</div>'+rows.map(rowHTML).join('');
+      });
+      var left=RULE_DEFS.filter(function(d){ return !claimed[d.key]; });
+      if(left.length) out+='<div class="ruleSect"><span class="sectName">Uncategorised</span></div>'+left.map(rowHTML).join('');
+      return out;
+    }
     showModal('<h2>⚗️ '+(sug?'Rules &amp; suggestions':'Custom rules')+'</h2>'+
       /* NO ROW COUNTING. This sentence said "the first four … the last three", then four, then five — it went
        * stale every time a rule was added, and twice shipped wrong. Every row already carries its own scope
        * tag, which is asserted, so point at those instead of restating them positionally. */
       '<p class="ruleIntro">Mostly not the default or intended way to play — but certainly <i>a</i> way to play. '+
-        '<b>Each rule says whether it changes a duel or only 3–6 player games.</b></p>'+
+        '<b>Each section says which player counts its rules affect.</b></p>'+
       (sug ? '<div class="netmsg">The <b>host</b> sets the rules for the table. What you pick here is a '+
              '<b>suggestion</b> — everyone can see it, including the host, who decides.</div>' : '')+
       (ro ? '<div class="netmsg">'+(opts.why||'These are the rules this game is using. Rules are chosen before a game starts.')+'</div>' : '')+
-      '<div class="ruleBulk">'+
-        RULE_PRESETS.map(function(p){
-          return '<button type="button" class="bulkBtn'+(presetActive(p,src)?' active':'')+'" data-preset="'+p.key+
-                 '" title="'+esc(p.title)+'"'+(ro?' disabled':'')+'>'+esc(p.label)+'</button>';
-        }).join('')+
-        '<button type="button" class="bulkBtn clear" id="ruleClear"'+
-          ((ro||!RULE_DEFS.some(function(d){ return ruleOnIn(src,d); }))?' disabled':'')+
-          '>Clear all</button></div>'+
-      '<div class="settings">'+RULE_DEFS.map(rowHTML).join('')+'</div>'+
+      '<div class="settings">'+sectionsHTML()+'</div>'+
       /* Deliberately unspecific (Aj: "no need to say which ones haha"). Naming the decks and their win rates is
        * developer detail, and it pre-judges a deck for the player. The measured figures live in the changelog
        * and PATCHNOTES, where they are actually useful. */
       '<p class="ruleWarn">⚠ The Rival is tuned for the default rules and will not adapt — and some decks are '+
         'much better suited to these rules than others.</p>'+
-      '<button id="ruleDone">Done</button>', 'rulesPanel');
+      /* Clear all sits with Done because both act on the whole panel — and because a lone button above the
+       * sections, once the presets moved down, read like a section heading of its own. */
+      '<div class="ruleFoot">'+
+        '<button type="button" class="bulkBtn clear" id="ruleClear"'+
+          ((ro||!RULE_DEFS.some(function(d){ return ruleOnIn(src,d); }))?' disabled':'')+'>Clear all</button>'+
+        '<button id="ruleDone">Done</button></div>', 'rulesPanel');
     /* THE BULK ROW IS DERIVED STATE, so any single change has to refresh it — otherwise a preset button stays
      * lit after you toggle one more rule, which is a lie about what is in play, and Clear all stays greyed out
      * after the first rule goes on. The rows patch themselves in place, so this is the one shared touch-up. */

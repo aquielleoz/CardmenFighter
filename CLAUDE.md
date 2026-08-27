@@ -249,6 +249,13 @@ key, so netplay and the export carry the RULES, not a name the other end must re
   **The bulk row is DERIVED state** — the rows patch themselves in place, so `syncBulk()` must run on every
   single toggle or a preset button stays lit after one further change and Clear all stays greyed out after the
   first rule goes on. A bulk *action* re-opens the panel instead, since nine rows move at once.
+- **THE PANEL IS FOUR SECTIONS (v1.31.37), and `RULE_SECTIONS` owns the rule keys** — one list to read rather
+  than a `sect` field on thirteen defs. The cost of that choice is a rule belonging to no section, so an
+  unclaimed rule renders under a visible **"Uncategorised"** heading and `rulestest` asserts that heading is
+  absent: loud, not silent. **Scope lives on the section, not the row** — every section holds rules of a single
+  scope (checked), so thirteen identical chips became four; do not re-add a per-row chip. Both presets sit in the
+  `Shapes & chops` heading because both touch a contiguous block inside it and nothing outside, and `Clear all`
+  sits with `Done` since both act on the whole panel.
 - **THE RULES PANEL IS THE ONE WIDE DIALOG BESIDES THE CODEX (v1.31.36).** Two columns from 1040px, three from
   1400px with `max-width` growing to 1120px — a third column at 860px narrows each one enough that labels wrap
   and the rows give back the saving. **`.modal` is shared by every dialog**, so the width is a class on this
@@ -574,7 +581,7 @@ Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 276, `netvie
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 42, `viewtest` 10,
 `landscapetest` 96, `versiontest` 15, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 95, `nettest_rules` 28, `nettest_suggest` 34, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
+`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 100, `nettest_rules` 28, `nettest_suggest` 34, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
 **A SUITE CAN BE GREEN AND BLIND. Three shapes of it, all found in one 2026-08-27 sweep and all fixed:**

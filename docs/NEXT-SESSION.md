@@ -7,7 +7,7 @@ Current version: **v1.31.25**. The 2-apex + Forms **rework is simply the game** 
 
 ## ☀️ START HERE — where we left off (2026-08-27)
 
-`main` is at **v1.31.36**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
+`main` is at **v1.31.37**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
 nothing is in flight — every PR is merged and every branch pruned.
 
 **Sanity check before you touch anything** (from `code/`, ~30 seconds):
@@ -16,7 +16,7 @@ nothing is in flight — every PR is merged and every branch pruned.
 npm test && node mptest.js && node rulestest.js
 ```
 
-Expect **287 / 0**, **28 / 0**, **82 / 0**, **95 / 0**. If a count disagrees, the suite is right — fix the
+Expect **287 / 0**, **28 / 0**, **82 / 0**, **100 / 0**. If a count disagrees, the suite is right — fix the
 number here.
 
 **What the last stretch was about**, newest first, all of it in the changelog below: the chop (v1.31.33), rule
@@ -25,20 +25,9 @@ layer where clients suggest and the host decides (v1.31.31), the deck picker's t
 (v1.31.29), and the pair shapes (v1.31.24/26).
 
 **Queued, in the order Aj raised them:**
-1. **BRING THE PRESET BUTTONS NEXT TO THE RULES THEY CHANGE** (Aj, 2026-08-27: *"i want to bring the preset
-   buttons closer to the rules it actually changes… but how will that look on mobile?"*). Its own PR: this is the
-   panel's information architecture rather than its width, and it needs a mobile design of its own.
-   **The measurement that makes it clean:** both presets touch a **contiguous block** of rules — Chikicha
-   Specials hits positions 7–10 and Tiến lên 8–11 of thirteen, so *neither* touches the table rules (1–4) or the
-   apex pair (5–6). Everything they do lives in the shapes-and-chops group.
-   So the shape is **sections**: `Game mode`, `Table rules (3–6 players)`, `The 2`, `Shapes & chops` — with the
-   two preset buttons sitting in the heading of that last section. **That answers the mobile question:** a
-   section heading is a full-width row in either layout, so the presets need no horizontal room; on desktop the
-   heading spans the columns (`grid-column:1/-1`) and the buttons sit beside it. `Clear all` is global, so it
-   stays put — either above the sections or in the footer next to Done.
-   Watch out for: `syncBulk()` finds its buttons by `.ruleBulk .bulkBtn`, `rulestest` asserts the bulk row's
-   contents and looks Clear all up by `id`, and the wide-screen assertions count distinct row `left` positions to
-   infer the column count — a section heading that is itself a `.settingRow` would break that inference.
+1. ~~**BRING THE PRESET BUTTONS NEXT TO THE RULES THEY CHANGE**~~ **SHIPPED in v1.31.37** — four sections, both presets in
+   the `Shapes & chops` heading, and scope moved from thirteen rows onto the four headings (every section turned
+   out to hold rules of a single scope). See the changelog.
 2. **Chop strip or not.** Note the subtlety recorded in the BACKLOG: "did this play *chop* something" is not
    visible from the pile.
 3. Then the remaining Dou Dizhu shapes — trio+single, four+two, the airplane. (The **Tiến lên preset** shipped
@@ -591,6 +580,42 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.37 — the rules panel gets sections, and the presets move into theirs
+
+Aj: *"i want to bring the preset buttons closer to the rules it actually changes… but how will that look on
+mobile?"* The panel is four sections now, and both presets live in the heading of the group they change:
+
+| section | scope | rules |
+| --- | --- | --- |
+| **The game** | all player counts | Game mode |
+| **Table rules** | 3–6 players | the four multiplayer ones |
+| **The 2** | all player counts | the apex pair |
+| **Shapes & chops** | all player counts | the pair shapes, Quadro, the three chops — **and both presets** |
+
+**The mobile question answers itself:** a section heading is a full-width row in either layout, so the presets
+need no horizontal room at all. On desktop the heading spans the columns and the buttons ride its right end; on a
+phone they simply sit under the heading. Nothing about the idea needed the wide modal.
+
+**Two things came free, and one is more than was asked for.**
+
+**Scope moved from thirteen rows to four headings.** Every section turned out to be *scope-homogeneous* —
+checked, not assumed: mode=duel, table=3–6, the 2=duel, shapes=duel. So the `3–6 PLAYERS` / `ALL PLAYER COUNTS`
+chip is a property of the **section**, and a row repeating it was pure noise. Each row loses a line, and
+`rulestest` asserts both halves: four section chips, and zero row chips. The intro line changed with it ("Each
+section says which player counts its rules affect") — it now describes the sections rather than the rows.
+
+**Clear all moved to the footer, beside Done.** Once the presets went down into their section, a lone Clear all
+above the sections read like a section heading of its own. Both are whole-panel actions, so they belong together.
+
+**A rule that belongs to no section renders under a visible "Uncategorised" heading rather than vanishing**, and
+`rulestest` asserts that heading is absent. The sections own their rule keys — one list to read — and the cost of
+that choice is exactly this failure mode, so it is made loud instead of silent.
+
+Panel height: **877px at desktop width and still no scrolling** (the four headings cost ~100px, the dropped row
+chips gave most of it back). On a phone it is 1503px, down from 1620 before the notes were hidden.
+
+Suites: `rulestest` 95 → **100**.
 
 ### v1.31.36 — the rules panel stops scrolling on a desktop
 

@@ -56,14 +56,27 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   /* THE INTRO NO LONGER COUNTS ROWS. It used to say "the first four … the last three", and went stale on every
    * added rule — twice shipping a wrong number. It now points at the per-row scope tags, which are asserted
    * just below, so the two cannot disagree. */
-  ok(await p.evaluate(()=>/each rule says whether it changes a duel/i.test((document.querySelector('.ruleIntro')||{}).textContent||'')
+  ok(await p.evaluate(()=>/each section says which player counts/i.test((document.querySelector('.ruleIntro')||{}).textContent||'')
                        && !/first (four|five|three)/i.test((document.querySelector('.ruleIntro')||{}).textContent||'')),
-     'the intro points at each row\'s own scope tag instead of counting rows');
-  const scopes=await p.evaluate(()=>[].map.call(document.querySelectorAll('.settingRow[data-rule] .ruleScope'),e=>e.textContent.trim()));
-  /* The game-mode row sits FIRST and is all-counts, then the four multiplayer-only ones, then the rest. */
-  ok(scopes.length===13 && /all player counts/i.test(scopes[0])
-     && scopes.slice(1,5).every(t=>/3–6/.test(t)) && scopes.slice(5).every(t=>/all player counts/i.test(t)),
-     `and every row carries its own scope tag (${scopes.join(' | ')})`);
+     'the intro points at the sections\' scope, and still counts nothing');
+  const scopes=await p.evaluate(()=>[].map.call(document.querySelectorAll('.ruleSect .ruleScope'),e=>e.textContent.trim()));
+  /* SCOPE MOVED TO THE SECTION (v1.31.37). Every section holds rules of one scope — checked, all four are
+   * homogeneous — so thirteen identical chips became four, and a row carries none. */
+  ok(scopes.length===4 && /all player counts/i.test(scopes[0]) && /3–6/.test(scopes[1])
+     && /all player counts/i.test(scopes[2]) && /all player counts/i.test(scopes[3]),
+     `four section scope tags, not thirteen row ones (${scopes.join(' | ')})`);
+  ok(await p.evaluate(()=>document.querySelectorAll('.settingRow .ruleScope').length===0),
+     'and no row repeats what its section already said');
+  const sects = await p.evaluate(()=>[].map.call(document.querySelectorAll('.ruleSect .sectName'),e=>e.textContent.trim()));
+  ok(JSON.stringify(sects)===JSON.stringify(['The game','Table rules','The 2','Shapes & chops']),
+     `the panel is four sections (${sects.join(' | ')})`);
+  ok(sects.indexOf('Uncategorised')<0,
+     'and no rule fell outside them — an unclaimed rule renders under a visible Uncategorised heading, never vanishes');
+  ok(await p.evaluate(()=>{
+       const b=document.querySelector('.ruleBulk'); if(!b) return false;
+       const sec=b.closest('.ruleSect'); const nm=sec&&sec.querySelector('.sectName');
+       return !!nm && nm.textContent.trim()==='Shapes & chops';
+     }), 'the presets sit in the heading of the group they change — which is the whole point of the sections');
   ok(await p.evaluate(()=>/tuned for the default rules/i.test((document.querySelector('.ruleWarn')||{}).textContent||'')),
      'and warns that the Rival does not adapt');
 
@@ -166,11 +179,17 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   await clickQ('quadro'); await wait(150);
 
   // ---------- presets + Clear all (v1.31.30): one row that moves every rule at once
-  const bulk = p => p.evaluate(() => [].map.call(document.querySelectorAll('.ruleBulk .bulkBtn'),
+  /* Both containers: the presets live in their section's heading now, Clear all with Done in the footer. */
+  const bulk = p => p.evaluate(() => [].map.call(document.querySelectorAll('.modal .bulkBtn'),
     b => ({ preset: b.getAttribute('data-preset'), id: b.id, txt: b.textContent.trim(), off: b.disabled, active: b.classList.contains('active') })));
   let row = await bulk(p);
-  ok(row.length === 3 && row[0].preset === 'chikicha' && row[1].preset === 'tienlen' && row[2].id === 'ruleClear',
-     `the panel offers two presets and a Clear all (${row.map(r => r.txt).join(' | ')})`);
+  ok(row.length === 3 && row[0].preset === 'chikicha' && row[1].preset === 'tienlen'
+     && row.filter(r => r.id === 'ruleClear').length === 1,
+     `two presets and a Clear all (${row.map(r => r.txt).join(' | ')})`);
+  ok(await p.evaluate(()=>{
+       const c=document.getElementById('ruleClear'); const f=c&&c.closest('.ruleFoot');
+       return !!(f && f.querySelector('#ruleDone'));
+     }), 'Clear all sits with Done, both being whole-panel actions rather than rules');
   ok(!row.filter(b => b.id === 'ruleClear')[0].off, 'Clear all is live while rules are on');
   /* A PRESET IS AN EXACT STATE, not an additive one — Aj named Chikicha Specials as "kits + quadro and nothing
    * else", so applying it over a table full of other rules must turn those OFF. Every rule is on at this point
