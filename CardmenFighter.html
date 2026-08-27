@@ -1548,6 +1548,10 @@
    * +7). So the apex is not actually an apex, which is the complaint. That makes the minimal fix "no boost may
    * exceed the apex", and it is SEPARATE from the no-strip half of the proposal:
    *   APEX_INF     — a 2 ranks at infinity, so no boost can pass it. Shields still work normally.
+   *                   The alternative — expressing "unbeatable" as a RULE inside beats() rather than as a value
+   *                   — was prototyped in 2026-08 and dropped; the Infinity value is what ships. Nothing should
+   *                   depend on that representation, though: `apexOnlyPlay` accepts 15 and Infinity both, which
+   *                   is what lets the chop answer an unbeatable 2 either way.
    *   APEX_NOSTRIP — additionally, a winning play containing a 2 strips no shield (the literal proposal).
    * Split because the length cost measured earlier belongs entirely to the second half: an unbeatable play
    * that also deals no damage ends a round without progressing the game. */
