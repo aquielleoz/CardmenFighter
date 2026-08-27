@@ -35,6 +35,17 @@ async function waitHand(p){ for(let i=0;i<60;i++){ if((await p.evaluate(()=>docu
   await host.goto(url('host',ROOM1)); await wait(1100);
   ok(!(await hasOpt(host,'custom:D1H2C1')),'the HOST\'s picker does not offer it — the host has never heard of this deck');
 
+  /* v1.31.28: the LOBBY picker used to default to the Full Set outright (`myDeck='full'`), which is how most
+   * online games ended up playing all 52 cards without anyone choosing that. Both seats now default to Random,
+   * and Full Set sits last. Asserted on both because the lobby has two render paths (host and client). */
+  for(const [pg,who] of [[host,'host'],[join,'client']]){
+    ok(await pg.evaluate(()=>{ const s=document.getElementById('deckSel'); return !!s && s.value==='random'; }),
+       `the ${who}'s lobby deck picker defaults to 🎲 Random`);
+    const ord=await pg.evaluate(()=>[].map.call(document.querySelectorAll('#deckSel option'),o=>o.value));
+    ok(ord[0]==='random' && ord.indexOf('full')===ord.length-2 && ord[ord.length-1]==='__builddeck__',
+       `  and Full Set is last of the decks there too (${ord.indexOf('full')} of ${ord.length-1})`);
+  }
+
   await startDuel(host, join, { hostDeck:'Wizard', clientDeck:'custom:D1H2C1' });
   ok(await waitHand(host) && await waitHand(join),'both boards dealt 6 cards');
 

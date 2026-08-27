@@ -105,6 +105,39 @@ const URL = 'file://' + path.resolve(__dirname, 'CardmenFighter.html') + '?dbgso
   ok(await p.evaluate(() => { var o = JSON.parse(localStorage.getItem('cmf_setup_v1') || '{}'); return !!(o.opps && o.opps[0] && o.opps[0].deck === 'custom:S4'); }), 'the seat pick persists to the setup store');
   ok(await p.evaluate(() => document.querySelectorAll('#setPlayers option').length > 0 && document.getElementById('setPlayers').value === '3'), 'the player count survives the builder round-trip');
 
+  /* ---- the picker's ORDER and its DEFAULT (v1.31.28). Full Set used to be the second option, so it was the
+   * first thing a thumb landed on, and it was the netplay lobby's default outright. */
+  const opts = await p.evaluate(() => [].map.call(document.querySelectorAll('#setYouDeck option'), o => o.value));
+  ok(opts[0] === 'random', `🎲 Random leads the list (${opts[0]})`);
+  const iFull = opts.indexOf('full'), iBuild = opts.indexOf('__builddeck__');
+  ok(iFull === iBuild - 1 && iBuild === opts.length - 1,
+     `Full Set is the LAST deck, with only the ✏️ Custom deck… action after it (full at ${iFull} of ${opts.length - 1})`);
+  ok(opts.indexOf('Wizard') > 0 && opts.indexOf('Wizard') < iFull, 'and every class deck sits above it');
+  /* On a FRESH store — a saved pick must still win, which is why this clears cmf_setup_v1 first rather than
+   * asserting mid-suite where an earlier custom deck is legitimately remembered. */
+  await p.evaluate(() => { try { localStorage.removeItem('cmf_setup_v1'); } catch (e) {} });
+  await p.goto(URL); await p.waitForTimeout(700); await openSetup();
+  ok(await p.evaluate(() => document.getElementById('setYouDeck').value === 'random'
+                         && document.getElementById('setRivalDeck').value === 'random'),
+     'on a first run both setup pickers default to Random, not to the Full Set');
+
+  /* 🎲 Random must be able to reach the Full Set — it could NOT before, since E.DECK_ORDER holds only the ten
+   * classes — but rarely (Aj: "just a little bit hard"). 20k rolls: full ≈ 5%, each class ≈ 9.5%, so the bounds
+   * below sit many sigma clear of both. Asserting only "full appears" would pass a uniform 1-in-11 too. */
+  const roll = await p.evaluate(() => {
+    const n = 20000, tally = {};
+    for (let i = 0; i < n; i++) { const d = window.__solo.resolveDeck('random'); tally[d] = (tally[d] || 0) + 1; }
+    return { n, tally, classes: CardmenEngine.DECK_ORDER.slice() };
+  });
+  const fullPct = 100 * (roll.tally.full || 0) / roll.n;
+  ok(fullPct > 3 && fullPct < 7, `Random lands on the Full Set about one roll in twenty (${fullPct.toFixed(1)}%)`);
+  ok(roll.classes.every(k => (roll.tally[k] || 0) > 0), 'every class deck is still reachable');
+  const rarest = roll.classes.reduce((m, k) => Math.min(m, roll.tally[k] || 0), Infinity);
+  ok((roll.tally.full || 0) < rarest,
+     `and the Full Set is rarer than any single class (${roll.tally.full} vs the thinnest class at ${rarest})`);
+  ok(Object.keys(roll.tally).every(k => k === 'full' || roll.classes.indexOf(k) >= 0),
+     'Random never rolls a saved custom deck or the builder sentinel');
+
   ok(errs.length === 0, 'no JS errors' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
   console.log('\n' + (fail ? 'FAIL' : 'PASS') + ': ' + pass + '  FAIL: ' + fail);
   await b.close(); process.exit(fail ? 1 : 0);

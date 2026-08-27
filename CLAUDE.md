@@ -461,7 +461,7 @@ stray processes before suspecting the code. And never wait on work with `while p
 
 Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 246, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
-`piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 35, `viewtest` 10,
+`piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 43, `viewtest` 10,
 `landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
 `nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 36, `nettest_rules` 20, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
@@ -690,9 +690,16 @@ not a class problem but a rules problem. The lever belongs at the rules level �
   out of `## BACKLOG`.
 - Debug hooks exist and are URL-gated: `?dbg=1` (netplay) and `?dbgsolo=1` (exposes `window.__solo` with
   `st()/render()/setPulse()` for headless UI checks). Keep new hooks inert without their flag.
-  `__solo.rulesKey/setRulesFromKey` reach the rules serialiser; **`__cmf.clientSend(msg)` sends a raw client
-  intent**, which is the only way to test a HOST-side authority check — a client's own gate is a courtesy, and
-  going through the UI exercises that copy instead of the one that matters.
+  `__solo.rulesKey/setRulesFromKey` reach the rules serialiser, `__solo.resolveDeck` the deck roll; and
+  **`__cmf.clientSend(msg)` sends a raw client intent**, which is the only way to test a HOST-side authority
+  check — a client's own gate is a courtesy, and going through the UI exercises that copy instead of the one
+  that matters.
+- **THE DECK PICKER HAS THREE DEFAULTS, NOT ONE** (v1.31.28). The setup dialog reads `DEFAULT_SEL`, the netplay
+  lobby has its own `myDeck`, and `boot()` supplies the `?net=` path's — that third one is what every shared
+  invite and every test suite goes through, and it silently made the Full Set the online default for months
+  while the setup dialog said Random. **Change a picker default in all three places, or measure which path the
+  player actually took.** `resolveDeck('random')` reaches the Full Set on 1 roll in 20 (`RANDOM_FULL_ODDS`);
+  it reached it never before, since `E.DECK_ORDER` holds only the ten class decks.
 - `docs/PLAYER-PROFILE.md` is a living read on how Aj actually plays — consult it for AI tuning and balance,
   and append exported games to its ingestion log.
 

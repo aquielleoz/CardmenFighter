@@ -528,6 +528,31 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.28 — the deck picker stops recommending the Full Set
+
+Aj, on the lobby's deck dropdown: move Full Set to the bottom, make Random the default, and *"make it just a
+little bit hard to random into full set"*. Three separate things, and the middle one turned out to be two bugs.
+
+**Order.** Full Set was the *second* option in every picker — the first thing a thumb lands on. It now sits
+**last of the decks**, below the ten classes and any saved decks, with only the ✏️ Custom deck… action after it
+(that stays last because it is an action, not a deck). 🎲 Random leads, since it is the default.
+
+**Default.** The setup dialog already defaulted to Random. The **netplay lobby did not**: `myDeck` was
+initialised to `'full'`, and `boot()` — the `?net=` path, which is what every shared invite and every test suite
+uses — hardcoded `deck: q.get('deck') || 'full'`. So most online games were played with all 52 cards without
+anybody choosing that. Both default to Random now, as do the host's fallbacks for a seat that never picked.
+
+**Odds.** Random *could not* reach the Full Set at all before: `resolveDeck` picks from `E.DECK_ORDER`, which
+holds only the ten class decks. It now lands on Full Set on **one roll in twenty** (`RANDOM_FULL_ODDS = 0.05`)
+against a flat 1/10 for each class — rare rather than absent, because a Random that can surprise you is the
+point of rolling one.
+
+Tests: `decktest` 35 → **43** (order, the fresh-store default, and 20,000 rolls checked against three
+properties — full lands near 5%, every class stays reachable, and full is rarer than the thinnest class; a bare
+"full appears" would have passed a uniform 1-in-11 too). `nettest_customdeck` 14 → **18**, asserting the lobby
+default and the ordering on **both** render paths, host and client. `__solo.resolveDeck` is the new URL-gated
+hook the odds assertion needs. Full serial sweep green.
+
 ### v1.31.27 — the suites could be green and blind: three shapes of it, fixed
 
 v1.31.26 found two suites passing a control they never actually tested. That was worth a sweep of the other 30,
