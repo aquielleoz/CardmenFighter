@@ -261,6 +261,10 @@
   .modal .bulkBtn.active{background:var(--gold); color:#3a2a08; border-color:var(--gold); opacity:1;}
   .modal .bulkBtn.clear{margin-left:auto;}
   .modal .bulkBtn:disabled{opacity:.35; cursor:default;}
+  /* In-play vs suggested, and who wants what. Both live under the note, inside .settingBody. */
+  .modal .ruleLive{display:block; margin-top:3px; font-size:11px; font-weight:800; color:var(--gold); opacity:.9;}
+  .modal .ruleVotes{display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;}
+  .modal .ruleVote{font-size:11px; font-weight:700; padding:2px 7px; border-radius:8px; background:#241634; border:1px solid var(--line); color:var(--txt); opacity:.9;}
   .modal .segHint{font-size:11.5px; font-weight:400; opacity:.7; margin:-4px 4px 2px; text-align:center;}
   #oppList{display:flex; flex-direction:column; gap:8px; margin-top:2px;}
   #oppList .setRow span:first-child{color:var(--gold); font-size:13px;}
@@ -4445,7 +4449,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.30';
+  var GAME_VERSION='v1.31.31';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -4561,9 +4565,16 @@ window.CardFace = {};
     { key:'quadro',      duel:true, label:'Quadro — four of a kind',
       note:'All four copies of one value. Beats a lower Quadro only: it does not beat other shapes, and nothing outranks the 2 by being big.' }
   ];
-  var RULES={}; RULE_DEFS.forEach(function(d){ RULES[d.key]= d.mode ? d.mode[0].v : false; });
-  function ruleOn(d){ return d.mode ? (RULES[d.key]!==d.mode[0].v) : !!RULES[d.key]; }
+  /* TWO STORES, and the split is what makes suggestions possible (v1.31.31). RULES is what is IN PLAY — on a
+   * netplay client the host overwrites it wholesale, so anything kept there is not yours. MY_RULES is THIS
+   * DEVICE's own picks: it is what localStorage holds, it is what a client suggests to the table, and it is
+   * never touched by an incoming host key. When you are the one setting the rules, your picks ARE the rules,
+   * so the panel writes both. */
+  var RULES={}, MY_RULES={};
+  RULE_DEFS.forEach(function(d){ RULES[d.key]= d.mode ? d.mode[0].v : false; MY_RULES[d.key]=RULES[d.key]; });
   function ruleOff(d){ return d.mode ? d.mode[0].v : false; }              // this rule's "not on" value
+  function ruleOnIn(src,d){ return d.mode ? (src[d.key]!==ruleOff(d)) : !!src[d.key]; }
+  function ruleOn(d){ return ruleOnIn(RULES,d); }
   /* PRESETS ARE AN EXACT STATE, NOT AN ADDITIVE ONE — Aj named Chikicha Specials as "kits + quadro and NOTHING
    * else", so applying one must also turn off whatever else was on. That is what makes a preset button able to
    * read as active: "these are exactly the rules" is a claim you can check, "at least these" is not.
@@ -4574,18 +4585,25 @@ window.CardFace = {};
       rules:{ dblPair:'kits', kits3:true, quadro:true } }
   ];
   function presetValue(p,d){ return p.rules[d.key]!==undefined ? p.rules[d.key] : ruleOff(d); }
-  function presetActive(p){ return RULE_DEFS.every(function(d){ return RULES[d.key]===presetValue(p,d); }); }
-  function applyPreset(p){ RULE_DEFS.forEach(function(d){ RULES[d.key]=presetValue(p,d); }); applyRules(); saveRules(); }
-  function clearAllRules(){ RULE_DEFS.forEach(function(d){ RULES[d.key]=ruleOff(d); }); applyRules(); saveRules(); }
+  function presetActive(p,src){ src=src||RULES; return RULE_DEFS.every(function(d){ return src[d.key]===presetValue(p,d); }); }
+  function applyPreset(p,src){ RULE_DEFS.forEach(function(d){ src[d.key]=presetValue(p,d); }); }
+  function clearAllRules(src){ RULE_DEFS.forEach(function(d){ src[d.key]=ruleOff(d); }); }
   function customRules(){ return RULE_DEFS.some(ruleOn); }
   /* Self-describing, like the custom-deck key: netplay and the playtest export carry the RULES, not a name the
    * other end would have to recognise. '' means "the shipped game". */
-  function rulesKey(){
-    var on=RULE_DEFS.filter(ruleOn).map(function(d){ return d.mode ? (d.key+'='+RULES[d.key]) : d.key; });
+  function keyOf(src){
+    var on=RULE_DEFS.filter(function(d){ return ruleOnIn(src,d); })
+                    .map(function(d){ return d.mode ? (d.key+'='+src[d.key]) : d.key; });
     return on.length?on.join(','):'';
   }
-  function setRulesFromKey(k){
-    var want={}, modes={};
+  function rulesKey(){ return keyOf(RULES); }
+  function myRulesKey(){ return keyOf(MY_RULES); }
+  /* Parses a key into a RULES-shaped object, DROPPING anything this build does not know — unknown rule names
+   * and invalid mode values both fall back to off. That is the whole sanitiser for an untrusted client's
+   * suggestion (`keyOf(rulesFromKey(k))` round-trips it clean), and it is the same path a saved key takes, so
+   * there is only one place where a key is interpreted. */
+  function rulesFromKey(k){
+    var want={}, modes={}, out={};
     String(k||'').split(',').forEach(function(x){
       if(!x) return;
       var eq=x.indexOf('=');
@@ -4598,9 +4616,17 @@ window.CardFace = {};
     RULE_DEFS.forEach(function(d){
       if(d.mode){
         var v=modes[d.key], ok=d.mode.some(function(m){ return m.v===v; });
-        RULES[d.key]= ok ? v : d.mode[0].v;
-      } else RULES[d.key]=!!want[d.key];
+        out[d.key]= ok ? v : d.mode[0].v;
+      } else out[d.key]=!!want[d.key];
     });
+    return out;
+  }
+  function setRulesFromKey(k){                     // the rules IN PLAY — never touches MY_RULES
+    var o=rulesFromKey(k); RULE_DEFS.forEach(function(d){ RULES[d.key]=o[d.key]; }); applyRules();
+  }
+  function setMyRulesFromKey(k){                   // this device's own picks, and the game to play solo
+    var o=rulesFromKey(k);
+    RULE_DEFS.forEach(function(d){ MY_RULES[d.key]=o[d.key]; RULES[d.key]=o[d.key]; });
     applyRules();
   }
   function applyRules(){
@@ -4614,8 +4640,37 @@ window.CardFace = {};
       if(E.setKits3)            E.setKits3(!!RULES.kits3);
       if(E.setQuadro)           E.setQuadro(!!RULES.quadro);
   }
-  function saveRules(){ try{ localStorage.setItem(RULES_KEY, rulesKey()); }catch(e){} }
-  (function loadRules(){ try{ var k=localStorage.getItem(RULES_KEY); if(k!=null) setRulesFromKey(k); }catch(e){} })();
+  function valLabel(d,v){
+    if(!d.mode) return v?'on':'off';
+    var m=d.mode.filter(function(x){ return x.v===v; })[0];
+    return m?m.label:String(v);
+  }
+  /* Suggestions are read through NET so the panel needs no netplay awareness — and they are absent entirely in
+   * solo play, where the chips simply do not render. */
+  function netSuggestions(){ try{ return (typeof NET!=='undefined' && NET.suggestions) ? NET.suggestions() : null; }catch(e){ return null; } }
+  function netSendSuggest(){ try{ if(typeof NET!=='undefined' && NET.sendSuggest) NET.sendSuggest(myRulesKey()); }catch(e){} }
+  function isHostSeat(){ try{ return typeof NET!=='undefined' && NET.active && NET.active() && NET.isHost && NET.isHost(); }catch(e){ return false; } }
+  /* WHO WANTS WHAT. A boolean rule tallies the seats asking for it ON; a MODE rule tallies per VALUE, because
+   * "2 want this" says nothing when the row has three settings — "2 want Poker" is the whole point. Names come
+   * from the host (it is the only seat that knows them in a lobby) and a reader always sees itself as "You". */
+  function voteHTML(d,votes){
+    if(!votes || !votes.all) return '';
+    var by={}, seat, o, v, any=false;
+    for(seat in votes.all){
+      o=rulesFromKey(votes.all[seat]);
+      if(!ruleOnIn(o,d)) continue;
+      v=d.mode ? o[d.key] : true;
+      (by[v]=by[v]||[]).push(votes.names&&votes.names[seat] ? votes.names[seat] : ('P'+((+seat)+1)));
+      any=true;
+    }
+    if(!any) return '';
+    var out=[];
+    for(v in by) out.push('<span class="ruleVote">👍 '+(d.mode?esc(valLabel(d,v))+': ':'')+esc(by[v].join(', '))+'</span>');
+    return '<span class="ruleVotes">'+out.join('')+'</span>';
+  }
+  function saveRules(){ try{ localStorage.setItem(RULES_KEY, myRulesKey()); }catch(e){} }
+  function ownRules(){ RULE_DEFS.forEach(function(d){ MY_RULES[d.key]=RULES[d.key]; }); saveRules(); }  // your picks ARE the rules
+  (function loadRules(){ try{ var k=localStorage.getItem(RULES_KEY); if(k!=null) setMyRulesFromKey(k); }catch(e){} })();
   function rulesChip(){ return customRules() ? '<span class="ruleChip" title="This game uses custom rules">⚗️ Custom rules</span>' : ''; }
   var tutorialMode=false;                 // guided-tutorial flag: rigs a controlled deal + runs the coach
   var currentLesson=null;                 // the active tutorial lesson object (see LESSONS) — drives the rig + step script
@@ -7742,42 +7797,59 @@ window.CardFace = {};
    * That last one is the whole reason it is reachable from Settings at all (Aj: "if something weird happens, i
    * can check why my game is not behaving in the ruleset i'm expecting") — while still making a mid-duel edit
    * impossible, which would be either silently ignored or incoherent. */
+  var rulesPanelOpen=null;   // opts of the live ⚗️ panel, so an incoming suggestion can repaint it in place
+  function refreshRulesPanel(){ if(rulesPanelOpen) showRules(rulesPanelOpen); }
   function showRules(opts){
     opts=opts||{};
+    rulesPanelOpen=opts;
     var ro=!!opts.readonly, back=opts.back||hideOverlay;
+    /* THREE MODES, not two. `edit` (solo, setup, the host's lobby) writes the rules. `suggest` (a client in a
+     * lobby) writes THIS DEVICE's picks and sends them to the host as a suggestion — the controls always edit
+     * your own opinion, and when you are the one setting the rules your opinion IS the rule. `readonly`
+     * (mid-game) writes nothing. */
+    var sug=!!opts.suggest && !ro, src=sug?MY_RULES:RULES;
+    var votes=(sug||isHostSeat()) ? netSuggestions() : null;
     function scopeTag(d){ return '<span class="ruleScope">'+(d.duel?'all player counts':'3–6 players')+'</span>'; }
     function rowHTML(d){
       /* A MODE row is a <div> with a segmented control, not a <button> — nesting buttons inside a button is
        * invalid, and the alternatives are mutually exclusive rather than independently checkable, which is the
        * whole point of the mode (see RULE_DEFS). It still carries data-rule so the suites enumerate it. */
+      /* In suggest mode the row shows what is IN PLAY when it differs from your pick, so an editable control
+       * can never be mistaken for the rules of the game — the one real misreading risk in this whole feature. */
+      var liveTag = (sug && src[d.key]!==RULES[d.key])
+        ? '<span class="ruleLive">in play: '+esc(valLabel(d,RULES[d.key]))+'</span>' : '';
+      var voteTag = voteHTML(d,votes);
       if(d.mode){
         var segs=d.mode.map(function(m){
-          return '<button type="button" class="segBtn'+(RULES[d.key]===m.v?' active':'')+'"'+(ro?' disabled':'')+
+          return '<button type="button" class="segBtn'+(src[d.key]===m.v?' active':'')+'"'+(ro?' disabled':'')+
                  ' data-mode-for="'+d.key+'" data-mode-v="'+m.v+'" role="radio" aria-checked="'+
-                 (RULES[d.key]===m.v?'true':'false')+'">'+m.label+'</button>';
+                 (src[d.key]===m.v?'true':'false')+'">'+m.label+'</button>';
         }).join('');
-        return '<div class="settingRow modeSetting'+(ruleOn(d)?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'" data-mode="1">'+
+        return '<div class="settingRow modeSetting'+(ruleOnIn(src,d)?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'" data-mode="1">'+
           '<span class="settingBody"><span class="settingLbl">'+d.label+scopeTag(d)+'</span>'+
-          '<span class="settingNote">'+d.note+'</span></span>'+
+          '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span>'+
           '<span class="segToggle" role="radiogroup" aria-label="'+d.label+'">'+segs+'</span></div>';
       }
-      var on=!!RULES[d.key];
+      var on=!!src[d.key];
       return '<button type="button" class="settingRow'+(on?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'"'+
         (ro?' disabled':'')+' role="switch" aria-checked="'+(on?'true':'false')+'">'+
         '<span class="settingBox">'+(on?'✓':'')+'</span>'+
         '<span class="settingBody"><span class="settingLbl">'+d.label+scopeTag(d)+'</span>'+
-        '<span class="settingNote">'+d.note+'</span></span></button>';
+        '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span></button>';
     }
-    showModal('<h2>⚗️ Custom rules</h2>'+
+    showModal('<h2>⚗️ '+(sug?'Rules &amp; suggestions':'Custom rules')+'</h2>'+
       '<p class="ruleIntro">Not the default or intended way to play — but certainly <i>a</i> way to play. '+
         '<b>The first four only change 3–6 player games; the last five change duels too.</b></p>'+
+      (sug ? '<div class="netmsg">The <b>host</b> sets the rules for the table. What you pick here is a '+
+             '<b>suggestion</b> — everyone can see it, including the host, who decides.</div>' : '')+
       (ro ? '<div class="netmsg">'+(opts.why||'These are the rules this game is using. Rules are chosen before a game starts.')+'</div>' : '')+
       '<div class="ruleBulk">'+
         RULE_PRESETS.map(function(p){
-          return '<button type="button" class="bulkBtn'+(presetActive(p)?' active':'')+'" data-preset="'+p.key+
+          return '<button type="button" class="bulkBtn'+(presetActive(p,src)?' active':'')+'" data-preset="'+p.key+
                  '" title="'+esc(p.title)+'"'+(ro?' disabled':'')+'>'+esc(p.label)+'</button>';
         }).join('')+
-        '<button type="button" class="bulkBtn clear" id="ruleClear"'+((ro||!customRules())?' disabled':'')+
+        '<button type="button" class="bulkBtn clear" id="ruleClear"'+
+          ((ro||!RULE_DEFS.some(function(d){ return ruleOnIn(src,d); }))?' disabled':'')+
           '>Clear all</button></div>'+
       '<div class="settings">'+RULE_DEFS.map(rowHTML).join('')+'</div>'+
       /* Deliberately unspecific (Aj: "no need to say which ones haha"). Naming the decks and their win rates is
@@ -7792,20 +7864,26 @@ window.CardFace = {};
     function syncBulk(){
       Array.prototype.forEach.call(document.querySelectorAll('.bulkBtn[data-preset]'), function(b){
         var p=RULE_PRESETS.filter(function(x){ return x.key===b.getAttribute('data-preset'); })[0];
-        b.classList.toggle('active', !!p && presetActive(p));
+        b.classList.toggle('active', !!p && presetActive(p,src));
       });
-      var c=$('ruleClear'); if(c) c.disabled = !customRules();
+      var c=$('ruleClear'); if(c) c.disabled = !RULE_DEFS.some(function(d){ return ruleOnIn(src,d); });
+    }
+    /* ONE commit path. In suggest mode nothing is applied to the engine — the rules in play are the host's —
+     * it is saved as this device's preference and sent up the wire. Otherwise your picks are the rules. */
+    function commit(){
+      if(sug){ saveRules(); netSendSuggest(); }
+      else { applyRules(); ownRules(); }
     }
     if(!ro) Array.prototype.forEach.call(document.querySelectorAll('.segBtn[data-mode-for]'), function(seg){
       seg.addEventListener('click', function(){
         var k=this.getAttribute('data-mode-for'), v=this.getAttribute('data-mode-v');
-        RULES[k]=v; applyRules(); saveRules();
+        src[k]=v; commit();
         var row=this.closest('.settingRow');
         Array.prototype.forEach.call(row.querySelectorAll('.segBtn[data-mode-for="'+k+'"]'), function(o){
           var act=o.getAttribute('data-mode-v')===v;
           o.classList.toggle('active', act); o.setAttribute('aria-checked', act?'true':'false');
         });
-        row.classList.toggle('on', ruleOn(RULE_DEFS.filter(function(d){ return d.key===k; })[0]));
+        row.classList.toggle('on', ruleOnIn(src, RULE_DEFS.filter(function(d){ return d.key===k; })[0]));
         syncBulk();
         if(opts.onChange) opts.onChange();
       });
@@ -7813,10 +7891,10 @@ window.CardFace = {};
     if(!ro) Array.prototype.forEach.call(document.querySelectorAll('button.settingRow[data-rule]'), function(btn){
       btn.addEventListener('click', function(){
         var k=this.getAttribute('data-rule');
-        RULES[k]=!RULES[k]; applyRules(); saveRules();
-        this.classList.toggle('on', !!RULES[k]);
-        this.setAttribute('aria-checked', RULES[k]?'true':'false');
-        this.querySelector('.settingBox').textContent=RULES[k]?'✓':'';
+        src[k]=!src[k]; commit();
+        this.classList.toggle('on', !!src[k]);
+        this.setAttribute('aria-checked', src[k]?'true':'false');
+        this.querySelector('.settingBox').textContent=src[k]?'✓':'';
         syncBulk();
         if(opts.onChange) opts.onChange();
       });
@@ -7830,21 +7908,22 @@ window.CardFace = {};
           var k=this.getAttribute('data-preset');
           var p=RULE_PRESETS.filter(function(x){ return x.key===k; })[0];
           if(!p) return;
-          applyPreset(p);
+          applyPreset(p,src); commit();
           if(opts.onChange) opts.onChange();
           showRules(opts);
         });
       });
       var clr=$('ruleClear');
       if(clr) clr.addEventListener('click', function(){
-        if(!customRules()) return;
-        clearAllRules();
+        if(!RULE_DEFS.some(function(d){ return ruleOnIn(src,d); })) return;
+        clearAllRules(src); commit();
         if(opts.onChange) opts.onChange();
         showRules(opts);
       });
     }
-    $('ruleDone').addEventListener('click', back);
-    overlayDismiss=back;
+    function closePanel(){ rulesPanelOpen=null; back(); }
+    $('ruleDone').addEventListener('click', closePanel);
+    overlayDismiss=closePanel;
   }
   function showSettings(){
     function rowHTML(id, on, label, note){
@@ -8631,6 +8710,36 @@ window.CardFace = {};
     var rulesGen=0, seatRuleGen={};
     function readyCount(){ var n=0; for(var k in seatRuleGen){ if(seatRuleGen[k]===rulesGen) n++; } return n; }
     function stopJoinRetry(){ if(joinRetry){ clearInterval(joinRetry); joinRetry=null; } }
+    /* ---- RULE SUGGESTIONS (v1.31.31). A client suggests; the host validates, stores, and broadcasts to the
+     * WHOLE table. The sequence is the emote one — client intent, host authority, host broadcast — but a
+     * suggestion is STATE where an emote is an EVENT, and that changes two things:
+     *   · the host broadcasts the WHOLE MAP, not a delta, so a dropped message or a late joiner self-heals
+     *     instead of leaving one seat permanently stale (and t:'welcome' can carry it for free);
+     *   · the rate limit COALESCES instead of dropping. Dropping a burst is right for an event; for state it
+     *     would strand the table on a stale value while the sender's own panel shows something newer.
+     * A suggestion NEVER un-readies the table — it changes nothing about the game, and if it did, one player
+     * idly flipping switches could stop the table from ever starting. */
+    var seatSuggest={}, sugFlush=null;
+    function hostSuggest(seat, key){
+      if(!isHost() || !seat) return;                          // seat 0 is the host: its picks ARE the rules
+      var clean=keyOf(rulesFromKey(String(key||'')));         // untrusted: unknown rules and bad modes DROPPED
+      if(seatSuggest[seat]===clean) return;
+      seatSuggest[seat]=clean;
+      if(sugFlush) return;                                    // already scheduled — coalesce into that flush
+      sugFlush=setTimeout(function(){ sugFlush=null; flushSuggest(); }, 250);
+    }
+    function sugNames(){ var o={}, k; for(k in seatSuggest){ if(seatNames[k]) o[k]=seatNames[k]; } return o; }
+    function flushSuggest(){ send({t:'suggest', all:seatSuggest, names:sugNames()}); refreshRulesPanel(); }
+    function sendSuggest(key){                                // client side: offer ours to the host
+      /* NOT isClientActive() — that is `isClient() && started`, i.e. false for the whole LOBBY, which is the
+       * only place a suggestion is any use. A suggestion needs a client that is CONNECTED, not one mid-game. */
+      if(isHost() || !isClient() || !connected) return;
+      clientSend({op:'suggest', key:String(key||'')});
+    }
+    /* A client cannot name the other seats itself — seatNames is only populated in its LOCAL frame at game
+     * start, and this all happens in the lobby — so the host ships the labels with the map. */
+    var sugTable={};
+    function suggestions(){ return { all:seatSuggest, names:(isHost()?sugNames():sugTable), mine:mySeat }; }
     function hostRulesChanged(){
       rulesGen++;                                        // every existing readiness stamp is now stale
       send({t:'rules', k:rulesKey(), gen:rulesGen});
@@ -8643,7 +8752,7 @@ window.CardFace = {};
       joinRetry=setInterval(function(){
         if(started){ clearInterval(joinRetry); joinRetry=null; return; }
         if(++joinTries>40){ clearInterval(joinRetry); joinRetry=null; if(sig){ sig.err='Could not sync with the host. Re-check the codes and reload both tabs.'; renderNet(); } return; }
-        send({t:'join', deck:myDeck, cid:myId, name:myName, v:netVersion()});
+        send({t:'join', deck:myDeck, cid:myId, name:myName, v:netVersion(), sug:myRulesKey()});
       }, 350);
     }
     function connectWith(t){ attachTransport(t); kickoff(); }   // BroadcastChannel: attach + kick off together (already listening)
@@ -8847,24 +8956,39 @@ window.CardFace = {};
           var jseat=hostSeatOf[cid], jdeck=(typeof m.deck==='string' && validDeck(m.deck)) ? m.deck : 'full';
           seatDeckMap[jseat]=jdeck; oppDeck=jdeck; oppReady=true;
           seatNames[jseat]=cleanName(m.name);   // untrusted text: cleanName strips markup chars and caps length
+          /* ONLY ON A NEW SEAT. The join is re-announced every 350ms until the game starts (startJoinRetry),
+           * so taking `sug` every time re-asserts the client's stored preference on a timer and wipes out any
+           * suggestion it has made since — a change would appear on the host and vanish within 350ms. A retry
+           * is a re-announcement of the same join, not a fresh statement of preference. */
+          if(isNew && typeof m.sug==='string') hostSuggest(jseat, m.sug);   // a seat arrives with its own picks
           seatNames[0]=myName;                  // the host's own, so clients can be told everyone's
           if(srcChan){ var ci=dcs.indexOf(srcChan); if(ci>=0) chanSeat[ci]=jseat; }   // RTC: bind this channel to its seat (authoritative)
           if(noteVersion(m.v)) renderNet();                              // a build mismatch is worth seeing before Start
           var wasReady=(seatRuleGen[jseat]===rulesGen);
           seatRuleGen[jseat]=rulesGen;                                    // readied under the CURRENT rules
-          sendTo(jseat, {t:'welcome', seat:jseat, cid:cid, v:netVersion(), rules:rulesKey()});
+          sendTo(jseat, {t:'welcome', seat:jseat, cid:cid, v:netVersion(), rules:rulesKey(),
+                         sug:seatSuggest, sugNames:sugNames()});   // whole map: a late joiner sees the table
           if(started) hostOnPeerBack(jseat);                             // re-join (same cid): a held seat resumes; an already-dropped seat rejoins to spectate
           /* Re-render for a new joiner OR for a seat that has just become ready again. The `isNew` test alone
            * was enough before rules could un-ready anybody: a re-READY reuses the same cid, so the host
            * re-stamped readiness and never repainted, leaving Start disabled after the table had re-confirmed. */
           if(started) broadcastMirror(); else if(isNew || !wasReady) renderNet();   // (join retries fire every 350ms)
         }
-        else if(m.t==='move'){ var sseat = srcChan ? seatOfChan(srcChan) : (typeof m.seat==='number'?m.seat:1); if(sseat!=null){ if(MP()) hostApplyMoveN(sseat, m.intent); else hostApplyMove(m.intent); } }
+        else if(m.t==='move'){ var sseat = srcChan ? seatOfChan(srcChan) : (typeof m.seat==='number'?m.seat:1);
+          /* A SUGGESTION IS DISPATCHED HERE, ahead of hostApplyMove*, because those return immediately when
+           * there is no hostState — i.e. for the entire LOBBY, which is the only place suggestions matter.
+           * Putting it inside them looked right and did nothing: the suggestions that appeared were arriving by
+           * accident on the join RETRY (which re-sends `sug` every 350ms until the game starts). */
+          if(sseat!=null && m.intent && m.intent.op==='suggest'){ hostSuggest(sseat, m.intent.key); return; }
+          if(sseat!=null){ if(MP()) hostApplyMoveN(sseat, m.intent); else hostApplyMove(m.intent); } }
         else if(m.t==='concede'){ onOpponentConcede(srcChan?seatOfChan(srcChan):m.seat); }
       } else {
         if(m.t==='welcome'){ if(m.cid && m.cid!==myId) return; mySeat=(typeof m.seat==='number'?m.seat:1); connected=true;
           if(typeof m.rules==='string') setRulesFromKey(m.rules);        // the HOST's rules are the game's rules
+          if(m.sug){ seatSuggest=m.sug; sugTable=m.sugNames||{}; refreshRulesPanel(); }
           if(noteVersion(m.v)) renderNet(); }
+        else if(m.t==='suggest'){                                       // the table's suggestions, whole map
+          seatSuggest=m.all||{}; sugTable=m.names||{}; refreshRulesPanel(); }
         else if(m.t==='rules'){                                          // the host edited mid-lobby: adopt and un-ready
           setRulesFromKey(m.k||''); iReady=false; stopJoinRetry(); renderNet();
           setMessage('⚗️ The host changed the rules — check them and hit Ready again.'); }
@@ -9572,7 +9696,7 @@ window.CardFace = {};
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
         '<div class="netbar">Room <b>'+room+'</b> · You are '+(isHost()?'Player 1 (host)':'Player 2')+' · '+connLabel()+' · '+verTag()+rulesChip()+'</div>'+verWarnHTML();
       var body=nameRowHTML(!isHost() && iReady)+'<h3>Choose your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
-        '<button id="lobbyRules" class="netbtn">'+(isHost()?'⚗️ Custom rules':'⚗️ View the rules')+(customRules()?' · on':'')+'</button>'+''
+        '<button id="lobbyRules" class="netbtn">'+(isHost()?'⚗️ Custom rules':'⚗️ Rules &amp; suggest')+(customRules()?' · on':'')+'</button>'+''
       if(isHost()){
         var joined=readyCount();   // clients who have readied
         var total=joined+1;
@@ -9599,11 +9723,11 @@ window.CardFace = {};
         myDeck=sel.value;
       }); }
       var lr=$('lobbyRules'); if(lr) lr.addEventListener('click', function(){
-        /* The host EDITS (and every readied seat is un-readied); a client can only LOOK, because only the
-         * host's rules count and a client toggling them would be a lie. */
+        /* The host EDITS (and every readied seat is un-readied). A client SUGGESTS: its controls write its own
+         * picks, which the host sees and the whole table can read — only the host's rules count, so a client's
+         * panel must never look like it is setting them (hence the in-play chips). */
         if(isHost()) showRules({ back:function(){ hideOverlay(); hostRulesChanged(); }, onChange:null });
-        else showRules({ readonly:true, back:hideOverlay,
-                         why:'The host chooses the rules for the table. These are the ones you are about to play.' });
+        else showRules({ suggest:true, back:hideOverlay });
       });
       var go=$('lobbyGo'); if(go) go.addEventListener('click', function(){
         myDeck=($('deckSel')||{}).value||myDeck;
@@ -9617,7 +9741,7 @@ window.CardFace = {};
       var errHTML = (sig&&sig.err) ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · no server · '+joined+' connected · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML();
       var body=nameRowHTML(false)+'<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
-        '<button id="lobbyRules" class="netbtn">'+(isHost()?'⚗️ Custom rules':'⚗️ View the rules')+(customRules()?' · on':'')+'</button>'+''
+        '<button id="lobbyRules" class="netbtn">'+(isHost()?'⚗️ Custom rules':'⚗️ Rules &amp; suggest')+(customRules()?' · on':'')+'</button>'+''
       if(sig.step==='host-gen'){ body+='<p>Generating an invite code…</p>'; }
       else if(sig.step==='host-invite'){
         body+='<h3>Invite a player — send them this</h3>'+
@@ -9655,7 +9779,7 @@ window.CardFace = {};
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
+    return { boot:boot, start:start, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:99999;background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     '#netroot .qrWrap{margin:10px 0;text-align:center}'+
@@ -9676,7 +9800,7 @@ window.CardFace = {};
     '#netroot .deckSel:disabled{opacity:.55}#netroot .lobbyStatus{margin:12px 0;padding:10px 12px;background:#141a24;border:1px solid #263140;border-radius:8px;color:#cdd8e6}';
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
   /* --headerH: measured, not hardcoded. #disconBar hangs off it, and the header's height is not a constant —
    * 56px on desktop, 37px in the landscape band, and ~92px on a portrait phone where it WRAPS to two rows.
    * A hardcoded 54px floated it 17px low in landscape and put it 38px INSIDE the wrapped portrait header,
