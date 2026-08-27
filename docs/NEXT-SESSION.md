@@ -597,6 +597,13 @@ must default OFF, because "is this game customised?" is literally `RULE_DEFS.som
 state changed the game would break that, so the option is "Chops destroy shields too", exactly the inversion
 `flatDraw` uses.
 
+**And the option is inert without a chop to modify** (Aj: *"this option should uncheck if chops were not
+available"*). `needsAny:['chopQuadro','chopKits','chopSflush']` is a second kind of dependency alongside `needs`:
+the row is dead while none of its group is on — clicking it changes nothing, asserted rather than merely styled —
+comes to life when a chop is enabled, and **clears itself when the last one goes off**. A checked box that cannot
+do anything is worse than a greyed one, and a rule left switched on for a game nobody is playing is exactly the
+kind of thing that makes a rules panel untrustworthy.
+
 Measured: at six players the default costs almost nothing in pacing — 28.5 rounds per game against 28.1 with
 chops stripping — which is what you would expect from a rule that fires on ~14% of 2-plays.
 

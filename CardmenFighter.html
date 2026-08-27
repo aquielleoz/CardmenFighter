@@ -4778,7 +4778,8 @@ window.CardFace = {};
      * `flatDraw`. And it reads a flag stamped when the play was accepted — by the time a round resolves the
      * beaten combo is gone and a chop is indistinguishable from a lead. */
     { key:'chopStrips',  duel:true, label:'Chops destroy shields too',
-      note:'By default a round won <b>by a chop</b> costs nobody a shield — a chop already bends the shape-matching rule, so what it buys you is the lead. Switch this on and a chop deals damage like any other Special. Either way it only concerns rounds a chop actually won: leading one of these shapes, or beating one with a higher one of the same shape, always deals damage.' },
+      needsAny:['chopQuadro','chopKits','chopSflush'],
+      note:'By default a round won <b>by a chop</b> costs nobody a shield — a chop already bends the shape-matching rule, so what it buys you is the lead. Switch this on and a chop deals damage like any other Special. Either way it only concerns rounds a chop actually won: leading one of these shapes, or beating one with a higher one of the same shape, always deals damage. Needs a chop switched on to mean anything, so it stays inert until one is — and clears itself if the last one goes off.' },
   ];
   /* TWO STORES, and the split is what makes suggestions possible (v1.31.31). RULES is what is IN PLAY — on a
    * netplay client the host overwrites it wholesale, so anything kept there is not yours. MY_RULES is THIS
@@ -8084,6 +8085,10 @@ window.CardFace = {};
      * `?` is the one thing that stays live. */
     function qMark(d){ return '<span class="ruleQ" role="button" tabindex="0" aria-expanded="false" data-note-for="'+
                               d.key+'" title="What does this do?">?</span>'; }
+    /* `needsAny` — inert while none of its group is on (Aj: "this option should uncheck if chops were not
+     * available"). A checked box that cannot do anything is worse than a greyed one, so the control is dead
+     * until it means something, and the handler clears it when the last of the group goes off. */
+    function depOk(d){ return !d.needsAny || d.needsAny.some(function(k){ return !!src[k]; }); }
     function rowHTML(d){
       /* A MODE row is a <div> with a segmented control, not a <button> — nesting buttons inside a button is
        * invalid, and the alternatives are mutually exclusive rather than independently checkable, which is the
@@ -8104,9 +8109,9 @@ window.CardFace = {};
           '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span>'+
           '<span class="segToggle" role="radiogroup" aria-label="'+d.label+'">'+segs+'</span></div>';
       }
-      var on=!!src[d.key];
-      return '<button type="button" class="settingRow'+(on?' on':'')+(ro?' ro':'')+'" data-rule="'+d.key+'"'+
-        (ro?' disabled':'')+' role="switch" aria-checked="'+(on?'true':'false')+'">'+
+      var on=!!src[d.key], dead=!depOk(d);
+      return '<button type="button" class="settingRow'+(on?' on':'')+((ro||dead)?' ro':'')+'" data-rule="'+d.key+'"'+
+        ((ro||dead)?' disabled':'')+' role="switch" aria-checked="'+(on?'true':'false')+'">'+
         '<span class="settingBox">'+(on?'✓':'')+'</span>'+
         '<span class="settingBody"><span class="settingLbl">'+d.label+qMark(d)+'</span>'+
         '<span class="settingNote">'+d.note+'</span>'+liveTag+voteTag+'</span></button>';
@@ -8209,6 +8214,13 @@ window.CardFace = {};
         var moved=false;
         if(src[k] && def && def.needs && !src[def.needs]){ src[def.needs]=true; moved=true; }
         if(!src[k]) RULE_DEFS.forEach(function(o){ if(o.needs===k && src[o.key]){ src[o.key]=false; moved=true; } });
+        /* A member of a `needsAny` group moved, so the dependent row's own live/dead state changed — and if the
+         * group is now empty the dependent rule is cleared. Either way other rows move, so re-render. */
+        RULE_DEFS.forEach(function(o){
+          if(!o.needsAny || o.needsAny.indexOf(k)<0) return;
+          if(!o.needsAny.some(function(x){ return !!src[x]; }) && src[o.key]) src[o.key]=false;
+          moved=true;
+        });
         commit();
         if(moved){ if(opts.onChange) opts.onChange(); showRules(opts); return; }
         this.classList.toggle('on', !!src[k]);

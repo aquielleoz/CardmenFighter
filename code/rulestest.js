@@ -144,6 +144,33 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   depOn = await rulesOn();
   ok(depOn.indexOf('chopSflush')>=0 && depOn.length===3,
      'while the Straight Flush chop needs no shape row — it is the only way that shape exists');
+
+  /* `needsAny` — "Chops destroy shields too" means nothing with no chop enabled (Aj: "this option should
+   * uncheck if chops were not available"), so it is inert until one is, and clears itself when the last goes
+   * off. A checked box that cannot do anything is worse than a greyed one. */
+  const stripRow = () => p.evaluate(()=>{ const r=document.querySelector('.settingRow[data-rule="chopStrips"]');
+    return { inert: !!r.disabled, checked: /\bon\b/.test(r.className), engine: CardmenEngine.isChopStrips() }; });
+  await p.evaluate(()=>window.__solo.setRulesFromKey('')); await wait(120);
+  await p.evaluate(()=>document.getElementById('ruleDone').click()); await wait(150);
+  await openRules(p);
+  let sr = await stripRow();
+  ok(sr.inert && !sr.checked, 'with no chop enabled, "Chops destroy shields too" is inert');
+  await toggle(p,'chopStrips'); await wait(200);
+  sr = await stripRow();
+  ok(!sr.checked && sr.engine === false, '  and clicking it does nothing at all — not merely styled as dead');
+  await toggle(p,'chopQuadro'); await wait(250);
+  ok(!(await stripRow()).inert, 'enabling a chop brings it to life');
+  await toggle(p,'chopStrips'); await wait(250);
+  sr = await stripRow();
+  ok(sr.checked && sr.engine === true, '  and then it takes');
+  await toggle(p,'chopQuadro'); await wait(250);
+  sr = await stripRow();
+  ok(!sr.checked && sr.engine === false && sr.inert,
+     'turning the last chop off clears it and returns it to inert — a live setting for a rule nobody is playing');
+  await p.evaluate(()=>window.__solo.setRulesFromKey('lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chopQuadro,chopKits,chopSflush,chopStrips'));
+  await p.evaluate(()=>document.getElementById('ruleDone').click()); await wait(150);
+  await openRules(p);
+
   ok(await p.evaluate(()=>/Straight Flush beats the 2/.test(
        (document.querySelector('.settingRow[data-rule="chopSflush"] .settingLbl')||{}).textContent||'')),
      'and it is named for the shape a player would call it, with the definition in the note');
