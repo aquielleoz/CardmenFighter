@@ -229,6 +229,13 @@ key, so netplay and the export carry the RULES, not a name the other end must re
 - **The original four are MULTIPLAYER-ONLY in effect** — the engine marks the first two as no-ops at 2 players,
   `startShieldsFor(2)` is 2+2=4 and `drawCountFor` at 2 players is 2, both identical to the defaults. The panel
   says so out loud. The apex pair and the pair shapes are the duel-relevant ones.
+- **A PRESET IS AN EXACT STATE (v1.31.30).** `RULE_PRESETS` entries name only the rules they turn on, and
+  `applyPreset` sets **every** rule — the unnamed ones to their off value — because Aj specified Chikicha Specials as
+  "kits + quadro and nothing else". That is also what makes a preset button able to read as *active*. Presets
+  never serialise: `rulesKey()` carries the resulting rules, so the far end never has to know a name.
+  **The bulk row is DERIVED state** — the rows patch themselves in place, so `syncBulk()` must run on every
+  single toggle or a preset button stays lit after one further change and Clear all stays greyed out after the
+  first rule goes on. A bulk *action* re-opens the panel instead, since nine rows move at once.
 - **Editability is the design:** setup dialog and the host's lobby edit; ⚙️ Settings is **read-only while a game
   is live**. A mid-game edit would be either silently ignored or incoherent.
 - **A rules change un-readies the table.** Readiness is stamped with `rulesGen` and counts only while current
@@ -475,7 +482,7 @@ Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 263, `netvie
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 42, `viewtest` 10,
 `landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 45, `nettest_rules` 21, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
+`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 58, `nettest_rules` 22, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
 **A SUITE CAN BE GREEN AND BLIND. Three shapes of it, all found in one 2026-08-27 sweep and all fixed:**

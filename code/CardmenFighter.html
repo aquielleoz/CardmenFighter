@@ -254,6 +254,13 @@
   .modal .segBtn:hover{opacity:.85;}
   .modal .segBtn.active{background:var(--gold); color:#3a2a08; opacity:1;}
   .modal .modeRow .segToggle{flex:1 1 auto;}   /* no "Mode" label — the toggle spans the row */
+  /* Presets + Clear all. One row, above the toggles, because they act on the whole list. */
+  .modal .ruleBulk{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:0 0 10px;}
+  .modal .bulkBtn{font:inherit; font-weight:800; font-size:12px; padding:6px 11px; border-radius:9px; border:1px solid var(--line); background:#160c22; color:var(--txt); opacity:.85; cursor:pointer;}
+  .modal .bulkBtn:hover:not(:disabled){opacity:1; border-color:var(--gold);}
+  .modal .bulkBtn.active{background:var(--gold); color:#3a2a08; border-color:var(--gold); opacity:1;}
+  .modal .bulkBtn.clear{margin-left:auto;}
+  .modal .bulkBtn:disabled{opacity:.35; cursor:default;}
   .modal .segHint{font-size:11.5px; font-weight:400; opacity:.7; margin:-4px 4px 2px; text-align:center;}
   #oppList{display:flex; flex-direction:column; gap:8px; margin-top:2px;}
   #oppList .setRow span:first-child{color:var(--gold); font-size:13px;}
@@ -4438,7 +4445,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.29';
+  var GAME_VERSION='v1.31.30';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -4556,6 +4563,20 @@ window.CardFace = {};
   ];
   var RULES={}; RULE_DEFS.forEach(function(d){ RULES[d.key]= d.mode ? d.mode[0].v : false; });
   function ruleOn(d){ return d.mode ? (RULES[d.key]!==d.mode[0].v) : !!RULES[d.key]; }
+  function ruleOff(d){ return d.mode ? d.mode[0].v : false; }              // this rule's "not on" value
+  /* PRESETS ARE AN EXACT STATE, NOT AN ADDITIVE ONE — Aj named Chikicha Specials as "kits + quadro and NOTHING
+   * else", so applying one must also turn off whatever else was on. That is what makes a preset button able to
+   * read as active: "these are exactly the rules" is a claim you can check, "at least these" is not.
+   * More presets arrive as their shapes do — Dou Dizhu needs trio+single, four+two and the airplane first, so
+   * offering it now would name a rule set the build cannot actually play. */
+  var RULE_PRESETS=[
+    { key:'chikicha', label:'Chikicha Specials', title:'The Kits and Quadro shapes, and nothing else',
+      rules:{ dblPair:'kits', kits3:true, quadro:true } }
+  ];
+  function presetValue(p,d){ return p.rules[d.key]!==undefined ? p.rules[d.key] : ruleOff(d); }
+  function presetActive(p){ return RULE_DEFS.every(function(d){ return RULES[d.key]===presetValue(p,d); }); }
+  function applyPreset(p){ RULE_DEFS.forEach(function(d){ RULES[d.key]=presetValue(p,d); }); applyRules(); saveRules(); }
+  function clearAllRules(){ RULE_DEFS.forEach(function(d){ RULES[d.key]=ruleOff(d); }); applyRules(); saveRules(); }
   function customRules(){ return RULE_DEFS.some(ruleOn); }
   /* Self-describing, like the custom-deck key: netplay and the playtest export carry the RULES, not a name the
    * other end would have to recognise. '' means "the shipped game". */
@@ -7751,6 +7772,13 @@ window.CardFace = {};
       '<p class="ruleIntro">Not the default or intended way to play — but certainly <i>a</i> way to play. '+
         '<b>The first four only change 3–6 player games; the last five change duels too.</b></p>'+
       (ro ? '<div class="netmsg">'+(opts.why||'These are the rules this game is using. Rules are chosen before a game starts.')+'</div>' : '')+
+      '<div class="ruleBulk">'+
+        RULE_PRESETS.map(function(p){
+          return '<button type="button" class="bulkBtn'+(presetActive(p)?' active':'')+'" data-preset="'+p.key+
+                 '" title="'+esc(p.title)+'"'+(ro?' disabled':'')+'>'+esc(p.label)+'</button>';
+        }).join('')+
+        '<button type="button" class="bulkBtn clear" id="ruleClear"'+((ro||!customRules())?' disabled':'')+
+          '>Clear all</button></div>'+
       '<div class="settings">'+RULE_DEFS.map(rowHTML).join('')+'</div>'+
       /* Deliberately unspecific (Aj: "no need to say which ones haha"). Naming the decks and their win rates is
        * developer detail, and it pre-judges a deck for the player. The measured figures live in the changelog
@@ -7758,6 +7786,16 @@ window.CardFace = {};
       '<p class="ruleWarn">⚠ The Rival is tuned for the default rules and will not adapt — and some decks are '+
         'much better suited to these rules than others.</p>'+
       '<button id="ruleDone">Done</button>');
+    /* THE BULK ROW IS DERIVED STATE, so any single change has to refresh it — otherwise a preset button stays
+     * lit after you toggle one more rule, which is a lie about what is in play, and Clear all stays greyed out
+     * after the first rule goes on. The rows patch themselves in place, so this is the one shared touch-up. */
+    function syncBulk(){
+      Array.prototype.forEach.call(document.querySelectorAll('.bulkBtn[data-preset]'), function(b){
+        var p=RULE_PRESETS.filter(function(x){ return x.key===b.getAttribute('data-preset'); })[0];
+        b.classList.toggle('active', !!p && presetActive(p));
+      });
+      var c=$('ruleClear'); if(c) c.disabled = !customRules();
+    }
     if(!ro) Array.prototype.forEach.call(document.querySelectorAll('.segBtn[data-mode-for]'), function(seg){
       seg.addEventListener('click', function(){
         var k=this.getAttribute('data-mode-for'), v=this.getAttribute('data-mode-v');
@@ -7768,6 +7806,7 @@ window.CardFace = {};
           o.classList.toggle('active', act); o.setAttribute('aria-checked', act?'true':'false');
         });
         row.classList.toggle('on', ruleOn(RULE_DEFS.filter(function(d){ return d.key===k; })[0]));
+        syncBulk();
         if(opts.onChange) opts.onChange();
       });
     });
@@ -7778,9 +7817,32 @@ window.CardFace = {};
         this.classList.toggle('on', !!RULES[k]);
         this.setAttribute('aria-checked', RULES[k]?'true':'false');
         this.querySelector('.settingBox').textContent=RULES[k]?'✓':'';
+        syncBulk();
         if(opts.onChange) opts.onChange();
       });
     });
+    /* A bulk action moves every row, so re-open the panel instead of patching nine rows in place — the
+     * per-row handlers above only know how to update themselves. opts is passed through unchanged, so the
+     * read-only flag and the Back target survive. */
+    if(!ro){
+      Array.prototype.forEach.call(document.querySelectorAll('.bulkBtn[data-preset]'), function(btn){
+        btn.addEventListener('click', function(){
+          var k=this.getAttribute('data-preset');
+          var p=RULE_PRESETS.filter(function(x){ return x.key===k; })[0];
+          if(!p) return;
+          applyPreset(p);
+          if(opts.onChange) opts.onChange();
+          showRules(opts);
+        });
+      });
+      var clr=$('ruleClear');
+      if(clr) clr.addEventListener('click', function(){
+        if(!customRules()) return;
+        clearAllRules();
+        if(opts.onChange) opts.onChange();
+        showRules(opts);
+      });
+    }
     $('ruleDone').addEventListener('click', back);
     overlayDismiss=back;
   }

@@ -365,14 +365,11 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     quadro beating a lone 2 — or 3 kits beating a lone 2, which is exactly what đôi thông does — needs
     cross-shape overrides in `beats()`. Note it would also make the apex 2 answerable **without** touching the
     apex flags.
-  - **BULK ACTIONS IN THE PANEL, presets and Clear All together** (Aj, 2026-08-27: *"can we add a button to the
-    custom rules. a Clear All button maybe? maybe we can do that together with the presets"*). They are one
-    concern — a preset switches several rules on at once, so the panel needs the opposite move too, and building
-    them separately would mean touching the same row of controls twice. Note **Clear All must go through the same
-    path as a single toggle**: it has to call `applyRules()` and `saveRules()`, and in a netplay lobby it must
-    trigger the un-ready broadcast, or the table would silently be readied for rules that no longer apply.
-  - **PRESET BUNDLES.** `Raw Chikicha` = **kits + quadro** and nothing else (Aj, from the game he played: *"there
-    were no variable length straights. those are scary"*). A `Dou Dizhu` bundle would add trio+single (三带一),
+  - ~~**BULK ACTIONS IN THE PANEL, presets and Clear All together.**~~ **SHIPPED in v1.31.30** — one bulk row,
+    with Chikicha Specials (kits + quadro) and Clear all. A preset is an exact state, so it reads as active only when
+    it matches exactly. Dou Dizhu still waits on trio+single, four+two and the airplane.
+  - **PRESET BUNDLES — the mechanism SHIPPED in v1.31.30 with `Chikicha Specials` (kits + quadro) as its only entry.**
+    What is left is the bundles whose shapes do not exist yet. A `Dou Dizhu` bundle would add trio+single (三带一),
     four+two (四带二), airplane (飞机/三顺), variable-length straights and the chop. Presets stay honest with the
     existing serialisation because `rulesKey()` records the FLAGS, not the preset name.
   - **FLUSH is optional-and-degenerate, not just unfair.** A Pure deck is **52 cards of one suit** (verified:
@@ -528,6 +525,45 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.30 — rule presets and Clear all
+
+Nine toggles is enough that setting them one at a time is a chore, so the panel gains a bulk row above the list:
+**Chikicha Specials** and **Clear all**.
+
+**A preset is an EXACT state, not an additive one.** Aj named Chikicha Specials as *"kits + quadro and nothing
+else"*, so applying it turns everything else **off** as well. That is what lets a preset button read as
+**active**: "these are exactly the rules" is a claim you can check, where "at least these" is not. `rulestest`
+applies it over a table with all nine rules on, which is the case that would catch an additive implementation.
+
+**The name is "Chikicha Specials", not "Raw Chikicha"** (Aj, 2026-08-27). "Raw" would claim the table is
+playing Chikicha, and it is not — this game has a whole layer of card effects that game never had. What the
+preset actually turns on is Chikicha's **special shapes**, so that is what it is named after. Worth keeping
+straight: a preset names a set of rules, and overclaiming what it is would mislead the person picking it.
+
+**Only one preset ships, and that is deliberate.** Dou Dizhu needs trio+single, four+two and the airplane
+first; offering it now would name a rule set this build cannot actually play. More arrive as their shapes do.
+
+**Presets do not serialise.** They only set `RULES`, so `rulesKey()` carries the resulting rules exactly as a
+hand-toggled set would (`dblPair=kits,kits3,quadro`) — netplay and the export are untouched, and the other end
+never has to recognise a preset's name.
+
+**The bug this surfaced, before it shipped: the bulk row is derived state.** The rows patch themselves in place
+rather than re-rendering, so a preset button stayed lit after one further toggle — a lie about what is in play —
+and Clear all stayed greyed out after the first rule went on. One `syncBulk()` called from both row handlers
+fixes both; a bulk *action* re-opens the panel outright, since nine rows move at once and the per-row handlers
+only know how to update themselves. Both symptoms were caught by assertions, not by looking.
+
+Read-only mode disables the bulk buttons too — asserted in `rulestest` (mid-game) and `nettest_rules` (the
+client), because a client applying a preset locally is two people playing different games. That is the v1.31.26
+lesson applied to a new control shape on purpose rather than after the fact.
+
+**Also fixed: `exporttest` was deal-dependent** (1 failure in 6, reproduced). It played to a fixed four rounds
+and then asserted that *both* opponents had recorded fights — but an opponent that passes through those rounds,
+or is eliminated in them, records none. Its loop now exits on the condition the assertions need, with the round
+cap kept as a safety valve so a pathological game fails loudly instead of spinning. 8/8 after.
+
+Suites: `rulestest` 45 → **58**, `nettest_rules` 21 → **22**.
 
 ### v1.31.29 — Quadro, the ninth homebrew rule (and it is nearly decorative without the chop)
 
