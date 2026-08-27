@@ -283,6 +283,42 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
      'and the game is really in Basics — the rule reaches newGame, not just the panel');
   await p4.evaluate(()=>window.__solo.setRulesFromKey(''));
 
+  /* ---------- WIDE SCREENS (v1.31.36). Aj, with a screenshot: "what i'd hope to solve was the scrolling on
+   * desktop. because really you can fit more with all this real estate." Hiding the notes fixed the phone; this
+   * fixes the desktop. Two columns from 1040px, three from 1400px with the modal growing to match so a column
+   * keeps its width — otherwise the labels wrap more and the rows give back what the extra column saved. */
+  const layout = async vp => {
+    const c = await b.newContext({ viewport: vp });
+    const q = await c.newPage(); q.on('pageerror', e => errs.push('wide: ' + e.message));
+    await q.goto(HTML); await wait(450);
+    await q.evaluate(() => document.getElementById('newBtn').click()); await wait(220);
+    const setupW = await q.evaluate(() => Math.round(document.getElementById('modal').getBoundingClientRect().width));
+    await q.evaluate(() => document.getElementById('rulesBtn').click()); await wait(220);
+    const out = await q.evaluate(() => {
+      const m = document.getElementById('modal');
+      const rows = [].slice.call(document.querySelectorAll('.settingRow[data-rule]'));
+      return { setup: 0, w: Math.round(m.getBoundingClientRect().width),
+               cols: new Set(rows.map(r => Math.round(r.getBoundingClientRect().left))).size,
+               fits: m.scrollHeight <= m.clientHeight + 1 };
+    });
+    out.setup = setupW;
+    /* THE LEAK GUARD: the width is a class on the shared #modal, so the dialog that opens NEXT must not inherit
+     * it. showModal resets the class list for exactly this reason. */
+    await q.evaluate(() => document.getElementById('ruleDone').click()); await wait(250);
+    out.afterW = await q.evaluate(() => Math.round(document.getElementById('modal').getBoundingClientRect().width));
+    await c.close();
+    return out;
+  };
+  const wide = await layout({ width: 1500, height: 950 });
+  ok(wide.cols === 3, `at 1500px the rules go three columns (${wide.cols})`);
+  ok(wide.fits, 'and the whole panel fits without scrolling — which was the actual request');
+  ok(wide.setup === 470, `while the SETUP dialog stays narrow (${wide.setup}px) — .modal is shared by every dialog`);
+  ok(wide.afterW === 470, `and the width does not leak into the next dialog (${wide.afterW}px after Done)`);
+  const mid = await layout({ width: 1100, height: 900 });
+  ok(mid.cols === 2, `at 1100px it is two columns (${mid.cols})`);
+  const narrow = await layout({ width: 900, height: 1000 });
+  ok(narrow.cols === 1, `and below the breakpoint it stays a single column (${narrow.cols})`);
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   await ctx.close();
 

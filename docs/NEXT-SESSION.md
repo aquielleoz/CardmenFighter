@@ -7,7 +7,7 @@ Current version: **v1.31.25**. The 2-apex + Forms **rework is simply the game** 
 
 ## ☀️ START HERE — where we left off (2026-08-27)
 
-`main` is at **v1.31.35**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
+`main` is at **v1.31.36**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
 nothing is in flight — every PR is merged and every branch pruned.
 
 **Sanity check before you touch anything** (from `code/`, ~30 seconds):
@@ -16,7 +16,7 @@ nothing is in flight — every PR is merged and every branch pruned.
 npm test && node mptest.js && node rulestest.js
 ```
 
-Expect **287 / 0**, **28 / 0**, **82 / 0**, **89 / 0**. If a count disagrees, the suite is right — fix the
+Expect **287 / 0**, **28 / 0**, **82 / 0**, **95 / 0**. If a count disagrees, the suite is right — fix the
 number here.
 
 **What the last stretch was about**, newest first, all of it in the changelog below: the chop (v1.31.33), rule
@@ -25,14 +25,20 @@ layer where clients suggest and the host decides (v1.31.31), the deck picker's t
 (v1.31.29), and the pair shapes (v1.31.24/26).
 
 **Queued, in the order Aj raised them:**
-1. **THE PANEL SCROLLS ON DESKTOP WHEN IT DOES NOT HAVE TO** (Aj, 2026-08-27, with a screenshot: *"what i'd
-   hope to solve was the scrolling on desktop. because really you can fit more with all this real estate"*).
-   Hiding the notes (v1.31.35) took the panel from ~2100px to 1060px, which fixes the phone but not this: the
-   modal keeps a fixed `max-width` while a 1900px desktop has room for two columns of rules side by side. The
-   thing to be careful of is that `.modal` is shared by **every** dialog in the game, so widening or
-   column-splitting has to be scoped to the rules panel specifically — and `landscapetest` (96 assertions across
-   8 device sizes, including the 340px floor) is the guard that a wide-screen change must not disturb the narrow
-   ones.
+1. **BRING THE PRESET BUTTONS NEXT TO THE RULES THEY CHANGE** (Aj, 2026-08-27: *"i want to bring the preset
+   buttons closer to the rules it actually changes… but how will that look on mobile?"*). Its own PR: this is the
+   panel's information architecture rather than its width, and it needs a mobile design of its own.
+   **The measurement that makes it clean:** both presets touch a **contiguous block** of rules — Chikicha
+   Specials hits positions 7–10 and Tiến lên 8–11 of thirteen, so *neither* touches the table rules (1–4) or the
+   apex pair (5–6). Everything they do lives in the shapes-and-chops group.
+   So the shape is **sections**: `Game mode`, `Table rules (3–6 players)`, `The 2`, `Shapes & chops` — with the
+   two preset buttons sitting in the heading of that last section. **That answers the mobile question:** a
+   section heading is a full-width row in either layout, so the presets need no horizontal room; on desktop the
+   heading spans the columns (`grid-column:1/-1`) and the buttons sit beside it. `Clear all` is global, so it
+   stays put — either above the sections or in the footer next to Done.
+   Watch out for: `syncBulk()` finds its buttons by `.ruleBulk .bulkBtn`, `rulestest` asserts the bulk row's
+   contents and looks Clear all up by `id`, and the wide-screen assertions count distinct row `left` positions to
+   infer the column count — a section heading that is itself a `.settingRow` would break that inference.
 2. **Chop strip or not.** Note the subtlety recorded in the BACKLOG: "did this play *chop* something" is not
    visible from the pile.
 3. Then the remaining Dou Dizhu shapes — trio+single, four+two, the airplane. (The **Tiến lên preset** shipped
@@ -585,6 +591,39 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.36 — the rules panel stops scrolling on a desktop
+
+Aj, with a screenshot: *"what i'd hope to solve was the scrolling on desktop. because really you can fit more
+with all this real estate."* Hiding the notes (v1.31.35) fixed the phone and only half-fixed this — the modal
+kept a 470px `max-width` while his window was 1900px wide.
+
+| viewport | modal | columns | result |
+| --- | --- | --- | --- |
+| 2560×1440 · 1920×1080 · 1900×1000 | 1120 | 3 | **fits, no scroll** |
+| 1512×945 (MBP 14) · 1440×900 (MBA 13) | 1120 | 3 | **fits, no scroll** |
+| 1280×800 | 860 | 2 | scrolls by 213 |
+| 1024×768 · 900×1000 | 860 | 1 | scrolls |
+| 390×844 | 350 | 1 | scrolls |
+
+Two columns from 1040px, three from 1400px — **and the modal grows to 1120px with the third column**, because at
+860px a third column narrows each one enough that the labels wrap more and the rows give back exactly what the
+extra column saved. Content went 1050 → 777px.
+
+**Getting the mode rows into the grid was most of the win.** They were spanning the full width to keep their
+segmented controls roomy; letting them take a normal cell saved 79px on its own, and a segmented control still
+gets 373px at two columns.
+
+**`.modal` is shared by every dialog in the game**, so the width is a class on the rules panel and nothing else,
+and `showModal` now **resets `#modal`'s class list** — two dialogs widen themselves (the Codex, and this), and a
+reset here means neither can leak its width into whatever opens next, however it was closed. Both halves are
+asserted: the setup dialog stays 470px at 1500px wide, and it is still 470px after the rules panel closes.
+
+Small laptops and phones still scroll, which is fine — the modal was built to (v1.31.14), and 13 rules plus an
+intro, presets, a warning and a Done button will not fit in 758px however it is arranged.
+
+Suites: `rulestest` 89 → **95**, and `landscapetest` 96 green (its 8 device sizes and the 340px floor are the
+guard that a wide-screen change does not disturb the narrow ones).
 
 ### v1.31.35 — the rule notes go behind a `?`
 
