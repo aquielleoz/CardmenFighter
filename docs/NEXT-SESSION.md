@@ -35,9 +35,8 @@ N-1 and only two of four classes have any), and records the colour-pie constrain
 colors, we'll balance some other way"* — which rules out the two obvious fixes.
 
 **Next up, in the order they are worth doing:**
-1. **The one-loss cap** — under `all`, protection prevents ONE incoming loss instead of the whole round. The
-   pie-respecting lever: no class identity moves, only the scaling is removed. Unmeasured, one flag, harness
-   already built.
+1. **Kits** — see below. (The "one-loss cap" that used to sit here has been RETRACTED — it was a no-op. See the
+   `loss=all` entry in the BACKLOG for why, and do not re-propose it.)
 2. **Kits** — consecutive pairs, the first genuinely duel-relevant new shape. Design work is done in the BACKLOG
    (2-pair floor, deck-neutral, lead-side only, first variable-length shape); nothing is built.
 3. **Sanctuary is NOT a lever** — it is already symmetric (`shieldAll`). Do not re-derive that.
@@ -230,10 +229,22 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     are allies on one axis and opponents on another. Giving ♣/♠ mitigation, or relocating Leyline to ♥, are the
     same cross-pie mistake from opposite directions. (An earlier draft of this entry recommended the first, off
     a bad analogy: ♦ is the **ramp** class, not a draw class, so Leyline sitting there is not misfiled.)
-  - **The pie-respecting lever is the RULE, not the cards: under `all`, protection should prevent ONE incoming
-    loss rather than the whole round.** The problem was never that ♦/♥ have protection — it is that `all`
-    multiplies protection's value by (N-1), the same multiplier it applies to Special damage. Cap that and no
-    class identity has to move. UNMEASURED; one flag, and the harness already exists.
+  - **RETRACTED (2026-08-27): the "one-loss cap" is a NO-OP. Do not re-propose it.** The idea was that under
+    `all`, protection should prevent one incoming loss rather than blanking the whole round. But `applyRoundLoss`
+    strips **1** shield per struck target (2 only with Finishing Blow) and exactly one play wins a round — so a
+    player already loses at most one shield per round under `all`. "Prevent one loss" and "blank the round" are
+    the same thing, and the cap changes nothing.
+  - **THE ACTUAL MECHANISM IS FREQUENCY, NOT MULTIPLICITY.** Under `chosen` you are the picked target roughly
+    **1/(N-1)** of Special rounds, so protection's expected value is a fraction of a shield. Under `all` you are
+    hit **every** Special round, so it saves a full shield every time. Protection gets ~(N-1)x more valuable
+    because it is *used* every round, not because it blocks more hits at once. And `all` scales offence by (N-1)
+    too — but **every class can play Specials while only ♦/♥ have protection**, so a universal multiplier lands
+    on an unevenly distributed resource. That is the whole asymmetry, stated properly.
+  - **What that leaves.** There is nothing to "cap", so the honest options are: (a) the **shared ward**, which is
+    measured and works (6p spread 32.1 → 18.3, pacing 30 → 11 rounds); (b) make protection **less frequently
+    usable** — counter-limited or once-per-game — which lowers its total value rather than its per-use value,
+    and is untested; (c) leave `all` as the homebrew toggle it already is; (d) give ♣/♠ protection, which Aj has
+    ruled out as cross-pie. Anything that makes being hit *less certain* just converges back to `chosen`.
   - The flags (`setWardAll`, `setDamageSpan`) are on `exp/shield-break-all`, default off, with behavioural
     self-checks in `mpsim`.
 

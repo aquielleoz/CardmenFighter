@@ -317,6 +317,19 @@ annihilated decks roughly double (4% → 8-10%). It is also **good for duels** (
 shields-2+N trades back: pacing improves to 17 rounds (the documented middle ground) but the spread widens again
 to 23.3, because more shields means more rounds in which mitigation matters.
 
+**CORRECTION 2 (2026-08-27) — the "one-loss cap" I proposed as the pie-respecting fix is a NO-OP.** The idea was
+that under `all`, protection should prevent one incoming loss rather than blanking the whole round. But
+`applyRoundLoss` strips **1** shield per struck target (2 only with Finishing Blow) and exactly one play wins a
+round, so a player already loses at most one shield per round under `all`. The two are the same thing.
+
+**The mechanism is FREQUENCY, not multiplicity** — which is the correction that matters. Under `chosen` you are
+the picked target roughly **1/(N-1)** of Special rounds; under `all` you are hit **every** Special round. So
+protection is worth ~(N-1)x more because it gets *used* every round, not because it blocks more hits at once.
+`all` scales offence by (N-1) as well, but **every class can play Specials while only ♦/♥ own protection** — a
+universal multiplier landing on an unevenly distributed resource. That is the asymmetry, stated properly, and it
+means there is nothing to cap: the levers are the shared ward (measured), making protection less frequently
+usable (untested), or leaving `all` as a toggle.
+
 **CORRECTION — Sanctuary is NOT an asymmetry, and this entry first said it was.** Aj: *"sanctuary gains everyone
 a shield it's already symmetric"*. He is right: it carries `shieldAll: true` ("Every player gains 1 Shield"), and
 the engine's own comment calls it *"a wash on the shield race (the nerf)"*. The suit audit above listed it as
