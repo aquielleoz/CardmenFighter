@@ -128,7 +128,9 @@ the setup dialog footer and the netplay lobby bar. **Do not add a second version
 drift is worse than none, because it makes a stale build look current. It exists because a real bug report
 ("the client has no name field") was a *stale download* of a feature shipped two versions earlier, and nothing
 on screen could say so; `versiontest.js` asserts the whole chain including the **repo-root copy**, which is the
-file people download. When a shipped feature is reported missing, check the reporter's build before the code.
+file people download — **and, since v1.31.33, that `docs/NEXT-SESSION.md` carries a `### vX.Y.Z` heading for
+that version.** The stamp is derived and cannot drift; a hand-written changelog silently can, and v1.31.33
+nearly shipped with no entry because the script writing it threw on a stale anchor *before* its write. When a shipped feature is reported missing, check the reporter's build before the code.
 
 **A CAMERA FEATURE IS TESTABLE — never hand-check one.** Proven on the parked `feat/qr-scanning` branch (PR #29,
 closed): Chromium accepts `--use-file-for-fake-video-capture=<file.y4m>` with `--use-fake-device-for-media-stream`
@@ -525,7 +527,7 @@ stray processes before suspecting the code. And never wait on work with `while p
 Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 276, `netview` 28, `mptest` 82,
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 42, `viewtest` 10,
-`landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
+`landscapetest` 96, `versiontest` 15, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
 `nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 65, `nettest_rules` 27, `nettest_suggest` 34, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 

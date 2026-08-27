@@ -366,7 +366,33 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
     default off, as a plain shape (it beats a lower Quadro and nothing else). Measured close to decorative
     without the chop: legal on 3.9% of turns at 6p but played 0.07 times per game, because the AI plays the
     cheapest sufficient Special and a Quadro spends four cards on a round a pair would win. See the changelog.
-  - **The CHOP is the one structural addition.** Every shape today beats only its own type at its own size. A
+  - ~~**The CHOP is the one structural addition.**~~ **SHIPPED in v1.31.33** as the eleventh rule. It does make
+    the apex answerable — 14% of 2-plays chopped at six players — but the hoped-for effect on initiative
+    concentration never appeared; the aggregate leader share is unchanged. What it did do is give Quadro a job:
+    17 → 956 plays per 250 six-player games. See the changelog.
+  - **CHOP STRIP OR NOT — an option (Aj, 2026-08-27: "an option we can add for the chop is if it strips or
+    not").** A round won by a chop destroys no shield, in the shape of `apexNoStrip`. The subtlety: `apexNoStrip`
+    can read the winning pile (`hasApex(pile.combo.cards)`), but "did this play CHOP something" is **not visible
+    from the pile** — the beaten combo is gone by then. So it needs a flag stamped when a play is accepted through
+    the chop path, not a test at resolve time. Note `wonWithCombo=false` drives BOTH the shield strip and the
+    mill target, so a no-strip chop resolves like a jab win, exactly as `apexNoStrip` does.
+  - **STRAIGHT FLUSHES AS CHOPS — decided, and measured before building (Aj, 2026-08-27).** *"We'll have
+    straight flushes beat our quadros then… they're only counted as straight flushes when selected as an
+    option"* — so the option both lifts `NO_STRAIGHT_FLUSH` and makes the shape a chop; with it off, a same-suit
+    run stays a plain straight as it has since v1.14. Ladder slot: **between Quadro and 4 Kits** (rank 37, reach
+    2) — above the Quadro per [pagat's](https://www.pagat.com/climbing/bigtwo.html) Big Two ordering (straight <
+    flush < full house < four of a kind < **straight flush**, with a known variant where only a *royal* flush
+    beats quads), below 4 Kits because this game's ladder already treats longer pair-runs as bigger. Tiến lên's
+    chop family has no straight flush at all, so the combined ladder is our call.
+    **THE STRUCTURAL HALF IS DECISIVE AND IS NOT ABOUT THE BOMB.** Of the 5-card straights a deck can make,
+    **100%** are same-suit in a pure class deck, **6%** in a two-suit deck, **0%** in the Full Set — a class deck
+    is four copies of ONE suit. And `beats()` already says a straight flush beats *any* straight regardless of
+    value, so the larger effect of switching this on is that **every mono-suit straight beats every mixed
+    straight for free.** Win share, three *interleaved* replicates at 6 players, 600 games each: **pure decks
+    +1.8 points, mixed decks −1.2**, same sign in all three (pure +2.9 / +1.5 / +1.0). A real ~3-point tilt
+    between the groups — modest beside `loss=all`'s 40-point blowout, but exactly the "a mono suit player shanks
+    every non-mono player" effect Aj predicted, so **the rule's note must say it out loud.** The SPREAD figure is
+    not readable at this sample size (−2.0 / −7.0 / +9.5 across replicates) — do not quote it. Every shape today beats only its own type at its own size. A
     quadro beating a lone 2 — or 3 kits beating a lone 2, which is exactly what đôi thông does — needs
     cross-shape overrides in `beats()`. Note it would also make the apex 2 answerable **without** touching the
     apex flags.
@@ -530,6 +556,69 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.33 — the chop: big shapes beat the 2
+
+The first rule where a shape beats one it **does not match**, and the reason the family's big shapes exist at
+all. In Tiến lên a tứ quý or ba đôi thông *chops* the heo — and in this game the heo is the apex 2. So the chop
+is what makes the 2 answerable, and what finally gives Quadro a job.
+
+**The ladder**, scaled so a Quadro sits between 3 and 4 Kits, which is the family's own ordering:
+
+| | rank | reaches |
+| --- | --- | --- |
+| 3 Kits (size 6) | 30 | a lone 2 |
+| **Quadro** (size 4) | 35 | a lone 2, or a pair of them |
+| 4 Kits (size 8) | 40 | a trio of 2s — and a Quadro |
+| 5 Kits (size 10) | 50 | the same, and 4 Kits |
+
+A bigger chop answers a smaller one. **Equal rank falls through to the ordinary same-shape/higher-value
+comparison**, so a Quadro is chopped by a higher Quadro and 3 Kits by higher 3 Kits — for free, with no new code
+(Aj: *"you can actually chop another chop… if you followed the shape and played a value higher"* — that already
+works). There was precedent for the cross-shape override sitting right there in `beats()`: a straight flush
+already beat a plain straight.
+
+**The chop and "the 2 cannot be beaten" COMPOSE** (Aj: *"a chop would deal with inf 2s btw"*). I had built them
+to conflict, with `apexInf` winning — wrong, and the mechanism says why: `apexInf` makes the 2 unbeatable **by
+value** (it ranks the card at Infinity), and a chop is not a value answer at all, it is a **shape** answer. So
+the chop is precisely the counterplay to an unbeatable 2 — which is what makes `inf` playable without `nostrip`.
+Both rows' copy was rewritten to say so, and there is deliberately **no** `APEX_INF` guard in the chop branch.
+
+**Measured — and this is the rule that finally makes Quadro worth playing.** 250 games per cell, same seeds:
+
+| | Quadros played | 3 Kits | 4 Kits | 2-plays chopped | rounds/game |
+| --- | --- | --- | --- | --- | --- |
+| 6p, shapes only | 17 | 2149 | 528 | 0% | 28.5 |
+| 6p, shapes + chop | **956** | 1611 | 902 | **14%** | 28.2 |
+| 4p, shapes only | 23 | 365 | 74 | 0% | 18.6 |
+| 4p, shapes + chop | **88** | 350 | 109 | **7%** | 18.7 |
+| 2p, shapes + chop | 7 | 34 | 1 | ~0% (2 of 498) | 10.9 |
+
+Quadro goes from near-decorative (v1.31.29 measured 0.07 plays/game) to **956 plays in 250 six-player games**,
+because it finally answers something. 14% of all 2-plays get chopped at six players. **At two players the chop
+is nearly inert** — holding a Quadro or 3 Kits at the moment you face a lone 2 almost never happens in a duel —
+so in effect it is a multiplayer rule, though it is correctly tagged as changing all player counts.
+
+**Pacing and initiative do not move** (`rulesim` rows T/U vs A: medians 11/15/20/31, leader share 56/48/39/35,
+all within noise). **Fourth shape-rule in a row to say so.** Note the backlog hoped the chop would loosen
+initiative concentration by making the apex answerable; it does answer it, and the aggregate number does not
+budge.
+
+**My own probe lied first, and the control caught it.** The chop counter matched "a big shape played after a
+2-play", which also matches the *lead of the next round* — so it reported chops in the arm where the chop was
+**off**. Fixed by reading `g.pile.combo` before the turn, after which the off arm reads a clean 0. **An arm that
+should read zero is the cheapest instrument check there is** — same lesson as the identical-A/B and the `flag()`
+substring bug.
+
+The chop joins **Chikicha Specials** (Aj: *"the chop would also be checked in chikicha specials"*), which fixes
+the preset offering Quadro without the thing that gives it a job.
+
+**And a process note: this entry nearly did not exist.** The script that wrote it asserted on a stale anchor and
+threw *before* its write, and I read a confirmation that had not printed. `versiontest` now asserts that
+`docs/NEXT-SESSION.md` carries a `### vX.Y.Z` heading for the version in `README.md`, so a missing changelog
+fails the gate instead of shipping quietly.
+
+Suites: `test` 263 → **276**, `rulestest` 65, `versiontest` 14 → **15**.
 
 ### v1.31.32 — the game mode is a rule now, and online play finally honours it
 

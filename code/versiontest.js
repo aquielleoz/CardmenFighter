@@ -24,6 +24,13 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   const readme=fs.readFileSync(path.resolve(__dirname,'..','README.md'),'utf8');
   const want=(readme.match(/\*\*Status:\*\*\s*(v\d+\.\d+\.\d+[a-z]?)/)||[])[1];
   ok(!!want, `README.md's **Status:** line names a version (${want||'NONE — build.js would refuse to build'})`);
+  /* THE CHANGELOG IS PART OF THE GATE NOW. v1.31.33 nearly shipped without an entry: the script writing it
+   * asserted on a stale anchor and threw BEFORE its write, and a confirmation that never printed was read as
+   * though it had. The version stamp is derived and therefore cannot drift; the changelog is hand-written and
+   * silently can, which is exactly the asymmetry this closes. */
+  const handoff=fs.readFileSync(path.resolve(__dirname,'..','docs','NEXT-SESSION.md'),'utf8');
+  ok(want ? handoff.indexOf('### '+want) >= 0 : false,
+     `docs/NEXT-SESSION.md carries a "### ${want}" changelog heading — a shipped version with no entry is how a change becomes unfindable`);
   const built=fs.readFileSync(HTML,'utf8');
   ok(!built.includes('__VERSION__'), 'no unsubstituted __VERSION__ survived into the built page');
   const stamped=(built.match(/GAME_VERSION='([^']+)'/)||[])[1];
