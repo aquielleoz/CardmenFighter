@@ -4641,7 +4641,7 @@ window.CardFace = {};
       if(E.setQuadro)           E.setQuadro(!!RULES.quadro);
   }
   function valLabel(d,v){
-    if(!d.mode) return v?'on':'off';
+    if(!d.mode) return v?'On':'Off';       // capitalised to match a mode row's own labels, which sit beside it
     var m=d.mode.filter(function(x){ return x.v===v; })[0];
     return m?m.label:String(v);
   }
@@ -4660,7 +4660,10 @@ window.CardFace = {};
       o=rulesFromKey(votes.all[seat]);
       if(!ruleOnIn(o,d)) continue;
       v=d.mode ? o[d.key] : true;
-      (by[v]=by[v]||[]).push(votes.names&&votes.names[seat] ? votes.names[seat] : ('P'+((+seat)+1)));
+      /* Reader-relative, like every other name in this game: you are "You" in your own frame. The host is
+       * never in this map at all — its picks are the rules — so this only ever fires on a client. */
+      (by[v]=by[v]||[]).push(votes.mine===(+seat) ? 'You'
+                             : (votes.names&&votes.names[seat] ? votes.names[seat] : ('P'+((+seat)+1))));
       any=true;
     }
     if(!any) return '';
@@ -7868,6 +7871,22 @@ window.CardFace = {};
       });
       var c=$('ruleClear'); if(c) c.disabled = !RULE_DEFS.some(function(d){ return ruleOnIn(src,d); });
     }
+    /* THE IN-PLAY CHIP IS DERIVED STATE TOO, and the rows patch themselves in place — so without this a
+     * suggestion you have just made shows no "in play" line until the host's echo re-renders the panel, and
+     * shows none at all if you are not connected. Same bug as the bulk row, one row lower. */
+    function syncLive(){
+      if(!sug) return;
+      RULE_DEFS.forEach(function(d){
+        var row=document.querySelector('.settingRow[data-rule="'+d.key+'"]'); if(!row) return;
+        var body=row.querySelector('.settingBody'); if(!body) return;
+        var el=body.querySelector('.ruleLive'), differs=(src[d.key]!==RULES[d.key]);
+        if(differs){
+          if(!el){ el=document.createElement('span'); el.className='ruleLive';
+                   body.insertBefore(el, body.querySelector('.ruleVotes')); }
+          el.textContent='in play: '+valLabel(d,RULES[d.key]);
+        } else if(el && el.parentNode) el.parentNode.removeChild(el);
+      });
+    }
     /* ONE commit path. In suggest mode nothing is applied to the engine — the rules in play are the host's —
      * it is saved as this device's preference and sent up the wire. Otherwise your picks are the rules. */
     function commit(){
@@ -7884,7 +7903,7 @@ window.CardFace = {};
           o.classList.toggle('active', act); o.setAttribute('aria-checked', act?'true':'false');
         });
         row.classList.toggle('on', ruleOnIn(src, RULE_DEFS.filter(function(d){ return d.key===k; })[0]));
-        syncBulk();
+        syncBulk(); syncLive();
         if(opts.onChange) opts.onChange();
       });
     });
@@ -7895,7 +7914,7 @@ window.CardFace = {};
         this.classList.toggle('on', !!src[k]);
         this.setAttribute('aria-checked', src[k]?'true':'false');
         this.querySelector('.settingBox').textContent=src[k]?'✓':'';
-        syncBulk();
+        syncBulk(); syncLive();
         if(opts.onChange) opts.onChange();
       });
     });
