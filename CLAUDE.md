@@ -305,6 +305,27 @@ for testing and is dbg-gated. Matched builds must stay **silent**; `nettest_vers
 warning that cried wolf would be worse than none. This is the prerequisite for any homebrew rules menu: a peer
 silently ignoring an unknown rule means two people playing different games without knowing.
 
+**RULE SUGGESTIONS: TWO STORES, AND THE SPLIT IS THE WHOLE FEATURE (v1.31.31).** `RULES` is what is **in
+play** — on a client the host overwrites it wholesale, so nothing kept there is yours. `MY_RULES` is **this
+device's** picks: it is what `localStorage` holds, what a client suggests, and it is never touched by an
+incoming host key. When you set the rules, your picks *are* the rules, so the panel writes both (`ownRules()`);
+one `commit()` decides which, so the suggest and edit paths cannot drift. The panel has **three** modes now —
+edit / suggest / readonly — and a client's rows show what is in play when it differs, because an editable
+control that looks like the rules is the one real misreading risk.
+- **A SUGGESTION IS STATE; AN EMOTE IS AN EVENT.** So the host broadcasts the **whole map** (a dropped message
+  and a late joiner both self-heal; `t:'welcome'` carries it), and the rate limit **coalesces** rather than
+  dropping — dropping strands the table on a stale value while the sender's panel shows something newer.
+- **CLIENT INTENTS ARE DEAD IN THE LOBBY.** `hostApplyMove`/`hostApplyMoveN` return immediately without
+  `hostState`, which is the entire lobby. Anything lobby-relevant must be dispatched in the `t:'move'` handler
+  **ahead** of them. Same trap in the guard: `isClientActive()` is `isClient() && started`, so it is false in
+  the lobby — a lobby feature needs *connected*, not *started*. Both looked correct and did nothing.
+- **THE JOIN RETRY RE-SENDS ITS PAYLOAD EVERY 350ms** until the game starts, so anything carried on `t:'join'`
+  is re-asserted on a timer. The host takes `sug` only when the seat is **new**; otherwise a suggestion made
+  after joining appeared and then vanished within 350ms. Check this before putting new state on a join.
+- **The host validates an untrusted key through the same parser a saved one uses:** `keyOf(rulesFromKey(k))`
+  drops unknown rule names and invalid mode values. A rule from a newer peer must never be shown in the panel.
+- **A suggestion never un-readies the table** — only the host's real change does.
+
 **Player names go through `seatName`/`logName` only.** `seatNames` is indexed in the **LOCAL** frame; a netplay
 client rotates the host's absolute-seat table on arrival (`t:'setup'`), so no call site needs rotation
 awareness. A name is for *other people* — you always read as "You" in your own frame. Names are player-typed,
@@ -482,7 +503,7 @@ Status as of v1.31.20 — green. Counts verified 2026-08-25: `test` 263, `netvie
 `exporttest` 14, `nettest_reveal` 10, `phantasmtest` 12,
 `piletest` 30, `revealtest` 12, `lessontest` 19, `lessontest_energy` 14, `decktest` 42, `viewtest` 10,
 `landscapetest` 96, `versiontest` 10, `qrtest` 19, `qrref` 26, `nettest_log` 14, `nettest_names` 8, `nettest_discard` 7, `nettest_target3` 6,
-`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 58, `nettest_rules` 22, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
+`nettest_prefight` 13, `nettest_full` 5, `nettest_emote` 19, `sharetest` 14, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_version` 14, `rulestest` 58, `nettest_rules` 21, `nettest_suggest` 30, `exporttest` 15. **If a count here disagrees with a suite, the suite is right —
 fix this line.**
 
 **A SUITE CAN BE GREEN AND BLIND. Three shapes of it, all found in one 2026-08-27 sweep and all fixed:**

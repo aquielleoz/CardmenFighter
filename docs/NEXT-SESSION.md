@@ -190,7 +190,12 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   - **The one thing that would give true discovery** is a rendezvous service — even a 20-line local one — and
     that breaks "no server, no install, runs offline", which is the project's whole shape. If it is ever wanted,
     make it strictly **opt-in** and keep the code path as the default.
-- **CLIENTS SUGGEST RULES TO THE HOST (Aj, 2026-08-27).** A client's own custom rules do not travel with it —
+- ~~**CLIENTS SUGGEST RULES TO THE HOST.**~~ **SHIPPED in v1.31.31** — see the changelog. The design below was
+  written before building it and held up, except that the per-seat rate limit became a table-wide **coalesce**
+  (right for state, where dropping is right for an event) and three things had to be found by testing: client
+  intents are dead in the lobby, `isClientActive()` excludes the lobby, and the join retry re-asserted the
+  stored preference on a timer.
+- **(original design note, kept for the reasoning)** A client's own custom rules do not travel with it —
   the host's rules are the game's rules — but a client *can* read them. The feature: a client picks rules on its
   own device, and the host sees those picks as **suggestions** inside its own Custom rules panel. Advisory only:
   no quorum, no auto-adopt, the host decides. Aj's framing was "a voting thing", and the deliberate narrowing is
@@ -525,6 +530,64 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.31 — the suggestion layer: everyone suggests, the host decides
+
+Aj's idea, and his own sequence, confirmed: *"they can 'suggest' a rule, it is sent to the host as a suggestion
+and then it is broadcast to the rest of the table."* That is the emote path — client intent, host authority,
+host broadcast — and both of his answers on scope are in: **the host's picks are the rules** (no self-suggestion
+row), and **the whole table can see each other's suggestions**.
+
+A client's lobby panel is no longer read-only. Its controls now edit **its own picks**, each row shows what is
+actually in play when that differs, and every row carries a chip naming who wants what.
+
+**The implementation problem was one object.** There was exactly one `RULES`, and joining overwrites it with the
+host's key — so a suggestion kept there is clobbered by the host's next edit, or worse, read as the rules in
+play. Now:
+
+| | what it is | who writes it |
+| --- | --- | --- |
+| `RULES` | the rules **in play** | your own edits when you set the rules; the host's key when you are a client |
+| `MY_RULES` | **this device's** picks | you, always — never touched by an incoming host key |
+
+`localStorage` holds `MY_RULES`, which is what it always effectively was. When you *are* the one setting the
+rules, your picks are the rules, so the panel writes both (`ownRules()`). One `commit()` in the panel decides
+which, so the suggest and edit paths cannot drift apart.
+
+**A suggestion is STATE, where an emote is an EVENT** — two consequences, both asserted:
+- the host broadcasts the **whole map**, not a delta, so a dropped message and a late joiner both self-heal, and
+  `t:'welcome'` carries it for free (the third seat in `nettest_suggest` reads a suggestion made before it
+  arrived);
+- the rate limit **coalesces** (250ms) instead of dropping. Dropping is right for an event; for state it would
+  strand the table on a stale value while the sender's own panel shows something newer. The suite fires five
+  suggestions back to back and asserts the host lands on the **last**, not an earlier one.
+
+**Three bugs found by building it, every one of which looked fine in the code:**
+1. **Client intents are dead in the lobby.** `hostApplyMove`/`hostApplyMoveN` both return immediately when
+   there is no `hostState` — i.e. for the entire lobby, which is the only place a suggestion matters. The
+   handlers were in exactly the right-looking place and did nothing; the suggestions that appeared were arriving
+   by accident on the **join retry**, which re-sends every 350ms. Dispatch now happens in the `t:'move'`
+   handler, ahead of that gate.
+2. **`isClientActive()` is `isClient() && started`,** so the send guard was false for the whole lobby too. A
+   suggestion needs a client that is *connected*, not one mid-game.
+3. **The join retry re-asserted the client's stored preference on a timer,** wiping any suggestion made since —
+   a change would appear on the host and vanish within 350ms. The host now takes `sug` only when the seat is
+   **new**: a retry is a re-announcement of the same join, not a fresh statement of preference.
+
+**The host validates.** An untrusted client's key goes through the same parser a saved key does, and unknown
+rule names and invalid mode values are **dropped** — `keyOf(rulesFromKey(k))` round-trips it clean. A rule from
+a newer peer must never be advertised in the panel; that is what the version handshake is for. Asserted with a
+key containing `notARule` and `dblPair=banana`.
+
+**A suggestion never un-readies the table.** Only the host's real change does. If it did, one player idly
+flipping switches could stop the table from ever starting.
+
+`nettest_rules` changed shape with the feature: it used to assert the client's controls were *dead*, which was
+only ever the mechanism. It now asserts the **invariant** — a toggle, a mode, even a whole preset in a client's
+panel moves nothing about the rules in play.
+
+New suite `nettest_suggest.js` (**30**), three pages. `nettest_rules` 22 → 21 (two mechanism assertions became
+one invariant). Full serial sweep green.
 
 ### v1.31.30 — rule presets and Clear all
 
