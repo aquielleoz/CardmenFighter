@@ -542,16 +542,17 @@ initialised to `'full'`, and `boot()` — the `?net=` path, which is what every 
 uses — hardcoded `deck: q.get('deck') || 'full'`. So most online games were played with all 52 cards without
 anybody choosing that. Both default to Random now, as do the host's fallbacks for a seat that never picked.
 
-**Odds.** Random *could not* reach the Full Set at all before: `resolveDeck` picks from `E.DECK_ORDER`, which
-holds only the ten class decks. It now lands on Full Set on **one roll in twenty** (`RANDOM_FULL_ODDS = 0.05`)
-against a flat 1/10 for each class — rare rather than absent, because a Random that can surprise you is the
-point of rolling one.
+**Odds — and the answer was "leave it".** Random turned out to be *unable* to reach the Full Set at all:
+`resolveDeck` picks from `E.DECK_ORDER`, which holds only the ten class decks. Offered a 1-in-20 chance, Aj's
+call was **"impossible is fine actually"** — so the behaviour is unchanged and now deliberate, documented, and
+asserted. The reasoning is clean: 🎲 Random means *surprise me with a class*, and the 52-card set is the absence
+of a class, so it is something you choose on purpose from the bottom of the list.
 
-Tests: `decktest` 35 → **43** (order, the fresh-store default, and 20,000 rolls checked against three
-properties — full lands near 5%, every class stays reachable, and full is rarer than the thinnest class; a bare
-"full appears" would have passed a uniform 1-in-11 too). `nettest_customdeck` 14 → **18**, asserting the lobby
-default and the ordering on **both** render paths, host and client. `__solo.resolveDeck` is the new URL-gated
-hook the odds assertion needs. Full serial sweep green.
+Tests: `decktest` 35 → **42** (order, the default on a *fresh* store — a saved pick must still win — and 20,000
+rolls asserting the Full Set never comes out, every one of the ten classes does, and nothing else ever does:
+no saved deck, no builder sentinel). `nettest_customdeck` 14 → **18**, asserting the lobby default and the
+ordering on **both** render paths, host and client. `__solo.resolveDeck` is the new URL-gated hook that makes
+the roll testable at all. Full serial sweep green.
 
 ### v1.31.27 — the suites could be green and blind: three shapes of it, fixed
 

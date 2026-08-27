@@ -8140,16 +8140,10 @@ window.CardFace = {};
     h+='<option value="'+BUILD_DECK_OPT+'">✏️ Custom deck…</option>';
     return h;
   }
-  /* 🎲 Random can land on the Full Set, but it is DELIBERATELY UNLIKELY (Aj: "just a little bit hard to random
-   * into full set") — one roll in twenty, against a flat 1/10 for each class. Before this it was impossible:
-   * E.DECK_ORDER holds only the ten class decks, so Random never produced the 52-card set at all. Rare rather
-   * than absent, because a Random that can surprise you is the point of rolling. */
-  var RANDOM_FULL_ODDS=0.05;
-  function resolveDeck(v){
-    if(v!=='random') return v;
-    if(Math.random() < RANDOM_FULL_ODDS) return 'full';
-    return E.DECK_ORDER[Math.floor(Math.random()*E.DECK_ORDER.length)];
-  }
+  /* 🎲 Random NEVER rolls the Full Set — E.DECK_ORDER holds only the ten class decks, and that is deliberate
+   * (Aj, 2026-08-27: "impossible is fine actually"). Random means "surprise me with a class"; the 52-card set is
+   * the absence of a class, so it is a thing you choose on purpose, from the bottom of the list. */
+  function resolveDeck(v){ return v==='random' ? E.DECK_ORDER[Math.floor(Math.random()*E.DECK_ORDER.length)] : v; }
   function resolveDiff(v){ if(v!=='random') return v; var d=['minion','recruit','fighter','knight','demon']; return d[Math.floor(Math.random()*d.length)]; }
   // Header button: reads "🏳 Concede" during a live duel (forfeit) and "New Duel" otherwise (open setup).
   function newBtnLive(){ return !!(state && !state.finished && !(MP() && state.players[YOU] && state.players[YOU].eliminated)); }   // already out → offer "New Duel" (leave), not "Concede"

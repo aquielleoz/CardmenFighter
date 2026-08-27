@@ -121,22 +121,18 @@ const URL = 'file://' + path.resolve(__dirname, 'CardmenFighter.html') + '?dbgso
                          && document.getElementById('setRivalDeck').value === 'random'),
      'on a first run both setup pickers default to Random, not to the Full Set');
 
-  /* 🎲 Random must be able to reach the Full Set — it could NOT before, since E.DECK_ORDER holds only the ten
-   * classes — but rarely (Aj: "just a little bit hard"). 20k rolls: full ≈ 5%, each class ≈ 9.5%, so the bounds
-   * below sit many sigma clear of both. Asserting only "full appears" would pass a uniform 1-in-11 too. */
+  /* 🎲 Random means "surprise me with a CLASS" — it must never roll the 52-card set (Aj: "impossible is fine
+   * actually"), nor a saved deck, nor the builder sentinel. 20k rolls, so a 1-in-20 leak would show up ~1000
+   * times and even a 1-in-2000 one would almost certainly appear at least once. */
   const roll = await p.evaluate(() => {
     const n = 20000, tally = {};
     for (let i = 0; i < n; i++) { const d = window.__solo.resolveDeck('random'); tally[d] = (tally[d] || 0) + 1; }
     return { n, tally, classes: CardmenEngine.DECK_ORDER.slice() };
   });
-  const fullPct = 100 * (roll.tally.full || 0) / roll.n;
-  ok(fullPct > 3 && fullPct < 7, `Random lands on the Full Set about one roll in twenty (${fullPct.toFixed(1)}%)`);
-  ok(roll.classes.every(k => (roll.tally[k] || 0) > 0), 'every class deck is still reachable');
-  const rarest = roll.classes.reduce((m, k) => Math.min(m, roll.tally[k] || 0), Infinity);
-  ok((roll.tally.full || 0) < rarest,
-     `and the Full Set is rarer than any single class (${roll.tally.full} vs the thinnest class at ${rarest})`);
-  ok(Object.keys(roll.tally).every(k => k === 'full' || roll.classes.indexOf(k) >= 0),
-     'Random never rolls a saved custom deck or the builder sentinel');
+  ok(!roll.tally.full, `Random never rolls the Full Set (${roll.tally.full || 0} of ${roll.n})`);
+  ok(roll.classes.every(k => (roll.tally[k] || 0) > 0), 'and every one of the ten class decks is reachable');
+  ok(Object.keys(roll.tally).every(k => roll.classes.indexOf(k) >= 0),
+     'nothing else comes out of it either — no saved deck, no builder sentinel');
 
   ok(errs.length === 0, 'no JS errors' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
   console.log('\n' + (fail ? 'FAIL' : 'PASS') + ': ' + pass + '  FAIL: ' + fail);
