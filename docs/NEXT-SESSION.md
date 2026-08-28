@@ -165,6 +165,32 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **A HOST/CLIENT DESYNC ON THE FIRST REAL RELAY GAME (2026-08-28), and `0 undefined 0` CARDS.** Aj played
+  laptop-host vs phone-client over a room code. Two defects, from one pair of screenshots:
+  - **The host's UI is self-contradictory and the client is AHEAD.** Host: Round 1, "YOU · JAB", *"Waiting for
+    opponent…"*, *"Rival is fighting…"*. Phone at the same moment: **Round 2**, "NEW FIGHT", *"You won the round
+    of Jabs."* A client cannot advance a round on its own — it renders host mirrors — so **the host resolved
+    round 1 and broadcast it, and then failed to advance its own screen.**
+    **That is the `busy` family, and this file already describes its signature**: *"the host showing `your turn`
+    with an empty pile while `rivalStatus` still read 'Waiting for opponent…'"* — see the v1.31.20 post-mortem,
+    where `hostFinishRound → resolveRoundCeremony → afterHumanAction` never cleared `busy` on the duel path.
+    **When netplay "lags", suspect a stuck `busy` before the transport.** Only the host can wedge; a client
+    recomputes `busy` from every mirror and self-heals.
+  - **Two cards in the client's hand render as `0 undefined 0`** (one of them floating outside the hand strip).
+    A card object with no rank/suit reached the client's render. Possibly the more diagnostic of the two: it
+    suggests a malformed or over-long hand in the mirror rather than a pure UI stall.
+  - **NOT YET RULED OUT: that v1.31.49 caused it.** The game path after connection is identical for a relay
+    join and a pasted one, and `relayPoll` stops at `started` while `hostStartRealN` drops the room — but the
+    relay path *does* leave one extra thing behind: after accepting a join it calls `hostNewInvite()`, which
+    builds another `RTCPeerConnection` and registers its channel via `hostAddChannel` **before that channel ever
+    opens**. A dangling channel in the hub is the one structural difference, and it is where I would look first.
+    **Do not merge PR #82 on the assumption this is pre-existing** — an A/B against a pasted-code game on the
+    same build is the cheap way to settle it, and this repo's own lesson is that confident code-reading has
+    been wrong every time an A/B was available.
+  - **What to capture next time**, because two screenshots got this far and the next step needs more: both
+    battle logs, the host's `__cmf` state if `?dbg=1` is on, and whether the host recovers on its own or stays
+    wedged. A wedged host stops broadcasting, so the client will freeze next — if it *doesn't*, that is
+    informative too.
 - **Make joining less of a hassle — ideally "find games on my network"** (Aj, 2026-08-25: *"the code thingies
   are amazing and wow you can really play with anyone anywhere… but it's also a bit of the hassle"*).
   - **The hard limit first, so nobody spends a day on it:** a browser page **cannot discover peers on a LAN.**
@@ -623,6 +649,9 @@ they connect directly and the relay is out of the loop for the entire game.
 **IT WORKS FROM THE DOWNLOADED FILE, and that is the result that made this worth building.** A `file://` (and
 `content://`) page is an opaque origin, and whether it could `fetch` a cross-origin relay was the load-bearing
 assumption — tested before a line of the feature was written: **GET 200, POST 201, room created**.
+`content://` was left explicitly unverified rather than assumed, and **Aj settled it on a real phone the same
+day: a game joined by room code from a `content://` copy** (URL bar `content://media/e…`, live in round 2). So
+both opaque origins reach the relay.
 `Access-Control-Allow-Origin: *` covers an opaque origin. So the single offline HTML gets room codes with **no
 hosting at all** — the thing Aj declined for months turns out not to be required for the feature that needed it.
 

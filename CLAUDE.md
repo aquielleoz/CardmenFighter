@@ -259,6 +259,9 @@ windows were always fine, which is how it survived unnoticed.
 - **`dbg=1` MEANS NO RELAY unless `relay=` is passed.** Every `nettest_*` suite sets `dbg=1`; without this rule
   each of them opens rooms on the **production** relay on every run, and every suite starts failing when the
   machine is offline. Hermetic by default. A suite that wants it names it (`nettest_relay` → `relay/mock.js`).
+- **BOTH OPAQUE ORIGINS REACH THE RELAY — `file://` measured here, `content://` measured on a real phone**
+  (2026-08-28, a game joined by room code from a downloaded copy). `content://` was deliberately left unclaimed
+  until a device proved it, because deducing it from "same kind of origin" is what got `navigator.share` wrong.
 - **A `file://` PAGE CAN FETCH THE RELAY, and that is why this feature exists at all.** An opaque origin was the
   load-bearing doubt; measured before any code was written — GET 200, POST 201 — because
   `Access-Control-Allow-Origin: *` covers it. **So the downloaded offline file gets room codes with no hosting**,
