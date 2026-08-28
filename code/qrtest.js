@@ -104,8 +104,9 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
    * read a symbol far too small for any real camera. What a camera actually needs is PHYSICAL size (CSS px per
    * module) plus crisp edges (a whole number of device px per module). The 1,036-char invite is version 23 =
    * 109 modules, so both are tight, and if the payload ever grows past ~v29 this is what says so.
-   * These run at the suite's 1100×900 viewport; a landscape phone is capped by height at ~2 CSS px/module,
-   * which is the deliberate trade for keeping the whole symbol on screen without scrolling. */
+   * These run at the suite's 1100×900 viewport, where the symbol is NOT capped. The short-viewport cap added
+   * in v1.31.47 is asserted separately below, in both directions. */
+  let geomTall=null;
   if(painted){
     const geom=await p.evaluate(()=>{
       const cv=document.getElementById('qrInvite');
@@ -119,6 +120,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     ok(Number.isInteger(geom.devPerModule) && geom.devPerModule>=2,
        `and a whole ${geom.devPerModule} device px per module — no fractional scaling to smear the edges`);
     ok(Math.abs(geom.cssW*geom.dpr - geom.bitmap)<1.5, `the CSS size maps 1:1 onto the bitmap (${geom.cssW}css × ${geom.dpr}dpr = ${geom.bitmap}px)`);
+    geomTall=geom;
   }
   if(painted){
     const live=await p.evaluate(async ()=>{
@@ -128,6 +130,32 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
       return found.length ? (found[0].rawValue===t.value) : false;
     });
     ok(live, 'and THAT canvas decodes back to the exact invite code a player would paste');
+  }
+
+  /* THE SHORT-VIEWPORT CAP (v1.31.47), asserted in BOTH directions — a cap that fired everywhere would be a
+   * silent shrink of the desktop symbol, and a cap that never fired would leave the landscape phone exactly
+   * where it was. Neither failure is visible from a single measurement, which is why this compares the two. */
+  {
+    const land=await (await b.newContext({viewport:{width:915,height:412},deviceScaleFactor:2})).newPage();
+    await land.goto(URL); await wait(600);
+    await land.evaluate(()=>{ const n=document.getElementById('newBtn'); if(n)n.click(); }); await wait(300);
+    await land.evaluate(()=>{ const o=document.getElementById('onlineBtn'); if(o)o.click(); }); await wait(300);
+    await land.evaluate(()=>{ const h=document.getElementById('onHost'); if(h)h.click(); });
+    await land.waitForFunction(()=>{const cv=document.getElementById('qrInvite'); return cv&&cv.width>0;},{timeout:30000}).catch(()=>{});
+    const g=await land.evaluate(()=>{
+      const cv=document.getElementById('qrInvite');
+      const info=CardmenQR.build(document.getElementById('sigOut').value,'L'), total=info.size+8;
+      return { css:(parseFloat(cv.style.width)||0)/total, dev:cv.width/total,
+               frac:(parseFloat(cv.style.height)||0)/window.innerHeight };
+    });
+    ok(g.css>=2.5, 'a landscape phone still clears the camera floor ('+g.css.toFixed(2)+' CSS px per module)');
+    ok(g.css<=4, '  → but is CAPPED rather than filling the screen — it reached 4.6 before, and pushed Copy off');
+    ok(Number.isInteger(g.dev) && g.dev>=2, '  → and keeps a whole '+g.dev+' device px per module, which is what a camera needs');
+    ok(g.frac<=0.55, '  → taking '+Math.round(g.frac*100)+'% of the viewport height, not the 64% it took before');
+    /* the negative half: the cap must NOT reach a viewport with height to spare. */
+    ok(!!geomTall && geomTall.cssPerModule>g.css+1,
+       'and a tall viewport is untouched — '+(geomTall?geomTall.cssPerModule.toFixed(2):'0')+' CSS px per module there, so the cap is not a global shrink');
+    await land.context().close();
   }
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));

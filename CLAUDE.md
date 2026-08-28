@@ -144,6 +144,19 @@ per frame `FRAME\n` + a full-size Y plane + half-size U and V planes (128 = grey
 - **A blank feed is what makes the negative cases deterministic** — a real feed decodes on the first frame, so
   "cancel" and "nothing to scan" would otherwise be races.
 
+**THE QR IS CAPPED ON A SHORT VIEWPORT (v1.31.47), and the cap is per MODULE.** `qrInto` maximises — largest
+whole number of device px per module that fits — which was right at 109 modules and became oversizing when
+v1.31.46 packed the payload to 49: a landscape phone reached 4.6 CSS px per module (64% of the viewport)
+against the 2.0 it had before, and pushed the Copy button off screen. Above `innerHeight <= 480` nothing
+changed; below it the symbol stops at 3.6 CSS px per module. **Cap per module, never by a fraction of the
+screen** — "big enough to scan" is a property of the module, and a fraction means something different at every
+payload size, which is how this drifted in the first place. Quiet zone included (`size + 8`), matching
+`qrtest`. Assert it in **both** directions: the short viewport capped, a tall one untouched — a global cap and
+a dead cap both pass a single measurement.
+**Still open:** the Copy button remains below the fold in landscape. The invite section is one column and a
+wide-short screen wastes ~1000px of width; a two-column landscape layout is the fix, and it is a layout change
+rather than a sizing one.
+
 **Feature-detect `getSupportedFormats()`, never the `BarcodeDetector` constructor** — it can exist without
 `qr_code`. That distinction is what cleared the decoder when `qr.js` itself was at fault, and it is the check
 that turns "nothing decodes" from a mystery into a bug in our own code.
@@ -744,7 +757,7 @@ Status as of **v1.31.38 — green, all 37 suites plus `browsertest`, run seriall
 (panel-area counts refreshed at v1.31.45):
 `test` 325, `netview` 28, `mptest` 82, `rulestest` 143, `nettest_rules` 28, `nettest_suggest` 34,
 `landscapetest` 96, `decktest` 42, `viewtest` 10, `piletest` 30, `revealtest` 12, `phantasmtest` 12,
-`exporttest` 15, `lessontest` 19, `lessontest_energy` 14, `versiontest` 15, `sharetest` 14, `qrtest` 19,
+`exporttest` 15, `lessontest` 19, `lessontest_energy` 14, `versiontest` 15, `sharetest` 14, `qrtest` 24,
 `qrref` 26 (darwin only), `nettest_full` 5, `nettest_log` 14, `nettest_names` 8, `nettest_version` 14,
 `nettest_emote` 19, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_3p` 7, `nettest_activate` 6,
 `nettest_ceremony` 9, `nettest_concede3` 8, `nettest_counter` 8, `nettest_customdeck` 18, `nettest_deckout3` 8,

@@ -609,6 +609,34 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.47 — the landscape QR stops eating the screen
+
+Aj, holding a phone sideways: *"just barely fits on the screen."* Measured at 915×412, the invite QR was
+**263 CSS px — 64% of the viewport height** — at **4.6 CSS px per module**, against the **2.0** that landscape
+used to have and that a real phone was confirmed to read. Maximising the symbol was the right call when the
+invite was 109 modules and every pixel counted; v1.31.46 packed it down to 49, and the sizing logic went on
+spending the surplus on height it no longer needed.
+
+**On a short viewport only, the symbol now stops growing** once each module is comfortably readable: 197 CSS px,
+**3.5 px per module, 49% of the viewport**, still a whole 7 device px per module. Desktop and portrait are
+untouched — height is not scarce there, and the bigger symbol is the one that reads across a table.
+
+**The cap is per MODULE, not a fraction of the screen.** "Big enough to scan" is a property of the module; a
+fraction of the viewport silently means something different at every payload size, which is exactly how the
+old code drifted into oversizing when the payload shrank. Quiet zone included, matching how `qrtest` measures.
+
+**`qrtest` 19 → 24, and it asserts BOTH directions**, because neither failure shows up in a single
+measurement: a cap that fired everywhere would be a silent shrink of the desktop symbol, and one that never
+fired would leave the phone where it was. So the landscape case asserts the cap bit *and* stayed above the
+2.5 px camera floor, and a tall viewport asserts it did **not**. Verified non-vacuous by disabling the cap —
+two assertions go red.
+
+**Not fixed, and worth being straight about it:** the Copy button is still below the fold in landscape. The cap
+bought 15% of the viewport back but the invite section is a single column, and on a wide-short screen there is
+about a thousand pixels of unused width either side of the QR. A two-column landscape layout is what actually
+puts the code box and Copy on screen beside the symbol; it is a layout change rather than a sizing one, and it
+is not in this version.
+
 ### v1.31.46 — invite codes are six times shorter
 
 **1,036 characters to 163.** The code was base64 of the **whole SDP**, and about 90% of an SDP is boilerplate
