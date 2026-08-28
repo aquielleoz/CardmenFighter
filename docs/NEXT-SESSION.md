@@ -165,6 +165,26 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **THE FORK IS NOT THE LOCAL-ENGINE FALL-THROUGH. The trace killed that theory (2026-08-28, second pair of
+  logs).** Read these before theorising — they are the first evidence with instrumentation attached:
+  ```
+  HOST    1.60s  hostAddChannel channels now 1
+         19.70s  started: false -> true  host path (hostStartRealN)
+         25.39s  awaitRival  host parks, waiting for a client move        <- and NOTHING after, ever
+
+  CLIENT 76.42s  started: false -> true  client path (setup from host)
+         82.11s  isClientActive role=join started=true -> true  x5       <- TRUE, so no local fall-through
+  ```
+  Established, not inferred:
+  - **The host received nothing.** It parked and never called `hostTakeBack`.
+  - **`isClientActive()` returned TRUE**, so the client was NOT running the local engine. The `started` theory
+    and the v1.31.50 guard are both beside the point for this fault.
+  - **`clientSend` was never traced** — five consecutive `isClientActive` calls with nothing between them.
+  - **The client's log advanced five further rounds with no traced action at all**, and its trace then stops.
+  So something fed the client state the host did not send. v1.31.52 adds the two probes that were missing —
+  `mirror IN` / `mirror APPLIED` on the client and `move IN` on the host (including a shout when the source
+  channel is unknown and the seat had to be guessed). **Get one more pair of saved logs and this should name
+  the cause.** Do not add another guard first; four inference-only diagnoses have now been wrong.
 - **A NETPLAY CLIENT CAN RUN THE LOCAL GAME AND FORK THE DUEL. UNSOLVED — start here.** 2026-08-28, two devices
   and two saved battle logs, which is the only reason it is characterised at all. **Both logs are the evidence;
   read them before theorising:**
@@ -198,6 +218,9 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   **Next step:** log `role`/`started`/`isClientActive()` on the client at every action, and get one more real
   pair of logs. Do NOT add another speculative guard; three inference-only diagnoses were wrong on 2026-08-28
   (ghost tabs, an AI game, then `started`), each corrected by Aj reading his own screen.
+- **A FINISHED NETPLAY GAME LEAVES ITS WIN PAGE BEHIND** (Aj, 2026-08-28): end a netplay game, go back to the
+  netplay screen, and you are greeted by the PREVIOUS duel's win page until you press Leave online. The end
+  overlay is not cleared when netplay re-renders, so the next lobby is behind a stale modal.
 - **THE NETPLAY BATTLE LOG DOES NOT SCROLL** (Aj, 2026-08-28: *"the logs for netplay don't have a scroll…
   previous conversations have been lying to me about the netplay view being the same as single player"*). Take
   the complaint at face value: the netplay board is **not** the solo board, and claiming otherwise has cost
@@ -668,6 +691,30 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.52 — Save on the end screen, and the two probes the trace was missing
+
+**⤓ Save the battle log is now ON THE END-OF-GAME SCREEN.** Aj: *"i forgot that it's impossible to get the logs
+when the game ends... and i regret not getting it earlier"*. Review-the-board did technically reach the log,
+but navigating away at the one moment you have something worth sending is not a path anyone takes — and
+v1.31.51 had just put the netplay TRACE in that same file, so an unreachable Save made the whole diagnostic
+unreachable exactly when it mattered. Verified end to end: the button is present and visible on the end
+screen, produces a file, and confirms.
+
+**THE EXPORT SAID `deckout` WHENEVER AN OPPONENT QUIT.** `lastEndType` defaults to that and the
+opponent-concede path never set it, so two of Aj's five exported games are filed under the wrong ending —
+and an ingestion log cannot be repaired after the fact. Now `concede`.
+
+**AND THE TRACE KILLED THE LEADING THEORY, which is what it was for.** Two real traces arrived and between
+them established that the host received NOTHING (parked at `awaitRival`, never took control back) and that the
+client's `isClientActive()` returned **true** — so it was never falling through to the local engine, and both
+the `started` theory and the v1.31.50 guard are beside the point for this fault. `clientSend` was never traced,
+yet the client's log advanced five further rounds. Something fed it state the host did not send.
+
+So this version adds the two probes that were missing: **`mirror IN` / `mirror APPLIED`** on the client and
+**`move IN`** on the host — the latter shouting when the source channel is unknown and the seat had to be
+guessed. One more pair of saved logs should name the cause. Four inference-only diagnoses have been wrong now;
+the instrument is doing the work the reasoning could not.
 
 ### v1.31.51 — a netplay trace, and the cross-check that should have existed
 

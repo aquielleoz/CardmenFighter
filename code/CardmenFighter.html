@@ -4889,7 +4889,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.51';
+  var GAME_VERSION='v1.31.52';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -7911,9 +7911,13 @@ window.CardFace = {};
       showModal('<h2>'+(youWin?'YOU WIN! 🦵💥':(MP()?(winnerName+' Wins'):'Rival Wins'))+'</h2>'+
         '<p>'+(youWin?(MP()?'Last Rider standing. You win the free-for-all!':'Your Fighter lands the finishing kick. Crisis averted.'):(MP()?('You were knocked out — '+winnerName+' took the table. Run it back?'):'Your Fighter is down. Run it back?'))+'</p>'+
         '<div class="respOpts"><button id="againBtn" class="respQuick" style="text-align:center;">'+(MP()?'New Game':'New Duel')+'</button>'+
-        '<button id="reviewBtn" class="respLet">👁 Review the board &amp; log</button></div>');
+        '<button id="reviewBtn" class="respLet">👁 Review the board &amp; log</button>'+
+        '<button id="endSaveBtn" class="respLet">⤓ Save the battle log</button></div>');
       $('againBtn').addEventListener('click', openSetup);
       $('reviewBtn').addEventListener('click', enterPeek);   // peek at the final board/log; ↩ Back returns to this screen
+      /* Right here, on the end screen, because this is the moment a player has something worth sending and the
+       * least patience for finding it. The file carries the netplay trace too. */
+      $('endSaveBtn').addEventListener('click', function(){ downloadLog(); this.textContent='✓ Saved'; });
     };
     if(pendingKick){ pendingKick=false; playFinisher(youWin, showWin); }
     else showWin();
@@ -9865,6 +9869,7 @@ window.CardFace = {};
           if(started) broadcastMirror(); else if(isNew || !wasReady) renderNet();   // (join retries fire every 350ms)
         }
         else if(m.t==='move'){ var sseat = srcChan ? seatOfChan(srcChan) : (typeof m.seat==='number'?m.seat:1);
+          trace('move IN', 'from seat '+sseat+' op='+((m.intent&&m.intent.op)||'?')+(srcChan?'':' (NO CHANNEL — seat guessed)'));
           /* A SUGGESTION IS DISPATCHED HERE, ahead of hostApplyMove*, because those return immediately when
            * there is no hostState — i.e. for the entire LOBBY, which is the only place suggestions matter.
            * Putting it inside them looked right and did nothing: the suggestions that appeared were arriving by
@@ -9898,7 +9903,9 @@ window.CardFace = {};
           youDeck=(m.decks&&m.decks[mySeat])||m.clientDeck||'full'; rivalDeck=m.hostDeck||'full'; var yn=$('youDeckName'), rn=$('rivalDeckName'); if(yn)yn.textContent=deckLabel(youDeck); if(rn)rn.textContent=deckLabel(rivalDeck);
           // the host's opening line is written in ITS frame, so a client writes its own locally instead
           logMsg('Online duel — you play <b>'+deckLabel(youDeck)+'</b>. Round 1, jabs only.', 'round'); }   // adopt this seat's concrete deck (for the board labels)
-        else if(m.t==='mirror' && m.seat===mySeat){ connected=true; applyMirror(m.st); }
+        else if(m.t==='mirror' && m.seat===mySeat){ connected=true;
+          trace('mirror IN', 'round='+((m.st&&m.st.round)||'?')+' turn='+((m.st&&m.st.turn)!=null?m.st.turn:'?'));
+          applyMirror(m.st); }
         else if(m.t==='ceremony' && m.seat===mySeat){ clientPlayCeremony(m.res); }
         else if(m.t==='ping'){ SFX.play('ping'); setMessage('🔔 The host is ready — pinged you.'); }
         else if(m.t==='emote'){                               // includes our OWN, echoed back by the host
@@ -10417,6 +10424,8 @@ window.CardFace = {};
       applyMirrorNow(st);
     }
     function applyMirrorNow(st){
+      trace('mirror APPLIED', 'round='+((st&&st.round)||'?')+' turn='+((st&&st.turn)!=null?st.turn:'?')+
+            ' myHand='+((st&&st.players&&st.players[0])?st.players[0].hand.length:'?'));
       if(!started) trace('started: false -> true', 'client path (setup from host)');
       started=true; state=st; hostState=null; window.__cmfNetState=st;
       var owedModal = !!((st.pending && st.respondFor===YOU) || (st.shieldResponse && st.shieldResponse.q===YOU) || (st.preFightQ===YOU));   // overlay windows — keep them up (don't flicker away)
@@ -10500,6 +10509,10 @@ window.CardFace = {};
       }
       if(isHost() && hostState){ hostState.finished=true; hostState.winner=YOU; }
       state.finished=true; state.winner=YOU;      // 2p: opponent conceded → we win
+      /* WITHOUT THIS THE EXPORT SAYS "deckout". `lastEndType` defaults to that, so every game an opponent
+       * quit or was dropped was filed under the wrong ending — two of Aj's five exported games, and the
+       * ingestion log cannot be repaired after the fact. */
+      lastEndType='concede';
       logMsg('🏳 Opponent conceded — you win!', 'good'); busy=false; render(); endGame();
     }
     // The HOST forfeits in an N-player game: it's the authority, so it stays on as a referee (eliminated, spectating)
