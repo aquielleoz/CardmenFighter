@@ -1364,13 +1364,33 @@
     return best;
   }
   /* Consecutive trios, ascending, for the airplane. Returns the top trio value or null. */
+  function consecutive(vals) {
+    vals.sort(function (a, b) { return a - b; });
+    for (var i = 1; i < vals.length; i++) if (vals[i] !== vals[i - 1] + 1) return false;
+    return true;
+  }
   function detectAirplane(cards) {
     var c = valueCounts(cards), vals = [], k;
     for (k in c) { if (c[k] !== 3) return null; vals.push(+k); }      // every value must appear EXACTLY 3 times
-    if (vals.length < 2) return null;
-    vals.sort(function (a, b) { return a - b; });
-    for (var i = 1; i < vals.length; i++) if (vals[i] !== vals[i - 1] + 1) return null;
+    if (vals.length < 2 || !consecutive(vals)) return null;
     return vals[vals.length - 1];
+  }
+  /* 飞机带翅膀 — k consecutive trios plus k spares, where every spare is a single (n = 4k) or every spare is a
+   * pair (n = 5k). The trios must be consecutive; the spares need not be anything, and like every attachment in
+   * this family they are baggage: the top trio decides the play. */
+  function detectAirplaneWings(cards) {
+    var n = cards.length, c = valueCounts(cards), trios = [], ones = 0, twos = 0, k;
+    for (k in c) {
+      if (c[k] === 3) trios.push(+k);
+      else if (c[k] === 1) ones++;
+      else if (c[k] === 2) twos++;
+      else return null;                                              // a 4 of anything is not part of this shape
+    }
+    if (trios.length < 2 || !consecutive(trios)) return null;
+    var t = trios.length;
+    if (ones === t && twos === 0 && n === 4 * t) return trios[t - 1];   // one single per trio
+    if (twos === t && ones === 0 && n === 5 * t) return trios[t - 1];   // one pair per trio
+    return null;
   }
   function detectCombo(cards) {
     if (!cards || !cards.length) return null;
@@ -1399,9 +1419,13 @@
         return { type: 'fourtwo', value: qv, size: 6, key: [qv], cards: cards };
       }
     }
-    if (AIRPLANE && n >= 6 && n % 3 === 0) {         // 飞机 — consecutive trios, bare
+    if (AIRPLANE !== 'off' && n >= 6 && n % 3 === 0) {   // 飞机 — consecutive trios, bare
       var ap = detectAirplane(cards);
       if (ap !== null) return { type: 'airplane', value: ap, size: n, key: [ap], cards: cards };
+    }
+    if (AIRPLANE === 'wings' && n >= 8) {                // 飞机带翅膀 — the same, each trio carrying a spare
+      var apw = detectAirplaneWings(cards);
+      if (apw !== null) return { type: 'airplane', value: apw, size: n, key: [apw], cards: cards };
     }
     if (n === 4 && DBL_PAIR !== 'off') {            // the double-pair slot — one mode, so never ambiguous
       var pc = {}, pi, pvv;
@@ -1574,7 +1598,7 @@
         if (sp) out.push(q.concat(sp));
       });
     }
-    if (AIRPLANE) {                                                               // 飞机 — consecutive trios
+    if (AIRPLANE !== 'off') {                                                     // 飞机 — consecutive trios
       var canTrio = {};
       Object.keys(byRank).forEach(function (r) { if (byRank[r].length >= 3) canTrio[+r] = true; });
       for (var av = 3; av <= 15; av++) {
@@ -1583,7 +1607,21 @@
         for (var aw = av; aw <= 15 && canTrio[aw]; aw++) {
           arun.push(aw);
           acards = acards.concat([byRank[aw][0], byRank[aw][1], byRank[aw][2]]);
-          if (arun.length >= 2 && acards.length <= MAX_HAND) out.push(acards.slice());
+          if (arun.length >= 2 && acards.length <= MAX_HAND) {
+            out.push(acards.slice());
+            if (AIRPLANE === 'wings') {                 // the same trios, carrying the lowest spare cards
+              var usedA = {}; acards.forEach(function (c) { usedA[c.id] = true; });
+              var sing = spares(usedA, arun.length);
+              if (sing && acards.length + sing.length <= MAX_HAND) out.push(acards.concat(sing));
+              var prs = [], pk;
+              for (pk in byRank) {
+                if (usedA[byRank[pk][0].id] || byRank[pk].length < 2) continue;
+                prs.push(byRank[pk][0], byRank[pk][1]);
+                if (prs.length === arun.length * 2) break;
+              }
+              if (prs.length === arun.length * 2 && acards.length + prs.length <= MAX_HAND) out.push(acards.concat(prs));
+            }
+          }
         }
       }
     }
@@ -3285,7 +3323,13 @@
    *             5). A 5-card chain and our straight are the same cards, so a parallel type would be ambiguous.
    *             beats() already demands equal size, so a 6-chain cannot beat a 5-straight — the family's rule,
    *             free. */
-  var TRIO_ONE = false, FOUR_TWO = false, AIRPLANE = false;
+  var TRIO_ONE = false, FOUR_TWO = false;
+  /* CONSECUTIVE TRIOS as a MODE (Aj, 2026-08-28: "we can give it the double pair treatment"). 'wings' still
+   * allows the bare form — allowing the attachment does not forbid going without it — so it is a SUPERSET of
+   * 'bare', which is the same relationship that made the four-card slot a mode. 飞机带翅膀 carries one spare per
+   * trio (singles) or one pair per trio; at MAX_HAND=10 only the TWO-trio forms fit (8 cards and 10), and the
+   * arithmetic below excludes the rest on its own rather than by a special case. */
+  var AIRPLANE = 'off';
   /* STRAIGHT LENGTH IS A MODE, not a boolean (Aj, 2026-08-28): 'off' is the shipped exactly-five, '3' is Tiến
    * lên's floor and '5' is Dou Dizhu's 单顺. They are three settings of one dial — a minimum — so a mode is the
    * honest control, the same reason the four-card slot is one. Note '3' is a strict superset of '5'. */
@@ -3309,7 +3353,7 @@
   function isTrioOne()     { return TRIO_ONE; }
   function setFourTwo(v)   { FOUR_TWO = !!v; }
   function isFourTwo()     { return FOUR_TWO; }
-  function setAirplane(v)  { AIRPLANE = !!v; }
+  function setAirplane(m)  { AIRPLANE = (m === 'bare' || m === 'wings') ? m : 'off'; }
   function isAirplane()    { return AIRPLANE; }
   function setStraightMin(m) { STRAIGHT_MIN = (m === '3' || m === '5') ? m : 'off'; }
   function isStraightMin()   { return STRAIGHT_MIN; }
@@ -4788,7 +4832,7 @@ window.CardFace = {};
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
-  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',kit:'Kits',twopair:'Two Pair',quadro:'Four of a Kind',trioone:'Trio + 1',fourtwo:'Four + 2',airplane:'Airplane'};
+  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',kit:'Kits',twopair:'Two Pair',quadro:'Four of a Kind',trioone:'Trio + 1',fourtwo:'Four + 2',airplane:'Consecutive Trios'};
   /* Kits are the first VARIABLE-LENGTH shape, so a fixed name is not enough — a run of two pairs and a run of
    * three are different plays. Where the combo object is in hand, say which ("2 Kits"); the bare TYPE entry
    * covers the call sites that only carry a type string. */
@@ -4949,8 +4993,13 @@ window.CardFace = {};
       note:'三带一. A trio plus any single card, compared by the <b>trio</b> — the spare is baggage you are shedding, exactly as the pair is in a full house (which is this family\u2019s 三带二). Answered only by a higher trio-plus-one.' },
     { key:'fourTwo',     duel:true, label:'Four of a kind + two spare cards',
       note:'四带二. All four copies of one value plus two more cards — a pair or two singles — compared by the <b>four</b>. In Dou Dizhu the bomb is the BARE four of a kind, so this is the choice to spend it as an ordinary big shape instead of as a chop.' },
-    { key:'airplane',    duel:true, label:'Airplane — consecutive trios',
-      note:'飞机. Two or more trios of consecutive values (777888), compared by the top trio. The winged variants that carry extra cards are not included: at ten cards a bare airplane already needs six of them.' },
+    /* A MODE, because "with spares" still allows the bare form — a superset, like the four-card slot. Named for
+     * what it is rather than for 飞机 (Aj: "let's call this consecutive trios too"), matching the pass that
+     * renamed Quadro. At MAX_HAND=10 only the two-trio winged forms fit (8 cards with a single per trio, 10 with
+     * a pair per trio); the n===4k / n===5k arithmetic excludes the rest without a special case. */
+    { key:'airplane',    duel:true, label:'Consecutive trios',
+      mode:[{v:'off',label:'Off'},{v:'bare',label:'Trios only'},{v:'wings',label:'With spares'}],
+      note:'飞机. Two or more trios of consecutive values (777888), compared by the <b>top trio</b>. <b>With spares</b> also allows 飞机带翅膀, where each trio carries one extra card — either a single each (eight cards) or a pair each (ten, your whole hand). The spares are baggage, as in every attachment in this family, and the bare form stays legal either way.' },
     /* A MODE, not a toggle: these are three settings of one dial — the straight's MINIMUM length — and "3 or
      * more" is a strict superset of "5 or more", which is the same relationship that forced the four-card slot
      * to be a mode. "Off" is the shipped rule, exactly five, so it is a length like the others rather than a
@@ -5018,7 +5067,7 @@ window.CardFace = {};
      * One honest divergence, recorded rather than papered over: a Dou Dizhu 炸弹 beats ANY non-bomb play, while
      * our chop only reaches the all-2s shapes. chopQuadro is the closest thing we have, not the same thing. */
     { key:'doudizhu', label:'Dou Dizhu Specials', title:'The fullest set: 3 Kits, long straights, trio+1, four+two, the airplane, and the bomb',
-      rules:{ kits3:true, straightLen:'5', trioOne:true, fourTwo:true, airplane:true,
+      rules:{ kits3:true, straightLen:'5', trioOne:true, fourTwo:true, airplane:'wings',
               quadro:true, chopQuadro:true } }
   ];
   function presetValue(p,d){ return p.rules[d.key]!==undefined ? p.rules[d.key] : ruleOff(d); }
@@ -5082,7 +5131,7 @@ window.CardFace = {};
       if(E.setChopStrips)       E.setChopStrips(!!RULES.chopStrips);
       if(E.setTrioOne)          E.setTrioOne(!!RULES.trioOne);
       if(E.setFourTwo)          E.setFourTwo(!!RULES.fourTwo);
-      if(E.setAirplane)         E.setAirplane(!!RULES.airplane);
+      if(E.setAirplane)         E.setAirplane(RULES.airplane);
       if(E.setStraightMin)      E.setStraightMin(RULES.straightLen);
   }
   function valLabel(d,v){

@@ -40,7 +40,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   ok(JSON.stringify(await flags(p))===JSON.stringify({loss:'chosen',mill:'targeted',shieldScale:false,drawScales:true,
        apexInf:false, apexNoStrip:false, dblPair:'off', kits3:false, quadro:false,
        chopQuadro:false, chopKits:false, chopSflush:false, chopStrips:false,
-       trioOne:false, fourTwo:false, airplane:false, straightLen:'off'}),
+       trioOne:false, fourTwo:false, airplane:'off', straightLen:'off'}),
      'the shipped defaults are chosen / targeted / flat shields / scaling draw / no apex rules / no pair shapes');
   await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(300);
   ok(await p.evaluate(()=>!!document.getElementById('rulesBtn')), 'the setup dialog offers ⚗️ Custom rules');
@@ -92,8 +92,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
                                    ['chopQuadro','chopQuadro',true],['chopKits','chopKits',true],
                                    ['chopSflush','chopSflush',true],
                                    ['chopStrips','chopStrips',true],
-                                   ['trioOne','trioOne',true],['fourTwo','fourTwo',true],
-                                   ['airplane','airplane',true]]){
+                                   ['trioOne','trioOne',true],['fourTwo','fourTwo',true]]){
     ok(await toggle(p,key), `toggling ${key}`);
     await wait(120);
     const f=await flags(p);
@@ -113,6 +112,13 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   }
   /* THE SECOND MODE ROW: straight length. Three settings of one dial, and "3 or more" is a strict superset of
    * "5 or more" — the same relationship that forced the four-card slot to be a mode rather than two booleans. */
+  /* THE THIRD MODE ROW: consecutive trios. "With spares" still allows the bare form, so it is a superset of
+   * "Trios only" — the same relationship that made the four-card slot a mode. */
+  for(const v of ['bare','wings']){
+    ok(await seg(p,'airplane',v), `picking airplane=${v}`);
+    await wait(120);
+    ok((await flags(p)).airplane===v, `  → the engine now reports airplane=${v}`);
+  }
   for(const v of ['3','5']){
     ok(await seg(p,'straightLen',v), `picking straightLen=${v}`);
     await wait(120);
@@ -123,7 +129,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
     const a=[].filter.call(document.querySelectorAll('.segBtn[data-mode-for="dblPair"]'),b=>b.classList.contains('active'));
     return a.length===1 && a[0].getAttribute('data-mode-v')==='poker' && a[0].getAttribute('aria-checked')==='true';
   }), 'and exactly ONE segment reads active — the modes are alternatives, never both');
-  ok((await p.evaluate(()=>localStorage.getItem('cmf_rules_v1')))==='lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chopQuadro,chopKits,chopSflush,chopStrips,trioOne,fourTwo,airplane,straightLen=3',
+  ok((await p.evaluate(()=>localStorage.getItem('cmf_rules_v1')))==='lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chopQuadro,chopKits,chopSflush,chopStrips,trioOne,fourTwo,airplane=wings,straightLen=3',
      'the choice is serialised self-describingly, like the custom-deck key — the mode row carries its VALUE');
   /* The v1.31.24 boolean `kits` meant "consecutive runs of any length", which is now two settings. An old saved
    * key — or one from an older peer — must land on both halves, not silently turn the rule off. */
@@ -261,11 +267,11 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
    * must stay off, because 连对's floor is three consecutive pairs. */
   await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="doudizhu"]').click()); await wait(250);
   const dd = await flags(p);
-  ok(dd.kits3 && dd.straightLen === '5' && dd.trioOne && dd.fourTwo && dd.airplane && dd.quadro && dd.chopQuadro,
+  ok(dd.kits3 && dd.straightLen === '5' && dd.trioOne && dd.fourTwo && dd.airplane === 'wings' && dd.quadro && dd.chopQuadro,
      'Dou Dizhu turns on 3 Kits, long straights, trio+1, four+two, the airplane and the bomb');
   ok(dd.dblPair === 'off' && dd.chopKits === false && dd.chopSflush === false,
      'and nothing else — the four-card slot stays off (连对 needs three pairs) and Tiến lên\'s kit-chop is cleared');
-  ok((await p.evaluate(() => window.__solo.rulesKey())) === 'kits3,quadro,chopQuadro,trioOne,fourTwo,airplane,straightLen=5',
+  ok((await p.evaluate(() => window.__solo.rulesKey())) === 'kits3,quadro,chopQuadro,trioOne,fourTwo,airplane=wings,straightLen=5',
      'so the three presets are three exact states, not three accumulations');
   ok((await bulk(p)).filter(b => b.active).length === 1, 'and exactly one reads active at a time');
 
@@ -304,7 +310,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   ok(JSON.stringify(await flags(p)) === JSON.stringify({ loss: 'chosen', mill: 'targeted', shieldScale: false,
        drawScales: true, apexInf: false, apexNoStrip: false, dblPair: 'off', kits3: false, quadro: false,
        chopQuadro: false, chopKits: false, chopSflush: false, chopStrips: false,
-       trioOne: false, fourTwo: false, airplane: false, straightLen: 'off' }),
+       trioOne: false, fourTwo: false, airplane: 'off', straightLen: 'off' }),
      'and the engine is back on the shipped game, mode rows included');
   ok((await p.evaluate(() => localStorage.getItem('cmf_rules_v1'))) === '', 'the cleared state is saved too');
   ok((await bulk(p)).filter(b => b.id === 'ruleClear')[0].off,

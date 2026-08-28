@@ -1072,10 +1072,31 @@ function cards(ids) { return ids.map(card); }
        'and the bare quad is still a Quadro — four cards or six, the player chooses which shape to spend them as');
     E.setQuadro(false);
 
-    E.setAirplane(true);
+    /* CONSECUTIVE TRIOS IS A MODE: 'wings' still allows the bare form, so it is a superset of 'bare' — the same
+     * relationship that made the four-card slot a mode rather than two booleans. */
+    E.setAirplane('bare');
     var a = E.detectCombo(plane);
     ok(a && a.type === 'airplane' && a.size === 6 && a.key[0] === 8, '飞机 is two consecutive trios, keyed by the top one');
     ok(E.detectCombo(planeGap) === null, 'and the trios must be CONSECUTIVE — 777 999 is nothing');
+    var wingSingles = plane.concat([C(3, 'S'), C(4, 'D')]);          // one spare per trio
+    var wingPairs = plane.concat([C(3, 'S'), C(3, 'D'), C(4, 'H'), C(4, 'C')]);   // one pair per trio
+    var wingBad = plane.concat([C(3, 'S'), C(3, 'D')]);              // 8 cards, but a pair where singles belong
+    ok(E.detectCombo(wingSingles) === null && E.detectCombo(wingPairs) === null,
+       'and in "bare" mode the winged forms are not shapes at all');
+    E.setAirplane('wings');
+    ok(E.detectCombo(plane).size === 6, 'in "wings" the bare form is still legal — the mode is a superset, not a swap');
+    ok(E.detectCombo(wingSingles).type === 'airplane' && E.detectCombo(wingSingles).size === 8
+       && E.detectCombo(wingSingles).key[0] === 8,
+       '飞机带翅膀 with one single per trio is size 8, still keyed by the TOP TRIO — the spares are baggage');
+    ok(E.detectCombo(wingPairs).size === 10, 'and with one pair per trio it is size 10, your whole hand');
+    ok(E.detectCombo(wingBad) === null,
+       'the spares must be uniform: eight cards carrying a pair instead of two singles is nothing');
+    /* At MAX_HAND=10 only the TWO-trio forms fit — three trios with singles is twelve cards. The arithmetic
+     * excludes them on its own (n === 4k / 5k), which is why there is no special case for it. */
+    ok(E.beats(E.detectCombo(plane), E.detectCombo(wingSingles)) === false
+       && E.beats(E.detectCombo(wingSingles), E.detectCombo(plane)) === false,
+       'a bare airplane and a winged one never meet — different sizes, as with every length in this family');
+    E.setAirplane('bare');
 
     /* 单顺 IS NOT A NEW SHAPE: it is the straight's MINIMUM LENGTH, as a mode — 'off' is the shipped exactly-five,
      * '3' is Tiến lên's floor, '5' is Dou Dizhu's. A five-card chain and our straight are the same cards, so a
@@ -1106,7 +1127,7 @@ function cards(ids) { return ids.map(card); }
     ok(E.detectCombo(run6) === null && E.detectCombo(run5).type === 'straight',
        'and off restores exactly-five, leaving the ordinary straight untouched');
 
-    E.setTrioOne(false); E.setFourTwo(false); E.setAirplane(false);
+    E.setTrioOne(false); E.setFourTwo(false); E.setAirplane('off');
   })();
 
   E.setQuadro(false); E.setKits3(false); E.setDoublePair('off');

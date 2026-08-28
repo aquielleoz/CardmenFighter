@@ -38,6 +38,13 @@ layer where clients suggest and the host decides (v1.31.31), the deck picker's t
      provenance. The presets would then span two sections, so a dedicated preset line is the consequence rather
      than a preference. Watch: `rulestest` asserts the presets live inside a `.ruleSect` heading, `syncBulk()`
      finds them by `.ruleBulk .bulkBtn`, and the section count and scope-tag count are both asserted.
+   - **RENAME THE PAIR ROWS TO DESCRIBE RATHER THAN NAME** (Aj, 2026-08-28), in the same spirit as Quadro →
+     "Four of a kind" and 飞机 → "Consecutive trios": `Four-card double pairs` → **`2 pairs`** with segments
+     **`[Off] [Consecutive] [Non-consecutive]`**, and `3 Kits and up — longer runs of consecutive pairs` →
+     **`3 or more consecutive pairs`**. Note this retires the "Kits" vocabulary from the panel, which CLAUDE.md
+     currently defends as load-bearing — the requirement it was protecting is that the two shapes must not share
+     a name, and Consecutive / Non-consecutive satisfies that at least as well. **Update that note when the
+     rename lands**, do not leave the two contradicting each other.
    - **THE 2 OUT OF STRAIGHTS, as an option, and Aj wants it in the Chikicha preset** (2026-08-28). Our top
      straight window is `J-Q-K-A-2` because we ladder the 2 at 15; Big Two allows it, Tiến lên and Dou Dizhu both
      bar the heo/2 from chains. With the chain unlocked this matters more: a long run becomes a way to launder
@@ -606,7 +613,7 @@ smaller sibling, its bigger relative, the trio version of a run, and a length un
 | --- | --- | --- | --- |
 | Trio + one spare card | 三带一 | trio + any single, size 4 | the trio |
 | Four of a kind + two spare cards | 四带二 | quad + a pair or two singles, size 6 | the quad |
-| Airplane | 飞机 | two or more **consecutive** trios | the top trio |
+| **Consecutive trios** (a mode) | 飞机 / 飞机带翅膀 | `Off` / `Trios only` / `With spares` | the top trio |
 | **Straight length** (a mode) | 单顺 | `Exactly 5` / `3 or more` / `5 or more` | value, at equal length |
 
 **单顺 is not a new shape — it is the straight's MINIMUM LENGTH, and it is a mode** (Aj: *"turns straights into
@@ -673,6 +680,30 @@ label, the chop's label, both preset tooltips and the combo name shown when one 
 **The key and the internal name stay `quadro`**: the key is in saved rule sets and in the netplay/export string,
 and stable keys are the habit that saved the `recruit` difficulty tier from a silent break. So the tests and code
 comments still say Quadro, deliberately — that is the shape's name in the engine, not on screen.
+
+**The wings are in, as a mode** (Aj: *"is implementing the wings hard? we can give it the double pair
+treatment"*). Not hard, and a mode is right for the same reason as the four-card slot: **"With spares" still
+allows the bare form**, so it is a superset rather than an alternative. 飞机带翅膀 gives each trio one extra card —
+a single each, or a pair each — and at `MAX_HAND=10` only the two-trio forms fit (**8** cards with singles, **10**
+with pairs, your whole hand). Three trios with singles would be twelve, and the `n === 4k` / `n === 5k` arithmetic
+excludes that on its own rather than by a special case. The spares must be uniform: eight cards carrying a pair
+where two singles belong is nothing.
+
+**Measured, and the wings change WHICH form gets played rather than how fast the game goes.** At six players,
+120 games:
+
+| mode | rounds/game | played | by size |
+| --- | --- | --- | --- |
+| Off | 28.6 | 0 | — |
+| Trios only | 28.0 | 573 | 6 → 504, 9 → 69 |
+| With spares | 27.9 | 511 | **6 → 18, 8 → 88, 10 → 393** |
+
+Bare airplanes all but vanish (504 → 18) and the ten-card form takes over. The attachment is a **card-shedding
+outlet**, which is exactly its job in the game it comes from — and worth noting our win condition is shields, not
+an empty hand, so the AI spending ten cards on one round is its own policy rather than something the rule forces.
+
+**Renamed "Consecutive trios"** (Aj), like the Quadro pass: the shape is described rather than named. Internal
+type stays `airplane`.
 
 **And a Dou Dizhu Specials preset**, now that there is a set to bundle: `kits3, chainLong, trioOne, fourTwo,
 airplane, quadro, chopQuadro`. 连对 is our 3 Kits — its floor is three consecutive pairs, so the four-card slot

@@ -131,13 +131,33 @@
     return best;
   }
   /* Consecutive trios, ascending, for the airplane. Returns the top trio value or null. */
+  function consecutive(vals) {
+    vals.sort(function (a, b) { return a - b; });
+    for (var i = 1; i < vals.length; i++) if (vals[i] !== vals[i - 1] + 1) return false;
+    return true;
+  }
   function detectAirplane(cards) {
     var c = valueCounts(cards), vals = [], k;
     for (k in c) { if (c[k] !== 3) return null; vals.push(+k); }      // every value must appear EXACTLY 3 times
-    if (vals.length < 2) return null;
-    vals.sort(function (a, b) { return a - b; });
-    for (var i = 1; i < vals.length; i++) if (vals[i] !== vals[i - 1] + 1) return null;
+    if (vals.length < 2 || !consecutive(vals)) return null;
     return vals[vals.length - 1];
+  }
+  /* 飞机带翅膀 — k consecutive trios plus k spares, where every spare is a single (n = 4k) or every spare is a
+   * pair (n = 5k). The trios must be consecutive; the spares need not be anything, and like every attachment in
+   * this family they are baggage: the top trio decides the play. */
+  function detectAirplaneWings(cards) {
+    var n = cards.length, c = valueCounts(cards), trios = [], ones = 0, twos = 0, k;
+    for (k in c) {
+      if (c[k] === 3) trios.push(+k);
+      else if (c[k] === 1) ones++;
+      else if (c[k] === 2) twos++;
+      else return null;                                              // a 4 of anything is not part of this shape
+    }
+    if (trios.length < 2 || !consecutive(trios)) return null;
+    var t = trios.length;
+    if (ones === t && twos === 0 && n === 4 * t) return trios[t - 1];   // one single per trio
+    if (twos === t && ones === 0 && n === 5 * t) return trios[t - 1];   // one pair per trio
+    return null;
   }
   function detectCombo(cards) {
     if (!cards || !cards.length) return null;
@@ -166,9 +186,13 @@
         return { type: 'fourtwo', value: qv, size: 6, key: [qv], cards: cards };
       }
     }
-    if (AIRPLANE && n >= 6 && n % 3 === 0) {         // 飞机 — consecutive trios, bare
+    if (AIRPLANE !== 'off' && n >= 6 && n % 3 === 0) {   // 飞机 — consecutive trios, bare
       var ap = detectAirplane(cards);
       if (ap !== null) return { type: 'airplane', value: ap, size: n, key: [ap], cards: cards };
+    }
+    if (AIRPLANE === 'wings' && n >= 8) {                // 飞机带翅膀 — the same, each trio carrying a spare
+      var apw = detectAirplaneWings(cards);
+      if (apw !== null) return { type: 'airplane', value: apw, size: n, key: [apw], cards: cards };
     }
     if (n === 4 && DBL_PAIR !== 'off') {            // the double-pair slot — one mode, so never ambiguous
       var pc = {}, pi, pvv;
@@ -341,7 +365,7 @@
         if (sp) out.push(q.concat(sp));
       });
     }
-    if (AIRPLANE) {                                                               // 飞机 — consecutive trios
+    if (AIRPLANE !== 'off') {                                                     // 飞机 — consecutive trios
       var canTrio = {};
       Object.keys(byRank).forEach(function (r) { if (byRank[r].length >= 3) canTrio[+r] = true; });
       for (var av = 3; av <= 15; av++) {
@@ -350,7 +374,21 @@
         for (var aw = av; aw <= 15 && canTrio[aw]; aw++) {
           arun.push(aw);
           acards = acards.concat([byRank[aw][0], byRank[aw][1], byRank[aw][2]]);
-          if (arun.length >= 2 && acards.length <= MAX_HAND) out.push(acards.slice());
+          if (arun.length >= 2 && acards.length <= MAX_HAND) {
+            out.push(acards.slice());
+            if (AIRPLANE === 'wings') {                 // the same trios, carrying the lowest spare cards
+              var usedA = {}; acards.forEach(function (c) { usedA[c.id] = true; });
+              var sing = spares(usedA, arun.length);
+              if (sing && acards.length + sing.length <= MAX_HAND) out.push(acards.concat(sing));
+              var prs = [], pk;
+              for (pk in byRank) {
+                if (usedA[byRank[pk][0].id] || byRank[pk].length < 2) continue;
+                prs.push(byRank[pk][0], byRank[pk][1]);
+                if (prs.length === arun.length * 2) break;
+              }
+              if (prs.length === arun.length * 2 && acards.length + prs.length <= MAX_HAND) out.push(acards.concat(prs));
+            }
+          }
         }
       }
     }
@@ -2052,7 +2090,13 @@
    *             5). A 5-card chain and our straight are the same cards, so a parallel type would be ambiguous.
    *             beats() already demands equal size, so a 6-chain cannot beat a 5-straight — the family's rule,
    *             free. */
-  var TRIO_ONE = false, FOUR_TWO = false, AIRPLANE = false;
+  var TRIO_ONE = false, FOUR_TWO = false;
+  /* CONSECUTIVE TRIOS as a MODE (Aj, 2026-08-28: "we can give it the double pair treatment"). 'wings' still
+   * allows the bare form — allowing the attachment does not forbid going without it — so it is a SUPERSET of
+   * 'bare', which is the same relationship that made the four-card slot a mode. 飞机带翅膀 carries one spare per
+   * trio (singles) or one pair per trio; at MAX_HAND=10 only the TWO-trio forms fit (8 cards and 10), and the
+   * arithmetic below excludes the rest on its own rather than by a special case. */
+  var AIRPLANE = 'off';
   /* STRAIGHT LENGTH IS A MODE, not a boolean (Aj, 2026-08-28): 'off' is the shipped exactly-five, '3' is Tiến
    * lên's floor and '5' is Dou Dizhu's 单顺. They are three settings of one dial — a minimum — so a mode is the
    * honest control, the same reason the four-card slot is one. Note '3' is a strict superset of '5'. */
@@ -2076,7 +2120,7 @@
   function isTrioOne()     { return TRIO_ONE; }
   function setFourTwo(v)   { FOUR_TWO = !!v; }
   function isFourTwo()     { return FOUR_TWO; }
-  function setAirplane(v)  { AIRPLANE = !!v; }
+  function setAirplane(m)  { AIRPLANE = (m === 'bare' || m === 'wings') ? m : 'off'; }
   function isAirplane()    { return AIRPLANE; }
   function setStraightMin(m) { STRAIGHT_MIN = (m === '3' || m === '5') ? m : 'off'; }
   function isStraightMin()   { return STRAIGHT_MIN; }

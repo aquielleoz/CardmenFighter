@@ -1258,7 +1258,7 @@ __QR__
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
-  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',kit:'Kits',twopair:'Two Pair',quadro:'Four of a Kind',trioone:'Trio + 1',fourtwo:'Four + 2',airplane:'Airplane'};
+  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',kit:'Kits',twopair:'Two Pair',quadro:'Four of a Kind',trioone:'Trio + 1',fourtwo:'Four + 2',airplane:'Consecutive Trios'};
   /* Kits are the first VARIABLE-LENGTH shape, so a fixed name is not enough — a run of two pairs and a run of
    * three are different plays. Where the combo object is in hand, say which ("2 Kits"); the bare TYPE entry
    * covers the call sites that only carry a type string. */
@@ -1419,8 +1419,13 @@ __QR__
       note:'三带一. A trio plus any single card, compared by the <b>trio</b> — the spare is baggage you are shedding, exactly as the pair is in a full house (which is this family\u2019s 三带二). Answered only by a higher trio-plus-one.' },
     { key:'fourTwo',     duel:true, label:'Four of a kind + two spare cards',
       note:'四带二. All four copies of one value plus two more cards — a pair or two singles — compared by the <b>four</b>. In Dou Dizhu the bomb is the BARE four of a kind, so this is the choice to spend it as an ordinary big shape instead of as a chop.' },
-    { key:'airplane',    duel:true, label:'Airplane — consecutive trios',
-      note:'飞机. Two or more trios of consecutive values (777888), compared by the top trio. The winged variants that carry extra cards are not included: at ten cards a bare airplane already needs six of them.' },
+    /* A MODE, because "with spares" still allows the bare form — a superset, like the four-card slot. Named for
+     * what it is rather than for 飞机 (Aj: "let's call this consecutive trios too"), matching the pass that
+     * renamed Quadro. At MAX_HAND=10 only the two-trio winged forms fit (8 cards with a single per trio, 10 with
+     * a pair per trio); the n===4k / n===5k arithmetic excludes the rest without a special case. */
+    { key:'airplane',    duel:true, label:'Consecutive trios',
+      mode:[{v:'off',label:'Off'},{v:'bare',label:'Trios only'},{v:'wings',label:'With spares'}],
+      note:'飞机. Two or more trios of consecutive values (777888), compared by the <b>top trio</b>. <b>With spares</b> also allows 飞机带翅膀, where each trio carries one extra card — either a single each (eight cards) or a pair each (ten, your whole hand). The spares are baggage, as in every attachment in this family, and the bare form stays legal either way.' },
     /* A MODE, not a toggle: these are three settings of one dial — the straight's MINIMUM length — and "3 or
      * more" is a strict superset of "5 or more", which is the same relationship that forced the four-card slot
      * to be a mode. "Off" is the shipped rule, exactly five, so it is a length like the others rather than a
@@ -1488,7 +1493,7 @@ __QR__
      * One honest divergence, recorded rather than papered over: a Dou Dizhu 炸弹 beats ANY non-bomb play, while
      * our chop only reaches the all-2s shapes. chopQuadro is the closest thing we have, not the same thing. */
     { key:'doudizhu', label:'Dou Dizhu Specials', title:'The fullest set: 3 Kits, long straights, trio+1, four+two, the airplane, and the bomb',
-      rules:{ kits3:true, straightLen:'5', trioOne:true, fourTwo:true, airplane:true,
+      rules:{ kits3:true, straightLen:'5', trioOne:true, fourTwo:true, airplane:'wings',
               quadro:true, chopQuadro:true } }
   ];
   function presetValue(p,d){ return p.rules[d.key]!==undefined ? p.rules[d.key] : ruleOff(d); }
@@ -1552,7 +1557,7 @@ __QR__
       if(E.setChopStrips)       E.setChopStrips(!!RULES.chopStrips);
       if(E.setTrioOne)          E.setTrioOne(!!RULES.trioOne);
       if(E.setFourTwo)          E.setFourTwo(!!RULES.fourTwo);
-      if(E.setAirplane)         E.setAirplane(!!RULES.airplane);
+      if(E.setAirplane)         E.setAirplane(RULES.airplane);
       if(E.setStraightMin)      E.setStraightMin(RULES.straightLen);
   }
   function valLabel(d,v){
