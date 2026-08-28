@@ -1,0 +1,144 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cardmen — origin probe</title>
+<!--
+  WHAT THIS IS FOR. Camera scanning is parked (branch `feat/qr-scanning`, green, unmerged) on one claim: a file
+  opened from Android's Downloads is `content://`, an opaque origin, so Chrome refuses `getUserMedia` without
+  ever prompting. That claim is load-bearing for a real product decision — whether to host the game at a URL —
+  and it has only ever been checked by watching the game fail, which cannot distinguish "origin refused" from
+  "our code is wrong".
+
+  So this isolates the variable: ONE self-contained file, no game code, that reports what the browser will
+  actually give this origin. Open the SAME file from three places and compare:
+
+    1. downloaded, opened from Downloads   -> content://   (the situation today)
+    2. through a Cloudflare quick tunnel   -> https://     (the situation if we hosted it)
+    3. over the LAN from a laptop          -> http://192.168.x.x
+
+  Reading the three together is the point. Any one of them alone tells you almost nothing.
+
+  It also re-tests two things I asserted and got wrong on 2026-08-28: that `navigator.share` could not exist on
+  content:// (it does — Aj was looking at the button), and by extension that storage and clipboard were gone
+  too. Those rows are here so the record is measured rather than deduced.
+-->
+<style>
+  :root{ --bg:#12091c; --fg:#f3ecff; --line:#3a2b52; --ok:#8ff0a4; --no:#ff9d9d; --dim:#b9a8d4; }
+  *{box-sizing:border-box}
+  body{margin:0; padding:16px; background:var(--bg); color:var(--fg);
+       font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  h1{font-size:19px; margin:0 0 2px;}
+  .sub{color:var(--dim); font-size:13px; margin-bottom:14px; word-break:break-all;}
+  table{width:100%; border-collapse:collapse; margin-bottom:14px;}
+  td{padding:7px 4px; border-bottom:1px solid var(--line); vertical-align:top;}
+  td:first-child{color:var(--dim); font-size:14px;}
+  td:last-child{text-align:right; font-weight:700; font-family:ui-monospace,Menlo,monospace; font-size:14px;}
+  .y{color:var(--ok)} .n{color:var(--no)}
+  button{font:inherit; font-weight:700; width:100%; padding:13px; margin:6px 0; border-radius:11px;
+         border:1px solid var(--line); background:#241536; color:var(--fg);}
+  #out{white-space:pre-wrap; font-family:ui-monospace,Menlo,monospace; font-size:13px; color:var(--dim);
+       border:1px solid var(--line); border-radius:10px; padding:10px; min-height:3em;}
+  video{width:100%; border-radius:10px; margin-top:8px; display:none; background:#000;}
+</style>
+
+<h1>Origin probe</h1>
+<div class="sub" id="where">…</div>
+<table id="caps"></table>
+
+<!-- getUserMedia needs a user gesture, so it cannot be part of the passive report above. THE INTERESTING
+     OUTCOME IS WHICH WAY IT FAILS: a prompt that is declined is a grantable origin (good news), while an
+     immediate NotAllowedError with no prompt is the opaque-origin refusal we think we are seeing today. -->
+<button id="cam">Ask for the camera</button>
+<button id="shareBtn">Try the share sheet</button>
+<div id="out">Tap a button above.</div>
+<video id="v" playsinline muted></video>
+
+<script>
+(function(){
+  var rows=[];
+  function add(label, val, good){
+    rows.push('<tr><td>'+label+'</td><td class="'+(good===null?'':(good?'y':'n'))+'">'+val+'</td></tr>');
+  }
+  function yn(b){ return b ? 'yes' : 'no'; }
+
+  document.getElementById('where').textContent = location.href;
+
+  /* THE ROW THAT EXPLAINS EVERY OTHER ROW. Secure context is the gate on getUserMedia, service workers and
+     the async clipboard; `content://` and `http://192.168.x.x` are not secure, `https://` and localhost are. */
+  add('secure context', yn(window.isSecureContext), window.isSecureContext);
+  add('protocol', location.protocol, null);
+  /* An opaque origin serialises as "null" — that is the tell, and it is different from merely being insecure. */
+  add('origin', (location.origin===null||location.origin==='null') ? 'null (opaque)' : location.origin,
+      !(location.origin===null||location.origin==='null'));
+
+  var md = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  add('navigator.mediaDevices', yn(md), md);
+
+  /* FEATURE-DETECT getSupportedFormats(), NEVER THE CONSTRUCTOR — it can exist without qr_code, and that
+     distinction is what once cleared the decoder when our own encoder was at fault. */
+  add('BarcodeDetector', yn(typeof BarcodeDetector!=='undefined'), typeof BarcodeDetector!=='undefined');
+  if (typeof BarcodeDetector!=='undefined' && BarcodeDetector.getSupportedFormats) {
+    BarcodeDetector.getSupportedFormats().then(function(f){
+      var has=f.indexOf('qr_code')>=0;
+      document.getElementById('caps').insertAdjacentHTML('beforeend',
+        '<tr><td>&nbsp;&nbsp;↳ supports qr_code</td><td class="'+(has?'y':'n')+'">'+yn(has)+'</td></tr>');
+    }, function(){});
+  }
+
+  add('navigator.share', yn(!!navigator.share), !!navigator.share);
+  add('navigator.clipboard.writeText', yn(!!(navigator.clipboard&&navigator.clipboard.writeText)),
+      !!(navigator.clipboard&&navigator.clipboard.writeText));
+  add('serviceWorker', yn(!!navigator.serviceWorker), !!navigator.serviceWorker);
+
+  /* Storage on an opaque origin can be ephemeral, which would mean saved decks and rules do not survive on a
+     downloaded copy. `visits` answers it directly: reload and see whether the number climbs. */
+  var store='unavailable', visits='—';
+  try{
+    localStorage.setItem('cmf_probe','1');
+    store = localStorage.getItem('cmf_probe')==='1' ? 'works' : 'wrote but did not read back';
+    var n=parseInt(localStorage.getItem('cmf_probe_visits')||'0',10)+1;
+    localStorage.setItem('cmf_probe_visits', String(n));
+    visits=String(n);
+  }catch(e){ store='threw: '+e.name; }
+  add('localStorage', store, store==='works');
+  add('&nbsp;&nbsp;↳ visits (reload to test persistence)', visits, null);
+
+  document.getElementById('caps').innerHTML=rows.join('');
+
+  var out=document.getElementById('out');
+  function say(s){ out.textContent=s; }
+
+  document.getElementById('cam').addEventListener('click', function(){
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      say('navigator.mediaDevices is undefined — the API is not exposed to this origin at all.\n'+
+          'That is the opaque/insecure-origin case: there is nothing to prompt for.');
+      return;
+    }
+    say('asking…');
+    var t0=Date.now();
+    navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } }).then(function(st){
+      var v=document.getElementById('v'); v.srcObject=st; v.style.display='block'; v.play();
+      say('GRANTED after '+(Date.now()-t0)+'ms — this origin can use the camera.\n'+
+          'Camera scanning would work here.');
+    }, function(err){
+      var dt=Date.now()-t0;
+      /* THE TIMING IS THE EVIDENCE. A human declining takes a second or more; an instant refusal means no
+         prompt was ever shown, which is the origin rejecting it rather than a person. */
+      say(err.name+': '+(err.message||'')+'\nafter '+dt+'ms\n\n'+
+          (dt<400 ? 'Instant — so no prompt appeared. This is the ORIGIN refusing, not you declining.'
+                  : 'Slow enough that a prompt probably appeared. If you declined, the origin is fine and\n'+
+                    'you can re-allow it in site settings.'));
+    });
+  });
+
+  document.getElementById('shareBtn').addEventListener('click', function(){
+    if(!navigator.share){ say('navigator.share is undefined on this origin.'); return; }
+    try{
+      var r=navigator.share({ text:'Cardmen origin probe — share works here.' });
+      if(r&&r.then) r.then(function(){ say('share sheet opened and completed.'); },
+                           function(e){ say('share sheet opened, then: '+e.name+' (cancelling counts as this).'); });
+      else say('navigator.share returned nothing — old implementation.');
+    }catch(e){ say('navigator.share threw: '+e.name+' — '+(e.message||'')); }
+  });
+})();
+</script>

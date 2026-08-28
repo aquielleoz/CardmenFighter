@@ -1123,6 +1123,8 @@ definition, so it cannot delete them.
 - `docs/RIDES-AND-FORMS.md` — design of the J/Q/K layer. `docs/MULTIPLAYER-DESIGN.md` — netplay design.
 - `docs/COUNT-UP-DESIGN.md` — the count-up / "Kick Coin" branch: why shields are load-bearing (catch-up,
   the transform gate, the targeting signal), and Aj's narrower lean toward a count-up **class**. Open.
+- `docs/ORIGIN-EXPERIMENT.md` — the **origin probe** (`code/origin-probe.html` + `code/serve.js`): does an
+  https origin actually unblock the camera? Instrument built and validated; **results table still empty**.
 - `docs/PATCHNOTES.md` — balance principles + win-rate history. `docs/REWORK-HISTORY.md` — how it got here.
 - `docs/BUILD-PLAN-v0.82.md`, `docs/Cardmen-Fighter-Design-v0.70.md`, `docs/STACK-DESIGN-v0.53.md` —
   historical snapshots, not current truth.
