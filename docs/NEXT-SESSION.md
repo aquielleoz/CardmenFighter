@@ -165,6 +165,35 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **THE WIRE IS CLEAN. THE CLIENT-SIDE CEREMONY/LOG PATH IS NOT. (2026-08-28, third pair of logs — the good
+  ones.)** Both traces were HEALTHY end to end, which is the most valuable thing established all day:
+  ```
+  HOST    move IN from seat 1 op=play  x2   -> hostTakeBack -> awaitRival   (x6 rounds, orderly)
+  CLIENT  mirror IN round=N turn=T -> mirror APPLIED ... -> clientSend play (x6, orderly)
+  ```
+  So the transport, the host authority, the relay and the room code are all FINE. What is broken is what the
+  client does with a resolved round. Aj: *"client just races to the game end"*. Its log shows each round
+  resolution TWICE, in two different perspectives, separated by the catch-up line:
+  ```
+  You won the round of Jabs.
+  Rival move 1 card from your deck into Energy — catch-up.    <- perspective mangled
+  You won the round of Jabs.
+  Rival moves 1 card from their deck into Energy — catch-up.  <- correct
+  ```
+  plus `Pair (NaN, NaN)`, whole round blocks replayed, and a header reading **Round 8 — YOU WON** while the
+  host sat at round 5 and the last applied mirror said round 5.
+  **Two candidate paths log the same event:** `clientPlayCeremony` -> `announceRoundWin` -> `say()` (local,
+  rotated from the ceremony payload) and the host`s own `say()` broadcast.
+  **BUT THAT FIX WAS TRIED AND REVERTED, because the A/B was null.** Suppressing the local `say()` on a client
+  changed nothing measurable: round-result line counts are already EQUAL on both sides locally (7 vs 7), so the
+  duplication does not reproduce here at all. It also carries a real cost — a client would then depend entirely
+  on the broadcast, and a dropped message silently loses a log line. **Do not re-apply it without a
+  reproduction.**
+  **What is needed is a repro, not another theory.** Five inference-only diagnoses have now been wrong (ghost
+  tabs, an AI game, `started`, the local-engine fall-through, the double `say`). The distinguishing conditions
+  in Aj`s sessions and not in `nettest_sync`: a real phone, mobile data, real latency, and repeated
+  disconnect/reconnect cycles. **Try driving nettest_sync with induced disconnects** (`__cmf.drop`/`reconnect`
+  exist) — the reconnect path replaying a ceremony is the most promising untested lead.
 - **THE FORK IS NOT THE LOCAL-ENGINE FALL-THROUGH. The trace killed that theory (2026-08-28, second pair of
   logs).** Read these before theorising — they are the first evidence with instrumentation attached:
   ```
