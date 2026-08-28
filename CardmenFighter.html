@@ -4889,7 +4889,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.52';
+  var GAME_VERSION='v1.31.53';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -7329,25 +7329,28 @@ window.CardFace = {};
     if(res.kick){
       pendingKick=true; lastEndType='kick';
       setMessage('💥🦵 <b>'+who+'</b> land'+(w===YOU?'':'s')+' the FIGHTER KICK — '+foe+' explode'+(foe==='You'?'':'s')+'!');
-      say(w, '💥 {who} land'+(w===YOU?'':'s')+' the FIGHTER KICK — '+foe+' is out!', cls);
+      /* NOTE `foe` is still built with the SENDER's `logName`, so a client can read a foe name where it should read
+       * "You". Left as a known limit rather than fixed blind: resolving it needs the struck seats on the wire,
+       * and `say` carries one seat. Filed in the BACKLOG. The verb agreement is fixed here. */
+      sayOnce(w, '💥 {who} landed the FIGHTER KICK — '+foe+' is out!', cls);
     }
     else if(res.prevented && !res.shieldStripped){
       setMessage('🛡 The loss was prevented!');
-      say(w, '{who} won with a '+spec+' - but the loss was prevented.', cls);
+      sayOnce(w, '{who} won with a '+spec+' - but the loss was prevented.', cls);
     }
     else if(res.shieldStripped){
       setMessage('<b>'+foe+'</b> '+lostVerb+' a shield.');
-      say(w, '{who} won with a <b>'+spec+'</b> - '+foe+' '+lostVerb+' a shield.', cls);
+      sayOnce(w, '{who} won with a <b>'+spec+'</b> - '+foe+' '+lostVerb+' a shield.', cls);
     }
     else if(res.wonWithCombo){
       // A Special won but nothing was stripped (no valid target, or every strike was blanked). Saying
       // "won the round of Jabs" here was simply wrong — Aj saw exactly this after striking P3's shield.
       setMessage('<b>'+who+'</b> won with a <b>'+spec+'</b> — no shield lost.');
-      say(w, '{who} won with a <b>'+spec+'</b> - no shield was lost.', cls);
+      sayOnce(w, '{who} won with a <b>'+spec+'</b> - no shield was lost.', cls);
     }
     else {
       setMessage('<b>'+who+'</b> won the round of Jabs.');
-      say(w, '{who} won the round of Jabs.', cls);
+      sayOnce(w, '{who} won the round of Jabs.', cls);
     }
     logCatchUp(res, w, struck);
     TUT.note('roundWin', res);
@@ -7355,17 +7358,22 @@ window.CardFace = {};
   // Catch-up (M1 shields-as-cards + M2 loser-mill): surface the round loser's refuel. Skipped on a Kick
   // (the loser is out). Every seat is named from res.milled / res.struck — the old version derived the loser
   // as "whichever of YOU/RIVAL didn't win", which in a free-for-all told the WRONG player they lost a shield.
+  /* say() on a host or in solo; nothing on a netplay client, where the host's broadcast carries the line. */
+  function sayOnce(actor, tpl, cls){
+    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()) return;
+    return say(actor, tpl, cls);
+  }
   function logCatchUp(res, w, struck){
     if(res.kick) return;
     if(res.shieldToHand && struck && struck.length){
       struck.forEach(function(q){
-        say(q, '🛡→✋ The broken shield returns to {who}’s hand.', q===YOU?'you':'rival');
+        sayOnce(q, '🛡→✋ {who} took the broken shield back into hand.', q===YOU?'you':'rival');
       });
     }
     if(res.milled){
       Object.keys(res.milled).forEach(function(k){
         var q=parseInt(k,10), mn=res.milled[k];
-        say(q, '{who} move'+(q===YOU?'':'s')+' '+mn+' card'+(mn>1?'s':'')+' from '+(q===YOU?'your':'their')+' deck into Energy — catch-up.', q===YOU?'you':'rival');
+        sayOnce(q, '{who} moved '+mn+' card'+(mn>1?'s':'')+' from deck to Energy — catch-up.', q===YOU?'you':'rival');
       });
     }
   }

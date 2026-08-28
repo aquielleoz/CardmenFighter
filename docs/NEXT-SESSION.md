@@ -721,6 +721,43 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.53 — one event, one log line, and narration that reads in every frame
+
+**Solved from Aj's saved logs, and the traces were the reason it was findable.** Both traces were healthy end to
+end — `move IN` / `hostTakeBack` / `awaitRival` cycling on the host, `mirror IN` / `mirror APPLIED` /
+`clientSend` on the client, mirrors strictly monotonic to round 10, and **both headers agreeing on "Reached
+Round 10"**. So the transport, the host authority, the relay and the room code were never the problem. The
+defect was entirely in narration, which is why it looked catastrophic and measured as nothing.
+
+**Two bugs, and each hid the other.**
+
+**1. A BROADCAST TEMPLATE MUST BE READER-INDEPENDENT.** `say()` sends the template plus the actor's absolute
+seat and the receiver rotates `{who}` — that always worked. But the grammar *around* `{who}` was baked in the
+sender's perspective, and a receiver cannot undo it:
+```
+host about itself    "{who} move N cards from your deck"   -> client: "Rival move 1 card from your deck"
+host about a client  "{who} moves N cards from their deck" -> client: "You moves 2 cards from their deck"
+```
+Both forms are in Aj's log character for character. **The fix is PAST TENSE**, which removes subject-verb
+agreement altogether so one string reads correctly for every reader — no sender-side branch to get wrong.
+Possessives went the same way ("You’s hand" was the other tell). Three templates: the catch-up mill, the
+FIGHTER KICK and the returned shield.
+
+**2. ONE EVENT, ONE LOG LINE.** A client narrated every round resolution **twice** — once from its own ceremony
+replay (which exists to drive the animation) and once from the host's broadcast. Measured: host 5 round-wins and
+5 catch-ups, client **10 and 10**, banners 5 on both. `sayOnce` is `say` on a host or in solo and a no-op on a
+netplay client, because **the host is the authority and owns the shared history**.
+
+**THE MEASUREMENT TRAP, which cost most of a session and is the lesson worth keeping.** The two copies are **not
+adjacent** — the catch-up line sits between them. So an "adjacent duplicates" probe reports zero, and an A/B
+built on it reads as a **null result**. I implemented fix 2 hours earlier, measured adjacency, got null, and
+**reverted a correct fix**. The metric that works is the **count ratio against the host**: the host is the
+authority, so its count is the truth. `nettest_sync` now asserts exactly that, plus that no line is stuck in
+the host's grammar.
+
+**Why no suite caught it:** they check state, controls and each side against expectations. Nothing compared the
+two sides' NARRATION. Aj's two saved logs did, in seconds.
+
 ### v1.31.52 — Save on the end screen, and the two probes the trace was missing
 
 **⤓ Save the battle log is now ON THE END-OF-GAME SCREEN.** Aj: *"i forgot that it's impossible to get the logs

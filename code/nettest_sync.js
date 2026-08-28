@@ -117,6 +117,30 @@ let mock=null;
   ok(drift===null, 'the two sides never diverge while a real game is played over the relay'+(drift?'  ← DIVERGED: '+drift:''));
   ok(worst>=2, 'and the game got past round 1 legally — round '+worst+' reached, '+acted+' actions');
 
+  /* ONE EVENT, ONE LOG LINE. A client used to narrate every round resolution twice — once from its own
+   * ceremony replay, once from the host's broadcast — so its log ran at exactly 2x the host's for round wins
+   * and catch-ups (measured host 5/5, client 10/10).
+   * THE METRIC MATTERS: the two copies are NOT adjacent (the catch-up line sits between them), so an
+   * "adjacent duplicates" check reports zero and an A/B on it reads as a null result. That mistake cost most of
+   * a session. Compare COUNTS against the host instead — the host is the authority, so its count is the truth. */
+  const lines=p=>p.evaluate(()=>{
+    const L=[].slice.call(document.querySelectorAll('#log > *')).map(e=>e.textContent.trim());
+    const k=t=>L.filter(x=>t.test(x)).length;
+    return { roundwin:k(/won the round|won with a/), catchup:k(/catch-up/), banner:k(/^Round \d+ begins/) };
+  });
+  const lh=await lines(host), lj=await lines(join);
+  ok(lh.roundwin>0 && lj.roundwin===lh.roundwin,
+     'the client narrates each round result ONCE, like the host ('+lh.roundwin+' vs '+lj.roundwin+')');
+  ok(lj.catchup===lh.catchup,
+     '  → and each catch-up once ('+lh.catchup+' vs '+lj.catchup+') — 2x here means the ceremony is narrating locally as well');
+  /* A BROADCAST TEMPLATE MUST READ CORRECTLY IN EVERY FRAME. `say()` rotates {who} for the reader, but the
+   * grammar AROUND it used to be baked in the sender's perspective, so a client saw "You moves 2 cards from
+   * their deck" and "Rival move 1 card from your deck". Past tense removes the agreement entirely. */
+  const bad=await join.evaluate(()=>[].slice.call(document.querySelectorAll('#log > *'))
+    .map(e=>e.textContent.trim())
+    .filter(l=>/You moves|Rival move \d|from your deck|You’s|You's/.test(l)));
+  ok(bad.length===0, 'and no line is stuck in the HOST\'s grammar'+(bad.length?('  ← '+bad[0]):''));
+
   const h=await view(host), j=await view(join);
   ok(h.round===j.round, 'they finish agreeing on the round (host '+h.round+', client '+j.round+')');
   ok(h.bad===0 && j.bad===0, 'and neither side ever held a card with no rank');

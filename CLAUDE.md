@@ -100,7 +100,8 @@ node stucksim.js 6 150        # stuck-while-following turns split into SHAPE-stu
 node nettest_clientwin.js    # the MIRROR of roundstall: a client move that does NOT end the round hands the
                              # turn back — the host's board must go live AND its status line must say so (10).
 node nettest_sync.js         # THE CROSS-CHECK: plays a real game over the ROOM CODE and makes the two sides
-                             # prove they AGREE — round, and each side's view of the other's hand size against
+                             # prove they AGREE — round, each side's view of the other's hand size, and that NARRATION is not doubled
+                             # (count ratio vs the host, never adjacency) — against
                              # the other's actual hand (7). The only suite that compares the two ends to each
                              # OTHER rather than to expectations. Reaches round ~14 in ~50 actions.
 node nettest_relay.js        # THE ROOM-CODE PATH end to end: host shows four characters, joiner types them, a
@@ -728,6 +729,24 @@ N-player driver (`runOpponents`). It is the dwell + `flashArt`/`revealEffect` + 
 It used to live inline in `runRival`, and the free-for-all driver only logged, so **every readability feature was
 silently missing in 3-6 player games** (v1.29.3 fixed it by extracting). If you add a beat, add it there — never
 in one driver.
+
+**A BROADCAST TEMPLATE MUST BE READER-INDEPENDENT, NOT JUST `{who}`-SUBSTITUTABLE (v1.31.53).** `say()` sends
+the template plus the actor absolute seat and the receiver rotates `{who}`. That always worked. What broke for
+months was the grammar AROUND it: templates branched on `q===YOU` for the verb and the possessive, baking the
+SENDER perspective into a string the receiver cannot repair —
+`"{who} move N cards from your deck"` reached a client as **"Rival move 1 card from your deck"**, and
+`"{who} moves N from their deck"` as **"You moves 2 cards from their deck"**. **USE PAST TENSE**: it removes
+subject-verb agreement, so one string is correct for every reader and there is no branch to get wrong. Same for
+possessives — `{who}’s hand` renders as "You’s hand".
+
+**ONE EVENT, ONE LOG LINE — and the host owns it (v1.31.53).** A client narrated every round resolution twice:
+once from its own ceremony replay (which exists to drive the animation) and once from the host broadcast.
+`sayOnce` is `say` on a host or in solo and a **no-op on a netplay client**, because the host is the authority
+and owns the shared history.
+**MEASURE THE COUNT RATIO, NEVER ADJACENCY.** The two copies are NOT adjacent — the catch-up line sits between
+them — so an "adjacent duplicates" probe reports zero and an A/B on it reads as a NULL RESULT. That mistake
+made me revert a correct fix on 2026-08-28. Compare counts against the HOST: it is the authority, so its count
+is the truth. `nettest_sync` asserts it.
 
 **Narration is reader-relative.** Never write a name into a log line — call `say(actor, '{who} …', cls)`. It
 renders `{who}` in the local frame via `logName` (yourself → "You"; a duel opponent → "Rival"; otherwise `P<n>`)
