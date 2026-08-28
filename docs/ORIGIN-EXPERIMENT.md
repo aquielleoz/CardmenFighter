@@ -1,6 +1,6 @@
 # The origin experiment
 
-**Status: instrument built and validated, not yet run on a phone.** Aj, 2026-08-28: *"let's do an exp on that."*
+**Status: RUN AND SETTLED, 2026-08-28.** The parked claim is confirmed — see Results. Aj, 2026-08-28: *"let's do an exp on that."*
 
 ## Why this exists
 
@@ -45,18 +45,25 @@ creating a lasting public link.
 
 ## Results
 
-Fill this in. Empty means not yet run. **Cell 2 ran 2026-08-28 and the camera was GRANTED**, with a live
-preview rendering — so an https origin can scan, confirmed on real hardware rather than argued from spec.
+Run on Aj's phone, 2026-08-28.
 
-| row | 1 · content:// | 2 · https tunnel | 3 · LAN http |
+| | 1 · `content://` | 2 · https tunnel | 3 · LAN http |
 | --- | --- | --- | --- |
-| secure context | | | |
-| origin (opaque?) | | | |
-| `navigator.mediaDevices` | | | |
-| camera: prompt or instant refusal | | **GRANTED after 250ms** | |
-| `BarcodeDetector` supports `qr_code` | | | |
-| `navigator.share` | | | |
-| `localStorage` persists across reloads | | | |
+| camera | **NotAllowedError after 100ms** | **GRANTED**, live preview | unreachable |
+| meaning | instant, so **no prompt appeared** — the origin refused | an https origin can scan | client isolation on the wifi, **not a result** |
+
+**The parked claim is confirmed.** Camera scanning cannot work from a downloaded file, and it does work over
+https. The decision is no longer technical — it is only *"is a public URL acceptable"*.
+
+**One refinement the game itself could never have shown.** The error was `NotAllowedError`, **not** a missing
+API: the probe only reaches that call if `navigator.mediaDevices.getUserMedia` exists. So on `content://` the
+API **is** exposed and the *permission* is refused with no prompt. That is exactly why this read as a
+permissions bug for months — site settings say "Ask first", the API is present, and nothing ever asks. Anyone
+debugging this again should expect a **denied** permission, not an absent one.
+
+**Cell 3 is untested, not negative.** The laptop sat on `172.23.x.x` (office wifi) and the phone could not reach
+it at all, so it says nothing about whether an insecure LAN origin would be granted the camera. That prediction
+is still only a prediction.
 
 **The camera row is the one that decides things, and the WAY it fails is the evidence.** The probe times the
 rejection: a human declining takes a second or more, while an instant `NotAllowedError` means no prompt was

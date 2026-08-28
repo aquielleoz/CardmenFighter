@@ -179,8 +179,15 @@ that turns "nothing decodes" from a mystery into a bug in our own code.
 
 **Camera scanning is NOT in the game, and the reason is the origin, not the code.** A file opened from Android's
 Downloads is `content://` — an opaque origin — so Chrome rejects `getUserMedia` **without prompting** (symptom:
-site settings read "Ask first" and it never asks). Confirmed by A/B on one phone. LAN `http://192.168.x.x` is not
-a secure context either. See the BACKLOG before re-proposing it.
+site settings read "Ask first" and it never asks). **MEASURED AND SETTLED 2026-08-28** with
+`code/origin-probe.html` through a Cloudflare quick tunnel — see `docs/ORIGIN-EXPERIMENT.md`: `content://`
+gives `NotAllowedError` after **100ms** (far too fast for a prompt, so none appeared), and the same file over
+**https is GRANTED** with a live preview. So scanning needs hosting, and the decision is no longer technical.
+**The refinement worth keeping: it is a DENIED permission, not a missing API.** The probe only reaches that
+call if `navigator.mediaDevices.getUserMedia` exists, so `content://` exposes the API and silently refuses the
+permission — exactly why this read as a permissions bug for months. Expect denial, not absence.
+**The LAN cell was never tested** (office wifi isolated the phone), so "`http://192.168.x.x` is not a secure
+context either" remains reasoning rather than measurement. See the BACKLOG before re-proposing it.
 **DO NOT GENERALISE FROM "OPAQUE ORIGIN" TO A LIST OF DEAD APIS** (2026-08-28). Reasoning that `content://` is
 not a secure context, I told Aj the `↗ Send it` share button could not be rendering on his phone, since
 `navigator.share` is specified as secure-context-only. **It renders and works** — he was looking at it. So the
