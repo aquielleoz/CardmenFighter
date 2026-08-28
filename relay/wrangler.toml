@@ -1,8 +1,8 @@
-# Deploy:
+# Deploy — RUN THESE FROM THIS DIRECTORY (relay/), because `main` below is relative to this file:
 #   npm i -g wrangler          (or npx wrangler)
 #   wrangler login
 #   wrangler d1 create cardmen-relay          # paste the returned database_id below
-#   wrangler d1 execute cardmen-relay --file relay/schema.sql --remote
+#   wrangler d1 execute cardmen-relay --file schema.sql --remote
 #   wrangler deploy
 #
 # Everything here is free-tier: Workers 100k requests/day, D1 5M reads-writes/month. A handshake costs ~70
