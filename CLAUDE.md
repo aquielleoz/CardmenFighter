@@ -377,6 +377,54 @@ Three more things worth knowing before touching them:
   which is asserted rather than assumed) and **clears itself** when the last of the group goes off. `chopStrips`
   is the case — it modifies the chops, so with no chop enabled it can only mislead. Any change to a group member
   re-renders the panel, since the dependent row's live/dead state moved.
+- **THE 2 IS BARRED FROM EVERY CHAIN (v1.31.45), and it is a DEFAULT, not an option.** `seqTwos` is the opt-in
+  half. All three source games agree — Tiến lên and Dou Dizhu bar it from straights, 连对 and 飞机 alike; Big Two
+  admits it to a run only by demoting it **below the 3**, so its top straight is 10-J-Q-K-A as well. Our old
+  `J-Q-K-A-2` window came from no family: it fell out of ranking the apex at 15 and letting runs read the same
+  `fightValue`. Three things to know before touching it:
+  - **The bar is on the CHAIN, never the baggage** (Dou Dizhu's rule exactly). A trio of 2s cannot be a link in
+    an airplane; a lone 2 is a fine **wing**, a fine spare on a trio, and a pair or trio of 2s is untouched.
+    `twoInChain` guards the links, `twoIsChainTrio` guards only the trios of a winged airplane.
+  - **THE SIZE-4 SLOT DELEGATES TO `detectKit` — do not re-inline the run test** (fixed in v1.31.45; Aj:
+    *"isn't that a slippery slope to technical debt?"*, and it was). `detectKit`'s floor is `n < 4`, so it has
+    always covered the four-card case; the slot had a second copy of "are these pairs consecutive", and that
+    copy drifted **the same day** the 2 bar landed — the bar reached `detectKit` and `A-A-2-2` stayed legal.
+    What is genuinely local to the slot is the **mode dispatch** (kit vs poker two pair) and the early
+    `return null` that stops a non-two-pair four from falling through; the run test is not.
+    Same rule as `isChopOf`: one definition, called twice.
+    The boundary the slot draws is real and worth keeping in mind — from the same four cards `A-A-2-2` is not a
+    kit and **is** a poker two pair, because a two-pair allows gaps and so is not a chain.
+  - **THE DRIFT GUARD IS A CROSS-SIZE ASSERTION, not a per-size one.** `test.js` asserts a 4-kit and a 6-kit
+    **agree** about the 2 at both settings. Asserting each size on its own passes with two copies present; only
+    agreement catches the second copy. Verified by reintroducing the bug — both it and the `A-A-2-2` assertion
+    go red, so it is not vacuous.
+  - **`APEX_INF` already did this for straights and kits** as a side effect (an Infinity-valued 2 is never
+    `v+1`), so the two rules agree rather than fight; this one just does not need the apex rule switched on.
+  - Measured: pacing unmoved (medians 10/19/28 at 2/4/6p either way), jab share ±0.3, but straights played fall
+    **27%** at 6p. Deck-neutral by construction — every legal deck holds exactly four 2s.
+- **NO BIG TWO PRESET, and the reason is structural** (Aj asked, 2026-08-28; answered and dropped). Big Two's
+  identity is the **poker ladder** for five-card plays and **suit tiebreaks**, and we refuse both on principle —
+  `beats()` compares within a type, and our suits are **classes**, so ranking them makes one class strictly
+  better. What is left to switch on is the default game, so the button would set two or three rules and claim a
+  whole game. Two facts worth keeping: **Pusoy Dos ranks suits ♦>♥>♠>♣** against Big Two's ♠>♥>♣>♦ — the same
+  mechanic with incompatible orders, which is a decent argument that suit ranking is convention rather than
+  essence — and **dropping the flush is itself an attested variation** of the family, so v1.14 has precedent.
+  Four-of-a-kind **+ one** spare (Big Two's, distinct from our 四带二's two spares) remains unbuilt and is the
+  only cheap piece of it.
+- **THE SECTION'S `keys` LIST IS THE RENDER ORDER (v1.31.45).** `sectionsHTML` used to filter `RULE_DEFS`, so
+  `keys` decided only WHICH rows appeared — reordering it was a silent no-op, and a reorder that measurably
+  changed nothing still looked applied. Note `rulesKey()` still follows `RULE_DEFS`, so the serialised order and
+  the on-screen order are deliberately different things.
+- **A MODE ROW COSTS 102px, A BOOLEAN 46px, AND A GRID ROW COSTS ITS TALLEST MEMBER.** Three modes spread over
+  three rows charge 102px three times; clustered into one row they charge it once. That is worth 112px, and it
+  is what paid for rule twenty at 1512×945. **Do not reorder rows by control type to win pixels** — the Shapes
+  order is defensible on meaning (the pair-run slot, the pair-run length, the straight's length and the trio-run
+  are one subject), and the saving is why it was noticed, not why it was done.
+  **The other lever is which SECTION a rule sits in**, and it is free when the destination row has spare
+  columns: `seqTwos` moved from Shapes to The 2 (where it belongs — it is a rule about the apex card, and the
+  giveaway was that no preset sets it), which dropped Shapes from three rows to two and cost The 2 nothing.
+  Twenty rules now render in **six** rule rows. Check the destination's column occupancy before assuming a move
+  is free.
 - **THE DOU DIZHU SHAPES (v1.31.39), and the one that is not a shape.** 三带一 (`trioOne`), 四带二 (`fourTwo`)
   and 飞机 (`airplane`) are new types keyed by their trio/quad/top-trio — the attachment is baggage, which is not
   a new idea here because **our full house IS 三带二**. 单顺 is **not a new type**: it is the straight's MINIMUM
@@ -667,8 +715,8 @@ stray processes before suspecting the code. And never wait on work with `while p
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
 Status as of **v1.31.38 — green, all 37 suites plus `browsertest`, run serially 2026-08-27**
-(panel-area counts refreshed at v1.31.44):
-`test` 318, `netview` 28, `mptest` 82, `rulestest` 141, `nettest_rules` 28, `nettest_suggest` 34,
+(panel-area counts refreshed at v1.31.45):
+`test` 325, `netview` 28, `mptest` 82, `rulestest` 143, `nettest_rules` 28, `nettest_suggest` 34,
 `landscapetest` 96, `decktest` 42, `viewtest` 10, `piletest` 30, `revealtest` 12, `phantasmtest` 12,
 `exporttest` 15, `lessontest` 19, `lessontest_energy` 14, `versiontest` 15, `sharetest` 14, `qrtest` 19,
 `qrref` 26 (darwin only), `nettest_full` 5, `nettest_log` 14, `nettest_names` 8, `nettest_version` 14,
@@ -880,6 +928,17 @@ than poker hands: FGO pays you for chaining cards that match in type or source, 
 explains why the family games keep fitting: Tongits' melds are threes, Tiến lên and Dou Dizhu climb with sets,
 and every shape added so far has been a *set* rule rather than a ranking rule. **When judging a proposed shape,
 ask whether it rewards matching** — that is the game's grain.
+
+**MATCHING IS AIKIDO** (Aj, 2026-08-28: *"you counter an attack by actually reacting to the attack and not just
+by doing your own thing"*). That is the argument against a cross-type ladder, and it is worth having ready
+because the ladder keeps looking reasonable: Big Two, Pusoy Dos and Chinese Poker all rank five-card plays as
+poker hands (straight < flush < full house < four+1 < straight flush), so a flush answers a straight without
+engaging with it. Our `beats()` requires equal `type` **and** equal `size`, so the only answer to a shape is
+that shape, higher — you have to meet the attack. It is also why the dead `straightflush` clause read as live
+behaviour for so long: it was the one line written as though a ladder existed.
+**The chop is the deliberate exception**, and framing it this way explains its cost: it is the move that
+refuses to engage, so it buys the lead and — by default — no damage.
+Note the Tiến lên / Dou Dizhu branch has no ladder either; the poker one belongs to the Big Two branch alone.
 
 ## Balance & the colour pie
 

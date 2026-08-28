@@ -51,10 +51,9 @@ layer where clients suggest and the host decides (v1.31.31), the deck picker's t
        are offered on **0.51%** of turns at six players and 7 pairs on **0.00%**, so the upper two rungs are
        decoration even now that we know hands run to 17 cards.
      - Our flat reach of 2 therefore stands, and it sits deliberately between rungs one and two.
-   - **THE 2 OUT OF STRAIGHTS, as an option, and Aj wants it in the Chikicha preset** (2026-08-28). Our top
-     straight window is `J-Q-K-A-2` because we ladder the 2 at 15; Big Two allows it, Tiến lên and Dou Dizhu both
-     bar the heo/2 from chains. With the chain unlocked this matters more: a long run becomes a way to launder
-     the apex card into a shape nobody can answer by value.
+   - ~~**THE 2 OUT OF STRAIGHTS**~~ **SHIPPED in v1.31.45**, and as a DEFAULT rather than an option — the
+     research found all three source games agree, so the option is the opt-in half (`seqTwos`). It also turned
+     out to be broader than "straights": the bar is on every chain. See the changelog.
    - **The landlord rule — SHELVED** (Aj, 2026-08-28). 斗地主 = "fight the landlord": bidding, a 3-card kitty,
      one player against two as a team, bombs doubling the stakes. It stays written down because the reasoning is
      worth keeping, but it is not queued: this engine has no teams and no asymmetric win condition, so it is a
@@ -609,6 +608,65 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.45 — the 2 leaves the sequences
+
+**A default change, not a new option.** The 2 can no longer be a link in any run — not a straight, not
+consecutive pairs, not consecutive trios — so runs go from 3 up to the Ace. `Sequences can include the 2`
+(`seqTwos`) is the opt-in half, and like every rule in the panel it defaults off; unusually, it is phrased
+positively, because for once the shipped behaviour genuinely *is* the off value rather than something a
+double negative had to describe.
+
+**All three source games agree, which is what made this a default and not a toggle.** Tiến lên and Dou Dizhu
+bar it outright and say so of every chain type ([pagat](https://www.pagat.com/climbing/doudizhu.html): *"at
+least five cards of consecutive rank, from 3 up to ace… Twos and jokers cannot be used"*, repeated for 连对 and
+飞机). Big Two lets a 2 into a run only by demoting it **below the 3**, so its top straight is 10-J-Q-K-A too.
+Our `J-Q-K-A-2` window came from none of them — it fell out of ranking the apex at 15 and letting runs read the
+same `fightValue`. Aj, on reading the family rules: *"the tien len and dou dizhu rules are looking like what i
+remember from my own chikicha games."*
+
+**The bar is on the CHAIN, never the baggage** — Dou Dizhu's rule exactly. A trio of 2s cannot be a link in an
+airplane, but a lone 2 is a perfectly good wing; a 2 is still a legal spare on a trio, and a pair or trio of 2s
+is untouched. The sharpest statement of the boundary: `A-A-2-2` is **not** a kit and **is** a poker two pair,
+from the same four cards, because a two-pair allows gaps and therefore is not a chain.
+
+**Measured, both arms, interleaved seeds.** Pacing does not move — medians 10/19/28 rounds at 2/4/6 players
+against 10/18/28 with the 2 allowed — and the jab share shifts 0.1–0.3 points. What moves is texture: straights
+played fall **27%** at six players (2638 vs 3626). That is the ninth rule in a row to change options without
+changing tempo; treat it as the default expectation. Deck-neutral by construction, since every legal deck holds
+exactly four 2s. Note any `rulesim`/`mpsim` row recorded before this version was measured under the old default.
+
+**One implementation trap, since fixed properly, and one instrument bug it exposed.** The bar first reached
+`detectKit` and left `A-A-2-2` legal, because the four-card slot had its own inline copy of "are these pairs
+consecutive". Aj's question — *"isn't that a slippery slope to technical debt? why doesn't it use detect
+combo?"* — was the right one, and the answer was that nothing justified the copy: `detectKit`'s floor is
+`n < 4`, so it always covered that size. The slot now delegates to it and keeps only what is genuinely local,
+the **mode dispatch** between kit and poker two pair. `test.js` gained the assertion that would have caught it:
+a 4-kit and a 6-kit must **agree** about the 2 at both settings — per-size assertions pass with two copies
+present, agreement does not. Confirmed non-vacuous by reintroducing the bug and watching it go red. And the panel reorder that pays for the new row *silently did nothing* at
+first: `sectionsHTML` filtered `RULE_DEFS`, so a section's `keys` list decided only which rows appeared, never
+in what order. It maps over `keys` now, so the list reads the way the panel renders.
+
+**The rule lives in "The 2", not in Shapes** (Aj: *"since no preset use the Sequences can include the 2, can we
+move it up to The 2?"*). The preset observation is the tell — every other Shapes row is something a preset
+turns on, and this one is about the apex card. It sits after `apexNoStrip`, whose note says "unless the rule
+above is also on" and means `apexInf`; that pair has to stay adjacent and in that order.
+
+**The panel fits twenty rules at 1512×945, with no trimming**, and it now does so in **six** rule rows rather
+than seven. Two things got it there. The Shapes section leads with its **mode** rows: a mode row is 102px
+against a boolean's 46px and a grid row costs its tallest member, so three modes spread across three rows
+charged 102px three times — clustering them recovered 112px, and rule twenty needed 108. Then moving `seqTwos`
+into The 2 dropped Shapes from three rows to two while costing nothing, since The 2's row had two free columns.
+Both orders are defensible on meaning first — the pair-run slot, the pair-run length, the straight's length and
+the trio-run are one subject; the 2's rules belong under The 2 — which is the only reason they were acceptable.
+**Do not reorder rows by control type to win pixels.**
+
+**No Big Two preset** (Aj, asked and answered). Big Two's identity is the poker ladder and suit tiebreaks, and
+we refuse both: our shapes only beat their own type at the same size, and our suits are **classes**, so ranking
+them makes one class strictly better. A preset would have set two or three rules and claimed a whole game.
+Recorded in CLAUDE.md with the reasoning, including that Pusoy Dos ranks suits ♦>♥>♠>♣ against Big Two's
+♠>♥>♣>♦ — the same mechanic with incompatible orders — and that dropping the flush is itself an attested
+variation, so our v1.14 removal has precedent inside the family.
 
 ### v1.31.44 — the chops get their own section
 

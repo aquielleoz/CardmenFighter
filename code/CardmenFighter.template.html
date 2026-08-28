@@ -1396,6 +1396,8 @@ __QR__
      * the panel must default off; same inversion as `flatDraw` and `chopStrips`. */
     { key:'noFullHouse', duel:true, label:'No full houses',
       note:'A trio plus a pair is a shape by default — it is this family\u2019s 三带二, and the reason "trio + one spare card" below reads as its smaller sibling. Switch this on and five cards as three-plus-two are simply not a play. Tiến lên has no full house at all.' },
+    { key:'seqTwos',     duel:true, label:'Sequences can include the 2',
+      note:'By default the 2 cannot be a link in any run — not a straight, not consecutive pairs, not consecutive trios — so runs go from 3 up to the Ace. All three source games agree on that: Tiến lên and Dou Dizhu bar it outright, and Big Two lets a 2 into a run only by demoting it <b>below</b> the 3, so its top straight is 10-J-Q-K-A as well. Our old J-Q-K-A-2 window came from none of them: it fell out of ranking the 2 at the top and letting runs read the same value. Switch this on to have it back. Either way the bar is on the <b>chain</b>, never the baggage — a 2 is still a legal spare card on a trio or a wing on an airplane, exactly as in Dou Dizhu, and a pair or trio of 2s is unaffected.' },
     { key:'trioOne',     duel:true, label:'Trio + one spare card',
       note:'三带一. A trio plus any single card, compared by the <b>trio</b> — the spare is baggage you are shedding, exactly as the pair is in a full house (which is this family\u2019s 三带二). Answered only by a higher trio-plus-one.' },
     { key:'fourTwo',     duel:true, label:'Four of a kind + two spare cards',
@@ -1465,7 +1467,7 @@ __QR__
      * repeats its only row is just noise. */
     { key:'mode',   title:'The game',       keys:['basics'] },
     { key:'table',  title:'Table rules',    keys:['lossAll','millAll','shieldScale','flatDraw'] },
-    { key:'apex',   title:'The 2',          keys:['apexInf','apexNoStrip'] },
+    { key:'apex',   title:'The 2',          keys:['apexInf','apexNoStrip','seqTwos'] },
     /* ONE SECTION FOR SHAPES AND CHOPS, not one per source game (Aj, 2026-08-28: "why did we add a separate
      * category for dou dizhu?"). Because the answer is that there was no good reason: this section was ALREADY
      * full of family shapes — the kits are 连对/đôi thông, the Quadro is 炸弹/tứ quý, poker's two pair is Big Two —
@@ -1473,7 +1475,7 @@ __QR__
      * property the sections exist for: a preset belongs in the heading of the group it changes, and Chikicha
      * Specials sets a shape AND a chop, so it spanned both. The family a shape came from belongs in its note. */
     { key:'shapes', title:'Shapes',
-      keys:['dblPair','kits3','quadro','noFullHouse','trioOne','fourTwo','airplane','straightLen'],
+      keys:['dblPair','kits3','straightLen','airplane','quadro','noFullHouse','trioOne','fourTwo'],
       presets:true },
     /* CHOPS ARE THEIR OWN SECTION (v1.31.44). They are not one more shape: every other row here adds a play
      * that obeys the matching rule, and these four are the exception to it. Splitting them also lets the three
@@ -1582,6 +1584,7 @@ __QR__
       if(E.setFourTwo)          E.setFourTwo(!!RULES.fourTwo);
       if(E.setAirplane)         E.setAirplane(RULES.airplane);
       if(E.setStraightMin)      E.setStraightMin(RULES.straightLen);
+      if(E.setSeqTwos)          E.setSeqTwos(!!RULES.seqTwos);
   }
   function valLabel(d,v){
     if(!d.mode) return v?'On':'Off';       // capitalised to match a mode row's own labels, which sit beside it
@@ -4825,7 +4828,8 @@ __QR__
     function sectionsHTML(){
       var claimed={}, out='';
       RULE_SECTIONS.forEach(function(sec){
-        var rows=RULE_DEFS.filter(function(d){ return sec.keys.indexOf(d.key)>=0; });
+        var rows=sec.keys.map(function(k){ return RULE_DEFS.filter(function(d){ return d.key===k; })[0]; })
+                         .filter(function(d){ return !!d; });
         if(!rows.length) return;
         rows.forEach(function(d){ claimed[d.key]=1; });
         out+=(sec.presets?presetsHTML():'')+

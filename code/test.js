@@ -159,7 +159,13 @@ function cards(ids) { return ids.map(card); }
   ok(E.beats(single(13, 'D'), single(10, 'D')), 'REWORK: King beats 10');
   ok(!E.beats(single(10, 'D'), single(2, 'D')), 'REWORK: 10 does not beat apex 2');
   ok(E.beats(E.detectCombo([sc(2, 'D'), sc(2, 'H')]), E.detectCombo([sc(13, 'D'), sc(13, 'H')])), 'REWORK: pair of 2s beats pair of Kings (apex-as-stopper by value)');
-  ok(E.detectCombo([sc(11, 'D'), sc(12, 'D'), sc(13, 'D'), sc(1, 'D'), sc(2, 'D')]).type === 'straight', 'REWORK: J-Q-K-A-2 same suit = straight (no straight-flush tier)');
+  ok(E.detectCombo([sc(11, 'D'), sc(12, 'D'), sc(13, 'D'), sc(1, 'D'), sc(2, 'D')]) === null,
+     'J-Q-K-A-2 is NOT a straight by default: the 2 is barred from chains, as in Tiến lên and Dou Dizhu');
+  E.setSeqTwos(true);
+  var jqka2 = E.detectCombo([sc(11, 'D'), sc(12, 'D'), sc(13, 'D'), sc(1, 'D'), sc(2, 'D')]);
+  ok(jqka2 && jqka2.type === 'straight' && jqka2.value === 15,
+     '  → and IS one under seqTwos, topping at the apex (and still no straight-flush tier)');
+  E.setSeqTwos(false);
   ok(E.detectCombo([sc(10, 'C'), sc(11, 'D'), sc(12, 'H'), sc(13, 'S'), sc(1, 'C')]).value === 14, 'REWORK: 10-J-Q-K-A straight tops at Ace (14)');
   ok(E.detectCombo([sc(1, 'D'), sc(2, 'D'), sc(3, 'D'), sc(4, 'D'), sc(5, 'D')]) === null, 'REWORK: old A-2-3-4-5 low straight no longer a combo');
   // The apex 2 is a vanilla trump. The STOPPER mechanic it used to carry was retired by the rework and its
@@ -837,9 +843,35 @@ function cards(ids) { return ids.map(card); }
   ok(E.detectCombo(gap) === null, 'pairs with a GAP (4s+6s) are not a kit — the run must be consecutive');
   ok(E.detectCombo(quad) === null, 'four of a kind is not a kit: two values are required, not one');
   ok(E.detectCombo(trip1) === null, 'a trio plus a spare card is not a kit — every value must be exactly a pair');
+  /* A CHAIN IS A CHAIN whichever shape it is: the same rule that bars J-Q-K-A-2 bars A-A-2-2, which is Dou
+   * Dizhu's 连对 rule ("twos cannot be used") applied to the shape we borrowed from it. */
+  ok(E.detectCombo(apex) === null,
+     'A-A-2-2 is NOT a kit by default — the 2 is barred from every chain, not only from straights');
+  E.setSeqTwos(true);
   var ca = E.detectCombo(apex);
-  ok(ca && ca.type === 'kit' && ca.value === 15,
-     'A-A-2-2 IS a kit: the apex 2 sits in a run, consistent with straights already allowing J-Q-K-A-2');
+  ok(ca && ca.type === 'kit' && ca.value === 15, '  → and IS one under seqTwos, valued at the apex');
+  E.setSeqTwos(false);
+  /* The 2 is barred as a LINK only. Poker's two pair is not a chain (it allows gaps), so the same four cards
+   * are legal in that mode and not in this one — which is the sharpest statement of what the rule covers. */
+  E.setDoublePair('poker');
+  var tp2 = E.detectCombo(apex);
+  ok(tp2 && tp2.type === 'twopair', 'but A-A-2-2 IS a poker two pair: the bar is on CHAINS, not on the card');
+  E.setDoublePair('kits');
+
+  /* THE DRIFT GUARD. A kit of 4 and a kit of 6 must agree about the 2 at every setting — they are one shape at
+   * two lengths. They did NOT agree when v1.31.45 first landed, because the size-4 slot re-implemented the run
+   * test inline instead of calling detectKit, so the new bar reached one length and not the other. Asserting
+   * each size on its own would have passed; asserting that the sizes AGREE is what catches a second copy. */
+  var kit4with2 = [C(1, 'D'), C(1, 'H'), C(2, 'C'), C(2, 'S')];               // A-A-2-2
+  var kit6with2 = [C(13, 'D'), C(13, 'H'), C(1, 'C'), C(1, 'S'), C(2, 'D'), C(2, 'H')];   // K-K-A-A-2-2
+  var agree = true, k4on, k6on;
+  E.setSeqTwos(false);
+  agree = agree && E.detectCombo(kit4with2) === null && E.detectCombo(kit6with2) === null;
+  E.setSeqTwos(true);
+  k4on = E.detectCombo(kit4with2); k6on = E.detectCombo(kit6with2);
+  agree = agree && !!k4on && k4on.type === 'kit' && !!k6on && k6on.type === 'kit';
+  E.setSeqTwos(false);
+  ok(agree, 'a 4-kit and a 6-kit agree about the 2 at BOTH settings — one shape, two lengths, one definition');
 
   ok(E.beats(c67, c45) === true, 'a higher kit beats a lower one of the same length');
   ok(E.beats(c45, c67) === false, 'and not the other way round');
@@ -1111,6 +1143,21 @@ function cards(ids) { return ids.map(card); }
     ok(E.beats(E.detectCombo(plane), E.detectCombo(wingSingles)) === false
        && E.beats(E.detectCombo(wingSingles), E.detectCombo(plane)) === false,
        'a bare airplane and a winged one never meet — different sizes, as with every length in this family');
+
+    /* THE 2 IS BARRED FROM A CHAIN, NEVER FROM THE BAGGAGE (v1.31.45) — Dou Dizhu's rule exactly: a trio of 2s
+     * cannot be a link in an airplane, but a lone 2 is a perfectly good wing. This is the distinction the
+     * implementation is most likely to get wrong, because the wing and the link are cards in the SAME play. */
+    var planeA2 = [C(1, 'D'), C(1, 'H'), C(1, 'C'), C(2, 'D'), C(2, 'H'), C(2, 'C')];   // AAA-222, both links
+    var wing2   = [C(13, 'D'), C(13, 'H'), C(13, 'C'), C(1, 'D'), C(1, 'H'), C(1, 'C'),
+                   C(2, 'S'), C(3, 'S')];                                               // KKK-AAA + a 2 wing
+    E.setAirplane('wings');
+    ok(E.detectCombo(planeA2) === null, 'a trio of 2s cannot be a LINK in an airplane');
+    var w2 = E.detectCombo(wing2);
+    ok(w2 && w2.type === 'airplane' && w2.size === 8 && w2.key[0] === 14,
+       'but a 2 is a legal WING — the bar is on the chain, and the top trio still decides the play');
+    E.setSeqTwos(true);
+    ok(E.detectCombo(planeA2) !== null, '  → and seqTwos lets the trio of 2s be a link after all');
+    E.setSeqTwos(false);
     E.setAirplane('bare');
 
     /* 单顺 IS NOT A NEW SHAPE: it is the straight's MINIMUM LENGTH, as a mode — 'off' is the shipped exactly-five,
