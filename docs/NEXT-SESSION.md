@@ -669,6 +669,47 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.51 — a netplay trace, and the cross-check that should have existed
+
+Aj: *"how does it say that no tests failed when we can't even get to round 2 legally on the same computer"*.
+Verified by grep rather than argued, and the answer is structural:
+- **`nettest_relay` never played a move** — no `fightBtn`, no `passBtn`, no round assertion. It proved a
+  connection and a deal and stopped.
+- **`nettest_rtc` never touched the relay** — it plays rounds over copy-paste.
+So **no suite had ever played one move over the room-code path**, which is how twenty-odd green netplay suites
+could not see a client forking a duel.
+
+**And the deeper gap: every suite drives ONE side and asserts against EXPECTATIONS. None compared the two sides
+to each other.** Aj's two saved battle logs did that comparison in four seconds and found a divergence nothing
+automated could. `nettest_sync.js` is that comparison: it plays a real game over the room code and asserts, at
+every step, that the two ends agree on the round and that **each side's view of the other's hand size equals the
+other's actual hand** (seat-rotated — a client's own seat is index 0). It reaches round ~14 in ~50 actions, and
+**5 runs are green**, so straightforward relay play does not fork. **Reach for this shape whenever two peers
+hold state: assert they AGREE, not that each looks plausible.**
+
+**DIVERGENCE MUST PERSIST TO COUNT.** A client's hand changes only when the host's mirror lands, so immediately
+after the client plays there is a legitimate window where the host says 5 and the client says 6. The first
+version compared mid-flight and reported a fork on the very first move — a false positive that would have
+discredited the suite on sight. It polls until the mismatch clears: transient is the system working, persistent
+is the bug.
+
+**THE NETPLAY TRACE IS ALWAYS ON, and that is forced by the platform.** A downloaded copy opens as
+`content://`, which **cannot carry a query string**, so anything behind `?dbg=1` can never be captured on the
+device where the interesting failures happen. So it costs nothing, runs by default, and **lands in the ⤓ Save
+file** — the one artifact a player can actually hand over.
+
+It is traced **inside `isClientActive()`** rather than at its call sites: every action funnels through that one
+function, so no branch can escape the probe, and `role` and `started` — the two values that decide it — are
+recorded on every call. A client reading false there prints
+`<< A CLIENT IS ABOUT TO RUN THE LOCAL ENGINE — THIS IS THE FORK`, verified to fire on the real case.
+
+Two flaws found and fixed while building it, both of the kind that make a diagnostic worse than none:
+- **The fork warning also fired on the HOST**, where falling through is correct — the host *is* the authority.
+  A trace that shouts about a non-bug sends the next reader down a false path.
+- **`started=true` logged on every mirror** rather than on the transition: 19 entries for two moves, and it
+  would have blown the 500-entry cap in a real game. Transitions only, with consecutive duplicates collapsed
+  to `xN`. A real game now traces in single digits.
+
 ### v1.31.50 — awaitRival set two things; every path cleared one
 
 Split out of v1.31.49 **specifically so the two builds can be told apart.** Aj was mid-verification on a phone,

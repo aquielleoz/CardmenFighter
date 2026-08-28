@@ -2411,6 +2411,15 @@ __QR__
     var head=['Cardmen Fighter — Battle Log','You: '+deckLabel(youDeck)+'   vs   Rival: '+deckLabel(rivalDeck)];
     if(state) head.push('Reached Round '+state.round+(state.finished?(' — '+(state.winner===YOU?'YOU WON':'Rival won')):''));
     var text=head.concat('',fullLog).join('\n');
+    /* THE TRACE GOES IN THE SAVE FILE. Aj's saved logs were the only evidence that characterised the fork, and
+     * they could not say why — nothing recorded which branch each action took. Appended rather than a separate
+     * download, because one file is what actually gets sent. */
+    try{
+      if(typeof NET!=='undefined' && NET.traceDump){
+        var tr=NET.traceDump();
+        if(tr && tr.length) text += '\n\n--- NETPLAY TRACE ('+tr.length+' entries; newest last) ---\n' + tr.join('\n');
+      }
+    }catch(e){}
     var blob=new Blob([text],{type:'text/plain'}), url=URL.createObjectURL(blob);
     var a=document.createElement('a'); a.href=url; a.download='cardmen-battle-log.txt'; document.body.appendChild(a); a.click();
     document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
@@ -5836,7 +5845,7 @@ __QR__
     // hub of N-1 DataChannels (hubMode) so it can target one seat (sendTo) — essential so a seat's private mirror never
     // reaches another peer over the internet. ----
     var hubMode=false, dcs=[], chanSeat=[];   // RTC host: open client channels + each channel's assigned seat
-    function hostAddChannel(chan){ chan.onmessage=function(e){ var m; try{ m=JSON.parse(e.data); }catch(_){ return; } onMsg(m, chan); }; dcs.push(chan); chanSeat.push(null); }
+    function hostAddChannel(chan){ chan.onmessage=function(e){ var m; try{ m=JSON.parse(e.data); }catch(_){ return; } onMsg(m, chan); }; dcs.push(chan); chanSeat.push(null); trace('hostAddChannel', 'channels now '+dcs.length); }
     function send(m){
       if(hubMode){ var s=JSON.stringify(m); for(var i=0;i<dcs.length;i++){ try{ if(dcs[i].readyState==='open') dcs[i].send(s); }catch(e){} } return; }
       try{ transport && transport.send(m); }catch(e){}
@@ -5924,7 +5933,7 @@ __QR__
     function isPasso(seat){ return !!(discon[seat] && discon[seat].passo); }
     function maybePasso(seat){ if(isPasso(seat)) schedulePasso(seat); }
     function schedulePasso(seat){ setTimeout(function(){ passoStep(seat); }, 450); }
-    function passoTakeover(seat){
+    function passoTakeover(seat){ trace('passoTakeover', 'seat '+seat+' — a BOT now holds it');
       if(!discon[seat] || discon[seat].passo) return;
       discon[seat].passo=true;
       logMsg('🤖 Passo takes '+seatName(seat)+'’s seat — it will pass and make smart discards until they return.', 'warn');
@@ -6296,6 +6305,27 @@ __QR__
 
     // ================= FULL-UI netplay: reuse the real single-player board (render()) on both ends =================
     var started=false;
+    /* ---------- THE NETPLAY TRACE (v1.31.51) ----------
+     * ALWAYS ON, and that is the whole design constraint. A downloaded copy opens as `content://`, which
+     * CANNOT CARRY A QUERY STRING (v1.31.15), so anything gated behind `?dbg=1` can never be captured on the
+     * device where the interesting failures happen. It has to cost nothing and be on by default.
+     * IT LANDS IN THE ⤓ Save FILE, because that is the artifact a player can actually hand over — Aj's two
+     * saved battle logs are the only reason the 2026-08-28 fork was characterised at all, and they still could
+     * not say WHY: nothing recorded `role`, `started`, or which branch each action took.
+     * Bounded ring buffer, consecutive duplicates collapsed to "xN", so a long game cannot flood it. */
+    var TRACE=[], TRACE_CAP=500, traceT0=Date.now();
+    function trace(tag, d){
+      var line=tag+(d?' '+d:'');
+      var last=TRACE[TRACE.length-1];
+      if(last && last.line===line){ last.n++; last.t=Date.now(); return; }   // collapse repeats
+      if(TRACE.length>=TRACE_CAP) TRACE.shift();
+      TRACE.push({ t:Date.now(), line:line, n:1 });
+    }
+    function traceDump(){
+      return TRACE.map(function(e){
+        return ((e.t-traceT0)/1000).toFixed(2)+'s  '+e.line+(e.n>1?('  x'+e.n):'');
+      });
+    }
     /* PUBLIC narration. Netplay had no host→client log channel at all — every message type was state
      * (mirror/setup) or control (join/welcome/err/peer/ceremony) — so a client's battle log was permanently
      * EMPTY, even for its own moves. The host has always narrated everything correctly, just locally.
@@ -6306,7 +6336,19 @@ __QR__
       send({t:'log', actor:actorSeat, tpl:tpl, cls:cls||''});
     }
     function isClient(){ return role==='join'; }
-    function isClientActive(){ return isClient() && started; }
+    /* TRACED HERE RATHER THAN AT THE CALL SITES. Every action reads this, so instrumenting the function itself
+     * cannot miss a branch — and the fork is precisely a case where this returned false and the caller fell
+     * through to the single-player engine. `role` and `started` are the two values that decide it, so both are
+     * recorded on every call. */
+    function isClientActive(){
+      var r = isClient() && started;
+      /* THE WARNING IS FOR A CLIENT ONLY. A host reads false here and correctly runs the local engine — it IS
+       * the authority. Flagging that too made the host's own trace shout about a bug that was not one, which
+       * is exactly the sort of misleading breadcrumb that sends the next reader down a false path. */
+      trace('isClientActive', 'role='+role+' started='+started+' -> '+r+
+            ((!r && isClient()) ? '  << A CLIENT IS ABOUT TO RUN THE LOCAL ENGINE — THIS IS THE FORK' : ''));
+      return r;
+    }
     /* THE MISSING THIRD STATE (found 2026-08-28 from Aj's two battle logs). Every action reads
      * `isClientActive()` = `isClient() && started` and, when it is false, FALLS THROUGH to the local
      * single-player engine. That is right for a solo page and catastrophic for a client whose board is live
@@ -6324,7 +6366,7 @@ __QR__
      * A cheap backstop for one branch of a fault whose cause has not been found. See the BACKLOG. Do not
      * assume this fixed it. */
     function clientNotReady(){ return isClient() && !started; }
-    function dbgUnstart(){ started=false; return true; }   // dbg only — see __cmf.unstart
+    function dbgUnstart(){ started=false; trace('started: true -> FALSE', 'dbg unstart'); return true; }   // dbg only
     function hideNetroot(){ var r=$('netroot'); if(r) r.style.display='none'; }
     function resolveIds(seat, ids){ var h=hostState.players[seat].hand; return (ids||[]).map(function(id){ return h.filter(function(c){return c.id===id;})[0]; }).filter(Boolean); }
 
@@ -6340,6 +6382,7 @@ __QR__
        * since it never touched shields or draw. The host's rules are the game's rules. */
       E.setShieldCards(true); E.setLoserMill(true); applyRules();
       gameBasics=(RULES.basics==='basics');            // the host's rules are the table's rules, Basics included
+      if(!started) trace('started: false -> true', 'host path (hostStartRealN)');
       started=true; hideOverlay(); hideNetroot();
       /* Seat topology, NOT readiness: the loop below indexes seats 1..joined, so a readiness-based count would
        * skip a seat whose stamp is stale and mis-assign its deck. Un-readying gates the Start BUTTON (see the
@@ -6380,7 +6423,7 @@ __QR__
      * frame (its mirror is rotated so it is index 0). One message, no per-recipient string building. */
     function broadcastMirror(){ if(hostState){ for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'mirror', seat:s, st:NetView.mirrorFor(hostState, s)}); } }   // per-seat (a seat's private hand never reaches another peer)
     function onRender(){ if(isHost() && started && hostState) broadcastMirror(); }   // hook: keep the client's board in lockstep
-    function awaitRival(){ busy=true; $('rivalStatus').textContent='Waiting for opponent…'; render(); broadcastMirror(); }   // park; client will send a move
+    function awaitRival(){ trace('awaitRival', 'host parks, waiting for a client move'); busy=true; $('rivalStatus').textContent='Waiting for opponent…'; render(); broadcastMirror(); }   // park; client will send a move
     /* THE OTHER HALF OF awaitRival, and it was missing (found 2026-08-28 from Aj's first real relay game).
      * awaitRival sets TWO things — `busy` and the "Waiting for opponent…" text — and every path that handed
      * control back cleared only `busy`. So the host's board went live while its screen still said the rival was
@@ -6389,7 +6432,7 @@ __QR__
      * Not the v1.31.20 wedge (that one really did leave `busy` set, and its fix at resolveRoundCeremony only
      * covers a move that ENDS the round). This is the ordinary case: a client move that does not end the round
      * and simply passes the turn back. Clear the pair together, never one of them. */
-    function hostTakeBack(){ busy=false; $('rivalStatus').textContent=''; }
+    function hostTakeBack(){ trace('hostTakeBack', 'control back to the host'); busy=false; $('rivalStatus').textContent=''; }
     var netSettle=null;   // parked: the host is waiting on the remote's respond/decline to an open stack window
     function hostApplyMove(it){
       if(!hostState || hostState.finished || !it || typeof it.op!=='string') return;
@@ -6756,6 +6799,7 @@ __QR__
       applyMirrorNow(st);
     }
     function applyMirrorNow(st){
+      if(!started) trace('started: false -> true', 'client path (setup from host)');
       started=true; state=st; hostState=null; window.__cmfNetState=st;
       var owedModal = !!((st.pending && st.respondFor===YOU) || (st.shieldResponse && st.shieldResponse.q===YOU) || (st.preFightQ===YOU));   // overlay windows — keep them up (don't flicker away)
       var owedDiscard = !!(st.discardPending && st.discardPending.player===YOU);                                     // interactive hand-picker — must stay unlocked
@@ -6820,7 +6864,7 @@ __QR__
       enterDelayBase = 0;
       if(clientCeremonyRes && clientCeremonyRes.newRound && !m.finished) playRoundCardBeat(clientCeremonyRes, function(){});
     }
-    function clientSend(it){ send({t:'move', seat:mySeat, intent:it}); }
+    function clientSend(it){ trace('clientSend', (it&&it.op)||'?'); send({t:'move', seat:mySeat, intent:it}); }
     var iConceded=false;
     function concede(){ iConceded=true; send({t:'concede', seat:mySeat}); }   // notify the host we forfeited; ignore further mirrors (stay on our end screen)
     function onOpponentConcede(seat){
@@ -7204,7 +7248,7 @@ __QR__
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
+    return { boot:boot, start:start, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:99999;background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the
@@ -7237,6 +7281,7 @@ __QR__
     '#netroot .deckSel:disabled{opacity:.55}#netroot .lobbyStatus{margin:12px 0;padding:10px 12px;background:#141a24;border:1px solid #263140;border-radius:8px;color:#cdd8e6}';
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
+  window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
   if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); } }; }
   /* --headerH: measured, not hardcoded. #disconBar hangs off it, and the header's height is not a constant —
    * 56px on desktop, 37px in the landscape band, and ~92px on a portrait phone where it WRAPS to two rows.
