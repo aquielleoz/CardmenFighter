@@ -258,7 +258,7 @@
   .modal .ruleSect{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:10px 0 2px; text-align:left;}
   .modal .ruleSect:first-child{margin-top:2px;}
   .modal .ruleSect .sectName{font-weight:900; font-size:13px; letter-spacing:.4px; text-transform:uppercase; color:var(--gold);}
-  .modal .settings .ruleBulk{margin:2px 0 8px;}       /* presets sit on their own line, above the shapes */
+  .modal .settings .ruleBulk{margin:10px 0 4px;}      /* presets lead the group they govern, above its heading */
   /* STICKY, not duplicated (Aj asked for either a second copy at the top or "one of those floating things").
    * A second Done is a second place to look, and a second Clear all doubles the chance of mis-tapping the
    * destructive one — a bar that is always there serves the same need with one of each. It bleeds through the
@@ -705,7 +705,7 @@
     .modal.rulesPanel .settings{gap:6px;}
     .modal.rulesPanel .settingRow{padding:9px 12px;}
     .modal.rulesPanel .ruleSect{margin:3px 0 1px;}
-    .modal.rulesPanel .settings .ruleBulk{margin:0 0 3px;}
+    .modal.rulesPanel .settings .ruleBulk{margin:6px 0 2px;}
     .modal.rulesPanel .bulkBtn{padding:5px 10px;}
   }
   /* A FOURTH column once there are enough rules to need it (eighteen, as of v1.31.39). Same principle as the
@@ -8412,8 +8412,9 @@ window.CardFace = {};
         var rows=RULE_DEFS.filter(function(d){ return sec.keys.indexOf(d.key)>=0; });
         if(!rows.length) return;
         rows.forEach(function(d){ claimed[d.key]=1; });
-        out+='<div class="ruleSect"><span class="sectName">'+esc(sec.title)+'</span>'+scopeOf(sec.keys)+'</div>'+
-             (sec.presets?presetsHTML():'')+rows.map(rowHTML).join('');
+        out+=(sec.presets?presetsHTML():'')+
+             '<div class="ruleSect"><span class="sectName">'+esc(sec.title)+'</span>'+scopeOf(sec.keys)+'</div>'+
+             rows.map(rowHTML).join('');
       });
       var left=RULE_DEFS.filter(function(d){ return !claimed[d.key]; });
       if(left.length) out+='<div class="ruleSect"><span class="sectName">Uncategorised</span></div>'+left.map(rowHTML).join('');

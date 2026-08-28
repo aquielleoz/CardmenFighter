@@ -78,11 +78,11 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
      'and no rule fell outside them — an unclaimed rule renders under a visible Uncategorised heading, never vanishes');
   ok(await p.evaluate(()=>{
        const b=document.querySelector('.settings .ruleBulk'); if(!b || b.closest('.ruleSect')) return false;
-       const prev=b.previousElementSibling, next=b.nextElementSibling;
-       return !!prev && prev.classList.contains('ruleSect')
-           && prev.querySelector('.sectName').textContent.trim()==='Shapes'
-           && !!next && next.classList.contains('settingRow');
-     }), 'the presets are their own line between the Shapes heading and its first row, not inside the heading');
+       const next=b.nextElementSibling, prev=b.previousElementSibling;
+       return !!next && next.classList.contains('ruleSect')
+           && next.querySelector('.sectName').textContent.trim()==='Shapes'
+           && !!prev && prev.classList.contains('settingRow');
+     }), 'the presets are their own line ABOVE the Shapes heading — they govern the group, they are not inside it');
   /* A preset spans the Shapes/Chops boundary now, which is WHY it can no longer live in either heading. Assert
    * that it really does, or the split quietly turns the preset line into a Shapes-only control. */
   await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="doudizhu"]').click()); await wait(250);

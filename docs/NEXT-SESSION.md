@@ -618,9 +618,12 @@ these are the four that bend it. The split pays for itself twice over: the three
 `The chop:` prefix they each carried, because the heading now says it once (the same reason **The game** does
 not repeat *Game mode* in its only row).
 
-**The presets move onto their own line.** They rode the right end of the Shapes heading, which worked only
-while one section held every rule they set. A preset now spans the Shapes/Chops boundary, so belonging to
-either heading would misdescribe it — the dedicated line is the consequence of the split, not a preference.
+**The presets move onto their own line, ABOVE the Shapes heading.** They rode the right end of that heading,
+which worked only while one section held every rule they set. A preset now spans the Shapes/Chops boundary, so
+belonging to either heading would misdescribe it — the dedicated line is the consequence of the split, not a
+preference. It went *below* the heading first and Aj corrected it (*"i think the presets should be on top"*),
+which is the right read: under the heading it looked like one more thing inside Shapes, the single reading it
+must not have. Above it, it governs the two groups that follow instead of belonging to one.
 They also drop **"Specials"** from all three names (Chikicha · Tiến lên · Dou Dizhu), since a panel that is
 nothing but specials was not distinguishing anything by saying so; a small **PRESETS** label on the line
 carries the meaning the suffix used to, at less width.

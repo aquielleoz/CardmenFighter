@@ -270,9 +270,10 @@ key, so netplay and the export carry the RULES, not a name the other end must re
 - **A SECTION HEADING IS A PREFIX THE ROWS STOP PAYING FOR.** Splitting the chops out let all three drop the
   `The chop:` they each carried — the same reason **The game** does not repeat *Game mode* in its only row. If a
   new section's rows all start with the same words, that is the heading, not the labels.
-- **THE PRESETS ARE THEIR OWN LINE, and only because they SPAN sections (v1.31.44).** They rode the Shapes
-  heading while one section held every rule they set; a preset now sets rules in Shapes *and* Chops, so either
-  heading would misdescribe it. `rulestest` asserts the span behaviourally — it clicks Dou Dizhu and reads which
+- **THE PRESETS ARE THEIR OWN LINE ABOVE THE SHAPES HEADING, and only because they SPAN sections (v1.31.44).**
+  They rode the Shapes heading while one section held every rule they set; a preset now sets rules in Shapes
+  *and* Chops, so either heading would misdescribe it. **Above the heading, not below it** — below, it reads as
+  one more control inside Shapes, which is the one thing it is not; above, it governs the groups that follow. `rulestest` asserts the span behaviourally — it clicks Dou Dizhu and reads which
   rows light up in each section — rather than reading the preset map back from a hook, which would agree with
   the renderer by construction. The line must also span every grid column, asserted as **rendered width**:
   computed `grid-column` reports `-1` inconsistently, and the grid only exists from 1040px at all, so the same
