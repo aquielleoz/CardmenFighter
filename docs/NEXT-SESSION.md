@@ -638,11 +638,15 @@ chat history or from a peer on an older build still joins. The reverse is not fi
 an *old* build cannot parse, and that build has no way to say so beyond its existing "Could not read that
 invite code."
 
-**What it buys.** The QR drops from **v23 / 109 modules** to a far smaller symbol, which roughly doubles the
-physical size of each module at every viewport — including the landscape-phone case that was the weakest
-geometry at 2.0 CSS px per module and the one still unverified by a real camera. It also makes the code close
-to hand-typeable, which was the original point: that is the fallback when two devices cannot talk to each
-other at all.
+**What it buys, measured.** The QR drops from **v23 / 109 modules** to **v8 / 49** at the ECC level the game
+uses (`L`), so every module is **2.2× wider** at the same on-screen size. That lands hardest on the
+landscape-phone case, the weakest geometry and the one still unverified by a real camera: about 2 CSS px per
+module becomes about 4.6. It also brings the code close to hand-typeable, which was the original point of the
+backlog item — that is the fallback when the two devices cannot talk to each other at all.
+Note the instrument was validated before the number was believed: re-encoding the **old** 1,036-char payload
+reproduces the recorded v23 / 109 exactly. A first run said v26 / 121, because `build()` defaults to a
+different ECC than `qrInto` passes — **always encode at `level:'L'` when comparing against a recorded
+geometry**, or the arms are not comparable.
 
 **Tests.** `sharetest` 14 → **16**, and its two length floors became **shape** assertions — `>200` was a proxy
 that went stale the moment codes shrank, while `/^C1~o~/` and `/^C1~a~/` cannot pass on a truncated or garbled

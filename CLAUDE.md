@@ -210,7 +210,10 @@ reader. The code carries five fields — ICE ufrag, ICE password, DTLS fingerpri
 `dec` **rebuilds a canonical data-channel SDP** from them. That is the whole trick, and it rests on one fact
 worth keeping: **a remote description need not be the bytes the far end produced, only valid and semantically
 equal.** 1,036 chars → 163. Verify that fact in a throwaway probe before ever extending this, the way it was
-established in the first place.
+established in the first place. The QR follows: **v23 / 109 modules → v8 / 49**, so each module is 2.2× wider
+and the landscape phone goes from ~2.0 to ~4.6 CSS px per module. **Encode at `level:'L'` when checking QR
+geometry** — that is what `qrInto` passes, and `build()` defaults to something else, which silently gives a
+larger version and an incomparable number.
 - **`~` SEPARATES FIELDS. Never `.`** — a candidate address is full of dots (IPv4, and the `.local` of an mDNS
   name), and the first version split on `.` and shredded every code. `~` cannot occur in any field: ice-ufrag
   and ice-pwd are ALPHA/DIGIT/+// per RFC 5245, the fingerprint is base64url, an address is hex/dots/colons/
