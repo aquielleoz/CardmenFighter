@@ -15,3 +15,10 @@ _*.js
 .wrangler/
 .dev.vars
 .dev.vars.*
+# credentials, categorically. See the SECRETS section in CLAUDE.md for the rule these enforce.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+credentials.json

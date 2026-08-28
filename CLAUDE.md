@@ -1085,6 +1085,38 @@ not a class problem but a rules problem. The lever belongs at the rules level �
 - `docs/PLAYER-PROFILE.md` is a living read on how Aj actually plays — consult it for AI tuning and balance,
   and append exported games to its ingestion log.
 
+## Secrets
+
+**Never commit a credential. The test is one question: does this thing grant access on its own?** If yes it is a
+secret, wherever it happens to live. If it only *names* a resource, it is not.
+
+**This repo has an unusual reason to be strict: the game is ONE SELF-CONTAINED HTML FILE that gets handed
+around, downloaded, and re-shared.** Anything inlined in it is public the moment it is built — not "public if
+the repo leaks", public by construction. **There can therefore never be a secret in the game**, and any feature
+that seems to need one needs a different design instead. That is not a rule about hygiene; it is a property of
+the artifact.
+
+**Never committed, and `.gitignore` enforces it so nobody has to remember:**
+- `.wrangler/` — its account cache holds the Cloudflare account id and name. No token lives there, so it is not
+  a credential, but it is identifying and has no reason to be public. Created silently by any `wrangler` command.
+- `.dev.vars`, `.env` — where local secrets go by convention.
+- `*.pem`, `*.key`, `*.p12`, `credentials.json`.
+- A Cloudflare API token, in any file, ever. Server-side secrets go through `wrangler secret put`, which stores
+  them on Cloudflare and never touches the repo.
+
+**Deliberately committed, and correctly so** — worth stating, because over-caution here produces cargo-culted
+placeholders that break a fresh clone:
+- `relay/wrangler.toml` including `database_id`. A D1 database id is an **identifier**: it grants nothing
+  without account authentication, committing it is Cloudflare's own documented pattern, and having it in the
+  repo is what makes `git clone && wrangler deploy` work on another machine with no configuration.
+- The relay URL. It has to be public — it is baked into the game.
+- `relay/worker.js`. It contains no secrets **by design**: the relay authenticates nobody, so knowing a room
+  code is the only capability that exists. If auth is ever added, the key cannot live in the HTML (see above).
+
+**If something does leak, rotate it — do not just delete the commit.** Git history persists in clones, forks and
+caches, and a rewritten history does not un-publish anything. Deleting the commit is the second step, never the
+first.
+
 ## Branches and PRs
 
 Written 2026-08-25 after a cleanup found **18 merged branches** still on the remote and **both `feat/` and
