@@ -258,9 +258,7 @@
   .modal .ruleSect{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:10px 0 2px; text-align:left;}
   .modal .ruleSect:first-child{margin-top:2px;}
   .modal .ruleSect .sectName{font-weight:900; font-size:13px; letter-spacing:.4px; text-transform:uppercase; color:var(--gold);}
-  .modal .ruleSect .ruleBulk{margin:0 0 0 auto;}      /* presets ride the right end of their own heading */
-  /* on a phone they wrap onto their own line, where being pushed right reads as a stray indent */
-  @media (max-width:720px){ .modal .ruleSect .ruleBulk{margin-left:0;} }
+  .modal .settings .ruleBulk{margin:10px 0 4px;}      /* presets lead the group they govern, above its heading */
   /* STICKY, not duplicated (Aj asked for either a second copy at the top or "one of those floating things").
    * A second Done is a second place to look, and a second Clear all doubles the chance of mis-tapping the
    * destructive one — a bar that is always there serves the same need with one of each. It bleeds through the
@@ -273,6 +271,7 @@
   .modal .ruleFoot #ruleDone{margin:0;}
   .modal .ruleFoot .bulkBtn.clear{margin-left:0;}   /* undo the old bulk-row rule that pushed it to the right */
   .modal .ruleBulk{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:0 0 10px;}
+  .modal .ruleBulk .bulkLbl{font-weight:900; font-size:11px; letter-spacing:.4px; text-transform:uppercase; opacity:.55; margin-right:3px;}
   .modal .bulkBtn{font:inherit; font-weight:800; font-size:12px; padding:6px 11px; border-radius:9px; border:1px solid var(--line); background:#160c22; color:var(--txt); opacity:.85; cursor:pointer;}
   .modal .bulkBtn:hover:not(:disabled){opacity:1; border-color:var(--gold);}
   .modal .bulkBtn.active{background:var(--gold); color:#3a2a08; border-color:var(--gold); opacity:1;}
@@ -690,7 +689,8 @@
   @media (min-width:1040px){
     .modal.rulesPanel .settings{display:grid; grid-template-columns:1fr 1fr; align-items:start;}
     /* a heading spans the columns, which also forces its rules to start a fresh grid row */
-    .modal.rulesPanel .settings .ruleSect{grid-column:1 / -1;}
+    .modal.rulesPanel .settings .ruleSect,
+    .modal.rulesPanel .settings .ruleBulk{grid-column:1 / -1;}
     /* mode rows join the grid too — their segmented controls fit a half-width column, and giving each of them a
      * full row of its own was most of what still made the panel scroll. */
   }
@@ -704,7 +704,9 @@
      * rows are short here and the extra breathing room was doing nothing that the columns do not already do. */
     .modal.rulesPanel .settings{gap:6px;}
     .modal.rulesPanel .settingRow{padding:9px 12px;}
-    .modal.rulesPanel .ruleSect{margin:5px 0 1px;}
+    .modal.rulesPanel .ruleSect{margin:3px 0 1px;}
+    .modal.rulesPanel .settings .ruleBulk{margin:6px 0 2px;}
+    .modal.rulesPanel .bulkBtn{padding:5px 10px;}
   }
   /* A FOURTH column once there are enough rules to need it (eighteen, as of v1.31.39). Same principle as the
    * third: the modal grows with it so a column keeps roughly the width it had, or the labels wrap more and the
@@ -3327,7 +3329,7 @@
    *             beats() already demands equal size, so a 6-chain cannot beat a 5-straight — the family's rule,
    *             free. */
   /* NO FULL HOUSES (v1.31.42). The full house is the one shape that has always been in the game and cannot be
-   * switched off — which stopped Tiến lên Specials from being faithful, since that game has no full house at all.
+   * switched off — which stopped the Tiến lên preset from being faithful, since that game has no full house at all.
    * The flag is the NEGATIVE (`NO_FULL_HOUSE`) because every rule in the panel must default off. */
   var NO_FULL_HOUSE = false;
   var TRIO_ONE = false, FOUR_TWO = false;
@@ -4838,7 +4840,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.43';
+  var GAME_VERSION='v1.31.44';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -5003,11 +5005,11 @@ window.CardFace = {};
      * (`quadroOn()` is `QUADRO || CHOP_Q`), so leaving the shape's own box unticked told the player something
      * false about the game they were about to play. The panel now ticks it with them, and unticking the shape
      * takes its chop with it — the dependency holds in both directions or the display lies again. */
-    { key:'chopQuadro',  duel:true, label:'The chop: four of a kind beats the 2', needs:'quadro',
+    { key:'chopQuadro',  duel:true, label:'Four of a kind beats the 2', needs:'quadro',
       note:'Four of a kind beats a 2 it does not match — a lone 2 or a pair of them. A chop answers by SHAPE, so it works even on a 2 that cannot be beaten, and no chop beats another: they are answered by their own shape at a higher value. Switches Four of a kind on with it.' },
-    { key:'chopKits',    duel:true, label:'The chop: 3+ consecutive pairs beat the 2', needs:'kits3',
+    { key:'chopKits',    duel:true, label:'3+ consecutive pairs beat the 2', needs:'kits3',
       note:'A run of three or more consecutive pairs does the same. Switches that shape on with it.' },
-    { key:'chopSflush',  duel:true, label:'The chop: a Straight Flush beats the 2',
+    { key:'chopSflush',  duel:true, label:'A Straight Flush beats the 2',
       note:'Five in a row, all one suit, does the same. This is <b>only</b> a chop — a same-suit run is an ordinary straight the rest of the time and never beats a higher straight. Single-suit class decks make these far more easily than mixed ones: they turn up in about one hand in four, against one in three hundred for the Full Set.' },
     /* CHOPS DEAL NO DAMAGE BY DEFAULT, and Aj's reason is the design one (2026-08-27): "that'll be lines for
      * players to think. nothing wrong with making them valid shapes... but making them chops is more non linear
@@ -5021,8 +5023,9 @@ window.CardFace = {};
     { key:'chopStrips',  duel:true, label:'Chops destroy shields too',
       needsAny:['chopQuadro','chopKits','chopSflush'],
       note:'By default a round won <b>by a chop</b> costs nobody a shield — a chop already bends the shape-matching rule, so what it buys you is the lead. Switch this on and a chop deals damage like any other Special. Either way it only concerns rounds a chop actually won: leading one of these shapes, or beating one with a higher one of the same shape, always deals damage. Needs a chop switched on to mean anything, so it stays inert until one is — and clears itself if the last one goes off.' },
-    /* DOU DIZHU SHAPES (v1.31.39). Their own section, both to keep "Shapes & chops" from becoming a wall and to
-     * give the eventual Dou Dizhu preset a heading to live in — the pattern from v1.31.37.
+    /* DOU DIZHU SHAPES (v1.31.39). They briefly had a section of their own; it was merged back because naming
+     * one section by KIND and another by PROVENANCE is not a scheme, and this section was already full of
+     * family shapes anyway.
      * Note the family's TRIO + PAIR (三带二) is already in the game: it is our full house. So these are its
      * smaller sibling, its bigger relative, the trio version of a run, and a length unlock. */
   ];
@@ -5035,9 +5038,10 @@ window.CardFace = {};
    * The sections own their rule keys rather than each rule naming its section, so there is one list to read.
    * Two things fall out of it:
    *   · every section turns out to be SCOPE-HOMOGENEOUS (checked: mode=duel, table=3-6, the 2=duel,
-   *     shapes=duel), so the "3-6 PLAYERS" chip moves from all thirteen rows onto four headings;
-   *   · the presets live in the heading of the group they change, which is possible because both of them touch
-   *     a contiguous block inside `shapes` and nothing outside it.
+   *     shapes=duel, chops=duel), so the "3-6 PLAYERS" chip moves from every row onto the headings;
+   *   · the presets sit on their own line above the two sections they touch. They rode the Shapes heading
+   *     while one section held every rule they set; splitting the chops out ended that, since a preset now
+   *     spans a section boundary and belonging to one of the two headings would misdescribe it.
    * A rule missing from every section is rendered under a visible "Uncategorised" heading rather than silently
    * disappearing — `rulestest` asserts that heading is absent. */
   var RULE_SECTIONS=[
@@ -5052,10 +5056,14 @@ window.CardFace = {};
      * so splitting the newest four out named one section by KIND and the other by PROVENANCE. It also broke the
      * property the sections exist for: a preset belongs in the heading of the group it changes, and Chikicha
      * Specials sets a shape AND a chop, so it spanned both. The family a shape came from belongs in its note. */
-    { key:'shapes', title:'Shapes & chops',
-      keys:['dblPair','kits3','quadro','noFullHouse','trioOne','fourTwo','airplane','straightLen',
-            'chopQuadro','chopKits','chopSflush','chopStrips'],
-      presets:true }
+    { key:'shapes', title:'Shapes',
+      keys:['dblPair','kits3','quadro','noFullHouse','trioOne','fourTwo','airplane','straightLen'],
+      presets:true },
+    /* CHOPS ARE THEIR OWN SECTION (v1.31.44). They are not one more shape: every other row here adds a play
+     * that obeys the matching rule, and these four are the exception to it. Splitting them also lets the three
+     * chop rows drop the "The chop:" prefix they all carried, since the heading says it once. */
+    { key:'chops',  title:'Chops',
+      keys:['chopQuadro','chopKits','chopSflush','chopStrips'] }
   ];
   var RULES={}, MY_RULES={};
   RULE_DEFS.forEach(function(d){ RULES[d.key]= d.mode ? d.mode[0].v : false; MY_RULES[d.key]=RULES[d.key]; });
@@ -5068,7 +5076,7 @@ window.CardFace = {};
    * More presets arrive as their shapes do — Dou Dizhu needs trio+single, four+two and the airplane first, so
    * offering it now would name a rule set the build cannot actually play. */
   var RULE_PRESETS=[
-    { key:'chikicha', label:'Chikicha Specials', title:'The consecutive-pair and four-of-a-kind shapes, with the chop that gives them a job — and nothing else',
+    { key:'chikicha', label:'Chikicha', title:'The consecutive-pair and four-of-a-kind shapes, with the chop that gives them a job — and nothing else',
       rules:{ dblPair:'kits', kits3:true, quadro:true, chopQuadro:true } },
     /* TIẾN LÊN — the family this game keeps borrowing from. Its bombs are đôi thông (three or more consecutive
      * pairs) and tứ quý (four of a kind), and BOTH chop the heo, which here is the apex 2. So this is the preset
@@ -5082,7 +5090,7 @@ window.CardFace = {};
      * behaviour and exactly why every preset needs re-reading when a shape rule lands.
      * Two divergences that no rule can express yet: our FULL HOUSE is always on and Tiến lên has none, and its
      * bombs reach only a lone 2 where ours reach a pair (see chopReach). */
-    { key:'tienlen', label:'Tiến lên Specials', title:'Sequences from three, plus the family’s own bombs: 3+ consecutive pairs and four of a kind',
+    { key:'tienlen', label:'Tiến lên', title:'Sequences from three, plus the family’s own bombs: 3+ consecutive pairs and four of a kind',
       rules:{ straightLen:'3', kits3:true, quadro:true, chopKits:true, chopQuadro:true, noFullHouse:true } },
     /* DOU DIZHU — the fullest set, because that game has the most shapes. 连对 is our 3 Kits (its floor is three
      * consecutive pairs, so the four-card slot stays OFF, as in Tiến lên), 单顺 is the unlocked straight, and its
@@ -5090,7 +5098,7 @@ window.CardFace = {};
      * our full house, always in the game.
      * One honest divergence, recorded rather than papered over: a Dou Dizhu 炸弹 beats ANY non-bomb play, while
      * our chop only reaches the all-2s shapes. chopQuadro is the closest thing we have, not the same thing. */
-    { key:'doudizhu', label:'Dou Dizhu Specials', title:'The fullest set: 3+ consecutive pairs, long straights, trio+1, four+two, the airplane, and the bomb',
+    { key:'doudizhu', label:'Dou Dizhu', title:'The fullest set: 3+ consecutive pairs, long straights, trio+1, four+two, the airplane, and the bomb',
       rules:{ kits3:true, straightLen:'5', trioOne:true, fourTwo:true, airplane:'wings',
               quadro:true, chopQuadro:true } }
   ];
@@ -8393,7 +8401,7 @@ window.CardFace = {};
      * desktop. because really you can fit more with all this real estate"). Scoped to this panel by class, NOT
      * applied to `.modal`, which every dialog in the game shares. */
     function presetsHTML(){
-      return '<span class="ruleBulk">'+RULE_PRESETS.map(function(pr){
+      return '<span class="ruleBulk"><span class="bulkLbl">Presets</span>'+RULE_PRESETS.map(function(pr){
         return '<button type="button" class="bulkBtn'+(presetActive(pr,src)?' active':'')+'" data-preset="'+pr.key+
                '" title="'+esc(pr.title)+'"'+(ro?' disabled':'')+'>'+esc(pr.label)+'</button>';
       }).join('')+'</span>';
@@ -8404,8 +8412,9 @@ window.CardFace = {};
         var rows=RULE_DEFS.filter(function(d){ return sec.keys.indexOf(d.key)>=0; });
         if(!rows.length) return;
         rows.forEach(function(d){ claimed[d.key]=1; });
-        out+='<div class="ruleSect"><span class="sectName">'+esc(sec.title)+'</span>'+scopeOf(sec.keys)+
-             (sec.presets?presetsHTML():'')+'</div>'+rows.map(rowHTML).join('');
+        out+=(sec.presets?presetsHTML():'')+
+             '<div class="ruleSect"><span class="sectName">'+esc(sec.title)+'</span>'+scopeOf(sec.keys)+'</div>'+
+             rows.map(rowHTML).join('');
       });
       var left=RULE_DEFS.filter(function(d){ return !claimed[d.key]; });
       if(left.length) out+='<div class="ruleSect"><span class="sectName">Uncategorised</span></div>'+left.map(rowHTML).join('');

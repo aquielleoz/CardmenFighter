@@ -243,10 +243,10 @@ key, so netplay and the export carry the RULES, not a name the other end must re
   and shipped wrong twice. It points at the per-row scope tags now, and `rulestest` asserts the absence of a
   count as well as the presence of the tags.
 - **A PRESET IS AN EXACT STATE (v1.31.30).** `RULE_PRESETS` entries name only the rules they turn on, and
-  `applyPreset` sets **every** rule — the unnamed ones to their off value — because Aj specified Chikicha Specials as
+  `applyPreset` sets **every** rule — the unnamed ones to their off value — because Aj specified the Chikicha preset as
   "kits + quadro and nothing else". That is also what makes a preset button able to read as *active*. Presets
   never serialise: `rulesKey()` carries the resulting rules, so the far end never has to know a name.
-  **A PRESET GOES STALE WHEN A RULE LANDS AFTER IT** (v1.31.41): Tiến lên Specials shipped in v1.31.34 and
+  **A PRESET GOES STALE WHEN A RULE LANDS AFTER IT** (v1.31.41): the Tiến lên preset shipped in v1.31.34 and
   `straightLen` in v1.31.39, so for one version it played that game with five-card straights when its sequences
   are three or more. Being an exact state, every later rule is implicitly *off* in every existing preset — correct
   behaviour, and exactly why **each preset must be re-read whenever a shape rule is added**. Assert the VALUE a
@@ -257,15 +257,27 @@ key, so netplay and the export carry the RULES, not a name the other end must re
 - **SECTIONS GROUP BY KIND, NEVER BY SOURCE GAME (v1.31.39).** A "Dou Dizhu shapes" section was added and then
   removed the same day: `Shapes & chops` was *already* full of family shapes (kits = 连对/đôi thông, Quadro =
   炸弹/tứ quý, two pair = Big Two), so splitting the newest four out named one section by kind and the other by
-  provenance. It also broke the preset property — Chikicha Specials sets a shape AND a chop, so it spanned both
-  sections. **Which game a shape came from belongs in its note, not in the structure.**
-- **THE PANEL IS FOUR SECTIONS (v1.31.37), and `RULE_SECTIONS` owns the rule keys** — one list to read rather
+  provenance. **Which game a shape came from belongs in its note, not in the structure.** Note what v1.31.44
+  then did and why it is not the same move: chops-vs-shapes is a split by **kind** (these bend the matching
+  rule, those obey it), so it survives where provenance did not — and the preset that spans it was fixed by
+  taking the presets out of the headings, not by refusing the split.
+- **THE PANEL IS FIVE SECTIONS (v1.31.37, chops split out in v1.31.44), and `RULE_SECTIONS` owns the rule keys** — one list to read rather
   than a `sect` field on thirteen defs. The cost of that choice is a rule belonging to no section, so an
   unclaimed rule renders under a visible **"Uncategorised"** heading and `rulestest` asserts that heading is
   absent: loud, not silent. **Scope lives on the section, not the row** — every section holds rules of a single
-  scope (checked), so thirteen identical chips became four; do not re-add a per-row chip. Both presets sit in the
-  `Shapes & chops` heading because both touch a contiguous block inside it and nothing outside, and `Clear all`
-  sits with `Done` since both act on the whole panel.
+  scope (checked), so nineteen identical chips became five; do not re-add a per-row chip. `Clear all` sits with
+  `Done` since both act on the whole panel.
+- **A SECTION HEADING IS A PREFIX THE ROWS STOP PAYING FOR.** Splitting the chops out let all three drop the
+  `The chop:` they each carried — the same reason **The game** does not repeat *Game mode* in its only row. If a
+  new section's rows all start with the same words, that is the heading, not the labels.
+- **THE PRESETS ARE THEIR OWN LINE ABOVE THE SHAPES HEADING, and only because they SPAN sections (v1.31.44).**
+  They rode the Shapes heading while one section held every rule they set; a preset now sets rules in Shapes
+  *and* Chops, so either heading would misdescribe it. **Above the heading, not below it** — below, it reads as
+  one more control inside Shapes, which is the one thing it is not; above, it governs the groups that follow. `rulestest` asserts the span behaviourally — it clicks Dou Dizhu and reads which
+  rows light up in each section — rather than reading the preset map back from a hook, which would agree with
+  the renderer by construction. The line must also span every grid column, asserted as **rendered width**:
+  computed `grid-column` reports `-1` inconsistently, and the grid only exists from 1040px at all, so the same
+  assertion at the suite's default viewport tested nothing.
 - **THE RULES PANEL IS THE ONE WIDE DIALOG BESIDES THE CODEX (v1.31.36).** Two columns from 1040px, three from
   1400px with `max-width` growing to 1120px — a third column at 860px narrows each one enough that labels wrap
   and the rows give back the saving. **`.modal` is shared by every dialog**, so the width is a class on this
@@ -392,7 +404,10 @@ Three more things worth knowing before touching them:
   result, not 4.8 → 20.
 - **THE WIDE PANEL IS ON A TREADMILL:** every rule added costs a grid row, ~76px. v1.31.38's fourteenth rule
   pushed a 14-inch MBP back into scrolling until the wide-only rhythm was trimmed (gap 9→7, row padding 12→10,
-  section margins 10→6) for 881px. Measure `scrollHeight > clientHeight` at 1512×945 after adding a rule.
+  section margins 10→6) for 881px. **v1.31.44 spent the rest of that margin on STRUCTURE rather than a rule** —
+  a fifth heading plus the full-width preset line cost ~70px and went 14px over — trimmed again (section margins
+  5→3, preset line 10→3, preset buttons 6→5px tall). Measure `scrollHeight > clientHeight` at 1512×945 after
+  adding a rule **or a section**; there is no slack left.
 - **NO CHOPPER BEATS ANOTHER, and that is a decision with reasons** (2026-08-27). `chopRank` returns the same
   value for every enabled chopper, so chop-vs-chop **falls through** to the ordinary same-type/same-size/value
   comparison — a chop is answered in kind. Do not add an early `return false` there: that made every chop
@@ -651,8 +666,9 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.38 — green, all 37 suites plus `browsertest`, run serially 2026-08-27**:
-`test` 304, `netview` 28, `mptest` 82, `rulestest` 119, `nettest_rules` 28, `nettest_suggest` 34,
+Status as of **v1.31.38 — green, all 37 suites plus `browsertest`, run serially 2026-08-27**
+(panel-area counts refreshed at v1.31.44):
+`test` 318, `netview` 28, `mptest` 82, `rulestest` 141, `nettest_rules` 28, `nettest_suggest` 34,
 `landscapetest` 96, `decktest` 42, `viewtest` 10, `piletest` 30, `revealtest` 12, `phantasmtest` 12,
 `exporttest` 15, `lessontest` 19, `lessontest_energy` 14, `versiontest` 15, `sharetest` 14, `qrtest` 19,
 `qrref` 26 (darwin only), `nettest_full` 5, `nettest_log` 14, `nettest_names` 8, `nettest_version` 14,
