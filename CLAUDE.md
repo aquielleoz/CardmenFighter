@@ -163,9 +163,15 @@ really for me") — a headless test that *loads* in landscape passes either way.
 a real phone on 5G and wifi emits several candidates including IPv6, so the code is longer and the QR denser.
 Quote it as a floor. Trimming the candidate list is the next lever and the risky one — the candidate you drop
 may be the one that would have connected.
-**Still open:** the Copy button remains below the fold in landscape. The invite section is one column and a
-wide-short screen wastes ~1000px of width; a two-column landscape layout is the fix, and it is a layout change
-rather than a sizing one.
+**THE INVITE IS TWO COLUMNS IN LANDSCAPE (v1.31.48)** — `sigPairHTML()` wraps QR + code + Copy + Send it, and
+the landscape band lays it out horizontally. That, not the sizing cap, is what gets Copy above the fold.
+- **THE QR COLUMN NEEDS A DEFINITE WIDTH.** `qrInto` measures `.qrWrap`; a shrink-to-fit flex item hands it the
+  canvas's own 300px default, and once the canvas sets its CSS width the wrapper shrinks to match and the
+  symbol **ratchets smaller on every reflow**. A fixed basis breaks it; `qrtest` reflows twice and asserts the
+  size holds.
+- **THERE ARE TWO INVITE RENDERERS.** `renderHostRtcLobby` ("Invite a player") is the one a real host reaches;
+  the BroadcastChannel path ("Step 1 — send this invite") is the other. A fix applied to one only looks
+  untouched rather than broken. **`grep qrInto(` first.**
 
 **Feature-detect `getSupportedFormats()`, never the `BarcodeDetector` constructor** — it can exist without
 `qr_code`. That distinction is what cleared the decoder when `qr.js` itself was at fault, and it is the check
@@ -775,7 +781,7 @@ Status as of **v1.31.38 — green, all 37 suites plus `browsertest`, run seriall
 (panel-area counts refreshed at v1.31.45):
 `test` 325, `netview` 28, `mptest` 82, `rulestest` 143, `nettest_rules` 28, `nettest_suggest` 34,
 `landscapetest` 96, `decktest` 42, `viewtest` 10, `piletest` 30, `revealtest` 12, `phantasmtest` 12,
-`exporttest` 15, `lessontest` 19, `lessontest_energy` 14, `versiontest` 15, `sharetest` 14, `qrtest` 28,
+`exporttest` 15, `lessontest` 19, `lessontest_energy` 14, `versiontest` 15, `sharetest` 14, `qrtest` 32,
 `qrref` 26 (darwin only), `nettest_full` 5, `nettest_log` 14, `nettest_names` 8, `nettest_version` 14,
 `nettest_emote` 19, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_3p` 7, `nettest_activate` 6,
 `nettest_ceremony` 9, `nettest_concede3` 8, `nettest_counter` 8, `nettest_customdeck` 18, `nettest_deckout3` 8,
