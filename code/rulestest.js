@@ -66,21 +66,40 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   const scopes=await p.evaluate(()=>[].map.call(document.querySelectorAll('.ruleSect .ruleScope'),e=>e.textContent.trim()));
   /* SCOPE MOVED TO THE SECTION (v1.31.37). Every section holds rules of one scope — checked, all four are
    * homogeneous — so thirteen identical chips became four, and a row carries none. */
-  ok(scopes.length===4 && /all player counts/i.test(scopes[0]) && /3–6/.test(scopes[1])
+  ok(scopes.length===5 && /all player counts/i.test(scopes[0]) && /3–6/.test(scopes[1])
      && scopes.slice(2).every(t=>/all player counts/i.test(t)),
-     `four section scope tags, not eighteen row ones (${scopes.join(' | ')})`);
+     `five section scope tags, not nineteen row ones (${scopes.join(' | ')})`);
   ok(await p.evaluate(()=>document.querySelectorAll('.settingRow .ruleScope').length===0),
      'and no row repeats what its section already said');
   const sects = await p.evaluate(()=>[].map.call(document.querySelectorAll('.ruleSect .sectName'),e=>e.textContent.trim()));
-  ok(JSON.stringify(sects)===JSON.stringify(['The game','Table rules','The 2','Shapes & chops']),
-     `the panel is four sections — shapes are grouped by KIND, not by which game they came from (${sects.join(' | ')})`);
+  ok(JSON.stringify(sects)===JSON.stringify(['The game','Table rules','The 2','Shapes','Chops']),
+     `the panel is five sections — shapes are grouped by KIND, not by which game they came from (${sects.join(' | ')})`);
   ok(sects.indexOf('Uncategorised')<0,
      'and no rule fell outside them — an unclaimed rule renders under a visible Uncategorised heading, never vanishes');
   ok(await p.evaluate(()=>{
-       const b=document.querySelector('.ruleBulk'); if(!b) return false;
-       const sec=b.closest('.ruleSect'); const nm=sec&&sec.querySelector('.sectName');
-       return !!nm && nm.textContent.trim()==='Shapes & chops';
-     }), 'the presets sit in the heading of the group they change — which is the whole point of the sections');
+       const b=document.querySelector('.settings .ruleBulk'); if(!b || b.closest('.ruleSect')) return false;
+       const prev=b.previousElementSibling, next=b.nextElementSibling;
+       return !!prev && prev.classList.contains('ruleSect')
+           && prev.querySelector('.sectName').textContent.trim()==='Shapes'
+           && !!next && next.classList.contains('settingRow');
+     }), 'the presets are their own line between the Shapes heading and its first row, not inside the heading');
+  /* A preset spans the Shapes/Chops boundary now, which is WHY it can no longer live in either heading. Assert
+   * that it really does, or the split quietly turns the preset line into a Shapes-only control. */
+  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="doudizhu"]').click()); await wait(250);
+  const lit = await p.evaluate(()=>{
+    const secs={}; let cur=null;
+    [].forEach.call(document.querySelectorAll('.settings > *'),e=>{
+      if(e.classList.contains('ruleSect')) cur=e.querySelector('.sectName').textContent.trim();
+      else if(cur&&e.classList.contains('settingRow')&&e.classList.contains('on')) (secs[cur]=secs[cur]||[]).push(e.getAttribute('data-rule'));
+    });
+    return secs;
+  });
+  ok((lit['Shapes']||[]).length>0 && (lit['Chops']||[]).length>0,
+     `  → and a preset lights rules in BOTH sections, which is why it belongs to neither heading `+
+     `(Shapes: ${(lit['Shapes']||[]).join(',')||'none'} | Chops: ${(lit['Chops']||[]).join(',')||'none'})`);
+  await p.evaluate(() => document.querySelector('.bulkBtn.clear').click()); await wait(250);
+  ok(await p.evaluate(()=>!document.querySelector('.settings .settingRow.on')),
+     '  → and Clear all puts every section back, so the probe leaves no rules behind');
   ok(await p.evaluate(()=>/tuned for the default rules/i.test((document.querySelector('.ruleWarn')||{}).textContent||'')),
      'and warns that the Rival does not adapt');
 
@@ -272,7 +291,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
     ok((await footAt(0)).clickable, 'the panel fits at this size, and the footer is reachable regardless');
   }
   ok(!row.filter(b => b.id === 'ruleClear')[0].off, 'Clear all is live while rules are on');
-  /* A PRESET IS AN EXACT STATE, not an additive one — Aj named Chikicha Specials as "kits + quadro and nothing
+  /* A PRESET IS AN EXACT STATE, not an additive one — Aj named the Chikicha preset as "kits + quadro and nothing
    * else", so applying it over a table full of other rules must turn those OFF. Every rule is on at this point
    * in the suite, which is exactly the case that would catch an additive implementation. */
   /* DOU DIZHU is the fullest set — six shapes plus the bomb's chop — so it is also the sharpest test that a
@@ -292,7 +311,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   const after = await flags(p);
   ok(after.dblPair === 'kits' && after.kits3 === true && after.quadro === true && after.chopQuadro === true
      && after.chopKits === false && after.chopSflush === false,
-     'Chikicha Specials turns on consecutive 2 pairs, 3+ consecutive pairs, four of a kind and the four-of-a-kind chop only (the pair-chop belongs to Tiến lên)');
+     'the Chikicha preset turns on consecutive 2 pairs, 3+ consecutive pairs, four of a kind and the four-of-a-kind chop only (the pair-chop belongs to Tiến lên)');
   ok(after.loss === 'chosen' && after.mill === 'targeted' && after.shieldScale === false
      && after.drawScales === true && after.apexInf === false && after.apexNoStrip === false,
      'and turns everything else back OFF — "and nothing else" is part of the preset');
@@ -301,7 +320,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   row = await bulk(p);
   ok(row[0].active && !row[1].active,
      'and only THAT preset reads active — "exactly these rules" is a checkable claim, so two cannot both be it');
-  /* TIẾN LÊN is where `chopKits` belongs (Aj put it here rather than in Chikicha Specials). It is also the
+  /* TIẾN LÊN is where `chopKits` belongs (Aj put it here rather than in the Chikicha preset). It is also the
    * check that a second preset does not inherit the first's rules: the four-card double-pair slot must go OFF,
    * since the family's floor is three consecutive pairs, not two. */
   await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="tienlen"]').click()); await wait(250);
@@ -421,7 +440,9 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
       const f = document.querySelector('.ruleFoot');
       const mr = m.getBoundingClientRect(), fr = f.getBoundingClientRect();
       const el = document.elementFromPoint(Math.round(fr.left + fr.width / 2), Math.round(fr.top + fr.height / 2));
+      const bulk = document.querySelector('.settings .ruleBulk'), set = document.querySelector('.settings');
       return { setup: 0, w: Math.round(m.getBoundingClientRect().width),
+               bulkSpans: Math.abs(bulk.getBoundingClientRect().width - set.getBoundingClientRect().width) <= 1,
                cols: new Set(rows.map(r => Math.round(r.getBoundingClientRect().left))).size,
                fits: m.scrollHeight <= m.clientHeight + 1,
                footPinned: Math.abs(mr.bottom - fr.bottom) <= 2 && !!(el && f.contains(el)) };
@@ -436,7 +457,8 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   };
   const wide = await layout({ width: 1500, height: 950 });
   ok(wide.cols === 4, `at 1500px the rules go four columns (${wide.cols})`);
-  ok(wide.fits, 'and the whole panel fits — eighteen rules need the fourth column to do that');
+  ok(wide.fits, 'and the whole panel fits — nineteen rules need the fourth column to do that');
+  ok(wide.bulkSpans, '  → and the preset line spans every column, so it reads as a divider and not as one more rule');
   ok(wide.setup === 470, `while the SETUP dialog stays narrow (${wide.setup}px) — .modal is shared by every dialog`);
   ok(wide.afterW === 470, `and the width does not leak into the next dialog (${wide.afterW}px after Done)`);
   /* WHERE IT GENUINELY DOES NOT FIT, the sticky footer is what keeps the panel usable — asserted by hit-test at a

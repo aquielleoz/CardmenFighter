@@ -1034,7 +1034,7 @@ function cards(ids) { return ids.map(card); }
   })();
 
   /* ---- NO FULL HOUSES (v1.31.42). The one shape that was always in the game and could not be switched off,
-   * which is what kept Tiến lên Specials from being faithful — that game has none. */
+   * which is what kept the Tiến lên preset from being faithful — that game has none. */
   (function () {
     var fh = [C(7, 'D'), C(7, 'H'), C(7, 'C'), C(3, 'S'), C(3, 'D')];
     var trio3 = [C(7, 'D'), C(7, 'H'), C(7, 'C')];

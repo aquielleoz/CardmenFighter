@@ -2094,7 +2094,7 @@
    *             beats() already demands equal size, so a 6-chain cannot beat a 5-straight — the family's rule,
    *             free. */
   /* NO FULL HOUSES (v1.31.42). The full house is the one shape that has always been in the game and cannot be
-   * switched off — which stopped Tiến lên Specials from being faithful, since that game has no full house at all.
+   * switched off — which stopped the Tiến lên preset from being faithful, since that game has no full house at all.
    * The flag is the NEGATIVE (`NO_FULL_HOUSE`) because every rule in the panel must default off. */
   var NO_FULL_HOUSE = false;
   var TRIO_ONE = false, FOUR_TWO = false;

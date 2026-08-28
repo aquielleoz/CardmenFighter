@@ -32,23 +32,25 @@ layer where clients suggest and the host decides (v1.31.31), the deck picker's t
    the pile genuinely cannot answer the question afterwards. See the changelog.
 3. ~~**The remaining Dou Dizhu shapes.**~~ **SHIPPED in v1.31.39** — trio+1, four+two, the airplane, and the
    chain (as a length unlock on the straight). What is left of the family:
-   - **SPLIT THE CHOPS INTO THEIR OWN SECTION, put the presets on their own line, and drop "Specials" from all
-     three names** (Aj, 2026-08-28). Its own PR: it is panel architecture, and it revises v1.31.39's merge — but
-     legitimately, because shapes-vs-chops is a split by **kind**, which is the axis that survived, unlike
-     provenance. The presets would then span two sections, so a dedicated preset line is the consequence rather
-     than a preference. Watch: `rulestest` asserts the presets live inside a `.ruleSect` heading, `syncBulk()`
-     finds them by `.ruleBulk .bulkBtn`, and the section count and scope-tag count are both asserted.
+   - ~~**SPLIT THE CHOPS INTO THEIR OWN SECTION, put the presets on their own line, and drop "Specials"**~~
+     **SHIPPED in v1.31.44.** See the changelog.
    - ~~**RENAME THE PAIR ROWS TO DESCRIBE RATHER THAN NAME**~~ **SHIPPED in v1.31.40**, with the board name
      moved to match and CLAUDE.md's "the names are load-bearing" note rewritten rather than left contradicting
      the panel.
-   - **CHOP STRENGTH AS A MODE, in the chops-section PR** (Aj, 2026-08-28: *"[Off] [Only single 2s] [Include all
-     other shapes]"*). Agreed, with one correction from the measurements: **four segments, not three.** Today's
-     reach — a lone 2 *or a pair of them* — is the only setting we have evidence for, because **0 of 88 chops at
-     six players were against a lone 2** and 85 were against a pair. So "Only single 2s" is the pagat-faithful
-     option and is ~inert here, and dropping today's behaviour would remove the one that actually fires. The set
-     that keeps every meaningful behaviour: `Off` / `Only single 2s` / `Any all-2s play` (today) / `Any shape at
-     all` (the Dou Dizhu 炸弹, which answers a full house or a straight too — and would need measuring, since it
-     is a much bigger change than the other three).
+   - ~~**CHOP STRENGTH AS A MODE**~~ **DROPPED, 2026-08-28**, by Aj on reading the source rules: *"tien len
+     likes to complicate things eh? … it's too complex for 'rulesets inspired by X'."* Worth keeping the
+     lookup that killed it, because it is also the answer to "should we be more faithful here":
+     - **A Tiến lên chop only ever answers a 2** — never any other card. [pagat](https://www.pagat.com/climbing/thirteen.html):
+       *"if someone plays an ace you cannot beat it with your four of a kind, but if the ace has been beaten by
+       a two, then your four of a kind can be used to beat the two."* So the fourth segment we had drafted,
+       *any shape at all*, was never Tiến lên at all — it is **Dou Dizhu's 炸弹**.
+     - **The faithful ladder scales with the CHOPPER'S SIZE**, not its kind: 3 consecutive pairs or a four of a
+       kind beat a single 2; 5 pairs or two consecutive quads beat a *pair* of 2s; 7 pairs or three consecutive
+       quads beat *three* 2s. That is the table Aj judged too complex, and the measurements agree it would buy
+       nothing: re-measured 2026-08-28 on **real turns** (not 10-card hands — see v1.31.43), 5 consecutive pairs
+       are offered on **0.51%** of turns at six players and 7 pairs on **0.00%**, so the upper two rungs are
+       decoration even now that we know hands run to 17 cards.
+     - Our flat reach of 2 therefore stands, and it sits deliberately between rungs one and two.
    - **THE 2 OUT OF STRAIGHTS, as an option, and Aj wants it in the Chikicha preset** (2026-08-28). Our top
      straight window is `J-Q-K-A-2` because we ladder the 2 at 15; Big Two allows it, Tiến lên and Dou Dizhu both
      bar the heo/2 from chains. With the chain unlocked this matters more: a long run becomes a way to launder
@@ -607,6 +609,42 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.44 — the chops get their own section
+
+The rules panel is **five sections**: the chops leave `Shapes & chops` and become **Chops** of their own. They
+are not one more shape — every other row in that section adds a play that obeys the shape-matching rule, and
+these are the four that bend it. The split pays for itself twice over: the three chop rows drop the
+`The chop:` prefix they each carried, because the heading now says it once (the same reason **The game** does
+not repeat *Game mode* in its only row).
+
+**The presets move onto their own line.** They rode the right end of the Shapes heading, which worked only
+while one section held every rule they set. A preset now spans the Shapes/Chops boundary, so belonging to
+either heading would misdescribe it — the dedicated line is the consequence of the split, not a preference.
+They also drop **"Specials"** from all three names (Chikicha · Tiến lên · Dou Dizhu), since a panel that is
+nothing but specials was not distinguishing anything by saying so; a small **PRESETS** label on the line
+carries the meaning the suffix used to, at less width.
+
+**And the treadmill again.** A fifth heading plus a full-width preset row cost ~70px, which put a 14-inch MBP
+14px over — exactly the failure mode CLAUDE.md warns about. Same fix as last time, in the wide tier only,
+where the rows are short: section margins 5→3px, the preset line's own margin 10→3px, preset buttons
+6px→5px tall. 1512×945 fits again.
+
+**Three assertions had to invert rather than adjust,** which is the honest shape of a layout change:
+`rulestest` asserted the presets sit **inside** a `.ruleSect` heading, and now asserts they are a sibling
+between the Shapes heading and its first row; the section and scope-chip counts go 4 → 5. Added with them: the
+preset line must **span every column** (measured as rendered width, not computed `grid-column`, which reports
+`-1` inconsistently), and a preset must really **light rules in both sections** — driven by clicking Dou Dizhu
+and reading which rows came on, then Clear all, so the probe leaves nothing behind. An assertion that read the
+preset map back from a hook would have agreed with the renderer by construction.
+
+**Dropped on the way in: chop strength as a mode.** Aj had approved four segments; reading the source rules
+killed it (*"tien len likes to complicate things eh? … it's too complex for 'rulesets inspired by X'"*). The
+lookup is kept in the BACKLOG entry, because it also settles how faithful we should be: a Tiến lên chop only
+ever answers a **2** — never any other card — so the *any shape at all* segment was Dou Dizhu's 炸弹 all along;
+and the faithful ladder scales with the **chopper's size** (3 pairs / a quad → a single 2; 5 pairs → a pair of
+2s; 7 pairs → three 2s), whose upper rungs measure at **0.51%** and **0.00%** of real turns at six players.
+Our flat reach of 2 stands.
 
 ### v1.31.43 — a correction: MAX_HAND is a discard limit, not a hand cap
 
