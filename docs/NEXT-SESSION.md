@@ -7,7 +7,7 @@ Current version: **v1.31.25**. The 2-apex + Forms **rework is simply the game** 
 
 ## ☀️ START HERE — where we left off (2026-08-27)
 
-`main` is at **v1.31.42**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
+`main` is at **v1.31.43**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
 nothing is in flight — every PR is merged and every branch pruned.
 
 **Sanity check before you touch anything** (from `code/`, ~30 seconds):
@@ -607,6 +607,51 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.43 — a correction: MAX_HAND is a discard limit, not a hand cap
+
+Aj asked why zero chops ever landed on a lone 2. Chasing that produced the answer *and* exposed a measurement
+error I had repeated for several versions.
+
+**The lone-2 answer is timing, and neither of the things we guessed.** It is not the AI declining, and not the
+damage payoff (with chops stripping vs not it is 172 vs 177 chops taken). Measured over 250 six-player games:
+
+| pile | avg round | avg hand facing it | a chop in hand | taken |
+| --- | --- | --- | --- | --- |
+| lone 2 | **1.6** | 5.7 cards | 12 of 1103 (1%) | 0 |
+| pair of 2s | **8.8** | 12.3 cards | 233 of 766 (30%) | 172 (74%) |
+
+**Round 1 is singles only**, so a lone 2 on the pile is almost entirely a round-1 event — when hands are about
+six cards and a chopper is arithmetically out of reach (four of a kind needs four of one value; three consecutive
+pairs needs six cards from a six-card hand). By the time anyone holds a chopper, nobody is leading bare 2s. The
+opportunity barely exists; the AI is not turning it down.
+
+**And the correction.** That 12.3-card average is above `MAX_HAND`, which sent me to read it: `discardToLimit`
+trims **after** your turn, so `MAX_HAND` is an end-of-turn limit, not a cap on what you hold while choosing a
+play. **A player is on turn with more than ten cards on 78% of turns**, and 17 has been seen.
+
+So every availability figure I took by dealing a 10-card sample was understated, and two claims in the changelog
+were simply wrong:
+
+| shape | claimed (10-card sample) | actual (per real turn, 6p) |
+| --- | --- | --- |
+| 4 consecutive pairs | 0.0–0.1%, *"decoration"* | **1.5%** |
+| airplane, bare | 0.2% | **2.0%** |
+| airplane + spares | *"needs your whole hand"* | **2.4%** |
+| four + two | 1.0% | **4.2%** |
+| trio + 1 | 24.1% of hands | 12.4% of turns |
+| four of a kind | 1.1% | 3.7% |
+
+**This matters beyond the numbers:** "the 4-Kit tier is decoration at 0.0–0.1%" was part of my argument for
+dropping the trio reach when the choppers became peers. At 1.5% of turns that supporting argument does not hold.
+The decision itself stands on its other legs — pagat puts the shapes at the same tier, and a six-card play should
+not be strictly worse than a four-card one — but the weak leg is now marked as weak.
+
+Fixed in the player-facing copy too: the airplane and straight notes no longer say "your whole hand".
+
+**The rule, now in CLAUDE.md:** measure a shape's availability **per turn in real games**, never from a dealt
+hand. This is the second time the same class of error has appeared — the first was reading a per-hand probability
+as a per-turn rate — and both times it made a shape look decorative when it was not.
 
 ### v1.31.42 — full houses can be switched off, and the rules cluster shapes before chops
 

@@ -1404,14 +1404,14 @@ __QR__
      * a pair per trio); the n===4k / n===5k arithmetic excludes the rest without a special case. */
     { key:'airplane',    duel:true, label:'Consecutive trios',
       mode:[{v:'off',label:'Off'},{v:'bare',label:'Trios only'},{v:'wings',label:'With spares'}],
-      note:'飞机. Two or more trios of consecutive values (777888), compared by the <b>top trio</b>. <b>With spares</b> also allows 飞机带翅膀, where each trio carries one extra card — either a single each (eight cards) or a pair each (ten, your whole hand). The spares are baggage, as in every attachment in this family, and the bare form stays legal either way.' },
+      note:'飞机. Two or more trios of consecutive values (777888), compared by the <b>top trio</b>. <b>With spares</b> also allows 飞机带翅膀, where each trio carries one extra card — either a single each (eight cards) or a pair each (ten). The spares are baggage, as in every attachment in this family, and the bare form stays legal either way.' },
     /* A MODE, not a toggle: these are three settings of one dial — the straight's MINIMUM length — and "3 or
      * more" is a strict superset of "5 or more", which is the same relationship that forced the four-card slot
      * to be a mode. "Off" is the shipped rule, exactly five, so it is a length like the others rather than a
      * disabled state. */
     { key:'straightLen', duel:true, label:'Straight length',
       mode:[{v:'off',label:'Exactly 5'},{v:'3',label:'3 or more'},{v:'5',label:'5 or more'}],
-      note:'How long a straight may be. <b>Exactly 5</b> is this game as it ships. <b>3 or more</b> is Tiến lên\u2019s rule, <b>5 or more</b> is Dou Dizhu\u2019s 单顺 — up to your whole hand either way. Length still has to match to beat it, so a six-card run and a five-card run never meet: that is what stops a longer straight from being simply better. A three-card run and a trio are different shapes and never answer each other.' },
+      note:'How long a straight may be. <b>Exactly 5</b> is this game as it ships. <b>3 or more</b> is Tiến lên\u2019s rule, <b>5 or more</b> is Dou Dizhu\u2019s 单顺 — any length from there up. Length still has to match to beat it, so a six-card run and a five-card run never meet: that is what stops a longer straight from being simply better. A three-card run and a trio are different shapes and never answer each other.' },
     /* THREE INDEPENDENT CHOPS, not a mode. They are distinguishable shapes, so nothing forces a choice — you
      * can take one, or all of them — and each toggle enables its own shape, so no setting is ever dead. The
      * ladder between them is 3 pairs < four of a kind < same-suit straight < 4+ pairs. */
