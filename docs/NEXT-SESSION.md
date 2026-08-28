@@ -7,7 +7,7 @@ Current version: **v1.31.25**. The 2-apex + Forms **rework is simply the game** 
 
 ## ☀️ START HERE — where we left off (2026-08-27)
 
-`main` is at **v1.31.39**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
+`main` is at **v1.31.40**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
 nothing is in flight — every PR is merged and every branch pruned.
 
 **Sanity check before you touch anything** (from `code/`, ~30 seconds):
@@ -16,7 +16,7 @@ nothing is in flight — every PR is merged and every branch pruned.
 npm test && node mptest.js && node rulestest.js
 ```
 
-Expect **304 / 0**, **28 / 0**, **82 / 0**, **119 / 0**. If a count disagrees, the suite is right — fix the
+Expect **314 / 0**, **28 / 0**, **82 / 0**, **134 / 0**. If a count disagrees, the suite is right — fix the
 number here.
 
 **What the last stretch was about**, newest first, all of it in the changelog below: the chop (v1.31.33), rule
@@ -38,13 +38,9 @@ layer where clients suggest and the host decides (v1.31.31), the deck picker's t
      provenance. The presets would then span two sections, so a dedicated preset line is the consequence rather
      than a preference. Watch: `rulestest` asserts the presets live inside a `.ruleSect` heading, `syncBulk()`
      finds them by `.ruleBulk .bulkBtn`, and the section count and scope-tag count are both asserted.
-   - **RENAME THE PAIR ROWS TO DESCRIBE RATHER THAN NAME** (Aj, 2026-08-28), in the same spirit as Quadro →
-     "Four of a kind" and 飞机 → "Consecutive trios": `Four-card double pairs` → **`2 pairs`** with segments
-     **`[Off] [Consecutive] [Non-consecutive]`**, and `3 Kits and up — longer runs of consecutive pairs` →
-     **`3 or more consecutive pairs`**. Note this retires the "Kits" vocabulary from the panel, which CLAUDE.md
-     currently defends as load-bearing — the requirement it was protecting is that the two shapes must not share
-     a name, and Consecutive / Non-consecutive satisfies that at least as well. **Update that note when the
-     rename lands**, do not leave the two contradicting each other.
+   - ~~**RENAME THE PAIR ROWS TO DESCRIBE RATHER THAN NAME**~~ **SHIPPED in v1.31.40**, with the board name
+     moved to match and CLAUDE.md's "the names are load-bearing" note rewritten rather than left contradicting
+     the panel.
    - **THE 2 OUT OF STRAIGHTS, as an option, and Aj wants it in the Chikicha preset** (2026-08-28). Our top
      straight window is `J-Q-K-A-2` because we ladder the 2 at 15; Big Two allows it, Tiến lên and Dou Dizhu both
      bar the heo/2 from chains. With the chain unlocked this matters more: a long run becomes a way to launder
@@ -602,6 +598,36 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.40 — the pair rows describe the shape instead of naming it
+
+Aj: *"let's call this 2 pairs — [Off] [Consecutive] [Non-consecutive] — and the other button: 3 or more
+consecutive pairs."* The last of the naming pass that also gave us "Four of a kind" and "Consecutive trios":
+**describe the shape rather than name it.**
+
+| was | now |
+| --- | --- |
+| `Four-card double pairs` · `Off / 2 Kits / Poker` | **`2 pairs`** · `Off / Consecutive / Non-consecutive` |
+| `3 Kits and up — longer runs of consecutive pairs` | **`3 or more consecutive pairs`** |
+| `The chop: 3+ Kits beat the 2` | **`The chop: 3+ consecutive pairs beat the 2`** |
+
+**This retires a vocabulary CLAUDE.md defended as load-bearing, and that note is updated rather than left to
+contradict the panel.** What it was protecting still holds — the two four-card shapes must not share a name,
+since one allows gaps and the other does not — and *Consecutive / Non-consecutive* says exactly that, where "2
+Kits vs Poker" required knowing two card games to decode.
+
+**The board name moved with it.** A played `kit` now reads **"2 Consecutive Pairs"**, not "2 Kits" — a player who
+ticks one word and sees another played is being told two stories. It is *"N Consecutive Pairs"* rather than the
+shorter *"N Pairs"* on purpose: `twopair` is **"Two Pair"** on the board, and two names differing by a single S
+would be unreadable in a log line. `rulestest` now asserts the panel contains no "Kits" anywhere.
+
+Internal types (`kit`, `twopair`) and rule keys (`dblPair`, `kits3`, `chopKits`) are untouched: they travel in
+saved rule sets and in the netplay string, and stable keys are the habit that saved the `recruit` difficulty tier.
+
+`nettest_suggest` caught the rename by itself — its vote chip asserts the mode's **value label**, so "Poker"
+failing there was the suite doing its job, not a break.
+
+Suites: `rulestest` 131 → **134**.
 
 ### v1.31.39 — the Dou Dizhu shapes
 

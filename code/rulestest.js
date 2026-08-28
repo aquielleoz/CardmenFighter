@@ -49,7 +49,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   ok(JSON.stringify(keys)===JSON.stringify(['basics','lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','dblPair','kits3','quadro','chopQuadro','chopKits','chopSflush','chopStrips','trioOne','fourTwo','airplane','straightLen']),
      `eighteen rules, the game mode first and the Dou Dizhu shapes last (${keys.join(', ')})`);
   /* ORDER IS LOAD-BEARING here: apexNoStrip's note says "unless the rule above is also on", meaning apexInf.
-   * Kits were first inserted between them, which silently pointed that sentence at the wrong rule. */
+   * The pair shapes were first inserted between them, which silently pointed that sentence at the wrong rule. */
   ok(keys.indexOf('apexNoStrip')===keys.indexOf('apexInf')+1,
      'the apex pair stays adjacent — apexNoStrip\'s note refers to "the rule above"');
   ok(await p.evaluate(()=>[].every.call(document.querySelectorAll('.settingRow[data-rule]'),b=>!/\bon\b/.test(b.className))),
@@ -158,7 +158,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
      `unticking Quadro takes its chop with it (${depOn.join(', ')||'none'}) — the dependency holds both ways`);
   await toggle(p,'chopKits'); await wait(200);
   depOn = await rulesOn();
-  ok(depOn.indexOf('kits3')>=0 && depOn.indexOf('chopKits')>=0, '3 Kits behaves the same way');
+  ok(depOn.indexOf('kits3')>=0 && depOn.indexOf('chopKits')>=0, '3 or more consecutive pairs behaves the same way');
   await toggle(p,'chopSflush'); await wait(200);
   depOn = await rulesOn();
   ok(depOn.indexOf('chopSflush')>=0 && depOn.length===3,
@@ -226,6 +226,19 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   ok(await noteShown('quadro'), 'Enter opens it too');
   await clickQ('quadro'); await wait(150);
 
+  /* ONE VOCABULARY. The panel used to call these shapes "Kits" while nothing else in the game did, and the rows
+   * are now described rather than named (Aj) — so nothing on screen should say Kits, and the board name has to
+   * agree with the panel or a player enables one thing and sees another played. */
+  ok(await p.evaluate(()=>!/Kits/.test(document.getElementById('modal').textContent)),
+     'the panel says nothing about "Kits" — the rows describe the shape instead');
+  ok(await p.evaluate(()=>{
+       const lbl=k=>document.querySelector('.settingRow[data-rule="'+k+'"] .settingLbl').textContent.replace(/\s+/g,' ');
+       return /^2 pairs/.test(lbl('dblPair')) && /3 or more consecutive pairs/.test(lbl('kits3'));
+     }), 'the two pair rows read "2 pairs" and "3 or more consecutive pairs"');
+  const segs2 = await p.evaluate(()=>[].map.call(document.querySelectorAll('.segBtn[data-mode-for="dblPair"]'),e=>e.textContent.trim()));
+  ok(JSON.stringify(segs2)===JSON.stringify(['Off','Consecutive','Non-consecutive']),
+     `and its segments name the distinction rather than the games it came from (${segs2.join(' | ')})`);
+
   // ---------- presets + Clear all (v1.31.30): one row that moves every rule at once
   /* Both containers: the presets live in their section's heading now, Clear all with Done in the footer. */
   const bulk = p => p.evaluate(() => [].map.call(document.querySelectorAll('.modal .bulkBtn'),
@@ -279,7 +292,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   const after = await flags(p);
   ok(after.dblPair === 'kits' && after.kits3 === true && after.quadro === true && after.chopQuadro === true
      && after.chopKits === false && after.chopSflush === false,
-     'Chikicha Specials turns on 2 Kits, 3 Kits, Quadro and the QUADRO chop only (Aj: 3 Kits as a chopper belongs to a Tiến lên preset, not this one)');
+     'Chikicha Specials turns on consecutive 2 pairs, 3+ consecutive pairs, four of a kind and the four-of-a-kind chop only (the pair-chop belongs to Tiến lên)');
   ok(after.loss === 'chosen' && after.mill === 'targeted' && after.shieldScale === false
      && after.drawScales === true && after.apexInf === false && after.apexNoStrip === false,
      'and turns everything else back OFF — "and nothing else" is part of the preset');

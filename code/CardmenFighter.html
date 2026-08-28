@@ -4828,17 +4828,20 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.39';
+  var GAME_VERSION='v1.31.40';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
-  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',kit:'Kits',twopair:'Two Pair',quadro:'Four of a Kind',trioone:'Trio + 1',fourtwo:'Four + 2',airplane:'Consecutive Trios'};
-  /* Kits are the first VARIABLE-LENGTH shape, so a fixed name is not enough — a run of two pairs and a run of
-   * three are different plays. Where the combo object is in hand, say which ("2 Kits"); the bare TYPE entry
+  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',kit:'Consecutive Pairs',twopair:'Two Pair',quadro:'Four of a Kind',trioone:'Trio + 1',fourtwo:'Four + 2',airplane:'Consecutive Trios'};
+  /* Consecutive pairs are the first VARIABLE-LENGTH shape, so a fixed name is not enough — a run of two pairs and
+   * a run of three are different plays. Where the combo object is in hand, say which; the bare TYPE entry
    * covers the call sites that only carry a type string. */
   function comboName(combo){
     if(!combo) return 'Special';
-    if(combo.type==='kit') return (combo.size/2)+' Kits';        // "2 Kits", "3 Kits" — the table's own name
+    /* "2 Consecutive Pairs", not "2 Pairs": the non-consecutive shape is "Two Pair" on the board, and two names
+     * that differ by an S would be unreadable in a log line. The panel makes the same distinction in its
+     * segments, so the board and the rules now say the same thing. */
+    if(combo.type==='kit') return (combo.size/2)+' Consecutive Pairs';
     return TYPE[combo.type]||'Special';
   }
   var REWORK_LABEL={1:'A',11:'J',12:'Q',13:'K'};                                // REWORK playtest: ranks show as A/J/Q/K on the 2-as-apex ladder
@@ -4943,10 +4946,10 @@ window.CardFace = {};
      * checkboxes they could never beat each other and a four-card play would be ambiguously classified. One
      * segmented row means exactly one classification is ever live. `kits3` is a plain boolean because 3+ runs
      * are size 6 and never collide — and mode 'off' with kits3 ON is the Dou Dizhu form (3+ pairs only). */
-    { key:'dblPair',     duel:true, label:'Four-card double pairs',
-      mode:[{v:'off',label:'Off'},{v:'kits',label:'2 Kits'},{v:'poker',label:'Poker'}],
-      note:'“2 Kits” needs the two pairs CONSECUTIVE (4s+5s). “Poker” allows any two pairs (4s+9s) and compares the high pair first. They are alternatives, not both.' },
-    { key:'kits3',       duel:true, label:'3 Kits and up — longer runs of consecutive pairs',
+    { key:'dblPair',     duel:true, label:'2 pairs',
+      mode:[{v:'off',label:'Off'},{v:'kits',label:'Consecutive'},{v:'poker',label:'Non-consecutive'}],
+      note:'Four cards as two pairs. <b>Consecutive</b> needs the two values next to each other (4s+5s). <b>Non-consecutive</b> allows any two pairs (4s+9s) and compares the high pair first. They are alternatives, not both — any four cards that make two pairs would otherwise be two shapes at once.' },
+    { key:'kits3',       duel:true, label:'3 or more consecutive pairs',
       note:'Three pairs of consecutive values, or more. Independent of the row above, so you can play the family\u2019s original form \u2014 runs of three or more only.' },
     /* QUADRO is off by default for a COGNITIVE-LOAD reason, not a balance one (Aj: "new players will just
      * break"). It is also a plain shape here — it beats a lower quadro and nothing else. A quadro beating a
@@ -4962,15 +4965,15 @@ window.CardFace = {};
      * names the conflict with "The 2 cannot be beaten" rather than leaving two rules to contradict each other. */
     /* THREE INDEPENDENT CHOPS, not a mode. They are distinguishable shapes, so nothing forces a choice — you
      * can take one, or all of them — and each toggle enables its own shape, so no setting is ever dead. The
-     * ladder between them is 3 Kits < four of a kind < same-suit straight < 4+ Kits. */
+     * ladder between them is 3 pairs < four of a kind < same-suit straight < 4+ pairs. */
     /* `needs` is a REAL dependency, not a hint. The engine already treats a chopper's shape as enabled
      * (`quadroOn()` is `QUADRO || CHOP_Q`), so leaving the shape's own box unticked told the player something
      * false about the game they were about to play. The panel now ticks it with them, and unticking the shape
      * takes its chop with it — the dependency holds in both directions or the display lies again. */
     { key:'chopQuadro',  duel:true, label:'The chop: four of a kind beats the 2', needs:'quadro',
       note:'Four of a kind beats a 2 it does not match — a lone 2 or a pair of them. A chop answers by SHAPE, so it works even on a 2 that cannot be beaten, and no chop beats another: they are answered by their own shape at a higher value. Switches Four of a kind on with it.' },
-    { key:'chopKits',    duel:true, label:'The chop: 3+ Kits beat the 2', needs:'kits3',
-      note:'A run of three or more Kits does the same. Switches 3 Kits on with it.' },
+    { key:'chopKits',    duel:true, label:'The chop: 3+ consecutive pairs beat the 2', needs:'kits3',
+      note:'A run of three or more consecutive pairs does the same. Switches that shape on with it.' },
     { key:'chopSflush',  duel:true, label:'The chop: a Straight Flush beats the 2',
       note:'Five in a row, all one suit, does the same. This is <b>only</b> a chop — a same-suit run is an ordinary straight the rest of the time and never beats a higher straight. Single-suit class decks make these far more easily than mixed ones: they turn up in about one hand in four, against one in three hundred for the Full Set.' },
     /* CHOPS DEAL NO DAMAGE BY DEFAULT, and Aj's reason is the design one (2026-08-27): "that'll be lines for
@@ -5050,7 +5053,7 @@ window.CardFace = {};
    * More presets arrive as their shapes do — Dou Dizhu needs trio+single, four+two and the airplane first, so
    * offering it now would name a rule set the build cannot actually play. */
   var RULE_PRESETS=[
-    { key:'chikicha', label:'Chikicha Specials', title:'The Kits and four-of-a-kind shapes, with the chop that gives them a job — and nothing else',
+    { key:'chikicha', label:'Chikicha Specials', title:'The consecutive-pair and four-of-a-kind shapes, with the chop that gives them a job — and nothing else',
       rules:{ dblPair:'kits', kits3:true, quadro:true, chopQuadro:true } },
     /* TIẾN LÊN — the family this game keeps borrowing from. Its bombs are đôi thông (three or more consecutive
      * pairs) and tứ quý (four of a kind), and BOTH chop the heo, which here is the apex 2. So this is the preset
@@ -5058,7 +5061,7 @@ window.CardFace = {};
      * Deliberately NOT in it: the four-card double-pair slot (the family's floor is three pairs, not two, so a
      * 2-kit is not one of its shapes and poker's two pair certainly is not), and the straight-flush chop, which
      * belongs to Big Two rather than to Tiến lên. */
-    { key:'tienlen', label:'Tiến lên Specials', title:'The family’s own bombs: 3+ Kits and four of a kind, both chopping the 2',
+    { key:'tienlen', label:'Tiến lên Specials', title:'The family’s own bombs: 3+ consecutive pairs and four of a kind, both chopping the 2',
       rules:{ kits3:true, quadro:true, chopKits:true, chopQuadro:true } },
     /* DOU DIZHU — the fullest set, because that game has the most shapes. 连对 is our 3 Kits (its floor is three
      * consecutive pairs, so the four-card slot stays OFF, as in Tiến lên), 单顺 is the unlocked straight, and its
@@ -5066,7 +5069,7 @@ window.CardFace = {};
      * our full house, always in the game.
      * One honest divergence, recorded rather than papered over: a Dou Dizhu 炸弹 beats ANY non-bomb play, while
      * our chop only reaches the all-2s shapes. chopQuadro is the closest thing we have, not the same thing. */
-    { key:'doudizhu', label:'Dou Dizhu Specials', title:'The fullest set: 3 Kits, long straights, trio+1, four+two, the airplane, and the bomb',
+    { key:'doudizhu', label:'Dou Dizhu Specials', title:'The fullest set: 3+ consecutive pairs, long straights, trio+1, four+two, the airplane, and the bomb',
       rules:{ kits3:true, straightLen:'5', trioOne:true, fourTwo:true, airplane:'wings',
               quadro:true, chopQuadro:true } }
   ];

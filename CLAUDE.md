@@ -292,9 +292,18 @@ other and `4♦4♥5♣5♠` would be ambiguously classified. `setKits()` is **g
 migrates to `dblPair=kits,kits3` in `setRulesFromKey`, so an old localStorage value (or one from an older peer)
 does not silently turn the rule off. `kits3` stays separate because 3+ runs are size 6 and never collide with
 the 4-card slot — which is what lets the family's original form (3+ only) be played without the 2-kit.
-- **The names are load-bearing:** "2 Kits" / "3 Kits" for consecutive, "Poker" for gapped. They are different
-  shapes and must not share a name. Internal types are `kit` and `twopair`; a two-pair is keyed
-  `[highPair, lowPair]`, so `lexCmp` compares the top pair before the bottom for free.
+- **THE ROWS DESCRIBE THE SHAPE; THEY NO LONGER NAME IT (v1.31.40).** The panel said "2 Kits" / "3 Kits" /
+  "Poker" — a vocabulary nothing else in the game used. It now reads **`2 pairs`** with segments
+  **`Off / Consecutive / Non-consecutive`**, and **`3 or more consecutive pairs`**. The requirement the old names
+  were protecting still holds and is what the new ones express directly: **the two four-card shapes must not
+  share a name**, since one allows gaps and the other does not.
+  The **board** name moved with it — a played `kit` is "2 Consecutive Pairs", not "2 Kits" — because a player who
+  ticks one word and sees another played is being told two stories. It is *"N Consecutive Pairs"* rather than
+  *"N Pairs"* precisely because `twopair` is "Two Pair" on the board and two names differing by an S are
+  unreadable in a log line. `rulestest` asserts the panel contains no "Kits" at all.
+  Internal types stay `kit` and `twopair` and the keys stay `dblPair`/`kits3` — they travel in saved rule sets
+  and the netplay string. A two-pair is keyed `[highPair, lowPair]`, so `lexCmp` compares the top pair before the
+  bottom for free.
 - **A MODE ROW IS A `<div>`, NOT A `<button>`** — nesting buttons is invalid HTML, so the segments are the
   buttons and *they* carry `disabled` in read-only mode. Two suites asserted only `row.disabled` and both
   therefore passed a panel whose segments were still live: `rulestest` (mid-game) and `nettest_rules` (the
