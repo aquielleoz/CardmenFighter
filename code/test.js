@@ -1033,6 +1033,103 @@ function cards(ids) { return ids.map(card); }
     E.setChopStrips(false); E.setChopQuadro(false);
   })();
 
+  /* ---- DOU DIZHU SHAPES (v1.31.39). Three new shapes plus a length unlock. Note the family's TRIO + PAIR
+   * (三带二) is already in the game as our full house, so the "attachment is baggage" idea is not new here —
+   * these are its smaller sibling, its bigger relative, the trio version of a run, and 单顺. */
+  (function () {
+    var t3 = [C(7, 'D'), C(7, 'H'), C(7, 'C')];
+    var trioOne = t3.concat([C(3, 'S')]);
+    var trioOneHi = [C(9, 'D'), C(9, 'H'), C(9, 'C'), C(13, 'S')];
+    var q4 = [C(7, 'D'), C(7, 'H'), C(7, 'C'), C(7, 'S')];
+    var fourPair = q4.concat([C(3, 'D'), C(3, 'H')]);
+    var fourTwoSingles = q4.concat([C(3, 'D'), C(4, 'H')]);
+    var plane = t3.concat([C(8, 'S'), C(8, 'D'), C(8, 'H')]);
+    var planeGap = t3.concat([C(9, 'S'), C(9, 'D'), C(9, 'H')]);
+    var run5 = [C(4, 'D'), C(5, 'H'), C(6, 'C'), C(7, 'S'), C(8, 'D')];
+    var run6 = run5.concat([C(9, 'H')]);
+
+    ok(E.detectCombo(trioOne) === null && E.detectCombo(fourPair) === null && E.detectCombo(plane) === null
+       && E.detectCombo(run6) === null,
+       'all four Dou Dizhu shapes are illegal in the shipped game');
+
+    E.setTrioOne(true);
+    var d = E.detectCombo(trioOne);
+    ok(d && d.type === 'trioone' && d.size === 4 && d.key[0] === 7,
+       '三带一 is a shape of size 4, keyed by the TRIO — the spare card is not in the key at all');
+    ok(E.beats(E.detectCombo(trioOneHi), d) === true,
+       'so 999+K beats 777+3: the trio decides and the spare is baggage, exactly as in a full house');
+    ok(E.beats(E.detectCombo(t3), d) === false && E.beats(d, E.detectCombo(t3)) === false,
+       'and a bare trio and a trio+one never meet — different sizes, as the family requires');
+
+    E.setFourTwo(true);
+    var f = E.detectCombo(fourPair);
+    ok(f && f.type === 'fourtwo' && f.size === 6 && f.key[0] === 7, '四带二 takes a quad plus a pair, keyed by the quad');
+    ok(E.detectCombo(fourTwoSingles).type === 'fourtwo', 'or a quad plus two singles — both are the same shape');
+    /* THE INTERESTING PART: the same four cards are a Quadro (a chop) or the core of a 四带二 (an ordinary big
+     * shape). In Dou Dizhu the bomb is the BARE quad, which is what makes that a real choice. */
+    E.setQuadro(true);
+    ok(E.detectCombo(q4).type === 'quadro' && E.detectCombo(fourPair).type === 'fourtwo',
+       'and the bare quad is still a Quadro — four cards or six, the player chooses which shape to spend them as');
+    E.setQuadro(false);
+
+    /* CONSECUTIVE TRIOS IS A MODE: 'wings' still allows the bare form, so it is a superset of 'bare' — the same
+     * relationship that made the four-card slot a mode rather than two booleans. */
+    E.setAirplane('bare');
+    var a = E.detectCombo(plane);
+    ok(a && a.type === 'airplane' && a.size === 6 && a.key[0] === 8, '飞机 is two consecutive trios, keyed by the top one');
+    ok(E.detectCombo(planeGap) === null, 'and the trios must be CONSECUTIVE — 777 999 is nothing');
+    var wingSingles = plane.concat([C(3, 'S'), C(4, 'D')]);          // one spare per trio
+    var wingPairs = plane.concat([C(3, 'S'), C(3, 'D'), C(4, 'H'), C(4, 'C')]);   // one pair per trio
+    var wingBad = plane.concat([C(3, 'S'), C(3, 'D')]);              // 8 cards, but a pair where singles belong
+    ok(E.detectCombo(wingSingles) === null && E.detectCombo(wingPairs) === null,
+       'and in "bare" mode the winged forms are not shapes at all');
+    E.setAirplane('wings');
+    ok(E.detectCombo(plane).size === 6, 'in "wings" the bare form is still legal — the mode is a superset, not a swap');
+    ok(E.detectCombo(wingSingles).type === 'airplane' && E.detectCombo(wingSingles).size === 8
+       && E.detectCombo(wingSingles).key[0] === 8,
+       '飞机带翅膀 with one single per trio is size 8, still keyed by the TOP TRIO — the spares are baggage');
+    ok(E.detectCombo(wingPairs).size === 10, 'and with one pair per trio it is size 10, your whole hand');
+    ok(E.detectCombo(wingBad) === null,
+       'the spares must be uniform: eight cards carrying a pair instead of two singles is nothing');
+    /* At MAX_HAND=10 only the TWO-trio forms fit — three trios with singles is twelve cards. The arithmetic
+     * excludes them on its own (n === 4k / 5k), which is why there is no special case for it. */
+    ok(E.beats(E.detectCombo(plane), E.detectCombo(wingSingles)) === false
+       && E.beats(E.detectCombo(wingSingles), E.detectCombo(plane)) === false,
+       'a bare airplane and a winged one never meet — different sizes, as with every length in this family');
+    E.setAirplane('bare');
+
+    /* 单顺 IS NOT A NEW SHAPE: it is the straight's MINIMUM LENGTH, as a mode — 'off' is the shipped exactly-five,
+     * '3' is Tiến lên's floor, '5' is Dou Dizhu's. A five-card chain and our straight are the same cards, so a
+     * parallel type would have been ambiguous; and '3' is a strict superset of '5', which is the same reason the
+     * four-card slot had to be a mode rather than two booleans. */
+    var run3 = [C(4, 'D'), C(5, 'H'), C(6, 'C')];
+    var run4 = run3.concat([C(7, 'S')]);
+    var run5hi = [C(5, 'D'), C(6, 'H'), C(7, 'C'), C(8, 'S'), C(9, 'D')];
+    ok(E.detectCombo(run5).type === 'straight' && E.detectCombo(run3) === null && E.detectCombo(run6) === null,
+       'min=off is the shipped rule: exactly five, so a 3-run and a 6-run are both illegal');
+    E.setStraightMin('5');
+    ok(E.detectCombo(run6).size === 6 && E.detectCombo(run3) === null,
+       'min=5 (Dou Dizhu) allows longer runs but not shorter ones');
+    E.setStraightMin('3');
+    ok(E.detectCombo(run3).type === 'straight' && E.detectCombo(run3).size === 3
+       && E.detectCombo(run4).size === 4 && E.detectCombo(run6).size === 6,
+       'min=3 (Tiến lên) allows every length from three up — a strict superset of min=5');
+    /* A 3-run is [1,1,1] and a trio is [3], so they are never the same cards — but they ARE the same SIZE, and
+     * beats() keys on type as well, so they cannot answer each other. That is the family's behaviour. */
+    var trio3 = [C(7, 'D'), C(7, 'H'), C(7, 'C')];
+    ok(E.detectCombo(trio3).type === 'trio' && E.beats(E.detectCombo(trio3), E.detectCombo(run3)) === false
+       && E.beats(E.detectCombo(run3), E.detectCombo(trio3)) === false,
+       'and a trio and a three-card run never answer each other, being different types at the same size');
+    ok(E.beats(E.detectCombo(run6), E.detectCombo(run5)) === false,
+       'length must still match to beat — what stops a longer run being simply better');
+    ok(E.beats(E.detectCombo(run5hi), E.detectCombo(run5)) === true, 'while equal lengths compare by value as usual');
+    E.setStraightMin('off');
+    ok(E.detectCombo(run6) === null && E.detectCombo(run5).type === 'straight',
+       'and off restores exactly-five, leaving the ordinary straight untouched');
+
+    E.setTrioOne(false); E.setFourTwo(false); E.setAirplane('off');
+  })();
+
   E.setQuadro(false); E.setKits3(false); E.setDoublePair('off');
 })();
 

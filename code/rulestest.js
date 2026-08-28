@@ -24,6 +24,8 @@ const flags=p=>p.evaluate(()=>({
   dblPair: CardmenEngine.isDoublePair(), kits3: CardmenEngine.isKits3(), quadro: CardmenEngine.isQuadro(),
   chopQuadro: CardmenEngine.isChopQuadro(), chopKits: CardmenEngine.isChopKits(), chopSflush: CardmenEngine.isChopSflush(),
   chopStrips: CardmenEngine.isChopStrips(),
+  trioOne: CardmenEngine.isTrioOne(), fourTwo: CardmenEngine.isFourTwo(),
+  airplane: CardmenEngine.isAirplane(), straightLen: CardmenEngine.isStraightMin(),
 }));
 const openRules=async p=>{ await p.evaluate(()=>document.getElementById('rulesBtn').click()); await wait(300); };
 const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[data-rule="'+k+'"]'); if(b)b.click(); return !!b; }, k);
@@ -37,14 +39,15 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   // ---------- defaults: the shipped game, and EVERY toggle off
   ok(JSON.stringify(await flags(p))===JSON.stringify({loss:'chosen',mill:'targeted',shieldScale:false,drawScales:true,
        apexInf:false, apexNoStrip:false, dblPair:'off', kits3:false, quadro:false,
-       chopQuadro:false, chopKits:false, chopSflush:false, chopStrips:false}),
+       chopQuadro:false, chopKits:false, chopSflush:false, chopStrips:false,
+       trioOne:false, fourTwo:false, airplane:'off', straightLen:'off'}),
      'the shipped defaults are chosen / targeted / flat shields / scaling draw / no apex rules / no pair shapes');
   await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(300);
   ok(await p.evaluate(()=>!!document.getElementById('rulesBtn')), 'the setup dialog offers ⚗️ Custom rules');
   await openRules(p);
   const keys=await p.evaluate(()=>[].map.call(document.querySelectorAll('.settingRow[data-rule]'),b=>b.getAttribute('data-rule')));
-  ok(JSON.stringify(keys)===JSON.stringify(['basics','lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','dblPair','kits3','quadro','chopQuadro','chopKits','chopSflush','chopStrips']),
-     `fourteen rules, the game mode first and the chops last (${keys.join(', ')})`);
+  ok(JSON.stringify(keys)===JSON.stringify(['basics','lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','dblPair','kits3','quadro','chopQuadro','chopKits','chopSflush','chopStrips','trioOne','fourTwo','airplane','straightLen']),
+     `eighteen rules, the game mode first and the Dou Dizhu shapes last (${keys.join(', ')})`);
   /* ORDER IS LOAD-BEARING here: apexNoStrip's note says "unless the rule above is also on", meaning apexInf.
    * Kits were first inserted between them, which silently pointed that sentence at the wrong rule. */
   ok(keys.indexOf('apexNoStrip')===keys.indexOf('apexInf')+1,
@@ -64,13 +67,13 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   /* SCOPE MOVED TO THE SECTION (v1.31.37). Every section holds rules of one scope — checked, all four are
    * homogeneous — so thirteen identical chips became four, and a row carries none. */
   ok(scopes.length===4 && /all player counts/i.test(scopes[0]) && /3–6/.test(scopes[1])
-     && /all player counts/i.test(scopes[2]) && /all player counts/i.test(scopes[3]),
-     `four section scope tags, not thirteen row ones (${scopes.join(' | ')})`);
+     && scopes.slice(2).every(t=>/all player counts/i.test(t)),
+     `four section scope tags, not eighteen row ones (${scopes.join(' | ')})`);
   ok(await p.evaluate(()=>document.querySelectorAll('.settingRow .ruleScope').length===0),
      'and no row repeats what its section already said');
   const sects = await p.evaluate(()=>[].map.call(document.querySelectorAll('.ruleSect .sectName'),e=>e.textContent.trim()));
   ok(JSON.stringify(sects)===JSON.stringify(['The game','Table rules','The 2','Shapes & chops']),
-     `the panel is four sections (${sects.join(' | ')})`);
+     `the panel is four sections — shapes are grouped by KIND, not by which game they came from (${sects.join(' | ')})`);
   ok(sects.indexOf('Uncategorised')<0,
      'and no rule fell outside them — an unclaimed rule renders under a visible Uncategorised heading, never vanishes');
   ok(await p.evaluate(()=>{
@@ -88,7 +91,8 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
                                    ['kits3','kits3',true],['quadro','quadro',true],
                                    ['chopQuadro','chopQuadro',true],['chopKits','chopKits',true],
                                    ['chopSflush','chopSflush',true],
-                                   ['chopStrips','chopStrips',true]]){
+                                   ['chopStrips','chopStrips',true],
+                                   ['trioOne','trioOne',true],['fourTwo','fourTwo',true]]){
     ok(await toggle(p,key), `toggling ${key}`);
     await wait(120);
     const f=await flags(p);
@@ -106,11 +110,26 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
     await wait(120);
     ok((await flags(p)).dblPair===v, `  → the engine now reports dblPair=${v}`);
   }
+  /* THE SECOND MODE ROW: straight length. Three settings of one dial, and "3 or more" is a strict superset of
+   * "5 or more" — the same relationship that forced the four-card slot to be a mode rather than two booleans. */
+  /* THE THIRD MODE ROW: consecutive trios. "With spares" still allows the bare form, so it is a superset of
+   * "Trios only" — the same relationship that made the four-card slot a mode. */
+  for(const v of ['bare','wings']){
+    ok(await seg(p,'airplane',v), `picking airplane=${v}`);
+    await wait(120);
+    ok((await flags(p)).airplane===v, `  → the engine now reports airplane=${v}`);
+  }
+  for(const v of ['3','5']){
+    ok(await seg(p,'straightLen',v), `picking straightLen=${v}`);
+    await wait(120);
+    ok((await flags(p)).straightLen===v, `  → the engine now reports straightLen=${v}`);
+  }
+  await seg(p,'straightLen','3'); await wait(120);
   ok(await p.evaluate(()=>{
     const a=[].filter.call(document.querySelectorAll('.segBtn[data-mode-for="dblPair"]'),b=>b.classList.contains('active'));
     return a.length===1 && a[0].getAttribute('data-mode-v')==='poker' && a[0].getAttribute('aria-checked')==='true';
   }), 'and exactly ONE segment reads active — the modes are alternatives, never both');
-  ok((await p.evaluate(()=>localStorage.getItem('cmf_rules_v1')))==='lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chopQuadro,chopKits,chopSflush,chopStrips',
+  ok((await p.evaluate(()=>localStorage.getItem('cmf_rules_v1')))==='lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chopQuadro,chopKits,chopSflush,chopStrips,trioOne,fourTwo,airplane=wings,straightLen=3',
      'the choice is serialised self-describingly, like the custom-deck key — the mode row carries its VALUE');
   /* The v1.31.24 boolean `kits` meant "consecutive runs of any length", which is now two settings. An old saved
    * key — or one from an older peer — must land on both halves, not silently turn the rule off. */
@@ -184,7 +203,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
    * before this was built. offsetParent is null for a display:none element. */
   const qCount = await p.evaluate(()=>document.querySelectorAll('.ruleQ[data-note-for]').length);
   const rowCount = await p.evaluate(()=>document.querySelectorAll('.settingRow[data-rule]').length);
-  ok(qCount === rowCount && rowCount === 14, `every rule carries a ? (${qCount} of ${rowCount})`);
+  ok(qCount === rowCount && rowCount === 18, `every rule carries a ? (${qCount} of ${rowCount})`);
   const noteShown = k => p.evaluate(k=>{
     const n=document.querySelector('.settingRow[data-rule="'+k+'"] .settingNote');
     return !!(n && n.offsetParent);
@@ -212,9 +231,9 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   const bulk = p => p.evaluate(() => [].map.call(document.querySelectorAll('.modal .bulkBtn'),
     b => ({ preset: b.getAttribute('data-preset'), id: b.id, txt: b.textContent.trim(), off: b.disabled, active: b.classList.contains('active') })));
   let row = await bulk(p);
-  ok(row.length === 3 && row[0].preset === 'chikicha' && row[1].preset === 'tienlen'
-     && row.filter(r => r.id === 'ruleClear').length === 1,
-     `two presets and a Clear all (${row.map(r => r.txt).join(' | ')})`);
+  ok(row.length === 4 && row[0].preset === 'chikicha' && row[1].preset === 'tienlen'
+     && row[2].preset === 'doudizhu' && row.filter(r => r.id === 'ruleClear').length === 1,
+     `three presets and a Clear all (${row.map(r => r.txt).join(' | ')})`);
   ok(await p.evaluate(()=>{
        const c=document.getElementById('ruleClear'); const f=c&&c.closest('.ruleFoot');
        return !!(f && f.querySelector('#ruleDone'));
@@ -243,6 +262,19 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   /* A PRESET IS AN EXACT STATE, not an additive one — Aj named Chikicha Specials as "kits + quadro and nothing
    * else", so applying it over a table full of other rules must turn those OFF. Every rule is on at this point
    * in the suite, which is exactly the case that would catch an additive implementation. */
+  /* DOU DIZHU is the fullest set — six shapes plus the bomb's chop — so it is also the sharpest test that a
+   * preset REPLACES rather than adds: coming from Tiến lên it must turn chopKits back off, and the four-card slot
+   * must stay off, because 连对's floor is three consecutive pairs. */
+  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="doudizhu"]').click()); await wait(250);
+  const dd = await flags(p);
+  ok(dd.kits3 && dd.straightLen === '5' && dd.trioOne && dd.fourTwo && dd.airplane === 'wings' && dd.quadro && dd.chopQuadro,
+     'Dou Dizhu turns on 3 Kits, long straights, trio+1, four+two, the airplane and the bomb');
+  ok(dd.dblPair === 'off' && dd.chopKits === false && dd.chopSflush === false,
+     'and nothing else — the four-card slot stays off (连对 needs three pairs) and Tiến lên\'s kit-chop is cleared');
+  ok((await p.evaluate(() => window.__solo.rulesKey())) === 'kits3,quadro,chopQuadro,trioOne,fourTwo,airplane=wings,straightLen=5',
+     'so the three presets are three exact states, not three accumulations');
+  ok((await bulk(p)).filter(b => b.active).length === 1, 'and exactly one reads active at a time');
+
   await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="chikicha"]').click()); await wait(250);
   const after = await flags(p);
   ok(after.dblPair === 'kits' && after.kits3 === true && after.quadro === true && after.chopQuadro === true
@@ -277,7 +309,8 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   ok((await p.evaluate(() => window.__solo.rulesKey())) === '', 'Clear all empties the whole rule set');
   ok(JSON.stringify(await flags(p)) === JSON.stringify({ loss: 'chosen', mill: 'targeted', shieldScale: false,
        drawScales: true, apexInf: false, apexNoStrip: false, dblPair: 'off', kits3: false, quadro: false,
-       chopQuadro: false, chopKits: false, chopSflush: false, chopStrips: false }),
+       chopQuadro: false, chopKits: false, chopSflush: false, chopStrips: false,
+       trioOne: false, fourTwo: false, airplane: 'off', straightLen: 'off' }),
      'and the engine is back on the shipped game, mode rows included');
   ok((await p.evaluate(() => localStorage.getItem('cmf_rules_v1'))) === '', 'the cleared state is saved too');
   ok((await bulk(p)).filter(b => b.id === 'ruleClear')[0].off,
@@ -365,9 +398,13 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
     const out = await q.evaluate(() => {
       const m = document.getElementById('modal');
       const rows = [].slice.call(document.querySelectorAll('.settingRow[data-rule]'));
+      const f = document.querySelector('.ruleFoot');
+      const mr = m.getBoundingClientRect(), fr = f.getBoundingClientRect();
+      const el = document.elementFromPoint(Math.round(fr.left + fr.width / 2), Math.round(fr.top + fr.height / 2));
       return { setup: 0, w: Math.round(m.getBoundingClientRect().width),
                cols: new Set(rows.map(r => Math.round(r.getBoundingClientRect().left))).size,
-               fits: m.scrollHeight <= m.clientHeight + 1 };
+               fits: m.scrollHeight <= m.clientHeight + 1,
+               footPinned: Math.abs(mr.bottom - fr.bottom) <= 2 && !!(el && f.contains(el)) };
     });
     out.setup = setupW;
     /* THE LEAK GUARD: the width is a class on the shared #modal, so the dialog that opens NEXT must not inherit
@@ -378,14 +415,50 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
     return out;
   };
   const wide = await layout({ width: 1500, height: 950 });
-  ok(wide.cols === 3, `at 1500px the rules go three columns (${wide.cols})`);
-  ok(wide.fits, 'and the whole panel fits without scrolling — which was the actual request');
+  ok(wide.cols === 4, `at 1500px the rules go four columns (${wide.cols})`);
+  ok(wide.fits, 'and the whole panel fits — eighteen rules need the fourth column to do that');
   ok(wide.setup === 470, `while the SETUP dialog stays narrow (${wide.setup}px) — .modal is shared by every dialog`);
   ok(wide.afterW === 470, `and the width does not leak into the next dialog (${wide.afterW}px after Done)`);
+  /* WHERE IT GENUINELY DOES NOT FIT, the sticky footer is what keeps the panel usable — asserted by hit-test at a
+   * size below the four-column tier, rather than claiming a fit that the rule count has outgrown. */
+  const tight = await layout({ width: 1280, height: 800 });
+  ok(tight.cols === 2 && !tight.fits, `at 1280px it is two columns and does scroll (${tight.cols} col)`);
+  ok(tight.footPinned, '  and the sticky footer stays pinned and clickable there');
   const mid = await layout({ width: 1100, height: 900 });
   ok(mid.cols === 2, `at 1100px it is two columns (${mid.cols})`);
   const narrow = await layout({ width: 900, height: 1000 });
   ok(narrow.cols === 1, `and below the breakpoint it stays a single column (${narrow.cols})`);
+
+  /* ---------- THE BIGGEST SHAPE, PLAYED BY HAND. Every other assertion here drives the panel or the engine;
+   * nothing had ever selected ten cards in the real hand UI, which is the path a person actually uses. Aj:
+   * "sorry, i'm not really testing these out in games" — this is the part of that gap a suite can close.
+   * A winged airplane at ten cards is the largest play the game allows, so it is also the selection-cap test. */
+  const p5=await ctx.newPage(); p5.on('pageerror',e=>errs.push('p5: '+e.message));
+  await p5.goto(HTML); await wait(500);
+  await p5.evaluate(()=>window.__solo.setRulesFromKey('airplane=wings'));
+  await p5.evaluate(()=>document.getElementById('newBtn').click()); await wait(300);
+  await p5.evaluate(()=>{ const g=document.getElementById('goFirstBtn'); if(g)g.click(); });
+  ok(await until(async()=>!!(await p5.evaluate(()=>window.__solo && window.__solo.st()))), 'a duel starts for the hand test');
+  await p5.evaluate(()=>{
+    const st=window.__solo.st(), mk=(r,s,i)=>({rank:r,suit:s,id:r+s+'#w'+i});
+    st.players[0].hand=[mk(7,'D',1),mk(7,'H',2),mk(7,'C',3),mk(8,'S',4),mk(8,'D',5),mk(8,'H',6),
+                        mk(3,'S',7),mk(3,'D',8),mk(4,'H',9),mk(4,'C',10)];
+    st.round=3; st.pile=null; st.turn=0; window.__solo.render();
+  });
+  await wait(350);
+  const picked = await p5.evaluate(()=>{
+    [].forEach.call(document.querySelectorAll('#hand .group'), g=>g.click());
+    return document.querySelectorAll('#hand .group.gsel').length;
+  });
+  ok(picked === 10, `all ten cards can be selected in the hand — no cap (${picked})`);
+  ok(await p5.evaluate(()=>/Consecutive Trios/i.test((document.getElementById('hint')||{}).textContent||'')),
+     'and the hint names the shape by its player-facing name, so the rename reaches the board too');
+  await p5.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled) f.click(); });
+  await wait(400);
+  ok(await p5.evaluate(()=>{ const st=window.__solo.st();
+       return !!(st.pile && st.pile.combo.type==='airplane' && st.pile.combo.size===10 && st.players[0].hand.length===0); }),
+     'and Fight plays it: a ten-card winged airplane, the largest play the game allows');
+  await p5.close();
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   await ctx.close();

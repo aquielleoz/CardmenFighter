@@ -706,6 +706,20 @@
     .modal.rulesPanel .settingRow{padding:10px 12px;}
     .modal.rulesPanel .ruleSect{margin:6px 0 1px;}
   }
+  /* A FOURTH column once there are enough rules to need it (eighteen, as of v1.31.39). Same principle as the
+   * third: the modal grows with it so a column keeps roughly the width it had, or the labels wrap more and the
+   * extra column gives back what it saved. */
+  /* Four columns reach down to 1500px on a narrower modal, which is what gets a 14-inch laptop under the cap.
+   * Below that a fourth column makes each one too narrow to hold a rule label on one line, and the extra wraps
+   * give back more than the column saves. */
+  @media (min-width:1500px){
+    .modal.rulesPanel{max-width:1340px;}
+    .modal.rulesPanel .settings{grid-template-columns:1fr 1fr 1fr 1fr;}
+  }
+  @media (min-width:1780px){
+    .modal.rulesPanel{max-width:1440px;}
+    .modal.rulesPanel .settings{grid-template-columns:1fr 1fr 1fr 1fr;}
+  }
   .modal .ghostBtn{background:var(--panel); color:var(--txt); border:1px solid var(--line); font-weight:700; font-size:14px; width:100%; margin-top:8px;}
   .modal .setupBtns{display:flex; gap:8px; margin-top:8px;}
   .modal .setupBtns .ghostBtn{flex:1 1 0; min-width:0; margin-top:0;}
@@ -1244,7 +1258,7 @@ __QR__
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
-  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',kit:'Kits',twopair:'Two Pair',quadro:'Quadro'};
+  var TYPE={single:'Jab',pair:'Pair',trio:'Trio',straight:'Straight',flush:'Flush',fullhouse:'Full House',kit:'Kits',twopair:'Two Pair',quadro:'Four of a Kind',trioone:'Trio + 1',fourtwo:'Four + 2',airplane:'Consecutive Trios'};
   /* Kits are the first VARIABLE-LENGTH shape, so a fixed name is not enough — a run of two pairs and a run of
    * three are different plays. Where the combo object is in hand, say which ("2 Kits"); the bare TYPE entry
    * covers the call sites that only carry a type string. */
@@ -1363,20 +1377,24 @@ __QR__
     /* QUADRO is off by default for a COGNITIVE-LOAD reason, not a balance one (Aj: "new players will just
      * break"). It is also a plain shape here — it beats a lower quadro and nothing else. A quadro beating a
      * shape it does not match is the CHOP, a separate rule that needs cross-shape overrides in beats(). */
-    { key:'quadro',      duel:true, label:'Quadro — four of a kind',
-      note:'All four copies of one value. Beats a lower Quadro.' },
+    /* Named "Four of a kind" rather than "Quadro" (Aj, 2026-08-28) — with 四带二 sitting two rows away as "Four
+     * of a kind + two spare cards", two names for the same four cards read as two different shapes. The KEY
+     * stays `quadro`: it is in saved rule sets and in the netplay key, and stable keys are the habit that saved
+     * the `recruit` difficulty tier. */
+    { key:'quadro',      duel:true, label:'Four of a kind',
+      note:'All four copies of one value. Beats a lower four of a kind.' },
     /* THE CHOP is a modifier on the shapes above it, so it is last and its note says outright that it does
      * nothing without them. It is also the only rule that makes the apex 2 answerable, which is why the note
      * names the conflict with "The 2 cannot be beaten" rather than leaving two rules to contradict each other. */
     /* THREE INDEPENDENT CHOPS, not a mode. They are distinguishable shapes, so nothing forces a choice — you
      * can take one, or all of them — and each toggle enables its own shape, so no setting is ever dead. The
-     * ladder between them is 3 Kits < Quadro < same-suit straight < 4+ Kits. */
+     * ladder between them is 3 Kits < four of a kind < same-suit straight < 4+ Kits. */
     /* `needs` is a REAL dependency, not a hint. The engine already treats a chopper's shape as enabled
      * (`quadroOn()` is `QUADRO || CHOP_Q`), so leaving the shape's own box unticked told the player something
      * false about the game they were about to play. The panel now ticks it with them, and unticking the shape
      * takes its chop with it — the dependency holds in both directions or the display lies again. */
-    { key:'chopQuadro',  duel:true, label:'The chop: a Quadro beats the 2', needs:'quadro',
-      note:'Four of a kind beats a 2 it does not match — a lone 2 or a pair of them. A chop answers by SHAPE, so it works even on a 2 that cannot be beaten, and no chop beats another: they are answered by their own shape at a higher value. Switches Quadro on with it.' },
+    { key:'chopQuadro',  duel:true, label:'The chop: four of a kind beats the 2', needs:'quadro',
+      note:'Four of a kind beats a 2 it does not match — a lone 2 or a pair of them. A chop answers by SHAPE, so it works even on a 2 that cannot be beaten, and no chop beats another: they are answered by their own shape at a higher value. Switches Four of a kind on with it.' },
     { key:'chopKits',    duel:true, label:'The chop: 3+ Kits beat the 2', needs:'kits3',
       note:'A run of three or more Kits does the same. Switches 3 Kits on with it.' },
     { key:'chopSflush',  duel:true, label:'The chop: a Straight Flush beats the 2',
@@ -1393,6 +1411,28 @@ __QR__
     { key:'chopStrips',  duel:true, label:'Chops destroy shields too',
       needsAny:['chopQuadro','chopKits','chopSflush'],
       note:'By default a round won <b>by a chop</b> costs nobody a shield — a chop already bends the shape-matching rule, so what it buys you is the lead. Switch this on and a chop deals damage like any other Special. Either way it only concerns rounds a chop actually won: leading one of these shapes, or beating one with a higher one of the same shape, always deals damage. Needs a chop switched on to mean anything, so it stays inert until one is — and clears itself if the last one goes off.' },
+    /* DOU DIZHU SHAPES (v1.31.39). Their own section, both to keep "Shapes & chops" from becoming a wall and to
+     * give the eventual Dou Dizhu preset a heading to live in — the pattern from v1.31.37.
+     * Note the family's TRIO + PAIR (三带二) is already in the game: it is our full house. So these are its
+     * smaller sibling, its bigger relative, the trio version of a run, and a length unlock. */
+    { key:'trioOne',     duel:true, label:'Trio + one spare card',
+      note:'三带一. A trio plus any single card, compared by the <b>trio</b> — the spare is baggage you are shedding, exactly as the pair is in a full house (which is this family\u2019s 三带二). Answered only by a higher trio-plus-one.' },
+    { key:'fourTwo',     duel:true, label:'Four of a kind + two spare cards',
+      note:'四带二. All four copies of one value plus two more cards — a pair or two singles — compared by the <b>four</b>. In Dou Dizhu the bomb is the BARE four of a kind, so this is the choice to spend it as an ordinary big shape instead of as a chop.' },
+    /* A MODE, because "with spares" still allows the bare form — a superset, like the four-card slot. Named for
+     * what it is rather than for 飞机 (Aj: "let's call this consecutive trios too"), matching the pass that
+     * renamed Quadro. At MAX_HAND=10 only the two-trio winged forms fit (8 cards with a single per trio, 10 with
+     * a pair per trio); the n===4k / n===5k arithmetic excludes the rest without a special case. */
+    { key:'airplane',    duel:true, label:'Consecutive trios',
+      mode:[{v:'off',label:'Off'},{v:'bare',label:'Trios only'},{v:'wings',label:'With spares'}],
+      note:'飞机. Two or more trios of consecutive values (777888), compared by the <b>top trio</b>. <b>With spares</b> also allows 飞机带翅膀, where each trio carries one extra card — either a single each (eight cards) or a pair each (ten, your whole hand). The spares are baggage, as in every attachment in this family, and the bare form stays legal either way.' },
+    /* A MODE, not a toggle: these are three settings of one dial — the straight's MINIMUM length — and "3 or
+     * more" is a strict superset of "5 or more", which is the same relationship that forced the four-card slot
+     * to be a mode. "Off" is the shipped rule, exactly five, so it is a length like the others rather than a
+     * disabled state. */
+    { key:'straightLen', duel:true, label:'Straight length',
+      mode:[{v:'off',label:'Exactly 5'},{v:'3',label:'3 or more'},{v:'5',label:'5 or more'}],
+      note:'How long a straight may be. <b>Exactly 5</b> is this game as it ships. <b>3 or more</b> is Tiến lên\u2019s rule, <b>5 or more</b> is Dou Dizhu\u2019s 单顺 — up to your whole hand either way. Length still has to match to beat it, so a six-card run and a five-card run never meet: that is what stops a longer straight from being simply better. A three-card run and a trio are different shapes and never answer each other.' }
   ];
   /* TWO STORES, and the split is what makes suggestions possible (v1.31.31). RULES is what is IN PLAY — on a
    * netplay client the host overwrites it wholesale, so anything kept there is not yours. MY_RULES is THIS
@@ -1414,7 +1454,15 @@ __QR__
     { key:'mode',   title:'The game',       keys:['basics'] },
     { key:'table',  title:'Table rules',    keys:['lossAll','millAll','shieldScale','flatDraw'] },
     { key:'apex',   title:'The 2',          keys:['apexInf','apexNoStrip'] },
-    { key:'shapes', title:'Shapes & chops', keys:['dblPair','kits3','quadro','chopQuadro','chopKits','chopSflush','chopStrips'],
+    /* ONE SECTION FOR SHAPES AND CHOPS, not one per source game (Aj, 2026-08-28: "why did we add a separate
+     * category for dou dizhu?"). Because the answer is that there was no good reason: this section was ALREADY
+     * full of family shapes — the kits are 连对/đôi thông, the Quadro is 炸弹/tứ quý, poker's two pair is Big Two —
+     * so splitting the newest four out named one section by KIND and the other by PROVENANCE. It also broke the
+     * property the sections exist for: a preset belongs in the heading of the group it changes, and Chikicha
+     * Specials sets a shape AND a chop, so it spanned both. The family a shape came from belongs in its note. */
+    { key:'shapes', title:'Shapes & chops',
+      keys:['dblPair','kits3','quadro','trioOne','fourTwo','airplane','straightLen',
+            'chopQuadro','chopKits','chopSflush','chopStrips'],
       presets:true }
   ];
   var RULES={}, MY_RULES={};
@@ -1428,7 +1476,7 @@ __QR__
    * More presets arrive as their shapes do — Dou Dizhu needs trio+single, four+two and the airplane first, so
    * offering it now would name a rule set the build cannot actually play. */
   var RULE_PRESETS=[
-    { key:'chikicha', label:'Chikicha Specials', title:'The Kits and Quadro shapes, with the chop that gives them a job — and nothing else',
+    { key:'chikicha', label:'Chikicha Specials', title:'The Kits and four-of-a-kind shapes, with the chop that gives them a job — and nothing else',
       rules:{ dblPair:'kits', kits3:true, quadro:true, chopQuadro:true } },
     /* TIẾN LÊN — the family this game keeps borrowing from. Its bombs are đôi thông (three or more consecutive
      * pairs) and tứ quý (four of a kind), and BOTH chop the heo, which here is the apex 2. So this is the preset
@@ -1436,8 +1484,17 @@ __QR__
      * Deliberately NOT in it: the four-card double-pair slot (the family's floor is three pairs, not two, so a
      * 2-kit is not one of its shapes and poker's two pair certainly is not), and the straight-flush chop, which
      * belongs to Big Two rather than to Tiến lên. */
-    { key:'tienlen', label:'Tiến lên Specials', title:'The family’s own bombs: 3+ Kits and Quadro, both chopping the 2',
-      rules:{ kits3:true, quadro:true, chopKits:true, chopQuadro:true } }
+    { key:'tienlen', label:'Tiến lên Specials', title:'The family’s own bombs: 3+ Kits and four of a kind, both chopping the 2',
+      rules:{ kits3:true, quadro:true, chopKits:true, chopQuadro:true } },
+    /* DOU DIZHU — the fullest set, because that game has the most shapes. 连对 is our 3 Kits (its floor is three
+     * consecutive pairs, so the four-card slot stays OFF, as in Tiến lên), 单顺 is the unlocked straight, and its
+     * 炸弹 is the bare four of a kind, which is why it comes with the chop. Its 三带二 needs no rule: that is
+     * our full house, always in the game.
+     * One honest divergence, recorded rather than papered over: a Dou Dizhu 炸弹 beats ANY non-bomb play, while
+     * our chop only reaches the all-2s shapes. chopQuadro is the closest thing we have, not the same thing. */
+    { key:'doudizhu', label:'Dou Dizhu Specials', title:'The fullest set: 3 Kits, long straights, trio+1, four+two, the airplane, and the bomb',
+      rules:{ kits3:true, straightLen:'5', trioOne:true, fourTwo:true, airplane:'wings',
+              quadro:true, chopQuadro:true } }
   ];
   function presetValue(p,d){ return p.rules[d.key]!==undefined ? p.rules[d.key] : ruleOff(d); }
   function presetActive(p,src){ src=src||RULES; return RULE_DEFS.every(function(d){ return src[d.key]===presetValue(p,d); }); }
@@ -1498,6 +1555,10 @@ __QR__
       if(E.setChopKits)         E.setChopKits(!!RULES.chopKits);
       if(E.setChopSflush)       E.setChopSflush(!!RULES.chopSflush);
       if(E.setChopStrips)       E.setChopStrips(!!RULES.chopStrips);
+      if(E.setTrioOne)          E.setTrioOne(!!RULES.trioOne);
+      if(E.setFourTwo)          E.setFourTwo(!!RULES.fourTwo);
+      if(E.setAirplane)         E.setAirplane(RULES.airplane);
+      if(E.setStraightMin)      E.setStraightMin(RULES.straightLen);
   }
   function valLabel(d,v){
     if(!d.mode) return v?'On':'Off';       // capitalised to match a mode row's own labels, which sit beside it

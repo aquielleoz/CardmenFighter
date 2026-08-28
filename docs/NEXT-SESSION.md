@@ -7,7 +7,7 @@ Current version: **v1.31.25**. The 2-apex + Forms **rework is simply the game** 
 
 ## ☀️ START HERE — where we left off (2026-08-27)
 
-`main` is at **v1.31.38**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
+`main` is at **v1.31.39**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
 nothing is in flight — every PR is merged and every branch pruned.
 
 **Sanity check before you touch anything** (from `code/`, ~30 seconds):
@@ -16,7 +16,7 @@ nothing is in flight — every PR is merged and every branch pruned.
 npm test && node mptest.js && node rulestest.js
 ```
 
-Expect **292 / 0**, **28 / 0**, **82 / 0**, **109 / 0**. If a count disagrees, the suite is right — fix the
+Expect **304 / 0**, **28 / 0**, **82 / 0**, **119 / 0**. If a count disagrees, the suite is right — fix the
 number here.
 
 **What the last stretch was about**, newest first, all of it in the changelog below: the chop (v1.31.33), rule
@@ -30,7 +30,29 @@ layer where clients suggest and the host decides (v1.31.31), the deck picker's t
    out to hold rules of a single scope). See the changelog.
 2. ~~**Chop strip or not.**~~ **SHIPPED in v1.31.38** as `chopNoStrip`, with the flag stamped at play time —
    the pile genuinely cannot answer the question afterwards. See the changelog.
-3. Then the remaining Dou Dizhu shapes — trio+single, four+two, the airplane. (The **Tiến lên preset** shipped
+3. ~~**The remaining Dou Dizhu shapes.**~~ **SHIPPED in v1.31.39** — trio+1, four+two, the airplane, and the
+   chain (as a length unlock on the straight). What is left of the family:
+   - **SPLIT THE CHOPS INTO THEIR OWN SECTION, put the presets on their own line, and drop "Specials" from all
+     three names** (Aj, 2026-08-28). Its own PR: it is panel architecture, and it revises v1.31.39's merge — but
+     legitimately, because shapes-vs-chops is a split by **kind**, which is the axis that survived, unlike
+     provenance. The presets would then span two sections, so a dedicated preset line is the consequence rather
+     than a preference. Watch: `rulestest` asserts the presets live inside a `.ruleSect` heading, `syncBulk()`
+     finds them by `.ruleBulk .bulkBtn`, and the section count and scope-tag count are both asserted.
+   - **RENAME THE PAIR ROWS TO DESCRIBE RATHER THAN NAME** (Aj, 2026-08-28), in the same spirit as Quadro →
+     "Four of a kind" and 飞机 → "Consecutive trios": `Four-card double pairs` → **`2 pairs`** with segments
+     **`[Off] [Consecutive] [Non-consecutive]`**, and `3 Kits and up — longer runs of consecutive pairs` →
+     **`3 or more consecutive pairs`**. Note this retires the "Kits" vocabulary from the panel, which CLAUDE.md
+     currently defends as load-bearing — the requirement it was protecting is that the two shapes must not share
+     a name, and Consecutive / Non-consecutive satisfies that at least as well. **Update that note when the
+     rename lands**, do not leave the two contradicting each other.
+   - **THE 2 OUT OF STRAIGHTS, as an option, and Aj wants it in the Chikicha preset** (2026-08-28). Our top
+     straight window is `J-Q-K-A-2` because we ladder the 2 at 15; Big Two allows it, Tiến lên and Dou Dizhu both
+     bar the heo/2 from chains. With the chain unlocked this matters more: a long run becomes a way to launder
+     the apex card into a shape nobody can answer by value.
+   - **The landlord rule** (斗地主 = "fight the landlord"): bidding, a 3-card kitty, one player against two as a
+     team, bombs doubling the stakes. Structural — this engine has no teams and no asymmetric win condition, so
+     it is a much larger change than any shape. Filed rather than folded in.
+   - **Winged airplanes** (飞机带翅膀). A bare airplane already needs six of ten cards; wings need eight. (The **Tiến lên preset** shipped
    in v1.31.34.)
 
 **Two things worth reading before touching the rules panel:** every rule defaults OFF and "is this customised?"
@@ -580,6 +602,132 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.39 — the Dou Dizhu shapes
+
+Four rules, and the first thing worth saying is that **one of the family's shapes was already in the game**: our
+**full house is 三带二** — a trio plus a pair, compared by the trio, with the pair as baggage. So these are its
+smaller sibling, its bigger relative, the trio version of a run, and a length unlock.
+
+| rule | family | what it is | compared by |
+| --- | --- | --- | --- |
+| Trio + one spare card | 三带一 | trio + any single, size 4 | the trio |
+| Four of a kind + two spare cards | 四带二 | quad + a pair or two singles, size 6 | the quad |
+| **Consecutive trios** (a mode) | 飞机 / 飞机带翅膀 | `Off` / `Trios only` / `With spares` | the top trio |
+| **Straight length** (a mode) | 单顺 | `Exactly 5` / `3 or more` / `5 or more` | value, at equal length |
+
+**单顺 is not a new shape — it is the straight's MINIMUM LENGTH, and it is a mode** (Aj: *"turns straights into
+something similar to the 2 pair group — OFF / 3 or more / 5 or more"*). A five-card chain and our straight are the
+same cards, so a parallel type would have been ambiguous; and **"3 or more" is a strict superset of "5 or more"**,
+which is exactly the relationship that forced the four-card double-pair slot to be a mode rather than two
+booleans. `Exactly 5` is the shipped rule, so "off" here is a *length* like the others, not a disabled state.
+`3 or more` is Tiến lên's floor, `5 or more` is Dou Dizhu's 单顺.
+
+`beats()` already demands equal size, so a six-card run and a five-card run never meet — the family's own rule,
+and what stops "longer" from meaning "simply better". `detectStraight` was generalised from exactly-5 to any
+length ≥3, and the size-3 and size-5 blocks in `detectCombo` had to stop returning `null` early so a run could
+still be claimed after the same-value shapes have had their say. **Getting that wrong is what made "3 or more"
+see a four-card run but not a three-card one, and made every five-card run illegal** — the matrix across all
+three modes is what caught it.
+
+A three-card run is `[1,1,1]` where a trio is `[3]`, so they are never the same cards — but they *are* the same
+size, and `beats()` keys on type too, so they cannot answer each other. That is the family's behaviour, asserted.
+
+Measured at 6 players: pacing unmoved (27.9 / 28.4 / 28.3 rounds for off / 5+ / 3+), options per turn 4.9 → 5.0
+→ **5.8**, the rise at "3 or more" being simply that short runs are plentiful.
+
+**No mode was needed, because nothing is ambiguous.** Checked before building, by value-count signature:
+
+| size | shapes | signatures |
+| --- | --- | --- |
+| 4 | Quadro · 2-Kit/two-pair · **trio+1** | `[4]` · `[2+2]` · `[3+1]` |
+| 6 | 3-Kit · **four+two** · **airplane** · chain-of-6 | `[2+2+2]` · `[4+2]`/`[4+1+1]` · `[3+3]` · run |
+
+No two shapes share a signature at the same size, so these are independent toggles rather than a mode.
+
+**MY PER-HAND ESTIMATE WAS BADLY WRONG AT A BIG TABLE, and the correction is the useful part.** Availability in
+one 10-card hand said trio+1 **24.1%**, four+two **1.0%**, airplane **0.2%** — so I called the last two nearly
+decorative. But a six-player game is ~28 rounds with a **six-card draw**, so a player cycles far more cards than
+one snapshot holds. Measured over real games, four+two is offered on **5.5% of turns at 6p** (0.4% at 2p) and
+trio+1 on **14.2%** (5.5% at 2p), and the AI actually plays four+two **1363 times per 150 six-player games**.
+**A per-hand probability is not an availability rate** — the draw and the game's length do most of the work.
+
+**Pacing does not move. Fifth shape rule in a row.** 2p: 10.8 → 11.0 rounds. 6p: 28.4 → 28.1. And the option
+count barely moves either — 4.4 → 4.5 offers per turn at 2p, 4.8 → 5.1 at 6p — because `enumerateCombos` emits
+**one representative per shape and top value** rather than every combination. A 三带一's strength is its trio, so
+every choice of spare is an equal-strength play; enumerating them all would have flooded the hand with dozens of
+identical offers. The representative sheds the lowest spare, and any other spare still validates by hand, because
+`play()` calls `detectCombo` directly.
+
+**One section, not one per source game.** I first gave these four their own "Dou Dizhu shapes" heading, and Aj
+asked why — correctly. **That section was already full of family shapes:** the kits are 连对/đôi thông, the Quadro
+is 炸弹/tứ quý, poker's two pair is Big Two. Splitting the newest four out named one section by **kind** and the
+other by **provenance**, and it broke the property the sections exist for — a preset belongs in the heading of the
+group it changes, and Chikicha Specials sets a shape *and* a chop, so it spanned both. Merged back, and the panel
+got **shorter** for it (one fewer heading). Which game a shape came from belongs in its note.
+
+**The panel needed a fourth column, though.** Eighteen rules took it to 1107px in two columns. Four columns from
+**1500px** (modal 1340px, growing to 1440px at 1780px) brings it to 826–843px, so it fits at everything from a
+14-inch laptop upward. Below that it scrolls, and the assertion says so honestly: at 1280px it checks two columns,
+that it *does* scroll, and that the **sticky footer stays pinned and hit-testable** — rather than claiming a fit
+the rule count has outgrown.
+
+Suites: `test` 292 → **304**, `rulestest` 109 → **119**. `mpsim` gains `trioone fourtwo airplane chain`.
+
+**"Quadro" is now "Four of a kind" on screen** (Aj, 2026-08-28). With 四带二 sitting two rows away as "Four of a
+kind + two spare cards", two names for the same four cards read as two different shapes. Renamed in the rule
+label, the chop's label, both preset tooltips and the combo name shown when one is played.
+**The key and the internal name stay `quadro`**: the key is in saved rule sets and in the netplay/export string,
+and stable keys are the habit that saved the `recruit` difficulty tier from a silent break. So the tests and code
+comments still say Quadro, deliberately — that is the shape's name in the engine, not on screen.
+
+**The wings are in, as a mode** (Aj: *"is implementing the wings hard? we can give it the double pair
+treatment"*). Not hard, and a mode is right for the same reason as the four-card slot: **"With spares" still
+allows the bare form**, so it is a superset rather than an alternative. 飞机带翅膀 gives each trio one extra card —
+a single each, or a pair each — and at `MAX_HAND=10` only the two-trio forms fit (**8** cards with singles, **10**
+with pairs, your whole hand). Three trios with singles would be twelve, and the `n === 4k` / `n === 5k` arithmetic
+excludes that on its own rather than by a special case. The spares must be uniform: eight cards carrying a pair
+where two singles belong is nothing.
+
+**Measured, and the wings change WHICH form gets played rather than how fast the game goes.** At six players,
+120 games:
+
+| mode | rounds/game | played | by size |
+| --- | --- | --- | --- |
+| Off | 28.6 | 0 | — |
+| Trios only | 28.0 | 573 | 6 → 504, 9 → 69 |
+| With spares | 27.9 | 511 | **6 → 18, 8 → 88, 10 → 393** |
+
+Bare airplanes all but vanish (504 → 18) and the ten-card form takes over. The attachment is a **card-shedding
+outlet**, which is exactly its job in the game it comes from — and worth noting our win condition is shields, not
+an empty hand, so the AI spending ten cards on one round is its own policy rather than something the rule forces.
+
+**And it is playable BY HAND, which nothing had ever checked.** Every other assertion drives the panel or the
+engine; the path a person actually uses — selecting cards in the hand — had never been exercised with a large
+shape. A ten-card winged airplane is the biggest play the game allows, so it doubles as the selection-cap test:
+all ten select, the hint reads *"Special Consecutive Trios — fight!"* (so the rename reaches the board, not just
+the panel), Fight lands `airplane/10` and the hand empties. Asserted now.
+Worth recording how that nearly went wrong: the first version of the check counted `#hand .card.sel` and reported
+**0 selected** while the play still landed — which looked like proof the UI could not do it. The hand renders
+**groups** (`.group.gsel`), so the selector was wrong, not the UI. **A test whose result you cannot explain is not
+a result** — the vacuous pass and the false failure were the same mistake in opposite directions.
+
+**Renamed "Consecutive trios"** (Aj), like the Quadro pass: the shape is described rather than named. Internal
+type stays `airplane`.
+
+**And a Dou Dizhu Specials preset**, now that there is a set to bundle: `kits3, chainLong, trioOne, fourTwo,
+airplane, quadro, chopQuadro`. 连对 is our 3 Kits — its floor is three consecutive pairs, so the four-card slot
+stays off as in Tiến lên — 单顺 is the unlocked straight, and its 炸弹 is the bare four of a kind, which is why
+Quadro arrives with the chop. Its 三带二 needs no rule at all: that is our full house.
+**One divergence, recorded rather than papered over:** a Dou Dizhu 炸弹 beats *any* non-bomb play, while our chop
+only reaches the all-2s shapes. `chopQuadro` is the closest thing we have, not the same thing.
+It is also the sharpest test of "a preset is an exact state": coming from Tiến lên it has to turn `chopKits` back
+**off**, which `rulestest` asserts.
+
+**Not built, deliberately:** the winged airplane variants (飞机带翅膀) — a bare airplane already needs six of ten
+cards. And the **landlord rule** (斗地主 is literally "fight the landlord": bidding, a 3-card kitty, one player
+against two as a team) is a structural change with no home in an engine that has no teams and no asymmetric win
+condition. Filed, not folded in.
 
 ### v1.31.38 — chops deal no damage, and why that is the default
 

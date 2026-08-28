@@ -249,6 +249,11 @@ key, so netplay and the export carry the RULES, not a name the other end must re
   **The bulk row is DERIVED state** — the rows patch themselves in place, so `syncBulk()` must run on every
   single toggle or a preset button stays lit after one further change and Clear all stays greyed out after the
   first rule goes on. A bulk *action* re-opens the panel instead, since nine rows move at once.
+- **SECTIONS GROUP BY KIND, NEVER BY SOURCE GAME (v1.31.39).** A "Dou Dizhu shapes" section was added and then
+  removed the same day: `Shapes & chops` was *already* full of family shapes (kits = 连对/đôi thông, Quadro =
+  炸弹/tứ quý, two pair = Big Two), so splitting the newest four out named one section by kind and the other by
+  provenance. It also broke the preset property — Chikicha Specials sets a shape AND a chop, so it spanned both
+  sections. **Which game a shape came from belongs in its note, not in the structure.**
 - **THE PANEL IS FOUR SECTIONS (v1.31.37), and `RULE_SECTIONS` owns the rule keys** — one list to read rather
   than a `sect` field on thirteen defs. The cost of that choice is a rule belonging to no section, so an
   unclaimed rule renders under a visible **"Uncategorised"** heading and `rulestest` asserts that heading is
@@ -346,6 +351,26 @@ Three more things worth knowing before touching them:
   which is asserted rather than assumed) and **clears itself** when the last of the group goes off. `chopStrips`
   is the case — it modifies the chops, so with no chop enabled it can only mislead. Any change to a group member
   re-renders the panel, since the dependent row's live/dead state moved.
+- **THE DOU DIZHU SHAPES (v1.31.39), and the one that is not a shape.** 三带一 (`trioOne`), 四带二 (`fourTwo`)
+  and 飞机 (`airplane`) are new types keyed by their trio/quad/top-trio — the attachment is baggage, which is not
+  a new idea here because **our full house IS 三带二**. 单顺 is **not a new type**: it is the straight's MINIMUM
+  LENGTH, as a **mode** (`straightLen`: `off` = exactly five, `3` = Tiến lên, `5` = Dou Dizhu). "3 or more" is a
+  strict superset of "5 or more", the same relationship that forced the four-card slot to be a mode, and
+  `beats()`'s equal-size rule stops a longer run from simply being better.
+  **`detectCombo`'s size-3 and size-5 blocks must FALL THROUGH, not return null**, or a run of that length can
+  never be claimed — that bug made "3 or more" see a 4-run but not a 3-run, and made every 5-run illegal. Print
+  the whole matrix (3/4/5/7-run × off/3/5) when touching this; one case passing proves nothing.
+  **The other three are independent toggles because no two share a value-count signature at the same size** (`[3+1]` vs `[2+2]` vs `[4]` at size 4;
+  `[2+2+2]` vs `[4+2]` vs `[3+3]` vs a run at size 6) — unlike the four-card double-pair slot, which had to be a
+  mode.
+- **A PER-HAND PROBABILITY IS NOT AN AVAILABILITY RATE.** One 10-card hand holds a 四带二 1.0% of the time, which
+  read as decorative — but a 6p game is ~28 rounds with a **six-card draw**, so it is offered on **5.5% of turns**
+  and the AI plays it ~9 times a game. Measure over real games, not over a dealt hand.
+- **`enumerateCombos` EMITS ONE REPRESENTATIVE PER SHAPE AND TOP VALUE.** A 三带一's strength is its trio, so every
+  choice of spare card is an equal-strength play; enumerating them all floods the legal-play list with identical
+  offers. The representative sheds the lowest spare, and any other spare still validates, because `play()` calls
+  `detectCombo` directly rather than searching the enumeration. Options per turn moved 4.8 → 5.1 at 6p as a
+  result, not 4.8 → 20.
 - **THE WIDE PANEL IS ON A TREADMILL:** every rule added costs a grid row, ~76px. v1.31.38's fourteenth rule
   pushed a 14-inch MBP back into scrolling until the wide-only rhythm was trimmed (gap 9→7, row padding 12→10,
   section margins 10→6) for 881px. Measure `scrollHeight > clientHeight` at 1512×945 after adding a rule.
@@ -381,6 +406,11 @@ Three more things worth knowing before touching them:
   Measured: Quadro goes from 17 to 956 plays per 250 six-player games — the chop is what gives it a job — while
   pacing and initiative concentration do not move at all. **At 2 players it is nearly inert** (2 chops in 498
   2-plays).
+- **"QUADRO" IS THE INTERNAL NAME; PLAYERS SEE "Four of a kind" (v1.31.39).** The rule key, the combo `type`, the
+  setters and every test message stay `quadro` — the key travels in saved rule sets and the netplay string, and
+  stable keys are the habit that saved the `recruit` tier. Only the label, the chop's label, the preset tooltips
+  and the played-combo name were renamed, because 四带二 sits two rows away as "Four of a kind + two spare cards"
+  and two names for the same four cards read as two shapes. **Do not unify them.**
 - **QUADRO (v1.31.29) shares the four-card slot and cannot collide with it** — four cards of one value can never
   be two pairs or a kit, so its check sits *ahead* of the double-pair block, which returns early for anything
   that is not two pairs. It is a **plain shape**: beats a lower Quadro, nothing else. The chop is separate.
@@ -391,7 +421,7 @@ Three more things worth knowing before touching them:
   times per game, because the AI plays the **cheapest sufficient** Special and a Quadro spends four cards on a
   round a pair would win. Leading one is near-unbeatable (only a higher Quadro answers it), which is a human
   use the AI's policy never values.
-- **A NEW SHAPE ADDS OPTIONS, NOT TEMPO.** Measured on FOUR rules now — kits, poker two-pair, Quadro and the chop all
+- **A NEW SHAPE ADDS OPTIONS, NOT TEMPO.** Measured on EIGHT rules now — kits, poker two-pair, Quadro and the chop all
   leave pacing untouched at every player count. Treat it as the default expectation. Kits change game length by
   nothing at all (11/14/20/31 vs
   11/14/20/30) and are balance-neutral (rho 0.91), *despite* firing 0.75 times per duel and 13.4 times per
@@ -603,7 +633,7 @@ stray processes before suspecting the code. And never wait on work with `while p
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
 Status as of **v1.31.38 — green, all 37 suites plus `browsertest`, run serially 2026-08-27**:
-`test` 292, `netview` 28, `mptest` 82, `rulestest` 109, `nettest_rules` 28, `nettest_suggest` 34,
+`test` 304, `netview` 28, `mptest` 82, `rulestest` 119, `nettest_rules` 28, `nettest_suggest` 34,
 `landscapetest` 96, `decktest` 42, `viewtest` 10, `piletest` 30, `revealtest` 12, `phantasmtest` 12,
 `exporttest` 15, `lessontest` 19, `lessontest_energy` 14, `versiontest` 15, `sharetest` 14, `qrtest` 19,
 `qrref` 26 (darwin only), `nettest_full` 5, `nettest_log` 14, `nettest_names` 8, `nettest_version` 14,
@@ -806,6 +836,15 @@ make under threat from THIS rival", from a fresh Outbalance read or else from `o
 plays. The trap: the "plan" it protects is the **cheapest legal special, not the best one** — read as the best
 play, the model's own branch fired 6 times in 200 six-player games, because when you are following every legal
 play already beats the pile and so looks high. `lockoutStats()` tallies the branches, holds included by name.
+
+## Where the design comes from
+
+**The shape system traces to FGO's command-card chains** (Aj, 2026-08-28: *"i concepted this game because i was
+inspired by FGO's use of rummy rules"*). That is why the spine is **matched sets** — pairs, trios, runs — rather
+than poker hands: FGO pays you for chaining cards that match in type or source, which is meld logic. It also
+explains why the family games keep fitting: Tongits' melds are threes, Tiến lên and Dou Dizhu climb with sets,
+and every shape added so far has been a *set* rule rather than a ranking rule. **When judging a proposed shape,
+ask whether it rewards matching** — that is the game's grain.
 
 ## Balance & the colour pie
 
