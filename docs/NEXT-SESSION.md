@@ -631,6 +631,21 @@ fired would leave the phone where it was. So the landscape case asserts the cap 
 2.5 px camera floor, and a tall viewport asserts it did **not**. Verified non-vacuous by disabling the cap —
 two assertions go red.
 
+**AND THE CAP FIXED THE WRONG CONFIGURATION, which only a real phone revealed.** Aj, on a build carrying it:
+*"no difference really for me."* The symbol is sized **once, at draw time**, so a page opened in **portrait**
+and then turned sideways keeps its portrait size — **85% of a landscape screen**, worse than a page that loads
+in landscape, and the cap cannot help because at draw time the viewport was still tall. That is the
+configuration a person actually hits: you open the game, then you rotate to show someone. `qrInto` now records
+what each canvas is displaying and a debounced `resize`/`orientationchange` handler re-renders it — 351 → 197
+CSS px turning sideways, and back again. The redraw is skipped when the bitmap would not change, because
+CLAUDE.md's ResizeObserver lesson applies to any resize-driven write.
+
+**A LAB NUMBER IS NOT THE REAL NUMBER.** The **163-char** code quoted in v1.31.46 came from a headless browser
+with one network interface. A real phone on 5G *and* wifi emits several candidates including IPv6, so the true
+code is longer and the symbol denser than v8. The packing win is real and large; the specific figure is a
+**floor**. Trimming the candidate list — the remaining bulk of the payload — is the next lever, and it needs
+care, since the candidate that is dropped may be the one that would have connected.
+
 **Not fixed, and worth being straight about it:** the Copy button is still below the fold in landscape. The cap
 bought 15% of the viewport back but the invite section is a single column, and on a wide-short screen there is
 about a thousand pixels of unused width either side of the QR. A two-column landscape layout is what actually

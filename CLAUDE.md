@@ -153,6 +153,16 @@ screen** — "big enough to scan" is a property of the module, and a fraction me
 payload size, which is how this drifted in the first place. Quiet zone included (`size + 8`), matching
 `qrtest`. Assert it in **both** directions: the short viewport capped, a tall one untouched — a global cap and
 a dead cap both pass a single measurement.
+**A ROTATION MUST RE-RENDER IT**, and this is the case that matters: the size is computed once at draw time, so
+a page opened in portrait and turned sideways kept its portrait size — 85% of a landscape screen, and the cap
+was powerless because the viewport was tall when it drew. `qrInto` records what each canvas shows and a
+debounced `resize`/`orientationchange` handler redraws it, skipping the write when the bitmap would not change.
+**The cap alone was a fix aimed at the wrong configuration**, and only a real phone said so ("no difference
+really for me") — a headless test that *loads* in landscape passes either way.
+**THE 163-CHAR INVITE IS A LAB FLOOR, NOT THE REAL SIZE.** It was measured headless with one network interface;
+a real phone on 5G and wifi emits several candidates including IPv6, so the code is longer and the QR denser.
+Quote it as a floor. Trimming the candidate list is the next lever and the risky one — the candidate you drop
+may be the one that would have connected.
 **Still open:** the Copy button remains below the fold in landscape. The invite section is one column and a
 wide-short screen wastes ~1000px of width; a two-column landscape layout is the fix, and it is a layout change
 rather than a sizing one.
@@ -757,7 +767,7 @@ Status as of **v1.31.38 — green, all 37 suites plus `browsertest`, run seriall
 (panel-area counts refreshed at v1.31.45):
 `test` 325, `netview` 28, `mptest` 82, `rulestest` 143, `nettest_rules` 28, `nettest_suggest` 34,
 `landscapetest` 96, `decktest` 42, `viewtest` 10, `piletest` 30, `revealtest` 12, `phantasmtest` 12,
-`exporttest` 15, `lessontest` 19, `lessontest_energy` 14, `versiontest` 15, `sharetest` 14, `qrtest` 24,
+`exporttest` 15, `lessontest` 19, `lessontest_energy` 14, `versiontest` 15, `sharetest` 14, `qrtest` 28,
 `qrref` 26 (darwin only), `nettest_full` 5, `nettest_log` 14, `nettest_names` 8, `nettest_version` 14,
 `nettest_emote` 19, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_3p` 7, `nettest_activate` 6,
 `nettest_ceremony` 9, `nettest_concede3` 8, `nettest_counter` 8, `nettest_customdeck` 18, `nettest_deckout3` 8,

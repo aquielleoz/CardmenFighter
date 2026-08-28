@@ -158,6 +158,37 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     await land.context().close();
   }
 
+  /* ROTATION (v1.31.47). THE CASE A PERSON ACTUALLY HITS: you open the game, then you turn the phone sideways
+   * to show someone the code. The symbol is sized once at draw time, so before this it kept its PORTRAIT size
+   * in landscape — 85% of the screen, worse than a page that loads in landscape, and the short-viewport cap
+   * could not help because at draw time the viewport was still tall. Aj, on a build with the cap: "no
+   * difference really for me", which is exactly what a fix aimed at the wrong configuration looks like.
+   * Asserted in BOTH directions: rotating back must restore the portrait size, or this is a one-way shrink. */
+  {
+    const rot=await (await b.newContext({viewport:{width:412,height:915},deviceScaleFactor:2})).newPage();
+    await rot.goto(URL); await wait(600);
+    await rot.evaluate(()=>{ const n=document.getElementById('newBtn'); if(n)n.click(); }); await wait(300);
+    await rot.evaluate(()=>{ const o=document.getElementById('onlineBtn'); if(o)o.click(); }); await wait(300);
+    await rot.evaluate(()=>{ const h=document.getElementById('onHost'); if(h)h.click(); });
+    await rot.waitForFunction(()=>{const cv=document.getElementById('qrInvite'); return cv&&cv.width>0;},{timeout:30000}).catch(()=>{});
+    const read=()=>rot.evaluate(()=>{
+      const cv=document.getElementById('qrInvite');
+      const info=CardmenQR.build(document.getElementById('sigOut').value,'L'), total=info.size+8;
+      const w=parseFloat(cv.style.width)||0;
+      return { css:w, per:w/total, dev:cv.width/total, frac:w/window.innerHeight };
+    });
+    const port=await read();
+    await rot.setViewportSize({width:915,height:412}); await wait(700);
+    const land=await read();
+    ok(land.css<port.css, 'turning the phone sideways RE-RENDERS the QR ('+Math.round(port.css)+' -> '+Math.round(land.css)+' CSS px)');
+    ok(land.frac<=0.55, '  → so it takes '+Math.round(land.frac*100)+'% of the landscape screen, not the 85% a stale portrait symbol took');
+    ok(land.per>=2.5 && Number.isInteger(land.dev), '  → and is still scannable: '+land.per.toFixed(2)+' CSS px and a whole '+land.dev+' device px per module');
+    await rot.setViewportSize({width:412,height:915}); await wait(700);
+    const back=await read();
+    ok(Math.abs(back.css-port.css)<1, '  → and rotating back restores the portrait size, so it is not a one-way shrink');
+    await rot.context().close();
+  }
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
