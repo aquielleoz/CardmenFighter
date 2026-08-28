@@ -97,6 +97,9 @@ node optionsim.js             # legal plays per turn by player count — the OPT
 node rulesim.js               # rule-config sweep: length / jab share / initiative, by player count
 node roundsim.js              # share of ROUNDS decided by a jab vs a Special, by tier and player count
 node stucksim.js 6 150        # stuck-while-following turns split into SHAPE-stuck vs VALUE-stuck
+node ../relay/relaytest.js   # the signalling relay's protocol, against a local mock (20 assertions).
+                             # Pass a base URL to test a REAL deployment — that is the only thing that turns
+                             # relay/worker.js from reviewed code into tested code.
 node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — RUN IT after any card
                              # name/cost/text change, or the published card list silently goes stale
 ```
@@ -248,6 +251,29 @@ vs client) and every assertion was TRUE. **No DOM assertion can see a stacking b
 thing that matters, hit-test it — `document.elementFromPoint(cx, cy)` and check the modal contains the result.
 Note it only bit while netroot was on screen (lobby / signalling); mid-game netroot is hidden, so response
 windows were always fine, which is how it survived unnoticed.
+
+**THE SIGNALLING RELAY (`relay/`) — four rules, and each one is a bug that would be silent.**
+Aj approved it because the constraint was never purity: *"the no server really wasn't a hard rule. i just am not
+able to pay for hosting costs."* So the design is chosen for **cost legibility** over elegance.
+- **THE CLAIM MUST BE ONE STATEMENT.** `UPDATE slots SET claimed = 1 WHERE ... slot = (SELECT MIN(slot) ...
+  WHERE claimed = 0) RETURNING`. A read-then-write reads identically and is wrong exactly when two joiners
+  arrive together: both see `claimed = 0`, both answer the same offer, and one peer silently never connects.
+  `relaytest` fires **eight concurrent claims at four slots and demands four distinct winners** — the
+  non-atomic version scores 8 winners across 3 slots, so the assertion discriminates (verified by breaking it).
+- **A ROOM IS A MAILBOX OF SLOTS, NOT AN OFFER/ANSWER PAIR.** WebRTC offers are **not reusable**, so a host at a
+  6-player table mints one per peer — which `hostNewInvite()` already does. One room code covers the whole
+  table, because the code is the thing a human handles and it must not change per player.
+- **POLLING OVER D1, NOT WEBSOCKETS OVER DURABLE OBJECTS.** DO is free (SQLite backend), and a socket would be
+  tidier. Polling was chosen because its cost is a number you can multiply in your head: ~70 requests per
+  handshake against 100,000/day. **KV is disqualified outright** — eventually consistent, up to ~60s, and a
+  handshake is the one workload that cannot tolerate it.
+- **THE MANUAL COPY-PASTE PATH IS NOT OPTIONAL.** The relay is an additional front door. The offline file with no
+  network must keep working exactly as it does today, so every relay call needs a fallback, not an error.
+- **THE MOCK PROVES THE PROTOCOL, NOT THE WORKER.** `relay/mock.js` and `relay/worker.js` implement the same
+  contract by hand, so a bug in one is invisible to the other. `relaytest.js` takes a base URL for exactly this
+  reason. **Until it has been run against the deployment, worker.js is reviewed code — say so.**
+- Privacy changed and the UI must say so: an SDP contains IP addresses, so the relay sees them for the minutes a
+  room lives. The netbar's **"no server" becomes false** and has to be rewritten.
 
 **INVITE CODES ARE PACKED, NOT COMPRESSED (v1.31.46).** `enc`/`dec` in the template are the only writer and
 reader. The code carries five fields — ICE ufrag, ICE password, DTLS fingerprint, setup role, candidates — and
@@ -1130,6 +1156,8 @@ definition, so it cannot delete them.
 - `docs/RIDES-AND-FORMS.md` — design of the J/Q/K layer. `docs/MULTIPLAYER-DESIGN.md` — netplay design.
 - `docs/COUNT-UP-DESIGN.md` — the count-up / "Kick Coin" branch: why shields are load-bearing (catch-up,
   the transform gate, the targeting signal), and Aj's narrower lean toward a count-up **class**. Open.
+- `docs/RELAY-DESIGN.md` — the **signalling relay**: why polling over D1 rather than WebSockets over Durable
+  Objects, the mailbox-of-slots model, the cost arithmetic, and the privacy change it forces.
 - `docs/ORIGIN-EXPERIMENT.md` — the **origin probe** (`code/origin-probe.html` + `code/serve.js`): does an
   https origin actually unblock the camera? Instrument built and validated; **results table still empty**.
 - `docs/PATCHNOTES.md` — balance principles + win-rate history. `docs/REWORK-HISTORY.md` — how it got here.
