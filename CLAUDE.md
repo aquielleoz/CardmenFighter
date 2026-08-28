@@ -269,6 +269,9 @@ able to pay for hosting costs."* So the design is chosen for **cost legibility**
   handshake is the one workload that cannot tolerate it.
 - **THE MANUAL COPY-PASTE PATH IS NOT OPTIONAL.** The relay is an additional front door. The offline file with no
   network must keep working exactly as it does today, so every relay call needs a fallback, not an error.
+- **DEPLOYED at `https://cardmen-relay.ajgoats.workers.dev`, and `relaytest` is 20/20 against it** (2026-08-28),
+  so the D1 SQL is tested and not merely reviewed. The concurrency assertion is the one that needed a real
+  deployment: the mock gets atomicity free from Node being single-threaded, so it proves nothing there.
 - **THE MOCK PROVES THE PROTOCOL, NOT THE WORKER.** `relay/mock.js` and `relay/worker.js` implement the same
   contract by hand, so a bug in one is invisible to the other. `relaytest.js` takes a base URL for exactly this
   reason. **Until it has been run against the deployment, worker.js is reviewed code — say so.**

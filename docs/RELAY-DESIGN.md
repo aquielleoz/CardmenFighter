@@ -1,6 +1,7 @@
 # The relay
 
-**Status: protocol designed and tested against a local mock. Worker written, NOT yet deployed.**
+**Status: DEPLOYED AND TESTED, 2026-08-28.** Live at `https://cardmen-relay.ajgoats.workers.dev` —
+`relaytest` 20/20 against real D1, including the concurrency case. The client side is not wired up yet.
 
 Aj, 2026-08-28: *"let's do it, the relay. the no server really wasn't a hard rule. i just am not able to pay for
 hosting costs."*
@@ -147,6 +148,15 @@ the other.
 `relay/mock.js` — a zero-dependency Node server implementing the same contract. The same suite can be pointed
 at a real deployment (`node relaytest.js https://…`), which is how the Worker itself gets verified.
 
-**Be honest about the gap:** until it is deployed and that suite is run against it, `relay/worker.js` is
-reviewed code, not tested code. The mock proves the protocol and the client can be built against it; it does
-not prove the D1 SQL.
+**That gap is now closed.** 20/20 against `https://cardmen-relay.ajgoats.workers.dev` on 2026-08-28, so the D1
+SQL is exercised and not merely reviewed. The assertion that mattered most is the concurrency one — **eight
+simultaneous claims against four slots produced four winners, all distinct** — because the mock gets atomicity
+free from Node's single thread, so it proves nothing there. That result is the `UPDATE ... RETURNING` working on
+real SQLite. A read-then-write would have passed every other assertion in this suite and failed only when two
+friends tapped join in the same second.
+
+**One deployment note worth keeping.** The first run failed with an SSL handshake error in 88ms, which reads
+exactly like a blocked network. It was not: DNS resolved to Cloudflare and `cloudflare.com` loaded fine from
+the same machine, so the network was innocent — a brand-new `workers.dev` subdomain has no certificate for a
+minute or two. It succeeded 20 seconds later. **An instant TLS failure on a just-created subdomain is a missing
+certificate, not a firewall** — check a known-good https host on the same machine before chasing anything else.
