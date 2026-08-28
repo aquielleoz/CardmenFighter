@@ -6117,7 +6117,7 @@ __QR__
       p.then(function(r){
         relay.busy=false;
         if(first && r.status===201 && r.body && r.body.room){ relay.room=r.body.room; relay.err=''; relayPoll(); }
-        else if(!first && r.status===201){ relay.err=''; }
+        else if(!first && r.status===201){ relay.err=''; relayPoll(); }   // an explicit re-invite reopens the poll
         else if(r.status===404){ relay.room=null; relay.since=-1; relayPublish(); return; }   // room expired — remake it
         else relay.err='';                                       // any other refusal: stay quiet, manual path works
         renderNet();
@@ -6138,7 +6138,16 @@ __QR__
           var last=list[list.length-1];
           if(sig && sig.pendingPC && last && last.answer){
             hostAcceptAnswer(last.answer);                       // same path a pasted reply takes
-            setTimeout(function(){ if(!started) hostNewInvite(); }, 400);   // and queue the next slot
+            /* DO NOT AUTO-MINT THE NEXT OFFER (fixed 2026-08-28 from a real game). Leaving a fresh offer waiting
+             * means the room ALWAYS has an open slot, so anything that reloads — a stale tab from an earlier
+             * attempt, a backgrounded page, a re-opened download — joins the table silently. Aj's phone had
+             * three tabs; two of them took slots, went dead, and Passo auto-passed for them. His host was in a
+             * three-seat game it never asked for, waiting on a tab nobody was looking at, and the "Rival
+             * passed" in the client's log was Passo covering one of the ghosts.
+             * The copy-paste flow could not do this: a second player needed the host to hand over a new code.
+             * Adding a slot is now the same explicit act — "+ Invite another player" — so the relay has the
+             * same semantics rather than a quietly open door. */
+            relayStopPoll();
           }
         }, function(){});                                        // a dropped poll is not an error; try again next tick
       }, 1500);                                                  // ~40 requests a minute; see the cost note in the design doc
@@ -7067,9 +7076,21 @@ __QR__
      * reported separately, because the host needs the first one to know someone arrived and the second to know
      * whether Start will work. */
     function joinedCount(){ return Math.max(0, nextSeat-1); }            // seats 1..n each hold a live channel
+    /* OPEN CHANNELS, WHICH IS EARLIER THAN A SEAT. A seat is created by the client's `t:'join'`, and a client
+     * only sends that when it presses Ready — so between "their DataChannel opened" and "they confirmed" the
+     * host had NOTHING to show and said "No players yet" while somebody was plainly sitting there. That is the
+     * same complaint as the missing roster, one step earlier in the handshake. */
+    function openChanCount(){ var n=0; for(var i=0;i<dcs.length;i++){ if(dcs[i] && dcs[i].readyState==='open') n++; } return n; }
+    /* THREE COUNTS, AND THE NETBAR WANTS THE LOOSEST ONE. `readyCount()` = confirmed, `joinedCount()` = has a
+     * seat, `openChanCount()` = the channel is up. "N connected" should mean *somebody is here*, which is the
+     * widest of them — otherwise it reads 0 while a person is visibly sitting in the lobby, which is the
+     * complaint that started this. Start still gates on a SEAT, because that is what hostStartRealN indexes. */
+    function hereCount(){ return Math.max(joinedCount(), openChanCount()); }
     function hostRosterHTML(){
-      var joined=joinedCount();
-      if(joined<1) return '<div class="lobbyStatus">No players yet — give someone the code above.</div>';
+      var joined=joinedCount(), open=openChanCount();
+      if(joined<1) return '<div class="lobbyStatus">'+
+        (open>0 ? '● <b>'+open+'</b> connecting — waiting for them to choose a deck…'
+                : 'No players yet — give someone the code above.')+'</div>';
       var names=[]; for(var s=1;s<=joined;s++) names.push(esc(seatName(s)));
       var ready=readyCount();
       return '<div class="lobbyStatus">✓ <b>'+joined+'</b> here: '+names.join(', ')+
@@ -7080,7 +7101,7 @@ __QR__
     function renderHostRtcLobby(root){
       var joined=readyCount(), total=joinedCount()+1, full=(joinedCount()>=MAX_SEATS-1);
       var errHTML = (sig&&sig.err) ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
-      var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · '+srvTag()+' · '+joinedCount()+' connected · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML();
+      var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · '+srvTag()+' · '+hereCount()+' connected · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML();
       var body=nameRowHTML(false)+'<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
         '<button id="lobbyRules" class="netbtn">'+(isHost()?'⚗️ Custom rules':'⚗️ Rules &amp; suggest')+(customRules()?' · on':'')+'</button>'+''
       if(sig.step==='host-gen'){ body+='<p>Generating an invite code…</p>'; }

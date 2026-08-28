@@ -19,6 +19,7 @@ const url=(r,extra)=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&stun
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,100)); }
 async function waitFor(fn,tries=80,ms=150){ for(let i=0;i<tries;i++){ if(await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
+const relayPost=p=>new Promise((res,rej)=>{ const r=http.request(RELAY+p,{method:'POST'},x=>{let b='';x.on('data',c=>b+=c);x.on('end',()=>res({status:x.statusCode,body:b}));}); r.on('error',rej); r.end(); });
 const relayGet=p=>new Promise((res,rej)=>{ http.get(RELAY+p,r=>{let b='';r.on('data',c=>b+=c);r.on('end',()=>res({status:r.statusCode,body:b}));}).on('error',rej); });
 
 let mock=null;
@@ -60,6 +61,27 @@ let mock=null;
 
   await join.evaluate(c=>{ const i=document.getElementById('roomIn'); i.value=c; document.getElementById('roomGo').click(); }, code);
 
+  /* THE ROSTER (Aj: "i cant see who's in the room"). The relay keeps the host on the invite step, so the
+   * branch that used to show who had arrived was never reached — Start Duel appearing was the only clue. */
+  ok(await waitFor(()=>host.evaluate(()=>{ const s=document.querySelector('#netroot .lobbyStatus');
+       return !!s && /\b1\b/.test(s.textContent) && /(here|connecting)/.test(s.textContent); }), 80, 250),
+     'the host can SEE somebody is in the room from the moment the channel opens, not only once they confirm');
+  ok(await host.evaluate(()=>/1 connected/.test((document.querySelector('#netroot .netbar')||{}).textContent||'')),
+     '  → and the netbar counts them, rather than reporting 0 because nobody has confirmed yet');
+
+  /* THE GHOST-SEAT GUARD (2026-08-28, from a real game). The host used to auto-mint a fresh offer after every
+   * join, so the room ALWAYS had an open slot and anything that reloaded joined silently. Aj's phone had three
+   * tabs; extra ones took slots, went dead, and Passo auto-passed for them — his "duel" was a three-seat game
+   * waiting on a tab nobody was looking at, and the "Rival passed" in his opponent's log was Passo covering a
+   * ghost. The copy-paste flow could never do this: a second player needed the host to hand over a new code.
+   * TIMING IS THE WHOLE ASSERTION: this must run while the room is still OPEN. Starting the game drops the
+   * room, so the same check afterwards returns 404 and passes on a build with the bug — which is exactly what
+   * the first version of it did. */
+  const second=await relayPost('/r/'+code+'/claim');
+  ok(second.status===204,
+     'while the room is still open, a SECOND claim finds nothing — a stray tab cannot silently take a seat'+
+     (second.status===204?'':'  <-- REGRESSION: a slot is still on offer ('+second.status+')'));
+
   /* THE POINT OF THE VERSION: a real DataChannel, from four typed characters. */
   await startDuel(host, join);
   const snap=p=>p.evaluate(()=>({ boardUp:!!document.getElementById('hand'),
@@ -67,16 +89,6 @@ let mock=null;
   ok(await waitFor(async()=>{const h=await snap(host), j=await snap(join); return h.boardUp&&j.boardUp&&h.hand===6&&j.hand===6;}, 100, 200),
      'a real WebRTC game connected and dealt six cards to both — from four typed characters, nothing pasted');
 
-  /* THE ROSTER (Aj: "i cant see who's in the room"). The relay keeps the host on the invite step forever,
-   * because it mints the next offer as soon as it accepts a join — so the branch that used to show who had
-   * arrived was never reached, and Start Duel appearing was the only clue. Assert the host can SEE the
-   * player, both in the roster line and in the netbar's count, which was reading readyCount() and therefore
-   * said 0 while somebody sat in the lobby. */
-  ok(await waitFor(()=>host.evaluate(()=>{ const s=document.querySelector('#netroot .lobbyStatus');
-       return !!s && /\b1\b/.test(s.textContent) && /here/.test(s.textContent); }), 60, 250),
-     'the host can SEE who is in the room while still on the invite screen');
-  ok(await host.evaluate(()=>/1 connected/.test((document.querySelector('#netroot .netbar')||{}).textContent||'')),
-     '  → and the netbar counts them, rather than reporting 0 because nobody has confirmed yet');
 
   /* Prove the claim was genuine and not a copy-paste fallback sneaking in: the joiner never touched #sigIn. */
   ok(await join.evaluate(()=>{ const t=document.getElementById('sigIn'); return !t || !t.value; }),

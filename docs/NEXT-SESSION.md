@@ -641,6 +641,33 @@ it before the fix.
 could hit this, and it waited for a human to play one because **no suite had ever asserted what the status line
 SAYS** — they all check state and controls.
 
+**GHOST SEATS — and this one WAS the relay's fault.** Aj's host showed *"Passo is covering Dustin
+(auto-passing)"* and a battle log reading *"you play Pure Rogue vs Dustin (Fighter) on Warlock (Wiz+Rog)"* —
+**two opponent seats** in what he thought was a duel. His phone had three tabs open; the extras each took a
+slot, went dead, and Passo auto-passed for them. So the "Rival passed" he never made was Passo covering a
+ghost, and his turn never came back because the game was waiting on a tab nobody was looking at.
+
+**The cause was auto-minting.** After accepting a join the host published a *fresh* offer straight away, so the
+room always had an open slot and anything that reloaded joined silently. The copy-paste flow could never do
+that — a second player needed the host to hand over a new code. Adding a slot is now the same explicit act
+(**＋ Invite another player**), so the relay has the same semantics instead of a quietly open door.
+`nettest_relay` asserts a second claim finds nothing **while the room is still open** — and the timing is the
+whole assertion: starting the game drops the room, so the first version of this check ran afterwards, got a
+404, and would have passed on the broken build.
+
+**THREE COUNTS, AND THEY ARE NOT INTERCHANGEABLE.** `readyCount()` = confirmed, `joinedCount()` = has a seat,
+`openChanCount()` = channel up. A seat only exists once the client sends `t:'join'`, which it does when it
+presses Ready — so between "their channel opened" and "they confirmed" the host said **"No players yet"** with
+somebody plainly sitting there. The roster now says *"● 1 connecting — waiting for them to choose a deck…"* and
+the netbar counts the widest of the three, because "N connected" should mean *somebody is here*. Start still
+gates on a **seat**, because that is what `hostStartRealN` indexes.
+
+**And "Connection lost (disconnected)" was never ours.** Aj's office wifi isolates clients — the same thing that
+made cell 3 of the origin probe unreachable this morning — so WebRTC had no route. On mobile data it connected.
+Worth keeping because the symptom points at the code and the cause was the network: **the room code and the
+long code produce the same SDP and the same peer connection**, so switching signalling cannot fix a transport
+problem. Aj: *"i like the easy invite code... so i'd like to keep it."*
+
 **Also diagnosed from Aj's screenshots, and it is a SYMPTOM, not a second bug:** two cards rendering as
 `0 undefined 0` are exactly the two round-2 draws. The client replays the draw ceremony locally and fills the
 real cards in from the host's next mirror; when the host stops broadcasting, none arrives and the placeholders

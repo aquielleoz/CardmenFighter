@@ -268,6 +268,19 @@ windows were always fine, which is how it survived unnoticed.
   load-bearing doubt; measured before any code was written — GET 200, POST 201 — because
   `Access-Control-Allow-Origin: *` covers it. **So the downloaded offline file gets room codes with no hosting**,
   which is the thing months of argument about GitHub Pages assumed was impossible.
+- **NEVER LEAVE A SLOT ON OFFER (v1.31.50).** The host used to auto-mint a fresh offer after each join, so the
+  room always had an open slot and **anything that reloaded joined silently** — Aj's three phone tabs became
+  extra seats, died, and Passo auto-passed for them, leaving his "duel" waiting on a ghost. Copy-paste could not
+  do this: a second player needed the host to hand over a code. Adding a slot must stay an explicit act.
+  Test it **while the room is still open** — game start drops the room, so a claim check afterwards 404s and
+  passes on the broken build.
+- **THREE COUNTS, NOT INTERCHANGEABLE:** `readyCount()` = confirmed · `joinedCount()` = has a seat ·
+  `openChanCount()` = channel up. A seat appears only on the client's `t:'join'`, sent when it presses Ready, so
+  a connected-but-unconfirmed player is invisible to the first two. The netbar and roster use the widest;
+  **Start still gates on a seat**, because that is what `hostStartRealN` indexes.
+- **A TRANSPORT FAILURE IS NOT A SIGNALLING FAILURE.** "Connection lost (disconnected)" on the room-code path
+  was office-wifi client isolation, and the long code would have failed identically — both produce the same SDP
+  and the same peer connection. Do not let a connectivity report push a signalling change.
 - **EVERY CALL FAILS SOFT AND THE MANUAL PATH IS THE FLOOR.** Not a legacy branch — the offline file with no
   network has nothing else. `relay.up===null` means *unproven*, so the UI must not promise a room code before
   the relay has answered once. `nettest_relay` asserts both directions, including a dead relay.
