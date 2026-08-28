@@ -205,6 +205,29 @@ thing that matters, hit-test it — `document.elementFromPoint(cx, cy)` and chec
 Note it only bit while netroot was on screen (lobby / signalling); mid-game netroot is hidden, so response
 windows were always fine, which is how it survived unnoticed.
 
+**INVITE CODES ARE PACKED, NOT COMPRESSED (v1.31.46).** `enc`/`dec` in the template are the only writer and
+reader. The code carries five fields — ICE ufrag, ICE password, DTLS fingerprint, setup role, candidates — and
+`dec` **rebuilds a canonical data-channel SDP** from them. That is the whole trick, and it rests on one fact
+worth keeping: **a remote description need not be the bytes the far end produced, only valid and semantically
+equal.** 1,036 chars → 163. Verify that fact in a throwaway probe before ever extending this, the way it was
+established in the first place.
+- **`~` SEPARATES FIELDS. Never `.`** — a candidate address is full of dots (IPv4, and the `.local` of an mDNS
+  name), and the first version split on `.` and shredded every code. `~` cannot occur in any field: ice-ufrag
+  and ice-pwd are ALPHA/DIGIT/+// per RFC 5245, the fingerprint is base64url, an address is hex/dots/colons/
+  hyphens. `,` and `|` inside the candidate list are safe for the same reason. `nettest_rtc` catches this
+  instantly — a real connection simply never forms.
+- **Priority is recomputed from the candidate TYPE, not carried.** ICE assigns priority by type, so the
+  ordering the browser intended survives. Same reasoning drops `generation 0 network-cost 999` and
+  `raddr 0.0.0.0 rport 0`.
+- **`dec` accepts BOTH formats and must keep doing so** — a code from a chat history or an older peer still
+  joins. The reverse cannot be fixed: a new code in an old build just fails to parse. `sharetest` builds a
+  **real** legacy code from a live offer and asserts it still works; new codes are covered by every RTC suite,
+  old ones by nothing else.
+- **Assert the code's SHAPE, never its length.** `sharetest` had `code.length>200` as a proxy and it went stale
+  the moment codes shrank. `/^C1~o~/` and `/^C1~a~/` are stronger anyway — a length floor passes on a garbled
+  code of the right size.
+- Text, not bit-packing, on purpose: people paste this into chats by hand.
+
 **Netplay must be startable WITHOUT navigating.** `NET.start(role, kind, opts)` enters it in place; `?net=`
 still works and every `nettest_*` suite uses it, but the UI buttons must never set `location.search` — on
 Android a downloaded HTML opens as a **`content://` URI, which cannot carry a query string**, so the old

@@ -209,14 +209,14 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
        - **Shortening the payload (item 3 below) is no longer a blocker — it is a robustness win.** It shrinks
          the version and improves every number at once, which is what would buy the landscape case and
          scanning at arm's length rather than up close.
-    2. **Share-sheet handoff — now the TOP item in this section.** `navigator.share()` on the invite code: one
+    2. ~~**Share-sheet handoff.**~~ **SHIPPED in v1.31.19** — this entry went stale and still read "now the
+       TOP item" three versions later; `sharetest.js` has covered it since. Original note: `navigator.share()` on the invite code: one
        tap into whatever chat the two players are already using, instead of select-copy-switch-paste. Aj,
        2026-08-25, on settling for browser-only: *"you can always copy paste the code to a chat program"* —
        which is precisely the manual version of this. Genuinely ~2 lines, works on Android Chrome today, and it
        degrades to the existing Copy button where `navigator.share` is absent (desktop Firefox, older Safari).
        Cheapest real win left in joining.
-    3. **Shorter codes.** The blob is a whole SDP. Trimming to the fields that matter and compressing would make
-       it hand-typeable, which is the actual pain when the two devices cannot talk to each other at all.
+    3. ~~**Shorter codes.**~~ **SHIPPED in v1.31.46** — 1,036 chars to **163**. See the changelog.
   - **AN ANDROID APK WAS CONSIDERED AND DECLINED (2026-08-25). Do not re-propose it.** It would genuinely solve
     two things: a WebView using `WebViewAssetLoader` serves the page from `https://appassets.androidplatform.net/`,
     a real secure origin, so camera scanning would work; and **native UDP/mDNS makes LAN discovery actually
@@ -608,6 +608,46 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.46 — invite codes are six times shorter
+
+**1,036 characters to 163.** The code was base64 of the **whole SDP**, and about 90% of an SDP is boilerplate
+every WebRTC stack already knows. Only five things vary: the ICE ufrag, the ICE password, the DTLS
+fingerprint, the setup role, and the candidates. The new format carries those and nothing else.
+
+**The insight that makes it a packer and not a compressor**, and it was verified in a throwaway probe *before
+any of this was written*: **a remote description does not have to be the bytes the far end produced.** It has
+to be valid and mean the same thing. So the reader rebuilds a canonical data-channel SDP rather than trying to
+reproduce the original — which is what makes the boilerplate droppable at all. Two `RTCPeerConnection`s
+exchanging rebuilt descriptions opened a data channel on the first try; everything after that was detail.
+
+Two things are dropped rather than carried, on the same reasoning: the candidate **priority** (ICE assigns it
+by type, so recomputing it from the type preserves the ordering the browser intended) and the trailing
+`generation 0 network-cost 999` / `raddr 0.0.0.0 rport 0` boilerplate. Text, not bit-packing, deliberately —
+a person pastes this into a chat by hand, and a format they can eyeball is worth more than the last twenty
+characters.
+
+**`~` separates the fields, and that is not cosmetic.** The first version used `.`, which shredded every code:
+a candidate address is full of dots — an IPv4 address, and the `.local` of an mDNS name. `~` cannot occur in
+any field (ice-ufrag and ice-pwd are ALPHA/DIGIT/+// by RFC 5245, the fingerprint is base64url, an address
+holds only hex, dots, colons and hyphens), and neither can the `,` and `|` used inside the candidate list.
+`nettest_rtc` caught it immediately — 8 failures and a real connection that never formed.
+
+**Old codes still work.** `dec()` tries the compact form, then the old whole-SDP one, so a code from someone's
+chat history or from a peer on an older build still joins. The reverse is not fixable: a *new* code pasted into
+an *old* build cannot parse, and that build has no way to say so beyond its existing "Could not read that
+invite code."
+
+**What it buys.** The QR drops from **v23 / 109 modules** to a far smaller symbol, which roughly doubles the
+physical size of each module at every viewport — including the landscape-phone case that was the weakest
+geometry at 2.0 CSS px per module and the one still unverified by a real camera. It also makes the code close
+to hand-typeable, which was the original point: that is the fallback when two devices cannot talk to each
+other at all.
+
+**Tests.** `sharetest` 14 → **16**, and its two length floors became **shape** assertions — `>200` was a proxy
+that went stale the moment codes shrank, while `/^C1~o~/` and `/^C1~a~/` cannot pass on a truncated or garbled
+code either. The new pair covers the half that silently rots: a **legacy whole-SDP code, built from a real
+offer**, is still accepted and answered. New codes are exercised by every RTC suite; old ones by nothing else.
 
 ### v1.31.45 — the 2 leaves the sequences
 
