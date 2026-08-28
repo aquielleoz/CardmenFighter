@@ -308,9 +308,15 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   const tl = await flags(p);
   ok(tl.kits3 === true && tl.quadro === true && tl.chopKits === true && tl.chopQuadro === true,
      'Tiến lên turns on both of the family\'s bombs and chops with both');
+  /* THE STALENESS CHECK. This preset shipped a version before `straightLen` existed, so it quietly played Tiến
+   * lên with five-card straights when that game's sequences are THREE or more. A preset is an exact state, so
+   * every rule added later is implicitly off in it — correct, and exactly why each preset must be re-read when a
+   * shape rule lands. Asserting the value rather than "not off" is what would catch the next one. */
+  ok(tl.straightLen === '3',
+     `and its sequences run from THREE, which is that game's rule (${tl.straightLen})`);
   ok(tl.dblPair === 'off' && tl.chopSflush === false,
      'and leaves out the four-card slot and the straight-flush chop — neither is a Tiến lên shape');
-  ok((await p.evaluate(() => window.__solo.rulesKey())) === 'kits3,quadro,chopQuadro,chopKits',
+  ok((await p.evaluate(() => window.__solo.rulesKey())) === 'kits3,quadro,chopQuadro,chopKits,straightLen=3',
      'so switching presets REPLACES the rule set rather than adding to it');
   row = await bulk(p);
   ok(row[1].active && !row[0].active, 'and the active marker moves with it');

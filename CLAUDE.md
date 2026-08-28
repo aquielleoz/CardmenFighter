@@ -246,6 +246,11 @@ key, so netplay and the export carry the RULES, not a name the other end must re
   `applyPreset` sets **every** rule — the unnamed ones to their off value — because Aj specified Chikicha Specials as
   "kits + quadro and nothing else". That is also what makes a preset button able to read as *active*. Presets
   never serialise: `rulesKey()` carries the resulting rules, so the far end never has to know a name.
+  **A PRESET GOES STALE WHEN A RULE LANDS AFTER IT** (v1.31.41): Tiến lên Specials shipped in v1.31.34 and
+  `straightLen` in v1.31.39, so for one version it played that game with five-card straights when its sequences
+  are three or more. Being an exact state, every later rule is implicitly *off* in every existing preset — correct
+  behaviour, and exactly why **each preset must be re-read whenever a shape rule is added**. Assert the VALUE a
+  preset sets, not merely that it is on; "not off" would not have caught this.
   **The bulk row is DERIVED state** — the rows patch themselves in place, so `syncBulk()` must run on every
   single toggle or a preset button stays lit after one further change and Clear all stays greyed out after the
   first rule goes on. A bulk *action* re-opens the panel instead, since nine rows move at once.

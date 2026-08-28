@@ -7,7 +7,7 @@ Current version: **v1.31.25**. The 2-apex + Forms **rework is simply the game** 
 
 ## ☀️ START HERE — where we left off (2026-08-27)
 
-`main` is at **v1.31.40**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
+`main` is at **v1.31.41**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
 nothing is in flight — every PR is merged and every branch pruned.
 
 **Sanity check before you touch anything** (from `code/`, ~30 seconds):
@@ -16,7 +16,7 @@ nothing is in flight — every PR is merged and every branch pruned.
 npm test && node mptest.js && node rulestest.js
 ```
 
-Expect **314 / 0**, **28 / 0**, **82 / 0**, **134 / 0**. If a count disagrees, the suite is right — fix the
+Expect **314 / 0**, **28 / 0**, **82 / 0**, **135 / 0**. If a count disagrees, the suite is right — fix the
 number here.
 
 **What the last stretch was about**, newest first, all of it in the changelog below: the chop (v1.31.33), rule
@@ -45,9 +45,10 @@ layer where clients suggest and the host decides (v1.31.31), the deck picker's t
      straight window is `J-Q-K-A-2` because we ladder the 2 at 15; Big Two allows it, Tiến lên and Dou Dizhu both
      bar the heo/2 from chains. With the chain unlocked this matters more: a long run becomes a way to launder
      the apex card into a shape nobody can answer by value.
-   - **The landlord rule** (斗地主 = "fight the landlord"): bidding, a 3-card kitty, one player against two as a
-     team, bombs doubling the stakes. Structural — this engine has no teams and no asymmetric win condition, so
-     it is a much larger change than any shape. Filed rather than folded in.
+   - **The landlord rule — SHELVED** (Aj, 2026-08-28). 斗地主 = "fight the landlord": bidding, a 3-card kitty,
+     one player against two as a team, bombs doubling the stakes. It stays written down because the reasoning is
+     worth keeping, but it is not queued: this engine has no teams and no asymmetric win condition, so it is a
+     structural change of a different order from any shape rule.
    - **Winged airplanes** (飞机带翅膀). A bare airplane already needs six of ten cards; wings need eight. (The **Tiến lên preset** shipped
    in v1.31.34.)
 
@@ -598,6 +599,30 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.41 — Tiến lên Specials was missing its own straights
+
+Aj asked whether the preset had all of that game's specials. It did not: **`straightLen` was missing**, so the
+preset played Tiến lên with five-card straights when its sequences run from **three**. The preset shipped in
+v1.31.34 and the straight-length rule in v1.31.39 — it was correct when written and went stale a version later.
+
+Audited against [pagat](https://www.pagat.com/climbing/thirteen.html), the game's plays are: single, pair, trio,
+sequence of 3+, tứ quý (four of a kind, a bomb) and 3+ đôi thông (consecutive pairs, a bomb). The preset now
+covers all of them — `straightLen='3', kits3, quadro, chopKits, chopQuadro` — with the first three always in the
+game.
+
+**The general lesson, now in CLAUDE.md: a preset is an exact state, so every rule added afterwards is implicitly
+*off* in every existing preset.** That is the behaviour we want and it is what makes a preset button able to read
+as active — but it means each preset must be **re-read whenever a shape rule lands**. The assertion checks the
+VALUE (`straightLen === '3'`), because "not off" would not have caught this.
+
+Checked the other two while there: Chikicha Specials is deliberately just the pair shapes and four of a kind, and
+Dou Dizhu Specials was written after every rule it needs.
+
+**Two divergences no rule can express yet**, recorded rather than hidden: our **full house is always on** and
+Tiến lên has none, and its bombs reach only a **lone 2** where ours reach a pair (`chopReach`).
+
+Suites: `rulestest` 134 → **135**.
 
 ### v1.31.40 — the pair rows describe the shape instead of naming it
 

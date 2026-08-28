@@ -1487,8 +1487,14 @@ __QR__
      * Deliberately NOT in it: the four-card double-pair slot (the family's floor is three pairs, not two, so a
      * 2-kit is not one of its shapes and poker's two pair certainly is not), and the straight-flush chop, which
      * belongs to Big Two rather than to Tiến lên. */
-    { key:'tienlen', label:'Tiến lên Specials', title:'The family’s own bombs: 3+ consecutive pairs and four of a kind, both chopping the 2',
-      rules:{ kits3:true, quadro:true, chopKits:true, chopQuadro:true } },
+    /* A PRESET GOES STALE WHEN A RULE ARRIVES AFTER IT. This one shipped in v1.31.34 and `straightLen` in
+     * v1.31.39, so for one version it played Tiến lên with five-card straights — that game's sequences are
+     * THREE or more. A preset is an exact state, so every later rule is implicitly off in it; that is correct
+     * behaviour and exactly why every preset needs re-reading when a shape rule lands.
+     * Two divergences that no rule can express yet: our FULL HOUSE is always on and Tiến lên has none, and its
+     * bombs reach only a lone 2 where ours reach a pair (see chopReach). */
+    { key:'tienlen', label:'Tiến lên Specials', title:'Sequences from three, plus the family’s own bombs: 3+ consecutive pairs and four of a kind',
+      rules:{ straightLen:'3', kits3:true, quadro:true, chopKits:true, chopQuadro:true } },
     /* DOU DIZHU — the fullest set, because that game has the most shapes. 连对 is our 3 Kits (its floor is three
      * consecutive pairs, so the four-card slot stays OFF, as in Tiến lên), 单顺 is the unlocked straight, and its
      * 炸弹 is the bare four of a kind, which is why it comes with the chop. Its 三带二 needs no rule: that is
