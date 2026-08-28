@@ -377,6 +377,11 @@ Three more things worth knowing before touching them:
   **The other three are independent toggles because no two share a value-count signature at the same size** (`[3+1]` vs `[2+2]` vs `[4]` at size 4;
   `[2+2+2]` vs `[4+2]` vs `[3+3]` vs a run at size 6) — unlike the four-card double-pair slot, which had to be a
   mode.
+- **`MAX_HAND` IS AN END-OF-TURN DISCARD LIMIT, NOT A HAND CAP.** `discardToLimit` trims *after* your turn, so
+  when you are choosing a play you usually hold more: measured, **a player is on turn with more than ten cards on
+  78% of turns**, and 17 has been seen. Never write "your whole hand" about ten cards, and never estimate a
+  shape's availability by dealing a 10-card sample — that understated four consecutive pairs as 0.0–0.1%
+  ("decoration") when it is offered on **1.5% of real turns**, and a bare airplane as 0.2% when it is **2.0%**.
 - **A PER-HAND PROBABILITY IS NOT AN AVAILABILITY RATE.** One 10-card hand holds a 四带二 1.0% of the time, which
   read as decorative — but a 6p game is ~28 rounds with a **six-card draw**, so it is offered on **5.5% of turns**
   and the AI plays it ~9 times a game. Measure over real games, not over a dealt hand.

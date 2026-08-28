@@ -144,7 +144,10 @@
   }
   /* 飞机带翅膀 — k consecutive trios plus k spares, where every spare is a single (n = 4k) or every spare is a
    * pair (n = 5k). The trios must be consecutive; the spares need not be anything, and like every attachment in
-   * this family they are baggage: the top trio decides the play. */
+   * this family they are baggage: the top trio decides the play.
+   * NOTE `MAX_HAND` IS AN END-OF-TURN DISCARD LIMIT, NOT A HAND CAP — a player is on turn holding more than ten
+   * cards on 78% of turns (largest seen: 17). So "n <= MAX_HAND" here is a floor on what is worth enumerating,
+   * not a statement that ten cards is the whole hand. */
   function detectAirplaneWings(cards) {
     var n = cards.length, c = valueCounts(cards), trios = [], ones = 0, twos = 0, k;
     for (k in c) {
