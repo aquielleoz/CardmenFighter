@@ -39,20 +39,21 @@ creating a lasting public link.
 
 | # | how to open it on the phone | origin | what we expect |
 | --- | --- | --- | --- |
-| 1 | download the file, open from **Downloads** | `content://` | not secure, **no** `mediaDevices` |
+| 1 | open `<tunnel>/origin-probe.html?dl=1` (forces a real download), then open it from **Downloads** | `content://` | not secure, **no** `mediaDevices` |
 | 2 | the **tunnel** URL | `https://` | secure, camera **prompts** |
 | 3 | `http://<laptop LAN IP>:8080` | `http://192.168.x.x` | not secure — the "keep it local" idea failing |
 
 ## Results
 
-Fill this in. Empty means not yet run.
+Fill this in. Empty means not yet run. **Cell 2 ran 2026-08-28 and the camera was GRANTED**, with a live
+preview rendering — so an https origin can scan, confirmed on real hardware rather than argued from spec.
 
 | row | 1 · content:// | 2 · https tunnel | 3 · LAN http |
 | --- | --- | --- | --- |
 | secure context | | | |
 | origin (opaque?) | | | |
 | `navigator.mediaDevices` | | | |
-| camera: prompt or instant refusal | | | |
+| camera: prompt or instant refusal | | **GRANTED after 250ms** | |
 | `BarcodeDetector` supports `qr_code` | | | |
 | `navigator.share` | | | |
 | `localStorage` persists across reloads | | | |

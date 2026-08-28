@@ -24,6 +24,7 @@ var TYPES={ '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=
             '.png':'image/png', '.svg':'image/svg+xml', '.y4m':'video/x-yuv4mpeg2' };
 
 http.createServer(function (req, res) {
+  var q=(req.url||'').split('?')[1]||'';
   var rel=decodeURIComponent((req.url||'/').split('?')[0]);
   if (rel === '/') rel = '/origin-probe.html';                 // the probe is the point of this server
   var file=path.join(ROOT, rel);
@@ -31,8 +32,16 @@ http.createServer(function (req, res) {
   if (file.indexOf(ROOT) !== 0) { res.writeHead(403); return res.end('outside the served directory'); }
   fs.readFile(file, function (err, buf) {
     if (err) { res.writeHead(404, {'Content-Type':'text/plain'}); return res.end('not found: '+rel); }
-    res.writeHead(200, { 'Content-Type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream',
-                         'Cache-Control': 'no-store' });        // no-store: re-testing must not hit a cache
+    /* ?dl=1 FORCES A DOWNLOAD, which is how you reach the content:// cell. Chrome's own page-save is fiddly
+     * and can write MHTML instead of the file, which then opens as something else entirely and tests nothing —
+     * so the server states the intent instead of the tester fighting the browser UI. */
+    var hdr = { 'Content-Type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream',
+                'Cache-Control': 'no-store' };                  // no-store: re-testing must not hit a cache
+    if (/(^|&)dl=1(&|$)/.test(q)) {
+      hdr['Content-Type'] = 'application/octet-stream';          // or Chrome renders it instead of saving
+      hdr['Content-Disposition'] = 'attachment; filename="' + path.basename(file) + '"';
+    }
+    res.writeHead(200, hdr);
     res.end(buf);
   });
 }).listen(PORT, '0.0.0.0', function () {
