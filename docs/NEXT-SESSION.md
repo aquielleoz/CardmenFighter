@@ -617,6 +617,36 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.50 — awaitRival set two things; every path cleared one
+
+Split out of v1.31.49 **specifically so the two builds can be told apart.** Aj was mid-verification on a phone,
+the fix had gone into v1.31.49 without a bump, and "still the same" could equally have meant *the fix does not
+work* or *you are holding the old download*. A stamp that cannot distinguish them is the one failure the stamp
+exists to prevent — see the v1.31.21 note, where a "missing feature" was a stale download and nothing on screen
+could say so. **If a fix needs field verification, it needs its own version.**
+
+`awaitRival()` sets **two** things — `busy` and the "Waiting for opponent…" text — and every path that handed
+control back cleared only `busy`. So the host's board went live while its screen still said the rival was
+thinking: its turn, Pass enabled, and nothing on screen to believe it. Both players then wait for each other
+forever with nothing broken underneath, which is what *"the duel was unsalvageable"* looked like.
+`hostTakeBack()` clears the pair together at all ten control-return sites.
+
+**Not the v1.31.20 wedge**, though it wears its clothes: that one genuinely left `busy` set, and its fix lives in
+`resolveRoundCeremony`, which only runs when a client's move **ends** a round. This is the ordinary case that
+fix never covered — a client move that simply passes the turn back. `nettest_clientwin.js` is the deterministic
+mirror of `nettest_roundstall.js` (the client answers with the apex 2, so the host cannot reply) and reproduced
+it before the fix.
+
+**It predates the relay.** I had explicitly refused to rule the relay out; the repro settled it. Any netplay duel
+could hit this, and it waited for a human to play one because **no suite had ever asserted what the status line
+SAYS** — they all check state and controls.
+
+**Also diagnosed from Aj's screenshots, and it is a SYMPTOM, not a second bug:** two cards rendering as
+`0 undefined 0` are exactly the two round-2 draws. The client replays the draw ceremony locally and fills the
+real cards in from the host's next mirror; when the host stops broadcasting, none arrives and the placeholders
+stay. They "loaded a bit later" on the first attempt because a mirror did arrive. **A card should still not
+paint before it has a rank** — that guard is in the BACKLOG.
+
 ### v1.31.49 — four characters instead of a round trip
 
 **And the first real game found a bug that was never the relay's.** Aj hosted on a laptop against his phone and
