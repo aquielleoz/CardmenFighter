@@ -69,6 +69,27 @@
   }
 
   // ---- combo detection ----
+  /* THE 2 IS BARRED FROM CHAINS (default since v1.31.45), and all three source games agree on it: Tiến lên and
+   * Dou Dizhu both run their chains "from 3 up to ace" and say so of every chain type; Big Two lets a 2 into a
+   * run but demotes it BELOW the 3 there, so its top straight is 10-J-Q-K-A as well. Our J-Q-K-A-2 window came
+   * from no family at all — it fell out of laddering the apex at 15 and having straights read the same
+   * fightValue. `SEQ_TWOS` restores it for anyone who wants it.
+   * A LINK ONLY. An attached spare may be a 2, which is Dou Dizhu's rule exactly: a trio of 2s cannot be a link
+   * in an airplane, but a lone 2 is a perfectly good wing. So this guards the CHAIN, never the baggage.
+   * Note APEX_INF already did this for straights and kits as a side effect (an Infinity-valued 2 is not v+1),
+   * so the two rules agree rather than fighting; this one just does not need the apex rule switched on. */
+  var SEQ_TWOS = false;
+  function twoInChain(cards) {
+    if (SEQ_TWOS) return false;
+    for (var i = 0; i < cards.length; i++) if (cards[i].rank === 2) return true;
+    return false;
+  }
+  /* For the winged airplane, where only the TRIOS are links — a 2 among the spares is legal. */
+  function twoIsChainTrio(cards, counts) {
+    if (SEQ_TWOS) return false;
+    for (var i = 0; i < cards.length; i++) if (cards[i].rank === 2 && counts[fightValue(cards[i])] === 3) return true;
+    return false;
+  }
   /* ANY length from 5 up, so the 单顺 chain rule reuses this rather than duplicating it. The shipped game only
    * ever passes 5 (detectCombo gates on the CHAIN_LONG flag), so a generalised length changes nothing on its
    * own — it just stops there being two copies of "is this a run". */
@@ -77,6 +98,7 @@
     if (n < 3) return null;
     // Ordered by FIGHT VALUE — contiguous 3..15 (3..10, J=11, Q=12, K=13, A=14, apex 2=15)
     // (…10, J=11, Q=12, K=13, A=14, 2=15), so a run is consecutive values just like the old 1..10.
+    if (twoInChain(cards)) return null;                                   // 3 up to ace, unless SEQ_TWOS
     var rs = cards.map(fightValue).sort(function (a, b) { return a - b; });
     for (var i = 1; i < n; i++) if (rs[i] !== rs[i - 1] + 1) return null; // consecutive & distinct
     var top = rs[n - 1];
@@ -103,6 +125,7 @@
   function detectKit(cards) {
     var n = cards.length;
     if (n < 4 || n % 2) return null;
+    if (twoInChain(cards)) return null;                                    // 连对 runs 3 up to ace too
     var counts = {}, i;
     for (i = 0; i < n; i++) { var v = fightValue(cards[i]); counts[v] = (counts[v] || 0) + 1; }
     var vals = Object.keys(counts).map(Number).sort(function (a, b) { return a - b; });
@@ -137,6 +160,7 @@
     return true;
   }
   function detectAirplane(cards) {
+    if (twoInChain(cards)) return null;                                    // every card here is a link
     var c = valueCounts(cards), vals = [], k;
     for (k in c) { if (c[k] !== 3) return null; vals.push(+k); }      // every value must appear EXACTLY 3 times
     if (vals.length < 2 || !consecutive(vals)) return null;
@@ -157,6 +181,7 @@
       else return null;                                              // a 4 of anything is not part of this shape
     }
     if (trios.length < 2 || !consecutive(trios)) return null;
+    if (twoIsChainTrio(cards, c)) return null;                             // a 2 may be a WING, never a link
     var t = trios.length;
     if (ones === t && twos === 0 && n === 4 * t) return trios[t - 1];   // one single per trio
     if (twos === t && ones === 0 && n === 5 * t) return trios[t - 1];   // one pair per trio
@@ -203,7 +228,7 @@
       var pvals = Object.keys(pc).map(Number).sort(function (a, b) { return b - a; });   // high pair first
       if (!(pvals.length === 2 && pc[pvals[0]] === 2 && pc[pvals[1]] === 2)) return null;
       if (DBL_PAIR === 'poker') return { type: 'twopair', value: pvals[0], size: 4, key: pvals, cards: cards };
-      if (pvals[0] === pvals[1] + 1) return { type: 'kit', value: pvals[0], size: 4, key: [pvals[0]], cards: cards };
+      if (pvals[0] === pvals[1] + 1 && !twoInChain(cards)) return { type: 'kit', value: pvals[0], size: 4, key: [pvals[0]], cards: cards };
       return null;                                 // 'kits' mode and the values are not consecutive
     }
     if (kits3On() && n >= 6 && n % 2 === 0) {          // runs of 3+ pairs; size 6/8/10 cannot shadow a 5-card shape
@@ -2124,6 +2149,7 @@
    * damage — because every rule in the panel must default OFF: "is this game customised?" is literally "is any
    * rule on?", so a rule whose off state changed the game would break that. Same inversion as `flatDraw`. */
   function setNoFullHouse(v) { NO_FULL_HOUSE = !!v; }
+  function setSeqTwos(v) { SEQ_TWOS = !!v; }
   function isNoFullHouse()   { return NO_FULL_HOUSE; }
   function setTrioOne(v)   { TRIO_ONE = !!v; }
   function isTrioOne()     { return TRIO_ONE; }
@@ -2282,6 +2308,7 @@
     setChopQuadro: setChopQuadro, setChopKits: setChopKits, setChopSflush: setChopSflush,
     setChopStrips: setChopStrips, isChopStrips: isChopStrips,
     setNoFullHouse: setNoFullHouse, isNoFullHouse: isNoFullHouse,
+    setSeqTwos: setSeqTwos, isSeqTwos: function () { return SEQ_TWOS; },
     setTrioOne: setTrioOne, isTrioOne: isTrioOne, setFourTwo: setFourTwo, isFourTwo: isFourTwo,
     setAirplane: setAirplane, isAirplane: isAirplane,
     setStraightMin: setStraightMin, isStraightMin: isStraightMin,
