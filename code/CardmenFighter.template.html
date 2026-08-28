@@ -1107,6 +1107,21 @@
   /* Narrow AND short — a small phone sideways (667x375 SE). Below 721px the action bar loses its desktop
      spacer and WRAPS to two rows, which cost 25px and pushed a 5-card pile into the hand with the battle log
      open. Shrink the buttons enough to keep one row. */
+  /* TWO COLUMNS FOR THE SIGNALLING PAIR (v1.31.48). Height is the scarce axis here and width is abundant —
+     measured ~1000px of empty screen either side of a centred QR — so the code box and its buttons move
+     BESIDE the symbol instead of under it. That is what actually gets Copy above the fold; capping the QR's
+     size (v1.31.47) bought 15% of the height back and still left the button below it.
+     The QR column has a DEFINITE width on purpose. `qrInto` measures .qrWrap, and a shrink-to-fit flex item
+     would hand it the canvas's own 300px default — the exact trap this file already records — and worse, once
+     the canvas sets its own CSS width the wrapper would shrink to match, ratcheting the symbol smaller on
+     every resize. A fixed basis breaks that feedback entirely. */
+  @media (orientation:landscape) and (max-height:520px){
+    #netroot .sigPair{display:flex; gap:12px; align-items:flex-start;}
+    #netroot .sigPair > .sigPairQR{flex:0 0 235px; max-width:235px;}
+    #netroot .sigPair > .sigPairCode{flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:6px;}
+    #netroot .sigPair .sigbox{margin:0;}
+    #netroot .sigPair .netbtn{margin:0;}
+  }
   @media (orientation:landscape) and (max-height:520px) and (max-width:720px){
     #actions{gap:4px;}
     #actions button{padding:5px 8px; font-size:12px; border-radius:8px;}
@@ -6700,10 +6715,8 @@ __QR__
       if(isHost() && sig.step==='host-gen'){ body='<p>Generating your invite code…</p>'; }
       else if(isHost() && sig.step==='host-wait'){
         body='<h3>Step 1 — send this invite to your friend</h3>'+
-          qrBlockHTML('qrInvite', 'Point their phone\u2019s camera at this \u2014 or send them the code below.')+
-          '<textarea id="sigOut" class="sigbox" readonly>'+sig.offer+'</textarea>'+
-          '<button id="sigCopy" class="netbtn alt">⧉ Copy invite code</button>'+
-          shareBtnHTML('Send it')+
+          sigPairHTML('qrInvite', 'Point their phone\u2019s camera at this \u2014 or send them the code.',
+                      sig.offer, 'Copy invite code', 'Send it')+
           '<h3>Step 2 — paste their reply code here</h3>'+
           '<textarea id="sigIn" class="sigbox" placeholder="Paste the reply code your friend sends back…"></textarea>'+
           '<button id="sigGo" class="netbtn go">Connect ▶</button>'+
@@ -6716,10 +6729,8 @@ __QR__
       }
       else if(!isHost() && sig.step==='join-reply'){
         body='<h3>Step 2 — send this reply back to your host</h3>'+
-          qrBlockHTML('qrReply', 'Let your host scan this \u2014 or send them the code below.')+
-          '<textarea id="sigOut" class="sigbox" readonly>'+sig.answer+'</textarea>'+
-          '<button id="sigCopy" class="netbtn alt">⧉ Copy reply code</button>'+
-          shareBtnHTML('Send it back')+
+          sigPairHTML('qrReply', 'Let your host scan this \u2014 or send them the code.',
+                      sig.answer, 'Copy reply code', 'Send it back')+
           '<p class="nethint">Waiting for your host to connect… the game starts automatically once they paste it.</p>';
       }
       // the name row goes FIRST on this screen — it is the client's first sight of the game
@@ -6809,6 +6820,19 @@ __QR__
         try{ var r=navigator.share({ text:t.value }); if(r && r.catch) r.catch(function(){}); }catch(e){}
       });                                                    // a cancelled share rejects; that is not an error
     }
+    /* THE QR AND THE CODE ARE ONE UNIT, so they can go side by side where the screen is wide and short. On a
+     * landscape phone, stacked, the Copy button sits under the code box and lands below the fold — Aj hit
+     * exactly that ("just barely fits on the screen"), and shrinking the QR alone did not reach it. Both the
+     * host's invite and the client's reply use this, because they are the same three controls. */
+    function sigPairHTML(qrId, hint, code, copyLabel, shareLabel){
+      return '<div class="sigPair">'+
+        '<div class="sigPairQR">'+qrBlockHTML(qrId, hint)+'</div>'+
+        '<div class="sigPairCode">'+
+          '<textarea id="sigOut" class="sigbox" readonly>'+code+'</textarea>'+
+          '<button id="sigCopy" class="netbtn alt">⧉ '+copyLabel+'</button>'+
+          shareBtnHTML(shareLabel)+
+        '</div></div>';
+    }
     function qrBlockHTML(id, hint){
       return '<div class="qrWrap"><span class="qrFrame"><canvas id="'+id+'" class="qrCanvas"></canvas></span>'+
              '<p class="nethint">'+(hint || 'Point the other device\u2019s camera at this, or use the code below.')+'</p></div>';
@@ -6888,8 +6912,8 @@ __QR__
       if(sig.step==='host-gen'){ body+='<p>Generating an invite code…</p>'; }
       else if(sig.step==='host-invite'){
         body+='<h3>Invite a player — send them this</h3>'+
-          qrBlockHTML('qrInvite', 'Point their phone\u2019s camera at this \u2014 or send them the code below.')+
-          '<textarea id="sigOut" class="sigbox" readonly>'+sig.offer+'</textarea><button id="sigCopy" class="netbtn alt">⧉ Copy invite</button>'+shareBtnHTML('Send it')+
+          sigPairHTML('qrInvite', 'Point their phone\u2019s camera at this \u2014 or send them the code.',
+                      sig.offer, 'Copy invite', 'Send it')+
           '<h3>Paste their reply code</h3><textarea id="sigIn" class="sigbox" placeholder="Paste the reply from the player you invited…"></textarea>'+
           '<button id="sigGo" class="netbtn go">Connect this player ▶</button>';
       } else {

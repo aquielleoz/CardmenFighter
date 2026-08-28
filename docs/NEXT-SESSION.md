@@ -609,6 +609,40 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.48 — the invite goes two columns in landscape
+
+The QR and the code box now sit **side by side** on a landscape phone, instead of stacked with the Copy button
+below the fold. Height is the scarce axis there and width is abundant — a centred QR left roughly a thousand
+pixels of empty screen either side of it — so the pair goes horizontal. Measured at 915×412, 844×390, 667×375
+and 568×320: the QR, the code box and Copy are all on screen together, and the pair fits the viewport height,
+which stacked it did not. Portrait and desktop keep the stacked layout, which is right where height is not
+scarce.
+
+This is what v1.31.47 was reaching for and did not get. Capping the symbol bought 15% of the height back and
+still left the button underneath it; only the layout change reaches it.
+
+**One helper, two call sites.** `sigPairHTML()` wraps QR + code + Copy + Send it, used by the host's invite and
+the client's reply, which are the same three controls.
+
+**The QR column has a DEFINITE width, and that is load-bearing.** `qrInto` measures `.qrWrap`, so a
+shrink-to-fit flex item would hand it the canvas's own 300px default — the trap CLAUDE.md already records —
+and worse, once the canvas sets its own CSS width the wrapper shrinks to match, ratcheting the symbol smaller
+on every reflow. A fixed 235px basis breaks the feedback loop, and `qrtest` reflows twice and asserts the size
+holds.
+
+**THE INVITE HAS TWO RENDERERS, and the first fix went to the wrong one.** `renderHostRtcLobby` ("Invite a
+player — send them this") is the one a real host reaches; the other is the BroadcastChannel path ("Step 1 —
+send this invite to your friend"). Patching only the latter produced a measurement reading `stacked` at every
+viewport, because `.sigPair` was not in the DOM at all — which is what saved it, since the layout looked
+untouched rather than subtly wrong. **`grep qrInto(` before assuming there is one invite screen.**
+
+Also: the QR caption said "or send them the code **below**", which stops being true the moment the code sits
+beside it. It just says "the code" now.
+
+`qrtest` 28 → **32**. Verified non-vacuous by forcing the pair back to `display:block` — the side-by-side and
+the fits-the-viewport assertions both go red. Note the "all three visible at once" assertion passes even
+stacked once the block is scrolled to centre, so the two carrying the weight are those.
+
 ### v1.31.47 — the landscape QR stops eating the screen
 
 Aj, holding a phone sideways: *"just barely fits on the screen."* Measured at 915×412, the invite QR was

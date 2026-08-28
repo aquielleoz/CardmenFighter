@@ -155,6 +155,35 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     /* the negative half: the cap must NOT reach a viewport with height to spare. */
     ok(!!geomTall && geomTall.cssPerModule>g.css+1,
        'and a tall viewport is untouched — '+(geomTall?geomTall.cssPerModule.toFixed(2):'0')+' CSS px per module there, so the cap is not a global shrink');
+    /* TWO COLUMNS (v1.31.48) — the thing that actually gets Copy above the fold. Capping the QR bought height
+     * back and still left the button underneath, because the pair was stacked. Assert all three are on screen
+     * AT ONCE: any one of them alone was already true before. */
+    /* Scroll to the invite block first, the way a host reaches it — it sits below the deck picker, so
+     * measuring at scroll 0 tests the page length, not the layout. The scroll-INDEPENDENT claim is asserted
+     * too: the pair must FIT in the viewport height at all, which stacked it did not.  */
+    await land.evaluate(()=>{const e=document.querySelector(".sigPair"); if(e) e.scrollIntoView({block:"center"});});
+    await wait(400);
+    const seen=await land.evaluate(()=>{
+      const pair=document.querySelector('.sigPair');
+      const on=el=>{ if(!el) return false; const r=el.getBoundingClientRect(); return r.top>=0 && r.bottom<=innerHeight; };
+      return { flex: !!pair && getComputedStyle(pair).display==='flex',
+               qr:on(document.getElementById('qrInvite')), box:on(document.getElementById('sigOut')),
+               copy:on(document.getElementById('sigCopy')) };
+    });
+    const fits=await land.evaluate(()=>{ const p=document.querySelector('.sigPair');
+      return !!p && p.getBoundingClientRect().height<=window.innerHeight; });
+    ok(seen.flex, 'the QR and the code sit side by side in landscape, where width is the abundant axis');
+    ok(seen.qr && seen.box && seen.copy,
+       '  → and the QR, the code box AND Copy are all on screen at once (qr '+seen.qr+', box '+seen.box+', copy '+seen.copy+')');
+    ok(fits, '  → and the whole pair FITS the viewport height, which stacked it did not');
+    /* THE RATCHET GUARD. qrInto measures .qrWrap, so a shrink-to-fit column would feed the canvas's own width
+     * back in and shrink the symbol a little on every reflow. The column has a definite basis to stop that;
+     * this proves it by reflowing twice and checking the size holds. */
+    const s1=await land.evaluate(()=>parseFloat(document.getElementById('qrInvite').style.width)||0);
+    await land.setViewportSize({width:916,height:412}); await wait(400);
+    await land.setViewportSize({width:915,height:412}); await wait(400);
+    const s2=await land.evaluate(()=>parseFloat(document.getElementById('qrInvite').style.width)||0);
+    ok(Math.abs(s1-s2)<1, '  → and the symbol does not ratchet smaller across reflows ('+Math.round(s1)+' then '+Math.round(s2)+' CSS px)');
     await land.context().close();
   }
 
