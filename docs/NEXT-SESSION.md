@@ -702,6 +702,16 @@ Bare airplanes all but vanish (504 → 18) and the ten-card form takes over. The
 outlet**, which is exactly its job in the game it comes from — and worth noting our win condition is shields, not
 an empty hand, so the AI spending ten cards on one round is its own policy rather than something the rule forces.
 
+**And it is playable BY HAND, which nothing had ever checked.** Every other assertion drives the panel or the
+engine; the path a person actually uses — selecting cards in the hand — had never been exercised with a large
+shape. A ten-card winged airplane is the biggest play the game allows, so it doubles as the selection-cap test:
+all ten select, the hint reads *"Special Consecutive Trios — fight!"* (so the rename reaches the board, not just
+the panel), Fight lands `airplane/10` and the hand empties. Asserted now.
+Worth recording how that nearly went wrong: the first version of the check counted `#hand .card.sel` and reported
+**0 selected** while the play still landed — which looked like proof the UI could not do it. The hand renders
+**groups** (`.group.gsel`), so the selector was wrong, not the UI. **A test whose result you cannot explain is not
+a result** — the vacuous pass and the false failure were the same mistake in opposite directions.
+
 **Renamed "Consecutive trios"** (Aj), like the Quadro pass: the shape is described rather than named. Internal
 type stays `airplane`.
 

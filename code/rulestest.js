@@ -429,6 +429,37 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   const narrow = await layout({ width: 900, height: 1000 });
   ok(narrow.cols === 1, `and below the breakpoint it stays a single column (${narrow.cols})`);
 
+  /* ---------- THE BIGGEST SHAPE, PLAYED BY HAND. Every other assertion here drives the panel or the engine;
+   * nothing had ever selected ten cards in the real hand UI, which is the path a person actually uses. Aj:
+   * "sorry, i'm not really testing these out in games" — this is the part of that gap a suite can close.
+   * A winged airplane at ten cards is the largest play the game allows, so it is also the selection-cap test. */
+  const p5=await ctx.newPage(); p5.on('pageerror',e=>errs.push('p5: '+e.message));
+  await p5.goto(HTML); await wait(500);
+  await p5.evaluate(()=>window.__solo.setRulesFromKey('airplane=wings'));
+  await p5.evaluate(()=>document.getElementById('newBtn').click()); await wait(300);
+  await p5.evaluate(()=>{ const g=document.getElementById('goFirstBtn'); if(g)g.click(); });
+  ok(await until(async()=>!!(await p5.evaluate(()=>window.__solo && window.__solo.st()))), 'a duel starts for the hand test');
+  await p5.evaluate(()=>{
+    const st=window.__solo.st(), mk=(r,s,i)=>({rank:r,suit:s,id:r+s+'#w'+i});
+    st.players[0].hand=[mk(7,'D',1),mk(7,'H',2),mk(7,'C',3),mk(8,'S',4),mk(8,'D',5),mk(8,'H',6),
+                        mk(3,'S',7),mk(3,'D',8),mk(4,'H',9),mk(4,'C',10)];
+    st.round=3; st.pile=null; st.turn=0; window.__solo.render();
+  });
+  await wait(350);
+  const picked = await p5.evaluate(()=>{
+    [].forEach.call(document.querySelectorAll('#hand .group'), g=>g.click());
+    return document.querySelectorAll('#hand .group.gsel').length;
+  });
+  ok(picked === 10, `all ten cards can be selected in the hand — no cap (${picked})`);
+  ok(await p5.evaluate(()=>/Consecutive Trios/i.test((document.getElementById('hint')||{}).textContent||'')),
+     'and the hint names the shape by its player-facing name, so the rename reaches the board too');
+  await p5.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled) f.click(); });
+  await wait(400);
+  ok(await p5.evaluate(()=>{ const st=window.__solo.st();
+       return !!(st.pile && st.pile.combo.type==='airplane' && st.pile.combo.size===10 && st.players[0].hand.length===0); }),
+     'and Fight plays it: a ten-card winged airplane, the largest play the game allows');
+  await p5.close();
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   await ctx.close();
 
