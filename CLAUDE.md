@@ -97,6 +97,8 @@ node optionsim.js             # legal plays per turn by player count — the OPT
 node rulesim.js               # rule-config sweep: length / jab share / initiative, by player count
 node roundsim.js              # share of ROUNDS decided by a jab vs a Special, by tier and player count
 node stucksim.js 6 150        # stuck-while-following turns split into SHAPE-stuck vs VALUE-stuck
+node nettest_clientwin.js    # the MIRROR of roundstall: a client move that does NOT end the round hands the
+                             # turn back — the host's board must go live AND its status line must say so (10).
 node nettest_relay.js        # THE ROOM-CODE PATH end to end: host shows four characters, joiner types them, a
                              # real DataChannel opens with nothing pasted (14). Drives relay/mock.js, and also
                              # asserts the FALLBACK both ways — norelay=1 and a dead relay.
@@ -754,6 +756,16 @@ rather than hardcoding a path, which is what these files used to do and why they
 **Run them one at a time.** Each suite starts its own HTTP server on a fixed port and drives two or three real
 browser pages; two suites at once flake on CPU contention (`nettest_rtc` in particular fails at `maxRound=0`
 concurrently and passes 11/0 alone). A serial sweep of all 21 takes a few minutes.
+
+**`awaitRival()` SETS TWO THINGS, AND `hostTakeBack()` CLEARS BOTH (v1.31.49).** `busy` and the
+"Waiting for opponent…" text. Every path that handed control back used to clear only `busy`, so the host's board
+went live while the screen still said the rival was thinking — its turn, Pass enabled, nothing on screen to say
+so, and both players waiting for each other until someone gave up. **Never clear one without the other.**
+Distinguish it from the v1.31.20 wedge: that one really did leave `busy` set, and its fix sits in
+`resolveRoundCeremony`, which only runs when a client's move **ends** a round. This was the ordinary case —
+a client move that just passes the turn back. `nettest_clientwin.js` is the deterministic mirror of
+`nettest_roundstall.js`. **No suite had ever asserted what the status line SAYS**, which is why a bug reachable
+in any netplay duel waited for a human to play one.
 
 **`nettest_full` WAS NOT A FLAKE — it was reporting a REAL netplay bug, fixed in v1.31.20.** This file
 previously recorded "it is not the product" as an established fact. That was wrong, and the reasoning behind it

@@ -165,32 +165,14 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
-- **A HOST/CLIENT DESYNC ON THE FIRST REAL RELAY GAME (2026-08-28), and `0 undefined 0` CARDS.** Aj played
-  laptop-host vs phone-client over a room code. Two defects, from one pair of screenshots:
-  - **The host's UI is self-contradictory and the client is AHEAD.** Host: Round 1, "YOU · JAB", *"Waiting for
-    opponent…"*, *"Rival is fighting…"*. Phone at the same moment: **Round 2**, "NEW FIGHT", *"You won the round
-    of Jabs."* A client cannot advance a round on its own — it renders host mirrors — so **the host resolved
-    round 1 and broadcast it, and then failed to advance its own screen.**
-    **That is the `busy` family, and this file already describes its signature**: *"the host showing `your turn`
-    with an empty pile while `rivalStatus` still read 'Waiting for opponent…'"* — see the v1.31.20 post-mortem,
-    where `hostFinishRound → resolveRoundCeremony → afterHumanAction` never cleared `busy` on the duel path.
-    **When netplay "lags", suspect a stuck `busy` before the transport.** Only the host can wedge; a client
-    recomputes `busy` from every mirror and self-heals.
-  - **Two cards in the client's hand render as `0 undefined 0`** (one of them floating outside the hand strip).
-    A card object with no rank/suit reached the client's render. Possibly the more diagnostic of the two: it
-    suggests a malformed or over-long hand in the mirror rather than a pure UI stall.
-  - **NOT YET RULED OUT: that v1.31.49 caused it.** The game path after connection is identical for a relay
-    join and a pasted one, and `relayPoll` stops at `started` while `hostStartRealN` drops the room — but the
-    relay path *does* leave one extra thing behind: after accepting a join it calls `hostNewInvite()`, which
-    builds another `RTCPeerConnection` and registers its channel via `hostAddChannel` **before that channel ever
-    opens**. A dangling channel in the hub is the one structural difference, and it is where I would look first.
-    **Do not merge PR #82 on the assumption this is pre-existing** — an A/B against a pasted-code game on the
-    same build is the cheap way to settle it, and this repo's own lesson is that confident code-reading has
-    been wrong every time an A/B was available.
-  - **What to capture next time**, because two screenshots got this far and the next step needs more: both
-    battle logs, the host's `__cmf` state if `?dbg=1` is on, and whether the host recovers on its own or stays
-    wedged. A wedged host stops broadcasting, so the client will freeze next — if it *doesn't*, that is
-    informative too.
+- **CARDS CAN PAINT BEFORE THEY HAVE A RANK** — two rendered as `0 undefined 0` on Aj's phone and then
+  corrected themselves a moment later (*"the undefined cards loaded a bit later"*). Cosmetic, transient, and the
+  residue of the 2026-08-28 relay game: **the desync it came with was a real bug and is fixed in v1.31.49** (see
+  the changelog — `awaitRival` set two things and every path that handed control back cleared one). Worth
+  guarding anyway: a card with no rank should not render at all.
+  Note I initially ranked this as *"possibly the more diagnostic of the two"* on the theory that a UI stall
+  cannot invent a malformed card. It could and did; the ranking was wrong, and Aj's follow-up ("loaded a bit
+  later") is what corrected it.
 - **Make joining less of a hassle — ideally "find games on my network"** (Aj, 2026-08-25: *"the code thingies
   are amazing and wow you can really play with anyone anywhere… but it's also a bit of the hassle"*).
   - **The hard limit first, so nobody spends a day on it:** a browser page **cannot discover peers on a LAN.**
@@ -636,6 +618,28 @@ C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do
 
 
 ### v1.31.49 — four characters instead of a round trip
+
+**And the first real game found a bug that was never the relay's.** Aj hosted on a laptop against his phone and
+sent two screenshots: host on *"Round 1 · YOU · JAB · Rival is fighting… · Waiting for opponent…"*, phone
+already on *"Round 2 · You won the round of Jabs"*, and *"the duel was unsalvageable"*.
+
+**`awaitRival()` sets TWO things — `busy` and the "Waiting for opponent…" text — and every path that handed
+control back cleared only `busy`.** So the host's board went live while its screen still said the rival was
+thinking: its turn, Pass enabled, and no reason on screen to believe any of it. Both players then sit waiting
+for each other forever, with nothing actually broken underneath. `hostTakeBack()` clears the pair together at
+all ten control-return sites.
+
+**This is NOT the v1.31.20 wedge**, though it wears its clothes. That one genuinely left `busy` set, and its fix
+lives in `resolveRoundCeremony` — which only runs when a client's move **ends** the round. This is the ordinary
+case that fix never covered: a client move that does not end the round and simply passes the turn back.
+`nettest_clientwin.js` is the mirror of `nettest_roundstall.js` and reproduces it deterministically (the client
+answers with the apex 2, so the host cannot reply).
+
+**It predates the relay, which is worth stating because I had explicitly refused to rule the relay out.** Any
+netplay duel could hit it; it took someone actually playing one to notice, because no suite had ever asserted
+what the status line SAYS. The A/B I recommended turned out to be unnecessary — the reproduction settled it —
+but recommending it was still right, and the answer came from a deterministic repro rather than from reading
+the code, which is the same lesson this file keeps recording.
 
 **A host shows a four-character room code. A joiner types it. That is the whole handshake.** Signalling used to
 be a *round trip* — the host makes an invite, a human carries it, the joiner makes a reply, the human carries

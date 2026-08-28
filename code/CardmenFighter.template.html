@@ -6338,6 +6338,15 @@ __QR__
     function broadcastMirror(){ if(hostState){ for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'mirror', seat:s, st:NetView.mirrorFor(hostState, s)}); } }   // per-seat (a seat's private hand never reaches another peer)
     function onRender(){ if(isHost() && started && hostState) broadcastMirror(); }   // hook: keep the client's board in lockstep
     function awaitRival(){ busy=true; $('rivalStatus').textContent='Waiting for opponent…'; render(); broadcastMirror(); }   // park; client will send a move
+    /* THE OTHER HALF OF awaitRival, and it was missing (found 2026-08-28 from Aj's first real relay game).
+     * awaitRival sets TWO things — `busy` and the "Waiting for opponent…" text — and every path that handed
+     * control back cleared only `busy`. So the host's board went live while its screen still said the rival was
+     * thinking: Pass enabled, turn its own, and no reason on screen to believe it. Both players then sit
+     * waiting for each other and the duel is unsalvageable, with nothing actually broken underneath.
+     * Not the v1.31.20 wedge (that one really did leave `busy` set, and its fix at resolveRoundCeremony only
+     * covers a move that ENDS the round). This is the ordinary case: a client move that does not end the round
+     * and simply passes the turn back. Clear the pair together, never one of them. */
+    function hostTakeBack(){ busy=false; $('rivalStatus').textContent=''; }
     var netSettle=null;   // parked: the host is waiting on the remote's respond/decline to an open stack window
     function hostApplyMove(it){
       if(!hostState || hostState.finished || !it || typeof it.op!=='string') return;
@@ -6461,21 +6470,21 @@ __QR__
       hostRivalWindows(g, function(){
         if(state.finished){ render(); broadcastMirror(); return endGame(); }
         var dp=state.discardPending;
-        if(dp && dp.player===YOU){ pick={ kind:'discard', need:dp.count, chosen:{}, from:dp.from||null }; setMessage(dp.from ? ('Choose '+dp.count+' of the cards you looked at to bank into Energy — keep the rest.') : ('Choose '+dp.count+' card'+(dp.count>1?'s':'')+' to send to your Energy Pile.')); busy=false; render(); broadcastMirror(); return; }
-        busy=false; render(); broadcastMirror();
+        if(dp && dp.player===YOU){ pick={ kind:'discard', need:dp.count, chosen:{}, from:dp.from||null }; setMessage(dp.from ? ('Choose '+dp.count+' of the cards you looked at to bank into Energy — keep the rest.') : ('Choose '+dp.count+' card'+(dp.count>1?'s':'')+' to send to your Energy Pile.')); hostTakeBack(); render(); broadcastMirror(); return; }
+        hostTakeBack(); render(); broadcastMirror();
       });
     }
     // After the Rival's Technique fully settles, continue their turn: your (host) shield-guard / forced discard use
     // your normal modals; any window owed to the remote Rival parks; else await their next move.
     function hostRivalContinue(g){
       if(g!==gen) return;
-      if(hostState.finished){ busy=false; render(); broadcastMirror(); return endGame(); }
+      if(hostState.finished){ hostTakeBack(); render(); broadcastMirror(); return endGame(); }
       if(hostState.shieldResponse && hostState.shieldResponse.q===YOU){ return openShieldGuardModal(null, function(){ hostRivalContinue(g); }); }
-      if(hostState.discardPending && hostState.discardPending.player===YOU){ busy=false; render(); broadcastMirror(); return promptHumanDiscard(g); }
+      if(hostState.discardPending && hostState.discardPending.player===YOU){ hostTakeBack(); render(); broadcastMirror(); return promptHumanDiscard(g); }
       if((hostState.shieldResponse && hostState.shieldResponse.q===RIVAL) || (hostState.discardPending && hostState.discardPending.player===RIVAL)){
         return hostRivalWindows(g, function(){ hostRivalContinue(g); });
       }
-      busy=false; render(); broadcastMirror();
+      hostTakeBack(); render(); broadcastMirror();
       if(hostState.turn!==YOU) awaitRival();
     }
     function hostAfterRivalMove(r, g){
@@ -6488,7 +6497,7 @@ __QR__
         }
         return hostFinishRound(r, g);
       }
-      busy=false; render(); broadcastMirror();
+      hostTakeBack(); render(); broadcastMirror();
       if(hostState.turn!==YOU) awaitRival();     // still the rival's turn (rare in the core loop) → wait for the next move
     }
     // Curate a round result for the client's ceremony — seat-swapped to the client's view (2p: host 0 ↔ client 1),
@@ -6521,7 +6530,7 @@ __QR__
     function sendCeremony(res){ if(isHost() && started && hostState){ for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'ceremony', seat:s, res:ceremonyResFor(res, s)}); } }   // per-seat, rotated (from hostFinishRound / finishPassRound / netDriveN)
     function hostFinishRound(r, g){
       announceRoundWin(r);
-      if(state.finished){ busy=false; render(); broadcastMirror(); return endGame(); }
+      if(state.finished){ hostTakeBack(); render(); broadcastMirror(); return endGame(); }
       sendCeremony(r);                                          // client replays the pre-draw + threshold beats
       /* Hand the board BACK if the host won: this round was resolved by the CLIENT's move, so `busy` is still
        * true from the awaitRival() that handed the turn over, and afterHumanAction() only renders — it never
@@ -6564,12 +6573,12 @@ __QR__
         if(g!==gen) return;
         if(hostState.finished){ busy=false; $('rivalStatus').textContent=''; render(); broadcastMirror(); return endGame(); }
         if(hostState.shieldResponse && hostState.shieldResponse.q===YOU){ return openShieldGuardModal(null, step); }   // your shield threatened
-        if(hostState.discardPending && hostState.discardPending.player===YOU){ busy=false; render(); broadcastMirror(); return promptHumanDiscard(g); }
+        if(hostState.discardPending && hostState.discardPending.player===YOU){ hostTakeBack(); render(); broadcastMirror(); return promptHumanDiscard(g); }
         if(hostState.preFightQ===YOU){ return promptHumanPreFight(g); }
         if(hostState.pending && hostState.respondFor===YOU){ render(); return promptHumanResponse(g, step); }
         var w=netOppWindow();                                                   // a remote opponent owes a reactive window → park + broadcast so THEY answer it
         if(w){ netParked=null; netReact={ kind:w.kind, seat:w.seat, g:g, resume:step }; busy=true; $('rivalStatus').textContent=seatName(w.seat)+(w.kind==='discard'?' is discarding…':(w.kind==='guard'?' may guard…':' may respond…')); render(); broadcastMirror(); maybePasso(w.seat); return; }
-        if(hostState.finished){ busy=false; render(); broadcastMirror(); return endGame(); }
+        if(hostState.finished){ hostTakeBack(); render(); broadcastMirror(); return endGame(); }
         if(hostState.turn===YOU){ busy=false; $('rivalStatus').textContent=''; render(); broadcastMirror(); return; }   // control back to the host
         var p=hostState.turn;
         netReact=null; busy=true; $('rivalStatus').textContent=seatName(p)+' is playing…'; netParked={ seat:p, g:g, resume:step }; render(); broadcastMirror(); maybePasso(p);   // remote human's turn → park (Passo acts if it holds the seat)
@@ -6689,7 +6698,7 @@ __QR__
     }
     function hostRunCeremony(fr, g){
       announceRoundWin(fr);
-      if(hostState.finished){ busy=false; render(); broadcastMirror(); return endGame(); }
+      if(hostState.finished){ hostTakeBack(); render(); broadcastMirror(); return endGame(); }
       sendCeremony(fr);
       resolveRoundCeremony(fr, g, function(){ if(g===gen){ broadcastMirror(); driveN(); } });
     }
