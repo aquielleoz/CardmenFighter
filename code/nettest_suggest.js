@@ -80,7 +80,9 @@ const setName=(p,n)=>p.evaluate(n=>{ const i=document.getElementById('netName');
 
   // ---------- a MODE suggestion has to carry its VALUE: "2 want this" is meaningless on a three-way row
   ok(await seg(c1,'dblPair','poker'), 'the client suggests a MODE');
-  ok(await until(async()=>{ const v=await votes(host,'dblPair'); return !!(v&&v.length && /Poker/i.test(v.join(' '))); }),
+  /* The chip carries the mode's VALUE LABEL, so a rename of the segment shows up here — which is the point:
+     "2 want this" says nothing about a three-way row. */
+  ok(await until(async()=>{ const v=await votes(host,'dblPair'); return !!(v&&v.length && /Non-consecutive/i.test(v.join(' '))); }),
      'the host sees the mode\'s VALUE, not just that someone wants the row');
   ok((await flags(host)).dblPair==='off', 'and the host\'s own rules are untouched by it — its picks are the rules');
 
@@ -114,7 +116,7 @@ const setName=(p,n)=>p.evaluate(n=>{ const i=document.getElementById('netName');
   await c2.evaluate(()=>{ const g=document.getElementById('lobbyGo'); if(g)g.click(); });
   ok(await until(()=>c2.evaluate(()=>!!document.getElementById('lobbyRules'))), 'a third seat joins');
   await openRules(c2); await wait(400);
-  ok(await until(async()=>{ const v=await votes(c2,'dblPair'); return !!(v&&v.length && /Poker/i.test(v.join(' '))); }),
+  ok(await until(async()=>{ const v=await votes(c2,'dblPair'); return !!(v&&v.length && /Non-consecutive/i.test(v.join(' '))); }),
      'and it can see ANOTHER seat\'s suggestion — a late joiner gets the whole map, not just changes since it arrived');
   ok(await until(async()=>{ const v=await votes(host,'quadro'); return !!(v&&v.length); },10)===false,
      'nothing is invented: a rule nobody suggested still carries no chip');
