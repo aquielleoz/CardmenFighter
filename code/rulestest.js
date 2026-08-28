@@ -50,7 +50,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   /* THE SECTION'S `keys` LIST IS THE RENDER ORDER (v1.31.45) — it used to only decide membership, so this
    * assertion tracks RULE_SECTIONS now, not RULE_DEFS. Within Shapes the run rules lead: the pair-run slot and
    * its length, the straight's length, the trio-run, then the 2-in-a-run rule, then the standalone shapes. */
-  ok(JSON.stringify(keys)===JSON.stringify(['basics','lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','dblPair','kits3','straightLen','airplane','seqTwos','quadro','noFullHouse','trioOne','fourTwo','chopQuadro','chopKits','chopSflush','chopStrips']),
+  ok(JSON.stringify(keys)===JSON.stringify(['basics','lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','seqTwos','dblPair','kits3','straightLen','airplane','quadro','noFullHouse','trioOne','fourTwo','chopQuadro','chopKits','chopSflush','chopStrips']),
      `twenty rules — the game mode first, then the shapes, then the chops (${keys.join(', ')})`);
   /* ORDER IS LOAD-BEARING here: apexNoStrip's note says "unless the rule above is also on", meaning apexInf.
    * The pair shapes were first inserted between them, which silently pointed that sentence at the wrong rule. */

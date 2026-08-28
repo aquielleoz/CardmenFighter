@@ -1467,7 +1467,7 @@ __QR__
      * repeats its only row is just noise. */
     { key:'mode',   title:'The game',       keys:['basics'] },
     { key:'table',  title:'Table rules',    keys:['lossAll','millAll','shieldScale','flatDraw'] },
-    { key:'apex',   title:'The 2',          keys:['apexInf','apexNoStrip'] },
+    { key:'apex',   title:'The 2',          keys:['apexInf','apexNoStrip','seqTwos'] },
     /* ONE SECTION FOR SHAPES AND CHOPS, not one per source game (Aj, 2026-08-28: "why did we add a separate
      * category for dou dizhu?"). Because the answer is that there was no good reason: this section was ALREADY
      * full of family shapes — the kits are 连对/đôi thông, the Quadro is 炸弹/tứ quý, poker's two pair is Big Two —
@@ -1475,7 +1475,7 @@ __QR__
      * property the sections exist for: a preset belongs in the heading of the group it changes, and Chikicha
      * Specials sets a shape AND a chop, so it spanned both. The family a shape came from belongs in its note. */
     { key:'shapes', title:'Shapes',
-      keys:['dblPair','kits3','straightLen','airplane','seqTwos','quadro','noFullHouse','trioOne','fourTwo'],
+      keys:['dblPair','kits3','straightLen','airplane','quadro','noFullHouse','trioOne','fourTwo'],
       presets:true },
     /* CHOPS ARE THEIR OWN SECTION (v1.31.44). They are not one more shape: every other row here adds a play
      * that obeys the matching rule, and these four are the exception to it. Splitting them also lets the three

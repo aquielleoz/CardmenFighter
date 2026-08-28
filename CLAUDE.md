@@ -420,6 +420,11 @@ Three more things worth knowing before touching them:
   is what paid for rule twenty at 1512×945. **Do not reorder rows by control type to win pixels** — the Shapes
   order is defensible on meaning (the pair-run slot, the pair-run length, the straight's length and the trio-run
   are one subject), and the saving is why it was noticed, not why it was done.
+  **The other lever is which SECTION a rule sits in**, and it is free when the destination row has spare
+  columns: `seqTwos` moved from Shapes to The 2 (where it belongs — it is a rule about the apex card, and the
+  giveaway was that no preset sets it), which dropped Shapes from three rows to two and cost The 2 nothing.
+  Twenty rules now render in **six** rule rows. Check the destination's column occupancy before assuming a move
+  is free.
 - **THE DOU DIZHU SHAPES (v1.31.39), and the one that is not a shape.** 三带一 (`trioOne`), 四带二 (`fourTwo`)
   and 飞机 (`airplane`) are new types keyed by their trio/quad/top-trio — the attachment is baggage, which is not
   a new idea here because **our full house IS 三带二**. 单顺 is **not a new type**: it is the straight's MINIMUM

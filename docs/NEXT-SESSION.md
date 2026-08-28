@@ -647,12 +647,19 @@ present, agreement does not. Confirmed non-vacuous by reintroducing the bug and 
 first: `sectionsHTML` filtered `RULE_DEFS`, so a section's `keys` list decided only which rows appeared, never
 in what order. It maps over `keys` now, so the list reads the way the panel renders.
 
-**The panel fits twenty rules at 1512×945, with no trimming.** The Shapes section leads with its **mode** rows:
-a mode row is 102px against a boolean's 46px and a grid row costs its tallest member, so three modes spread
-across three rows charged 102px three times. Clustering them recovered 112px, and rule twenty needed 108. The
-order is defensible on meaning first — the pair-run slot, the pair-run length, the straight's length and the
-trio-run are all the same subject — which is the only reason it was acceptable; do not reorder rows by control
-type to win pixels.
+**The rule lives in "The 2", not in Shapes** (Aj: *"since no preset use the Sequences can include the 2, can we
+move it up to The 2?"*). The preset observation is the tell — every other Shapes row is something a preset
+turns on, and this one is about the apex card. It sits after `apexNoStrip`, whose note says "unless the rule
+above is also on" and means `apexInf`; that pair has to stay adjacent and in that order.
+
+**The panel fits twenty rules at 1512×945, with no trimming**, and it now does so in **six** rule rows rather
+than seven. Two things got it there. The Shapes section leads with its **mode** rows: a mode row is 102px
+against a boolean's 46px and a grid row costs its tallest member, so three modes spread across three rows
+charged 102px three times — clustering them recovered 112px, and rule twenty needed 108. Then moving `seqTwos`
+into The 2 dropped Shapes from three rows to two while costing nothing, since The 2's row had two free columns.
+Both orders are defensible on meaning first — the pair-run slot, the pair-run length, the straight's length and
+the trio-run are one subject; the 2's rules belong under The 2 — which is the only reason they were acceptable.
+**Do not reorder rows by control type to win pixels.**
 
 **No Big Two preset** (Aj, asked and answered). Big Two's identity is the poker ladder and suit tiebreaks, and
 we refuse both: our shapes only beat their own type at the same size, and our suits are **classes**, so ranking
