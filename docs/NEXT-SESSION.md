@@ -7,7 +7,7 @@ Current version: **v1.31.25**. The 2-apex + Forms **rework is simply the game** 
 
 ## ☀️ START HERE — where we left off (2026-08-27)
 
-`main` is at **v1.31.41**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
+`main` is at **v1.31.42**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
 nothing is in flight — every PR is merged and every branch pruned.
 
 **Sanity check before you touch anything** (from `code/`, ~30 seconds):
@@ -16,7 +16,7 @@ nothing is in flight — every PR is merged and every branch pruned.
 npm test && node mptest.js && node rulestest.js
 ```
 
-Expect **314 / 0**, **28 / 0**, **82 / 0**, **135 / 0**. If a count disagrees, the suite is right — fix the
+Expect **318 / 0**, **28 / 0**, **82 / 0**, **138 / 0**. If a count disagrees, the suite is right — fix the
 number here.
 
 **What the last stretch was about**, newest first, all of it in the changelog below: the chop (v1.31.33), rule
@@ -41,6 +41,14 @@ layer where clients suggest and the host decides (v1.31.31), the deck picker's t
    - ~~**RENAME THE PAIR ROWS TO DESCRIBE RATHER THAN NAME**~~ **SHIPPED in v1.31.40**, with the board name
      moved to match and CLAUDE.md's "the names are load-bearing" note rewritten rather than left contradicting
      the panel.
+   - **CHOP STRENGTH AS A MODE, in the chops-section PR** (Aj, 2026-08-28: *"[Off] [Only single 2s] [Include all
+     other shapes]"*). Agreed, with one correction from the measurements: **four segments, not three.** Today's
+     reach — a lone 2 *or a pair of them* — is the only setting we have evidence for, because **0 of 88 chops at
+     six players were against a lone 2** and 85 were against a pair. So "Only single 2s" is the pagat-faithful
+     option and is ~inert here, and dropping today's behaviour would remove the one that actually fires. The set
+     that keeps every meaningful behaviour: `Off` / `Only single 2s` / `Any all-2s play` (today) / `Any shape at
+     all` (the Dou Dizhu 炸弹, which answers a full house or a straight too — and would need measuring, since it
+     is a much bigger change than the other three).
    - **THE 2 OUT OF STRAIGHTS, as an option, and Aj wants it in the Chikicha preset** (2026-08-28). Our top
      straight window is `J-Q-K-A-2` because we ladder the 2 at 15; Big Two allows it, Tiến lên and Dou Dizhu both
      bar the heo/2 from chains. With the chain unlocked this matters more: a long run becomes a way to launder
@@ -599,6 +607,29 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.42 — full houses can be switched off, and the rules cluster shapes before chops
+
+Aj, on being told the full house was a divergence no rule could express: *"in that case let's add a rule to
+disable Full Houses."* So `noFullHouse` — phrased as the negative, because every rule in the panel defaults off,
+the same inversion as `flatDraw` and `chopStrips`.
+
+**Tiến lên Specials now sets it**, which is the second half of yesterday's audit: that game has no full house,
+and until now nothing could say so. Its key is `kits3,quadro,noFullHouse,straightLen=3,chopQuadro,chopKits` —
+faithful except for the chop reach, which is the next item.
+
+Measured at six players: pacing barely moves (27.8 → 27.6 rounds) and the option count drops **4.9 → 4.1** per
+turn, which is the clearest statement yet that the full house is a *common* shape — 19.6% of hands hold one.
+
+**The rules reordered: every shape, then every chop.** `noFullHouse` landing between the chops and the Dou Dizhu
+shapes made the panel read oddly, and rows render in `RULE_DEFS` order (the section's key list is a membership
+test, not an ordering). Moving the four chop rules to the end groups the panel properly — and pre-stages the
+chops-into-their-own-section PR, which now only has to split a contiguous block.
+
+Nineteen rules took the panel 9px over at 1900px, so the wide-only rhythm was trimmed once more (gap 7→6, row
+padding 10→9, section margins 6→5) for **857px** — fits at 1512px and up. The treadmill, on schedule.
+
+Suites: `test` 314 → **318**, `rulestest` 135 → **138**.
 
 ### v1.31.41 — Tiến lên Specials was missing its own straights
 

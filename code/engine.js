@@ -214,7 +214,7 @@
         var a = +keys[0], b = +keys[1];
         var trio = counts[a] === 3 ? a : (counts[b] === 3 ? b : null);
         var ok = (counts[a] === 3 && counts[b] === 2) || (counts[a] === 2 && counts[b] === 3);
-        if (trio !== null && ok) return { type: 'fullhouse', value: trio, size: 5, key: [trio], cards: cards };
+        if (trio !== null && ok && !NO_FULL_HOUSE) return { type: 'fullhouse', value: trio, size: 5, key: [trio], cards: cards };
         return null;                                 // two values, five cards, and not a full house — nothing fits
       }
       /* THE `straightflush` TYPE IS GONE (v1.31.33). Aj, on finding the dead clause in beats(): "if we're
@@ -329,7 +329,7 @@
     });
     var trioRanks = Object.keys(byRank).filter(function (r) { return byRank[r].length >= 3; });
     var pairRanks = Object.keys(byRank).filter(function (r) { return byRank[r].length >= 2; });
-    trioRanks.forEach(function (tr) {                                               // full houses
+    if (!NO_FULL_HOUSE) trioRanks.forEach(function (tr) {                          // full houses
       pairRanks.forEach(function (pr) { if (pr !== tr) out.push([byRank[tr][0], byRank[tr][1], byRank[tr][2], byRank[pr][0], byRank[pr][1]]); });
     });
     // straight windows over fight VALUE: 3-7 .. J-Q-K-A-2 (lo 3..11)
@@ -2090,6 +2090,10 @@
    *             5). A 5-card chain and our straight are the same cards, so a parallel type would be ambiguous.
    *             beats() already demands equal size, so a 6-chain cannot beat a 5-straight — the family's rule,
    *             free. */
+  /* NO FULL HOUSES (v1.31.42). The full house is the one shape that has always been in the game and cannot be
+   * switched off — which stopped Tiến lên Specials from being faithful, since that game has no full house at all.
+   * The flag is the NEGATIVE (`NO_FULL_HOUSE`) because every rule in the panel must default off. */
+  var NO_FULL_HOUSE = false;
   var TRIO_ONE = false, FOUR_TWO = false;
   /* CONSECUTIVE TRIOS as a MODE (Aj, 2026-08-28: "we can give it the double pair treatment"). 'wings' still
    * allows the bare form — allowing the attachment does not forbid going without it — so it is a SUPERSET of
@@ -2116,6 +2120,8 @@
    * buys the lead, not a shield. The toggle is therefore phrased as the POSITIVE — `chopStrips` makes them deal
    * damage — because every rule in the panel must default OFF: "is this game customised?" is literally "is any
    * rule on?", so a rule whose off state changed the game would break that. Same inversion as `flatDraw`. */
+  function setNoFullHouse(v) { NO_FULL_HOUSE = !!v; }
+  function isNoFullHouse()   { return NO_FULL_HOUSE; }
   function setTrioOne(v)   { TRIO_ONE = !!v; }
   function isTrioOne()     { return TRIO_ONE; }
   function setFourTwo(v)   { FOUR_TWO = !!v; }
@@ -2272,6 +2278,7 @@
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
     setChopQuadro: setChopQuadro, setChopKits: setChopKits, setChopSflush: setChopSflush,
     setChopStrips: setChopStrips, isChopStrips: isChopStrips,
+    setNoFullHouse: setNoFullHouse, isNoFullHouse: isNoFullHouse,
     setTrioOne: setTrioOne, isTrioOne: isTrioOne, setFourTwo: setFourTwo, isFourTwo: isFourTwo,
     setAirplane: setAirplane, isAirplane: isAirplane,
     setStraightMin: setStraightMin, isStraightMin: isStraightMin,
