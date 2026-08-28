@@ -67,6 +67,17 @@ let mock=null;
   ok(await waitFor(async()=>{const h=await snap(host), j=await snap(join); return h.boardUp&&j.boardUp&&h.hand===6&&j.hand===6;}, 100, 200),
      'a real WebRTC game connected and dealt six cards to both — from four typed characters, nothing pasted');
 
+  /* THE ROSTER (Aj: "i cant see who's in the room"). The relay keeps the host on the invite step forever,
+   * because it mints the next offer as soon as it accepts a join — so the branch that used to show who had
+   * arrived was never reached, and Start Duel appearing was the only clue. Assert the host can SEE the
+   * player, both in the roster line and in the netbar's count, which was reading readyCount() and therefore
+   * said 0 while somebody sat in the lobby. */
+  ok(await waitFor(()=>host.evaluate(()=>{ const s=document.querySelector('#netroot .lobbyStatus');
+       return !!s && /\b1\b/.test(s.textContent) && /here/.test(s.textContent); }), 60, 250),
+     'the host can SEE who is in the room while still on the invite screen');
+  ok(await host.evaluate(()=>/1 connected/.test((document.querySelector('#netroot .netbar')||{}).textContent||'')),
+     '  → and the netbar counts them, rather than reporting 0 because nobody has confirmed yet');
+
   /* Prove the claim was genuine and not a copy-paste fallback sneaking in: the joiner never touched #sigIn. */
   ok(await join.evaluate(()=>{ const t=document.getElementById('sigIn'); return !t || !t.value; }),
      '  → and the joiner\'s paste box was never used, so this really was the relay path');

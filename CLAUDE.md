@@ -269,6 +269,14 @@ windows were always fine, which is how it survived unnoticed.
 - **`joinAcceptOffer(code, then)` takes a continuation**, which is how the relay posts the answer the moment it
   exists. Both paths run the same WebRTC code, so a relay join and a pasted invite cannot drift apart — do not
   fork them.
+- **`readyCount()` IS NOT "CONNECTED".** It counts seats whose `rulesGen` matches — seats that have *confirmed* —
+  so using it as an arrival count made the netbar say "0 connected" with a player in the lobby. `joinedCount()`
+  (`nextSeat-1`, which `hostStartRealN` always used) is arrival. Report them separately; they answer different
+  questions.
+- **THE ROSTER MUST RENDER IN EVERY LOBBY BRANCH.** It used to live only in the `else` branch, which worked
+  because a host LEFT `host-invite` on pasting a reply. The relay keeps it there permanently (it mints the next
+  offer on accepting a join), so the host could not see who had arrived — `Start Duel` appearing was the only
+  clue. Any state a host needs continuously cannot live in one step's branch.
 - **`srvTag()` exists so the netbar cannot lie.** "no server" was true for every version before this one; with a
   relay carrying the handshake it becomes false, and it says so, then says "no server" again once the room is
   dropped. Both directions asserted. The room is deleted on Leave and on game start, because an SDP holds IP

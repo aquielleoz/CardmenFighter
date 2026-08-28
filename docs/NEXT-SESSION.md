@@ -642,6 +642,19 @@ this each of them would have opened rooms on the **production** relay on every r
 live service, and suites that fail whenever the machine is offline. Hermetic by default; a suite that wants the
 relay names it, which is what `nettest_relay` does against `relay/mock.js`.
 
+**AND THE HOST COULD NOT SEE WHO WAS IN THE ROOM** (Aj, on the first real try: *"i cant see who's in the
+room ahhaa"*). Two bugs stacked, one of them introduced by this version:
+- The roster line lived only in the lobby's `else` branch. That was fine while a host **left** the invite step
+  as soon as it pasted a reply — the relay puts it straight back, because it mints the next offer the moment it
+  accepts a join, so the host sits on `host-invite` permanently and the roster was unreachable. `Start Duel`
+  appearing was the only evidence anyone had arrived. It now renders in **every** branch.
+- **`readyCount()` is not a count of connected players.** It counts seats whose `rulesGen` matches, i.e. seats
+  that have *confirmed*, so the netbar read **"0 connected"** with somebody sitting in the lobby. Both numbers
+  are real and are now reported separately (`joinedCount()` for arrival, `readyCount()` for readiness), because
+  the host needs the first to know someone showed up and the second to know whether Start will work. The Start
+  button gated on the wrong one too; `hostStartRealN` had always used `nextSeat-1`, so the button was the
+  inconsistent half.
+
 **One correction made in passing.** I added a reflow-on-open for the QR, reasoning that a canvas inside a
 collapsed `<details>` has no width. Measured: Chrome still gives layout to closed-details content and the
 symbol was already the right size (345 CSS px either way). The guard stays — closed details content has no box

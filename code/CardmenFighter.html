@@ -10664,15 +10664,37 @@ window.CardFace = {};
         else { iReady=true; send({t:'join', deck:myDeck, cid:myId, name:myName, v:netVersion()}); startJoinRetry(); renderNet(); }
       });
     }
+    /* WHO IS IN THE ROOM — and it must show in EVERY branch of the lobby (Aj: "i cant see who's in the room").
+     * The roster used to live only in the `else` branch, which was fine when the host LEFT the invite step as
+     * soon as it pasted a reply. The relay put it back: after accepting a join the host mints the next offer
+     * immediately, so it sits on `host-invite` permanently and never reached the branch that showed the roster.
+     * Start Duel and Ping the table were the only evidence anyone had connected at all.
+     *
+     * JOINED IS NOT READY. `readyCount()` counts seats whose rulesGen matches — i.e. seats that have CONFIRMED —
+     * so it reads 0 for a player who is connected but has not pressed Ready. Using it as "connected" made the
+     * netbar say "0 connected" with someone sitting in the lobby. Both numbers are real and they are now
+     * reported separately, because the host needs the first one to know someone arrived and the second to know
+     * whether Start will work. */
+    function joinedCount(){ return Math.max(0, nextSeat-1); }            // seats 1..n each hold a live channel
+    function hostRosterHTML(){
+      var joined=joinedCount();
+      if(joined<1) return '<div class="lobbyStatus">No players yet — give someone the code above.</div>';
+      var names=[]; for(var s=1;s<=joined;s++) names.push(esc(seatName(s)));
+      var ready=readyCount();
+      return '<div class="lobbyStatus">✓ <b>'+joined+'</b> here: '+names.join(', ')+
+             ' · <b>'+(joined+1)+'</b>-Rider game'+
+             (ready<joined ? ' · waiting for '+(joined-ready)+' to confirm' : ' · everyone ready')+'</div>';
+    }
     // HOST over WebRTC: a combined lobby — deck picker + invite one player at a time (each becomes a hub channel) + Start.
     function renderHostRtcLobby(root){
-      var joined=readyCount(), total=joined+1, full=(joined>=MAX_SEATS-1);
+      var joined=readyCount(), total=joinedCount()+1, full=(joinedCount()>=MAX_SEATS-1);
       var errHTML = (sig&&sig.err) ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
-      var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · '+srvTag()+' · '+joined+' connected · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML();
+      var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · '+srvTag()+' · '+joinedCount()+' connected · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML();
       var body=nameRowHTML(false)+'<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
         '<button id="lobbyRules" class="netbtn">'+(isHost()?'⚗️ Custom rules':'⚗️ Rules &amp; suggest')+(customRules()?' · on':'')+'</button>'+''
       if(sig.step==='host-gen'){ body+='<p>Generating an invite code…</p>'; }
       else if(sig.step==='host-invite'){
+        body+=hostRosterHTML();
         /* THE ROOM CODE LEADS WHEN THERE IS ONE, and the invite code stays right below it. Not either/or: the
          * relay can be unreachable, the player can be on the offline file with no network, or the far end can
          * be an older build — in every one of those the manual path is the whole feature, unchanged. */
@@ -10695,10 +10717,10 @@ window.CardFace = {};
           '<button id="sigGo" class="netbtn go">Connect this player ▶</button>'+
           (relay.room ? '<p class="nethint">If they used the room code you do not need to paste anything — they appear on their own.</p>' : '');
       } else {
-        body+='<div class="lobbyStatus">'+(joined>0?('✓ <b>'+joined+'</b> player'+(joined>1?'s':'')+' connected — a <b>'+total+'</b>-Rider game.'):'No players yet.')+'</div>'+
-          (full?'<p class="nethint">Table full (6).</p>':'<button id="inviteBtn" class="netbtn alt">＋ Invite '+(joined>0?'another ':'a ')+'player</button>');
+        body+=hostRosterHTML()+
+          (full?'<p class="nethint">Table full (6).</p>':'<button id="inviteBtn" class="netbtn alt">＋ Invite '+(joinedCount()>0?'another ':'a ')+'player</button>');
       }
-      body+='<button id="lobbyGo" class="netbtn go"'+(joined>0?'':' disabled')+'>Start '+(total>2?('('+total+' Riders)'):'Duel')+' ▶</button>'+
+      body+='<button id="lobbyGo" class="netbtn go"'+(joinedCount()>0?'':' disabled')+'>Start '+(total>2?('('+total+' Riders)'):'Duel')+' ▶</button>'+
         '<p class="nethint">Invite each player, then Start (2–6). Picks stay hidden — no counter-picking.</p>'+
         (joined>0?'<button id="lobbyPing" class="netbtn">🔔 Ping the table</button><div id="lobbyPingMsg" class="nethint"></div>':'');
       root.innerHTML=head+body+'</div>';
