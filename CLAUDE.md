@@ -175,6 +175,14 @@ that turns "nothing decodes" from a mystery into a bug in our own code.
 Downloads is `content://` — an opaque origin — so Chrome rejects `getUserMedia` **without prompting** (symptom:
 site settings read "Ask first" and it never asks). Confirmed by A/B on one phone. LAN `http://192.168.x.x` is not
 a secure context either. See the BACKLOG before re-proposing it.
+**DO NOT GENERALISE FROM "OPAQUE ORIGIN" TO A LIST OF DEAD APIS** (2026-08-28). Reasoning that `content://` is
+not a secure context, I told Aj the `↗ Send it` share button could not be rendering on his phone, since
+`navigator.share` is specified as secure-context-only. **It renders and works** — he was looking at it. So the
+confirmed loss on that origin is `getUserMedia` and nothing else; `navigator.share` is empirically fine, and the
+same doubt now applies to every other claim of that shape (async clipboard, storage durability). The Copy button
+is robust for an unrelated reason worth keeping: `navigator.clipboard.writeText` with an `execCommand('copy')`
+fallback. **The rule this broke is already in this file** — A/B the real thing instead of deducing from what
+should be true — and the cost of skipping it was arguing that a shipped, working feature was invisible.
 
 **`qr.js` is verified against a REFERENCE IMPLEMENTATION, and that is the only reason hand-writing it was safe.**
 Its first version placed the format bits **LSB-first instead of MSB-first**. Every check a careful person would
