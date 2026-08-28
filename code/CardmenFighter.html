@@ -702,9 +702,9 @@
     .modal.rulesPanel .settings{grid-template-columns:1fr 1fr 1fr;}
     /* Every rule added costs a grid row (~76px), so the wide layout tightens its rhythm to keep a margin: the
      * rows are short here and the extra breathing room was doing nothing that the columns do not already do. */
-    .modal.rulesPanel .settings{gap:7px;}
-    .modal.rulesPanel .settingRow{padding:10px 12px;}
-    .modal.rulesPanel .ruleSect{margin:6px 0 1px;}
+    .modal.rulesPanel .settings{gap:6px;}
+    .modal.rulesPanel .settingRow{padding:9px 12px;}
+    .modal.rulesPanel .ruleSect{margin:5px 0 1px;}
   }
   /* A FOURTH column once there are enough rules to need it (eighteen, as of v1.31.39). Same principle as the
    * third: the modal grows with it so a column keeps roughly the width it had, or the labels wrap more and the
@@ -1447,7 +1447,7 @@
         var a = +keys[0], b = +keys[1];
         var trio = counts[a] === 3 ? a : (counts[b] === 3 ? b : null);
         var ok = (counts[a] === 3 && counts[b] === 2) || (counts[a] === 2 && counts[b] === 3);
-        if (trio !== null && ok) return { type: 'fullhouse', value: trio, size: 5, key: [trio], cards: cards };
+        if (trio !== null && ok && !NO_FULL_HOUSE) return { type: 'fullhouse', value: trio, size: 5, key: [trio], cards: cards };
         return null;                                 // two values, five cards, and not a full house — nothing fits
       }
       /* THE `straightflush` TYPE IS GONE (v1.31.33). Aj, on finding the dead clause in beats(): "if we're
@@ -1562,7 +1562,7 @@
     });
     var trioRanks = Object.keys(byRank).filter(function (r) { return byRank[r].length >= 3; });
     var pairRanks = Object.keys(byRank).filter(function (r) { return byRank[r].length >= 2; });
-    trioRanks.forEach(function (tr) {                                               // full houses
+    if (!NO_FULL_HOUSE) trioRanks.forEach(function (tr) {                          // full houses
       pairRanks.forEach(function (pr) { if (pr !== tr) out.push([byRank[tr][0], byRank[tr][1], byRank[tr][2], byRank[pr][0], byRank[pr][1]]); });
     });
     // straight windows over fight VALUE: 3-7 .. J-Q-K-A-2 (lo 3..11)
@@ -3323,6 +3323,10 @@
    *             5). A 5-card chain and our straight are the same cards, so a parallel type would be ambiguous.
    *             beats() already demands equal size, so a 6-chain cannot beat a 5-straight — the family's rule,
    *             free. */
+  /* NO FULL HOUSES (v1.31.42). The full house is the one shape that has always been in the game and cannot be
+   * switched off — which stopped Tiến lên Specials from being faithful, since that game has no full house at all.
+   * The flag is the NEGATIVE (`NO_FULL_HOUSE`) because every rule in the panel must default off. */
+  var NO_FULL_HOUSE = false;
   var TRIO_ONE = false, FOUR_TWO = false;
   /* CONSECUTIVE TRIOS as a MODE (Aj, 2026-08-28: "we can give it the double pair treatment"). 'wings' still
    * allows the bare form — allowing the attachment does not forbid going without it — so it is a SUPERSET of
@@ -3349,6 +3353,8 @@
    * buys the lead, not a shield. The toggle is therefore phrased as the POSITIVE — `chopStrips` makes them deal
    * damage — because every rule in the panel must default OFF: "is this game customised?" is literally "is any
    * rule on?", so a rule whose off state changed the game would break that. Same inversion as `flatDraw`. */
+  function setNoFullHouse(v) { NO_FULL_HOUSE = !!v; }
+  function isNoFullHouse()   { return NO_FULL_HOUSE; }
   function setTrioOne(v)   { TRIO_ONE = !!v; }
   function isTrioOne()     { return TRIO_ONE; }
   function setFourTwo(v)   { FOUR_TWO = !!v; }
@@ -3505,6 +3511,7 @@
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
     setChopQuadro: setChopQuadro, setChopKits: setChopKits, setChopSflush: setChopSflush,
     setChopStrips: setChopStrips, isChopStrips: isChopStrips,
+    setNoFullHouse: setNoFullHouse, isNoFullHouse: isNoFullHouse,
     setTrioOne: setTrioOne, isTrioOne: isTrioOne, setFourTwo: setFourTwo, isFourTwo: isFourTwo,
     setAirplane: setAirplane, isAirplane: isAirplane,
     setStraightMin: setStraightMin, isStraightMin: isStraightMin,
@@ -4828,7 +4835,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.41';
+  var GAME_VERSION='v1.31.42';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -4963,6 +4970,29 @@ window.CardFace = {};
     /* THE CHOP is a modifier on the shapes above it, so it is last and its note says outright that it does
      * nothing without them. It is also the only rule that makes the apex 2 answerable, which is why the note
      * names the conflict with "The 2 cannot be beaten" rather than leaving two rules to contradict each other. */
+    /* The one shape that was always in the game and could not be switched off, which is what stopped Tiến lên
+     * Specials from being faithful — that game has no full house. Phrased as the NEGATIVE because every rule in
+     * the panel must default off; same inversion as `flatDraw` and `chopStrips`. */
+    { key:'noFullHouse', duel:true, label:'No full houses',
+      note:'A trio plus a pair is a shape by default — it is this family\u2019s 三带二, and the reason "trio + one spare card" below reads as its smaller sibling. Switch this on and five cards as three-plus-two are simply not a play. Tiến lên has no full house at all.' },
+    { key:'trioOne',     duel:true, label:'Trio + one spare card',
+      note:'三带一. A trio plus any single card, compared by the <b>trio</b> — the spare is baggage you are shedding, exactly as the pair is in a full house (which is this family\u2019s 三带二). Answered only by a higher trio-plus-one.' },
+    { key:'fourTwo',     duel:true, label:'Four of a kind + two spare cards',
+      note:'四带二. All four copies of one value plus two more cards — a pair or two singles — compared by the <b>four</b>. In Dou Dizhu the bomb is the BARE four of a kind, so this is the choice to spend it as an ordinary big shape instead of as a chop.' },
+    /* A MODE, because "with spares" still allows the bare form — a superset, like the four-card slot. Named for
+     * what it is rather than for 飞机 (Aj: "let's call this consecutive trios too"), matching the pass that
+     * renamed Quadro. At MAX_HAND=10 only the two-trio winged forms fit (8 cards with a single per trio, 10 with
+     * a pair per trio); the n===4k / n===5k arithmetic excludes the rest without a special case. */
+    { key:'airplane',    duel:true, label:'Consecutive trios',
+      mode:[{v:'off',label:'Off'},{v:'bare',label:'Trios only'},{v:'wings',label:'With spares'}],
+      note:'飞机. Two or more trios of consecutive values (777888), compared by the <b>top trio</b>. <b>With spares</b> also allows 飞机带翅膀, where each trio carries one extra card — either a single each (eight cards) or a pair each (ten, your whole hand). The spares are baggage, as in every attachment in this family, and the bare form stays legal either way.' },
+    /* A MODE, not a toggle: these are three settings of one dial — the straight's MINIMUM length — and "3 or
+     * more" is a strict superset of "5 or more", which is the same relationship that forced the four-card slot
+     * to be a mode. "Off" is the shipped rule, exactly five, so it is a length like the others rather than a
+     * disabled state. */
+    { key:'straightLen', duel:true, label:'Straight length',
+      mode:[{v:'off',label:'Exactly 5'},{v:'3',label:'3 or more'},{v:'5',label:'5 or more'}],
+      note:'How long a straight may be. <b>Exactly 5</b> is this game as it ships. <b>3 or more</b> is Tiến lên\u2019s rule, <b>5 or more</b> is Dou Dizhu\u2019s 单顺 — up to your whole hand either way. Length still has to match to beat it, so a six-card run and a five-card run never meet: that is what stops a longer straight from being simply better. A three-card run and a trio are different shapes and never answer each other.' },
     /* THREE INDEPENDENT CHOPS, not a mode. They are distinguishable shapes, so nothing forces a choice — you
      * can take one, or all of them — and each toggle enables its own shape, so no setting is ever dead. The
      * ladder between them is 3 pairs < four of a kind < same-suit straight < 4+ pairs. */
@@ -4992,24 +5022,6 @@ window.CardFace = {};
      * give the eventual Dou Dizhu preset a heading to live in — the pattern from v1.31.37.
      * Note the family's TRIO + PAIR (三带二) is already in the game: it is our full house. So these are its
      * smaller sibling, its bigger relative, the trio version of a run, and a length unlock. */
-    { key:'trioOne',     duel:true, label:'Trio + one spare card',
-      note:'三带一. A trio plus any single card, compared by the <b>trio</b> — the spare is baggage you are shedding, exactly as the pair is in a full house (which is this family\u2019s 三带二). Answered only by a higher trio-plus-one.' },
-    { key:'fourTwo',     duel:true, label:'Four of a kind + two spare cards',
-      note:'四带二. All four copies of one value plus two more cards — a pair or two singles — compared by the <b>four</b>. In Dou Dizhu the bomb is the BARE four of a kind, so this is the choice to spend it as an ordinary big shape instead of as a chop.' },
-    /* A MODE, because "with spares" still allows the bare form — a superset, like the four-card slot. Named for
-     * what it is rather than for 飞机 (Aj: "let's call this consecutive trios too"), matching the pass that
-     * renamed Quadro. At MAX_HAND=10 only the two-trio winged forms fit (8 cards with a single per trio, 10 with
-     * a pair per trio); the n===4k / n===5k arithmetic excludes the rest without a special case. */
-    { key:'airplane',    duel:true, label:'Consecutive trios',
-      mode:[{v:'off',label:'Off'},{v:'bare',label:'Trios only'},{v:'wings',label:'With spares'}],
-      note:'飞机. Two or more trios of consecutive values (777888), compared by the <b>top trio</b>. <b>With spares</b> also allows 飞机带翅膀, where each trio carries one extra card — either a single each (eight cards) or a pair each (ten, your whole hand). The spares are baggage, as in every attachment in this family, and the bare form stays legal either way.' },
-    /* A MODE, not a toggle: these are three settings of one dial — the straight's MINIMUM length — and "3 or
-     * more" is a strict superset of "5 or more", which is the same relationship that forced the four-card slot
-     * to be a mode. "Off" is the shipped rule, exactly five, so it is a length like the others rather than a
-     * disabled state. */
-    { key:'straightLen', duel:true, label:'Straight length',
-      mode:[{v:'off',label:'Exactly 5'},{v:'3',label:'3 or more'},{v:'5',label:'5 or more'}],
-      note:'How long a straight may be. <b>Exactly 5</b> is this game as it ships. <b>3 or more</b> is Tiến lên\u2019s rule, <b>5 or more</b> is Dou Dizhu\u2019s 单顺 — up to your whole hand either way. Length still has to match to beat it, so a six-card run and a five-card run never meet: that is what stops a longer straight from being simply better. A three-card run and a trio are different shapes and never answer each other.' }
   ];
   /* TWO STORES, and the split is what makes suggestions possible (v1.31.31). RULES is what is IN PLAY — on a
    * netplay client the host overwrites it wholesale, so anything kept there is not yours. MY_RULES is THIS
@@ -5038,7 +5050,7 @@ window.CardFace = {};
      * property the sections exist for: a preset belongs in the heading of the group it changes, and Chikicha
      * Specials sets a shape AND a chop, so it spanned both. The family a shape came from belongs in its note. */
     { key:'shapes', title:'Shapes & chops',
-      keys:['dblPair','kits3','quadro','trioOne','fourTwo','airplane','straightLen',
+      keys:['dblPair','kits3','quadro','noFullHouse','trioOne','fourTwo','airplane','straightLen',
             'chopQuadro','chopKits','chopSflush','chopStrips'],
       presets:true }
   ];
@@ -5068,7 +5080,7 @@ window.CardFace = {};
      * Two divergences that no rule can express yet: our FULL HOUSE is always on and Tiến lên has none, and its
      * bombs reach only a lone 2 where ours reach a pair (see chopReach). */
     { key:'tienlen', label:'Tiến lên Specials', title:'Sequences from three, plus the family’s own bombs: 3+ consecutive pairs and four of a kind',
-      rules:{ straightLen:'3', kits3:true, quadro:true, chopKits:true, chopQuadro:true } },
+      rules:{ straightLen:'3', kits3:true, quadro:true, chopKits:true, chopQuadro:true, noFullHouse:true } },
     /* DOU DIZHU — the fullest set, because that game has the most shapes. 连对 is our 3 Kits (its floor is three
      * consecutive pairs, so the four-card slot stays OFF, as in Tiến lên), 单顺 is the unlocked straight, and its
      * 炸弹 is the bare four of a kind, which is why it comes with the chop. Its 三带二 needs no rule: that is
@@ -5138,6 +5150,7 @@ window.CardFace = {};
       if(E.setChopKits)         E.setChopKits(!!RULES.chopKits);
       if(E.setChopSflush)       E.setChopSflush(!!RULES.chopSflush);
       if(E.setChopStrips)       E.setChopStrips(!!RULES.chopStrips);
+      if(E.setNoFullHouse)      E.setNoFullHouse(!!RULES.noFullHouse);
       if(E.setTrioOne)          E.setTrioOne(!!RULES.trioOne);
       if(E.setFourTwo)          E.setFourTwo(!!RULES.fourTwo);
       if(E.setAirplane)         E.setAirplane(RULES.airplane);

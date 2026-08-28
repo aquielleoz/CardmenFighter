@@ -1033,6 +1033,21 @@ function cards(ids) { return ids.map(card); }
     E.setChopStrips(false); E.setChopQuadro(false);
   })();
 
+  /* ---- NO FULL HOUSES (v1.31.42). The one shape that was always in the game and could not be switched off,
+   * which is what kept Tiến lên Specials from being faithful — that game has none. */
+  (function () {
+    var fh = [C(7, 'D'), C(7, 'H'), C(7, 'C'), C(3, 'S'), C(3, 'D')];
+    var trio3 = [C(7, 'D'), C(7, 'H'), C(7, 'C')];
+    var run5 = [C(4, 'D'), C(5, 'H'), C(6, 'C'), C(7, 'S'), C(8, 'D')];
+    ok(E.detectCombo(fh).type === 'fullhouse', 'a full house is a shape by default — this family\'s 三带二');
+    E.setNoFullHouse(true);
+    ok(E.detectCombo(fh) === null, 'with the rule on, three-plus-two is simply not a play');
+    ok(E.detectCombo(trio3).type === 'trio' && E.detectCombo(run5).type === 'straight',
+       'and nothing else at those sizes is disturbed — the trio and the five-card run are untouched');
+    E.setNoFullHouse(false);
+    ok(E.detectCombo(fh).type === 'fullhouse', 'and it comes back when the rule goes off');
+  })();
+
   /* ---- DOU DIZHU SHAPES (v1.31.39). Three new shapes plus a length unlock. Note the family's TRIO + PAIR
    * (三带二) is already in the game as our full house, so the "attachment is baggage" idea is not new here —
    * these are its smaller sibling, its bigger relative, the trio version of a run, and 单顺. */
