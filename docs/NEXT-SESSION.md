@@ -165,6 +165,14 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **A CLIENT CAN GET STUCK UNDER THE "You seize the initiative!" DIM** (Aj, 2026-08-28, screenshot: the client's
+  whole play area dimmed behind the banner while the host showed a finished game). The stage effect never
+  cleared, so the board is unreadable and unusable. A banner is a transient; anything that dims the board needs
+  a guaranteed teardown, not one that depends on a following event arriving.
+- **NOBODY IS TOLD WHEN ANOTHER PLAYER IS DISCARDING TO HAND SIZE** (Aj: *"the other players don't [get] a prompt
+  saying somebody is still discarding down to max hand... it's just uhhh what's happening in the middle of
+  rounds"*). The discarding seat sees its own prompt; everyone else sees an unexplained pause mid-round.
+  `rivalStatus` already carries "X is discarding…" for some windows — the end-of-turn discard needs the same.
 - **THE WIRE IS CLEAN. THE CLIENT-SIDE CEREMONY/LOG PATH IS NOT. (2026-08-28, third pair of logs — the good
   ones.)** Both traces were HEALTHY end to end, which is the most valuable thing established all day:
   ```
@@ -720,6 +728,27 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.55 — the second name in a line travels as a seat
+
+v1.31.53 fixed the grammar *around* `{who}`. This fixes the **other name**: the second seat a line has to
+mention — the one that lost the shield, the one knocked out — was interpolated by the **sender** as literal
+text, so it could never be right for a reader. `{foe}` now travels as **seats**, and each end names them in its
+own frame.
+
+Staged and verified, with neutral names so nothing is ambiguous:
+```
+HOST    Rival won with a Pair - You lost a shield.
+CLIENT  You won with a Pair - Rival lost a shield.
+```
+Before, the client read "You won with a Pair - **You** lose a shield".
+
+**A NOTE ON THE EVIDENCE, because it nearly misled me.** The log lines I first pointed to as proof were
+confounded: Aj's opponent had literally typed the name **"You"**, so "You won … You lose a shield" may have been
+correct on his screen. The bug is real and the fix is right, but it is demonstrated by the staged run above —
+**not** by those lines. Worth remembering that a player-typed name can imitate a rendering bug exactly.
+
+Also in `nettest_sync`: a line naming the same side as both winner and loser now fails the suite.
 
 ### v1.31.54 — a client cannot act on a board the host has moved past
 

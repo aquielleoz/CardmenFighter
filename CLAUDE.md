@@ -730,6 +730,14 @@ It used to live inline in `runRival`, and the free-for-all driver only logged, s
 silently missing in 3-6 player games** (v1.29.3 fixed it by extracting). If you add a beat, add it there — never
 in one driver.
 
+**THE SECOND NAME IN A LINE MUST TRAVEL AS A SEAT, NOT AS TEXT (v1.31.55).** `{who}` was always rotated by the
+reader; the other seat a line mentions — who lost the shield, who is out — was interpolated by the SENDER, so it
+could never be right for anyone else. `{foe}` carries seats and each end names them. Verified staged:
+host "Rival won … You lost a shield" / client "You won … Rival lost a shield".
+**AND A PLAYER-TYPED NAME CAN IMITATE THIS EXACTLY:** Aj's opponent had typed the name "You", which made
+"You won … You lose a shield" look like the bug when it may have been correct. Reproduce on neutral names
+before trusting a narration report.
+
 **MIRRORS CARRY A STATE STAMP, AND A STALE INTENT IS REFUSED (v1.31.54).** `stateSeq` advances only when an
 intent is APPLIED, never per render — that is what makes it usable, since an intent is valid exactly while the
 board it was formed against is current. A client ignores a mirror whose stamp goes BACKWARDS (a replay would

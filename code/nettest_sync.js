@@ -140,6 +140,13 @@ let mock=null;
     .map(e=>e.textContent.trim())
     .filter(l=>/You moves|Rival move \d|from your deck|You’s|You's/.test(l)));
   ok(bad.length===0, 'and no line is stuck in the HOST\'s grammar'+(bad.length?('  ← '+bad[0]):''));
+  /* THE SECOND NAME. {who} was always rotated; the OTHER seat in a line was interpolated by the host as
+   * literal text, so a client read the host's word for it: "You won with a Pair - You lose a shield", both
+   * of them 'You'. Seats travel now and each end names them. A line naming the same side twice is the tell. */
+  const selfref=await join.evaluate(()=>[].slice.call(document.querySelectorAll('#log > *'))
+    .map(e=>e.textContent.trim())
+    .filter(l=>/You won with .* You lost a shield|You landed the FIGHTER KICK — You is out|[{]foe[}]/.test(l)));
+  ok(selfref.length===0, 'and no line names the same side as both winner and loser'+(selfref.length?('  ← '+selfref[0]):''));
 
   const h=await view(host), j=await view(join);
   ok(h.round===j.round, 'they finish agreeing on the round (host '+h.round+', client '+j.round+')');

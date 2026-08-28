@@ -4889,7 +4889,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.54';
+  var GAME_VERSION='v1.31.55';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -6013,9 +6013,18 @@ window.CardFace = {};
    * reader-relative — the same event is "You played" to the actor and "Rival played" to everyone else.
    * Locally it renders in our own frame; as netplay host it ALSO broadcasts the template so each client
    * can render it in theirs. Without this a client's battle log was empty all game, even for its own moves. */
-  function say(actor, tpl, cls){
-    logMsg(tpl.replace(/\{who\}/g, actor==null ? '' : '<b>'+logName(actor)+'</b>'), cls);
-    if(typeof NET!=='undefined' && NET.sayBroadcast) NET.sayBroadcast(actor, tpl, cls);
+  /* `foes` is a list of SEATS, never names. A name baked in by the speaker cannot be re-framed by the reader —
+   * that is the whole bug this replaces. `{foe}` is resolved on each end, in that end's own frame. */
+  function foeText(foes){
+    var list=(foes||[]).filter(function(q,i,a){ return q!=null && a.indexOf(q)===i; });
+    if(!list.length) return '';
+    return list.map(function(q){ return logName(q); }).join(' & ');
+  }
+  function say(actor, tpl, cls, foes){
+    var txt=tpl.replace(/\{who\}/g, actor==null ? '' : '<b>'+logName(actor)+'</b>')
+               .replace(/\{foe\}/g, '<b>'+foeText(foes)+'</b>');
+    logMsg(txt, cls);
+    if(typeof NET!=='undefined' && NET.sayBroadcast) NET.sayBroadcast(actor, tpl, cls, foes);
   }
   function logMsg(html, cls){
     var l=$('log'); var stick=logAtBottom();           // only auto-follow if you're already at the newest entry
@@ -7332,7 +7341,7 @@ window.CardFace = {};
       /* NOTE `foe` is still built with the SENDER's `logName`, so a client can read a foe name where it should read
        * "You". Left as a known limit rather than fixed blind: resolving it needs the struck seats on the wire,
        * and `say` carries one seat. Filed in the BACKLOG. The verb agreement is fixed here. */
-      sayOnce(w, '💥 {who} landed the FIGHTER KICK — '+foe+' is out!', cls);
+      sayOnce(w, '💥 {who} landed the FIGHTER KICK — {foe} is out!', cls, struck.length?struck:[w===YOU?RIVAL:YOU]);
     }
     else if(res.prevented && !res.shieldStripped){
       setMessage('🛡 The loss was prevented!');
@@ -7340,7 +7349,7 @@ window.CardFace = {};
     }
     else if(res.shieldStripped){
       setMessage('<b>'+foe+'</b> '+lostVerb+' a shield.');
-      sayOnce(w, '{who} won with a <b>'+spec+'</b> - '+foe+' '+lostVerb+' a shield.', cls);
+      sayOnce(w, '{who} won with a <b>'+spec+'</b> - {foe} lost a shield.', cls, struck);
     }
     else if(res.wonWithCombo){
       // A Special won but nothing was stripped (no valid target, or every strike was blanked). Saying
@@ -7359,9 +7368,9 @@ window.CardFace = {};
   // (the loser is out). Every seat is named from res.milled / res.struck — the old version derived the loser
   // as "whichever of YOU/RIVAL didn't win", which in a free-for-all told the WRONG player they lost a shield.
   /* say() on a host or in solo; nothing on a netplay client, where the host's broadcast carries the line. */
-  function sayOnce(actor, tpl, cls){
+  function sayOnce(actor, tpl, cls, foes){
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()) return;
-    return say(actor, tpl, cls);
+    return say(actor, tpl, cls, foes);
   }
   function logCatchUp(res, w, struck){
     if(res.kick) return;
@@ -9905,11 +9914,16 @@ window.CardFace = {};
           setRulesFromKey(m.k||''); iReady=false; stopJoinRetry(); renderNet();
           setMessage('⚗️ The host changed the rules — check them and hit Ready again.'); }
         else if(m.t==='full'){ if(!m.cid || m.cid===myId){ if(sig) sig.err='This game is full (6 players max).'; setMessage('⚠ This game is full.'); renderNet(); } }
-        else if(m.t==='log'){                                   // public narration — resolve {who} in OUR frame
-          var n=(state&&state.numPlayers)||2, r=((((m.actor-mySeat)%n)+n)%n), who;
-          if(r===0) who='You';
-          else who = nameOf(r) || (n===2 ? 'Rival' : ('P'+(r+1)));   // seatNames is already in OUR frame
-          logMsg(String(m.tpl||'').replace(/\{who\}/g, '<b>'+who+'</b>'), m.cls||'');
+        else if(m.t==='log'){                                   // public narration — resolve {who}/{foe} in OUR frame
+          var n=(state&&state.numPlayers)||2, rot=function(abs){ return ((((abs-mySeat)%n)+n)%n); };
+          var nm=function(r){ return r===0 ? 'You' : (nameOf(r) || (n===2 ? 'Rival' : ('P'+(r+1)))); };
+          var who=nm(rot(m.actor));
+          /* THE SECOND NAME HAD TO TRAVEL AS SEATS. It used to be interpolated by the host as literal text, so a
+           * client read the HOST's word for it — "You won with a Pair - You lose a shield", both of them "You". */
+          var foe=(m.foes||[]).filter(function(q,i,a){ return q!=null && a.indexOf(q)===i; })
+                              .map(function(q){ return nm(rot(q)); }).join(' & ');
+          logMsg(String(m.tpl||'').replace(/\{who\}/g, '<b>'+who+'</b>')
+                                  .replace(/\{foe\}/g, '<b>'+foe+'</b>'), m.cls||'');
         }
         else if(m.t==='setup'){
           if(m.names && m.names.length){                        // rotate absolute -> local so seatName/logName need no rotation
@@ -9977,9 +9991,9 @@ window.CardFace = {};
      * EMPTY, even for its own moves. The host has always narrated everything correctly, just locally.
      * We broadcast the TEMPLATE plus the actor's absolute seat; each client resolves the name in its own
      * frame (its mirror is rotated so it is index 0). One message, no per-recipient string building. */
-    function sayBroadcast(actorSeat, tpl, cls){
+    function sayBroadcast(actorSeat, tpl, cls, foes){
       if(!isHost() || !started) return;                 // only the referee narrates to the table
-      send({t:'log', actor:actorSeat, tpl:tpl, cls:cls||''});
+      send({t:'log', actor:actorSeat, tpl:tpl, cls:cls||'', foes:foes||null});
     }
     function isClient(){ return role==='join'; }
     /* TRACED HERE RATHER THAN AT THE CALL SITES. Every action reads this, so instrumenting the function itself
