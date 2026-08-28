@@ -97,6 +97,9 @@ node optionsim.js             # legal plays per turn by player count — the OPT
 node rulesim.js               # rule-config sweep: length / jab share / initiative, by player count
 node roundsim.js              # share of ROUNDS decided by a jab vs a Special, by tier and player count
 node stucksim.js 6 150        # stuck-while-following turns split into SHAPE-stuck vs VALUE-stuck
+node nettest_relay.js        # THE ROOM-CODE PATH end to end: host shows four characters, joiner types them, a
+                             # real DataChannel opens with nothing pasted (14). Drives relay/mock.js, and also
+                             # asserts the FALLBACK both ways — norelay=1 and a dead relay.
 node ../relay/relaytest.js   # the signalling relay's protocol, against a local mock (20 assertions).
                              # Pass a base URL to test a REAL deployment — that is the only thing that turns
                              # relay/worker.js from reviewed code into tested code.
@@ -251,6 +254,25 @@ vs client) and every assertion was TRUE. **No DOM assertion can see a stacking b
 thing that matters, hit-test it — `document.elementFromPoint(cx, cy)` and check the modal contains the result.
 Note it only bit while netroot was on screen (lobby / signalling); mid-game netroot is hidden, so response
 windows were always fine, which is how it survived unnoticed.
+
+**THE RELAY CLIENT (v1.31.49) — the room-code path in the template.** Five things, all of them traps:
+- **`dbg=1` MEANS NO RELAY unless `relay=` is passed.** Every `nettest_*` suite sets `dbg=1`; without this rule
+  each of them opens rooms on the **production** relay on every run, and every suite starts failing when the
+  machine is offline. Hermetic by default. A suite that wants it names it (`nettest_relay` → `relay/mock.js`).
+- **A `file://` PAGE CAN FETCH THE RELAY, and that is why this feature exists at all.** An opaque origin was the
+  load-bearing doubt; measured before any code was written — GET 200, POST 201 — because
+  `Access-Control-Allow-Origin: *` covers it. **So the downloaded offline file gets room codes with no hosting**,
+  which is the thing months of argument about GitHub Pages assumed was impossible.
+- **EVERY CALL FAILS SOFT AND THE MANUAL PATH IS THE FLOOR.** Not a legacy branch — the offline file with no
+  network has nothing else. `relay.up===null` means *unproven*, so the UI must not promise a room code before
+  the relay has answered once. `nettest_relay` asserts both directions, including a dead relay.
+- **`joinAcceptOffer(code, then)` takes a continuation**, which is how the relay posts the answer the moment it
+  exists. Both paths run the same WebRTC code, so a relay join and a pasted invite cannot drift apart — do not
+  fork them.
+- **`srvTag()` exists so the netbar cannot lie.** "no server" was true for every version before this one; with a
+  relay carrying the handshake it becomes false, and it says so, then says "no server" again once the room is
+  dropped. Both directions asserted. The room is deleted on Leave and on game start, because an SDP holds IP
+  addresses.
 
 **THE SIGNALLING RELAY (`relay/`) — four rules, and each one is a bug that would be silent.**
 Aj approved it because the constraint was never purity: *"the no server really wasn't a hard rule. i just am not

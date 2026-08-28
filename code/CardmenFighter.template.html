@@ -5748,7 +5748,8 @@ __QR__
       var leave=document.createElement('button'); leave.id='netLeave'; leave.textContent='← Leave online';
       leave.title='Exit online play and go back to the game';
       leave.style.cssText='position:fixed;top:10px;right:10px;z-index:99999;font:inherit;font-size:13px;font-weight:700;padding:8px 12px;border-radius:9px;border:1px solid #3a2a08;background:#e8c37a;color:#3a2a08;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.5)';
-      leave.onclick=function(){ try{ if(transport) transport.close(); }catch(e){}
+      leave.onclick=function(){ try{ relayDropRoom(); }catch(e){}
+        try{ if(transport) transport.close(); }catch(e){}
         if(/[?&]net=/.test(location.search)) location.search=''; else location.reload(); };
       document.body.appendChild(leave);
       if(kind==='bc'){
@@ -6004,6 +6005,51 @@ __QR__
     function b64json(x){ try{ return JSON.parse(atob(x)); }catch(e){ return null; } }
     /* Tolerant on purpose: a code travels through chat apps now, and people paste it with a "here you go:" in
      * front or a stray newline behind. Falls back to the longest base64 run in whatever arrived. */
+    /* ---------- THE RELAY (v1.31.49) — a four-character room code instead of a round trip ----------
+     * Signalling was a ROUND TRIP: the host makes an invite, a human carries it, the joiner makes a reply, the
+     * human carries that back. Two exchanges in opposite directions. Shorter codes, the QR and the share sheet
+     * all made each exchange cheaper without removing either one, which is why it still felt bad.
+     * The relay carries the handshake instead. Host gets a code; joiner types it. See docs/RELAY-DESIGN.md.
+     *
+     * THE GAME STAYS PEER-TO-PEER. This moves the SDP exchange only; once the two browsers have found each
+     * other they connect directly and the relay is out of the loop for the whole game.
+     *
+     * IT WORKS FROM THE DOWNLOADED FILE, which is the surprise and the reason this is worth having at all: a
+     * `file://` (and `content://`) page is an opaque origin, and a fetch from one was the load-bearing
+     * assumption here — tested before any of this was written, and `Access-Control-Allow-Origin: *` covers it.
+     * So the offline single file gets room codes with no hosting.
+     *
+     * EVERY CALL FAILS SOFT. The manual copy-paste flow is never removed and never gated behind this: no
+     * network, a blocked domain or a dead relay must land the player on exactly today's screen. */
+    var RELAY_DEFAULT='https://cardmen-relay.ajgoats.workers.dev';
+    var relayBase=(function(){
+      var m=/[?&]relay=([^&]+)/.exec(location.search);          // tests point this at relay/mock.js
+      if(m) try{ return decodeURIComponent(m[1]).replace(/\/$/,''); }catch(e){}
+      if(/[?&]norelay=1/.test(location.search)) return '';      // forces the manual path
+      /* `dbg=1` MEANS NO RELAY UNLESS ONE IS NAMED. Every `nettest_*` suite passes dbg=1, and without this rule
+       * each of them would open rooms on the PRODUCTION relay on every run — test traffic against a live
+       * service, and suites that fail when the machine is offline. A suite that wants the relay says so with
+       * `relay=`, which is what nettest_relay.js does. Hermetic by default. */
+      if(/[?&]dbg(solo)?=1/.test(location.search)) return '';
+      return RELAY_DEFAULT;
+    })();
+    /* `up` is null until proven: the UI must not promise a room code before the relay has answered once. */
+    var relay={ room:null, since:-1, up:null, poll:null, busy:false, err:'' };
+    function relayOn(){ return !!relayBase && relay.up!==false; }
+
+    function relayFetch(method, path, body){
+      if(!relayBase) return Promise.reject(new Error('relay disabled'));
+      var opt={ method:method, cache:'no-store' };
+      if(body!==undefined){ opt.headers={ 'Content-Type':'application/json' }; opt.body=JSON.stringify(body); }
+      /* A hung relay must not hang the lobby — the manual path is sitting right there. */
+      var ctl=(typeof AbortController!=='undefined') ? new AbortController() : null;
+      if(ctl){ opt.signal=ctl.signal; setTimeout(function(){ try{ ctl.abort(); }catch(e){} }, 8000); }
+      return fetch(relayBase+path, opt).then(function(res){
+        relay.up=true;                                          // it answered, whatever it said
+        return res.status===204 ? { status:204, body:null }
+             : res.text().then(function(t){ var j=null; try{ j=t?JSON.parse(t):null; }catch(e){} return { status:res.status, body:j }; });
+      }, function(e){ relay.up=false; throw e; });
+    }
     function dec(code){
       var t=(code||'').trim(), o=unpackC1(t) || b64json(t);
       if(!o){                                                  // dig the code out of "here you go: <code>"
@@ -6049,12 +6095,81 @@ __QR__
       hostAddChannel(ldc);                          // onmessage ready before open — no dropped 'join'
       ldc.onopen=function(){ renderNet(); };        // reflect the new connection
       sig.pendingPC=lpc; sig.offer=''; sig.answer=''; sig.step='host-gen'; renderNet();
-      lpc.createOffer().then(function(o){ return lpc.setLocalDescription(o); }).then(function(){ return gather(lpc); }).then(function(){ sig.offer=enc(lpc.localDescription); sig.step='host-invite'; renderNet(); });
+      lpc.createOffer().then(function(o){ return lpc.setLocalDescription(o); }).then(function(){ return gather(lpc); }).then(function(){ sig.offer=enc(lpc.localDescription); sig.step='host-invite'; renderNet(); relayPublish(); });
     }
-    function joinAcceptOffer(code){
+    /* `then` is how the relay path posts the answer as soon as it exists. Both paths run the SAME WebRTC code,
+     * so a relay join and a pasted invite cannot drift apart — the only difference is who carries the reply. */
+    function joinAcceptOffer(code, then){
       var d=dec(code); if(!d){ sig.err='That invite code is not valid — copy the whole thing.'; renderNet(); return; }
       sig.err='';
-      pc.setRemoteDescription(d).then(function(){ return pc.createAnswer(); }).then(function(a){ return pc.setLocalDescription(a); }).then(function(){ return gather(pc); }).then(function(){ sig.step='join-reply'; sig.answer=enc(pc.localDescription); renderNet(); }).catch(function(){ sig.err='Could not read that invite code.'; renderNet(); });
+      pc.setRemoteDescription(d).then(function(){ return pc.createAnswer(); }).then(function(a){ return pc.setLocalDescription(a); }).then(function(){ return gather(pc); }).then(function(){ sig.step='join-reply'; sig.answer=enc(pc.localDescription); renderNet(); if(then) then(sig.answer); }).catch(function(){ sig.err='Could not read that invite code.'; renderNet(); });
+    }
+    /* HOST: publish whatever offer is currently on screen. The first call creates the room; later ones add a
+     * slot to the SAME room, because the code is what a human holds and must not change per player.
+     * A WebRTC offer is not reusable, so a 6-player table needs one per peer — that is why the room is a
+     * mailbox of slots rather than a single pair. */
+    function relayPublish(){
+      if(!relayOn() || !sig || !sig.offer || relay.busy) return;
+      relay.busy=true;
+      var first=!relay.room;
+      var p=first ? relayFetch('POST','/new',{ offer:sig.offer })
+                  : relayFetch('POST','/r/'+relay.room+'/offer',{ offer:sig.offer });
+      p.then(function(r){
+        relay.busy=false;
+        if(first && r.status===201 && r.body && r.body.room){ relay.room=r.body.room; relay.err=''; relayPoll(); }
+        else if(!first && r.status===201){ relay.err=''; }
+        else if(r.status===404){ relay.room=null; relay.since=-1; relayPublish(); return; }   // room expired — remake it
+        else relay.err='';                                       // any other refusal: stay quiet, manual path works
+        renderNet();
+      }, function(){ relay.busy=false; renderNet(); });          // relay.up is already false; the UI drops the code
+    }
+    /* HOST: poll for answers and feed each one through the ordinary hostAcceptAnswer path, so a relay join and a
+     * pasted reply are indistinguishable downstream. `since` is what stops the same answer being applied twice.
+     * After accepting one, mint a FRESH offer so the next joiner always has a slot waiting. */
+    function relayPoll(){
+      if(relay.poll || !relayOn() || !relay.room) return;
+      relay.poll=setInterval(function(){
+        if(started || !relay.room){ relayStopPoll(); return; }
+        relayFetch('GET','/r/'+relay.room+'/answers?since='+relay.since).then(function(r){
+          if(r.status===404){ relay.room=null; relay.since=-1; relayStopPoll(); renderNet(); return; }
+          var list=(r.body && r.body.answers) || [];
+          if(!list.length) return;
+          list.forEach(function(a){ if(a.slot>relay.since) relay.since=a.slot; });
+          var last=list[list.length-1];
+          if(sig && sig.pendingPC && last && last.answer){
+            hostAcceptAnswer(last.answer);                       // same path a pasted reply takes
+            setTimeout(function(){ if(!started) hostNewInvite(); }, 400);   // and queue the next slot
+          }
+        }, function(){});                                        // a dropped poll is not an error; try again next tick
+      }, 1500);                                                  // ~40 requests a minute; see the cost note in the design doc
+    }
+    function relayStopPoll(){ if(relay.poll){ clearInterval(relay.poll); relay.poll=null; } }
+    /* Deleting the room is a courtesy, not a requirement — rooms expire on their own. But an SDP holds IP
+     * addresses, so not leaving one lying around for ten minutes is the decent default. */
+    function relayDropRoom(){
+      relayStopPoll();
+      var code=relay.room; relay.room=null; relay.since=-1;
+      if(code && relayBase) relayFetch('DELETE','/r/'+code).then(function(){}, function(){});
+    }
+    /* JOINER: claim a slot, answer it, hand the answer back. One exchange, and the player typed four characters. */
+    function relayJoinByCode(raw){
+      var code=String(raw||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      if(code.length!==4){ sig.err='A room code is four characters.'; renderNet(); return; }
+      if(!relayOn()){ sig.err='Cannot reach the relay — paste the invite code instead.'; renderNet(); return; }
+      sig.err=''; sig.step='join-claim'; renderNet();
+      relayFetch('POST','/r/'+code+'/claim').then(function(r){
+        if(r.status===204){ sig.err='That room has no invite waiting — ask them to reopen it.'; sig.step='join-need'; renderNet(); return; }
+        if(r.status!==200 || !r.body || !r.body.offer){ sig.err='No room with that code — check the four characters.'; sig.step='join-need'; renderNet(); return; }
+        var slot=r.body.slot;
+        /* joinAcceptOffer already does the WebRTC half; the continuation posts the answer so the host's poll
+         * finds it. Reusing it means a relay join and a pasted invite cannot diverge. */
+        joinAcceptOffer(r.body.offer, function(answer){
+          relayFetch('POST','/r/'+code+'/answer',{ slot:slot, answer:answer }).then(function(a){
+            if(a.status!==204) sig.err='Could not send your reply — send the code below by hand instead.';
+            renderNet();
+          }, function(){ sig.err='Could not reach the relay — send the code below by hand instead.'; renderNet(); });
+        });
+      }, function(){ sig.err='Cannot reach the relay — paste the invite code instead.'; sig.step='join-need'; renderNet(); });
     }
     function hostAcceptAnswer(code){
       var d=dec(code); if(!d){ sig.err='That reply code is not valid — copy the whole thing.'; renderNet(); return; }
@@ -6174,6 +6289,9 @@ __QR__
     // Unified start for 2–6 players. Seat 0 = host; seats 1..k = the joined remote clients (each with its lobby pick).
     // 2p keeps the awaitRival flow; 3–6p uses the netDriveN driver (both entered via driveRival, gated on MP()).
     function hostStartRealN(hostDeck){
+      /* The table is assembled, so the room has no job left. Rooms expire on their own, but an SDP holds IP
+       * addresses and leaving one lying around for ten minutes is not a decent default. */
+      try{ relayDropRoom(); }catch(e){}
       /* applyRules() rather than hardcoding the defaults here: this line used to force 'chosen'/'targeted' on
        * every online game, which would have silently overridden the custom-rules menu — and inconsistently,
        * since it never touched shields or draw. The host's rules are the game's rules. */
@@ -6706,11 +6824,16 @@ __QR__
       return verWarn ? '<div class="netmsg err">⚠ Build mismatch — you are on <b>'+esc(verWarn.mine)+
              '</b>, they are on <b>'+esc(verWarn.theirs)+'</b>. You can still play, but download the same build to be sure.</div>' : '';
     }
+    /* THE NETBAR MUST NOT CLAIM "no server" WHILE A RELAY IS CARRYING THE HANDSHAKE. It was accurate for every
+     * version before this one, which is why leaving it would be a lie rather than a stale string. The game
+     * traffic really is still peer-to-peer, so the honest phrasing names what the relay does and how far it
+     * reaches — and it says "no server" again the moment the room is gone. */
+    function srvTag(){ return relay.room ? 'relay for the handshake only' : 'no server'; }
     function connLabel(){ return connected ? '<span class="ok">● connected</span>' : '<span class="wait">○ waiting for opponent…</span>'; }
     function renderSignaling(root){
       var errHTML = sig.err ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
-        '<div class="netbar">Peer-to-peer · '+(isHost()?'Hosting (Player 1)':'Joining (Player 2)')+' · no server · '+verTag()+'</div>'+errHTML+verWarnHTML();
+        '<div class="netbar">Peer-to-peer · '+(isHost()?'Hosting (Player 1)':'Joining (Player 2)')+' · '+srvTag()+' · '+verTag()+'</div>'+errHTML+verWarnHTML();
       var body='';                        // NB: the branches below ASSIGN body, so the name row is prepended
       if(isHost() && sig.step==='host-gen'){ body='<p>Generating your invite code…</p>'; }
       else if(isHost() && sig.step==='host-wait'){
@@ -6722,10 +6845,23 @@ __QR__
           '<button id="sigGo" class="netbtn go">Connect ▶</button>'+
           '<p class="nethint">Send the code over any chat (Discord, email, SMS). You connect directly — nothing goes through a server.</p>';
       }
+      else if(!isHost() && sig.step==='join-claim'){
+        body='<h3>Joining…</h3><p class="nethint">Fetching the invite and answering it. This is the part you used to do by hand.</p>';
+      }
       else if(!isHost() && sig.step==='join-need'){
-        body='<h3>Step 1 — paste the invite code from your host</h3>'+
+        /* FOUR CHARACTERS FIRST. The paste box stays below it, because a host on an older build, a dead relay
+         * or no network at all must still be joinable — that path is not a legacy branch, it is the floor. */
+        body=(relayOn()
+          ? '<h3>Enter the room code</h3>'+
+            '<input id="roomIn" class="sigbox roomInput" maxlength="6" autocapitalize="characters" '+
+              'autocomplete="off" spellcheck="false" placeholder="e.g. 7QX4">'+
+            '<button id="roomGo" class="netbtn go">Join ▶</button>'+
+            '<details class="relayAlt"><summary>Or paste a full invite code</summary>'
+          : '')+
+          '<h3'+(relayOn()?' class="altH"':'')+'>'+(relayOn()?'Paste the invite code from your host':'Step 1 — paste the invite code from your host')+'</h3>'+
           '<textarea id="sigIn" class="sigbox" placeholder="Paste the invite code Player 1 sent you…"></textarea>'+
-          '<button id="sigGo" class="netbtn go">Generate my reply ▶</button>';
+          '<button id="sigGo" class="netbtn go">Generate my reply ▶</button>'+
+          (relayOn() ? '</details>' : '');
       }
       else if(!isHost() && sig.step==='join-reply'){
         body='<h3>Step 2 — send this reply back to your host</h3>'+
@@ -6740,6 +6876,14 @@ __QR__
       var copy=$('sigCopy'); if(copy) copy.addEventListener('click', function(){ var t=$('sigOut'); if(t){ t.select(); try{ navigator.clipboard.writeText(t.value); }catch(e){} try{ document.execCommand('copy'); }catch(e){} copy.textContent='✓ Copied'; } });
       shareWire();
       var go=$('sigGo'); if(go) go.addEventListener('click', function(){ var v=($('sigIn')||{}).value||''; if(isHost()) hostAcceptAnswer(v); else joinAcceptOffer(v); });
+      var rgo=$('roomGo'), rin=$('roomIn');
+      if(rgo && rin){
+        rgo.addEventListener('click', function(){ relayJoinByCode(rin.value); });
+        /* Enter submits. A four-character code is the kind of thing people type and press go on without ever
+         * looking for a button. */
+        rin.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); relayJoinByCode(rin.value); } });
+        rin.focus();
+      }
     }
     /* Render a QR of whatever is in a code box, so the other player can point a camera at the screen instead of
      * copying, switching apps, pasting. Phase 1 is SHOW ONLY — scanning needs a camera permission and a decoder
@@ -6906,16 +7050,32 @@ __QR__
     function renderHostRtcLobby(root){
       var joined=readyCount(), total=joined+1, full=(joined>=MAX_SEATS-1);
       var errHTML = (sig&&sig.err) ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
-      var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · no server · '+joined+' connected · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML();
+      var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · '+srvTag()+' · '+joined+' connected · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML();
       var body=nameRowHTML(false)+'<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
         '<button id="lobbyRules" class="netbtn">'+(isHost()?'⚗️ Custom rules':'⚗️ Rules &amp; suggest')+(customRules()?' · on':'')+'</button>'+''
       if(sig.step==='host-gen'){ body+='<p>Generating an invite code…</p>'; }
       else if(sig.step==='host-invite'){
-        body+='<h3>Invite a player — send them this</h3>'+
+        /* THE ROOM CODE LEADS WHEN THERE IS ONE, and the invite code stays right below it. Not either/or: the
+         * relay can be unreachable, the player can be on the offline file with no network, or the far end can
+         * be an older build — in every one of those the manual path is the whole feature, unchanged. */
+        body+=(relay.room
+          ? '<h3>Invite a player — give them this code</h3>'+
+            '<div class="roomCode"><b id="roomCodeVal">'+esc(relay.room)+'</b>'+
+            '<button id="roomCopy" class="netbtn alt">⧉ Copy</button></div>'+
+            '<p class="nethint">They tap <b>Join</b> and type those four characters — say it out loud if they are '+
+            'next to you. The game itself still connects directly; the code only introduces you. While the room '+
+            'is open your connection details (which include your IP address) pass through the relay, nothing '+
+            'else does, and the room is deleted as soon as the table is set. Rather not? Use the invite code below.</p>'+
+            '<details class="relayAlt"><summary>Or send a full invite code instead</summary>'
+          : (relayOn() && relay.up===null
+              ? '<h3>Invite a player — send them this</h3><p class="nethint">Getting a room code…</p>'
+              : '<h3>Invite a player — send them this</h3>'))+
           sigPairHTML('qrInvite', 'Point their phone\u2019s camera at this \u2014 or send them the code.',
                       sig.offer, 'Copy invite', 'Send it')+
+          (relay.room ? '</details>' : '')+
           '<h3>Paste their reply code</h3><textarea id="sigIn" class="sigbox" placeholder="Paste the reply from the player you invited…"></textarea>'+
-          '<button id="sigGo" class="netbtn go">Connect this player ▶</button>';
+          '<button id="sigGo" class="netbtn go">Connect this player ▶</button>'+
+          (relay.room ? '<p class="nethint">If they used the room code you do not need to paste anything — they appear on their own.</p>' : '');
       } else {
         body+='<div class="lobbyStatus">'+(joined>0?('✓ <b>'+joined+'</b> player'+(joined>1?'s':'')+' connected — a <b>'+total+'</b>-Rider game.'):'No players yet.')+'</div>'+
           (full?'<p class="nethint">Table full (6).</p>':'<button id="inviteBtn" class="netbtn alt">＋ Invite '+(joined>0?'another ':'a ')+'player</button>');
@@ -6930,6 +7090,18 @@ __QR__
       qrInto('qrInvite', sig.offer);
       var copy=$('sigCopy'); if(copy) copy.addEventListener('click', function(){ var t=$('sigOut'); if(t){ t.select(); try{ navigator.clipboard.writeText(t.value); }catch(e){} try{ document.execCommand('copy'); }catch(e){} copy.textContent='✓ Copied'; } });
       shareWire();
+      /* The QR now lives inside a collapsed <details>, and `qrInto` measures `.qrWrap`. MEASURED: Chrome still
+       * gives layout to content inside a closed <details>, so the symbol comes out the right size (345 CSS px
+       * either way) and there is no bug here to fix. This stays as a guard for the browsers where closed
+       * details content has no box at all — there the canvas would size against `qrInto`'s fallback — and
+       * because `qrReflow` skips hidden canvases, so it would not correct itself on the next resize.
+       * Do not read this as a fix for an observed Chrome problem; it is insurance, and cheap. */
+      var alt=document.querySelector('#netroot .relayAlt');
+      if(alt) alt.addEventListener('toggle', function(){ if(alt.open) qrReflow(); });
+      var rc=$('roomCopy'); if(rc) rc.addEventListener('click', function(){
+        try{ navigator.clipboard.writeText(relay.room||''); }catch(e){}
+        rc.textContent='✓ Copied';
+      });
       var go=$('sigGo'); if(go) go.addEventListener('click', function(){ hostAcceptAnswer(($('sigIn')||{}).value||''); });
       var inv=$('inviteBtn'); if(inv) inv.addEventListener('click', function(){ hostNewInvite(); });
       var lr2=$('lobbyRules'); if(lr2) lr2.addEventListener('click', function(){
@@ -6949,6 +7121,18 @@ __QR__
     return { boot:boot, start:start, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:99999;background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
+    /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the
+       generator omits O 0 I L 1. Nothing about this needs to be subtle. */
+    '#netroot .roomCode{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0 4px}'+
+    '#netroot .roomCode b{font:900 clamp(34px,11vw,54px)/1 ui-monospace,Menlo,monospace;letter-spacing:.14em;'+
+      'color:#ffe6a8;background:#161b24;border:1px solid #2b3442;border-radius:12px;padding:10px 16px}'+
+    '#netroot .roomInput{font:900 30px/1.2 ui-monospace,Menlo,monospace;letter-spacing:.16em;text-align:center;'+
+      'text-transform:uppercase;height:auto;min-height:0;padding:12px}'+
+    /* The manual path is DEMOTED, never hidden — a <details> keeps it one tap away for the cases the relay
+       cannot serve (older build, no network, dead relay). */
+    '#netroot .relayAlt{margin:10px 0;border:1px solid #2b3442;border-radius:10px;padding:8px 10px;background:#11151c}'+
+    '#netroot .relayAlt summary{cursor:pointer;font-weight:700;font-size:13px;opacity:.85}'+
+    '#netroot .relayAlt h3.altH{font-size:14px;margin-top:8px}'+
     '#netroot .qrWrap{margin:10px 0;text-align:center}'+
     '#netroot .qrFrame{display:inline-block;background:#fff;border-radius:8px;padding:6px;line-height:0}'+
     '#netroot .qrCanvas{display:block;max-width:100%;background:#fff}'+

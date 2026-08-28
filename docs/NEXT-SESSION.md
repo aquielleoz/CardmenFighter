@@ -609,6 +609,47 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.49 — four characters instead of a round trip
+
+**A host shows a four-character room code. A joiner types it. That is the whole handshake.** Signalling used to
+be a *round trip* — the host makes an invite, a human carries it, the joiner makes a reply, the human carries
+that back. Two exchanges in opposite directions. Everything before this made each exchange cheaper (a QR, a
+share sheet, codes six times shorter, two columns in landscape) without removing either one, which is why it
+still felt bad. Aj, after all of it: *"i don't know how to proceed so that the multiplayer is easierrrrrrrr."*
+
+**The game is still peer-to-peer.** The relay carries the SDP exchange only; once the browsers find each other
+they connect directly and the relay is out of the loop for the entire game.
+
+**IT WORKS FROM THE DOWNLOADED FILE, and that is the result that made this worth building.** A `file://` (and
+`content://`) page is an opaque origin, and whether it could `fetch` a cross-origin relay was the load-bearing
+assumption — tested before a line of the feature was written: **GET 200, POST 201, room created**.
+`Access-Control-Allow-Origin: *` covers an opaque origin. So the single offline HTML gets room codes with **no
+hosting at all** — the thing Aj declined for months turns out not to be required for the feature that needed it.
+
+**Every relay call fails soft, and the manual path is the floor.** No network, a blocked domain, a dead relay or
+an older build on the far end all land the player on exactly the previous screen. `nettest_relay` asserts that
+in **both** directions — the relay path connects a real game, *and* `norelay=1` plus an unreachable relay each
+produce a full invite code with no room code promised.
+
+**The netbar stops lying.** "no server" was true for every previous version, so with a relay carrying the
+handshake it would be a lie rather than a stale string. It reads **"relay for the handshake only"** while a room
+is open, and "no server" again once it is gone — both asserted. The screen also says outright that connection
+details including the IP address pass through the relay while the room is open, and that the invite code avoids
+it entirely.
+
+**`dbg=1` NOW IMPLIES NO RELAY unless `relay=` is given.** Every `nettest_*` suite passes `dbg=1`, and without
+this each of them would have opened rooms on the **production** relay on every run — test traffic against a
+live service, and suites that fail whenever the machine is offline. Hermetic by default; a suite that wants the
+relay names it, which is what `nettest_relay` does against `relay/mock.js`.
+
+**One correction made in passing.** I added a reflow-on-open for the QR, reasoning that a canvas inside a
+collapsed `<details>` has no width. Measured: Chrome still gives layout to closed-details content and the
+symbol was already the right size (345 CSS px either way). The guard stays — closed details content has no box
+in some browsers — but its comment now says it is insurance rather than a fix for an observed bug.
+
+`nettest_relay` is new: **14 assertions**, driving host and joiner through `relay/mock.js` to a real WebRTC
+DataChannel with nothing copied or pasted.
+
 ### v1.31.48 — the invite goes two columns in landscape
 
 The QR and the code box now sit **side by side** on a landscape phone, instead of stacked with the Copy button
