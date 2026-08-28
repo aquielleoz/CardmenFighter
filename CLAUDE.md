@@ -99,6 +99,10 @@ node roundsim.js              # share of ROUNDS decided by a jab vs a Special, b
 node stucksim.js 6 150        # stuck-while-following turns split into SHAPE-stuck vs VALUE-stuck
 node nettest_clientwin.js    # the MIRROR of roundstall: a client move that does NOT end the round hands the
                              # turn back — the host's board must go live AND its status line must say so (10).
+node nettest_sync.js         # THE CROSS-CHECK: plays a real game over the ROOM CODE and makes the two sides
+                             # prove they AGREE — round, and each side's view of the other's hand size against
+                             # the other's actual hand (7). The only suite that compares the two ends to each
+                             # OTHER rather than to expectations. Reaches round ~14 in ~50 actions.
 node nettest_relay.js        # THE ROOM-CODE PATH end to end: host shows four characters, joiner types them, a
                              # real DataChannel opens with nothing pasted (14). Drives relay/mock.js, and also
                              # asserts the FALLBACK both ways — norelay=1 and a dead relay.
@@ -256,6 +260,21 @@ vs client) and every assertion was TRUE. **No DOM assertion can see a stacking b
 thing that matters, hit-test it — `document.elementFromPoint(cx, cy)` and check the modal contains the result.
 Note it only bit while netroot was on screen (lobby / signalling); mid-game netroot is hidden, so response
 windows were always fine, which is how it survived unnoticed.
+
+**TWENTY GREEN NETPLAY SUITES COULD NOT SEE A FORKED DUEL, AND THE REASON IS STRUCTURAL.** Aj, 2026-08-28:
+*"how does it say that no tests failed when we can't even get to round 2 legally on the same computer"*. Two
+gaps, both verified by grep rather than argued:
+- **`nettest_relay` never played a move.** No `fightBtn`, no `passBtn`, no round assertion — it proved a
+  connection and a deal and stopped. **`nettest_rtc` never touched the relay.** It plays rounds over
+  copy-paste. So **no suite had ever played a single move over the room-code path.**
+- **Every suite drives ONE side and asserts against EXPECTATIONS. None compared the two sides to each other.**
+  Aj's two saved battle logs did that comparison in four seconds and found a divergence nothing else could.
+`nettest_sync.js` is that comparison, automated — and it is the shape to reach for whenever two peers hold
+state: assert they AGREE, not that each looks plausible.
+**DIVERGENCE MUST PERSIST TO COUNT.** A client's hand changes only when the host's mirror lands, so right after
+the client plays there is a legitimate window where the host says 5 and the client says 6. The first version
+compared mid-flight and reported a fork on the first move — a false positive that would have discredited the
+whole suite. It polls until the mismatch clears; transient is the system working, persistent is the bug.
 
 **THE RELAY CLIENT (v1.31.49) — the room-code path in the template.** Five things, all of them traps:
 - **`dbg=1` MEANS NO RELAY unless `relay=` is passed.** Every `nettest_*` suite sets `dbg=1`; without this rule
