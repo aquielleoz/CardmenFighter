@@ -6734,8 +6734,10 @@ __QR__
      * copying, switching apps, pasting. Phase 1 is SHOW ONLY — scanning needs a camera permission and a decoder
      * and can wait until this has been held up to a real phone. Measured: the invite is ~1,036 chars and one QR
      * holds 2,956 bytes at level L, so it fits at version 23 (109 modules) with headroom. */
+    var qrShowing={};                                    // canvasId -> the text it is currently displaying
     function qrInto(canvasId, text){
       var cv=$(canvasId); if(!cv || !text || typeof CardmenQR==='undefined') return null;
+      qrShowing[canvasId]=text;
       /* Render 1:1 in DEVICE pixels: ask for the largest whole number of device px per module that fits, then
        * set the CSS size to exactly that many device pixels. A 1,036-char invite is version 23 — 109 modules —
        * so the modules are tiny and any fractional scaling smears their edges into a code no camera will read.
@@ -6747,6 +6749,19 @@ __QR__
       while (wrap && wrap !== document.body && !/qrWrap/.test(wrap.className || '')) wrap = wrap.parentNode;
       var availW=(wrap && wrap.clientWidth > 60 ? wrap.clientWidth - 14 : Math.floor(window.innerWidth*0.92));
       var avail=Math.min(availW, window.innerHeight*0.66, 460);
+      /* A CEILING ON A SHORT VIEWPORT (v1.31.47). Maximising was right when the invite was 109 modules and
+       * every pixel mattered. At 49 (v1.31.46 packed the payload) the symbol reached 4.6 CSS px per module in
+       * landscape — more than DOUBLE the 2.0 that a real phone was confirmed to read — and spent the surplus
+       * pushing the code box and the Copy button off the screen. Aj: "just barely fits on the screen".
+       * So on a short viewport only, stop growing once each module is comfortably readable and give the rest
+       * of the height back to the controls. Desktop and portrait are untouched: there the height is not
+       * scarce, and a bigger symbol is the one that reads across a table.
+       * The cap is per MODULE, not a fraction of the screen, because "big enough to scan" is a property of the
+       * module and a fraction silently means something different at every payload size. Quiet zone included,
+       * matching how qrtest measures — 4 modules each side. */
+      if (window.innerHeight <= 480 && typeof CardmenQR.build === 'function') {
+        try { avail = Math.min(avail, (CardmenQR.build(text, 'L').size + 8) * 3.6); } catch (e) {}
+      }
       var dpr=window.devicePixelRatio || 1;
       try{
         var info=CardmenQR.toCanvas(cv, text, { px:Math.round(avail*dpr), level:'L' });   // L: most payload per symbol
@@ -6755,6 +6770,26 @@ __QR__
       }
       catch(e){ cv.style.display='none'; return null; }                      // too long to encode → the code box still works
     }
+    /* A ROTATION MUST RE-RENDER THE SYMBOL (v1.31.47). The size is computed once, from the viewport at the
+     * moment it is drawn — so a page opened in PORTRAIT and then turned sideways to show someone keeps its
+     * portrait size, which lands at 85% of a landscape screen. That is worse than a page that loads in
+     * landscape, and it is the configuration a person actually hits: you open the game, then you rotate.
+     * The short-viewport cap could not help, because at render time the viewport was still tall.
+     * Debounced, and it re-renders only when the target bitmap really differs — CLAUDE.md's ResizeObserver
+     * lesson applies to any resize-driven write: an unconditional redraw here is work on every frame of a
+     * drag, and the last one that starved the page presented as unrelated netplay flakiness. */
+    var qrResizeT=null;
+    function qrReflow(){
+      for (var id in qrShowing) {
+        var cv=$(id); if(!cv || !qrShowing[id] || cv.offsetParent===null) continue;
+        var before=cv.width;
+        qrInto(id, qrShowing[id]);
+        if (cv.width===before) continue;                                     // nothing moved; no repaint needed
+      }
+    }
+    function qrOnResize(){ if(qrResizeT) clearTimeout(qrResizeT); qrResizeT=setTimeout(qrReflow, 160); }
+    window.addEventListener('resize', qrOnResize);
+    window.addEventListener('orientationchange', qrOnResize);
     /* SHARE SHEET (v1.31.19). Aj, settling for browser-only: "you can always copy paste the code to a chat
      * program" — so automate exactly that. One tap into whatever chat the two players already use, instead of
      * select-copy-switch-paste. Where `navigator.share` is absent (desktop Firefox, older Safari) the Copy
