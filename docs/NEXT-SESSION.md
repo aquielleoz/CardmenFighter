@@ -165,6 +165,15 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **A NETPLAY DUEL HOST LOGS THE SOLO LINE AND SHOWS AN AI TIER.** `logMsg`/`matchupTag` branch on
+  `mpCount>2`, **not on whether this is netplay**, so a 2-player online HOST prints
+  *"New duel — you play Pure Cleric vs Dustin (**Fighter**) on Berserker"* and a header ending
+  `· Fighter` — where `Fighter` is `DIFF_NAME[difficulty]`, an **AI difficulty tier** that means nothing
+  online. The client has its own correct line (*"Online duel — you play X"*, ~6257).
+  **Cosmetic, but it cost real debugging time on 2026-08-28:** I read the AI tier as evidence that the host
+  was playing a bot, and the deck names as evidence of two seats, and built two confident wrong diagnoses on
+  it. Aj spotted both (*"isn t fighter the ai player tag?"*). A label that lies about the mode is worse than
+  no label. Fix: branch on netplay, not on player count.
 - **CARDS CAN PAINT BEFORE THEY HAVE A RANK** — two rendered as `0 undefined 0` on Aj's phone and then
   corrected themselves a moment later (*"the undefined cards loaded a bit later"*). Cosmetic, transient, and the
   residue of the 2026-08-28 relay game: **the desync it came with was a real bug and is fixed in v1.31.49** (see
