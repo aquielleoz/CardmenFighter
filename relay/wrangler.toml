@@ -14,4 +14,4 @@ compatibility_date = "2026-01-01"
 [[d1_databases]]
 binding = "DB"                 # available as env.DB in worker.js
 database_name = "cardmen-relay"
-database_id = "PASTE_THE_ID_FROM_d1_create_HERE"
+database_id = "c719b028-2a50-4363-9978-493866d433dc"
