@@ -4889,7 +4889,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.53';
+  var GAME_VERSION='v1.31.54';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -9877,7 +9877,16 @@ window.CardFace = {};
           if(started) broadcastMirror(); else if(isNew || !wasReady) renderNet();   // (join retries fire every 350ms)
         }
         else if(m.t==='move'){ var sseat = srcChan ? seatOfChan(srcChan) : (typeof m.seat==='number'?m.seat:1);
-          trace('move IN', 'from seat '+sseat+' op='+((m.intent&&m.intent.op)||'?')+(srcChan?'':' (NO CHANNEL — seat guessed)'));
+          trace('move IN', 'from seat '+sseat+' op='+((m.intent&&m.intent.op)||'?')+' q='+(m.q!=null?m.q:'-')+
+                (srcChan?'':' (NO CHANNEL — seat guessed)'));
+          /* STALE INTENT: formed against a board that has since moved on. Refuse it and RE-BROADCAST, because a
+           * client stuck on an old stamp would otherwise have every future intent refused too — a silent
+           * deadlock is worse than the stale move. Only refuse when the client actually sent a stamp, so an
+           * older peer keeps working. */
+          if(m.q!=null && m.q!==stateSeq){
+            trace('move REFUSED — stale', 'client q='+m.q+' but state is '+stateSeq);
+            broadcastMirror(); return;
+          }
           /* A SUGGESTION IS DISPATCHED HERE, ahead of hostApplyMove*, because those return immediately when
            * there is no hostState — i.e. for the entire LOBBY, which is the only place suggestions matter.
            * Putting it inside them looked right and did nothing: the suggestions that appeared were arriving by
@@ -9912,7 +9921,11 @@ window.CardFace = {};
           // the host's opening line is written in ITS frame, so a client writes its own locally instead
           logMsg('Online duel — you play <b>'+deckLabel(youDeck)+'</b>. Round 1, jabs only.', 'round'); }   // adopt this seat's concrete deck (for the board labels)
         else if(m.t==='mirror' && m.seat===mySeat){ connected=true;
-          trace('mirror IN', 'round='+((m.st&&m.st.round)||'?')+' turn='+((m.st&&m.st.turn)!=null?m.st.turn:'?'));
+          trace('mirror IN', 'round='+((m.st&&m.st.round)||'?')+' turn='+((m.st&&m.st.turn)!=null?m.st.turn:'?')+' q='+(m.q!=null?m.q:'-'));
+          /* NEVER GO BACKWARDS. A replayed or delayed mirror carries an older stamp; applying it would rewind
+           * the board and let the player act on a board that no longer exists. */
+          if(m.q!=null && lastSeq!=null && m.q<lastSeq){ trace('mirror STALE — ignored', 'q='+m.q+' < '+lastSeq); return; }
+          if(m.q!=null) lastSeq=m.q;
           applyMirror(m.st); }
         else if(m.t==='ceremony' && m.seat===mySeat){ clientPlayCeremony(m.res); }
         else if(m.t==='ping'){ SFX.play('ping'); setMessage('🔔 The host is ready — pinged you.'); }
@@ -10054,7 +10067,15 @@ window.CardFace = {};
      * Phrasing is reader-relative ("You played" vs "Rival played" vs "P3 played"), so we broadcast a TEMPLATE
      * with a `{who}` placeholder plus the actor's absolute seat, and each client resolves the name in its own
      * frame (its mirror is rotated so it is index 0). One message, no per-recipient string building. */
-    function broadcastMirror(){ if(hostState){ for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'mirror', seat:s, st:NetView.mirrorFor(hostState, s)}); } }   // per-seat (a seat's private hand never reaches another peer)
+    /* STATE STAMP (v1.31.54). Aj: "why is it possible for clients to go on playing without the host's go
+     * ahead? imho i think it should be blocked."  He is right, and nothing prevented it: mirrors carried no
+     * identity, so a client could not tell a REPLAYED or stale mirror from a fresh one, and the host could not
+     * tell an intent formed against old state from a current one. That is the hole behind a client narrating
+     * plays the host had already rejected — it acted on a board that no longer existed.
+     * `stateSeq` advances only when an intent is actually APPLIED, never per render, so a client's intent is
+     * valid exactly while the state it was formed against is still current. */
+    var stateSeq=0;
+    function broadcastMirror(){ if(hostState){ for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'mirror', seat:s, q:stateSeq, st:NetView.mirrorFor(hostState, s)}); } }   // per-seat (a seat's private hand never reaches another peer)
     function onRender(){ if(isHost() && started && hostState) broadcastMirror(); }   // hook: keep the client's board in lockstep
     function awaitRival(){ trace('awaitRival', 'host parks, waiting for a client move'); busy=true; $('rivalStatus').textContent='Waiting for opponent…'; render(); broadcastMirror(); }   // park; client will send a move
     /* THE OTHER HALF OF awaitRival, and it was missing (found 2026-08-28 from Aj's first real relay game).
@@ -10069,6 +10090,7 @@ window.CardFace = {};
     var netSettle=null;   // parked: the host is waiting on the remote's respond/decline to an open stack window
     function hostApplyMove(it){
       if(!hostState || hostState.finished || !it || typeof it.op!=='string') return;
+      stateSeq++;   // this intent is being applied, so any other intent formed against the old board is void
       if(it.op==='emote') return hostEmote(1, it.key);   // never turn-gated
       if(it.op==='reorderEnergy') return hostReorderEnergy(1, it);   // the remote seat in a duel is always 1
       var g=gen, r;
@@ -10499,7 +10521,8 @@ window.CardFace = {};
       enterDelayBase = 0;
       if(clientCeremonyRes && clientCeremonyRes.newRound && !m.finished) playRoundCardBeat(clientCeremonyRes, function(){});
     }
-    function clientSend(it){ trace('clientSend', (it&&it.op)||'?'); send({t:'move', seat:mySeat, intent:it}); }
+    var lastSeq=null;   // the stamp of the newest mirror this client has applied
+    function clientSend(it){ trace('clientSend', ((it&&it.op)||'?')+' q='+(lastSeq!=null?lastSeq:'-')); send({t:'move', seat:mySeat, intent:it, q:lastSeq}); }
     var iConceded=false;
     function concede(){ iConceded=true; send({t:'concede', seat:mySeat}); }   // notify the host we forfeited; ignore further mirrors (stay on our end screen)
     function onOpponentConcede(seat){

@@ -730,6 +730,21 @@ It used to live inline in `runRival`, and the free-for-all driver only logged, s
 silently missing in 3-6 player games** (v1.29.3 fixed it by extracting). If you add a beat, add it there — never
 in one driver.
 
+**MIRRORS CARRY A STATE STAMP, AND A STALE INTENT IS REFUSED (v1.31.54).** `stateSeq` advances only when an
+intent is APPLIED, never per render — that is what makes it usable, since an intent is valid exactly while the
+board it was formed against is current. A client ignores a mirror whose stamp goes BACKWARDS (a replay would
+rewind the board and invite action on a board that no longer exists), and the host refuses an intent with a
+stale stamp **and re-broadcasts** — the re-broadcast is not optional, because a client stuck on an old stamp
+would otherwise have every future intent refused, and a silent deadlock is worse than the stale move. It only
+refuses when the client actually sent a stamp, so an older peer keeps working. **Measured cost: zero** (9 sends,
+9 received, 0 refused in a full game) — check that before trusting any such guard, because one that
+intermittently refuses VALID moves is worse than the bug.
+
+**A FABRICATED CARD IS ALREADY REJECTED, AND THAT EXPLAINS THE `NaN` PLAYS.** `resolveIds` maps incoming ids
+against the HOST's copy of the hand and drops unmatched ones, so an imagined card resolves to nothing and the
+play dies. A client showing `Pair (NaN, NaN)` was therefore narrating a move the host had thrown away — never
+playing ahead, only TALKING ahead. Aj diagnosed this one.
+
 **A BROADCAST TEMPLATE MUST BE READER-INDEPENDENT, NOT JUST `{who}`-SUBSTITUTABLE (v1.31.53).** `say()` sends
 the template plus the actor absolute seat and the receiver rotates `{who}`. That always worked. What broke for
 months was the grammar AROUND it: templates branched on `q===YOU` for the verb and the possessive, baking the

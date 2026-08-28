@@ -721,6 +721,36 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.54 — a client cannot act on a board the host has moved past
+
+Aj: *"why is it possible for clients to go on playing without the host's go ahead? imho i think it should be
+blocked."* He is right, and nothing prevented it — **mirrors carried no identity at all**, so a client could not
+tell a replayed or delayed mirror from a fresh one, and the host could not tell an intent formed against old
+state from a current one.
+
+**`stateSeq` stamps every mirror**, and it advances **only when an intent is actually applied** — never per
+render, which is what makes it usable: an intent is valid exactly while the board it was formed against is
+still current.
+- **The client ignores a mirror that goes backwards.** A replayed one carries an older stamp; applying it would
+  rewind the board and invite the player to act on a board that no longer exists.
+- **The host refuses an intent carrying a stale stamp — and re-broadcasts.** The re-broadcast is not optional: a
+  client stuck on an old stamp would otherwise have every future intent refused too, and a silent deadlock is
+  worse than the stale move it was protecting against.
+- **Only refuses when the client actually sent a stamp**, so an older peer keeps working.
+
+**Measured cost: nothing.** A full game traces **9 sends, 9 received, 0 refused, 0 stale mirrors ignored** — the
+stamp does not touch legitimate play. Checked because a guard that intermittently refuses *valid* moves would be
+worse than the bug it prevents; the action-count swings in `nettest_sync` turned out to be drive-loop variance,
+not refusals.
+
+**AND AJ EXPLAINED THE `NaN` CARDS, correctly:** *"since cards are from the host, at the beginning of the round
+(which isn't gated somehow), the client just imagines cards."* Confirmed — the host resolves incoming plays
+through `resolveIds`, which maps ids against **its** copy of the hand and drops anything unmatched, so a
+fabricated card resolves to nothing and **the play is rejected**. The client's `Pair (NaN, NaN)` was therefore a
+purely local narration of a move that never happened. The client was never playing ahead; it was **narrating
+ahead about moves the host had already thrown away** — which is why state stayed in sync while the log looked
+insane.
+
 ### v1.31.53 — one event, one log line, and narration that reads in every frame
 
 **Solved from Aj's saved logs, and the traces were the reason it was findable.** Both traces were healthy end to
