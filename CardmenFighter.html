@@ -6928,6 +6928,7 @@ window.CardFace = {};
       var discSyms=ids.map(function(id){var c=cardById(id); return c?cardSym(c):null;}).filter(Boolean);
       var rg=pick.resumeG;
       if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'discard', ids:ids}); pick=null; selected={}; busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
       var r=E.resolveDiscard(state, ids);
       if(!r.ok){ setMessage(r.reason); return; }
       pick=null; selected={};
@@ -6984,6 +6985,7 @@ window.CardFace = {};
   function chooseLossSeat(seat){
     if(!lossPick || lossPick.cands.indexOf(seat)<0) return;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ lossPick=null; NET.clientSend({op:'lossTarget', target:seat}); busy=true; render(); return; }   // client picks → host applies
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var g=lossPick.g, done=lossPick.done; lossPick=null;
     var fin=E.chooseLossTarget(state, seat);
     say(YOU, '{who} strike '+logName(seat)+'’s shield with a Special.', 'you');
@@ -7012,6 +7014,7 @@ window.CardFace = {};
       return promptTargetPick(cardId, eff);
     }
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'activate', id:cardId, target:(_opts&&_opts.target), copyId:(_opts&&_opts.copyId)}); selected={}; busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var r=E.activate(state, YOU, cardId, _opts||{});   // choices (return-to-top / discard) auto-picked in the engine
     if(!r.ok){ setMessage(r.reason); return; }
     selected={};
@@ -7093,6 +7096,7 @@ window.CardFace = {};
   function doRemove(cardId, targetId){
     var card=cardById(cardId), eff=card?E.effectOf(card):null;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'activate', id:cardId, target:targetId}); selected={}; targeting=null; busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var r=E.activate(state, YOU, cardId, {target:targetId});
     if(!r.ok){ setMessage(r.reason); targeting=null; render(); return; }
     selected={}; targeting=null;
@@ -7128,6 +7132,7 @@ window.CardFace = {};
     if(peeking||busy||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ var ids=selectedCards().map(function(c){return c.id;}); if(!ids.length){ setMessage('Select a card or combo to play.'); return; } NET.clientSend({op:'play', ids:ids}); selected={}; boostArmed=false; busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var g=gen;
     if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive() && MP()){                         // N-player host: the next seat (maybe remote) may spring Back Stab first
       return NET.hostPreFight(g, function(){ if(E.isLocked(state, YOU)) return doPassBody(); playCards(selectedCards()); });
@@ -7138,6 +7143,7 @@ window.CardFace = {};
     if(peeking||busy||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'pass'}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var g=gen;
     if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive() && MP()){ return NET.hostPreFight(g, doPassBody); }   // N-player host: pre-fight window before the pass resolves
     rivalPreFightThen(g, doPassBody);
@@ -7183,6 +7189,7 @@ window.CardFace = {};
     showModal(html); wirePeek();
     $('sgYes').addEventListener('click', function(){
       if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'guard', id:sr.guardId}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
       if(g!==gen){hideOverlay();return;} hideOverlay();
       var fr=E.shieldGuard(state, YOU, sr.guardId); if(!fr.ok){ setMessage(fr.reason); render(); return; }
       if(guardCard) flashArt(guardCard, 'You');
@@ -7190,6 +7197,7 @@ window.CardFace = {};
       cont(fr); });
     $('sgNo').addEventListener('click', function(){
       if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'guardPass'}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
       if(g!==gen){hideOverlay();return;} hideOverlay();
       var fr=E.shieldGuardPass(state, YOU); logMsg('<b>You</b> took the hit.', 'dim'); cont(fr); });
   }
@@ -7221,6 +7229,7 @@ window.CardFace = {};
     var card=cardById(cardId), eff=card?E.effectOf(card):null;
     var src=state.pile?state.pile.combo.cards.filter(function(c){return c.id===copyId;})[0]:null;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'activate', id:cardId, copyId:copyId}); selected={}; busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var r=E.activate(state, YOU, cardId, {copyId:copyId});
     if(!r.ok){ setMessage(r.reason); return; }
     selected={};
@@ -7615,6 +7624,7 @@ window.CardFace = {};
     var pend=state.pending, rivalEff=E.effectOf(pend.card)||{}, rivalName=rivalEff.name||'a Technique';
     var quicks=eligibleQuicks();
     if(!quicks.length){ if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'decline'}); busy=true; render(); return; } E.declineResponse(state, YOU); return cont(); }   // nothing to answer with — auto-pass
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     /* WHO cast it and WHO it is aimed at were both missing — Aj: "who or what is being targetted? why should I
      * counter it? this lacks some vital information." In a free-for-all that decides the whole choice: a
      * Telekinesis aimed at P2 is none of your business, one aimed at YOU is worth a Counter Spell. */
@@ -7642,6 +7652,7 @@ window.CardFace = {};
   function humanResponds(g, quickId, cont){
     cont = cont || function(){ resumeRival(g); };
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'respond', id:quickId}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     if(g!==gen){ hideOverlay(); return; }
     var qcard=state.players[YOU].hand.filter(function(c){return c.id===quickId;})[0];
     var qeff=qcard?E.effectOf(qcard):null;
@@ -7659,6 +7670,7 @@ window.CardFace = {};
   function humanDeclines(g, cont){
     cont = cont || function(){ resumeRival(g); };
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'decline'}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     if(g!==gen){ hideOverlay(); return; }
     hideOverlay();
     E.declineResponse(state, YOU);
@@ -7687,10 +7699,12 @@ window.CardFace = {};
     });
     $('pfDecline').addEventListener('click', function(){
       if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'prefightPass'}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
       hideOverlay(); E.preFightPass(state, YOU); logMsg('<b>You</b> let the Rival act.', 'dim'); resumeRival(g); });
   }
   function humanSpringsPreFight(g, cardId){
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'prefight', id:cardId}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     if(g!==gen){ hideOverlay(); return; }
     var card=state.players[YOU].hand.filter(function(c){return c.id===cardId;})[0];
     var r=E.preFightCast(state, YOU, cardId);
@@ -7876,6 +7890,7 @@ window.CardFace = {};
     /* A netplay CLIENT does not write its own record: it never ran the drivers that count opponents' plays, so
      * it would store a game with every opponent at zero. It adopts the host's complete record instead. */
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ /* the host will push it */ }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     else {
       var recOut=recordGame();
       if(recOut && typeof NET!=='undefined' && NET.sendRecord) NET.sendRecord(recOut);
@@ -8727,6 +8742,7 @@ window.CardFace = {};
     var cards=pileCards('energy'), card=cards.filter(function(c){ return c.id===id; })[0];
     if(!card) return;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
       var ids=[id]; cards.forEach(function(c){ if(c.id!==id) ids.push(c.id); });
       NET.clientSend({op:'reorderEnergy', ids:ids});
       pileSel=null; busy=true; hideOverlay(); render();
@@ -9909,6 +9925,24 @@ window.CardFace = {};
     }
     function isClient(){ return role==='join'; }
     function isClientActive(){ return isClient() && started; }
+    /* THE MISSING THIRD STATE (found 2026-08-28 from Aj's two battle logs). Every action reads
+     * `isClientActive()` = `isClient() && started` and, when it is false, FALLS THROUGH to the local
+     * single-player engine. That is right for a solo page and catastrophic for a client whose board is live
+     * while `started` is still false: its inputs stop reaching the host and start driving a local game.
+     * Aj's client log is exactly that — "Rival passed" was the LOCAL AI, the round resolutions were local, and
+     * "You played a Jab - NaN" was drawing from a mirror whose opponent cards are redacted placeholders. The
+     * host meanwhile recorded one jab and waited forever. Two people, two divergent games, one open channel.
+     * So a client page must never reach the local engine. Refusing is always correct: if it is not started
+     * yet, the host is not listening, and pretending otherwise is how the fork happens.
+     *
+     * BUT THIS GUARD IS UNVERIFIED AND THE TRIGGER IS UNKNOWN. Forcing `started=false` to test it does not
+     * hold — the host's next mirror puts it back — which also means `started` is probably NOT what went wrong
+     * in Aj's game, since his client demonstrably received a mirror. The other candidate is `role` not being
+     * `'join'`, and note this guard would not fire for that either, because it tests `isClient()` too.
+     * A cheap backstop for one branch of a fault whose cause has not been found. See the BACKLOG. Do not
+     * assume this fixed it. */
+    function clientNotReady(){ return isClient() && !started; }
+    function dbgUnstart(){ started=false; return true; }   // dbg only — see __cmf.unstart
     function hideNetroot(){ var r=$('netroot'); if(r) r.style.display='none'; }
     function resolveIds(seat, ids){ var h=hostState.players[seat].hand; return (ids||[]).map(function(id){ return h.filter(function(c){return c.id===id;})[0]; }).filter(Boolean); }
 
@@ -10788,7 +10822,7 @@ window.CardFace = {};
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
+    return { boot:boot, start:start, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:99999;background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the
@@ -10821,7 +10855,7 @@ window.CardFace = {};
     '#netroot .deckSel:disabled{opacity:.55}#netroot .lobbyStatus{margin:12px 0;padding:10px 12px;background:#141a24;border:1px solid #263140;border-radius:8px;color:#cdd8e6}';
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); } }; }
   /* --headerH: measured, not hardcoded. #disconBar hangs off it, and the header's height is not a constant —
    * 56px on desktop, 37px in the landscape band, and ~92px on a portrait phone where it WRAPS to two rows.
    * A hardcoded 54px floated it 17px low in landscape and put it 38px INSIDE the wrapped portrait header,

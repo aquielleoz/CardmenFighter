@@ -165,6 +165,49 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **A NETPLAY CLIENT CAN RUN THE LOCAL GAME AND FORK THE DUEL. UNSOLVED — start here.** 2026-08-28, two devices
+  and two saved battle logs, which is the only reason it is characterised at all. **Both logs are the evidence;
+  read them before theorising:**
+
+  ```
+  HOST   You: Pure Cleric  vs  Rival: Pure Wizard · Reached Round 1
+         New duel — you play Pure Cleric vs Rival (Fighter) on Pure Wizard.
+         You have the initiative — Round 1, jabs only.
+         You played a Jab - 4♥.                       ← and NOTHING after this, ever
+
+  CLIENT You: Pure Wizard  vs  Rival: Pure Cleric · Reached Round 5
+         Online duel — you play Pure Wizard. Round 1, jabs only.
+         Aj played a Jab - 4♥.                        ← received over the wire, so the channel WAS open
+         You played a Jab - 9♦.
+         Rival passed.                                ← the host never passed
+         You won the round of Jabs.
+         Round 2 begins. … You played a Jab - NaN.    ← four more rounds, all resolved locally
+  ```
+
+  **The mechanism is the fall-through.** Every action reads `isClientActive()` = `isClient() && started` and,
+  when false, continues into the **single-player engine**. So "Rival passed" is the LOCAL AI, the resolutions
+  are local, and `Jab - NaN` / `0 undefined 0` cards are a local draw off a mirror whose opponent cards are
+  redacted placeholders. Two people, two divergent games, one open channel.
+  **The TRIGGER is not known.** Ruled out by measurement, not by argument:
+  - **Not the relay.** A clean two-`file://`-page reproduction over the LIVE relay stays in sync at round 1
+    with zero broken cards, host correctly waiting.
+  - **Probably not `started`.** Forcing `started=false` does not persist — the next mirror restores it — and the
+    client had plainly received a mirror.
+  - **Candidate: `role !== 'join'`.** `isClient()` tests exactly that, so a wrong `role` produces the
+    fall-through *and* defeats the guard added in v1.31.50, which also tests `isClient()`.
+  **Next step:** log `role`/`started`/`isClientActive()` on the client at every action, and get one more real
+  pair of logs. Do NOT add another speculative guard; three inference-only diagnoses were wrong on 2026-08-28
+  (ghost tabs, an AI game, then `started`), each corrected by Aj reading his own screen.
+- **THE NETPLAY BATTLE LOG DOES NOT SCROLL** (Aj, 2026-08-28: *"the logs for netplay don't have a scroll…
+  previous conversations have been lying to me about the netplay view being the same as single player"*). Take
+  the complaint at face value: the netplay board is **not** the solo board, and claiming otherwise has cost
+  trust. Check `#log` overflow in the netplay layout specifically, and audit what else differs before repeating
+  the claim.
+- **SEAT 0 ALWAYS LEADS ROUND 1, SO THE HOST ALWAYS LEADS ONLINE** (Aj: *"in net play it seems like the host
+  always leads the jabs too"*). Verified: `newGame` sets `turn: 0, initiative: 0` with no roll, and
+  `nettest_rtc` encodes it (`'host leads round 1'`). Fine in solo — seat 0 is the player — but online it hands
+  the host a permanent first-mover edge in every game. A design question, not a defect: randomise the opening
+  seat, alternate it, or decide the edge is acceptable and say so.
 - **A NETPLAY DUEL HOST LOGS THE SOLO LINE AND SHOWS AN AI TIER.** `logMsg`/`matchupTag` branch on
   `mpCount>2`, **not on whether this is netplay**, so a 2-player online HOST prints
   *"New duel — you play Pure Cleric vs Dustin (**Fighter**) on Berserker"* and a header ending
