@@ -95,6 +95,52 @@ If the relay is unreachable, or the player is using the downloaded offline file 
 copy-paste flow must still work exactly as it does today.** The relay is an additional front door, never a
 replacement — the single self-contained HTML remains the artifact you can hand someone with no internet at all.
 
+## Runbook — deploying and redeploying
+
+Written down because it is a once-every-few-months task and nobody remembers it. **Run everything from
+`relay/`**, because `main` in `wrangler.toml` is relative to that file.
+
+### First time on a machine
+
+```bash
+npx wrangler login
+```
+
+That is the **only** per-machine step. The account cache it writes lands in `.wrangler/`, which is gitignored —
+it holds the account id and name, no token, but there is no reason for it to be public.
+
+### Deploying a change
+
+```bash
+npx wrangler deploy
+```
+
+### Things that already exist and must NOT be redone
+
+- **`wrangler d1 create`** — the database exists, and its `database_id` is committed in `wrangler.toml`, so a
+  fresh clone is already configured. Running `create` again makes a **second, empty** database and you will
+  deploy against the wrong one.
+- **The `workers.dev` subdomain** — account-wide and effectively permanent, since changing it breaks every
+  existing URL. It is deliberately named after Aj rather than after this game: every future Worker shares it.
+- **The schema** — already applied. `schema.sql` is `CREATE TABLE IF NOT EXISTS` throughout, so re-running it is
+  harmless if you are unsure.
+
+### Where it runs
+
+**On Cloudflare, not on your machine.** This is the whole difference from the Cloudflare *tunnel* experiment
+(`docs/ORIGIN-EXPERIMENT.md`), where the server WAS the laptop and had to stay running. Once deployed the relay
+is up whether any of your machines are on or not, which is what makes it a product rather than an instrument.
+
+### After deploying
+
+```bash
+node relaytest.js https://cardmen-relay.<subdomain>.workers.dev
+```
+
+Twenty assertions against the real thing. **This is the step that turns `worker.js` from reviewed code into
+tested code** — the mock and the Worker implement the same contract by hand, so a bug in one is invisible to
+the other.
+
 ## What is tested, and what is not
 
 `relay/relaytest.js` tests the **protocol**, including the atomic claim under concurrency, against
