@@ -858,6 +858,21 @@ function cards(ids) { return ids.map(card); }
   ok(tp2 && tp2.type === 'twopair', 'but A-A-2-2 IS a poker two pair: the bar is on CHAINS, not on the card');
   E.setDoublePair('kits');
 
+  /* THE DRIFT GUARD. A kit of 4 and a kit of 6 must agree about the 2 at every setting — they are one shape at
+   * two lengths. They did NOT agree when v1.31.45 first landed, because the size-4 slot re-implemented the run
+   * test inline instead of calling detectKit, so the new bar reached one length and not the other. Asserting
+   * each size on its own would have passed; asserting that the sizes AGREE is what catches a second copy. */
+  var kit4with2 = [C(1, 'D'), C(1, 'H'), C(2, 'C'), C(2, 'S')];               // A-A-2-2
+  var kit6with2 = [C(13, 'D'), C(13, 'H'), C(1, 'C'), C(1, 'S'), C(2, 'D'), C(2, 'H')];   // K-K-A-A-2-2
+  var agree = true, k4on, k6on;
+  E.setSeqTwos(false);
+  agree = agree && E.detectCombo(kit4with2) === null && E.detectCombo(kit6with2) === null;
+  E.setSeqTwos(true);
+  k4on = E.detectCombo(kit4with2); k6on = E.detectCombo(kit6with2);
+  agree = agree && !!k4on && k4on.type === 'kit' && !!k6on && k6on.type === 'kit';
+  E.setSeqTwos(false);
+  ok(agree, 'a 4-kit and a 6-kit agree about the 2 at BOTH settings — one shape, two lengths, one definition');
+
   ok(E.beats(c67, c45) === true, 'a higher kit beats a lower one of the same length');
   ok(E.beats(c45, c67) === false, 'and not the other way round');
   ok(E.beats(c456, c45) === false,

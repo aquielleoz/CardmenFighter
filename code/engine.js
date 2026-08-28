@@ -222,14 +222,21 @@
       var apw = detectAirplaneWings(cards);
       if (apw !== null) return { type: 'airplane', value: apw, size: n, key: [apw], cards: cards };
     }
-    if (n === 4 && DBL_PAIR !== 'off') {            // the double-pair slot — one mode, so never ambiguous
-      var pc = {}, pi, pvv;
-      for (pi = 0; pi < 4; pi++) { pvv = fightValue(cards[pi]); pc[pvv] = (pc[pvv] || 0) + 1; }
+    /* THE DOUBLE-PAIR SLOT. What is local here is the MODE DISPATCH and nothing else: which of two shapes four
+     * cards claim, plus the early `return null` that stops a non-two-pair four from falling through to the
+     * shapes below. "Is this a run of pairs" is `detectKit`'s job at every size — its floor is n<4, so it has
+     * always covered this one. It used to be re-implemented inline, and that copy promptly drifted: v1.31.45's
+     * bar on the 2 landed in `detectKit` and A-A-2-2 stayed legal here. Same lesson as `isChopOf` — one
+     * definition, called twice. */
+    if (n === 4 && DBL_PAIR !== 'off') {
+      var pc = valueCounts(cards);
       var pvals = Object.keys(pc).map(Number).sort(function (a, b) { return b - a; });   // high pair first
       if (!(pvals.length === 2 && pc[pvals[0]] === 2 && pc[pvals[1]] === 2)) return null;
+      /* keyed [high, low] so lexCmp compares the top pair before the bottom for free. Gaps allowed — a poker
+       * two pair is not a chain, which is why the 2 is legal here and not in the kit branch below. */
       if (DBL_PAIR === 'poker') return { type: 'twopair', value: pvals[0], size: 4, key: pvals, cards: cards };
-      if (pvals[0] === pvals[1] + 1 && !twoInChain(cards)) return { type: 'kit', value: pvals[0], size: 4, key: [pvals[0]], cards: cards };
-      return null;                                 // 'kits' mode and the values are not consecutive
+      var k4 = detectKit(cards);                   // consecutive-only, and the 2 bar, both from the one place
+      return k4 ? { type: 'kit', value: k4.top, size: 4, key: [k4.top], cards: cards } : null;
     }
     if (kits3On() && n >= 6 && n % 2 === 0) {          // runs of 3+ pairs; size 6/8/10 cannot shadow a 5-card shape
       var kt = detectKit(cards);

@@ -636,9 +636,14 @@ played fall **27%** at six players (2638 vs 3626). That is the ninth rule in a r
 changing tempo; treat it as the default expectation. Deck-neutral by construction, since every legal deck holds
 exactly four 2s. Note any `rulesim`/`mpsim` row recorded before this version was measured under the old default.
 
-**One implementation trap, and one instrument bug it exposed.** The 2-kit has its own inline path in
-`detectCombo` and never reaches `detectKit`, so the guard had to be repeated there — the single place a chain
-is built without that function. And the panel reorder that pays for the new row *silently did nothing* at
+**One implementation trap, since fixed properly, and one instrument bug it exposed.** The bar first reached
+`detectKit` and left `A-A-2-2` legal, because the four-card slot had its own inline copy of "are these pairs
+consecutive". Aj's question — *"isn't that a slippery slope to technical debt? why doesn't it use detect
+combo?"* — was the right one, and the answer was that nothing justified the copy: `detectKit`'s floor is
+`n < 4`, so it always covered that size. The slot now delegates to it and keeps only what is genuinely local,
+the **mode dispatch** between kit and poker two pair. `test.js` gained the assertion that would have caught it:
+a 4-kit and a 6-kit must **agree** about the 2 at both settings — per-size assertions pass with two copies
+present, agreement does not. Confirmed non-vacuous by reintroducing the bug and watching it go red. And the panel reorder that pays for the new row *silently did nothing* at
 first: `sectionsHTML` filtered `RULE_DEFS`, so a section's `keys` list decided only which rows appeared, never
 in what order. It maps over `keys` now, so the list reads the way the panel renders.
 

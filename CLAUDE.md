@@ -385,10 +385,19 @@ Three more things worth knowing before touching them:
   - **The bar is on the CHAIN, never the baggage** (Dou Dizhu's rule exactly). A trio of 2s cannot be a link in
     an airplane; a lone 2 is a fine **wing**, a fine spare on a trio, and a pair or trio of 2s is untouched.
     `twoInChain` guards the links, `twoIsChainTrio` guards only the trios of a winged airplane.
-  - **THE 2-KIT HAS ITS OWN INLINE PATH** in `detectCombo` and never calls `detectKit`, so the guard is repeated
-    there — the one place a chain is built without that function. It goes on the `kit` return only: from the
-    same four cards `A-A-2-2` is not a kit and **is** a poker two pair, because a two-pair allows gaps and is
-    therefore not a chain. That pair of assertions is the sharpest statement of what the rule covers.
+  - **THE SIZE-4 SLOT DELEGATES TO `detectKit` — do not re-inline the run test** (fixed in v1.31.45; Aj:
+    *"isn't that a slippery slope to technical debt?"*, and it was). `detectKit`'s floor is `n < 4`, so it has
+    always covered the four-card case; the slot had a second copy of "are these pairs consecutive", and that
+    copy drifted **the same day** the 2 bar landed — the bar reached `detectKit` and `A-A-2-2` stayed legal.
+    What is genuinely local to the slot is the **mode dispatch** (kit vs poker two pair) and the early
+    `return null` that stops a non-two-pair four from falling through; the run test is not.
+    Same rule as `isChopOf`: one definition, called twice.
+    The boundary the slot draws is real and worth keeping in mind — from the same four cards `A-A-2-2` is not a
+    kit and **is** a poker two pair, because a two-pair allows gaps and so is not a chain.
+  - **THE DRIFT GUARD IS A CROSS-SIZE ASSERTION, not a per-size one.** `test.js` asserts a 4-kit and a 6-kit
+    **agree** about the 2 at both settings. Asserting each size on its own passes with two copies present; only
+    agreement catches the second copy. Verified by reintroducing the bug — both it and the `A-A-2-2` assertion
+    go red, so it is not vacuous.
   - **`APEX_INF` already did this for straights and kits** as a side effect (an Infinity-valued 2 is never
     `v+1`), so the two rules agree rather than fight; this one just does not need the apex rule switched on.
   - Measured: pacing unmoved (medians 10/19/28 at 2/4/6p either way), jab share ±0.3, but straights played fall
@@ -702,7 +711,7 @@ stray processes before suspecting the code. And never wait on work with `while p
 
 Status as of **v1.31.38 — green, all 37 suites plus `browsertest`, run serially 2026-08-27**
 (panel-area counts refreshed at v1.31.45):
-`test` 324, `netview` 28, `mptest` 82, `rulestest` 143, `nettest_rules` 28, `nettest_suggest` 34,
+`test` 325, `netview` 28, `mptest` 82, `rulestest` 143, `nettest_rules` 28, `nettest_suggest` 34,
 `landscapetest` 96, `decktest` 42, `viewtest` 10, `piletest` 30, `revealtest` 12, `phantasmtest` 12,
 `exporttest` 15, `lessontest` 19, `lessontest_energy` 14, `versiontest` 15, `sharetest` 14, `qrtest` 19,
 `qrref` 26 (darwin only), `nettest_full` 5, `nettest_log` 14, `nettest_names` 8, `nettest_version` 14,
