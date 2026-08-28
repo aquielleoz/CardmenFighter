@@ -4874,7 +4874,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.45';
+  var GAME_VERSION='v1.31.46';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -9542,13 +9542,77 @@ window.CardFace = {};
     // ---- WebRTC copy-paste signaling (no server) ----
     function newPC(){ return new RTCPeerConnection(useStun?{ iceServers:[{ urls:'stun:stun.l.google.com:19302' }] }:undefined); }
     function gather(p){ return new Promise(function(res){ var done=false; function fin(){ if(!done){ done=true; res(); } } if(p.iceGatheringState==='complete') return fin(); p.onicegatheringstatechange=function(){ if(p.iceGatheringState==='complete') fin(); }; setTimeout(fin, 4000); }); }
-    function enc(desc){ try{ return btoa(JSON.stringify({ t:desc.type, s:desc.sdp })); }catch(e){ return ''; } }
+    /* COMPACT INVITE CODES (v1.31.46). The old code was base64 of the WHOLE SDP — 1,036 characters, of which
+     * about 90% is boilerplate every WebRTC stack already knows. Only five things actually vary: the ICE
+     * ufrag and password, the DTLS fingerprint, the setup role, and the candidates.
+     * THE KEY INSIGHT, verified before any of this was written: a remote description does not have to be the
+     * bytes the far end produced. It has to be VALID and mean the same thing. So we rebuild a canonical
+     * data-channel SDP rather than trying to reproduce the original — which is what makes the boilerplate
+     * droppable at all, and it is why this is a packer and not a compressor.
+     * Text, not bit-packing, on purpose: the code is pasted into chat apps by hand, and a format a person can
+     * eyeball is worth more here than the last twenty characters. */
+    var SETUP={ actpass:'p', active:'a', passive:'s' }, SETUP_R={ p:'actpass', a:'active', s:'passive' };
+    function hexToB64u(h){                                    // 64 hex chars -> 43, and no colons
+      var i, bin=''; for(i=0;i<h.length;i+=2) bin+=String.fromCharCode(parseInt(h.substr(i,2),16));
+      return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    }
+    function b64uToHex(b){
+      var s=b.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='=';
+      var bin=atob(s), out=[], i;
+      for(i=0;i<bin.length;i++) out.push(('0'+bin.charCodeAt(i).toString(16)).slice(-2));
+      return out.join(':');
+    }
+    /* A candidate line carries five fields we cannot derive and a tail we can. Priority is NOT kept: ICE
+     * assigns it by type, so recomputing it from the type gives the same ordering the browser intended.
+     * `,` separates fields and `|` candidates — neither can appear in an address, including IPv6. */
+    var CTYPE={ host:'h', srflx:'s', prflx:'p', relay:'r' }, CTYPE_R={ h:'host', s:'srflx', p:'prflx', r:'relay' };
+    var CPRI={ host:2113937151, srflx:1677729535, prflx:1677729535, relay:16777215 };
+    function packCand(line){
+      var m=line.match(/^(\S+) (\d+) (\S+) (\d+) (\S+) (\d+) typ (\S+)/);
+      if(!m) return null;
+      var extra=/ tcptype (\S+)/.exec(line);
+      return [m[3].toLowerCase(), CTYPE[m[7]]||'h', m[5], m[6], extra?extra[1]:''].join(',');
+    }
+    function unpackCand(s, i){
+      var f=s.split(','), typ=CTYPE_R[f[1]]||'host';
+      return 'candidate:'+(i+1)+' 1 '+f[0]+' '+(CPRI[typ]||1)+' '+f[2]+' '+f[3]+' typ '+typ+
+             (typ==='srflx'||typ==='relay' ? ' raddr 0.0.0.0 rport 0' : '')+
+             (f[4] ? ' tcptype '+f[4] : '')+' generation 0';
+    }
+    function enc(desc){
+      try{
+        var s=desc.sdp, g=function(re){ var m=s.match(re); return m?m[1].trim():''; };
+        var fp=g(/^a=fingerprint:sha-256 (.+)$/m).replace(/:/g,'');
+        var cands=[]; s.replace(/^a=candidate:(.+)$/gm, function(_,x){ var p=packCand(x.trim()); if(p) cands.push(p); return _; });
+        if(!fp || !g(/^a=ice-ufrag:(.+)$/m)) return btoa(JSON.stringify({ t:desc.type, s:desc.sdp }));  // unrecognised: send it whole
+        return ['C1', desc.type==='offer'?'o':'a', g(/^a=ice-ufrag:(.+)$/m), g(/^a=ice-pwd:(.+)$/m),
+                hexToB64u(fp), SETUP[g(/^a=setup:(.+)$/m)]||'p', cands.join('|')].join('~');
+      }catch(e){ return ''; }
+    }
+    function unpackC1(t){
+      var f=t.split('~');
+      if(f.length!==7 || f[0]!=='C1') return null;
+      try{
+        var cands=f[6] ? f[6].split('|') : [];
+        var sdp='v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n'+
+          'a=group:BUNDLE 0\r\na=extmap-allow-mixed\r\na=msid-semantic: WMS\r\n'+
+          'm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\nc=IN IP4 0.0.0.0\r\n'+
+          cands.map(function(c,i){ return 'a='+unpackCand(c,i)+'\r\n'; }).join('')+
+          'a=ice-ufrag:'+f[2]+'\r\na=ice-pwd:'+f[3]+'\r\na=ice-options:trickle\r\n'+
+          'a=fingerprint:sha-256 '+b64uToHex(f[4])+'\r\na=setup:'+(SETUP_R[f[5]]||'actpass')+'\r\n'+
+          'a=mid:0\r\na=sctp-port:5000\r\na=max-message-size:262144\r\n';
+        return { t: f[1]==='o'?'offer':'answer', s: sdp };
+      }catch(e){ return null; }
+    }
     function b64json(x){ try{ return JSON.parse(atob(x)); }catch(e){ return null; } }
     /* Tolerant on purpose: a code travels through chat apps now, and people paste it with a "here you go:" in
      * front or a stray newline behind. Falls back to the longest base64 run in whatever arrived. */
     function dec(code){
-      var t=(code||'').trim(), o=b64json(t);
-      if(!o){ var m=t.match(/[A-Za-z0-9+\/=]{80,}/); if(m) o=b64json(m[0]); }
+      var t=(code||'').trim(), o=unpackC1(t) || b64json(t);
+      if(!o){                                                  // dig the code out of "here you go: <code>"
+        var mc=t.match(/C1~[A-Za-z0-9+\/=,|~._-]{40,}/);        if(mc) o=unpackC1(mc[0]);
+        if(!o){ var m=t.match(/[A-Za-z0-9+\/=]{80,}/);          if(m)  o=b64json(m[0]); }
+      }
       return o ? { type:o.t, sdp:o.s } : null;
     }
     function startSignaling(){

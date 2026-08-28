@@ -89,18 +89,39 @@ async function hostTo(page){
     }
     return { reply:'', err:'' };
   }
+  /* THE COMPATIBILITY GUARANTEE (v1.31.46). Codes got 6x shorter by packing the SDP down to the five fields
+   * that vary, but the OLD whole-SDP form must still be readable: someone's chat history, a saved code, or a
+   * peer on an older build. Nothing else covers this, and it is the half that silently rots — new codes are
+   * exercised by every RTC suite, old ones by nothing. Built here from a real offer so it is a genuine legacy
+   * code and not a hand-written approximation of one. */
+  { const p=await joiner();
+    const legacy=await p.evaluate(async()=>{
+      const pc=new RTCPeerConnection(); pc.createDataChannel('d');
+      await pc.setLocalDescription(await pc.createOffer());
+      await new Promise(r=>{ const t=setTimeout(r,5000);
+        pc.onicegatheringstatechange=()=>{ if(pc.iceGatheringState==='complete'){clearTimeout(t);r();} }; });
+      return btoa(JSON.stringify({ t:pc.localDescription.type, s:pc.localDescription.sdp }));   // the OLD format
+    });
+    ok(legacy.length>400, `a legacy whole-SDP code, the pre-v1.31.46 format (${legacy.length} chars)`);
+    const got=await feed(p, legacy);
+    ok(/^C1~a~/.test(got.reply),
+       /^C1~a~/.test(got.reply) ? '  → still accepted, and answered in the NEW compact format'
+                                : `  → REJECTED: "${(got.err||'(no reply)').slice(0,60)}"`);
+    await p.context().close();
+  }
+
   { const h=await (await b.newContext()).newPage();
     await h.goto('file://'+HTML+'?dbg=1'); await wait(500);
     ok(await hostTo(h), 'a third host screen, for a real code to mangle');
     const code=await h.evaluate(()=>document.getElementById('sigOut').value);
-    ok(code.length>200, `captured it (${code.length} chars)`);
+    ok(/^C1~o~/.test(code) && code.length>80, `captured it — a compact offer code (${code.length} chars)`);
 
     /* Accepted is asserted by the joiner PRODUCING A REPLY, not merely by the absence of an error message —
      * an error that never renders would make a weaker assertion pass on a broken build. */
     const wrapped=await feed(await joiner(), 'here you go: '+code+'  \nsee you there');
-    ok(wrapped.reply.length>200,
-       wrapped.reply.length>200 ? `a code pasted inside a sentence is accepted and produces a real reply (${wrapped.reply.length} chars)`
-                                : `rejected: "${(wrapped.err||'(no reply, no error)').slice(0,60)}"`);
+    ok(/^C1~a~/.test(wrapped.reply),
+       /^C1~a~/.test(wrapped.reply) ? `a code pasted inside a sentence is accepted and produces a real ANSWER code (${wrapped.reply.length} chars)`
+                                    : `rejected: "${(wrapped.err||'(no reply, no error)').slice(0,60)}" reply="${wrapped.reply.slice(0,40)}"`);
 
     const junk=await feed(await joiner(), 'lol what code');
     ok(/not valid/i.test(junk.err) && !junk.reply,
