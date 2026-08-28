@@ -97,6 +97,9 @@ node optionsim.js             # legal plays per turn by player count — the OPT
 node rulesim.js               # rule-config sweep: length / jab share / initiative, by player count
 node roundsim.js              # share of ROUNDS decided by a jab vs a Special, by tier and player count
 node stucksim.js 6 150        # stuck-while-following turns split into SHAPE-stuck vs VALUE-stuck
+node ../relay/relaytest.js   # the signalling relay's protocol, against a local mock (20 assertions).
+                             # Pass a base URL to test a REAL deployment — that is the only thing that turns
+                             # relay/worker.js from reviewed code into tested code.
 node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — RUN IT after any card
                              # name/cost/text change, or the published card list silently goes stale
 ```
@@ -248,6 +251,32 @@ vs client) and every assertion was TRUE. **No DOM assertion can see a stacking b
 thing that matters, hit-test it — `document.elementFromPoint(cx, cy)` and check the modal contains the result.
 Note it only bit while netroot was on screen (lobby / signalling); mid-game netroot is hidden, so response
 windows were always fine, which is how it survived unnoticed.
+
+**THE SIGNALLING RELAY (`relay/`) — four rules, and each one is a bug that would be silent.**
+Aj approved it because the constraint was never purity: *"the no server really wasn't a hard rule. i just am not
+able to pay for hosting costs."* So the design is chosen for **cost legibility** over elegance.
+- **THE CLAIM MUST BE ONE STATEMENT.** `UPDATE slots SET claimed = 1 WHERE ... slot = (SELECT MIN(slot) ...
+  WHERE claimed = 0) RETURNING`. A read-then-write reads identically and is wrong exactly when two joiners
+  arrive together: both see `claimed = 0`, both answer the same offer, and one peer silently never connects.
+  `relaytest` fires **eight concurrent claims at four slots and demands four distinct winners** — the
+  non-atomic version scores 8 winners across 3 slots, so the assertion discriminates (verified by breaking it).
+- **A ROOM IS A MAILBOX OF SLOTS, NOT AN OFFER/ANSWER PAIR.** WebRTC offers are **not reusable**, so a host at a
+  6-player table mints one per peer — which `hostNewInvite()` already does. One room code covers the whole
+  table, because the code is the thing a human handles and it must not change per player.
+- **POLLING OVER D1, NOT WEBSOCKETS OVER DURABLE OBJECTS.** DO is free (SQLite backend), and a socket would be
+  tidier. Polling was chosen because its cost is a number you can multiply in your head: ~70 requests per
+  handshake against 100,000/day. **KV is disqualified outright** — eventually consistent, up to ~60s, and a
+  handshake is the one workload that cannot tolerate it.
+- **THE MANUAL COPY-PASTE PATH IS NOT OPTIONAL.** The relay is an additional front door. The offline file with no
+  network must keep working exactly as it does today, so every relay call needs a fallback, not an error.
+- **DEPLOYED at `https://cardmen-relay.ajgoats.workers.dev`, and `relaytest` is 20/20 against it** (2026-08-28),
+  so the D1 SQL is tested and not merely reviewed. The concurrency assertion is the one that needed a real
+  deployment: the mock gets atomicity free from Node being single-threaded, so it proves nothing there.
+- **THE MOCK PROVES THE PROTOCOL, NOT THE WORKER.** `relay/mock.js` and `relay/worker.js` implement the same
+  contract by hand, so a bug in one is invisible to the other. `relaytest.js` takes a base URL for exactly this
+  reason. **Until it has been run against the deployment, worker.js is reviewed code — say so.**
+- Privacy changed and the UI must say so: an SDP contains IP addresses, so the relay sees them for the minutes a
+  room lives. The netbar's **"no server" becomes false** and has to be rewritten.
 
 **INVITE CODES ARE PACKED, NOT COMPRESSED (v1.31.46).** `enc`/`dec` in the template are the only writer and
 reader. The code carries five fields — ICE ufrag, ICE password, DTLS fingerprint, setup role, candidates — and
@@ -1056,6 +1085,38 @@ not a class problem but a rules problem. The lever belongs at the rules level �
 - `docs/PLAYER-PROFILE.md` is a living read on how Aj actually plays — consult it for AI tuning and balance,
   and append exported games to its ingestion log.
 
+## Secrets
+
+**Never commit a credential. The test is one question: does this thing grant access on its own?** If yes it is a
+secret, wherever it happens to live. If it only *names* a resource, it is not.
+
+**This repo has an unusual reason to be strict: the game is ONE SELF-CONTAINED HTML FILE that gets handed
+around, downloaded, and re-shared.** Anything inlined in it is public the moment it is built — not "public if
+the repo leaks", public by construction. **There can therefore never be a secret in the game**, and any feature
+that seems to need one needs a different design instead. That is not a rule about hygiene; it is a property of
+the artifact.
+
+**Never committed, and `.gitignore` enforces it so nobody has to remember:**
+- `.wrangler/` — its account cache holds the Cloudflare account id and name. No token lives there, so it is not
+  a credential, but it is identifying and has no reason to be public. Created silently by any `wrangler` command.
+- `.dev.vars`, `.env` — where local secrets go by convention.
+- `*.pem`, `*.key`, `*.p12`, `credentials.json`.
+- A Cloudflare API token, in any file, ever. Server-side secrets go through `wrangler secret put`, which stores
+  them on Cloudflare and never touches the repo.
+
+**Deliberately committed, and correctly so** — worth stating, because over-caution here produces cargo-culted
+placeholders that break a fresh clone:
+- `relay/wrangler.toml` including `database_id`. A D1 database id is an **identifier**: it grants nothing
+  without account authentication, committing it is Cloudflare's own documented pattern, and having it in the
+  repo is what makes `git clone && wrangler deploy` work on another machine with no configuration.
+- The relay URL. It has to be public — it is baked into the game.
+- `relay/worker.js`. It contains no secrets **by design**: the relay authenticates nobody, so knowing a room
+  code is the only capability that exists. If auth is ever added, the key cannot live in the HTML (see above).
+
+**If something does leak, rotate it — do not just delete the commit.** Git history persists in clones, forks and
+caches, and a rewritten history does not un-publish anything. Deleting the commit is the second step, never the
+first.
+
 ## Branches and PRs
 
 Written 2026-08-25 after a cleanup found **18 merged branches** still on the remote and **both `feat/` and
@@ -1130,6 +1191,8 @@ definition, so it cannot delete them.
 - `docs/RIDES-AND-FORMS.md` — design of the J/Q/K layer. `docs/MULTIPLAYER-DESIGN.md` — netplay design.
 - `docs/COUNT-UP-DESIGN.md` — the count-up / "Kick Coin" branch: why shields are load-bearing (catch-up,
   the transform gate, the targeting signal), and Aj's narrower lean toward a count-up **class**. Open.
+- `docs/RELAY-DESIGN.md` — the **signalling relay**: why polling over D1 rather than WebSockets over Durable
+  Objects, the mailbox-of-slots model, the cost arithmetic, and the privacy change it forces.
 - `docs/ORIGIN-EXPERIMENT.md` — the **origin probe** (`code/origin-probe.html` + `code/serve.js`): does an
   https origin actually unblock the camera? Instrument built and validated; **results table still empty**.
 - `docs/PATCHNOTES.md` — balance principles + win-rate history. `docs/REWORK-HISTORY.md` — how it got here.

@@ -1,0 +1,17 @@
+# Deploy — RUN THESE FROM THIS DIRECTORY (relay/), because `main` below is relative to this file:
+#   npm i -g wrangler          (or npx wrangler)
+#   wrangler login
+#   wrangler d1 create cardmen-relay          # paste the returned database_id below
+#   wrangler d1 execute cardmen-relay --file schema.sql --remote
+#   wrangler deploy
+#
+# Everything here is free-tier: Workers 100k requests/day, D1 5M reads-writes/month. A handshake costs ~70
+# requests, so this is ~1,400 games a day. A Worker over its limit is throttled, never billed.
+name = "cardmen-relay"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+[[d1_databases]]
+binding = "DB"                 # available as env.DB in worker.js
+database_name = "cardmen-relay"
+database_id = "c719b028-2a50-4363-9978-493866d433dc"

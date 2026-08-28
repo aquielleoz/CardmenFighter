@@ -8,3 +8,17 @@ shot*.png
 # scratch probes — throwaway debug harnesses, never part of the suite
 code/_*.js
 _*.js
+# wrangler LOCAL state — its account cache holds the Cloudflare account id and name. Not a credential (no
+# token lives here), but identifying, and there is no reason for it to be public. `wrangler.toml` itself IS
+# committed on purpose: a database_id is an identifier that grants nothing without account auth, and that is
+# Cloudflare's own documented pattern.
+.wrangler/
+.dev.vars
+.dev.vars.*
+# credentials, categorically. See the SECRETS section in CLAUDE.md for the rule these enforce.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+credentials.json
