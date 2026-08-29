@@ -257,6 +257,44 @@ const CASES=[
     await p.context().close();
   }
 
+  /* ---- PEEK AT THE TABLE: EVERY CONTROL MUST BE CLICKABLE -------------------------------------------------
+     Peek works by making `.overlay` nearly invisible (`rgba(10,4,16,.14)`, no blur) and LIFTING the panels above
+     it. Those lifts were hardcoded — 35 for the panels, 60 for ↩ Back — and chosen when `.overlay` was 30.
+     v1.31.36 raised `.overlay` to 100000 so the rules panel would stop opening behind `#netroot`, and buried
+     every peek control under a backdrop you can see straight through: the board stayed fully legible and
+     nothing responded. Aj: "trapped in limbooooo".
+     NO DOM ASSERTION CAN SEE THIS. The elements are present, styled and wired; only a hit test can tell you
+     what is actually on top. Since v1.31.61 the layers derive from `--zNetroot`, so this also guards the
+     derivation — if someone reintroduces a bare number, one of these goes red.
+     LIMIT, stated so nobody trusts it too far: this stages the peek CLASSES rather than finishing a duel and
+     pressing 👁 Peek, because the stacking is pure CSS. It does not cover a JS regression in `enterPeek`
+     itself (e.g. `#peekBar` never being created). */
+  for(const [w,h,what] of [[390,780,'phone'],[1280,800,'desktop']]){
+    const p=await open(w,h,2); const tag=`peek ${what} ${w}x${h}`;
+    const rows=await p.evaluate(()=>{
+      const ov=document.getElementById('overlay');
+      ov.classList.add('show'); ov.classList.add('peeking');
+      document.body.classList.add('peeking-board');
+      if(!document.getElementById('peekBar')){
+        const bar=document.createElement('button'); bar.id='peekBar'; bar.className='peekBar'; bar.innerHTML='↩ Back';
+        document.body.appendChild(bar); }
+      const hit=(el,label)=>{ const rc=el.getBoundingClientRect();
+        if(rc.width<2||rc.height<2) return {label, skipped:true};      // e.g. #cardView: the description row is dropped on a phone
+        const cx=Math.round(rc.left+rc.width/2), cy=Math.round(rc.top+rc.height/2);
+        const top=document.elementFromPoint(cx,cy);
+        return {label, z:getComputedStyle(el).zIndex,
+                topEl: top?(top.id||top.tagName.toLowerCase()):'null',
+                reaches: !!(top && (el===top || el.contains(top) || top.contains(el)))}; };
+      const out=[];
+      ['peekBar','logWrap','handWrap','cardView'].forEach(id=>{const el=document.getElementById(id); if(el) out.push(hit(el,'#'+id));});
+      const card=document.querySelector('#hand .card'); if(card) out.push(hit(card,'a hand card'));
+      return out;
+    });
+    rows.filter(r=>!r.skipped).forEach(r=>
+      ok(r.reaches, `${tag}: ${r.label} is clickable (z ${r.z}, topmost there: ${r.topEl})`));
+    await p.context().close();
+  }
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

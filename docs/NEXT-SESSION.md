@@ -329,7 +329,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   **UNVERIFIED LEAD:** the earlier "netplay battle log does not scroll" report may not be a netplay divergence
   at all — `#log` is `overflow-y:auto` with no netplay override, so a `min-height:0` chain broken by the
   `.fighter` overflow is a plausible shared cause. Measure before filing it as netplay-specific.
-- **PEEK-AT-THE-TABLE IS DEAD: EVERY CONTROL IS BLOCKED — A REGRESSION FROM v1.31.36** (Aj, 2026-08-29:
+- **~~PEEK-AT-THE-TABLE IS DEAD: EVERY CONTROL IS BLOCKED~~ SHIPPED in v1.31.61** (Aj, 2026-08-29:
   *"after the duel ended and i could look back on the table to check, i could not click logs or back… trapped in
   limbooooo"*). **Hit-tested, not inferred**, at 390x780 with `elementFromPoint` at each control's centre:
   ```
@@ -1088,6 +1088,38 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.61 — peek at the table works again, and the stacking derives from one number
+
+Peek makes `.overlay` nearly invisible (`rgba(10,4,16,.14)`, no blur) and **lifts the panels above it**. Those
+lifts were hardcoded — 35 for the panels, 60 for ↩ Back — and chosen when `.overlay` was **30**. v1.31.36 raised
+`.overlay` to 100000 so the Custom rules panel would stop opening behind `#netroot`, and buried every peek
+control under a backdrop you can see straight through. Hit-tested at 390×780 before the fix: `#peekBar`,
+`#logWrap`, `#handWrap` and the hand all returned **`div#overlay`** as the topmost element at their own centre.
+The board was fully legible and nothing responded. Aj: *"trapped in limbooooo"*.
+
+**Fixed by derivation, not by re-tuning.** Four layers that only make sense relative to each other now come from
+one number:
+
+```css
+--zNetroot:99999;                        /* the netplay lobby covers the board            */
+--zOverlay:calc(var(--zNetroot) + 1);    /* a dialog must outrank the lobby (v1.31.36)    */
+--zPeek:calc(var(--zNetroot) + 2);       /* peek's panels must outrank the dialog backdrop */
+--zPeekBar:calc(var(--zNetroot) + 3);    /* ↩ Back must outrank the lifted panels          */
+```
+
+The next person to raise the overlay carries peek along automatically — the same reasoning as the version stamp
+being read from README rather than declared twice. **Do not reintroduce a bare number there.**
+
+**`#cardFull` joins the lift.** The hand stays tappable during peek, so 🔍 View card can open the full-screen
+reader — and at its own `z-index:37` that reader would have opened *behind* the peek backdrop. Same bug, one
+layer along, and it had never been reported because peek was unusable anyway.
+
+`landscapetest` grew nine hit-tests (108 → 117) at phone and desktop. **No DOM assertion can see this** — the
+elements are present, styled and wired; only `elementFromPoint` says what is actually on top. Verified by
+restoring the hardcoded values: nine assertions go red, each naming `overlay` as the topmost element. Its stated
+limit: it stages the peek *classes* rather than finishing a duel and pressing 👁 Peek, because the stacking is
+pure CSS — it does not cover a JS regression inside `enterPeek` itself.
 
 ### v1.31.60 — "↓ New" is reachable, and reading history no longer yanks you away
 
