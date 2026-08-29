@@ -2397,7 +2397,19 @@ __QR__
   }
 
   /* ---- battle log ---- */
-  function logAtBottom(){ var l=$('log'); return l.scrollHeight - l.scrollTop - l.clientHeight < 80; }   // tolerate one tall entry so auto-follow doesn't drop off
+  /* "Am I still following the newest entry?" The slack exists so ONE tall entry appearing does not drop you out
+   * of auto-follow — but as a flat 80px it was wrong whenever the log overflowed by LESS than that: every
+   * scroll position then reads as "at the bottom", so `setLogNewBtn(true)` is unreachable and the ↓ New button
+   * can never appear. Measured on desktop with a real game: 13 lines overflow by 23px, and scrolled fully to
+   * the TOP the old test still returned true. Aj found it (2026-08-29) — reported as a netplay gap, reproduces
+   * in solo, because this is shared code.
+   * The slack is therefore capped by how far the log can actually scroll: never more than half the range, so
+   * "top" and "bottom" stay distinguishable no matter how short the history is. */
+  function logAtBottom(){
+    var l=$('log'), max=l.scrollHeight-l.clientHeight;
+    if(max<=0) return true;                                     // nothing to scroll — you are always at the newest
+    return (max - l.scrollTop) < Math.min(80, max/2);
+  }
   function setLogNewBtn(show){ var b=$('logNewBtn'); if(b) b.classList.toggle('show', show); }
   function scrollLogToBottom(){ var l=$('log'); l.scrollTop=l.scrollHeight; setLogNewBtn(false); }
   // Reader-relative name for a seat in OUR frame: yourself is "You", and a duel's opponent is "Rival"
