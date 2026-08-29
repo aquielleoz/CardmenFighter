@@ -165,10 +165,68 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
-- **A CLIENT CAN GET STUCK UNDER THE "You seize the initiative!" DIM** (Aj, 2026-08-28, screenshot: the client's
-  whole play area dimmed behind the banner while the host showed a finished game). The stage effect never
-  cleared, so the board is unreadable and unusable. A banner is a transient; anything that dims the board needs
-  a guaranteed teardown, not one that depends on a following event arriving.
+- **A CLIENT GETS STUCK UNDER THE "X seizes the initiative!" DIM — MECHANISM FOUND, 2026-08-29.** Reported
+  twice by Aj with screenshots (the second: his own phone, play area dimmed behind the banner, hand still fully
+  usable underneath). Not a wedge and not a transport problem — `#roundfx` is `position:absolute; inset:0`
+  inside the play area, so a stuck banner dims and eats clicks on the pile while the hand below keeps working.
+  That signature is diagnostic: **board dead but hand alive means the banner, not `busy`.**
+  **The chain.** `playPreBeats` deliberately LEAVES the banner up on its last beat ("seizes the initiative") so
+  the Round-N plate can swap into it. On a client the ONLY thing that then takes it down is
+  `revealRound()` -> `playRoundCardBeat()`, and `revealRound` is reached from exactly two places, both gated on
+  **`handGrew(st)`** — `st.players[0].hand.length > state.players[0].hand.length`:
+  ```
+  finishClientCeremony()  -> pendingRoundMirror set by applyMirror's handGrew gate
+  applyMirror()           -> awaitingRoundReveal && handGrew(st)
+  ```
+  `finishClientCeremony`'s else branch starts a 2500ms timer that clears `awaitingRoundReveal` **and nothing
+  else** — its own comment claims it will "drop the banner after a beat", and it does not. So when `handGrew`
+  is false for the new-round mirror, no path ever calls `clearRoundfx()` and the dim is permanent.
+  **`handGrew` is false whenever the end-of-round trim is at least as big as the draw**, which is common and
+  not an edge case: `discardToLimit` runs BEFORE `roundDraw`, so a client at or over `MAX_HAND` trims to 10 and
+  draws back to 10 — equal, not greater. Aj's screenshot shows him holding ~11 cards. See also CLAUDE.md: a
+  player is on turn with more than ten cards on **78%** of turns.
+  **The fix is not the overhaul** (below) — the else branch must `clearRoundfx()` when its timer expires, so
+  the teardown is unconditional. But the CLASS of bug is exactly what Aj identified: the client is **inferring
+  host progress from the SHAPE of a mirror**. Hand size is a proxy for "the new round was dealt", and proxies
+  fail. The principled version is to have the host say so — a flag on the mirror, or the existing `t:'ceremony'`
+  event carrying the deal — rather than have the client guess.
+  **Assert the teardown, not the banner.** A test that waits for the banner to appear and passes would pass on
+  the broken build; poll for `#roundfx` losing `.show` within a bound, and stage the trim>=draw case explicitly
+  by forcing an over-cap client hand.
+- **AJ'S "DEMOTE CLIENTS TO RENDER + INPUT" PROPOSAL — mostly already true, and the residue is the real bug.**
+  (Aj, 2026-08-29: *"maybe we can demote clients to just be renders and input collection. nothing is decided
+  clientside."*) Worth writing down so it is not re-argued from scratch:
+  - **For game STATE this already holds.** `applyMirrorNow` does `state=st` wholesale from the host, and every
+    client input leaves as an intent through `clientSend`. Since v1.31.54 a stale-stamped intent is refused, and
+    `resolveIds` drops fabricated cards. The client decides nothing about the game.
+  - **The residue is the PRESENTATION layer**, and it cannot simply be moved to the host: the ceremony is a
+    750ms-per-beat animation, so it has to be sequenced locally. What must stop is the client's little
+    state machine (`clientCeremonyActive` / `pendingRoundMirror` / `awaitingRoundReveal`) **inferring** where
+    the host is from `handGrew`. Host sends events; client sequences them; client never guesses.
+  - So the overhaul as stated is not needed. The narrower rule that would have prevented this bug, the double
+    narration (v1.31.53) and the stale-board actions (v1.31.54) alike: **a client may sequence, but never
+    infer.**
+- **"← Leave online" OVERLAPS THE HEADER BUTTONS** (Aj, 2026-08-29, screenshot: it sits on top of Concede and
+  the 💡/🔊/⚙️ row on a phone). It is `position:fixed; top:10px; right:10px` on `<body>` — a floating overlay
+  with no awareness of the layout under it, deliberately outside `#netroot` (which `renderNet` rewrites) so it
+  stays reachable. On a desktop header there is room; on a phone the header wraps to ~92px and the button lands
+  on the controls.
+  **It is NOT redundant with Concede, and that is why it cannot simply be deleted.** They act at different
+  levels: `newBtn` is "🏳 Concede" mid-game (forfeit — for a host, `hostConcede` eliminates itself but keeps
+  refereeing) and "New Duel" otherwise; `netLeave` drops the relay room, closes the transport and exits online
+  play entirely. Leave is also the only exit **in the lobby**, where there is no game to concede — and, until
+  the stale-win-page bug below is fixed, the only way off the end screen.
+  **The fix that removes the overlap rather than moving it:** make it a real header button instead of a fixed
+  overlay, and give `refreshNewBtn` a third state — online + game live -> "🏳 Concede", online + no live game
+  (lobby, or after the end screen) -> "← Leave online". One slot, no overlap, and it lands on the stale-win-page
+  bug from the other side. Keep it out of `#netroot` either way.
+- **THE EMOTE BAR OVERLAPS THE ACTION BUTTONS** (Aj, 2026-08-29, screenshot: 💬 sitting on top of `Pass`). Same
+  root cause as the Leave button and worth fixing in the same pass — `#emoteBar` is `position:fixed; left:10px;
+  bottom:10px`, and on a phone the bottom-left of the viewport is exactly where `#actions` renders. The phone
+  media query already collapses it to a single 💬 (a 7-button row would eat the board), so the size is not the
+  problem; the corner is. Either dock it into the `#actions` row (it is netplay-only, so the row is free to
+  gain a member there) or reserve space for it. `landscapetest` is the suite that will catch a regression, since
+  it owns the vertical stack.
 - **NOBODY IS TOLD WHEN ANOTHER PLAYER IS DISCARDING TO HAND SIZE** (Aj: *"the other players don't [get] a prompt
   saying somebody is still discarding down to max hand... it's just uhhh what's happening in the middle of
   rounds"*). The discarding seat sees its own prompt; everyone else sees an unexplained pause mid-round.
@@ -192,16 +250,19 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   host sat at round 5 and the last applied mirror said round 5.
   **Two candidate paths log the same event:** `clientPlayCeremony` -> `announceRoundWin` -> `say()` (local,
   rotated from the ceremony payload) and the host`s own `say()` broadcast.
-  **BUT THAT FIX WAS TRIED AND REVERTED, because the A/B was null.** Suppressing the local `say()` on a client
-  changed nothing measurable: round-result line counts are already EQUAL on both sides locally (7 vs 7), so the
-  duplication does not reproduce here at all. It also carries a real cost — a client would then depend entirely
-  on the broadcast, and a dropped message silently loses a log line. **Do not re-apply it without a
-  reproduction.**
-  **What is needed is a repro, not another theory.** Five inference-only diagnoses have now been wrong (ghost
-  tabs, an AI game, `started`, the local-engine fall-through, the double `say`). The distinguishing conditions
-  in Aj`s sessions and not in `nettest_sync`: a real phone, mobile data, real latency, and repeated
-  disconnect/reconnect cycles. **Try driving nettest_sync with induced disconnects** (`__cmf.drop`/`reconnect`
-  exist) — the reconnect path replaying a ceremony is the most promising untested lead.
+  **RESOLVED in v1.31.53 (`sayOnce`), after one wrong revert worth remembering.** The fix was first applied,
+  then reverted on a NULL A/B — and the A/B was the thing that was wrong, not the fix. It measured **adjacent**
+  duplicate log lines, and the two copies are not adjacent: the catch-up line sits between them, so the probe
+  reported zero on a genuinely doubled log. **The right metric is the COUNT RATIO against the host**, which is
+  the authority (host 5/5 vs client 10/10). `nettest_sync` asserts it now. The perspective mangling in the
+  quoted lines was the separate v1.31.53 grammar bug (templates branching on `q===YOU`, fixed by moving every
+  broadcast template to past tense), and `Pair (NaN, NaN)` was the client narrating a play the host had already
+  thrown away via `resolveIds` — diagnosed by Aj.
+  **Still open from this pair of logs:** the header reading **Round 8 — YOU WON** while the host sat at round 5.
+  The stale-mirror guard (v1.31.54) and the ceremony-teardown bug above are both candidates; neither has been
+  shown to produce it. The distinguishing conditions in Aj's sessions and not in `nettest_sync` remain: a real
+  phone, real latency, and repeated disconnect/reconnect cycles. **Driving `nettest_sync` with induced
+  disconnects** (`__cmf.drop`/`reconnect`) is still the most promising untested lead.
 - **THE FORK IS NOT THE LOCAL-ENGINE FALL-THROUGH. The trace killed that theory (2026-08-28, second pair of
   logs).** Read these before theorising — they are the first evidence with instrumentation attached:
   ```
