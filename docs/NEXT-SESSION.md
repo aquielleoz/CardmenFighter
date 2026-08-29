@@ -165,7 +165,20 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
-- **★ ROOT CAUSE: DRAG-TO-PLAY BYPASSES NETPLAY ENTIRELY** (Aj, 2026-08-29, found by observation: *"it lagged
+- **`nettest_clientfork.js` WAS DELETED — its premise was invalid, but its INTENT is now proven.** It was
+  written on 2026-08-28, abandoned the same day, and then swept onto `main` by accident in PR #82. It lands
+  **4 FAIL**, is listed in no doc, and its own summary line prints `FAIL: 6  FAIL: 4` because the pass label is
+  wrong — a red unlisted suite on main is pure cost to whoever runs the next sweep.
+  **Why the method was wrong:** it forced `started=false` to fake "a live client board acting on its own", and
+  the next mirror sets `started=true` again, so the state it was testing cannot persist. Its first version also
+  clicked a **disabled** Fight button and counted the non-response as a refusal.
+  **Why it should be rebuilt anyway:** it was reaching for exactly the bug Aj found by playing — a client
+  resolving a round locally without the host. That bug is real, and the reachable path is **drag-to-play**, not
+  a forced flag. **Rebuild it against the drag path**: on a client, drag a card to the play zone and assert the
+  host saw an intent and the client's round did not advance on its own. That is a state the product can
+  actually reach, which is what the forced version never was.
+- **~~ROOT CAUSE: DRAG-TO-PLAY BYPASSES NETPLAY ENTIRELY~~ SHIPPED in v1.31.56** — see the changelog. The
+  **audit below is still open.** (Aj, 2026-08-29, found by observation: *"it lagged
   at the beginning as usual and then it suddenly went ok. the difference? i used the fight button. dragging to
   play only seems to work on the host."*). **Confirmed in code — one missing branch:**
   ```js
@@ -187,6 +200,17 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   sweep was never finished — this is the FOURTH site found in two days (drag-to-play, the human counter, the
   transform/Ride branch, and `logMsg` vs `say` generally). **Enumerate every player-initiated action and assert
   each one either sends an intent or is refused on a client.** No current suite drives the drag path at all.
+- **A FAILING SUITE'S SUMMARY LINE MISLABELS ITS PASS COUNT.** ~20 suites print
+  `console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail)`, so a failing run reads
+  **`FAIL: 11  FAIL: 4`** — which scans as fifteen failures. It is deliberate (the first label flips to FAIL as a
+  red flag) but it is confusing at exactly the moment clarity matters; both suites that failed on 2026-08-29 had
+  to be re-read to work out what happened. Suggest `FAILED — PASS: 11  FAIL: 4`. Low priority, ~20 files.
+- **`nettest_full` FAILED ONCE IN SEVEN RUNS on 2026-08-29 and was NOT fully cleared.** It went 4/1 immediately
+  after the v1.31.56 change, then 6/6 green. The failing assertion was **not captured**, which is the mistake to
+  avoid repeating. Structurally the change cannot reach it — on a client the only path into `playCards` is the
+  drag, and that suite drives clicks + Fight, which short-circuits in `doFight` — and the suite has a long
+  documented history of intermittency. Recorded as characterised-but-open rather than dismissed: **capture the
+  failing assertion next time it goes red.**
 - **HOST ACTIVATIONS (RIDE / TRANSFORM / INCARNATION) NEVER REACH THE CLIENT.** Same 2026-08-29 log pair: the
   client is missing *"called your Ride — Giant Ram enters the Zone"*, *"transformed — Pandora Form activated"*,
   *"transformed — Perseus Form"* and *"Transformation Requirements Complete! JQK — INCARNATION!"* — every one of
@@ -442,6 +466,19 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   refereeing) and "New Duel" otherwise; `netLeave` drops the relay room, closes the transport and exits online
   play entirely. Leave is also the only exit **in the lobby**, where there is no game to concede — and, until
   the stale-win-page bug below is fixed, the only way off the end screen.
+  **THIRD SYMPTOM, AND THE WORST ONE (Aj, 2026-08-29, while testing v1.31.56): it covers the card reader's
+  CLOSE button.** `#cardFull` is `z-index:37`; `#netLeave` is `99999` and pinned to the same top-right corner.
+  **Measured** at 390x780 with a hit-test sweep:
+  ```
+  close button   x[287..376]  89x38    covered 2669 of 3381 px2 = 79%
+  Leave online   x[259..380]  121x34   close button actually clickable: 17%
+  ```
+  Only a thin strip along the bottom of the close button is reachable — and **the thing covering it is
+  destructive**: Leave online drops the relay room, closes the transport and reloads. So on a phone the failure
+  mode is not "stuck in the reader", it is **press what looks like Close and leave the game instead.** That
+  makes this item higher priority than a cosmetic overlap, and it is a mis-tap a real player will hit.
+  Aj: *"we can just do this together with that other item"* — agreed, the fix below removes all three symptoms
+  at once, because a header button cannot float over anything.
   **The fix that removes the overlap rather than moving it:** make it a real header button instead of a fixed
   overlay, and give `refreshNewBtn` a third state — online + game live -> "🏳 Concede", online + no live game
   (lobby, or after the end screen) -> "← Leave online". One slot, no overlap, and it lands on the stale-win-page
@@ -1015,6 +1052,31 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.56 — a dragged play goes through the host
+
+`doFight` carried an `isClientActive()` branch that sends an intent to the host; the **drag-to-play release
+called `playCards()` directly**, and `playCards` had no client guard. So on a netplay client a dragged play ran
+the **local engine**, never reached the host, and left the client narrating a round the host never saw.
+
+That one missing branch accounts for a long tail of reports: phantom rounds in the client's battle log
+(`You played a Jab - 7♦` / `Rival passed` / a duplicated `Round 2 begins`), `Pair (NaN, NaN)`, a client that
+appears to "race to the game end", and the "lag" that cleared the moment Aj switched to the Fight button.
+
+**Aj found it by changing his own behaviour and watching the symptom move** — the Fight button worked, dragging
+did not. That is a cleaner experiment than anything the instrumentation produced, and it beat several days of
+theorising about the transport.
+
+The guard now lives in **`playCards`**, the one function that actually plays cards, rather than at each entry
+point — `sendClientPlay()` is the single definition and `doFight` calls it too (it must still short-circuit
+early, because everything below it is host/rival pre-fight logic a client must never run). Any future way to
+play a card is covered for free.
+
+**`nettest_drag.js` (13) is the first suite to drive the drag path at all**, which is why this survived twenty
+green netplay suites. It asserts both directions — the client sends an intent and the host receives it, and the
+host's own dragging still works — and it was **verified by reintroducing the bug**: the two discriminating
+assertions (`clientSend play` in the trace, and the host's board showing the play) both go red, while the
+others stay green.
 
 ### v1.31.55 — the second name in a line travels as a seat
 

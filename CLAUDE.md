@@ -104,6 +104,9 @@ node nettest_sync.js         # THE CROSS-CHECK: plays a real game over the ROOM 
                              # (count ratio vs the host, never adjacency) — against
                              # the other's actual hand (7). The only suite that compares the two ends to each
                              # OTHER rather than to expectations. Reaches round ~14 in ~50 actions.
+node nettest_drag.js         # DRAG-TO-PLAY must go through the host (13). The first suite to drive the drag
+                             # path at all — clicking Fight exercises a DIFFERENT branch, which is why a client
+                             # playing locally survived twenty green suites.
 node nettest_relay.js        # THE ROOM-CODE PATH end to end: host shows four characters, joiner types them, a
                              # real DataChannel opens with nothing pasted (14). Drives relay/mock.js, and also
                              # asserts the FALLBACK both ways — norelay=1 and a dead relay.
@@ -371,6 +374,21 @@ larger version and an incomparable number.
   the moment codes shrank. `/^C1~o~/` and `/^C1~a~/` are stronger anyway — a length floor passes on a garbled
   code of the right size.
 - Text, not bit-packing, on purpose: people paste this into chats by hand.
+
+**EVERY WAY TO PERFORM AN ACTION NEEDS THE CLIENT GUARD, AND THE GUARD BELONGS AT THE FUNNEL (v1.31.56).**
+`doFight` carried an `isClientActive()` branch that sends an intent; the **drag-to-play release called
+`playCards()` directly** and `playCards` had none, so a dragged play on a client ran the local engine and never
+reached the host — phantom rounds in the client's log, `Pair (NaN, NaN)`, a client "racing to the game end".
+`sendClientPlay()` is now the single definition and the guard sits in **`playCards`**, so a new entry point is
+covered for free; `doFight` still short-circuits early because everything below it is host/rival pre-fight logic
+a client must never run.
+**Aj found it by changing his own behaviour and watching the symptom move** — Fight worked, dragging did not.
+That is an A/B, and it beat days of theorising about the transport. **A UI affordance that no suite drives is
+untested however green the suite list looks**: clicking Fight and dragging are different branches, and only one
+was ever exercised.
+**THE SWEEP IS NOT FINISHED.** Guards were added per entry point, and four sites have now been found (drag-to-play,
+the human counter, the transform/Ride branch, and the N-player host's `logMsg` play line). Enumerate every
+player-initiated action and assert each one either sends an intent or is refused on a client.
 
 **Netplay must be startable WITHOUT navigating.** `NET.start(role, kind, opts)` enters it in place; `?net=`
 still works and every `nettest_*` suite uses it, but the UI buttons must never set `location.search` — on
