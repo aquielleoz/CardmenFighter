@@ -219,6 +219,31 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   **UNVERIFIED LEAD:** the earlier "netplay battle log does not scroll" report may not be a netplay divergence
   at all — `#log` is `overflow-y:auto` with no netplay override, so a `min-height:0` chain broken by the
   `.fighter` overflow is a plausible shared cause. Measure before filing it as netplay-specific.
+- **THE PLAY AREA IS CLOBBERED ON A NARROW PHONE — HORIZONTAL, NOT VERTICAL** (Aj, 2026-08-29, screenshot at
+  ~327 CSS px: "Round 6" written over the pile label, the rival's FORMS & RIDES header over the pile cards, and
+  the Hero's Javelin equip card covering the right half of a Full House). `#table` is a centred flex column with
+  **four absolutely-positioned overlays pinned to its corners**:
+  ```css
+  #roundTag {position:absolute; top:6px; left:12px}
+  .formZone {position:absolute; left:8px;  max-width:min(46%,188px)}
+  .equipZone{position:absolute; right:8px; max-width:min(48%,180px)}
+  #beaten   {position:absolute; top:50%;   left:12px}
+  ```
+  **Measured:** `#table` is **257px** wide at that viewport, so the two side zones are allowed
+  `min(46%,188)=118` + `min(48%,180)=123` = **241px, i.e. 94% of the play area**, leaving 16px in the middle for
+  a five-card Full House that needs ~200. The pile has nowhere to go but underneath them.
+  The tell is already in the source: `#beaten` carries the comment *"center-left: clears the rival Forms zone
+  (top-left) and your Forms zone (bottom-left)"* — a **hand-tuned corner arrangement that assumes a
+  desktop-width table.** At 257px the corners ARE the middle.
+  **THE FIX HAS A PRECEDENT IN THIS FILE ALREADY:** `.oppPanel .oppZones .formZone{position:static; left:auto;
+  right:auto; top:auto; bottom:auto; max-width:100%;}` — the opponents strip de-absolutes the same zone when it
+  renders inline. Do that at phone width so the zones flow and the pile owns the centre.
+  **AJ'S COLLAPSING-HAND PROPOSAL WAS CONSIDERED AND DECLINED** (*"make the hand collapse like the mobile
+  keyboard … this will mean that the drag to play functionality will be lost"*). It does not address this cause:
+  the collision is horizontal, between edge-pinned overlays and the centred pile, so more vertical space does
+  not separate them — it would cost drag-to-play and leave the pile clobbered. Recorded so it is not re-proposed.
+  Vertical space IS genuinely tight (see the 340px floor and `landscapetest`), but the hand is the thing a card
+  player looks at most, so it is the wrong first lever; the secondary chrome is the cheap one.
 - **THE PLAYER'S OWN INFO ROW OVERFLOWS THE VIEWPORT ON EVERY PHONE WIDTH** (Aj, 2026-08-29: *"the hand
   information just bleeds into outer space on my small mobile screen"*, screenshot: the board scrolled sideways
   with the header still square, content cut off at the left and dead space at the right). **MEASURED, not
