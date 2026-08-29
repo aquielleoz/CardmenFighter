@@ -228,6 +228,26 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   duel to a finish, start a second one without leaving, and watch whether `endGame()` is re-entered (a
   breakpoint or a `trace()` in `endGame` will say immediately). If it is, giving the client a `gen++` on the
   first mirror of a new game is the fix; if it is not, look at what re-shows the overlay instead.
+- **PEEK IS NOT A REAL REVIEW MODE YET — three gaps the z-index fix did NOT close** (found 2026-08-29 by
+  sweeping EVERY interactive element during peek, after Aj asked *"is that all the peeks?"* — the honest answer
+  was no). Hit-tested at 1280x800: **9 of 26 elements blocked at 2 players, 13 of 32 at 4**. Most are correct —
+  the header, and `#ctxBtn`, since `body.peeking-board #actions` is deliberately `pointer-events:none`. These
+  three are not:
+  - **THE PILE VIEWERS ARE REACHABLE BUT INVISIBLE, and this one gates the others.** Clicking `#youNrgBtn`
+    during peek populates the modal and never shows it — `.overlay.peeking .modal{display:none}` hides it, and
+    nothing clears `peeking`. Measured: `modalHasContent:true, modalVisible:false`. The button looks live and
+    silently does nothing. Same for `#youShufBtn`.
+  - **THE OPPONENTS' PANELS ARE NEVER LIFTED**, so `#rival` / `.oppPanel` and their `⚡` buttons sit under the
+    backdrop. You can inspect your OWN energy pile during peek and not theirs, which is backwards for a review
+    mode — the code itself calls energy piles *"open information"*.
+  - **`.peekBar` physically covers `#ctxBtn`.** Harmless today (the action row is disabled during peek) but it
+    is an overlay sitting on a control, which is the exact shape of the two bugs fixed in v1.31.57.
+  **DO NOT FIX THE SECOND WITHOUT THE FIRST.** Lifting the opponents' panels while the viewers are still
+  swallowed just adds more buttons that look live and do nothing — strictly worse than being unreachable.
+  **The design question to settle first:** should a pile viewer opened during peek exit peek (simple, but it
+  drops the end screen you came from and the ↩ Back that returns to it), or should peek allow a *deliberately*
+  opened modal to show (needs `.overlay.peeking .modal{display:none}` to distinguish "the dialog peek hid" from
+  "a dialog the player just asked for")? The second is the better mode and the more invasive change.
 - **THE CLIENT NEVER PLAYS THE FIGHTER KICK FINISHER — THE CEREMONY IS SENT ONE LINE TOO LATE** (Aj,
   2026-08-29: *"the client didn't play the rider kick animation even tho they won"*). **Three sites, identical
   shape**, and the terminal `return` fires before the send:
