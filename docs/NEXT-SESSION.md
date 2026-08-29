@@ -165,6 +165,413 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **★ ROOT CAUSE: DRAG-TO-PLAY BYPASSES NETPLAY ENTIRELY** (Aj, 2026-08-29, found by observation: *"it lagged
+  at the beginning as usual and then it suddenly went ok. the difference? i used the fight button. dragging to
+  play only seems to work on the host."*). **Confirmed in code — one missing branch:**
+  ```js
+  doFight()      if(NET.isClientActive()){ NET.clientSend({op:'play', ids:ids}); ... return; }   // host authority
+  onPointerUp()  if(d.playZone==='ok' && groupById(d.gid)){ playCards(...); return; }            // NO client branch
+  ```
+  `playCards` has no client guard either, so a dragged play on a client **runs the local engine and never sends
+  an intent**: the client mutates its own mirror, narrates locally, and the host never hears about it.
+  **This one line accounts for most of the netplay weirdness reported since v1.31.49:**
+  - the phantom round in Aj's client log — `You played a Jab - 7♦` / `Rival passed` / `Round 2 begins`, a whole
+    local round resolution absent from the host's log, with `Round 2 begins` then appearing TWICE;
+  - **the fingerprint to look for: that line says "Rival passed" where every other client line says
+    "Lady Eduardo"** — a generic `logName` means a LOCAL line, not a host broadcast. Use it to tell a local
+    resolution from a mirrored one in any future log;
+  - `Pair (NaN, NaN)` — a local play resolved against a redacted mirror;
+  - *"the client just races to the game end"*;
+  - the "lag" that cleared when he switched to the Fight button.
+  **THE REAL LESSON IS THE AUDIT, NOT THE LINE.** `isClientActive()` guards were added per entry point and the
+  sweep was never finished — this is the FOURTH site found in two days (drag-to-play, the human counter, the
+  transform/Ride branch, and `logMsg` vs `say` generally). **Enumerate every player-initiated action and assert
+  each one either sends an intent or is refused on a client.** No current suite drives the drag path at all.
+- **HOST ACTIVATIONS (RIDE / TRANSFORM / INCARNATION) NEVER REACH THE CLIENT.** Same 2026-08-29 log pair: the
+  client is missing *"called your Ride — Giant Ram enters the Zone"*, *"transformed — Pandora Form activated"*,
+  *"transformed — Perseus Form"* and *"Transformation Requirements Complete! JQK — INCARNATION!"* — every one of
+  which the host logged. Cause is two adjacent branches of one function:
+  ```js
+  logMsg('<b>You</b> transformed — <b>'+eff.name+'</b> activated.', 'you');   // ~3433 host-local + hardcoded name
+  say(YOU, '{who} played '+effPhrase(card)+'.', 'you');                       // ~3440 broadcasts correctly
+  ```
+  **This is why the ROAR/INCARNATION banner appeared a whole round late on the client** (Aj, earlier): the host
+  never tells it, so the client falls back to deriving the unlock from its own shield diff in
+  `animateShields -> checkThresholds`, which is drained only at the next ceremony gap.
+- **"You is out!" — a v1.31.55 RESIDUE.** `sayOnce(w, '💥 {who} landed the FIGHTER KICK — {foe} is out!')`.
+  Past tense was applied to the ACTOR's verb and the **copula on `{foe}` was missed**, so a client reading itself
+  as `{foe}` gets "You is out!". Sweep every template for a verb attached to `{foe}`, not just to `{who}`.
+- **THE NETPLAY "LAG" IS A RE-RENDER STORM, AND IT IS MEASURED.** From the client trace: between 399.6s and
+  442.4s the client received and APPLIED dozens of mirrors that were all `q=19`, same round, same turn, same hand
+  — each one a full `render()`. Same at `q=20` (~22 mirrors over 30s).
+  **THE OBVIOUS FIX IS WRONG:** dropping a mirror whose `q` is not newer would discard REAL updates, because
+  **`stateSeq` is a client-intent counter, not a state version.** It is bumped only in `hostApplyMove`, so the
+  host's own plays and the round draw do not advance it — visible in the trace as the same `q=29` carrying
+  `myHand=7` and then `myHand=9`. Fix the stamp first (bump on every applied state change), then dedupe.
+- **CORRECTION — THE STALE-INTENT GUARD IS NOT FREE.** CLAUDE.md and the v1.31.54 note record *"Measured cost:
+  zero (9 sends, 9 received, 0 refused in a full game)"*. **In Aj's real game it refused five moves:** three
+  emotes (`q=0`, `q=9`, `q=10`) and **two passes** (`q=11`, `q=14`) — a player pressing Pass and nothing
+  happening. The lab measurement was taken on a machine with no latency and is not representative.
+  **An emote must never be stamped at all** — it is not formed against a board, it is handled ahead of every turn
+  gate by design, and refusing one is meaningless. Once the stamp counts real state changes it will also refuse
+  far more often, so this needs fixing in the same pass.
+- **A CLIENT GETS STUCK UNDER THE "X seizes the initiative!" DIM — MECHANISM FOUND, 2026-08-29.** Reported
+  twice by Aj with screenshots (the second: his own phone, play area dimmed behind the banner, hand still fully
+  usable underneath). Not a wedge and not a transport problem — `#roundfx` is `position:absolute; inset:0`
+  inside the play area, so a stuck banner dims and eats clicks on the pile while the hand below keeps working.
+  That signature is diagnostic: **board dead but hand alive means the banner, not `busy`.**
+  **The chain.** `playPreBeats` deliberately LEAVES the banner up on its last beat ("seizes the initiative") so
+  the Round-N plate can swap into it. On a client the ONLY thing that then takes it down is
+  `revealRound()` -> `playRoundCardBeat()`, and `revealRound` is reached from exactly two places, both gated on
+  **`handGrew(st)`** — `st.players[0].hand.length > state.players[0].hand.length`:
+  ```
+  finishClientCeremony()  -> pendingRoundMirror set by applyMirror's handGrew gate
+  applyMirror()           -> awaitingRoundReveal && handGrew(st)
+  ```
+  `finishClientCeremony`'s else branch starts a 2500ms timer that clears `awaitingRoundReveal` **and nothing
+  else** — its own comment claims it will "drop the banner after a beat", and it does not. So when `handGrew`
+  is false for the new-round mirror, no path ever calls `clearRoundfx()` and the dim is permanent.
+  **`handGrew` is false whenever the end-of-round trim is at least as big as the draw**, which is common and
+  not an edge case: `discardToLimit` runs BEFORE `roundDraw`, so a client at or over `MAX_HAND` trims to 10 and
+  draws back to 10 — equal, not greater. Aj's screenshot shows him holding ~11 cards. See also CLAUDE.md: a
+  player is on turn with more than ten cards on **78%** of turns.
+  **The fix is not the overhaul** (below) — the else branch must `clearRoundfx()` when its timer expires, so
+  the teardown is unconditional. But the CLASS of bug is exactly what Aj identified: the client is **inferring
+  host progress from the SHAPE of a mirror**. Hand size is a proxy for "the new round was dealt", and proxies
+  fail. The principled version is to have the host say so — a flag on the mirror, or the existing `t:'ceremony'`
+  event carrying the deal — rather than have the client guess.
+  **Assert the teardown, not the banner.** A test that waits for the banner to appear and passes would pass on
+  the broken build; poll for `#roundfx` losing `.show` within a bound, and stage the trim>=draw case explicitly
+  by forcing an over-cap client hand.
+  **Seen TWICE in one game** (Aj, 2026-08-29, second screenshot at round 7 with the log panel open): it is not
+  a one-off race, it recurs within a single session, and it compounds every other bug — Aj could not see the
+  counter in the entry below *because the play area was dimmed at the time.* Treat it as the highest-priority
+  netplay fix: it is cheap, and it is currently hiding other failures from the only person testing on real
+  devices.
+- **NETPLAY AND SOLO SHARE THE LAYOUT AND THE CONTROLS. THEY DIVERGE IN EXACTLY TWO SEAMS** (Aj, 2026-08-29:
+  *"i always wondered why we're not using the same layouts and controls in netplay and solo"* — the answer is
+  that we do, and today proved it: the `.fighter` overflow above reproduces in SOLO). Verified, not assumed:
+  `applyMirrorNow` does `state=st` then calls the same global `render()`, and `clientCheckWindow` dispatches to
+  the same five solo prompts (`promptHumanResponse` / `openShieldGuardModal` / `promptHumanDiscard` /
+  `promptLossTarget` / `promptHumanPreFight`) with the buttons gated to send intents. **Every netplay bug filed
+  today sits in one of the two seams, so this is the map to check a new one against:**
+  - **Netplay-only chrome bolted on OUTSIDE the layout** — `#netLeave` and `#emoteBar` are `position:fixed` on
+    `<body>`, deliberately outside `#netroot` because `renderNet` rewrites it, so they cannot be pushed out of
+    the way by anything. The Leave-button and emote-bar overlaps are both this.
+  - **The orchestration spine** — two ceremony drivers (`resolveRoundCeremony` vs `clientPlayCeremony`) and two
+    narrators (`logMsg` vs `say`). The stuck dim and the unnarrated counter are both this.
+  The two drivers share the BEATS; what diverges is how each advances between them — solo calls the engine, the
+  client waits for a mirror and **infers** what it meant (`handGrew`). That inference is the bug.
+  **This is the argument for Aj's animation queue:** it makes the spine identical (an ordered event stream) and
+  leaves only the event SOURCE different. Precedent that it works: `buildOppBeats` was extracted for exactly
+  this reason — the free-for-all driver only logged, so every readability feature was silently missing at 3-6
+  players.
+  **UNVERIFIED LEAD:** the earlier "netplay battle log does not scroll" report may not be a netplay divergence
+  at all — `#log` is `overflow-y:auto` with no netplay override, so a `min-height:0` chain broken by the
+  `.fighter` overflow is a plausible shared cause. Measure before filing it as netplay-specific.
+- **PEEK-AT-THE-TABLE IS DEAD: EVERY CONTROL IS BLOCKED — A REGRESSION FROM v1.31.36** (Aj, 2026-08-29:
+  *"after the duel ended and i could look back on the table to check, i could not click logs or back… trapped in
+  limbooooo"*). **Hit-tested, not inferred**, at 390x780 with `elementFromPoint` at each control's centre:
+  ```
+  element                  z-index   topmost element there   clickable?
+  .overlay (peek backdrop)  100000   div#overlay             YES
+  #peekBar                      60   div#overlay             BLOCKED
+  #logWrap / #handWrap          35   div#overlay             BLOCKED
+  #cardView                     35   div#overlay             BLOCKED
+  #hand .card                 auto   div#overlay             BLOCKED
+  ```
+  Peek works by making the overlay nearly invisible (`.overlay.peeking{background:rgba(10,4,16,.14);
+  backdrop-filter:none}`) and **lifting the panels above it** — `body.peeking-board` sets `#logWrap`/`#handWrap`/
+  `#cardView` to **35**, and `.peekBar` to **60**. Those constants were chosen when `.overlay` was **30**.
+  **v1.31.36 raised `.overlay` to 100000** so the Custom rules panel would stop rendering behind `#netroot`
+  (99999). That fixed the rules panel and buried every peek control under a backdrop you can see straight
+  through — the board is fully legible and nothing responds.
+  **The lesson was already written down and pointed at the wrong place.** CLAUDE.md's v1.31.36 entry says *"No
+  DOM assertion can see a stacking bug … hit-test it with `document.elementFromPoint`"*. That test was written
+  for the rules panel and never aimed at the OTHER thing the same change moved. **When a z-index is raised, hit
+  test every layer that was positioned relative to it — not just the one that prompted the change.**
+  **FIX BY DERIVATION, NOT BY RE-TUNING.** Two hardcoded constants drifting from a third is the whole bug, so
+  put the overlay's z-index in a custom property and set the peek layer to `calc(var(--zOverlay) + 1)` /
+  `+ 2`. Then the next person who raises the overlay carries peek mode along automatically — the same reasoning
+  as the version stamp being derived from README rather than declared twice.
+- **OPENING THE LOG ON A PORTRAIT PHONE MAKES THE GAME UNPLAYABLE** (Aj, 2026-08-29: *"logs don't scroll and
+  it's pushing out everything on my screen"*). Filed earlier as a netplay bug; it is **shared code — measured in
+  SOLO.** The log does not merely fail to scroll, it grows without bound and evicts the hand:
+  ```
+  portrait 360x740   rows: 4218.72px 324px   #log client=4173 scroll=4173  DOES NOT SCROLL
+                     hand row still on screen: FALSE
+  landscape 844x390  rows: 139.6px 161.4px   #log client=106 scroll=2963   scrolls
+  desktop 1280x800   rows: 455.1px 224.9px   #log client=421 scroll=2947   scrolls
+  ```
+  `#board` has no `overflow-y` in the portrait band, so the hand is not merely below the fold — it is
+  **unreachable**.
+  **THE FIX IS ALREADY IN THE STYLESHEET, IN ONE BAND ONLY:**
+  ```css
+  @media (max-width:720px)                          minmax(min-content,1fr) auto auto   <- unbounded
+  @media (max-width:720px) and (max-height:800px)   minmax(min-content,1fr) auto        <- unbounded
+  @media (orientation:landscape) and (max-height:520px)
+        #board{grid-template-rows:minmax(0,1fr) auto;}   /* minmax(0,...) - min-content was the SE overflow */
+  ```
+  `minmax(min-content,...)` lets the row grow to the log's full height. Someone hit this in the landscape band,
+  fixed it with `minmax(0,1fr)`, left the comment naming the cause — and **both portrait blocks were never
+  updated.** A fix applied to one media band and not its siblings is the same shape as the two invite renderers
+  and the three deck-picker defaults: **grep for the pattern, not the symptom.**
+  **DECIDED 2026-08-29 — ON A PHONE THE LOG BECOMES AN OVERLAY** (Aj: *"we can open it like how we do the view
+  card? but slightly transparent?"*). This is structural, not cosmetic: **an overlay is `position:fixed`, so it
+  cannot grow a grid row** — the bug becomes impossible rather than fixed. Build it on `.overlay`/`.modal`, NOT
+  on `#cardFull`:
+  - `.modal` already carries `max-height:calc(100dvh - 40px); overflow-y:auto; overscroll-behavior:contain`
+    (the v1.31.14 fix), so the bounded-height chain is inherited by construction.
+  - `.overlay` is `rgba(10,4,16,.8)` + `blur(3px)` — the board stays visible but recessed, which is the
+    "slightly transparent" that was asked for. `#cardFull` is fully opaque and replaces the screen.
+  - **`.overlay` is `z-index:100000`, which outranks `#netroot`** — required, or the log is invisible in a
+    netplay lobby (the v1.31.36 stacking bug, exactly).
+  - **Dim the backdrop, keep the PANEL opaque.** 12px dense text over card art is unreadable.
+  - Widen it the way the rules panel does — a class on this panel only, and `showModal` resets `#modal`'s class
+    list so the width cannot leak into the next dialog.
+  - Open scrolled to newest and keep it live. Desktop keeps the inline column; this is phone-only, same gate as
+    `viewCardBtn`.
+  **LAND THE ONE-LINE `minmax(0,1fr)` FIX ANYWAY.** `#table` shares that grid row and can overgrow identically,
+  so the guard is not really about the log. Run `landscapetest` after — the landscape band proves the direction
+  is safe, but not that it is safe in the portrait bands.
+  **CORRECTION to the earlier lead:** this was guessed to be a `min-height:0` chain broken by the `.fighter`
+  overflow. It is not — different cause, same conclusion that it is shared code rather than netplay.
+  **Assert it in both directions and at BOTH phone bands** — landscape and desktop already pass, so a single
+  measurement proves nothing; `landscapetest` owns the negative half.
+- **THE PLAY AREA IS CLOBBERED ON A NARROW PHONE — HORIZONTAL, NOT VERTICAL** (Aj, 2026-08-29, screenshot at
+  ~327 CSS px: "Round 6" written over the pile label, the rival's FORMS & RIDES header over the pile cards, and
+  the Hero's Javelin equip card covering the right half of a Full House). `#table` is a centred flex column with
+  **four absolutely-positioned overlays pinned to its corners**:
+  ```css
+  #roundTag {position:absolute; top:6px; left:12px}
+  .formZone {position:absolute; left:8px;  max-width:min(46%,188px)}
+  .equipZone{position:absolute; right:8px; max-width:min(48%,180px)}
+  #beaten   {position:absolute; top:50%;   left:12px}
+  ```
+  **Measured:** `#table` is **257px** wide at that viewport, so the two side zones are allowed
+  `min(46%,188)=118` + `min(48%,180)=123` = **241px, i.e. 94% of the play area**, leaving 16px in the middle for
+  a five-card Full House that needs ~200. The pile has nowhere to go but underneath them.
+  The tell is already in the source: `#beaten` carries the comment *"center-left: clears the rival Forms zone
+  (top-left) and your Forms zone (bottom-left)"* — a **hand-tuned corner arrangement that assumes a
+  desktop-width table.** At 257px the corners ARE the middle.
+  **THE FIX HAS A PRECEDENT IN THIS FILE ALREADY:** `.oppPanel .oppZones .formZone{position:static; left:auto;
+  right:auto; top:auto; bottom:auto; max-width:100%;}` — the opponents strip de-absolutes the same zone when it
+  renders inline. Do that at phone width so the zones flow and the pile owns the centre.
+  **DECIDED 2026-08-29 — ZONES MOVE INTO THE PANELS (phone only).** The rival's Forms/Rides and equipment render
+  in the rival panel, yours in your hand panel, reusing `.oppPanel .oppZones`; `#table` then holds only the pile,
+  its label and the message, so the pile gets the full 257px. The framing that settled it: **the zones are
+  per-player state, the table is shared state** — on a phone the info belongs next to the player it describes,
+  which is better rather than merely smaller. Prerequisite: the `.fighter` wrap fix above, since the panels grow
+  to 2-3 lines. Second piece already exists — `#handMeta` carries an empty `<span class="equip" id="youEquip">`.
+  **AJ'S COLLAPSING-HAND PROPOSAL WAS CONSIDERED AND DECLINED** (*"make the hand collapse like the mobile
+  keyboard … this will mean that the drag to play functionality will be lost"*). It does not address this cause:
+  the collision is horizontal, between edge-pinned overlays and the centred pile, so more vertical space does
+  not separate them — it would cost drag-to-play and leave the pile clobbered. Recorded so it is not re-proposed.
+  Vertical space IS genuinely tight (see the 340px floor and `landscapetest`), but the hand is the thing a card
+  player looks at most, so it is the wrong first lever; the secondary chrome is the cheap one.
+- **THE PLAYER'S OWN INFO ROW OVERFLOWS THE VIEWPORT ON EVERY PHONE WIDTH** (Aj, 2026-08-29: *"the hand
+  information just bleeds into outer space on my small mobile screen"*, screenshot: the board scrolled sideways
+  with the header still square, content cut off at the left and dead space at the right). **MEASURED, not
+  inferred** — reproduces in SOLO, so netplay is irrelevant to it:
+  ```
+  vp 320 -> span.fighter w=459   (#handMeta client=276)
+  vp 327 -> span.fighter w=427
+  vp 360 -> span.fighter w=445
+  vp 390 -> span.fighter w=417   <- still overflowing at a normal phone width
+  ```
+  `main` is `overflow-x:auto`, so `main` is the scroller — which is why the header stays put while the board
+  slides sideways, exactly as the screenshot shows.
+  **The cause is two properties on line ~74 that contradict each other:**
+  ```css
+  .fighter{ ... display:flex; gap:12px; flex:0 0 auto; flex-wrap:wrap; }
+  ```
+  `flex-wrap:wrap` declares "I am willing to take two lines"; `flex:0 0 auto` (shrink **0**) guarantees it never
+  has to, so the row sits at its max-content width — name + deck name + 4 shields + ⚡ + deck count + ♻ ≈ 400px —
+  and pushes past the viewport instead of wrapping. The wrap it already asks for cannot fire because nothing
+  constrains it. Fix is to let it shrink (`flex-shrink:1`, or `min-width:0`) in the existing phone block at
+  ~1058; it is a one-line change and the wrap then does the rest.
+  **The same class of bug was already solved once for the OPPONENT strip and missed here** — `.oppPanel
+  .oppStats{display:none}` in the phone query is that fix. Whatever is done to `.fighter` should be checked
+  against the opponent panel so the two rows do not drift apart again.
+  **Reproduce it in ~20 lines:** boot `CardmenFighter.html?dbgsolo=1` at 360x740, click `#newBtn` then
+  `#goFirstBtn`, wait, then collect any element whose `getBoundingClientRect().width > clientWidth`. This
+  belongs in `landscapetest.js`, which already owns the vertical stack — it needs the horizontal assertion too,
+  in **both** directions (narrow overflows, desktop untouched). Note the trap that cost a first attempt here:
+  without the two-click boot the probe measures the SETUP DIALOG and reports "clean" at every width.
+- **A HUMAN COUNTER IS NEVER NARRATED TO ANYONE BUT THE HOST** (Aj, 2026-08-29: *"i play infuse with magic, and
+  fully expected my queens to win vs the kings. what wasn't logged was that it was counter spelled … it's not
+  logged in the logs"*). Confirmed by reading, four sites, and the split is the tell — **an AI counter
+  broadcasts and a human counter does not:**
+  ```
+  settleWindows  ~4013   say(q, '{who} countered with '+resp.respondName+'!')      AI  -> BROADCASTS
+  humanResponds  ~4072   logMsg('<b>You</b> Countered '+pendName+' …')             you -> host-local
+  hostApplyMove  ~6497   logMsg('<b>Rival</b> countered your Technique with …')    2p  -> host-local
+  hostApplyMoveN ~6776   logMsg('<b>'+seatName(seat)+'</b> countered with …')      Np  -> host-local
+  ```
+  `logMsg` is host-local — CLAUDE.md already records this as how clients had an empty battle log until v1.28.2.
+  So in netplay the countered player is told nothing at all: the Technique simply does not happen, with no line
+  and no cue. Aj read it as his Queens losing to Kings.
+  **Two of the three broken lines are ALSO the v1.31.53 grammar bug**, so they cannot be fixed by swapping the
+  call alone: `'<b>You</b> Countered'` and `seatName(seat)` write a name into the template, and
+  `'countered YOUR Technique'` bakes in the sender's perspective. They need `say(actor, '{who} countered
+  {foe}’s <name>.')` in past tense, with the countered seat travelling as `{foe}` (v1.31.55).
+  **A LOG LINE IS NOT ENOUGH HERE.** The host also runs `quickFlash` + `setMessage` for a counter and neither
+  reaches the other seats, so even with the log fixed a client would see its play silently evaporate. This is
+  the first concrete case for the animation queue below — a counter is exactly the kind of event that must be
+  ordered and shown on every seat, not derived.
+- **AJ'S "DEMOTE CLIENTS TO RENDER + INPUT" PROPOSAL — mostly already true, and the residue is the real bug.**
+  (Aj, 2026-08-29: *"maybe we can demote clients to just be renders and input collection. nothing is decided
+  clientside."*) Worth writing down so it is not re-argued from scratch:
+  - **For game STATE this already holds.** `applyMirrorNow` does `state=st` wholesale from the host, and every
+    client input leaves as an intent through `clientSend`. Since v1.31.54 a stale-stamped intent is refused, and
+    `resolveIds` drops fabricated cards. The client decides nothing about the game.
+  - **The residue is the PRESENTATION layer**, and it cannot simply be moved to the host: the ceremony is a
+    750ms-per-beat animation, so it has to be sequenced locally. What must stop is the client's little
+    state machine (`clientCeremonyActive` / `pendingRoundMirror` / `awaitingRoundReveal`) **inferring** where
+    the host is from `handGrew`. Host sends events; client sequences them; client never guesses.
+  - So the overhaul as stated is not needed. The narrower rule that would have prevented this bug, the double
+    narration (v1.31.53) and the stale-board actions (v1.31.54) alike: **a client may sequence, but never
+    infer.**
+- **"← Leave online" OVERLAPS THE HEADER BUTTONS** (Aj, 2026-08-29, screenshot: it sits on top of Concede and
+  the 💡/🔊/⚙️ row on a phone). It is `position:fixed; top:10px; right:10px` on `<body>` — a floating overlay
+  with no awareness of the layout under it, deliberately outside `#netroot` (which `renderNet` rewrites) so it
+  stays reachable. On a desktop header there is room; on a phone the header wraps to ~92px and the button lands
+  on the controls.
+  **It is NOT redundant with Concede, and that is why it cannot simply be deleted.** They act at different
+  levels: `newBtn` is "🏳 Concede" mid-game (forfeit — for a host, `hostConcede` eliminates itself but keeps
+  refereeing) and "New Duel" otherwise; `netLeave` drops the relay room, closes the transport and exits online
+  play entirely. Leave is also the only exit **in the lobby**, where there is no game to concede — and, until
+  the stale-win-page bug below is fixed, the only way off the end screen.
+  **The fix that removes the overlap rather than moving it:** make it a real header button instead of a fixed
+  overlay, and give `refreshNewBtn` a third state — online + game live -> "🏳 Concede", online + no live game
+  (lobby, or after the end screen) -> "← Leave online". One slot, no overlap, and it lands on the stale-win-page
+  bug from the other side. Keep it out of `#netroot` either way.
+- **THE EMOTE BAR OVERLAPS THE ACTION BUTTONS** (Aj, 2026-08-29, screenshot: 💬 sitting on top of `Pass`). Same
+  root cause as the Leave button and worth fixing in the same pass — `#emoteBar` is `position:fixed; left:10px;
+  bottom:10px`, and on a phone the bottom-left of the viewport is exactly where `#actions` renders. The phone
+  media query already collapses it to a single 💬 (a 7-button row would eat the board), so the size is not the
+  problem; the corner is. Either dock it into the `#actions` row (it is netplay-only, so the row is free to
+  gain a member there) or reserve space for it. `landscapetest` is the suite that will catch a regression, since
+  it owns the vertical stack.
+- **NOBODY IS TOLD WHEN ANOTHER PLAYER IS DISCARDING TO HAND SIZE** (Aj: *"the other players don't [get] a prompt
+  saying somebody is still discarding down to max hand... it's just uhhh what's happening in the middle of
+  rounds"*). The discarding seat sees its own prompt; everyone else sees an unexplained pause mid-round.
+  `rivalStatus` already carries "X is discarding…" for some windows — the end-of-turn discard needs the same.
+- **THE WIRE IS CLEAN. THE CLIENT-SIDE CEREMONY/LOG PATH IS NOT. (2026-08-28, third pair of logs — the good
+  ones.)** Both traces were HEALTHY end to end, which is the most valuable thing established all day:
+  ```
+  HOST    move IN from seat 1 op=play  x2   -> hostTakeBack -> awaitRival   (x6 rounds, orderly)
+  CLIENT  mirror IN round=N turn=T -> mirror APPLIED ... -> clientSend play (x6, orderly)
+  ```
+  So the transport, the host authority, the relay and the room code are all FINE. What is broken is what the
+  client does with a resolved round. Aj: *"client just races to the game end"*. Its log shows each round
+  resolution TWICE, in two different perspectives, separated by the catch-up line:
+  ```
+  You won the round of Jabs.
+  Rival move 1 card from your deck into Energy — catch-up.    <- perspective mangled
+  You won the round of Jabs.
+  Rival moves 1 card from their deck into Energy — catch-up.  <- correct
+  ```
+  plus `Pair (NaN, NaN)`, whole round blocks replayed, and a header reading **Round 8 — YOU WON** while the
+  host sat at round 5 and the last applied mirror said round 5.
+  **Two candidate paths log the same event:** `clientPlayCeremony` -> `announceRoundWin` -> `say()` (local,
+  rotated from the ceremony payload) and the host`s own `say()` broadcast.
+  **RESOLVED in v1.31.53 (`sayOnce`), after one wrong revert worth remembering.** The fix was first applied,
+  then reverted on a NULL A/B — and the A/B was the thing that was wrong, not the fix. It measured **adjacent**
+  duplicate log lines, and the two copies are not adjacent: the catch-up line sits between them, so the probe
+  reported zero on a genuinely doubled log. **The right metric is the COUNT RATIO against the host**, which is
+  the authority (host 5/5 vs client 10/10). `nettest_sync` asserts it now. The perspective mangling in the
+  quoted lines was the separate v1.31.53 grammar bug (templates branching on `q===YOU`, fixed by moving every
+  broadcast template to past tense), and `Pair (NaN, NaN)` was the client narrating a play the host had already
+  thrown away via `resolveIds` — diagnosed by Aj.
+  **Still open from this pair of logs:** the header reading **Round 8 — YOU WON** while the host sat at round 5.
+  The stale-mirror guard (v1.31.54) and the ceremony-teardown bug above are both candidates; neither has been
+  shown to produce it. The distinguishing conditions in Aj's sessions and not in `nettest_sync` remain: a real
+  phone, real latency, and repeated disconnect/reconnect cycles. **Driving `nettest_sync` with induced
+  disconnects** (`__cmf.drop`/`reconnect`) is still the most promising untested lead.
+- **THE FORK IS NOT THE LOCAL-ENGINE FALL-THROUGH. The trace killed that theory (2026-08-28, second pair of
+  logs).** Read these before theorising — they are the first evidence with instrumentation attached:
+  ```
+  HOST    1.60s  hostAddChannel channels now 1
+         19.70s  started: false -> true  host path (hostStartRealN)
+         25.39s  awaitRival  host parks, waiting for a client move        <- and NOTHING after, ever
+
+  CLIENT 76.42s  started: false -> true  client path (setup from host)
+         82.11s  isClientActive role=join started=true -> true  x5       <- TRUE, so no local fall-through
+  ```
+  Established, not inferred:
+  - **The host received nothing.** It parked and never called `hostTakeBack`.
+  - **`isClientActive()` returned TRUE**, so the client was NOT running the local engine. The `started` theory
+    and the v1.31.50 guard are both beside the point for this fault.
+  - **`clientSend` was never traced** — five consecutive `isClientActive` calls with nothing between them.
+  - **The client's log advanced five further rounds with no traced action at all**, and its trace then stops.
+  So something fed the client state the host did not send. v1.31.52 adds the two probes that were missing —
+  `mirror IN` / `mirror APPLIED` on the client and `move IN` on the host (including a shout when the source
+  channel is unknown and the seat had to be guessed). **Get one more pair of saved logs and this should name
+  the cause.** Do not add another guard first; four inference-only diagnoses have now been wrong.
+- **A NETPLAY CLIENT CAN RUN THE LOCAL GAME AND FORK THE DUEL. UNSOLVED — start here.** 2026-08-28, two devices
+  and two saved battle logs, which is the only reason it is characterised at all. **Both logs are the evidence;
+  read them before theorising:**
+
+  ```
+  HOST   You: Pure Cleric  vs  Rival: Pure Wizard · Reached Round 1
+         New duel — you play Pure Cleric vs Rival (Fighter) on Pure Wizard.
+         You have the initiative — Round 1, jabs only.
+         You played a Jab - 4♥.                       ← and NOTHING after this, ever
+
+  CLIENT You: Pure Wizard  vs  Rival: Pure Cleric · Reached Round 5
+         Online duel — you play Pure Wizard. Round 1, jabs only.
+         Aj played a Jab - 4♥.                        ← received over the wire, so the channel WAS open
+         You played a Jab - 9♦.
+         Rival passed.                                ← the host never passed
+         You won the round of Jabs.
+         Round 2 begins. … You played a Jab - NaN.    ← four more rounds, all resolved locally
+  ```
+
+  **The mechanism is the fall-through.** Every action reads `isClientActive()` = `isClient() && started` and,
+  when false, continues into the **single-player engine**. So "Rival passed" is the LOCAL AI, the resolutions
+  are local, and `Jab - NaN` / `0 undefined 0` cards are a local draw off a mirror whose opponent cards are
+  redacted placeholders. Two people, two divergent games, one open channel.
+  **The TRIGGER is not known.** Ruled out by measurement, not by argument:
+  - **Not the relay.** A clean two-`file://`-page reproduction over the LIVE relay stays in sync at round 1
+    with zero broken cards, host correctly waiting.
+  - **Probably not `started`.** Forcing `started=false` does not persist — the next mirror restores it — and the
+    client had plainly received a mirror.
+  - **Candidate: `role !== 'join'`.** `isClient()` tests exactly that, so a wrong `role` produces the
+    fall-through *and* defeats the guard added in v1.31.50, which also tests `isClient()`.
+  **Next step:** log `role`/`started`/`isClientActive()` on the client at every action, and get one more real
+  pair of logs. Do NOT add another speculative guard; three inference-only diagnoses were wrong on 2026-08-28
+  (ghost tabs, an AI game, then `started`), each corrected by Aj reading his own screen.
+- **A FINISHED NETPLAY GAME LEAVES ITS WIN PAGE BEHIND** (Aj, 2026-08-28): end a netplay game, go back to the
+  netplay screen, and you are greeted by the PREVIOUS duel's win page until you press Leave online. The end
+  overlay is not cleared when netplay re-renders, so the next lobby is behind a stale modal.
+- **THE NETPLAY BATTLE LOG DOES NOT SCROLL** (Aj, 2026-08-28: *"the logs for netplay don't have a scroll…
+  previous conversations have been lying to me about the netplay view being the same as single player"*). Take
+  the complaint at face value: the netplay board is **not** the solo board, and claiming otherwise has cost
+  trust. Check `#log` overflow in the netplay layout specifically, and audit what else differs before repeating
+  the claim.
+- **SEAT 0 ALWAYS LEADS ROUND 1, SO THE HOST ALWAYS LEADS ONLINE** (Aj: *"in net play it seems like the host
+  always leads the jabs too"*). Verified: `newGame` sets `turn: 0, initiative: 0` with no roll, and
+  `nettest_rtc` encodes it (`'host leads round 1'`). Fine in solo — seat 0 is the player — but online it hands
+  the host a permanent first-mover edge in every game. A design question, not a defect: randomise the opening
+  seat, alternate it, or decide the edge is acceptable and say so.
+- **A NETPLAY DUEL HOST LOGS THE SOLO LINE AND SHOWS AN AI TIER.** `logMsg`/`matchupTag` branch on
+  `mpCount>2`, **not on whether this is netplay**, so a 2-player online HOST prints
+  *"New duel — you play Pure Cleric vs Dustin (**Fighter**) on Berserker"* and a header ending
+  `· Fighter` — where `Fighter` is `DIFF_NAME[difficulty]`, an **AI difficulty tier** that means nothing
+  online. The client has its own correct line (*"Online duel — you play X"*, ~6257).
+  **Cosmetic, but it cost real debugging time on 2026-08-28:** I read the AI tier as evidence that the host
+  was playing a bot, and the deck names as evidence of two seats, and built two confident wrong diagnoses on
+  it. Aj spotted both (*"isn t fighter the ai player tag?"*). A label that lies about the mode is worse than
+  no label. Fix: branch on netplay, not on player count.
+- **CARDS CAN PAINT BEFORE THEY HAVE A RANK** — two rendered as `0 undefined 0` on Aj's phone and then
+  corrected themselves a moment later (*"the undefined cards loaded a bit later"*). Cosmetic, transient, and the
+  residue of the 2026-08-28 relay game: **the desync it came with was a real bug and is fixed in v1.31.49** (see
+  the changelog — `awaitRival` set two things and every path that handed control back cleared one). Worth
+  guarding anyway: a card with no rank should not render at all.
+  Note I initially ranked this as *"possibly the more diagnostic of the two"* on the theory that a UI stall
+  cannot invent a malformed card. It could and did; the ranking was wrong, and Aj's follow-up ("loaded a bit
+  later") is what corrected it.
 - **Make joining less of a hassle — ideally "find games on my network"** (Aj, 2026-08-25: *"the code thingies
   are amazing and wow you can really play with anyone anywhere… but it's also a bit of the hassle"*).
   - **The hard limit first, so nobody spends a day on it:** a browser page **cannot discover peers on a LAN.**
@@ -608,6 +1015,295 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.55 — the second name in a line travels as a seat
+
+v1.31.53 fixed the grammar *around* `{who}`. This fixes the **other name**: the second seat a line has to
+mention — the one that lost the shield, the one knocked out — was interpolated by the **sender** as literal
+text, so it could never be right for a reader. `{foe}` now travels as **seats**, and each end names them in its
+own frame.
+
+Staged and verified, with neutral names so nothing is ambiguous:
+```
+HOST    Rival won with a Pair - You lost a shield.
+CLIENT  You won with a Pair - Rival lost a shield.
+```
+Before, the client read "You won with a Pair - **You** lose a shield".
+
+**A NOTE ON THE EVIDENCE, because it nearly misled me.** The log lines I first pointed to as proof were
+confounded: Aj's opponent had literally typed the name **"You"**, so "You won … You lose a shield" may have been
+correct on his screen. The bug is real and the fix is right, but it is demonstrated by the staged run above —
+**not** by those lines. Worth remembering that a player-typed name can imitate a rendering bug exactly.
+
+Also in `nettest_sync`: a line naming the same side as both winner and loser now fails the suite.
+
+### v1.31.54 — a client cannot act on a board the host has moved past
+
+Aj: *"why is it possible for clients to go on playing without the host's go ahead? imho i think it should be
+blocked."* He is right, and nothing prevented it — **mirrors carried no identity at all**, so a client could not
+tell a replayed or delayed mirror from a fresh one, and the host could not tell an intent formed against old
+state from a current one.
+
+**`stateSeq` stamps every mirror**, and it advances **only when an intent is actually applied** — never per
+render, which is what makes it usable: an intent is valid exactly while the board it was formed against is
+still current.
+- **The client ignores a mirror that goes backwards.** A replayed one carries an older stamp; applying it would
+  rewind the board and invite the player to act on a board that no longer exists.
+- **The host refuses an intent carrying a stale stamp — and re-broadcasts.** The re-broadcast is not optional: a
+  client stuck on an old stamp would otherwise have every future intent refused too, and a silent deadlock is
+  worse than the stale move it was protecting against.
+- **Only refuses when the client actually sent a stamp**, so an older peer keeps working.
+
+**Measured cost: nothing.** A full game traces **9 sends, 9 received, 0 refused, 0 stale mirrors ignored** — the
+stamp does not touch legitimate play. Checked because a guard that intermittently refuses *valid* moves would be
+worse than the bug it prevents; the action-count swings in `nettest_sync` turned out to be drive-loop variance,
+not refusals.
+
+**AND AJ EXPLAINED THE `NaN` CARDS, correctly:** *"since cards are from the host, at the beginning of the round
+(which isn't gated somehow), the client just imagines cards."* Confirmed — the host resolves incoming plays
+through `resolveIds`, which maps ids against **its** copy of the hand and drops anything unmatched, so a
+fabricated card resolves to nothing and **the play is rejected**. The client's `Pair (NaN, NaN)` was therefore a
+purely local narration of a move that never happened. The client was never playing ahead; it was **narrating
+ahead about moves the host had already thrown away** — which is why state stayed in sync while the log looked
+insane.
+
+### v1.31.53 — one event, one log line, and narration that reads in every frame
+
+**Solved from Aj's saved logs, and the traces were the reason it was findable.** Both traces were healthy end to
+end — `move IN` / `hostTakeBack` / `awaitRival` cycling on the host, `mirror IN` / `mirror APPLIED` /
+`clientSend` on the client, mirrors strictly monotonic to round 10, and **both headers agreeing on "Reached
+Round 10"**. So the transport, the host authority, the relay and the room code were never the problem. The
+defect was entirely in narration, which is why it looked catastrophic and measured as nothing.
+
+**Two bugs, and each hid the other.**
+
+**1. A BROADCAST TEMPLATE MUST BE READER-INDEPENDENT.** `say()` sends the template plus the actor's absolute
+seat and the receiver rotates `{who}` — that always worked. But the grammar *around* `{who}` was baked in the
+sender's perspective, and a receiver cannot undo it:
+```
+host about itself    "{who} move N cards from your deck"   -> client: "Rival move 1 card from your deck"
+host about a client  "{who} moves N cards from their deck" -> client: "You moves 2 cards from their deck"
+```
+Both forms are in Aj's log character for character. **The fix is PAST TENSE**, which removes subject-verb
+agreement altogether so one string reads correctly for every reader — no sender-side branch to get wrong.
+Possessives went the same way ("You’s hand" was the other tell). Three templates: the catch-up mill, the
+FIGHTER KICK and the returned shield.
+
+**2. ONE EVENT, ONE LOG LINE.** A client narrated every round resolution **twice** — once from its own ceremony
+replay (which exists to drive the animation) and once from the host's broadcast. Measured: host 5 round-wins and
+5 catch-ups, client **10 and 10**, banners 5 on both. `sayOnce` is `say` on a host or in solo and a no-op on a
+netplay client, because **the host is the authority and owns the shared history**.
+
+**THE MEASUREMENT TRAP, which cost most of a session and is the lesson worth keeping.** The two copies are **not
+adjacent** — the catch-up line sits between them. So an "adjacent duplicates" probe reports zero, and an A/B
+built on it reads as a **null result**. I implemented fix 2 hours earlier, measured adjacency, got null, and
+**reverted a correct fix**. The metric that works is the **count ratio against the host**: the host is the
+authority, so its count is the truth. `nettest_sync` now asserts exactly that, plus that no line is stuck in
+the host's grammar.
+
+**Why no suite caught it:** they check state, controls and each side against expectations. Nothing compared the
+two sides' NARRATION. Aj's two saved logs did, in seconds.
+
+### v1.31.52 — Save on the end screen, and the two probes the trace was missing
+
+**⤓ Save the battle log is now ON THE END-OF-GAME SCREEN.** Aj: *"i forgot that it's impossible to get the logs
+when the game ends... and i regret not getting it earlier"*. Review-the-board did technically reach the log,
+but navigating away at the one moment you have something worth sending is not a path anyone takes — and
+v1.31.51 had just put the netplay TRACE in that same file, so an unreachable Save made the whole diagnostic
+unreachable exactly when it mattered. Verified end to end: the button is present and visible on the end
+screen, produces a file, and confirms.
+
+**THE EXPORT SAID `deckout` WHENEVER AN OPPONENT QUIT.** `lastEndType` defaults to that and the
+opponent-concede path never set it, so two of Aj's five exported games are filed under the wrong ending —
+and an ingestion log cannot be repaired after the fact. Now `concede`.
+
+**AND THE TRACE KILLED THE LEADING THEORY, which is what it was for.** Two real traces arrived and between
+them established that the host received NOTHING (parked at `awaitRival`, never took control back) and that the
+client's `isClientActive()` returned **true** — so it was never falling through to the local engine, and both
+the `started` theory and the v1.31.50 guard are beside the point for this fault. `clientSend` was never traced,
+yet the client's log advanced five further rounds. Something fed it state the host did not send.
+
+So this version adds the two probes that were missing: **`mirror IN` / `mirror APPLIED`** on the client and
+**`move IN`** on the host — the latter shouting when the source channel is unknown and the seat had to be
+guessed. One more pair of saved logs should name the cause. Four inference-only diagnoses have been wrong now;
+the instrument is doing the work the reasoning could not.
+
+### v1.31.51 — a netplay trace, and the cross-check that should have existed
+
+Aj: *"how does it say that no tests failed when we can't even get to round 2 legally on the same computer"*.
+Verified by grep rather than argued, and the answer is structural:
+- **`nettest_relay` never played a move** — no `fightBtn`, no `passBtn`, no round assertion. It proved a
+  connection and a deal and stopped.
+- **`nettest_rtc` never touched the relay** — it plays rounds over copy-paste.
+So **no suite had ever played one move over the room-code path**, which is how twenty-odd green netplay suites
+could not see a client forking a duel.
+
+**And the deeper gap: every suite drives ONE side and asserts against EXPECTATIONS. None compared the two sides
+to each other.** Aj's two saved battle logs did that comparison in four seconds and found a divergence nothing
+automated could. `nettest_sync.js` is that comparison: it plays a real game over the room code and asserts, at
+every step, that the two ends agree on the round and that **each side's view of the other's hand size equals the
+other's actual hand** (seat-rotated — a client's own seat is index 0). It reaches round ~14 in ~50 actions, and
+**5 runs are green**, so straightforward relay play does not fork. **Reach for this shape whenever two peers
+hold state: assert they AGREE, not that each looks plausible.**
+
+**DIVERGENCE MUST PERSIST TO COUNT.** A client's hand changes only when the host's mirror lands, so immediately
+after the client plays there is a legitimate window where the host says 5 and the client says 6. The first
+version compared mid-flight and reported a fork on the very first move — a false positive that would have
+discredited the suite on sight. It polls until the mismatch clears: transient is the system working, persistent
+is the bug.
+
+**THE NETPLAY TRACE IS ALWAYS ON, and that is forced by the platform.** A downloaded copy opens as
+`content://`, which **cannot carry a query string**, so anything behind `?dbg=1` can never be captured on the
+device where the interesting failures happen. So it costs nothing, runs by default, and **lands in the ⤓ Save
+file** — the one artifact a player can actually hand over.
+
+It is traced **inside `isClientActive()`** rather than at its call sites: every action funnels through that one
+function, so no branch can escape the probe, and `role` and `started` — the two values that decide it — are
+recorded on every call. A client reading false there prints
+`<< A CLIENT IS ABOUT TO RUN THE LOCAL ENGINE — THIS IS THE FORK`, verified to fire on the real case.
+
+Two flaws found and fixed while building it, both of the kind that make a diagnostic worse than none:
+- **The fork warning also fired on the HOST**, where falling through is correct — the host *is* the authority.
+  A trace that shouts about a non-bug sends the next reader down a false path.
+- **`started=true` logged on every mirror** rather than on the transition: 19 entries for two moves, and it
+  would have blown the 500-entry cap in a real game. Transitions only, with consecutive duplicates collapsed
+  to `xN`. A real game now traces in single digits.
+
+### v1.31.50 — awaitRival set two things; every path cleared one
+
+Split out of v1.31.49 **specifically so the two builds can be told apart.** Aj was mid-verification on a phone,
+the fix had gone into v1.31.49 without a bump, and "still the same" could equally have meant *the fix does not
+work* or *you are holding the old download*. A stamp that cannot distinguish them is the one failure the stamp
+exists to prevent — see the v1.31.21 note, where a "missing feature" was a stale download and nothing on screen
+could say so. **If a fix needs field verification, it needs its own version.**
+
+`awaitRival()` sets **two** things — `busy` and the "Waiting for opponent…" text — and every path that handed
+control back cleared only `busy`. So the host's board went live while its screen still said the rival was
+thinking: its turn, Pass enabled, and nothing on screen to believe it. Both players then wait for each other
+forever with nothing broken underneath, which is what *"the duel was unsalvageable"* looked like.
+`hostTakeBack()` clears the pair together at all ten control-return sites.
+
+**Not the v1.31.20 wedge**, though it wears its clothes: that one genuinely left `busy` set, and its fix lives in
+`resolveRoundCeremony`, which only runs when a client's move **ends** a round. This is the ordinary case that
+fix never covered — a client move that simply passes the turn back. `nettest_clientwin.js` is the deterministic
+mirror of `nettest_roundstall.js` (the client answers with the apex 2, so the host cannot reply) and reproduced
+it before the fix.
+
+**It predates the relay.** I had explicitly refused to rule the relay out; the repro settled it. Any netplay duel
+could hit this, and it waited for a human to play one because **no suite had ever asserted what the status line
+SAYS** — they all check state and controls.
+
+**GHOST SEATS — and this one WAS the relay's fault.** Aj's host showed *"Passo is covering Dustin
+(auto-passing)"* and a battle log reading *"you play Pure Rogue vs Dustin (Fighter) on Warlock (Wiz+Rog)"* —
+**two opponent seats** in what he thought was a duel. His phone had three tabs open; the extras each took a
+slot, went dead, and Passo auto-passed for them. So the "Rival passed" he never made was Passo covering a
+ghost, and his turn never came back because the game was waiting on a tab nobody was looking at.
+
+**The cause was auto-minting.** After accepting a join the host published a *fresh* offer straight away, so the
+room always had an open slot and anything that reloaded joined silently. The copy-paste flow could never do
+that — a second player needed the host to hand over a new code. Adding a slot is now the same explicit act
+(**＋ Invite another player**), so the relay has the same semantics instead of a quietly open door.
+`nettest_relay` asserts a second claim finds nothing **while the room is still open** — and the timing is the
+whole assertion: starting the game drops the room, so the first version of this check ran afterwards, got a
+404, and would have passed on the broken build.
+
+**THREE COUNTS, AND THEY ARE NOT INTERCHANGEABLE.** `readyCount()` = confirmed, `joinedCount()` = has a seat,
+`openChanCount()` = channel up. A seat only exists once the client sends `t:'join'`, which it does when it
+presses Ready — so between "their channel opened" and "they confirmed" the host said **"No players yet"** with
+somebody plainly sitting there. The roster now says *"● 1 connecting — waiting for them to choose a deck…"* and
+the netbar counts the widest of the three, because "N connected" should mean *somebody is here*. Start still
+gates on a **seat**, because that is what `hostStartRealN` indexes.
+
+**And "Connection lost (disconnected)" was never ours.** Aj's office wifi isolates clients — the same thing that
+made cell 3 of the origin probe unreachable this morning — so WebRTC had no route. On mobile data it connected.
+Worth keeping because the symptom points at the code and the cause was the network: **the room code and the
+long code produce the same SDP and the same peer connection**, so switching signalling cannot fix a transport
+problem. Aj: *"i like the easy invite code... so i'd like to keep it."*
+
+**Also diagnosed from Aj's screenshots, and it is a SYMPTOM, not a second bug:** two cards rendering as
+`0 undefined 0` are exactly the two round-2 draws. The client replays the draw ceremony locally and fills the
+real cards in from the host's next mirror; when the host stops broadcasting, none arrives and the placeholders
+stay. They "loaded a bit later" on the first attempt because a mirror did arrive. **A card should still not
+paint before it has a rank** — that guard is in the BACKLOG.
+
+### v1.31.49 — four characters instead of a round trip
+
+**And the first real game found a bug that was never the relay's.** Aj hosted on a laptop against his phone and
+sent two screenshots: host on *"Round 1 · YOU · JAB · Rival is fighting… · Waiting for opponent…"*, phone
+already on *"Round 2 · You won the round of Jabs"*, and *"the duel was unsalvageable"*.
+
+**`awaitRival()` sets TWO things — `busy` and the "Waiting for opponent…" text — and every path that handed
+control back cleared only `busy`.** So the host's board went live while its screen still said the rival was
+thinking: its turn, Pass enabled, and no reason on screen to believe any of it. Both players then sit waiting
+for each other forever, with nothing actually broken underneath. `hostTakeBack()` clears the pair together at
+all ten control-return sites.
+
+**This is NOT the v1.31.20 wedge**, though it wears its clothes. That one genuinely left `busy` set, and its fix
+lives in `resolveRoundCeremony` — which only runs when a client's move **ends** the round. This is the ordinary
+case that fix never covered: a client move that does not end the round and simply passes the turn back.
+`nettest_clientwin.js` is the mirror of `nettest_roundstall.js` and reproduces it deterministically (the client
+answers with the apex 2, so the host cannot reply).
+
+**It predates the relay, which is worth stating because I had explicitly refused to rule the relay out.** Any
+netplay duel could hit it; it took someone actually playing one to notice, because no suite had ever asserted
+what the status line SAYS. The A/B I recommended turned out to be unnecessary — the reproduction settled it —
+but recommending it was still right, and the answer came from a deterministic repro rather than from reading
+the code, which is the same lesson this file keeps recording.
+
+**A host shows a four-character room code. A joiner types it. That is the whole handshake.** Signalling used to
+be a *round trip* — the host makes an invite, a human carries it, the joiner makes a reply, the human carries
+that back. Two exchanges in opposite directions. Everything before this made each exchange cheaper (a QR, a
+share sheet, codes six times shorter, two columns in landscape) without removing either one, which is why it
+still felt bad. Aj, after all of it: *"i don't know how to proceed so that the multiplayer is easierrrrrrrr."*
+
+**The game is still peer-to-peer.** The relay carries the SDP exchange only; once the browsers find each other
+they connect directly and the relay is out of the loop for the entire game.
+
+**IT WORKS FROM THE DOWNLOADED FILE, and that is the result that made this worth building.** A `file://` (and
+`content://`) page is an opaque origin, and whether it could `fetch` a cross-origin relay was the load-bearing
+assumption — tested before a line of the feature was written: **GET 200, POST 201, room created**.
+`content://` was left explicitly unverified rather than assumed, and **Aj settled it on a real phone the same
+day: a game joined by room code from a `content://` copy** (URL bar `content://media/e…`, live in round 2). So
+both opaque origins reach the relay.
+`Access-Control-Allow-Origin: *` covers an opaque origin. So the single offline HTML gets room codes with **no
+hosting at all** — the thing Aj declined for months turns out not to be required for the feature that needed it.
+
+**Every relay call fails soft, and the manual path is the floor.** No network, a blocked domain, a dead relay or
+an older build on the far end all land the player on exactly the previous screen. `nettest_relay` asserts that
+in **both** directions — the relay path connects a real game, *and* `norelay=1` plus an unreachable relay each
+produce a full invite code with no room code promised.
+
+**The netbar stops lying.** "no server" was true for every previous version, so with a relay carrying the
+handshake it would be a lie rather than a stale string. It reads **"relay for the handshake only"** while a room
+is open, and "no server" again once it is gone — both asserted. The screen also says outright that connection
+details including the IP address pass through the relay while the room is open, and that the invite code avoids
+it entirely.
+
+**`dbg=1` NOW IMPLIES NO RELAY unless `relay=` is given.** Every `nettest_*` suite passes `dbg=1`, and without
+this each of them would have opened rooms on the **production** relay on every run — test traffic against a
+live service, and suites that fail whenever the machine is offline. Hermetic by default; a suite that wants the
+relay names it, which is what `nettest_relay` does against `relay/mock.js`.
+
+**AND THE HOST COULD NOT SEE WHO WAS IN THE ROOM** (Aj, on the first real try: *"i cant see who's in the
+room ahhaa"*). Two bugs stacked, one of them introduced by this version:
+- The roster line lived only in the lobby's `else` branch. That was fine while a host **left** the invite step
+  as soon as it pasted a reply — the relay puts it straight back, because it mints the next offer the moment it
+  accepts a join, so the host sits on `host-invite` permanently and the roster was unreachable. `Start Duel`
+  appearing was the only evidence anyone had arrived. It now renders in **every** branch.
+- **`readyCount()` is not a count of connected players.** It counts seats whose `rulesGen` matches, i.e. seats
+  that have *confirmed*, so the netbar read **"0 connected"** with somebody sitting in the lobby. Both numbers
+  are real and are now reported separately (`joinedCount()` for arrival, `readyCount()` for readiness), because
+  the host needs the first to know someone showed up and the second to know whether Start will work. The Start
+  button gated on the wrong one too; `hostStartRealN` had always used `nextSeat-1`, so the button was the
+  inconsistent half.
+
+**One correction made in passing.** I added a reflow-on-open for the QR, reasoning that a canvas inside a
+collapsed `<details>` has no width. Measured: Chrome still gives layout to closed-details content and the
+symbol was already the right size (345 CSS px either way). The guard stays — closed details content has no box
+in some browsers — but its comment now says it is insurance rather than a fix for an observed bug.
+
+`nettest_relay` is new: **14 assertions**, driving host and joiner through `relay/mock.js` to a real WebRTC
+DataChannel with nothing copied or pasted.
 
 ### v1.31.48 — the invite goes two columns in landscape
 

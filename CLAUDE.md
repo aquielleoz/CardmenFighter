@@ -97,6 +97,16 @@ node optionsim.js             # legal plays per turn by player count — the OPT
 node rulesim.js               # rule-config sweep: length / jab share / initiative, by player count
 node roundsim.js              # share of ROUNDS decided by a jab vs a Special, by tier and player count
 node stucksim.js 6 150        # stuck-while-following turns split into SHAPE-stuck vs VALUE-stuck
+node nettest_clientwin.js    # the MIRROR of roundstall: a client move that does NOT end the round hands the
+                             # turn back — the host's board must go live AND its status line must say so (10).
+node nettest_sync.js         # THE CROSS-CHECK: plays a real game over the ROOM CODE and makes the two sides
+                             # prove they AGREE — round, each side's view of the other's hand size, and that NARRATION is not doubled
+                             # (count ratio vs the host, never adjacency) — against
+                             # the other's actual hand (7). The only suite that compares the two ends to each
+                             # OTHER rather than to expectations. Reaches round ~14 in ~50 actions.
+node nettest_relay.js        # THE ROOM-CODE PATH end to end: host shows four characters, joiner types them, a
+                             # real DataChannel opens with nothing pasted (14). Drives relay/mock.js, and also
+                             # asserts the FALLBACK both ways — norelay=1 and a dead relay.
 node ../relay/relaytest.js   # the signalling relay's protocol, against a local mock (20 assertions).
                              # Pass a base URL to test a REAL deployment — that is the only thing that turns
                              # relay/worker.js from reviewed code into tested code.
@@ -251,6 +261,64 @@ vs client) and every assertion was TRUE. **No DOM assertion can see a stacking b
 thing that matters, hit-test it — `document.elementFromPoint(cx, cy)` and check the modal contains the result.
 Note it only bit while netroot was on screen (lobby / signalling); mid-game netroot is hidden, so response
 windows were always fine, which is how it survived unnoticed.
+
+**TWENTY GREEN NETPLAY SUITES COULD NOT SEE A FORKED DUEL, AND THE REASON IS STRUCTURAL.** Aj, 2026-08-28:
+*"how does it say that no tests failed when we can't even get to round 2 legally on the same computer"*. Two
+gaps, both verified by grep rather than argued:
+- **`nettest_relay` never played a move.** No `fightBtn`, no `passBtn`, no round assertion — it proved a
+  connection and a deal and stopped. **`nettest_rtc` never touched the relay.** It plays rounds over
+  copy-paste. So **no suite had ever played a single move over the room-code path.**
+- **Every suite drives ONE side and asserts against EXPECTATIONS. None compared the two sides to each other.**
+  Aj's two saved battle logs did that comparison in four seconds and found a divergence nothing else could.
+`nettest_sync.js` is that comparison, automated — and it is the shape to reach for whenever two peers hold
+state: assert they AGREE, not that each looks plausible.
+**DIVERGENCE MUST PERSIST TO COUNT.** A client's hand changes only when the host's mirror lands, so right after
+the client plays there is a legitimate window where the host says 5 and the client says 6. The first version
+compared mid-flight and reported a fork on the first move — a false positive that would have discredited the
+whole suite. It polls until the mismatch clears; transient is the system working, persistent is the bug.
+
+**THE RELAY CLIENT (v1.31.49) — the room-code path in the template.** Five things, all of them traps:
+- **`dbg=1` MEANS NO RELAY unless `relay=` is passed.** Every `nettest_*` suite sets `dbg=1`; without this rule
+  each of them opens rooms on the **production** relay on every run, and every suite starts failing when the
+  machine is offline. Hermetic by default. A suite that wants it names it (`nettest_relay` → `relay/mock.js`).
+- **BOTH OPAQUE ORIGINS REACH THE RELAY — `file://` measured here, `content://` measured on a real phone**
+  (2026-08-28, a game joined by room code from a downloaded copy). `content://` was deliberately left unclaimed
+  until a device proved it, because deducing it from "same kind of origin" is what got `navigator.share` wrong.
+- **A `file://` PAGE CAN FETCH THE RELAY, and that is why this feature exists at all.** An opaque origin was the
+  load-bearing doubt; measured before any code was written — GET 200, POST 201 — because
+  `Access-Control-Allow-Origin: *` covers it. **So the downloaded offline file gets room codes with no hosting**,
+  which is the thing months of argument about GitHub Pages assumed was impossible.
+- **NEVER LEAVE A SLOT ON OFFER (v1.31.50).** The host used to auto-mint a fresh offer after each join, so the
+  room always had an open slot and **anything that reloaded joined silently** — Aj's three phone tabs became
+  extra seats, died, and Passo auto-passed for them, leaving his "duel" waiting on a ghost. Copy-paste could not
+  do this: a second player needed the host to hand over a code. Adding a slot must stay an explicit act.
+  Test it **while the room is still open** — game start drops the room, so a claim check afterwards 404s and
+  passes on the broken build.
+- **THREE COUNTS, NOT INTERCHANGEABLE:** `readyCount()` = confirmed · `joinedCount()` = has a seat ·
+  `openChanCount()` = channel up. A seat appears only on the client's `t:'join'`, sent when it presses Ready, so
+  a connected-but-unconfirmed player is invisible to the first two. The netbar and roster use the widest;
+  **Start still gates on a seat**, because that is what `hostStartRealN` indexes.
+- **A TRANSPORT FAILURE IS NOT A SIGNALLING FAILURE.** "Connection lost (disconnected)" on the room-code path
+  was office-wifi client isolation, and the long code would have failed identically — both produce the same SDP
+  and the same peer connection. Do not let a connectivity report push a signalling change.
+- **EVERY CALL FAILS SOFT AND THE MANUAL PATH IS THE FLOOR.** Not a legacy branch — the offline file with no
+  network has nothing else. `relay.up===null` means *unproven*, so the UI must not promise a room code before
+  the relay has answered once. `nettest_relay` asserts both directions, including a dead relay.
+- **`joinAcceptOffer(code, then)` takes a continuation**, which is how the relay posts the answer the moment it
+  exists. Both paths run the same WebRTC code, so a relay join and a pasted invite cannot drift apart — do not
+  fork them.
+- **`readyCount()` IS NOT "CONNECTED".** It counts seats whose `rulesGen` matches — seats that have *confirmed* —
+  so using it as an arrival count made the netbar say "0 connected" with a player in the lobby. `joinedCount()`
+  (`nextSeat-1`, which `hostStartRealN` always used) is arrival. Report them separately; they answer different
+  questions.
+- **THE ROSTER MUST RENDER IN EVERY LOBBY BRANCH.** It used to live only in the `else` branch, which worked
+  because a host LEFT `host-invite` on pasting a reply. The relay keeps it there permanently (it mints the next
+  offer on accepting a join), so the host could not see who had arrived — `Start Duel` appearing was the only
+  clue. Any state a host needs continuously cannot live in one step's branch.
+- **`srvTag()` exists so the netbar cannot lie.** "no server" was true for every version before this one; with a
+  relay carrying the handshake it becomes false, and it says so, then says "no server" again once the room is
+  dropped. Both directions asserted. The room is deleted on Leave and on game start, because an SDP holds IP
+  addresses.
 
 **THE SIGNALLING RELAY (`relay/`) — four rules, and each one is a bug that would be silent.**
 Aj approved it because the constraint was never purity: *"the no server really wasn't a hard rule. i just am not
@@ -662,6 +730,54 @@ It used to live inline in `runRival`, and the free-for-all driver only logged, s
 silently missing in 3-6 player games** (v1.29.3 fixed it by extracting). If you add a beat, add it there — never
 in one driver.
 
+**THE SECOND NAME IN A LINE MUST TRAVEL AS A SEAT, NOT AS TEXT (v1.31.55).** `{who}` was always rotated by the
+reader; the other seat a line mentions — who lost the shield, who is out — was interpolated by the SENDER, so it
+could never be right for anyone else. `{foe}` carries seats and each end names them. Verified staged:
+host "Rival won … You lost a shield" / client "You won … Rival lost a shield".
+**AND A PLAYER-TYPED NAME CAN IMITATE THIS EXACTLY:** Aj's opponent had typed the name "You", which made
+"You won … You lose a shield" look like the bug when it may have been correct. Reproduce on neutral names
+before trusting a narration report.
+
+**MIRRORS CARRY A STATE STAMP, AND A STALE INTENT IS REFUSED (v1.31.54).** `stateSeq` advances only when an
+intent is APPLIED, never per render — that is what makes it usable, since an intent is valid exactly while the
+board it was formed against is current. A client ignores a mirror whose stamp goes BACKWARDS (a replay would
+rewind the board and invite action on a board that no longer exists), and the host refuses an intent with a
+stale stamp **and re-broadcasts** — the re-broadcast is not optional, because a client stuck on an old stamp
+would otherwise have every future intent refused, and a silent deadlock is worse than the stale move. It only
+refuses when the client actually sent a stamp, so an older peer keeps working.
+**THE "MEASURED COST: ZERO" CLAIM WAS WRONG, and how it was wrong is the lesson.** It read *(9 sends, 9
+received, 0 refused in a full game)* — measured in the lab, on one machine, with no latency. **Aj's real game
+refused five moves: three emotes and TWO PASSES** — he pressed Pass and nothing happened. A guard that
+intermittently refuses VALID moves is worse than the bug it prevents, so measure it over a REAL connection
+before trusting it.
+Two things follow. **`stateSeq` is a client-intent counter, not a state version** — it is bumped only in
+`hostApplyMove`, so the host's own plays and the round draw do not advance it (visible in a trace as one `q`
+carrying two different hand sizes). And **an emote must never be stamped**: it is not formed against a board and
+is handled ahead of every turn gate by design, so refusing one is meaningless.
+
+**A FABRICATED CARD IS ALREADY REJECTED, AND THAT EXPLAINS THE `NaN` PLAYS.** `resolveIds` maps incoming ids
+against the HOST's copy of the hand and drops unmatched ones, so an imagined card resolves to nothing and the
+play dies. A client showing `Pair (NaN, NaN)` was therefore narrating a move the host had thrown away — never
+playing ahead, only TALKING ahead. Aj diagnosed this one.
+
+**A BROADCAST TEMPLATE MUST BE READER-INDEPENDENT, NOT JUST `{who}`-SUBSTITUTABLE (v1.31.53).** `say()` sends
+the template plus the actor absolute seat and the receiver rotates `{who}`. That always worked. What broke for
+months was the grammar AROUND it: templates branched on `q===YOU` for the verb and the possessive, baking the
+SENDER perspective into a string the receiver cannot repair —
+`"{who} move N cards from your deck"` reached a client as **"Rival move 1 card from your deck"**, and
+`"{who} moves N from their deck"` as **"You moves 2 cards from their deck"**. **USE PAST TENSE**: it removes
+subject-verb agreement, so one string is correct for every reader and there is no branch to get wrong. Same for
+possessives — `{who}’s hand` renders as "You’s hand".
+
+**ONE EVENT, ONE LOG LINE — and the host owns it (v1.31.53).** A client narrated every round resolution twice:
+once from its own ceremony replay (which exists to drive the animation) and once from the host broadcast.
+`sayOnce` is `say` on a host or in solo and a **no-op on a netplay client**, because the host is the authority
+and owns the shared history.
+**MEASURE THE COUNT RATIO, NEVER ADJACENCY.** The two copies are NOT adjacent — the catch-up line sits between
+them — so an "adjacent duplicates" probe reports zero and an A/B on it reads as a NULL RESULT. That mistake
+made me revert a correct fix on 2026-08-28. Compare counts against the HOST: it is the authority, so its count
+is the truth. `nettest_sync` asserts it.
+
 **Narration is reader-relative.** Never write a name into a log line — call `say(actor, '{who} …', cls)`. It
 renders `{who}` in the local frame via `logName` (yourself → "You"; a duel opponent → "Rival"; otherwise `P<n>`)
 and, when we are the netplay host, broadcasts the **template** plus the actor's absolute seat so each client
@@ -721,6 +837,16 @@ rather than hardcoding a path, which is what these files used to do and why they
 **Run them one at a time.** Each suite starts its own HTTP server on a fixed port and drives two or three real
 browser pages; two suites at once flake on CPU contention (`nettest_rtc` in particular fails at `maxRound=0`
 concurrently and passes 11/0 alone). A serial sweep of all 21 takes a few minutes.
+
+**`awaitRival()` SETS TWO THINGS, AND `hostTakeBack()` CLEARS BOTH (v1.31.49).** `busy` and the
+"Waiting for opponent…" text. Every path that handed control back used to clear only `busy`, so the host's board
+went live while the screen still said the rival was thinking — its turn, Pass enabled, nothing on screen to say
+so, and both players waiting for each other until someone gave up. **Never clear one without the other.**
+Distinguish it from the v1.31.20 wedge: that one really did leave `busy` set, and its fix sits in
+`resolveRoundCeremony`, which only runs when a client's move **ends** a round. This was the ordinary case —
+a client move that just passes the turn back. `nettest_clientwin.js` is the deterministic mirror of
+`nettest_roundstall.js`. **No suite had ever asserted what the status line SAYS**, which is why a bug reachable
+in any netplay duel waited for a human to play one.
 
 **`nettest_full` WAS NOT A FLAKE — it was reporting a REAL netplay bug, fixed in v1.31.20.** This file
 previously recorded "it is not the product" as an established fact. That was wrong, and the reasoning behind it

@@ -4889,7 +4889,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.48';
+  var GAME_VERSION='v1.31.55';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -6013,9 +6013,18 @@ window.CardFace = {};
    * reader-relative — the same event is "You played" to the actor and "Rival played" to everyone else.
    * Locally it renders in our own frame; as netplay host it ALSO broadcasts the template so each client
    * can render it in theirs. Without this a client's battle log was empty all game, even for its own moves. */
-  function say(actor, tpl, cls){
-    logMsg(tpl.replace(/\{who\}/g, actor==null ? '' : '<b>'+logName(actor)+'</b>'), cls);
-    if(typeof NET!=='undefined' && NET.sayBroadcast) NET.sayBroadcast(actor, tpl, cls);
+  /* `foes` is a list of SEATS, never names. A name baked in by the speaker cannot be re-framed by the reader —
+   * that is the whole bug this replaces. `{foe}` is resolved on each end, in that end's own frame. */
+  function foeText(foes){
+    var list=(foes||[]).filter(function(q,i,a){ return q!=null && a.indexOf(q)===i; });
+    if(!list.length) return '';
+    return list.map(function(q){ return logName(q); }).join(' & ');
+  }
+  function say(actor, tpl, cls, foes){
+    var txt=tpl.replace(/\{who\}/g, actor==null ? '' : '<b>'+logName(actor)+'</b>')
+               .replace(/\{foe\}/g, '<b>'+foeText(foes)+'</b>');
+    logMsg(txt, cls);
+    if(typeof NET!=='undefined' && NET.sayBroadcast) NET.sayBroadcast(actor, tpl, cls, foes);
   }
   function logMsg(html, cls){
     var l=$('log'); var stick=logAtBottom();           // only auto-follow if you're already at the newest entry
@@ -6029,6 +6038,15 @@ window.CardFace = {};
     var head=['Cardmen Fighter — Battle Log','You: '+deckLabel(youDeck)+'   vs   Rival: '+deckLabel(rivalDeck)];
     if(state) head.push('Reached Round '+state.round+(state.finished?(' — '+(state.winner===YOU?'YOU WON':'Rival won')):''));
     var text=head.concat('',fullLog).join('\n');
+    /* THE TRACE GOES IN THE SAVE FILE. Aj's saved logs were the only evidence that characterised the fork, and
+     * they could not say why — nothing recorded which branch each action took. Appended rather than a separate
+     * download, because one file is what actually gets sent. */
+    try{
+      if(typeof NET!=='undefined' && NET.traceDump){
+        var tr=NET.traceDump();
+        if(tr && tr.length) text += '\n\n--- NETPLAY TRACE ('+tr.length+' entries; newest last) ---\n' + tr.join('\n');
+      }
+    }catch(e){}
     var blob=new Blob([text],{type:'text/plain'}), url=URL.createObjectURL(blob);
     var a=document.createElement('a'); a.href=url; a.download='cardmen-battle-log.txt'; document.body.appendChild(a); a.click();
     document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
@@ -6928,6 +6946,7 @@ window.CardFace = {};
       var discSyms=ids.map(function(id){var c=cardById(id); return c?cardSym(c):null;}).filter(Boolean);
       var rg=pick.resumeG;
       if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'discard', ids:ids}); pick=null; selected={}; busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
       var r=E.resolveDiscard(state, ids);
       if(!r.ok){ setMessage(r.reason); return; }
       pick=null; selected={};
@@ -6984,6 +7003,7 @@ window.CardFace = {};
   function chooseLossSeat(seat){
     if(!lossPick || lossPick.cands.indexOf(seat)<0) return;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ lossPick=null; NET.clientSend({op:'lossTarget', target:seat}); busy=true; render(); return; }   // client picks → host applies
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var g=lossPick.g, done=lossPick.done; lossPick=null;
     var fin=E.chooseLossTarget(state, seat);
     say(YOU, '{who} strike '+logName(seat)+'’s shield with a Special.', 'you');
@@ -7012,6 +7032,7 @@ window.CardFace = {};
       return promptTargetPick(cardId, eff);
     }
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'activate', id:cardId, target:(_opts&&_opts.target), copyId:(_opts&&_opts.copyId)}); selected={}; busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var r=E.activate(state, YOU, cardId, _opts||{});   // choices (return-to-top / discard) auto-picked in the engine
     if(!r.ok){ setMessage(r.reason); return; }
     selected={};
@@ -7093,6 +7114,7 @@ window.CardFace = {};
   function doRemove(cardId, targetId){
     var card=cardById(cardId), eff=card?E.effectOf(card):null;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'activate', id:cardId, target:targetId}); selected={}; targeting=null; busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var r=E.activate(state, YOU, cardId, {target:targetId});
     if(!r.ok){ setMessage(r.reason); targeting=null; render(); return; }
     selected={}; targeting=null;
@@ -7128,6 +7150,7 @@ window.CardFace = {};
     if(peeking||busy||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ var ids=selectedCards().map(function(c){return c.id;}); if(!ids.length){ setMessage('Select a card or combo to play.'); return; } NET.clientSend({op:'play', ids:ids}); selected={}; boostArmed=false; busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var g=gen;
     if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive() && MP()){                         // N-player host: the next seat (maybe remote) may spring Back Stab first
       return NET.hostPreFight(g, function(){ if(E.isLocked(state, YOU)) return doPassBody(); playCards(selectedCards()); });
@@ -7138,6 +7161,7 @@ window.CardFace = {};
     if(peeking||busy||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'pass'}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var g=gen;
     if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive() && MP()){ return NET.hostPreFight(g, doPassBody); }   // N-player host: pre-fight window before the pass resolves
     rivalPreFightThen(g, doPassBody);
@@ -7183,6 +7207,7 @@ window.CardFace = {};
     showModal(html); wirePeek();
     $('sgYes').addEventListener('click', function(){
       if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'guard', id:sr.guardId}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
       if(g!==gen){hideOverlay();return;} hideOverlay();
       var fr=E.shieldGuard(state, YOU, sr.guardId); if(!fr.ok){ setMessage(fr.reason); render(); return; }
       if(guardCard) flashArt(guardCard, 'You');
@@ -7190,6 +7215,7 @@ window.CardFace = {};
       cont(fr); });
     $('sgNo').addEventListener('click', function(){
       if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'guardPass'}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
       if(g!==gen){hideOverlay();return;} hideOverlay();
       var fr=E.shieldGuardPass(state, YOU); logMsg('<b>You</b> took the hit.', 'dim'); cont(fr); });
   }
@@ -7221,6 +7247,7 @@ window.CardFace = {};
     var card=cardById(cardId), eff=card?E.effectOf(card):null;
     var src=state.pile?state.pile.combo.cards.filter(function(c){return c.id===copyId;})[0]:null;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'activate', id:cardId, copyId:copyId}); selected={}; busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var r=E.activate(state, YOU, cardId, {copyId:copyId});
     if(!r.ok){ setMessage(r.reason); return; }
     selected={};
@@ -7311,25 +7338,28 @@ window.CardFace = {};
     if(res.kick){
       pendingKick=true; lastEndType='kick';
       setMessage('💥🦵 <b>'+who+'</b> land'+(w===YOU?'':'s')+' the FIGHTER KICK — '+foe+' explode'+(foe==='You'?'':'s')+'!');
-      say(w, '💥 {who} land'+(w===YOU?'':'s')+' the FIGHTER KICK — '+foe+' is out!', cls);
+      /* NOTE `foe` is still built with the SENDER's `logName`, so a client can read a foe name where it should read
+       * "You". Left as a known limit rather than fixed blind: resolving it needs the struck seats on the wire,
+       * and `say` carries one seat. Filed in the BACKLOG. The verb agreement is fixed here. */
+      sayOnce(w, '💥 {who} landed the FIGHTER KICK — {foe} is out!', cls, struck.length?struck:[w===YOU?RIVAL:YOU]);
     }
     else if(res.prevented && !res.shieldStripped){
       setMessage('🛡 The loss was prevented!');
-      say(w, '{who} won with a '+spec+' - but the loss was prevented.', cls);
+      sayOnce(w, '{who} won with a '+spec+' - but the loss was prevented.', cls);
     }
     else if(res.shieldStripped){
       setMessage('<b>'+foe+'</b> '+lostVerb+' a shield.');
-      say(w, '{who} won with a <b>'+spec+'</b> - '+foe+' '+lostVerb+' a shield.', cls);
+      sayOnce(w, '{who} won with a <b>'+spec+'</b> - {foe} lost a shield.', cls, struck);
     }
     else if(res.wonWithCombo){
       // A Special won but nothing was stripped (no valid target, or every strike was blanked). Saying
       // "won the round of Jabs" here was simply wrong — Aj saw exactly this after striking P3's shield.
       setMessage('<b>'+who+'</b> won with a <b>'+spec+'</b> — no shield lost.');
-      say(w, '{who} won with a <b>'+spec+'</b> - no shield was lost.', cls);
+      sayOnce(w, '{who} won with a <b>'+spec+'</b> - no shield was lost.', cls);
     }
     else {
       setMessage('<b>'+who+'</b> won the round of Jabs.');
-      say(w, '{who} won the round of Jabs.', cls);
+      sayOnce(w, '{who} won the round of Jabs.', cls);
     }
     logCatchUp(res, w, struck);
     TUT.note('roundWin', res);
@@ -7337,17 +7367,22 @@ window.CardFace = {};
   // Catch-up (M1 shields-as-cards + M2 loser-mill): surface the round loser's refuel. Skipped on a Kick
   // (the loser is out). Every seat is named from res.milled / res.struck — the old version derived the loser
   // as "whichever of YOU/RIVAL didn't win", which in a free-for-all told the WRONG player they lost a shield.
+  /* say() on a host or in solo; nothing on a netplay client, where the host's broadcast carries the line. */
+  function sayOnce(actor, tpl, cls, foes){
+    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()) return;
+    return say(actor, tpl, cls, foes);
+  }
   function logCatchUp(res, w, struck){
     if(res.kick) return;
     if(res.shieldToHand && struck && struck.length){
       struck.forEach(function(q){
-        say(q, '🛡→✋ The broken shield returns to {who}’s hand.', q===YOU?'you':'rival');
+        sayOnce(q, '🛡→✋ {who} took the broken shield back into hand.', q===YOU?'you':'rival');
       });
     }
     if(res.milled){
       Object.keys(res.milled).forEach(function(k){
         var q=parseInt(k,10), mn=res.milled[k];
-        say(q, '{who} move'+(q===YOU?'':'s')+' '+mn+' card'+(mn>1?'s':'')+' from '+(q===YOU?'your':'their')+' deck into Energy — catch-up.', q===YOU?'you':'rival');
+        sayOnce(q, '{who} moved '+mn+' card'+(mn>1?'s':'')+' from deck to Energy — catch-up.', q===YOU?'you':'rival');
       });
     }
   }
@@ -7615,6 +7650,7 @@ window.CardFace = {};
     var pend=state.pending, rivalEff=E.effectOf(pend.card)||{}, rivalName=rivalEff.name||'a Technique';
     var quicks=eligibleQuicks();
     if(!quicks.length){ if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'decline'}); busy=true; render(); return; } E.declineResponse(state, YOU); return cont(); }   // nothing to answer with — auto-pass
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     /* WHO cast it and WHO it is aimed at were both missing — Aj: "who or what is being targetted? why should I
      * counter it? this lacks some vital information." In a free-for-all that decides the whole choice: a
      * Telekinesis aimed at P2 is none of your business, one aimed at YOU is worth a Counter Spell. */
@@ -7642,6 +7678,7 @@ window.CardFace = {};
   function humanResponds(g, quickId, cont){
     cont = cont || function(){ resumeRival(g); };
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'respond', id:quickId}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     if(g!==gen){ hideOverlay(); return; }
     var qcard=state.players[YOU].hand.filter(function(c){return c.id===quickId;})[0];
     var qeff=qcard?E.effectOf(qcard):null;
@@ -7659,6 +7696,7 @@ window.CardFace = {};
   function humanDeclines(g, cont){
     cont = cont || function(){ resumeRival(g); };
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'decline'}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     if(g!==gen){ hideOverlay(); return; }
     hideOverlay();
     E.declineResponse(state, YOU);
@@ -7687,10 +7725,12 @@ window.CardFace = {};
     });
     $('pfDecline').addEventListener('click', function(){
       if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'prefightPass'}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
       hideOverlay(); E.preFightPass(state, YOU); logMsg('<b>You</b> let the Rival act.', 'dim'); resumeRival(g); });
   }
   function humanSpringsPreFight(g, cardId){
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'prefight', id:cardId}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     if(g!==gen){ hideOverlay(); return; }
     var card=state.players[YOU].hand.filter(function(c){return c.id===cardId;})[0];
     var r=E.preFightCast(state, YOU, cardId);
@@ -7876,6 +7916,7 @@ window.CardFace = {};
     /* A netplay CLIENT does not write its own record: it never ran the drivers that count opponents' plays, so
      * it would store a game with every opponent at zero. It adopts the host's complete record instead. */
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ /* the host will push it */ }
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     else {
       var recOut=recordGame();
       if(recOut && typeof NET!=='undefined' && NET.sendRecord) NET.sendRecord(recOut);
@@ -7887,9 +7928,13 @@ window.CardFace = {};
       showModal('<h2>'+(youWin?'YOU WIN! 🦵💥':(MP()?(winnerName+' Wins'):'Rival Wins'))+'</h2>'+
         '<p>'+(youWin?(MP()?'Last Rider standing. You win the free-for-all!':'Your Fighter lands the finishing kick. Crisis averted.'):(MP()?('You were knocked out — '+winnerName+' took the table. Run it back?'):'Your Fighter is down. Run it back?'))+'</p>'+
         '<div class="respOpts"><button id="againBtn" class="respQuick" style="text-align:center;">'+(MP()?'New Game':'New Duel')+'</button>'+
-        '<button id="reviewBtn" class="respLet">👁 Review the board &amp; log</button></div>');
+        '<button id="reviewBtn" class="respLet">👁 Review the board &amp; log</button>'+
+        '<button id="endSaveBtn" class="respLet">⤓ Save the battle log</button></div>');
       $('againBtn').addEventListener('click', openSetup);
       $('reviewBtn').addEventListener('click', enterPeek);   // peek at the final board/log; ↩ Back returns to this screen
+      /* Right here, on the end screen, because this is the moment a player has something worth sending and the
+       * least patience for finding it. The file carries the netplay trace too. */
+      $('endSaveBtn').addEventListener('click', function(){ downloadLog(); this.textContent='✓ Saved'; });
     };
     if(pendingKick){ pendingKick=false; playFinisher(youWin, showWin); }
     else showWin();
@@ -8727,6 +8772,7 @@ window.CardFace = {};
     var cards=pileCards('energy'), card=cards.filter(function(c){ return c.id===id; })[0];
     if(!card) return;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){
+    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
       var ids=[id]; cards.forEach(function(c){ if(c.id!==id) ids.push(c.id); });
       NET.clientSend({op:'reorderEnergy', ids:ids});
       pileSel=null; busy=true; hideOverlay(); render();
@@ -9366,7 +9412,8 @@ window.CardFace = {};
       var leave=document.createElement('button'); leave.id='netLeave'; leave.textContent='← Leave online';
       leave.title='Exit online play and go back to the game';
       leave.style.cssText='position:fixed;top:10px;right:10px;z-index:99999;font:inherit;font-size:13px;font-weight:700;padding:8px 12px;border-radius:9px;border:1px solid #3a2a08;background:#e8c37a;color:#3a2a08;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.5)';
-      leave.onclick=function(){ try{ if(transport) transport.close(); }catch(e){}
+      leave.onclick=function(){ try{ relayDropRoom(); }catch(e){}
+        try{ if(transport) transport.close(); }catch(e){}
         if(/[?&]net=/.test(location.search)) location.search=''; else location.reload(); };
       document.body.appendChild(leave);
       if(kind==='bc'){
@@ -9437,7 +9484,7 @@ window.CardFace = {};
     // hub of N-1 DataChannels (hubMode) so it can target one seat (sendTo) — essential so a seat's private mirror never
     // reaches another peer over the internet. ----
     var hubMode=false, dcs=[], chanSeat=[];   // RTC host: open client channels + each channel's assigned seat
-    function hostAddChannel(chan){ chan.onmessage=function(e){ var m; try{ m=JSON.parse(e.data); }catch(_){ return; } onMsg(m, chan); }; dcs.push(chan); chanSeat.push(null); }
+    function hostAddChannel(chan){ chan.onmessage=function(e){ var m; try{ m=JSON.parse(e.data); }catch(_){ return; } onMsg(m, chan); }; dcs.push(chan); chanSeat.push(null); trace('hostAddChannel', 'channels now '+dcs.length); }
     function send(m){
       if(hubMode){ var s=JSON.stringify(m); for(var i=0;i<dcs.length;i++){ try{ if(dcs[i].readyState==='open') dcs[i].send(s); }catch(e){} } return; }
       try{ transport && transport.send(m); }catch(e){}
@@ -9525,7 +9572,7 @@ window.CardFace = {};
     function isPasso(seat){ return !!(discon[seat] && discon[seat].passo); }
     function maybePasso(seat){ if(isPasso(seat)) schedulePasso(seat); }
     function schedulePasso(seat){ setTimeout(function(){ passoStep(seat); }, 450); }
-    function passoTakeover(seat){
+    function passoTakeover(seat){ trace('passoTakeover', 'seat '+seat+' — a BOT now holds it');
       if(!discon[seat] || discon[seat].passo) return;
       discon[seat].passo=true;
       logMsg('🤖 Passo takes '+seatName(seat)+'’s seat — it will pass and make smart discards until they return.', 'warn');
@@ -9622,6 +9669,51 @@ window.CardFace = {};
     function b64json(x){ try{ return JSON.parse(atob(x)); }catch(e){ return null; } }
     /* Tolerant on purpose: a code travels through chat apps now, and people paste it with a "here you go:" in
      * front or a stray newline behind. Falls back to the longest base64 run in whatever arrived. */
+    /* ---------- THE RELAY (v1.31.49) — a four-character room code instead of a round trip ----------
+     * Signalling was a ROUND TRIP: the host makes an invite, a human carries it, the joiner makes a reply, the
+     * human carries that back. Two exchanges in opposite directions. Shorter codes, the QR and the share sheet
+     * all made each exchange cheaper without removing either one, which is why it still felt bad.
+     * The relay carries the handshake instead. Host gets a code; joiner types it. See docs/RELAY-DESIGN.md.
+     *
+     * THE GAME STAYS PEER-TO-PEER. This moves the SDP exchange only; once the two browsers have found each
+     * other they connect directly and the relay is out of the loop for the whole game.
+     *
+     * IT WORKS FROM THE DOWNLOADED FILE, which is the surprise and the reason this is worth having at all: a
+     * `file://` (and `content://`) page is an opaque origin, and a fetch from one was the load-bearing
+     * assumption here — tested before any of this was written, and `Access-Control-Allow-Origin: *` covers it.
+     * So the offline single file gets room codes with no hosting.
+     *
+     * EVERY CALL FAILS SOFT. The manual copy-paste flow is never removed and never gated behind this: no
+     * network, a blocked domain or a dead relay must land the player on exactly today's screen. */
+    var RELAY_DEFAULT='https://cardmen-relay.ajgoats.workers.dev';
+    var relayBase=(function(){
+      var m=/[?&]relay=([^&]+)/.exec(location.search);          // tests point this at relay/mock.js
+      if(m) try{ return decodeURIComponent(m[1]).replace(/\/$/,''); }catch(e){}
+      if(/[?&]norelay=1/.test(location.search)) return '';      // forces the manual path
+      /* `dbg=1` MEANS NO RELAY UNLESS ONE IS NAMED. Every `nettest_*` suite passes dbg=1, and without this rule
+       * each of them would open rooms on the PRODUCTION relay on every run — test traffic against a live
+       * service, and suites that fail when the machine is offline. A suite that wants the relay says so with
+       * `relay=`, which is what nettest_relay.js does. Hermetic by default. */
+      if(/[?&]dbg(solo)?=1/.test(location.search)) return '';
+      return RELAY_DEFAULT;
+    })();
+    /* `up` is null until proven: the UI must not promise a room code before the relay has answered once. */
+    var relay={ room:null, since:-1, up:null, poll:null, busy:false, err:'' };
+    function relayOn(){ return !!relayBase && relay.up!==false; }
+
+    function relayFetch(method, path, body){
+      if(!relayBase) return Promise.reject(new Error('relay disabled'));
+      var opt={ method:method, cache:'no-store' };
+      if(body!==undefined){ opt.headers={ 'Content-Type':'application/json' }; opt.body=JSON.stringify(body); }
+      /* A hung relay must not hang the lobby — the manual path is sitting right there. */
+      var ctl=(typeof AbortController!=='undefined') ? new AbortController() : null;
+      if(ctl){ opt.signal=ctl.signal; setTimeout(function(){ try{ ctl.abort(); }catch(e){} }, 8000); }
+      return fetch(relayBase+path, opt).then(function(res){
+        relay.up=true;                                          // it answered, whatever it said
+        return res.status===204 ? { status:204, body:null }
+             : res.text().then(function(t){ var j=null; try{ j=t?JSON.parse(t):null; }catch(e){} return { status:res.status, body:j }; });
+      }, function(e){ relay.up=false; throw e; });
+    }
     function dec(code){
       var t=(code||'').trim(), o=unpackC1(t) || b64json(t);
       if(!o){                                                  // dig the code out of "here you go: <code>"
@@ -9667,12 +9759,90 @@ window.CardFace = {};
       hostAddChannel(ldc);                          // onmessage ready before open — no dropped 'join'
       ldc.onopen=function(){ renderNet(); };        // reflect the new connection
       sig.pendingPC=lpc; sig.offer=''; sig.answer=''; sig.step='host-gen'; renderNet();
-      lpc.createOffer().then(function(o){ return lpc.setLocalDescription(o); }).then(function(){ return gather(lpc); }).then(function(){ sig.offer=enc(lpc.localDescription); sig.step='host-invite'; renderNet(); });
+      lpc.createOffer().then(function(o){ return lpc.setLocalDescription(o); }).then(function(){ return gather(lpc); }).then(function(){ sig.offer=enc(lpc.localDescription); sig.step='host-invite'; renderNet(); relayPublish(); });
     }
-    function joinAcceptOffer(code){
+    /* `then` is how the relay path posts the answer as soon as it exists. Both paths run the SAME WebRTC code,
+     * so a relay join and a pasted invite cannot drift apart — the only difference is who carries the reply. */
+    function joinAcceptOffer(code, then){
       var d=dec(code); if(!d){ sig.err='That invite code is not valid — copy the whole thing.'; renderNet(); return; }
       sig.err='';
-      pc.setRemoteDescription(d).then(function(){ return pc.createAnswer(); }).then(function(a){ return pc.setLocalDescription(a); }).then(function(){ return gather(pc); }).then(function(){ sig.step='join-reply'; sig.answer=enc(pc.localDescription); renderNet(); }).catch(function(){ sig.err='Could not read that invite code.'; renderNet(); });
+      pc.setRemoteDescription(d).then(function(){ return pc.createAnswer(); }).then(function(a){ return pc.setLocalDescription(a); }).then(function(){ return gather(pc); }).then(function(){ sig.step='join-reply'; sig.answer=enc(pc.localDescription); renderNet(); if(then) then(sig.answer); }).catch(function(){ sig.err='Could not read that invite code.'; renderNet(); });
+    }
+    /* HOST: publish whatever offer is currently on screen. The first call creates the room; later ones add a
+     * slot to the SAME room, because the code is what a human holds and must not change per player.
+     * A WebRTC offer is not reusable, so a 6-player table needs one per peer — that is why the room is a
+     * mailbox of slots rather than a single pair. */
+    function relayPublish(){
+      if(!relayOn() || !sig || !sig.offer || relay.busy) return;
+      relay.busy=true;
+      var first=!relay.room;
+      var p=first ? relayFetch('POST','/new',{ offer:sig.offer })
+                  : relayFetch('POST','/r/'+relay.room+'/offer',{ offer:sig.offer });
+      p.then(function(r){
+        relay.busy=false;
+        if(first && r.status===201 && r.body && r.body.room){ relay.room=r.body.room; relay.err=''; relayPoll(); }
+        else if(!first && r.status===201){ relay.err=''; relayPoll(); }   // an explicit re-invite reopens the poll
+        else if(r.status===404){ relay.room=null; relay.since=-1; relayPublish(); return; }   // room expired — remake it
+        else relay.err='';                                       // any other refusal: stay quiet, manual path works
+        renderNet();
+      }, function(){ relay.busy=false; renderNet(); });          // relay.up is already false; the UI drops the code
+    }
+    /* HOST: poll for answers and feed each one through the ordinary hostAcceptAnswer path, so a relay join and a
+     * pasted reply are indistinguishable downstream. `since` is what stops the same answer being applied twice.
+     * After accepting one, mint a FRESH offer so the next joiner always has a slot waiting. */
+    function relayPoll(){
+      if(relay.poll || !relayOn() || !relay.room) return;
+      relay.poll=setInterval(function(){
+        if(started || !relay.room){ relayStopPoll(); return; }
+        relayFetch('GET','/r/'+relay.room+'/answers?since='+relay.since).then(function(r){
+          if(r.status===404){ relay.room=null; relay.since=-1; relayStopPoll(); renderNet(); return; }
+          var list=(r.body && r.body.answers) || [];
+          if(!list.length) return;
+          list.forEach(function(a){ if(a.slot>relay.since) relay.since=a.slot; });
+          var last=list[list.length-1];
+          if(sig && sig.pendingPC && last && last.answer){
+            hostAcceptAnswer(last.answer);                       // same path a pasted reply takes
+            /* DO NOT AUTO-MINT THE NEXT OFFER (fixed 2026-08-28 from a real game). Leaving a fresh offer waiting
+             * means the room ALWAYS has an open slot, so anything that reloads — a stale tab from an earlier
+             * attempt, a backgrounded page, a re-opened download — joins the table silently. Aj's phone had
+             * three tabs; two of them took slots, went dead, and Passo auto-passed for them. His host was in a
+             * three-seat game it never asked for, waiting on a tab nobody was looking at, and the "Rival
+             * passed" in the client's log was Passo covering one of the ghosts.
+             * The copy-paste flow could not do this: a second player needed the host to hand over a new code.
+             * Adding a slot is now the same explicit act — "+ Invite another player" — so the relay has the
+             * same semantics rather than a quietly open door. */
+            relayStopPoll();
+          }
+        }, function(){});                                        // a dropped poll is not an error; try again next tick
+      }, 1500);                                                  // ~40 requests a minute; see the cost note in the design doc
+    }
+    function relayStopPoll(){ if(relay.poll){ clearInterval(relay.poll); relay.poll=null; } }
+    /* Deleting the room is a courtesy, not a requirement — rooms expire on their own. But an SDP holds IP
+     * addresses, so not leaving one lying around for ten minutes is the decent default. */
+    function relayDropRoom(){
+      relayStopPoll();
+      var code=relay.room; relay.room=null; relay.since=-1;
+      if(code && relayBase) relayFetch('DELETE','/r/'+code).then(function(){}, function(){});
+    }
+    /* JOINER: claim a slot, answer it, hand the answer back. One exchange, and the player typed four characters. */
+    function relayJoinByCode(raw){
+      var code=String(raw||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      if(code.length!==4){ sig.err='A room code is four characters.'; renderNet(); return; }
+      if(!relayOn()){ sig.err='Cannot reach the relay — paste the invite code instead.'; renderNet(); return; }
+      sig.err=''; sig.step='join-claim'; renderNet();
+      relayFetch('POST','/r/'+code+'/claim').then(function(r){
+        if(r.status===204){ sig.err='That room has no invite waiting — ask them to reopen it.'; sig.step='join-need'; renderNet(); return; }
+        if(r.status!==200 || !r.body || !r.body.offer){ sig.err='No room with that code — check the four characters.'; sig.step='join-need'; renderNet(); return; }
+        var slot=r.body.slot;
+        /* joinAcceptOffer already does the WebRTC half; the continuation posts the answer so the host's poll
+         * finds it. Reusing it means a relay join and a pasted invite cannot diverge. */
+        joinAcceptOffer(r.body.offer, function(answer){
+          relayFetch('POST','/r/'+code+'/answer',{ slot:slot, answer:answer }).then(function(a){
+            if(a.status!==204) sig.err='Could not send your reply — send the code below by hand instead.';
+            renderNet();
+          }, function(){ sig.err='Could not reach the relay — send the code below by hand instead.'; renderNet(); });
+        });
+      }, function(){ sig.err='Cannot reach the relay — paste the invite code instead.'; sig.step='join-need'; renderNet(); });
     }
     function hostAcceptAnswer(code){
       var d=dec(code); if(!d){ sig.err='That reply code is not valid — copy the whole thing.'; renderNet(); return; }
@@ -9716,6 +9886,16 @@ window.CardFace = {};
           if(started) broadcastMirror(); else if(isNew || !wasReady) renderNet();   // (join retries fire every 350ms)
         }
         else if(m.t==='move'){ var sseat = srcChan ? seatOfChan(srcChan) : (typeof m.seat==='number'?m.seat:1);
+          trace('move IN', 'from seat '+sseat+' op='+((m.intent&&m.intent.op)||'?')+' q='+(m.q!=null?m.q:'-')+
+                (srcChan?'':' (NO CHANNEL — seat guessed)'));
+          /* STALE INTENT: formed against a board that has since moved on. Refuse it and RE-BROADCAST, because a
+           * client stuck on an old stamp would otherwise have every future intent refused too — a silent
+           * deadlock is worse than the stale move. Only refuse when the client actually sent a stamp, so an
+           * older peer keeps working. */
+          if(m.q!=null && m.q!==stateSeq){
+            trace('move REFUSED — stale', 'client q='+m.q+' but state is '+stateSeq);
+            broadcastMirror(); return;
+          }
           /* A SUGGESTION IS DISPATCHED HERE, ahead of hostApplyMove*, because those return immediately when
            * there is no hostState — i.e. for the entire LOBBY, which is the only place suggestions matter.
            * Putting it inside them looked right and did nothing: the suggestions that appeared were arriving by
@@ -9734,11 +9914,16 @@ window.CardFace = {};
           setRulesFromKey(m.k||''); iReady=false; stopJoinRetry(); renderNet();
           setMessage('⚗️ The host changed the rules — check them and hit Ready again.'); }
         else if(m.t==='full'){ if(!m.cid || m.cid===myId){ if(sig) sig.err='This game is full (6 players max).'; setMessage('⚠ This game is full.'); renderNet(); } }
-        else if(m.t==='log'){                                   // public narration — resolve {who} in OUR frame
-          var n=(state&&state.numPlayers)||2, r=((((m.actor-mySeat)%n)+n)%n), who;
-          if(r===0) who='You';
-          else who = nameOf(r) || (n===2 ? 'Rival' : ('P'+(r+1)));   // seatNames is already in OUR frame
-          logMsg(String(m.tpl||'').replace(/\{who\}/g, '<b>'+who+'</b>'), m.cls||'');
+        else if(m.t==='log'){                                   // public narration — resolve {who}/{foe} in OUR frame
+          var n=(state&&state.numPlayers)||2, rot=function(abs){ return ((((abs-mySeat)%n)+n)%n); };
+          var nm=function(r){ return r===0 ? 'You' : (nameOf(r) || (n===2 ? 'Rival' : ('P'+(r+1)))); };
+          var who=nm(rot(m.actor));
+          /* THE SECOND NAME HAD TO TRAVEL AS SEATS. It used to be interpolated by the host as literal text, so a
+           * client read the HOST's word for it — "You won with a Pair - You lose a shield", both of them "You". */
+          var foe=(m.foes||[]).filter(function(q,i,a){ return q!=null && a.indexOf(q)===i; })
+                              .map(function(q){ return nm(rot(q)); }).join(' & ');
+          logMsg(String(m.tpl||'').replace(/\{who\}/g, '<b>'+who+'</b>')
+                                  .replace(/\{foe\}/g, '<b>'+foe+'</b>'), m.cls||'');
         }
         else if(m.t==='setup'){
           if(m.names && m.names.length){                        // rotate absolute -> local so seatName/logName need no rotation
@@ -9749,7 +9934,13 @@ window.CardFace = {};
           youDeck=(m.decks&&m.decks[mySeat])||m.clientDeck||'full'; rivalDeck=m.hostDeck||'full'; var yn=$('youDeckName'), rn=$('rivalDeckName'); if(yn)yn.textContent=deckLabel(youDeck); if(rn)rn.textContent=deckLabel(rivalDeck);
           // the host's opening line is written in ITS frame, so a client writes its own locally instead
           logMsg('Online duel — you play <b>'+deckLabel(youDeck)+'</b>. Round 1, jabs only.', 'round'); }   // adopt this seat's concrete deck (for the board labels)
-        else if(m.t==='mirror' && m.seat===mySeat){ connected=true; applyMirror(m.st); }
+        else if(m.t==='mirror' && m.seat===mySeat){ connected=true;
+          trace('mirror IN', 'round='+((m.st&&m.st.round)||'?')+' turn='+((m.st&&m.st.turn)!=null?m.st.turn:'?')+' q='+(m.q!=null?m.q:'-'));
+          /* NEVER GO BACKWARDS. A replayed or delayed mirror carries an older stamp; applying it would rewind
+           * the board and let the player act on a board that no longer exists. */
+          if(m.q!=null && lastSeq!=null && m.q<lastSeq){ trace('mirror STALE — ignored', 'q='+m.q+' < '+lastSeq); return; }
+          if(m.q!=null) lastSeq=m.q;
+          applyMirror(m.st); }
         else if(m.t==='ceremony' && m.seat===mySeat){ clientPlayCeremony(m.res); }
         else if(m.t==='ping'){ SFX.play('ping'); setMessage('🔔 The host is ready — pinged you.'); }
         else if(m.t==='emote'){                               // includes our OWN, echoed back by the host
@@ -9774,17 +9965,68 @@ window.CardFace = {};
 
     // ================= FULL-UI netplay: reuse the real single-player board (render()) on both ends =================
     var started=false;
+    /* ---------- THE NETPLAY TRACE (v1.31.51) ----------
+     * ALWAYS ON, and that is the whole design constraint. A downloaded copy opens as `content://`, which
+     * CANNOT CARRY A QUERY STRING (v1.31.15), so anything gated behind `?dbg=1` can never be captured on the
+     * device where the interesting failures happen. It has to cost nothing and be on by default.
+     * IT LANDS IN THE ⤓ Save FILE, because that is the artifact a player can actually hand over — Aj's two
+     * saved battle logs are the only reason the 2026-08-28 fork was characterised at all, and they still could
+     * not say WHY: nothing recorded `role`, `started`, or which branch each action took.
+     * Bounded ring buffer, consecutive duplicates collapsed to "xN", so a long game cannot flood it. */
+    var TRACE=[], TRACE_CAP=500, traceT0=Date.now();
+    function trace(tag, d){
+      var line=tag+(d?' '+d:'');
+      var last=TRACE[TRACE.length-1];
+      if(last && last.line===line){ last.n++; last.t=Date.now(); return; }   // collapse repeats
+      if(TRACE.length>=TRACE_CAP) TRACE.shift();
+      TRACE.push({ t:Date.now(), line:line, n:1 });
+    }
+    function traceDump(){
+      return TRACE.map(function(e){
+        return ((e.t-traceT0)/1000).toFixed(2)+'s  '+e.line+(e.n>1?('  x'+e.n):'');
+      });
+    }
     /* PUBLIC narration. Netplay had no host→client log channel at all — every message type was state
      * (mirror/setup) or control (join/welcome/err/peer/ceremony) — so a client's battle log was permanently
      * EMPTY, even for its own moves. The host has always narrated everything correctly, just locally.
      * We broadcast the TEMPLATE plus the actor's absolute seat; each client resolves the name in its own
      * frame (its mirror is rotated so it is index 0). One message, no per-recipient string building. */
-    function sayBroadcast(actorSeat, tpl, cls){
+    function sayBroadcast(actorSeat, tpl, cls, foes){
       if(!isHost() || !started) return;                 // only the referee narrates to the table
-      send({t:'log', actor:actorSeat, tpl:tpl, cls:cls||''});
+      send({t:'log', actor:actorSeat, tpl:tpl, cls:cls||'', foes:foes||null});
     }
     function isClient(){ return role==='join'; }
-    function isClientActive(){ return isClient() && started; }
+    /* TRACED HERE RATHER THAN AT THE CALL SITES. Every action reads this, so instrumenting the function itself
+     * cannot miss a branch — and the fork is precisely a case where this returned false and the caller fell
+     * through to the single-player engine. `role` and `started` are the two values that decide it, so both are
+     * recorded on every call. */
+    function isClientActive(){
+      var r = isClient() && started;
+      /* THE WARNING IS FOR A CLIENT ONLY. A host reads false here and correctly runs the local engine — it IS
+       * the authority. Flagging that too made the host's own trace shout about a bug that was not one, which
+       * is exactly the sort of misleading breadcrumb that sends the next reader down a false path. */
+      trace('isClientActive', 'role='+role+' started='+started+' -> '+r+
+            ((!r && isClient()) ? '  << A CLIENT IS ABOUT TO RUN THE LOCAL ENGINE — THIS IS THE FORK' : ''));
+      return r;
+    }
+    /* THE MISSING THIRD STATE (found 2026-08-28 from Aj's two battle logs). Every action reads
+     * `isClientActive()` = `isClient() && started` and, when it is false, FALLS THROUGH to the local
+     * single-player engine. That is right for a solo page and catastrophic for a client whose board is live
+     * while `started` is still false: its inputs stop reaching the host and start driving a local game.
+     * Aj's client log is exactly that — "Rival passed" was the LOCAL AI, the round resolutions were local, and
+     * "You played a Jab - NaN" was drawing from a mirror whose opponent cards are redacted placeholders. The
+     * host meanwhile recorded one jab and waited forever. Two people, two divergent games, one open channel.
+     * So a client page must never reach the local engine. Refusing is always correct: if it is not started
+     * yet, the host is not listening, and pretending otherwise is how the fork happens.
+     *
+     * BUT THIS GUARD IS UNVERIFIED AND THE TRIGGER IS UNKNOWN. Forcing `started=false` to test it does not
+     * hold — the host's next mirror puts it back — which also means `started` is probably NOT what went wrong
+     * in Aj's game, since his client demonstrably received a mirror. The other candidate is `role` not being
+     * `'join'`, and note this guard would not fire for that either, because it tests `isClient()` too.
+     * A cheap backstop for one branch of a fault whose cause has not been found. See the BACKLOG. Do not
+     * assume this fixed it. */
+    function clientNotReady(){ return isClient() && !started; }
+    function dbgUnstart(){ started=false; trace('started: true -> FALSE', 'dbg unstart'); return true; }   // dbg only
     function hideNetroot(){ var r=$('netroot'); if(r) r.style.display='none'; }
     function resolveIds(seat, ids){ var h=hostState.players[seat].hand; return (ids||[]).map(function(id){ return h.filter(function(c){return c.id===id;})[0]; }).filter(Boolean); }
 
@@ -9792,11 +10034,15 @@ window.CardFace = {};
     // Unified start for 2–6 players. Seat 0 = host; seats 1..k = the joined remote clients (each with its lobby pick).
     // 2p keeps the awaitRival flow; 3–6p uses the netDriveN driver (both entered via driveRival, gated on MP()).
     function hostStartRealN(hostDeck){
+      /* The table is assembled, so the room has no job left. Rooms expire on their own, but an SDP holds IP
+       * addresses and leaving one lying around for ten minutes is not a decent default. */
+      try{ relayDropRoom(); }catch(e){}
       /* applyRules() rather than hardcoding the defaults here: this line used to force 'chosen'/'targeted' on
        * every online game, which would have silently overridden the custom-rules menu — and inconsistently,
        * since it never touched shields or draw. The host's rules are the game's rules. */
       E.setShieldCards(true); E.setLoserMill(true); applyRules();
       gameBasics=(RULES.basics==='basics');            // the host's rules are the table's rules, Basics included
+      if(!started) trace('started: false -> true', 'host path (hostStartRealN)');
       started=true; hideOverlay(); hideNetroot();
       /* Seat topology, NOT readiness: the loop below indexes seats 1..joined, so a readiness-based count would
        * skip a seat whose stamp is stale and mis-assign its deck. Un-readying gates the Start BUTTON (see the
@@ -9835,12 +10081,30 @@ window.CardFace = {};
      * Phrasing is reader-relative ("You played" vs "Rival played" vs "P3 played"), so we broadcast a TEMPLATE
      * with a `{who}` placeholder plus the actor's absolute seat, and each client resolves the name in its own
      * frame (its mirror is rotated so it is index 0). One message, no per-recipient string building. */
-    function broadcastMirror(){ if(hostState){ for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'mirror', seat:s, st:NetView.mirrorFor(hostState, s)}); } }   // per-seat (a seat's private hand never reaches another peer)
+    /* STATE STAMP (v1.31.54). Aj: "why is it possible for clients to go on playing without the host's go
+     * ahead? imho i think it should be blocked."  He is right, and nothing prevented it: mirrors carried no
+     * identity, so a client could not tell a REPLAYED or stale mirror from a fresh one, and the host could not
+     * tell an intent formed against old state from a current one. That is the hole behind a client narrating
+     * plays the host had already rejected — it acted on a board that no longer existed.
+     * `stateSeq` advances only when an intent is actually APPLIED, never per render, so a client's intent is
+     * valid exactly while the state it was formed against is still current. */
+    var stateSeq=0;
+    function broadcastMirror(){ if(hostState){ for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'mirror', seat:s, q:stateSeq, st:NetView.mirrorFor(hostState, s)}); } }   // per-seat (a seat's private hand never reaches another peer)
     function onRender(){ if(isHost() && started && hostState) broadcastMirror(); }   // hook: keep the client's board in lockstep
-    function awaitRival(){ busy=true; $('rivalStatus').textContent='Waiting for opponent…'; render(); broadcastMirror(); }   // park; client will send a move
+    function awaitRival(){ trace('awaitRival', 'host parks, waiting for a client move'); busy=true; $('rivalStatus').textContent='Waiting for opponent…'; render(); broadcastMirror(); }   // park; client will send a move
+    /* THE OTHER HALF OF awaitRival, and it was missing (found 2026-08-28 from Aj's first real relay game).
+     * awaitRival sets TWO things — `busy` and the "Waiting for opponent…" text — and every path that handed
+     * control back cleared only `busy`. So the host's board went live while its screen still said the rival was
+     * thinking: Pass enabled, turn its own, and no reason on screen to believe it. Both players then sit
+     * waiting for each other and the duel is unsalvageable, with nothing actually broken underneath.
+     * Not the v1.31.20 wedge (that one really did leave `busy` set, and its fix at resolveRoundCeremony only
+     * covers a move that ENDS the round). This is the ordinary case: a client move that does not end the round
+     * and simply passes the turn back. Clear the pair together, never one of them. */
+    function hostTakeBack(){ trace('hostTakeBack', 'control back to the host'); busy=false; $('rivalStatus').textContent=''; }
     var netSettle=null;   // parked: the host is waiting on the remote's respond/decline to an open stack window
     function hostApplyMove(it){
       if(!hostState || hostState.finished || !it || typeof it.op!=='string') return;
+      stateSeq++;   // this intent is being applied, so any other intent formed against the old board is void
       if(it.op==='emote') return hostEmote(1, it.key);   // never turn-gated
       if(it.op==='reorderEnergy') return hostReorderEnergy(1, it);   // the remote seat in a duel is always 1
       var g=gen, r;
@@ -9961,21 +10225,21 @@ window.CardFace = {};
       hostRivalWindows(g, function(){
         if(state.finished){ render(); broadcastMirror(); return endGame(); }
         var dp=state.discardPending;
-        if(dp && dp.player===YOU){ pick={ kind:'discard', need:dp.count, chosen:{}, from:dp.from||null }; setMessage(dp.from ? ('Choose '+dp.count+' of the cards you looked at to bank into Energy — keep the rest.') : ('Choose '+dp.count+' card'+(dp.count>1?'s':'')+' to send to your Energy Pile.')); busy=false; render(); broadcastMirror(); return; }
-        busy=false; render(); broadcastMirror();
+        if(dp && dp.player===YOU){ pick={ kind:'discard', need:dp.count, chosen:{}, from:dp.from||null }; setMessage(dp.from ? ('Choose '+dp.count+' of the cards you looked at to bank into Energy — keep the rest.') : ('Choose '+dp.count+' card'+(dp.count>1?'s':'')+' to send to your Energy Pile.')); hostTakeBack(); render(); broadcastMirror(); return; }
+        hostTakeBack(); render(); broadcastMirror();
       });
     }
     // After the Rival's Technique fully settles, continue their turn: your (host) shield-guard / forced discard use
     // your normal modals; any window owed to the remote Rival parks; else await their next move.
     function hostRivalContinue(g){
       if(g!==gen) return;
-      if(hostState.finished){ busy=false; render(); broadcastMirror(); return endGame(); }
+      if(hostState.finished){ hostTakeBack(); render(); broadcastMirror(); return endGame(); }
       if(hostState.shieldResponse && hostState.shieldResponse.q===YOU){ return openShieldGuardModal(null, function(){ hostRivalContinue(g); }); }
-      if(hostState.discardPending && hostState.discardPending.player===YOU){ busy=false; render(); broadcastMirror(); return promptHumanDiscard(g); }
+      if(hostState.discardPending && hostState.discardPending.player===YOU){ hostTakeBack(); render(); broadcastMirror(); return promptHumanDiscard(g); }
       if((hostState.shieldResponse && hostState.shieldResponse.q===RIVAL) || (hostState.discardPending && hostState.discardPending.player===RIVAL)){
         return hostRivalWindows(g, function(){ hostRivalContinue(g); });
       }
-      busy=false; render(); broadcastMirror();
+      hostTakeBack(); render(); broadcastMirror();
       if(hostState.turn!==YOU) awaitRival();
     }
     function hostAfterRivalMove(r, g){
@@ -9988,7 +10252,7 @@ window.CardFace = {};
         }
         return hostFinishRound(r, g);
       }
-      busy=false; render(); broadcastMirror();
+      hostTakeBack(); render(); broadcastMirror();
       if(hostState.turn!==YOU) awaitRival();     // still the rival's turn (rare in the core loop) → wait for the next move
     }
     // Curate a round result for the client's ceremony — seat-swapped to the client's view (2p: host 0 ↔ client 1),
@@ -10021,7 +10285,7 @@ window.CardFace = {};
     function sendCeremony(res){ if(isHost() && started && hostState){ for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'ceremony', seat:s, res:ceremonyResFor(res, s)}); } }   // per-seat, rotated (from hostFinishRound / finishPassRound / netDriveN)
     function hostFinishRound(r, g){
       announceRoundWin(r);
-      if(state.finished){ busy=false; render(); broadcastMirror(); return endGame(); }
+      if(state.finished){ hostTakeBack(); render(); broadcastMirror(); return endGame(); }
       sendCeremony(r);                                          // client replays the pre-draw + threshold beats
       /* Hand the board BACK if the host won: this round was resolved by the CLIENT's move, so `busy` is still
        * true from the awaitRival() that handed the turn over, and afterHumanAction() only renders — it never
@@ -10064,12 +10328,12 @@ window.CardFace = {};
         if(g!==gen) return;
         if(hostState.finished){ busy=false; $('rivalStatus').textContent=''; render(); broadcastMirror(); return endGame(); }
         if(hostState.shieldResponse && hostState.shieldResponse.q===YOU){ return openShieldGuardModal(null, step); }   // your shield threatened
-        if(hostState.discardPending && hostState.discardPending.player===YOU){ busy=false; render(); broadcastMirror(); return promptHumanDiscard(g); }
+        if(hostState.discardPending && hostState.discardPending.player===YOU){ hostTakeBack(); render(); broadcastMirror(); return promptHumanDiscard(g); }
         if(hostState.preFightQ===YOU){ return promptHumanPreFight(g); }
         if(hostState.pending && hostState.respondFor===YOU){ render(); return promptHumanResponse(g, step); }
         var w=netOppWindow();                                                   // a remote opponent owes a reactive window → park + broadcast so THEY answer it
         if(w){ netParked=null; netReact={ kind:w.kind, seat:w.seat, g:g, resume:step }; busy=true; $('rivalStatus').textContent=seatName(w.seat)+(w.kind==='discard'?' is discarding…':(w.kind==='guard'?' may guard…':' may respond…')); render(); broadcastMirror(); maybePasso(w.seat); return; }
-        if(hostState.finished){ busy=false; render(); broadcastMirror(); return endGame(); }
+        if(hostState.finished){ hostTakeBack(); render(); broadcastMirror(); return endGame(); }
         if(hostState.turn===YOU){ busy=false; $('rivalStatus').textContent=''; render(); broadcastMirror(); return; }   // control back to the host
         var p=hostState.turn;
         netReact=null; busy=true; $('rivalStatus').textContent=seatName(p)+' is playing…'; netParked={ seat:p, g:g, resume:step }; render(); broadcastMirror(); maybePasso(p);   // remote human's turn → park (Passo acts if it holds the seat)
@@ -10189,7 +10453,7 @@ window.CardFace = {};
     }
     function hostRunCeremony(fr, g){
       announceRoundWin(fr);
-      if(hostState.finished){ busy=false; render(); broadcastMirror(); return endGame(); }
+      if(hostState.finished){ hostTakeBack(); render(); broadcastMirror(); return endGame(); }
       sendCeremony(fr);
       resolveRoundCeremony(fr, g, function(){ if(g===gen){ broadcastMirror(); driveN(); } });
     }
@@ -10204,6 +10468,9 @@ window.CardFace = {};
       applyMirrorNow(st);
     }
     function applyMirrorNow(st){
+      trace('mirror APPLIED', 'round='+((st&&st.round)||'?')+' turn='+((st&&st.turn)!=null?st.turn:'?')+
+            ' myHand='+((st&&st.players&&st.players[0])?st.players[0].hand.length:'?'));
+      if(!started) trace('started: false -> true', 'client path (setup from host)');
       started=true; state=st; hostState=null; window.__cmfNetState=st;
       var owedModal = !!((st.pending && st.respondFor===YOU) || (st.shieldResponse && st.shieldResponse.q===YOU) || (st.preFightQ===YOU));   // overlay windows — keep them up (don't flicker away)
       var owedDiscard = !!(st.discardPending && st.discardPending.player===YOU);                                     // interactive hand-picker — must stay unlocked
@@ -10268,7 +10535,8 @@ window.CardFace = {};
       enterDelayBase = 0;
       if(clientCeremonyRes && clientCeremonyRes.newRound && !m.finished) playRoundCardBeat(clientCeremonyRes, function(){});
     }
-    function clientSend(it){ send({t:'move', seat:mySeat, intent:it}); }
+    var lastSeq=null;   // the stamp of the newest mirror this client has applied
+    function clientSend(it){ trace('clientSend', ((it&&it.op)||'?')+' q='+(lastSeq!=null?lastSeq:'-')); send({t:'move', seat:mySeat, intent:it, q:lastSeq}); }
     var iConceded=false;
     function concede(){ iConceded=true; send({t:'concede', seat:mySeat}); }   // notify the host we forfeited; ignore further mirrors (stay on our end screen)
     function onOpponentConcede(seat){
@@ -10286,6 +10554,10 @@ window.CardFace = {};
       }
       if(isHost() && hostState){ hostState.finished=true; hostState.winner=YOU; }
       state.finished=true; state.winner=YOU;      // 2p: opponent conceded → we win
+      /* WITHOUT THIS THE EXPORT SAYS "deckout". `lastEndType` defaults to that, so every game an opponent
+       * quit or was dropped was filed under the wrong ending — two of Aj's five exported games, and the
+       * ingestion log cannot be repaired after the fact. */
+      lastEndType='concede';
       logMsg('🏳 Opponent conceded — you win!', 'good'); busy=false; render(); endGame();
     }
     // The HOST forfeits in an N-player game: it's the authority, so it stays on as a referee (eliminated, spectating)
@@ -10324,11 +10596,16 @@ window.CardFace = {};
       return verWarn ? '<div class="netmsg err">⚠ Build mismatch — you are on <b>'+esc(verWarn.mine)+
              '</b>, they are on <b>'+esc(verWarn.theirs)+'</b>. You can still play, but download the same build to be sure.</div>' : '';
     }
+    /* THE NETBAR MUST NOT CLAIM "no server" WHILE A RELAY IS CARRYING THE HANDSHAKE. It was accurate for every
+     * version before this one, which is why leaving it would be a lie rather than a stale string. The game
+     * traffic really is still peer-to-peer, so the honest phrasing names what the relay does and how far it
+     * reaches — and it says "no server" again the moment the room is gone. */
+    function srvTag(){ return relay.room ? 'relay for the handshake only' : 'no server'; }
     function connLabel(){ return connected ? '<span class="ok">● connected</span>' : '<span class="wait">○ waiting for opponent…</span>'; }
     function renderSignaling(root){
       var errHTML = sig.err ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
-        '<div class="netbar">Peer-to-peer · '+(isHost()?'Hosting (Player 1)':'Joining (Player 2)')+' · no server · '+verTag()+'</div>'+errHTML+verWarnHTML();
+        '<div class="netbar">Peer-to-peer · '+(isHost()?'Hosting (Player 1)':'Joining (Player 2)')+' · '+srvTag()+' · '+verTag()+'</div>'+errHTML+verWarnHTML();
       var body='';                        // NB: the branches below ASSIGN body, so the name row is prepended
       if(isHost() && sig.step==='host-gen'){ body='<p>Generating your invite code…</p>'; }
       else if(isHost() && sig.step==='host-wait'){
@@ -10340,10 +10617,23 @@ window.CardFace = {};
           '<button id="sigGo" class="netbtn go">Connect ▶</button>'+
           '<p class="nethint">Send the code over any chat (Discord, email, SMS). You connect directly — nothing goes through a server.</p>';
       }
+      else if(!isHost() && sig.step==='join-claim'){
+        body='<h3>Joining…</h3><p class="nethint">Fetching the invite and answering it. This is the part you used to do by hand.</p>';
+      }
       else if(!isHost() && sig.step==='join-need'){
-        body='<h3>Step 1 — paste the invite code from your host</h3>'+
+        /* FOUR CHARACTERS FIRST. The paste box stays below it, because a host on an older build, a dead relay
+         * or no network at all must still be joinable — that path is not a legacy branch, it is the floor. */
+        body=(relayOn()
+          ? '<h3>Enter the room code</h3>'+
+            '<input id="roomIn" class="sigbox roomInput" maxlength="6" autocapitalize="characters" '+
+              'autocomplete="off" spellcheck="false" placeholder="e.g. 7QX4">'+
+            '<button id="roomGo" class="netbtn go">Join ▶</button>'+
+            '<details class="relayAlt"><summary>Or paste a full invite code</summary>'
+          : '')+
+          '<h3'+(relayOn()?' class="altH"':'')+'>'+(relayOn()?'Paste the invite code from your host':'Step 1 — paste the invite code from your host')+'</h3>'+
           '<textarea id="sigIn" class="sigbox" placeholder="Paste the invite code Player 1 sent you…"></textarea>'+
-          '<button id="sigGo" class="netbtn go">Generate my reply ▶</button>';
+          '<button id="sigGo" class="netbtn go">Generate my reply ▶</button>'+
+          (relayOn() ? '</details>' : '');
       }
       else if(!isHost() && sig.step==='join-reply'){
         body='<h3>Step 2 — send this reply back to your host</h3>'+
@@ -10358,6 +10648,14 @@ window.CardFace = {};
       var copy=$('sigCopy'); if(copy) copy.addEventListener('click', function(){ var t=$('sigOut'); if(t){ t.select(); try{ navigator.clipboard.writeText(t.value); }catch(e){} try{ document.execCommand('copy'); }catch(e){} copy.textContent='✓ Copied'; } });
       shareWire();
       var go=$('sigGo'); if(go) go.addEventListener('click', function(){ var v=($('sigIn')||{}).value||''; if(isHost()) hostAcceptAnswer(v); else joinAcceptOffer(v); });
+      var rgo=$('roomGo'), rin=$('roomIn');
+      if(rgo && rin){
+        rgo.addEventListener('click', function(){ relayJoinByCode(rin.value); });
+        /* Enter submits. A four-character code is the kind of thing people type and press go on without ever
+         * looking for a button. */
+        rin.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); relayJoinByCode(rin.value); } });
+        rin.focus();
+      }
     }
     /* Render a QR of whatever is in a code box, so the other player can point a camera at the screen instead of
      * copying, switching apps, pasting. Phase 1 is SHOW ONLY — scanning needs a camera permission and a decoder
@@ -10520,25 +10818,75 @@ window.CardFace = {};
         else { iReady=true; send({t:'join', deck:myDeck, cid:myId, name:myName, v:netVersion()}); startJoinRetry(); renderNet(); }
       });
     }
+    /* WHO IS IN THE ROOM — and it must show in EVERY branch of the lobby (Aj: "i cant see who's in the room").
+     * The roster used to live only in the `else` branch, which was fine when the host LEFT the invite step as
+     * soon as it pasted a reply. The relay put it back: after accepting a join the host mints the next offer
+     * immediately, so it sits on `host-invite` permanently and never reached the branch that showed the roster.
+     * Start Duel and Ping the table were the only evidence anyone had connected at all.
+     *
+     * JOINED IS NOT READY. `readyCount()` counts seats whose rulesGen matches — i.e. seats that have CONFIRMED —
+     * so it reads 0 for a player who is connected but has not pressed Ready. Using it as "connected" made the
+     * netbar say "0 connected" with someone sitting in the lobby. Both numbers are real and they are now
+     * reported separately, because the host needs the first one to know someone arrived and the second to know
+     * whether Start will work. */
+    function joinedCount(){ return Math.max(0, nextSeat-1); }            // seats 1..n each hold a live channel
+    /* OPEN CHANNELS, WHICH IS EARLIER THAN A SEAT. A seat is created by the client's `t:'join'`, and a client
+     * only sends that when it presses Ready — so between "their DataChannel opened" and "they confirmed" the
+     * host had NOTHING to show and said "No players yet" while somebody was plainly sitting there. That is the
+     * same complaint as the missing roster, one step earlier in the handshake. */
+    function openChanCount(){ var n=0; for(var i=0;i<dcs.length;i++){ if(dcs[i] && dcs[i].readyState==='open') n++; } return n; }
+    /* THREE COUNTS, AND THE NETBAR WANTS THE LOOSEST ONE. `readyCount()` = confirmed, `joinedCount()` = has a
+     * seat, `openChanCount()` = the channel is up. "N connected" should mean *somebody is here*, which is the
+     * widest of them — otherwise it reads 0 while a person is visibly sitting in the lobby, which is the
+     * complaint that started this. Start still gates on a SEAT, because that is what hostStartRealN indexes. */
+    function hereCount(){ return Math.max(joinedCount(), openChanCount()); }
+    function hostRosterHTML(){
+      var joined=joinedCount(), open=openChanCount();
+      if(joined<1) return '<div class="lobbyStatus">'+
+        (open>0 ? '● <b>'+open+'</b> connecting — waiting for them to choose a deck…'
+                : 'No players yet — give someone the code above.')+'</div>';
+      var names=[]; for(var s=1;s<=joined;s++) names.push(esc(seatName(s)));
+      var ready=readyCount();
+      return '<div class="lobbyStatus">✓ <b>'+joined+'</b> here: '+names.join(', ')+
+             ' · <b>'+(joined+1)+'</b>-Rider game'+
+             (ready<joined ? ' · waiting for '+(joined-ready)+' to confirm' : ' · everyone ready')+'</div>';
+    }
     // HOST over WebRTC: a combined lobby — deck picker + invite one player at a time (each becomes a hub channel) + Start.
     function renderHostRtcLobby(root){
-      var joined=readyCount(), total=joined+1, full=(joined>=MAX_SEATS-1);
+      var joined=readyCount(), total=joinedCount()+1, full=(joinedCount()>=MAX_SEATS-1);
       var errHTML = (sig&&sig.err) ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
-      var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · no server · '+joined+' connected · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML();
+      var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · '+srvTag()+' · '+hereCount()+' connected · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML();
       var body=nameRowHTML(false)+'<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
         '<button id="lobbyRules" class="netbtn">'+(isHost()?'⚗️ Custom rules':'⚗️ Rules &amp; suggest')+(customRules()?' · on':'')+'</button>'+''
       if(sig.step==='host-gen'){ body+='<p>Generating an invite code…</p>'; }
       else if(sig.step==='host-invite'){
-        body+='<h3>Invite a player — send them this</h3>'+
+        body+=hostRosterHTML();
+        /* THE ROOM CODE LEADS WHEN THERE IS ONE, and the invite code stays right below it. Not either/or: the
+         * relay can be unreachable, the player can be on the offline file with no network, or the far end can
+         * be an older build — in every one of those the manual path is the whole feature, unchanged. */
+        body+=(relay.room
+          ? '<h3>Invite a player — give them this code</h3>'+
+            '<div class="roomCode"><b id="roomCodeVal">'+esc(relay.room)+'</b>'+
+            '<button id="roomCopy" class="netbtn alt">⧉ Copy</button></div>'+
+            '<p class="nethint">They tap <b>Join</b> and type those four characters — say it out loud if they are '+
+            'next to you. The game itself still connects directly; the code only introduces you. While the room '+
+            'is open your connection details (which include your IP address) pass through the relay, nothing '+
+            'else does, and the room is deleted as soon as the table is set. Rather not? Use the invite code below.</p>'+
+            '<details class="relayAlt"><summary>Or send a full invite code instead</summary>'
+          : (relayOn() && relay.up===null
+              ? '<h3>Invite a player — send them this</h3><p class="nethint">Getting a room code…</p>'
+              : '<h3>Invite a player — send them this</h3>'))+
           sigPairHTML('qrInvite', 'Point their phone\u2019s camera at this \u2014 or send them the code.',
                       sig.offer, 'Copy invite', 'Send it')+
+          (relay.room ? '</details>' : '')+
           '<h3>Paste their reply code</h3><textarea id="sigIn" class="sigbox" placeholder="Paste the reply from the player you invited…"></textarea>'+
-          '<button id="sigGo" class="netbtn go">Connect this player ▶</button>';
+          '<button id="sigGo" class="netbtn go">Connect this player ▶</button>'+
+          (relay.room ? '<p class="nethint">If they used the room code you do not need to paste anything — they appear on their own.</p>' : '');
       } else {
-        body+='<div class="lobbyStatus">'+(joined>0?('✓ <b>'+joined+'</b> player'+(joined>1?'s':'')+' connected — a <b>'+total+'</b>-Rider game.'):'No players yet.')+'</div>'+
-          (full?'<p class="nethint">Table full (6).</p>':'<button id="inviteBtn" class="netbtn alt">＋ Invite '+(joined>0?'another ':'a ')+'player</button>');
+        body+=hostRosterHTML()+
+          (full?'<p class="nethint">Table full (6).</p>':'<button id="inviteBtn" class="netbtn alt">＋ Invite '+(joinedCount()>0?'another ':'a ')+'player</button>');
       }
-      body+='<button id="lobbyGo" class="netbtn go"'+(joined>0?'':' disabled')+'>Start '+(total>2?('('+total+' Riders)'):'Duel')+' ▶</button>'+
+      body+='<button id="lobbyGo" class="netbtn go"'+(joinedCount()>0?'':' disabled')+'>Start '+(total>2?('('+total+' Riders)'):'Duel')+' ▶</button>'+
         '<p class="nethint">Invite each player, then Start (2–6). Picks stay hidden — no counter-picking.</p>'+
         (joined>0?'<button id="lobbyPing" class="netbtn">🔔 Ping the table</button><div id="lobbyPingMsg" class="nethint"></div>':'');
       root.innerHTML=head+body+'</div>';
@@ -10548,6 +10896,18 @@ window.CardFace = {};
       qrInto('qrInvite', sig.offer);
       var copy=$('sigCopy'); if(copy) copy.addEventListener('click', function(){ var t=$('sigOut'); if(t){ t.select(); try{ navigator.clipboard.writeText(t.value); }catch(e){} try{ document.execCommand('copy'); }catch(e){} copy.textContent='✓ Copied'; } });
       shareWire();
+      /* The QR now lives inside a collapsed <details>, and `qrInto` measures `.qrWrap`. MEASURED: Chrome still
+       * gives layout to content inside a closed <details>, so the symbol comes out the right size (345 CSS px
+       * either way) and there is no bug here to fix. This stays as a guard for the browsers where closed
+       * details content has no box at all — there the canvas would size against `qrInto`'s fallback — and
+       * because `qrReflow` skips hidden canvases, so it would not correct itself on the next resize.
+       * Do not read this as a fix for an observed Chrome problem; it is insurance, and cheap. */
+      var alt=document.querySelector('#netroot .relayAlt');
+      if(alt) alt.addEventListener('toggle', function(){ if(alt.open) qrReflow(); });
+      var rc=$('roomCopy'); if(rc) rc.addEventListener('click', function(){
+        try{ navigator.clipboard.writeText(relay.room||''); }catch(e){}
+        rc.textContent='✓ Copied';
+      });
       var go=$('sigGo'); if(go) go.addEventListener('click', function(){ hostAcceptAnswer(($('sigIn')||{}).value||''); });
       var inv=$('inviteBtn'); if(inv) inv.addEventListener('click', function(){ hostNewInvite(); });
       var lr2=$('lobbyRules'); if(lr2) lr2.addEventListener('click', function(){
@@ -10564,9 +10924,21 @@ window.CardFace = {};
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
+    return { boot:boot, start:start, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:99999;background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
+    /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the
+       generator omits O 0 I L 1. Nothing about this needs to be subtle. */
+    '#netroot .roomCode{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0 4px}'+
+    '#netroot .roomCode b{font:900 clamp(34px,11vw,54px)/1 ui-monospace,Menlo,monospace;letter-spacing:.14em;'+
+      'color:#ffe6a8;background:#161b24;border:1px solid #2b3442;border-radius:12px;padding:10px 16px}'+
+    '#netroot .roomInput{font:900 30px/1.2 ui-monospace,Menlo,monospace;letter-spacing:.16em;text-align:center;'+
+      'text-transform:uppercase;height:auto;min-height:0;padding:12px}'+
+    /* The manual path is DEMOTED, never hidden — a <details> keeps it one tap away for the cases the relay
+       cannot serve (older build, no network, dead relay). */
+    '#netroot .relayAlt{margin:10px 0;border:1px solid #2b3442;border-radius:10px;padding:8px 10px;background:#11151c}'+
+    '#netroot .relayAlt summary{cursor:pointer;font-weight:700;font-size:13px;opacity:.85}'+
+    '#netroot .relayAlt h3.altH{font-size:14px;margin-top:8px}'+
     '#netroot .qrWrap{margin:10px 0;text-align:center}'+
     '#netroot .qrFrame{display:inline-block;background:#fff;border-radius:8px;padding:6px;line-height:0}'+
     '#netroot .qrCanvas{display:block;max-width:100%;background:#fff}'+
@@ -10585,7 +10957,8 @@ window.CardFace = {};
     '#netroot .deckSel:disabled{opacity:.55}#netroot .lobbyStatus{margin:12px 0;padding:10px 12px;background:#141a24;border:1px solid #263140;border-radius:8px;color:#cdd8e6}';
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); } }; }
+  window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); } }; }
   /* --headerH: measured, not hardcoded. #disconBar hangs off it, and the header's height is not a constant —
    * 56px on desktop, 37px in the landscape band, and ~92px on a portrait phone where it WRAPS to two rows.
    * A hardcoded 54px floated it 17px low in landscape and put it 38px INSIDE the wrapped portrait header,

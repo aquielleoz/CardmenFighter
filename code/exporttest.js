@@ -15,12 +15,34 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
 
-  await p.goto(URL); await wait(700);
-  await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
-  await p.evaluate(()=>{ const s=document.getElementById('setPlayers'); s.value='3'; s.dispatchEvent(new Event('change')); }); await wait(350);
-  await p.evaluate(()=>{ const g=document.getElementById('goFirstBtn'); if(g)g.click(); }); await wait(1200);
-  ok(await p.evaluate(()=>!!(window.__solo&&window.__solo.st()&&window.__solo.st().numPlayers===3)), '3-player game started');
+  /* A FRESH 3-PLAYER GAME, and we may need more than one — see the retry below. */
+  async function startGame(){
+    await p.goto(URL); await wait(700);
+    await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
+    await p.evaluate(()=>{ const s=document.getElementById('setPlayers'); s.value='3'; s.dispatchEvent(new Event('change')); }); await wait(350);
+    await p.evaluate(()=>{ const g=document.getElementById('goFirstBtn'); if(g)g.click(); }); await wait(1200);
+    return p.evaluate(()=>!!(window.__solo&&window.__solo.st()&&window.__solo.st().numPlayers===3));
+  }
+  ok(await startGame(), '3-player game started');
 
+  /* RETRY OVER GAMES, NOT A BIGGER ROUND BUDGET. The per-seat assertion needs BOTH opponents to have fought,
+   * and it cannot be weakened: a seat showing zero is indistinguishable from the merged-bucket bug this suite
+   * exists to catch. But some deals never give one of them a recorded fight — it passes through, or is
+   * eliminated first — and this file already documented that at "about 1 run in 6" while leaving the round cap
+   * as a valve. A longer cap is still a gamble; an eliminated seat will never fight however long you wait.
+   * So: drive a game, and if a deal did not produce what the assertion needs, deal ANOTHER one. Bounded, and
+   * it reports what each attempt achieved so a genuine regression still fails loudly instead of retrying into
+   * a timeout. */
+  let prog={round:0,o1:0,o2:0}, attempts=[];
+  for(let game=1; game<=4; game++){
+    if(game>1){ await startGame(); }
+    prog=await driveOne();
+    attempts.push('game '+game+': round '+prog.round+', opp1 '+prog.o1+', opp2 '+prog.o2);
+    if(prog.o1>0 && prog.o2>0) break;
+  }
+  if(!(prog.o1>0 && prog.o2>0)) console.log('   ⚠ no deal produced a fight for both opponents:\n     '+attempts.join('\n     '));
+
+  async function driveOne(){
   // Pass whenever we can. The opponents then actually fight, which is what has to get recorded.
   for(let i=0;i<160;i++){
     const done=await p.evaluate(()=>{ const st=window.__solo.st(); return !st||st.finished; });
@@ -49,8 +71,10 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
       const f=i=>(s&&s.seats&&s.seats[i])?(s.seats[i].jabs+s.seats[i].specials):0;
       return { round: st?st.round:0, o1:f(1), o2:f(2) };
     });
-    if(prog.round>=4 && prog.o1>0 && prog.o2>0) break;
-    if(prog.round>=14) break;
+    if(prog.round>=4 && prog.o1>0 && prog.o2>0) return prog;
+    if(prog.round>=14) return prog;
+  }
+  return { round:0, o1:0, o2:0 };
   }
 
   const seatStats=await p.evaluate(()=>{
