@@ -219,6 +219,31 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   **UNVERIFIED LEAD:** the earlier "netplay battle log does not scroll" report may not be a netplay divergence
   at all — `#log` is `overflow-y:auto` with no netplay override, so a `min-height:0` chain broken by the
   `.fighter` overflow is a plausible shared cause. Measure before filing it as netplay-specific.
+- **PEEK-AT-THE-TABLE IS DEAD: EVERY CONTROL IS BLOCKED — A REGRESSION FROM v1.31.36** (Aj, 2026-08-29:
+  *"after the duel ended and i could look back on the table to check, i could not click logs or back… trapped in
+  limbooooo"*). **Hit-tested, not inferred**, at 390x780 with `elementFromPoint` at each control's centre:
+  ```
+  element                  z-index   topmost element there   clickable?
+  .overlay (peek backdrop)  100000   div#overlay             YES
+  #peekBar                      60   div#overlay             BLOCKED
+  #logWrap / #handWrap          35   div#overlay             BLOCKED
+  #cardView                     35   div#overlay             BLOCKED
+  #hand .card                 auto   div#overlay             BLOCKED
+  ```
+  Peek works by making the overlay nearly invisible (`.overlay.peeking{background:rgba(10,4,16,.14);
+  backdrop-filter:none}`) and **lifting the panels above it** — `body.peeking-board` sets `#logWrap`/`#handWrap`/
+  `#cardView` to **35**, and `.peekBar` to **60**. Those constants were chosen when `.overlay` was **30**.
+  **v1.31.36 raised `.overlay` to 100000** so the Custom rules panel would stop rendering behind `#netroot`
+  (99999). That fixed the rules panel and buried every peek control under a backdrop you can see straight
+  through — the board is fully legible and nothing responds.
+  **The lesson was already written down and pointed at the wrong place.** CLAUDE.md's v1.31.36 entry says *"No
+  DOM assertion can see a stacking bug … hit-test it with `document.elementFromPoint`"*. That test was written
+  for the rules panel and never aimed at the OTHER thing the same change moved. **When a z-index is raised, hit
+  test every layer that was positioned relative to it — not just the one that prompted the change.**
+  **FIX BY DERIVATION, NOT BY RE-TUNING.** Two hardcoded constants drifting from a third is the whole bug, so
+  put the overlay's z-index in a custom property and set the peek layer to `calc(var(--zOverlay) + 1)` /
+  `+ 2`. Then the next person who raises the overlay carries peek mode along automatically — the same reasoning
+  as the version stamp being derived from README rather than declared twice.
 - **OPENING THE LOG ON A PORTRAIT PHONE MAKES THE GAME UNPLAYABLE** (Aj, 2026-08-29: *"logs don't scroll and
   it's pushing out everything on my screen"*). Filed earlier as a netplay bug; it is **shared code — measured in
   SOLO.** The log does not merely fail to scroll, it grows without bound and evicts the hand:
