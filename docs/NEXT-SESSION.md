@@ -241,6 +241,24 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   fixed it with `minmax(0,1fr)`, left the comment naming the cause — and **both portrait blocks were never
   updated.** A fix applied to one media band and not its siblings is the same shape as the two invite renderers
   and the three deck-picker defaults: **grep for the pattern, not the symptom.**
+  **DECIDED 2026-08-29 — ON A PHONE THE LOG BECOMES AN OVERLAY** (Aj: *"we can open it like how we do the view
+  card? but slightly transparent?"*). This is structural, not cosmetic: **an overlay is `position:fixed`, so it
+  cannot grow a grid row** — the bug becomes impossible rather than fixed. Build it on `.overlay`/`.modal`, NOT
+  on `#cardFull`:
+  - `.modal` already carries `max-height:calc(100dvh - 40px); overflow-y:auto; overscroll-behavior:contain`
+    (the v1.31.14 fix), so the bounded-height chain is inherited by construction.
+  - `.overlay` is `rgba(10,4,16,.8)` + `blur(3px)` — the board stays visible but recessed, which is the
+    "slightly transparent" that was asked for. `#cardFull` is fully opaque and replaces the screen.
+  - **`.overlay` is `z-index:100000`, which outranks `#netroot`** — required, or the log is invisible in a
+    netplay lobby (the v1.31.36 stacking bug, exactly).
+  - **Dim the backdrop, keep the PANEL opaque.** 12px dense text over card art is unreadable.
+  - Widen it the way the rules panel does — a class on this panel only, and `showModal` resets `#modal`'s class
+    list so the width cannot leak into the next dialog.
+  - Open scrolled to newest and keep it live. Desktop keeps the inline column; this is phone-only, same gate as
+    `viewCardBtn`.
+  **LAND THE ONE-LINE `minmax(0,1fr)` FIX ANYWAY.** `#table` shares that grid row and can overgrow identically,
+  so the guard is not really about the log. Run `landscapetest` after — the landscape band proves the direction
+  is safe, but not that it is safe in the portrait bands.
   **CORRECTION to the earlier lead:** this was guessed to be a `min-height:0` chain broken by the `.fighter`
   overflow. It is not — different cause, same conclusion that it is shared code rather than netplay.
   **Assert it in both directions and at BOTH phone bands** — landscape and desktop already pass, so a single
@@ -264,6 +282,12 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   **THE FIX HAS A PRECEDENT IN THIS FILE ALREADY:** `.oppPanel .oppZones .formZone{position:static; left:auto;
   right:auto; top:auto; bottom:auto; max-width:100%;}` — the opponents strip de-absolutes the same zone when it
   renders inline. Do that at phone width so the zones flow and the pile owns the centre.
+  **DECIDED 2026-08-29 — ZONES MOVE INTO THE PANELS (phone only).** The rival's Forms/Rides and equipment render
+  in the rival panel, yours in your hand panel, reusing `.oppPanel .oppZones`; `#table` then holds only the pile,
+  its label and the message, so the pile gets the full 257px. The framing that settled it: **the zones are
+  per-player state, the table is shared state** — on a phone the info belongs next to the player it describes,
+  which is better rather than merely smaller. Prerequisite: the `.fighter` wrap fix above, since the panels grow
+  to 2-3 lines. Second piece already exists — `#handMeta` carries an empty `<span class="equip" id="youEquip">`.
   **AJ'S COLLAPSING-HAND PROPOSAL WAS CONSIDERED AND DECLINED** (*"make the hand collapse like the mobile
   keyboard … this will mean that the drag to play functionality will be lost"*). It does not address this cause:
   the collision is horizontal, between edge-pinned overlays and the centred pile, so more vertical space does
