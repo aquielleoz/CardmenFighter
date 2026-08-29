@@ -770,8 +770,12 @@ intermittently refuses VALID moves is worse than the bug it prevents, so measure
 before trusting it.
 Two things follow. **`stateSeq` is a client-intent counter, not a state version** — it is bumped only in
 `hostApplyMove`, so the host's own plays and the round draw do not advance it (visible in a trace as one `q`
-carrying two different hand sizes). And **an emote must never be stamped**: it is not formed against a board and
-is handled ahead of every turn gate by design, so refusing one is meaningless.
+carrying two different hand sizes). And **a board-independent intent must never be stamped** — fixed in v1.31.57 for
+`emote` and `suggest`: an emote is not formed against a board and is handled ahead of every turn gate by design,
+and a suggestion is a lobby act where no board exists. That guard had been refusing emotes since v1.31.54, and
+**`nettest_emote` was red at 17/2 the whole time.** The tell that found it: the suite failed on a branch that
+could not have caused it, and an **A/B against the pre-change build failed identically**. Run the A/B before
+assuming your own change broke a suite — and before assuming a suite that is red today was green yesterday.
 
 **A FABRICATED CARD IS ALREADY REJECTED, AND THAT EXPLAINS THE `NaN` PLAYS.** `resolveIds` maps incoming ids
 against the HOST's copy of the hand and drops unmatched ones, so an imagined card resolves to nothing and the

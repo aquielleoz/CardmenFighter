@@ -34,8 +34,12 @@ async function waitFor(fn,t=80,ms=150){ for(let i=0;i<t;i++){ if(await fn()) ret
   ok(await p.evaluate(()=>!!document.getElementById('onHost')), 'the online dialog offers Host');
 
   await p.evaluate(()=>document.getElementById('onHost').click());
-  // netplay is live when it has injected its root and its persistent Leave control
-  const started = await waitFor(async()=>await p.evaluate(()=>!!document.getElementById('netroot') && !!document.getElementById('netLeave')));
+  /* netplay is live when it has injected its root AND the header button has flipped to Leave. That button used
+   * to be a floating `#netLeave` overlay; since v1.31.57 it is the third state of `#newBtn`, because as an
+   * overlay it covered the card reader's close button — and Leave drops the relay room, so the mis-tap ended
+   * the game rather than closing a panel. */
+  const leaveLabel = ()=>p.evaluate(()=>((document.getElementById('newBtn')||{}).textContent||'').trim());
+  const started = await waitFor(async()=>await p.evaluate(()=>!!document.getElementById('netroot')) && /Leave/.test(await leaveLabel()));
   ok(started, 'tapping Host starts netplay in-page — this is the bug that is fixed');
 
   const url1 = await p.evaluate(()=>location.href);
@@ -45,11 +49,9 @@ async function waitFor(fn,t=80,ms=150){ for(let i=0;i<t;i++){ if(await fn()) ret
 
   /* The Leave control must also avoid navigating when we entered in-page — clearing a query that was never
    * there would be a no-op on http but a broken URL on content://, so it reloads instead. */
-  const leaveNav = await p.evaluate(()=>{
-    const b=document.getElementById('netLeave');
-    return !!(b && b.onclick);           // present and wired; its branch is asserted below by source shape
-  });
-  ok(leaveNav, 'the Leave control is wired');
+  ok(/Leave/.test(await leaveLabel()), 'the Leave control is the HEADER button, not a floating overlay');
+  ok(!(await p.evaluate(()=>!!document.getElementById('netLeave'))),
+     '  → and no fixed #netLeave overlay is created, so it cannot cover the card reader’s close button');
 
   // ?net= must still work, because every other netplay suite depends on it
   const p2=await ctx.newPage(); const errs2=[]; p2.on('pageerror',e=>errs2.push(e.message));

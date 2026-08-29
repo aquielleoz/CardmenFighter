@@ -211,6 +211,40 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   drag, and that suite drives clicks + Fight, which short-circuits in `doFight` — and the suite has a long
   documented history of intermittency. Recorded as characterised-but-open rather than dismissed: **capture the
   failing assertion next time it goes red.**
+- **STARTING A NEW NETPLAY GAME DROPS YOU INTO THE PREVIOUS DUEL'S END SCREEN** (Aj, 2026-08-29: *"you have to
+  press leave then do the whole handshake thing again"* — so the cost is a full re-handshake, not just a stray
+  overlay). Reported earlier as "stale win page"; this is the sharper version, and the end screen appears
+  **after** the new game starts, not before.
+  **What is VERIFIED, and it is an asymmetry worth knowing:**
+  - The HOST path is clean. `hostStartRealN` calls `startGame(YOU)`, and `startGame` is the **only** site that
+    runs `gen++` (line ~2653) and `hideOverlay()`.
+  - The CLIENT path never bumps `gen`. `applyMirrorNow` does `started=true; state=st; … render()` with no
+    `gen++` anywhere, so **a stale `setTimeout` continuation from the PREVIOUS game still satisfies `g===gen`**
+    and can run against the new one — including a path that ends at `endGame()`.
+  - `.overlay` is `z-index:100000` and `#netroot` is `99999`, so anything showing when netplay starts sits on
+    top of the lobby; `NET.start` never touches the overlay.
+  **NOT FIXED, because there is no repro yet** — the stale-`gen` asymmetry is the leading candidate and it is
+  still a theory, and theories have been wrong every time this week. **Get the repro first:** play a netplay
+  duel to a finish, start a second one without leaving, and watch whether `endGame()` is re-entered (a
+  breakpoint or a `trace()` in `endGame` will say immediately). If it is, giving the client a `gen++` on the
+  first mirror of a new game is the fix; if it is not, look at what re-shows the overlay instead.
+- **THE CLIENT NEVER PLAYS THE FIGHTER KICK FINISHER — THE CEREMONY IS SENT ONE LINE TOO LATE** (Aj,
+  2026-08-29: *"the client didn't play the rider kick animation even tho they won"*). **Three sites, identical
+  shape**, and the terminal `return` fires before the send:
+  ```js
+  announceRoundWin(r);
+  if(state.finished){ ... return endGame(); }   // Fighter Kick - terminal, no round card
+  sendCeremony(r);                              // <- never reached on the round that ENDS THE GAME
+  ```
+  `finishPassRound` (~3587), `hostFinishRound` (~6709) and the N-player settle (~6877) all do it. `pendingKick`
+  is set inside `announceRoundWin` and consumed by `endGame` via `playFinisher`, so a client that never receives
+  the ceremony has `pendingKick` false when its `finished` mirror lands, and goes straight to `showWin()` with no
+  finisher and no sound.
+  **The payload was never the problem:** `ceremonyResFor` already carries `kick:!!res.kick` faithfully. It just
+  never travels on the one round it matters for. The comment is right that a terminal round needs no *round
+  card* and wrong that it needs no *ceremony*.
+  **Not a pure line-move.** The client must play the finisher and THEN reach the end screen, so this also has to
+  settle the ordering against the `finished` mirror, which may arrive first. Belongs with the narration audit.
 - **HOST ACTIVATIONS (RIDE / TRANSFORM / INCARNATION) NEVER REACH THE CLIENT.** Same 2026-08-29 log pair: the
   client is missing *"called your Ride — Giant Ram enters the Zone"*, *"transformed — Pandora Form activated"*,
   *"transformed — Perseus Form"* and *"Transformation Requirements Complete! JQK — INCARNATION!"* — every one of
@@ -236,9 +270,11 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   zero (9 sends, 9 received, 0 refused in a full game)"*. **In Aj's real game it refused five moves:** three
   emotes (`q=0`, `q=9`, `q=10`) and **two passes** (`q=11`, `q=14`) — a player pressing Pass and nothing
   happening. The lab measurement was taken on a machine with no latency and is not representative.
-  **An emote must never be stamped at all** — it is not formed against a board, it is handled ahead of every turn
-  gate by design, and refusing one is meaningless. Once the stamp counts real state changes it will also refuse
-  far more often, so this needs fixing in the same pass.
+  ~~**An emote must never be stamped at all.**~~ **SHIPPED in v1.31.57** — emotes and rules suggestions are now
+  exempt, which also un-broke `nettest_emote` (red at 17/2 since v1.31.54, now 19/0).
+  **STILL OPEN: the two refused PASSES.** Those *are* board-formed, so exemption is not the answer — the stamp
+  itself is wrong. Once it counts real state changes rather than client intents it will refuse far MORE often,
+  so fix the stamp and the refusal policy together.
 - **A CLIENT GETS STUCK UNDER THE "X seizes the initiative!" DIM — MECHANISM FOUND, 2026-08-29.** Reported
   twice by Aj with screenshots (the second: his own phone, play area dimmed behind the banner, hand still fully
   usable underneath). Not a wedge and not a transport problem — `#roundfx` is `position:absolute; inset:0`
@@ -1052,6 +1088,48 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.57 — the floating controls come back into the layout, and emotes stop being refused
+
+Two netplay-only controls were `position:fixed` overlays on `<body>`, deliberately outside `#netroot` (which
+`renderNet` rewrites) so they stayed reachable. Being outside the layout, they had no idea what they were
+sitting on top of — and on a phone they were sitting on the controls.
+
+**"← Leave" is now the third state of `#newBtn`** — `🏳 Concede` during a live game, `← Leave` when online with
+nothing live (the lobby and the end screen), `New Duel` offline. As an overlay it covered the Concede/help row
+and, measured at 390×780, **79% of the card reader's CLOSE button with only 17% still clickable**. That one is
+not cosmetic: Leave *drops the relay room*, so a player tapping what looked like Close left the game. A header
+button cannot float over anything, which is why this is the fix rather than a new z-index — the same reasoning
+as the peek regression a raised z-index caused in the first place.
+
+**The label is "← Leave", not "← Leave online", and that is load-bearing.** The header does not wrap above the
+phone breakpoint and its buttons are `flex:0 0 auto` (they must never shrink or clip), so a label wider than the
+`New Duel` it replaces pushes the last button off screen — measured at 720px, `#newBtn` ran to x=728 in a 720px
+viewport. **`header{flex-wrap:wrap}` was tried first and reverted:** it fixed the overflow and cost landscape
+~40px of header height, which `landscapetest` caught as five failures (the pile no longer cleared the hand, and
+the play area no longer fit a pile card). Landscape is the tightest case in the app; a narrower label costs
+nothing anywhere.
+
+**The emote bar is now a member of the `#actions` row**, with its list popping upward. As
+`left:10px; bottom:10px` it sat exactly where `#actions` renders on a phone, so 💬 covered Pass. `#actions` is
+static markup that `render()` never rewrites, so an injected child survives — which is why it, and not
+`#netroot`, is the right home.
+
+**The emote popup is clamped to the viewport.** Neither CSS anchor works on its own, because `#actions` wraps:
+the bar sits at the RIGHT on a wide screen, where `left:0` runs off the right edge (4 of 7 emotes reachable at
+720px), and near the LEFT once the row wraps, where `right:0` runs off the left (1 of 7 at 327px). Both
+measured. `placeEmoteList` lays it out and nudges it back on screen. `nettest_emote` asserts **both** ends of
+that range, since either anchor passes at one of them — and it drives the real toggle, because adding `.open`
+by hand skips the handler that does the clamping and makes the assertion vacuous.
+
+**Board-independent intents are no longer stamped, which un-breaks emotes over netplay.** v1.31.54's stale-intent
+guard ran ahead of the emote dispatch, so an emote — which is not formed against a board, and is handled ahead of
+every turn gate precisely because reacting off-turn is the point — could be refused for carrying a stale board
+stamp. Rules suggestions had the same problem, and they are a *lobby* act where no board exists at all. Aj's real
+game shows three emotes refused (`op=emote q=0 … state is 1`), and **`nettest_emote` had been red since v1.31.54
+(17/2) without anyone noticing** — it is 19/0 again, matching its recorded count. Found by A/B against the
+pre-change build after the suite failed here: the baseline failed identically, which is what ruled out this PR
+and pointed at the guard.
 
 ### v1.31.56 — a dragged play goes through the host
 
