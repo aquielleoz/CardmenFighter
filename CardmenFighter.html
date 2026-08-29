@@ -4889,7 +4889,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.55';
+  var GAME_VERSION='v1.31.56';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -6755,8 +6755,22 @@ window.CardFace = {};
     return !!fightLegal(cards);
   }
   // Shared by the Fight button and drag-to-play.
+  /* A CLIENT NEVER PLAYS LOCALLY — it sends an intent and waits for the host's mirror. ONE definition, called
+   * from both entry points, because the per-entry-point version is exactly how this broke: `doFight` carried a
+   * copy and the drag-to-play release did not, so a dragged play ran the local engine, never reached the host,
+   * and left the client narrating a round the host never saw (phantom rounds, `Pair (NaN, NaN)`, a client
+   * "racing to the game end"). Aj found it by noticing the Fight button worked and dragging did not. Any NEW
+   * way to play a card is covered for free by the guard in `playCards`. */
+  function sendClientPlay(cards){
+    var ids=(cards||[]).map(function(c){ return c.id; });
+    if(!ids.length){ setMessage('Select a card or combo to play.'); return; }
+    NET.clientSend({op:'play', ids:ids}); selected={}; boostArmed=false; busy=true; render();
+  }
+  function isNetClient(){ return !!(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()); }
+
   function playCards(cards){
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
+    if(isNetClient()){ sendClientPlay(cards); return; }                // the backstop: every path into the engine
     if(!canHumanPlay(cards)){ setMessage('That play won’t beat the pile here.'); render(); return; }
     if(typeof TUT!=='undefined' && TUT.needSpecial && TUT.needSpecial() && (!cards||cards.length<2)){ setMessage('For this lesson, make a <b>Special</b> — two cards of the same number.'); render(); return; }
     var bId=(boostArmed && boostCard()) ? boostCard().id : null;
@@ -7149,7 +7163,7 @@ window.CardFace = {};
   function doFight(){
     if(peeking||busy||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
-    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ var ids=selectedCards().map(function(c){return c.id;}); if(!ids.length){ setMessage('Select a card or combo to play.'); return; } NET.clientSend({op:'play', ids:ids}); selected={}; boostArmed=false; busy=true; render(); return; }
+    if(isNetClient()){ sendClientPlay(selectedCards()); return; }   // must short-circuit HERE too — below is host/rival pre-fight logic a client must never run
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var g=gen;
     if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive() && MP()){                         // N-player host: the next seat (maybe remote) may spring Back Stab first

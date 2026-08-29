@@ -177,7 +177,8 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   a forced flag. **Rebuild it against the drag path**: on a client, drag a card to the play zone and assert the
   host saw an intent and the client's round did not advance on its own. That is a state the product can
   actually reach, which is what the forced version never was.
-- **★ ROOT CAUSE: DRAG-TO-PLAY BYPASSES NETPLAY ENTIRELY** (Aj, 2026-08-29, found by observation: *"it lagged
+- **~~ROOT CAUSE: DRAG-TO-PLAY BYPASSES NETPLAY ENTIRELY~~ SHIPPED in v1.31.56** — see the changelog. The
+  **audit below is still open.** (Aj, 2026-08-29, found by observation: *"it lagged
   at the beginning as usual and then it suddenly went ok. the difference? i used the fight button. dragging to
   play only seems to work on the host."*). **Confirmed in code — one missing branch:**
   ```js
@@ -199,6 +200,17 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   sweep was never finished — this is the FOURTH site found in two days (drag-to-play, the human counter, the
   transform/Ride branch, and `logMsg` vs `say` generally). **Enumerate every player-initiated action and assert
   each one either sends an intent or is refused on a client.** No current suite drives the drag path at all.
+- **A FAILING SUITE'S SUMMARY LINE MISLABELS ITS PASS COUNT.** ~20 suites print
+  `console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail)`, so a failing run reads
+  **`FAIL: 11  FAIL: 4`** — which scans as fifteen failures. It is deliberate (the first label flips to FAIL as a
+  red flag) but it is confusing at exactly the moment clarity matters; both suites that failed on 2026-08-29 had
+  to be re-read to work out what happened. Suggest `FAILED — PASS: 11  FAIL: 4`. Low priority, ~20 files.
+- **`nettest_full` FAILED ONCE IN SEVEN RUNS on 2026-08-29 and was NOT fully cleared.** It went 4/1 immediately
+  after the v1.31.56 change, then 6/6 green. The failing assertion was **not captured**, which is the mistake to
+  avoid repeating. Structurally the change cannot reach it — on a client the only path into `playCards` is the
+  drag, and that suite drives clicks + Fight, which short-circuits in `doFight` — and the suite has a long
+  documented history of intermittency. Recorded as characterised-but-open rather than dismissed: **capture the
+  failing assertion next time it goes red.**
 - **HOST ACTIVATIONS (RIDE / TRANSFORM / INCARNATION) NEVER REACH THE CLIENT.** Same 2026-08-29 log pair: the
   client is missing *"called your Ride — Giant Ram enters the Zone"*, *"transformed — Pandora Form activated"*,
   *"transformed — Perseus Form"* and *"Transformation Requirements Complete! JQK — INCARNATION!"* — every one of
@@ -1027,6 +1039,31 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.56 — a dragged play goes through the host
+
+`doFight` carried an `isClientActive()` branch that sends an intent to the host; the **drag-to-play release
+called `playCards()` directly**, and `playCards` had no client guard. So on a netplay client a dragged play ran
+the **local engine**, never reached the host, and left the client narrating a round the host never saw.
+
+That one missing branch accounts for a long tail of reports: phantom rounds in the client's battle log
+(`You played a Jab - 7♦` / `Rival passed` / a duplicated `Round 2 begins`), `Pair (NaN, NaN)`, a client that
+appears to "race to the game end", and the "lag" that cleared the moment Aj switched to the Fight button.
+
+**Aj found it by changing his own behaviour and watching the symptom move** — the Fight button worked, dragging
+did not. That is a cleaner experiment than anything the instrumentation produced, and it beat several days of
+theorising about the transport.
+
+The guard now lives in **`playCards`**, the one function that actually plays cards, rather than at each entry
+point — `sendClientPlay()` is the single definition and `doFight` calls it too (it must still short-circuit
+early, because everything below it is host/rival pre-fight logic a client must never run). Any future way to
+play a card is covered for free.
+
+**`nettest_drag.js` (13) is the first suite to drive the drag path at all**, which is why this survived twenty
+green netplay suites. It asserts both directions — the client sends an intent and the host receives it, and the
+host's own dragging still works — and it was **verified by reintroducing the bug**: the two discriminating
+assertions (`clientSend play` in the trace, and the host's board showing the play) both go red, while the
+others stay green.
 
 ### v1.31.55 — the second name in a line travels as a seat
 
