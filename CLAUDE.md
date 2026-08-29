@@ -104,6 +104,9 @@ node nettest_sync.js         # THE CROSS-CHECK: plays a real game over the ROOM 
                              # (count ratio vs the host, never adjacency) — against
                              # the other's actual hand (7). The only suite that compares the two ends to each
                              # OTHER rather than to expectations. Reaches round ~14 in ~50 actions.
+node nettest_narrate.js      # PUBLIC NARRATION must reach the other seat (10). Its second half is the durable
+                             # part: it scans the client's log for SENDER-BAKED GRAMMAR — "You is", "You has",
+                             # "You moves", "You’s" — each of which has shipped at least once.
 node nettest_drag.js         # DRAG-TO-PLAY must go through the host (13). The first suite to drive the drag
                              # path at all — clicking Fight exercises a DIFFERENT branch, which is why a client
                              # playing locally survived twenty green suites.
@@ -374,6 +377,19 @@ larger version and an incomparable number.
   the moment codes shrank. `/^C1~o~/` and `/^C1~a~/` are stronger anyway — a length floor passes on a garbled
   code of the right size.
 - Text, not bit-packing, on purpose: people paste this into chats by hand.
+
+**`logMsg` IS HOST-LOCAL; `say` IS PUBLIC. NINETEEN SITES HAD THE WRONG ONE (v1.31.58).** Aj's two logs of the
+same game diverged on every Ride, transform, INCARNATION and counter. The split that gives it away: the AI's
+counter went through `say` and the HUMAN's through `logMsg`, in the same file — so the bug was invisible in
+solo and in every AI-driven test. **Ask of every narration line: can this happen while netplay is live, and does
+another seat need to see it?** If yes it is `say`, always.
+**PAST TENSE ON EVERY HALF OF THE TEMPLATE, NOT JUST `{who}`'S VERB.** v1.31.55 fixed the actor's verb and left
+the copula on `{foe}`, so a client reading itself as the foe got **"You is out!"** in a real game. Neither name's
+number is known when the template is written, so no present-tense verb and no sender-written possessive is safe
+anywhere in the string — `'{who} put a card on top of your deck'` had to become `…the deck`.
+**A GRAMMAR SCAN IS CHEAPER THAN A REVIEW.** `nettest_narrate` greps the rendered client log for `You is`,
+`You has`, `You moves`, `You’s`. None of those has a legitimate reading, all of them have shipped, and the scan
+catches the next one without anyone re-reading every template.
 
 **EVERY WAY TO PERFORM AN ACTION NEEDS THE CLIENT GUARD, AND THE GUARD BELONGS AT THE FUNNEL (v1.31.56).**
 `doFight` carried an `isClientActive()` branch that sends an intent; the **drag-to-play release called

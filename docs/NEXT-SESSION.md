@@ -245,7 +245,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   card* and wrong that it needs no *ceremony*.
   **Not a pure line-move.** The client must play the finisher and THEN reach the end screen, so this also has to
   settle the ordering against the `finished` mirror, which may arrive first. Belongs with the narration audit.
-- **HOST ACTIVATIONS (RIDE / TRANSFORM / INCARNATION) NEVER REACH THE CLIENT.** Same 2026-08-29 log pair: the
+- **~~HOST ACTIVATIONS (RIDE / TRANSFORM / INCARNATION) NEVER REACH THE CLIENT.~~ SHIPPED in v1.31.58.** Same 2026-08-29 log pair: the
   client is missing *"called your Ride — Giant Ram enters the Zone"*, *"transformed — Pandora Form activated"*,
   *"transformed — Perseus Form"* and *"Transformation Requirements Complete! JQK — INCARNATION!"* — every one of
   which the host logged. Cause is two adjacent branches of one function:
@@ -256,7 +256,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   **This is why the ROAR/INCARNATION banner appeared a whole round late on the client** (Aj, earlier): the host
   never tells it, so the client falls back to deriving the unlock from its own shield diff in
   `animateShields -> checkThresholds`, which is drained only at the next ceremony gap.
-- **"You is out!" — a v1.31.55 RESIDUE.** `sayOnce(w, '💥 {who} landed the FIGHTER KICK — {foe} is out!')`.
+- **~~"You is out!" — a v1.31.55 RESIDUE.~~ SHIPPED in v1.31.58.** `sayOnce(w, '💥 {who} landed the FIGHTER KICK — {foe} is out!')`.
   Past tense was applied to the ACTOR's verb and the **copula on `{foe}` was missed**, so a client reading itself
   as `{foe}` gets "You is out!". Sweep every template for a verb attached to `{foe}`, not just to `{who}`.
 - **THE NETPLAY "LAG" IS A RE-RENDER STORM, AND IT IS MEASURED.** From the client trace: between 399.6s and
@@ -458,7 +458,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   belongs in `landscapetest.js`, which already owns the vertical stack — it needs the horizontal assertion too,
   in **both** directions (narrow overflows, desktop untouched). Note the trap that cost a first attempt here:
   without the two-click boot the probe measures the SETUP DIALOG and reports "clean" at every width.
-- **A HUMAN COUNTER IS NEVER NARRATED TO ANYONE BUT THE HOST** (Aj, 2026-08-29: *"i play infuse with magic, and
+- **~~A HUMAN COUNTER IS NEVER NARRATED TO ANYONE BUT THE HOST~~ SHIPPED in v1.31.58** (Aj, 2026-08-29: *"i play infuse with magic, and
   fully expected my queens to win vs the kings. what wasn't logged was that it was counter spelled … it's not
   logged in the logs"*). Confirmed by reading, four sites, and the split is the tell — **an AI counter
   broadcasts and a human counter does not:**
@@ -1088,6 +1088,37 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.58 — the narration audit: nineteen sites that never left the host
+
+Aj's two saved battle logs from the same game (2026-08-29) diverged on **every** Ride, transform, INCARNATION
+and counter: the host logged them and the client's log had nothing at all. The cause was `logMsg` where `say`
+was needed — `logMsg` is host-local, which is how clients had an empty battle log until v1.28.2.
+
+**Nineteen sites converted**, in two groups. *The local player's own actions*, which run on the host because a
+client early-returns to `clientSend`: the discards, the pass, the lock-out, the shield guard and its decline,
+the pre-fight pass, Back Stab, the counter and instant-speed answer, and the Ride/transform/INCARNATION line.
+*The host narrating a client's action*, which additionally wrote a **name into the template** (the v1.31.53 bug
+class): both respond handlers, the N-player play and pass lines, and the host's Back Stab.
+
+Everything moved to **past tense** with `{who}`/`{foe}`, because past tense removes subject-verb agreement and
+one string then reads correctly for every seat. `'{who} put a card on top of your deck'` became `…the deck`, for
+the same reason a possessive cannot be sender-written.
+
+**`{foe} is out!` is fixed too.** v1.31.55 moved `{who}`'s verb to past tense and left the copula on `{foe}`
+alone, so a client reading itself as the foe got **"You is out!"** — Aj hit it in a real game. A verb attached to
+`{foe}` needs exactly the same treatment as one attached to `{who}`; neither name's number is known when the
+template is written.
+
+**`nettest_narrate.js` (10) is the guard**, and its second half is the durable part. It asserts a host event the
+client did not cause reaches the client's log, and then scans the client's log for **sender-baked grammar** —
+`You is`, `You has`, `You moves`, `You’s`, each of which has shipped at least once. Verified by reintroducing the
+bug: three assertions go red, including the log-length ratio (client 1 line vs host 3).
+
+A note on picking the event to assert: the first version watched for the host's **pass**, which never fires the
+converted line in a duel — a host pass always ends the round, so the round announcement covers it. The transform
+is the event that actually diverged in Aj's logs, and it needs both seats' shields forced low, because the
+transform tiers are gated on total table shields lost.
 
 ### v1.31.57 — the floating controls come back into the layout, and emotes stop being refused
 
