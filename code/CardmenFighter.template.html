@@ -664,10 +664,12 @@
   /* one context-aware button — normal when usable, greyed when not (no special highlight) */
   #ctxBtn.off{background:var(--panel); color:var(--txt); opacity:.5; border-color:var(--line); cursor:not-allowed;}
 
-  /* z-index ABOVE #netroot (99999) and its Leave button. A modal is the topmost UI by definition, and while a
-   * netplay lobby is on screen netroot covers everything — so at z-index 30 the Custom rules modal opened
-   * correctly and was simply invisible behind it. Nothing in the DOM looked wrong, which is exactly why
-   * nettest_rules passed: it asserted the modal's DOM, and DOM existence cannot see a stacking bug. */
+  /* z-index ABOVE #netroot. A modal is the topmost UI by definition, and while a netplay lobby is on screen
+   * netroot covers everything — so at z-index 30 the Custom rules modal opened correctly and was simply
+   * invisible behind it. Nothing in the DOM looked wrong, which is exactly why nettest_rules passed: it
+   * asserted the modal's DOM, and DOM existence cannot see a stacking bug.
+   * The value is DERIVED (`--zOverlay` = `--zNetroot` + 1) since v1.31.61, because raising it by hand here is
+   * what buried peek's controls — they lift themselves above the overlay, and their lifts were bare numbers. */
   .overlay{position:fixed; inset:0; background:rgba(10,4,16,.8); backdrop-filter:blur(3px); display:none; align-items:center; justify-content:center; z-index:var(--zOverlay); padding:20px;}
   .overlay.show{display:flex;}
   /* A modal taller than the viewport used to be CENTRED with no cap and no overflow, so it hung off the top AND
@@ -5480,7 +5482,7 @@ __QR__
    * the absence of a class, so it is a thing you choose on purpose, from the bottom of the list. */
   function resolveDeck(v){ return v==='random' ? E.DECK_ORDER[Math.floor(Math.random()*E.DECK_ORDER.length)] : v; }
   function resolveDiff(v){ if(v!=='random') return v; var d=['minion','recruit','fighter','knight','demon']; return d[Math.floor(Math.random()*d.length)]; }
-  /* Header button, THREE states: "🏳 Concede" during a live game, "← Leave online" when online with no live
+  /* Header button, THREE states: "🏳 Concede" during a live game, "← Leave" when online with no live
    * game (the lobby, and the end screen), "New Duel" offline.
    * Leave used to be a `position:fixed` overlay pinned to the top-right, which put it on top of whatever was
    * already there: the Concede/help row on a phone, and — measured at 390×780 — the card reader's CLOSE button,
@@ -5866,7 +5868,9 @@ __QR__
       // Persistent exit. Entered via ?net= → clear the query; entered in-page (mobile, content://) → a plain
       // reload returns to the game, because the URL was never touched. Lives on <body> (not #netroot, which
       // renderNet keeps rewriting) so it's always reachable.
-      /* Emote bar. Lives on <body> next to Leave (not inside #netroot, which renderNet rewrites), and it is
+      /* Emote bar. Lives in #actions — NOT on <body> and NOT inside #netroot, which renderNet rewrites. It was
+       * on <body> beside a floating Leave button until v1.31.57, where being outside the layout meant it had no
+       * idea it was covering Pass. #actions is static markup render() never rewrites, so a child survives. It is
        * created ONLY in netplay — there is nobody to talk to in a solo game. Collapsed to a single 💬 tap on a
        * phone, where a 7-button row would eat the board. */
       var eb=document.createElement('div'); eb.id='emoteBar';
@@ -5882,7 +5886,7 @@ __QR__
         if(t.id==='emoteToggle'){ eb.classList.toggle('open'); if(eb.classList.contains('open')) placeEmoteList(); return; }
         var k=t.getAttribute('data-em'); if(k){ sendEmote(k); eb.classList.remove('open'); }
       });
-      refreshNewBtn();   // the header button becomes "← Leave online" — see refreshNewBtn for why it is not a floating overlay
+      refreshNewBtn();   // the header button becomes "← Leave" — see refreshNewBtn for why it is not a floating overlay
       if(kind==='bc'){
         var ch; try{ ch=new BroadcastChannel('cardmen:'+room); }catch(e){ root.innerHTML='<div class="netbar">This browser does not support BroadcastChannel netplay.</div>'; return true; }
         connectWith(bcTransport(ch));

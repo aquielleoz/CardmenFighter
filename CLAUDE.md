@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.25**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.61**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -122,7 +122,7 @@ node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — R
 
 ### Playwright suites (browser + netplay)
 
-`browsertest.js` and the 23 `nettest_*.js` full-UI netplay suites drive the real built HTML in a headless browser.
+`browsertest.js` and the 38 `nettest_*.js` full-UI netplay suites drive the real built HTML in a headless browser.
 They need Playwright, which **is** installed here (`code/node_modules`, gitignored). To set it up from scratch:
 
 ```bash
@@ -268,7 +268,7 @@ the one that prompted the change.**
 
 **A MODAL MUST OUTRANK `#netroot`, AND DOM PRESENCE IS NOT VISIBILITY.** `#netroot` is `z-index:99999`; `.overlay`
 was **30**, so for three versions the Custom rules panel opened in a netplay lobby and rendered completely behind
-it — populated, wired, and invisible. `.overlay` is now `100000`.
+it — populated, wired, and invisible. `.overlay` is now `var(--zOverlay)`, derived from `--zNetroot` (v1.31.61) — a bare number here is what let peek drift out of the family.
 The lesson is the test one: `nettest_rules` asserted the panel's DOM (rows present, correct disabled state, host
 vs client) and every assertion was TRUE. **No DOM assertion can see a stacking bug.** Where visibility is the
 thing that matters, hit-test it — `document.elementFromPoint(cx, cy)` and check the modal contains the result.
@@ -881,7 +881,7 @@ rather than hardcoding a path, which is what these files used to do and why they
 
 **Run them one at a time.** Each suite starts its own HTTP server on a fixed port and drives two or three real
 browser pages; two suites at once flake on CPU contention (`nettest_rtc` in particular fails at `maxRound=0`
-concurrently and passes 11/0 alone). A serial sweep of all 21 takes a few minutes.
+concurrently and passes 11/0 alone). A serial sweep of all 38 takes a few minutes.
 
 **`awaitRival()` SETS TWO THINGS, AND `hostTakeBack()` CLEARS BOTH (v1.31.49).** `busy` and the
 "Waiting for opponent…" text. Every path that handed control back used to clear only `busy`, so the host's board
@@ -984,18 +984,20 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.38 — green, all 37 suites plus `browsertest`, run serially 2026-08-27**
-(panel-area counts refreshed at v1.31.45):
+Status as of **v1.31.61 — 2026-08-29.** The suites touched that day were re-run and are listed with fresh
+counts; the rest carry their v1.31.38 numbers and were NOT re-run, so treat those as last-known rather than
+verified. `nettest_clientfork` was deleted (see the changelog) and `nettest_drag` / `nettest_narrate` are new:
 `test` 325, `netview` 28, `mptest` 82, `rulestest` 143, `nettest_rules` 28, `nettest_suggest` 34,
-`landscapetest` 96, `decktest` 42, `viewtest` 10, `piletest` 30, `revealtest` 12, `phantasmtest` 12,
+`landscapetest` 117, `decktest` 42, `viewtest` 10, `piletest` 30, `revealtest` 12, `phantasmtest` 12,
 `exporttest` 15, `lessontest` 19, `lessontest_energy` 14, `versiontest` 15, `sharetest` 14, `qrtest` 32,
 `qrref` 26 (darwin only), `nettest_full` 5, `nettest_log` 14, `nettest_names` 8, `nettest_version` 14,
-`nettest_emote` 19, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_3p` 7, `nettest_activate` 6,
+`nettest_emote` 21, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_3p` 7, `nettest_activate` 6,
 `nettest_ceremony` 9, `nettest_concede3` 8, `nettest_counter` 8, `nettest_customdeck` 18, `nettest_deckout3` 8,
 `nettest_discard` 7, `nettest_discon3` 22, `nettest_elim3` 15, `nettest_energy` 10, `nettest_guard` 8,
-`nettest_inpage` 10, `nettest_losspick3` 7, `nettest_losspick_remote3` 6, `nettest_prefight` 13,
+`nettest_inpage` 11, `nettest_losspick3` 7, `nettest_losspick_remote3` 6, `nettest_prefight` 13,
 `nettest_react3` 7, `nettest_record` 12, `nettest_reveal` 10, `nettest_rtc` 11, `nettest_rtc3` 10,
-`nettest_rtc_discon` 5, `nettest_target3` 6.
+`nettest_rtc_discon` 5, `nettest_target3` 6,
+`nettest_drag` 13, `nettest_narrate` 10, `nettest_sync` 11, `nettest_relay` 17, `nettest_clientwin` 10.
 **If a count here disagrees with a suite, the suite is right — fix this line.**
 
 **A SUITE CAN BE GREEN AND BLIND. Three shapes of it, all found in one 2026-08-27 sweep and all fixed:**
