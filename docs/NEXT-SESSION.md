@@ -165,6 +165,56 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **★ ROOT CAUSE: DRAG-TO-PLAY BYPASSES NETPLAY ENTIRELY** (Aj, 2026-08-29, found by observation: *"it lagged
+  at the beginning as usual and then it suddenly went ok. the difference? i used the fight button. dragging to
+  play only seems to work on the host."*). **Confirmed in code — one missing branch:**
+  ```js
+  doFight()      if(NET.isClientActive()){ NET.clientSend({op:'play', ids:ids}); ... return; }   // host authority
+  onPointerUp()  if(d.playZone==='ok' && groupById(d.gid)){ playCards(...); return; }            // NO client branch
+  ```
+  `playCards` has no client guard either, so a dragged play on a client **runs the local engine and never sends
+  an intent**: the client mutates its own mirror, narrates locally, and the host never hears about it.
+  **This one line accounts for most of the netplay weirdness reported since v1.31.49:**
+  - the phantom round in Aj's client log — `You played a Jab - 7♦` / `Rival passed` / `Round 2 begins`, a whole
+    local round resolution absent from the host's log, with `Round 2 begins` then appearing TWICE;
+  - **the fingerprint to look for: that line says "Rival passed" where every other client line says
+    "Lady Eduardo"** — a generic `logName` means a LOCAL line, not a host broadcast. Use it to tell a local
+    resolution from a mirrored one in any future log;
+  - `Pair (NaN, NaN)` — a local play resolved against a redacted mirror;
+  - *"the client just races to the game end"*;
+  - the "lag" that cleared when he switched to the Fight button.
+  **THE REAL LESSON IS THE AUDIT, NOT THE LINE.** `isClientActive()` guards were added per entry point and the
+  sweep was never finished — this is the FOURTH site found in two days (drag-to-play, the human counter, the
+  transform/Ride branch, and `logMsg` vs `say` generally). **Enumerate every player-initiated action and assert
+  each one either sends an intent or is refused on a client.** No current suite drives the drag path at all.
+- **HOST ACTIVATIONS (RIDE / TRANSFORM / INCARNATION) NEVER REACH THE CLIENT.** Same 2026-08-29 log pair: the
+  client is missing *"called your Ride — Giant Ram enters the Zone"*, *"transformed — Pandora Form activated"*,
+  *"transformed — Perseus Form"* and *"Transformation Requirements Complete! JQK — INCARNATION!"* — every one of
+  which the host logged. Cause is two adjacent branches of one function:
+  ```js
+  logMsg('<b>You</b> transformed — <b>'+eff.name+'</b> activated.', 'you');   // ~3433 host-local + hardcoded name
+  say(YOU, '{who} played '+effPhrase(card)+'.', 'you');                       // ~3440 broadcasts correctly
+  ```
+  **This is why the ROAR/INCARNATION banner appeared a whole round late on the client** (Aj, earlier): the host
+  never tells it, so the client falls back to deriving the unlock from its own shield diff in
+  `animateShields -> checkThresholds`, which is drained only at the next ceremony gap.
+- **"You is out!" — a v1.31.55 RESIDUE.** `sayOnce(w, '💥 {who} landed the FIGHTER KICK — {foe} is out!')`.
+  Past tense was applied to the ACTOR's verb and the **copula on `{foe}` was missed**, so a client reading itself
+  as `{foe}` gets "You is out!". Sweep every template for a verb attached to `{foe}`, not just to `{who}`.
+- **THE NETPLAY "LAG" IS A RE-RENDER STORM, AND IT IS MEASURED.** From the client trace: between 399.6s and
+  442.4s the client received and APPLIED dozens of mirrors that were all `q=19`, same round, same turn, same hand
+  — each one a full `render()`. Same at `q=20` (~22 mirrors over 30s).
+  **THE OBVIOUS FIX IS WRONG:** dropping a mirror whose `q` is not newer would discard REAL updates, because
+  **`stateSeq` is a client-intent counter, not a state version.** It is bumped only in `hostApplyMove`, so the
+  host's own plays and the round draw do not advance it — visible in the trace as the same `q=29` carrying
+  `myHand=7` and then `myHand=9`. Fix the stamp first (bump on every applied state change), then dedupe.
+- **CORRECTION — THE STALE-INTENT GUARD IS NOT FREE.** CLAUDE.md and the v1.31.54 note record *"Measured cost:
+  zero (9 sends, 9 received, 0 refused in a full game)"*. **In Aj's real game it refused five moves:** three
+  emotes (`q=0`, `q=9`, `q=10`) and **two passes** (`q=11`, `q=14`) — a player pressing Pass and nothing
+  happening. The lab measurement was taken on a machine with no latency and is not representative.
+  **An emote must never be stamped at all** — it is not formed against a board, it is handled ahead of every turn
+  gate by design, and refusing one is meaningless. Once the stamp counts real state changes it will also refuse
+  far more often, so this needs fixing in the same pass.
 - **A CLIENT GETS STUCK UNDER THE "X seizes the initiative!" DIM — MECHANISM FOUND, 2026-08-29.** Reported
   twice by Aj with screenshots (the second: his own phone, play area dimmed behind the banner, hand still fully
   usable underneath). Not a wedge and not a transport problem — `#roundfx` is `position:absolute; inset:0`
