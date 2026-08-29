@@ -917,9 +917,13 @@
   @media (prefers-reduced-motion: reduce){ #roundfx.show{ animation:none; backdrop-filter:none; -webkit-backdrop-filter:none; } #roundfx .rfInner.in{ animation:none; opacity:1; } }
   /* Emote bar (netplay only). Bottom-LEFT so it never sits under the hand's right-side action cluster, and
    * collapsed behind one 💬 tap on short/narrow screens where seven buttons would cost real board height. */
-  #emoteBar{position:fixed; left:10px; bottom:10px; z-index:99998; display:flex; align-items:flex-end; gap:6px;}
+  /* The emote bar is a MEMBER OF THE ACTIONS ROW, not a floating overlay (v1.31.57). As `position:fixed;
+   * left:10px; bottom:10px` it sat exactly where `#actions` renders on a phone, so 💬 covered Pass. Docked here
+   * it cannot overlap anything, and the popup opens UPWARD over the hand — transient, and out of the way of
+   * every button. `#actions` is static markup that render() never rewrites, so an injected child survives. */
+  #emoteBar{position:relative; display:flex; align-items:center; gap:6px; flex:0 0 auto;}
   #emoteBar #emoteToggle{font:inherit; font-size:17px; line-height:1; padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:var(--panel); color:var(--txt); cursor:pointer;}
-  #emoteBar #emoteList{display:none; flex-wrap:wrap; gap:5px; max-width:min(62vw,420px);}
+  #emoteBar #emoteList{display:none; position:absolute; bottom:calc(100% + 8px); left:0; z-index:60; padding:7px; border-radius:12px; border:1px solid var(--line); background:var(--panel); box-shadow:0 8px 24px rgba(0,0,0,.55); flex-wrap:wrap; gap:5px; width:max-content; max-width:min(72vw,420px);}
   #emoteBar.open #emoteList{display:flex;}
   #emoteBar .emoteBtn{font:inherit; font-size:13px; font-weight:700; padding:7px 9px; border-radius:10px; border:1px solid var(--line); background:var(--panel); color:var(--txt); cursor:pointer; display:flex; align-items:center; gap:5px;}
   #emoteBar .emoteBtn:hover{border-color:var(--gold);}
@@ -5428,11 +5432,25 @@ __QR__
    * the absence of a class, so it is a thing you choose on purpose, from the bottom of the list. */
   function resolveDeck(v){ return v==='random' ? E.DECK_ORDER[Math.floor(Math.random()*E.DECK_ORDER.length)] : v; }
   function resolveDiff(v){ if(v!=='random') return v; var d=['minion','recruit','fighter','knight','demon']; return d[Math.floor(Math.random()*d.length)]; }
-  // Header button: reads "🏳 Concede" during a live duel (forfeit) and "New Duel" otherwise (open setup).
-  function newBtnLive(){ return !!(state && !state.finished && !(MP() && state.players[YOU] && state.players[YOU].eliminated)); }   // already out → offer "New Duel" (leave), not "Concede"
-  function refreshNewBtn(){ var b=$('newBtn'); if(!b) return; var live=newBtnLive(); b.textContent=live?'🏳 Concede':'New Duel'; b.classList.toggle('conceding', live); }
+  /* Header button, THREE states: "🏳 Concede" during a live game, "← Leave online" when online with no live
+   * game (the lobby, and the end screen), "New Duel" offline.
+   * Leave used to be a `position:fixed` overlay pinned to the top-right, which put it on top of whatever was
+   * already there: the Concede/help row on a phone, and — measured at 390×780 — the card reader's CLOSE button,
+   * 79% covered with 17% still clickable. That one is not cosmetic, because Leave DROPS THE RELAY ROOM: a
+   * player tapping what looked like Close left the game instead. A header button cannot float over anything,
+   * which is why this is the fix rather than a new z-index (v1.31.57). */
+  function newBtnLive(){ return !!(state && !state.finished && !(MP() && state.players[YOU] && state.players[YOU].eliminated)); }   // already out → offer Leave/"New Duel", not "Concede"
+  function netOnline(){ return !!(typeof NET!=='undefined' && NET.active && NET.active()); }
+  function refreshNewBtn(){
+    var b=$('newBtn'); if(!b) return;
+    var live=newBtnLive(), leaving=(!live && netOnline());
+    b.textContent = live ? '🏳 Concede' : (leaving ? '← Leave' : 'New Duel');   // NOT "← Leave online": it must be no wider than "New Duel" (see the header note above)
+    b.title = leaving ? 'Exit online play and go back to the game' : '';
+    b.classList.toggle('conceding', live);
+  }
   function requestNewDuel(){
-    if(newBtnLive()) confirmConcede();   // mid-duel → the button is a Concede
+    if(newBtnLive()) confirmConcede();          // mid-game → the button is a Concede
+    else if(netOnline()) NET.leaveOnline();     // online, nothing live → leave online play
     else openSetup();
   }
   function confirmConcede(){
@@ -5765,6 +5783,14 @@ __QR__
     var hostSeatOf={}, seatDeckMap={}, nextSeat=1, MAX_SEATS=6;                   // host: cid→seat, seat→deck, next free seat
     var useStun=true, sig=null, pc=null, dc=null;   // WebRTC signaling state
     function active(){ return !!role; }
+    /* Only clear a query that actually EXISTS: on Android a downloaded file opens as `content://`, which cannot
+     * carry a query string, so assigning location.search there navigates to an unresolvable URI and the game
+     * vanishes into ERR_FILE_NOT_FOUND (v1.31.15). Reload instead. */
+    function leaveOnline(){
+      try{ relayDropRoom(); }catch(e){}
+      try{ if(transport) transport.close(); }catch(e){}
+      if(/[?&]net=/.test(location.search)) location.search=''; else location.reload();
+    }
     function isHost(){ return role==='host'; }
     function seatLabel(i){ return i===mySeat ? 'You' : ('Player '+(i+1)); }
 
@@ -5799,19 +5825,13 @@ __QR__
       eb.innerHTML='<button id="emoteToggle" title="Emotes">💬</button><div id="emoteList">'+
         EMOTES.map(function(e){ return '<button class="emoteBtn" data-em="'+e.key+'" title="'+esc(e.label)+'">'+e.icon+'<span>'+esc(e.label)+'</span></button>'; }).join('')+
         '</div>';
-      document.body.appendChild(eb);
+      ($('actions')||document.body).appendChild(eb);   // in the row, so it cannot cover Pass/Fight
       eb.addEventListener('click', function(ev){
         var t=ev.target.closest ? ev.target.closest('button') : null; if(!t) return;
         if(t.id==='emoteToggle'){ eb.classList.toggle('open'); return; }
         var k=t.getAttribute('data-em'); if(k){ sendEmote(k); eb.classList.remove('open'); }
       });
-      var leave=document.createElement('button'); leave.id='netLeave'; leave.textContent='← Leave online';
-      leave.title='Exit online play and go back to the game';
-      leave.style.cssText='position:fixed;top:10px;right:10px;z-index:99999;font:inherit;font-size:13px;font-weight:700;padding:8px 12px;border-radius:9px;border:1px solid #3a2a08;background:#e8c37a;color:#3a2a08;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.5)';
-      leave.onclick=function(){ try{ relayDropRoom(); }catch(e){}
-        try{ if(transport) transport.close(); }catch(e){}
-        if(/[?&]net=/.test(location.search)) location.search=''; else location.reload(); };
-      document.body.appendChild(leave);
+      refreshNewBtn();   // the header button becomes "← Leave online" — see refreshNewBtn for why it is not a floating overlay
       if(kind==='bc'){
         var ch; try{ ch=new BroadcastChannel('cardmen:'+room); }catch(e){ root.innerHTML='<div class="netbar">This browser does not support BroadcastChannel netplay.</div>'; return true; }
         connectWith(bcTransport(ch));
@@ -6288,7 +6308,13 @@ __QR__
            * client stuck on an old stamp would otherwise have every future intent refused too — a silent
            * deadlock is worse than the stale move. Only refuse when the client actually sent a stamp, so an
            * older peer keeps working. */
-          if(m.q!=null && m.q!==stateSeq){
+          /* BOARD-INDEPENDENT INTENTS ARE NEVER STALE (v1.31.57). An emote is not formed against a board — it
+           * is handled ahead of every turn gate precisely because reacting off-turn is the point — and a rules
+           * suggestion is a LOBBY act, where there is no board at all. Stamping them meant a client whose `q`
+           * had drifted could not emote or suggest, silently: Aj's real game shows three emotes refused
+           * (`op=emote q=0 ... state is 1`), and `nettest_emote` has been red since v1.31.54 for this reason. */
+          var boardless = !!(m.intent && (m.intent.op==='emote' || m.intent.op==='suggest'));
+          if(!boardless && m.q!=null && m.q!==stateSeq){
             trace('move REFUSED — stale', 'client q='+m.q+' but state is '+stateSeq);
             broadcastMirror(); return;
           }
@@ -7320,7 +7346,7 @@ __QR__
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
+    return { boot:boot, start:start, leaveOnline:leaveOnline, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:99999;background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the
