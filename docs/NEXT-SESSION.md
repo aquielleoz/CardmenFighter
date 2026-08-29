@@ -1,28 +1,44 @@
 # Cardmen Fighter — backlog & handoff
 
 Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** + **qr.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**246**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (35) · `node viewtest.js` (10) · `node landscapetest.js` (96) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node nettest_roundstall.js` (9 — the host must get the board back after winning a round) · `node nettest_actloop.js` (22 — play keeps moving after a Technique) · `node nettest_version.js` (14 — the netplay build handshake) · `node rulestest.js` (36 — the custom rules menu) · `node nettest_rules.js` (20 — rules over netplay + un-ready) · `node versiontest.js` (10 — the build stamp, README → build → both screens) · `node qrtest.js` (19 — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
+Test: `npm test` = `node test.js` (**325**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (**42**) · `node viewtest.js` (10) · `node landscapetest.js` (**117**) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node nettest_roundstall.js` (9 — the host must get the board back after winning a round) · `node nettest_actloop.js` (22 — play keeps moving after a Technique) · `node nettest_version.js` (14 — the netplay build handshake) · `node rulestest.js` (36 — the custom rules menu) · `node nettest_rules.js` (20 — rules over netplay + un-ready) · `node versiontest.js` (**15** — the build stamp, README → build → both screens) · `node qrtest.js` (**32** — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
 Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.25**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+Current version: **v1.31.61**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
 
-## ☀️ START HERE — where we left off (2026-08-27)
+## ☀️ START HERE — where we left off (2026-08-29)
 
-`main` is at **v1.31.43**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
+`main` is at **v1.31.61**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
 nothing is in flight — every PR is merged and every branch pruned.
 
 **Sanity check before you touch anything** (from `code/`, ~30 seconds):
 
 ```bash
-npm test && node mptest.js && node rulestest.js
+npm test && node mptest.js && node landscapetest.js
 ```
 
-Expect **318 / 0**, **28 / 0**, **82 / 0**, **138 / 0**. If a count disagrees, the suite is right — fix the
+Expect **325 / 0**, **28 / 0**, **82 / 0**, **117 / 0**. If a count disagrees, the suite is right — fix the
 number here.
 
-**What the last stretch was about**, newest first, all of it in the changelog below: the chop (v1.31.33), rule
-presets and Clear all (v1.31.30) plus the game mode moving into the rules panel (v1.31.32), the rule-suggestion
-layer where clients suggest and the host decides (v1.31.31), the deck picker's three defaults (v1.31.28), Quadro
-(v1.31.29), and the pair shapes (v1.31.24/26).
+**2026-08-29 was a playtesting day, and it changed what we know about netplay.** Aj played real games on real
+devices with a playtester and saved both ends' logs; seven versions came out of it. Newest first:
+**v1.31.61** peek works again and the z-index family derives from one number · **v1.31.60** `↓ New` is
+reachable and reading history no longer yanks you away · **v1.31.59** a long log scrolls instead of evicting
+the hand · **v1.31.58** the narration audit, nineteen `logMsg` sites that never left the host ·
+**v1.31.57** the floating controls come back into the layout and emotes stop being refused · **v1.31.56** a
+dragged play goes through the host.
+
+**The one to read first is v1.31.56.** `doFight` carried the client guard and the drag-to-play release did not,
+so on a client a dragged play ran the LOCAL engine and never reached the host. That single missing branch is
+behind most of the netplay weirdness reported over the previous week — phantom rounds, `Pair (NaN, NaN)`, a
+client "racing to the game end", and the lag that cleared the moment Aj used the Fight button instead.
+
+**Three lessons from the day, all of them earned the expensive way:**
+- **A report that sounds like netplay usually is not.** Three of them reproduced in SOLO — the layout and the
+  controls are shared, and only two seams diverge (see the seam map in the BACKLOG).
+- **Measure, do not infer.** Every wrong call that day came from reading code confidently; every one was
+  settled by a probe or by Aj checking something on his own screen. A probe takes about four minutes.
+- **Verify a new test by REINTRODUCING the bug.** Every suite added that day was checked that way, and two of
+  them were vacuous until it was done.
 
 **Queued, in the order Aj raised them:**
 1. ~~**BRING THE PRESET BUTTONS NEXT TO THE RULES THEY CHANGE**~~ **SHIPPED in v1.31.37** — four sections, both presets in
@@ -335,9 +351,11 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   the same five solo prompts (`promptHumanResponse` / `openShieldGuardModal` / `promptHumanDiscard` /
   `promptLossTarget` / `promptHumanPreFight`) with the buttons gated to send intents. **Every netplay bug filed
   today sits in one of the two seams, so this is the map to check a new one against:**
-  - **Netplay-only chrome bolted on OUTSIDE the layout** — `#netLeave` and `#emoteBar` are `position:fixed` on
-    `<body>`, deliberately outside `#netroot` because `renderNet` rewrites it, so they cannot be pushed out of
-    the way by anything. The Leave-button and emote-bar overlaps are both this.
+  - **~~Netplay-only chrome bolted on OUTSIDE the layout~~ — CLOSED in v1.31.57.** `#netLeave` and `#emoteBar`
+    were `position:fixed` on `<body>`, outside `#netroot` because `renderNet` rewrites it, so nothing could push
+    them out of the way. Leave is now the third state of `#newBtn` and the emote bar lives in `#actions`. **The
+    seam itself is worth keeping in mind: netplay-only chrome that does not participate in the layout cannot
+    know what it is covering.**
   - **The orchestration spine** — two ceremony drivers (`resolveRoundCeremony` vs `clientPlayCeremony`) and two
     narrators (`logMsg` vs `say`). The stuck dim and the unnarrated counter are both this.
   The two drivers share the BEATS; what diverges is how each advances between them — solo calls the engine, the
@@ -512,7 +530,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   - So the overhaul as stated is not needed. The narrower rule that would have prevented this bug, the double
     narration (v1.31.53) and the stale-board actions (v1.31.54) alike: **a client may sequence, but never
     infer.**
-- **"← Leave online" OVERLAPS THE HEADER BUTTONS** (Aj, 2026-08-29, screenshot: it sits on top of Concede and
+- **~~"← Leave online" OVERLAPS THE HEADER BUTTONS~~ SHIPPED in v1.31.57** (all three symptoms; it is the third state of `#newBtn` now, labelled `← Leave`) (Aj, 2026-08-29, screenshot: it sits on top of Concede and
   the 💡/🔊/⚙️ row on a phone). It is `position:fixed; top:10px; right:10px` on `<body>` — a floating overlay
   with no awareness of the layout under it, deliberately outside `#netroot` (which `renderNet` rewrites) so it
   stays reachable. On a desktop header there is room; on a phone the header wraps to ~92px and the button lands
@@ -539,7 +557,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   overlay, and give `refreshNewBtn` a third state — online + game live -> "🏳 Concede", online + no live game
   (lobby, or after the end screen) -> "← Leave online". One slot, no overlap, and it lands on the stale-win-page
   bug from the other side. Keep it out of `#netroot` either way.
-- **THE EMOTE BAR OVERLAPS THE ACTION BUTTONS** (Aj, 2026-08-29, screenshot: 💬 sitting on top of `Pass`). Same
+- **~~THE EMOTE BAR OVERLAPS THE ACTION BUTTONS~~ SHIPPED in v1.31.57** (docked into `#actions`; the popup is clamped to the viewport in the same version) (Aj, 2026-08-29, screenshot: 💬 sitting on top of `Pass`). Same
   root cause as the Leave button and worth fixing in the same pass — `#emoteBar` is `position:fixed; left:10px;
   bottom:10px`, and on a phone the bottom-left of the viewport is exactly where `#actions` renders. The phone
   media query already collapses it to a single 💬 (a 7-button row would eat the board), so the size is not the
@@ -550,7 +568,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   saying somebody is still discarding down to max hand... it's just uhhh what's happening in the middle of
   rounds"*). The discarding seat sees its own prompt; everyone else sees an unexplained pause mid-round.
   `rivalStatus` already carries "X is discarding…" for some windows — the end-of-turn discard needs the same.
-- **THE WIRE IS CLEAN. THE CLIENT-SIDE CEREMONY/LOG PATH IS NOT. (2026-08-28, third pair of logs — the good
+- **~~THE WIRE IS CLEAN. THE CLIENT-SIDE CEREMONY/LOG PATH IS NOT.~~ LARGELY RESOLVED — the phantom rounds were drag-to-play (v1.31.56) and the missing lines were the narration audit (v1.31.58). (2026-08-28, third pair of logs — the good
   ones.)** Both traces were HEALTHY end to end, which is the most valuable thing established all day:
   ```
   HOST    move IN from seat 1 op=play  x2   -> hostTakeBack -> awaitRival   (x6 rounds, orderly)
@@ -602,7 +620,11 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   `mirror IN` / `mirror APPLIED` on the client and `move IN` on the host (including a shout when the source
   channel is unknown and the seat had to be guessed). **Get one more pair of saved logs and this should name
   the cause.** Do not add another guard first; four inference-only diagnoses have now been wrong.
-- **A NETPLAY CLIENT CAN RUN THE LOCAL GAME AND FORK THE DUEL. UNSOLVED — start here.** 2026-08-28, two devices
+- **~~A NETPLAY CLIENT CAN RUN THE LOCAL GAME AND FORK THE DUEL~~ SOLVED in v1.31.56 — it was DRAG-TO-PLAY.**
+  `doFight` had the client guard and the drag release did not, so a dragged play ran the local engine and never
+  reached the host. Aj found it by noticing Fight worked and dragging did not. The evidence below is kept
+  because it is what made the bug characterisable at all, and because two of the theories in it were wrong —
+  but **do not start here any more.** Original note follows.** 2026-08-28, two devices
   and two saved battle logs, which is the only reason it is characterised at all. **Both logs are the evidence;
   read them before theorising:**
 
@@ -638,7 +660,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 - **A FINISHED NETPLAY GAME LEAVES ITS WIN PAGE BEHIND** (Aj, 2026-08-28): end a netplay game, go back to the
   netplay screen, and you are greeted by the PREVIOUS duel's win page until you press Leave online. The end
   overlay is not cleared when netplay re-renders, so the next lobby is behind a stale modal.
-- **THE NETPLAY BATTLE LOG DOES NOT SCROLL** (Aj, 2026-08-28: *"the logs for netplay don't have a scroll…
+- **~~THE NETPLAY BATTLE LOG DOES NOT SCROLL~~ SHIPPED in v1.31.59** (the grid row was unbounded — shared code, not netplay; `↓ New` followed in v1.31.60) (Aj, 2026-08-28: *"the logs for netplay don't have a scroll…
   previous conversations have been lying to me about the netplay view being the same as single player"*). Take
   the complaint at face value: the netplay board is **not** the solo board, and claiming otherwise has cost
   trust. Check `#log` overflow in the netplay layout specifically, and audit what else differs before repeating
