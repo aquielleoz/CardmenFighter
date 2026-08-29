@@ -188,6 +188,33 @@ const CASES=[
     await p.context().close();
   }
 
+  /* ---- A LONG BATTLE LOG MUST SCROLL, NOT GROW ----------------------------------------------------------
+     `#board`'s play row was `minmax(min-content,1fr)` in BOTH portrait blocks, so the row grew to whatever its
+     tallest child needed — and `#log` has no natural height. Measured at 360x740 before the fix: the row was
+     **4218px** inside a 740px viewport, `#log` never scrolled (clientHeight === scrollHeight), and since the
+     portrait board has no `overflow-y`, the hand was not below the fold but UNREACHABLE. Opening the log made
+     the game unplayable, in solo as well as netplay.
+     The landscape band already used `minmax(0,1fr)` and its comment named min-content as the cause; the two
+     portrait blocks were never updated — so this asserts BOTH phone bands, and desktop/landscape as the
+     negative half, since a global cap and a dead cap both pass a single measurement. */
+  for(const [w,h,what] of [[360,740,'portrait phone'],[390,780,'portrait phone (tall band)'],
+                           [844,390,'landscape phone'],[1280,800,'desktop']]){
+    const p=await open(w,h,2); const tag=`${what} ${w}x${h}`;
+    const m=await p.evaluate(()=>{
+      const wrap=document.getElementById('logWrap');
+      if(wrap.classList.contains('collapsed')) document.getElementById('logToggle').click();
+      const log=document.getElementById('log');
+      for(let i=0;i<70;i++){ const d=document.createElement('div'); d.className='le'; d.textContent='Rival moved '+i+' cards from deck to Energy — catch-up.'; log.appendChild(d); }
+      const vh=document.documentElement.clientHeight, hw=document.getElementById('handWrap').getBoundingClientRect();
+      return { vh, logClient:log.clientHeight, logScroll:log.scrollHeight,
+               scrolls: log.scrollHeight>log.clientHeight+1, handBottom:Math.round(hw.bottom), handTop:Math.round(hw.top) };
+    });
+    ok(m.scrolls, `${tag}: a 70-entry log SCROLLS instead of growing (${m.logClient} of ${m.logScroll}px)`);
+    ok(m.handBottom<=m.vh+1 && m.handTop>=0,
+       `${tag}: and the hand is still on screen (y ${m.handTop}..${m.handBottom} of ${m.vh})`);
+    await p.context().close();
+  }
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

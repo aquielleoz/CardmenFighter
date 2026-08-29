@@ -998,7 +998,12 @@
     /* the play area sizes to its CONTENT (min-content floor) so #message can never collapse and spill onto the hand;
        if the whole board can't fit a short viewport, main scrolls instead of overlapping (the description row is what scrolls off, never the hand). */
     main{overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;}
-    #board{grid-template-columns:auto minmax(0,1fr); grid-template-rows:minmax(min-content,1fr) auto auto;}
+    /* minmax(0,...), NOT minmax(min-content,...). With a min-content floor the play row grows to whatever its
+       tallest child needs, and #log has no natural height — measured at 360x740, an open battle log made that
+       row **4218px** inside a 740px viewport and pushed the hand clean off the screen with no way to scroll to
+       it, so opening the log made the game unplayable. The landscape band below already carried this fix and
+       named the cause in its comment; both portrait blocks were simply never updated. */
+    #board{grid-template-columns:auto minmax(0,1fr); grid-template-rows:minmax(0,1fr) auto auto;}
     #board > #logWrap{grid-column:1; grid-row:1;}          /* just the play-area row — never runs alongside the hand/description */
     #board > #table{grid-column:2; grid-row:1;}
     #board > #handWrap{grid-column:1 / span 2; grid-row:2;}   /* full width */
@@ -1030,7 +1035,7 @@
   /* really tight (short) phones + landscape: the inline description strip eats scarce vertical space, so drop it and
      offer a "🔍 View card" button that opens the full-screen reader instead (the whole page becomes the description box). */
   @media (max-width:720px) and (max-height:800px){
-    #board{grid-template-rows:minmax(min-content,1fr) auto;}   /* no description row — reclaim its height */
+    #board{grid-template-rows:minmax(0,1fr) auto;}   /* no description row — reclaim its height. minmax(0,…): see the note above */
     #board > #side{display:none;}
     #viewCardBtn{display:inline-block;}
   }
@@ -4897,7 +4902,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.58';
+  var GAME_VERSION='v1.31.59';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
