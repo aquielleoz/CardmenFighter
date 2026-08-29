@@ -215,6 +215,48 @@ const CASES=[
     await p.context().close();
   }
 
+  /* ---- "↓ New" MUST BE REACHABLE WHEN THE LOG BARELY OVERFLOWS -------------------------------------------
+     `logAtBottom()` decides whether a new entry auto-follows or raises the jump-to-newest button, and its slack
+     was a flat 80px. Whenever the log overflowed by LESS than that, every scroll position read as "at the
+     bottom" — so the button was unreachable and auto-follow yanked you back while you were reading history.
+     Measured on desktop in a real solo game: 13 lines overflow by 23px, and scrolled fully to the TOP the old
+     test still returned true. Aj reported it as a netplay gap; it reproduces in solo, because this is shared.
+     The small-overflow case is the ONLY discriminating one — with a big history both the old and new rules
+     raise the button — so trim the log until the overflow is under the old 80px slack before asserting. */
+  {
+    const p=await open(1280,620,2);
+    await p.evaluate(()=>{ const wr=document.getElementById('logWrap'), t=document.getElementById('logToggle');
+      if(wr.classList.contains('collapsed')&&t) t.click(); });
+    await wait(300);
+    /* Pad the log to a SMALL overflow rather than playing to it. Playing 14 turns also finishes the duel, which
+       disables Fight and Pass and leaves nothing to trigger the final entry — the first version of this did
+       exactly that, and only said so because the assertion prints why. One real action in round 1 is always
+       legal, and the padding supplies the history the assertion needs. */
+    const set=await p.evaluate(()=>{ const l=document.getElementById('log');
+      while((l.scrollHeight-l.clientHeight)<=4 && l.children.length<400){
+        var d=document.createElement('div'); d.className='le'; d.textContent='history'; l.appendChild(d); }
+      l.scrollTop=0;
+      return { max:Math.round(l.scrollHeight-l.clientHeight), lines:l.children.length }; });
+    ok(set.max>4 && set.max<80,
+       `log staged with a small overflow: ${set.max}px over ${set.lines} lines (must be under the old 80px slack to discriminate)`);
+    const acted=await p.evaluate(()=>{ const l=document.getElementById('log'), n0=l.children.length;
+      const c=document.querySelector('#hand .card'); if(c)c.click();
+      const f=document.getElementById('fightBtn'), ps=document.getElementById('passBtn');
+      if(f&&!f.disabled) f.click(); else if(ps&&!ps.disabled) ps.click();
+      else { document.querySelectorAll('#hand .card.sel').forEach(e=>e.click());   // leave no selection behind
+             return {ok:false, why:'both Fight and Pass were disabled — game over?', n0}; }
+      return {ok:true, n0}; });
+    await wait(800);
+    const r=await p.evaluate(()=>{ const el=document.getElementById('logNewBtn'), l=document.getElementById('log');
+      return { shown:el.classList.contains('show'), visible:el.offsetParent!==null,
+               lines:l.children.length, scrollTop:Math.round(l.scrollTop) }; });
+    ok(acted.ok && r.lines>acted.n0, `a real log line arrived while reading history (${acted.n0} → ${r.lines} lines${acted.ok?'':'; '+acted.why})`);
+    ok(r.shown && r.visible,
+       `↓ New appears when a line arrives while you are reading history (shown=${r.shown} visible=${r.visible})`);
+    ok(r.scrollTop===0, `  → and you are NOT yanked to the bottom while reading (scrollTop ${r.scrollTop})`);
+    await p.context().close();
+  }
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

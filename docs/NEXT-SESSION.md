@@ -1089,6 +1089,32 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.60 — "↓ New" is reachable, and reading history no longer yanks you away
+
+`logAtBottom()` decides whether a new battle-log entry auto-follows or raises the jump-to-newest button, and its
+slack was a flat **80px**. Whenever the log overflowed by *less* than that, every scroll position read as "at the
+bottom" — so `setLogNewBtn(true)` was unreachable and the button could never appear, while auto-follow pulled
+you back to the newest line as you were reading history.
+
+Measured on desktop in a real solo game: 13 lines overflow by **23px**, and scrolled fully to the **top** the old
+test still returned true. The slack is now capped at half the scroll range, so top and bottom stay
+distinguishable however short the history is.
+
+Aj reported it as a netplay gap and then checked the desktop himself: *"oh wow… it's not there on desktop
+too"*. **That observation is what made it findable** — I had a plausible netplay-specific theory and it was
+wrong. Third report this week that turned out to be shared code rather than netplay.
+
+`landscapetest` grew four assertions (104 → 108). The **small-overflow** case is the only discriminating one —
+with a long history the old and new rules both raise the button — so the log is padded to an overflow under the
+old 80px slack before asserting. Verified by restoring the flat slack: the button stays hidden **and** the
+scroll position jumps to 24, which is the yank the fix removes.
+
+Two staging traps are recorded in the suite, because both produced a confidently wrong run first: trimming the
+log to a small overflow can overshoot to **zero** overflow (removing one tall entry takes 70px straight to 0),
+where every scroll position is legitimately the bottom and the test proves nothing; and playing 14 turns to
+build history **finishes the duel**, disabling Fight and Pass so nothing can trigger the final entry. The second
+one only surfaced because the assertion prints why it failed.
+
 ### v1.31.59 — a long battle log scrolls instead of evicting the hand
 
 Both portrait `#board` blocks declared the play row as `minmax(min-content,1fr)`, so the row grew to whatever
