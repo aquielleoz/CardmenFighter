@@ -466,6 +466,19 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   refereeing) and "New Duel" otherwise; `netLeave` drops the relay room, closes the transport and exits online
   play entirely. Leave is also the only exit **in the lobby**, where there is no game to concede — and, until
   the stale-win-page bug below is fixed, the only way off the end screen.
+  **THIRD SYMPTOM, AND THE WORST ONE (Aj, 2026-08-29, while testing v1.31.56): it covers the card reader's
+  CLOSE button.** `#cardFull` is `z-index:37`; `#netLeave` is `99999` and pinned to the same top-right corner.
+  **Measured** at 390x780 with a hit-test sweep:
+  ```
+  close button   x[287..376]  89x38    covered 2669 of 3381 px2 = 79%
+  Leave online   x[259..380]  121x34   close button actually clickable: 17%
+  ```
+  Only a thin strip along the bottom of the close button is reachable — and **the thing covering it is
+  destructive**: Leave online drops the relay room, closes the transport and reloads. So on a phone the failure
+  mode is not "stuck in the reader", it is **press what looks like Close and leave the game instead.** That
+  makes this item higher priority than a cosmetic overlap, and it is a mis-tap a real player will hit.
+  Aj: *"we can just do this together with that other item"* — agreed, the fix below removes all three symptoms
+  at once, because a header button cannot float over anything.
   **The fix that removes the overlap rather than moving it:** make it a real header button instead of a fixed
   overlay, and give `refreshNewBtn` a third state — online + game live -> "🏳 Concede", online + no live game
   (lobby, or after the end screen) -> "← Leave online". One slot, no overlap, and it lands on the stale-win-page
