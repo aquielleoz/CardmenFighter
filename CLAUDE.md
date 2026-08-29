@@ -259,6 +259,13 @@ And the reason it was found at all: the assertion prints the refusal state (ener
 text/disabled/class, the hint). **A red run should explain itself** — the hint `"Special Pair — fight!"` named the
 cause outright.
 
+**THE STACKING ORDER DERIVES FROM `--zNetroot` (v1.31.61). DO NOT WRITE A BARE z-index INTO THAT FAMILY.**
+`--zOverlay`/`--zPeek`/`--zPeekBar` are `calc(var(--zNetroot) + 1|2|3)`. They exist because raising ONE of them
+broke another: peek lifts its panels above the overlay, those lifts were 35 and 60 (chosen when `.overlay` was
+30), and v1.31.36's raise to 100000 buried every peek control under a backdrop you can see through — the board
+legible, nothing clickable. **When you raise a z-index, hit-test every layer positioned relative to it, not just
+the one that prompted the change.**
+
 **A MODAL MUST OUTRANK `#netroot`, AND DOM PRESENCE IS NOT VISIBILITY.** `#netroot` is `z-index:99999`; `.overlay`
 was **30**, so for three versions the Custom rules panel opened in a netplay lobby and rendered completely behind
 it — populated, wired, and invisible. `.overlay` is now `100000`.
