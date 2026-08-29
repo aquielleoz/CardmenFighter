@@ -193,6 +193,32 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   **Assert the teardown, not the banner.** A test that waits for the banner to appear and passes would pass on
   the broken build; poll for `#roundfx` losing `.show` within a bound, and stage the trim>=draw case explicitly
   by forcing an over-cap client hand.
+  **Seen TWICE in one game** (Aj, 2026-08-29, second screenshot at round 7 with the log panel open): it is not
+  a one-off race, it recurs within a single session, and it compounds every other bug — Aj could not see the
+  counter in the entry below *because the play area was dimmed at the time.* Treat it as the highest-priority
+  netplay fix: it is cheap, and it is currently hiding other failures from the only person testing on real
+  devices.
+- **A HUMAN COUNTER IS NEVER NARRATED TO ANYONE BUT THE HOST** (Aj, 2026-08-29: *"i play infuse with magic, and
+  fully expected my queens to win vs the kings. what wasn't logged was that it was counter spelled … it's not
+  logged in the logs"*). Confirmed by reading, four sites, and the split is the tell — **an AI counter
+  broadcasts and a human counter does not:**
+  ```
+  settleWindows  ~4013   say(q, '{who} countered with '+resp.respondName+'!')      AI  -> BROADCASTS
+  humanResponds  ~4072   logMsg('<b>You</b> Countered '+pendName+' …')             you -> host-local
+  hostApplyMove  ~6497   logMsg('<b>Rival</b> countered your Technique with …')    2p  -> host-local
+  hostApplyMoveN ~6776   logMsg('<b>'+seatName(seat)+'</b> countered with …')      Np  -> host-local
+  ```
+  `logMsg` is host-local — CLAUDE.md already records this as how clients had an empty battle log until v1.28.2.
+  So in netplay the countered player is told nothing at all: the Technique simply does not happen, with no line
+  and no cue. Aj read it as his Queens losing to Kings.
+  **Two of the three broken lines are ALSO the v1.31.53 grammar bug**, so they cannot be fixed by swapping the
+  call alone: `'<b>You</b> Countered'` and `seatName(seat)` write a name into the template, and
+  `'countered YOUR Technique'` bakes in the sender's perspective. They need `say(actor, '{who} countered
+  {foe}’s <name>.')` in past tense, with the countered seat travelling as `{foe}` (v1.31.55).
+  **A LOG LINE IS NOT ENOUGH HERE.** The host also runs `quickFlash` + `setMessage` for a counter and neither
+  reaches the other seats, so even with the log fixed a client would see its play silently evaporate. This is
+  the first concrete case for the animation queue below — a counter is exactly the kind of event that must be
+  ordered and shown on every seat, not derived.
 - **AJ'S "DEMOTE CLIENTS TO RENDER + INPUT" PROPOSAL — mostly already true, and the residue is the real bug.**
   (Aj, 2026-08-29: *"maybe we can demote clients to just be renders and input collection. nothing is decided
   clientside."*) Worth writing down so it is not re-argued from scratch:
