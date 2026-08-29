@@ -198,6 +198,35 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   counter in the entry below *because the play area was dimmed at the time.* Treat it as the highest-priority
   netplay fix: it is cheap, and it is currently hiding other failures from the only person testing on real
   devices.
+- **THE PLAYER'S OWN INFO ROW OVERFLOWS THE VIEWPORT ON EVERY PHONE WIDTH** (Aj, 2026-08-29: *"the hand
+  information just bleeds into outer space on my small mobile screen"*, screenshot: the board scrolled sideways
+  with the header still square, content cut off at the left and dead space at the right). **MEASURED, not
+  inferred** — reproduces in SOLO, so netplay is irrelevant to it:
+  ```
+  vp 320 -> span.fighter w=459   (#handMeta client=276)
+  vp 327 -> span.fighter w=427
+  vp 360 -> span.fighter w=445
+  vp 390 -> span.fighter w=417   <- still overflowing at a normal phone width
+  ```
+  `main` is `overflow-x:auto`, so `main` is the scroller — which is why the header stays put while the board
+  slides sideways, exactly as the screenshot shows.
+  **The cause is two properties on line ~74 that contradict each other:**
+  ```css
+  .fighter{ ... display:flex; gap:12px; flex:0 0 auto; flex-wrap:wrap; }
+  ```
+  `flex-wrap:wrap` declares "I am willing to take two lines"; `flex:0 0 auto` (shrink **0**) guarantees it never
+  has to, so the row sits at its max-content width — name + deck name + 4 shields + ⚡ + deck count + ♻ ≈ 400px —
+  and pushes past the viewport instead of wrapping. The wrap it already asks for cannot fire because nothing
+  constrains it. Fix is to let it shrink (`flex-shrink:1`, or `min-width:0`) in the existing phone block at
+  ~1058; it is a one-line change and the wrap then does the rest.
+  **The same class of bug was already solved once for the OPPONENT strip and missed here** — `.oppPanel
+  .oppStats{display:none}` in the phone query is that fix. Whatever is done to `.fighter` should be checked
+  against the opponent panel so the two rows do not drift apart again.
+  **Reproduce it in ~20 lines:** boot `CardmenFighter.html?dbgsolo=1` at 360x740, click `#newBtn` then
+  `#goFirstBtn`, wait, then collect any element whose `getBoundingClientRect().width > clientWidth`. This
+  belongs in `landscapetest.js`, which already owns the vertical stack — it needs the horizontal assertion too,
+  in **both** directions (narrow overflows, desktop untouched). Note the trap that cost a first attempt here:
+  without the two-click boot the probe measures the SETUP DIALOG and reports "clean" at every width.
 - **A HUMAN COUNTER IS NEVER NARRATED TO ANYONE BUT THE HOST** (Aj, 2026-08-29: *"i play infuse with magic, and
   fully expected my queens to win vs the kings. what wasn't logged was that it was counter spelled … it's not
   logged in the logs"*). Confirmed by reading, four sites, and the split is the tell — **an AI counter
