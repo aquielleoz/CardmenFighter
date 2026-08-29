@@ -354,7 +354,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   put the overlay's z-index in a custom property and set the peek layer to `calc(var(--zOverlay) + 1)` /
   `+ 2`. Then the next person who raises the overlay carries peek mode along automatically — the same reasoning
   as the version stamp being derived from README rather than declared twice.
-- **OPENING THE LOG ON A PORTRAIT PHONE MAKES THE GAME UNPLAYABLE** (Aj, 2026-08-29: *"logs don't scroll and
+- **~~OPENING THE LOG ON A PORTRAIT PHONE MAKES THE GAME UNPLAYABLE~~ SHIPPED in v1.31.59** (Aj, 2026-08-29: *"logs don't scroll and
   it's pushing out everything on my screen"*). Filed earlier as a netplay bug; it is **shared code — measured in
   SOLO.** The log does not merely fail to scroll, it grows without bound and evicts the hand:
   ```
@@ -1088,6 +1088,27 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.59 — a long battle log scrolls instead of evicting the hand
+
+Both portrait `#board` blocks declared the play row as `minmax(min-content,1fr)`, so the row grew to whatever
+its tallest child needed — and `#log` has no natural height. Measured at 360×740: the row was **4218px inside a
+740px viewport**, `#log` never scrolled (`clientHeight === scrollHeight`), and because the portrait board has no
+`overflow-y` the hand was not below the fold but **unreachable**. Opening the battle log made the game
+unplayable. Reported as a netplay bug; it reproduces in solo, because the layout is shared.
+
+**The fix was already in the file, in one media band only.** The landscape block has used `minmax(0,1fr)` since
+it was written and its comment names `min-content` as the cause — *"the phone branch's `minmax(min-content,1fr)`
+let the hand force its own minimum and push everything down"*. The two portrait blocks were never updated. That
+is the third instance this week of a fix landing in one place and not its siblings, after the two invite
+renderers and the three deck-picker defaults: **grep for the pattern, not the symptom.**
+
+Measured after: the row is **228px** at 360×740 and **277px** at 390×780, the log scrolls, and the hand is on
+screen. Landscape (139.6px) and desktop (455.1px) are byte-identical to before.
+
+`landscapetest` grew eight assertions (96 → 104) covering **both** phone bands plus landscape and desktop as the
+negative half — a global cap and a dead cap both pass a single measurement. Verified by reintroducing the bug,
+which reports the hand at *y 4407..4731 of 740*.
 
 ### v1.31.58 — the narration audit: nineteen sites that never left the host
 
