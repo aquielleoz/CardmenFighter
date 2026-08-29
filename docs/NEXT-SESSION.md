@@ -198,6 +198,27 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   counter in the entry below *because the play area was dimmed at the time.* Treat it as the highest-priority
   netplay fix: it is cheap, and it is currently hiding other failures from the only person testing on real
   devices.
+- **NETPLAY AND SOLO SHARE THE LAYOUT AND THE CONTROLS. THEY DIVERGE IN EXACTLY TWO SEAMS** (Aj, 2026-08-29:
+  *"i always wondered why we're not using the same layouts and controls in netplay and solo"* — the answer is
+  that we do, and today proved it: the `.fighter` overflow above reproduces in SOLO). Verified, not assumed:
+  `applyMirrorNow` does `state=st` then calls the same global `render()`, and `clientCheckWindow` dispatches to
+  the same five solo prompts (`promptHumanResponse` / `openShieldGuardModal` / `promptHumanDiscard` /
+  `promptLossTarget` / `promptHumanPreFight`) with the buttons gated to send intents. **Every netplay bug filed
+  today sits in one of the two seams, so this is the map to check a new one against:**
+  - **Netplay-only chrome bolted on OUTSIDE the layout** — `#netLeave` and `#emoteBar` are `position:fixed` on
+    `<body>`, deliberately outside `#netroot` because `renderNet` rewrites it, so they cannot be pushed out of
+    the way by anything. The Leave-button and emote-bar overlaps are both this.
+  - **The orchestration spine** — two ceremony drivers (`resolveRoundCeremony` vs `clientPlayCeremony`) and two
+    narrators (`logMsg` vs `say`). The stuck dim and the unnarrated counter are both this.
+  The two drivers share the BEATS; what diverges is how each advances between them — solo calls the engine, the
+  client waits for a mirror and **infers** what it meant (`handGrew`). That inference is the bug.
+  **This is the argument for Aj's animation queue:** it makes the spine identical (an ordered event stream) and
+  leaves only the event SOURCE different. Precedent that it works: `buildOppBeats` was extracted for exactly
+  this reason — the free-for-all driver only logged, so every readability feature was silently missing at 3-6
+  players.
+  **UNVERIFIED LEAD:** the earlier "netplay battle log does not scroll" report may not be a netplay divergence
+  at all — `#log` is `overflow-y:auto` with no netplay override, so a `min-height:0` chain broken by the
+  `.fighter` overflow is a plausible shared cause. Measure before filing it as netplay-specific.
 - **THE PLAYER'S OWN INFO ROW OVERFLOWS THE VIEWPORT ON EVERY PHONE WIDTH** (Aj, 2026-08-29: *"the hand
   information just bleeds into outer space on my small mobile screen"*, screenshot: the board scrolled sideways
   with the header still square, content cut off at the left and dead space at the right). **MEASURED, not
