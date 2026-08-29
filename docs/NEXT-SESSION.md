@@ -219,6 +219,32 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   **UNVERIFIED LEAD:** the earlier "netplay battle log does not scroll" report may not be a netplay divergence
   at all — `#log` is `overflow-y:auto` with no netplay override, so a `min-height:0` chain broken by the
   `.fighter` overflow is a plausible shared cause. Measure before filing it as netplay-specific.
+- **OPENING THE LOG ON A PORTRAIT PHONE MAKES THE GAME UNPLAYABLE** (Aj, 2026-08-29: *"logs don't scroll and
+  it's pushing out everything on my screen"*). Filed earlier as a netplay bug; it is **shared code — measured in
+  SOLO.** The log does not merely fail to scroll, it grows without bound and evicts the hand:
+  ```
+  portrait 360x740   rows: 4218.72px 324px   #log client=4173 scroll=4173  DOES NOT SCROLL
+                     hand row still on screen: FALSE
+  landscape 844x390  rows: 139.6px 161.4px   #log client=106 scroll=2963   scrolls
+  desktop 1280x800   rows: 455.1px 224.9px   #log client=421 scroll=2947   scrolls
+  ```
+  `#board` has no `overflow-y` in the portrait band, so the hand is not merely below the fold — it is
+  **unreachable**.
+  **THE FIX IS ALREADY IN THE STYLESHEET, IN ONE BAND ONLY:**
+  ```css
+  @media (max-width:720px)                          minmax(min-content,1fr) auto auto   <- unbounded
+  @media (max-width:720px) and (max-height:800px)   minmax(min-content,1fr) auto        <- unbounded
+  @media (orientation:landscape) and (max-height:520px)
+        #board{grid-template-rows:minmax(0,1fr) auto;}   /* minmax(0,...) - min-content was the SE overflow */
+  ```
+  `minmax(min-content,...)` lets the row grow to the log's full height. Someone hit this in the landscape band,
+  fixed it with `minmax(0,1fr)`, left the comment naming the cause — and **both portrait blocks were never
+  updated.** A fix applied to one media band and not its siblings is the same shape as the two invite renderers
+  and the three deck-picker defaults: **grep for the pattern, not the symptom.**
+  **CORRECTION to the earlier lead:** this was guessed to be a `min-height:0` chain broken by the `.fighter`
+  overflow. It is not — different cause, same conclusion that it is shared code rather than netplay.
+  **Assert it in both directions and at BOTH phone bands** — landscape and desktop already pass, so a single
+  measurement proves nothing; `landscapetest` owns the negative half.
 - **THE PLAY AREA IS CLOBBERED ON A NARROW PHONE — HORIZONTAL, NOT VERTICAL** (Aj, 2026-08-29, screenshot at
   ~327 CSS px: "Round 6" written over the pile label, the rival's FORMS & RIDES header over the pile cards, and
   the Hero's Javelin equip card covering the right half of a Full House). `#table` is a centred flex column with
