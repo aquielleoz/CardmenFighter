@@ -165,6 +165,18 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **`nettest_clientfork.js` WAS DELETED — its premise was invalid, but its INTENT is now proven.** It was
+  written on 2026-08-28, abandoned the same day, and then swept onto `main` by accident in PR #82. It lands
+  **4 FAIL**, is listed in no doc, and its own summary line prints `FAIL: 6  FAIL: 4` because the pass label is
+  wrong — a red unlisted suite on main is pure cost to whoever runs the next sweep.
+  **Why the method was wrong:** it forced `started=false` to fake "a live client board acting on its own", and
+  the next mirror sets `started=true` again, so the state it was testing cannot persist. Its first version also
+  clicked a **disabled** Fight button and counted the non-response as a refusal.
+  **Why it should be rebuilt anyway:** it was reaching for exactly the bug Aj found by playing — a client
+  resolving a round locally without the host. That bug is real, and the reachable path is **drag-to-play**, not
+  a forced flag. **Rebuild it against the drag path**: on a client, drag a card to the play zone and assert the
+  host saw an intent and the client's round did not advance on its own. That is a state the product can
+  actually reach, which is what the forced version never was.
 - **★ ROOT CAUSE: DRAG-TO-PLAY BYPASSES NETPLAY ENTIRELY** (Aj, 2026-08-29, found by observation: *"it lagged
   at the beginning as usual and then it suddenly went ok. the difference? i used the fight button. dragging to
   play only seems to work on the host."*). **Confirmed in code — one missing branch:**
