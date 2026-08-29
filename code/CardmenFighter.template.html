@@ -923,6 +923,10 @@
    * every button. `#actions` is static markup that render() never rewrites, so an injected child survives. */
   #emoteBar{position:relative; display:flex; align-items:center; gap:6px; flex:0 0 auto;}
   #emoteBar #emoteToggle{font:inherit; font-size:17px; line-height:1; padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:var(--panel); color:var(--txt); cursor:pointer;}
+  /* CLAMPED TO THE VIEWPORT BY `placeEmoteList`, not by a CSS anchor. Neither anchor works alone: `#actions`
+     wraps on a narrow phone, so the bar sits at the RIGHT on a wide screen (where `left:0` runs off the right
+     edge — 4 of 7 emotes reachable at 720px) and near the LEFT once the row wraps (where `right:0` runs off the
+     left — 1 of 7 at 327px). Both measured. The popup is laid out `left:0` and then nudged back on screen. */
   #emoteBar #emoteList{display:none; position:absolute; bottom:calc(100% + 8px); left:0; z-index:60; padding:7px; border-radius:12px; border:1px solid var(--line); background:var(--panel); box-shadow:0 8px 24px rgba(0,0,0,.55); flex-wrap:wrap; gap:5px; width:max-content; max-width:min(72vw,420px);}
   #emoteBar.open #emoteList{display:flex;}
   #emoteBar .emoteBtn{font:inherit; font-size:13px; font-weight:700; padding:7px 9px; border-radius:10px; border:1px solid var(--line); background:var(--panel); color:var(--txt); cursor:pointer; display:flex; align-items:center; gap:5px;}
@@ -3151,6 +3155,14 @@ __QR__
     var ids=(cards||[]).map(function(c){ return c.id; });
     if(!ids.length){ setMessage('Select a card or combo to play.'); return; }
     NET.clientSend({op:'play', ids:ids}); selected={}; boostArmed=false; busy=true; render();
+  }
+  function placeEmoteList(){
+    var list=document.getElementById('emoteList'); if(!list) return;
+    list.style.transform='';                                        // measure unshifted, so this is idempotent
+    var r=list.getBoundingClientRect(), vw=document.documentElement.clientWidth, pad=8, dx=0;
+    if(r.right > vw-pad) dx = (vw-pad) - r.right;                   // hanging off the right → pull left
+    if(r.left + dx < pad) dx = pad - r.left;                        // …but never past the left edge
+    if(dx) list.style.transform='translateX('+Math.round(dx)+'px)';
   }
   function isNetClient(){ return !!(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()); }
 
@@ -5826,9 +5838,12 @@ __QR__
         EMOTES.map(function(e){ return '<button class="emoteBtn" data-em="'+e.key+'" title="'+esc(e.label)+'">'+e.icon+'<span>'+esc(e.label)+'</span></button>'; }).join('')+
         '</div>';
       ($('actions')||document.body).appendChild(eb);   // in the row, so it cannot cover Pass/Fight
+      /* Nudge the open popup back inside the viewport. Measured at five widths: anchored either way it hangs
+       * off one edge or the other, because the bar's own x position moves when `#actions` wraps. */
+      window.addEventListener('resize', function(){ if(eb.classList.contains('open')) placeEmoteList(); });
       eb.addEventListener('click', function(ev){
         var t=ev.target.closest ? ev.target.closest('button') : null; if(!t) return;
-        if(t.id==='emoteToggle'){ eb.classList.toggle('open'); return; }
+        if(t.id==='emoteToggle'){ eb.classList.toggle('open'); if(eb.classList.contains('open')) placeEmoteList(); return; }
         var k=t.getAttribute('data-em'); if(k){ sendEmote(k); eb.classList.remove('open'); }
       });
       refreshNewBtn();   // the header button becomes "← Leave online" — see refreshNewBtn for why it is not a floating overlay

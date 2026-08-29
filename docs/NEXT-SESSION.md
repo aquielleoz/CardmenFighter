@@ -211,6 +211,23 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   drag, and that suite drives clicks + Fight, which short-circuits in `doFight` — and the suite has a long
   documented history of intermittency. Recorded as characterised-but-open rather than dismissed: **capture the
   failing assertion next time it goes red.**
+- **STARTING A NEW NETPLAY GAME DROPS YOU INTO THE PREVIOUS DUEL'S END SCREEN** (Aj, 2026-08-29: *"you have to
+  press leave then do the whole handshake thing again"* — so the cost is a full re-handshake, not just a stray
+  overlay). Reported earlier as "stale win page"; this is the sharper version, and the end screen appears
+  **after** the new game starts, not before.
+  **What is VERIFIED, and it is an asymmetry worth knowing:**
+  - The HOST path is clean. `hostStartRealN` calls `startGame(YOU)`, and `startGame` is the **only** site that
+    runs `gen++` (line ~2653) and `hideOverlay()`.
+  - The CLIENT path never bumps `gen`. `applyMirrorNow` does `started=true; state=st; … render()` with no
+    `gen++` anywhere, so **a stale `setTimeout` continuation from the PREVIOUS game still satisfies `g===gen`**
+    and can run against the new one — including a path that ends at `endGame()`.
+  - `.overlay` is `z-index:100000` and `#netroot` is `99999`, so anything showing when netplay starts sits on
+    top of the lobby; `NET.start` never touches the overlay.
+  **NOT FIXED, because there is no repro yet** — the stale-`gen` asymmetry is the leading candidate and it is
+  still a theory, and theories have been wrong every time this week. **Get the repro first:** play a netplay
+  duel to a finish, start a second one without leaving, and watch whether `endGame()` is re-entered (a
+  breakpoint or a `trace()` in `endGame` will say immediately). If it is, giving the client a `gen++` on the
+  first mirror of a new game is the fix; if it is not, look at what re-shows the overlay instead.
 - **THE CLIENT NEVER PLAYS THE FIGHTER KICK FINISHER — THE CEREMONY IS SENT ONE LINE TOO LATE** (Aj,
   2026-08-29: *"the client didn't play the rider kick animation even tho they won"*). **Three sites, identical
   shape**, and the terminal `return` fires before the send:
@@ -1097,6 +1114,13 @@ nothing anywhere.
 `left:10px; bottom:10px` it sat exactly where `#actions` renders on a phone, so 💬 covered Pass. `#actions` is
 static markup that `render()` never rewrites, so an injected child survives — which is why it, and not
 `#netroot`, is the right home.
+
+**The emote popup is clamped to the viewport.** Neither CSS anchor works on its own, because `#actions` wraps:
+the bar sits at the RIGHT on a wide screen, where `left:0` runs off the right edge (4 of 7 emotes reachable at
+720px), and near the LEFT once the row wraps, where `right:0` runs off the left (1 of 7 at 327px). Both
+measured. `placeEmoteList` lays it out and nudges it back on screen. `nettest_emote` asserts **both** ends of
+that range, since either anchor passes at one of them — and it drives the real toggle, because adding `.open`
+by hand skips the handler that does the clamping and makes the assertion vacuous.
 
 **Board-independent intents are no longer stamped, which un-breaks emotes over netplay.** v1.31.54's stale-intent
 guard ran ahead of the emote dispatch, so an emote — which is not formed against a board, and is handled ahead of

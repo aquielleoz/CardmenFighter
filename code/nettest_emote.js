@@ -36,6 +36,26 @@ async function waitLog(p,re,t=80){ for(let i=0;i<t;i++){ if((await log(p)).some(
   ok(await host.evaluate(()=>!!document.getElementById('emoteBar')), 'the emote bar exists in netplay');
   ok(await host.evaluate(()=>document.querySelectorAll('#emoteBar .emoteBtn').length===7), 'all seven emotes are offered');
 
+  /* …AND ALL SEVEN ARE ON SCREEN. The bar lives in `#actions` (v1.31.57), and `#actions` wraps on a narrow
+   * phone, so the bar sits at the RIGHT on a wide screen and near the LEFT once the row wraps. Measured, a
+   * fixed CSS anchor hangs off one edge or the other at every width — `left:0` gave 4 of 7 at 720px, `right:0`
+   * gave 1 of 7 at 327px — so the popup is nudged back on screen by `placeEmoteList`. Checked at BOTH ends of
+   * that range, because either anchor passes at one of them. Drive the real TOGGLE: adding `.open` by hand
+   * skips the handler that does the clamping, and then this assertion tests nothing. */
+  const emotesOnScreen = async (w)=>{ await host.setViewportSize({width:w, height:780}); await wait(250);
+    return host.evaluate(()=>{ const bar=document.getElementById('emoteBar');
+      if(bar.classList.contains('open')) document.getElementById('emoteToggle').click();
+      document.getElementById('emoteToggle').click();
+      const vw=document.documentElement.clientWidth;
+      const all=[...document.querySelectorAll('#emoteBar .emoteBtn')];
+      const on=all.filter(x=>{const r=x.getBoundingClientRect(); return r.left>=-1 && r.right<=vw+1;}).length;
+      document.getElementById('emoteToggle').click();      // leave no selection/state behind
+      return {on, total:all.length}; }); };
+  const narrow = await emotesOnScreen(327), wide = await emotesOnScreen(720);
+  ok(narrow.on===narrow.total, 'every emote is reachable on a NARROW phone where the row wraps ('+narrow.on+'/'+narrow.total+')');
+  ok(wide.on===wide.total,     '  → and on a WIDE screen where the bar sits at the right edge ('+wide.on+'/'+wide.total+')');
+  await host.setViewportSize({width:1100, height:820});
+
   // ---- HOST -> CLIENT
   ok(await emote(host,'hi'), 'host taps Hi!');
   ok(await waitLog(host,/^You says hi!|^You say/i), 'the host reads its own emote as "You"');
