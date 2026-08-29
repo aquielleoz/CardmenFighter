@@ -744,9 +744,16 @@ board it was formed against is current. A client ignores a mirror whose stamp go
 rewind the board and invite action on a board that no longer exists), and the host refuses an intent with a
 stale stamp **and re-broadcasts** — the re-broadcast is not optional, because a client stuck on an old stamp
 would otherwise have every future intent refused, and a silent deadlock is worse than the stale move. It only
-refuses when the client actually sent a stamp, so an older peer keeps working. **Measured cost: zero** (9 sends,
-9 received, 0 refused in a full game) — check that before trusting any such guard, because one that
-intermittently refuses VALID moves is worse than the bug.
+refuses when the client actually sent a stamp, so an older peer keeps working.
+**THE "MEASURED COST: ZERO" CLAIM WAS WRONG, and how it was wrong is the lesson.** It read *(9 sends, 9
+received, 0 refused in a full game)* — measured in the lab, on one machine, with no latency. **Aj's real game
+refused five moves: three emotes and TWO PASSES** — he pressed Pass and nothing happened. A guard that
+intermittently refuses VALID moves is worse than the bug it prevents, so measure it over a REAL connection
+before trusting it.
+Two things follow. **`stateSeq` is a client-intent counter, not a state version** — it is bumped only in
+`hostApplyMove`, so the host's own plays and the round draw do not advance it (visible in a trace as one `q`
+carrying two different hand sizes). And **an emote must never be stamped**: it is not formed against a board and
+is handled ahead of every turn gate by design, so refusing one is meaningless.
 
 **A FABRICATED CARD IS ALREADY REJECTED, AND THAT EXPLAINS THE `NaN` PLAYS.** `resolveIds` maps incoming ids
 against the HOST's copy of the hand and drops unmatched ones, so an imagined card resolves to nothing and the
