@@ -32,7 +32,9 @@ and pruned.
 npm test && node mptest.js && node landscapetest.js
 ```
 
-Expect **333 / 0**, **34 / 0**, **82 / 0**, **126 / 0**. A **full sweep is 69 suites and takes ~10 minutes** —
+Expect **0 FAIL** from each. The two gate counts in the header above are **asserted by `versiontest`**, which
+runs both suites and compares, so they cannot drift; every other suite's expected count lives in **CLAUDE.md**,
+which is the authority and says so. A **full sweep is 69 suites and takes ~10 minutes** —
 run it in the background, and **never two suites at once** (they bind fixed ports). Verified green in full at
 v1.31.74 on 2026-08-31.
 
@@ -190,16 +192,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 ### Tooling
 
-- **`versiontest` DOES NOT GUARD THE HANDOFF HEADER, AND IT DRIFTED THIRTEEN VERSIONS.** The chain it asserts is
-  README `**Status:**` → `build.js` → both screens → a `### vX.Y.Z` heading in this file. What it does **not**
-  check is this document's own **`Current version:`** line or its START HERE block, so on 2026-08-31 they still
-  read *v1.31.61*, `test.js` **325** and `netview` **28** — against a real v1.31.74 at 333 and 34. Fixed by hand
-  in the split, which is exactly the fix that will rot again.
-  **The precedent for why this matters is in CLAUDE.md:** the UI stamp is *derived* from README specifically so
-  it cannot drift, because a stale build that looks current cost a real bug report. A hand-written header has
-  the same failure mode and no guard. Assert the header's version against README, and assert the two test counts
-  against what `test.js`/`netview.test.js` actually print — or stop printing counts here and point at CLAUDE.md,
-  which is already the authority. **The second option is cheaper and cannot rot**, and is probably the right one.
 - **A FAILING SUITE'S SUMMARY LINE MISLABELS ITS PASS COUNT.** ~20 suites print
   `console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail)`, so a failing run reads
   **`FAIL: 11  FAIL: 4`** — which scans as fifteen failures. It is deliberate (the first label flips to FAIL as a

@@ -287,6 +287,15 @@ on screen could say so; `versiontest.js` asserts the whole chain including the *
 file people download — **and, since v1.31.33, that `docs/NEXT-SESSION.md` carries a `### vX.Y.Z` heading for
 that version.** The stamp is derived and cannot drift; a hand-written changelog silently can, and v1.31.33
 nearly shipped with no entry because the script writing it threw on a stale anchor *before* its write. When a shipped feature is reported missing, check the reporter's build before the code.
+**AND SINCE 2026-08-31 THE HANDOFF HEADER IS IN THE CHAIN TOO, because it drifted THIRTEEN VERSIONS.** The guard
+covered README → build → both screens → a changelog heading, and not the header a next session reads **first**:
+it still said *v1.31.61*, `test.js` **325**, `netview` **28** against a real v1.31.74 at 333 and 34. `versiontest`
+now asserts `docs/NEXT-SESSION.md`'s **`Current version:`** line and its **"`main` is at"** line against README,
+and it **RUNS both gate suites** (0.44s together) to check the counts written in that header *and in this file*
+against what they actually print. **A number nobody can verify is the number that rots** — which is why the
+expensive suites' counts were REMOVED from the handoff header instead of asserted, and why a negative assertion
+now refuses any hand-maintained `**NN / 0**` expectation there. Every other suite's count still lives in the list
+below, which declares itself fallible on purpose. Verified by reintroducing each drift: five ways, five reds.
 
 **A CAMERA FEATURE IS TESTABLE — never hand-check one.** Proven on the parked `feat/qr-scanning` branch (PR #29,
 closed): Chromium accepts `--use-file-for-fake-video-capture=<file.y4m>` with `--use-fake-device-for-media-stream`

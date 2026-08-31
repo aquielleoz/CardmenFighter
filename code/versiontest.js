@@ -31,6 +31,41 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   const handoff=fs.readFileSync(path.resolve(__dirname,'..','docs','NEXT-SESSION.md'),'utf8');
   ok(want ? handoff.indexOf('### '+want) >= 0 : false,
      `docs/NEXT-SESSION.md carries a "### ${want}" changelog heading — a shipped version with no entry is how a change becomes unfindable`);
+  /* THE HANDOFF DOC'S OWN HEADER IS PART OF THE CHAIN NOW (2026-08-31). This suite guarded
+   * README → build → both screens → a changelog heading, and NOT the header a next session reads FIRST. So on
+   * 2026-08-31 that header still said **v1.31.61**, `test.js` **325** and `netview` **28** against a real
+   * v1.31.74 at 333 and 34 — THIRTEEN VERSIONS of silent drift, found only by reading it.
+   * The reason the UI stamp is DERIVED from README is that a stamp which can drift is worse than none, because
+   * it makes something stale look current. A hand-written header has exactly that failure mode, so it gets
+   * exactly that treatment.
+   * THE COUNTS ARE MEASURED, NOT TRUSTED. Both gate suites are pure Node and cost 0.44s together, so this runs
+   * them and compares. A number nobody can verify is the number that rots — which is why the expensive suites'
+   * counts were REMOVED from the header rather than asserted here: see the negative check below. */
+  const run=(f)=>{ try{ const out=require('child_process').execSync('node '+f,{cwd:__dirname,encoding:'utf8'});
+      const m=out.match(/PASS:\s*(\d+)\s+FAIL:\s*(\d+)/); return m?{pass:+m[1],fail:+m[2]}:null; }catch(e){ return null; } };
+  const eng=run('test.js'), nv=run('netview.test.js');
+  ok(!!eng && eng.fail===0, `test.js is green, so its count means something (${eng?eng.pass+' / '+eng.fail:'DID NOT REPORT'})`);
+  ok(!!nv  && nv.fail===0,  `netview.test.js is green, so its count means something (${nv?nv.pass+' / '+nv.fail:'DID NOT REPORT'})`);
+  const hdr=handoff.slice(0, handoff.indexOf('## BACKLOG'));
+  const hv=(hdr.match(/\*\*Current version:\s*(v\d+\.\d+\.\d+[a-z]?)/)||[])[1];
+  ok(hv===want, `the handoff header's "Current version" matches README ("${hv||'NONE'}" vs "${want}")`);
+  const mv=(hdr.match(/`main` is at \*\*(v\d+\.\d+\.\d+[a-z]?)\*\*/)||[])[1];
+  ok(mv===want, `START HERE's "\`main\` is at" matches README ("${mv||'NONE'}" vs "${want}")`);
+  const ht=(hdr.match(/`node test\.js` \(\*\*(\d+)\*\*\)/)||[])[1];
+  ok(!!ht && !!eng && +ht===eng.pass, `the header's test.js count is REAL (says ${ht||'nothing'}, measured ${eng?eng.pass:'?'})`);
+  const hn=(hdr.match(/`node netview\.test\.js` \(\*\*(\d+)\*\*\)/)||[])[1];
+  ok(!!hn && !!nv && +hn===nv.pass, `…and its netview.test.js count is REAL (says ${hn||'nothing'}, measured ${nv?nv.pass:'?'})`);
+  /* THE NEGATIVE HALF: the header must not state an expected count for a suite this cannot verify. It used to
+   * promise "Expect 333 / 0, 34 / 0, 82 / 0, 126 / 0" — and mptest/landscapetest are browser suites costing
+   * minutes, so those two numbers could only ever be maintained by hand. Every other suite's count belongs in
+   * CLAUDE.md, which declares itself fallible ("if a count here disagrees with a suite, the suite is right"). */
+  ok(!/\*\*\d+ \/ 0\*\*/.test(hdr),
+     'the header states no hand-maintained "NN / 0" expectations — unverifiable numbers are what rot');
+  const claude=fs.readFileSync(path.resolve(__dirname,'..','CLAUDE.md'),'utf8');
+  const cc=claude.match(/`test` (\d+), `netview` (\d+)/)||[];
+  ok(!!cc[1] && !!eng && +cc[1]===eng.pass, `CLAUDE.md's \`test\` count is REAL (says ${cc[1]||'nothing'}, measured ${eng?eng.pass:'?'})`);
+  ok(!!cc[2] && !!nv  && +cc[2]===nv.pass,  `…and its \`netview\` count is REAL (says ${cc[2]||'nothing'}, measured ${nv?nv.pass:'?'})`);
+
   const built=fs.readFileSync(HTML,'utf8');
   ok(!built.includes('__VERSION__'), 'no unsubstituted __VERSION__ survived into the built page');
   const stamped=(built.match(/GAME_VERSION='([^']+)'/)||[])[1];
