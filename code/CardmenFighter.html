@@ -4973,7 +4973,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.73';
+  var GAME_VERSION='v1.31.74';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -7015,6 +7015,20 @@ window.CardFace = {};
         ? '💀 You’re out — spectating the rest of the duel.'
         : (MP() ? (seatName(state.turn)+' is fighting…') : 'Rival is fighting…');
       hint.className = (MP() && state.players[YOU].eliminated) ? 'bad' : '';
+      return;
+    }
+    /* BUSY MEANS THE PRESENTATION IS STILL RUNNING, and every action handler ALREADY refuses while it is —
+     * silently. `yourTurn` is `state.turn===YOU && !state.finished` with no `busy` in it, so once the turn comes
+     * back to you but the opponent's beats are still playing, Fight and Pass render ENABLED and do nothing at
+     * all: `doFight`, `doPass` and `toggle` each `return` on `busy` without a message. MEASURED at **2014ms of
+     * swallowed Pass clicks** in the Initiative lesson, where the Rival leads round 1 — found by
+     * `lessontest_initiative`, which had to retry its click for two seconds before anything happened.
+     * An enabled control that does nothing is worse than a disabled one, and from the outside it is
+     * indistinguishable from the game having hung. Placed AFTER the `!yourTurn` branch so "Rival is fighting…"
+     * still wins when it is genuinely not your turn — that message is more specific than this one. */
+    if(busy){
+      fight.disabled=true; pass.disabled=true; ctxBtn.style.display='none'; cardAct.style.display='none';
+      hint.textContent='Hold on — the board is still resolving.'; hint.className='';
       return;
     }
     if(E.isLocked(state, YOU)){                               // Back Stab: you can't play or activate this round
