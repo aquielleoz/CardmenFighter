@@ -107,6 +107,9 @@ node nettest_sync.js         # THE CROSS-CHECK: plays a real game over the ROOM 
 node nettest_narrate.js      # PUBLIC NARRATION must reach the other seat (10). Its second half is the durable
                              # part: it scans the client's log for SENDER-BAKED GRAMMAR — "You is", "You has",
                              # "You moves", "You’s" — each of which has shipped at least once.
+node twosim.js               # what the 2 does in plays of 4+ — off/low/high x 2/4/6 players. Counts SHAPES
+                             # PLAYED, which is the only thing that moves: pacing and jab share do not, and a
+                             # study that only measured those would report a null result.
 node peektest.js             # PEEK AT THE TABLE, the review mode (31). Peek SHOWS, it never CHANGES. Uses
                              # __solo.peek() — the REAL enterPeek, because showModal's peek branch keys off the
                              # `peeking` VARIABLE, so staging the classes alone tests nothing. And the hand's
@@ -592,7 +595,25 @@ Three more things worth knowing before touching them:
   which is asserted rather than assumed) and **clears itself** when the last of the group goes off. `chopStrips`
   is the case — it modifies the chops, so with no chop enabled it can only mislead. Any change to a group member
   re-renders the panel, since the dependent row's live/dead state moved.
-- **THE 2 IS BARRED FROM EVERY CHAIN (v1.31.45), and it is a DEFAULT, not an option.** `seqTwos` is the opt-in
+- **THE 2 PLAYS IN CHAINS AS THE LOW CARD (v1.31.64) — `seqTwos` IS A MODE: `off` | `low` | `high`.** Default
+  **`low`**: smallest straight `2-3-4-5-6`, biggest still `10-J-Q-K-A`, smallest full house `222XX`. That is
+  Chikicha's rule and Big Two's; `off` is Tiến lên and Dou Dizhu; `high` is the legacy `J-Q-K-A-2`, which
+  matches no family. **All four games agree the 2 is the apex at sizes 1-3** — the line `apexOnlyPlay` already
+  drew — and differ only in plays of 4+, with exactly two answers, which is why this is one rule and not a
+  Chikicha special case.
+  **THE FULL HOUSE IS THE BIGGEST EFFECT AND IT IS NOT A CHAIN**, so it is easy to miss: a full house is keyed
+  by its trio, so a trio of 2s goes from the game's HIGHEST full house to its lowest (size-4+ plays containing a
+  2: **1942 → 875** at 6p, `twosim.js`). Pacing and jab share do not move — the standing "options, not tempo"
+  result.
+  **v1.31.45's "all three source games agree" WAS RESEARCHED INCOMPLETELY.** It asked the games we borrowed
+  SHAPES from and never asked the game this one is based on. Two of four bar the 2; two demote it. A playtester
+  with no chikicha background is what surfaced it.
+  The panel carries **two booleans** (`noSeqTwos`, `highTwos`), not a mode row, because every rule must default
+  OFF — and `highTwos` uses **`deadIf`**, a new dependency kind and the mirror of `needsAny`: inert while the
+  named rule IS on. Note `deadIf` must set `moved` so the panel RE-RENDERS either way; clearing the tick without
+  it left the row looking on and enabled, which is the exact state the dependency exists to prevent.
+  The v1.31.45 reasoning below still holds for the `off` setting.
+- **THE 2 WAS BARRED FROM EVERY CHAIN (v1.31.45).** `seqTwos` was the opt-in
   half. All three source games agree — Tiến lên and Dou Dizhu bar it from straights, 连对 and 飞机 alike; Big Two
   admits it to a run only by demoting it **below the 3**, so its top straight is 10-J-Q-K-A as well. Our old
   `J-Q-K-A-2` window came from no family: it fell out of ranking the apex at 15 and letting runs read the same
