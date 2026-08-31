@@ -774,7 +774,7 @@ checked on a real device.*
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
-### v1.31.69 — the table is told who it is waiting on
+### v1.31.69 — the table is told who it is waiting on, and Sort stops being turn-gated
 
 Aj: *"the other players don't [get] a prompt saying somebody is still discarding down to max hand… it's just
 uhhh what's happening in the middle of rounds"*.
@@ -794,6 +794,24 @@ hand size…"*, which is the same class of mistake as the narration audit.
 `netview.test` 28 → **34** (the field, its rotation, and that no card can travel in it). `nettest_trim.js` (8)
 drives it end to end with the **host** staged over the cap, since that is the only seat that gets an interactive
 pick — verified by removing the render hook, where the client shows "(nothing)" while play is stopped.
+
+**AND NOBODY ELSE MAY ACT WHILE IT WAITS** — Aj: *"it should also block the action buttons for other people"*.
+That was a real bug, not just a courtesy: `resolveRoundWin` sets the turn to the round WINNER, and `roundDraw`
+runs **after** the trim, so a client that had just won held a live board while the host was still picking and
+could play into a round whose cards had not been dealt. `trimPending` now locks every other seat.
+
+**The announcement is on the play-area stage too, dimmed**, sharing `#roundfx` rather than inventing a second
+notice layer — Aj: *"might as well put the announcement there"*. It **takes over a leftover ceremony beat** on
+purpose: `playPreBeats` leaves its last beat on stage for the Round-N plate to swap into, so by the time a pick
+opens the stage is showing something stale, and refusing to overwrite it meant the notice never appeared at all.
+A ceremony still mid-sequence wins the race back on its next step, which is right — the beats are the
+shorter-lived message. It dims the PLAY AREA only; the hand below stays readable.
+
+**SORT IS NO LONGER TURN-GATED.** Aj: *"i always wondered why i could not sort my hand while the other players
+where taking their turns"*. There was no reason for it: sorting reorders your own view of your own hand —
+`applySortLayout` writes `handOrder`/`layout`, both local — so it mutates no game state, sends no intent, and
+cannot be seen by anyone else. `flipSort` returned early on `state.turn!==YOU || busy`, which blocked it exactly
+when a player has time to organise. Peeking still refuses, because peek is inspect-only.
 
 One staging note worth keeping: **a clean-up pick is confirmed with Fight.** `$('fightBtn')` is wired as
 `pick ? confirmPick() : doFight()`, so the pick reuses that button; the first version of the suite hunted for a

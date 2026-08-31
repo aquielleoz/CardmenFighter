@@ -20,6 +20,11 @@ const snap=p=>p.evaluate(()=>({
   round:parseInt(((document.getElementById('roundTag')||{}).textContent||'').replace(/\D/g,''))||0,
   hand:document.querySelectorAll('#hand .card').length,
   status:((document.getElementById('rivalStatus')||{}).textContent||'').trim(),
+  dim:/show/.test((document.getElementById('roundfx')||{}).className||''),
+  dimText:((document.getElementById('roundfx')||{}).textContent||'').trim(),
+  fightOff:!!(document.getElementById('fightBtn')||{}).disabled,
+  passOff:!!(document.getElementById('passBtn')||{}).disabled,
+  sortLbl:((document.getElementById('sortBtn')||{}).textContent||'').trim(),
   msg:((document.getElementById('message')||{}).textContent||'').trim(),
 }));
 function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,100)); }
@@ -62,6 +67,23 @@ async function until(fn,t=120,ms=120){ for(let i=0;i<t;i++){ if(await fn()) retu
   ok(told, 'the CLIENT is told who the table is waiting on' +
      (told?` — "${js.status}"`:`  <-- REPRODUCED: the client shows "${js.status||'(nothing)'}" while play is stopped`));
   ok(!/^You/.test(js.status), '  → and it names the OTHER seat, not the reader (reader-relative, like every other label)');
+
+  /* THE PLAY AREA IS DIMMED and carries the same words — Aj: "might as well put the announcement there". */
+  ok(js.dim && /discarding to hand size/i.test(js.dimText),
+     `  → and the PLAY AREA is dimmed with the announcement on it${js.dim?'':'  <-- no dim'}`);
+
+  /* AND NOBODY ELSE MAY ACT. The turn is already the round WINNER when the pick opens, and `roundDraw` runs
+     AFTER the trim — so a client that had just won could otherwise play into a round with no cards dealt. */
+  ok(js.fightOff && js.passOff,
+     `  → and its action buttons are LOCKED while the table waits (fight ${js.fightOff?'off':'LIVE'}, pass ${js.passOff?'off':'LIVE'})`);
+
+  /* BUT SORT STILL WORKS. It reorders your own view of your own hand — no state, no intent, invisible to
+     everyone else — so it is the one control that should survive any wait. */
+  const before=js.sortLbl;
+  await join.evaluate(()=>{ const b=document.getElementById('sortBtn'); if(b) b.click(); });
+  await wait(300);
+  const after=(await snap(join)).sortLbl;
+  ok(after!==before, `  → but SORT still works while waiting ("${before}" → "${after}")`);
 
   // and it clears once the host has picked
   /* A PICK IS CONFIRMED WITH FIGHT. `$('fightBtn')` is wired as `pick ? confirmPick() : doFight()`, so the

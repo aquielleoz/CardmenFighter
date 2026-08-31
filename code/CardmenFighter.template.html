@@ -2829,13 +2829,19 @@ __QR__
      * others just saw a gap. `trimPending` rides the mirror (netview whitelists it), so a client can name the
      * seat too. Written before the early returns below so it survives whatever else render() decides. */
     if(state && state.trimPending && state.trimPending.player!==YOU){
-      var tp=$('rivalStatus');
       /* `logName`, not `seatName`: names are READER-RELATIVE here as everywhere else — a duel opponent reads as
        * "Rival", not "P2". Every other label in the game goes through this funnel for the same reason. */
-      if(tp) tp.textContent=logName(state.trimPending.player)+' is discarding to hand size…';
+      var who=logName(state.trimPending.player), txt=who+' is discarding to hand size…';
+      var tp=$('rivalStatus'); if(tp) tp.textContent=txt;
+      /* AND ON THE STAGE, dimmed — Aj: "maybe we can dim the play area too (might as well put the announcement
+       * there)". `#roundfx` IS the play-area announcement layer, so this shares it rather than inventing a
+       * second one; the `trimwait` class marks the usage so nothing here can clear a real ceremony beat. It
+       * dims the PLAY AREA only: the hand below stays readable and sortable, which is the point of waiting. */
+      showTrimWait(txt);
     } else if(state && !state.trimPending){
       var tp2=$('rivalStatus');
       if(tp2 && /discarding to hand size/.test(tp2.textContent||'')) tp2.textContent='';   // only clear OUR message
+      clearTrimWait();
     }
     var you=state.players[YOU];
     if(!holdShields){ animateShields($('youShields'), you.shields, YOU); }
@@ -3950,6 +3956,27 @@ __QR__
     beats.push({ html:'<b>'+who+'</b> '+(youWon?'seize':'seizes')+' the initiative!', cls:cls });
     return beats;
   }
+  /* The clean-up-pick notice, on the ceremony's own stage. Guarded by its own class both ways: it never
+   * overwrites a ceremony beat that is already showing, and `clearTrimWait` only takes down a banner it put up. */
+  function showTrimWait(txt){
+    var fx=$('roundfx'); if(!fx) return;
+    /* IT TAKES OVER A LEFTOVER CEREMONY BEAT, on purpose. `playPreBeats` deliberately leaves its last beat
+     * ("… seizes the initiative!") on stage for the Round-N plate to swap into, so by the time a clean-up pick
+     * opens the stage is showing something stale — and refusing to overwrite it meant the notice never appeared
+     * at all. A ceremony still mid-sequence wins the race back on its next step, which is correct: the beats
+     * are the shorter-lived message. */
+    var inner=fx.querySelector('.rfInner'); if(!inner) return;
+    if(/trimwait/.test(fx.className) && inner.getAttribute('data-trim')===txt) return;   // already saying it
+    inner.className='rfInner dim'; inner.innerHTML='<div class="rfBeat">'+esc(txt)+'</div>';
+    inner.setAttribute('data-trim', txt);
+    void inner.offsetWidth; inner.classList.add('in');
+    fx.className='show trimwait';
+  }
+  function clearTrimWait(){
+    var fx=$('roundfx'); if(!fx || !/trimwait/.test(fx.className)) return;
+    var inner=fx.querySelector('.rfInner'); if(inner) inner.removeAttribute('data-trim');
+    clearRoundfx();
+  }
   function clearRoundfx(){ var fx=$('roundfx'); if(!fx) return; fx.className=''; fx.onclick=null; var inner=fx.querySelector('.rfInner'); if(inner){ inner.className='rfInner'; inner.innerHTML=''; } }
   function snapDrawnCards(){ Array.prototype.forEach.call(document.querySelectorAll('#hand .card.enter'), function(el){ el.classList.remove('enter'); el.style.animationDelay=''; }); }
 
@@ -4420,7 +4447,11 @@ __QR__
   function flipSort(){
     if(peeking) return;                               // no reordering while reviewing
     if(!state || state.finished) return;
-    if(!pick && (state.turn!==YOU || busy)) return;   // during a forced discard/hand-limit pick the turn may be the rival's — Sort must still tidy
+    /* NO TURN GATE. Sorting reorders YOUR OWN VIEW of YOUR OWN hand: it mutates no game state, sends no intent
+     * and cannot be seen by anyone else (`applySortLayout` writes `handOrder`/`layout`, both local). It used to
+     * return early on `state.turn!==YOU || busy`, so you could not tidy your hand while waiting for the other
+     * players — which is exactly when you want to. Aj: "i always wondered why i could not sort my hand while
+     * the other players where taking their turns". Peeking still refuses, because peek is inspect-only. */
     var target=SORT_NEXT[sortState]||'singles';
     var hand=state.players[YOU].hand.slice();
     var groups = target==='pairs' ? sortIntoPairs(hand) : target==='straights' ? sortIntoStraights(hand) : E.sortHand(hand).map(function(c){ return [c]; });
@@ -7117,7 +7148,12 @@ __QR__
       if(owedModal) revealOpen=false;                    // a window the GAME owes you outranks a look at a hand
       if(!owedModal && !revealOpen) hideOverlay();
       hideNetroot();
-      busy = owedModal || owedLoss || (!owedDiscard && (state.turn!==YOU)) || !!state.finished;   // locked during modal windows / opponent's turn / loss-pick; unlocked to pick discards
+      /* `trimPending` locks every OTHER seat. The turn is already the round WINNER by the time the clean-up
+       * pick opens (`resolveRoundWin` sets it) and `roundDraw` runs AFTER the trim — so a client that had just
+       * won could act on a live board while the host was still picking, playing into a round whose cards had
+       * not been dealt. Aj spotted it from the symptom: "it should also block the action buttons for others". */
+      var waitingOnTrim = !!(st.trimPending && st.trimPending.player!==YOU);
+      busy = owedModal || owedLoss || waitingOnTrim || (!owedDiscard && (state.turn!==YOU)) || !!state.finished;   // locked during modal windows / opponent's turn / loss-pick / someone else's clean-up; unlocked to pick discards
       render();
       if(state.finished){ endGame(); return; }
       clientCheckWindow();
