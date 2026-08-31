@@ -4969,7 +4969,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.69';
+  var GAME_VERSION='v1.31.70';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -7677,27 +7677,45 @@ window.CardFace = {};
      * pick. This used to trim and announce seat 1 ONLY — so at a six-player table seats 2+ were never trimmed
      * here and their clean-up was invisible in the log. Narration goes through `say`, which renders {who} in
      * each reader's own frame and broadcasts in netplay. */
+    /* EVERY PLAYER PICKS THEIR OWN PITCHES (Aj, 2026-08-30: "no. all players choose what to discard").
+     * This used to auto-trim every seat but the local one, so in netplay the host chose its own cards and every
+     * client had its LOWEST cards taken by `discardToLimit` — an asymmetry in a competitive game.
+     * Now it is a SEQUENTIAL QUEUE. A remote human seat gets the real picker on its own board, reusing the
+     * forced-discard window wholesale (`discardPending` → `{op:'discard'}` → `E.resolveDiscard`, and both paths
+     * already send discards to the Energy pile, so the semantics are identical). An AI seat is still trimmed for
+     * it. The LOCAL seat is queued LAST, which keeps solo behaviour exactly as it was.
+     * Sequential rather than simultaneous because that is what the window machinery supports — and because a
+     * disconnected seat is covered for free: Passo answers a `discard` window with `ids:[]`. */
+    var g=gen, queue=[];
     for(var ci=0; ci<state.numPlayers; ci++){
       if(ci===YOU || state.players[ci].eliminated) continue;
-      var cOver = state.players[ci].hand.length - E.MAX_HAND;
-      if(cOver>0){ E.discardToLimit(state, ci); say(ci, '{who} discarded '+cOver+' to hand size → energy pile.', 'rival'); }
+      if(state.players[ci].hand.length - E.MAX_HAND > 0) queue.push(ci);
     }
-    var over = state.players[YOU].hand.length - E.MAX_HAND;
-    if(over>0){
-      clearRoundfx();                                          // hide the banner so the hand + pick are visible
-      /* ON STATE, deliberately, because that is what travels in a mirror. Every other seat is auto-trimmed by
-       * `E.discardToLimit` above and narrated after the fact; only the LOCAL player picks, so in netplay the
-       * host's own pick is the one that stops the table — and the other seats saw an unexplained pause with
-       * nothing on screen. Aj: "the other players don't [get] a prompt saying somebody is still discarding down
-       * to max hand... it's just uhhh what's happening in the middle of rounds".
-       * It carries a seat and a COUNT, never cards — a hand must never touch `st` (see E.takeReveal). */
-      state.trimPending={ player:YOU, need:over };
-      pick={ kind:'handlimit', need:over, chosen:{}, resume:cb, resumeG:gen };
-      setMessage('Clean-up — over the hand limit ('+E.MAX_HAND+'). Discard '+over+' to your Energy Pile.');
-      render();
-      return;
+    if(state.players[YOU].hand.length - E.MAX_HAND > 0) queue.push(YOU);   // local seat last: solo order unchanged
+    function nextTrim(){
+      if(g!==gen) return;
+      if(!queue.length){ state.trimPending=null; render(); return cb(); }
+      var seat=queue.shift(), over=state.players[seat].hand.length - E.MAX_HAND;
+      if(over<=0) return nextTrim();                                        // it may have changed while we waited
+      if(seat===YOU){
+        clearRoundfx();                                        // hide the banner so the hand + pick are visible
+        state.trimPending={ player:YOU, need:over };
+        pick={ kind:'handlimit', need:over, chosen:{}, resume:nextTrim, resumeG:gen };
+        setMessage('Clean-up — over the hand limit ('+E.MAX_HAND+'). Discard '+over+' to your Energy Pile.');
+        render();
+        return;
+      }
+      if(typeof NET!=='undefined' && NET.isRemoteHumanSeat && NET.isRemoteHumanSeat(seat)){
+        state.trimPending={ player:seat, need:over };
+        state.discardPending={ player:seat, count:over };
+        if(NET.hostParkTrim(seat, g, nextTrim)) return;
+        state.discardPending=null;                             // could not park — fall through and trim for them
+      }
+      E.discardToLimit(state, seat);
+      say(seat, '{who} discarded '+over+' to hand size → energy pile.', 'rival');
+      return nextTrim();
     }
-    cb();
+    nextTrim();
   }
   // Orchestrate a resolved round: pre-draw beats → end-of-round trim → draw → Round card → continuation.
   function resolveRoundCeremony(res, g, continuation){
@@ -9856,6 +9874,19 @@ window.CardFace = {};
     // through hostApplyMoveN, so all the tested application + resume machinery is reused. Guarded by isPasso so a
     // reconnect (which clears the passo flag) instantly hands control back to the human. ----
     function isPasso(seat){ return !!(discon[seat] && discon[seat].passo); }
+    /* Park the host on a REMOTE seat's end-of-round clean-up pick. It reuses the forced-discard window
+     * wholesale — same `discardPending`, same `{op:'discard'}` intent, same `E.resolveDiscard`, and Passo
+     * already answers a `discard` window with `ids:[]` so a disconnected seat cannot hang the table. */
+    function hostParkTrim(seat, g, resume){
+      if(!isHost() || !hostState) return false;
+      netParked=null;
+      netReact={ kind:'discard', seat:seat, g:g, resume:resume };
+      busy=true;
+      $('rivalStatus').textContent=logName(seat)+' is discarding to hand size…';
+      render(); broadcastMirror(); maybePasso(seat);
+      return true;
+    }
+    function isRemoteHumanSeat(seat){ return !!(isHost() && started && seatCtrl && seatCtrl[seat]==='remote'); }
     function maybePasso(seat){ if(isPasso(seat)) schedulePasso(seat); }
     function schedulePasso(seat){ setTimeout(function(){ passoStep(seat); }, 450); }
     function passoTakeover(seat){ trace('passoTakeover', 'seat '+seat+' — a BOT now holds it');
@@ -11309,7 +11340,7 @@ window.CardFace = {};
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, leaveOnline:leaveOnline, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
+    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:var(--zNetroot);background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the

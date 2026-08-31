@@ -181,6 +181,28 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **★ A CLIENT CANNOT USE BRILLIANT TACTIC — the Boost button is a dead control on every client.**
+  `sendClientPlay` builds the intent as `{op:'play', ids:ids}` and then does `boostArmed=false`, so the boost is
+  **discarded on send**; the host's `E.play(hostState, seat, resolveIds(seat, it.ids))` is called with no options
+  argument at all. The host's own `playCards` passes `{boost:bId}`. So the host can boost and no client can, and
+  the client's UI still offers the button — `boost.style.display` is decided by `boostCard()` availability, not
+  by role, so a player arms it, plays, and nothing happens.
+  **Fix:** carry the boost id on the intent and pass it through on the host, which must re-validate that the id
+  is really a Brilliant Tactic in that seat's hand (`resolveIds` already does the equivalent for cards — a
+  client is untrusted).
+- **★ A CLIENT'S PHANTASMAL ILLUSION RUNS THE LOCAL ENGINE AND NEVER REACHES THE HOST.** `confirmPick`'s
+  `phantasm` branch calls `E.phantasm(state, YOU, opts)` directly with **no `isClientActive()` guard** — the
+  same class as the drag-to-play bug (v1.31.56), and the fourth site of it. On a client the illusion appears to
+  work, mutates the mirror, and is wiped by the next broadcast; the host never hears about it.
+  The neighbouring branches show the shape of the fix: `discard` sends `{op:'discard', ids}` and `doCounterfeit`
+  sends `{op:'activate', id, copyId}`, both re-validated on the host. Phantasm needs its own op carrying
+  `cardId` / `addId` / `removeIdx`, validated the same way.
+  **`handlimit` has no guard either but does not need one today** — a client reaches the round-end trim through
+  `discardPending` (v1.31.70), so its pick is `kind:'discard'`. That is implicit and worth a comment rather than
+  a fix.
+  **CLEAN, checked rather than assumed:** the forced discard, the counter/respond window, the shield guard, the
+  pre-fight window, the loss-target pick, energy reorder/promote and Counterfeit all have real client paths, and
+  each has a netplay suite.
 
 *Swept 2026-08-30: 1000 lines → 587. Nineteen shipped items were removed, not archived — the changelog below
 carries each one in full, and a struck-through entry in a backlog is a thing the next session still has to read
@@ -774,6 +796,29 @@ checked on a real device.*
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.70 — every player picks their own pitches
+
+Aj, on being told the asymmetry: *"no. all players choose what to discard"*. Filed as a design note in v1.31.69
+and corrected here — it was a bug, not a trade-off.
+
+`endOfRoundTrimThen` auto-trimmed **every seat but the local one**, so in netplay the host chose its own cards
+and every client had its **lowest** cards taken by `discardToLimit`. In a competitive game that is not a detail.
+
+It is a **sequential queue** now. A remote human seat gets the real picker on its own board, reusing the
+forced-discard window wholesale — `discardPending` → `{op:'discard'}` → `E.resolveDiscard` — which is safe
+because both paths already send discards to the **Energy pile**, so the semantics were identical all along. An
+AI seat is still trimmed for it. The local seat is queued **last**, which leaves solo behaviour exactly as it
+was.
+
+Sequential rather than simultaneous because that is what the window machinery supports, and it buys a
+disconnected seat for free: **Passo already answers a `discard` window** with `ids:[]`, so a dropped player
+cannot hang the table.
+
+**The assertion that catches this is not "the hand shrank"** — it shrank either way. It is WHICH cards left. The
+client is staged so its lowest card is one it would never choose (3♦ among high cards), it pitches its highest
+instead, and the suite checks the 3♦ is **still in hand**. `nettest_trim` 11 → 14, and both new assertions fail
+on the previous build.
+
 ### v1.31.69 — the table is told who it is waiting on, and Sort stops being turn-gated
 
 Aj: *"the other players don't [get] a prompt saying somebody is still discarding down to max hand… it's just
@@ -810,9 +855,9 @@ shorter-lived message. It dims the PLAY AREA only; the hand below stays readable
 **THE NOTICE COVERS EVERY INTERACTIVE DISCARD, and that was Aj's follow-up question** — *"does that also work
 if the clients were picking cards to discard as well?"* Two answers:
 - **At ROUND END a client never picks.** `endOfRoundTrimThen` auto-trims every seat but the local one, so on a
-  host that is every client, and `discardToLimit` chooses their LOWEST cards for them. Worth knowing as a design
-  fact: **only the host chooses its own end-of-round pitches; every client has the choice made for it.** Not
-  changed here, but it is an asymmetry in a competitive game and nobody had written it down.
+  host that is every client, and `discardToLimit` chose their LOWEST cards for them. **CORRECTED in v1.31.70** —
+  Aj's answer to that note was "no. all players choose what to discard", so it was a bug rather than a
+  trade-off. Every seat picks its own pitches now.
 - **A FORCED discard does prompt a remote seat**, and until this version the other seats had no notice for it at
   all — the host set its own `rivalStatus` and nothing reached anyone else. Enumerated rather than guessed:
   `discardPending` is set in exactly **two** places (the owner banking looked cards, and `discardOpp` —
