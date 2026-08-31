@@ -51,6 +51,7 @@ node viewtest.js                                # 🔍 View card reader gating o
 node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (96)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
+node lessontest_quicks.js               # the "Quicks" lesson — the interactive Counter Spell demo, full UI (21)
 node piletest.js                                # energy/shuffle pile viewers + promote (30)
 node revealtest.js                              # Outbalance's hand read: the modal, and that it never
                                                 # reaches `state` (12)
@@ -102,8 +103,50 @@ grep -oE "^ +function [a-zA-Z_$][a-zA-Z0-9_$]*" code/CardmenFighter.template.htm
 
 Same-name helpers in genuinely separate closures are fine and common, so triage the hits by whether the FIRST
 LINES are byte-identical — an accidental duplicate almost always is, a legitimate namesake almost never is. That
-test cut eight hits to two. (The other survivor is `isTech`, identical across two adjacent tutorial lessons —
-separate scopes, so not this bug, but the same drift risk in miniature.)
+test cut eight hits to two. The other was `isTech`, identical across the two halves of the Quicks lesson;
+hoisting it to `tutIsTech` in v1.31.73 is what uncovered **three shipped bugs in that lesson** — see below.
+
+**SHIELDS ARE REAL CARDS OFF THE DECK, SO `hand.concat(deck)` IS NOT THE WHOLE DECK.** `newGame` does
+`pl.shieldPile = pl.deck.splice(0, startShields)`, so any tutorial rig hunting a specific card misses it roughly
+one game in twelve. **The dangerous shape is a rig that needs a UNIQUE card**: the Quicks lesson wants the lone
+4♦ Counter Spell, and when it was behind a shield the rig placed nothing, `eligibleQuicks()` came back empty, the
+Respond? window never opened, and the player sat on step 2 being told to counter something that never arrived —
+no error, no log line, no way to finish. `tutPullShield` lifts it out and swaps a pool card in so the pile keeps
+its size. The Ride and Form rigs ask for `J♣ || any J` and `Q♣ || any Q` and so survive the same hole by luck;
+check for a fallback before assuming a rig is safe. `lessontest_quicks` asserts the card accounting (52 cards,
+none duplicated, `shieldPile.length === shields`) precisely because a swap that dropped a card would still play.
+
+**A TUTORIAL RIG THAT CASTS "THE FIRST CANDIDATE" IS GAMBLING ON THE DEAL.** `tutCastRivalTech` took
+`foe.hand.filter(tutIsTech)[0]` and returned on `ok===false`; whether a Technique casts depends on the Rival's
+energy covering its cost and colour, so about one game in eight it stalled. It tries every candidate now. This is
+the deal-dependence that made three netplay SUITES flake (`nettest_log`, `nettest_full`, `nettest_names`) — same
+bug, in the product. Any staging that picks `[0]` and gives up belongs on this list.
+
+**A TUTORIAL THAT HAND-ROLLS ITS OWN PRESENTATION LOSES EVERY BEAT THE REAL DRIVERS HAVE.** `tutCastRivalTech`
+called bare `flashArt` and opened the Respond? modal in the SAME FRAME — measured at 51ms, so the cast was
+covered before one frame of it showed (Aj: *"i never see the opponent's card being cast"*). A real duel is fine
+because the prompt waits for `playBeats` and `buildOppBeats` pairs **`revealEffect`** (art pop + card into the
+reader) with **`revealDwell`** (2650ms with effect text, 1200ms reduced-motion). Use that pair; do not invent a
+number. Same lesson as `buildOppBeats` itself: a bespoke presentation path silently misses features the shared
+one gained.
+
+**AN ACTION THAT CANNOT SATISFY A GATED STEP IS A DEAD END — DISABLE IT, DO NOT DEEPEN THE RETRY.** The Quicks
+step gates on `d.countered`, so "Let it resolve" can never advance it. `humanDeclines` had a retry that re-cast,
+which looked like enough; but **each retry spends the Rival's energy**, so a few declines exhausted it and the
+lesson sat with nothing to counter (Aj broke it deliberately). The button is now `disabled` in that window, still
+**visible**, with a visible note — a real control the lesson is teaching, and a dead button with no explanation
+is its own dead end on a phone, where there is no tooltip. **Gating on a flag is an assurance, not a test:**
+`browsertest` and `nettest_actloop` both click `#respDecline` in ordinary play, so forcing the condition `true`
+turns them red (`sim7 did NOT reach an end state`; `actloop 21/1`) — that is what makes the narrow gate proven
+rather than claimed.
+
+**EVERY `promptHumanResponse` MUST CHAIN `settleWindows` — the tutorial did not, and it wedged the duel.**
+Countering opens a window for the RIVAL to answer your Counter Spell. The Quicks lesson passed
+`function(){ state.turn=YOU; render(); }` as its continuation, so nothing drained that window and state stayed
+`pending=true, respondFor=1` **forever** — the lesson still showed its "Countered!" payoff, still marked itself
+complete, and handed back a board that could never act again. The house form is
+`promptHumanResponse(g, function(){ settleWindows(g, done); })`; a continuation that sets the turn directly is
+the bug.
 
 Balance / heavier harnesses, when a change could move win rates:
 
@@ -881,6 +924,15 @@ falls behind and reads stale. **Compare CONTENT, never `stateSeq`**: that counte
 host's own plays and the round draw never advance it and a stamp-based skip would drop real updates. A seat's
 cache is dropped on join and rejoin, so a reconnecting peer is never deduped against state it missed.
 
+**A THROWAWAY DIAGNOSTIC IS THE LEAST TRUSTWORTHY CODE IN THE ROOM.** Hunting the Quicks bugs, two bespoke
+probes lied before the real suite told the truth: one clicked `#tutNextBtn` before the tutorial panel had
+rendered it, so `if(b)b.click()` did nothing and it reported **8 consecutive false failures**; the other planted
+its instrumentation with a non-unique anchor, silently applied nothing, and produced **three green runs** that
+looked like a verified fix. Both were written in a hurry to answer one question, and neither asserted that it had
+done what it claimed. **Make the real suite self-diagnosing instead** — a `next()` that reports when it did not
+click, and a `why()` that prints the refusal state, found all three bugs in one run each. And any probe that
+patches a file must assert its anchor count, exactly like every other edit here.
+
 **IF AN A/B RETURNS IDENTICAL NUMBERS, CHECK THAT THE BUILD ACTUALLY WROTE.** On 2026-08-30 a comment repair
 orphaned its tail onto its own line; `build.js` refused to write (correctly), and the suites kept running the
 PREVIOUS build for several measurements — including an A/B whose two arms returned the same number, which is
@@ -1102,11 +1154,11 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.71 — 2026-08-31, every suite run serially, 61 suites and 0 FAIL** (a full sweep is
+Status as of **v1.31.73 — 2026-08-31, every suite run serially, 62 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
 `test` 333, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energy` 14,
-`versiontest` 15, `sharetest` 16, `qrtest` 32, `peektest` 31, `qrref` 26 (darwin only, corroborates rather than
+`versiontest` 15, `sharetest` 16, `qrtest` 32, `peektest` 31, `lessontest_quicks` 21, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
 The 43 netplay suites: `nettest_3p` 7, `activate` 6, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
