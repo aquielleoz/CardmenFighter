@@ -264,7 +264,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   drops the end screen you came from and the ↩ Back that returns to it), or should peek allow a *deliberately*
   opened modal to show (needs `.overlay.peeking .modal{display:none}` to distinguish "the dialog peek hid" from
   "a dialog the player just asked for")? The second is the better mode and the more invasive change.
-- **THE CLIENT NEVER PLAYS THE FIGHTER KICK FINISHER — THE CEREMONY IS SENT ONE LINE TOO LATE** (Aj,
+- **~~THE CLIENT NEVER PLAYS THE FIGHTER KICK FINISHER~~ SHIPPED in v1.31.62** (Aj,
   2026-08-29: *"the client didn't play the rider kick animation even tho they won"*). **Three sites, identical
   shape**, and the terminal `return` fires before the send:
   ```js
@@ -1130,6 +1130,39 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.62 — the client plays the Fighter Kick again
+
+All three `sendCeremony` call sites sat **one line below** the terminal `return endGame()`:
+
+```js
+announceRoundWin(r);
+if(state.finished){ … return endGame(); }   // Fighter Kick — terminal
+sendCeremony(r);                            // ← never reached on the round that ENDS THE GAME
+```
+
+`ceremonyResFor` carries `kick:!!res.kick` faithfully — it simply never left the host. The client therefore
+reached `endGame()` with `pendingKick` false and cut straight to the win screen: no finisher, no sound. Aj:
+*"the client didn't play the rider kick animation even tho they won"*.
+
+The send now happens before the terminal return **and before `broadcastMirror()`** — the channel is ordered, so
+the client learns `kick` (setting `pendingKick` inside `announceRoundWin`) before the finished mirror drives it
+into `endGame()`. `clientPlayCeremony` returns early on `res.kick` rather than playing beats, which matches the
+host exactly: on a terminal round the host plays no pre-draw beats and no Round card either.
+
+`nettest_kick.js` (11) stages it deterministically — the client out of shields, the host holding a pair — and
+was verified by reintroducing the bug, where **exactly one** assertion fails: the client still logs the kick
+(that line was already broadcast) and still reaches the end screen, only the finisher is missing.
+
+Two staging facts the suite records, because each cost a red run: **round 1 is jabs only**, so a pair staged
+immediately is silently refused and the turn never reaches the client; and **the kick fires on the next Special
+win AFTER a player is already out of shields**, so leaving the loser on 1 shield merely strips it.
+
+**Also: `nettest_elim3` had been red since v1.31.57 and nobody noticed** — it asserted an eliminated client's
+header reads "New Duel", and that button now reads "← Leave" online (the three-state `#newBtn`). The product
+moved and the suite did not. Found by finally running **all 39** netplay suites rather than the handful each
+change seemed to touch; every one is green, and the counts in CLAUDE.md are now verified rather than
+last-known — `sharetest` was 16, not the recorded 14.
 
 ### v1.31.61 — peek at the table works again, and the stacking derives from one number
 

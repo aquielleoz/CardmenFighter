@@ -107,6 +107,9 @@ node nettest_sync.js         # THE CROSS-CHECK: plays a real game over the ROOM 
 node nettest_narrate.js      # PUBLIC NARRATION must reach the other seat (10). Its second half is the durable
                              # part: it scans the client's log for SENDER-BAKED GRAMMAR — "You is", "You has",
                              # "You moves", "You’s" — each of which has shipped at least once.
+node nettest_kick.js         # the CLIENT must play the FIGHTER KICK finisher (11). Stages it deterministically:
+                             # loser out of shields, host holding a pair. NOTE round 1 is jabs only, and the
+                             # kick fires on the next Special win AFTER a seat is already at 0 shields.
 node nettest_drag.js         # DRAG-TO-PLAY must go through the host (13). The first suite to drive the drag
                              # path at all — clicking Fight exercises a DIFFERENT branch, which is why a client
                              # playing locally survived twenty green suites.
@@ -984,20 +987,21 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.61 — 2026-08-29.** The suites touched that day were re-run and are listed with fresh
-counts; the rest carry their v1.31.38 numbers and were NOT re-run, so treat those as last-known rather than
-verified. `nettest_clientfork` was deleted (see the changelog) and `nettest_drag` / `nettest_narrate` are new:
-`test` 325, `netview` 28, `mptest` 82, `rulestest` 143, `nettest_rules` 28, `nettest_suggest` 34,
-`landscapetest` 117, `decktest` 42, `viewtest` 10, `piletest` 30, `revealtest` 12, `phantasmtest` 12,
-`exporttest` 15, `lessontest` 19, `lessontest_energy` 14, `versiontest` 15, `sharetest` 14, `qrtest` 32,
-`qrref` 26 (darwin only), `nettest_full` 5, `nettest_log` 14, `nettest_names` 8, `nettest_version` 14,
-`nettest_emote` 21, `nettest_roundstall` 9, `nettest_actloop` 22, `nettest_3p` 7, `nettest_activate` 6,
-`nettest_ceremony` 9, `nettest_concede3` 8, `nettest_counter` 8, `nettest_customdeck` 18, `nettest_deckout3` 8,
-`nettest_discard` 7, `nettest_discon3` 22, `nettest_elim3` 15, `nettest_energy` 10, `nettest_guard` 8,
-`nettest_inpage` 11, `nettest_losspick3` 7, `nettest_losspick_remote3` 6, `nettest_prefight` 13,
-`nettest_react3` 7, `nettest_record` 12, `nettest_reveal` 10, `nettest_rtc` 11, `nettest_rtc3` 10,
-`nettest_rtc_discon` 5, `nettest_target3` 6,
-`nettest_drag` 13, `nettest_narrate` 10, `nettest_sync` 11, `nettest_relay` 17, `nettest_clientwin` 10.
+Status as of **v1.31.62 — 2026-08-30, and for once EVERY suite was actually run** (serially; a full sweep is
+a few minutes). Counts below are verified, not last-known:
+`test` 325, `netview` 28, `mptest` 82, `rulestest` 143, `landscapetest` 117, `decktest` 42, `viewtest` 10,
+`piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energy` 14,
+`versiontest` 15, `sharetest` 16, `qrtest` 32, `qrref` 26 (darwin only), `browsertest` (smoke, 12 duels).
+The 39 netplay suites: `nettest_3p` 7, `activate` 6, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
+`counter` 8, `customdeck` 18, `deckout3` 8, `deckpick` 8, `discard` 7, `discon3` 22, `drag` 13, `elim3` 15,
+`emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 11, `kick` 11, `log` 14, `losspick3` 7,
+`losspick_remote3` 6, `names` 8, `narrate` 10, `prefight` 13, `react3` 7, `record` 12, `relay` 17, `reveal` 10,
+`roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 11, `target3` 6,
+`version` 14.
+**RUN THE WHOLE NETPLAY SWEEP AFTER A UI CHANGE, NOT THE SUITES THAT LOOK RELEVANT.** v1.31.57 gave `#newBtn` a
+third state and left `nettest_elim3` red for five versions, because that suite asserts an ELIMINATED seat's
+header text and nothing about the change suggested it. The sweep takes a few minutes; a suite that is red and
+unnoticed is worth less than no suite at all.
 **If a count here disagrees with a suite, the suite is right — fix this line.**
 
 **A SUITE CAN BE GREEN AND BLIND. Three shapes of it, all found in one 2026-08-27 sweep and all fixed:**

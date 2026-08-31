@@ -63,7 +63,13 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok(await waitFor(async()=>(await elimSelf(c2))===true, 80, 150),'the kicked client (c2) sees itself ELIMINATED in its mirror');
   ok(await waitFor(async()=>await c2.evaluate(()=>document.body.classList.contains('spectating'))),'c2 enters SPECTATOR mode (body.spectating) — keeps watching the live duel');
   ok(await c2.evaluate(()=>/[Ss]pectating/.test((document.getElementById('turnTag')||{}).textContent||'')),'c2 turn indicator reads "Spectating — …"');
-  ok((await c2.evaluate(()=>(document.getElementById('newBtn')||{}).textContent||'')).indexOf('New Duel')>=0,'c2 header offers "New Duel" (not Concede) — it is already out');
+  /* The header button must stop offering Concede once this seat is out — but ONLINE it reads "← Leave", not
+     "New Duel". Since v1.31.57 `#newBtn` has three states (Concede while a game is live · ← Leave when online
+     with nothing live · New Duel offline), because Leave used to be a floating overlay covering the controls.
+     "New Duel" would be wrong here anyway: it opens the SOLO setup dialog in the middle of an online game. */
+  const c2btn = await c2.evaluate(()=>((document.getElementById('newBtn')||{}).textContent||'').trim());
+  ok(!/Concede/.test(c2btn) && /Leave/.test(c2btn),
+     `c2 header offers "← Leave" (not Concede) — it is already out, and it is online [read "${c2btn}"]`);
   ok((await finishedOf(host))!==true && (await finishedOf(c1))!==true,'the game is NOT over — two Riders remain');
   ok((await finishedOf(c2))!==true,'c2 keeps receiving mirrors as a spectator (game not marked finished for it either)');
   ok(await waitFor(async()=>{ var t=await turnOf(host); return t===0||t===1; }, 60, 150),'control returned to a LIVING seat (host or c1), skipping the eliminated one');
