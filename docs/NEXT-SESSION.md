@@ -227,6 +227,25 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   drag, and that suite drives clicks + Fight, which short-circuits in `doFight` — and the suite has a long
   documented history of intermittency. Recorded as characterised-but-open rather than dismissed: **capture the
   failing assertion next time it goes red.**
+- **AN UN-READY BUTTON FOR NETPLAY** (Aj, 2026-08-30). A client can press Ready and has no way to take it back:
+  once readied it waits for the host to start, whether or not it still wants to play that game. The host can
+  already remove a seat (`hostDropPlayer`, the ✖ in the roster) — the player cannot.
+  **Most of the machinery already exists**, because a rules change un-readies the whole table: `rulesGen++`
+  stales every stamp, `readyCount()` counts only seats whose `seatRuleGen[seat] === rulesGen`, and the client's
+  own `t:'rules'` handler already does `iReady=false; stopJoinRetry(); renderNet()`. An un-ready button is that
+  path, for one seat, on purpose. It needs a client→host op (clear `seatRuleGen[seat]`), the same local reset,
+  and a re-ready that goes back through the normal join.
+  **Two traps, both already documented and both easy to walk into:**
+  - **THE JOIN RETRY RE-SENDS `t:'join'` EVERY 350ms UNTIL THE GAME STARTS.** Un-readying without
+    `stopJoinRetry()` un-readies the seat and then silently re-readies it within a third of a second, which
+    looks exactly like the button not working.
+  - **UN-READY MUST NOT FREE THE SEAT.** `hostStartRealN` indexes seats `1..nextSeat-1` — *joined*, never
+    *ready* — precisely so a stale seat sitting before a ready one cannot mis-assign decks. Readiness gates the
+    Start BUTTON only. If un-ready renumbers seats, decks and names go to the wrong players.
+  **Decide what it means for the host**, which is the actual design question: the host's "readiness" is its own
+  rules choice, so its version of this is probably not un-ready at all but the existing Leave. And consider
+  whether un-readying should also clear the seat's rule SUGGESTION (`seatSuggest`) — a suggestion is state the
+  host keeps, and a player stepping out of the game arguably withdraws it.
 - **STARTING A NEW NETPLAY GAME DROPS YOU INTO THE PREVIOUS DUEL'S END SCREEN** (Aj, 2026-08-29: *"you have to
   press leave then do the whole handshake thing again"* — so the cost is a full re-handshake, not just a stray
   overlay). Reported earlier as "stale win page"; this is the sharper version, and the end screen appears
