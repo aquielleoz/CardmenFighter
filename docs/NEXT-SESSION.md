@@ -181,73 +181,41 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
-- **★ `nettest_sync` CATCHES A REAL HOST/CLIENT FORK — STILL OPEN, ~3 RUNS IN 8 (2026-08-30).** Two
-  hypotheses tested and REJECTED, both recorded so nobody re-runs them:
-  - **a second ceremony discarding a held round mirror.** `clientPlayCeremony` nulls `pendingRoundMirror`;
-    landing it first made the suite **worse** (5 failures in 8), and lifecycle tracing then showed **no
-    `mirror HELD` events at all** during a failure — the client applies every mirror it receives.
-  - **the broadcast storm.** Real and now fixed (v1.31.65, 97% of mirrors were duplicates), and the failure
-    rate did not move.
-  **What the evidence does say.** The card ids name the gap exactly — the client is missing precisely that
-  round's DRAW:
-  ```
-  HOST   seat1 (8): 5D#16 6H#22 9H#34 10H#38 11D#40 13D#49 1D#1 2D#4
-  CLIENT seat0 (6): 5D#16 6H#22 9H#34 10H#38 11D#40             1D#1
-  ```
-  So a mirror carrying the deal is either never sent, never received, or applied and then overwritten by an
-  older one. **Next step: trace on the RECEIVE side** — log every mirror's hand length as it arrives and
-  compare against what the host sent, rather than instrumenting the send side again.
-  The cross-check suite doing exactly what it was built for. The failure is a **persistent** hand-size
-  disagreement, not a mid-flight one (the suite polls until a mismatch clears, so transient windows are already
-  excluded):
+- **★ THE HOST/CLIENT FORK `nettest_sync` CATCHES — STILL OPEN. Start here.**
+  Measured **1 failure in 8** on 2026-08-30 after the mirror dedupe, and **2-3 in 8** before it. At n=8 those
+  are not distinguishable, so **do not read the dedupe as an improvement** — treat the rate as "roughly one run
+  in four" until someone runs enough replicates to say better.
+  **The failure is PERSISTENT, not a mid-flight window.** The suite already polls until a mismatch clears, so a
+  transient disagreement while a mirror is in flight is excluded by construction:
   ```
   DIVERGED: the host thinks the client holds 6 cards; the client holds 4
   DIVERGED: the host thinks the client holds 8 cards; the client holds 6
   ```
-  **Always exactly 2 cards, in both observed failures** — which smells like one PAIR applied on one side and
-  not the other, rather than drift.
-  **A/B'd, and it is NOT the 2-in-chains change:** the pre-change build fails at the same 2-in-6 rate, so this
-  predates v1.31.64. It was found only because that change prompted a full sweep.
-  **Start here, and do not theorise first — the trace is already in the file.** Both peers dump
-  `__cmfTrace()` into the saved battle log, so a failing run can be compared move-for-move: look for a
-  `clientSend play` with no matching `move IN`, or a `move REFUSED — stale` (the `stateSeq` guard is known to
-  refuse valid moves, see the entry below). This is very likely the same root cause as Aj's real-game report of
-  **pressing Pass and nothing happening**.
-- **`nettest_clientfork.js` WAS DELETED — its premise was invalid, but its INTENT is now proven.** It was
-  written on 2026-08-28, abandoned the same day, and then swept onto `main` by accident in PR #82. It lands
-  **4 FAIL**, is listed in no doc, and its own summary line prints `FAIL: 6  FAIL: 4` because the pass label is
-  wrong — a red unlisted suite on main is pure cost to whoever runs the next sweep.
-  **Why the method was wrong:** it forced `started=false` to fake "a live client board acting on its own", and
-  the next mirror sets `started=true` again, so the state it was testing cannot persist. Its first version also
-  clicked a **disabled** Fight button and counted the non-response as a refusal.
-  **Why it should be rebuilt anyway:** it was reaching for exactly the bug Aj found by playing — a client
-  resolving a round locally without the host. That bug is real, and the reachable path is **drag-to-play**, not
-  a forced flag. **Rebuild it against the drag path**: on a client, drag a card to the play zone and assert the
-  host saw an intent and the client's round did not advance on its own. That is a state the product can
-  actually reach, which is what the forced version never was.
-- **~~ROOT CAUSE: DRAG-TO-PLAY BYPASSES NETPLAY ENTIRELY~~ SHIPPED in v1.31.56** — see the changelog. The
-  **audit below is still open.** (Aj, 2026-08-29, found by observation: *"it lagged
-  at the beginning as usual and then it suddenly went ok. the difference? i used the fight button. dragging to
-  play only seems to work on the host."*). **Confirmed in code — one missing branch:**
-  ```js
-  doFight()      if(NET.isClientActive()){ NET.clientSend({op:'play', ids:ids}); ... return; }   // host authority
-  onPointerUp()  if(d.playZone==='ok' && groupById(d.gid)){ playCards(...); return; }            // NO client branch
+  **THE CARD IDS NAME THE GAP EXACTLY — the client is missing precisely that round's DRAW:**
   ```
-  `playCards` has no client guard either, so a dragged play on a client **runs the local engine and never sends
-  an intent**: the client mutates its own mirror, narrates locally, and the host never hears about it.
-  **This one line accounts for most of the netplay weirdness reported since v1.31.49:**
-  - the phantom round in Aj's client log — `You played a Jab - 7♦` / `Rival passed` / `Round 2 begins`, a whole
-    local round resolution absent from the host's log, with `Round 2 begins` then appearing TWICE;
-  - **the fingerprint to look for: that line says "Rival passed" where every other client line says
-    "Lady Eduardo"** — a generic `logName` means a LOCAL line, not a host broadcast. Use it to tell a local
-    resolution from a mirrored one in any future log;
-  - `Pair (NaN, NaN)` — a local play resolved against a redacted mirror;
-  - *"the client just races to the game end"*;
-  - the "lag" that cleared when he switched to the Fight button.
-  **THE REAL LESSON IS THE AUDIT, NOT THE LINE.** `isClientActive()` guards were added per entry point and the
-  sweep was never finished — this is the FOURTH site found in two days (drag-to-play, the human counter, the
-  transform/Ride branch, and `logMsg` vs `say` generally). **Enumerate every player-initiated action and assert
-  each one either sends an intent or is refused on a client.** No current suite drives the drag path at all.
+  HOST   seat1 (8): 5D#16 6H#22 9H#34 10H#38 11D#40 13D#49 1D#1 2D#4
+  CLIENT seat0 (6): 5D#16 6H#22 9H#34 10H#38 11D#40             1D#1
+  ```
+  Always exactly the two dealt cards. So a mirror carrying the deal is **never sent, never received, or applied
+  and then overwritten by an older one** — and the first of those is now unlikely, since the host's own trace
+  showed it broadcasting the grown hand.
+  **THREE HYPOTHESES TESTED AND REJECTED. Do not re-run them:**
+  - **A second ceremony discarding a held round mirror.** `clientPlayCeremony` nulls `pendingRoundMirror`,
+    which would throw a deal away. Landing the held mirror first made the suite **WORSE — 5 failures in 8** —
+    and lifecycle tracing then showed **no `mirror HELD` events at all** during a failure. The client applies
+    every mirror it receives.
+  - **The broadcast storm.** Real, and fixed in v1.31.65 (97% of mirrors were byte-identical duplicates). The
+    failure rate did not move.
+  - **The v1.31.64 rules change.** A/B'd against the pre-change build: same rate. It predates it.
+  **NEXT STEP — TRACE THE RECEIVE SIDE, and do not instrument the send side again.** The host is already known
+  to broadcast the grown hand. Log every mirror's hand length *as it arrives on the client*, next to the `q`
+  stamp, and compare against the host's send log for the same window. The question to answer is narrow: **does
+  the mirror carrying the deal reach the client at all, and if it does, what happens to it?**
+  **Very likely the same root cause as Aj's real-game report of pressing Pass and nothing happening** — both
+  are a client acting on a board the host has already moved past. Both peers dump `__cmfTrace()` into the saved
+  battle log, so a real game can be compared move-for-move too.
+  **`nettest_sync` is the only suite in the repo that compares the two peers to EACH OTHER** rather than each
+  to expectations. It found this; nothing else could. Keep it green-or-explained, never disabled.
 - **A FAILING SUITE'S SUMMARY LINE MISLABELS ITS PASS COUNT.** ~20 suites print
   `console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail)`, so a failing run reads
   **`FAIL: 11  FAIL: 4`** — which scans as fifteen failures. It is deliberate (the first label flips to FAIL as a
