@@ -115,6 +115,25 @@ no error, no log line, no way to finish. `tutPullShield` lifts it out and swaps 
 its size. The Ride and Form rigs ask for `J♣ || any J` and `Q♣ || any Q` and so survive the same hole by luck;
 check for a fallback before assuming a rig is safe. `lessontest_quicks` asserts the card accounting (52 cards,
 none duplicated, `shieldPile.length === shields`) precisely because a swap that dropped a card would still play.
+**AUDITED, 2026-08-31 — Quicks was the ONLY exposure, and this is measured, not reasoned** (8 deals per lesson,
+reading each rig's output at lesson start). Do not re-derive it:
+- `tutRigRides` / `tutRigForms` — a J and a Q in hand **8/8**. Their `tutPull(pool,11,'C') || tutPull(pool,11)`
+  fallback is doing real work; defeating it needs all four jacks among the four shields (1 in 270,725).
+- `tutRig` (howto / specials / energy / decks) — **A♣ really was missing in 2 of 24 runs (~8%, exactly the
+  shield rate)** and it does not matter, because nothing depends on it: `tutPickEffect` searches
+  `hand.concat(deck)` itself, pulls whatever qualifying effect card it finds into hand and tops up energy until
+  it is affordable — a qualifying card was available **24/24**. Same story for the rank-5 pair, which
+  `tutEnsurePair` repairs at the step. 9♠ and 7♦ were present 24/24 and are only jabs; that gate takes any
+  single card. **A rig's specific card is only load-bearing when no dynamic helper repairs it** — that, not the
+  absence of a fallback, is the real test.
+- `tutRigInitiative` / `tutRigZones` / `tutRigEnergyOrder` seed energy by SUIT, so they pick from ~13 candidates
+  and cannot be starved.
+
+**ONLY 3 OF 10 LESSONS HAVE A SUITE** — `decks`, `energyorder`, `quicks`. The seven without include four with
+**gated** steps (`specials` and `energy` gate on `play`/`activate`; `rides` and `forms` on a transform), so a rig
+regression there brings the same silent dead end Quicks had. Their rigs measure safe today, but 8 deals is
+evidence, not a test that runs — and Quicks went from "green and fine" to five defects the same afternoon a suite
+existed. This is the largest untested surface left in the game.
 
 **A TUTORIAL RIG THAT CASTS "THE FIRST CANDIDATE" IS GAMBLING ON THE DEAL.** `tutCastRivalTech` took
 `foe.hand.filter(tutIsTech)[0]` and returned on `ok===false`; whether a Technique casts depends on the Rival's

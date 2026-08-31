@@ -8327,7 +8327,7 @@ window.CardFace = {};
     add(tutPull(pool,9,'S'));                                   // strong jab
     add(tutPull(pool,7,'D'));                                   // another jab
     var p1=tutPull(pool,5) ; if(p1){ add(p1); add(tutPull(pool,5)); }   // a rank-5 pair (two suits)
-    add(tutPull(pool,1,'C'));                                   // A♣ = Prepare for Combat (draw 2), cost 1 — the effect lesson
+    add(tutPull(pool,1,'C'));                                   // A♣ = Prepare for Combat (draw 2), cost 1 — a PREFERENCE, not a requirement: measured missing ~8% of deals (it can be behind a shield), and `tutPickEffect` is what actually guarantees the effect lesson has a card
     add(tutPull(pool,8,'H')||tutPull(pool,6));                  // filler
     while(hand.length < E.START_HAND && pool.length) hand.push(pool.shift());
     me.hand=hand; me.deck=pool;
