@@ -4647,6 +4647,19 @@ __QR__
   // Rig a controlled opening so each lesson reliably works: a couple of strong jabs, a pair, a cheap effect
   // (A♣ Prepare for Combat), a comfortable energy pile, and a weak Rival hand so YOU win round 1 and lead round 2.
   function tutPull(list, rank, suit){ for(var k=0;k<list.length;k++){ if(list[k].rank===rank && (suit==null||list[k].suit===suit)) return list.splice(k,1)[0]; } return null; }
+  /* THE SHIELDS ARE REAL CARDS OFF THE SAME DECK — `newGame` does `pl.shieldPile = pl.deck.splice(0, startShields)`
+   * — so a rig searching `hand.concat(deck)` cannot see roughly one card in twelve. That is harmless for a rig
+   * which falls back to *any* J or *any* Q, and fatal for one that needs a UNIQUE card: the Quicks lesson wants
+   * the lone 4♦ Counter Spell, and about one game in twelve it was behind a shield, so `eligibleQuicks()` came
+   * back empty, the Respond? window never opened, and the player sat on step 2 being told to counter something
+   * that never arrived — no error, no log line, no way to finish the lesson. Fixed in v1.31.73.
+   * Swaps a card from the pool into the shield's place, so the pile keeps its size and the deal stays legal. */
+  function tutPullShield(pl, pool, rank, suit){
+    if(!pl.shieldPile) return null;
+    for(var k=0;k<pl.shieldPile.length;k++){ var c=pl.shieldPile[k];
+      if(c && c.rank===rank && (suit==null||c.suit===suit)){ var swap=pool.pop(); if(!swap) return null; pl.shieldPile[k]=swap; return c; } }
+    return null;
+  }
   function tutPullDeck(pl, suit, rank){ for(var k=0;k<pl.deck.length;k++){ var c=pl.deck[k]; if((suit==null||c.suit===suit)&&(rank==null||c.rank===rank)) return pl.deck.splice(k,1)[0]; } return null; }
   function tutRig(st){
     var me=st.players[0], foe=st.players[1];
@@ -4827,18 +4840,23 @@ __QR__
 
   // Quicks lesson (Full mode): an interactive Counter Spell demo — the Rival casts a Technique, you cancel it.
   var tutQuickId=null, tutAwaitCounter=false;
+  /* ONE DEFINITION for both halves of the Quicks lesson, and the two halves are COUPLED: `tutRigQuicks`
+   * stocks the Rival's hand with counterable Techniques and `tutCastRivalTech` then searches that hand for one.
+   * They each carried a byte-identical copy of this test until v1.31.73. Had they drifted, the rig would stock
+   * cards the show cannot find, `tutCastRivalTech` would hit its `if(!tech) return;` and the Counter Spell
+   * lesson would silently teach nothing — no error, no failed assertion, just a dead cue. */
+  function tutIsTech(c){ var e=E.effectOf(c); return e && e.impl && !e.quick && e.type && /Technique/.test(e.type) && ['draw','ramp','valueBoost','reclaim'].indexOf(e.kind)>=0; }
   function tutRigQuicks(st){
     var me=st.players[0], foe=st.players[1];
     // YOU: guarantee a Counter Spell (4♦) in hand + energy to afford it (needs ≥2♦ of 4 total).
     var pool=me.hand.concat(me.deck), hand=[];
-    var cs=tutPull(pool,4,'D'); if(cs) hand.push(cs);   // 4♦ = Counter Spell
+    var cs=tutPull(pool,4,'D') || tutPullShield(me,pool,4,'D'); if(cs) hand.push(cs);   // 4♦ = Counter Spell — see tutPullShield: it can be behind a shield
     while(hand.length<E.START_HAND && pool.length) hand.push(pool.shift());
     me.hand=hand; me.deck=pool;
     me.energy=[]; ['D','D','C','H','S'].forEach(function(su){ var c=tutPullDeck(me,su); if(c) me.energy.push(c); });   // 2♦ + 3 any → affords Counter Spell (cost 4)
     // RIVAL: hold a couple of cheap counterable Techniques + energy so tutCastRivalTech always has one to fire.
     var fpool=foe.hand.concat(foe.deck), fhand=[];
-    function isTech(c){ var e=E.effectOf(c); return e && e.impl && !e.quick && e.type && /Technique/.test(e.type) && ['draw','ramp','valueBoost','reclaim'].indexOf(e.kind)>=0; }
-    for(var t=0;t<fpool.length && fhand.length<3;t++){ if(isTech(fpool[t])){ fhand.push(fpool[t]); } }
+    for(var t=0;t<fpool.length && fhand.length<3;t++){ if(tutIsTech(fpool[t])){ fhand.push(fpool[t]); } }
     fhand.forEach(function(c){ var i=fpool.indexOf(c); if(i>=0) fpool.splice(i,1); });
     while(fhand.length<E.START_HAND && fpool.length) fhand.push(fpool.shift());
     foe.hand=fhand; foe.deck=fpool;
@@ -4856,21 +4874,37 @@ __QR__
   // The "show": make the Rival cast a Technique now, opening YOUR Respond? window with Counter Spell offered.
   function tutCastRivalTech(){
     var foe=state.players[RIVAL];
-    function isTech(c){ var e=E.effectOf(c); return e && e.impl && !e.quick && e.type && /Technique/.test(e.type) && ['draw','ramp','valueBoost','reclaim'].indexOf(e.kind)>=0; }
-    var tech=foe.hand.filter(isTech)[0];
-    if(!tech){ for(var k=0;k<foe.deck.length;k++){ if(isTech(foe.deck[k])){ tech=foe.deck.splice(k,1)[0]; foe.hand.push(tech); break; } } }
-    if(!tech) return;
-    var g=gen, name=(E.effectOf(tech)||{}).name||'a Technique';
-    var savedTurn=state.turn; state.turn=RIVAL;
-    var r=E.activate(state, RIVAL, tech.id);
-    if(!r || r.ok===false){ state.turn=savedTurn; render(); return; }
+    /* TRY EVERY CANDIDATE, never just the first. This picked `filter(tutIsTech)[0]` and gave up if that one
+     * card would not cast — and whether it casts depends on the deal (the Rival's energy must cover its cost
+     * and colour). About one game in eight the first candidate was unaffordable, `E.activate` returned
+     * `ok:false`, and the lesson sat on step 2 telling the player to counter a Technique that was never cast.
+     * Silent: no error, and the step's own gate meant the lesson could never be finished. Fixed in v1.31.73.
+     * Same shape as the deal-dependence that made three netplay SUITES flake — here it was the product. */
+    var cands=foe.hand.filter(tutIsTech);
+    for(var k=0;k<foe.deck.length;k++){ if(tutIsTech(foe.deck[k])) cands.push(foe.deck[k]); }   // deck cards are pulled into hand only once one casts
+    var g=gen, savedTurn=state.turn, tech=null, r=null, name='a Technique';
+    for(var ci=0; ci<cands.length; ci++){
+      var cand=cands[ci], fromDeck=foe.deck.indexOf(cand);
+      if(fromDeck>=0){ foe.deck.splice(fromDeck,1); foe.hand.push(cand); }
+      state.turn=RIVAL;
+      var rr=E.activate(state, RIVAL, cand.id);
+      if(rr && rr.ok!==false){ tech=cand; r=rr; name=(E.effectOf(cand)||{}).name||'a Technique'; break; }
+      if(fromDeck>=0){ var hi=foe.hand.indexOf(cand); if(hi>=0) foe.hand.splice(hi,1); foe.deck.splice(fromDeck,0,cand); }   // put an unusable deck card back
+      state.turn=savedTurn;
+    }
+    if(!tech){ state.turn=savedTurn; render(); return; }
     flashArt(tech, 'Rival');
     logMsg('<b>Rival</b> casts <b>'+name+'</b>.', 'rival');
     render();
     if(state.pending && state.respondFor===YOU){
       tutAwaitCounter=true;
       setMessage('The Rival cast <b>'+name+'</b> — spring <b>Counter Spell</b>!');
-      promptHumanResponse(g, function(){ if(gen===g){ state.turn=YOU; render(); } });   // after resolve, hand the turn back
+      /* SETTLE THE CHAIN, THEN hand the turn back. This used to jump straight to `state.turn=YOU`, skipping
+       * `settleWindows` — the one thing every other `promptHumanResponse` call site chains. Countering opens a
+       * window for the RIVAL to answer your Counter Spell, and with nothing draining it the duel was left
+       * `pending=true, respondFor=1` forever: the lesson still showed its "Countered!" payoff and still marked
+       * itself complete, then handed the player a board that could never take another action. Fixed v1.31.73. */
+      promptHumanResponse(g, function(){ settleWindows(g, function(){ if(gen===g){ state.turn=YOU; render(); } }); });
     } else { state.turn=savedTurn; render(); }
   }
   // Energy-order lesson (Advanced): seed a readable energy pile, then teach the queue through the ⚡ viewer.

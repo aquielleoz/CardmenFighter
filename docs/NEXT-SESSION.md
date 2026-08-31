@@ -796,6 +796,49 @@ checked on a real device.*
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.73 — the Quicks lesson was broken three ways, and a "trivial" hoist is what found them
+
+The ask was a cleanup: `tutIsTech` — "is this a counterable Technique" — was declared byte-identically in both
+halves of the Quicks lesson, so it became one definition. That part is four lines.
+
+**The lesson had no test, and its failure mode is silent**, so verifying the hoist meant writing one
+(`lessontest_quicks.js`, 16). Step 2's gate is `t==='respond' && d.countered`, which makes *reaching step 3* proof
+that the rig and the show agree — a real assertion rather than a shape check. Then the suite went red one run in
+four, and each investigation turned up a separate bug that has been shipping:
+
+**1. About one game in twelve the lesson was unplayable.** `newGame` does
+`pl.shieldPile = pl.deck.splice(0, startShields)` — **shields are real cards off the same deck** — and the rig
+searched `hand.concat(deck)` for the lone 4♦ Counter Spell. When that card was behind a shield the rig placed
+nothing, `eligibleQuicks()` came back empty, the Respond? window never opened, and the player sat on step 2 being
+told to counter something that never arrived. `tutPullShield` now lifts it out and swaps a pool card into its
+place, so the pile keeps its size. Verified deterministically by forcing the 4♦ behind a shield: **16/0 with the
+fix, 8/8 without it.**
+
+The other rigs are exposed to the same hole and survive it by luck: the Ride and Form lessons ask for `J♣ || any
+J` and `Q♣ || any Q`, so a shielded club costs them nothing. **A rig that needs a UNIQUE card is the dangerous
+shape** — this was the only one.
+
+**2. It cast the first candidate and gave up if that failed.** `foe.hand.filter(tutIsTech)[0]`, then
+`if(!r || r.ok===false) return;` — and whether a Technique casts depends on the deal, since the Rival's energy
+must cover its cost and colour. Roughly one game in eight the first candidate was unaffordable and the lesson
+stalled with `pending=false`. It now tries every candidate. This is the deal-dependence that made three netplay
+*suites* flake, in the product instead of a test.
+
+**3. Finishing the lesson could hand you a wedged duel.** Countering opens a window for the **Rival** to answer
+your Counter Spell. The lesson's continuation was `function(){ state.turn=YOU; render(); }` — it skipped
+`settleWindows`, the one thing every other `promptHumanResponse` call site chains — so nothing drained that
+window. State stayed `pending=true, respondFor=1` forever. The lesson still showed its "Countered!" payoff and
+still marked itself complete, then returned a board that could never take another action.
+
+Each was diagnosed from state the suite printed on failure (`counterSpell=NOT IN HAND`, then `pending=false` with
+it held, then `pending=true respondFor=1`), not from reading the code — and each fix removed exactly that
+signature. **A red run explaining itself is what made three bugs cheap instead of three sessions.**
+
+Two throwaway diagnostics fooled me before the suite did: one clicked `#tutNextBtn` before the panel rendered it
+and reported 8 straight false failures, and one planted its probe with a non-unique anchor, silently applied
+nothing, and produced three green runs I nearly believed. The suite's `next()` now reports when it does not
+click, and the plant asserted its anchor count.
+
 ### v1.31.72 — one `resolveIds`, not two
 
 `resolveIds` — the host's only defence against a client naming a card it does not hold — was **declared twice in
