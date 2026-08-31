@@ -796,6 +796,23 @@ checked on a real device.*
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.72 — one `resolveIds`, not two
+
+`resolveIds` — the host's only defence against a client naming a card it does not hold — was **declared twice in
+the same scope**, byte-identical, 190 lines apart: once under the `HOST authority` heading where it belongs, and
+once among the lobby helpers between `hideNetroot` and `hostStartRealN`. Two declarations of one name in one
+scope means the later one silently wins, so the stray was the live copy and the documented one was dead.
+
+Nothing was broken by it, and that is the whole point: it was harmless **only because the two never drifted**.
+An edit to the copy under the heading — the one anyone reading the host-authority section would find — would have
+had no effect at all, and the failure mode is a security check that looks tightened and is not. That is the bet
+`isChopOf` and `phantasmSolveFor` each exist to refuse.
+
+The stray is gone and the survivor carries a note saying so. Found by grepping the template for any function
+name declared more than once; the other seven hits are same-named helpers in genuinely separate closures. One of
+those, `isTech`, **is** byte-identical across two adjacent tutorial lessons (`~4840` and `~4859`) — separate
+scopes, so not this bug, but the same drift risk in miniature, and worth hoisting when that area is next touched.
+
 ### v1.31.71 — a client's Phantasmal Illusion reaches the host, and the Boost button was never real
 
 **Phantasmal Illusion was host-only.** Its picker is a two-step choice — which card to copy, and (optionally)

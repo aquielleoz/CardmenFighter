@@ -4973,7 +4973,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.71';
+  var GAME_VERSION='v1.31.72';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -10171,6 +10171,10 @@ window.CardFace = {};
     }
 
     // ---------- HOST authority ----------
+    /* ONE DEFINITION, and it lives here. A byte-identical twin sat 190 lines down among the lobby helpers
+     * until v1.31.72 — two declarations of the same name in one scope, so the later one silently won. Harmless
+     * only because they never drifted, which is exactly the bet `isChopOf` and `phantasmSolveFor` refuse to
+     * make. Everything the host resolves from an untrusted client's ids comes through here. */
     function resolveIds(seat, ids){ var h=hostState.players[seat].hand; return (ids||[]).map(function(id){ return h.filter(function(c){return c.id===id;})[0]; }).filter(Boolean); }
 
     // ---------- messages ----------
@@ -10361,7 +10365,6 @@ window.CardFace = {};
     function clientNotReady(){ return isClient() && !started; }
     function dbgUnstart(){ started=false; trace('started: true -> FALSE', 'dbg unstart'); return true; }   // dbg only
     function hideNetroot(){ var r=$('netroot'); if(r) r.style.display='none'; }
-    function resolveIds(seat, ids){ var h=hostState.players[seat].hand; return (ids||[]).map(function(id){ return h.filter(function(c){return c.id===id;})[0]; }).filter(Boolean); }
 
     // ---- HOST: run the real game; the remote client controls seat 1 (the Rival). ----
     // Unified start for 2–6 players. Seat 0 = host; seats 1..k = the joined remote clients (each with its lobby pick).

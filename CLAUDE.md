@@ -88,6 +88,23 @@ page threw** while `test.js` stayed 333/0 (it never loads the page) and I report
 deleting anything from the template, `grep -i` the removed name and run at least one **UI** suite — `mptest` is
 the cheapest, and it failed on its third assertion.
 
+**NOR CAN IT SEE A DUPLICATE DECLARATION, AND THAT ONE IS SILENT FOREVER.** `resolveIds` — the host's only
+defence against a client naming a card it does not hold — was declared **twice in the same scope**,
+byte-identical, 190 lines apart (fixed v1.31.72). Two declarations of one name in one scope is legal JS: the
+later one wins, so the stray was live and the copy under the `HOST authority` heading was dead code that looked
+canonical. Nothing broke, *because they never drifted* — and an edit to the documented copy would have had no
+effect at all, which is a security check that looks tightened and is not.
+**The grep that finds this class:**
+
+```bash
+grep -oE "^ +function [a-zA-Z_$][a-zA-Z0-9_$]*" code/CardmenFighter.template.html | sed 's/^ *function //' | sort | uniq -c | awk '$1>1'
+```
+
+Same-name helpers in genuinely separate closures are fine and common, so triage the hits by whether the FIRST
+LINES are byte-identical — an accidental duplicate almost always is, a legitimate namesake almost never is. That
+test cut eight hits to two. (The other survivor is `isTech`, identical across two adjacent tutorial lessons —
+separate scopes, so not this bug, but the same drift risk in miniature.)
+
 Balance / heavier harnesses, when a change could move win rates:
 
 ```bash
