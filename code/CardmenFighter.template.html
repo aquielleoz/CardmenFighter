@@ -2824,6 +2824,19 @@ __QR__
   }
   function render(){
     syncOrder(false);
+    /* SAY WHY PLAY HAS PAUSED. Every seat but the one picking is auto-trimmed at the end of a round, so the
+     * only seat that stops the table is the one holding an interactive hand-limit pick — and until v1.31.69 the
+     * others just saw a gap. `trimPending` rides the mirror (netview whitelists it), so a client can name the
+     * seat too. Written before the early returns below so it survives whatever else render() decides. */
+    if(state && state.trimPending && state.trimPending.player!==YOU){
+      var tp=$('rivalStatus');
+      /* `logName`, not `seatName`: names are READER-RELATIVE here as everywhere else — a duel opponent reads as
+       * "Rival", not "P2". Every other label in the game goes through this funnel for the same reason. */
+      if(tp) tp.textContent=logName(state.trimPending.player)+' is discarding to hand size…';
+    } else if(state && !state.trimPending){
+      var tp2=$('rivalStatus');
+      if(tp2 && /discarding to hand size/.test(tp2.textContent||'')) tp2.textContent='';   // only clear OUR message
+    }
     var you=state.players[YOU];
     if(!holdShields){ animateShields($('youShields'), you.shields, YOU); }
     paintWhoLabels();
@@ -3422,6 +3435,7 @@ __QR__
     if(pick.kind==='handlimit'){                                            // hand cap (end of round, or end of a play turn)
       var hsyms=ids.map(function(id){var c=cardById(id); return c?cardSym(c):null;}).filter(Boolean);
       var hlResume=pick.resume, hlG=pick.resumeG;
+      if(state) state.trimPending=null;                         // the table is no longer waiting on us
       E.discardToLimit(state, YOU, ids);
       pick=null; selected={};
       say(YOU, '{who} discarded to hand size — '+hsyms.join(', ')+' → energy pile.', 'you');
@@ -3992,6 +4006,13 @@ __QR__
     var over = state.players[YOU].hand.length - E.MAX_HAND;
     if(over>0){
       clearRoundfx();                                          // hide the banner so the hand + pick are visible
+      /* ON STATE, deliberately, because that is what travels in a mirror. Every other seat is auto-trimmed by
+       * `E.discardToLimit` above and narrated after the fact; only the LOCAL player picks, so in netplay the
+       * host's own pick is the one that stops the table — and the other seats saw an unexplained pause with
+       * nothing on screen. Aj: "the other players don't [get] a prompt saying somebody is still discarding down
+       * to max hand... it's just uhhh what's happening in the middle of rounds".
+       * It carries a seat and a COUNT, never cards — a hand must never touch `st` (see E.takeReveal). */
+      state.trimPending={ player:YOU, need:over };
       pick={ kind:'handlimit', need:over, chosen:{}, resume:cb, resumeG:gen };
       setMessage('Clean-up — over the hand limit ('+E.MAX_HAND+'). Discard '+over+' to your Energy Pile.');
       render();

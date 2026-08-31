@@ -333,7 +333,7 @@ checked on a real device.*
   - So the overhaul as stated is not needed. The narrower rule that would have prevented this bug, the double
     narration (v1.31.53) and the stale-board actions (v1.31.54) alike: **a client may sequence, but never
     infer.**
-- **NOBODY IS TOLD WHEN ANOTHER PLAYER IS DISCARDING TO HAND SIZE** (Aj: *"the other players don't [get] a prompt
+- **~~NOBODY IS TOLD WHEN ANOTHER PLAYER IS DISCARDING TO HAND SIZE~~ SHIPPED in v1.31.69** (Aj: *"the other players don't [get] a prompt
   saying somebody is still discarding down to max hand... it's just uhhh what's happening in the middle of
   rounds"*). The discarding seat sees its own prompt; everyone else sees an unexplained pause mid-round.
   `rivalStatus` already carries "X is discarding…" for some windows — the end-of-turn discard needs the same.
@@ -773,6 +773,31 @@ checked on a real device.*
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.69 — the table is told who it is waiting on
+
+Aj: *"the other players don't [get] a prompt saying somebody is still discarding down to max hand… it's just
+uhhh what's happening in the middle of rounds"*.
+
+**Why only one seat causes this.** At the end of a round every seat but the local one is auto-trimmed by
+`E.discardToLimit` and narrated after the fact. Only the LOCAL player picks which cards to pitch — so in netplay
+it is the **host's own** pick that stops the table, and the clients had nothing on screen at all.
+
+`trimPending` is set on state when that pick opens and cleared when it resolves, so it rides the mirror —
+`netview` whitelists it explicitly, rotating the seat like every other seat reference. It carries a **seat and a
+count, never cards**: a hand must never travel (see `E.takeReveal`), and `netview.test` asserts that.
+
+The status line reads through **`logName`, not `seatName`** — names are reader-relative here as everywhere, so a
+duel opponent is "Rival" and not "P2". The first version used `seatName` and a client read *"P2 is discarding to
+hand size…"*, which is the same class of mistake as the narration audit.
+
+`netview.test` 28 → **34** (the field, its rotation, and that no card can travel in it). `nettest_trim.js` (8)
+drives it end to end with the **host** staged over the cap, since that is the only seat that gets an interactive
+pick — verified by removing the render hook, where the client shows "(nothing)" while play is stopped.
+
+One staging note worth keeping: **a clean-up pick is confirmed with Fight.** `$('fightBtn')` is wired as
+`pick ? confirmPick() : doFight()`, so the pick reuses that button; the first version of the suite hunted for a
+"Confirm"/"Discard" control that does not exist and timed out on a working build.
 
 ### v1.31.68 — a client can take its Ready back
 

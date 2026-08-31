@@ -63,5 +63,22 @@ ok(JSON.stringify(JSON.parse(mj)) === mj, 'mirror: round-trips through JSON');
 var g3 = E.newGame(null, { numPlayers: 3 }); g3.turn = 1;
 ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by seat offset');
 
+/* trimPending: the seat the table is waiting on while it trims to hand size, ROTATED like every other seat
+ * reference, and carrying a COUNT rather than cards. It exists so the seats that are NOT picking can say why
+ * play has paused (v1.31.69); before it they saw an unexplained gap mid-round. */
+(function(){
+  var st = E.newGame(null, { numPlayers: 3 });
+  st.trimPending = { player: 2, need: 3 };
+  var m1 = NV.mirrorFor(st, 1);
+  ok(!!m1.trimPending, 'the mirror carries trimPending');
+  ok(m1.trimPending.player === 1, '  → and ROTATES the seat (absolute 2 reads as 1 from seat 1)');
+  ok(m1.trimPending.need === 3, '  → and carries the count');
+  var m2 = NV.mirrorFor(st, 2);
+  ok(m2.trimPending.player === 0, '  → the picking seat sees itself as 0, like every other seat reference');
+  ok(!/[0-9]+[DHCS]#/.test(JSON.stringify(m2.trimPending)), '  → and no card ever travels in it');
+  st.trimPending = null;
+  ok(NV.mirrorFor(st, 1).trimPending === null, 'and it is null when nobody is trimming');
+})();
+
 console.log((fail === 0 ? '\nPASS' : '\nFAIL') + ': ' + pass + '  FAIL: ' + fail);
 process.exit(fail ? 1 : 0);

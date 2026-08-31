@@ -114,6 +114,9 @@ node peektest.js             # PEEK AT THE TABLE, the review mode (31). Peek SHO
                              # __solo.peek() — the REAL enterPeek, because showModal's peek branch keys off the
                              # `peeking` VARIABLE, so staging the classes alone tests nothing. And the hand's
                              # click target is the .group; `.group .card{pointer-events:none}` is by design.
+node nettest_trim.js         # the table is told who it is waiting on during a clean-up pick (8). The HOST is
+                             # staged over the cap because every OTHER seat is auto-trimmed, so the host's own
+                             # pick is the only one that stops play. A pick is confirmed with FIGHT.
 node nettest_unready.js      # a client can take its Ready back (12). Waits PAST the 350ms join retry before
                              # asserting — the retry silently re-readies the seat, so an immediate check passes
                              # on a build where the button does nothing.
