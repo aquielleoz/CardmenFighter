@@ -795,9 +795,14 @@ seat on the other screens.
 looked cards, `engine.js` ~1447; and `discardOpp` — Telekinesis, Outbalance, Discombobulate, ~1513). The
 round-end trim is the separate `trimPending`. So one notice reading either covers the whole game; enumerate
 these two before believing a new discard effect is uncovered.
-**AT ROUND END A CLIENT NEVER PICKS.** `endOfRoundTrimThen` auto-trims every seat but the LOCAL one, so on a host
-that is every client and `discardToLimit` takes their lowest cards. **Only the host chooses its own end-of-round
-pitches** — an asymmetry in a competitive game, written down rather than fixed.
+**EVERY SEAT PICKS ITS OWN END-OF-ROUND PITCHES (v1.31.70).** `endOfRoundTrimThen` is a SEQUENTIAL QUEUE: a
+remote human seat gets the real picker on its own board (reusing the forced-discard window — `discardPending` →
+`{op:'discard'}` → `E.resolveDiscard`, safe because both paths already discard to the ENERGY pile), an AI seat is
+trimmed for it, and the LOCAL seat is queued last so solo behaviour is unchanged. Sequential because that is what
+the window machinery supports, and because **Passo already answers a `discard` window** with `ids:[]` so a
+dropped seat cannot hang the table.
+It used to auto-trim every seat but the local one, which meant the host chose its own cards and every client had
+its LOWEST taken. **The test for this is WHICH cards left, never that the hand shrank** — it shrinks either way.
 **SORT IS NEVER TURN-GATED.** It reorders your own view of your own hand (`handOrder`/`layout`, both local): no
 state, no intent, invisible to other seats. It used to return early on `state.turn!==YOU || busy`, which blocked
 it exactly when a player is waiting and has time to organise. Only `peeking` refuses.

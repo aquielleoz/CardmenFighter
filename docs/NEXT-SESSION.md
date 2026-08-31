@@ -774,6 +774,29 @@ checked on a real device.*
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.70 — every player picks their own pitches
+
+Aj, on being told the asymmetry: *"no. all players choose what to discard"*. Filed as a design note in v1.31.69
+and corrected here — it was a bug, not a trade-off.
+
+`endOfRoundTrimThen` auto-trimmed **every seat but the local one**, so in netplay the host chose its own cards
+and every client had its **lowest** cards taken by `discardToLimit`. In a competitive game that is not a detail.
+
+It is a **sequential queue** now. A remote human seat gets the real picker on its own board, reusing the
+forced-discard window wholesale — `discardPending` → `{op:'discard'}` → `E.resolveDiscard` — which is safe
+because both paths already send discards to the **Energy pile**, so the semantics were identical all along. An
+AI seat is still trimmed for it. The local seat is queued **last**, which leaves solo behaviour exactly as it
+was.
+
+Sequential rather than simultaneous because that is what the window machinery supports, and it buys a
+disconnected seat for free: **Passo already answers a `discard` window** with `ids:[]`, so a dropped player
+cannot hang the table.
+
+**The assertion that catches this is not "the hand shrank"** — it shrank either way. It is WHICH cards left. The
+client is staged so its lowest card is one it would never choose (3♦ among high cards), it pitches its highest
+instead, and the suite checks the 3♦ is **still in hand**. `nettest_trim` 11 → 14, and both new assertions fail
+on the previous build.
+
 ### v1.31.69 — the table is told who it is waiting on, and Sort stops being turn-gated
 
 Aj: *"the other players don't [get] a prompt saying somebody is still discarding down to max hand… it's just
@@ -810,9 +833,9 @@ shorter-lived message. It dims the PLAY AREA only; the hand below stays readable
 **THE NOTICE COVERS EVERY INTERACTIVE DISCARD, and that was Aj's follow-up question** — *"does that also work
 if the clients were picking cards to discard as well?"* Two answers:
 - **At ROUND END a client never picks.** `endOfRoundTrimThen` auto-trims every seat but the local one, so on a
-  host that is every client, and `discardToLimit` chooses their LOWEST cards for them. Worth knowing as a design
-  fact: **only the host chooses its own end-of-round pitches; every client has the choice made for it.** Not
-  changed here, but it is an asymmetry in a competitive game and nobody had written it down.
+  host that is every client, and `discardToLimit` chose their LOWEST cards for them. **CORRECTED in v1.31.70** —
+  Aj's answer to that note was "no. all players choose what to discard", so it was a bug rather than a
+  trade-off. Every seat picks its own pitches now.
 - **A FORCED discard does prompt a remote seat**, and until this version the other seats had no notice for it at
   all — the host set its own `rivalStatus` and nothing reached anyone else. Enumerated rather than guessed:
   `discardPending` is set in exactly **two** places (the owner banking looked cards, and `discardOpp` —

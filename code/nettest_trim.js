@@ -100,6 +100,45 @@ async function until(fn,t=120,ms=120){ for(let i=0;i<t;i++){ if(await fn()) retu
   const cleared = await until(async()=>!/discarding to hand size/i.test((await snap(join)).status), 90);
   ok(cleared, '  → and the message clears when the pick is done, rather than sticking');
 
+  /* ---- AND THE CLIENT PICKS ITS OWN PITCHES TOO (Aj: "no. all players choose what to discard") -------------
+     Until v1.31.70 `endOfRoundTrimThen` auto-trimmed every seat but the local one, so the host chose its own
+     cards and every client had its LOWEST taken by `discardToLimit`. The assertion that catches it is not "the
+     hand shrank" — it shrank either way — but WHICH cards left: staged so the client's lowest card is one it
+     would never choose, then check that card is still in hand after it picks something else. */
+  await wait(1200);
+  await host.evaluate(()=>{
+    const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
+    const hh=[C(3,'D','h2'),C(4,'H','h2'),C(5,'C','h2'),C(6,'S','h2')];
+    // client is over the cap by exactly 1; its LOWEST card is 3♦, which the auto-trim would take
+    const ch=[C(3,'D','c2'),C(9,'H','c2'),C(10,'C','c2'),C(11,'S','c2'),C(12,'D','c2'),C(13,'H','c2'),
+              C(1,'C','c2'),C(2,'S','c2'),C(8,'D','c2'),C(7,'H','c2'),C(6,'C','c2')];
+    window.__cmf.force(hh, ch);
+  });
+  await wait(600);
+  const cOver = await join.evaluate(()=>document.querySelectorAll('#hand .card').length);
+  ok(cOver>10, `client staged over the cap (${cOver} cards), lowest card 3♦`);
+
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
+                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await until(async()=>(await snap(join)).yourTurn, 60);
+  await join.evaluate(()=>{ const p=document.getElementById('passBtn'); if(p&&!p.disabled) p.click(); });
+
+  const gotPicker = await until(async()=>await join.evaluate(()=>
+     /[Dd]iscard/.test((document.getElementById('message')||{}).textContent||'')), 120);
+  ok(gotPicker, 'the CLIENT gets its OWN clean-up picker' +
+     (gotPicker?'':'  <-- REPRODUCED: its cards were chosen for it by discardToLimit'));
+
+  // it pitches its HIGHEST card instead of the lowest, which the auto-trim would never do
+  await join.evaluate(()=>{
+    const cards=[...document.querySelectorAll('#hand .card')];
+    const hi=cards.find(c=>/2♠|2\u2660/.test(c.textContent||'')) || cards[cards.length-1];
+    if(hi) hi.click();
+    const f=document.getElementById('fightBtn'); if(f&&!f.disabled) f.click();
+  });
+  await wait(1200);
+  const kept = await join.evaluate(()=>[...document.querySelectorAll('#hand .card')].some(c=>/3♦|3\u2666/.test(c.textContent||'')));
+  ok(kept, '  → and the card IT chose left, not the lowest one the engine would have taken (3♦ still in hand)');
+
   ok(errs.length===0, 'no JS errors'+(errs.length?': '+errs[0]:''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
