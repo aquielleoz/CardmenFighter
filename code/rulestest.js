@@ -40,7 +40,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   // ---------- defaults: the shipped game, and EVERY toggle off
   ok(JSON.stringify(await flags(p))===JSON.stringify({loss:'chosen',mill:'targeted',shieldScale:false,drawScales:true,
        apexInf:false, apexNoStrip:false, dblPair:'off', kits3:false, quadro:false,
-       chopQuadro:false, chopKits:false, chopSflush:false, chopStrips:false, noFullHouse:false, seqTwos:false,
+       chopQuadro:false, chopKits:false, chopSflush:false, chopStrips:false, noFullHouse:false, seqTwos:'low',
        trioOne:false, fourTwo:false, airplane:'off', straightLen:'off'}),
      'the shipped defaults are chosen / targeted / flat shields / scaling draw / no apex rules / no pair shapes');
   await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(300);
@@ -50,8 +50,8 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   /* THE SECTION'S `keys` LIST IS THE RENDER ORDER (v1.31.45) — it used to only decide membership, so this
    * assertion tracks RULE_SECTIONS now, not RULE_DEFS. Within Shapes the run rules lead: the pair-run slot and
    * its length, the straight's length, the trio-run, then the 2-in-a-run rule, then the standalone shapes. */
-  ok(JSON.stringify(keys)===JSON.stringify(['basics','lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','seqTwos','dblPair','kits3','straightLen','airplane','quadro','noFullHouse','trioOne','fourTwo','chopQuadro','chopKits','chopSflush','chopStrips']),
-     `twenty rules — the game mode first, then the shapes, then the chops (${keys.join(', ')})`);
+  ok(JSON.stringify(keys)===JSON.stringify(['basics','lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','noSeqTwos','highTwos','dblPair','kits3','straightLen','airplane','quadro','noFullHouse','trioOne','fourTwo','chopQuadro','chopKits','chopSflush','chopStrips']),
+     `twenty-one rules — the game mode first, then the 2, then the shapes, then the chops (${keys.join(', ')})`);
   /* ORDER IS LOAD-BEARING here: apexNoStrip's note says "unless the rule above is also on", meaning apexInf.
    * The pair shapes were first inserted between them, which silently pointed that sentence at the wrong rule. */
   ok(keys.indexOf('apexNoStrip')===keys.indexOf('apexInf')+1,
@@ -84,9 +84,9 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
        const b=document.querySelector('.settings .ruleBulk'); if(!b || b.closest('.ruleSect')) return false;
        const next=b.nextElementSibling, prev=b.previousElementSibling;
        return !!next && next.classList.contains('ruleSect')
-           && next.querySelector('.sectName').textContent.trim()==='Shapes'
+           && next.querySelector('.sectName').textContent.trim()==='The 2'
            && !!prev && prev.classList.contains('settingRow');
-     }), 'the presets are their own line ABOVE the Shapes heading — they govern the group, they are not inside it');
+     }), 'the presets are their own line ABOVE the first heading they govern — "The 2", since Tiến lên and Dou Dizhu now set a rule there');
   /* A preset spans the Shapes/Chops boundary now, which is WHY it can no longer live in either heading. Assert
    * that it really does, or the split quietly turns the preset line into a Shapes-only control. */
   await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="doudizhu"]').click()); await wait(250);
@@ -112,7 +112,12 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
                                    ['shieldScale','shieldScale',true],['flatDraw','drawScales',false],
                                    ['apexInf','apexInf',true],['apexNoStrip','apexNoStrip',true],
                                    ['kits3','kits3',true],['quadro','quadro',true],['noFullHouse','noFullHouse',true],
-                                   ['seqTwos','seqTwos',true],
+                                   /* Two panel booleans drive ONE engine mode: noSeqTwos wins and gives 'off',
+                                      otherwise highTwos picks 'high' over the default 'low'. */
+                                   /* Two panel booleans drive ONE engine mode. Only `noSeqTwos` belongs in this
+                                      CUMULATIVE walk — `highTwos` goes dead the moment it is on, which is the
+                                      dependency working, so it is asserted on its own below. */
+                                   ['noSeqTwos','seqTwos','off'],
                                    ['chopQuadro','chopQuadro',true],['chopKits','chopKits',true],
                                    ['chopSflush','chopSflush',true],
                                    ['chopStrips','chopStrips',true],
@@ -153,13 +158,37 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
     const a=[].filter.call(document.querySelectorAll('.segBtn[data-mode-for="dblPair"]'),b=>b.classList.contains('active'));
     return a.length===1 && a[0].getAttribute('data-mode-v')==='poker' && a[0].getAttribute('aria-checked')==='true';
   }), 'and exactly ONE segment reads active — the modes are alternatives, never both');
-  ok((await p.evaluate(()=>localStorage.getItem('cmf_rules_v1')))==='lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,noFullHouse,seqTwos,trioOne,fourTwo,airplane=wings,straightLen=3,chopQuadro,chopKits,chopSflush,chopStrips',
-     'the choice is serialised self-describingly, like the custom-deck key — the mode row carries its VALUE');
+  const savedKey = await p.evaluate(()=>localStorage.getItem('cmf_rules_v1'));
+  ok(savedKey==='lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,noFullHouse,noSeqTwos,trioOne,fourTwo,airplane=wings,straightLen=3,chopQuadro,chopKits,chopSflush,chopStrips',
+     `the choice is serialised self-describingly, like the custom-deck key — the mode row carries its VALUE [got ${savedKey}]`);
   /* The v1.31.24 boolean `kits` meant "consecutive runs of any length", which is now two settings. An old saved
    * key — or one from an older peer — must land on both halves, not silently turn the rule off. */
   ok(await p.evaluate(()=>{ window.__solo.setRulesFromKey('kits');
     return CardmenEngine.isDoublePair()==='kits' && CardmenEngine.isKits3()===true; }),
      'and a legacy `kits` key migrates to dblPair=kits + kits3, rather than quietly reverting to off');
+
+  /* THE 2's TWO RULES DEPEND ON EACH OTHER, and the dependency is the mirror of `needsAny`: `highTwos` asks
+   * where the 2 RANKS inside a chain, and `noSeqTwos` removes it from chains, so the question stops meaning
+   * anything. Asserted in BOTH directions — dead while barred, live and reaching the engine once not — because
+   * a row that is always dead and a row that is always live both pass a single check. */
+  await p.evaluate(()=>document.querySelector('.bulkBtn.clear').click()); await wait(250);
+  ok((await flags(p)).seqTwos==='low', 'the 2 plays in chains as the LOW card by default (Chikicha, Big Two)');
+  ok(await toggle(p,'highTwos'), 'toggling highTwos while the 2 is allowed in chains');
+  await wait(120);
+  ok((await flags(p)).seqTwos==='high', '  → reaches the engine as seqTwos="high" (the legacy J-Q-K-A-2)');
+  ok(await toggle(p,'noSeqTwos'), 'now barring the 2 from chains');
+  await wait(150);
+  ok((await flags(p)).seqTwos==='off', '  → the bar WINS: the engine reports "off"');
+  ok(await p.evaluate(()=>{
+       const r=document.querySelector('.settingRow[data-rule="highTwos"]');
+       return !!r && (r.disabled===true || r.getAttribute('aria-disabled')==='true' || /off|dead/.test(r.className));
+     }), '  → and the highTwos row is DEAD, not merely ignored — a live control that does nothing is worse');
+  ok(!(await p.evaluate(()=>{
+       const r=document.querySelector('.settingRow[data-rule="highTwos"]');
+       return !!r && r.classList.contains('on');
+     })), '  → and its tick was cleared, so a stale one cannot travel in rulesKey()');
+  await p.evaluate(()=>document.querySelector('.bulkBtn.clear').click()); await wait(250);
+
   await p.evaluate(()=>window.__solo.setRulesFromKey('lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chop'));
 
   /* ---------- THE CHOP DEPENDENCY (v1.31.33). The engine treats a chopper's shape as enabled either way
@@ -227,7 +256,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
    * before this was built. offsetParent is null for a display:none element. */
   const qCount = await p.evaluate(()=>document.querySelectorAll('.ruleQ[data-note-for]').length);
   const rowCount = await p.evaluate(()=>document.querySelectorAll('.settingRow[data-rule]').length);
-  ok(qCount === rowCount && rowCount === 20, `every rule carries a ? (${qCount} of ${rowCount})`);
+  ok(qCount === rowCount && rowCount === 21, `every rule carries a ? (${qCount} of ${rowCount})`);
   const noteShown = k => p.evaluate(k=>{
     const n=document.querySelector('.settingRow[data-rule="'+k+'"] .settingNote');
     return !!(n && n.offsetParent);
@@ -308,8 +337,9 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
      'Dou Dizhu turns on 3 Kits, long straights, trio+1, four+two, the airplane and the bomb');
   ok(dd.dblPair === 'off' && dd.chopKits === false && dd.chopSflush === false,
      'and nothing else — the four-card slot stays off (连对 needs three pairs) and Tiến lên\'s kit-chop is cleared');
-  ok((await p.evaluate(() => window.__solo.rulesKey())) === 'kits3,quadro,trioOne,fourTwo,airplane=wings,straightLen=5,chopQuadro',
-     'so the three presets are three exact states, not three accumulations');
+  const ddKey = await p.evaluate(() => window.__solo.rulesKey());
+  ok(ddKey === 'kits3,quadro,noSeqTwos,trioOne,fourTwo,airplane=wings,straightLen=5,chopQuadro',
+     `so the three presets are three exact states, not three accumulations [got ${ddKey}]`);
   ok((await bulk(p)).filter(b => b.active).length === 1, 'and exactly one reads active at a time');
 
   await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="chikicha"]').click()); await wait(250);
@@ -341,7 +371,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
      `and its sequences run from THREE, which is that game's rule (${tl.straightLen})`);
   ok(tl.dblPair === 'off' && tl.chopSflush === false,
      'and leaves out the four-card slot and the straight-flush chop — neither is a Tiến lên shape');
-  ok((await p.evaluate(() => window.__solo.rulesKey())) === 'kits3,quadro,noFullHouse,straightLen=3,chopQuadro,chopKits',
+  ok((await p.evaluate(() => window.__solo.rulesKey())) === 'kits3,quadro,noFullHouse,noSeqTwos,straightLen=3,chopQuadro,chopKits',
      'so switching presets REPLACES the rule set rather than adding to it');
   row = await bulk(p);
   ok(row[1].active && !row[0].active, 'and the active marker moves with it');
@@ -353,7 +383,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   ok((await p.evaluate(() => window.__solo.rulesKey())) === '', 'Clear all empties the whole rule set');
   ok(JSON.stringify(await flags(p)) === JSON.stringify({ loss: 'chosen', mill: 'targeted', shieldScale: false,
        drawScales: true, apexInf: false, apexNoStrip: false, dblPair: 'off', kits3: false, quadro: false,
-       chopQuadro: false, chopKits: false, chopSflush: false, chopStrips: false, noFullHouse: false, seqTwos: false,
+       chopQuadro: false, chopKits: false, chopSflush: false, chopStrips: false, noFullHouse: false, seqTwos: 'low',
        trioOne: false, fourTwo: false, airplane: 'off', straightLen: 'off' }),
      'and the engine is back on the shipped game, mode rows included');
   ok((await p.evaluate(() => localStorage.getItem('cmf_rules_v1'))) === '', 'the cleared state is saved too');
@@ -465,7 +495,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   /* TWENTY RULES STILL FIT, but only because the Shapes section leads with its MODE rows: a mode row is 102px
    * against a boolean's 46px and a grid row costs its tallest member, so three modes on three separate rows
    * charged 102px three times over. Clustering them recovered 112px, which is what paid for rule twenty. */
-  ok(wide.fits, 'and the whole panel fits — twenty rules need the fourth column AND the modes clustered');
+  ok(wide.fits, 'and the whole panel fits — twenty-one rules need the fourth column AND the modes clustered');
   ok(wide.bulkSpans, '  → and the preset line spans every column, so it reads as a divider and not as one more rule');
   ok(wide.setup === 470, `while the SETUP dialog stays narrow (${wide.setup}px) — .modal is shared by every dialog`);
   ok(wide.afterW === 470, `and the width does not leak into the next dialog (${wide.afterW}px after Done)`);

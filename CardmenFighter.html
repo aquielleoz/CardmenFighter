@@ -1366,15 +1366,29 @@
    * in an airplane, but a lone 2 is a perfectly good wing. So this guards the CHAIN, never the baggage.
    * Note APEX_INF already did this for straights and kits as a side effect (an Infinity-valued 2 is not v+1),
    * so the two rules agree rather than fighting; this one just does not need the apex rule switched on. */
-  var SEQ_TWOS = false;
+  /* SEQ_TWOS IS A MODE, NOT A BOOLEAN (2026-08-30). The four source games agree the 2 is the apex at sizes
+   * 1-3 and differ on exactly one axis in plays of 4+, with exactly two answers:
+   *   'off'  barred from every chain          — Tien len, Dou Dizhu   (shipped default)
+   *   'low'  ranks LOWEST in plays of 4+      — Big Two, CHIKICHA     (2-3-4-5-6 smallest, 222XX smallest full house)
+   *   'high' keeps fight value 15             — the legacy J-Q-K-A-2, which matches no family
+   * The 1-3 boundary is not new: `apexOnlyPlay` already scopes "a play that is nothing but 2s" to
+   * single/pair/trio, so a Quadro of 2s was never an apex play either. */
+  /* DEFAULT 'low' since 2026-08-30. It was 'off' from v1.31.45, chosen after checking Tien len and Dou Dizhu —
+   * the games we borrowed SHAPES from — and never asking the game this one is based on. A playtester with no
+   * chikicha background found the bar weird, and a chikicha player confirmed the 2 IS usable in sequences
+   * there, as the LOWEST card. Measured before flipping (twosim.js): pacing 11/20/31 unmoved at 2/4/6p, jab
+   * share within noise, straights +12%, and the real change is that a trio of 2s goes from the HIGHEST full
+   * house to the lowest — intended, and larger than the straight effect everyone was discussing. */
+  var SEQ_TWOS = 'low';
+  function seqValue(c) { return (SEQ_TWOS === 'low' && c && c.rank === 2) ? 2 : fightValue(c); }
   function twoInChain(cards) {
-    if (SEQ_TWOS) return false;
+    if (SEQ_TWOS !== 'off') return false;
     for (var i = 0; i < cards.length; i++) if (cards[i].rank === 2) return true;
     return false;
   }
   /* For the winged airplane, where only the TRIOS are links — a 2 among the spares is legal. */
   function twoIsChainTrio(cards, counts) {
-    if (SEQ_TWOS) return false;
+    if (SEQ_TWOS !== 'off') return false;
     for (var i = 0; i < cards.length; i++) if (cards[i].rank === 2 && counts[fightValue(cards[i])] === 3) return true;
     return false;
   }
@@ -1387,10 +1401,10 @@
     // Ordered by FIGHT VALUE — contiguous 3..15 (3..10, J=11, Q=12, K=13, A=14, apex 2=15)
     // (…10, J=11, Q=12, K=13, A=14, 2=15), so a run is consecutive values just like the old 1..10.
     if (twoInChain(cards)) return null;                                   // 3 up to ace, unless SEQ_TWOS
-    var rs = cards.map(fightValue).sort(function (a, b) { return a - b; });
+    var rs = cards.map(seqValue).sort(function (a, b) { return a - b; });
     for (var i = 1; i < n; i++) if (rs[i] !== rs[i - 1] + 1) return null; // consecutive & distinct
     var top = rs[n - 1];
-    var topCard = cards.filter(function (c) { return fightValue(c) === top; })[0];
+    var topCard = cards.filter(function (c) { return seqValue(c) === top; })[0];
     return { top: top, topCard: topCard };
   }
   /* KITS — shown to players as "2 Kits" / "3 Kits". Named for what the table that plays them calls them, and
@@ -1415,7 +1429,7 @@
     if (n < 4 || n % 2) return null;
     if (twoInChain(cards)) return null;                                    // 连对 runs 3 up to ace too
     var counts = {}, i;
-    for (i = 0; i < n; i++) { var v = fightValue(cards[i]); counts[v] = (counts[v] || 0) + 1; }
+    for (i = 0; i < n; i++) { var v = seqValue(cards[i]); counts[v] = (counts[v] || 0) + 1; }
     var vals = Object.keys(counts).map(Number).sort(function (a, b) { return a - b; });
     if (vals.length !== n / 2) return null;                                    // exactly n/2 distinct values
     for (i = 0; i < vals.length; i++) if (counts[vals[i]] !== 2) return null;   // each one exactly a pair
@@ -1427,7 +1441,7 @@
    * than a mode like the four-card double-pair slot. */
   function valueCounts(cards) {
     var c = {}, i, v;
-    for (i = 0; i < cards.length; i++) { v = fightValue(cards[i]); c[v] = (c[v] || 0) + 1; }
+    for (i = 0; i < cards.length; i++) { v = seqValue(cards[i]); c[v] = (c[v] || 0) + 1; }   // composite shapes only (size 4+), so seqValue is right here
     return c;
   }
   function countsOf(c) {
@@ -1531,7 +1545,7 @@
       if (kt && kt.pairs >= 3) return { type: 'kit', value: kt.top, size: n, key: [kt.top], cards: cards };
     }
     if (n === 5) {
-      var counts = {}; ranks.forEach(function (r) { counts[r] = (counts[r] || 0) + 1; });
+      var counts = {}; cards.map(seqValue).forEach(function (r) { counts[r] = (counts[r] || 0) + 1; });   // seqValue: 222XX is the SMALLEST full house under 'low'
       var keys = Object.keys(counts);
       if (keys.length === 2) {
         var a = +keys[0], b = +keys[1];
@@ -3444,7 +3458,13 @@
    * damage — because every rule in the panel must default OFF: "is this game customised?" is literally "is any
    * rule on?", so a rule whose off state changed the game would break that. Same inversion as `flatDraw`. */
   function setNoFullHouse(v) { NO_FULL_HOUSE = !!v; }
-  function setSeqTwos(v) { SEQ_TWOS = !!v; }
+  /* Accepts the mode, and migrates the v1.31.45 boolean: `true` meant the legacy value-15 behaviour, which is
+   * now 'high'. A saved rule key or an older peer must not silently land on a different game. */
+  function setSeqTwos(v) {
+    if (v === true) { SEQ_TWOS = 'high'; return; }
+    if (v === false || v == null) { SEQ_TWOS = 'off'; return; }
+    SEQ_TWOS = (v === 'low' || v === 'high') ? v : 'off';
+  }
   function isNoFullHouse()   { return NO_FULL_HOUSE; }
   function setTrioOne(v)   { TRIO_ONE = !!v; }
   function isTrioOne()     { return TRIO_ONE; }
@@ -4927,7 +4947,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.63';
+  var GAME_VERSION='v1.31.64';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -5067,8 +5087,13 @@ window.CardFace = {};
      * the panel must default off; same inversion as `flatDraw` and `chopStrips`. */
     { key:'noFullHouse', duel:true, label:'No full houses',
       note:'A trio plus a pair is a shape by default — it is this family\u2019s 三带二, and the reason "trio + one spare card" below reads as its smaller sibling. Switch this on and five cards as three-plus-two are simply not a play. Tiến lên has no full house at all.' },
-    { key:'seqTwos',     duel:true, label:'Sequences can include the 2',
-      note:'By default the 2 cannot be a link in any run — not a straight, not consecutive pairs, not consecutive trios — so runs go from 3 up to the Ace. All three source games agree on that: Tiến lên and Dou Dizhu bar it outright, and Big Two lets a 2 into a run only by demoting it <b>below</b> the 3, so its top straight is 10-J-Q-K-A as well. Our old J-Q-K-A-2 window came from none of them: it fell out of ranking the 2 at the top and letting runs read the same value. Switch this on to have it back. Either way the bar is on the <b>chain</b>, never the baggage — a 2 is still a legal spare card on a trio or a wing on an airplane, exactly as in Dou Dizhu, and a pair or trio of 2s is unaffected.' },
+    /* TWO RULES, BOTH PHRASED AS THE NEGATIVE OF THE DEFAULT, because every rule in this panel must default
+     * OFF — `RULE_DEFS.some(ruleOn)` IS the definition of "customised". Same inversion as `flatDraw` and
+     * `chopStrips`. The default (2026-08-30) is that the 2 plays in chains as the LOWEST card. */
+    { key:'noSeqTwos',   duel:true, label:'Sequences do not include the 2',
+      note:'By default the 2 <b>can</b> be a link in a run — a straight, consecutive pairs, consecutive trios — as the <b>lowest</b> card, so 2-3-4-5-6 is the smallest straight and 10-J-Q-K-A is still the biggest. That is how Chikicha plays it, and Big Two too. Switch this on to bar the 2 from chains entirely, which is Tiến lên and Dou Dizhu — their runs go from 3 up to the Ace. Either way the rule is about the <b>chain</b>, never the baggage: a 2 is still a legal spare card on a trio or a wing on an airplane, and a pair or trio of 2s is unaffected.' },
+    { key:'highTwos',    duel:true, label:'The 2 is the highest card in plays of 4+', deadIf:'noSeqTwos',
+      note:'The 2 is the apex as a single, a pair and a trio, and every game in this family agrees. They differ only in longer plays, and there are two answers: bar it, or rank it lowest. This is a third — the 2 keeps its top value inside chains too, so J-Q-K-A-2 is the biggest straight and a trio of 2s makes the biggest full house. It matches no source game; it is the rule this one shipped with before 2026-08-30. Meaningless while the 2 is barred from sequences above, so that row switches this one off.' },
     { key:'trioOne',     duel:true, label:'Trio + one spare card',
       note:'三带一. A trio plus any single card, compared by the <b>trio</b> — the spare is baggage you are shedding, exactly as the pair is in a full house (which is this family\u2019s 三带二). Answered only by a higher trio-plus-one.' },
     { key:'fourTwo',     duel:true, label:'Four of a kind + two spare cards',
@@ -5138,7 +5163,12 @@ window.CardFace = {};
      * repeats its only row is just noise. */
     { key:'mode',   title:'The game',       keys:['basics'] },
     { key:'table',  title:'Table rules',    keys:['lossAll','millAll','shieldScale','flatDraw'] },
-    { key:'apex',   title:'The 2',          keys:['apexInf','apexNoStrip','seqTwos'] },
+    /* THE PRESET LINE LEADS FROM HERE (2026-08-30), not from Shapes. It moved because the presets now set a
+     * rule in THIS section: with the 2 playing in chains by default, Tiến lên and Dou Dizhu have to switch
+     * `noSeqTwos` ON to bar it. A preset line must precede every group it governs — below one of them it reads
+     * as a control belonging to that group, which is the one thing it is not. */
+    { key:'apex',   title:'The 2',          keys:['apexInf','apexNoStrip','noSeqTwos','highTwos'],
+      presets:true },
     /* ONE SECTION FOR SHAPES AND CHOPS, not one per source game (Aj, 2026-08-28: "why did we add a separate
      * category for dou dizhu?"). Because the answer is that there was no good reason: this section was ALREADY
      * full of family shapes — the kits are 连对/đôi thông, the Quadro is 炸弹/tứ quý, poker's two pair is Big Two —
@@ -5146,8 +5176,7 @@ window.CardFace = {};
      * property the sections exist for: a preset belongs in the heading of the group it changes, and Chikicha
      * Specials sets a shape AND a chop, so it spanned both. The family a shape came from belongs in its note. */
     { key:'shapes', title:'Shapes',
-      keys:['dblPair','kits3','straightLen','airplane','quadro','noFullHouse','trioOne','fourTwo'],
-      presets:true },
+      keys:['dblPair','kits3','straightLen','airplane','quadro','noFullHouse','trioOne','fourTwo'] },
     /* CHOPS ARE THEIR OWN SECTION (v1.31.44). They are not one more shape: every other row here adds a play
      * that obeys the matching rule, and these four are the exception to it. Splitting them also lets the three
      * chop rows drop the "The chop:" prefix they all carried, since the heading says it once. */
@@ -5180,7 +5209,7 @@ window.CardFace = {};
      * Two divergences that no rule can express yet: our FULL HOUSE is always on and Tiến lên has none, and its
      * bombs reach only a lone 2 where ours reach a pair (see chopReach). */
     { key:'tienlen', label:'Tiến lên', title:'Sequences from three, plus the family’s own bombs: 3+ consecutive pairs and four of a kind',
-      rules:{ straightLen:'3', kits3:true, quadro:true, chopKits:true, chopQuadro:true, noFullHouse:true } },
+      rules:{ straightLen:'3', kits3:true, quadro:true, chopKits:true, chopQuadro:true, noFullHouse:true, noSeqTwos:true } },
     /* DOU DIZHU — the fullest set, because that game has the most shapes. 连对 is our 3 Kits (its floor is three
      * consecutive pairs, so the four-card slot stays OFF, as in Tiến lên), 单顺 is the unlocked straight, and its
      * 炸弹 is the bare four of a kind, which is why it comes with the chop. Its 三带二 needs no rule: that is
@@ -5189,7 +5218,7 @@ window.CardFace = {};
      * our chop only reaches the all-2s shapes. chopQuadro is the closest thing we have, not the same thing. */
     { key:'doudizhu', label:'Dou Dizhu', title:'The fullest set: 3+ consecutive pairs, long straights, trio+1, four+two, the airplane, and the bomb',
       rules:{ kits3:true, straightLen:'5', trioOne:true, fourTwo:true, airplane:'wings',
-              quadro:true, chopQuadro:true } }
+              quadro:true, chopQuadro:true, noSeqTwos:true } }
   ];
   function presetValue(p,d){ return p.rules[d.key]!==undefined ? p.rules[d.key] : ruleOff(d); }
   function presetActive(p,src){ src=src||RULES; return RULE_DEFS.every(function(d){ return src[d.key]===presetValue(p,d); }); }
@@ -5220,6 +5249,12 @@ window.CardFace = {};
      * a mode plus a boolean, so an old saved key (or one arriving from an older peer) maps to both halves rather
      * than silently turning the rule off. */
     if(want.kits){ modes.dblPair='kits'; want.kits3=1; }
+    /* MIGRATION: v1.31.45 shipped `seqTwos` as a single boolean meaning "the 2 keeps its top value in chains",
+     * i.e. the legacy J-Q-K-A-2. That is `highTwos` now. NOTE the other half cannot be migrated and does not
+     * need to be: a key from before 2026-08-30 that OMITS the rule meant "barred", and now means "lowest" —
+     * because the DEFAULT moved. An old peer and a new one will therefore play the 2 differently unless one of
+     * them says so explicitly, which is what the build-version handshake (v1.31.21) exists to warn about. */
+    if(want.seqTwos){ want.highTwos=1; }
     RULE_DEFS.forEach(function(d){
       if(d.mode){
         var v=modes[d.key], ok=d.mode.some(function(m){ return m.v===v; });
@@ -5255,7 +5290,9 @@ window.CardFace = {};
       if(E.setFourTwo)          E.setFourTwo(!!RULES.fourTwo);
       if(E.setAirplane)         E.setAirplane(RULES.airplane);
       if(E.setStraightMin)      E.setStraightMin(RULES.straightLen);
-      if(E.setSeqTwos)          E.setSeqTwos(!!RULES.seqTwos);
+      /* Two booleans -> the engine's three-way mode. `noSeqTwos` wins: while the 2 is barred from chains,
+       * where it would RANK inside one is meaningless (which is why that row is dead in the panel). */
+      if(E.setSeqTwos)          E.setSeqTwos(RULES.noSeqTwos ? 'off' : (RULES.highTwos ? 'high' : 'low'));
   }
   function valLabel(d,v){
     if(!d.mode) return v?'On':'Off';       // capitalised to match a mode row's own labels, which sit beside it
@@ -8564,7 +8601,14 @@ window.CardFace = {};
     /* `needsAny` — inert while none of its group is on (Aj: "this option should uncheck if chops were not
      * available"). A checked box that cannot do anything is worse than a greyed one, so the control is dead
      * until it means something, and the handler clears it when the last of the group goes off. */
-    function depOk(d){ return !d.needsAny || d.needsAny.some(function(k){ return !!src[k]; }); }
+    /* `deadIf` — the MIRROR of needsAny: inert while the named rule IS on, because the answer it gives has
+     * stopped meaning anything. `highTwos` asks where the 2 RANKS inside a chain; `noSeqTwos` removes the 2
+     * from chains, so there is nothing left to rank. Same treatment either way: dead rather than checked-and-
+     * powerless, and cleared when it goes dead so a stale tick cannot travel in `rulesKey()`. */
+    function depOk(d){
+      if(d.deadIf && src[d.deadIf]) return false;
+      return !d.needsAny || d.needsAny.some(function(k){ return !!src[k]; });
+    }
     function rowHTML(d){
       /* A MODE row is a <div> with a segmented control, not a <button> — nesting buttons inside a button is
        * invalid, and the alternatives are mutually exclusive rather than independently checkable, which is the
@@ -8695,6 +8739,11 @@ window.CardFace = {};
         /* A member of a `needsAny` group moved, so the dependent row's own live/dead state changed — and if the
          * group is now empty the dependent rule is cleared. Either way other rows move, so re-render. */
         RULE_DEFS.forEach(function(o){
+          /* `deadIf`: the dependent row's live/dead state flips whichever way this rule moved, so the panel must
+           * re-render EITHER WAY — `moved` is not only about a value changing. Clearing the tick without
+           * setting it left the row looking on and enabled, which is exactly the "checked but powerless"
+           * state the dependency exists to prevent. */
+          if(o.deadIf===k){ if(src[k] && src[o.key]) src[o.key]=false; moved=true; }
           if(!o.needsAny || o.needsAny.indexOf(k)<0) return;
           if(!o.needsAny.some(function(x){ return !!src[x]; }) && src[o.key]) src[o.key]=false;
           moved=true;

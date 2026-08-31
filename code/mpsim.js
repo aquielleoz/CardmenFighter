@@ -25,6 +25,11 @@ function opt(name, dflt){ var m = FLAGS.match(new RegExp(name + '=([a-z]+)')); r
  * run measured a ruleset the game does not use — the same class of error that shipped that package. */
 var MS = (opt('mill','targeted') === 'universal') ? 'universal' : 'targeted';
 var LM = (opt('loss','chosen') === 'all') ? 'all' : 'chosen';
+/* seqtwos=off|low|high — what the 2 does in plays of FOUR OR MORE cards. Named rather than a bare flag because
+ * there are three answers, not two: barred (Tien len / Dou Dizhu, the shipped default), lowest (Big Two /
+ * Chikicha), or fight value 15 (the legacy J-Q-K-A-2, which matches no family). Defaults to the engine's own
+ * value so a bare run measures the LIVE game. */
+var SEQ2 = (function (v) { return (v === 'low' || v === 'high') ? v : 'off'; })(opt('seqtwos', E.isSeqTwos ? E.isSeqTwos() : 'off'));
 /* Flags default to the ENGINE'S OWN current values, not hardcoded ones. Hardcoding drifted twice: once after
  * v1.31.0 shipped, and again after v1.31.3 shipped draw=N — each time leaving the "baseline" arm measuring a
  * ruleset the game no longer used. `shp`/`dpp` force on, `noshp`/`nodpp` force off. */
@@ -62,8 +67,9 @@ if (E.setChopSflush) E.setChopSflush(CHOPSF);
 if (E.setTrioOne) E.setTrioOne(TRIOONE);
 if (E.setFourTwo) E.setFourTwo(FOURTWO);
 if (E.setAirplane) E.setAirplane(AIRPLANE);
+if (E.setSeqTwos) E.setSeqTwos(SEQ2);
 if (E.setChainLong) E.setChainLong(CHAINLONG);
-console.log('CONFIG: loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' drawN=' + DPP +
+console.log('CONFIG: seqtwos=' + SEQ2 + ' loss=' + LM + ' mill=' + MS + ' shields2+P=' + SHP + ' drawN=' + DPP +
             /* Report the two apex flags INDEPENDENTLY. This used to print `apex=off` whenever infinity was off,
              * even with no-strip set — a lie, and a dangerous one given this file's own rule is "check the
              * printed CONFIG". No-strip stopped requiring infinity on 2026-08-26 (engine ~1512). */
