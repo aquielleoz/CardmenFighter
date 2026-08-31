@@ -242,10 +242,13 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   - **UN-READY MUST NOT FREE THE SEAT.** `hostStartRealN` indexes seats `1..nextSeat-1` — *joined*, never
     *ready* — precisely so a stale seat sitting before a ready one cannot mis-assign decks. Readiness gates the
     Start BUTTON only. If un-ready renumbers seats, decks and names go to the wrong players.
-  **Decide what it means for the host**, which is the actual design question: the host's "readiness" is its own
-  rules choice, so its version of this is probably not un-ready at all but the existing Leave. And consider
-  whether un-readying should also clear the seat's rule SUGGESTION (`seatSuggest`) — a suggestion is state the
-  host keeps, and a player stepping out of the game arguably withdraws it.
+  **DECIDED (Aj, 2026-08-30), so build it this way:**
+  - **The host gets no un-ready button.** Its "readiness" is just its own rules choice — there is nothing to
+    take back — so the host's equivalent is the existing **Leave**. Un-ready is a client control only.
+  - **Un-readying WITHDRAWS that seat's rule suggestion** (`seatSuggest[seat]`), and the host re-broadcasts the
+    map. A player stepping out of the game takes their suggestion with them. Note this is the one place a
+    suggestion is cleared by something other than the sender changing it, so the host must broadcast the whole
+    map afterwards — suggestions are STATE, not events, which is why the host sends the map rather than a delta.
 - **STARTING A NEW NETPLAY GAME DROPS YOU INTO THE PREVIOUS DUEL'S END SCREEN** (Aj, 2026-08-29: *"you have to
   press leave then do the whole handshake thing again"* — so the cost is a full re-handshake, not just a stray
   overlay). Reported earlier as "stale win page"; this is the sharper version, and the end screen appears
