@@ -1,191 +1,79 @@
 # Cardmen Fighter — backlog & handoff
 
-Build: `node build.js` (run from `code/`) inlines engine.js + ai.js + art.js + **netview.js** + **qr.js** → **code/CardmenFighter.html** (self-contained). `faces.js` is NOT inlined (layouts retired in v0.95 — build.js stubs `window.CardFace = {}`). The repo-root `CardmenFighter.html` is a manual copy of the built file — `cp code/CardmenFighter.html ./CardmenFighter.html` after a build so the two stay identical.
-Test: `npm test` = `node test.js` (**325**) + `node netview.test.js` (**28**) — the gate, both must end 0 FAIL. Full-UI suites: `node mptest.js` (**82** — free-for-all parity) · `node revealtest.js` (12 — Outbalance's hand read) · `node piletest.js` (30) · `node decktest.js` (**42**) · `node viewtest.js` (10) · `node landscapetest.js` (**117**) · `node lessontest.js` (19) · `node lessontest_energy.js` (14) · `node sharetest.js` (14 — the share sheet + tolerant paste) · `node nettest_roundstall.js` (9 — the host must get the board back after winning a round) · `node nettest_actloop.js` (22 — play keeps moving after a Technique) · `node nettest_version.js` (14 — the netplay build handshake) · `node rulestest.js` (36 — the custom rules menu) · `node nettest_rules.js` (20 — rules over netplay + un-ready) · `node versiontest.js` (**15** — the build stamp, README → build → both screens) · `node qrtest.js` (**32** — the QR encoder, decoded back by a real decoder) · `node qrref.js` (26 — the same encoder diffed against macOS CoreImage; darwin only) · plus the `nettest_*` netplay suites. Counts verified 2026-08-25 — if one disagrees with the suite, the suite is right.
-Player style: **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder, Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for AI-tuning / balance / a future "play like me" opponent.
-Current version: **v1.31.61**. The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Live MP rules: `chosen`/`targeted` toggles, set in the template.
+**Build:** `node build.js` from `code/` inlines engine.js + ai.js + art.js + netview.js + qr.js →
+`code/CardmenFighter.html`, then **`cp CardmenFighter.html ../CardmenFighter.html`** yourself — `build.js` writes
+only `code/`, and the repo-root copy is the file people download. `faces.js` is NOT inlined (layouts retired in
+v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
+syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-## ☀️ START HERE — where we left off (2026-08-29)
+**Test gate:** `npm test` = `node test.js` (**333**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
+they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
+including all 43 `nettest_*` suites and the ten `lessontest*` ones, is listed in **CLAUDE.md** with its expected
+count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
 
-`main` is at **v1.31.61**, working tree clean, `node build.js` reproduces the committed HTML byte-for-byte, and
-nothing is in flight — every PR is merged and every branch pruned.
+**Player style:** **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder,
+Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
+AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Sanity check before you touch anything** (from `code/`, ~30 seconds):
+**Current version: v1.31.74.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
+live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
+"customised".
+
+## ☀️ START HERE — where we left off (2026-08-31)
+
+`main` is at **v1.31.74**, working tree clean, and the only remaining branch is **`feat/qr-scanning`** (parked,
+built, green at 21/0 — see the BACKLOG entry for the condition that would revive it). Everything else is merged
+and pruned.
+
+**Sanity check before you touch anything** (from `code/`, ~1 minute):
 
 ```bash
 npm test && node mptest.js && node landscapetest.js
 ```
 
-Expect **325 / 0**, **28 / 0**, **82 / 0**, **117 / 0**. If a count disagrees, the suite is right — fix the
-number here.
+Expect **333 / 0**, **34 / 0**, **82 / 0**, **126 / 0**. A **full sweep is 69 suites and takes ~10 minutes** —
+run it in the background, and **never two suites at once** (they bind fixed ports). Verified green in full at
+v1.31.74 on 2026-08-31.
 
-**2026-08-29 was a playtesting day, and it changed what we know about netplay.** Aj played real games on real
-devices with a playtester and saved both ends' logs; seven versions came out of it. Newest first:
-**v1.31.61** peek works again and the z-index family derives from one number · **v1.31.60** `↓ New` is
-reachable and reading history no longer yanks you away · **v1.31.59** a long log scrolls instead of evicting
-the hand · **v1.31.58** the narration audit, nineteen `logMsg` sites that never left the host ·
-**v1.31.57** the floating controls come back into the layout and emotes stop being refused · **v1.31.56** a
-dragged play goes through the host.
+**This document was split on 2026-08-31.** The BACKLOG below is **open work only, ranked** — correctness first,
+then what a playtester meets immediately, then tooling, features and balance. Everything that was settled,
+measured into a dead end, or written as a spec for something already shipped now lives in
+**[`DECISIONS.md`](DECISIONS.md)**, whose entire purpose is to stop those being re-argued or re-derived. Read it
+before proposing anything that sounds obvious; several entries exist because the obvious thing was tried and
+measured.
 
-**The one to read first is v1.31.56.** `doFight` carried the client guard and the drag-to-play release did not,
-so on a client a dragged play ran the LOCAL engine and never reached the host. That single missing branch is
-behind most of the netplay weirdness reported over the previous week — phantom rounds, `Pair (NaN, NaN)`, a
-client "racing to the game end", and the lag that cleared the moment Aj used the Fight button instead.
+**Two corrections this split turned up, both of which would have cost a next session real time:**
+- **`exp/shield-break-all` was recorded as "OPEN, unmerged". It is merged and the branch is gone.**
+  `setWardAll` / `setDamageSpan` are in `code/engine.js` on `main` today, **default off**
+  (`WARD_ALL = false`, `DAMAGE_SPAN = 1`), with behavioural self-checks in `mpsim`. Anyone following the old note
+  would have gone hunting a deleted branch for flags that already ship.
+- **The family-shape programme was listed as eleven open sub-items; ten had shipped** — including all four the
+  entry called "still missing and NOT yet wanted" (trio+single, four+two, airplane, variable-length straights),
+  which all landed in v1.31.39. One cheap piece is genuinely left; see the BACKLOG.
 
-**Three lessons from the day, all of them earned the expensive way:**
-- **A report that sounds like netplay usually is not.** Three of them reproduced in SOLO — the layout and the
-  controls are shared, and only two seams diverge (see the seam map in the BACKLOG).
-- **Measure, do not infer.** Every wrong call that day came from reading code confidently; every one was
-  settled by a probe or by Aj checking something on his own screen. A probe takes about four minutes.
-- **Verify a new test by REINTRODUCING the bug.** Every suite added that day was checked that way, and two of
-  them were vacuous until it was done.
+**What the last four versions were** (the changelog has each in full):
+**v1.31.74** seven lesson suites, so all ten lessons are covered — and the enabled-but-inert control they found
+(`updateActions` did not know about `busy`, so Fight and Pass looked live and swallowed clicks for ~2s) ·
+**v1.31.73** the Quicks lesson was broken five ways, three found by writing its suite and two by Aj playing it ·
+**v1.31.72** one `resolveIds`, not two · **v1.31.71** a client's Phantasmal Illusion reaches the host, and the
+Boost button turned out never to have been rendered for anybody.
 
-**Queued, in the order Aj raised them:**
-1. ~~**BRING THE PRESET BUTTONS NEXT TO THE RULES THEY CHANGE**~~ **SHIPPED in v1.31.37** — four sections, both presets in
-   the `Shapes & chops` heading, and scope moved from thirteen rows onto the four headings (every section turned
-   out to hold rules of a single scope). See the changelog.
-2. ~~**Chop strip or not.**~~ **SHIPPED in v1.31.38** as `chopNoStrip`, with the flag stamped at play time —
-   the pile genuinely cannot answer the question afterwards. See the changelog.
-3. ~~**The remaining Dou Dizhu shapes.**~~ **SHIPPED in v1.31.39** — trio+1, four+two, the airplane, and the
-   chain (as a length unlock on the straight). What is left of the family:
-   - ~~**SPLIT THE CHOPS INTO THEIR OWN SECTION, put the presets on their own line, and drop "Specials"**~~
-     **SHIPPED in v1.31.44.** See the changelog.
-   - ~~**RENAME THE PAIR ROWS TO DESCRIBE RATHER THAN NAME**~~ **SHIPPED in v1.31.40**, with the board name
-     moved to match and CLAUDE.md's "the names are load-bearing" note rewritten rather than left contradicting
-     the panel.
-   - ~~**CHOP STRENGTH AS A MODE**~~ **DROPPED, 2026-08-28**, by Aj on reading the source rules: *"tien len
-     likes to complicate things eh? … it's too complex for 'rulesets inspired by X'."* Worth keeping the
-     lookup that killed it, because it is also the answer to "should we be more faithful here":
-     - **A Tiến lên chop only ever answers a 2** — never any other card. [pagat](https://www.pagat.com/climbing/thirteen.html):
-       *"if someone plays an ace you cannot beat it with your four of a kind, but if the ace has been beaten by
-       a two, then your four of a kind can be used to beat the two."* So the fourth segment we had drafted,
-       *any shape at all*, was never Tiến lên at all — it is **Dou Dizhu's 炸弹**.
-     - **The faithful ladder scales with the CHOPPER'S SIZE**, not its kind: 3 consecutive pairs or a four of a
-       kind beat a single 2; 5 pairs or two consecutive quads beat a *pair* of 2s; 7 pairs or three consecutive
-       quads beat *three* 2s. That is the table Aj judged too complex, and the measurements agree it would buy
-       nothing: re-measured 2026-08-28 on **real turns** (not 10-card hands — see v1.31.43), 5 consecutive pairs
-       are offered on **0.51%** of turns at six players and 7 pairs on **0.00%**, so the upper two rungs are
-       decoration even now that we know hands run to 17 cards.
-     - Our flat reach of 2 therefore stands, and it sits deliberately between rungs one and two.
-   - ~~**THE 2 OUT OF STRAIGHTS**~~ **SHIPPED in v1.31.45**, and as a DEFAULT rather than an option — the
-     research found all three source games agree, so the option is the opt-in half (`seqTwos`). It also turned
-     out to be broader than "straights": the bar is on every chain. See the changelog.
-   - **The landlord rule — SHELVED** (Aj, 2026-08-28). 斗地主 = "fight the landlord": bidding, a 3-card kitty,
-     one player against two as a team, bombs doubling the stakes. It stays written down because the reasoning is
-     worth keeping, but it is not queued: this engine has no teams and no asymmetric win condition, so it is a
-     structural change of a different order from any shape rule.
-   - **Winged airplanes** (飞机带翅膀). A bare airplane already needs six of ten cards; wings need eight. (The **Tiến lên preset** shipped
-   in v1.31.34.)
-
-**Two things worth reading before touching the rules panel:** every rule defaults OFF and "is this customised?"
-is therefore `RULE_DEFS.some(ruleOn)`, and the panel now has four control shapes (button rows, mode segments,
-bulk buttons, `needs` dependencies) — each needs covering in BOTH the editable and the read-only half, which is
-a lesson learned twice.
-
-**Three branches exist off main, and none of them is half-done:**
-- **`exp/shield-break-all` — OPEN, unmerged.** The whole `loss=all` investigation (PATCHNOTES **0n**): why it
-  breaks deck balance, why scaling the offence cannot fix it, and the shared-ward repair that mostly does. Adds
-  `setWardAll` and `setDamageSpan` to the engine — **both default off** — plus behavioural self-checks in
-  `mpsim` and rows E-M in `rulesim`. Nothing here changes the shipped game.
-- **`feat/qr-scanning` — PARKED.** Camera scanning, built and green at 21/0, closed unmerged as PR #29. It
-  works; its only working configuration is not worth it. The blocker is the **origin**, not the code (a file
-  opened from Android Downloads is `content://`, an opaque origin, so Chrome rejects the camera without ever
-  prompting). Reviving it is a merge, not a rebuild.
-- Everything else is merged and the remote is pruned.
-
-**The one thing most worth reading before touching balance:** PATCHNOTES **0n**. It closes the offence-scaling
-avenue with measurements, states the law that explains the whole `loss=all` reordering (mitigation multiplies by
-N-1 and only two of four classes have any), and records the colour-pie constraint Aj set — *"let colors be
-colors, we'll balance some other way"* — which rules out the two obvious fixes.
-
-**Next up, in the order they are worth doing:**
-1. **Kits** — see below. (The "one-loss cap" that used to sit here has been RETRACTED — it was a no-op. See the
-   `loss=all` entry in the BACKLOG for why, and do not re-propose it.)
-2. **Kits** — consecutive pairs, the first genuinely duel-relevant new shape. Design work is done in the BACKLOG
-   (2-pair floor, deck-neutral, lead-side only, first variable-length shape); nothing is built.
-3. **Sanctuary is NOT a lever** — it is already symmetric (`shieldAll`). Do not re-derive that.
-
-### What just shipped
-**v1.31.9 → v1.31.17, and the shape of it: most of today's bugs were in the TOOLING or in my own reasoning, not
-in the game.**
-
-- **v1.31.9** — the two "position-dependent" netplay suites were **the tests**, not the environment. The
-  documented signature (`maxRound=2 acted=80`) was the clue for months: `waitTurnEnds` returned void, so the
-  driver could not tell "turn over" from "gave up" and acted into a stale board.
-- **v1.31.10** — the clean-up phase only ever trimmed and announced **seat 1**.
-- **v1.31.11 / v1.31.13** — "STOPPERs have zero engagement" because **STOPPERs are not in the game**; the
-  mechanic was retired by the rework and the implementation sat unreachable in three layers. Now deleted
-  (build ~12KB smaller). The netplay record is also authored by the **host** and adopted by everyone.
-- **v1.31.14** — every dialog was clipped off **both** edges on a short viewport, desktop included; `#disconBar`
-  assumed a 56px header when landscape is 37px and a wrapped portrait header is 92px.
-- **v1.31.15** — netplay **could not be started from a file opened on a phone**: it entered by reloading with a
-  query string, and `content://` cannot carry one. Aj confirmed the fix works on his phone.
-- **v1.31.16** — **emotes** (7, with sound, on the existing intent channel) and a **name field on every lobby
-  screen**, plus a host **ping**.
-- **v1.31.17** — **QR invite codes** (show only). The encoder's format bits were placed **LSB-first**, which
-  passed every structural check *and* a by-hand read-back, and only a diff against macOS's own encoder found
-  it. Aj confirmed a real phone scans the result.
-- **v1.31.18** — **the build stamps itself**, because a false bug report showed that a downloaded copy could
-  not be told apart from a stale one.
-- **v1.31.19** — **share sheet** on the invite code (one tap into any chat) and a **tolerant paste**, so a code
-  arriving inside a sentence still works. QR camera scanning was built, measured, and **declined** — see above.
-
-### The QR feature shipped — and the lesson from it is about VERIFICATION, not QR
-**v1.31.17** renders the invite code as a QR on the host and joiner screens (show only, as scoped). The part
-worth carrying forward: the hand-written encoder had a bug that **every plausible check passed**.
-
-The format bits were placed **LSB-first instead of MSB-first**. The symbol looked perfect — finders, timing
-patterns, separators and dark module all correct — and when I read the format bits back by hand they matched a
-published format string, because reading them in the same wrong order is self-consistent. Meanwhile a real
-decoder found *nothing at all*, at every version, which reads exactly like a broken detector.
-
-What settled it in minutes after an hour of code-reading: **diffing against a reference implementation.**
-macOS ships one (`CIQRCodeGenerator`), so `qrref.js` compiles a Swift snippet on the fly, reads the version,
-ECC level and mask back out of *Apple's* format bits, builds the same symbol here, and compares every module.
-It is now byte-identical to Apple up to **v35** at all four ECC levels. **When a hand-written implementation of
-a published spec misbehaves, find something that already implements it and diff — do not re-read the code.**
-
-### ⚠️ Two stale beliefs this doc used to carry — do not act on them
-- **v1.31.0's multiplayer rules package was REVERTED** (v1.31.2). Shields are **flat 4** at every player
-  count and `SPECIAL_LOSS_MODE` is **`chosen`**, not `all`. The *only* part of that package that shipped is
-  **draw = numPlayers** (v1.31.3). An older "START HERE" block described the whole package as live; it wasn't.
-- **The apex-2 A/B is still open but its framing moved.** `setApexInfinity`/`setApexNoStrip` exist and are
-  **off**; the "balance-neutral at 10 runs" claim behind them came from the broken positional-flag study (see
-  PATCHNOTES 0j) and has **never been re-measured**. Treat it as unmeasured, not as neutral.
-
-### Aj's three priorities are DONE (v1.31.5)
-Netplay reveal, the multiplayer-aware export, and the six duel-only card texts all shipped. What is open now is
-the balance agenda: **Rogue at 0.59x fair share at six players** (the "slash" card is the intended lever), the
-count-up class, and the unmeasured apex-2 A/B. See the BACKLOG.
-
-### That "position-dependent suites" thread is CLOSED (v1.31.9) — this section used to say otherwise
-`nettest_log` and `nettest_full` were not environment-sensitive; **the tests were impatient.** `waitTurnEnds`
-returned void, so the driver could not tell "the turn ended" from "I gave up" and acted into a board still
-mid-round-trip. Fixed by returning a boolean, bounding the loop by wall clock and productive actions, and
-failing an assertion rather than throwing on a missing log line. Verified 20/20 with those two at positions 19
-and 20 of a serial sweep; `acted` dropped 80 → 10. Two suites still carry the same shape — see the BACKLOG's
-`exporttest` / `nettest_names` item. **The general rule: a slow machine should make a suite slower, never red,
-so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
-
-### Three hard-won habits worth keeping
-- **A/B the actual builds** before believing a diagnosis. Repeatedly, a "product bug" turned out to be tooling
-  (busy-wait loops, orphaned ports, `pkill` killing a live test). The A/B takes ~4 minutes and has been right
-  every time; confident code-reading was wrong every time.
-- **Read the printed CONFIG of any sim you are drawing conclusions from.** Positional flags once made all four
-  arms of a 40-run study run the identical config, and the "balance-neutral" conclusion shipped a real
-  regression. `mpsim` now prints its resolved config and aborts on a failed behavioural self-check.
-- **Measure layout, don't eyeball it.** A passing assertion that enforces the *wrong* invariant is worse than
-  none — one of them actively locked in the bug that flattened the battle log.
-
----
+**The habit that produced all four:** write the test for the thing you are about to touch, then **verify the test
+by reintroducing the bug**. v1.31.73 and v1.31.74 each found defects that had shipped for months and that no
+amount of code-reading had surfaced — and in both cases a suite that merely rendered the screen would have stayed
+green. Where a step or a control makes a *claim*, assert the claim.
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
-*Swept 2026-08-30: 1000 lines → 587. Nineteen shipped items were removed, not archived — the changelog below
-carries each one in full, and a struck-through entry in a backlog is a thing the next session still has to read
-before it can skip. Three entries were COMPRESSED rather than dropped because part of each is still open, and
-one item that reads as solved is deliberately kept: the phone play-area overlap measures clean but has not been
-checked on a real device.*
+
+*Split 2026-08-31: 601 lines → this. Settled decisions, measured dead ends and design notes for shipped
+features moved to [`DECISIONS.md`](DECISIONS.md) — that was a third of the section, and its own heading already
+said "open work only". Two shipped design specs were deleted outright, since the changelog carries them in
+full. **Ranked now: correctness first, then things a playtester meets immediately, then features and balance.**
+A struck-through entry does not belong here — if it shipped, move it to the changelog.*
+
+### Correctness
 
 - **★ THE HOST/CLIENT FORK `nettest_sync` CATCHES — STILL OPEN. Start here.**
   Measured **1 failure in 8** on 2026-08-30 after the mirror dedupe, and **2-3 in 8** before it. At n=8 those
@@ -222,17 +110,31 @@ checked on a real device.*
   battle log, so a real game can be compared move-for-move too.
   **`nettest_sync` is the only suite in the repo that compares the two peers to EACH OTHER** rather than each
   to expectations. It found this; nothing else could. Keep it green-or-explained, never disabled.
-- **A FAILING SUITE'S SUMMARY LINE MISLABELS ITS PASS COUNT.** ~20 suites print
-  `console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail)`, so a failing run reads
-  **`FAIL: 11  FAIL: 4`** — which scans as fifteen failures. It is deliberate (the first label flips to FAIL as a
-  red flag) but it is confusing at exactly the moment clarity matters; both suites that failed on 2026-08-29 had
-  to be re-read to work out what happened. Suggest `FAILED — PASS: 11  FAIL: 4`. Low priority, ~20 files.
-- **`nettest_full` FAILED ONCE IN SEVEN RUNS on 2026-08-29 and was NOT fully cleared.** It went 4/1 immediately
-  after the v1.31.56 change, then 6/6 green. The failing assertion was **not captured**, which is the mistake to
-  avoid repeating. Structurally the change cannot reach it — on a client the only path into `playCards` is the
-  drag, and that suite drives clicks + Fight, which short-circuits in `doFight` — and the suite has a long
-  documented history of intermittency. Recorded as characterised-but-open rather than dismissed: **capture the
-  failing assertion next time it goes red.**
+- **★ `stateSeq` IS A CLIENT-INTENT COUNTER, NOT A STATE VERSION — AND THAT IS WHY VALID MOVES GET REFUSED.
+  ONE JOB, NOT TWO.** (Merged 2026-08-31 from two entries that each described half of it.)
+  The stamp is bumped only in `hostApplyMove`, so **the host's own plays and the round draw never advance it** —
+  visible in a trace as one `q` carrying two different hand sizes. That is why the v1.31.65 mirror dedupe had to
+  compare CONTENT rather than the stamp.
+  **The cost is not zero, and the record used to say it was.** CLAUDE.md and the v1.31.54 note claimed *"Measured
+  cost: zero (9 sends, 9 received, 0 refused in a full game)"* — measured in the lab, one machine, no latency.
+  **In Aj's real game the guard refused five moves:** three emotes (`q=0`, `q=9`, `q=10`) and **two passes**
+  (`q=11`, `q=14`) — a player pressing Pass and nothing happening.
+  The emote half **SHIPPED in v1.31.57** (emotes and rule suggestions are board-independent, so they are exempt;
+  that also un-broke `nettest_emote`, red at 17/2 since v1.31.54). **The two refused PASSES are still open**, and
+  exemption is not the answer there — a pass *is* formed against a board, so the stamp itself is wrong.
+  **Fix the stamp and the refusal policy together:** once it counts real state changes rather than client
+  intents it will refuse far MORE often, so a correct stamp with today's policy is worse than the bug.
+  And measure it over a REAL connection, not in the lab — that is the mistake that produced the false "zero".
+- **A CLIENT'S HEADER ONCE READ "Round 8 — YOU WON" WHILE THE HOST SAT AT ROUND 5** (Aj, 2026-08-28, third log
+  pair). The rest of that report is resolved — the phantom rounds were drag-to-play (v1.31.56), the missing
+  lines were the narration audit (v1.31.58), the doubled narration was `sayOnce` (v1.31.53) — but nothing has
+  been shown to produce a client running THREE ROUNDS ahead of the host. The stale-mirror guard (v1.31.54) and
+  the ceremony teardown (v1.31.67) are both candidates and neither has been demonstrated.
+  Likely the same root cause as the `nettest_sync` fork at the top of this list; chase that one first, since it
+  reproduces on demand and this does not.
+- **A FINISHED NETPLAY GAME LEAVES ITS WIN PAGE BEHIND** (Aj, 2026-08-28): end a netplay game, go back to the
+  netplay screen, and you are greeted by the PREVIOUS duel's win page until you press Leave online. The end
+  overlay is not cleared when netplay re-renders, so the next lobby is behind a stale modal.
 - **STARTING A NEW NETPLAY GAME DROPS YOU INTO THE PREVIOUS DUEL'S END SCREEN** (Aj, 2026-08-29: *"you have to
   press leave then do the whole handshake thing again"* — so the cost is a full re-handshake, not just a stray
   overlay). Reported earlier as "stale win page"; this is the sharper version, and the end screen appears
@@ -250,102 +152,17 @@ checked on a real device.*
   duel to a finish, start a second one without leaving, and watch whether `endGame()` is re-entered (a
   breakpoint or a `trace()` in `endGame` will say immediately). If it is, giving the client a `gen++` on the
   first mirror of a new game is the fix; if it is not, look at what re-shows the overlay instead.
-- **~~THE NETPLAY "LAG" IS A RE-RENDER STORM~~ HOST HALF SHIPPED in v1.31.65** — 97% of mirrors were
-  byte-identical duplicates (1137 calls, 29 sent) and are now deduped by content.
-  **STILL OPEN: `stateSeq` is a client-intent counter, not a state version.** It is bumped only in
-  `hostApplyMove`, so the host's own plays and the round draw never advance it — visible in a trace as one `q`
-  carrying two different hand sizes. That is why the dedupe had to compare CONTENT, and it is why the
-  stale-intent guard below refuses valid moves. Fixing the stamp and the refusal policy is one job, not two.
-- **CORRECTION — THE STALE-INTENT GUARD IS NOT FREE.** CLAUDE.md and the v1.31.54 note record *"Measured cost:
-  zero (9 sends, 9 received, 0 refused in a full game)"*. **In Aj's real game it refused five moves:** three
-  emotes (`q=0`, `q=9`, `q=10`) and **two passes** (`q=11`, `q=14`) — a player pressing Pass and nothing
-  happening. The lab measurement was taken on a machine with no latency and is not representative.
-  ~~**An emote must never be stamped at all.**~~ **SHIPPED in v1.31.57** — emotes and rules suggestions are now
-  exempt, which also un-broke `nettest_emote` (red at 17/2 since v1.31.54, now 19/0).
-  **STILL OPEN: the two refused PASSES.** Those *are* board-formed, so exemption is not the answer — the stamp
-  itself is wrong. Once it counts real state changes rather than client intents it will refuse far MORE often,
-  so fix the stamp and the refusal policy together.
-- **NETPLAY AND SOLO SHARE THE LAYOUT AND THE CONTROLS. THEY DIVERGE IN EXACTLY TWO SEAMS** (Aj, 2026-08-29:
-  *"i always wondered why we're not using the same layouts and controls in netplay and solo"* — the answer is
-  that we do, and today proved it: the `.fighter` overflow above reproduces in SOLO). Verified, not assumed:
-  `applyMirrorNow` does `state=st` then calls the same global `render()`, and `clientCheckWindow` dispatches to
-  the same five solo prompts (`promptHumanResponse` / `openShieldGuardModal` / `promptHumanDiscard` /
-  `promptLossTarget` / `promptHumanPreFight`) with the buttons gated to send intents. **Every netplay bug filed
-  today sits in one of the two seams, so this is the map to check a new one against:**
-  - **~~Netplay-only chrome bolted on OUTSIDE the layout~~ — CLOSED in v1.31.57.** `#netLeave` and `#emoteBar`
-    were `position:fixed` on `<body>`, outside `#netroot` because `renderNet` rewrites it, so nothing could push
-    them out of the way. Leave is now the third state of `#newBtn` and the emote bar lives in `#actions`. **The
-    seam itself is worth keeping in mind: netplay-only chrome that does not participate in the layout cannot
-    know what it is covering.**
-  - **The orchestration spine** — two ceremony drivers (`resolveRoundCeremony` vs `clientPlayCeremony`) and two
-    narrators (`logMsg` vs `say`). The stuck dim and the unnarrated counter are both this.
-  The two drivers share the BEATS; what diverges is how each advances between them — solo calls the engine, the
-  client waits for a mirror and **infers** what it meant (`handGrew`). That inference is the bug.
-  **This is the argument for Aj's animation queue:** it makes the spine identical (an ordered event stream) and
-  leaves only the event SOURCE different. Precedent that it works: `buildOppBeats` was extracted for exactly
-  this reason — the free-for-all driver only logged, so every readability feature was silently missing at 3-6
-  players.
-  **UNVERIFIED LEAD:** the earlier "netplay battle log does not scroll" report may not be a netplay divergence
-  at all — `#log` is `overflow-y:auto` with no netplay override, so a `min-height:0` chain broken by the
-  `.fighter` overflow is a plausible shared cause. Measure before filing it as netplay-specific.
-- **~~THE PLAY AREA IS CLOBBERED ON A NARROW PHONE~~ MEASURED CLEAN since v1.31.66 — the overlap was caused by the sideways scroll, and went away with it. The zones-into-panels spec below was NOT built; keep it only if a real device still shows the problem.** Original entry: (Aj, 2026-08-29, screenshot at
-  ~327 CSS px: "Round 6" written over the pile label, the rival's FORMS & RIDES header over the pile cards, and
-  the Hero's Javelin equip card covering the right half of a Full House). `#table` is a centred flex column with
-  **four absolutely-positioned overlays pinned to its corners**:
-  ```css
-  #roundTag {position:absolute; top:6px; left:12px}
-  .formZone {position:absolute; left:8px;  max-width:min(46%,188px)}
-  .equipZone{position:absolute; right:8px; max-width:min(48%,180px)}
-  #beaten   {position:absolute; top:50%;   left:12px}
-  ```
-  **Measured:** `#table` is **257px** wide at that viewport, so the two side zones are allowed
-  `min(46%,188)=118` + `min(48%,180)=123` = **241px, i.e. 94% of the play area**, leaving 16px in the middle for
-  a five-card Full House that needs ~200. The pile has nowhere to go but underneath them.
-  The tell is already in the source: `#beaten` carries the comment *"center-left: clears the rival Forms zone
-  (top-left) and your Forms zone (bottom-left)"* — a **hand-tuned corner arrangement that assumes a
-  desktop-width table.** At 257px the corners ARE the middle.
-  **THE FIX HAS A PRECEDENT IN THIS FILE ALREADY:** `.oppPanel .oppZones .formZone{position:static; left:auto;
-  right:auto; top:auto; bottom:auto; max-width:100%;}` — the opponents strip de-absolutes the same zone when it
-  renders inline. Do that at phone width so the zones flow and the pile owns the centre.
-  **DECIDED 2026-08-29 — ZONES MOVE INTO THE PANELS (phone only).** The rival's Forms/Rides and equipment render
-  in the rival panel, yours in your hand panel, reusing `.oppPanel .oppZones`; `#table` then holds only the pile,
-  its label and the message, so the pile gets the full 257px. The framing that settled it: **the zones are
-  per-player state, the table is shared state** — on a phone the info belongs next to the player it describes,
-  which is better rather than merely smaller. Prerequisite: the `.fighter` wrap fix above, since the panels grow
-  to 2-3 lines. Second piece already exists — `#handMeta` carries an empty `<span class="equip" id="youEquip">`.
-  **AJ'S COLLAPSING-HAND PROPOSAL WAS CONSIDERED AND DECLINED** (*"make the hand collapse like the mobile
-  keyboard … this will mean that the drag to play functionality will be lost"*). It does not address this cause:
-  the collision is horizontal, between edge-pinned overlays and the centred pile, so more vertical space does
-  not separate them — it would cost drag-to-play and leave the pile clobbered. Recorded so it is not re-proposed.
-  Vertical space IS genuinely tight (see the 340px floor and `landscapetest`), but the hand is the thing a card
-  player looks at most, so it is the wrong first lever; the secondary chrome is the cheap one.
-- **AJ'S "DEMOTE CLIENTS TO RENDER + INPUT" PROPOSAL — mostly already true, and the residue is the real bug.**
-  (Aj, 2026-08-29: *"maybe we can demote clients to just be renders and input collection. nothing is decided
-  clientside."*) Worth writing down so it is not re-argued from scratch:
-  - **For game STATE this already holds.** `applyMirrorNow` does `state=st` wholesale from the host, and every
-    client input leaves as an intent through `clientSend`. Since v1.31.54 a stale-stamped intent is refused, and
-    `resolveIds` drops fabricated cards. The client decides nothing about the game.
-  - **The residue is the PRESENTATION layer**, and it cannot simply be moved to the host: the ceremony is a
-    750ms-per-beat animation, so it has to be sequenced locally. What must stop is the client's little
-    state machine (`clientCeremonyActive` / `pendingRoundMirror` / `awaitingRoundReveal`) **inferring** where
-    the host is from `handGrew`. Host sends events; client sequences them; client never guesses.
-  - So the overhaul as stated is not needed. The narrower rule that would have prevented this bug, the double
-    narration (v1.31.53) and the stale-board actions (v1.31.54) alike: **a client may sequence, but never
-    infer.**
-- **~~NOBODY IS TOLD WHEN ANOTHER PLAYER IS DISCARDING TO HAND SIZE~~ SHIPPED in v1.31.69** (Aj: *"the other players don't [get] a prompt
-  saying somebody is still discarding down to max hand... it's just uhhh what's happening in the middle of
-  rounds"*). The discarding seat sees its own prompt; everyone else sees an unexplained pause mid-round.
-  `rivalStatus` already carries "X is discarding…" for some windows — the end-of-turn discard needs the same.
-- **A CLIENT'S HEADER ONCE READ "Round 8 — YOU WON" WHILE THE HOST SAT AT ROUND 5** (Aj, 2026-08-28, third log
-  pair). The rest of that report is resolved — the phantom rounds were drag-to-play (v1.31.56), the missing
-  lines were the narration audit (v1.31.58), the doubled narration was `sayOnce` (v1.31.53) — but nothing has
-  been shown to produce a client running THREE ROUNDS ahead of the host. The stale-mirror guard (v1.31.54) and
-  the ceremony teardown (v1.31.67) are both candidates and neither has been demonstrated.
-  Likely the same root cause as the `nettest_sync` fork at the top of this list; chase that one first, since it
-  reproduces on demand and this does not.
-- **A FINISHED NETPLAY GAME LEAVES ITS WIN PAGE BEHIND** (Aj, 2026-08-28): end a netplay game, go back to the
-  netplay screen, and you are greeted by the PREVIOUS duel's win page until you press Leave online. The end
-  overlay is not cleared when netplay re-renders, so the next lobby is behind a stale modal.
+- **CARDS CAN PAINT BEFORE THEY HAVE A RANK** — two rendered as `0 undefined 0` on Aj's phone and then
+  corrected themselves a moment later (*"the undefined cards loaded a bit later"*). Cosmetic, transient, and the
+  residue of the 2026-08-28 relay game: **the desync it came with was a real bug and is fixed in v1.31.49** (see
+  the changelog — `awaitRival` set two things and every path that handed control back cleared one). Worth
+  guarding anyway: a card with no rank should not render at all.
+  Note I initially ranked this as *"possibly the more diagnostic of the two"* on the theory that a UI stall
+  cannot invent a malformed card. It could and did; the ranking was wrong, and Aj's follow-up ("loaded a bit
+  later") is what corrected it.
+
+### Things a playtester meets immediately
+
 - **SEAT 0 ALWAYS LEADS ROUND 1, SO THE HOST ALWAYS LEADS ONLINE** (Aj: *"in net play it seems like the host
   always leads the jabs too"*). Verified: `newGame` sets `turn: 0, initiative: 0` with no roll, and
   `nettest_rtc` encodes it (`'host leads round 1'`). Fine in solo — seat 0 is the player — but online it hands
@@ -360,273 +177,63 @@ checked on a real device.*
   was playing a bot, and the deck names as evidence of two seats, and built two confident wrong diagnoses on
   it. Aj spotted both (*"isn t fighter the ai player tag?"*). A label that lies about the mode is worse than
   no label. Fix: branch on netplay, not on player count.
-- **CARDS CAN PAINT BEFORE THEY HAVE A RANK** — two rendered as `0 undefined 0` on Aj's phone and then
-  corrected themselves a moment later (*"the undefined cards loaded a bit later"*). Cosmetic, transient, and the
-  residue of the 2026-08-28 relay game: **the desync it came with was a real bug and is fixed in v1.31.49** (see
-  the changelog — `awaitRival` set two things and every path that handed control back cleared one). Worth
-  guarding anyway: a card with no rank should not render at all.
-  Note I initially ranked this as *"possibly the more diagnostic of the two"* on the theory that a UI stall
-  cannot invent a malformed card. It could and did; the ranking was wrong, and Aj's follow-up ("loaded a bit
-  later") is what corrected it.
-- **Make joining less of a hassle — ideally "find games on my network"** (Aj, 2026-08-25: *"the code thingies
-  are amazing and wow you can really play with anyone anywhere… but it's also a bit of the hassle"*).
-  - **The hard limit first, so nobody spends a day on it:** a browser page **cannot discover peers on a LAN.**
-    There is no mDNS, no UDP broadcast, and no socket API; WebRTC's local candidates are mDNS-obfuscated on
-    purpose. Automatic "games near you" is **not achievable** while the game stays a serverless single file —
-    that is a real constraint of the platform, not a missing feature.
-  - **What DOES cut the hassle, in rough order of value per effort:**
-    1. **QR invite codes — phase 1 SHIPPED (v1.31.17, show only). Phase 2, SCANNING, is BUILT AND GREEN BUT
-       DELIBERATELY NOT MERGED** — branch `feat/qr-scanning`, PR #29 closed 2026-08-25, 21/0.
-       - **Why it is not in the game.** Scanning needs an origin that can be granted camera access. A file opened
-         from Android's Downloads is **`content://` — an opaque origin**, so Chrome rejects `getUserMedia`
-         **without ever prompting**. Aj's symptom was exactly that: site settings read "Ask first" and it never
-         asked. Confirmed by a clean A/B on the same phone — an https site detects the camera and offers to
-         prompt; the `content://` page never gets asked. **This is not a permission that can be un-denied.**
-       - **The two real fixes were both declined or impractical.** Hosting the game at a URL (GitHub Pages) makes
-         it a permanently public playable link and shifts the project away from "one offline file" — Aj said no.
-         A local server app on the phone works (`http://localhost` IS a secure context) but needs a separate app.
-         Note that serving over the LAN does **not** work: `http://192.168.x.x` is not a secure context, so the
-         obvious "keep it local" idea fails on exactly the thing it would be for.
-       - **And desktop-only is not worth it.** The remaining configuration is holding a phone up to a laptop
-         webcam, which is not clearly better than copy-pasting into a chat both players already have open. The
-         case where scanning genuinely wins is **phone↔phone**, which is the blocked one. Aj, on facing two
-         laptops at each other: *"like they're kissing ahahhaa"* — the objection is correct.
-       - **Reviving it is a merge, not a rebuild.** The branch is green and rebases onto v1.31.18 cleanly.
-         Revisit **only** if the game is ever served from a grantable origin. Do not rebuild it from scratch,
-         and do not re-litigate the origin question — it is settled above.
-       - **Still unverified by a camera: the LANDSCAPE phone case** for *showing* a QR, the weakest geometry at
-         **2.0 CSS px per module** (height-capped on purpose so the whole symbol stays on screen). Desktop is
-         3.0, portrait phone 2.67, and `qrtest.js` asserts those floors.
+- **THE PHONE PLAY AREA NEEDS A REAL-DEVICE CHECK, and the decided fix may no longer be needed.** The overlap
+  MEASURES CLEAN since v1.31.66 (it was caused by the sideways scroll and went away with it), but it was only
+  ever reported from Aj's phone and has not been re-checked there. **The zones-move-into-the-panels change was
+  DECIDED on 2026-08-29 and is unbuilt** — its motivation has since evaporated, so re-measure before building
+  it. The corner-overlay arithmetic, and the collapsing-hand proposal that was considered and declined, are in
+  [`DECISIONS.md`](DECISIONS.md#phone-layout).
+- **UNVERIFIED LEAD — the "netplay battle log does not scroll" report may not be netplay-specific at all.**
+  `#log` is `overflow-y:auto` with no netplay override, so a `min-height:0` chain broken by the `.fighter`
+  overflow is a plausible SHARED cause. Measure before filing it as a netplay divergence. (The two seams that
+  netplay and solo actually diverge in are mapped in [`DECISIONS.md`](DECISIONS.md#netplay-architecture).)
 
-       - Reading needs a camera (`getUserMedia`) plus a decoder. `BarcodeDetector` is **Chromium-only**, so
-         Firefox and Safari need an inlined JS decoder behind it — that is the real cost of phase 2, not the
-         camera plumbing.
-       - **CONFIRMED SCANNABLE on a real phone** (Aj, 2026-08-25: *"wee my phone could read it"*). That was the
-         open question phase 1 ended on, and no test could answer it — a decoder is handed a perfect bitmap and
-         will read a symbol far too small for any camera. A v23 / 109-module symbol at the shipped geometry
-         works with a real camera, so the geometry is no longer a risk to phase 2.
-       - **Still unverified: the LANDSCAPE phone case**, which is the weakest geometry at **2.0 CSS px per
-         module** (height-capped on purpose, so the whole symbol stays on screen without scrolling). Desktop is
-         3.0 and a portrait phone 2.67. `qrtest.js` asserts those floors, so a payload growing past ~v29 shows
-         up as a failure rather than as an unscannable code in someone's hand.
-       - **Shortening the payload (item 3 below) is no longer a blocker — it is a robustness win.** It shrinks
-         the version and improves every number at once, which is what would buy the landscape case and
-         scanning at arm's length rather than up close.
-    2. ~~**Share-sheet handoff.**~~ **SHIPPED in v1.31.19** — this entry went stale and still read "now the
-       TOP item" three versions later; `sharetest.js` has covered it since. Original note: `navigator.share()` on the invite code: one
-       tap into whatever chat the two players are already using, instead of select-copy-switch-paste. Aj,
-       2026-08-25, on settling for browser-only: *"you can always copy paste the code to a chat program"* —
-       which is precisely the manual version of this. Genuinely ~2 lines, works on Android Chrome today, and it
-       degrades to the existing Copy button where `navigator.share` is absent (desktop Firefox, older Safari).
-       Cheapest real win left in joining.
-    3. ~~**Shorter codes.**~~ **SHIPPED in v1.31.46** — 1,036 chars to **163**. See the changelog.
-  - **AN ANDROID APK WAS CONSIDERED AND DECLINED (2026-08-25). Do not re-propose it.** It would genuinely solve
-    two things: a WebView using `WebViewAssetLoader` serves the page from `https://appassets.androidplatform.net/`,
-    a real secure origin, so camera scanning would work; and **native UDP/mDNS makes LAN discovery actually
-    possible**, which is impossible for a browser page and was Aj's original ask. It is still a NO:
-    - **Android toolchain churn is the dealbreaker** (Aj: *"too much of a hassle with the api churn"*). Target
-      API bumps and Gradle churn are permanent recurring maintenance, in a repo whose entire dependency list is
-      "Playwright, for tests". The Kotlin side would be ~150 lines; the toolchain is the whole cost.
-    - Also: two artifacts to keep in sync, signing/distribution, iPhone players still on the web build anyway,
-      and `BarcodeDetector` is **not guaranteed in Android WebView** — so "the APK fixes scanning" was never
-      even verified.
-    - **Cross-play was NOT the objection, and it is worth knowing why:** a WebView APK runs the same HTML in the
-      same Chromium engine, so netplay with desktop Chrome works by construction. The asymmetry would be in
-      *discovery only* (app↔app), which lands where it costs least, since desktop pairings are exactly the ones
-      where pasting a code is already easy.
-    - **The one real cross-play risk it surfaced is worth fixing anyway: VERSION SKEW.** Netplay has no protocol
-      version negotiation, so two builds can mismatch and just misbehave. Both sides already exchange
-      `t:'join'`/`t:'setup'`, so carrying a version and warning on mismatch is ~20 lines plus a suite. Aj's own
-      stale phone build already proved this happens in the wild. **This is worth doing independently.**
-  - **The one thing that would give true discovery** is a rendezvous service — even a 20-line local one — and
-    that breaks "no server, no install, runs offline", which is the project's whole shape. If it is ever wanted,
-    make it strictly **opt-in** and keep the code path as the default.
-- ~~**CLIENTS SUGGEST RULES TO THE HOST.**~~ **SHIPPED in v1.31.31** — see the changelog. The design below was
-  written before building it and held up, except that the per-seat rate limit became a table-wide **coalesce**
-  (right for state, where dropping is right for an event) and three things had to be found by testing: client
-  intents are dead in the lobby, `isClientActive()` excludes the lobby, and the join retry re-asserted the
-  stored preference on a timer.
-- **(original design note, kept for the reasoning)** A client's own custom rules do not travel with it —
-  the host's rules are the game's rules — but a client *can* read them. The feature: a client picks rules on its
-  own device, and the host sees those picks as **suggestions** inside its own Custom rules panel. Advisory only:
-  no quorum, no auto-adopt, the host decides. Aj's framing was "a voting thing", and the deliberate narrowing is
-  that only the host's panel counts the votes.
-  - **IT NEEDS A SECOND STORE, and that is the whole implementation problem.** There is exactly one `RULES`
-    object today, and joining overwrites it with the host's key (`t:'welcome'` → `setRulesFromKey`, and again on
-    every `t:'rules'`). So a suggestion held in `RULES` would be clobbered by the host's next edit, or worse,
-    read as the rules in play. Split it: `RULES` = what is in play (host-authoritative), plus the device's own
-    preference — which is already what `localStorage['cmf_rules_v1']` holds, and which `setRulesFromKey`
-    deliberately does **not** save over. Leave does `location.reload()`, so `loadRules()` restores the device's
-    own picks on exit; nothing is lost today, and nothing may start being lost.
-  - **SUGGESTIONS ARE VISIBLE TO THE WHOLE TABLE (Aj, 2026-08-27), and the host's picks are simply the rules.**
-    So this is a real suggestion *layer* on the rules dialog, not a private note to the host.
-  - **The sequence, confirmed by Aj:** a player suggests → the intent goes to the host → the host broadcasts it
-    to the table. That is exactly the emote path (`{op:'emote'}` → `hostEmote` validates and rate-limits →
-    `send({t:'emote'})`), and for the same reason: the host is the single authority on anything everyone sees.
-  - **Wire shape: the intent channel, like emotes.** `{op:'suggest', key:'lossAll,dblPair=poker'}`, sent on join
-    (so a late joiner is counted) and on each change while in the lobby. Host keeps `seatSuggest[seat]`. Not a
-    new channel — see the emote precedent, including the shadowing trap that cost that feature once.
-  - **BROADCAST THE WHOLE MAP, NOT THE DELTA — a suggestion is STATE, an emote is an EVENT.** That distinction
-    decides two things the emote code gets to ignore. First, the host sends the full table
-    (`{t:'suggest', all:{2:'lossAll', 3:'dblPair=poker'}}`), so a dropped message or a late joiner self-heals
-    instead of leaving one seat permanently stale — same argument as a mirror snapshot over deltas, and it lets
-    `t:'welcome'` carry the map for free. Second, the host-side rate limit must **coalesce, not drop**: dropping
-    a burst is right for an event, but for state it strands the table on a stale value while the sender's own
-    panel shows something else. Keep the latest per seat and re-broadcast on a timer.
-  - **The map is in ABSOLUTE seats, so rotate once on receipt** — the `seatNames` precedent exactly, so no call
-    site needs rotation awareness. A reader's own suggestion renders as "You" through `logName`.
-  - **The host does not appear in the map.** Its picks are the rules; there is nothing to suggest to itself.
-  - **Withdrawing has to be possible**, since a table-visible suggestion is a social signal — the backlogged
-    **Clear All** button doubles as "withdraw mine", and an empty key is a legitimate suggestion of "no changes".
-  - **THE HOST MUST VALIDATE IT.** The key comes from an untrusted client, so parse it against `RULE_DEFS` and
-    **drop** unknown keys and invalid mode values, exactly as `cleanName()` treats a player-typed name. A rule
-    from a newer peer must be discarded, not displayed — otherwise the panel starts advertising rules this build
-    does not have, which is the mismatch the v1.31.21 handshake exists to surface, not to import.
-  - **Rate-limit per seat, ON THE HOST.** Same reason as the emote cooldown: a client controls its own clock, so
-    its own gate is a courtesy. Test it through `__cmf.clientSend`, which is what v1.31.27 added it for.
-  - **A SUGGESTION MUST NOT UN-READY THE TABLE.** Only the host's actual rule change does that (`rulesGen`). A
-    suggestion changes nothing about the game, and if it un-readied, one player idly flipping switches could stop
-    the table from ever starting.
-  - **The UI risk is misreading, not the wiring.** The client's lobby panel is read-only today; it becomes two
-    parts — *in play* (the host's, read-only) and *your suggestions* (editable) — and the distinction has to be
-    unmissable, because a client seeing its own toggles lit will otherwise read them as the game's rules. On the
-    host's side each row carries a count, and **the mode row must name the VALUE** ("2 want Poker"), since a
-    `dblPair` suggestion is not a boolean. Names through `logName(seat)`, so it stays reader-relative. Lobby
-    only: rules are locked mid-game, so the mid-game read-only panel is untouched.
-  - **Tests — a new `nettest_suggest.js`:** a suggestion reaches the host's panel with a count · a *mode*
-    suggestion shows its value · the host adopting one goes through the normal rules path (client adopts, table
-    un-readies) · a suggestion **alone** does not un-ready · a garbage or unknown key is dropped · the host-side
-    burst limit holds via `__cmf.clientSend` · the client's own suggestions survive a host rules edit (the
-    two-store split) · "in play" vs "you suggest" is distinguishable by more than DOM presence · **a third seat
-    sees the second seat's suggestion** (the table-visible half, which no host-only test would cover) · a seat
-    that joins AFTER a suggestion still receives it (the whole-map argument) · and a burst COALESCES to the
-    latest value rather than stranding the table on an older one.
-  - **Both open questions are ANSWERED (Aj, 2026-08-27):** the table sees each other's suggestions, and the
-    host's picks are the rules — no self-suggestion row.
-  - Note this would be the first client→host message whose only effect is on the **host's UI** rather than on
-    game state.
-- **`loss=all` IS REPAIRABLE, and the whole avenue is now measured (PATCHNOTES 0n).** Everything below is done;
-  do not re-derive it.
-  - **The law:** under `all`, any shield-loss mitigation multiplies in value by (N-1), and only **two of four
-    classes have any** (♦ Leyline; ♥ Holy Shroud). That is the entire reordering — Wizard/Sage/Cleric to the top,
-    Fighter/Rogue/Berserker (the decks with none) to the bottom.
-  - **Scaling the OFFENCE does not work and is closed.** `damageAll` and `damageSpan='half'` buy the crushed
-    decks 2-3 points and no rank movement; the biggest beneficiary is Warlock, which already had defence.
-  - **Sharing the mitigation DOES work.** `WARD_ALL` (Leyline + Holy Shroud + Apollo's caster-only lock protect
-    the table, not the owner) takes the 6p spread from 32.1 to **18.3** while keeping the pacing win (30 → 11
-    rounds), roughly doubles Fighter/Rogue, and *improves duels* (2p spread 13.2 → 8.4).
-  - **Still not the shipped game:** 18.3 vs baseline 13.0, Fighter/Rogue at 8-10% against a 16.7% fair share,
-    rho 0.55. Adding shields-2+N trades back (pacing 17 rounds, spread 23.3).
-  - **Sanctuary is already symmetric** (`shieldAll`) — an earlier draft of 0n wrongly called it the remaining
-    asymmetry. After Leyline and Shroud are shared there is no asymmetric protection CARD left; the only
-    remainder is Form-granted (Apollo's caster-only lock), and it is Super-gated and rare.
-  - **DO NOT "fix" this by moving mitigation between classes** (Aj, 2026-08-26: *"let colors be colors, we'll
-    balance some other way"*). ♦ and ♥ being **allied on shield protection** is legitimate colour-pie design —
-    some aspects are shared by every class (draw, some ramp), some are exclusive (buffs/debuffs), and classes
-    are allies on one axis and opponents on another. Giving ♣/♠ mitigation, or relocating Leyline to ♥, are the
-    same cross-pie mistake from opposite directions. (An earlier draft of this entry recommended the first, off
-    a bad analogy: ♦ is the **ramp** class, not a draw class, so Leyline sitting there is not misfiled.)
-  - **RETRACTED (2026-08-27): the "one-loss cap" is a NO-OP. Do not re-propose it.** The idea was that under
-    `all`, protection should prevent one incoming loss rather than blanking the whole round. But `applyRoundLoss`
-    strips **1** shield per struck target (2 only with Finishing Blow) and exactly one play wins a round — so a
-    player already loses at most one shield per round under `all`. "Prevent one loss" and "blank the round" are
-    the same thing, and the cap changes nothing.
-  - **THE ACTUAL MECHANISM IS FREQUENCY, NOT MULTIPLICITY.** Under `chosen` you are the picked target roughly
-    **1/(N-1)** of Special rounds, so protection's expected value is a fraction of a shield. Under `all` you are
-    hit **every** Special round, so it saves a full shield every time. Protection gets ~(N-1)x more valuable
-    because it is *used* every round, not because it blocks more hits at once. And `all` scales offence by (N-1)
-    too — but **every class can play Specials while only ♦/♥ have protection**, so a universal multiplier lands
-    on an unevenly distributed resource. That is the whole asymmetry, stated properly.
-  - **What that leaves.** There is nothing to "cap", so the honest options are: (a) the **shared ward**, which is
-    measured and works (6p spread 32.1 → 18.3, pacing 30 → 11 rounds); (b) make protection **less frequently
-    usable** — counter-limited or once-per-game — which lowers its total value rather than its per-use value,
-    and is untested; (c) leave `all` as the homebrew toggle it already is; (d) give ♣/♠ protection, which Aj has
-    ruled out as cross-pie. Anything that makes being hit *less certain* just converges back to `chosen`.
-  - The flags (`setWardAll`, `setDamageSpan`) are on `exp/shield-break-all`, default off, with behavioural
-    self-checks in `mpsim`.
+### Tooling
+
+- **`versiontest` DOES NOT GUARD THE HANDOFF HEADER, AND IT DRIFTED THIRTEEN VERSIONS.** The chain it asserts is
+  README `**Status:**` → `build.js` → both screens → a `### vX.Y.Z` heading in this file. What it does **not**
+  check is this document's own **`Current version:`** line or its START HERE block, so on 2026-08-31 they still
+  read *v1.31.61*, `test.js` **325** and `netview` **28** — against a real v1.31.74 at 333 and 34. Fixed by hand
+  in the split, which is exactly the fix that will rot again.
+  **The precedent for why this matters is in CLAUDE.md:** the UI stamp is *derived* from README specifically so
+  it cannot drift, because a stale build that looks current cost a real bug report. A hand-written header has
+  the same failure mode and no guard. Assert the header's version against README, and assert the two test counts
+  against what `test.js`/`netview.test.js` actually print — or stop printing counts here and point at CLAUDE.md,
+  which is already the authority. **The second option is cheaper and cannot rot**, and is probably the right one.
+- **A FAILING SUITE'S SUMMARY LINE MISLABELS ITS PASS COUNT.** ~20 suites print
+  `console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail)`, so a failing run reads
+  **`FAIL: 11  FAIL: 4`** — which scans as fifteen failures. It is deliberate (the first label flips to FAIL as a
+  red flag) but it is confusing at exactly the moment clarity matters; both suites that failed on 2026-08-29 had
+  to be re-read to work out what happened. Suggest `FAILED — PASS: 11  FAIL: 4`. Low priority, ~20 files.
+- **`nettest_full` FAILED ONCE IN SEVEN RUNS on 2026-08-29 and was NOT fully cleared.** It went 4/1 immediately
+  after the v1.31.56 change, then 6/6 green. The failing assertion was **not captured**, which is the mistake to
+  avoid repeating. Structurally the change cannot reach it — on a client the only path into `playCards` is the
+  drag, and that suite drives clicks + Fight, which short-circuits in `doFight` — and the suite has a long
+  documented history of intermittency. Recorded as characterised-but-open rather than dismissed: **capture the
+  failing assertion next time it goes red.**
+
+### Features
 
 - **A real one-tap rematch over netplay** (Aj, 2026-08-25 — the `🔄 Rematch?` emote is the expression; this is
   the action). Today the win overlay's "New Game" just calls `openSetup()`, so an online pair must redo the
   whole invite-code exchange to play again. Wants: the host restarting the engine and re-broadcasting `t:'setup'`
   over the **live** connection, seats and decks reused, both sides confirming — plus its own netplay suite. The
   emote set already covers the negotiation ("Rematch?" → "Yes!"), so this is purely the mechanism.
-- **The "fixed-wait flake" list is EMPTY, and it was never about fixed waits.** Three of the four suites had a
-  real dependency; the fourth would not reproduce at all.
-  - `nettest_full` was reporting an actual game bug (v1.31.20 — the host locked out of a round it won). It ALSO
-    had a deal-dependence of its own in the beat branch, fixed separately: it played one arbitrary card and
-    passed if that did not land, so "BOTH players led/beat" could fail with `client 0` purely on the shuffle.
-    It now tries every card until one lands (14/14, half the runs in sequence).
-  - `nettest_log` and `nettest_names` were both **deal-dependent** in the same way: the host played whatever card
-    was first in its hand and the suite then required the client to beat it. The apex 2 is unbeatable and an Ace
-    nearly always is, so a bad shuffle took out the client-narration assertions together — 4 of them in
-    `nettest_log`, 2 in `nettest_names` (measured **2 failures in 10 runs** before the fix, the same two every
-    time). Both now stage hands with `__cmf.force()`.
-  - `exporttest` **would not reproduce: 10/10 clean.** Left alone deliberately — fixing a suite that is not
-    failing is speculation. If it fails again, look for a real dependency before touching a timeout.
-
-- **Old exported logs are v1.0 and merged.** Anything analysed from a multiplayer export before v1.31.5 had
-  every opponent collapsed into one bucket and their fight counts stuck at 0. If those files still exist they
-  cannot be repaired — the information was never recorded. New exports are `v:'2.0-mp'`; check the field.
-- **A duel export still has `rival` = seats[1]** (not merged), so old duel analysis is unaffected.
-
-- **MORE FAMILY SHAPES, one at a time (Aj, 2026-08-27).** Kits shipped; these are the agreed follow-ups, in his
-  intended order. **Do not bundle them into one PR** — Aj: *"let's not bloat the kits PR tho"*.
-  - ~~**The double-pair slot must be a MODE, not two toggles.**~~ **SHIPPED in v1.31.26** — segmented row,
-    `setDoublePair('off'|'kits'|'poker')` + an independent `setKits3`, with the v1.31.24 `kits` key migrating to
-    both halves. Measurement and the two suite gaps it exposed are in the changelog.
-  - ~~**Quadro (four of a kind) — NOT in the default game.**~~ **SHIPPED in v1.31.29** as the ninth rule,
-    default off, as a plain shape (it beats a lower Quadro and nothing else). Measured close to decorative
-    without the chop: legal on 3.9% of turns at 6p but played 0.07 times per game, because the AI plays the
-    cheapest sufficient Special and a Quadro spends four cards on a round a pair would win. See the changelog.
-  - ~~**The CHOP is the one structural addition.**~~ **SHIPPED in v1.31.33** as the eleventh rule. It does make
-    the apex answerable — 14% of 2-plays chopped at six players — but the hoped-for effect on initiative
-    concentration never appeared; the aggregate leader share is unchanged. What it did do is give Quadro a job:
-    17 → 956 plays per 250 six-player games. See the changelog.
-  - ~~**MOVE THE RULE DESCRIPTIONS INTO TOOLTIPS.**~~ **SHIPPED in v1.31.35.** Every trap this entry listed was
-    real: the `?` had to be a `<span>` (a boolean row IS a button), it needed `stopPropagation` so reading never
-    toggles, and the visibility assertions had to use `offsetParent` rather than text — a hidden note's
-    `textContent` reads perfectly well.
-  - **CHOP STRIP OR NOT — an option (Aj, 2026-08-27: "an option we can add for the chop is if it strips or
-    not").** A round won by a chop destroys no shield, in the shape of `apexNoStrip`. The subtlety: `apexNoStrip`
-    can read the winning pile (`hasApex(pile.combo.cards)`), but "did this play CHOP something" is **not visible
-    from the pile** — the beaten combo is gone by then. So it needs a flag stamped when a play is accepted through
-    the chop path, not a test at resolve time. Note `wonWithCombo=false` drives BOTH the shield strip and the
-    mill target, so a no-strip chop resolves like a jab win, exactly as `apexNoStrip` does.
-  - **STRAIGHT FLUSHES AS CHOPS — decided, and measured before building (Aj, 2026-08-27).** *"We'll have
-    straight flushes beat our quadros then… they're only counted as straight flushes when selected as an
-    option"* — so the option both lifts `NO_STRAIGHT_FLUSH` and makes the shape a chop; with it off, a same-suit
-    run stays a plain straight as it has since v1.14. Ladder slot: **between Quadro and 4 Kits** (rank 37, reach
-    2) — above the Quadro per [pagat's](https://www.pagat.com/climbing/bigtwo.html) Big Two ordering (straight <
-    flush < full house < four of a kind < **straight flush**, with a known variant where only a *royal* flush
-    beats quads), below 4 Kits because this game's ladder already treats longer pair-runs as bigger. Tiến lên's
-    chop family has no straight flush at all, so the combined ladder is our call.
-    **THE STRUCTURAL HALF IS DECISIVE AND IS NOT ABOUT THE BOMB.** Of the 5-card straights a deck can make,
-    **100%** are same-suit in a pure class deck, **6%** in a two-suit deck, **0%** in the Full Set — a class deck
-    is four copies of ONE suit. And `beats()` already says a straight flush beats *any* straight regardless of
-    value, so the larger effect of switching this on is that **every mono-suit straight beats every mixed
-    straight for free.** Win share, three *interleaved* replicates at 6 players, 600 games each: **pure decks
-    +1.8 points, mixed decks −1.2**, same sign in all three (pure +2.9 / +1.5 / +1.0). A real ~3-point tilt
-    between the groups — modest beside `loss=all`'s 40-point blowout, but exactly the "a mono suit player shanks
-    every non-mono player" effect Aj predicted, so **the rule's note must say it out loud.** The SPREAD figure is
-    not readable at this sample size (−2.0 / −7.0 / +9.5 across replicates) — do not quote it. Every shape today beats only its own type at its own size. A
-    quadro beating a lone 2 — or 3 kits beating a lone 2, which is exactly what đôi thông does — needs
-    cross-shape overrides in `beats()`. Note it would also make the apex 2 answerable **without** touching the
-    apex flags.
-  - ~~**BULK ACTIONS IN THE PANEL, presets and Clear All together.**~~ **SHIPPED in v1.31.30** — one bulk row,
-    with Chikicha Specials (kits + quadro) and Clear all. A preset is an exact state, so it reads as active only when
-    it matches exactly. Dou Dizhu still waits on trio+single, four+two and the airplane.
-  - **PRESET BUNDLES — the mechanism SHIPPED in v1.31.30 with `Chikicha Specials` (kits + quadro) as its only entry.**
-    What is left is the bundles whose shapes do not exist yet. A `Dou Dizhu` bundle would add trio+single (三带一),
-    four+two (四带二), airplane (飞机/三顺), variable-length straights and the chop. Presets stay honest with the
-    existing serialisation because `rulesKey()` records the FLAGS, not the preset name.
-  - **FLUSH is optional-and-degenerate, not just unfair.** A Pure deck is **52 cards of one suit** (verified:
-    `Pure Wizard {"D":52}`), so with flush enabled *every* five cards in its hand is a flush, on demand, every
-    turn — while a Full Set deck holds 13 per suit and sees one occasionally. Aj's instinct (*"they're
-    effectively shanking every non mono suit player"*) understates it. Straight flush is trivial for them too.
-    This is a better reason than "suits do not rank" for why v1.14 cut them.
-  - Still missing from the family and NOT yet wanted: trio+single, four+two, airplane, variable-length straights.
-    Rocket (双王) needs jokers, which this deck does not have.
-
+- **THE FAMILY-SHAPE PROGRAMME IS ESSENTIALLY COMPLETE. One cheap piece is left.** (Rewritten 2026-08-31: the
+  original entry listed eleven sub-items and **ten had shipped**, including all four it called "still missing
+  and NOT yet wanted" — trio+single, four+two, airplane and variable-length straights all landed in v1.31.39.
+  Kits v1.31.24-26, Quadro v1.31.29, the chop v1.31.33, chop-strips v1.31.38, tooltips v1.31.35, bulk actions
+  and presets v1.31.30. The changelog carries each.)
+  **What is actually left: four of a kind + ONE spare** — Big Two's shape, distinct from our 四带二's two spares.
+  Named in CLAUDE.md as "the only cheap piece" of a Big Two preset, which was itself considered and declined
+  (that reasoning is in CLAUDE.md, not here: Big Two's identity is the poker ladder and suit tiebreaks, and we
+  refuse both on principle).
+  **The house rules for adding one are settled and live in CLAUDE.md** — group by KIND not by source game, every
+  rule defaults OFF, a shape that shares a size signature with another must be a MODE rather than two toggles,
+  re-read every PRESET afterwards (a preset is an exact state, so a later rule is implicitly off in it), and
+  measure with `mpsim`/`rulesim` expecting **options, not tempo** — eight rules in a row have left pacing
+  untouched. Also check the wide panel still fits at 1512×945; there is no slack left.
+  Why FLUSH will never be one of them is in [`DECISIONS.md`](DECISIONS.md#balance).
 - **Rogue "slash": an on-demand card that LOWERS the current pile's value** (Aj, 2026-08-25 — filed for when
   Rogue needs a boost in balancing; nothing built). Distinct from Caltrops, which is a standing `oppDelta` debuff
   on opponents' cards. Aj's example: pile is a boosted pair of 4s at effective 6, you hold a pair of 5s; a
@@ -658,6 +265,16 @@ checked on a real device.*
     (the v1.31.0 fix, mirrored).
   - The one objection that *did* survive: the **leader-snowball is worse under coins**, because a win advances
     only the winner where a shield hit damages everyone, and initiative is already 1.8x concentrated.
+- **QR SCANNING IS BUILT, GREEN, AND PARKED on `feat/qr-scanning`** (PR #29, closed 2026-08-25, 21/0).
+  **Why it is not merged:** scanning needs an origin that can be granted camera access, and a file opened from
+  Android's Downloads is `content://` — an opaque origin — so Chrome rejects `getUserMedia` without ever
+  prompting. **MEASURED AND SETTLED 2026-08-28:** the same file over **https is GRANTED** with a live preview.
+  **What would revive it:** a decision to host the file. The blocker is no longer technical.
+  Full reasoning, the origin experiment, and everything else considered for making joining easier are in
+  [`DECISIONS.md`](DECISIONS.md#joining-discovery-and-the-qr-path).
+
+### Balance and design
+
 - **6-player games run 33 rounds; duels run 11. That is probably the root cause.** (2026-08-24, from Aj's
   question "is it weird that everybody mills but not everybody loses a shield?") Under the live
   `SPECIAL_LOSS_MODE='chosen'` + `MILL_SCOPE='targeted'` pairing a Special win costs the table **one** shield
@@ -673,17 +290,6 @@ checked on a real device.*
     scaling down with player count instead.
   - Measure with the one-off in this session's history (median/mean/max rounds by player count for both
     pairings); worth turning into a small committed harness if this is picked up.
-- **The "outbid" pass model for the AI** (Aj — parked 2026-08-24, may come back). The AI currently picks the
-  *lowest safe single* to contest a jab, and never asks *"will this card even survive five opponents?"* Aj's
-  reason #3 for passing was exactly that: middling values get outbid, so spending them is waste. Unlike the
-  shipped hand-size heuristic (measured inert in multiplayer, see the note below) this signal **gets stronger
-  as the table grows**, which is the dimension where the problem actually scales.
-  - **Decide by measurement whether it goes on knight AND demon, or demon only** (Aj's explicit question). Do
-    not assume it transfers: the *existing* strategic pass measured **+17.3 pts for demon and +1.5 for knight**
-    in duels — same code, and the effect was real for one tier and noise for the other. `passsim.js` takes a
-    tier argument for exactly this.
-  - Implement as a third `setStratPassMode('outbid')` beside `'hand'` and `'combo'` so all three stay
-    comparable in one harness.
 - **Initiative has no catch-up, and that is probably the real problem** (Aj, from play — 2026-08-23; the
   finding that came out of testing and REJECTING the jab-cantrip, see the note below). In `engine.js` ~1685 a
   round win does `st.initiative = winner; st.turn = winner;` — **the round winner leads the next round.** That
@@ -746,6 +352,17 @@ checked on a real device.*
     watch both the win rates and how many jab exchanges a game contains. Do this BEFORE designing an initiative
     fix — the jab-spam may be partly an AI artefact rather than a rules problem, and it would be embarrassing
     to redesign initiative to fix a missing `if`.
+- **The "outbid" pass model for the AI** (Aj — parked 2026-08-24, may come back). The AI currently picks the
+  *lowest safe single* to contest a jab, and never asks *"will this card even survive five opponents?"* Aj's
+  reason #3 for passing was exactly that: middling values get outbid, so spending them is waste. Unlike the
+  shipped hand-size heuristic (measured inert in multiplayer, see the note below) this signal **gets stronger
+  as the table grows**, which is the dimension where the problem actually scales.
+  - **Decide by measurement whether it goes on knight AND demon, or demon only** (Aj's explicit question). Do
+    not assume it transfers: the *existing* strategic pass measured **+17.3 pts for demon and +1.5 for knight**
+    in duels — same code, and the effect was real for one tier and noise for the other. `passsim.js` takes a
+    tier argument for exactly this.
+  - Implement as a third `setStratPassMode('outbid')` beside `'hand'` and `'combo'` so all three stay
+    comparable in one harness.
 - **A gacha-style storyline** (Aj, idea — parked, ahead of netplay AI in the queue, not designed). Nothing
   specified yet. Worth noting that **v1.30.0 just built the substrate for it by accident**: a roster of 32
   named characters, grouped into five tiers, each with a distinct play style and a name that already flows
@@ -757,21 +374,8 @@ checked on a real device.*
   own card set** (it does NOT reuse the pure Fighter or pure Rogue cards). This is also the natural home for a
   real **draw engine**, which is what would make the reorderable energy pile matter in more than the ~39% of
   games that currently reach a reshuffle (`node recyclesim.js`).
-- **Deck editing** — deliberately out (Aj: create + delete only). If it comes back, note a saved deck's
-  IDENTITY is its composition key, so "editing" is really delete + re-add, and anything pointing at the old key
-  must be migrated.
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
-- **Two real harness facts found while chasing the (now fixed, v1.31.9) position-dependent suites:** three
-  suites share port **8303** (`concede3`/`elim3`/`energy` — fine serially, never concurrently), and every
-  suite awaits `srv.listen` with **no error handler**, so a genuine port collision hangs silently instead of
-  failing.
-
-*Recently closed (see the changelog): the **deck builder** parts system (v1.27.0/v1.28.0) and its lesson
-(v1.28.1) · the **reorderable energy pile** + both pile viewers + Advanced lesson 10 (v1.29.0) · netplay's
-**public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
-C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
-
 
 ### v1.31.74 — seven lesson suites, and the enabled button that did nothing for two seconds
 
