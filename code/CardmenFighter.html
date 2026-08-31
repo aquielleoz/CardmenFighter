@@ -84,7 +84,13 @@
   }
 
   main{flex:1 1 auto; display:flex; flex-direction:column; min-height:0; padding:8px 10px 0; gap:8px;}
-  .fighter{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:8px 12px; display:flex; align-items:center; gap:12px; flex:0 0 auto; flex-wrap:wrap;}
+  /* `flex:0 1 auto`, NOT `0 0 auto`. The row already declares `flex-wrap:wrap` — "I will take two lines if I
+     have to" — and shrink:0 guaranteed it never had to, so it sat at its max-content width (name + deck name +
+     4 shields + energy + deck count + recycle ≈ 400px) and pushed past the viewport instead of wrapping.
+     Measured before: 394px inside a 327px screen, 416px inside 390px, with `main` scrolling sideways at both.
+     Letting it shrink is what lets the wrap it already asks for actually fire. Desktop has room, so nothing
+     moves there — asserted in both directions. */
+  .fighter{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:8px 12px; display:flex; align-items:center; gap:12px; flex:0 1 auto; flex-wrap:wrap; min-width:0;}
   .fighter.turn{border-color:var(--gold); box-shadow:0 0 0 2px rgba(232,195,122,.3);}
   /* --- N-player opponents strip (3–6 players) --- */
   #opponents{display:none; gap:8px; flex:0 0 auto; flex-wrap:wrap; justify-content:center;}
@@ -921,12 +927,23 @@
   @keyframes shieldForm{ 0%{transform:scale(0) rotate(-28deg); opacity:0;} 60%{transform:scale(1.22);} 100%{transform:scale(1); opacity:1;} }
   /* round-announcement ceremony — dimmed backdrop + a center-stage label per beat, then the Round N plate
      (styled to sit next to the shield-shatter banner it plays alongside) */
-  #roundfx{ position:absolute; inset:0; z-index:7; display:none; align-items:center; justify-content:center; pointer-events:none; }
+  /* `overflow:hidden` so the banner cannot make the BOARD scroll sideways. `.rfInner::before` is a deliberately
+     oversized glow (`width:150%`, centred by a transform), and its right-hand bleed extends the scroll box —
+     measured at 327px, `main` went into horizontal scroll for the ~1.3s the banner shows, briefly draggable and
+     a visible sideways jump at the start of every round. The halo is decorative and centred, so clipping its
+     outer edge at the play-area boundary costs nothing visible. */
+  #roundfx{ position:absolute; inset:0; z-index:7; display:none; align-items:center; justify-content:center; pointer-events:none; overflow:hidden; }
   #roundfx.show{ display:flex; pointer-events:auto; cursor:pointer;
     background:radial-gradient(ellipse at 50% 46%, rgba(9,5,18,.72), rgba(5,2,10,.88));   /* dim + vignette the board behind */
     backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); animation:rfBackdrop .26s ease-out both; }
   @keyframes rfBackdrop{ from{opacity:0;} to{opacity:1;} }
-  #roundfx .rfInner{ position:relative; text-align:center; opacity:0; padding:14px 30px; }
+  /* `max-width:100%` and `box-sizing` so the banner cannot make the BOARD scroll sideways. Measured at 327px:
+     the plate rendered 304px inside a 243px box (30px of padding each side plus the label), which put `main`
+     into horizontal scroll for the ~1.3s the banner shows — briefly draggable, and a visible sideways jump at
+     the start of every round on a phone. The padding is the part that does not fit, so it shrinks with the
+     screen rather than the type. */
+  #roundfx .rfInner{ position:relative; text-align:center; opacity:0; padding:14px 30px; max-width:100%; box-sizing:border-box; }
+  @media (max-width:480px){ #roundfx .rfInner{ padding:12px 10px; } }
   #roundfx .rfInner::before{                                     /* soft glow halo behind the label, echoing the shield flash */
     content:''; position:absolute; left:50%; top:50%; width:150%; height:220%; transform:translate(-50%,-50%);
     background:radial-gradient(ellipse at center, rgba(255,255,255,.09), transparent 62%); z-index:-1; pointer-events:none; }
@@ -4947,7 +4964,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.65';
+  var GAME_VERSION='v1.31.66';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};

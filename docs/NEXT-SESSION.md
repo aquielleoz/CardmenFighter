@@ -485,7 +485,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   overflow. It is not — different cause, same conclusion that it is shared code rather than netplay.
   **Assert it in both directions and at BOTH phone bands** — landscape and desktop already pass, so a single
   measurement proves nothing; `landscapetest` owns the negative half.
-- **THE PLAY AREA IS CLOBBERED ON A NARROW PHONE — HORIZONTAL, NOT VERTICAL** (Aj, 2026-08-29, screenshot at
+- **~~THE PLAY AREA IS CLOBBERED ON A NARROW PHONE~~ MEASURED CLEAN since v1.31.66 — the overlap was caused by the sideways scroll, and went away with it. The zones-into-panels spec below was NOT built; keep it only if a real device still shows the problem.** Original entry: (Aj, 2026-08-29, screenshot at
   ~327 CSS px: "Round 6" written over the pile label, the rival's FORMS & RIDES header over the pile cards, and
   the Hero's Javelin equip card covering the right half of a Full House). `#table` is a centred flex column with
   **four absolutely-positioned overlays pinned to its corners**:
@@ -516,7 +516,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   not separate them — it would cost drag-to-play and leave the pile clobbered. Recorded so it is not re-proposed.
   Vertical space IS genuinely tight (see the 340px floor and `landscapetest`), but the hand is the thing a card
   player looks at most, so it is the wrong first lever; the secondary chrome is the cheap one.
-- **THE PLAYER'S OWN INFO ROW OVERFLOWS THE VIEWPORT ON EVERY PHONE WIDTH** (Aj, 2026-08-29: *"the hand
+- **~~THE PLAYER'S OWN INFO ROW OVERFLOWS THE VIEWPORT ON EVERY PHONE WIDTH~~ SHIPPED in v1.31.66** (Aj, 2026-08-29: *"the hand
   information just bleeds into outer space on my small mobile screen"*, screenshot: the board scrolled sideways
   with the header still square, content cut off at the left and dead space at the right). **MEASURED, not
   inferred** — reproduces in SOLO, so netplay is irrelevant to it:
@@ -1179,6 +1179,30 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.66 — the board stops scrolling sideways, and that fixes the clobbered play area too
+
+Two of Aj's phone reports turned out to be **one cause**, and fixing it made the third go away.
+
+**`.fighter` declared `flex-wrap:wrap` and `flex:0 0 auto` together.** The wrap says "I will take two lines if
+I have to"; shrink **0** guaranteed it never had to. So the row sat at its max-content width — name + deck name
++ 4 shields + energy + deck count + recycle — and pushed past the screen instead of wrapping: **394px inside a
+327px viewport, 416px inside 390px**, with `main` scrolling sideways at both. `flex:0 1 auto` lets the wrap it
+already asks for actually fire. Measured after: 283px and 346px, no scroll.
+
+**And that also fixed the play area being clobbered.** The horizontal scroll shifted the whole board, dragging
+the corner-pinned Forms/equipment zones across the pile. A/B'd with the zones and a Full House staged:
+**5 of 5 pile cards overlapped at 390px before, 0 at every width after.** So the agreed "zones into the panels"
+change was **not built** — the measured problem is gone, and shipping a DOM re-parent that nothing needs would
+be worse than not shipping it. The spec stays in the BACKLOG in case a real device still shows it.
+
+**The round banner was a second, transient source.** `.rfInner::before` is a deliberately oversized glow
+(`width:150%`, centred by a transform) and its right-hand bleed extended the scroll box for the ~1.3s the banner
+shows — briefly draggable, and a visible sideways jump at the start of every round. `#roundfx` now clips.
+
+`landscapetest` 117 → **126**, asserting both at three widths, with the zones and a five-card pile **staged** —
+with nothing in play the zones do not render at all and the assertion would pass on a board that cannot show the
+bug. Verified by stashing only the template: 3 assertions go red (413 vs 327, 481 vs 390, and 22% coverage).
 
 ### v1.31.65 — the host stops broadcasting the same mirror 500 times
 

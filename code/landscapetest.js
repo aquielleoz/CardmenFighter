@@ -295,6 +295,46 @@ const CASES=[
     await p.context().close();
   }
 
+  /* ---- THE BOARD MUST NEVER SCROLL SIDEWAYS, AND THE ZONES MUST NOT COVER THE PILE ---------------------
+     Aj, 2026-08-29: "the hand information just bleeds into outer space on my small mobile screen", and a
+     separate screenshot of the Forms & Rides label sitting on top of a Full House. Both were the same cause:
+     `.fighter` declared `flex-wrap:wrap` AND `flex:0 0 auto`, so the row could never shrink, sat at its
+     max-content width (394px inside a 327px screen) and put `main` into horizontal scroll — which then shifted
+     the whole board and dragged the corner-pinned zones across the pile. Measured before the fix: 5 of 5 pile
+     cards overlapped at 390px. After: 0 at every width.
+     The round banner was a second, transient source — `.rfInner::before` is a deliberately oversized glow
+     (`width:150%`), and its right-hand bleed extended the scroll box for the ~1.3s the banner shows.
+     Zones are STAGED here: with no Forms or equipment in play they do not render at all, and the assertion
+     would pass on a board that cannot show the bug. */
+  for(const [w,h,what] of [[327,660,'narrow phone'],[390,780,'phone'],[1280,800,'desktop']]){
+    const p=await open(w,h,2); const tag=`${what} ${w}x${h}`;
+    const m=await p.evaluate(()=>{
+      const st=window.__solo.st();
+      const F=(r,su,t)=>({rank:r,suit:su,tier:t,name:t==='ride'?'Giant Ram':'Pandora',card:{rank:r,suit:su,id:'f'+r+su}});
+      const EQ=(n,r,su)=>({id:'eq'+r+su,name:n,delta:1,oppDelta:0,counters:3,decay:true,card:{rank:r,suit:su,id:'e'+r+su}});
+      st.players[0].forms=[F(11,'C','ride'),F(12,'S','queen')];
+      st.players[1].forms=[F(11,'D','ride'),F(12,'H','queen')];
+      st.players[0].equipment=[EQ("Hero's Javelin",2,'D')];
+      st.players[1].equipment=[EQ("Cursed Pendant",8,'D')];
+      st.pile={ combo:{type:'fullhouse', value:9, size:5, key:[9],
+        cards:[{rank:9,suit:'C',id:'p1'},{rank:9,suit:'H',id:'p2'},{rank:9,suit:'S',id:'p3'},{rank:3,suit:'D',id:'p4'},{rank:3,suit:'H',id:'p5'}] }, owner:1 };
+      window.__solo.render();
+      const mn=document.querySelector('main');
+      const zr=[...document.querySelectorAll('.formZone,.equipZone')].filter(e=>e.getBoundingClientRect().width>2)
+                .map(e=>e.getBoundingClientRect());
+      const ov=(a,b)=>Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left))*Math.max(0,Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top));
+      let worst=0;
+      [...document.querySelectorAll('#pile .card')].forEach(c=>{ const cr=c.getBoundingClientRect(), area=cr.width*cr.height;
+        let cov=0; zr.forEach(z=>{ cov+=ov(cr,z); }); if(area) worst=Math.max(worst, cov/area); });
+      return { scrollW:mn.scrollWidth, clientW:mn.clientWidth, zones:zr.length,
+               piles:document.querySelectorAll('#pile .card').length, worst:Math.round(worst*100) };
+    });
+    ok(m.zones>0 && m.piles>0, `${tag}: staged — ${m.zones} zones and ${m.piles} pile cards on screen`);
+    ok(m.scrollW<=m.clientW+1, `${tag}: the board does NOT scroll sideways (${m.scrollW} vs ${m.clientW})`);
+    ok(m.worst<5, `${tag}: no pile card is covered by a Forms/equipment zone (worst ${m.worst}%)`);
+    await p.context().close();
+  }
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
