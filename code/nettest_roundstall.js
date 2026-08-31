@@ -87,6 +87,6 @@ async function until(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retu
   });
   ok(await until(async()=>(await snap(host)).hand<landed), 'and the play actually lands, so the game continues');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('HARNESS ERROR',e);process.exit(2);});

@@ -87,6 +87,6 @@ CASES.forEach(function (c) {
   });
 });
 try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {}
-console.log('\n' + (fail ? 'FAIL' : 'PASS') + ': ' + pass + '  FAIL: ' + fail + '  not comparable: ' + skip +
+console.log('\n' + (fail ? 'FAILED — ' : '') + 'PASS: ' + pass + '  FAIL: ' + fail + '  not comparable: ' + skip +
             '  (highest version verified: v' + top + ')');
 process.exit(fail ? 1 : 0);

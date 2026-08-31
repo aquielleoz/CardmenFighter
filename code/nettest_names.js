@@ -61,6 +61,6 @@ async function waitHand(p){ for(let i=0;i<60;i++){ if((await p.evaluate(()=>docu
   ok(await hasLog(join,/^You played/),'…while the client reads its own play as "You played"');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\nCLIENT LOG:'); (await log(join)).forEach(l=>console.log('   '+l.slice(0,80)));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('ERR',e);process.exit(2);});

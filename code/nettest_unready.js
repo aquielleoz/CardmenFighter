@@ -71,6 +71,6 @@ const joinView=p=>p.evaluate(()=>{
      `  → and it is the SAME seat (Player ${beforeSeat} → Player ${afterSeat}): un-ready must not free the seat, or hostStartRealN mis-assigns decks`);
 
   ok(errs.length===0, 'no JS errors'+(errs.length?': '+errs[0]:''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('HARNESS ERROR',e);process.exit(2);});

@@ -120,7 +120,7 @@ function req(method, path, body) {
   ok((await req('GET', '/r/' + room + '/answers?since=-1')).status === 404,
      '  → and it is gone, so an SDP does not linger longer than the handshake needs');
 
-  console.log('\n' + (fail ? 'FAIL' : 'PASS') + ': ' + pass + '  FAIL: ' + fail);
+  console.log('\n' + (fail ? 'FAILED — ' : '') + 'PASS: ' + pass + '  FAIL: ' + fail);
   if (child) child.kill();
   process.exit(fail ? 1 : 0);
 })().catch(function (e) {

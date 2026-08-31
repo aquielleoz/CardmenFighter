@@ -76,6 +76,6 @@ const logHas=(p,re)=>p.evaluate(r=>[].some.call(document.querySelectorAll('#log 
     ok(errs.length===0, 'no JS errors on the mismatch path'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
     await ctx.close(); }
 
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('HARNESS ERROR',e);process.exit(2);});

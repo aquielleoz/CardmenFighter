@@ -152,6 +152,6 @@ let mock=null;
   ok(h.round===j.round, 'they finish agreeing on the round (host '+h.round+', client '+j.round+')');
   ok(h.bad===0 && j.bad===0, 'and neither side ever held a card with no rank');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail+'  · rounds '+worst+', actions '+acted);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail+'  · rounds '+worst+', actions '+acted);
   await b.close(); srv.close(); if(mock) mock.kill(); process.exit(fail?1:0);
 })().catch(e=>{ console.log('HARNESS ERROR '+(e&&e.stack||e)); if(mock) mock.kill(); process.exit(1); });

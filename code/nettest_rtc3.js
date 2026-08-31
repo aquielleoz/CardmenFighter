@@ -80,6 +80,6 @@ async function invite(host, client, prevOffer){
   ok(acted.host>0 && acted.c1>0 && acted.c2>0,'all three seats acted (host '+acted.host+', c1 '+acted.c1+', c2 '+acted.c2+')');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
 
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail+' · maxRound='+maxRound);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail+' · maxRound='+maxRound);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('ERR',e);process.exit(2);});

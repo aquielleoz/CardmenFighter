@@ -103,6 +103,6 @@ async function waitLog(p,re,t=80){ for(let i=0;i<t;i++){ if((await log(p)).some(
   ok(added2===1, 'and the HOST\'s own per-seat cooldown drops the other two ('+added2+') — it does not trust the client\'s clock');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('HARNESS ERROR',e);process.exit(2);});

@@ -76,6 +76,6 @@ async function waitFor(fn,t=80,ms=150){ for(let i=0;i<t;i++){ if(await fn()) ret
      'the ?net= path still boots netplay (every other nettest_* suite enters this way)');
   ok(errs2.length===0, 'no JS errors on the ?net= path'+(errs2.length?': '+errs2.slice(0,2).join(' | '):''));
 
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('HARNESS ERROR',e);process.exit(2);});

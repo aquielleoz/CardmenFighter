@@ -53,6 +53,6 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
   ok(await p.evaluate(()=>{const a=JSON.parse(localStorage.getItem('cmf_decks_v1')||'[]'); return a.length===1 && a[0].name==='Battle Priest' && a[0].parts.H===2;}),'the deck the player built in the lesson is really saved');
   ok(await p.evaluate(()=>localStorage.getItem('cmf_lesson_decks_v1')==='1'),'the lesson is marked done');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('ERR',e);process.exit(2);});

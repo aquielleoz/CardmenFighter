@@ -79,6 +79,6 @@ async function waitHand(p){ for(let i=0;i<60;i++){ if((await p.evaluate(()=>docu
   ok(!/custom:D9/.test(await label(host2,'rivalDeckName')),'the bogus key never reaches the board label');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('ERR',e);process.exit(2);});

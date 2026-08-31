@@ -121,6 +121,6 @@ let mock=null;
   await dead.close();
 
   ok(errs.length===0, 'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); if(mock) mock.kill(); process.exit(fail?1:0);
 })().catch(e=>{ console.log('HARNESS ERROR '+(e&&e.stack||e)); if(mock) mock.kill(); process.exit(1); });

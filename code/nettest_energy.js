@@ -71,6 +71,6 @@ async function until(fn,t=60,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retur
   ok(await join.evaluate(()=>document.querySelectorAll('.pileRow.ro').length>0),'off-turn the client\'s pile is read-only');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('ERR',e);process.exit(2);});

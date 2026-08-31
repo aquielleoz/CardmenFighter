@@ -108,6 +108,6 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(rec && rec.seats.every(x=>typeof x.seat==='number' && 'finalShields' in x), 'each seat entry carries its own seat number and final shields');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('HARNESS ERROR',e);process.exit(2);});

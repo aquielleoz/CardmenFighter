@@ -78,6 +78,6 @@ async function until(fn,t=120,ms=120){ for(let i=0;i<t;i++){ if(await fn()) retu
   ok(end.hand>0, `  → with a usable hand (${end.hand} cards)`);
 
   ok(errs.length===0, 'no JS errors'+(errs.length?': '+errs[0]:''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('HARNESS ERROR',e);process.exit(2);});
