@@ -181,7 +181,22 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
-- **★ `nettest_sync` CATCHES A REAL HOST/CLIENT FORK, INTERMITTENTLY, ON `main` — 2 RUNS IN 6 (2026-08-30).**
+- **★ `nettest_sync` CATCHES A REAL HOST/CLIENT FORK — STILL OPEN, ~3 RUNS IN 8 (2026-08-30).** Two
+  hypotheses tested and REJECTED, both recorded so nobody re-runs them:
+  - **a second ceremony discarding a held round mirror.** `clientPlayCeremony` nulls `pendingRoundMirror`;
+    landing it first made the suite **worse** (5 failures in 8), and lifecycle tracing then showed **no
+    `mirror HELD` events at all** during a failure — the client applies every mirror it receives.
+  - **the broadcast storm.** Real and now fixed (v1.31.65, 97% of mirrors were duplicates), and the failure
+    rate did not move.
+  **What the evidence does say.** The card ids name the gap exactly — the client is missing precisely that
+  round's DRAW:
+  ```
+  HOST   seat1 (8): 5D#16 6H#22 9H#34 10H#38 11D#40 13D#49 1D#1 2D#4
+  CLIENT seat0 (6): 5D#16 6H#22 9H#34 10H#38 11D#40             1D#1
+  ```
+  So a mirror carrying the deal is either never sent, never received, or applied and then overwritten by an
+  older one. **Next step: trace on the RECEIVE side** — log every mirror's hand length as it arrives and
+  compare against what the host sent, rather than instrumenting the send side again.
   The cross-check suite doing exactly what it was built for. The failure is a **persistent** hand-size
   disagreement, not a mid-flight one (the suite polls until a mismatch clears, so transient windows are already
   excluded):
@@ -1196,6 +1211,39 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.65 — the host stops broadcasting the same mirror 500 times
+
+`broadcastMirror` runs from every render — and a render happens for animations, hovers, effect flashes. Traced
+on the host during a real netplay game:
+
+```
+9.11s   mirror OUT seat1 q=5 theirHand=4 inMirror=4   x502     ← byte-identical, in 1.4 seconds
+10.47s  mirror OUT seat1 q=5 theirHand=6 inMirror=6   x3
+```
+
+**Measured over a full game: 1137 calls, 29 actually sent — 97% were byte-identical duplicates.** The client
+applies each one, so it falls behind and its board reads stale. This is the host half of the re-render storm in
+Aj's logs.
+
+**Deduped by CONTENT, not by `stateSeq`** — deliberately. `stateSeq` counts client *intents*, so the host's own
+plays and the round draw never advance it, and a stamp-based skip would drop real updates. Identical bytes
+cannot change a client's board, so skipping them is safe by construction. A seat's cache is dropped whenever it
+joins or rejoins, so a reconnecting peer is never deduped against state it missed.
+
+**THIS DOES NOT FIX THE `nettest_sync` FORK, and the entry for that stays open.** It still fails ~3 runs in 8,
+unchanged. Two hypotheses were tested and rejected on the way here — see the backlog for both, because each
+looked right:
+- **a second ceremony discarding a held round mirror.** `clientPlayCeremony` nulls `pendingRoundMirror`, which
+  would throw away a deal. Fixing it made the suite **worse** (5 failures in 8), and tracing then showed no
+  `mirror HELD` events at all during a failure — the client applies every mirror.
+- **the storm as the sole cause.** It is not; the failure rate is unchanged.
+
+**And a process note worth more than either.** Several measurements in that session were taken against a
+**stale binary**: a comment repair had orphaned its tail onto its own line, `build.js` refused to write, and the
+suites happily kept running the previous build. Two arms of an A/B returned identical numbers, which is the
+documented signature of a broken instrument — and it was, for the third time in one day. **`node build.js`
+prints `built …` on success; if a measurement surprises you, check that line before believing the numbers.**
 
 ### v1.31.64 — the 2 plays in sequences, as the low card
 
