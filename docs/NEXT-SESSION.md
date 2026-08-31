@@ -266,7 +266,34 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   duel to a finish, start a second one without leaving, and watch whether `endGame()` is re-entered (a
   breakpoint or a `trace()` in `endGame` will say immediately). If it is, giving the client a `gen++` on the
   first mirror of a new game is the fix; if it is not, look at what re-shows the overlay instead.
-- **PEEK IS NOT A REAL REVIEW MODE YET — three gaps the z-index fix did NOT close** (found 2026-08-29 by
+- **~~PEEK AS A REAL REVIEW MODE — SPEC AGREED~~ SHIPPED in v1.31.63.** The spec is kept below as the record of what was agreed.
+  **Principle: peek SHOWS, it never CHANGES.** Anything that only reveals information works; anything that
+  alters the game stays dead.
+  | Peeks | Stays dead |
+  | --- | --- |
+  | Battle log — expand, scroll, ↓ New, ⤓ Save | The whole action row: Fight, Pass, ⚡ Activate, Boost, Sort, Clear |
+  | Tap a hand card to read it (side panel, 🔍 reader) | Selecting cards for play, drag-to-play |
+  | Your energy pile · your shuffle pile | Targeting a panel |
+  | **Opponents' energy piles** — blocked today | ✏️ rename yourself (already guarded by `if(peeking) return`) |
+  | **Opponents' panels** — Forms & Rides, shields, counts | Promote-from-energy inside the pile viewer |
+  | 🃏 Specials list · ? How to play | |
+  | **⚙️ Settings / 💡 Hints / 🔊 sound** — Aj: *"header settings are ok not dead i think, also let's you check the rules"* | |
+  | **🏳 Concede / New Duel** — closes peek like ↩ Back, then proceeds; peek is NOT offered again | |
+  | **← Leave online** — closes peek AND the session, **behind a confirm prompt** | |
+  | ↩ Back | |
+  **THE STRUCTURAL BLOCKER, and it is why "just unblock the buttons" does not work.** Every information viewer
+  (`openPileView`, `showCheatSheet`, `showHelp`) routes through the shared `showModal`, and
+  `.overlay.peeking .modal{display:none}` hides it — so today those controls are reachable, populate the modal,
+  and silently show nothing. Peek reuses `.overlay` as its dim, and `.overlay` also hosts every dialog
+  **including the end screen peek is hiding**, with only ONE `#modal` between them.
+  **Fix: stash and restore.** `enterPeek` already stashes `overlayDismiss`; extend it to stash the end-screen
+  modal's HTML and class. A dialog opened while peeking un-hides the modal and shows normally; closing it
+  restores the stash and drops back into peek; ↩ Back exits and restores the end screen. One modal element, no
+  new layer, and "exit peek to look at something" never happens.
+  **The Leave prompt is unconditional, not peek-only** — Leave drops the relay room and reloads, and it is
+  already known to be mis-tappable (it covered 79% of the card reader's close button until v1.31.57). The risk
+  is not peek-specific.
+- **~~PEEK IS NOT A REAL REVIEW MODE YET — three gaps the z-index fix did NOT close~~ — SUPERSEDED by the spec above; the findings below are the evidence for it** (found 2026-08-29 by
   sweeping EVERY interactive element during peek, after Aj asked *"is that all the peeks?"* — the honest answer
   was no). Hit-tested at 1280x800: **9 of 26 elements blocked at 2 players, 13 of 32 at 4**. Most are correct —
   the header, and `#ctxBtn`, since `body.peeking-board #actions` is deliberately `pointer-events:none`. These
@@ -1152,6 +1179,39 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.63 — peek is a real review mode
+
+**Principle, agreed with Aj: peek SHOWS, it never CHANGES.** Anything that only reveals information works;
+anything that alters the game stays dead.
+
+**What was wrong.** v1.31.61 made peek's controls clickable again, and a sweep of *every* interactive element
+then showed the mode was still half-built: the opponents' panels and their energy piles were never lifted, so
+you could inspect your own pile and not theirs — and **every information viewer was reachable but silently
+dead.** `openPileView`, `showCheatSheet` and `showHelp` all route through the one shared `showModal`, and
+`.overlay.peeking .modal{display:none}` hid it. The controls populated the modal and displayed nothing.
+
+**The structural fix is stash-and-restore.** Peek reuses `.overlay` as its dim, and `.overlay` also hosts every
+dialog *including the end screen peek is hiding*, with a single `#modal` between them. `showModal` now stashes
+that end screen the first time a dialog opens during peek and marks the overlay `.dlg` so the dialog shows;
+closing it restores the stash and drops you back **into** peek. "Exit peek to look at something" never happens.
+
+**Now peeks:** the battle log (expand, scroll, ↓ New, ⤓ Save) · your energy and shuffle piles · **the
+opponents' panels and energy piles** · a card group in your hand · 🃏 Specials list · ? How to play ·
+**⚙️ Settings, 💡 Hints, 🔊 sound** (Aj: *"header settings are ok not dead i think, also let's you check the
+rules"*) · 🏳 Concede / New Duel, which closes peek first and does not re-offer it · ↩ Back.
+**Stays dead:** the whole action row — Fight, Pass, ⚡ Activate, Boost, Sort, Clear — plus targeting and the
+rename control. Note *dead* means `pointer-events:none`, not "covered": covering them would hide the board.
+
+**← Leave online now asks first**, and the prompt is unconditional rather than peek-only — Leave drops the relay
+room and reloads, and it is a known mis-tap (as a floating overlay it covered 79% of the card reader's close
+button until v1.31.57). The risk was never peek-specific.
+
+`peektest.js` (31) is new, and `nettest_inpage` (11 → 14) covers the prompt. Two things it records because both
+produced a wrong diagnosis first: `__solo.peek()` drives the **real** `enterPeek`, because `showModal`'s peek
+branch keys off the `peeking` VARIABLE and a probe that only stages the classes reports the dialog as hidden;
+and **the click target in the hand is the `.group`, not the `.card`** — `.group .card{pointer-events:none}` is
+by design, so asserting the card reports "inert" on a perfectly working hand.
 
 ### v1.31.62 — the client plays the Fighter Kick again
 

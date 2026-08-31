@@ -839,12 +839,19 @@
   .modal .ctxCard.red{color:#c62828;}
   .modal .peekBtn{margin-top:8px; background:transparent; color:var(--txt); border:1px solid var(--line); opacity:.85; font-weight:700;}
   .overlay.peeking{background:rgba(10,4,16,.14); backdrop-filter:none;}
+  /* Peek hides the END SCREEN it is peeking past — but a dialog the player deliberately opens while peeking
+     (a pile viewer, the Specials list, Settings) must still show. `.dlg` is set by showModal() while peeking
+     and cleared when that dialog closes, which restores the stashed end screen. Without it every information
+     viewer was reachable, populated the shared #modal, and silently displayed nothing. */
   .overlay.peeking .modal{display:none;}
+  .overlay.peeking.dlg{background:rgba(10,4,16,.8); backdrop-filter:blur(3px);}
+  .overlay.peeking.dlg .modal{display:block;}
   /* while peeking: lift the log, hand, and description panel above the overlay so they stay reviewable
      (inspect-only). #cardFull rides along — the hand stays tappable during peek, so 🔍 View card can open the
      full reader, and at its own z-index of 37 that reader would open BEHIND the peek backdrop. */
   body.peeking-board #logWrap, body.peeking-board #handWrap, body.peeking-board #cardView,
-  body.peeking-board #cardFull{position:relative; z-index:var(--zPeek);}
+  body.peeking-board #cardFull, body.peeking-board header,
+  body.peeking-board #opponents, body.peeking-board #rival{position:relative; z-index:var(--zPeek);}
   body.peeking-board #hand.disabled, body.peeking-board #hand{pointer-events:auto; opacity:1;}   /* re-enable hover/tap to read cards, even at game over */
   body.peeking-board #actions{pointer-events:none; opacity:.4;}   /* but the action buttons (Sort/Clear/Pass/Fight/Activate) stay disabled while peeking */
   .peekBar{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:var(--zPeekBar); font:inherit; font-weight:800; font-size:14px; color:#3a2a08; background:var(--gold); border:none; border-radius:22px; padding:11px 22px; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.5);}
@@ -4399,12 +4406,24 @@ __QR__
   /* RESETS THE CLASS LIST. Two dialogs widen themselves by adding a class after this call (the Codex, and the
    * rules panel since v1.31.36); resetting here means neither can leak its width into whatever opens next,
    * however that dialog was closed. */
-  function showModal(html, cls){ overlayDismiss=null; closeCardFull(); var m=$('modal');
-    m.className='modal'+(cls?' '+cls:''); m.innerHTML=html; $('overlay').classList.add('show'); }
+  function showModal(html, cls){ overlayDismiss=null; closeCardFull(); var m=$('modal'), ov=$('overlay');
+    /* Opened WHILE peeking? Stash the end screen the peek is hiding — there is only one #modal, so this
+     * dialog would otherwise overwrite it — and un-hide the modal for the duration. `peekStash` is set once
+     * per peek: a second dialog replaces the first without losing the end screen underneath. */
+    if(peeking){ if(peekStash===null) peekStash={ html:m.innerHTML, cls:m.className }; ov.classList.add('dlg'); }
+    m.className='modal'+(cls?' '+cls:''); m.innerHTML=html; ov.classList.add('show'); }
+  /* Close a dialog opened during peek and fall back INTO peek, rather than out of it. Returns true when it
+   * handled the close, so hideOverlay() can defer to it. */
+  function closePeekDialog(){
+    if(!peeking || peekStash===null) return false;
+    var m=$('modal'); m.className=peekStash.cls; m.innerHTML=peekStash.html; peekStash=null;
+    $('overlay').classList.remove('dlg'); overlayDismiss=null;
+    return true;
+  }
   $('overlay').addEventListener('click', function(e){ if(e.target===$('overlay') && overlayDismiss){ var d=overlayDismiss; overlayDismiss=null; d(); } });
   // ---- Peek at the table: temporarily hide the modal (keeping the overlay on top so the board stays
   // non-interactive) to review the pile / energy / logs, then a floating pill restores the modal. ----
-  var peekSavedDismiss=null, peeking=false;
+  var peekSavedDismiss=null, peeking=false, peekStash=null;   // peekStash: the end screen a peek-time dialog is covering
   function enterPeek(){
     var ov=$('overlay'); if(!ov.classList.contains('show')) return;
     peeking=true;
@@ -4414,7 +4433,8 @@ __QR__
     if(!$('peekBar')){ var bar=document.createElement('button'); bar.id='peekBar'; bar.className='peekBar'; bar.innerHTML='↩ Back'; bar.addEventListener('click', function(ev){ ev.stopPropagation(); exitPeek(); }); document.body.appendChild(bar); }   // on <body>, not the overlay, so its z-index beats the lifted panels
     render();
   }
-  function exitPeek(){ peeking=false; var ov=$('overlay'); ov.classList.remove('peeking'); document.body.classList.remove('peeking-board'); overlayDismiss=peekSavedDismiss; var bar=$('peekBar'); if(bar) bar.remove(); }
+  function exitPeek(){ if(peekStash!==null) closePeekDialog(); peeking=false;   // restore the end screen first, or ↩ Back leaves a pile viewer on screen
+     var ov=$('overlay'); ov.classList.remove('peeking'); document.body.classList.remove('peeking-board'); overlayDismiss=peekSavedDismiss; var bar=$('peekBar'); if(bar) bar.remove(); }
   function peekBtnHTML(){ return '<button id="peekBtn" class="peekBtn">👁 Peek at the table</button>'; }
   function wirePeek(){ var b=$('peekBtn'); if(b) b.addEventListener('click', enterPeek); }
   // Inline "what's on the table" — the current play (pile) + your energy, so you don't have to peek for the basics.
@@ -4431,7 +4451,11 @@ __QR__
     rows+='<div class="ctxRow"><span class="ctxLbl">Your energy</span><span><b>'+you.energy.length+'</b>⚡ '+bits.join('')+'</span></div>';
     return '<div class="ctxBox">'+rows+'</div>';
   }
-  function hideOverlay(){ peeking=false; revealOpen=false; var ov=$('overlay'); ov.classList.remove('show'); ov.classList.remove('peeking'); document.body.classList.remove('peeking-board'); var bar=$('peekBar'); if(bar) bar.remove(); }
+  function hideOverlay(){
+    /* A dialog opened DURING peek closes back into peek, not out of it — otherwise looking at an energy pile
+     * would dump you off the review screen and lose the end screen behind it. */
+    if(closePeekDialog()) return;
+ peeking=false; revealOpen=false; var ov=$('overlay'); ov.classList.remove('show'); ov.classList.remove('peeking'); document.body.classList.remove('peeking-board'); var bar=$('peekBar'); if(bar) bar.remove(); }
 
   // ============ Guided tutorial — a coached first duel (Basics, 2p vs a gentle AI) ============
   var TUT = (function(){
@@ -5505,9 +5529,27 @@ __QR__
     b.classList.toggle('conceding', live);
   }
   function requestNewDuel(){
+    /* Reachable DURING peek since v1.31.63 (the header is lifted into the peek layer). Aj: it "should just
+     * close the peek like a back, but not offer the peek option again" — so leave peek first and proceed;
+     * whatever comes next (setup, the concede confirm, the leave confirm) is a fresh screen with no 👁 Peek. */
+    if(peeking) exitPeek();
     if(newBtnLive()) confirmConcede();          // mid-game → the button is a Concede
-    else if(netOnline()) NET.leaveOnline();     // online, nothing live → leave online play
+    else if(netOnline()) confirmLeaveOnline();  // online, nothing live → leave online play, behind a prompt
     else openSetup();
+  }
+  /* Leave DROPS THE RELAY ROOM and reloads, and it is a known mis-tap (as a floating overlay it covered 79% of
+   * the card reader's close button until v1.31.57). The prompt is unconditional, not peek-only — the risk is
+   * not peek-specific. */
+  function confirmLeaveOnline(){
+    showModal('<h2>Leave online play?</h2>'+
+      '<p>You will drop out of this table and go back to the game. Anyone still connected keeps playing.</p>'+
+      '<div class="confirmBtns">'+
+        '<button id="cancelLeave">Stay</button>'+
+        '<button id="confirmLeave" class="danger">← Leave</button>'+
+      '</div>');
+    $('cancelLeave').addEventListener('click', hideOverlay);
+    $('confirmLeave').addEventListener('click', function(){ NET.leaveOnline(); });
+    overlayDismiss=hideOverlay;
   }
   function confirmConcede(){
     var mp=MP();
@@ -7475,7 +7517,12 @@ __QR__
    * portrait phone and grew 87px -> 92px once a game started, leaving the boot-time value stale. Observe it. */
   if(window.ResizeObserver){ var hdEl=document.querySelector('header'); if(hdEl) new ResizeObserver(syncHeaderH).observe(hdEl); }
   if(!NET.boot()) openSetup();   // netplay when ?net= is present; otherwise the normal game (byte-identical)
-  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, rulesKey:rulesKey, setRulesFromKey:setRulesFromKey, resolveDeck:resolveDeck, setPulse:function(b){pulseDetail=b;}, activate:function(id,o){ return activate(id,o); },
+  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render,
+    /* Peek is only reachable from the end screen, so a suite would have to play a whole duel to get
+     * there. These enter/leave it directly — the real functions, not a staged class list, which is the
+     * distinction that matters: showModal's peek branch keys off the `peeking` VARIABLE. */
+    peek:function(){ var m=$('modal'); if(!$('overlay').classList.contains('show')){ m.innerHTML='<h2>END SCREEN</h2>'; $('overlay').classList.add('show'); } enterPeek(); return peeking; },
+    unpeek:exitPeek, peeking:function(){ return peeking; }, modalShown:function(){ return getComputedStyle($('modal')).display!=='none'; }, rulesKey:rulesKey, setRulesFromKey:setRulesFromKey, resolveDeck:resolveDeck, setPulse:function(b){pulseDetail=b;}, activate:function(id,o){ return activate(id,o); },
       seatName:seatName, logName:logName, persona:function(i){ var q=personaOf(i); return q?q.name:null; },   // tests assert the RIGHT seat is named, with personas live
       // buildPreDrawBeats is a pure function of the round result — exposing it lets a test assert the
       // ceremony wording DIRECTLY instead of playing random games until a shield-loss ceremony happens

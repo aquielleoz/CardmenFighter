@@ -53,6 +53,22 @@ async function waitFor(fn,t=80,ms=150){ for(let i=0;i<t;i++){ if(await fn()) ret
   ok(!(await p.evaluate(()=>!!document.getElementById('netLeave'))),
      '  → and no fixed #netLeave overlay is created, so it cannot cover the card reader’s close button');
 
+  /* Leave DROPS THE RELAY ROOM and reloads, so it asks first (v1.31.63). The prompt is unconditional rather
+     than peek-only: this button is a known mis-tap — as a floating overlay it covered 79% of the card reader's
+     close button until v1.31.57 — and the risk was never peek-specific. */
+  await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(400);
+  const prompt = await p.evaluate(()=>({
+    shown: (document.getElementById('overlay')||{}).classList.contains('show'),
+    text: ((document.getElementById('modal')||{}).textContent||'').trim().slice(0,40),
+    hasStay: !!document.getElementById('cancelLeave'), hasGo: !!document.getElementById('confirmLeave') }));
+  ok(prompt.shown && prompt.hasStay && prompt.hasGo,
+     `pressing Leave asks before dropping the room [${JSON.stringify(prompt.text)}]`);
+  const url2 = await p.evaluate(()=>location.href);
+  ok(url2===url0, '  → and nothing has happened yet — the page has not navigated or reloaded');
+  await p.evaluate(()=>document.getElementById('cancelLeave').click()); await wait(300);
+  ok(await p.evaluate(()=>!(document.getElementById('overlay')||{}).classList.contains('show')),
+     '  → and "Stay" dismisses it, leaving you online');
+
   // ?net= must still work, because every other netplay suite depends on it
   const p2=await ctx.newPage(); const errs2=[]; p2.on('pageerror',e=>errs2.push(e.message));
   await p2.goto(`http://localhost:${PORT}/CardmenFighter.html?net=host&room=IP1`); await wait(900);
