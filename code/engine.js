@@ -1693,8 +1693,13 @@
   // Fight plays resolve immediately. Value modifiers (equipment + pre-fight boosts like Infuse /
   // Imbue / Divine Tactics / Brilliant Tactic, all technique-speed via nextPlayBoost) fold in via
   // applyEquip; there are no fight-time attached Quick boosts (§STACK-DESIGN §0.2/0.3).
-  function play(st, p, cards, opts) {
-    opts = opts || {};
+  /* NO `opts`. It carried one thing — `{boost:id}` from the Boost button — and this function never read it, so
+   * the attach never worked for anybody. The whole path was unreachable anyway: `boostCard()` required
+   * `eff.quick` and all four valueBoost cards (Infuse, Imbue, Divine Tactics, Brilliant Tactic) are plain
+   * Techniques, so the button was never even rendered. Deleted in v1.31.71 rather than wired, because wiring it
+   * would apply the boost ATOMICALLY with the play and skip the Counter Spell window — and a valueBoost is a
+   * Technique, so being counterable is the point. Boosting is: activate the card, then play. */
+  function play(st, p, cards) {
     if (st.finished) return { ok: false, reason: 'Game over.' };
     if (p !== st.turn) return { ok: false, reason: 'Not your turn.' };
     if (isLocked(st, p)) return { ok: false, reason: 'You are locked out (Back Stab) — you skip this turn.' };

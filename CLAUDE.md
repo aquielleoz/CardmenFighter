@@ -81,6 +81,13 @@ offending line. It did not always: a missing comma in the template's `LESSONS` a
 entire script failed to parse — a dead game, which the UI tests then reported as a scatter of unrelated
 failures. If a UI test suddenly fails on everything, suspect a broken build first.
 
+**THE PARSE CHECK CANNOT SEE A DELETION.** Removing a feature leaves *live references* to identifiers that no
+longer exist, and a `ReferenceError` is a runtime fault — the build parses clean and prints its byte count. The
+v1.31.71 boost removal left `boost.style.display='none'` inside `updateActions`, so **every render on the real
+page threw** while `test.js` stayed 333/0 (it never loads the page) and I reported the removal as clean. After
+deleting anything from the template, `grep -i` the removed name and run at least one **UI** suite — `mptest` is
+the cheapest, and it failed on its third assertion.
+
 Balance / heavier harnesses, when a change could move win rates:
 
 ```bash
@@ -428,9 +435,15 @@ a client must never run.
 That is an A/B, and it beat days of theorising about the transport. **A UI affordance that no suite drives is
 untested however green the suite list looks**: clicking Fight and dragging are different branches, and only one
 was ever exercised.
-**THE SWEEP IS NOT FINISHED.** Guards were added per entry point, and four sites have now been found (drag-to-play,
-the human counter, the transform/Ride branch, and the N-player host's `logMsg` play line). Enumerate every
-player-initiated action and assert each one either sends an intent or is refused on a client.
+**THE SWEEP IS NOT FINISHED.** Guards were added per entry point, and **five** sites have now been found
+(drag-to-play, the human counter, the transform/Ride branch, the N-player host's `logMsg` play line, and
+**Phantasmal Illusion's picker**, v1.31.71 — it called the engine locally on a client, so the illusion happened
+on that screen and nowhere else). Enumerate every player-initiated action and assert each one either sends an
+intent or is refused on a client.
+**A MULTI-STEP CHOICE SENDS ITS CHOICES, NEVER ITS SOLUTION.** The phantasm picker computes a pile index; that
+index is derived from a **rotated mirror** and is meaningless on the host. `phantasmSolveFor(st, seat, addCard,
+phantId)` is the single definition, and the host re-solves from its OWN state — sending the index would be a
+fabricated-card bug wearing a different hat. Same rule as `resolveIds`: ids in, host resolves.
 
 **Netplay must be startable WITHOUT navigating.** `NET.start(role, kind, opts)` enters it in place; `?net=`
 still works and every `nettest_*` suite uses it, but the UI buttons must never set `location.search` — on
@@ -1072,17 +1085,21 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.62 — 2026-08-30, and for once EVERY suite was actually run** (serially; a full sweep is
-a few minutes). Counts below are verified, not last-known:
-`test` 325, `netview` 28, `mptest` 82, `rulestest` 143, `landscapetest` 117, `decktest` 42, `viewtest` 10,
+Status as of **v1.31.71 — 2026-08-31, every suite run serially, 61 suites and 0 FAIL** (a full sweep is
+~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
+`test` 333, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energy` 14,
-`versiontest` 15, `sharetest` 16, `qrtest` 32, `qrref` 26 (darwin only), `browsertest` (smoke, 12 duels).
-The 39 netplay suites: `nettest_3p` 7, `activate` 6, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
-`counter` 8, `customdeck` 18, `deckout3` 8, `deckpick` 8, `discard` 7, `discon3` 22, `drag` 13, `elim3` 15,
-`emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 11, `kick` 11, `log` 14, `losspick3` 7,
-`losspick_remote3` 6, `names` 8, `narrate` 10, `prefight` 13, `react3` 7, `record` 12, `relay` 17, `reveal` 10,
-`roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 11, `target3` 6,
-`version` 14.
+`versiontest` 15, `sharetest` 16, `qrtest` 32, `peektest` 31, `qrref` 26 (darwin only, corroborates rather than
+gates), `browsertest` (smoke, 12 duels — prints no PASS line).
+The 43 netplay suites: `nettest_3p` 7, `activate` 6, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
+`counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
+`elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 14, `kick` 11, `log` 14, `losspick3` 7,
+`losspick_remote3` 6, `names` 8, `narrate` 10, `phantasm` 8, `prefight` 13, `react3` 7, `record` 12, `relay` 17,
+`reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 11,
+`target3` 6, `trim` 14, `unready` 12, `version` 14.
+**`nettest_sync` PASSED this sweep, and that is not evidence it is fixed** — the host/client fork it hunts is
+intermittent at roughly 1-3 runs in 8, so one green run is exactly what the bug looks like most of the time. A
+single clean sweep is evidence for the OTHER 60 suites and says nothing about this one.
 **RUN THE WHOLE NETPLAY SWEEP AFTER A UI CHANGE, NOT THE SUITES THAT LOOK RELEVANT.** v1.31.57 gave `#newBtn` a
 third state and left `nettest_elim3` red for five versions, because that suite asserts an ELIMINATED seat's
 header text and nothing about the change suggested it. The sweep takes a few minutes; a suite that is red and
@@ -1214,8 +1231,19 @@ full house on the pile). v1.31.6 restored the card with the swap OPTIONAL and bo
 now casts 1.8/6.3/8.3 per 100 games at 2/4/6 players. Before deleting a card for being uncast, find out what it
 is waiting for.
 
-**Effect KINDS can be orphaned and stay orphaned — it has happened twice.** `stopper` was the other one and it
-is now **deleted** (v1.31.13); `phantasm` was restored as a real card (v1.31.6). Run
+**A WHOLE UI PATH CAN BE ORPHANED TOO, AND I MISREPORTED THIS ONE TWICE AS A CLIENT GAP (v1.31.71).** The
+Boost button attached a valueBoost card to a play. Measured: `E.play` **never read `opts.boost`** — so the attach
+did nothing on any seat — and `boostCard()` required `eff.quick` while all four valueBoost cards are plain
+Techniques, so `#boostBtn` **was never rendered for anybody**. Twenty sites deleted, `play()`'s `opts` parameter
+included. It was deleted rather than wired **on purpose**: an atomic boost-plus-play skips the Counter Spell
+window, and a valueBoost is a Technique — being counterable is the point (Aj's own log has an Infuse with Magic
+losing to Kings because it was counterspelled). Boosting works and always did: **activate, then play**;
+`r.boosted` comes from `nextPlayBoost`, which an activation sets. **Read the layer that would have to CONSUME the
+thing before believing a feature exists** — markup, handler and engine hook all present is not a connection, and
+"a client can't do X" is the wrong bug when nobody can.
+
+**Effect KINDS can be orphaned and stay orphaned — it has happened THREE times.** `stopper` was **deleted**
+(v1.31.13); `phantasm` was restored as a real card (v1.31.6); the boost attach is the third (above). Run
 `grep -c "kind: 'x'" engine.js` before believing any "this card/mechanic is unused" claim — a playtest once
 reported "0 STOPPER uses in 14 games" as an engagement problem when the mechanic simply wasn't in the game.
 When deleting one, note that `cardName()` reads the EFFECTS entry independently of `effectOf()`, so the apex
