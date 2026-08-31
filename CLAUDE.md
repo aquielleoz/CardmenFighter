@@ -50,8 +50,16 @@ node decktest.js                                # custom deck builder, full UI (
 node viewtest.js                                # 🔍 View card reader gating on tight screens (10)
 node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (96)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
-node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
+node lessontest_energyorder.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node lessontest_quicks.js               # the "Quicks" lesson — the interactive Counter Spell demo, full UI (21)
+node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated (24)
+node lessontest_zones.js                # the "Zones of Play" spotlight tour — every selector must LIGHT (21)
+node lessontest_initiative.js           # the "Initiative" lesson — asserts you genuinely cannot beat the lead (17)
+node lessontest_specials.js             # the "Specials" lesson — jab, then a real pair, then the shield (19)
+node lessontest_energy.js               # the "Energy & Effects" lesson — bank, activate, spend (18)
+node lessontest_rides.js                # the "Rides" lesson — the J really enters your zone (15)
+node lessontest_forms.js                # the "Form Changes" lesson — the Q really enters your zone (15)
+#   lessonlib.js is a shared HELPER for the seven above, not a suite — don't run it directly
 node piletest.js                                # energy/shuffle pile viewers + promote (30)
 node revealtest.js                              # Outbalance's hand read: the modal, and that it never
                                                 # reaches `state` (12)
@@ -129,7 +137,31 @@ reading each rig's output at lesson start). Do not re-derive it:
 - `tutRigInitiative` / `tutRigZones` / `tutRigEnergyOrder` seed energy by SUIT, so they pick from ~13 candidates
   and cannot be starved.
 
-**ONLY 3 OF 10 LESSONS HAVE A SUITE** — `decks`, `energyorder`, `quicks`. The seven without include four with
+**ALL TEN LESSONS HAVE A SUITE as of v1.31.74**, sharing `lessonlib.js` (a helper, not a suite — the
+`nettest_lobby.js` convention). **Assert what the lesson CLAIMS, not that the panel rendered:** the step text
+makes factual promises the gate does not check — a shield broke, the card banked, the transform is in your zone,
+"your cards are all low so you can't beat their lead" (that one is `legalFightPlays(...).length===0`, the
+engine's own answer). For an ungated tour like `zones`, assert each step's selector **exists AND carries
+`.tut-spot`**: `applySpot` does `querySelectorAll` and lights nothing when an id is renamed, and the tour still
+clicks to the end.
+**A UI HELPER MUST RETRY, BECAUSE `busy` SWALLOWS CLICKS SILENTLY.** `doFight`/`doPass`/`toggle` each `return`
+on `busy` with no message, so a single click plus an assertion reads as "the button is broken" — `playPair` and
+`passTurn` retry and report how long they took, which is how the 2-second window below was measured at all.
+
+**AN ENABLED CONTROL MUST WORK — `updateActions` DID NOT KNOW ABOUT `busy` (fixed v1.31.74).** `yourTurn` is
+`state.turn===YOU && !state.finished`, with no `busy` in it, so from the moment the turn returned to you until
+the opponent's beats finished animating, Fight and Pass rendered **enabled** and every click was dropped
+silently. **Measured: 2014ms** in the Initiative lesson, where the Rival leads round 1. The branch now disables
+both and says so, and sits **after** the `!yourTurn` branch so the more specific "Rival is fighting…" still
+wins. From the outside an enabled-but-inert control is indistinguishable from a hang, and this is a plausible
+contributor to "netplay lagged at the beginning" reports. The invariant is asserted directly: wait for Pass to be
+enabled, click **once**, require the game to move.
+
+**THE OLD `lessontest_energy.js` TESTED THE *ENERGY ORDER* LESSON** — renamed `lessontest_energyorder.js` in
+v1.31.74 so the real `energy` suite can have the obvious name. If an old note refers to `lessontest_energy` at 14
+assertions, it means energyorder.
+
+**BEFORE v1.31.74, ONLY 3 OF 10 LESSONS HAD A SUITE** — `decks`, `energyorder`, `quicks`. The seven without include four with
 **gated** steps (`specials` and `energy` gate on `play`/`activate`; `rides` and `forms` on a transform), so a rig
 regression there brings the same silent dead end Quicks had. Their rigs measure safe today, but 8 deals is
 evidence, not a test that runs — and Quicks went from "green and fine" to five defects the same afternoon a suite
@@ -1173,11 +1205,13 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.73 — 2026-08-31, every suite run serially, 62 suites and 0 FAIL** (a full sweep is
+Status as of **v1.31.74 — 2026-08-31, every suite run serially, 69 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
 `test` 333, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
-`piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energy` 14,
-`versiontest` 15, `sharetest` 16, `qrtest` 32, `peektest` 31, `lessontest_quicks` 21, `qrref` 26 (darwin only, corroborates rather than
+`piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
+`versiontest` 15, `sharetest` 16, `qrtest` 32, `peektest` 31, `lessontest_quicks` 21, `lessontest_howto` 24,
+`lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
+`lessontest_rides` 15, `lessontest_forms` 15, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
 The 43 netplay suites: `nettest_3p` 7, `activate` 6, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,

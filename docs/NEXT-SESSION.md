@@ -181,17 +181,6 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
-- **★ SEVEN OF TEN TUTORIAL LESSONS HAVE NO SUITE, and four of them have GATED steps.** Covered: `decks`
-  (`lessontest`), `energyorder` (`lessontest_energy`), `quicks` (`lessontest_quicks`). Uncovered: `howto`,
-  `zones`, `initiative`, `specials`, `energy`, `rides`, `forms` — and `specials`/`energy` gate on
-  `play`/`activate` while `rides`/`forms` gate on a transform, so a rig that fails to deliver leaves the same
-  silent dead end Quicks had: the step simply never advances, with no error and no way to finish.
-  **Their rigs were audited on 2026-08-31 and measure safe** (see CLAUDE.md for the numbers — the J/Q fallbacks
-  hold 8/8, and `tutPickEffect`/`tutEnsurePair` repair `tutRig`'s misses), so this is not a known bug. It is the
-  largest untested surface left: Quicks looked exactly this safe until a suite existed, and then it had five
-  defects. `lessontest_quicks.js` is the template to copy — walk to the gated step and assert the gate is
-  satisfiable, not merely that the panel rendered.
-
 *Swept 2026-08-30: 1000 lines → 587. Nineteen shipped items were removed, not archived — the changelog below
 carries each one in full, and a struck-through entry in a backlog is a thing the next session still has to read
 before it can skip. Three entries were COMPRESSED rather than dropped because part of each is still open, and
@@ -783,6 +772,48 @@ checked on a real device.*
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.74 — seven lesson suites, and the enabled button that did nothing for two seconds
+
+Seven of the ten tutorial lessons had no test. Four of them have **gated** steps, so a rig or gate regression
+leaves a player stuck with no error and no way to finish — the failure mode that hid five defects in the Quicks
+lesson until v1.31.73. They are covered now: `lessontest_howto` (24), `lessontest_zones` (21),
+`lessontest_initiative` (17), `lessontest_specials` (19), `lessontest_energy` (18), `lessontest_rides` (15),
+`lessontest_forms` (15). All ten lessons now have a suite.
+
+`lessonlib.js` is a shared **helper, not a suite** (the `nettest_lobby.js` convention) — seven lessons needed the
+same boilerplate, and it carries the traps `lessontest_quicks` had already paid for: `next()` reports when
+`#tutNextBtn` is absent, every poll prints on timeout, and `playAny()` tries **every** card rather than gambling
+on one.
+
+**Each suite asserts what its lesson CLAIMS, not that the panel rendered.** The steps make factual promises the
+gates do not check, and those are the assertions: `specials` and `howto` say a shield broke — so the suites check
+the Rival's shield count; `energy` says the card banked and the spend reached the shuffle pile — both asserted;
+`rides`/`forms` say the transform sits in your zone — asserted against `players[0].forms`; `initiative` says
+*"your cards are all low, so you can't beat their lead"*, which is asserted as `legalFightPlays(...).length===0`,
+the engine's own answer. `zones` is a spotlight tour with no gates, so its suite asserts each step's selector
+both **exists** and is **carrying `.tut-spot`** — `applySpot` does `querySelectorAll` and silently lights nothing
+when an id is renamed, and the tour still clicks happily to the end.
+
+**And the real find: an ENABLED control that did nothing for ~2 seconds.** `updateActions` computes
+`yourTurn` as `state.turn===YOU && !state.finished` — **`busy` is not in it** — while `doFight`, `doPass` and
+`toggle` all `return` on `busy` **silently**. So from the moment the turn came back to you until the opponent's
+beats finished animating, Fight and Pass rendered enabled, the hand rendered interactive, and every click was
+dropped without a message. Measured at **2014ms of swallowed Pass clicks** in the Initiative lesson, where the
+Rival leads round 1; the same window ate hand clicks, which is what made two of these suites read "Fight is
+disabled" with an empty selection.
+
+`updateActions` now disables both controls while `busy` and says *"Hold on — the board is still resolving."* It
+sits **after** the `!yourTurn` branch so "Rival is fighting…" still wins when it genuinely is not your turn — the
+more specific message should survive.
+
+This is worth knowing beyond the tutorial: **from the outside, an enabled-but-inert control is indistinguishable
+from the game having hung**, and it is a plausible contributor to reports that netplay "lagged at the beginning".
+The invariant is now asserted directly — `lessontest_initiative` waits for Pass to be enabled, clicks it
+**exactly once**, and requires the game to move. Reverting the fix fails that assertion and six more.
+
+A naming trap removed while here: `lessontest_energy.js` tested the **Energy Order** lesson, not Energy. It is
+`lessontest_energyorder.js` now, and the real `energy` suite has the obvious name.
 
 ### v1.31.73 — the Quicks lesson was broken five ways: three a test found, two Aj found by playing it
 

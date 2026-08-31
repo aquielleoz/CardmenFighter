@@ -3369,6 +3369,20 @@ __QR__
       hint.className = (MP() && state.players[YOU].eliminated) ? 'bad' : '';
       return;
     }
+    /* BUSY MEANS THE PRESENTATION IS STILL RUNNING, and every action handler ALREADY refuses while it is —
+     * silently. `yourTurn` is `state.turn===YOU && !state.finished` with no `busy` in it, so once the turn comes
+     * back to you but the opponent's beats are still playing, Fight and Pass render ENABLED and do nothing at
+     * all: `doFight`, `doPass` and `toggle` each `return` on `busy` without a message. MEASURED at **2014ms of
+     * swallowed Pass clicks** in the Initiative lesson, where the Rival leads round 1 — found by
+     * `lessontest_initiative`, which had to retry its click for two seconds before anything happened.
+     * An enabled control that does nothing is worse than a disabled one, and from the outside it is
+     * indistinguishable from the game having hung. Placed AFTER the `!yourTurn` branch so "Rival is fighting…"
+     * still wins when it is genuinely not your turn — that message is more specific than this one. */
+    if(busy){
+      fight.disabled=true; pass.disabled=true; ctxBtn.style.display='none'; cardAct.style.display='none';
+      hint.textContent='Hold on — the board is still resolving.'; hint.className='';
+      return;
+    }
     if(E.isLocked(state, YOU)){                               // Back Stab: you can't play or activate this round
       hint.textContent='Locked out this round (Back Stab) — you can only '+(state.pile?'pass':'skip')+'.'; hint.className='bad';
       fight.disabled=true; pass.disabled=false; pass.textContent=state.pile?'Pass':'Skip';
