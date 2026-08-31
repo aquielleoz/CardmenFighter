@@ -4964,7 +4964,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.67';
+  var GAME_VERSION='v1.31.68';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -9655,6 +9655,23 @@ window.CardFace = {};
       if(sugFlush) return;                                    // already scheduled — coalesce into that flush
       sugFlush=setTimeout(function(){ sugFlush=null; flushSuggest(); }, 250);
     }
+    /* A seat takes its readiness back. This is the per-seat form of what a rules change already does to the
+     * whole table (`rulesGen++` stales every stamp), so it reuses the same machinery rather than inventing a
+     * second notion of "ready".
+     * IT MUST NOT FREE THE SEAT. `hostStartRealN` indexes seats `1..nextSeat-1` — JOINED, never ready —
+     * precisely so a stale seat sitting before a ready one cannot mis-assign decks. Readiness gates the Start
+     * BUTTON only, so `seatRuleGen` is what changes here and `nextSeat` is untouched.
+     * AND IT WITHDRAWS THE SEAT'S RULE SUGGESTION (Aj, 2026-08-30): a player stepping out of the game takes
+     * their suggestion with them. This is the one place a suggestion is cleared by someone other than its
+     * sender, so the whole map is re-broadcast — suggestions are STATE, not events. */
+    function hostUnready(seat){
+      if(!isHost() || !seat || started) return;               // mid-game there is nothing to un-ready
+      var had = (seatRuleGen[seat]!=null);
+      delete seatRuleGen[seat];
+      if(seatSuggest[seat]!==undefined){ delete seatSuggest[seat]; flushSuggest(); }
+      if(had) logMsg('↩ '+seatName(seat)+' is no longer ready.', 'dim');
+      renderNet();
+    }
     function sugNames(){ var o={}, k; for(k in seatSuggest){ if(seatNames[k]) o[k]=seatNames[k]; } return o; }
     function flushSuggest(){ send({t:'suggest', all:seatSuggest, names:sugNames()}); refreshRulesPanel(); }
     function sendSuggest(key){                                // client side: offer ours to the host
@@ -10103,7 +10120,7 @@ window.CardFace = {};
            * suggestion is a LOBBY act, where there is no board at all. Stamping them meant a client whose `q`
            * had drifted could not emote or suggest, silently: Aj's real game shows three emotes refused
            * (`op=emote q=0 ... state is 1`), and `nettest_emote` has been red since v1.31.54 for this reason. */
-          var boardless = !!(m.intent && (m.intent.op==='emote' || m.intent.op==='suggest'));
+          var boardless = !!(m.intent && (m.intent.op==='emote' || m.intent.op==='suggest' || m.intent.op==='unready'));
           if(!boardless && m.q!=null && m.q!==stateSeq){
             trace('move REFUSED — stale', 'client q='+m.q+' but state is '+stateSeq);
             broadcastMirror(); return;
@@ -10113,6 +10130,10 @@ window.CardFace = {};
            * Putting it inside them looked right and did nothing: the suggestions that appeared were arriving by
            * accident on the join RETRY (which re-sends `sug` every 350ms until the game starts). */
           if(sseat!=null && m.intent && m.intent.op==='suggest'){ hostSuggest(sseat, m.intent.key); return; }
+          /* UN-READY, dispatched HERE for the same reason `suggest` is: `hostApplyMove*` return immediately
+           * when there is no `hostState`, which is the entire lobby, so anything lobby-relevant handled inside
+           * them looks right and does nothing. */
+          if(sseat!=null && m.intent && m.intent.op==='unready'){ hostUnready(sseat); return; }
           if(sseat!=null){ if(MP()) hostApplyMoveN(sseat, m.intent); else hostApplyMove(m.intent); } }
         else if(m.t==='concede'){ onOpponentConcede(srcChan?seatOfChan(srcChan):m.seat); }
       } else {
@@ -11072,7 +11093,8 @@ window.CardFace = {};
           '<button id="lobbyPing" class="netbtn">🔔 Ping the table</button><div id="lobbyPingMsg" class="nethint"></div>';
       } else {
         body+= iReady
-          ? '<div class="lobbyStatus">✓ You’re ready (<b>'+deckLabel(myDeck)+'</b>)'+(typeof mySeat==='number'?' — you are Player '+(mySeat+1):'')+'. Waiting for the host to start…</div>'
+          ? '<div class="lobbyStatus">✓ You’re ready (<b>'+deckLabel(myDeck)+'</b>)'+(typeof mySeat==='number'?' — you are Player '+(mySeat+1):'')+'. Waiting for the host to start…</div>'+
+            '<button id="lobbyUnready" class="netbtn">↩ Not ready</button><p class="nethint">Changed your mind? Take your Ready back and pick again — your seat is kept.</p>'
           : '<button id="lobbyGo" class="netbtn go">Ready ▶</button><p class="nethint">Pick your deck, then hit Ready — the host starts the game.</p>';
       }
       root.innerHTML=head+body+'</div>';
@@ -11092,6 +11114,17 @@ window.CardFace = {};
          * panel must never look like it is setting them (hence the in-play chips). */
         if(isHost()) showRules({ back:function(){ hideOverlay(); hostRulesChanged(); }, onChange:null });
         else showRules({ suggest:true, back:hideOverlay });
+      });
+      /* TAKE THE READY BACK. `stopJoinRetry()` FIRST and not as an afterthought: the join retry re-sends
+       * `t:'join'` every 350ms until the game starts, so un-readying without stopping it un-readies the seat
+       * and then silently re-readies it a third of a second later — which looks exactly like a dead button.
+       * The seat itself is KEPT: `hostStartRealN` indexes joined seats, not ready ones, so giving the seat back
+       * would renumber the table and mis-assign decks. */
+      var un=$('lobbyUnready'); if(un) un.addEventListener('click', function(){
+        stopJoinRetry();
+        iReady=false;
+        clientSend({op:'unready'});
+        renderNet();
       });
       var go=$('lobbyGo'); if(go) go.addEventListener('click', function(){
         myDeck=($('deckSel')||{}).value||myDeck;

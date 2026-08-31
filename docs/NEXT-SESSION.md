@@ -227,7 +227,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   drag, and that suite drives clicks + Fight, which short-circuits in `doFight` — and the suite has a long
   documented history of intermittency. Recorded as characterised-but-open rather than dismissed: **capture the
   failing assertion next time it goes red.**
-- **AN UN-READY BUTTON FOR NETPLAY** (Aj, 2026-08-30). A client can press Ready and has no way to take it back:
+- **~~AN UN-READY BUTTON FOR NETPLAY~~ SHIPPED in v1.31.68** (Aj, 2026-08-30). A client can press Ready and has no way to take it back:
   once readied it waits for the host to start, whether or not it still wants to play that game. The host can
   already remove a seat (`hostDropPlayer`, the ✖ in the roster) — the player cannot.
   **Most of the machinery already exists**, because a rules change un-readies the whole table: `rulesGen++`
@@ -1179,6 +1179,37 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.68 — a client can take its Ready back
+
+Pressing Ready was one-way: you then waited for the host to start, whether or not you still wanted to play that
+game. The host could already remove a seat (`hostDropPlayer`); the player could not.
+
+**It reuses the machinery a rules change already has**, rather than inventing a second notion of "ready": a
+rules change stales every readiness stamp with `rulesGen++`, and `readyCount()` only counts seats whose stamp is
+current. Un-ready is that, for one seat, on purpose — the host deletes `seatRuleGen[seat]` and re-renders.
+
+**Both documented traps are handled, and both are asserted:**
+- **`stopJoinRetry()` comes FIRST.** The join retry re-sends `t:'join'` every 350ms until the game starts, so
+  un-readying without stopping it un-readies the seat and silently re-readies it a third of a second later —
+  which looks exactly like a dead button. `nettest_unready` waits **past** that window before asserting, so a
+  check that fired immediately could not pass by luck.
+- **The SEAT is kept.** `hostStartRealN` indexes seats `1..nextSeat-1` — *joined*, never *ready* — precisely so
+  a stale seat sitting before a ready one cannot mis-assign decks. The suite asserts the seat NUMBER survives a
+  full un-ready/re-ready round trip (Player 2 → Player 2), which is the sharp form of that.
+
+**Un-readying withdraws the seat's rule suggestion**, as agreed: a player stepping out takes their suggestion
+with them. That is the one place a suggestion is cleared by someone other than its sender, so the host
+re-broadcasts the whole map — suggestions are state, not events.
+
+**The host gets no un-ready button**, also as agreed: its "readiness" is just its own rules choice, so its
+equivalent is the existing Leave.
+
+The intent is **board-independent**, so it joins `emote` and `suggest` in never carrying a `stateSeq` stamp, and
+is dispatched ahead of `hostApplyMove*` — those return immediately without a `hostState`, which is the entire
+lobby, so anything lobby-relevant handled inside them looks right and does nothing.
+
+`nettest_unready.js` (12), verified by removing `stopJoinRetry()`: the suite fails with the exact diagnostic.
 
 ### v1.31.67 — the "seizes the initiative" dim comes down
 

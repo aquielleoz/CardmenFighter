@@ -114,6 +114,9 @@ node peektest.js             # PEEK AT THE TABLE, the review mode (31). Peek SHO
                              # __solo.peek() — the REAL enterPeek, because showModal's peek branch keys off the
                              # `peeking` VARIABLE, so staging the classes alone tests nothing. And the hand's
                              # click target is the .group; `.group .card{pointer-events:none}` is by design.
+node nettest_unready.js      # a client can take its Ready back (12). Waits PAST the 350ms join retry before
+                             # asserting — the retry silently re-readies the seat, so an immediate check passes
+                             # on a build where the button does nothing.
 node nettest_dim.js          # the round banner must COME DOWN on a client (8). Stages the client OVER the hand
                              # cap and makes it PASS — playing shrinks the hand and the trim-then-draw grows it
                              # back, which the old proxy could see. Asserts the teardown, never the banner.
