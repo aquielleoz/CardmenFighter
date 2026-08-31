@@ -181,28 +181,16 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
-- **★ A CLIENT CANNOT USE BRILLIANT TACTIC — the Boost button is a dead control on every client.**
-  `sendClientPlay` builds the intent as `{op:'play', ids:ids}` and then does `boostArmed=false`, so the boost is
-  **discarded on send**; the host's `E.play(hostState, seat, resolveIds(seat, it.ids))` is called with no options
-  argument at all. The host's own `playCards` passes `{boost:bId}`. So the host can boost and no client can, and
-  the client's UI still offers the button — `boost.style.display` is decided by `boostCard()` availability, not
-  by role, so a player arms it, plays, and nothing happens.
-  **Fix:** carry the boost id on the intent and pass it through on the host, which must re-validate that the id
-  is really a Brilliant Tactic in that seat's hand (`resolveIds` already does the equivalent for cards — a
-  client is untrusted).
-- **★ A CLIENT'S PHANTASMAL ILLUSION RUNS THE LOCAL ENGINE AND NEVER REACHES THE HOST.** `confirmPick`'s
-  `phantasm` branch calls `E.phantasm(state, YOU, opts)` directly with **no `isClientActive()` guard** — the
-  same class as the drag-to-play bug (v1.31.56), and the fourth site of it. On a client the illusion appears to
-  work, mutates the mirror, and is wiped by the next broadcast; the host never hears about it.
-  The neighbouring branches show the shape of the fix: `discard` sends `{op:'discard', ids}` and `doCounterfeit`
-  sends `{op:'activate', id, copyId}`, both re-validated on the host. Phantasm needs its own op carrying
-  `cardId` / `addId` / `removeIdx`, validated the same way.
-  **`handlimit` has no guard either but does not need one today** — a client reaches the round-end trim through
-  `discardPending` (v1.31.70), so its pick is `kind:'discard'`. That is implicit and worth a comment rather than
-  a fix.
-  **CLEAN, checked rather than assumed:** the forced discard, the counter/respond window, the shield guard, the
-  pre-fight window, the loss-target pick, energy reorder/promote and Counterfeit all have real client paths, and
-  each has a netplay suite.
+- **★ SEVEN OF TEN TUTORIAL LESSONS HAVE NO SUITE, and four of them have GATED steps.** Covered: `decks`
+  (`lessontest`), `energyorder` (`lessontest_energy`), `quicks` (`lessontest_quicks`). Uncovered: `howto`,
+  `zones`, `initiative`, `specials`, `energy`, `rides`, `forms` — and `specials`/`energy` gate on
+  `play`/`activate` while `rides`/`forms` gate on a transform, so a rig that fails to deliver leaves the same
+  silent dead end Quicks had: the step simply never advances, with no error and no way to finish.
+  **Their rigs were audited on 2026-08-31 and measure safe** (see CLAUDE.md for the numbers — the J/Q fallbacks
+  hold 8/8, and `tutPickEffect`/`tutEnsurePair` repair `tutRig`'s misses), so this is not a known bug. It is the
+  largest untested surface left: Quicks looked exactly this safe until a suite existed, and then it had five
+  defects. `lessontest_quicks.js` is the template to copy — walk to the gated step and assert the gate is
+  satisfiable, not merely that the panel rendered.
 
 *Swept 2026-08-30: 1000 lines → 587. Nineteen shipped items were removed, not archived — the changelog below
 carries each one in full, and a struck-through entry in a backlog is a thing the next session still has to read
