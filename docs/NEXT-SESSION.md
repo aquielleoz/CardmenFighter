@@ -22,9 +22,17 @@ live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(
 
 ## ☀️ START HERE — where we left off (2026-08-31)
 
-`main` is at **v1.31.74**, working tree clean, and the only remaining branch is **`feat/qr-scanning`** (parked,
-built, green at 21/0 — see the BACKLOG entry for the condition that would revive it). Everything else is merged
-and pruned.
+`main` is at **v1.31.74**. Branches: **`feat/qr-scanning`** (parked, built, green at 21/0 — see the BACKLOG entry
+for the condition that would revive it) and **`fix/sync-fork-diagnostics`**, which is **PR #108, open and green,
+awaiting review** — the `nettest_sync` re-measurement and its instrumentation.
+
+**⚑ TOMORROW'S FIRST TASK, agreed 2026-08-31:** build the probe named at the end of the fork entry — one that
+**drops the deal mirror AND leaves the CLIENT to act next.** That is the only configuration in which a stale
+client can genuinely deadlock the table (it is `busy`, or acting on a board the host has moved past, while the
+host is parked waiting for it), and the probe written today never reaches it: after its forced drop the game is
+on the HOST's turn, so `settle()` gives up before either side acts and the "persistence" it shows is an artefact
+of the harness. Everything else about that bug is now instrumented — read the fork entry first, especially the
+list of things already tried and withdrawn.
 
 **Sanity check before you touch anything** (from `code/`, ~1 minute):
 
