@@ -4947,7 +4947,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.64';
+  var GAME_VERSION='v1.31.65';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -10047,6 +10047,9 @@ window.CardFace = {};
           connected=true;
           var cid=m.cid||'anon', isNew=(hostSeatOf[cid]==null);
           if(isNew){ if(nextSeat>MAX_SEATS-1){ sendTo0(srcChan, {t:'full', cid:cid}); return; } hostSeatOf[cid]=nextSeat++; }   // seats 1..5 (+host = up to 6)
+          /* Drop this seat's mirror cache on every join, new or returning: a peer that reconnects has missed
+           * whatever changed while it was away, so it must not be deduped against state it never received. */
+          try{ delete lastMirror[hostSeatOf[cid]]; }catch(e){}
           // The joiner's deck arrives as a bare string (a preset key, 'random', 'full', or a composition
           // like 'custom:D1H2C1'). It is untrusted: validate it here rather than letting an unknown key
           // fall through buildDeck() to a silent Full Set.
@@ -10281,7 +10284,26 @@ window.CardFace = {};
      * `stateSeq` advances only when an intent is actually APPLIED, never per render, so a client's intent is
      * valid exactly while the state it was formed against is still current. */
     var stateSeq=0;
-    function broadcastMirror(){ if(hostState){ for(var s=1;s<hostState.numPlayers;s++) sendTo(s, {t:'mirror', seat:s, q:stateSeq, st:NetView.mirrorFor(hostState, s)}); } }   // per-seat (a seat's private hand never reaches another peer)
+    /* DEDUPE BY CONTENT. `broadcastMirror` is called from every render, and a render happens for animations, hover,
+ * effect flashes — measured with a trace, **502 byte-identical mirrors to one seat in 1.4 seconds**. The client
+ * applies each one, so it falls seconds behind and its board reads stale: `nettest_sync` was catching that as a
+ * "fork" (host 6 cards, client 4) 2 runs in 6, and it is the host half of the re-render storm in Aj's logs.
+ * Compared by CONTENT rather than by `stateSeq`, deliberately — `stateSeq` counts client INTENTS, not state
+ * changes, so the host's own plays and the round draw do not advance it and a stamp-based skip would drop real
+ * updates. Identical bytes cannot change a client's board, so skipping them is safe by construction.
+ * `lastMirror` is cleared whenever a seat's channel is (re)bound, so a reconnecting peer always gets a fresh
+ * one rather than being deduped against the state it missed. */
+  var lastMirror={};
+  function broadcastMirror(){
+    if(!hostState) return;
+    for(var s=1;s<hostState.numPlayers;s++){
+      var msg={t:'mirror', seat:s, q:stateSeq, st:NetView.mirrorFor(hostState, s)}, j;
+      try{ j=JSON.stringify(msg); }catch(e){ j=null; }
+      if(j!==null && lastMirror[s]===j) continue;              // nothing changed for this seat
+      lastMirror[s]=j;
+      sendTo(s, msg);
+    }
+  }   // per-seat (a seat's private hand never reaches another peer)
     function onRender(){ if(isHost() && started && hostState) broadcastMirror(); }   // hook: keep the client's board in lockstep
     function awaitRival(){ trace('awaitRival', 'host parks, waiting for a client move'); busy=true; $('rivalStatus').textContent='Waiting for opponent…'; render(); broadcastMirror(); }   // park; client will send a move
     /* THE OTHER HALF OF awaitRival, and it was missing (found 2026-08-28 from Aj's first real relay game).

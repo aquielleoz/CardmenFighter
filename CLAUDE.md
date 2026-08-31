@@ -814,6 +814,19 @@ host "Rival won … You lost a shield" / client "You won … Rival lost a shield
 "You won … You lose a shield" look like the bug when it may have been correct. Reproduce on neutral names
 before trusting a narration report.
 
+**THE HOST DEDUPES MIRRORS BY CONTENT (v1.31.65). `broadcastMirror` runs from EVERY render** — animations,
+hovers, effect flashes — and measured over a real game, **1137 calls produced 29 distinct mirrors: 97% were
+byte-identical duplicates**, once `x502` to a single seat inside 1.4 seconds. The client applies each one, so it
+falls behind and reads stale. **Compare CONTENT, never `stateSeq`**: that counter tracks client intents, so the
+host's own plays and the round draw never advance it and a stamp-based skip would drop real updates. A seat's
+cache is dropped on join and rejoin, so a reconnecting peer is never deduped against state it missed.
+
+**IF AN A/B RETURNS IDENTICAL NUMBERS, CHECK THAT THE BUILD ACTUALLY WROTE.** On 2026-08-30 a comment repair
+orphaned its tail onto its own line; `build.js` refused to write (correctly), and the suites kept running the
+PREVIOUS build for several measurements — including an A/B whose two arms returned the same number, which is
+the documented signature of a broken instrument. `build.js` prints `built … bytes` on success and a named
+syntax error on failure. **Read that line before believing a surprising measurement.**
+
 **MIRRORS CARRY A STATE STAMP, AND A STALE INTENT IS REFUSED (v1.31.54).** `stateSeq` advances only when an
 intent is APPLIED, never per render — that is what makes it usable, since an intent is valid exactly while the
 board it was formed against is current. A client ignores a mirror whose stamp goes BACKWARDS (a replay would
