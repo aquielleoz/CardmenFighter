@@ -64,11 +64,41 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
     'your 52 cards are all still accounted for, none duplicated');
 
   ok(await next(),'step 1 offered "Show me ▸"');   // → step 2 runs tutCastRivalTech
-  const opened=await until(()=>!!document.querySelector('.respQuick'),'the Respond? window opens');
+  /* THE BEAT, ASSERTED IN BOTH DIRECTIONS. A single "is the modal absent right now" sample is worthless: sampled
+   * early it passes on a build with no dwell at all, and it also passes on a build where the modal never opens.
+   * So sample continuously and record (a) whether the cast was on screen BEFORE the modal and (b) how long the
+   * modal took, then check that against `revealDwell`'s own two values. */
+  let sawFlash=false, sawReader=false, tOpen=0;
+  { const t0=Date.now();
+    while(Date.now()-t0<9000){
+      const v=await p.evaluate(()=>({flash:!!document.querySelector('#artFlash.show'),
+                                     reader:!document.querySelector('#cardView .cvEmpty') && (document.getElementById('cardView')||{}).textContent!=='' ,
+                                     modal:!!document.querySelector('.respQuick')}));
+      if(v.modal){ tOpen=Date.now()-t0; break; }
+      if(v.flash) sawFlash=true;
+      if(v.reader) sawReader=true;
+      await p.waitForTimeout(50);
+    }
+    if(!tOpen) console.log('⏱ poll TIMED OUT: the Respond? window opens');
+  }
+  const opened=tOpen>0;
   if(!opened) console.log('   WHY: '+await why());
   ok(opened,'the Rival cast a Technique and the Respond? window opened');
+  ok(sawFlash,'the cast FLASHES on screen before the modal — the beat that was missing');
+  ok(sawReader,'…and the card lands in the reader, so you can read what you are countering');
+  const reduced=await p.evaluate(()=>!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches));
+  const floor=Math.round((reduced?1200:2650)*0.8);
+  ok(opened && tOpen>=floor,'the modal waits for the reveal — '+tOpen+'ms, floor '+floor+(reduced?' (reduced motion)':''));
   ok(await p.evaluate(()=>[].some.call(document.querySelectorAll('.respQuick'),x=>/Counter Spell/.test(x.textContent))),
     '…offering Counter Spell');
+  /* "Let it resolve" cannot satisfy step 2's gate, and each decline spends the Rival's energy until nothing can
+   * be cast, so the lesson disables it. The NEGATIVE half — that it still works in a real duel — is covered by
+   * `browsertest` and `nettest_actloop`, both of which click this button in ordinary play; over-broadening this
+   * gate turns those red (verified). */
+  ok(await p.evaluate(()=>{const d=document.getElementById('respDecline'); return !!d && d.disabled;}),
+    '"Let it resolve" is disabled — it can never satisfy the step\'s gate');
+  ok(await p.evaluate(()=>[].some.call(document.querySelectorAll('.respNotYou'),x=>/needs this one countered/.test(x.textContent) && !!x.offsetParent)),
+    '…and the modal says why, visibly');
   const shufBefore=await p.evaluate(()=>window.__solo.st().players[1].shuffle.length);
 
   await p.evaluate(()=>{const q=[].find.call(document.querySelectorAll('.respQuick'),x=>/Counter Spell/.test(x.textContent)); if(q)q.click();});

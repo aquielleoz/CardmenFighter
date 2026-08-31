@@ -7887,7 +7887,17 @@ window.CardFace = {};
     var html='<h2>Respond?</h2>'+lead+incoming+tableContextHTML()+'<div class="respOpts">';
     quicks.forEach(function(c){ var ef=E.effectOf(c);
       html+='<button class="respQuick" data-id="'+c.id+'">'+ef.name+' · '+cardSym(c)+' ('+ef.cost+'⚡)<span class="respTxt">'+ef.text+'</span></button>'; });
-    html+='<button id="respDecline" class="respLet">Let it resolve</button></div>'+peekBtnHTML();
+    /* THE QUICKS LESSON'S STEP IS GATED ON COUNTERING, so "Let it resolve" cannot satisfy it. Declining does
+     * re-cast (see the retry in `humanDeclines`), but every retry SPENDS the Rival's energy, so a player who
+     * declined a few times exhausted it, no further Technique could be cast, and the lesson sat on step 2 with
+     * nothing to counter — Aj: "i tried breaking the tutorial by letting all the spells resolve.... it broke."
+     * An action that cannot satisfy the gate is a dead end by construction, so the lesson disables it rather
+     * than deepening the retry. DISABLED AND STILL VISIBLE, never removed: it is a real control in a real
+     * window, and the lesson exists to teach what this window looks like. The note says why, because a dead
+     * button with no explanation is its own dead end on a phone, where there is no tooltip. */
+    var tutNeedsCounter = tutAwaitCounter && typeof TUT!=='undefined' && TUT.isActive && TUT.isActive();
+    if(tutNeedsCounter) html+='<div class="respNotYou">This lesson needs this one countered — tap <b>Counter Spell</b>.</div>';
+    html+='<button id="respDecline" class="respLet"'+(tutNeedsCounter?' disabled':'')+'>Let it resolve</button></div>'+peekBtnHTML();
     showModal(html); wirePeek();
     Array.prototype.forEach.call(document.querySelectorAll('.respQuick'), function(btn){
       btn.addEventListener('click', function(){ humanResponds(g, btn.getAttribute('data-id'), cont); });
@@ -8541,7 +8551,13 @@ window.CardFace = {};
       state.turn=savedTurn;
     }
     if(!tech){ state.turn=savedTurn; render(); return; }
-    flashArt(tech, 'Rival');
+    /* PRESENT IT THE WAY A REAL DUEL DOES. This called bare `flashArt` and then opened the Respond? modal in the
+     * same frame, so the cast was never actually visible — Aj: "i never see the opponent's card being cast".
+     * An ordinary duel does not have this problem because the prompt waits for `playBeats` to finish, and
+     * `buildOppBeats` pairs `revealEffect` with `revealDwell`; the tutorial bypassed that layer and hand-rolled
+     * its own presentation. Using the same pair also drops the card into the READER, which is the thing you
+     * need to read before deciding whether to counter. */
+    revealEffect(tech, 'Rival');
     logMsg('<b>Rival</b> casts <b>'+name+'</b>.', 'rival');
     render();
     if(state.pending && state.respondFor===YOU){
@@ -8552,7 +8568,13 @@ window.CardFace = {};
        * window for the RIVAL to answer your Counter Spell, and with nothing draining it the duel was left
        * `pending=true, respondFor=1` forever: the lesson still showed its "Countered!" payoff and still marked
        * itself complete, then handed the player a board that could never take another action. Fixed v1.31.73. */
-      promptHumanResponse(g, function(){ settleWindows(g, function(){ if(gen===g){ state.turn=YOU; render(); } }); });
+      /* DWELL BEFORE THE MODAL — `revealDwell` is the same 2650ms/1200ms the real beats use, so a change to the
+       * flash's phasing moves both together instead of leaving the tutorial behind. Reduced motion is honoured
+       * because revealDwell honours it. */
+      return setTimeout(function(){
+        if(g!==gen) return;
+        promptHumanResponse(g, function(){ settleWindows(g, function(){ if(gen===g){ state.turn=YOU; render(); } }); });
+      }, revealDwell(tech));
     } else { state.turn=savedTurn; render(); }
   }
   // Energy-order lesson (Advanced): seed a readable energy pile, then teach the queue through the ⚡ viewer.

@@ -51,7 +51,7 @@ node viewtest.js                                # 🔍 View card reader gating o
 node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (96)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energy.js                       # the "Energy Order" tutorial lesson, full UI (14)
-node lessontest_quicks.js               # the "Quicks" lesson — the interactive Counter Spell demo, full UI (16)
+node lessontest_quicks.js               # the "Quicks" lesson — the interactive Counter Spell demo, full UI (21)
 node piletest.js                                # energy/shuffle pile viewers + promote (30)
 node revealtest.js                              # Outbalance's hand read: the modal, and that it never
                                                 # reaches `state` (12)
@@ -121,6 +121,24 @@ none duplicated, `shieldPile.length === shields`) precisely because a swap that 
 energy covering its cost and colour, so about one game in eight it stalled. It tries every candidate now. This is
 the deal-dependence that made three netplay SUITES flake (`nettest_log`, `nettest_full`, `nettest_names`) — same
 bug, in the product. Any staging that picks `[0]` and gives up belongs on this list.
+
+**A TUTORIAL THAT HAND-ROLLS ITS OWN PRESENTATION LOSES EVERY BEAT THE REAL DRIVERS HAVE.** `tutCastRivalTech`
+called bare `flashArt` and opened the Respond? modal in the SAME FRAME — measured at 51ms, so the cast was
+covered before one frame of it showed (Aj: *"i never see the opponent's card being cast"*). A real duel is fine
+because the prompt waits for `playBeats` and `buildOppBeats` pairs **`revealEffect`** (art pop + card into the
+reader) with **`revealDwell`** (2650ms with effect text, 1200ms reduced-motion). Use that pair; do not invent a
+number. Same lesson as `buildOppBeats` itself: a bespoke presentation path silently misses features the shared
+one gained.
+
+**AN ACTION THAT CANNOT SATISFY A GATED STEP IS A DEAD END — DISABLE IT, DO NOT DEEPEN THE RETRY.** The Quicks
+step gates on `d.countered`, so "Let it resolve" can never advance it. `humanDeclines` had a retry that re-cast,
+which looked like enough; but **each retry spends the Rival's energy**, so a few declines exhausted it and the
+lesson sat with nothing to counter (Aj broke it deliberately). The button is now `disabled` in that window, still
+**visible**, with a visible note — a real control the lesson is teaching, and a dead button with no explanation
+is its own dead end on a phone, where there is no tooltip. **Gating on a flag is an assurance, not a test:**
+`browsertest` and `nettest_actloop` both click `#respDecline` in ordinary play, so forcing the condition `true`
+turns them red (`sim7 did NOT reach an end state`; `actloop 21/1`) — that is what makes the narrow gate proven
+rather than claimed.
 
 **EVERY `promptHumanResponse` MUST CHAIN `settleWindows` — the tutorial did not, and it wedged the duel.**
 Countering opens a window for the RIVAL to answer your Counter Spell. The Quicks lesson passed
@@ -1140,7 +1158,7 @@ Status as of **v1.31.73 — 2026-08-31, every suite run serially, 62 suites and 
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
 `test` 333, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energy` 14,
-`versiontest` 15, `sharetest` 16, `qrtest` 32, `peektest` 31, `lessontest_quicks` 16, `qrref` 26 (darwin only, corroborates rather than
+`versiontest` 15, `sharetest` 16, `qrtest` 32, `peektest` 31, `lessontest_quicks` 21, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
 The 43 netplay suites: `nettest_3p` 7, `activate` 6, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,

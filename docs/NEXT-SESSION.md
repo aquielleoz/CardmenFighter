@@ -796,7 +796,7 @@ checked on a real device.*
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
-### v1.31.73 — the Quicks lesson was broken three ways, and a "trivial" hoist is what found them
+### v1.31.73 — the Quicks lesson was broken five ways: three a test found, two Aj found by playing it
 
 The ask was a cleanup: `tutIsTech` — "is this a counterable Technique" — was declared byte-identically in both
 halves of the Quicks lesson, so it became one definition. That part is four lines.
@@ -838,6 +838,31 @@ Two throwaway diagnostics fooled me before the suite did: one clicked `#tutNextB
 and reported 8 straight false failures, and one planted its probe with a non-unique anchor, silently applied
 nothing, and produced three green runs I nearly believed. The suite's `next()` now reports when it does not
 click, and the plant asserted its anchor count.
+
+**4. You never saw the card being cast.** Aj: *"i never see the opponent's card being cast."* `tutCastRivalTech`
+called bare `flashArt` and then opened the Respond? modal **in the same frame** — measured at **51ms**, so the
+reveal was covered before a single frame of it was visible. An ordinary duel does not have this bug, because
+there the prompt waits for `playBeats` to finish and `buildOppBeats` pairs `revealEffect` with `revealDwell`; the
+tutorial bypassed that layer and hand-rolled its own presentation. It now uses the same pair, which both dwells
+(2650ms, or 1200ms under reduced motion) **and drops the card into the reader** — the thing you actually need to
+read before deciding whether to counter. Asserted in both directions: the flash and the reader must be seen
+*before* the modal, and the modal must be at least 80% of `revealDwell`'s own value late. Reverting the fix
+reports `51ms, floor 2120`.
+
+**5. "Let it resolve" could still brick it.** Aj: *"i tried breaking the tutorial by letting all the spells
+resolve.... it broke."* Declining already re-cast — `humanDeclines` has a retry so the lesson would not brick on
+one decline — but **every retry spends the Rival's energy**, so a few declines exhausted it, `E.activate` then
+failed for every candidate, and the lesson sat on step 2 with nothing to counter. The step's gate is
+`d.countered`, so "Let it resolve" can never satisfy it: an action that cannot satisfy the gate is a dead end by
+construction, and the lesson now **disables** it rather than deepening the retry. Disabled and still visible,
+with a note saying why — it is a real control in a real window and the lesson is teaching what that window looks
+like, and a dead button with no explanation is its own dead end on a phone where there is no tooltip.
+The retry is kept: the *auto*-decline path (`!quicks.length`, no modal at all) can still reach it.
+
+**The negative half of that gate is covered by suites that already existed.** `browsertest` and `nettest_actloop`
+both click `#respDecline` in ordinary play, so over-broadening the condition turns them red — verified by
+forcing it `true`, which gives `browsertest: sim7 did NOT reach an end state` and `nettest_actloop 21/1`. Worth
+stating because "I gated it on a tutorial flag" is an assurance, not a test.
 
 ### v1.31.72 — one `resolveIds`, not two
 
