@@ -1288,7 +1288,6 @@
       <button id="sortBtn" title="Cycle sorting: singles → pairs → straights">Sort: Unsorted</button>
       <button id="clearBtn">Clear</button>
       <button id="ctxBtn" title="Activate">⚡ Activate</button>
-      <button id="boostBtn" title="Attach Brilliant Tactic to boost this play" style="display:none;">Boost</button>
       <button id="passBtn">Pass</button>
       <button id="fightBtn">Fight</button>
     </div>
@@ -1363,7 +1362,7 @@ __QR__
     var art=/^[AEIOU]/i.test(eff.type)?'an':'a';   // "an Equipment", "a Technique"
     return art+' '+eff.type+' - '+cardSym(card)+' '+eff.name+' — '+(eff.text||'').replace(/\.$/,'');
   }
-  var state=null, selected={}, busy=false, gen=0, boostArmed=false, fullLog=[];
+  var state=null, selected={}, busy=false, gen=0, fullLog=[];
   var enterDelayBase=0;              // ms offset added to drawn-card deal-in, so a round's new cards arrive on the "Round N" beat
   var ROUND_BEAT=750, ROUND_HOLD=1350;   // ceremony timing (ms): each pre-card beat, and the Round-N card hold
   var handOrder=[];            // UI display order of card ids (Sort reorders this)
@@ -2730,7 +2729,7 @@ __QR__
       ? { numPlayers:mpCount, starter:starter, decks: seatDecks.slice(0,mpCount).map(function(d){ return (d==='full'||!d)?null:d; }), basics:gameBasics }
       : { decks:[ youDeck==='full'?null:youDeck, rivalDeck==='full'?null:rivalDeck ], starter:starter, basics:gameBasics };
     if(tutorialMode) ngOpts.shields=tutShields;   // shorter HP so a guided lesson can reach the Fighter Kick
-    gen++; state=E.newGame(null, ngOpts); if(tutorialMode){ (currentLesson&&currentLesson.rig?currentLesson.rig:tutRig)(state); } selected={}; boostArmed=false; fullLog=[]; pick=null; targeting=null; targetPick=null; busy=false; handOrder=[]; layout=[]; gidSeq=0; drag=null; pileSig=null; flipFrom=null; pendingEnter={}; equipFx={}; formsOpen=null;
+    gen++; state=E.newGame(null, ngOpts); if(tutorialMode){ (currentLesson&&currentLesson.rig?currentLesson.rig:tutRig)(state); } selected={}; fullLog=[]; pick=null; targeting=null; targetPick=null; busy=false; handOrder=[]; layout=[]; gidSeq=0; drag=null; pileSig=null; flipFrom=null; pendingEnter={}; equipFx={}; formsOpen=null;
     resetControllers(state.numPlayers);   // seat 0 = local human, every opponent = AI (netplay will override specific seats to 'remote')
     if(E.setLossTargetInteractive) E.setLossTargetInteractive(function(st, w){ return isHumanSeat(w); });   // a human winner (local or remote) picks whose shield to strip in 'chosen' mode
     if(mpCount>2){ state._diff={}; for(var _s=0;_s<state.numPlayers;_s++) if(_s!==YOU) state._diff[_s]=diffOf(_s); }   // per-seat AI tier for the round-win chooser
@@ -3258,7 +3257,7 @@ __QR__
   function sendClientPlay(cards){
     var ids=(cards||[]).map(function(c){ return c.id; });
     if(!ids.length){ setMessage('Select a card or combo to play.'); return; }
-    NET.clientSend({op:'play', ids:ids}); selected={}; boostArmed=false; busy=true; render();
+    NET.clientSend({op:'play', ids:ids}); selected={}; busy=true; render();
   }
   function placeEmoteList(){
     var list=document.getElementById('emoteList'); if(!list) return;
@@ -3275,14 +3274,13 @@ __QR__
     if(isNetClient()){ sendClientPlay(cards); return; }                // the backstop: every path into the engine
     if(!canHumanPlay(cards)){ setMessage('That play won’t beat the pile here.'); render(); return; }
     if(typeof TUT!=='undefined' && TUT.needSpecial && TUT.needSpecial() && (!cards||cards.length<2)){ setMessage('For this lesson, make a <b>Special</b> — two cards of the same number.'); render(); return; }
-    var bId=(boostArmed && boostCard()) ? boostCard().id : null;
     flipFrom={};
     Array.prototype.forEach.call($('hand').querySelectorAll('.card'), function(el){ if(el.dataset.id) flipFrom[el.dataset.id]=el.getBoundingClientRect(); });
-    var r=E.play(state, YOU, cards, bId?{boost:bId}:undefined);
+    var r=E.play(state, YOU, cards);
     if(!r.ok){ flipFrom=null; setMessage(r.reason); render(); return; }
-    selected={}; boostArmed=false;
+    selected={};
     setMessage('You played <b>'+kindPhrase(r.combo.type)+'</b>'+(r.boosted?' (boosted)':'')+'.');
-    say(YOU, '{who} played '+playPhrase(r.combo)+(bId?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'you');
+    say(YOU, '{who} played '+playPhrase(r.combo)+(r.boosted?' with a boost':'')+'.', 'you');   // r.boosted comes from nextPlayBoost — a valueBoost card ACTIVATED earlier, which is the only way to boost
     bumpFight(YOU, r.combo.type);
     render();
     TUT.note('play', r.combo);
@@ -3293,19 +3291,11 @@ __QR__
   function toggle(id){ if(state.turn!==YOU||state.finished||busy||pick||targeting||targetPick) return;
     var card=state.players[YOU].hand.filter(function(c){return c.id===id;})[0]; if(card) showCard(card);
     if(selected[id]) delete selected[id]; else selected[id]=true; render(); }
-  // The human's affordable Brilliant Tactic (Quick value-boost) not currently among the fight cards, or null.
-  function boostCard(){
-    var pl=state.players[YOU];
-    return pl.hand.filter(function(c){ var ef=E.effectOf(c); return ef && ef.impl && ef.quick && ef.kind==='valueBoost' && E.canAfford(pl,c) && !selected[c.id]; })[0] || null;
-  }
-  function armedBoostAmount(){ var c=boostArmed && boostCard(); return c ? (E.effectOf(c).boost||0) : 0; }
   function fightLegal(cards){
     if(!cards.length) return null;
     var combo=E.detectCombo(cards); if(!combo) return null;
     if(state.round<2 && combo.size>1) return null;
     var eff=E.applyEquip(combo, YOU, state);
-    var extra=armedBoostAmount();
-    if(extra){ eff={type:eff.type,size:eff.size,value:eff.value+extra,key:eff.key.slice(),cards:eff.cards}; eff.key[0]+=extra; }
     return E.beats(eff, state.pile?state.pile.combo:null) ? combo : null;
   }
 
@@ -3341,8 +3331,8 @@ __QR__
   }
 
   function updateActions(yourTurn){
-    var hint=$('hint'), fight=$('fightBtn'), pass=$('passBtn'), sort=$('sortBtn'), clear=$('clearBtn'), ctxBtn=$('ctxBtn'), boost=$('boostBtn'), cardAct=$('cardActivate');
-    hint.className=''; fight.classList.remove('confirm'); ctxBtn.style.display='none'; ctxBtn.classList.remove('gold','off'); boost.style.display='none'; cardAct.style.display='none';
+    var hint=$('hint'), fight=$('fightBtn'), pass=$('passBtn'), sort=$('sortBtn'), clear=$('clearBtn'), ctxBtn=$('ctxBtn'), cardAct=$('cardActivate');
+    hint.className=''; fight.classList.remove('confirm'); ctxBtn.style.display='none'; ctxBtn.classList.remove('gold','off'); cardAct.style.display='none';
     if(pick){
       // selection mode — Sort still works (tidies the cards; your picks are kept)
       sort.style.display=(pick.kind==='handlimit'||pick.kind==='discard')?'':'none';
@@ -3387,7 +3377,6 @@ __QR__
     var leading=!state.pile; pass.disabled=leading;
     var charged=state.players[YOU].nextPlayBoost||0;
     var chargeTag=(charged?' ⚡+'+charged+' charged':'')+(state.players[YOU].finishingBlow?' 🛡‍💥 Armor Piercing armed (next win strips +1)':'');
-    var bc=boostCard();
     var sel=selectedCards();
     // ONE context-aware button: Activate by default, Phantasm for the Phantasmal card
     var ctx=ctxAction();
@@ -3401,15 +3390,13 @@ __QR__
       cardAct.style.display=''; cardAct.classList.toggle('off', !!actBlock); cardAct.disabled=false;   // description-panel ⚡ (activate only); tap shows the reason
       cardAct.title=actBlock||'Activate'; cardAct.textContent='⚡';
     }
-    if(bc && sel.length){ boost.style.display=''; boost.disabled=false; boost.textContent=(boostArmed?'✓ Boost +'+(E.effectOf(bc).boost):'Boost +'+(E.effectOf(bc).boost)); boost.classList.toggle('confirm', !!boostArmed); }
-    else if(boostArmed){ boostArmed=false; }
     if(!sel.length){ hint.textContent=(leading?'Lead a card'+(state.round<2?' (jabs only)':''):'Beat the '+kindLabel(state.pile.combo.type)+' or pass')+'. Tap a card to read or activate it.'+chargeTag; return; }
     var legal=fightLegal(sel);
     var combo=E.detectCombo(sel);
     if(!combo){ hint.textContent='Not a legal combination.'; hint.className='bad'; return; }
     var tutSpecialGate=(typeof TUT!=='undefined' && TUT.needSpecial && TUT.needSpecial() && combo.size<2);   // tutorial: the "make a Special" step won't accept a single-card jab
     if(tutSpecialGate){ hint.textContent='For this lesson, make a Special — pick two cards of the same number.'; hint.className='bad'; fight.disabled=true; }
-    else if(legal){ hint.textContent=kindLabel(combo.type)+(armedBoostAmount()?' (+'+armedBoostAmount()+' boost)':'')+chargeTag+(actCard&&!actBlock?' — Fight it, or Activate its effect.':' — fight!'); hint.className='good'; fight.disabled=false; }
+    else if(legal){ hint.textContent=kindLabel(combo.type)+chargeTag+(actCard&&!actBlock?' — Fight it, or Activate its effect.':' — fight!'); hint.className='good'; fight.disabled=false; }
     else if(actCard && !actBlock){ hint.textContent=E.effectOf(actCard).name+' — Activate its effect.'; hint.className='good'; }
     else if(actCard && actBlock){ hint.textContent=E.effectOf(actCard).name+' — '+actBlock; hint.className='bad'; }
     else if(state.round<2 && combo.size>1){ hint.textContent='Round 1 is jabs only.'; hint.className='bad'; }
@@ -3438,6 +3425,14 @@ __QR__
         var ri=phantasmSolve(addCard, pick.cardId);
         if(ri<0){ setMessage('That card won’t complete a higher Special — choose another.'); pick.chosen={}; render(); return; }
         opts.removeIdx=ri; opts.addId=ids[0];
+      }
+      /* A CLIENT SENDS AN INTENT. This branch called `E.phantasm(state, YOU, opts)` unguarded, so on a client
+       * the illusion ran the LOCAL engine, mutated the mirror and was wiped by the next broadcast — the host
+       * never heard about it. Fourth site of the drag-to-play class (v1.31.56). The host re-solves the swap
+       * from `addId` alone rather than trusting an index a client computed. */
+      if(isNetClient()){
+        NET.clientSend({op:'phantasm', cardId:pick.cardId, addId:(ids.length?ids[0]:null)});
+        pick=null; selected={}; busy=true; render(); return;
       }
       var r=E.phantasm(state, YOU, opts);
       if(!r.ok){ setMessage(r.reason); pick.chosen={}; render(); return; }
@@ -3686,7 +3681,7 @@ __QR__
   function doPassBody(){
     var r=E.pass(state, YOU);
     if(!r.ok){ setMessage(r.reason); return; }
-    selected={}; boostArmed=false;
+    selected={};
     if(typeof TUT!=='undefined' && TUT.note) TUT.note('pass', r);   // guided lesson: the "pass to bank energy" step advances here
     if(r.shieldResponsePending){ render(); return openShieldGuardModal(r); }   // your shield is threatened — you may spring your guard
     finishPassRound(r);
@@ -3811,16 +3806,20 @@ __QR__
     return E.beats(eff, state.pile.combo);
   }
   // find the remove-index that lets `addCard` form a higher Special over the current pile.
-  function phantasmSolve(addCard, phantId){
-    var base=state.pile.combo.cards;
-    var phCard=state.players[YOU].hand.filter(function(c){return c.id===phantId;})[0];
-    var pp=(phCard && E.effectFor)?(E.effectFor(state, YOU, phCard).phantasmPlus||0):0;   // Odysseus: +value on the illusion
+  function phantasmSolve(addCard, phantId){ return phantasmSolveFor(state, YOU, addCard, phantId); }
+  /* SEAT-AWARE, because the host has to re-solve a CLIENT's illusion. The client sends only which card it is
+   * adding; the host works out which pile card it replaces, exactly as `resolveIds` re-resolves card ids rather
+   * than trusting them. A client is untrusted, so an index it computed is not evidence of anything. */
+  function phantasmSolveFor(st, seat, addCard, phantId){
+    var base=st.pile.combo.cards;
+    var phCard=st.players[seat].hand.filter(function(c){return c.id===phantId;})[0];
+    var pp=(phCard && E.effectFor)?(E.effectFor(st, seat, phCard).phantasmPlus||0):0;   // Odysseus: +value on the illusion
     for(var ri=0; ri<base.length; ri++){
       var phantom=[]; for(var i=0;i<base.length;i++){ if(i!==ri) phantom.push({rank:base[i].rank,suit:base[i].suit}); }
       var cand=E.detectCombo(phantom.concat([{rank:addCard.rank,suit:addCard.suit}]));
-      if(cand && E.applyEquip) cand=E.applyEquip(cand, YOU, state);      // your Equipment/boosts reach the illusion
+      if(cand && E.applyEquip) cand=E.applyEquip(cand, seat, st);        // that seat's Equipment/boosts reach the illusion
       if(cand && pp) cand={type:cand.type,size:cand.size,value:cand.value+pp,key:[cand.key[0]+pp].concat(cand.key.slice(1)),cards:cand.cards};
-      if(cand && E.beats(cand, state.pile.combo)) return ri;
+      if(cand && E.beats(cand, st.pile.combo)) return ri;
     }
     return -1;
   }
@@ -5581,7 +5580,6 @@ __QR__
   $('passBtn').addEventListener('click', function(){ pick?cancelPick():doPass(); });
   $('ctxBtn').addEventListener('click', onCtxClick);
   $('cardActivate').addEventListener('click', onActivateClick);
-  $('boostBtn').addEventListener('click', function(){ if(boostCard()){ boostArmed=!boostArmed; render(); } });
   $('saveLogBtn').addEventListener('click', downloadLog);
   $('logToggle').addEventListener('click', function(){
     var collapsed=$('logWrap').classList.toggle('collapsed');
@@ -6808,6 +6806,30 @@ __QR__
      * and simply passes the turn back. Clear the pair together, never one of them. */
     function hostTakeBack(){ trace('hostTakeBack', 'control back to the host'); busy=false; $('rivalStatus').textContent=''; }
     var netSettle=null;   // parked: the host is waiting on the remote's respond/decline to an open stack window
+    /* ONE DEFINITION, called by both host drivers. The duel handler and the N-player one differed only in the
+     * seat and the continuation they run afterwards, and two near-identical blocks 400 lines apart drift — the
+     * same reason `isChopOf` and `phantasmSolveFor` each have exactly one definition. Returns true when the
+     * illusion was APPLIED, so a refusal does not advance the game.
+     * The client sends which card it is adding and nothing else; the host re-solves which pile card that
+     * replaces, because an index computed by an untrusted client is not evidence. */
+    function hostPhantasmIntent(seat, it){
+      var phId=(resolveIds(seat,[it.cardId])[0]||{}).id;
+      if(!phId || !hostState.pile){ sendTo(seat,{t:'err',seat:seat,reason:'Nothing to warp.'}); broadcastMirror(); return false; }
+      var phOpts={ cardId:phId };
+      if(it.addId){
+        var addC=resolveIds(seat,[it.addId])[0];
+        if(!addC){ sendTo(seat,{t:'err',seat:seat,reason:'You do not hold that card.'}); broadcastMirror(); return false; }
+        var ri=phantasmSolveFor(hostState, seat, addC, phId);
+        if(ri<0){ sendTo(seat,{t:'err',seat:seat,reason:'That card will not complete a higher Special.'}); broadcastMirror(); return false; }
+        phOpts.removeIdx=ri; phOpts.addId=addC.id;
+      }
+      var phr=E.phantasm(hostState, seat, phOpts);
+      if(!phr || phr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:(phr&&phr.reason)||'Illegal illusion.'}); broadcastMirror(); return false; }
+      say(seat, '{who} conjured a Phantasmal Illusion — a '+kindLabel(phr.made)+' overtakes the pile.', 'rival');
+      render(); broadcastMirror();
+      return true;
+    }
+
     function hostApplyMove(it){
       if(!hostState || hostState.finished || !it || typeof it.op!=='string') return;
       stateSeq++;   // this intent is being applied, so any other intent formed against the old board is void
@@ -6842,6 +6864,8 @@ __QR__
         var nd=netDiscard; netDiscard=null; return hostRivalWindows(nd.g, nd.cont);
       }
       // ---- turn actions ----
+      /* PHANTASMAL ILLUSION from a remote seat — see `hostPhantasmIntent`. */
+      if(it.op==='phantasm'){ return hostPhantasmIntent(1, it) ? (hostAfterOwnCast?hostAfterOwnCast():undefined) : undefined; }
       if(it.op==='activate'){
         var acard=resolveIds(1,[it.id])[0], aeff=acard?E.effectOf(acard):null;
         try{ r=E.activate(hostState, 1, it.id, { target:(it.target!=null?it.target:YOU), copyId:it.copyId, discard:it.discard, toTop:it.toTop }); }
@@ -7129,6 +7153,8 @@ __QR__
       }
       var r;
       try{
+        /* PHANTASMAL ILLUSION from a remote seat — see `hostPhantasmIntent`. */
+        if(it.op==='phantasm'){ return hostPhantasmIntent(seat, it) ? (driveN?driveN():undefined) : undefined; }
         if(it.op==='activate'){
           var ac=resolveIds(seat,[it.id])[0], ae=ac?E.effectOf(ac):null;
           var tgt=(it.target!=null)?((it.target+seat)%n):undefined;   // un-rotate the client's (rotated) target back to the absolute seat

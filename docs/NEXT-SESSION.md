@@ -796,6 +796,42 @@ checked on a real device.*
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
 
+### v1.31.71 — a client's Phantasmal Illusion reaches the host, and the Boost button was never real
+
+**Phantasmal Illusion was host-only.** Its picker is a two-step choice — which card to copy, and (optionally)
+which of your own cards to swap in — and it resolved by calling the engine **locally**, with no client guard. On
+a netplay client that meant the illusion happened on that screen and nowhere else: the host's pile never changed,
+so the client was looking at a board only it believed in. It is the same class as the drag-to-play bug of
+v1.31.56 and the fourth site found in that sweep: **an entry point that performs an action and never checked
+whether it is allowed to.**
+
+The fix follows the funnel rule. `phantasmSolveFor(st, seat, addCard, phantId)` is now the single definition of
+"which pile index does this swap replace", so the host re-solves it from **its own** state rather than trusting an
+index computed against a rotated mirror — a client's `removeIdx` is meaningless on the host, and sending one
+would have been a fabricated-card bug wearing a different hat. A client sends `{op:'phantasm', cardId, addId}`
+and nothing else; two host handlers (duel and N-player) resolve the ids the same way every other intent does, so
+an imagined card dies in `resolveIds` as usual. `nettest_phantasm.js` (8) drives it over a real connection and
+asserts the **host's** pile changed, which is the assertion the old code could never have passed.
+
+**The Boost button was dead code for everyone, and I twice reported it as a client gap.** The claim was that a
+client could not use Brilliant Tactic. Measured, it is worse and simpler: `E.play` **never read `opts.boost`** at
+all, so attaching a boost to a play did nothing on any seat, and `boostCard()` required `eff.quick` while all
+four valueBoost cards (Infuse with Magic, Imbue, Divine Tactics, Brilliant Tactic) are plain Techniques — so
+`#boostBtn` **was never rendered for anybody**. Twenty sites deleted: the markup, `boostArmed`, `boostCard()`,
+`armedBoostAmount()`, the `fightLegal` branch, the action-row display block, the click handler, the `bId`
+threading, and `play()`'s now-unused `opts` parameter.
+
+It is deleted rather than wired **on purpose**: attaching a boost to a play would apply it atomically with the
+play and skip the Counter Spell window, and a valueBoost is a Technique — being counterable is the point. Aj's
+own game log is the evidence, an Infuse with Magic that lost to Kings because it had been counterspelled.
+Boosting works and always did: **activate the card, then play.** `r.boosted` comes from `nextPlayBoost`, which is
+what an activation sets.
+
+**This is the third orphaned mechanic in this codebase** after `stopper` (deleted in v1.31.13) and `phantasm`
+(which had no card for eighteen versions). All three looked alive in every layer — markup, handler, engine hook
+— and none of them could fire. `grep -c` for the thing that would have to be true, then measure it; do not read
+the three layers and conclude they connect.
+
 ### v1.31.70 — every player picks their own pitches
 
 Aj, on being told the asymmetry: *"no. all players choose what to discard"*. Filed as a design note in v1.31.69
