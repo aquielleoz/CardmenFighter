@@ -114,6 +114,11 @@
       shieldResponse: remapSR(st.shieldResponse), stack: remapStack(st.stack),
       preFightQ: (st.preFightQ == null ? null : rot(st.preFightQ)), preFightHandled: !!st.preFightHandled,
       pendingLossChoice: st.pendingLossChoice ? { winner: rot(st.pendingLossChoice.winner), cands: (st.pendingLossChoice.cands || []).map(rot), comboType: st.pendingLossChoice.comboType } : null,   // winner picks whose shield to strip
+      /* WHO THE TABLE IS WAITING ON while a seat trims to hand size. Seat + COUNT only, never cards — a hand
+       * must never travel (see E.takeReveal). Every seat but the local one is auto-trimmed, so this is only
+       * ever set for the seat actually picking, and it exists so the OTHER seats can say why play has paused
+       * instead of showing an unexplained gap mid-round. */
+      trimPending: st.trimPending ? { player: rot(st.trimPending.player), need: st.trimPending.need } : null,
       roundWinResult: null,   // ceremony state is host-only; the client renders the settled board
       _mirror: true, _seat: seat
     };

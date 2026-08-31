@@ -4618,6 +4618,11 @@ window.CardFace = {};
       shieldResponse: remapSR(st.shieldResponse), stack: remapStack(st.stack),
       preFightQ: (st.preFightQ == null ? null : rot(st.preFightQ)), preFightHandled: !!st.preFightHandled,
       pendingLossChoice: st.pendingLossChoice ? { winner: rot(st.pendingLossChoice.winner), cands: (st.pendingLossChoice.cands || []).map(rot), comboType: st.pendingLossChoice.comboType } : null,   // winner picks whose shield to strip
+      /* WHO THE TABLE IS WAITING ON while a seat trims to hand size. Seat + COUNT only, never cards — a hand
+       * must never travel (see E.takeReveal). Every seat but the local one is auto-trimmed, so this is only
+       * ever set for the seat actually picking, and it exists so the OTHER seats can say why play has paused
+       * instead of showing an unexplained gap mid-round. */
+      trimPending: st.trimPending ? { player: rot(st.trimPending.player), need: st.trimPending.need } : null,
       roundWinResult: null,   // ceremony state is host-only; the client renders the settled board
       _mirror: true, _seat: seat
     };
@@ -4964,7 +4969,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.68';
+  var GAME_VERSION='v1.31.69';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -6462,6 +6467,34 @@ window.CardFace = {};
   }
   function render(){
     syncOrder(false);
+    /* SAY WHY PLAY HAS PAUSED. Every seat but the one picking is auto-trimmed at the end of a round, so the
+     * only seat that stops the table is the one holding an interactive hand-limit pick — and until v1.31.69 the
+     * others just saw a gap. `trimPending` rides the mirror (netview whitelists it), so a client can name the
+     * seat too. Written before the early returns below so it survives whatever else render() decides. */
+    /* EITHER KIND OF DISCARD, because Aj asked the symmetric question — "does that also work if the clients
+     * were picking cards to discard as well?" At ROUND END they never pick: `endOfRoundTrimThen` auto-trims
+     * every seat but the local one, so on a host that is every client. But a FORCED discard from a card effect
+     * DOES prompt a remote seat, and until now the other clients had no notice for that at all — the host set
+     * its own `rivalStatus` and nothing reached anyone else. One notice covers both. */
+    var waitOn = (state && state.trimPending && state.trimPending.player!==YOU) ? state.trimPending.player
+               : (state && state.discardPending && state.discardPending.player!=null
+                  && state.discardPending.player!==YOU) ? state.discardPending.player : null;
+    if(waitOn!==null){
+      /* `logName`, not `seatName`: names are READER-RELATIVE here as everywhere else — a duel opponent reads as
+       * "Rival", not "P2". Every other label in the game goes through this funnel for the same reason. */
+      var forced = !(state.trimPending && state.trimPending.player!==YOU);
+      var txt = logName(waitOn)+(forced ? ' is discarding…' : ' is discarding to hand size…');
+      var tp=$('rivalStatus'); if(tp) tp.textContent=txt;
+      /* AND ON THE STAGE, dimmed — Aj: "maybe we can dim the play area too (might as well put the announcement
+       * there)". `#roundfx` IS the play-area announcement layer, so this shares it rather than inventing a
+       * second one; the `trimwait` class marks the usage so nothing here can clear a real ceremony beat. It
+       * dims the PLAY AREA only: the hand below stays readable and sortable, which is the point of waiting. */
+      showTrimWait(txt);
+    } else {
+      var tp2=$('rivalStatus');
+      if(tp2 && /is discarding/.test(tp2.textContent||'')) tp2.textContent='';   // only clear OUR message
+      clearTrimWait();
+    }
     var you=state.players[YOU];
     if(!holdShields){ animateShields($('youShields'), you.shields, YOU); }
     paintWhoLabels();
@@ -7060,6 +7093,7 @@ window.CardFace = {};
     if(pick.kind==='handlimit'){                                            // hand cap (end of round, or end of a play turn)
       var hsyms=ids.map(function(id){var c=cardById(id); return c?cardSym(c):null;}).filter(Boolean);
       var hlResume=pick.resume, hlG=pick.resumeG;
+      if(state) state.trimPending=null;                         // the table is no longer waiting on us
       E.discardToLimit(state, YOU, ids);
       pick=null; selected={};
       say(YOU, '{who} discarded to hand size — '+hsyms.join(', ')+' → energy pile.', 'you');
@@ -7574,6 +7608,27 @@ window.CardFace = {};
     beats.push({ html:'<b>'+who+'</b> '+(youWon?'seize':'seizes')+' the initiative!', cls:cls });
     return beats;
   }
+  /* The clean-up-pick notice, on the ceremony's own stage. Guarded by its own class both ways: it never
+   * overwrites a ceremony beat that is already showing, and `clearTrimWait` only takes down a banner it put up. */
+  function showTrimWait(txt){
+    var fx=$('roundfx'); if(!fx) return;
+    /* IT TAKES OVER A LEFTOVER CEREMONY BEAT, on purpose. `playPreBeats` deliberately leaves its last beat
+     * ("… seizes the initiative!") on stage for the Round-N plate to swap into, so by the time a clean-up pick
+     * opens the stage is showing something stale — and refusing to overwrite it meant the notice never appeared
+     * at all. A ceremony still mid-sequence wins the race back on its next step, which is correct: the beats
+     * are the shorter-lived message. */
+    var inner=fx.querySelector('.rfInner'); if(!inner) return;
+    if(/trimwait/.test(fx.className) && inner.getAttribute('data-trim')===txt) return;   // already saying it
+    inner.className='rfInner dim'; inner.innerHTML='<div class="rfBeat">'+esc(txt)+'</div>';
+    inner.setAttribute('data-trim', txt);
+    void inner.offsetWidth; inner.classList.add('in');
+    fx.className='show trimwait';
+  }
+  function clearTrimWait(){
+    var fx=$('roundfx'); if(!fx || !/trimwait/.test(fx.className)) return;
+    var inner=fx.querySelector('.rfInner'); if(inner) inner.removeAttribute('data-trim');
+    clearRoundfx();
+  }
   function clearRoundfx(){ var fx=$('roundfx'); if(!fx) return; fx.className=''; fx.onclick=null; var inner=fx.querySelector('.rfInner'); if(inner){ inner.className='rfInner'; inner.innerHTML=''; } }
   function snapDrawnCards(){ Array.prototype.forEach.call(document.querySelectorAll('#hand .card.enter'), function(el){ el.classList.remove('enter'); el.style.animationDelay=''; }); }
 
@@ -7630,6 +7685,13 @@ window.CardFace = {};
     var over = state.players[YOU].hand.length - E.MAX_HAND;
     if(over>0){
       clearRoundfx();                                          // hide the banner so the hand + pick are visible
+      /* ON STATE, deliberately, because that is what travels in a mirror. Every other seat is auto-trimmed by
+       * `E.discardToLimit` above and narrated after the fact; only the LOCAL player picks, so in netplay the
+       * host's own pick is the one that stops the table — and the other seats saw an unexplained pause with
+       * nothing on screen. Aj: "the other players don't [get] a prompt saying somebody is still discarding down
+       * to max hand... it's just uhhh what's happening in the middle of rounds".
+       * It carries a seat and a COUNT, never cards — a hand must never touch `st` (see E.takeReveal). */
+      state.trimPending={ player:YOU, need:over };
       pick={ kind:'handlimit', need:over, chosen:{}, resume:cb, resumeG:gen };
       setMessage('Clean-up — over the hand limit ('+E.MAX_HAND+'). Discard '+over+' to your Energy Pile.');
       render();
@@ -8037,7 +8099,11 @@ window.CardFace = {};
   function flipSort(){
     if(peeking) return;                               // no reordering while reviewing
     if(!state || state.finished) return;
-    if(!pick && (state.turn!==YOU || busy)) return;   // during a forced discard/hand-limit pick the turn may be the rival's — Sort must still tidy
+    /* NO TURN GATE. Sorting reorders YOUR OWN VIEW of YOUR OWN hand: it mutates no game state, sends no intent
+     * and cannot be seen by anyone else (`applySortLayout` writes `handOrder`/`layout`, both local). It used to
+     * return early on `state.turn!==YOU || busy`, so you could not tidy your hand while waiting for the other
+     * players — which is exactly when you want to. Aj: "i always wondered why i could not sort my hand while
+     * the other players where taking their turns". Peeking still refuses, because peek is inspect-only. */
     var target=SORT_NEXT[sortState]||'singles';
     var hand=state.players[YOU].hand.slice();
     var groups = target==='pairs' ? sortIntoPairs(hand) : target==='straights' ? sortIntoStraights(hand) : E.sortHand(hand).map(function(c){ return [c]; });
@@ -10734,7 +10800,12 @@ window.CardFace = {};
       if(owedModal) revealOpen=false;                    // a window the GAME owes you outranks a look at a hand
       if(!owedModal && !revealOpen) hideOverlay();
       hideNetroot();
-      busy = owedModal || owedLoss || (!owedDiscard && (state.turn!==YOU)) || !!state.finished;   // locked during modal windows / opponent's turn / loss-pick; unlocked to pick discards
+      /* `trimPending` locks every OTHER seat. The turn is already the round WINNER by the time the clean-up
+       * pick opens (`resolveRoundWin` sets it) and `roundDraw` runs AFTER the trim — so a client that had just
+       * won could act on a live board while the host was still picking, playing into a round whose cards had
+       * not been dealt. Aj spotted it from the symptom: "it should also block the action buttons for others". */
+      var waitingOnTrim = !!(st.trimPending && st.trimPending.player!==YOU);
+      busy = owedModal || owedLoss || waitingOnTrim || (!owedDiscard && (state.turn!==YOU)) || !!state.finished;   // locked during modal windows / opponent's turn / loss-pick / someone else's clean-up; unlocked to pick discards
       render();
       if(state.finished){ endGame(); return; }
       clientCheckWindow();

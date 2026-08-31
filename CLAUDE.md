@@ -114,6 +114,9 @@ node peektest.js             # PEEK AT THE TABLE, the review mode (31). Peek SHO
                              # __solo.peek() — the REAL enterPeek, because showModal's peek branch keys off the
                              # `peeking` VARIABLE, so staging the classes alone tests nothing. And the hand's
                              # click target is the .group; `.group .card{pointer-events:none}` is by design.
+node nettest_trim.js         # the table is told who it is waiting on during a clean-up pick (11). The HOST is
+                             # staged over the cap because every OTHER seat is auto-trimmed, so the host's own
+                             # pick is the only one that stops play. A pick is confirmed with FIGHT.
 node nettest_unready.js      # a client can take its Ready back (12). Waits PAST the 350ms join retry before
                              # asserting — the retry silently re-readies the seat, so an immediate check passes
                              # on a build where the button does nothing.
@@ -782,6 +785,22 @@ control that looks like the rules is the one real misreading risk.
 - **The host validates an untrusted key through the same parser a saved one uses:** `keyOf(rulesFromKey(k))`
   drops unknown rule names and invalid mode values. A rule from a newer peer must never be shown in the panel.
 - **A suggestion never un-readies the table** — only the host's real change does.
+
+**A CLEAN-UP PICK LOCKS EVERY OTHER SEAT (v1.31.69), and that is correctness, not courtesy.** `resolveRoundWin`
+sets the turn to the round WINNER and `roundDraw` runs AFTER the end-of-round trim, so a client that had just
+won held a live board while the host was still picking — able to play into a round whose cards had not been
+dealt. `trimPending` (seat + count, on state, whitelisted by `netview`) is what locks them and what names the
+seat on the other screens.
+**EVERY INTERACTIVE DISCARD GOES THROUGH `discardPending` — there are exactly TWO sites** (the owner banking
+looked cards, `engine.js` ~1447; and `discardOpp` — Telekinesis, Outbalance, Discombobulate, ~1513). The
+round-end trim is the separate `trimPending`. So one notice reading either covers the whole game; enumerate
+these two before believing a new discard effect is uncovered.
+**AT ROUND END A CLIENT NEVER PICKS.** `endOfRoundTrimThen` auto-trims every seat but the LOCAL one, so on a host
+that is every client and `discardToLimit` takes their lowest cards. **Only the host chooses its own end-of-round
+pitches** — an asymmetry in a competitive game, written down rather than fixed.
+**SORT IS NEVER TURN-GATED.** It reorders your own view of your own hand (`handOrder`/`layout`, both local): no
+state, no intent, invisible to other seats. It used to return early on `state.turn!==YOU || busy`, which blocked
+it exactly when a player is waiting and has time to organise. Only `peeking` refuses.
 
 **Player names go through `seatName`/`logName` only.** `seatNames` is indexed in the **LOCAL** frame; a netplay
 client rotates the host's absolute-seat table on arrival (`t:'setup'`), so no call site needs rotation

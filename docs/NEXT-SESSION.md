@@ -333,7 +333,7 @@ checked on a real device.*
   - So the overhaul as stated is not needed. The narrower rule that would have prevented this bug, the double
     narration (v1.31.53) and the stale-board actions (v1.31.54) alike: **a client may sequence, but never
     infer.**
-- **NOBODY IS TOLD WHEN ANOTHER PLAYER IS DISCARDING TO HAND SIZE** (Aj: *"the other players don't [get] a prompt
+- **~~NOBODY IS TOLD WHEN ANOTHER PLAYER IS DISCARDING TO HAND SIZE~~ SHIPPED in v1.31.69** (Aj: *"the other players don't [get] a prompt
   saying somebody is still discarding down to max hand... it's just uhhh what's happening in the middle of
   rounds"*). The discarding seat sees its own prompt; everyone else sees an unexplained pause mid-round.
   `rivalStatus` already carries "X is discarding…" for some windows — the end-of-turn discard needs the same.
@@ -773,6 +773,69 @@ checked on a real device.*
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.69 — the table is told who it is waiting on, and Sort stops being turn-gated
+
+Aj: *"the other players don't [get] a prompt saying somebody is still discarding down to max hand… it's just
+uhhh what's happening in the middle of rounds"*.
+
+**Why only one seat causes this.** At the end of a round every seat but the local one is auto-trimmed by
+`E.discardToLimit` and narrated after the fact. Only the LOCAL player picks which cards to pitch — so in netplay
+it is the **host's own** pick that stops the table, and the clients had nothing on screen at all.
+
+`trimPending` is set on state when that pick opens and cleared when it resolves, so it rides the mirror —
+`netview` whitelists it explicitly, rotating the seat like every other seat reference. It carries a **seat and a
+count, never cards**: a hand must never travel (see `E.takeReveal`), and `netview.test` asserts that.
+
+The status line reads through **`logName`, not `seatName`** — names are reader-relative here as everywhere, so a
+duel opponent is "Rival" and not "P2". The first version used `seatName` and a client read *"P2 is discarding to
+hand size…"*, which is the same class of mistake as the narration audit.
+
+`netview.test` 28 → **34** (the field, its rotation, and that no card can travel in it). `nettest_trim.js` (8)
+drives it end to end with the **host** staged over the cap, since that is the only seat that gets an interactive
+pick — verified by removing the render hook, where the client shows "(nothing)" while play is stopped.
+
+**AND NOBODY ELSE MAY ACT WHILE IT WAITS** — Aj: *"it should also block the action buttons for other people"*.
+That was a real bug, not just a courtesy: `resolveRoundWin` sets the turn to the round WINNER, and `roundDraw`
+runs **after** the trim, so a client that had just won held a live board while the host was still picking and
+could play into a round whose cards had not been dealt. `trimPending` now locks every other seat.
+
+**The announcement is on the play-area stage too, dimmed**, sharing `#roundfx` rather than inventing a second
+notice layer — Aj: *"might as well put the announcement there"*. It **takes over a leftover ceremony beat** on
+purpose: `playPreBeats` leaves its last beat on stage for the Round-N plate to swap into, so by the time a pick
+opens the stage is showing something stale, and refusing to overwrite it meant the notice never appeared at all.
+A ceremony still mid-sequence wins the race back on its next step, which is right — the beats are the
+shorter-lived message. It dims the PLAY AREA only; the hand below stays readable.
+
+**THE NOTICE COVERS EVERY INTERACTIVE DISCARD, and that was Aj's follow-up question** — *"does that also work
+if the clients were picking cards to discard as well?"* Two answers:
+- **At ROUND END a client never picks.** `endOfRoundTrimThen` auto-trims every seat but the local one, so on a
+  host that is every client, and `discardToLimit` chooses their LOWEST cards for them. Worth knowing as a design
+  fact: **only the host chooses its own end-of-round pitches; every client has the choice made for it.** Not
+  changed here, but it is an asymmetry in a competitive game and nobody had written it down.
+- **A FORCED discard does prompt a remote seat**, and until this version the other seats had no notice for it at
+  all — the host set its own `rivalStatus` and nothing reached anyone else. Enumerated rather than guessed:
+  `discardPending` is set in exactly **two** places (the owner banking looked cards, and `discardOpp` —
+  Telekinesis, Outbalance, Discombobulate), so one notice reading either `trimPending` or `discardPending`
+  covers every interactive discard in the game. `nettest_discard` (7 → 10) asserts it, and fails 2 without it.
+
+**AND THE COUNTER WORKS FROM EITHER SEAT — asked, then evidenced.** Aj: *"i think i've seen the counterspell fire
+off on netplay… but i can't confirm if it was only because it was on the host"*. `nettest_counter` has always
+driven a **client** countering over the wire, so the mechanic was never host-only. The doubt is historically
+well-founded though: until v1.31.58 the narration went through `logMsg`, so the countering player watched its own
+Technique evaporate with no line anywhere. That suite now asserts the **client's own log** records it too
+(7 → 10) — backfilled coverage, which passes on the earlier build, so that the question has a checked answer
+rather than a remembered one.
+
+**SORT IS NO LONGER TURN-GATED.** Aj: *"i always wondered why i could not sort my hand while the other players
+where taking their turns"*. There was no reason for it: sorting reorders your own view of your own hand —
+`applySortLayout` writes `handOrder`/`layout`, both local — so it mutates no game state, sends no intent, and
+cannot be seen by anyone else. `flipSort` returned early on `state.turn!==YOU || busy`, which blocked it exactly
+when a player has time to organise. Peeking still refuses, because peek is inspect-only.
+
+One staging note worth keeping: **a clean-up pick is confirmed with Fight.** `$('fightBtn')` is wired as
+`pick ? confirmPick() : doFight()`, so the pick reuses that button; the first version of the suite hunted for a
+"Confirm"/"Discard" control that does not exist and timed out on a working build.
 
 ### v1.31.68 — a client can take its Ready back
 
