@@ -107,6 +107,10 @@ node nettest_sync.js         # THE CROSS-CHECK: plays a real game over the ROOM 
 node nettest_narrate.js      # PUBLIC NARRATION must reach the other seat (10). Its second half is the durable
                              # part: it scans the client's log for SENDER-BAKED GRAMMAR — "You is", "You has",
                              # "You moves", "You’s" — each of which has shipped at least once.
+node peektest.js             # PEEK AT THE TABLE, the review mode (31). Peek SHOWS, it never CHANGES. Uses
+                             # __solo.peek() — the REAL enterPeek, because showModal's peek branch keys off the
+                             # `peeking` VARIABLE, so staging the classes alone tests nothing. And the hand's
+                             # click target is the .group; `.group .card{pointer-events:none}` is by design.
 node nettest_kick.js         # the CLIENT must play the FIGHTER KICK finisher (11). Stages it deterministically:
                              # loser out of shields, host holding a pair. NOTE round 1 is jabs only, and the
                              # kick fires on the next Special win AFTER a seat is already at 0 shields.
