@@ -6471,19 +6471,28 @@ window.CardFace = {};
      * only seat that stops the table is the one holding an interactive hand-limit pick — and until v1.31.69 the
      * others just saw a gap. `trimPending` rides the mirror (netview whitelists it), so a client can name the
      * seat too. Written before the early returns below so it survives whatever else render() decides. */
-    if(state && state.trimPending && state.trimPending.player!==YOU){
+    /* EITHER KIND OF DISCARD, because Aj asked the symmetric question — "does that also work if the clients
+     * were picking cards to discard as well?" At ROUND END they never pick: `endOfRoundTrimThen` auto-trims
+     * every seat but the local one, so on a host that is every client. But a FORCED discard from a card effect
+     * DOES prompt a remote seat, and until now the other clients had no notice for that at all — the host set
+     * its own `rivalStatus` and nothing reached anyone else. One notice covers both. */
+    var waitOn = (state && state.trimPending && state.trimPending.player!==YOU) ? state.trimPending.player
+               : (state && state.discardPending && state.discardPending.player!=null
+                  && state.discardPending.player!==YOU) ? state.discardPending.player : null;
+    if(waitOn!==null){
       /* `logName`, not `seatName`: names are READER-RELATIVE here as everywhere else — a duel opponent reads as
        * "Rival", not "P2". Every other label in the game goes through this funnel for the same reason. */
-      var who=logName(state.trimPending.player), txt=who+' is discarding to hand size…';
+      var forced = !(state.trimPending && state.trimPending.player!==YOU);
+      var txt = logName(waitOn)+(forced ? ' is discarding…' : ' is discarding to hand size…');
       var tp=$('rivalStatus'); if(tp) tp.textContent=txt;
       /* AND ON THE STAGE, dimmed — Aj: "maybe we can dim the play area too (might as well put the announcement
        * there)". `#roundfx` IS the play-area announcement layer, so this shares it rather than inventing a
        * second one; the `trimwait` class marks the usage so nothing here can clear a real ceremony beat. It
        * dims the PLAY AREA only: the hand below stays readable and sortable, which is the point of waiting. */
       showTrimWait(txt);
-    } else if(state && !state.trimPending){
+    } else {
       var tp2=$('rivalStatus');
-      if(tp2 && /discarding to hand size/.test(tp2.textContent||'')) tp2.textContent='';   // only clear OUR message
+      if(tp2 && /is discarding/.test(tp2.textContent||'')) tp2.textContent='';   // only clear OUR message
       clearTrimWait();
     }
     var you=state.players[YOU];

@@ -45,6 +45,20 @@ const pickerUp=p=>p.evaluate(()=>/discard/i.test((document.getElementById('messa
   let picker=false; for(let i=0;i<50;i++){ if(await pickerUp(join)){ picker=true; break; } await wait(120); }
   ok(picker,'client discard picker appeared from the mirror');
 
+  /* AND THE SEAT THAT IS WAITING MUST BE TOLD WHY (v1.31.69). Aj asked the symmetric question — the round-end
+   * notice covers the HOST picking, so does anything cover a CLIENT picking? It did not: the host set its own
+   * `rivalStatus` and no other seat had a notice at all. One notice now covers both kinds of discard. */
+  const hw = await host.evaluate(()=>({
+    status:((document.getElementById('rivalStatus')||{}).textContent||'').trim(),
+    dim:/show/.test((document.getElementById('roundfx')||{}).className||''),
+    dimText:((document.getElementById('roundfx')||{}).textContent||'').trim() }));
+  ok(/is discarding/i.test(hw.status),
+     `the WAITING seat is told why play has paused — "${hw.status||'(nothing)'}"`);
+  ok(hw.dim && /is discarding/i.test(hw.dimText),
+     '  → and its play area is dimmed with the same words');
+  ok(!/^You is|^You are discarding/.test(hw.status),
+     '  → named reader-relative, not from the sender’s point of view');
+
   // Client selects 2 cards and confirms.
   const chosen=await join.evaluate(()=>{ var cards=[].slice.call(document.querySelectorAll('#hand .card')).slice(0,2); cards.forEach(c=>c.click()); var f=document.getElementById('fightBtn'); if(f)f.click(); return cards.map(c=>c.dataset.id); });
   await wait(900);

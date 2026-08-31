@@ -791,6 +791,13 @@ sets the turn to the round WINNER and `roundDraw` runs AFTER the end-of-round tr
 won held a live board while the host was still picking — able to play into a round whose cards had not been
 dealt. `trimPending` (seat + count, on state, whitelisted by `netview`) is what locks them and what names the
 seat on the other screens.
+**EVERY INTERACTIVE DISCARD GOES THROUGH `discardPending` — there are exactly TWO sites** (the owner banking
+looked cards, `engine.js` ~1447; and `discardOpp` — Telekinesis, Outbalance, Discombobulate, ~1513). The
+round-end trim is the separate `trimPending`. So one notice reading either covers the whole game; enumerate
+these two before believing a new discard effect is uncovered.
+**AT ROUND END A CLIENT NEVER PICKS.** `endOfRoundTrimThen` auto-trims every seat but the LOCAL one, so on a host
+that is every client and `discardToLimit` takes their lowest cards. **Only the host chooses its own end-of-round
+pitches** — an asymmetry in a competitive game, written down rather than fixed.
 **SORT IS NEVER TURN-GATED.** It reorders your own view of your own hand (`handOrder`/`layout`, both local): no
 state, no intent, invisible to other seats. It used to return early on `state.turn!==YOU || busy`, which blocked
 it exactly when a player is waiting and has time to organise. Only `peeking` refuses.

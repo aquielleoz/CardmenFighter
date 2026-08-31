@@ -43,6 +43,19 @@ async function modalUp(p){ return p.evaluate(()=>!!(document.getElementById('ove
   ok(hostPending===false,'stack settled on the host (no lingering pending)');
   const logHit=await host.evaluate(()=>/[Cc]ounter/.test((document.getElementById('log')||{}).textContent||''));
   ok(logHit,'host log records the counter');
+  /* AND THE CLIENT'S OWN LOG MUST TOO. Aj, 2026-08-30: "i think i've seen the counterspell fire off on netplay
+   * but i can't confirm if it was only because it was on the host". The MECHANIC always worked from either seat
+   * — this suite is a CLIENT countering — but until v1.31.58 the narration went through `logMsg`, which is
+   * host-local, so the countering player saw its own Technique evaporate with no line anywhere. Assert both
+   * ends, because "the host logged it" was true the whole time this was broken.
+   * NOTE this is BACKFILLED coverage, not proof of a new fix: it passes on the build before it was added,
+   * because v1.31.58 had already converted the sites. It exists so the next regression is caught, and so the
+   * question "does a client's counter actually reach both logs?" has an answer that is checked rather than
+   * remembered. */
+  const jlog = await join.evaluate(()=>((document.getElementById('log')||{}).textContent||''));
+  ok(/counter/i.test(jlog), 'and the CLIENT’s own log records it too — the half that was silent until v1.31.58');
+  ok(!/\bYou is\b|\bYou has\b|\bYou moves\b/.test(jlog),
+     '  → with no sender-baked grammar in it');
   const ht=await turnOf(host), jt=await turnOf(join);
   ok(ht!=null && jt!=null,'both boards still live after the exchange (host turn '+ht+', client turn '+jt+')');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));

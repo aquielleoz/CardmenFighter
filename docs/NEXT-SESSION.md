@@ -807,6 +807,26 @@ opens the stage is showing something stale, and refusing to overwrite it meant t
 A ceremony still mid-sequence wins the race back on its next step, which is right — the beats are the
 shorter-lived message. It dims the PLAY AREA only; the hand below stays readable.
 
+**THE NOTICE COVERS EVERY INTERACTIVE DISCARD, and that was Aj's follow-up question** — *"does that also work
+if the clients were picking cards to discard as well?"* Two answers:
+- **At ROUND END a client never picks.** `endOfRoundTrimThen` auto-trims every seat but the local one, so on a
+  host that is every client, and `discardToLimit` chooses their LOWEST cards for them. Worth knowing as a design
+  fact: **only the host chooses its own end-of-round pitches; every client has the choice made for it.** Not
+  changed here, but it is an asymmetry in a competitive game and nobody had written it down.
+- **A FORCED discard does prompt a remote seat**, and until this version the other seats had no notice for it at
+  all — the host set its own `rivalStatus` and nothing reached anyone else. Enumerated rather than guessed:
+  `discardPending` is set in exactly **two** places (the owner banking looked cards, and `discardOpp` —
+  Telekinesis, Outbalance, Discombobulate), so one notice reading either `trimPending` or `discardPending`
+  covers every interactive discard in the game. `nettest_discard` (7 → 10) asserts it, and fails 2 without it.
+
+**AND THE COUNTER WORKS FROM EITHER SEAT — asked, then evidenced.** Aj: *"i think i've seen the counterspell fire
+off on netplay… but i can't confirm if it was only because it was on the host"*. `nettest_counter` has always
+driven a **client** countering over the wire, so the mechanic was never host-only. The doubt is historically
+well-founded though: until v1.31.58 the narration went through `logMsg`, so the countering player watched its own
+Technique evaporate with no line anywhere. That suite now asserts the **client's own log** records it too
+(7 → 10) — backfilled coverage, which passes on the earlier build, so that the question has a checked answer
+rather than a remembered one.
+
 **SORT IS NO LONGER TURN-GATED.** Aj: *"i always wondered why i could not sort my hand while the other players
 where taking their turns"*. There was no reason for it: sorting reorders your own view of your own hand —
 `applySortLayout` writes `handOrder`/`layout`, both local — so it mutates no game state, sends no intent, and
