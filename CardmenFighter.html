@@ -10920,8 +10920,16 @@ window.CardFace = {};
       if(iConceded) return;   // we forfeited — stay on our concede screen, ignore the ongoing game
       // During the round ceremony, hold the NEW-ROUND deal (hand grew) so its card fly-in waits for the banner;
       // intermediate mirrors (shield drop, pile clear) still apply so the shatter animates on the beat.
-      if(clientCeremonyActive && st && !st.finished && isRoundDeal(st)){ pendingRoundMirror=st; return; }
-      if(awaitingRoundReveal && st && !st.finished && isRoundDeal(st)){ return revealRound(st); }
+      /* THE HOLD IS NOW TRACED, because the fork investigation stalled for want of exactly this. The entry
+       * recorded "no `mirror HELD` events at all during a failure" from instrumentation that was then removed,
+       * so the conclusion could not be re-checked — and `isRoundDeal` has been rewritten twice since. A
+       * lifecycle you cannot see is a lifecycle you get to re-argue. */
+      if(clientCeremonyActive && st && !st.finished && isRoundDeal(st)){
+        trace('mirror HELD', 'round='+(st.round||'?')+' myHand='+((st.players&&st.players[0])?st.players[0].hand.length:'?')+' (ceremony active)');
+        pendingRoundMirror=st; return; }
+      if(awaitingRoundReveal && st && !st.finished && isRoundDeal(st)){
+        trace('mirror HELD -> revealRound', 'round='+(st.round||'?')+' myHand='+((st.players&&st.players[0])?st.players[0].hand.length:'?'));
+        return revealRound(st); }
       applyMirrorNow(st);
     }
     function applyMirrorNow(st){
@@ -10978,6 +10986,12 @@ window.CardFace = {};
     var clientCeremonyActive=false, clientCeremonyRes=null, pendingRoundMirror=null, awaitingRoundReveal=false;
     function clientPlayCeremony(res){
       if(isHost() || !res) return;
+      /* A HELD MIRROR DISCARDED HERE IS THE LEADING CANDIDATE FOR THE `nettest_sync` FORK, and this is the
+       * only place it can happen. The client is short exactly that round's DEAL, permanently — permanently
+       * because `broadcastMirror` dedupes by content, so once the host's state stops changing it never
+       * re-asserts what the client threw away. NOT changed to land-it-first: that was tried and made the suite
+       * WORSE (5 failures in 8). Traced instead, so the next occurrence names itself. */
+      if(pendingRoundMirror) trace('mirror HELD -> DISCARDED', 'a new ceremony arrived first; the client loses that round\'s deal');
       clientCeremonyRes=res; clientCeremonyActive=true; pendingRoundMirror=null; awaitingRoundReveal=false;
       holdShields = !reduceMotion() && !!res.shieldStripped;
       announceRoundWin(res);                                   // message + log, already rotated to our seat — sets pendingKick when res.kick

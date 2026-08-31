@@ -114,6 +114,38 @@ let mock=null;
     else if(st.j.myTurn){ const r=await act(join); if(r==='played'||r==='passed') acted++; }
     else await wait(200);
   }
+  /* A RED RUN MUST NAME ITS OWN CAUSE. This used to report the mismatch SENTENCE and nothing else, so the
+   * card-id detail and the mirror lifecycle in the backlog entry came from bespoke instrumentation that was
+   * then thrown away — which is exactly why the investigation could not be resumed from the record, and why
+   * conclusions like "no HELD events" could not be re-checked nine versions later. Now a failure dumps both
+   * hands' card IDS (the gap names the round's deal outright) and the tail of BOTH peers' traces, where the
+   * `mirror IN` / `mirror HELD` / `mirror HELD -> DISCARDED` / `mirror APPLIED` sequence lives. */
+  if(drift){
+    /* `__cmf.hand()` / `handOf()` ALREADY RETURN ID STRINGS — they map `c.id` internally. The first draft here
+     * mapped `c=>c.id` again, so every id came out `undefined`: the dump printed blank hands AND the "missing
+     * ids" line then confidently reported "the gap is elsewhere". A diagnostic that states a wrong conclusion
+     * is worse than one that states nothing, so the guard below refuses to conclude when the ids are unusable. */
+    const ids=p=>p.evaluate(()=>({ mine:(window.__cmf&&window.__cmf.hand())||[],
+                                   theirs:(window.__cmf&&window.__cmf.handOf(1))||[] }));
+    /* `traceDump()` already returns formatted STRINGS ("12.34s  mirror APPLIED …  x3"), timestamped and with
+     * repeats collapsed — so take them as they are. An earlier draft here mapped over `.line`/`.n` as though
+     * they were objects; it happened to work via String(e) and would have quietly implied a shape that does
+     * not exist. */
+    const tr=p=>p.evaluate(()=>(window.__cmfTrace?window.__cmfTrace():[]).slice(-24));
+    const hi=await ids(host), ji=await ids(join), ht=await tr(host), jt=await tr(join);
+    console.log('\n--- DIVERGENCE DETAIL -------------------------------------------------');
+    console.log('HOST   own hand   ('+hi.mine.length+'): '+hi.mine.join(' '));
+    console.log('HOST   sees seat1 ('+hi.theirs.length+'): '+hi.theirs.join(' '));
+    console.log('CLIENT own hand   ('+ji.mine.length+'): '+ji.mine.join(' '));
+    console.log('CLIENT sees seat1 ('+ji.theirs.length+'): '+ji.theirs.join(' '));
+    const usable=hi.theirs.every(x=>typeof x==='string' && x) && ji.mine.every(x=>typeof x==='string' && x);
+    if(!usable) console.log('IDS UNUSABLE — cannot say what is missing (host '+JSON.stringify(hi.theirs.slice(0,3))+' client '+JSON.stringify(ji.mine.slice(0,3))+')');
+    else { const missing=hi.theirs.filter(x=>ji.mine.indexOf(x)<0);
+      console.log('IDS THE CLIENT IS MISSING: '+(missing.length?missing.join(' '):'(none — the counts differ but the ids agree, so the gap is elsewhere)')); }
+    console.log('--- HOST trace (last 24) ---');   ht.forEach(l=>console.log('   '+l));
+    console.log('--- CLIENT trace (last 24) ---'); jt.forEach(l=>console.log('   '+l));
+    console.log('----------------------------------------------------------------------\n');
+  }
   ok(drift===null, 'the two sides never diverge while a real game is played over the relay'+(drift?'  ← DIVERGED: '+drift:''));
   ok(worst>=2, 'and the game got past round 1 legally — round '+worst+' reached, '+acted+' actions');
 

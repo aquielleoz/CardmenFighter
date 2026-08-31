@@ -103,7 +103,48 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   - **The broadcast storm.** Real, and fixed in v1.31.65 (97% of mirrors were byte-identical duplicates). The
     failure rate did not move.
   - **The v1.31.64 rules change.** A/B'd against the pre-change build: same rate. It predates it.
-  **NEXT STEP — TRACE THE RECEIVE SIDE, and do not instrument the send side again.** The host is already known
+  **RE-MEASURED 2026-08-31 ON v1.31.74: 35 RUNS, 35 CLEAN.** That excludes the recorded rate outright —
+  P(35 clean) is **0.00%** at 1-in-4 and **0.93%** at 1-in-8 — while **1-in-16 (10.5%) and rarer remain
+  possible**, so this is "no longer reproduces at the recorded rate", NOT "fixed". The likely reason it dropped
+  is **v1.31.67**, which landed AFTER the last measurement: `isRoundDeal` replaced `handGrew` and added an
+  **empty-pile** clause, so a mirror is held far less often — and a held mirror is the only thing
+  `clientPlayCeremony` can discard.
+  **THE DISCARD PATH STILL EXISTS AND IS NOW TRACED.** `clientPlayCeremony` still does `pendingRoundMirror=null`,
+  so a second ceremony arriving before `finishClientCeremony` still throws a deal away. The lifecycle prints
+  `mirror HELD` / `mirror HELD -> DISCARDED` / `mirror HELD -> revealRound`, and **`nettest_sync` now dumps both
+  hands' card ids, the exact missing ids, and both peers' trace tails on failure** — the previous investigation
+  stalled precisely because that detail came from bespoke instrumentation that was then thrown away, which is
+  why "no HELD events" could not be re-checked nine versions later.
+  **DEMONSTRATED WITH A FORCED DROP:** dropping one deal mirror on purpose leaves the client missing **precisely
+  that round's two dealt ids** — the recorded signature, reproduced on demand:
+  ```
+  HOST   sees seat1 (8): 5C#16 6C#20 7C#25 7C#24 9S#35 10S#38 12S#47 12C#45
+  CLIENT own hand   (6): 5C#16       7C#25 7C#24 9S#35 10S#38 12S#47
+  IDS THE CLIENT IS MISSING: 6C#20 12C#45
+  ```
+  **THREE MORE THINGS ARE NOW SETTLED — do not re-derive them:**
+  - **A DROPPED MIRROR IS NOT AUTOMATICALLY PERMANENT.** With a forced drop, one run in two recovered on its own,
+    because the next host state change produces a fresh mirror. Permanence needs the loss to coincide with the
+    host's state going quiet.
+  - **"CLEAR THE DEDUPE CACHE ON A ROUND CHANGE" IS A NO-OP.** `round` is in the mirror (`netview.js`), so a round
+    boundary always changes content and the deal mirror is never suppressed by dedupe. This was about to be built
+    before checking.
+  - **THE LINK TO AJ'S "PRESSED PASS AND NOTHING HAPPENED" IS WEAKER THAN THIS ENTRY USED TO CLAIM.** v1.31.74
+    fixed a **confirmed** cause of that exact symptom (`updateActions` did not know about `busy`, so Pass rendered
+    enabled and swallowed clicks for ~2s), and the stale-intent guard is a second confirmed cause. Do not treat
+    that report as evidence for this fork.
+  **TRIED AND WITHDRAWN — `reassertMirror()` at the park points.** The idea: `broadcastMirror` dedupes and
+  `lastMirror` is otherwise cleared only on channel re-bind, so a park would freeze a stale client forever;
+  clearing the cache when the host parks would make any lost mirror self-healing. **It could not be shown to fix
+  anything** (5 of 6 forced-drop runs still diverged) and was reverted. The reason is instructive: after a
+  forced drop the game is on the **HOST's** turn, and `settle()` gives up before either side acts — so the
+  persistence in that experiment is **an artefact of the harness**, not a deadlock. Do not re-propose it without
+  an experiment that reproduces true persistence.
+  **NEXT STEP — BUILD A PROBE THAT DROPS THE DEAL *AND* LEAVES THE CLIENT TO ACT NEXT.** That is the one
+  configuration where a stale client can genuinely deadlock the table (it is `busy` or acting on a board the host
+  has moved past, and the host is parked waiting for it), and it is the configuration the current probe never
+  reaches. Everything else about this bug is now instrumented; this is the missing experiment.
+  **(Superseded) TRACE THE RECEIVE SIDE, and do not instrument the send side again.** The host is already known
   to broadcast the grown hand. Log every mirror's hand length *as it arrives on the client*, next to the `q`
   stamp, and compare against the host's send log for the same window. The question to answer is narrow: **does
   the mirror carrying the deal reach the client at all, and if it does, what happens to it?**
