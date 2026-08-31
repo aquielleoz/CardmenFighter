@@ -27,6 +27,14 @@ E.setShieldCards(true); E.setLoserMill(true);
  * contested. Split because the length cost belongs to the no-strip half. */
 var CFG=[
  ['A LIVE baseline (chosen, flat 4, draw=N)',        'chosen','targeted', false,true, ''],
+ /* THE 2 IN PLAYS OF 4+ (2026-08-30). A playtester with no chikicha background found the bar on the 2 weird,
+  * and a chikicha player confirmed the 2 IS usable in sequences there — as the LOWEST card: 2-3-4-5-6 is the
+  * smallest straight, 10-J-Q-K-A still the highest, 222XX the smallest full house. That is Big Two's rule too.
+  * v1.31.45 barred it after checking Tien len and Dou Dizhu — the games we borrowed SHAPES from — and never
+  * asked the game the whole thing is based on. These three arms decide whether 'low' can be the default. */
+ ['T1 the 2 BARRED from 4+ (shipped default)',       'chosen','targeted', false,true, '', false, '', 'off'],
+ ['T2 the 2 LOWEST in 4+ (Big Two / Chikicha)',      'chosen','targeted', false,true, '', false, '', 'low'],
+ ['T3 the 2 at value 15 in 4+ (legacy JQKA2)',       'chosen','targeted', false,true, '', false, '', 'high'],
  ['B  + loss = all           (flat 4 shields)',      'all','targeted',    false,true, ''],
  ['C  + loss = all + shields 2+N',                   'all','targeted',    true, true, ''],
  ['D  loss = chosen + shields 2+N (for contrast)',   'chosen','targeted', true, true, ''],
@@ -73,6 +81,10 @@ function run(loss,mill,sh,dp,ap,P,n,ward){
   /* `pair` names one of the family's configurations rather than a boolean, because the four-card slot is a MODE
    * (2 Kits and Poker are alternatives) and 3-Kits-and-up is independent of it. */
   var pair = arguments[8] || '';
+  /* seqTwos: what the 2 does in plays of 4+ — 'off' barred (Tien len / Dou Dizhu, shipped), 'low' lowest
+   * (Big Two / CHIKICHA), 'high' fight value 15 (the legacy J-Q-K-A-2). Appended as an optional column, the
+   * same way `pair` was, so every existing arm keeps its meaning. */
+  if (E.setSeqTwos) E.setSeqTwos(arguments[9] || 'off');
   if (E.setDoublePair) E.setDoublePair(pair==='kits2'||pair==='both'||pair==='chikicha'||pair==='shapesonly' ? 'kits' : (pair==='poker'||pair==='pokerK3' ? 'poker' : 'off'));
   if (E.setKits3) E.setKits3(pair==='kits3'||pair==='both'||pair==='pokerK3'||pair==='chikicha'||pair==='shapesonly');
   if (E.setQuadro) E.setQuadro(pair==='quadro'||pair==='chikicha'||pair==='shapesonly');
@@ -107,9 +119,9 @@ console.log('config                                      2p              3p     
 CFG.forEach(function(c){
   var out=c[0].padEnd(44);
   [2,3,4,6].forEach(function(P){
-    var r=run(c[1],c[2],c[3],c[4],c[5],P,90,c[6],c[7]);
+    var r=run(c[1],c[2],c[3],c[4],c[5],P,90,c[6],c[7],c[8]);
     out += (String(r.med)+'('+r.max+') j'+r.jabPct+' L'+r.lead).padEnd(16);
   });
   console.log(out);
 });
-E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false); E.setApexNoStrip(false); if(E.setWardAll) E.setWardAll(false); if(E.setDoublePair) E.setDoublePair('off'); if(E.setKits3) E.setKits3(false); if(E.setQuadro) E.setQuadro(false); if(E.setChopQuadro){E.setChopQuadro(false);E.setChopKits(false);E.setChopSflush(false);}
+E.setShieldsPerPlayer(false); E.setDrawPerPlayer(false); E.setApexInfinity(false); E.setApexNoStrip(false); if(E.setSeqTwos) E.setSeqTwos('off'); if(E.setWardAll) E.setWardAll(false); if(E.setDoublePair) E.setDoublePair('off'); if(E.setKits3) E.setKits3(false); if(E.setQuadro) E.setQuadro(false); if(E.setChopQuadro){E.setChopQuadro(false);E.setChopKits(false);E.setChopSflush(false);}

@@ -78,15 +78,29 @@
    * in an airplane, but a lone 2 is a perfectly good wing. So this guards the CHAIN, never the baggage.
    * Note APEX_INF already did this for straights and kits as a side effect (an Infinity-valued 2 is not v+1),
    * so the two rules agree rather than fighting; this one just does not need the apex rule switched on. */
-  var SEQ_TWOS = false;
+  /* SEQ_TWOS IS A MODE, NOT A BOOLEAN (2026-08-30). The four source games agree the 2 is the apex at sizes
+   * 1-3 and differ on exactly one axis in plays of 4+, with exactly two answers:
+   *   'off'  barred from every chain          — Tien len, Dou Dizhu   (shipped default)
+   *   'low'  ranks LOWEST in plays of 4+      — Big Two, CHIKICHA     (2-3-4-5-6 smallest, 222XX smallest full house)
+   *   'high' keeps fight value 15             — the legacy J-Q-K-A-2, which matches no family
+   * The 1-3 boundary is not new: `apexOnlyPlay` already scopes "a play that is nothing but 2s" to
+   * single/pair/trio, so a Quadro of 2s was never an apex play either. */
+  /* DEFAULT 'low' since 2026-08-30. It was 'off' from v1.31.45, chosen after checking Tien len and Dou Dizhu —
+   * the games we borrowed SHAPES from — and never asking the game this one is based on. A playtester with no
+   * chikicha background found the bar weird, and a chikicha player confirmed the 2 IS usable in sequences
+   * there, as the LOWEST card. Measured before flipping (twosim.js): pacing 11/20/31 unmoved at 2/4/6p, jab
+   * share within noise, straights +12%, and the real change is that a trio of 2s goes from the HIGHEST full
+   * house to the lowest — intended, and larger than the straight effect everyone was discussing. */
+  var SEQ_TWOS = 'low';
+  function seqValue(c) { return (SEQ_TWOS === 'low' && c && c.rank === 2) ? 2 : fightValue(c); }
   function twoInChain(cards) {
-    if (SEQ_TWOS) return false;
+    if (SEQ_TWOS !== 'off') return false;
     for (var i = 0; i < cards.length; i++) if (cards[i].rank === 2) return true;
     return false;
   }
   /* For the winged airplane, where only the TRIOS are links — a 2 among the spares is legal. */
   function twoIsChainTrio(cards, counts) {
-    if (SEQ_TWOS) return false;
+    if (SEQ_TWOS !== 'off') return false;
     for (var i = 0; i < cards.length; i++) if (cards[i].rank === 2 && counts[fightValue(cards[i])] === 3) return true;
     return false;
   }
@@ -99,10 +113,10 @@
     // Ordered by FIGHT VALUE — contiguous 3..15 (3..10, J=11, Q=12, K=13, A=14, apex 2=15)
     // (…10, J=11, Q=12, K=13, A=14, 2=15), so a run is consecutive values just like the old 1..10.
     if (twoInChain(cards)) return null;                                   // 3 up to ace, unless SEQ_TWOS
-    var rs = cards.map(fightValue).sort(function (a, b) { return a - b; });
+    var rs = cards.map(seqValue).sort(function (a, b) { return a - b; });
     for (var i = 1; i < n; i++) if (rs[i] !== rs[i - 1] + 1) return null; // consecutive & distinct
     var top = rs[n - 1];
-    var topCard = cards.filter(function (c) { return fightValue(c) === top; })[0];
+    var topCard = cards.filter(function (c) { return seqValue(c) === top; })[0];
     return { top: top, topCard: topCard };
   }
   /* KITS — shown to players as "2 Kits" / "3 Kits". Named for what the table that plays them calls them, and
@@ -127,7 +141,7 @@
     if (n < 4 || n % 2) return null;
     if (twoInChain(cards)) return null;                                    // 连对 runs 3 up to ace too
     var counts = {}, i;
-    for (i = 0; i < n; i++) { var v = fightValue(cards[i]); counts[v] = (counts[v] || 0) + 1; }
+    for (i = 0; i < n; i++) { var v = seqValue(cards[i]); counts[v] = (counts[v] || 0) + 1; }
     var vals = Object.keys(counts).map(Number).sort(function (a, b) { return a - b; });
     if (vals.length !== n / 2) return null;                                    // exactly n/2 distinct values
     for (i = 0; i < vals.length; i++) if (counts[vals[i]] !== 2) return null;   // each one exactly a pair
@@ -139,7 +153,7 @@
    * than a mode like the four-card double-pair slot. */
   function valueCounts(cards) {
     var c = {}, i, v;
-    for (i = 0; i < cards.length; i++) { v = fightValue(cards[i]); c[v] = (c[v] || 0) + 1; }
+    for (i = 0; i < cards.length; i++) { v = seqValue(cards[i]); c[v] = (c[v] || 0) + 1; }   // composite shapes only (size 4+), so seqValue is right here
     return c;
   }
   function countsOf(c) {
@@ -243,7 +257,7 @@
       if (kt && kt.pairs >= 3) return { type: 'kit', value: kt.top, size: n, key: [kt.top], cards: cards };
     }
     if (n === 5) {
-      var counts = {}; ranks.forEach(function (r) { counts[r] = (counts[r] || 0) + 1; });
+      var counts = {}; cards.map(seqValue).forEach(function (r) { counts[r] = (counts[r] || 0) + 1; });   // seqValue: 222XX is the SMALLEST full house under 'low'
       var keys = Object.keys(counts);
       if (keys.length === 2) {
         var a = +keys[0], b = +keys[1];
@@ -2156,7 +2170,13 @@
    * damage — because every rule in the panel must default OFF: "is this game customised?" is literally "is any
    * rule on?", so a rule whose off state changed the game would break that. Same inversion as `flatDraw`. */
   function setNoFullHouse(v) { NO_FULL_HOUSE = !!v; }
-  function setSeqTwos(v) { SEQ_TWOS = !!v; }
+  /* Accepts the mode, and migrates the v1.31.45 boolean: `true` meant the legacy value-15 behaviour, which is
+   * now 'high'. A saved rule key or an older peer must not silently land on a different game. */
+  function setSeqTwos(v) {
+    if (v === true) { SEQ_TWOS = 'high'; return; }
+    if (v === false || v == null) { SEQ_TWOS = 'off'; return; }
+    SEQ_TWOS = (v === 'low' || v === 'high') ? v : 'off';
+  }
   function isNoFullHouse()   { return NO_FULL_HOUSE; }
   function setTrioOne(v)   { TRIO_ONE = !!v; }
   function isTrioOne()     { return TRIO_ONE; }

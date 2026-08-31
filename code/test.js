@@ -159,13 +159,40 @@ function cards(ids) { return ids.map(card); }
   ok(E.beats(single(13, 'D'), single(10, 'D')), 'REWORK: King beats 10');
   ok(!E.beats(single(10, 'D'), single(2, 'D')), 'REWORK: 10 does not beat apex 2');
   ok(E.beats(E.detectCombo([sc(2, 'D'), sc(2, 'H')]), E.detectCombo([sc(13, 'D'), sc(13, 'H')])), 'REWORK: pair of 2s beats pair of Kings (apex-as-stopper by value)');
+  /* THE 2 IN PLAYS OF 4+ IS A THREE-WAY MODE, and the DEFAULT is 'low' (2026-08-30): the 2 plays in chains as
+   * the LOWEST card — Chikicha's rule, and Big Two's. All three settings are asserted, because the shipped
+   * default moved and a test covering only one of them cannot see that. */
   ok(E.detectCombo([sc(11, 'D'), sc(12, 'D'), sc(13, 'D'), sc(1, 'D'), sc(2, 'D')]) === null,
-     'J-Q-K-A-2 is NOT a straight by default: the 2 is barred from chains, as in Tiến lên and Dou Dizhu');
-  E.setSeqTwos(true);
+     'J-Q-K-A-2 is NOT a straight by default — the 2 is the LOW card in a chain, so it cannot sit above the Ace');
+  var lo23456 = E.detectCombo([sc(2, 'D'), sc(3, 'D'), sc(4, 'D'), sc(5, 'D'), sc(6, 'D')]);
+  ok(lo23456 && lo23456.type === 'straight' && lo23456.value === 6,
+     '  → but 2-3-4-5-6 IS one by default, topping at the 6: the smallest straight in the game');
+  E.setSeqTwos('off');
+  ok(E.detectCombo([sc(2, 'D'), sc(3, 'D'), sc(4, 'D'), sc(5, 'D'), sc(6, 'D')]) === null,
+     '  → under off the 2 is barred from chains entirely (Tiến lên, Dou Dizhu)');
+  E.setSeqTwos('high');
   var jqka2 = E.detectCombo([sc(11, 'D'), sc(12, 'D'), sc(13, 'D'), sc(1, 'D'), sc(2, 'D')]);
   ok(jqka2 && jqka2.type === 'straight' && jqka2.value === 15,
-     '  → and IS one under seqTwos, topping at the apex (and still no straight-flush tier)');
+     '  → and under high it keeps fight value 15, so J-Q-K-A-2 is legal again (the legacy rule)');
+  E.setSeqTwos(true);
+  ok(E.isSeqTwos() === 'high', '  → the v1.31.45 BOOLEAN migrates: true meant value-15, which is now "high"');
   E.setSeqTwos(false);
+  ok(E.isSeqTwos() === 'off', '  → and false migrates to "off", so an old saved key cannot land on a third game');
+  E.setSeqTwos('low');
+  /* THE FULL HOUSE IS THE BIGGEST EFFECT OF THE DEFAULT CHANGE, and it is not a chain — so it is easy to miss.
+   * A full house is keyed by its TRIO, so a trio of 2s went from the highest full house in the game to the
+   * lowest. Measured (twosim.js, 6 players): size-4+ plays containing a 2 fall 1942 -> 875. Aj's chikicha
+   * source states it directly — "222XX was the smallest full house". */
+  var fh2 = E.detectCombo([sc(2, 'D'), sc(2, 'H'), sc(2, 'C'), sc(3, 'S'), sc(3, 'D')]);
+  var fh3 = E.detectCombo([sc(3, 'D'), sc(3, 'H'), sc(3, 'C'), sc(4, 'S'), sc(4, 'D')]);
+  ok(fh2 && fh2.type === 'fullhouse' && fh2.value === 2,
+     '222 + 33 is the SMALLEST full house by default — the trio of 2s is the low card, not the apex');
+  ok(E.beats(fh3, fh2) && !E.beats(fh2, fh3), '  → so 333 + 44 beats it, and it beats nothing');
+  E.setSeqTwos('off');
+  var fhOff = E.detectCombo([sc(2, 'D'), sc(2, 'H'), sc(2, 'C'), sc(3, 'S'), sc(3, 'D')]);
+  ok(fhOff && fhOff.value === 15,
+     '  → and under off it is the HIGHEST, because the bar is on chains and a full house is not one');
+  E.setSeqTwos('low');
   ok(E.detectCombo([sc(10, 'C'), sc(11, 'D'), sc(12, 'H'), sc(13, 'S'), sc(1, 'C')]).value === 14, 'REWORK: 10-J-Q-K-A straight tops at Ace (14)');
   ok(E.detectCombo([sc(1, 'D'), sc(2, 'D'), sc(3, 'D'), sc(4, 'D'), sc(5, 'D')]) === null, 'REWORK: old A-2-3-4-5 low straight no longer a combo');
   // The apex 2 is a vanilla trump. The STOPPER mechanic it used to carry was retired by the rework and its
@@ -846,11 +873,14 @@ function cards(ids) { return ids.map(card); }
   /* A CHAIN IS A CHAIN whichever shape it is: the same rule that bars J-Q-K-A-2 bars A-A-2-2, which is Dou
    * Dizhu's 连对 rule ("twos cannot be used") applied to the shape we borrowed from it. */
   ok(E.detectCombo(apex) === null,
-     'A-A-2-2 is NOT a kit by default — the 2 is barred from every chain, not only from straights');
-  E.setSeqTwos(true);
+     'A-A-2-2 is NOT a kit by default — the 2 is the LOW card, so it is not consecutive with the Ace');
+  var lowkit = E.detectCombo([C(2, 'D'), C(2, 'H'), C(3, 'C'), C(3, 'S')]);
+  ok(lowkit && lowkit.type === 'kit' && lowkit.value === 3,
+     '  → but 2-2-3-3 IS one by default, topping at the 3: the same rule at the other end of the ladder');
+  E.setSeqTwos('high');
   var ca = E.detectCombo(apex);
-  ok(ca && ca.type === 'kit' && ca.value === 15, '  → and IS one under seqTwos, valued at the apex');
-  E.setSeqTwos(false);
+  ok(ca && ca.type === 'kit' && ca.value === 15, '  → and A-A-2-2 IS one under high, valued at the apex');
+  E.setSeqTwos('low');
   /* The 2 is barred as a LINK only. Poker's two pair is not a chain (it allows gaps), so the same four cards
    * are legal in that mode and not in this one — which is the sharpest statement of what the rule covers. */
   E.setDoublePair('poker');
@@ -864,14 +894,20 @@ function cards(ids) { return ids.map(card); }
    * each size on its own would have passed; asserting that the sizes AGREE is what catches a second copy. */
   var kit4with2 = [C(1, 'D'), C(1, 'H'), C(2, 'C'), C(2, 'S')];               // A-A-2-2
   var kit6with2 = [C(13, 'D'), C(13, 'H'), C(1, 'C'), C(1, 'S'), C(2, 'D'), C(2, 'H')];   // K-K-A-A-2-2
+  var lo4 = [C(2, 'D'), C(2, 'H'), C(3, 'C'), C(3, 'S')];                                  // 2-2-3-3
+  var lo6 = [C(2, 'D'), C(2, 'H'), C(3, 'C'), C(3, 'S'), C(4, 'D'), C(4, 'H')];             // 2-2-3-3-4-4
   var agree = true, k4on, k6on;
-  E.setSeqTwos(false);
-  agree = agree && E.detectCombo(kit4with2) === null && E.detectCombo(kit6with2) === null;
-  E.setSeqTwos(true);
+  E.setSeqTwos('off');
+  agree = agree && E.detectCombo(kit4with2) === null && E.detectCombo(kit6with2) === null
+                && E.detectCombo(lo4) === null && E.detectCombo(lo6) === null;
+  E.setSeqTwos('high');
   k4on = E.detectCombo(kit4with2); k6on = E.detectCombo(kit6with2);
   agree = agree && !!k4on && k4on.type === 'kit' && !!k6on && k6on.type === 'kit';
-  E.setSeqTwos(false);
-  ok(agree, 'a 4-kit and a 6-kit agree about the 2 at BOTH settings — one shape, two lengths, one definition');
+  E.setSeqTwos('low');
+  var l4 = E.detectCombo(lo4), l6 = E.detectCombo(lo6);
+  agree = agree && !!l4 && l4.type === 'kit' && !!l6 && l6.type === 'kit'
+                && E.detectCombo(kit4with2) === null && E.detectCombo(kit6with2) === null;
+  ok(agree, 'a 4-kit and a 6-kit agree about the 2 at ALL THREE settings — one shape, two lengths, one definition');
 
   ok(E.beats(c67, c45) === true, 'a higher kit beats a lower one of the same length');
   ok(E.beats(c45, c67) === false, 'and not the other way round');

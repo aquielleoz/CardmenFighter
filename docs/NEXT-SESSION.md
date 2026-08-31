@@ -181,6 +181,23 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 
 
 ## BACKLOG (open work only — completed items live in the changelog below)
+- **★ `nettest_sync` CATCHES A REAL HOST/CLIENT FORK, INTERMITTENTLY, ON `main` — 2 RUNS IN 6 (2026-08-30).**
+  The cross-check suite doing exactly what it was built for. The failure is a **persistent** hand-size
+  disagreement, not a mid-flight one (the suite polls until a mismatch clears, so transient windows are already
+  excluded):
+  ```
+  DIVERGED: the host thinks the client holds 6 cards; the client holds 4
+  DIVERGED: the host thinks the client holds 8 cards; the client holds 6
+  ```
+  **Always exactly 2 cards, in both observed failures** — which smells like one PAIR applied on one side and
+  not the other, rather than drift.
+  **A/B'd, and it is NOT the 2-in-chains change:** the pre-change build fails at the same 2-in-6 rate, so this
+  predates v1.31.64. It was found only because that change prompted a full sweep.
+  **Start here, and do not theorise first — the trace is already in the file.** Both peers dump
+  `__cmfTrace()` into the saved battle log, so a failing run can be compared move-for-move: look for a
+  `clientSend play` with no matching `move IN`, or a `move REFUSED — stale` (the `stateSeq` guard is known to
+  refuse valid moves, see the entry below). This is very likely the same root cause as Aj's real-game report of
+  **pressing Pass and nothing happening**.
 - **`nettest_clientfork.js` WAS DELETED — its premise was invalid, but its INTENT is now proven.** It was
   written on 2026-08-28, abandoned the same day, and then swept onto `main` by accident in PR #82. It lands
   **4 FAIL**, is listed in no doc, and its own summary line prints `FAIL: 6  FAIL: 4` because the pass label is
@@ -1179,6 +1196,51 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.64 — the 2 plays in sequences, as the low card
+
+**The default changed after playtester feedback.** A player with no chikicha background found it weird that the
+2 could not be used in sequences; a chikicha player confirmed it **can** be — as the **lowest** card. Smallest
+straight `2-3-4-5-6`, biggest still `10-J-Q-K-A`, smallest full house `222XX`. That is Big Two's rule too.
+
+**v1.31.45's research was incomplete and this corrects it.** Its changelog says *"all three source games
+agree"* — but it consulted the games we borrowed *shapes* from and never asked the game this one is based on.
+Two of four bar the 2; the other two demote it.
+
+**The generalisation is clean, so this is a rule and not a Chikicha special case.** All four games agree the 2 is
+the apex at sizes 1-3 and differ only in plays of 4+, with exactly two answers. The engine already drew that
+line: `apexOnlyPlay` has always been scoped to single/pair/trio.
+
+```
+seqTwos:  off   barred from every chain     Tiến lên · Dou Dizhu
+          low   ranks lowest in plays of 4+  Big Two · CHIKICHA   ← new default
+          high  keeps fight value 15         the legacy J-Q-K-A-2, which matches no family
+```
+
+**MEASURED BEFORE FLIPPING** (`twosim.js`, new): pacing **unmoved** — 11/20/31 rounds at 2/4/6p in all three
+settings, confirmed independently by `rulesim` — jab share within noise, straights played +12% at 6p. Deck
+balance showed no reliable signal: two replicates disagreed more than the arms did, which is the per-deck noise
+floor CLAUDE.md warns about, so the first run's alarming spread was discarded rather than reported.
+
+**The biggest effect is the full house, not the straight**, and it is easy to miss because a full house is not a
+chain. It is keyed by its trio, so a trio of 2s goes from the highest full house in the game to the lowest —
+size-4+ plays containing a 2 fall **1942 → 875** at 6p. Aj's chikicha source states it directly.
+
+**Two panel rules, both phrased as the negative of the default**, because every rule must default off —
+`RULE_DEFS.some(ruleOn)` *is* the definition of "customised". `noSeqTwos` bars the 2; `highTwos` restores the
+legacy ranking and is **dead while `noSeqTwos` is on**, since where the 2 ranks inside a chain is meaningless
+once it is not in one. That is a new dependency kind, `deadIf` — the mirror of `needsAny`.
+
+**Consequences Aj called in advance, all three:** the Tiến lên and Dou Dizhu presets now set `noSeqTwos`
+explicitly; the preset line moved above **The 2**, because a preset must precede every group it governs and it
+now sets a rule there; and the two rules depend on each other.
+
+Migration: a saved `seqTwos` key maps to `highTwos`. **The other half cannot be migrated and does not need to
+be** — a key that OMITS the rule meant "barred" before and means "lowest" now, because the default moved. An
+old peer and a new one will play the 2 differently unless one says so explicitly, which is what the
+build-version handshake exists to warn about.
+
+`test` 325 → 333, `rulestest` 143 → 150 (including both directions of the new dependency).
 
 ### v1.31.63 — peek is a real review mode
 
