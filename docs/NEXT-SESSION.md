@@ -360,7 +360,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   **STILL OPEN: the two refused PASSES.** Those *are* board-formed, so exemption is not the answer — the stamp
   itself is wrong. Once it counts real state changes rather than client intents it will refuse far MORE often,
   so fix the stamp and the refusal policy together.
-- **A CLIENT GETS STUCK UNDER THE "X seizes the initiative!" DIM — MECHANISM FOUND, 2026-08-29.** Reported
+- **~~A CLIENT GETS STUCK UNDER THE "X seizes the initiative!" DIM~~ SHIPPED in v1.31.67.** Reported
   twice by Aj with screenshots (the second: his own phone, play area dimmed behind the banner, hand still fully
   usable underneath). Not a wedge and not a transport problem — `#roundfx` is `position:absolute; inset:0`
   inside the play area, so a stuck banner dims and eats clicks on the pile while the hand below keeps working.
@@ -1179,6 +1179,39 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.67 — the "seizes the initiative" dim comes down
+
+Aj hit this twice in one game: the play area dimmed behind the round banner and never recovered, board
+unreadable and unclickable while the hand below kept working. That signature is diagnostic — `#roundfx` is
+`position:absolute; inset:0` **inside the play area**, so **board dead but hand alive means the banner, not
+`busy`**.
+
+**Two fixes, and the second is the real one.**
+
+`finishClientCeremony`'s fallback armed a 2500ms timer that cleared a flag and, despite its own comment, never
+touched the banner. `playPreBeats` deliberately leaves the banner up on its last beat so the Round-N plate can
+swap into it, so if nothing revealed the deal, nothing ever called `clearRoundfx()`. **The teardown is
+unconditional now.**
+
+And the client identified "the new round was dealt" by the incoming hand being **longer** than the one on
+screen. That proxy is false exactly when the end-of-round trim matches the draw: `discardToLimit` runs before
+`roundDraw`, so a client that **passed** holding 12 trims to 10 and draws back to 12 — equal, never greater. A
+player is on turn with more than ten cards on **78%** of turns. The deal is now identified by **a card id the
+client does not already hold, arriving with an empty pile.**
+
+**Two wrong answers on the way, both worth keeping:**
+- **The round number.** It advances at *resolution*, not at the draw, so the intermediate mirrors (shield drop,
+  pile clear) already carry it and got held too — which broke the shatter animation and the threshold beat in
+  three suites.
+- **Card ids alone.** A broken shield returning to hand also brings an id the client does not hold, and that
+  mirror arrives with the pile still on the table. Holding it stopped the shatter rendering, so
+  `checkThresholds` never queued and the ROAR/OVERDRIVE beat never played. Hence the empty-pile clause.
+
+`nettest_dim.js` (8) reproduces it deterministically. **The client must PASS, not play** — playing drops it to
+11 and the trim-then-draw returns it to 12, which is *greater* and which the old proxy could see. That
+one-card difference is the entire bug, and the first version of the suite played a card and passed on the
+broken build. It asserts the **teardown**, never the banner appearing: the banner appearing is the correct half.
 
 ### v1.31.66 — the board stops scrolling sideways, and that fixes the clobbered play area too
 

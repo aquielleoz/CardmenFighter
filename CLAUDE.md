@@ -114,6 +114,9 @@ node peektest.js             # PEEK AT THE TABLE, the review mode (31). Peek SHO
                              # __solo.peek() — the REAL enterPeek, because showModal's peek branch keys off the
                              # `peeking` VARIABLE, so staging the classes alone tests nothing. And the hand's
                              # click target is the .group; `.group .card{pointer-events:none}` is by design.
+node nettest_dim.js          # the round banner must COME DOWN on a client (8). Stages the client OVER the hand
+                             # cap and makes it PASS — playing shrinks the hand and the trim-then-draw grows it
+                             # back, which the old proxy could see. Asserts the teardown, never the banner.
 node nettest_kick.js         # the CLIENT must play the FIGHTER KICK finisher (11). Stages it deterministically:
                              # loser out of shields, host holding a pair. NOTE round 1 is jabs only, and the
                              # kick fires on the next Special win AFTER a seat is already at 0 shields.
@@ -876,6 +879,16 @@ renders `{who}` in the local frame via `logName` (yourself → "You"; a duel opp
 and, when we are the netplay host, broadcasts the **template** plus the actor's absolute seat so each client
 renders it in *its* frame. A bare `logMsg` is host-local and reaches nobody else — which is how clients ended up
 with a completely empty battle log for every version up to v1.28.2.
+
+**"IS THIS THE NEW ROUND'S DEAL?" — A NEW CARD ID WITH AN EMPTY PILE (v1.31.67), never a hand-length compare.**
+The client holds the deal mirror so the Round-N banner and the card fly-in land together. It used to detect it
+with `handGrew` — the incoming hand is LONGER — which is false whenever the end-of-round trim matches the draw
+(`discardToLimit` runs before `roundDraw`, so a client that PASSED holding 12 trims to 10 and draws back to 12).
+The "seizes the initiative" banner then stayed up forever, dimming a board whose hand still worked.
+**Two other answers were tried and are WRONG:** the ROUND NUMBER advances at resolution, not at the draw, so the
+intermediate mirrors already carry it and get held — that broke the shatter and the threshold beat in three
+suites; and CARD IDS ALONE match a broken shield returning to hand, whose mirror still has the pile on the
+table. Hence the empty-pile clause.
 
 **A client's mirror is seat-ROTATED**: its own seat is index 0. So in a test, the client's own turn is
 `turn===0`, never its absolute seat number. `nettest_log.js` documents this; getting it wrong looks exactly like
