@@ -227,6 +227,28 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   drag, and that suite drives clicks + Fight, which short-circuits in `doFight` — and the suite has a long
   documented history of intermittency. Recorded as characterised-but-open rather than dismissed: **capture the
   failing assertion next time it goes red.**
+- **AN UN-READY BUTTON FOR NETPLAY** (Aj, 2026-08-30). A client can press Ready and has no way to take it back:
+  once readied it waits for the host to start, whether or not it still wants to play that game. The host can
+  already remove a seat (`hostDropPlayer`, the ✖ in the roster) — the player cannot.
+  **Most of the machinery already exists**, because a rules change un-readies the whole table: `rulesGen++`
+  stales every stamp, `readyCount()` counts only seats whose `seatRuleGen[seat] === rulesGen`, and the client's
+  own `t:'rules'` handler already does `iReady=false; stopJoinRetry(); renderNet()`. An un-ready button is that
+  path, for one seat, on purpose. It needs a client→host op (clear `seatRuleGen[seat]`), the same local reset,
+  and a re-ready that goes back through the normal join.
+  **Two traps, both already documented and both easy to walk into:**
+  - **THE JOIN RETRY RE-SENDS `t:'join'` EVERY 350ms UNTIL THE GAME STARTS.** Un-readying without
+    `stopJoinRetry()` un-readies the seat and then silently re-readies it within a third of a second, which
+    looks exactly like the button not working.
+  - **UN-READY MUST NOT FREE THE SEAT.** `hostStartRealN` indexes seats `1..nextSeat-1` — *joined*, never
+    *ready* — precisely so a stale seat sitting before a ready one cannot mis-assign decks. Readiness gates the
+    Start BUTTON only. If un-ready renumbers seats, decks and names go to the wrong players.
+  **DECIDED (Aj, 2026-08-30), so build it this way:**
+  - **The host gets no un-ready button.** Its "readiness" is just its own rules choice — there is nothing to
+    take back — so the host's equivalent is the existing **Leave**. Un-ready is a client control only.
+  - **Un-readying WITHDRAWS that seat's rule suggestion** (`seatSuggest[seat]`), and the host re-broadcasts the
+    map. A player stepping out of the game takes their suggestion with them. Note this is the one place a
+    suggestion is cleared by something other than the sender changing it, so the host must broadcast the whole
+    map afterwards — suggestions are STATE, not events, which is why the host sends the map rather than a delta.
 - **STARTING A NEW NETPLAY GAME DROPS YOU INTO THE PREVIOUS DUEL'S END SCREEN** (Aj, 2026-08-29: *"you have to
   press leave then do the whole handshake thing again"* — so the cost is a full re-handshake, not just a stray
   overlay). Reported earlier as "stale win page"; this is the sharper version, and the end screen appears
@@ -264,7 +286,7 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
   drops the end screen you came from and the ↩ Back that returns to it), or should peek allow a *deliberately*
   opened modal to show (needs `.overlay.peeking .modal{display:none}` to distinguish "the dialog peek hid" from
   "a dialog the player just asked for")? The second is the better mode and the more invasive change.
-- **THE CLIENT NEVER PLAYS THE FIGHTER KICK FINISHER — THE CEREMONY IS SENT ONE LINE TOO LATE** (Aj,
+- **~~THE CLIENT NEVER PLAYS THE FIGHTER KICK FINISHER~~ SHIPPED in v1.31.62** (Aj,
   2026-08-29: *"the client didn't play the rider kick animation even tho they won"*). **Three sites, identical
   shape**, and the terminal `return` fires before the send:
   ```js
@@ -1130,6 +1152,55 @@ so any fixed `wait(n)` followed by an assertion is this bug waiting to happen.**
 **public battle log** (v1.28.2) · and the **entire MP parity audit** — A1/A2/A3 (v1.29.1), B1 (v1.29.2),
 C1 (v1.29.3), C2+D1 (v1.29.6). `MP-PARITY-AUDIT.md` is now a record, not a to-do list.*
 
+
+### v1.31.62 — the client plays the Fighter Kick again
+
+All three `sendCeremony` call sites sat **one line below** the terminal `return endGame()`:
+
+```js
+announceRoundWin(r);
+if(state.finished){ … return endGame(); }   // Fighter Kick — terminal
+sendCeremony(r);                            // ← never reached on the round that ENDS THE GAME
+```
+
+`ceremonyResFor` carries `kick:!!res.kick` faithfully — it simply never left the host. The client therefore
+reached `endGame()` with `pendingKick` false and cut straight to the win screen: no finisher, no sound. Aj:
+*"the client didn't play the rider kick animation even tho they won"*.
+
+**The client's skip is gated on `finished`, NOT on `kick` — Aj caught that from the rules, not the code.**
+*"remember each loss is by a kick, so there would be multiple kicks in multiplayer firing off"*. The engine
+agrees: `result.kick = true;` then `if (st.numPlayers === 2) st.finished = true; else { eliminatePlayer(...);
+if (aliveCount(st) <= 1) st.finished = true; }` — so at 3-6 players **every elimination is a kick** and only the
+last one ends the game. A first attempt skipped the beats whenever `res.kick` was set, which would have gone
+silent on a mid-game elimination the host still narrates, and stranded `pendingKick` on a seat that never
+reaches `endGame()`. `ceremonyResFor` now carries `finished`, because it is not derivable from `kick`.
+
+`nettest_elim3` (15 → 16) guards it, and the diff is exact — the surviving client loses its first beat:
+```
+fixed   ["P3 won the round with a Straight!", "P3 seizes the initiative!", "Round 3…"]
+broken  [                                      "P3 seizes the initiative!", "Round 3…"]
+```
+Two vacuous versions came first and are recorded there: an "any banner ever" flag stays armed and is set by the
+NEXT round's ceremony, and snapshotting as soon as the first banner appears compares one entry against one entry.
+
+The send now happens before the terminal return **and before `broadcastMirror()`** — the channel is ordered, so
+the client learns `kick` (setting `pendingKick` inside `announceRoundWin`) before the finished mirror drives it
+into `endGame()`. `clientPlayCeremony` returns early on `res.kick` rather than playing beats, which matches the
+host exactly: on a terminal round the host plays no pre-draw beats and no Round card either.
+
+`nettest_kick.js` (11) stages it deterministically — the client out of shields, the host holding a pair — and
+was verified by reintroducing the bug, where **exactly one** assertion fails: the client still logs the kick
+(that line was already broadcast) and still reaches the end screen, only the finisher is missing.
+
+Two staging facts the suite records, because each cost a red run: **round 1 is jabs only**, so a pair staged
+immediately is silently refused and the turn never reaches the client; and **the kick fires on the next Special
+win AFTER a player is already out of shields**, so leaving the loser on 1 shield merely strips it.
+
+**Also: `nettest_elim3` had been red since v1.31.57 and nobody noticed** — it asserted an eliminated client's
+header reads "New Duel", and that button now reads "← Leave" online (the three-state `#newBtn`). The product
+moved and the suite did not. Found by finally running **all 39** netplay suites rather than the handful each
+change seemed to touch; every one is green, and the counts in CLAUDE.md are now verified rather than
+last-known — `sharetest` was 16, not the recorded 14.
 
 ### v1.31.61 — peek at the table works again, and the stacking derives from one number
 
