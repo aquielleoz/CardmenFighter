@@ -10361,7 +10361,11 @@ window.CardFace = {};
     // the client freezes its shields and plays the same pre-draw + threshold beats in lockstep.
     function ceremonyResFor(res, seat){
       var n=hostState?hostState.numPlayers:2; function rot(i){ return (i==null)?i:((i-seat+n)%n); }
+      /* `finished` is NOT derivable from `kick`. At 3-6 players every elimination is a kick and only the LAST
+       * one ends the game (engine: `if (st.numPlayers === 2) st.finished = true; else { eliminatePlayer(...);
+       * if (aliveCount(st) <= 1) st.finished = true; }`), so the client needs to be told which one this is. */
       var o={ roundWinner:rot(res.roundWinner), comboType:res.comboType, kick:!!res.kick, prevented:!!res.prevented,
+        finished:!!(hostState && hostState.finished),
         shieldStripped:!!res.shieldStripped, opening:!!res.opening, newRound:res.newRound, shieldToHand:!!res.shieldToHand };
       if(res.milled){ o.milled={}; for(var k in res.milled){ if(res.milled[k]!=null) o.milled[rot(+k)]=res.milled[k]; } }
       if(res.eliminated) o.eliminated=res.eliminated.map(rot);
@@ -10621,10 +10625,13 @@ window.CardFace = {};
       holdShields = !reduceMotion() && !!res.shieldStripped;
       announceRoundWin(res);                                   // message + log, already rotated to our seat — sets pendingKick when res.kick
       render();
-      /* A TERMINAL ROUND PLAYS NO BEATS, matching the host: on a Fighter Kick the host goes straight from
-       * announceRoundWin to endGame with no pre-draw beats and no Round card. The client does the same and
-       * lets the finished mirror drive endGame(), which consumes pendingKick and plays the finisher. */
-      if(res.kick){ clientCeremonyActive=false; holdShields=false; return; }
+      /* A TERMINAL round plays no beats, matching the host: when the game ends the host goes straight from
+       * announceRoundWin to endGame with no pre-draw beats and no Round card. The client does the same and lets
+       * the finished mirror drive endGame(), which consumes pendingKick and plays the finisher.
+       * GATED ON `finished`, NOT ON `kick`. At 3-6 players every elimination is a kick and the game continues,
+       * so keying this off `kick` would skip the beats the host DOES play on a mid-game elimination — and leave
+       * `pendingKick` set on a client that never reaches endGame(), firing a stray finisher later. */
+      if(res.finished){ clientCeremonyActive=false; holdShields=false; return; }
       playPreBeats(res, function(){ flushThreshold(function(){ holdShields=false; finishClientCeremony(); }); });
     }
     function finishClientCeremony(){

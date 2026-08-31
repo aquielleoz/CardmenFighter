@@ -758,6 +758,13 @@ awareness. A name is for *other people* — you always read as "You" in your own
 so they pass through `cleanName()` and are re-sanitised on the host, which receives them from an untrusted
 client.
 
+**`kick` IS NOT `finished` — AT 3-6 PLAYERS EVERY ELIMINATION IS A FIGHTER KICK.** `resolveRoundWin` sets
+`result.kick=true` on any kill, then `if (st.numPlayers === 2) st.finished = true; else { eliminatePlayer(st,q);
+if (aliveCount(st) <= 1) st.finished = true; }`. So a duel kick ends the game and a free-for-all kick usually
+does not. Anything that means "the game is over" must read **`finished`**; `ceremonyResFor` carries it for
+exactly this reason (v1.31.62). Aj caught the distinction from the rules while reviewing a fix that had keyed
+off `kick` — the duel tests were all green, because in a duel the two are the same thing.
+
 **Never infer who lost a round — read `result.struck`.** The round result carries `struck` (seats that lost a
 shield) and `spared` (blanked by a Leyline), added in v1.29.6 precisely because the UI used to derive the loser as
 `w===YOU?RIVAL:YOU` and therefore told the wrong player they lost a shield in a free-for-all. Announcements name

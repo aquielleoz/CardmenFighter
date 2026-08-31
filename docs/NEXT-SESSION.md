@@ -1145,6 +1145,22 @@ sendCeremony(r);                            // ← never reached on the round th
 reached `endGame()` with `pendingKick` false and cut straight to the win screen: no finisher, no sound. Aj:
 *"the client didn't play the rider kick animation even tho they won"*.
 
+**The client's skip is gated on `finished`, NOT on `kick` — Aj caught that from the rules, not the code.**
+*"remember each loss is by a kick, so there would be multiple kicks in multiplayer firing off"*. The engine
+agrees: `result.kick = true;` then `if (st.numPlayers === 2) st.finished = true; else { eliminatePlayer(...);
+if (aliveCount(st) <= 1) st.finished = true; }` — so at 3-6 players **every elimination is a kick** and only the
+last one ends the game. A first attempt skipped the beats whenever `res.kick` was set, which would have gone
+silent on a mid-game elimination the host still narrates, and stranded `pendingKick` on a seat that never
+reaches `endGame()`. `ceremonyResFor` now carries `finished`, because it is not derivable from `kick`.
+
+`nettest_elim3` (15 → 16) guards it, and the diff is exact — the surviving client loses its first beat:
+```
+fixed   ["P3 won the round with a Straight!", "P3 seizes the initiative!", "Round 3…"]
+broken  [                                      "P3 seizes the initiative!", "Round 3…"]
+```
+Two vacuous versions came first and are recorded there: an "any banner ever" flag stays armed and is set by the
+NEXT round's ceremony, and snapshotting as soon as the first banner appears compares one entry against one entry.
+
 The send now happens before the terminal return **and before `broadcastMirror()`** — the channel is ordered, so
 the client learns `kick` (setting `pendingKick` inside `announceRoundWin`) before the finished mirror drives it
 into `endGame()`. `clientPlayCeremony` returns early on `res.kick` rather than playing beats, which matches the

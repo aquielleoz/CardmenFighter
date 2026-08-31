@@ -57,6 +57,20 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   await waitFor(async()=>(await turnOf(c2))===0); await passT(c2);
   ok(await waitFor(async()=>await host.evaluate(()=>!!document.querySelector('.oppPanel.targetable'))),'host got the choose-a-target prompt');
 
+  /* A MID-GAME KICK MUST STILL PLAY THE ROUND CEREMONY ON THE SURVIVORS. At 3-6 players EVERY elimination is
+     a Fighter Kick and only the LAST one ends the game, so a client that skips its beats whenever `res.kick`
+     is set would go silent here while the host plays them — and would strand `pendingKick` on a seat that
+     never reaches endGame(), firing a stray finisher later. v1.31.62 gates that skip on `finished`, not `kick`.
+     Aj spotted the distinction from the rules ("each loss is by a kick, so there would be multiple kicks").
+     Armed BEFORE the kick and read after, because the banner shows for ~1.3s and polling for it would race. */
+  await c1.evaluate(()=>{ window.__banners=[];
+    var fx=document.getElementById('roundfx'); if(!fx) return;
+    new MutationObserver(function(){
+      var t=(fx.textContent||'').trim().replace(/\s+/g,' ');
+      if(/show/.test(fx.className||'') && t && window.__banners[window.__banners.length-1]!==t) window.__banners.push(t);
+    }).observe(fx, {attributes:true, childList:true, subtree:true, characterData:true});
+  });
+
   // Host picks client 2 (absolute seat 2) — already at 0 shields → FIGHTER KICK → elimination.
   await host.evaluate(()=>{ var el=document.querySelector('.oppPanel[data-seat="2"]'); if(el)el.click(); });
 
@@ -74,6 +88,15 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok((await finishedOf(c2))!==true,'c2 keeps receiving mirrors as a spectator (game not marked finished for it either)');
   ok(await waitFor(async()=>{ var t=await turnOf(host); return t===0||t===1; }, 60, 150),'control returned to a LIVING seat (host or c1), skipping the eliminated one');
   ok(await waitFor(async()=>await roundOf(host)>=3, 80, 150),'the survivors advanced to the next round');
+  /* Pin it to the round the KICK resolved into (round 2 → "Round 3"). An "any banner ever" flag is vacuous:
+     it stays armed, so the NEXT round's ceremony sets it and the assertion passes on the broken build too —
+     measured, it did. */
+  /* Let the whole ceremony finish before reading it: snapshotting as soon as the first banner appears captures
+     one entry and compares nothing (measured — both builds returned a single, different, entry). */
+  await wait(2500);
+  const seen = await c1.evaluate(()=>window.__banners.slice());
+  ok(seen.some(t=>/won the round with/i.test(t)) && seen.some(t=>/seizes the initiative/i.test(t)),
+     `the SURVIVING client played the FULL round ceremony after a mid-game kick — a kick that does not end the game is not a terminal round (saw ${JSON.stringify(seen)})`);
   // Sanity: the two survivors keep their shields; nobody else was kicked.
   ok((await shieldsOf(host))===4 && (await shieldsOf(c1))===4,'both survivors kept their 4 shields');
 
