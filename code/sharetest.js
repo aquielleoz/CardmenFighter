@@ -129,6 +129,6 @@ async function hostTo(page){
                 : 'rubbish was NOT rejected — the tolerance is too loose'); }
 
   await b.close();
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   process.exit(fail?1:0);
 })().catch(e=>{console.error('HARNESS ERROR',e);process.exit(2);});

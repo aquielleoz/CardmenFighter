@@ -37,6 +37,6 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
   await p.evaluate(()=>document.getElementById('viewCardBtn').click()); await p.waitForTimeout(300);
   ok(await p.evaluate(()=>!document.querySelector('#cardFull .cfEmpty')),'and it still opens on a real card, never the placeholder');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('ERR',e);process.exit(2);});

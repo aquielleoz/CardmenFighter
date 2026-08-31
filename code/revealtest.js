@@ -89,6 +89,6 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   ok(await p.evaluate(()=>window.CardmenEngine.takeReveal(0)===null), 'the reveal is one-shot — a second pickup returns nothing');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('ERR',e);process.exit(2);});

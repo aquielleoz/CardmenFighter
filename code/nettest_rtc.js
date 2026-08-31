@@ -85,6 +85,6 @@ async function waitTurnEnds(p){ for(let i=0;i<50;i++){ if(!(await snap(p)).yourT
   ok(hostPlayed>0 && joinPlayed>0,'BOTH players acted over WebRTC (host '+hostPlayed+', client '+joinPlayed+')');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
 
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail+' · maxRound='+maxRound);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail+' · maxRound='+maxRound);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('ERR',e);process.exit(2);});

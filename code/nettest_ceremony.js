@@ -65,6 +65,6 @@ async function waitFor(fn,tries=70,ms=120){ for(let i=0;i<tries;i++){ if(await f
   ok(await waitFor(async()=>await join.evaluate(()=>!!window.__sawRoundBanner), 40, 120),'client showed the "Round N" card banner');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
 
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('ERR',e);process.exit(2);});

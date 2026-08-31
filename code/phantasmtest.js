@@ -117,6 +117,6 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(await p.evaluate(()=>!window.__solo.st().players[0].hand.some(c=>c.id==='9D')), '…and the swapped card is the only real card spent');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('HARNESS ERROR',e);process.exit(2);});

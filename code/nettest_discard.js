@@ -69,6 +69,6 @@ const pickerUp=p=>p.evaluate(()=>/discard/i.test((document.getElementById('messa
   ok(await host.evaluate(()=>window.__cmf.pending())===false,'no lingering stack on the host');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
 
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('ERR',e);process.exit(2);});

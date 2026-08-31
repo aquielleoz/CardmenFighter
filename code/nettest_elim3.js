@@ -114,6 +114,6 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok(await waitFor(async()=>(await finishedOf(c1))===true, 40, 150) && await waitFor(async()=>(await finishedOf(c2))===true, 40, 150),'both clients (the just-kicked c1 and the earlier-out c2) receive the finished mirror');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
 
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('ERR',e);process.exit(2);});

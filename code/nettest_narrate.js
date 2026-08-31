@@ -90,6 +90,6 @@ const badLines = lines => lines.filter(l => BAD.some(rx => rx.test(l)));
   ok(ratio>=0.5 && ratio<=1.6, '  → and the two logs are comparable in length (client '+jl.length+' vs host '+hl.length+')');
 
   ok(errs.length===0, 'no JS errors'+(errs.length?': '+errs[0]:''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('HARNESS ERROR',e);process.exit(2);});

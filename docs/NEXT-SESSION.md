@@ -192,11 +192,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 ### Tooling
 
-- **A FAILING SUITE'S SUMMARY LINE MISLABELS ITS PASS COUNT.** ~20 suites print
-  `console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail)`, so a failing run reads
-  **`FAIL: 11  FAIL: 4`** — which scans as fifteen failures. It is deliberate (the first label flips to FAIL as a
-  red flag) but it is confusing at exactly the moment clarity matters; both suites that failed on 2026-08-29 had
-  to be re-read to work out what happened. Suggest `FAILED — PASS: 11  FAIL: 4`. Low priority, ~20 files.
 - **`nettest_full` FAILED ONCE IN SEVEN RUNS on 2026-08-29 and was NOT fully cleared.** It went 4/1 immediately
   after the v1.31.56 change, then 6/6 green. The failing assertion was **not captured**, which is the mistake to
   avoid repeating. Structurally the change cannot reach it — on a client the only path into `playCards` is the

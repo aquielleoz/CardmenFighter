@@ -88,6 +88,6 @@ async function until(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retu
      ', pass '+(h.passOff?'off':'on')+', rivalStatus "'+h.rivalStatus+'"]');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{ console.log('HARNESS ERROR '+(e&&e.stack||e)); process.exit(1); });

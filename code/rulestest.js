@@ -579,6 +579,6 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
     ok(e3.length===0,'no JS errors on the export path'+(e3.length?': '+e3.slice(0,2).join(' | '):''));
     await c3.close(); }
 
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('HARNESS ERROR',e);process.exit(2);});

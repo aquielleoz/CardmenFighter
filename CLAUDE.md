@@ -1236,6 +1236,14 @@ third state and left `nettest_elim3` red for five versions, because that suite a
 header text and nothing about the change suggested it. The sweep takes a few minutes; a suite that is red and
 unnoticed is worth less than no suite at all.
 **If a count here disagrees with a suite, the suite is right — fix this line.**
+**A FAILING SUITE NOW SAYS `FAILED — PASS: n  FAIL: m`, and the old form was actively harmful (fixed 2026-08-31).**
+Every suite printed `(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail`, so a red run read **`FAIL: 23  FAIL: 1`** —
+the pass count wearing the word FAIL. Two costs, not one: it is unreadable to a human, **and a failing suite
+emitted no `PASS:` token at all**, so any sweep that greps for one reports the suite as having produced no summary
+line — which looks like a crash rather than a failure, and misled me twice while building the sweeps. The marker
+moved to the FRONT (`FAILED — `) so the loud signal survives while `PASS: n  FAIL: m` stays intact and greppable.
+59 files, one line each, including `relay/relaytest.js` which spelled it with spaces. **When you add a suite,
+copy the summary line from an existing one — do not re-invent it.**
 
 **A SUITE CAN BE GREEN AND BLIND. Three shapes of it, all found in one 2026-08-27 sweep and all fixed:**
 - **A vacuous assertion.** `nettest_emote` had `ok(await waitLog(...) || true, 'duel started')` — literally

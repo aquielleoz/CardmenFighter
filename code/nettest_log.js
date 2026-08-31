@@ -82,6 +82,6 @@ async function waitTurn(p,seat){ for(let i=0;i<200;i++){ if((await turnOf(p))===
   ok(!jl.some(l=>/\{who\}/.test(l)),'no unresolved {who} placeholder leaked into any line');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\nCLIENT LOG:'); jl.forEach(l=>console.log('   '+l.slice(0,88)));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('ERR',e);process.exit(2);});

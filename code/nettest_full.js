@@ -117,6 +117,6 @@ async function playLanded(p, before){
   ok(maxRound>=3,'advanced multiple rounds (reached '+maxRound+')');
   ok(hostPlayed>0 && joinPlayed>0,'BOTH players led/beat on the real board (host '+hostPlayed+', client '+joinPlayed+')');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
-  console.log('\n'+(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail+' · maxRound='+maxRound+' acted='+acted);
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail+' · maxRound='+maxRound+' acted='+acted);
   await b.close(); srv.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('ERR',e);process.exit(2);});
