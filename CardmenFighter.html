@@ -4964,7 +4964,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.66';
+  var GAME_VERSION='v1.31.67';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -10698,8 +10698,8 @@ window.CardFace = {};
       if(iConceded) return;   // we forfeited — stay on our concede screen, ignore the ongoing game
       // During the round ceremony, hold the NEW-ROUND deal (hand grew) so its card fly-in waits for the banner;
       // intermediate mirrors (shield drop, pile clear) still apply so the shatter animates on the beat.
-      if(clientCeremonyActive && st && !st.finished && handGrew(st)){ pendingRoundMirror=st; return; }
-      if(awaitingRoundReveal && st && !st.finished && handGrew(st)){ return revealRound(st); }
+      if(clientCeremonyActive && st && !st.finished && isRoundDeal(st)){ pendingRoundMirror=st; return; }
+      if(awaitingRoundReveal && st && !st.finished && isRoundDeal(st)){ return revealRound(st); }
       applyMirrorNow(st);
     }
     function applyMirrorNow(st){
@@ -10767,9 +10767,48 @@ window.CardFace = {};
     function finishClientCeremony(){
       clientCeremonyActive=false;
       if(pendingRoundMirror){ var m=pendingRoundMirror; pendingRoundMirror=null; revealRound(m); }
-      else { awaitingRoundReveal=true; setTimeout(function(){ awaitingRoundReveal=false; }, 2500); }   // deal mirror not here yet — reveal it when it lands (applyMirror), or drop the banner after a beat
+      /* THE TEARDOWN MUST BE UNCONDITIONAL. This branch used to arm `awaitingRoundReveal` and, when the timer
+       * expired, clear only that flag — its own comment claimed it would "drop the banner after a beat" and it
+       * never did. `playPreBeats` deliberately LEAVES the banner up on its last beat so the Round-N plate can
+       * swap into it, so if the deal mirror never arrived in a shape this code recognised, nothing ever called
+       * `clearRoundfx()` and the dim was permanent: the board unreadable and unclickable while the hand below
+       * kept working. Aj hit it twice in one game, and it hid other bugs from him — he could not see a counter
+       * resolve because the play area was dimmed at the time. */
+      else { awaitingRoundReveal=true; setTimeout(function(){
+               awaitingRoundReveal=false;
+               if(!clientCeremonyActive && !pendingRoundMirror) clearRoundfx();   // nothing is coming — take the banner down
+             }, 2500); }
     }
-    function handGrew(st){ return !!(st && st.players && st.players[0] && state && state.players && state.players[0] && st.players[0].hand.length > state.players[0].hand.length); }
+    /* "IS THIS THE NEW ROUND'S DEAL?" — ANSWERED FROM THE ROUND NUMBER, NOT FROM HAND SIZE.
+     * It used to be `handGrew`: the incoming hand is bigger than the one on screen. That is a PROXY, and it is
+     * false exactly when the end-of-round trim is at least as big as the draw — `discardToLimit` runs BEFORE
+     * `roundDraw`, so a client at the cap trims 11 to 10 and draws back to 10, equal rather than greater. A
+     * player is on turn holding more than ten cards on 78% of turns, so this was common, not an edge case.
+     * The round number is authoritative and the ceremony already carries it. Same lesson as the drag guard and
+     * the narration audit: **a client may sequence, but never infer.** */
+    /* "IS THIS THE NEW ROUND'S DEAL?" — ANSWERED FROM THE CARD IDS, NOT FROM THE HAND COUNT.
+     * It used to be `handGrew`: the incoming hand is LONGER than the one on screen. That is a proxy, and it is
+     * false exactly when the end-of-round trim matches the draw — `discardToLimit` runs BEFORE `roundDraw`, so
+     * a client that passed while holding 12 trims to 10 and draws back to 12: equal, never greater. A player is
+     * on turn holding more than ten cards on 78% of turns, so this was common rather than an edge case, and it
+     * left the "seizes the initiative" banner up permanently (`nettest_dim`).
+     * THE ROUND NUMBER IS NOT THE ANSWER EITHER, and that was tried: it advances at RESOLUTION, not at the
+     * draw, so the intermediate mirrors (shield drop, pile clear) already carry it and got held too — which
+     * broke the shatter animation and the threshold beat in three suites. Cards ARRIVING is the actual event,
+     * so look for an id the client does not already hold. */
+    function isRoundDeal(st){
+      if(!st || !st.players || !st.players[0] || !state || !state.players || !state.players[0]) return false;
+      var have={}, mine=state.players[0].hand, i;
+      for(i=0;i<mine.length;i++) if(mine[i]) have[mine[i].id]=1;
+      /* AND the pile must be CLEAR. A broken shield returning to hand also brings an id the client does not
+       * hold, and that mirror arrives mid-resolution with the pile still on the table — holding it stopped the
+       * shatter rendering, so `checkThresholds` never queued and the ROAR/OVERDRIVE beat never played. The
+       * deal is the only card arrival that happens with an empty pile. */
+      if(st.pile) return false;
+      var inc=st.players[0].hand;
+      for(i=0;i<inc.length;i++) if(inc[i] && !have[inc[i].id]) return true;   // a card the client does not hold = it was dealt
+      return false;
+    }
     function revealRound(m){                                   // apply the new-round state + show the "Round N" banner as the cards fly in
       awaitingRoundReveal=false;
       enterDelayBase = reduceMotion()?0:340;                   // banner first, then the freshly-drawn cards deal in
