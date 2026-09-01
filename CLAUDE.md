@@ -1171,6 +1171,19 @@ rather than hardcoding a path, which is what these files used to do and why they
 `nettest.js` is a **BroadcastChannel-isolation probe**, not a pass/fail suite: it prints "cross delivery: FAILS ✗
 (expected — contexts are isolated)" and exits 0. That line is the expected result.
 
+**A FIXED `wait()` IS THE BIGGEST COST IN THE SWEEP, NOT THE 3.1MB PAGE (measured 2026-09-01).** Timed per
+suite, the whole sweep was 637s and **`landscapetest` alone was 97s** — it opens a fresh context per viewport,
+thirty of them, each spending **2650ms of fixed `wait()`**. Polling instead took it to **33s**. Before reaching
+for a page-size fix, time the suites: the six slowest were 51% of the sweep and all 44 netplay suites together
+are only 196s.
+**AND THE PAGE-SIZE FIX MEASURED TO ZERO.** Stubbing `art.js` (2.16MB of the 3.1MB) for the layout suite is
+safe by construction — art is only ever a CSS `background-image` — and it saved **1 second**. It was built,
+validated against the real page to the pixel, and then **reverted**: a second build artifact to keep in sync
+forever is not worth 1s. Do not re-propose it without timing the suites first.
+**A SETTLE PREDICATE MUST INCLUDE THE THING BEING ASSERTED ON.** Replacing the sleeps needed a "wait until the
+geometry stops moving" poll; the first version watched `#hand`'s box and returned while the CARDS were still
+growing into it, so two negative cases measured a 60px card against a 66px floor and failed.
+
 **Run them one at a time.** Each suite starts its own HTTP server on a fixed port and drives two or three real
 browser pages; two suites at once flake on CPU contention (`nettest_rtc` in particular fails at `maxRound=0`
 concurrently and passes 11/0 alone). A serial sweep of all 38 takes a few minutes.
@@ -1276,7 +1289,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.80 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
+Status as of **v1.31.81 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
 `test` 378, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,

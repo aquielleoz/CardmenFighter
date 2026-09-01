@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.80.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.81.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.80**, working tree clean, full sweep green at **71 suites**. The only branch is
+`main` is at **v1.31.81**, working tree clean, full sweep green at **71 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -350,6 +350,49 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.81 — the layout suite stops sleeping: 97s → 33s, and a third off the sweep
+
+Aj asked what was making a full sweep take eleven minutes. Measured per suite rather than guessed, and the
+answer was concentrated in one place:
+
+| | |
+| --- | --- |
+| whole sweep | 72 suites, **637s (10.6 min)** |
+| six slowest | **328s — 51%** |
+| all 44 netplay suites | 196s (31%), 4.5s mean |
+| everything else | 4.6s mean |
+
+`landscapetest` alone was **97s, 15% of the sweep**. It opens a fresh browser context per viewport — thirty of
+them — and each one spent **2650ms of fixed `wait()`**: 79s of its 92s was the test lying down. `open()` polls
+now, and the suite is **33s**, unchanged at 126 assertions, three clean runs.
+
+**`settled()` is the part that earns its keep.** A layout suite must not measure mid-animation, so rather than
+guessing 1400ms it waits until the geometry stops moving — faster AND stricter than a sleep, and a slow machine
+now makes it slower rather than red, which is the standing rule in CLAUDE.md.
+**Its first version watched `#hand`'s box only, and returned while the CARDS were still growing into it** — two
+negative cases then measured a 60px card against a 66px floor and failed. The card's own size is in the settle
+signature now. A settle predicate has to include the thing being asserted on.
+
+**AND THE IDEA THAT LOOKED OBVIOUS MEASURED TO NOTHING.** The first attempt was Aj's: the page is 3.1MB and
+`art.js` is 2.16MB of it, so stub the art for a suite that only measures geometry (safe by construction — art
+is only ever a CSS `background-image`). Built it, validated it with a fidelity anchor that re-measured one
+viewport on the real page and matched to the pixel… and it saved **1 second**: 34s real vs 33s stubbed. Page
+size was never the cost. **Reverted rather than kept** — a second build artifact, a gitignore entry and six
+assertions to maintain forever, for 1s. The measurement is the deliverable, not the code.
+
+**What is left, with numbers, for whoever picks this up:**
+- **Parallelism is the big one.** 67 of 72 suites average 4.6s and are serial ONLY because each binds a fixed
+  port. Make the port an env var and 3-4 run at once: ~309s → ~80s. CLAUDE.md warns they are load-sensitive
+  (`nettest_rtc` failed at `maxRound=0` under contention), but that was measured on a weaker sandbox and is
+  directly testable.
+- **`rulestest` is 15.1s of fixed waits out of 25s** — the same fix as above, worth ~13s, across 60 call sites.
+- **`browsertest` (66s) and `mptest` (60s) are real work**, not sleeps. Leave them alone.
+- **Skipping the six slow suites during ITERATION** buys 51% at little risk — they are the layout/smoke/parity/
+  export suites and they rarely change. **The full sweep still gates a PR**, and Aj's rule is at least one
+  complete sweep per day of full coding.
+- **Do NOT skip the netplay sweep to save time: all 44 suites are 196 seconds.** v1.31.57 left `nettest_elim3`
+  red for five versions because a change "did not look related" to it; obeying that rule costs 3¼ minutes.
 
 ### v1.31.80 — a parked host keeps saying so, and the host/client fork closes
 
