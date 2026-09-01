@@ -259,6 +259,9 @@ node roundsim.js              # share of ROUNDS decided by a jab vs a Special, b
 node stucksim.js 6 150        # stuck-while-following turns split into SHAPE-stuck vs VALUE-stuck
 node nettest_clientwin.js    # the MIRROR of roundstall: a client move that does NOT end the round hands the
                              # turn back — the host's board must go live AND its status line must say so (10).
+node nettest_mirrordrop.js   # THE FORCED-DROP PROBE: swallow N mirrors after a client-won round and require
+                             # the table to recover (10). `DROPS=n` re-finds the threshold — 4 deadlocked before
+                             # v1.31.80's park heartbeat. Keep it: three earlier probes for this were thrown away.
 node nettest_sync.js         # THE CROSS-CHECK: plays a real game over the ROOM CODE and makes the two sides
                              # prove they AGREE — round, each side's view of the other's hand size, and that NARRATION is not doubled
                              # (count ratio vs the host, never adjacency) — against
@@ -301,7 +304,7 @@ node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — R
 
 ### Playwright suites (browser + netplay)
 
-`browsertest.js` and the 38 `nettest_*.js` full-UI netplay suites drive the real built HTML in a headless browser.
+`browsertest.js` and the 44 `nettest_*.js` full-UI netplay suites drive the real built HTML in a headless browser.
 They need Playwright, which **is** installed here (`code/node_modules`, gitignored). To set it up from scratch:
 
 ```bash
@@ -1273,7 +1276,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.79 — 2026-09-01, every suite run serially, 70 suites and 0 FAIL** (a full sweep is
+Status as of **v1.31.80 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
 `test` 378, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
@@ -1281,7 +1284,7 @@ Status as of **v1.31.79 — 2026-09-01, every suite run serially, 70 suites and 
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 43 netplay suites: `nettest_3p` 7, `activate` 6, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
+The 44 netplay suites: `nettest_3p` 7, `mirrordrop` 10, `activate` 6, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 14, `kick` 11, `log` 14, `losspick3` 7,
 `losspick_remote3` 6, `names` 8, `narrate` 10, `phantasm` 8, `prefight` 13, `react3` 7, `record` 12, `relay` 17,
@@ -1302,6 +1305,25 @@ design** — every seat but the local one is auto-trimmed, so the host's own pic
 and I reported it as a probable product bug before reading it. The suite now answers the pick (select until Fight
 enables, confirm with FIGHT) and the shield-guard / pre-fight / Respond? windows, all with the minimal
 deterministic choice; exercising what those windows DO is the job of the suites built for them.
+
+**A PARKED HOST MUST KEEP SAYING SO — ONE RE-ASSERT IS NOT ENOUGH (v1.31.80).** This is the host/client fork,
+closed. **A mirror is the only thing that can tell a client the round advanced and the turn is now its own, and
+a parked host's state deliberately stops changing** — so if the single `reassertMirror()` at the park is lost
+too, nothing will ever say it again and both peers wait for each other forever. `startParkBeat()` re-asserts
+every 1.8s while parked and stops in `hostTakeBack`. Measured: 3 swallowed mirrors survivable, **4 deadlocks**,
+deterministically; with the beat, 12 recovers.
+**A MIRROR IS A FULL SNAPSHOT, NOT A DELTA, AND THAT IS WHY THIS HID FOR SO LONG.** Any later mirror heals a
+lost one, so the render storm papers over almost every loss and the HANDS agree again within milliseconds. The
+damage that persists is the client a whole ROUND behind with nobody on turn — so **assert the round, not the
+cards**. A card-level probe reports a healthy table at every drop count.
+**"BOTH FIGHT AND PASS DISABLED" IS THE CORRECT RESTING STATE for the seat that just won a round** — the winner
+leads, so Pass is illegal and Fight waits for a selection. It reproduces with ZERO drops. Liveness is "select a
+card, does Fight light up".
+**`__cmf.dropMirrors(seat, n)` IS PERMANENT ON PURPOSE** (`nettest_mirrordrop.js`). Three investigations built a
+bespoke drop probe and threw it away, which is exactly why an earlier finding could not be re-checked nine
+versions later — and why `reassertMirror` was once withdrawn on evidence that had evaporated.
+**IT STOPPED REPRODUCING BEFORE IT WAS FIXED (65 consecutive clean runs), AND CLOSING IT AS A GHOST WOULD HAVE
+BEEN WRONG.** When a known-real bug stops reproducing, force the mechanism and ask what the system does.
 
 **`reassertMirror()` — PARKING IS THE ONE MOMENT THE DEDUPE MUST NOT APPLY (v1.31.75).** `broadcastMirror` skips
 a seat whose mirror is byte-identical to the last one sent, and `lastMirror` is otherwise cleared only on channel

@@ -6528,7 +6528,7 @@ __QR__
       netReact={ kind:'discard', seat:seat, g:g, resume:resume };
       busy=true;
       $('rivalStatus').textContent=logName(seat)+' is discarding to hand size…';
-      render(); reassertMirror(); maybePasso(seat);
+      render(); reassertMirror(); startParkBeat(); maybePasso(seat);
       return true;
     }
     function isRemoteHumanSeat(seat){ return !!(isHost() && started && seatCtrl && seatCtrl[seat]==='remote'); }
@@ -7077,6 +7077,8 @@ __QR__
  * `lastMirror` is cleared whenever a seat's channel is (re)bound, so a reconnecting peer always gets a fresh
  * one rather than being deduped against the state it missed. */
   var lastMirror={};
+  var dbgDropMirror={};   // dbg: seat -> how many outgoing mirrors to swallow (see broadcastMirror)
+  function dbgDropMirrors(seat, n){ dbgDropMirror[seat]=(dbgDropMirror[seat]||0)+(n|0); return dbgDropMirror[seat]; }
   function broadcastMirror(){
     if(!hostState) return;
     for(var s=1;s<hostState.numPlayers;s++){
@@ -7084,6 +7086,12 @@ __QR__
       try{ j=JSON.stringify(msg); }catch(e){ j=null; }
       if(j!==null && lastMirror[s]===j) continue;              // nothing changed for this seat
       lastMirror[s]=j;
+      /* dbg only, and PERMANENT ON PURPOSE. A lost mirror is the whole mechanism behind the host/client fork,
+       * and it has now been investigated three times with bespoke probes that were thrown away each time —
+       * which is exactly why "no HELD events during a failure" could not be re-checked nine versions later.
+       * `lastMirror[s]` is set BEFORE the skip because that is the realistic loss: the host believes it sent,
+       * so nothing re-sends until its state changes again. Inert unless a test arms it. */
+      if(dbgDropMirror[s] > 0){ dbgDropMirror[s]--; trace('mirror DROPPED (dbg)', 'seat='+s+' q='+stateSeq+' round='+(hostState.round||'?')); continue; }
       sendTo(s, msg);
     }
   }   // per-seat (a seat's private hand never reaches another peer)
@@ -7097,8 +7105,29 @@ __QR__
    * the suite's 6s settle window — the recorded fork's "persistent, not mid-flight" signature — and the
    * disagreement clears as soon as anything re-asserts. Cost: one extra mirror per park. */
   function reassertMirror(){ lastMirror={}; broadcastMirror(); }
+  /* …AND ONCE IS NOT ENOUGH. `reassertMirror` at the park closes the common case, but a mirror is the ONLY
+   * thing that can tell a client the round advanced and the turn is now its own — and a parked host's state
+   * deliberately stops changing, so if the re-assert is lost too, nothing will ever say it again and the table
+   * is dead for good. Both peers then sit waiting for the other, which is exactly the recorded fork read from
+   * the host's side.
+   * MEASURED with `nettest_mirrordrop`, swallowing consecutive mirrors after a client-won round: 3 lost is
+   * survivable (the render storm re-sends a full snapshot — a mirror is a SNAPSHOT, not a delta, so any later
+   * one heals it), 4 lost deadlocks permanently, deterministically, 3 runs out of 3. With the heartbeat the
+   * same board recovers at 12 lost.
+   * A parked host has nothing else to do, and the cost is one mirror per seat every PARK_BEAT_MS while it is
+   * genuinely waiting on a person. It stops the moment control comes back. */
+  var PARK_BEAT_MS=1800, parkBeat=null;
+  function stopParkBeat(){ if(parkBeat){ clearInterval(parkBeat); parkBeat=null; } }
+  function startParkBeat(){
+    stopParkBeat();
+    if(!isHost() || !started || !hostState) return;
+    parkBeat=setInterval(function(){
+      if(!isHost() || !started || !hostState || !busy || (hostState && hostState.finished)){ stopParkBeat(); return; }
+      reassertMirror();
+    }, PARK_BEAT_MS);
+  }
     function onRender(){ if(isHost() && started && hostState) broadcastMirror(); }   // hook: keep the client's board in lockstep
-    function awaitRival(){ trace('awaitRival', 'host parks, waiting for a client move'); busy=true; $('rivalStatus').textContent='Waiting for opponent…'; render(); reassertMirror(); }   // park; client will send a move
+    function awaitRival(){ trace('awaitRival', 'host parks, waiting for a client move'); busy=true; $('rivalStatus').textContent='Waiting for opponent…'; render(); reassertMirror(); startParkBeat(); }   // park; client will send a move
     /* THE OTHER HALF OF awaitRival, and it was missing (found 2026-08-28 from Aj's first real relay game).
      * awaitRival sets TWO things — `busy` and the "Waiting for opponent…" text — and every path that handed
      * control back cleared only `busy`. So the host's board went live while its screen still said the rival was
@@ -7107,7 +7136,7 @@ __QR__
      * Not the v1.31.20 wedge (that one really did leave `busy` set, and its fix at resolveRoundCeremony only
      * covers a move that ENDS the round). This is the ordinary case: a client move that does not end the round
      * and simply passes the turn back. Clear the pair together, never one of them. */
-    function hostTakeBack(){ trace('hostTakeBack', 'control back to the host'); busy=false; $('rivalStatus').textContent=''; }
+    function hostTakeBack(){ trace('hostTakeBack', 'control back to the host'); stopParkBeat(); busy=false; $('rivalStatus').textContent=''; }
     var netSettle=null;   // parked: the host is waiting on the remote's respond/decline to an open stack window
     /* ONE DEFINITION, called by both host drivers. The duel handler and the N-player one differed only in the
      * seat and the continuation they run afterwards, and two near-identical blocks 400 lines apart drift — the
@@ -8040,7 +8069,7 @@ __QR__
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll };
+    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:var(--zNetroot);background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the
@@ -8074,7 +8103,7 @@ __QR__
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); } }; }
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, trace:function(){ return NET.traceDump(); } }; }
   /* --headerH: measured, not hardcoded. #disconBar hangs off it, and the header's height is not a constant —
    * 56px on desktop, 37px in the landscape band, and ~92px on a portrait phone where it WRAPS to two rows.
    * A hardcoded 54px floated it 17px low in landscape and put it 38px INSIDE the wrapped portrait header,
