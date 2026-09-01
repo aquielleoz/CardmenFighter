@@ -20,19 +20,10 @@ classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
-## ☀️ START HERE — where we left off (2026-08-31)
+## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.75**. Branches: **`feat/qr-scanning`** (parked, built, green at 21/0 — see the BACKLOG entry
-for the condition that would revive it) and **`fix/sync-fork-diagnostics`**, which is **PR #108, open and green,
-awaiting review** — the `nettest_sync` re-measurement and its instrumentation.
-
-**⚑ TOMORROW'S FIRST TASK, agreed 2026-08-31:** build the probe named at the end of the fork entry — one that
-**drops the deal mirror AND leaves the CLIENT to act next.** That is the only configuration in which a stale
-client can genuinely deadlock the table (it is `busy`, or acting on a board the host has moved past, while the
-host is parked waiting for it), and the probe written today never reaches it: after its forced drop the game is
-on the HOST's turn, so `settle()` gives up before either side acts and the "persistence" it shows is an artefact
-of the harness. Everything else about that bug is now instrumented — read the fork entry first, especially the
-list of things already tried and withdrawn.
+`main` is at **v1.31.75**, working tree clean. The only branch is **`feat/qr-scanning`** (parked, built, green at
+21/0 — see the BACKLOG entry for the condition that would revive it). Everything else is merged and pruned.
 
 **Sanity check before you touch anything** (from `code/`, ~1 minute):
 
@@ -42,38 +33,31 @@ npm test && node mptest.js && node landscapetest.js
 
 Expect **0 FAIL** from each. The two gate counts in the header above are **asserted by `versiontest`**, which
 runs both suites and compares, so they cannot drift; every other suite's expected count lives in **CLAUDE.md**,
-which is the authority and says so. A **full sweep is 69 suites and takes ~10 minutes** —
-run it in the background, and **never two suites at once** (they bind fixed ports). Verified green in full at
-v1.31.74 on 2026-08-31.
-
-**This document was split on 2026-08-31.** The BACKLOG below is **open work only, ranked** — correctness first,
-then what a playtester meets immediately, then tooling, features and balance. Everything that was settled,
-measured into a dead end, or written as a spec for something already shipped now lives in
-**[`DECISIONS.md`](DECISIONS.md)**, whose entire purpose is to stop those being re-argued or re-derived. Read it
-before proposing anything that sounds obvious; several entries exist because the obvious thing was tried and
-measured.
-
-**Two corrections this split turned up, both of which would have cost a next session real time:**
-- **`exp/shield-break-all` was recorded as "OPEN, unmerged". It is merged and the branch is gone.**
-  `setWardAll` / `setDamageSpan` are in `code/engine.js` on `main` today, **default off**
-  (`WARD_ALL = false`, `DAMAGE_SPAN = 1`), with behavioural self-checks in `mpsim`. Anyone following the old note
-  would have gone hunting a deleted branch for flags that already ship.
-- **The family-shape programme was listed as eleven open sub-items; ten had shipped** — including all four the
-  entry called "still missing and NOT yet wanted" (trio+single, four+two, airplane, variable-length straights),
-  which all landed in v1.31.39. One cheap piece is genuinely left; see the BACKLOG.
+which is the authority and says so. A **full sweep is 69 suites and takes ~10 minutes** — run it in the
+background, and **never two suites at once** (they bind fixed ports). Verified green in full at v1.31.75.
 
 **What the last four versions were** (the changelog has each in full):
-**v1.31.74** seven lesson suites, so all ten lessons are covered — and the enabled-but-inert control they found
-(`updateActions` did not know about `busy`, so Fight and Pass looked live and swallowed clicks for ~2s) ·
-**v1.31.73** the Quicks lesson was broken five ways, three found by writing its suite and two by Aj playing it ·
-**v1.31.72** one `resolveIds`, not two · **v1.31.71** a client's Phantasmal Illusion reaches the host, and the
-Boost button turned out never to have been rendered for anybody.
+**v1.31.75** `nettest_sync` learns to play a whole game — it answers clean-up picks and every window — a
+deadlocked table stops passing, and `reassertMirror()` lands with a measured A/B · **v1.31.74** seven lesson
+suites, so all ten lessons are covered, plus the enabled-but-inert control they found · **v1.31.73** the Quicks
+lesson was broken five ways · **v1.31.72** one `resolveIds`, not two.
 
-**The habit that produced all four:** write the test for the thing you are about to touch, then **verify the test
-by reintroducing the bug**. v1.31.73 and v1.31.74 each found defects that had shipped for months and that no
-amount of code-reading had surfaced — and in both cases a suite that merely rendered the screen would have stayed
-green. Where a step or a control makes a *claim*, assert the claim.
+**⚑ WHERE TO PICK UP.** The BACKLOG below is ranked and its top item is still the right one: **the host/client
+fork**. Two days of work have narrowed it a great deal without closing it, and the entry now records what is
+settled, what was tried and withdrawn, and what the probe of 2026-09-01 actually proved. **Read that entry before
+theorising** — three hypotheses are already eliminated with evidence, and one fix was built, refuted and
+re-justified.
 
+**The two habits that produced everything above, both learned expensively:**
+- **Write the prediction down BEFORE the experiment.** The 2026-09-01 probe was built to confirm that a lost
+  mirror deadlocks the table. It refuted that — two divergences, zero stalls — and the only reason that
+  registered as a refutation rather than a partial success is that the prediction was on record first.
+- **Assert agreement AND liveness.** `nettest_sync` compared the two peers' state and passed a table where
+  nobody could act, because a dead table is a perfectly consistent one.
+
+**And one about this document:** two things Aj agreed to were never written down here (a tutorial for the 2, and
+opening the battle log as an overlay) and surfaced only because he asked what was missing. Working notes are not
+the record. **If it was agreed, it goes in the BACKLOG the same day.**
 
 ## BACKLOG (open work only — completed items live in the changelog below)
 
