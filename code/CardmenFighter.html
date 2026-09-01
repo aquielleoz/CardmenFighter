@@ -4154,11 +4154,22 @@
         if (ef && ef.quick) return false;                                  // don't burn a Quick on a jab
         return true;
       });
+      /* A BANKED BOOST HAS ALREADY BEEN PAID FOR, SO NEVER DECLINE THE FIGHT IT BOUGHT. `pickValueBoost` only
+       * casts when `boostEnablesWin` says a boost converts a losing follow into an overtake — so a banked boost
+       * IS a decision to take this fight, made one step earlier. Both hold-back rules below then threw it away:
+       * the strategic pass fires on hand length alone (<=5), and `safe` refuses a card that anchors a pair — and
+       * `nextPlayBoost` is cleared at the end of the round, so the pass wastes the card outright rather than
+       * deferring it. Aj's log: Imbue with Power, then "Rival passed" with the boosted 2 unbeatable in hand. */
+      var boosted = (st.players[p].nextPlayBoost || 0) > 0;
       if (safe.length) {
         // strategic pass (Demon only, 1v1): conserve hand for Specials by conceding a jab when low
-        if (strategicPass && mayStratPass(st, p) && wantsStratPass(st, p)) { stratPasses++; return { action: 'pass' }; }
+        if (!boosted && strategicPass && mayStratPass(st, p) && wantsStratPass(st, p)) { stratPasses++; return { action: 'pass' }; }
         safe.sort(function (a, b) { return a.combo.value - b.combo.value; }); return { action: 'play', cards: safe[0].cards };
       }
+      // every option already BEATS the pile; singles are keepOf-sorted, so singles[0] is the cheapest card to let
+      // go. `options[0]` is the fallback because a CHOP answers a lone 2 with a multi-card shape (chopReach), so
+      // "the pile is a single" does not guarantee that a single is on offer.
+      if (boosted) return { action: 'play', cards: (singles[0] || options[0]).cards };
       return { action: 'pass' };
     }
     // a Special pile — only a bigger Special beats it
@@ -4974,7 +4985,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.76';
+  var GAME_VERSION='v1.31.77';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -7839,9 +7850,10 @@ window.CardFace = {};
       /* A LESSON MAY FLY THE RIVAL ITSELF (Aj, 2026-09-01: *"we need the ai pilot to sequence this in a way
        * that's useful for the tutorial"*). A tutorial needs the opponent to demonstrate specific things in a
        * specific order; a difficulty tier cannot promise that, and measurement showed why — `minion` never uses
-       * effects at all, and `knight` does the right things in isolation but hits a real bug in a live game (it
-       * activates a value boost and then passes, see the BACKLOG). A pilot returns a log in exactly the AI's
-       * shape, so `buildOppBeats` presents it identically and nothing downstream can tell the difference. */
+       * effects at all, and `knight` used to activate a value boost and then pass (fixed in v1.31.77; the
+       * strategic pass was blind to `nextPlayBoost`), which is the kind of thing a tier can regress at any time.
+       * A pilot returns a log in exactly the AI's shape, so `buildOppBeats` presents it identically and nothing
+       * downstream can tell the difference. */
       var log=(tutorialMode && currentLesson && currentLesson.pilot)
               ? currentLesson.pilot(state, RIVAL)
               : AI.takeTurn(state, RIVAL, difficulty, [YOU]);   // [YOU] = suspend if you can answer a Quick
