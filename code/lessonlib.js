@@ -33,7 +33,14 @@ async function openLesson(id, viewport){
   const deselect=()=>p.evaluate(()=>{ const c=document.getElementById('clearBtn'); if(c && !c.disabled) c.click();
     document.querySelectorAll('#hand .group.gsel').forEach(g=>g.click()); });
   /* Play any legal single, trying every group in turn. Returns the label played, or null. */
-  const playAny=async(multi)=>{ const gids=await p.evaluate(m=>[].map.call(document.querySelectorAll('#hand .group'+(m?'.multi':':not(.multi)')),g=>g.dataset.gid), !!multi);
+  /* RETRIES, for the same reason `playPair` and `passTurn` do: `toggle`/`doFight` return SILENTLY on `busy`,
+   * so a single sweep of the hand right after an opponent acts clicks into nothing and reads as "no legal play".
+   * This helper was written without the retry and `lessontest_twos` caught it immediately — the lesson's own
+   * prep makes the Rival lead, so the board is busy at exactly the moment the suite tries to answer. */
+  const playAny=async(multi,ms=9000)=>{ const t0=Date.now();
+    while(Date.now()-t0<ms){ const r=await playAnyOnce(multi); if(r!==null) return r; await p.waitForTimeout(200); }
+    return null; };
+  const playAnyOnce=async(multi)=>{ const gids=await p.evaluate(m=>[].map.call(document.querySelectorAll('#hand .group'+(m?'.multi':':not(.multi)')),g=>g.dataset.gid), !!multi);
     for(const gid of gids){ await deselect();
       const armed=await p.evaluate(g=>{ const el=document.querySelector('#hand .group[data-gid="'+g+'"]'); if(!el) return null; el.click();
         const f=document.getElementById('fightBtn'); return f && !f.disabled ? (document.getElementById('hint')||{}).textContent||'' : null; }, gid);
@@ -76,6 +83,24 @@ async function openLesson(id, viewport){
    * pick / targeting), while `#passBtn` is NOT disabled in those states — so one click on an enabled-looking
    * button can do nothing at all. A single click plus an assertion reads as "Pass is broken". Returns the ms it
    * took, or null if it never landed. */
+  /* Play an EXACT set of cards by id, retrying. Every helper here has needed the retry for the same reason —
+   * `toggle` and `doFight` return silently while `busy` is set — and since v1.31.74 the board says so out loud
+   * ("Hold on — the board is still resolving."), which is what identified this one. Returns null on success. */
+  const playIds=async(ids, ms=9000)=>{ const t0=Date.now(); let last='never attempted';
+    while(Date.now()-t0<ms){
+      last=await p.evaluate(want=>{
+        const c=document.getElementById('clearBtn'); if(c && !c.disabled) c.click();
+        document.querySelectorAll('#hand .group.gsel').forEach(g=>g.click());
+        for(const id of want){ const el=document.querySelector('#hand .card[data-id="'+id+'"]'); if(!el) return 'card '+id+' is not rendered';
+          const g=el.closest('.group'); if(!g) return 'card '+id+' has no group';
+          if(!g.classList.contains('gsel')) g.click(); }
+        const f=document.getElementById('fightBtn');
+        if(!f || f.disabled) return 'Fight is disabled — hint: '+((document.getElementById('hint')||{}).textContent||'');
+        f.click(); return null; }, ids);
+      if(last===null) return null;
+      await p.waitForTimeout(200);
+    }
+    return last+' (retried for '+ms+'ms)'; };
   const passTurn=async(ms=8000)=>{ const t0=Date.now();
     const before=await p.evaluate(()=>{ const s=window.__solo.st(); return {round:s.round, turn:s.turn, nrg:s.players[0].energy.length}; });
     while(Date.now()-t0<ms){
@@ -103,7 +128,7 @@ async function openLesson(id, viewport){
   if(listed) await p.evaluate(i=>document.querySelector('.lessonRow[data-lesson="'+i+'"]').click(), id);
   ok(await until(()=>/ \/ /.test((document.querySelector('.tutStep')||{}).textContent||''),'the lesson starts'),'the lesson starts');
 
-  return { b, p, ok, until, step, at, atStep, next, st, deselect, playAny, playPair, passTurn, activateSpot, errs,
+  return { b, p, ok, until, step, at, atStep, next, st, deselect, playAny, playPair, playIds, passTurn, activateSpot, errs,
     /* Finish: the completion modal must be VISIBLE, not merely present in the DOM — asserted the naive way
      * (`/Lesson complete/.test(document.body.textContent)`) this passes on a lesson stuck mid-way. */
     async finish(lessonId){

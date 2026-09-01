@@ -59,6 +59,8 @@ node lessontest_specials.js             # the "Specials" lesson — jab, then a 
 node lessontest_energy.js               # the "Energy & Effects" lesson — bank, activate, spend (18)
 node lessontest_rides.js                # the "Rides" lesson — the J really enters your zone (15)
 node lessontest_forms.js                # the "Form Changes" lesson — the Q really enters your zone (15)
+node lessontest_twos.js                 # the "The 2" lesson AND the apex card text — asserts the text is
+                                        # DERIVED from the live rules, not a hardcoded string (29)
 #   lessonlib.js is a shared HELPER for the seven above, not a suite — don't run it directly
 node piletest.js                                # energy/shuffle pile viewers + promote (30)
 node revealtest.js                              # Outbalance's hand read: the modal, and that it never
@@ -137,13 +139,33 @@ reading each rig's output at lesson start). Do not re-derive it:
 - `tutRigInitiative` / `tutRigZones` / `tutRigEnergyOrder` seed energy by SUIT, so they pick from ~13 candidates
   and cannot be starved.
 
-**ALL TEN LESSONS HAVE A SUITE as of v1.31.74**, sharing `lessonlib.js` (a helper, not a suite — the
+**THE APEX 2 CARRIES REMINDER TEXT, AND IT IS DERIVED (v1.31.76).** It is the only card with no activated
+effect (`effectOf` returns null for rank 2 by design), so its reader body was blank while it holds more rules
+than any card in the game — and the fallback called it *"No effect — a pure fight card"*. `cardTextHTML` now has
+a rank-2 branch. **Every claim reads the live rule** (`E.isSeqTwos()`, `E.isApexInfinity()`) because `noSeqTwos`
+and `highTwos` invert what it says; a hardcoded note is a lie in two of three settings. **It is REMINDER text,
+styled italic via `.cvReminder`** — what the GAME does to the card, not what the CARD does — so it is never read
+as an activatable effect. Assert the DERIVATION (switch the rule, require the sentence to change), never the
+string.
+**A RULES CHANGE MUST REFRESH AN OPEN READER**, because `showCard` is not part of `render()`. Narrow but real:
+the panel is read-only while a game is live, so it bites AFTER a game ends, when the finished board is still on
+screen and Custom rules is editable again.
+
+**ELEVEN LESSONS, ALL WITH A SUITE as of v1.31.76** (ten as of v1.31.74), sharing `lessonlib.js` (a helper, not a suite — the
 `nettest_lobby.js` convention). **Assert what the lesson CLAIMS, not that the panel rendered:** the step text
 makes factual promises the gate does not check — a shield broke, the card banked, the transform is in your zone,
 "your cards are all low so you can't beat their lead" (that one is `legalFightPlays(...).length===0`, the
 engine's own answer). For an ungated tour like `zones`, assert each step's selector **exists AND carries
 `.tut-spot`**: `applySpot` does `querySelectorAll` and lights nothing when an id is renamed, and the tour still
 clicks to the end.
+**A UI HELPER MUST RETRY — AND `lessonlib` HAD ONE THAT DID NOT.** `playAny` was written without the retry every
+other helper in that file has, and `lessontest_twos` caught it at once: that lesson's prep makes the RIVAL lead,
+so the board is busy at exactly the moment the suite answers. `playIds(ids)` (play an exact set) retries too.
+Since v1.31.74 the board says why out loud — "Hold on — the board is still resolving." — which is what named it.
+**A TUTORIAL PREP THAT PLAYS FOR THE RIVAL MUST NOT RESTORE THE TURN.** `tutCastRivalTech` saves and restores it
+because an ACTIVATION is not a turn; `E.play` advances the turn itself, so restoring hands it straight back to
+the Rival and the player can never answer. Copying that function without noticing the difference cost a red run.
+
 **A UI HELPER MUST RETRY, BECAUSE `busy` SWALLOWS CLICKS SILENTLY.** `doFight`/`doPass`/`toggle` each `return`
 on `busy` with no message, so a single click plus an assertion reads as "the button is broken" — `playPair` and
 `passTurn` retry and report how long they took, which is how the 2-second window below was measured at all.
@@ -1214,13 +1236,13 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.74 — 2026-08-31, every suite run serially, 69 suites and 0 FAIL** (a full sweep is
+Status as of **v1.31.76 — 2026-09-01, every suite run serially, 70 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
 `test` 333, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
 `versiontest` 15, `sharetest` 16, `qrtest` 32, `peektest` 31, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
-`lessontest_rides` 15, `lessontest_forms` 15, `qrref` 26 (darwin only, corroborates rather than
+`lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
 The 43 netplay suites: `nettest_3p` 7, `activate` 6, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,

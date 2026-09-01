@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.75.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.76.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.75**, working tree clean. The only branch is **`feat/qr-scanning`** (parked, built, green at
+`main` is at **v1.31.76**, working tree clean. The only branch is **`feat/qr-scanning`** (parked, built, green at
 21/0 — see the BACKLOG entry for the condition that would revive it). Everything else is merged and pruned.
 
 **Sanity check before you touch anything** (from `code/`, ~1 minute):
@@ -253,27 +253,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   `--zNetroot`-derived family, never a bare z-index — and **DOM presence is not visibility**, so assert it with
   `elementFromPoint`, not by reading `textContent`.
 
-- **A TUTORIAL LESSON FOR THE 2** (Aj, 2026-08-31: *"with so many complex rules regarding the 2… i feel like it
-  needs it's own tutorial"*). **Filed 2026-09-01 — he raised it a day earlier and I failed to write it down,
-  which is exactly what this list is for.**
-  The 2 now carries more rules than any other card, and they are spread across the panel, the changelog and
-  CLAUDE.md rather than anywhere a player would look:
-  - it is the **apex** at sizes 1-3 — a single, a pair or a trio of 2s is the highest of its shape;
-  - in plays of **4 or more** it is the **LOW** card by default (`seqTwos='low'`), so the smallest straight is
-    `2-3-4-5-6` and the biggest is still `10-J-Q-K-A`;
-  - so **`222XX` is the SMALLEST full house**, not the biggest — the least intuitive consequence, because a full
-    house is keyed by its trio and nothing on screen says so;
-  - `noSeqTwos` bars it from chains entirely (Tiến lên / Dou Dizhu), `highTwos` restores the legacy
-    `J-Q-K-A-2` window, and the two interact through a `deadIf` dependency;
-  - `apexInf` makes it unbeatable **by value**, which is precisely why the **chops** exist — a shape answer to a
-    card no value can beat.
-  **Everything needed to build it now exists:** the `LESSONS` array, `lessonlib.js`, and the rule that a gated
-  lesson needs its own suite (`lessontest_quicks.js` is the template). The rules panel already has a **The 2**
-  section, which is the natural place to link it from.
-  **The teaching order is the hard part, not the mechanics** — the apex rule and the low-in-chains rule
-  contradict each other on first hearing, and the full house is the case that will confuse people. Consider
-  showing the same trio of 2s winning as a trio and losing as a full house, back to back.
-
 - **A real one-tap rematch over netplay** (Aj, 2026-08-25 — the `🔄 Rematch?` emote is the expression; this is
   the action). Today the win overlay's "New Game" just calls `openSetup()`, so an online pair must redo the
   whole invite-code exchange to play again. Wants: the host restarting the engine and re-broadcasting `t:'setup'`
@@ -436,6 +415,52 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.76 — the 2 explains itself, on the card and in a lesson of its own
+
+The 2 carries more rules than any other card and, until now, explained none of them anywhere a player looks.
+Two halves, and the card text is the more useful one.
+
+**THE RULES GO ON THE CARD** (Aj: *"we could put some of those rules on the card... since you know, it does not
+have effect text"*). The apex 2 is the only card in the game with **no activated effect** — `effectOf` returns
+null for rank 2 by design — so its reader body was blank while it was simultaneously the card with the most
+rules. Worse, the fallback described it as *"No effect — a pure fight card"*, which is close to the opposite of
+true. It now reads as an **Apex trump** and states what the 2 actually does.
+
+**Every claim is DERIVED from the live rules, never hardcoded**, because the 2's behaviour is configurable and a
+static note would be a lie in two of its three settings: `noSeqTwos` bars it from chains entirely, `highTwos`
+puts it back above the A, and `apexInf` makes it unbeatable by value. `lessontest_twos` asserts the derivation by
+*switching the rule and requiring the sentence to change* — not by matching a string.
+
+**It is REMINDER text, and it is italic** (Aj: *"let's make all these rules text italic — just so there's a
+distinction between card effect text and reminder text"*). On paper the 2 would be blank or pure flavour; what is
+written here is not something the card *does*, it is how the game *treats* it. The `.cvReminder` style keeps that
+line visible so a rule reminder is never read as an activatable effect.
+
+**A rules change refreshes an open reader.** `showCard` is not part of `render()`, so toggling a rule with the
+reader open would leave the old sentence on screen. The reachable case is narrow and named in the source so it is
+not later deleted as dead: the panel is read-only while a game is live, so this happens **after** a game ends,
+when the finished board is still on screen and Custom rules becomes editable again.
+
+**AND A LESSON, because the 2's two rules contradict each other on first hearing** — it is the apex at sizes 1-3
+and the **lowest** card in plays of four or more. Telling someone that twice does not land it, so the lesson
+*shows* it: your lone 2 beats their Ace, and then the Rival's **three 2s — the best trio in the game — cannot
+answer your full house of 5s**. Same cards, opposite outcomes, one step apart.
+
+The engine is explicit about why (`detectCombo` maps `seqValue` and the source comment reads *"222XX is the
+SMALLEST full house under 'low'"*), and it is invisible on screen: a full house is ranked by its **trio**, and
+nothing in the UI says so. `lessontest_twos` (29) asserts the claims rather than the panel — the Rival really led
+an Ace, your 2 really took the round, and `legalFightPlays(state, RIVAL)` is really **empty** at step 5, which is
+the engine answering rather than the rig restating itself.
+
+**Filed as lesson 11 rather than slotted after `specials` where its content belongs** — inserting mid-list
+renumbers seven lessons, and placement is a curriculum call rather than a technical one. Worth revisiting.
+
+**Three bugs in my own rig, all caught by writing the suite:** the Rival's three 2s can sit behind its own
+shields (the Quicks trap, three times as exposed since it needs three of a rank); `tutCastRivalTech`'s
+save-and-restore of the turn is **wrong for a play**, because `E.play` advances the turn itself and restoring
+handed it straight back to the Rival; and `lessonlib`'s `playAny` did not retry, so `busy` swallowed its clicks —
+the rule the other helpers in that file already follow. `playIds(ids)` joins them, retrying.
 
 ### v1.31.75 — the harness learns to play a whole game, and a lost mirror stops being permanent
 
