@@ -344,6 +344,37 @@ independently" — that SHIPPED in v1.31.21.*
 
 ## Test harness
 
+<a id="sweep-cost"></a>
+- **WHERE A FULL SWEEP'S TIME ACTUALLY GOES — timed per suite, 2026-09-01, v1.31.80.** Aj asked; the answer was
+  concentrated, and every intuition about it was wrong in a useful way. **Do not re-derive this; re-time it.**
+
+  | | |
+  | --- | --- |
+  | whole sweep | 72 suites, **637s (10.6 min)** |
+  | six slowest (`landscapetest` 97 · `browsertest` 66 · `mptest` 60 · `exporttest` 39 · `rulestest` 25 · `lessontest_twos` 21) | **328s — 51%** |
+  | all 44 netplay suites | 196s (31%), 4.5s mean |
+  | the other 67 suites | 4.6s mean |
+
+  **The cost was fixed `wait()`, not the 3.1MB page.** `landscapetest` opens a fresh context per viewport —
+  thirty of them — each spending 2650ms of sleeps: **79s of its 92s**. Polling took it to 33s (v1.31.81).
+  **THE NETPLAY SWEEP IS CHEAP AND MUST NOT BE SKIPPED.** All 44 suites are 196 seconds. v1.31.57 left
+  `nettest_elim3` red for five versions because a change "did not look related", so the rule that you run the
+  whole netplay sweep after a UI change costs 3¼ minutes and has already paid for itself once.
+  **`browsertest` (66s) and `mptest` (60s) are real work** — 12 duels and 82 free-for-all assertions. Not sleeps.
+
+- **~~STUB `art.js` OUT OF THE TEST BUILD~~ — BUILT, VALIDATED, MEASURED AT 1 SECOND, REVERTED (2026-09-01).**
+  Aj's proposal, and a reasonable one: the page is 3.1MB, `art.js` is **2.16MB** of it, and a layout suite that
+  only measures geometry cannot need it — art is applied **only** as a CSS `background-image`, which never
+  affects layout, so a stub build is safe *by construction*. `build.js` already stubs `faces.js`, so the pattern
+  existed. It was built (3.1MB → 940KB), pointed at `landscapetest`, and validated with a **fidelity anchor**
+  that re-opened one viewport on the real page and compared card/board/hand/pile/actions geometry — identical to
+  the pixel.
+  **It saved one second: 34s on the real build, 33s on the stub.** Page size is not what these suites spend
+  their time on. Reverted rather than kept, because the standing cost is a second build artifact that must never
+  go stale, a `.gitignore` entry and six assertions to maintain — for 1s.
+  **Do not re-propose this without timing the suites first**, which is the general lesson: the 2.16MB number is
+  vivid and the 2650ms-per-viewport number is not, and only one of them mattered.
+
 - **The "fixed-wait flake" list is EMPTY, and it was never about fixed waits.** Three of the four suites had a
   real dependency; the fourth would not reproduce at all.
   - `nettest_full` was reporting an actual game bug (v1.31.20 — the host locked out of a round it won). It ALSO

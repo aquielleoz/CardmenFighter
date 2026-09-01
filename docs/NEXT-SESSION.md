@@ -166,6 +166,24 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 ### Tooling
 
+- **MAKE THE SWEEP PARALLEL — ~309s → ~80s, and the only blocker is fixed ports.** 67 of the 72 suites average
+  **4.6s** and are serial purely because each binds a hardcoded port; `PORT` as an env var (defaulting to
+  today's value, so nothing else changes) would let 3-4 run at once. Two things to respect: three suites already
+  share port **8303** (`concede3`/`elim3`/`energy`), and CLAUDE.md records that the suites are load-sensitive —
+  `nettest_rtc` failed at `maxRound=0` under contention and passes 11/0 alone. **That was measured on a weaker
+  sandbox and is directly testable**: run a 3-way parallel sweep several times and see whether it stays green.
+  If it flakes, the fallback is parallelising only the non-netplay suites.
+  Full timing breakdown: [`DECISIONS.md`](DECISIONS.md#sweep-cost).
+- **`rulestest` IS 15.1s OF FIXED `wait()` OUT OF 25s** — the same fix v1.31.81 applied to `landscapetest`,
+  worth ~13s, but spread over **60 call sites** rather than one `open()`. Poll for the condition; and note the
+  lesson that cost a red run there: **a settle predicate must include the thing being asserted on** (watching
+  `#hand`'s box let it return while the cards were still growing into it).
+- **THE ITERATION LOOP CAN SKIP THE SIX SLOW SUITES; THE PR GATE CANNOT.** They are 51% of the sweep and they
+  are the *stable* ones — layout, smoke, multiplayer parity, export — so skipping them while iterating is cheap
+  and low-risk. **Aj's rule: at least one complete sweep per day of full coding**, plus the existing rule that a
+  full sweep gates every PR. **Never skip the netplay sweep** — all 44 suites are 196s, and `nettest_elim3` sat
+  red for five versions because a change "did not look related" to it.
+
 - **`nettest_full` FAILED ONCE IN SEVEN RUNS on 2026-08-29 and was NOT fully cleared.** It went 4/1 immediately
   after the v1.31.56 change, then 6/6 green. The failing assertion was **not captured**, which is the mistake to
   avoid repeating. Structurally the change cannot reach it — on a client the only path into `playCards` is the
