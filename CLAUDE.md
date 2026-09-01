@@ -1228,6 +1228,34 @@ The 43 netplay suites: `nettest_3p` 7, `activate` 6, `actloop` 22, `ceremony` 9,
 `losspick_remote3` 6, `names` 8, `narrate` 10, `phantasm` 8, `prefight` 13, `react3` 7, `record` 12, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 11,
 `target3` 6, `trim` 14, `unready` 12, `version` 14.
+**A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
+table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
+green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state
+comparison is structurally blind to it. **Assert agreement AND liveness; two peers can agree perfectly and both
+be stuck.** The loop now fails after 15s in which neither side can act.
+**A STALL CLASSIFIES ITSELF, and the split is the whole value:** `HARNESS GAP — an unanswered "<window>" window
+is open on the HOST` (teach the suite to answer it) versus `GENUINELY WEDGED — no window is open and neither
+side is on turn` (a real bug). Without that distinction a stall is unactionable.
+**THE HARNESS MUST BE ABLE TO PLAY THE WHOLE GAME, or its green runs mean less than they look.** `nettest_sync`
+only clicked Fight and Pass, so the first thing the new detector caught was the suite itself: the host ending a
+round over `MAX_HAND` sat on its own clean-up picker forever. **`nettest_trim` already documented that as by
+design** — every seat but the local one is auto-trimmed, so the host's own pick is the only one that stops play —
+and I reported it as a probable product bug before reading it. The suite now answers the pick (select until Fight
+enables, confirm with FIGHT) and the shield-guard / pre-fight / Respond? windows, all with the minimal
+deterministic choice; exercising what those windows DO is the job of the suites built for them.
+
+**`reassertMirror()` — PARKING IS THE ONE MOMENT THE DEDUPE MUST NOT APPLY (v1.31.75).** `broadcastMirror` skips
+a seat whose mirror is byte-identical to the last one sent, and `lastMirror` is otherwise cleared only on channel
+re-bind. Harmless while play continues (the next state change makes a fresh mirror); **not harmless once the host
+PARKS**, because its state deliberately stops changing, so a client that missed the last mirror has nothing to
+correct it. Called from `awaitRival` and `hostParkTrim`. Measured with a probe that drops the first turn-handover
+mirror: **2 failures in 8 without it, 0 in 24 with it** (p=0.1%).
+**THE PROBE REFUTED THE THEORY IT WAS BUILT TO CONFIRM, and that is why it was worth building.** The written
+prediction was a DEADLOCK; it never happened — two divergences, zero stalls. So the dedupe makes a lost mirror
+**persistent**, not **fatal**, and this is a robustness fix against a demonstrated divergence, not a cure for the
+recorded fork. An earlier version of this same fix was withdrawn on 2026-08-31 precisely because the experiment
+of the day could not validate it either way; write the prediction down first.
+
 **`nettest_sync` PASSED this sweep, and that is not evidence it is fixed** — the host/client fork it hunts is
 intermittent at roughly 1-3 runs in 8, so one green run is exactly what the bug looks like most of the time. A
 single clean sweep is evidence for the OTHER 60 suites and says nothing about this one.

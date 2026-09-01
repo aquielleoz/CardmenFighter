@@ -15,16 +15,24 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.74.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.75.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-08-31)
 
-`main` is at **v1.31.74**, working tree clean, and the only remaining branch is **`feat/qr-scanning`** (parked,
-built, green at 21/0 — see the BACKLOG entry for the condition that would revive it). Everything else is merged
-and pruned.
+`main` is at **v1.31.75**. Branches: **`feat/qr-scanning`** (parked, built, green at 21/0 — see the BACKLOG entry
+for the condition that would revive it) and **`fix/sync-fork-diagnostics`**, which is **PR #108, open and green,
+awaiting review** — the `nettest_sync` re-measurement and its instrumentation.
+
+**⚑ TOMORROW'S FIRST TASK, agreed 2026-08-31:** build the probe named at the end of the fork entry — one that
+**drops the deal mirror AND leaves the CLIENT to act next.** That is the only configuration in which a stale
+client can genuinely deadlock the table (it is `busy`, or acting on a board the host has moved past, while the
+host is parked waiting for it), and the probe written today never reaches it: after its forced drop the game is
+on the HOST's turn, so `settle()` gives up before either side acts and the "persistence" it shows is an artefact
+of the harness. Everything else about that bug is now instrumented — read the fork entry first, especially the
+list of things already tried and withdrawn.
 
 **Sanity check before you touch anything** (from `code/`, ~1 minute):
 
@@ -103,7 +111,48 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   - **The broadcast storm.** Real, and fixed in v1.31.65 (97% of mirrors were byte-identical duplicates). The
     failure rate did not move.
   - **The v1.31.64 rules change.** A/B'd against the pre-change build: same rate. It predates it.
-  **NEXT STEP — TRACE THE RECEIVE SIDE, and do not instrument the send side again.** The host is already known
+  **RE-MEASURED 2026-08-31 ON v1.31.74: 35 RUNS, 35 CLEAN.** That excludes the recorded rate outright —
+  P(35 clean) is **0.00%** at 1-in-4 and **0.93%** at 1-in-8 — while **1-in-16 (10.5%) and rarer remain
+  possible**, so this is "no longer reproduces at the recorded rate", NOT "fixed". The likely reason it dropped
+  is **v1.31.67**, which landed AFTER the last measurement: `isRoundDeal` replaced `handGrew` and added an
+  **empty-pile** clause, so a mirror is held far less often — and a held mirror is the only thing
+  `clientPlayCeremony` can discard.
+  **THE DISCARD PATH STILL EXISTS AND IS NOW TRACED.** `clientPlayCeremony` still does `pendingRoundMirror=null`,
+  so a second ceremony arriving before `finishClientCeremony` still throws a deal away. The lifecycle prints
+  `mirror HELD` / `mirror HELD -> DISCARDED` / `mirror HELD -> revealRound`, and **`nettest_sync` now dumps both
+  hands' card ids, the exact missing ids, and both peers' trace tails on failure** — the previous investigation
+  stalled precisely because that detail came from bespoke instrumentation that was then thrown away, which is
+  why "no HELD events" could not be re-checked nine versions later.
+  **DEMONSTRATED WITH A FORCED DROP:** dropping one deal mirror on purpose leaves the client missing **precisely
+  that round's two dealt ids** — the recorded signature, reproduced on demand:
+  ```
+  HOST   sees seat1 (8): 5C#16 6C#20 7C#25 7C#24 9S#35 10S#38 12S#47 12C#45
+  CLIENT own hand   (6): 5C#16       7C#25 7C#24 9S#35 10S#38 12S#47
+  IDS THE CLIENT IS MISSING: 6C#20 12C#45
+  ```
+  **THREE MORE THINGS ARE NOW SETTLED — do not re-derive them:**
+  - **A DROPPED MIRROR IS NOT AUTOMATICALLY PERMANENT.** With a forced drop, one run in two recovered on its own,
+    because the next host state change produces a fresh mirror. Permanence needs the loss to coincide with the
+    host's state going quiet.
+  - **"CLEAR THE DEDUPE CACHE ON A ROUND CHANGE" IS A NO-OP.** `round` is in the mirror (`netview.js`), so a round
+    boundary always changes content and the deal mirror is never suppressed by dedupe. This was about to be built
+    before checking.
+  - **THE LINK TO AJ'S "PRESSED PASS AND NOTHING HAPPENED" IS WEAKER THAN THIS ENTRY USED TO CLAIM.** v1.31.74
+    fixed a **confirmed** cause of that exact symptom (`updateActions` did not know about `busy`, so Pass rendered
+    enabled and swallowed clicks for ~2s), and the stale-intent guard is a second confirmed cause. Do not treat
+    that report as evidence for this fork.
+  **TRIED AND WITHDRAWN — `reassertMirror()` at the park points.** The idea: `broadcastMirror` dedupes and
+  `lastMirror` is otherwise cleared only on channel re-bind, so a park would freeze a stale client forever;
+  clearing the cache when the host parks would make any lost mirror self-healing. **It could not be shown to fix
+  anything** (5 of 6 forced-drop runs still diverged) and was reverted. The reason is instructive: after a
+  forced drop the game is on the **HOST's** turn, and `settle()` gives up before either side acts — so the
+  persistence in that experiment is **an artefact of the harness**, not a deadlock. Do not re-propose it without
+  an experiment that reproduces true persistence.
+  **NEXT STEP — BUILD A PROBE THAT DROPS THE DEAL *AND* LEAVES THE CLIENT TO ACT NEXT.** That is the one
+  configuration where a stale client can genuinely deadlock the table (it is `busy` or acting on a board the host
+  has moved past, and the host is parked waiting for it), and it is the configuration the current probe never
+  reaches. Everything else about this bug is now instrumented; this is the missing experiment.
+  **(Superseded) TRACE THE RECEIVE SIDE, and do not instrument the send side again.** The host is already known
   to broadcast the grown hand. Log every mirror's hand length *as it arrives on the client*, next to the `q`
   stamp, and compare against the host's send log for the same window. The question to answer is narrow: **does
   the mirror carrying the deal reach the client at all, and if it does, what happens to it?**
@@ -112,6 +161,12 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   battle log, so a real game can be compared move-for-move too.
   **`nettest_sync` is the only suite in the repo that compares the two peers to EACH OTHER** rather than each
   to expectations. It found this; nothing else could. Keep it green-or-explained, never disabled.
+  **BUT BE ACCURATE ABOUT WHAT IT HAS EARNED (corrected by Aj, 2026-09-01).** The suite was written on
+  2026-08-28 out of his *"we can't even get to round 2 legally on the same computer"* — but **that complaint's
+  actual cause was the drag-to-play bug**, found the next day by his own A/B (Fight worked, dragging did not)
+  and fixed in v1.31.56. This suite did not diagnose it. So its record is: the fork below (real, but **not
+  reproducing** — 35/35), and the **stall** found on 2026-09-01, which is a live catch on a clean build. Do not
+  write the round-2 complaint and this fork as one lineage; they are three separate things.
 - **★ `stateSeq` IS A CLIENT-INTENT COUNTER, NOT A STATE VERSION — AND THAT IS WHY VALID MOVES GET REFUSED.
   ONE JOB, NOT TWO.** (Merged 2026-08-31 from two entries that each described half of it.)
   The stamp is bumped only in `hostApplyMove`, so **the host's own plays and the round draw never advance it** —
@@ -200,6 +255,40 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   failing assertion next time it goes red.**
 
 ### Features
+
+- **OPEN THE BATTLE LOG AS AN OVERLAY, like the 🔍 View card reader** (Aj, 2026-08-31: *"i think for the logs,
+  we can open it like how we do the view card? but slightly transparent?"* — agreed at the time and, like the 2s
+  tutorial, **never filed; caught 2026-09-01 when he asked what else was missing**).
+  **This is NOT the scrolling bug.** v1.31.59 stopped a long log evicting the hand, which fixed the symptom he
+  hit; the overlay is the design he actually proposed, and it is still open. The case for it is the phone: the
+  log competes with the board for vertical space on exactly the viewport where space is scarcest (see the 340px
+  floor and `landscapetest`), and an overlay removes it from the vertical stack entirely instead of rationing it.
+  Precedent to copy: the 🔍 View card reader is already a phone-only overlay (`#viewCardBtn` exists only inside
+  `@media (max-width:720px) and (max-height:800px)`, which is why `viewtest.js` runs at 390×780).
+  Two things to get right, both already recorded as traps: the overlay must outrank `#netroot` — use the
+  `--zNetroot`-derived family, never a bare z-index — and **DOM presence is not visibility**, so assert it with
+  `elementFromPoint`, not by reading `textContent`.
+
+- **A TUTORIAL LESSON FOR THE 2** (Aj, 2026-08-31: *"with so many complex rules regarding the 2… i feel like it
+  needs it's own tutorial"*). **Filed 2026-09-01 — he raised it a day earlier and I failed to write it down,
+  which is exactly what this list is for.**
+  The 2 now carries more rules than any other card, and they are spread across the panel, the changelog and
+  CLAUDE.md rather than anywhere a player would look:
+  - it is the **apex** at sizes 1-3 — a single, a pair or a trio of 2s is the highest of its shape;
+  - in plays of **4 or more** it is the **LOW** card by default (`seqTwos='low'`), so the smallest straight is
+    `2-3-4-5-6` and the biggest is still `10-J-Q-K-A`;
+  - so **`222XX` is the SMALLEST full house**, not the biggest — the least intuitive consequence, because a full
+    house is keyed by its trio and nothing on screen says so;
+  - `noSeqTwos` bars it from chains entirely (Tiến lên / Dou Dizhu), `highTwos` restores the legacy
+    `J-Q-K-A-2` window, and the two interact through a `deadIf` dependency;
+  - `apexInf` makes it unbeatable **by value**, which is precisely why the **chops** exist — a shape answer to a
+    card no value can beat.
+  **Everything needed to build it now exists:** the `LESSONS` array, `lessonlib.js`, and the rule that a gated
+  lesson needs its own suite (`lessontest_quicks.js` is the template). The rules panel already has a **The 2**
+  section, which is the natural place to link it from.
+  **The teaching order is the hard part, not the mechanics** — the apex rule and the low-in-chains rule
+  contradict each other on first hearing, and the full house is the case that will confuse people. Consider
+  showing the same trio of 2s winning as a trio and losing as a full house, back to back.
 
 - **A real one-tap rematch over netplay** (Aj, 2026-08-25 — the `🔄 Rematch?` emote is the expression; this is
   the action). Today the win overlay's "New Game" just calls `openSetup()`, so an online pair must redo the
@@ -363,6 +452,52 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.75 — the harness learns to play a whole game, and a lost mirror stops being permanent
+
+**A deadlocked table used to PASS `nettest_sync`.** Its loop only failed on divergence, so when neither side
+could act it spun out the full 120s wall clock and fell through with `drift===null` — both assertions green. That
+is precisely the shape a lost mirror produces when the mirror carried a turn handover: the hands still **agree**,
+so a state comparison is blind to it. The loop now fails if nobody can act for 15s.
+
+**The first thing that detector caught was the harness, not the game** — and that is worth writing down plainly.
+`nettest_sync` only ever clicked Fight or Pass, so the moment the host ended a round holding more than `MAX_HAND`
+it sat on its own clean-up picker forever. `nettest_trim` already documents that behaviour as by design: every
+seat but the local one is auto-trimmed, so *the host's own pick is the only one that stops play*. The client even
+displayed "Rival is discarding to hand size…" throughout — the v1.31.69 notice working exactly as intended. The
+suite now answers the pick (select until Fight enables, confirm with Fight) and every other window it can meet —
+shield guard, pre-fight, Respond? — with the minimal deterministic choice.
+
+**A stall now classifies itself**, which is the difference between a test problem and a game problem:
+`HARNESS GAP — an unanswered "shield guard" window is open on the HOST` versus `GENUINELY WEDGED — no window is
+open and neither side is on turn`. Verified by disabling the pick handler and checking it named the right cause.
+
+**That forces a correction to yesterday's fork measurement.** "35/35 clean" was reported on a suite where a dead
+table passed, and 8 of those 35 ended before the action budget — indistinguishable, after the fact, from a silent
+stall. Re-measured on a harness that can finish games: **20/20 clean, 0 stalls**, which excludes a 1-in-4 fork
+rate and not a 1-in-8 one.
+
+**And `reassertMirror()` is in, this time with the experiment it lacked.** `broadcastMirror` skips a seat whose
+mirror is byte-identical to the last one sent (right — 97% were duplicates, v1.31.65) and `lastMirror` is
+otherwise cleared only when a channel is re-bound. Harmless while play continues, because the next state change
+makes a fresh mirror. **Not harmless the moment the host PARKS**, because then its state deliberately stops
+changing: a client that missed the last mirror has nothing to correct it and no reason to act.
+
+Demonstrated with a probe that drops the first mirror handing the turn to the client:
+
+| | failures |
+| --- | --- |
+| probe alone | **2 in 8** — persistent past the 6s settle window |
+| probe + `reassertMirror` | **0 in 24** |
+
+P(0 in 24 at that rate) = **0.1%**. Cost: one extra mirror per park.
+
+**The probe also refuted the theory it was built to confirm.** The prediction — written down before running it —
+was that a lost turn-handover mirror would DEADLOCK the table. It never did: two divergences, zero stalls. So
+"the dedupe makes a lost mirror permanent" is right about **persistence** and wrong about **deadlock**, and this
+fix is a robustness measure against a demonstrated divergence rather than a cure for the recorded fork. That fork
+remains open and unreproduced; note its signature is the client missing its OWN draw, while the probe's is the
+client's view of the HOST's hand — the same shape in a different field.
 
 ### v1.31.74 — seven lesson suites, and the enabled button that did nothing for two seconds
 
