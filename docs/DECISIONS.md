@@ -164,10 +164,14 @@ This is a better reason than "suits do not rank" for why v1.14 cut them.
 <a id="ai-strength"></a>
 ## AI strength
 
-- **PROTECTING THE AI's LAST LEGAL FIGHT — MEASURED, AND NOT WORTH DOING**
-  (2026-09-01. Aj asked the right question — *"will it make the ai win more if we unlocked the JQK? because we
-  might have to fold that into the demon lord"* — and the answer is no. Kept here as a **measured dead end**,
-  because the 166 number below looks damning and is not.)
+- **PROTECTING THE AI's LAST LEGAL FIGHT — MEASURED, THEN SHIPPED AS A DEMON-ONLY BEHAVIOUR (v1.31.79).**
+  (2026-09-01. Aj: *"will it make the ai win more if we unlocked the JQK? because we might have to fold that
+  into the demon lord"*.) **The first answer given was "no, too small to be a difficulty lever", and it was
+  wrong — because it compared the effect to nothing.** Against the thing that actually matters, the tier step
+  itself, the demon-only guard moves the knight→demon gap from **+6.14 to +7.63 points: about a quarter of the
+  whole gap.** Aj shipped it for three reasons, only the third of which is about win rate: a behavioural
+  difference between knight and Demon Lord, something a player can feel and then learn to exploit, and a wider
+  tier gap. **"Small" is not a property of a number — always name the comparison.**)
   166 activations in 1200 duels leave the seat with no legal fight (`transform` 95 · `equip` 30 ·
   `destroyShield` 13 · rest ≤6 — seeded, so it reproduces exactly), and **0 of them have a boost banked** — which is what says v1.31.78 is
   complete rather than partial. Protecting them measures as follows, paired head-to-head, 8000 decided games
@@ -178,14 +182,26 @@ This is a better reason than "suits do not rank" for why v1.14 cut them.
   | protect the **transform** only ("unlock the JQK") | +0.70 pts, 1.25σ | +0.81 pts, 1.45σ |
   | protect **every** activation | +1.08 pts, 1.92σ | +1.61 pts, 2.88σ |
 
-  **The JQK-only variant is indistinguishable from zero**, so there is nothing to fold into Demon Lord. The
-  blanket variant is worth about a point and only clears 2σ at demon — a real but small competence gain, not a
-  difficulty lever. Both cost the same 0.3% of activations, so this is not a trade-off; the edge is simply
-  tiny. **The reading to take away: those 166 are near-break-even decisions, not 166 mistakes** — most of the
-  transforms are buying the Forms game with a round, which is a fair price.
+  **The JQK-only variant is indistinguishable from zero**, so what shipped is the blanket one, restricted to
+  **demon** (`isTop(diff)`); every other tier keeps the v1.31.78 rule of protecting only a fight it has already
+  paid for. In tier terms, measured the same way:
+
+  | | knight→demon gap |
+  | --- | --- |
+  | before | +6.14 pts, 13.5σ |
+  | after | **+7.63 pts, 16.7σ** |
+
+  **Controls: knight-vs-knight and demon-vs-demon both land on exactly 50.00%** over 6000 decided games, which
+  is the check that the two-arm pooling really does cancel the seat advantage.
+  **It moves nothing else.** Deck balance at demon is unchanged — spread across three replicates 10.9/10.4/8.5
+  before against 9.2/10.4/9.3 after, Pure Wizard 55.2 → 54.4 mean, all inside ±1.3 per-deck noise. Persona
+  parity is unaffected. It costs 0.3% of activations.
+  **The reading to keep: those 166 are near-break-even decisions, not 166 mistakes** — two thirds are a J/Q/K
+  going into the Forms zone, which is a fair price for a round. That is exactly why it is a demon PERSONALITY
+  and not a fix applied everywhere: at knight, fumbling a winning hand into a Form now and then is in character.
   **`valueBoost` 3 of the 166 IS a real bug and is still open, though it is worth ~nothing on its own:**
   `pickValueBoost` never asks whether we are ALREADY winning, so it can spend a boost on a fight we had won —
-  and in those four it spent the card the play needed. `counterfeitHelps` has the guard to copy:
+  and in those three it spent the card the play needed. `counterfeitHelps` has the guard to copy:
   `if (beatsCur(pl.hand)) return false;`.
 
   **THE METHOD IS THE DURABLE PART — no existing sim can measure AI strength at all.** `analysis.js`,
@@ -197,6 +213,11 @@ This is a better reason than "suits do not rank" for why v1.14 cut them.
     is most of the variance gone.
   - **Prove the instrumented build is byte-identical when idle** — same wins, exactly, with the flag off. The
     first version was not, and the difference hid inside ordinary noise.
+  - **`personasim`'s verdict at 900 games is NOISE, and CLAUDE.md's "2.8 points" reads as a fixed floor when
+    it is one draw from a wide distribution.** Three CONTROL runs — six identical personas, so the true spread
+    is zero — printed **5.6, 1.3 and 4.6**, straddling both the floor and the WIDE threshold. A single run
+    flagged this change WIDE on one build and OK on the other, and both readings were meaningless. **Run it at
+    least three times, or do not quote it.**
   - **Run BOTH arms and pool.** Seat 0 carries a consistent ~2.3-point advantage here, which is larger than
     every effect being measured; one arm alone reports it as the result.
 
