@@ -1681,6 +1681,27 @@ not a class problem but a rules problem. The lever belongs at the rules level �
   **top** of the changelog in `docs/NEXT-SESSION.md` (newest-first, directly under `## BACKLOG`), written as
   what changed and why, and bump the version in `README.md`'s `**Status:**` line. Move any item you completed
   out of `## BACKLOG`.
+- **FOUR DOCS, AND WRITING A THING INTO THE WRONG ONE IS HOW IT GETS LOST OR REDONE** (Aj, 2026-09-01, after a
+  session put findings in the changelog only: *"maybe we can update claude.md with those rules so they don't get
+  mixed up next time?"*). The routing question is **what do you want to happen to this?**
+
+  | you want… | it goes in |
+  | --- | --- |
+  | someone to DO it | `NEXT-SESSION.md` **`## BACKLOG`** — open work only |
+  | nobody to redo or re-argue it | `DECISIONS.md` — measured dead ends, declined proposals, settled analyses |
+  | the next session to WORK differently | **this file** — rules and invariants, not history |
+  | the record of what shipped and why | `NEXT-SESSION.md` **changelog** — newest-first, under the BACKLOG |
+
+  **Each mistake has its own failure mode, and all four have happened here:** open work written into a changelog
+  entry is invisible, because a changelog is history and nobody actions it (v1.31.81's parallelism and
+  `rulestest` levers, caught by Aj the same day); a measured dead end left in the BACKLOG gets re-attempted
+  (which is why `DECISIONS.md` was split out at all); a settled decision left in the BACKLOG gets re-argued; and
+  a rule written only in a changelog is never read again.
+  **One finding often splits across three of them** — v1.31.81 put the timing measurement in `DECISIONS.md`, the
+  remaining levers in the BACKLOG, the narrative in the changelog, and the rule ("time the suites before
+  reaching for a page-size fix") here. **Ask the routing question per PARAGRAPH, not per change.**
+  **A cross-reference is cheap and stops the split from hiding things**: link the `DECISIONS.md` anchor from the
+  BACKLOG entry, the way the sweep-cost entries do.
 - Debug hooks exist and are URL-gated: `?dbg=1` (netplay) and `?dbgsolo=1` (exposes `window.__solo` with
   `st()/render()/setPulse()` for headless UI checks). Keep new hooks inert without their flag.
   `__solo.rulesKey/setRulesFromKey` reach the rules serialiser, `__solo.resolveDeck` the deck roll; and
@@ -1797,6 +1818,9 @@ definition, so it cannot delete them.
 
 ## Docs map
 
+- **WHICH DOC A THING GOES IN is a rule, not a preference — see the routing table under Conventions.** The
+  short form: BACKLOG = someone should do it · `DECISIONS.md` = nobody should redo it · this file = work
+  differently · changelog = what shipped.
 - `docs/NEXT-SESSION.md` — **start here**: build/test header, the RANKED backlog (open work only), full
   changelog. Split on 2026-08-31; anything settled moved to `DECISIONS.md`.
 - `docs/DECISIONS.md` — **settled decisions and analyses: things that are NOT work.** Includes **AI strength**,
