@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 342 + 34 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 371 + 34 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 342 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 371 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction — 34, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
@@ -1273,9 +1273,9 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.77 — 2026-09-01, every suite run serially, 70 suites and 0 FAIL** (a full sweep is
+Status as of **v1.31.78 — 2026-09-01, every suite run serially, 70 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
-`test` 342, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
+`test` 371, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
 `versiontest` 24, `sharetest` 16, `qrtest` 32, `peektest` 31, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
@@ -1460,6 +1460,36 @@ does not fire. **A staging detail can be the whole variable — vary the hand si
 **AND THE OBVIOUS DETECTOR REPORTS A NULL RESULT.** "After a pass, is `nextPlayBoost` still set?" finds **1 in
 600** on the broken build, because a duel pass usually ends the round and the round reset clears the boost before
 `takeTurn` returns. Detect the turn LOG holding both a `BOOST` and a `pass`: **33 in 600, down to 4**.
+
+**A BANKED BOOST COMMITS THE TURN, AND `playPhase` KEPT LOOPING AFTERWARDS (v1.31.78).** The loop cannibalised
+the very play `boostEnablesWin` had picked — `transform` took a Queen out of the boosted pair, `equip` took a 6
+out of the boosted trio, `discardOpp` took the 3♦ out of the boosted straight. **The boost unlocks its own
+predator:** `equip` waits on `willFight` (don't burn an own-highest buff right before passing), which is false
+while nothing is legal — exactly the position a boost is cast from — so the equip sits out, the boost makes a
+fight legal, and the equip then eats the fight it was waiting for. `keepsTheWin(c)` refuses any activation that
+would leave no legal fight while a boost is banked. **The test is `legalFightPlays` on a hypothetical hand, not
+a remembered card list**, because the committed play may be a STRAIGHT (which `avoidCombo`'s rank count cannot
+see) and because a SECOND winning play makes the spend harmless. Wired into `pick()` **and** the transform
+branch — transform does not go through `pick`.
+**THE WHEEL IS THE ONE EFFECT WHOSE COST IS NOT ITS OWN CARD**, and it is an `effectFor` trap: Ares's Super
+`reclaim` shuffles the whole hand into the deck, and `wheel` exists ONLY as the Super override, so `effectOf`
+never sees it and the refusal silently never fired. `keepsTheWin` reads `effectFor` **itself** rather than
+taking the effect from its caller, so no call site can get it wrong. The Broadway pitch (`eff.pitchHigh`) is a
+second card the model does not remove either; it measured ZERO failures in 1200 games and is a known hole, not
+an oversight.
+**THE BROADWAY PITCH IS THE THIRD SUCH COST, AND A FLAKY TEST FOUND IT.** `pitchHigh` (Critical Hit / Ultima
+Attack / Armor Piercing) discards a 10/J/Q/K/A as well, chosen by the ENGINE — so `keepsTheWin` refuses such a
+cast when ANY Broadway card in hand is load-bearing. Naming our own via `opts.pitch` was built and **removed**:
+the engine's default already takes the lowest card, so no test could separate them, and ours could pitch a
+higher one. **An unexercised branch is not a safeguard, it is untested code.**
+**RUN A NEW SUITE 40 TIMES, NOT ONCE.** Two flakes hid in one green run here: a transform **draws a card**, so
+`forms.length === 1` was a coin flip on whether that card was a Jack (8 in 40), and the pitch above was 2 in 40.
+Both would have reached a full sweep looking fine.
+**AND THE WHEEL BROKE ITS OWN TEST.** "Is 8♣ still in hand?" **passed on the broken build** — the Wheel shuffles
+the **Discard** back in as well, so the card it had just spent was dealt straight back. Assert the activation
+log. A sibling assertion read `forms.length === 0` on a board where the Queen tier was shield-gated shut
+(`TRANSFORM_GATE` defaults to `'table'`: numPlayers × tier level shields lost across the table), so it refused
+nothing and passed vacuously. **When a test asserts that something did NOT happen, assert that it COULD have.**
 
 **A COMBO card reads as dead in every sim.** Counterfeit (♠8) helps on 25%/39% of its chances when the caster
 has an edge (own buff, or their pile debuffed by Caltrops ♠7 — both Rogue, both in the same deck), and ~3% when
@@ -1719,7 +1749,9 @@ definition, so it cannot delete them.
 
 - `docs/NEXT-SESSION.md` — **start here**: build/test header, the RANKED backlog (open work only), full
   changelog. Split on 2026-08-31; anything settled moved to `DECISIONS.md`.
-- `docs/DECISIONS.md` — **settled decisions and analyses: things that are NOT work.** Measured dead ends,
+- `docs/DECISIONS.md` — **settled decisions and analyses: things that are NOT work.** Includes **AI strength**,
+  which carries the only method here that can measure it — every sim runs the same AI on both seats, so they
+  are structurally blind to "is this change stronger?". Measured dead ends,
   declined proposals, and the reasoning behind them. **Read it before proposing anything that sounds
   obvious** — several entries exist because the obvious thing was tried and measured (the `loss=all`
   avenue, LAN discovery, the APK, the collapsing hand, why FLUSH is not a shape, the Tiến lên chop ladder).

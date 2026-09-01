@@ -795,6 +795,147 @@ function cards(ids) { return ids.map(card); }
 })();
 
 
+// ===== …AND NO LATER ACTIVATION MAY SPEND A CARD THAT PLAY NEEDS (v1.31.78) =====
+/* The residue of v1.31.77. `playPhase` banks the boost and keeps looping, and the loop then cannibalised the
+ * very play `boostEnablesWin` had picked: measured over 600 knight duels, `transform` took a Queen out of the
+ * boosted pair, `equip` took a 6 out of the boosted trio (twice) and `discardOpp` took the 3♦ out of the boosted
+ * straight. The mechanism is neat and worth knowing: `equip` waits on `willFight` (don't burn an own-highest
+ * buff right before passing), which is FALSE until the boost lands — so the boost is what makes the equip
+ * eligible, and the equip then eats the fight it was waiting for. */
+(function () {
+  function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function seat(hand, pileCards, opts) {
+    opts = opts || {};
+    var g = E.newGame(null, { numPlayers: 2 });
+    g.round = 3; g.turn = 1; g.passes = 0;
+    g.players[1].hand = hand;
+    g.players[1].energy = [];                                              // pips in every suit: cost gating is not what these tests are about
+    for (var i = 0; i < 24; i++) g.players[1].energy.push(mk(3, 'DHCS'.charAt(i % 4), 'e' + i));
+    if (opts.forms) g.players[1].forms = opts.forms;
+    if (opts.shuffle) g.players[1].shuffle = opts.shuffle;
+    g.players[0].hand = opts.oppHand || [mk(9, 'S', 'o1'), mk(8, 'S', 'o2'), mk(7, 'S', 'o3'), mk(6, 'S', 'o4'), mk(5, 'S', 'o5')];
+    var combo = E.detectCombo(pileCards);
+    g.pile = { combo: combo, byPlayer: 0, raw: combo.value, rawKey0: combo.key[0], lockedDelta: 0, mod: 0 };
+    g.lastPlayer = 0;
+    return g;
+  }
+  function ids(h) { return h.map(function (c) { return c.id; }).sort().join(' '); }
+  var pair6 = [mk(6, 'H', 'p1'), mk(6, 'H', 'p2')];                        // pile: a pair of 6s (duplicate ids are normal — a class deck ships four copies of one suit)
+
+  // A. the boost is banked, the equip card IS the pair — refuse the equip
+  var gA = seat([mk(6, 'C', 'a'), mk(6, 'C', 'b'), mk(1, 'H')], pair6);    // 6♣ Hero's Javelin (equip), A♥ Imbue (+2)
+  ok(E.legalFightPlays(gA, 1).length === 0, 'staged: the pair of 6s only TIES, so nothing is legal yet');
+  AI.playPhase(gA, 1, [], 'knight', []);
+  ok(gA.players[1].nextPlayBoost === 2, 'commit: the boost is banked as before');
+  ok(gA.players[1].equipment.length === 0, 'commit: the equip is REFUSED — it would spend a card the boosted pair needs');
+  ok(AI.chooseMove(gA, 1, 'knight').action === 'play', 'commit: …so the fight the boost paid for is still there to make');
+
+  // B. the same board with a SPARE 6 — the equip no longer breaks anything, so it must go through.
+  //    This is what separates a legal-play test from a frozen card list: the list would refuse either way.
+  var gB = seat([mk(6, 'C', 'a'), mk(6, 'C', 'b'), mk(6, 'C', 'c'), mk(1, 'H')], pair6);
+  AI.playPhase(gB, 1, [], 'knight', []);
+  ok(gB.players[1].nextPlayBoost === 2 && gB.players[1].equipment.length === 1,
+     'commit: with a spare 6 the equip is ALLOWED — a second winning play survives it');
+  ok(AI.chooseMove(gB, 1, 'knight').action === 'play', 'commit: …and the fight is still on');
+
+  // C. a STRAIGHT — the reason the test is legalFightPlays and not `avoidCombo`'s rank count, which sees
+  //    nothing here: every card of the run is a singleton in hand.
+  var run = [mk(3, 'D'), mk(4, 'D'), mk(5, 'D'), mk(6, 'S'), mk(7, 'C')];  // 3♦ Telekinesis (discardOpp), 6♠ Never Out of Options (draw)
+  var gC = seat(run.concat([mk(1, 'H')]), [mk(3, 'H', 'q'), mk(4, 'H', 'q'), mk(5, 'H', 'q'), mk(6, 'H', 'q'), mk(7, 'H', 'q')]);
+  var wantC = ids(run);
+  ok(E.legalFightPlays(gC, 1).length === 0, 'staged: our 3-4-5-6-7 only ties their 3-4-5-6-7');
+  AI.playPhase(gC, 1, [], 'knight', []);
+  ok(gC.players[1].nextPlayBoost === 2, 'commit: the straight is worth a boost');
+  ok(ids(gC.players[1].hand) === wantC, 'commit: every card of the boosted STRAIGHT is still in hand (rank-counting would miss this)');
+  var mvC = AI.chooseMove(gC, 1, 'knight');
+  ok(mvC.action === 'play' && mvC.cards.length === 5, 'commit: …and the five-card run is what gets played');
+
+  // D. THE WHEEL — the one effect whose cost is not its own card, and it only exists under SUPER, so this is
+  //    also the assertion that the guard reads `effectFor` and not `effectOf`.
+  /* A pair of 9♦ (Leyline — inert at 4 shields), not a pair of 2s: the Super Forms grant +1, so a boosted 2
+   * would already beat anything and no boost would be wanted at all. */
+  var gD = seat([mk(9, 'D', 'a'), mk(9, 'D', 'b'), mk(1, 'H'), mk(8, 'C')],
+                [mk(10, 'H', 'p1'), mk(10, 'H', 'p2')],
+                { forms: [mk(11, 'C'), mk(12, 'C'), mk(13, 'C')],
+                  shuffle: [mk(4, 'C', 's1'), mk(4, 'C', 's2'), mk(4, 'C', 's3'), mk(5, 'C', 's4'), mk(5, 'C', 's5'), mk(5, 'C', 's6')] });
+  var wheel = E.effectFor(gD, 1, mk(8, 'C'));
+  ok(wheel && wheel.wheel === true && !E.effectOf(mk(8, 'C')).wheel,
+     'staged: 8♣ is the Wheel under Super, and the BASE effect does not say so');
+  var logD = [];
+  AI.playPhase(gD, 1, logD, 'knight', []);
+  ok(gD.players[1].nextPlayBoost > 0, 'commit: the boost is banked on the pair of 9s');
+  /* ASSERT THE LOG, NOT THE HAND. "is 8♣ still held?" passed on the broken build by luck: the Wheel shuffles
+   * the DISCARD back in as well, so the card it just spent can be dealt straight back. The only castable card
+   * left on this board is the Wheel, so the activation list is exactly ['BOOST'] or the guard failed. */
+  ok(JSON.stringify(logD.map(function (e) { return e.play; })) === '["BOOST"]',
+     'commit: the Wheel is REFUSED — it shuffles the whole hand away, boosted play included');
+  ok(AI.chooseMove(gD, 1, 'knight').action === 'play', 'commit: …so the boosted pair of 9s is still playable');
+
+  /* F/G. TRANSFORM does not go through `pick`, so it needs its own guard and its own test — and a Q or K is
+   * exactly the kind of card a boosted pair is built on (that was seed 101). The boost is banked DIRECTLY here
+   * rather than cast: in a live game the transform is blocked by `transformGateOK` at boost time and opens up
+   * later in the same turn, which is a sequence too fragile to stage. */
+  var pairK = [mk(13, 'H', 'p1'), mk(13, 'H', 'p2')];
+  var gF = seat([mk(12, 'H', 'a'), mk(12, 'S', 'b')], pairK);
+  gF.players[1].nextPlayBoost = 2;
+  gF.players[0].shields = 2; gF.players[1].shields = 2;                    // the gate is 'table': the Queen tier needs numPlayers*2 = 4 shields lost across the table
+  ok(E.legalFightPlays(gF, 1).length === 1, 'staged: with +2 banked the pair of Queens beats a pair of Kings');
+  ok(E.transformGateOK(gF, 1, 'queen') === true, 'staged: …and the Queen tier is actually unlocked, so a refusal means something');
+  AI.playPhase(gF, 1, [], 'knight', []);
+  /* Count QUEENS in the zone, not forms.length: a transform DRAWS a card, and if that card is a Jack the AI
+   * transforms again — so `forms.length === 1` is a coin flip on the deck. It flaked 8 runs in 40. */
+  function queens(g) { return g.players[1].forms.filter(function (c) { return c.rank === 12; }).length; }
+  ok(queens(gF) === 0, 'commit: the TRANSFORM is refused — the Queen is holding the boosted pair together');
+  ok(AI.chooseMove(gF, 1, 'knight').action === 'play', 'commit: …and the pair of Queens is still there to play');
+
+  var gG = seat([mk(12, 'H', 'a'), mk(12, 'S', 'b'), mk(12, 'C', 'c')], pairK);
+  gG.players[1].nextPlayBoost = 2;
+  gG.players[0].shields = 2; gG.players[1].shields = 2;                    // the gate is 'table': the Queen tier needs numPlayers*2 = 4 shields lost across the table
+  AI.playPhase(gG, 1, [], 'knight', []);
+  ok(queens(gG) === 1, 'commit: with a third Queen the transform goes through — a pair still survives it');
+  ok(AI.chooseMove(gG, 1, 'knight').action === 'play', 'commit: …and so does the fight');
+
+  /* H/I. THE BROADWAY PITCH is the other cost that is not the effect's own card: Critical Hit (9♠) discards a
+   * 10/J/Q/K/A as well, and the ENGINE picks which. It found this suite before this suite found it — case G
+   * flaked 2 runs in 40 because a Critical Hit drawn by the transform pitched one of the Queens. */
+  function pitchSeat(hand) {
+    var g = seat(hand, pairK);
+    g.players[1].nextPlayBoost = 2;
+    g.players[0].shields = 2; g.players[1].shields = 2;                   // 1-2 shields is what makes destroyShield worth casting
+    return g;
+  }
+  var gH = pitchSeat([mk(12, 'H', 'a'), mk(12, 'S', 'b'), mk(9, 'S')]);   // every Broadway card here IS the boosted pair
+  ok(E.effectOf(mk(9, 'S')).pitchHigh === true, 'staged: 9♠ Critical Hit really does cost a Broadway discard');
+  var logH = [];
+  AI.playPhase(gH, 1, logH, 'knight', []);
+  ok(logH.map(function (e) { return e.play; }).indexOf('DESTROY') < 0,
+     'commit: Critical Hit is REFUSED — its pitch could only come out of the boosted pair');
+  ok(AI.chooseMove(gH, 1, 'knight').action === 'play', 'commit: …so the pair of Queens survives to be played');
+
+  /* …but when the boosted play holds NO Broadway card, the pitch cannot touch it and the cast must go through.
+   * The refusal is deliberately strict — ANY load-bearing Broadway card refuses — so this is the shape of
+   * negative that has to pass: a pair of 5s to protect, and a lone spare 10 as the only Broadway in hand. */
+  var pair6 = [mk(6, 'H', 'q1'), mk(6, 'H', 'q2')];
+  var gI = seat([mk(5, 'D', 'a'), mk(5, 'H', 'b'), mk(9, 'S'), mk(10, 'S', 'spare')], pair6);
+  gI.players[1].nextPlayBoost = 2; gI.players[0].shields = 2; gI.players[1].shields = 2;
+  ok(E.legalFightPlays(gI, 1).length > 0, 'staged: with +2 the pair of 5s beats a pair of 6s');
+  var logI = [];
+  AI.playPhase(gI, 1, logI, 'knight', []);
+  ok(logI.map(function (e) { return e.play; }).indexOf('DESTROY') >= 0,
+     'commit: with the only Broadway card spare, Critical Hit goes through');
+  ok(gI.players[1].hand.filter(function (c) { return c.rank === 5; }).length === 2,
+     'commit: …and the boosted pair of 5s is untouched');
+  ok(AI.chooseMove(gI, 1, 'knight').action === 'play', 'commit: …so the fight is still on');
+
+  // E. no boost banked — the guard must be inert, or it reads as "never equip"
+  var gE = seat([mk(6, 'C', 'a'), mk(6, 'C', 'b'), mk(6, 'C', 'c')], [mk(5, 'H', 'p1'), mk(5, 'H', 'p2')]);
+  ok(E.legalFightPlays(gE, 1).length > 0, 'staged: the pair of 6s already beats a pair of 5s — no boost wanted');
+  AI.playPhase(gE, 1, [], 'knight', []);
+  ok(!gE.players[1].nextPlayBoost && gE.players[1].equipment.length === 1,
+     'commit: with nothing banked the equip goes through exactly as before');
+})();
+
+
 // ===== PHANTASMAL ILLUSION — the copy, restored (v1.31.6) =====
 // Aj's design: the copy takes the BASE card values, is then subject to boosts and debuffs, and you MAY swap
 // one card in. A bare copy ties, and ties never win — so you always need one of the three.

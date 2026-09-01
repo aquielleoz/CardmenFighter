@@ -527,18 +527,66 @@
     if (!effectsAllowed(st, p)) return;                // analysis: pure-fighter (no proactive effects/transforms)
     // lowest-cost affordable card whose effect matches `pred`. When `avoidCombo` is set, skip a
     // card that is holding a pair/trio together — so a LOW-value effect won't cannibalise a Special.
+    /* ONCE A BOOST IS BANKED THE TURN IS COMMITTED TO A PLAY, AND NO LATER ACTIVATION MAY SPEND A CARD IT NEEDS
+     * (v1.31.78). `pickValueBoost` casts only when `boostEnablesWin` finds a play the boost converts into an
+     * overtake — and then the loop kept going and cannibalised that very play: measured over 600 knight duels,
+     * `transform` took a Queen out of the boosted pair, `equip` took the 6♣ out of the boosted trio (twice) and
+     * `discardOpp` took the 3♦ out of the boosted straight. Each ended in a pass with the boost still banked.
+     * The test is `legalFightPlays` rather than a remembered card list, because the committed play may be a
+     * STRAIGHT — `avoidCombo`'s rank-count rule (below) cannot see one — and because holding a SECOND winning
+     * play makes spending the card harmless, which a frozen list would refuse. */
+    function keepsTheWin(c) {
+      if (!pl.nextPlayBoost) return true;                                  // nothing committed yet — the boost is picked last of all
+      /* `effectFor`, NOT the `effectOf` the caller already has: `wheel` exists ONLY as Ares's SUPER override of
+       * rank 8, so the base effect never carries it and the refusal below silently never fired. Same trap that
+       * hid three Back Stab bugs (see CLAUDE.md) — a Form GRANTS behaviour, so any question of the form "what
+       * will this card DO for this player" is an `effectFor` question. Reading it here rather than taking it as
+       * a parameter is deliberate: no call site can get it wrong. */
+      var ef = E.effectFor ? E.effectFor(st, p, c) : E.effectOf(c);
+      /* TWO EFFECTS COST MORE THAN THEIR OWN CARD, and the play-out below only removes the card itself.
+       * THE WHEEL: Ares's Super `reclaim` (eff.wheel) shuffles the WHOLE hand back into the deck and draws six
+       * fresh, so no play survives it. It was the only survivor of this guard in 1200 duels (twice), and both
+       * times the boosted pair went into the deck.
+       * THE BROADWAY PITCH: `eff.pitchHigh` (Ultima Attack / Critical Hit / Armor Piercing) discards a SECOND
+       * card — a 10/J/Q/K/A, chosen by the ENGINE, not by us. Rather than duplicate its auto-pick rule (lowest
+       * fightValue first, engine.js ~1223), refuse when ANY Broadway card in hand would break the play. Naming
+       * our own via `opts.pitch` was built and then removed: the engine's default already takes the lowest card,
+       * so no test could tell the two apart, and ours could pitch a HIGHER card than the engine would. The
+       * strict form needs no knowledge of the rule and cannot cost much — a boost, a pitchHigh card and an
+       * unsafe pitch coincide almost never (0 times in 1200 duels).
+       * It is NOT unreachable, though, which is why it is closed rather than noted: a staged hand of three
+       * Queens pitches a Queen every time, and that is what made a test flake 2 runs in 40. */
+      if (ef && ef.wheel) return false;
+      if (pl.hand.indexOf(c) < 0) return true;
+      if (!stillFights([c])) return false;
+      if (ef && ef.pitchHigh) {
+        var bw = pl.hand.filter(function (x) { return x !== c && isBroadway(x); });
+        for (var bi = 0; bi < bw.length; bi++) if (!stillFights([c, bw[bi]])) return false;   // ANY unsafe candidate refuses the cast
+      }
+      return true;
+    }
+    // Would a fight still be legal with these cards gone? A hypothetical, so the hand is put back exactly.
+    function stillFights(gone) {
+      var kept = pl.hand;
+      pl.hand = kept.filter(function (x) { return gone.indexOf(x) < 0; });
+      var still = E.legalFightPlays(st, p).length > 0;
+      pl.hand = kept;
+      return still;
+    }
     function pick(pred, avoidCombo) {
       var cnt = rankCounts(pl.hand), best = null, bestEff = null;
       pl.hand.forEach(function (c) {
         var ef = E.effectOf(c);
         if (!ef || !ef.impl || !E.canAfford(pl, c) || !pred(ef)) return;   // quicks are proactively castable now; picked by kind below (Counter/Annoint have no proactive pick, so stay held)
         if (avoidCombo && cnt[c.rank] >= 2) return;                        // don't break a Special for this effect
+        if (!keepsTheWin(c)) return;                                       // …and never break the play a banked boost was cast FOR
         if (!best || ef.cost < bestEff.cost) { best = c; bestEff = ef; }
       });
       return best;
     }
     // REWORK: does the hand hold a Broadway card (10/J/Q/K/A) to pay a pitch cost, other than exclId?
-    function broadwayPitchAvail(exclId) { return pl.hand.some(function (c) { return c.id !== exclId && (c.rank === 1 || c.rank === 10 || c.rank === 11 || c.rank === 12 || c.rank === 13); }); }
+    function isBroadway(c) { return c.rank === 1 || c.rank === 10 || c.rank === 11 || c.rank === 12 || c.rank === 13; }
+    function broadwayPitchAvail(exclId) { return pl.hand.some(function (c) { return c.id !== exclId && isBroadway(c); }); }   // one definition of Broadway — keepsTheWin needs it too
     if (diff === 'minion') {                                    // barely uses effects — only a desperate shield gain
       while (guard++ < 3) {
         if (st.pending) return;
@@ -576,7 +624,8 @@
       var wd = pick(function (ef) { return ef.kind === 'ward'; });
       if (wd && pl.shields <= 1 && !pl.cantLoseRound && act(st, p, wd.id, log, 'WARD', humans)) continue;       // Leyline (REWORK base): can't-lose when desperate
       var tr = pickTransform(st, p);
-      if (tr && !basic && act(st, p, tr.id, log, 'TRANSFORM', humans)) continue;                                // REWORK: transform into the Forms & Rides Zone (Recruit skips the advanced zone game)
+      if (tr && !basic && keepsTheWin(tr) && act(st, p, tr.id, log, 'TRANSFORM', humans)) continue;              // REWORK: transform into the Forms & Rides Zone (Recruit skips the advanced zone game). keepsTheWin: a transform does not go through `pick`, and a J/Q/K is exactly the kind of card a boosted pair is built on
+
       // Back Stab is now a reactive Quick — the AI springs it in the NON-active pre-fight window
       // (see the pre-fight block in takeTurn), not proactively here.
       var fin = pick(function (ef) { return ef.kind === 'onWin'; });

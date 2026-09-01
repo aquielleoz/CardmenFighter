@@ -161,6 +161,45 @@ turn — while a Full Set deck holds 13 per suit and sees one occasionally. Aj's
 effectively shanking every non mono suit player"*) understates it. Straight flush is trivial for them too.
 This is a better reason than "suits do not rank" for why v1.14 cut them.
 
+<a id="ai-strength"></a>
+## AI strength
+
+- **PROTECTING THE AI's LAST LEGAL FIGHT — MEASURED, AND NOT WORTH DOING**
+  (2026-09-01. Aj asked the right question — *"will it make the ai win more if we unlocked the JQK? because we
+  might have to fold that into the demon lord"* — and the answer is no. Kept here as a **measured dead end**,
+  because the 166 number below looks damning and is not.)
+  166 activations in 1200 duels leave the seat with no legal fight (`transform` 95 · `equip` 30 ·
+  `destroyShield` 13 · rest ≤6 — seeded, so it reproduces exactly), and **0 of them have a boost banked** — which is what says v1.31.78 is
+  complete rather than partial. Protecting them measures as follows, paired head-to-head, 8000 decided games
+  per row (two arms, guard on seat 0 then on seat 1):
+
+  | variant | knight | demon |
+  | --- | --- | --- |
+  | protect the **transform** only ("unlock the JQK") | +0.70 pts, 1.25σ | +0.81 pts, 1.45σ |
+  | protect **every** activation | +1.08 pts, 1.92σ | +1.61 pts, 2.88σ |
+
+  **The JQK-only variant is indistinguishable from zero**, so there is nothing to fold into Demon Lord. The
+  blanket variant is worth about a point and only clears 2σ at demon — a real but small competence gain, not a
+  difficulty lever. Both cost the same 0.3% of activations, so this is not a trade-off; the edge is simply
+  tiny. **The reading to take away: those 166 are near-break-even decisions, not 166 mistakes** — most of the
+  transforms are buying the Forms game with a round, which is a fair price.
+  **`valueBoost` 3 of the 166 IS a real bug and is still open, though it is worth ~nothing on its own:**
+  `pickValueBoost` never asks whether we are ALREADY winning, so it can spend a boost on a fight we had won —
+  and in those four it spent the card the play needed. `counterfeitHelps` has the guard to copy:
+  `if (beatsCur(pl.hand)) return false;`.
+
+  **THE METHOD IS THE DURABLE PART — no existing sim can measure AI strength at all.** `analysis.js`,
+  `mpsim.js` and the rest run the SAME AI on every seat, so they are symmetric and structurally blind to "is
+  this change stronger?". A head-to-head needs three things, and the first two each produced a wrong answer
+  before they were fixed:
+  - **Seed `Math.random` per game.** The engine falls back to it (`shuffle` with no rng, `chooseTarget`), so
+    runs are not reproducible and the two arms see different shuffles. Seeding it also PAIRS the arms, which
+    is most of the variance gone.
+  - **Prove the instrumented build is byte-identical when idle** — same wins, exactly, with the flag off. The
+    first version was not, and the difference hid inside ordinary noise.
+  - **Run BOTH arms and pool.** Seat 0 carries a consistent ~2.3-point advantage here, which is larger than
+    every effect being measured; one arm alone reports it as the result.
+
 ## Joining, discovery, and the QR path
 
 *The `feat/qr-scanning` parked branch keeps a short pointer in the BACKLOG, per the rule that a parked branch
