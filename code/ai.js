@@ -536,7 +536,18 @@
      * STRAIGHT — `avoidCombo`'s rank-count rule (below) cannot see one — and because holding a SECOND winning
      * play makes spending the card harmless, which a frozen list would refuse. */
     function keepsTheWin(c) {
-      if (!pl.nextPlayBoost) return true;                                  // nothing committed yet — the boost is picked last of all
+      /* THE DEMON LORD NEVER SPENDS A CARD IT IS ABOUT TO WIN WITH; EVERY OTHER TIER ONLY PROTECTS A FIGHT IT
+       * HAS ALREADY PAID FOR (Aj, 2026-09-01). Shipped as a TIER BEHAVIOUR, not as a strength patch, and the
+       * distinction matters when reading the numbers: head-to-head it is worth about +1.3 points, which is a
+       * poor lever on its own. What it buys is a difference you can FEEL across the table — knight fumbles a
+       * winning hand into a transform now and then and the Demon Lord simply does not — and a thing a player
+       * can work out and then exploit. See DECISIONS.md ("AI strength") for the measurement and, more usefully,
+       * for the only method here that can measure AI strength at all.
+       * The 166-per-1200 cases this suppresses are NOT all mistakes: two thirds are a J/Q/K going into the
+       * Forms zone, which is a fair price for a round. That is precisely why it is a demon-only personality
+       * rather than a fix — see the entry before deciding it belongs at every tier. */
+      if (!pl.nextPlayBoost && !isTop(diff)) return true;
+      if (!st.pile || E.legalFightPlays(st, p).length === 0) return true;  // no fight on offer, so nothing to protect — without this the demon refuses EVERY activation on a turn it cannot contest
       /* `effectFor`, NOT the `effectOf` the caller already has: `wheel` exists ONLY as Ares's SUPER override of
        * rank 8, so the base effect never carries it and the refusal below silently never fired. Same trap that
        * hid three Back Stab bugs (see CLAUDE.md) — a Form GRANTS behaviour, so any question of the form "what

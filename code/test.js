@@ -895,6 +895,45 @@ function cards(ids) { return ids.map(card); }
   ok(queens(gG) === 1, 'commit: with a third Queen the transform goes through — a pair still survives it');
   ok(AI.chooseMove(gG, 1, 'knight').action === 'play', 'commit: …and so does the fight');
 
+  /* J/K/L. THE DEMON LORD KEEPS THE GUARD ON WITH NO BOOST BANKED — shipped as a tier BEHAVIOUR (Aj: a felt
+   * difference between knight and Demon Lord, and something a player can work out). No boost anywhere in these
+   * three: the pair of Queens already beats the pile, and the question is only whether the seat will spend one
+   * of those Queens on a transform. */
+  var pairJ = [mk(11, 'H', 'p1'), mk(11, 'H', 'p2')];
+  function tierSeat() {
+    var g = seat([mk(12, 'H', 'a'), mk(12, 'S', 'b')], pairJ);
+    g.players[0].shields = 2; g.players[1].shields = 2;                   // opens the 'table'-gated Queen tier
+    return g;
+  }
+  var gJ = tierSeat();
+  ok(!gJ.players[1].nextPlayBoost && E.legalFightPlays(gJ, 1).length === 1,
+     'staged: a pair of Queens already beats a pair of Jacks, with no boost anywhere');
+  AI.playPhase(gJ, 1, [], 'knight', []);
+  ok(queens(gJ) === 1, 'tier: KNIGHT still transforms a Queen away — the guard is scoped to a paid-for fight');
+
+  var gK = tierSeat();
+  AI.playPhase(gK, 1, [], 'demon', []);
+  ok(queens(gK) === 0, 'tier: the DEMON LORD will not spend a card it is about to win with');
+  ok(AI.chooseMove(gK, 1, 'demon').action === 'play', 'tier: …so it still has the pair to play');
+
+  /* L. …but it is not "the demon never transforms". With no fight on offer there is nothing to protect, and
+   * without this the Demon Lord would refuse every activation on every turn it cannot contest. */
+  var gL = tierSeat();
+  gL.pile = null; gL.lastPlayer = null;
+  AI.playPhase(gL, 1, [], 'demon', []);
+  ok(queens(gL) === 1, 'tier: with no pile to answer, the Demon Lord transforms exactly as knight does');
+
+  /* M. …and the case L cannot reach, which is the one that would have hurt: a pile it CANNOT answer. Without
+   * the "nothing to protect" clause the play-out reads "removing this card leaves no legal fight" — true, but
+   * only because there was never one — and the Demon Lord refuses every activation for the rest of the turn. */
+  var gM = seat([mk(3, 'H'), mk(5, 'S', 'x'), mk(7, 'D', 'y')], [mk(13, 'H', 'p1'), mk(13, 'H', 'p2')]);
+  gM.players[1].energy = gM.players[1].energy.slice(0, 10);               // under rampCap, so the ramp is wanted
+  ok(E.legalFightPlays(gM, 1).length === 0, 'staged: nothing in hand answers a pair of Kings');
+  var logM = [];
+  AI.playPhase(gM, 1, logM, 'demon', []);
+  ok(logM.map(function (e) { return e.play; }).indexOf('RAMP') >= 0,
+     'tier: on a round it cannot contest the Demon Lord still banks energy — it protects a fight, it does not sulk');
+
   /* H/I. THE BROADWAY PITCH is the other cost that is not the effect's own card: Critical Hit (9♠) discards a
    * 10/J/Q/K/A as well, and the ENGINE picks which. It found this suite before this suite found it — case G
    * flaked 2 runs in 40 because a Critical Hit drawn by the transform pitched one of the Queens. */

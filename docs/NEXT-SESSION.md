@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**371**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**378**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including all 43 `nettest_*` suites and the ten `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.78.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.79.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.78**, working tree clean, full sweep green at **70 suites**. The only branch is
+`main` is at **v1.31.79**, working tree clean, full sweep green at **70 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -35,11 +35,11 @@ Expect **0 FAIL** from each. The two gate counts in the header above are asserte
 cannot drift; every other suite's expected count lives in **CLAUDE.md**, which is the authority. A full sweep is
 70 suites and ~10 minutes — background it, and **never two suites at once** (fixed ports).
 
-**The last four versions:** **v1.31.78** a banked boost commits the turn — nothing may spend the play it
-bought · **v1.31.77** the AI stops throwing away the value boost it just paid for · **v1.31.76** the 2
-explains itself — reminder text on the card, derived from the live rules, plus a Basics lesson built on a
-deliberately illegal deck · **v1.31.75** `nettest_sync` learns to play a whole game, a deadlocked table stops
-passing, and `reassertMirror()` lands with a measured A/B.
+**The last four versions:** **v1.31.79** the Demon Lord never spends a card it is about to win with — a tier
+BEHAVIOUR, worth a quarter of the knight→demon gap · **v1.31.78** a banked boost commits the turn, and nothing
+may spend the play it bought · **v1.31.77** the AI stops throwing away the value boost it just paid for ·
+**v1.31.76** the 2 explains itself — reminder text on the card, derived from the live rules, plus a Basics
+lesson built on a deliberately illegal deck.
 
 **⚑ WHERE TO PICK UP — the top of the BACKLOG.** The boost line is finished: v1.31.77 stopped the AI passing on
 a boost it had paid for, and v1.31.78 stopped anything else in the same turn eating the play it bought
@@ -432,6 +432,51 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.79 — the Demon Lord never spends a card it is about to win with
+
+A **tier behaviour**, not a strength patch. `keepsTheWin` — v1.31.78's rule that nothing may spend a card the
+committed play needs — now runs **all the time at demon**, where every other tier still applies it only to a
+fight already paid for with a boost. Aj's three reasons, and only the last is about win rate: a real behavioural
+difference between knight and Demon Lord, something a player can feel across the table and eventually learn to
+exploit, and a wider gap between the top two tiers.
+
+**I TALKED HIM OUT OF IT FIRST, WITH A NUMBER THAT MEANT NOTHING.** The measurement said +1.3 points and I
+reported it as "too small to be a difficulty lever" — comparing it to nothing at all. Measured against the tier
+step itself:
+
+| | knight→demon gap |
+| --- | --- |
+| before | +6.14 pts, 13.5σ |
+| after | **+7.63 pts, 16.7σ** |
+
+**+1.49 points is about a quarter of the entire knight→demon gap.** "Small" is not a property of a number.
+
+**What it looks like at the table.** Knight will, now and then, turn a Queen into a Form while holding the pair
+of Queens that would have won the round — a fair trade in the long run, and in character for the tier. The Demon
+Lord will not: if a card is part of the play it is about to make, nothing else gets to spend it. Two thirds of
+the 166-per-1200 cases this suppresses are exactly that J/Q/K-into-a-Form trade, which is **why it is a
+personality and not a fix applied everywhere.**
+
+**One clause is load-bearing and its absence is invisible:** with no pile, or a pile it cannot answer, there is
+no fight to protect — and without that early return the Demon Lord reads "removing this card leaves me no legal
+play" (true, but only because there never was one) and **refuses every activation for the rest of the turn**. It
+would stop ramping, drawing and transforming on exactly the turns it most needs to. Asserted directly: on a
+round it cannot contest, it still banks energy.
+
+**Everything else measured flat.** Deck balance at demon over three replicates: spread 10.9/10.4/8.5 before
+against 9.2/10.4/9.3 after, Pure Wizard 55.2 → 54.4 mean, all inside the ±1.3 per-deck noise. Persona parity
+unaffected. Cost: 0.3% of activations. **Controls: knight-vs-knight and demon-vs-demon both land on exactly
+50.00%** over 6000 decided games — the check that two-arm pooling really cancels the seat advantage, which is
+worth ~2.3 points here and would otherwise swamp everything above.
+
+**A correction to CLAUDE.md fell out of this: `personasim`'s spread at 900 games is noise.** Three CONTROL runs
+— six identical personas, true spread zero — printed **5.6, 1.3 and 4.6**. A single run flagged this change WIDE
+on one build and OK on the other, and both were meaningless. Run it three times or do not quote it.
+
+7 assertions in `test.js` (371 → **378**), stable over 40 runs, each verified to discriminate: the tier gate
+(2 red with the guard on for everyone) and the nothing-to-protect clause (1 red, and the case that catches it
+has to be a pile the seat CANNOT answer — a bare "no pile" board passes either way).
 
 ### v1.31.78 — a banked boost commits the turn, and nothing may spend the play it bought
 

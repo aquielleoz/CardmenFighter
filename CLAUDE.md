@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 371 + 34 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 378 + 34 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 371 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 378 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction — 34, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
@@ -1273,9 +1273,9 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.78 — 2026-09-01, every suite run serially, 70 suites and 0 FAIL** (a full sweep is
+Status as of **v1.31.79 — 2026-09-01, every suite run serially, 70 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
-`test` 371, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
+`test` 378, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
 `versiontest` 24, `sharetest` 16, `qrtest` 32, `peektest` 31, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
@@ -1460,6 +1460,21 @@ does not fire. **A staging detail can be the whole variable — vary the hand si
 **AND THE OBVIOUS DETECTOR REPORTS A NULL RESULT.** "After a pass, is `nextPlayBoost` still set?" finds **1 in
 600** on the broken build, because a duel pass usually ends the round and the round reset clears the boost before
 `takeTurn` returns. Detect the turn LOG holding both a `BOOST` and a `pass`: **33 in 600, down to 4**.
+
+**THE DEMON LORD KEEPS `keepsTheWin` ON AT ALL TIMES (v1.31.79) — a TIER BEHAVIOUR, gated on `isTop(diff)`.**
+Every other tier protects only a fight it has already paid for with a boost. Aj shipped it for the FEEL (knight
+fumbles a winning hand into a Form now and then, demon never does) rather than the win rate — but the win rate
+is not nothing either: the knight→demon gap goes **+6.14 → +7.63, about a quarter of the whole tier step**.
+**I first reported it as "too small to be a difficulty lever" having compared it to NOTHING. Always name the
+comparison** — "small" is not a property of a number, and the tier step is the only denominator that answers
+"should this be a tier behaviour".
+**ONE CLAUSE IS LOAD-BEARING AND SILENT IF DROPPED:** with no pile, or a pile it cannot answer, there is no
+fight to protect, and without the early return the demon reads "removing this card leaves no legal play" — true
+only because there never was one — and **refuses every activation for the rest of the turn**. The test for it
+must stage a pile the seat CANNOT answer; a bare "no pile" board passes either way.
+**`personasim` AT 900 GAMES IS NOISE — do not quote a single run.** Three CONTROL runs (six identical personas,
+true spread zero) printed **5.6, 1.3, 4.6**, straddling both the 2.8 "floor" quoted above and the WIDE
+threshold. One run called this change WIDE on one build and OK on the other; both were meaningless.
 
 **A BANKED BOOST COMMITS THE TURN, AND `playPhase` KEPT LOOPING AFTERWARDS (v1.31.78).** The loop cannibalised
 the very play `boostEnablesWin` had picked — `transform` took a Queen out of the boosted pair, `equip` took a 6
