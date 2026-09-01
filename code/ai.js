@@ -527,12 +527,44 @@
     if (!effectsAllowed(st, p)) return;                // analysis: pure-fighter (no proactive effects/transforms)
     // lowest-cost affordable card whose effect matches `pred`. When `avoidCombo` is set, skip a
     // card that is holding a pair/trio together — so a LOW-value effect won't cannibalise a Special.
+    /* ONCE A BOOST IS BANKED THE TURN IS COMMITTED TO A PLAY, AND NO LATER ACTIVATION MAY SPEND A CARD IT NEEDS
+     * (v1.31.78). `pickValueBoost` casts only when `boostEnablesWin` finds a play the boost converts into an
+     * overtake — and then the loop kept going and cannibalised that very play: measured over 600 knight duels,
+     * `transform` took a Queen out of the boosted pair, `equip` took the 6♣ out of the boosted trio (twice) and
+     * `discardOpp` took the 3♦ out of the boosted straight. Each ended in a pass with the boost still banked.
+     * The test is `legalFightPlays` rather than a remembered card list, because the committed play may be a
+     * STRAIGHT — `avoidCombo`'s rank-count rule (below) cannot see one — and because holding a SECOND winning
+     * play makes spending the card harmless, which a frozen list would refuse. */
+    function keepsTheWin(c) {
+      if (!pl.nextPlayBoost) return true;                                  // nothing committed yet — the boost is picked last of all
+      /* `effectFor`, NOT the `effectOf` the caller already has: `wheel` exists ONLY as Ares's SUPER override of
+       * rank 8, so the base effect never carries it and the refusal below silently never fired. Same trap that
+       * hid three Back Stab bugs (see CLAUDE.md) — a Form GRANTS behaviour, so any question of the form "what
+       * will this card DO for this player" is an `effectFor` question. Reading it here rather than taking it as
+       * a parameter is deliberate: no call site can get it wrong. */
+      var ef = E.effectFor ? E.effectFor(st, p, c) : E.effectOf(c);
+      /* THE WHEEL IS THE ONE EFFECT WHOSE COST IS NOT ITS OWN CARD. Ares's Super `reclaim` (eff.wheel) shuffles
+       * the WHOLE hand back into the deck and draws six fresh, so the play-out below — remove this card, is a
+       * fight still legal? — models it as cheap and it destroys everything. It was the only survivor of this
+       * guard in 1200 duels (twice), and both times the boosted pair went into the deck.
+       * The Broadway pitch (`eff.pitchHigh`) is a SECOND card this model does not remove either; it measured
+       * ZERO failures in the same 1200 games, so it is a known hole left open rather than an oversight —
+       * modelling it means either duplicating the engine's auto-pick rule (lowest fightValue first, engine.js
+       * ~1223) or passing `opts.pitch`, and neither is worth it for a fault nobody has seen. */
+      if (ef && ef.wheel) return false;
+      var i = pl.hand.indexOf(c); if (i < 0) return true;
+      pl.hand.splice(i, 1);
+      var still = E.legalFightPlays(st, p).length > 0;
+      pl.hand.splice(i, 0, c);                                             // restore: this is a hypothetical, not a spend
+      return still;
+    }
     function pick(pred, avoidCombo) {
       var cnt = rankCounts(pl.hand), best = null, bestEff = null;
       pl.hand.forEach(function (c) {
         var ef = E.effectOf(c);
         if (!ef || !ef.impl || !E.canAfford(pl, c) || !pred(ef)) return;   // quicks are proactively castable now; picked by kind below (Counter/Annoint have no proactive pick, so stay held)
         if (avoidCombo && cnt[c.rank] >= 2) return;                        // don't break a Special for this effect
+        if (!keepsTheWin(c)) return;                                       // …and never break the play a banked boost was cast FOR
         if (!best || ef.cost < bestEff.cost) { best = c; bestEff = ef; }
       });
       return best;
@@ -576,7 +608,8 @@
       var wd = pick(function (ef) { return ef.kind === 'ward'; });
       if (wd && pl.shields <= 1 && !pl.cantLoseRound && act(st, p, wd.id, log, 'WARD', humans)) continue;       // Leyline (REWORK base): can't-lose when desperate
       var tr = pickTransform(st, p);
-      if (tr && !basic && act(st, p, tr.id, log, 'TRANSFORM', humans)) continue;                                // REWORK: transform into the Forms & Rides Zone (Recruit skips the advanced zone game)
+      if (tr && !basic && keepsTheWin(tr) && act(st, p, tr.id, log, 'TRANSFORM', humans)) continue;              // REWORK: transform into the Forms & Rides Zone (Recruit skips the advanced zone game). keepsTheWin: a transform does not go through `pick`, and a J/Q/K is exactly the kind of card a boosted pair is built on
+
       // Back Stab is now a reactive Quick — the AI springs it in the NON-active pre-fight window
       // (see the pre-fight block in takeTurn), not proactively here.
       var fin = pick(function (ef) { return ef.kind === 'onWin'; });

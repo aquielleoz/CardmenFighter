@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**342**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**364**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including all 43 `nettest_*` suites and the ten `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.77.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.78.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.77**, working tree clean, full sweep green at **70 suites**. The only branch is
+`main` is at **v1.31.78**, working tree clean, full sweep green at **70 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -35,18 +35,19 @@ Expect **0 FAIL** from each. The two gate counts in the header above are asserte
 cannot drift; every other suite's expected count lives in **CLAUDE.md**, which is the authority. A full sweep is
 70 suites and ~10 minutes — background it, and **never two suites at once** (fixed ports).
 
-**The last four versions:** **v1.31.77** the AI stops throwing away the value boost it just paid for ·
-**v1.31.76** the 2 explains itself — reminder text on the card, derived from the live rules, plus a Basics
-lesson built on a deliberately illegal deck · **v1.31.75** `nettest_sync` learns to play a whole game, a
-deadlocked table stops passing, and `reassertMirror()` lands with a measured A/B · **v1.31.74**
-seven lesson suites and the enabled-but-inert control they found · **v1.31.73** the Quicks lesson was broken five
-ways.
+**The last four versions:** **v1.31.78** a banked boost commits the turn — nothing may spend the play it
+bought · **v1.31.77** the AI stops throwing away the value boost it just paid for · **v1.31.76** the 2
+explains itself — reminder text on the card, derived from the live rules, plus a Basics lesson built on a
+deliberately illegal deck · **v1.31.75** `nettest_sync` learns to play a whole game, a deadlocked table stops
+passing, and `reassertMirror()` lands with a measured A/B.
 
-**⚑ WHERE TO PICK UP — the top of the BACKLOG.** The AI boost-then-pass bug shipped fixed in **v1.31.77**, and
-the residue it left behind is now the first entry: a boost can still be wasted when a LATER activation in the
-same turn spends the card it was banked for (4 games in 600, down from 33). That entry says explicitly not to
-fix it blind — read it before touching `playPhase`. Below it, the **host/client fork** `nettest_sync` catches is
-still open and still intermittent at roughly one run in four.
+**⚑ WHERE TO PICK UP — the top of the BACKLOG.** The boost line is finished: v1.31.77 stopped the AI passing on
+a boost it had paid for, and v1.31.78 stopped anything else in the same turn eating the play it bought
+(**0 in 1200 duels**). What replaced it at the top is the GENERAL form found while measuring that: **167
+activations in 1200 duels throw away the seat's only legal fight**, `transform` being 94 of them. That entry is
+a MEASUREMENT, not a diagnosis — read its caution about the Forms game before treating 94 as 94 mistakes, and
+note the fix is a balance change rather than a bug fix. Below it, the **host/client fork** `nettest_sync`
+catches is still open and still intermittent at roughly one run in four.
 
 **The "The 2" lesson is unusual and a fresh session will otherwise be baffled by it.** Three things it does that
 no other lesson does, all documented in the source and in CLAUDE.md:
@@ -74,21 +75,28 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 ### Correctness
 
-- **AN ACTIVATION AFTER A BANKED BOOST CAN SPEND THE CARD THE BOOST WAS FOR** (measured 2026-09-01, while
-  fixing the boost-then-pass bug below it in the changelog). `playPhase` banks the boost and then keeps
-  looping, so a later pitch cost, transform or equip can remove the very card `boostEnablesWin` picked the
-  boost for — and the turn ends in a pass with the boost still banked. **Measured at 4 games in 600** knight-
-  tier duels (down from 33 before the `chooseMove` fix, which was the other 29), and every one of the four has
-  a further activation logged between the `BOOST` and the `pass`:
+- **AN ACTIVATION CAN THROW AWAY THE SEAT'S ONLY LEGAL FIGHT — 167 TIMES IN 1200 DUELS** (measured
+  2026-09-01, and this is the GENERAL form of the boost bug closed in v1.31.78). Count activations after which
+  `legalFightPlays` goes from >0 to 0 with a pile on the table:
   ```
-  ["BOOST","DRAW","DESTROY","TRANSFORM","pass"]     ["TRANSFORM","BOOST","EQUIP","DISCARD","pass"]
-  ["TRANSFORM","BOOST","RAMP","DISCARD","pass"]      ["BOOST","EQUIP","pass"]
+  transform 94 · equip 31 · destroyShield 13 · shield 6 · ramp 5 · lockout 4 · discardOpp 4 · valueBoost 4
+  removeEquip 3 · ward 3          — 167 of 16,844 activations, and 0 of them with a boost banked
   ```
-  **Do not fix it blind** — the honest repair is either to cast the boost LAST (after every other activation
-  has settled the hand) or to re-check `boostEnablesWin` before each subsequent `act`, and those are different
-  bets about which card matters more. Reproduce one of the four seeds first; the detector is a turn log holding
-  both a `BOOST` and a `pass`, which is the shape to keep because `nextPlayBoost` is cleared by the round reset
-  and so reads 0 by the time the pass returns.
+  **The zero is the useful half:** v1.31.78's `keepsTheWin` covers the boosted case completely, so what is left
+  is the unboosted one — the AI spends a card, loses the fight it could have won, and (unlike the boost case)
+  has not pre-paid for it, so the loss is one round rather than a round plus a card.
+  **`transform` is two thirds of it and is the one to think hardest about.** A J/Q/K is both the highest thing
+  in hand and the entry to the Forms game, so "transform it" and "fight with it" compete every time — and the
+  Forms game is a long-run investment that may well be worth a round. Do not assume 94 is 94 mistakes.
+  **`valueBoost` 4 is a distinct, smaller bug and cheap to fix:** `pickValueBoost` never asks whether we are
+  ALREADY winning, so it can spend a boost (and the card carrying it) on a fight we had won anyway — and in
+  those four it spent the card the play needed. `counterfeitHelps` already has the guard to copy:
+  `if (beatsCur(pl.hand)) return false;`.
+  **The one-line experiment is to drop the `if (!pl.nextPlayBoost) return true;` line from `keepsTheWin`**,
+  making it unconditional — but that is a BALANCE change across 16,844 activations, not a bug fix, so it needs
+  `analysis.js` and `personasim.js` (control spread = the noise floor) before anyone believes a win-rate
+  reading. The instrument is `scratchpad/selfharm.js`'s shape: wrap `E.activate`, compare `legalFightPlays`
+  either side of the call.
 - **★ THE HOST/CLIENT FORK `nettest_sync` CATCHES — STILL OPEN.**
   Measured **1 failure in 8** on 2026-08-30 after the mirror dedupe, and **2-3 in 8** before it. At n=8 those
   are not distinguishable, so **do not read the dedupe as an improvement** — treat the rate as "roughly one run
@@ -436,6 +444,61 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.78 — a banked boost commits the turn, and nothing may spend the play it bought
+
+The residue of v1.31.77, and it closes completely: **boost-then-pass goes 10 → 0 in 1200 knight duels.**
+
+`playPhase` banks the boost and keeps looping, and the loop then cannibalised the very play
+`boostEnablesWin` had picked. All four survivors were one shape — an activation *after* the boost spending a
+card the boosted play needed:
+
+```
+["BOOST","DRAW","DESTROY","TRANSFORM","pass"]    transform took a Queen out of the boosted pair
+["TRANSFORM","BOOST","EQUIP","DISCARD","pass"]   equip took the 6♣ out of the boosted trio
+["TRANSFORM","BOOST","RAMP","DISCARD","pass"]    discardOpp took the 3♦ out of the boosted straight
+["BOOST","EQUIP","pass"]                          equip again
+```
+
+**THE MECHANISM IS WORTH KNOWING, BECAUSE IT IS THE BOOST THAT UNLOCKS ITS OWN PREDATOR.** `equip` is guarded by
+`willFight` — don't burn an own-highest buff right before passing — and `willFight` is FALSE while nothing is
+legal, which is exactly the position a boost is cast from. So the equip sits out the first pass, the boost makes
+a fight legal, and the equip then becomes eligible and eats the fight it was waiting for.
+
+**`keepsTheWin(c)`: while a boost is banked, no activation may spend a card that would leave no legal fight.**
+The test is `legalFightPlays` on a hypothetical hand rather than a remembered card list, for two reasons that
+are each asserted:
+- the committed play may be a **straight**, which `avoidCombo`'s rank-count rule (`cnt[c.rank] >= 2`, the
+  existing "don't break a Special" filter) cannot see at all — every card of a run is a singleton;
+- holding a **second** winning play makes spending the card harmless, and a frozen list would refuse it anyway.
+
+Wired into `pick()` (which covers thirteen of the fourteen activation branches) and into the **transform**
+branch, which does not go through `pick` and was seed 101's culprit.
+
+**TWO THINGS BIT ON THE WAY, BOTH ALREADY WRITTEN DOWN IN CLAUDE.md, BOTH WALKED INTO ANYWAY:**
+- **`effectOf` vs `effectFor`.** The one effect whose cost is not its own card is Ares's Super `reclaim` — **The
+  Wheel** — which shuffles the whole hand back into the deck. `wheel` exists *only* as the Super override, so
+  the base effect never carries it and the refusal silently never fired. Same trap that hid three Back Stab
+  bugs. `keepsTheWin` now reads `effectFor` itself rather than taking the effect as a parameter, so no call site
+  can get it wrong.
+- **A green test that proved nothing.** The Wheel assertion read "is 8♣ still in hand?" and **passed on the
+  broken build** — the Wheel shuffles the *Discard* back in too, so the card it had just spent was dealt
+  straight back. It asserts the activation log now. A separate one asserted `forms.length === 0` on a board
+  where the Queen tier was shield-gated shut, so it was refusing nothing; the gate is now staged and asserted
+  directly.
+
+**Cost of the guard: nothing measurable.** 16,939 → 16,873 activations over 1200 games (0.4%), pacing unchanged
+at 11.08 mean rounds. It can only bite in the one turn after a boost is banked.
+
+22 assertions in `test.js` (342 → **364**), and every part of the guard was verified to discriminate by
+reintroducing the defect one piece at a time: the `pick` wiring (5 red), the transform wiring (2), the `wheel`
+line (1), and `effectFor` (2).
+
+**A new BACKLOG entry came out of the measurement,** and it is the general form of this bug: **167 activations
+in 1200 duels throw away the seat's only legal fight**, `transform` being 94 of them — and **0 of the 167 have a
+boost banked**, which is what says this fix is complete rather than partial. Making `keepsTheWin` unconditional
+is a one-line experiment, but it is a balance change across 16,844 activations, so it is filed with the
+instrument rather than shipped.
 
 ### v1.31.77 — the AI stops throwing away the value boost it just paid for
 
