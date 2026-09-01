@@ -101,19 +101,37 @@ async function openLesson(id, viewport){
       await p.waitForTimeout(200);
     }
     return last+' (retried for '+ms+'ms)'; };
+  /* Play exactly the cards the current step SPOTLIGHTS. A step that restricts which cards it accepts (`only`)
+   * highlights precisely those, so this is both what a player sees and what the gate will take — picking by
+   * RANK instead let the suite choose a same-rank card the step did not mean (a drawn 5♠ rather than the rigged
+   * 5♦), and Fight then stayed disabled about one run in six. */
+  const playSpot=async(ms=9000)=>{
+    const ids=await p.evaluate(()=>[].map.call(document.querySelectorAll('#hand .card.tut-spot'), c=>c.dataset.id));
+    if(!ids.length) return 'no spotlit cards in hand';
+    return playIds(ids, ms);
+  };
   const passTurn=async(ms=8000)=>{ const t0=Date.now();
-    const before=await p.evaluate(()=>{ const s=window.__solo.st(); return {round:s.round, turn:s.turn, nrg:s.players[0].energy.length}; });
+    /* DETECT THE PASS ITSELF, not "any state change". Comparing round/turn/energy reported success in 8ms when a
+     * beat happened to land between the snapshot and the check — a false positive that then surfaced as an
+     * unrelated assertion failing further down. A pass either bumps `passes` or ends the round. */
+    const before=await p.evaluate(()=>{ const s=window.__solo.st(); return {round:s.round, passes:s.passes||0}; });
     while(Date.now()-t0<ms){
       await p.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b && !b.disabled) b.click(); });
       const moved=await p.evaluate(b=>{ const s=window.__solo.st();
-        return s.round!==b.round || s.turn!==b.turn || s.players[0].energy.length!==b.nrg; }, before);
+        return s.round!==b.round || (s.passes||0)>b.passes; }, before);
       if(moved) return Date.now()-t0;
       await p.waitForTimeout(150);
     }
     console.log('⏱ Pass never took effect in '+ms+'ms'); return null; };
   /* Activate the spotlit card: select it, then press the ⚡ control. Both halves matter — the control only
    * appears for a selected, affordable effect card. */
-  const activateSpot=async()=>{ await deselect();
+  /* RETRIES, like every other helper here. `updateActions` HIDES the ⚡ control while `busy` (v1.31.74), so a
+   * single attempt right after an opponent's answer reports "activate control not offered" and reads as a
+   * product bug. Every helper in this file has needed this; the one that lacked it was the one that broke. */
+  const activateSpot=async(ms=9000)=>{ const t0=Date.now(); let last='never attempted';
+    while(Date.now()-t0<ms){ last=await activateSpotOnce(); if(last===null) return null; await p.waitForTimeout(200); }
+    return last+' (retried for '+ms+'ms)'; };
+  const activateSpotOnce=async()=>{ await deselect();
     return p.evaluate(()=>{ const c=document.querySelector('#hand .card.tut-spot') || document.querySelector('#hand .group.tut-spot .card') || document.querySelector('#hand .card.transformReady');
       if(!c) return 'no spotlit card';
       const grp=c.closest('.group'); if(!grp) return 'card has no group'; grp.click();
@@ -128,7 +146,7 @@ async function openLesson(id, viewport){
   if(listed) await p.evaluate(i=>document.querySelector('.lessonRow[data-lesson="'+i+'"]').click(), id);
   ok(await until(()=>/ \/ /.test((document.querySelector('.tutStep')||{}).textContent||''),'the lesson starts'),'the lesson starts');
 
-  return { b, p, ok, until, step, at, atStep, next, st, deselect, playAny, playPair, playIds, passTurn, activateSpot, errs,
+  return { b, p, ok, until, step, at, atStep, next, st, deselect, playAny, playPair, playIds, playSpot, passTurn, activateSpot, errs,
     /* Finish: the completion modal must be VISIBLE, not merely present in the DOM — asserted the naive way
      * (`/Lesson complete/.test(document.body.textContent)`) this passes on a lesson stuck mid-way. */
     async finish(lessonId){

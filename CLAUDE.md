@@ -61,6 +61,8 @@ node lessontest_rides.js                # the "Rides" lesson — the J really en
 node lessontest_forms.js                # the "Form Changes" lesson — the Q really enters your zone (15)
 node lessontest_twos.js                 # the "The 2" lesson AND the apex card text — asserts the text is
                                         # DERIVED from the live rules, not a hardcoded string (29)
+#   The 2 lesson runs on a DELIBERATELY ILLEGAL deck (the Rival needs six 2s) and a per-lesson `pilot` rather
+#   than the AI; each gated step names the cards it accepts, so ignoring the instructions cannot dead-end it.
 #   lessonlib.js is a shared HELPER for the seven above, not a suite — don't run it directly
 node piletest.js                                # energy/shuffle pile viewers + promote (30)
 node revealtest.js                              # Outbalance's hand read: the modal, and that it never
@@ -151,13 +153,31 @@ string.
 the panel is read-only while a game is live, so it bites AFTER a game ends, when the finished board is still on
 screen and Custom rules is editable again.
 
-**ELEVEN LESSONS, ALL WITH A SUITE as of v1.31.76** (ten as of v1.31.74), sharing `lessonlib.js` (a helper, not a suite — the
+**ELEVEN LESSONS, ALL WITH A SUITE as of v1.31.76** (ten as of v1.31.74). **`The 2` is BASICS #5, right after
+`Specials`** — where five-card plays first appear, so its second rule starts mattering there. Adding a lesson
+mid-list renumbers the ones below it; nothing asserts a lesson `num`, so that is mechanical, sharing `lessonlib.js` (a helper, not a suite — the
 `nettest_lobby.js` convention). **Assert what the lesson CLAIMS, not that the panel rendered:** the step text
 makes factual promises the gate does not check — a shield broke, the card banked, the transform is in your zone,
 "your cards are all low so you can't beat their lead" (that one is `legalFightPlays(...).length===0`, the
 engine's own answer). For an ungated tour like `zones`, assert each step's selector **exists AND carries
 `.tut-spot`**: `applySpot` does `querySelectorAll` and lights nothing when an id is renamed, and the tour still
 clicks to the end.
+**A SCRIPTED LESSON MUST NAME THE CARDS EACH STEP ACCEPTS (v1.31.76), or a player who ignores the instruction
+dead-ends it.** The "The 2" lesson spends ten specific cards over three rounds, so a wrong play burns one the
+finale needs — Aj broke it in ninety seconds by leading something other than the Ace the step asked for. A step's
+`only` returns the exact ids; `updateActions` then disables **Fight and Pass** with a note, and `only:[]` means no
+play is possible at all (the boost step, where Fight would spend the boost as a jab). Generalises `needSpecial`.
+**The check must sit ABOVE the empty-selection early return** — below it, Pass stays live and passing with
+nothing selected still breaks the script. And a SUITE must play what the step SPOTLIGHTS (`playSpot`), never
+pick by rank: a drawn same-rank card silently chooses a set the step refuses.
+
+**A TUTORIAL MAY USE A DELIBERATELY ILLEGAL DECK, AND THE PLAYER'S HAND MUST STILL LOOK LEGAL (v1.31.76).** The
+Rival needs SIX 2s and a seat holds four, so `tutCard` fabricates them — safe because a class deck already ships
+duplicate rank+suit with distinct ids (`7D#24`), art is keyed `rank+suit` and `EFFECTS` by suit+rank.
+**But every fabricated card leaves its ORIGINAL in the deck, and it gets drawn** — Aj's hand held two 5♦ and two
+5♥. `tutDropDupes` strips them. The Rival's hidden zones may stay illegal (Aj: *"the player can't see that
+anyway"*); its plays may not, so its 2s are ordered to keep every played combination suit-distinct.
+
 **A UI HELPER MUST RETRY — AND `lessonlib` HAD ONE THAT DID NOT.** `playAny` was written without the retry every
 other helper in that file has, and `lessontest_twos` caught it at once: that lesson's prep makes the RIVAL lead,
 so the board is busy at exactly the moment the suite answers. `playIds(ids)` (play an exact set) retries too.
@@ -1005,6 +1025,23 @@ byte-identical duplicates**, once `x502` to a single seat inside 1.4 seconds. Th
 falls behind and reads stale. **Compare CONTENT, never `stateSeq`**: that counter tracks client intents, so the
 host's own plays and the round draw never advance it and a stamp-based skip would drop real updates. A seat's
 cache is dropped on join and rejoin, so a reconnecting peer is never deduped against state it missed.
+
+**FIVE MECHANICAL HABITS, each of which cost real time on 2026-09-01. None is an engineering problem.**
+- **USE `Edit` FOR ANCHORED REPLACEMENTS, NOT A `python3 - <<'PY'` HEREDOC.** Heredocs were used for nearly every
+  edit that day and went wrong three distinct ways: an `assert` inside one failed and the file was left
+  untouched while the surrounding `&&` chain still printed success; two edits reported "applied" having matched
+  nothing; and one left a task the harness still showed as **Running after 3h 16m** with every child long dead.
+- **ABSOLUTE PATHS IN EVERY COMMAND.** The session cwd does not persist the way it looks like it does. Four
+  commands ran from the repo root instead of `code/`; one `MODULE_NOT_FOUND` was misdiagnosed as a port
+  collision, and a batch of eight "clean" suite runs had in fact run nothing at all.
+- **`cp CardmenFighter.html ../CardmenFighter.html` AFTER EVERY BUILD.** `build.js` writes only `code/`. Aj
+  played the ROOT copy and sent three rounds of screenshots of a build missing the fixes being described to him.
+  **And when a report smells stale, run `cmp` — do not drop the hypothesis because the reporter says they are on
+  the right branch.** They were. The file was not.
+- **NEVER REBUILD WHILE A BATCH IS RUNNING.** Three measurements were invalidated this way and had to be redone.
+- **COPY THE RETRY WHEN YOU ADD A HELPER.** `playAny`, `activateSpot` and `passTurn` were each written without
+  the retry every other helper in `lessonlib` has, and each presented as a product bug. `passTurn` was worse than
+  missing it: it reported success on ANY state change, so it masked real failures for several runs.
 
 **A THROWAWAY DIAGNOSTIC IS THE LEAST TRUSTWORTHY CODE IN THE ROOM.** Hunting the Quicks bugs, two bespoke
 probes lied before the real suite told the truth: one clicked `#tutNextBtn` before the tutorial panel had

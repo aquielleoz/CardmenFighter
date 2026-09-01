@@ -202,6 +202,29 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   cannot invent a malformed card. It could and did; the ranking was wrong, and Aj's follow-up ("loaded a bit
   later") is what corrected it.
 
+- **★ THE AI ACTIVATES A VALUE BOOST AND THEN PASSES, THROWING IT AWAY** (found 2026-09-01 while building the
+  "The 2" lesson; Aj suspected the AI before I did, and was right).
+  Observed in a real game, knight tier, from the battle log:
+  ```
+  Rival played a Jab - A♦.          You played a Jab - 2♠.
+  Rival played a Technique - A♥ Imbue with Power — Increase the value of your next play by 2.
+  Rival passed.                     You won the round of Jabs.
+  ```
+  Its 2 at 15+2=**17** beats the 2 on the table at 15. It identified the winning line (`pickValueBoost` only
+  fires when `boostEnablesWin` says a boost converts a loss into an overtake), spent the card to enable it, and
+  then passed.
+  **The engine is NOT at fault and neither is the boost logic** — both measured: `legalFightPlays` returns 0
+  without the boost and **1 with it**, and `applyEquip` reports 17 vs the pile's 15, `beats()` true.
+  **THE TRIGGER IS THE RESPONSE WINDOW.** Isolated in Node — no UI, no window machinery — `AI.takeTurn` does
+  `BOOST` and then the fight, **20 out of 20**. In a real game the cast is a Technique, so it is COUNTERABLE and
+  opens a respond window; `playPhase` has `if (st.pending) return;` and the turn suspends. On resume the Rival
+  passes with `nextPlayBoost` still banked, and the boost is lost when the round ends.
+  **Where to look:** how a suspended AI turn resumes after `st.pending` clears — the resume path appears not to
+  re-run the play decision, or runs it in a context that chooses `pass`. `chooseMove` itself is fine: with the
+  boost banked it has a legal play.
+  **Why it matters beyond the tutorial:** this fires whenever the AI boosts against a human who could counter,
+  which is every time. The AI looks like it is wasting cards at random.
+
 ### Things a playtester meets immediately
 
 - **SEAT 0 ALWAYS LEADS ROUND 1, SO THE HOST ALWAYS LEADS ONLINE** (Aj: *"in net play it seems like the host
@@ -418,49 +441,85 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 ### v1.31.76 — the 2 explains itself, on the card and in a lesson of its own
 
-The 2 carries more rules than any other card and, until now, explained none of them anywhere a player looks.
-Two halves, and the card text is the more useful one.
+The 2 carries more rules than any other card and, until now, explained none of them anywhere a player looks. Two
+halves, and **the card text is the more useful one**.
 
 **THE RULES GO ON THE CARD** (Aj: *"we could put some of those rules on the card... since you know, it does not
 have effect text"*). The apex 2 is the only card in the game with **no activated effect** — `effectOf` returns
-null for rank 2 by design — so its reader body was blank while it was simultaneously the card with the most
-rules. Worse, the fallback described it as *"No effect — a pure fight card"*, which is close to the opposite of
-true. It now reads as an **Apex trump** and states what the 2 actually does.
+null for rank 2 by design — so its reader body was blank while it held the most rules. Worse, the fallback
+described it as *"No effect — a pure fight card"*, close to the opposite of true. It now reads as an **Apex
+trump**, and **every claim is DERIVED from the live rules**: `noSeqTwos` bars the 2 from chains, `highTwos` puts
+it back above the A, `apexInf` makes it unbeatable by value, so a static note would be a lie in two of three
+settings. `lessontest_twos` asserts the derivation by *switching the rule and requiring the sentence to change*.
 
-**Every claim is DERIVED from the live rules, never hardcoded**, because the 2's behaviour is configurable and a
-static note would be a lie in two of its three settings: `noSeqTwos` bars it from chains entirely, `highTwos`
-puts it back above the A, and `apexInf` makes it unbeatable by value. `lessontest_twos` asserts the derivation by
-*switching the rule and requiring the sentence to change* — not by matching a string.
+**It is REMINDER text, and it is italic** (Aj: *"just so there's a distinction between card effect text and
+reminder text"*). What is written there is not something the card *does*, it is how the game *treats* it —
+`.cvReminder` keeps that line visible so a rule reminder is never read as an activatable effect. A rules change
+also refreshes an open reader; the reachable case is narrow and named in the source so it is not later deleted as
+dead (the panel is read-only mid-game, so it bites after a game ends).
 
-**It is REMINDER text, and it is italic** (Aj: *"let's make all these rules text italic — just so there's a
-distinction between card effect text and reminder text"*). On paper the 2 would be blank or pure flavour; what is
-written here is not something the card *does*, it is how the game *treats* it. The `.cvReminder` style keeps that
-line visible so a rule reminder is never read as an activatable effect.
+**AND A LESSON — Basics #5, straight after `Specials`** (Aj: *"the 2 is a basic tutorial probably after
+specials"*), which is where five-card plays first appear and therefore where the 2's second rule starts to
+matter. Seven steps of play, in the order Aj specified:
 
-**A rules change refreshes an open reader.** `showCard` is not part of `render()`, so toggling a rule with the
-reader open would leave the old sentence on screen. The reachable case is narrow and named in the source so it is
-not later deleted as dead: the panel is read-only while a game is live, so this happens **after** a game ends,
-when the finished board is still on screen and Custom rules becomes editable again.
+| | you | them |
+| --- | --- | --- |
+| R1 | lead an **Ace** | answer with a **2** |
+| R1 | **activate a boost**, then play your **2** | pass — you take the lead |
+| R2 | lead a **pair of Aces** | answer with a **pair of 2s** — they take it back |
+| R3 | beat their **full house of 2s** | — |
 
-**AND A LESSON, because the 2's two rules contradict each other on first hearing** — it is the apex at sizes 1-3
-and the **lowest** card in plays of four or more. Telling someone that twice does not land it, so the lesson
-*shows* it: your lone 2 beats their Ace, and then the Rival's **three 2s — the best trio in the game — cannot
-answer your full house of 5s**. Same cards, opposite outcomes, one step apart.
+**The 2 wins twice before it collapses**, as a single and as a pair, so the flip at five cards is earned rather
+than asserted — *"just to emphasize that it's not all specials"*. And **the reveal comes before the
+instruction**: an earlier draft called their trio "the best trio in the game" and then said "beat it", which
+reads as impossible. The rule that makes it beatable now lands in the same step.
 
-The engine is explicit about why (`detectCombo` maps `seqValue` and the source comment reads *"222XX is the
-SMALLEST full house under 'low'"*), and it is invisible on screen: a full house is ranked by its **trio**, and
-nothing in the UI says so. `lessontest_twos` (29) asserts the claims rather than the panel — the Rival really led
-an Ace, your 2 really took the round, and `legalFightPlays(state, RIVAL)` is really **empty** at step 5, which is
-the engine answering rather than the rig restating itself.
+**THE TUTORIAL DECK IS DELIBERATELY ILLEGAL** (Aj: *"let's make an illegal deck really. can we do that?"*). The
+Rival needs **six** 2s across three rounds and a legal seat holds four, so the rig fabricates cards. This is not
+a hack: a class deck already ships duplicate rank+suit with distinct ids (`7D#24`), art is keyed `rank+suit`, and
+`EFFECTS` is read by suit+rank — a copy renders, names and plays identically. Verified before building.
 
-**Filed as lesson 11 rather than slotted after `specials` where its content belongs** — inserting mid-list
-renumbers seven lessons, and placement is a curriculum call rather than a technical one. Worth revisiting.
+**A LESSON MAY FLY THE RIVAL ITSELF.** `lsn.pilot` returns a log in the AI's own shapes, so `buildOppBeats` paces
+and narrates it like any opponent turn. It exists because a difficulty tier cannot promise a sequence — measured:
+`minion` never uses effects at all, and `knight` does the right things in isolation (20/20) but hits a real bug
+in a live game. **That bug is filed at the top of the BACKLOG**: the AI activates a value boost, suspends on the
+counterable Technique's response window, then passes and throws the card away.
 
-**Three bugs in my own rig, all caught by writing the suite:** the Rival's three 2s can sit behind its own
-shields (the Quicks trap, three times as exposed since it needs three of a rank); `tutCastRivalTech`'s
-save-and-restore of the turn is **wrong for a play**, because `E.play` advances the turn itself and restoring
-handed it straight back to the Rival; and `lessonlib`'s `playAny` did not retry, so `busy` swallowed its clicks —
-the rule the other helpers in that file already follow. `playIds(ids)` joins them, retrying.
+**YOU CANNOT BREAK IT BY IGNORING THE INSTRUCTIONS** (Aj, having done exactly that in ninety seconds: *"i broke
+the tutorial by not following the instructions... can we block that?"*). This lesson spends ten specific cards
+over three rounds, so a wrong play burns one the finale needs and the step after it can never be satisfied — a
+worse dead end than the Quicks one, because it cannot recover. Each gated step now names the exact cards it
+accepts (`only`), and **the controls reflect it**: Fight and Pass go disabled with *"This lesson needs the cards
+it just pointed at."* On the boost step `only` is `[]`, so no play is possible at all and the boost cannot be
+thrown away as a jab. It generalises the existing `needSpecial` hook rather than adding a second mechanism.
+**The check must sit ABOVE `updateActions`' empty-selection early return** — below it, Pass stays live and the
+script is still breakable by passing with nothing selected.
+
+**AND THE PLAYER'S HAND MUST NOT LOOK ILLEGAL** (Aj: *"i see we're also letting the player play with an illegal
+deck"* — his hand held two 5♦ and two 5♥). Every fabricated card copies a rank+suit that already exists in the
+seat's 52, so the original stayed in the deck and was drawn. `tutDropDupes` removes the reals the fabrications
+occupy. The RIVAL's hidden zones stay illegal, which Aj confirmed is fine (*"the player can't see that
+anyway"*) — but its six 2s are ordered so every combination it PLAYS uses distinct suits (2♥ / 2♠+2♣ /
+2♦+2♥+2♠), because those land face-up.
+
+**Six defects of my own, every one found by building it rather than by reading:**
+- **A♥ *is* Imbue with Power.** "Give them an Ace to open with" and "give them a boost card" can hand over the
+  same card — so it led its boost as a jab and then had nothing. The same trap then bit the player's hand.
+  Provisioning is the rig's job; deciding what to play is the pilot's.
+- **Losing a round mills your own deck into energy.** The finale's cards were seeded on the deck top for round 3
+  to draw, and the catch-up ate them — you lose round 2 by design. Draws and catch-up both take from the top, so
+  no ordering survives both. Both hands are dealt in full now, inside `MAX_HAND`.
+- **`pairOf` scanned ranks 3-13** and so could not see a pair of Aces, which by round 3 is often the only pair the
+  Rival holds; it then had no full house and passed forever.
+- **The pilot only answered an Ace**, but the step's gate takes any single — a player leading a 5 stalled the
+  lesson silently. It answers any single now, which is also simply true.
+- **`playAny`, `activateSpot` and `passTurn` all lacked the retry** every other helper in `lessonlib` has.
+  `passTurn` was worse than missing: it reported success on *any* state change, so it masked real failures.
+- **A deleted helper left a live reference** (`tutEnsureTwosFullHouse`), which the build's parse check cannot see
+  — the lesson simply never started.
+- **The suite picked the full house BY RANK**, so a drawn real 5♠ could make it select a set the step did not
+  accept and Fight stayed disabled about one run in six. `playSpot()` plays exactly what the step spotlights —
+  what a player sees is what the gate takes.
 
 ### v1.31.75 — the harness learns to play a whole game, and a lost mirror stops being permanent
 

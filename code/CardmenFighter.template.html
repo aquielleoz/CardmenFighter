@@ -3433,6 +3433,20 @@ __QR__
       cardAct.style.display=''; cardAct.classList.toggle('off', !!actBlock); cardAct.disabled=false;   // description-panel ⚡ (activate only); tap shows the reason
       cardAct.title=actBlock||'Activate'; cardAct.textContent='⚡';
     }
+    /* THE STEP'S OWN CARDS. Disabling beats refusing: an enabled control that does nothing is the v1.31.74 bug,
+     * and letting the play through is worse still because the card is gone.
+     * ABOVE the empty-selection branch on purpose: that branch returns early, so a check below it leaves Pass
+     * live and the player can still break the script by passing with nothing selected. */
+    var tutOnly=(typeof TUT!=='undefined' && TUT.needCards)?TUT.needCards():null;
+    if(tutOnly){
+      var selIds=sel.map(function(c){ return c.id; }).sort().join(',');
+      var wantIds=tutOnly.slice().sort().join(',');
+      if(selIds!==wantIds){
+        hint.textContent = tutOnly.length ? 'This lesson needs the cards it just pointed at — follow the step above.'
+                                          : 'Not this step — read the step above and use ⚡ Activate.';
+        hint.className='bad'; fight.disabled=true; pass.disabled=true; return;
+      }
+    }
     if(!sel.length){ hint.textContent=(leading?'Lead a card'+(state.round<2?' (jabs only)':''):'Beat the '+kindLabel(state.pile.combo.type)+' or pass')+'. Tap a card to read or activate it.'+chargeTag; return; }
     var legal=fightLegal(sel);
     var combo=E.detectCombo(sel);
@@ -4174,7 +4188,15 @@ __QR__
     setTimeout(function step(){
       if(g!==gen) return;
       if(state.finished || state.turn===YOU){ busy=false; $('rivalStatus').textContent=''; render(); return; }
-      var log=AI.takeTurn(state, RIVAL, difficulty, [YOU]);   // [YOU] = suspend if you can answer a Quick
+      /* A LESSON MAY FLY THE RIVAL ITSELF (Aj, 2026-09-01: *"we need the ai pilot to sequence this in a way
+       * that's useful for the tutorial"*). A tutorial needs the opponent to demonstrate specific things in a
+       * specific order; a difficulty tier cannot promise that, and measurement showed why — `minion` never uses
+       * effects at all, and `knight` does the right things in isolation but hits a real bug in a live game (it
+       * activates a value boost and then passes, see the BACKLOG). A pilot returns a log in exactly the AI's
+       * shape, so `buildOppBeats` presents it identically and nothing downstream can tell the difference. */
+      var log=(tutorialMode && currentLesson && currentLesson.pilot)
+              ? currentLesson.pilot(state, RIVAL)
+              : AI.takeTurn(state, RIVAL, difficulty, [YOU]);   // [YOU] = suspend if you can answer a Quick
       $('rivalStatus').textContent='';
       var passed=log.filter(function(e){return e.fight==='pass';})[0];
       if(passed && passed.result && passed.result.roundWinner!=null){
@@ -4693,8 +4715,16 @@ __QR__
       currentLesson=null;
     }
     function needSpecial(){ return active && steps[i] && !!steps[i].requireSpecial; }
+    /* A SCRIPTED STEP MAY NAME THE EXACT CARDS IT ACCEPTS. Generalises `needSpecial`, which already disables
+     * Fight on the "make a Special" step. Necessary rather than tidy: this lesson spends ten specific cards over
+     * three rounds, so ANY wrong play burns a card the finale needs and the step after it can never be
+     * satisfied. Aj broke it in ninety seconds by leading something other than the Ace the step asked for.
+     * An empty array means "nothing may be played here" — used on the activate step, where pressing Fight would
+     * throw the boost card away as a jab. */
+    function needCards(){ var st=steps[i]; if(!active||!st||!st.only) return null;
+      try{ var r=st.only(); return Object.prototype.toString.call(r)==='[object Array]' ? r : null; }catch(e){ return null; } }
     function blocking(){ return active && !!steps[i] && !steps[i].gate; }   // a READ step (no action gate): hold the board until they press the button, so they can't play ahead of the lesson
-    return { start:start, note:note, stop:stop, skip:skip, reapply:reapply, needSpecial:needSpecial, blocking:blocking, isActive:function(){return active;} };
+    return { start:start, note:note, stop:stop, skip:skip, reapply:reapply, needSpecial:needSpecial, needCards:needCards, blocking:blocking, isActive:function(){return active;} };
   })();
 
   // Rig a controlled opening so each lesson reliably works: a couple of strong jabs, a pair, a cheap effect
@@ -5037,81 +5067,132 @@ __QR__
    * The engine is explicit about the mechanism (`detectCombo`: `cards.map(seqValue)`, "222XX is the SMALLEST
    * full house under 'low'"), and it is invisible on screen: a full house is ranked by its TRIO, and nothing in
    * the UI says so. That is the step this lesson exists for. */
-  var tutTwoId=null, tutFhIds=null;
-  function tutPullN(list, rank, n){ var got=[]; for(var i=0;i<n;i++){ var c=tutPull(list, rank); if(!c) break; got.push(c); } return got; }
-  /* Pick a RANK that has n copies available, rather than pulling and putting back. Skips the 2 (the whole point
-   * is that the trio must out-rank it) and anything already spoken for. */
-  function tutRankWith(list, n, skip){
-    var by={}; list.forEach(function(c){ by[c.rank]=(by[c.rank]||0)+1; });
-    for(var r=3;r<=13;r++){ if(skip.indexOf(r)>=0) continue; if(by[r]>=n) return r; }
-    return null;
+  var tutTwoId=null, tutFhIds=null, tutBoostId=null, tutAceId=null, tutPairIds=null;
+  /* AN ILLEGAL DECK, ON PURPOSE (Aj, 2026-09-01: *"let's make an illegal deck really. can we do that?"*).
+   * The lesson needs the Rival to hold SIX 2s across three rounds — one to beat your Ace, two for the pair that
+   * takes the initiative back, three for the full house — and a legal seat has four. So the tutorial fabricates
+   * cards. This is not a hack: a CLASS deck already ships duplicate rank+suit with distinct ids (`7D#24`), the
+   * art is keyed `rank+suit` with the id only as a fallback, and `EFFECTS` is read by suit+rank — so a copy
+   * renders, names and plays exactly like the original. Verified before building: a fabricated trio of 2s
+   * detects as `trio`, a pair of 2s beats a pair of Aces, and 222+33 is a `fullhouse` of value 2.
+   * EVERY CARD EITHER SIDE WILL DRAW IS LISTED HERE. The hand math is exact — you spend 10 cards over three
+   * rounds and are dealt exactly 10 — so nothing may be left to the shuffle. */
+  function tutCard(rank, suit, tag){ return { rank:rank, suit:suit, id:rank+suit+'#'+tag }; }
+  /* Remove from `deck` any card whose rank+suit a fabricated `hand` card already occupies, so a later draw can
+   * never put a visible duplicate in front of the player. */
+  function tutDropDupes(deck, hand){
+    var used={}; hand.forEach(function(c){ used[c.rank+c.suit]=1; });
+    return deck.filter(function(c){ return !used[c.rank+c.suit]; });
   }
   function tutRigTwos(st){
     var me=st.players[0], foe=st.players[1];
-    /* YOUR hand: one 2 (the apex jab) plus a full house you will lead. `tutPullShield` because the 2 is a
-     * UNIQUE card for this lesson and `newGame` deals shields off the same deck — the Quicks trap exactly. */
-    var pool=me.hand.concat(me.deck), hand=[];
-    var two=tutPull(pool,2) || tutPullShield(me,pool,2);
-    if(two){ hand.push(two); tutTwoId=two.id; }
-    var tr=tutRankWith(pool,3,[2]), pr=(tr!=null)?tutRankWith(pool,2,[2,tr]):null;
-    var trio=(tr!=null)?tutPullN(pool,tr,3):[], pair=(pr!=null)?tutPullN(pool,pr,2):[];
-    trio.forEach(function(c){ hand.push(c); }); pair.forEach(function(c){ hand.push(c); });
-    tutFhIds = trio.concat(pair).map(function(c){ return c.id; });
-    while(hand.length<E.START_HAND && pool.length) hand.push(pool.shift());
-    me.hand=hand; me.deck=pool;
-    me.energy=[]; ['C','D','H','S'].forEach(function(su){ var c=tutPullDeck(me,su); if(c) me.energy.push(c); });
-    /* THE RIVAL holds three 2s and an Ace. Each seat has its OWN 52-card deck (ids collide across seats), so
-     * these do not compete with yours. The Ace is what your 2 beats in round 1; the three 2s are the full house
-     * that cannot answer yours in round 2 — the same cards, opposite outcomes. */
-    var fpool=foe.hand.concat(foe.deck), fhand=[];
-    var ace=tutPull(fpool,1) || tutPullShield(foe,fpool,1);
-    if(ace) fhand.push(ace);
-    /* THE RIVAL'S 2s CAN BE BEHIND ITS OWN SHIELDS. Same trap as the Quicks 4♦, and this rig needs THREE of a
-     * unique rank rather than one — so it is three times as exposed, and the suite caught it on the first run. */
-    var got2=tutPullN(fpool,2,3);
-    while(got2.length<3){ var sc=tutPullShield(foe,fpool,2); if(!sc) break; got2.push(sc); }
-    got2.forEach(function(c){ fhand.push(c); });
-    var fp=tutRankWith(fpool,2,[2]);
-    if(fp!=null) tutPullN(fpool,fp,2).forEach(function(c){ fhand.push(c); });
-    while(fhand.length<E.START_HAND && fpool.length) fhand.push(fpool.shift());
-    foe.hand=fhand; foe.deck=fpool;
-    foe.energy=[]; for(var e=0;e<8;e++) foe.energy.push({rank:4,suit:'CDHS'[e%4],id:'t2E'+e});
-    st.turn=st.initiative=1;   // the RIVAL leads round 1, so your 2 has an Ace to beat
+
+    /* ---- YOU. R1: lead an Ace, activate the boost, play your 2. R2: lead a pair of Aces.
+     *      R3: the full house that out-ranks their 2s. Drawn cards complete it exactly. */
+    /* THE BOOST CARD MUST NOT BE AN ACE. The cheapest boost in the game is A♥ Imbue with Power — and this
+     * lesson asks you to "lead your Ace" and later "lead your pair of Aces", so handing you a fourth Ace that
+     * is really the boost makes both instructions ambiguous and can spend the boost as a jab. Same trap that
+     * bit the Rival's opening lead; it belongs to whoever is provisioning, not to whoever is playing. */
+    var boost=null, bcost=99;
+    me.hand.concat(me.deck).forEach(function(c){ var e=E.effectOf(c);
+      if(c.rank===1) return;
+      if(e && e.impl && !e.quick && e.kind==='valueBoost'){ var k=E.activationCost(c); if(k<bcost){ bcost=k; boost=c; } } });
+    if(!boost) boost=tutCard(3,'C','tb');                      // 3♣ Brilliant Tactic (+2) — cheapest that is not an Ace
+    tutTwoId='2S#t0'; tutBoostId=boost.id; tutAceId='1S#t1'; tutPairIds=['1D#t2','1C#t3'];
+    /* EVERYTHING IS DEALT UP FRONT — ten cards, exactly what the lesson spends, and `MAX_HAND` is 10 so none of
+     * it is trimmed. An earlier version put the last four on top of the deck for rounds 2 and 3 to draw, and
+     * they never arrived: LOSING A ROUND MILLS YOUR OWN DECK INTO ENERGY (the catch-up), and you lose round 2 of
+     * this lesson by design — so the catch-up ate the very cards the finale needed. Draws and catch-up both take
+     * from the top, so no ordering survives both. Holding it all from the start depends on neither. */
+    me.hand=[ tutCard(1,'S','t1'), boost, tutCard(2,'S','t0'),                    // round 1: lead, boost, win
+              tutCard(1,'D','t2'), tutCard(1,'C','t3'),                           // round 2: the pair of Aces
+              tutCard(5,'D','t4'), tutCard(5,'H','t5'), tutCard(5,'C','t6'),      // round 3: the full house that
+              tutCard(7,'D','t7'), tutCard(7,'H','t8') ];                         //          out-ranks their 2s
+    tutFhIds=['5D#t4','5H#t5','5C#t6','7D#t7','7H#t8'];
+    /* STRIP THE REALS THAT THE FABRICATIONS DUPLICATE. Every fabricated card copies a rank+suit that already
+     * exists in the seat's 52, so the original is still in the deck and gets DRAWN — Aj saw his own hand holding
+     * two 5♦ and two 5♥. The deck is illegal on purpose; the player's HAND should never look it. */
+    me.deck=tutDropDupes(me.deck, me.hand);
+    me.energy=[]; for(var q=0;q<12;q++) me.energy.push({ rank:4, suit:'CDHS'[q%4], id:'t2Y'+q });   // the boost must be affordable
+
+    /* ---- THE RIVAL. Six 2s: one answers your Ace, two take the round back, three build the full house.
+     *      The pair that completes it arrives on round 2's draw. */
+    /* ORDERED SO EVERY INDIVIDUAL PLAY USES DISTINCT SUITS. Six 2s cannot come from four suits without repeats,
+     * but the pilot takes them in hand order — one, then two, then three — so 2♥ / 2♠+2♣ / 2♦+2♥+2♠ means no
+     * single play on the table ever shows the same card twice. The deck is illegal; the board is not. */
+    foe.hand=[ tutCard(2,'H','r1'),                                               // round 1: answers your Ace
+               tutCard(2,'S','r2'), tutCard(2,'C','r3'),                           // round 2: the pair
+               tutCard(2,'D','r4'), tutCard(2,'H','r5'), tutCard(2,'S','r6'),      // round 3: the trio
+               tutCard(3,'D','r7'), tutCard(3,'C','r8') ];                         // the pair its full house rides on
+    foe.deck=tutDropDupes(foe.deck, foe.hand);
+    foe.energy=[]; for(var e2=0;e2<12;e2++) foe.energy.push({ rank:4, suit:'CDHS'[e2%4], id:'t2E'+e2 });
+
+    st.turn=st.initiative=0;   // YOU lead — the lesson opens with your Ace
   }
-  /* Make the Rival lead its Ace on cue. Same shape as `tutCastRivalTech`: save the turn, act as the Rival,
-   * restore — and TRY EVERY CANDIDATE rather than the first, because whether a given card plays depends on the
-   * deal and giving up on one is how that function used to stall one game in eight. */
-  function tutTwosRivalLeadAce(){
-    var foe=state.players[RIVAL], saved=state.turn, cands=foe.hand.slice().sort(function(a,b){ return E.fightValue(b)-E.fightValue(a); });
-    for(var i=0;i<cands.length;i++){
-      if(cands[i].rank===2) continue;                       // never lead their 2s — those are the step-5 payoff
-      state.turn=RIVAL;
-      var r=E.play(state, RIVAL, [cands[i]]);
-      /* DO NOT RESTORE THE TURN ON SUCCESS. `tutCastRivalTech` restores it because an ACTIVATION is not a turn,
-       * but `E.play` advances the turn itself — putting `saved` back handed the turn straight back to the Rival
-       * and the player could not answer at all. The suite caught it as "you played your 2 ✗". */
-      if(r && r.ok!==false){ syncOrder(false); render(); return; }
+
+  /* NOTHING IS SCRIPTED HERE ANY MORE. Two preps used to force the Rival's boosted answer and its full-house
+   * lead; both are deleted. They could not work: the framework defers a GATED step's prep until the player's
+   * turn, so they fired after the AI had already acted — and forcing the lead meant `state.pile=null`, which let
+   * the Rival replace its OWN jab while the message still read "Rival played a Jab." Aj caught that from the
+   * board. The rig puts the cards in hand and a knight-tier opponent plays them in the right order by itself
+   * (measured: boost 20/20, full-house lead 20/20, Ace opening 25/25). */
+  /* THE PILOT for "The 2" — deterministic, and the whole reason the lesson can promise what it shows.
+   * It answers three situations and passes otherwise, mirroring the AI's own log shape:
+   *   { play:'BOOST', card }  ·  { fight:'play', combo }  ·  { fight:'pass', result }
+   * so `buildOppBeats` paces and narrates it exactly like a real opponent's turn.
+   * Boost-then-play is ONE turn here on purpose: the AI's version suspends on the counterable Technique's
+   * response window and then passes, wasting the card (a real bug, filed). The pilot activates and plays in the
+   * same breath, which is what a competent opponent would do and what the lesson's text claims happened. */
+  /* THE PILOT for "The 2" — a situation table, deterministic, reading the HAND only (the rig owns the cards).
+   * The sequence it produces is the lesson, in Aj's order:
+   *   R1  you lead an Ace  ->  it answers with a 2        (the 2 is the top single)
+   *       you boost and play your 2 -> it passes           (…but a boost still tops it) — you take the lead
+   *   R2  you lead a pair of Aces -> it answers with a PAIR OF 2s  (still apex at two cards) — it takes the lead
+   *   R3  it leads 222 + a pair    -> you beat it          (…and at five cards the 2 is the LOWEST)
+   * Emits the AI's own log shapes so `buildOppBeats` paces and narrates it like any opponent turn. */
+  function tutPilotTwos(st, p){
+    var log=[], pl=st.players[p], cur=st.pile ? st.pile.combo : null;
+    function play(cards){ var r=E.play(st, p, cards); if(r && r.ok!==false){ log.push({ fight:'play', combo:r.combo }); return true; } return false; }
+    function twos(n){ return pl.hand.filter(function(c){ return c.rank===2; }).slice(0, n); }
+    /* ANY rank but the 2 — INCLUDING ACES. This scanned 3..13 and so could not see a pair of Aces, which by
+     * round 3 is often the only pair the Rival holds; it then had no full house to lead and passed forever.
+     * The baggage on a full house is just baggage: 222+AA is as small a full house as 222+33, because the shape
+     * is ranked by its TRIO. */
+    function pairOf(skip){ var by={}, order=[1], r;
+      for(r=3;r<=13;r++) order.push(r);
+      pl.hand.forEach(function(c){ if(c.rank!==skip) by[c.rank]=(by[c.rank]||[]).concat([c]); });
+      for(r=0;r<order.length;r++){ var k=order[r]; if(by[k] && by[k].length>=2) return by[k].slice(0,2); }
+      return null; }
+
+    if(!cur){
+      /* LEADING — only ever happens in round 3, after its pair of 2s took the round back. */
+      var t3=twos(3), pr=pairOf(2);
+      if(t3.length===3 && pr && play(t3.concat(pr))) return log;
+    } else if(cur.size===1 && cur.cards[0].rank!==2){
+      /* ANY single, not just the Ace. The step asks you to lead your Ace, but its gate takes any single — and a
+       * player who leads something else must still see the 2 answer it, because the 2 beats ANY single. Keyed
+       * to the Ace, the lesson silently stalled whenever the lead was a 5. */
+      var t1=twos(1);
+      if(t1.length===1 && play(t1)) return log;
+    } else if(cur.size===2 && cur.cards[0].rank===1){
+      var t2=twos(2);                                    // your pair of Aces — answer with a pair of 2s
+      if(t2.length===2 && play(t2)) return log;
     }
-    state.turn=saved; render();
-  }
-  /* Put the full house back if it was broken up. Same reason `tutEnsurePair` exists: a rig places cards, and a
-   * player who plays some of them before the gated step would otherwise be stuck with no way to satisfy it. */
-  function tutEnsureTwosFullHouse(){
-    var me=state.players[YOU];
-    (tutFhIds||[]).forEach(function(id){
-      if(me.hand.filter(function(c){ return c.id===id; })[0]) return;
-      for(var k=0;k<me.deck.length;k++){ if(me.deck[k].id===id){ me.hand.push(me.deck.splice(k,1)[0]); return; } }
-    });
-    syncOrder(false); render();
+    /* Anything else — notably your BOOSTED 2, which nothing it holds can beat, since ties never win. */
+    var pres=E.pass(st, p);
+    log.push({ fight:'pass', result:pres });
+    return log;
   }
   function lessonTwosSteps(){
     return [
-      { text:"The <b>2</b> is the highest card in the game — above the <b>A</b>, above everything. That is the first half of what it does, and the half everyone learns.", hi:'#hand', btn:"Show me \u25b8" },
-      { text:"The Rival led an <b>Ace</b> — the second-highest single there is. Play your <b>2</b> and take the round.", prep:tutTwosRivalLeadAce, hi:function(){ return tutTwoId?('#hand .card[data-id=\"'+tutTwoId+'\"]'):'#hand'; }, gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Play the 2\u2026" },
-      { text:"Nothing beats it. The same holds for a <b>pair</b> or a <b>trio</b> of 2s — each is the top of its shape.<br><br>Now the other half: from <b>four cards up</b>, the 2 flips and becomes the <b>lowest</b> card.", btn:"Next \u25b8" },
-      { text:"You hold a <b>full house</b>. Select all five and <b>Fight</b> to lead it.", prep:tutEnsureTwosFullHouse, hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.type==='fullhouse'; }, wait:"Lead the full house\u2026" },
-      { text:"The Rival holds <b>three 2s</b> — the highest trio in the game — and <b>cannot answer you</b>.<br><br>A full house is ranked by its <b>trio</b>, and in a play of four or more the 2 is the <b>low</b> card. So <b>2-2-2 + any pair is the SMALLEST full house</b>, and the smallest straight is <b>2-3-4-5-6</b>. The biggest is still <b>10-J-Q-K-A</b>.", hi:'#pile', btn:"Next \u25b8" },
-      { text:"So the 2 is a <b>trump you spend</b>, not a card you <b>build</b> with: unbeatable alone, nearly useless in a chain. Hold it for a round you must win.<br><br><span class=\"rNote\">(Homebrew rules can change all of this \u2014 see <b>The 2</b> in \u2699\ufe0f Custom rules.)</span>", btn:"Finish" }
+      { text:"The <b>2</b> is the highest card in the game \u2014 above the <b>A</b>, above everything. That is the half everyone learns. The other half is stranger, and this lesson is about both.", hi:'#hand', btn:"Show me \u25b8" },
+      { text:"Lead your <b>Ace</b> \u2014 the second-highest single there is.", only:function(){ return tutAceId?[tutAceId]:null; }, hi:function(){ return [ tutAceId?('#hand .card[data-id=\"'+tutAceId+'\"]'):'#hand', '#fightBtn' ]; }, gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead the Ace\u2026" },
+      { text:"They answered with a <b>2</b>, and your Ace could not touch it.<br><br>But the 2 is the <b>highest</b> card, not an <b>unbeatable</b> one \u2014 a <b>boost</b> still tops it. Select your glowing boost card and tap <b>\u26a1 Activate</b>.", hi:function(){ return [ tutBoostId?('#hand .card[data-id=\"'+tutBoostId+'\"]'):'#hand', '#cardActivate' ]; }, only:function(){ return []; }, gate:function(t,d){ return t==='activate'; }, wait:"Activate the boost\u2026" },
+      { text:"Now play your own <b>2</b>. Ties never win, so an unboosted 2 could not have answered theirs \u2014 yours can.", only:function(){ return tutTwoId?[tutTwoId]:null; }, hi:function(){ return tutTwoId?('#hand .card[data-id=\"'+tutTwoId+'\"]'):'#hand'; }, gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Play your 2\u2026" },
+      { text:"You took the round, so <b>you lead</b>.<br><br>The 2 is not only the best single \u2014 it is the best <b>pair</b> and the best <b>trio</b> too. Test it: lead your <b>pair of Aces</b>.", only:function(){ return tutPairIds; }, hi:function(){ return (tutPairIds||[]).map(function(i){ return '#hand .card[data-id=\"'+i+'\"]'; }).concat(['#fightBtn']); }, gate:function(t,d){ return t==='play' && d && d.size===2; }, wait:"Lead the pair of Aces\u2026" },
+      { text:"A <b>pair of 2s</b> \u2014 and nothing you hold beats it, because at two cards the 2 is still the top of its shape. <b>Pass</b>.", hi:['#hand','#passBtn'], gate:function(t,d){ return t==='pass'; }, wait:"Pass\u2026" },
+      { text:"They lead a <b>full house built on three 2s</b>.<br><br>Here is the turn: in a play of <b>four cards or more</b>, the 2 <b>loses its high rank and becomes the lowest</b>. A full house is ranked by its <b>trio</b> \u2014 so a trio of 2s makes the <b>smallest full house in the game</b>, not the biggest.<br><br>Your trio out-ranks theirs. <b>Beat it.</b>", only:function(){ return tutFhIds; }, hi:function(){ return (tutFhIds||[]).map(function(i){ return '#hand .card[data-id=\"'+i+'\"]'; }).concat(['#fightBtn']); }, gate:function(t,d){ return t==='play' && d && d.type==='fullhouse'; }, wait:"Beat it with your full house\u2026" },
+      { text:"The same 2s that beat your Ace and your pair of Aces are the <b>weakest thing on the table</b> once a play gets long.<br><br>Single, pair, trio \u2014 the 2 is the <b>top</b>. Four cards or more \u2014 it is the <b>bottom</b>: the smallest straight is <b>2-3-4-5-6</b>, and the biggest is still <b>10-J-Q-K-A</b>.<br><br>A trump you <b>spend</b>, not a card you <b>build</b> with.<br><br><span class=\"rNote\">(Homebrew rules can change all of this \u2014 see <b>The 2</b> in \u2699\ufe0f Custom rules.)</span>", hi:'#pile', btn:"Finish" }
     ];
   }
 
@@ -5133,19 +5214,22 @@ __QR__
   }
 
   var LESSONS=[
-    { id:'howto',      num:1, section:'Basics',   title:'How to Play',        blurb:'A full guided duel — the whole loop, start to finish.',          ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonHowToSteps },
-    { id:'zones',      num:2, section:'Basics',   title:'Zones of Play',      blurb:'Deck, hand, play area, energy pile, shuffle pile.',               ready:true,  basics:true,             rig:tutRigZones,     steps:lessonZonesSteps },
-    { id:'initiative', num:3, section:'Basics',   title:'Initiative',         blurb:'Who leads — and why giving up the lead isn’t so bad.',           ready:true,  basics:true,  shields:2, rig:tutRigInitiative, steps:lessonInitiativeSteps },
-    { id:'specials',   num:4, section:'Basics',   title:'Specials',           blurb:'The combos that break shields — pairs, trios, straights, houses.', ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonSpecialsSteps },
-    { id:'energy',     num:5, section:'Basics',   title:'Energy & Effects',   blurb:'Bank energy, spend it on card effects, keep your deck alive.',    ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonEnergySteps },
-    { id:'quicks',     num:6, section:'Advanced', title:'Quicks',             blurb:'Cards you can play in response — even on the Rival’s turn.',      ready:true,  basics:false,            rig:tutRigQuicks,    steps:lessonQuicksSteps },
-    { id:'rides',      num:7, section:'Advanced', title:'Rides',              blurb:'The J — a persistent companion that helps you out.',              ready:true,  basics:false,            rig:tutRigRides,     steps:lessonRidesSteps },
-    { id:'forms',      num:8, section:'Advanced', title:'Form Changes',       blurb:'The Q &amp; K — transformations that upgrade your cards’ effects.', ready:true,  basics:false,            rig:tutRigForms,     steps:lessonFormsSteps },
-    { id:'decks',      num:9, section:'Advanced', title:'Custom Decks',      blurb:'Build your own 52-card deck out of class parts.',              ready:true,  basics:false,            rig:tutRig,          steps:lessonDecksSteps },
-    { id:'energyorder',num:10,section:'Advanced', title:'Energy Order',      blurb:'Choose what you spend — and what comes back sooner.',           ready:true,  basics:false,            rig:tutRigEnergyOrder, steps:lessonEnergyOrderSteps },
-    /* Appended as 11 rather than slotted after `specials`, where its CONTENT belongs, because inserting it
-     * mid-list renumbers seven lessons. Placement is a curriculum call, not a technical one. */
-    { id:'twos',       num:11,section:'Advanced', title:'The 2',              blurb:'The apex trump \u2014 and why it becomes your lowest card.',      ready:true,  basics:false,            rig:tutRigTwos,      steps:lessonTwosSteps },
+    { id:'howto',      num:1 , section:'Basics',   title:'How to Play',        blurb:'A full guided duel — the whole loop, start to finish.',          ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonHowToSteps },
+    { id:'zones',      num:2 , section:'Basics',   title:'Zones of Play',      blurb:'Deck, hand, play area, energy pile, shuffle pile.',               ready:true,  basics:true,             rig:tutRigZones,     steps:lessonZonesSteps },
+    { id:'initiative', num:3 , section:'Basics',   title:'Initiative',         blurb:'Who leads — and why giving up the lead isn’t so bad.',           ready:true,  basics:true,  shields:2, rig:tutRigInitiative, steps:lessonInitiativeSteps },
+    { id:'specials',   num:4 , section:'Basics',   title:'Specials',           blurb:'The combos that break shields — pairs, trios, straights, houses.', ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonSpecialsSteps },
+    /* BASICS, straight after `specials` (Aj, 2026-09-01: *"oh the 2 is a basic tutorial probably after
+     * specials"*). That is where a player first makes five-card plays, which is the exact moment the 2's second
+     * rule starts to matter — it was parked at the end only because inserting here renumbers the lessons below.
+     * Runs in BASICS MODE: `basics` gates transforms only, and `NO_FULL_HOUSE` is an unrelated homebrew rule,
+     * so the full house this lesson turns on is unaffected. */
+    { id:'twos',       num:5 , section:'Basics',   title:'The 2',              pilot:tutPilotTwos,              blurb:'The apex trump \u2014 and why it becomes your lowest card.',      ready:true,  basics:true,             rig:tutRigTwos,      steps:lessonTwosSteps },
+    { id:'energy',     num:6 , section:'Basics',   title:'Energy & Effects',   blurb:'Bank energy, spend it on card effects, keep your deck alive.',    ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonEnergySteps },
+    { id:'quicks',     num:7 , section:'Advanced', title:'Quicks',             blurb:'Cards you can play in response — even on the Rival’s turn.',      ready:true,  basics:false,            rig:tutRigQuicks,    steps:lessonQuicksSteps },
+    { id:'rides',      num:8 , section:'Advanced', title:'Rides',              blurb:'The J — a persistent companion that helps you out.',              ready:true,  basics:false,            rig:tutRigRides,     steps:lessonRidesSteps },
+    { id:'forms',      num:9 , section:'Advanced', title:'Form Changes',       blurb:'The Q &amp; K — transformations that upgrade your cards’ effects.', ready:true,  basics:false,            rig:tutRigForms,     steps:lessonFormsSteps },
+    { id:'decks',      num:10, section:'Advanced', title:'Custom Decks',      blurb:'Build your own 52-card deck out of class parts.',              ready:true,  basics:false,            rig:tutRig,          steps:lessonDecksSteps },
+    { id:'energyorder',num:11,section:'Advanced', title:'Energy Order',      blurb:'Choose what you spend — and what comes back sooner.',           ready:true,  basics:false,            rig:tutRigEnergyOrder, steps:lessonEnergyOrderSteps },
   ];
   function lessonById(id){ for(var i=0;i<LESSONS.length;i++) if(LESSONS[i].id===id) return LESSONS[i]; return null; }
   function nextLesson(lsn){ var idx=LESSONS.indexOf(lsn); for(var i=idx+1;i<LESSONS.length;i++){ if(LESSONS[i].ready) return LESSONS[i]; } return null; }
@@ -5156,7 +5240,14 @@ __QR__
     var basics=(lsn.basics!==false);   // Basics lessons hide transforms; Advanced lessons run in Full mode
     /* The lesson overrides the RUNTIME flag only, and deliberately does not touch RULES: a tutorial choosing
      * Basics for you must not rewrite the mode you picked for your own games. It used to write sel.mode. */
-    gameBasics=basics; tutorialMode=true; mpCount=2; difficulty='minion';
+    /* A LESSON MAY NAME ITS OWN AI TIER. `minion` is right for the Basics loop — it "barely uses effects" by
+     * design (see `playPhase`, which returns early for that tier) — but a lesson whose POINT is something the
+     * opponent must do needs an opponent that does it. Measured on the rigged hand: minion boosts over the apex
+     * 2 in 0 of 20 and leads a single in round 2; knight boosts 20/20 and leads the 222+pair full house 20/20.
+     * All tiers open with the Ace 25/25. So the sequence the "The 2" lesson teaches happens on its own at
+     * knight, and nothing has to be scripted — `lessontest_twos` asserts each beat so a policy change goes red
+     * instead of leaving the lesson quietly lying. */
+    gameBasics=basics; tutorialMode=true; mpCount=2; difficulty=(lsn && lsn.diff) || 'minion';
     youDeck='full'; rivalDeck='full'; seatDecks=['full','full']; seatDiffs=[null,'minion'];
     clearPersonas();   // a persona from the game before would otherwise linger — the tutorial wants a plain "Rival"
     tutShields=lsn.shields||4;   // lessons that need the kill arc set shields:2; Advanced keep the full 4
