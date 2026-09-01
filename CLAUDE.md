@@ -1171,6 +1171,19 @@ rather than hardcoding a path, which is what these files used to do and why they
 `nettest.js` is a **BroadcastChannel-isolation probe**, not a pass/fail suite: it prints "cross delivery: FAILS ✗
 (expected — contexts are isolated)" and exits 0. That line is the expected result.
 
+**A FIXED `wait()` IS THE BIGGEST COST IN THE SWEEP, NOT THE 3.1MB PAGE (measured 2026-09-01).** Timed per
+suite, the whole sweep was 637s and **`landscapetest` alone was 97s** — it opens a fresh context per viewport,
+thirty of them, each spending **2650ms of fixed `wait()`**. Polling instead took it to **33s**. Before reaching
+for a page-size fix, time the suites: the six slowest were 51% of the sweep and all 44 netplay suites together
+are only 196s.
+**AND THE PAGE-SIZE FIX MEASURED TO ZERO.** Stubbing `art.js` (2.16MB of the 3.1MB) for the layout suite is
+safe by construction — art is only ever a CSS `background-image` — and it saved **1 second**. It was built,
+validated against the real page to the pixel, and then **reverted**: a second build artifact to keep in sync
+forever is not worth 1s. Do not re-propose it without timing the suites first.
+**A SETTLE PREDICATE MUST INCLUDE THE THING BEING ASSERTED ON.** Replacing the sleeps needed a "wait until the
+geometry stops moving" poll; the first version watched `#hand`'s box and returned while the CARDS were still
+growing into it, so two negative cases measured a 60px card against a 66px floor and failed.
+
 **Run them one at a time.** Each suite starts its own HTTP server on a fixed port and drives two or three real
 browser pages; two suites at once flake on CPU contention (`nettest_rtc` in particular fails at `maxRound=0`
 concurrently and passes 11/0 alone). A serial sweep of all 38 takes a few minutes.
@@ -1276,7 +1289,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.80 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
+Status as of **v1.31.81 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
 `test` 378, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
@@ -1668,6 +1681,27 @@ not a class problem but a rules problem. The lever belongs at the rules level �
   **top** of the changelog in `docs/NEXT-SESSION.md` (newest-first, directly under `## BACKLOG`), written as
   what changed and why, and bump the version in `README.md`'s `**Status:**` line. Move any item you completed
   out of `## BACKLOG`.
+- **FOUR DOCS, AND WRITING A THING INTO THE WRONG ONE IS HOW IT GETS LOST OR REDONE** (Aj, 2026-09-01, after a
+  session put findings in the changelog only: *"maybe we can update claude.md with those rules so they don't get
+  mixed up next time?"*). The routing question is **what do you want to happen to this?**
+
+  | you want… | it goes in |
+  | --- | --- |
+  | someone to DO it | `NEXT-SESSION.md` **`## BACKLOG`** — open work only |
+  | nobody to redo or re-argue it | `DECISIONS.md` — measured dead ends, declined proposals, settled analyses |
+  | the next session to WORK differently | **this file** — rules and invariants, not history |
+  | the record of what shipped and why | `NEXT-SESSION.md` **changelog** — newest-first, under the BACKLOG |
+
+  **Each mistake has its own failure mode, and all four have happened here:** open work written into a changelog
+  entry is invisible, because a changelog is history and nobody actions it (v1.31.81's parallelism and
+  `rulestest` levers, caught by Aj the same day); a measured dead end left in the BACKLOG gets re-attempted
+  (which is why `DECISIONS.md` was split out at all); a settled decision left in the BACKLOG gets re-argued; and
+  a rule written only in a changelog is never read again.
+  **One finding often splits across three of them** — v1.31.81 put the timing measurement in `DECISIONS.md`, the
+  remaining levers in the BACKLOG, the narrative in the changelog, and the rule ("time the suites before
+  reaching for a page-size fix") here. **Ask the routing question per PARAGRAPH, not per change.**
+  **A cross-reference is cheap and stops the split from hiding things**: link the `DECISIONS.md` anchor from the
+  BACKLOG entry, the way the sweep-cost entries do.
 - Debug hooks exist and are URL-gated: `?dbg=1` (netplay) and `?dbgsolo=1` (exposes `window.__solo` with
   `st()/render()/setPulse()` for headless UI checks). Keep new hooks inert without their flag.
   `__solo.rulesKey/setRulesFromKey` reach the rules serialiser, `__solo.resolveDeck` the deck roll; and
@@ -1784,6 +1818,9 @@ definition, so it cannot delete them.
 
 ## Docs map
 
+- **WHICH DOC A THING GOES IN is a rule, not a preference — see the routing table under Conventions.** The
+  short form: BACKLOG = someone should do it · `DECISIONS.md` = nobody should redo it · this file = work
+  differently · changelog = what shipped.
 - `docs/NEXT-SESSION.md` — **start here**: build/test header, the RANKED backlog (open work only), full
   changelog. Split on 2026-08-31; anything settled moved to `DECISIONS.md`.
 - `docs/DECISIONS.md` — **settled decisions and analyses: things that are NOT work.** Includes **AI strength**,

@@ -29,13 +29,47 @@ const CASES=[
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
   const errs=[];
 
-  async function open(w,h,np){
+  /* POLLED, NOT SLEPT. This used to spend 2650ms of fixed `wait()` per viewport and it opens THIRTY of them —
+   * 79s of the suite's 92s was the test lying down. CLAUDE.md already says a fixed wait followed by an
+   * assertion is a bug waiting to happen; here it was also the single largest cost in the whole sweep.
+   * `settled()` is the part that earns its keep: a layout suite must not measure mid-animation, so instead of
+   * guessing 1400ms it waits until the geometry stops moving. That is both faster AND stricter than a sleep —
+   * a slow machine now makes this slower rather than red. */
+  async function poll(p, fn, what, arg){
+    for(let i=0;i<200;i++){ if(await p.evaluate(fn, arg)) return true; await wait(40); }
+    console.log('   ⏱ poll TIMED OUT: '+what);
+    return false;
+  }
+  async function settled(p){
+    let last=null;
+    for(let i=0;i<100;i++){
+      const g=await p.evaluate(()=>{const e=document.getElementById('hand'); if(!e) return null;
+        const b=e.getBoundingClientRect(), c=document.querySelector('#hand .card');
+        const cb=c?c.getBoundingClientRect():{width:0,height:0};
+        /* THE CARD'S OWN SIZE HAS TO BE IN THE SIGNATURE. Watching only #hand's box let this return while the
+         * cards were still growing into it, and two negative cases then measured a 60px card against a 66px
+         * floor — a real assertion failing on a half-drawn board. */
+        return [b.top,b.height,document.querySelectorAll('#hand .card').length,Math.round(cb.width),Math.round(cb.height)].join(',');});
+      if(g && g===last) return true;
+      last=g; await wait(60);
+    }
+    console.log('   ⏱ poll TIMED OUT: the board never stopped moving');
+    return false;
+  }
+  async function open(w,h,np,useUrl){
     const p=await (await b.newContext({viewport:{width:w,height:h}})).newPage();
     p.on('pageerror',e=>errs.push(e.message));
-    await p.goto(URL); await wait(600);
-    await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(300);
-    if(np>2){ await p.evaluate(n=>{const s=document.getElementById('setPlayers'); s.value=String(n); s.dispatchEvent(new Event('change'));},np); await wait(350); }
-    await p.evaluate(()=>{const g=document.getElementById('goFirstBtn'); if(g)g.click();}); await wait(1400);
+    await p.goto(useUrl||URL);
+    await poll(p, ()=>!!document.getElementById('newBtn'), 'the page booted');
+    await p.evaluate(()=>document.getElementById('newBtn').click());
+    await poll(p, ()=>{const g=document.getElementById('goFirstBtn'); return !!(g&&g.offsetParent);}, 'the setup dialog opened');
+    if(np>2){
+      await p.evaluate(n=>{const s=document.getElementById('setPlayers'); s.value=String(n); s.dispatchEvent(new Event('change'));},np);
+      await poll(p, n=>document.getElementById('setPlayers').value===String(n), 'the player count took', np);
+    }
+    await p.evaluate(()=>{const g=document.getElementById('goFirstBtn'); if(g)g.click();});
+    await poll(p, ()=>document.querySelectorAll('#hand .card').length>0, 'the game dealt');
+    await settled(p);
     return p;
   }
   // worst case: log open + full hand + a 5-card pile
