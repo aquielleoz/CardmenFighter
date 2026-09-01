@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.79.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.80.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.79**, working tree clean, full sweep green at **70 suites**. The only branch is
+`main` is at **v1.31.80**, working tree clean, full sweep green at **71 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -33,7 +33,7 @@ npm test && node mptest.js && node landscapetest.js
 
 Expect **0 FAIL** from each. The two gate counts in the header above are asserted by `versiontest`, so they
 cannot drift; every other suite's expected count lives in **CLAUDE.md**, which is the authority. A full sweep is
-70 suites and ~10 minutes — background it, and **never two suites at once** (fixed ports).
+71 suites and ~10 minutes — background it, and **never two suites at once** (fixed ports).
 
 **The last four versions:** **v1.31.79** the Demon Lord never spends a card it is about to win with — a tier
 BEHAVIOUR, worth a quarter of the knight→demon gap · **v1.31.78** a banked boost commits the turn, and nothing
@@ -85,88 +85,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   **Small: worth ~nothing in win rate** (it is 3 of the 166 in that entry, which pool to about a point in
   total). It is here because it is unambiguous — unlike the transform cases, there is no argument that
   spending a card on a fight you had already won is a real choice.
-- **★ THE HOST/CLIENT FORK `nettest_sync` CATCHES — STILL OPEN.**
-  Measured **1 failure in 8** on 2026-08-30 after the mirror dedupe, and **2-3 in 8** before it. At n=8 those
-  are not distinguishable, so **do not read the dedupe as an improvement** — treat the rate as "roughly one run
-  in four" until someone runs enough replicates to say better.
-  **The failure is PERSISTENT, not a mid-flight window.** The suite already polls until a mismatch clears, so a
-  transient disagreement while a mirror is in flight is excluded by construction:
-  ```
-  DIVERGED: the host thinks the client holds 6 cards; the client holds 4
-  DIVERGED: the host thinks the client holds 8 cards; the client holds 6
-  ```
-  **THE CARD IDS NAME THE GAP EXACTLY — the client is missing precisely that round's DRAW:**
-  ```
-  HOST   seat1 (8): 5D#16 6H#22 9H#34 10H#38 11D#40 13D#49 1D#1 2D#4
-  CLIENT seat0 (6): 5D#16 6H#22 9H#34 10H#38 11D#40             1D#1
-  ```
-  Always exactly the two dealt cards. So a mirror carrying the deal is **never sent, never received, or applied
-  and then overwritten by an older one** — and the first of those is now unlikely, since the host's own trace
-  showed it broadcasting the grown hand.
-  **THREE HYPOTHESES TESTED AND REJECTED. Do not re-run them:**
-  - **A second ceremony discarding a held round mirror.** `clientPlayCeremony` nulls `pendingRoundMirror`,
-    which would throw a deal away. Landing the held mirror first made the suite **WORSE — 5 failures in 8** —
-    and lifecycle tracing then showed **no `mirror HELD` events at all** during a failure. The client applies
-    every mirror it receives.
-  - **The broadcast storm.** Real, and fixed in v1.31.65 (97% of mirrors were byte-identical duplicates). The
-    failure rate did not move.
-  - **The v1.31.64 rules change.** A/B'd against the pre-change build: same rate. It predates it.
-  **RE-MEASURED 2026-08-31 ON v1.31.74: 35 RUNS, 35 CLEAN.** That excludes the recorded rate outright —
-  P(35 clean) is **0.00%** at 1-in-4 and **0.93%** at 1-in-8 — while **1-in-16 (10.5%) and rarer remain
-  possible**, so this is "no longer reproduces at the recorded rate", NOT "fixed". The likely reason it dropped
-  is **v1.31.67**, which landed AFTER the last measurement: `isRoundDeal` replaced `handGrew` and added an
-  **empty-pile** clause, so a mirror is held far less often — and a held mirror is the only thing
-  `clientPlayCeremony` can discard.
-  **THE DISCARD PATH STILL EXISTS AND IS NOW TRACED.** `clientPlayCeremony` still does `pendingRoundMirror=null`,
-  so a second ceremony arriving before `finishClientCeremony` still throws a deal away. The lifecycle prints
-  `mirror HELD` / `mirror HELD -> DISCARDED` / `mirror HELD -> revealRound`, and **`nettest_sync` now dumps both
-  hands' card ids, the exact missing ids, and both peers' trace tails on failure** — the previous investigation
-  stalled precisely because that detail came from bespoke instrumentation that was then thrown away, which is
-  why "no HELD events" could not be re-checked nine versions later.
-  **DEMONSTRATED WITH A FORCED DROP:** dropping one deal mirror on purpose leaves the client missing **precisely
-  that round's two dealt ids** — the recorded signature, reproduced on demand:
-  ```
-  HOST   sees seat1 (8): 5C#16 6C#20 7C#25 7C#24 9S#35 10S#38 12S#47 12C#45
-  CLIENT own hand   (6): 5C#16       7C#25 7C#24 9S#35 10S#38 12S#47
-  IDS THE CLIENT IS MISSING: 6C#20 12C#45
-  ```
-  **THREE MORE THINGS ARE NOW SETTLED — do not re-derive them:**
-  - **A DROPPED MIRROR IS NOT AUTOMATICALLY PERMANENT.** With a forced drop, one run in two recovered on its own,
-    because the next host state change produces a fresh mirror. Permanence needs the loss to coincide with the
-    host's state going quiet.
-  - **"CLEAR THE DEDUPE CACHE ON A ROUND CHANGE" IS A NO-OP.** `round` is in the mirror (`netview.js`), so a round
-    boundary always changes content and the deal mirror is never suppressed by dedupe. This was about to be built
-    before checking.
-  - **THE LINK TO AJ'S "PRESSED PASS AND NOTHING HAPPENED" IS WEAKER THAN THIS ENTRY USED TO CLAIM.** v1.31.74
-    fixed a **confirmed** cause of that exact symptom (`updateActions` did not know about `busy`, so Pass rendered
-    enabled and swallowed clicks for ~2s), and the stale-intent guard is a second confirmed cause. Do not treat
-    that report as evidence for this fork.
-  **TRIED AND WITHDRAWN — `reassertMirror()` at the park points.** The idea: `broadcastMirror` dedupes and
-  `lastMirror` is otherwise cleared only on channel re-bind, so a park would freeze a stale client forever;
-  clearing the cache when the host parks would make any lost mirror self-healing. **It could not be shown to fix
-  anything** (5 of 6 forced-drop runs still diverged) and was reverted. The reason is instructive: after a
-  forced drop the game is on the **HOST's** turn, and `settle()` gives up before either side acts — so the
-  persistence in that experiment is **an artefact of the harness**, not a deadlock. Do not re-propose it without
-  an experiment that reproduces true persistence.
-  **NEXT STEP — BUILD A PROBE THAT DROPS THE DEAL *AND* LEAVES THE CLIENT TO ACT NEXT.** That is the one
-  configuration where a stale client can genuinely deadlock the table (it is `busy` or acting on a board the host
-  has moved past, and the host is parked waiting for it), and it is the configuration the current probe never
-  reaches. Everything else about this bug is now instrumented; this is the missing experiment.
-  **(Superseded) TRACE THE RECEIVE SIDE, and do not instrument the send side again.** The host is already known
-  to broadcast the grown hand. Log every mirror's hand length *as it arrives on the client*, next to the `q`
-  stamp, and compare against the host's send log for the same window. The question to answer is narrow: **does
-  the mirror carrying the deal reach the client at all, and if it does, what happens to it?**
-  **Very likely the same root cause as Aj's real-game report of pressing Pass and nothing happening** — both
-  are a client acting on a board the host has already moved past. Both peers dump `__cmfTrace()` into the saved
-  battle log, so a real game can be compared move-for-move too.
-  **`nettest_sync` is the only suite in the repo that compares the two peers to EACH OTHER** rather than each
-  to expectations. It found this; nothing else could. Keep it green-or-explained, never disabled.
-  **BUT BE ACCURATE ABOUT WHAT IT HAS EARNED (corrected by Aj, 2026-09-01).** The suite was written on
-  2026-08-28 out of his *"we can't even get to round 2 legally on the same computer"* — but **that complaint's
-  actual cause was the drag-to-play bug**, found the next day by his own A/B (Fight worked, dragging did not)
-  and fixed in v1.31.56. This suite did not diagnose it. So its record is: the fork below (real, but **not
-  reproducing** — 35/35), and the **stall** found on 2026-09-01, which is a live catch on a clean build. Do not
-  write the round-2 complaint and this fork as one lineage; they are three separate things.
 - **★ `stateSeq` IS A CLIENT-INTENT COUNTER, NOT A STATE VERSION — AND THAT IS WHY VALID MOVES GET REFUSED.
   ONE JOB, NOT TWO.** (Merged 2026-08-31 from two entries that each described half of it.)
   The stamp is bumped only in `hostApplyMove`, so **the host's own plays and the round draw never advance it** —
@@ -432,6 +350,57 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.80 — a parked host keeps saying so, and the host/client fork closes
+
+Open since 2026-08-28, and the mechanism turns out to be one sentence: **a mirror is the only thing that can
+tell a client the round advanced and the turn is now its own, and a parked host's state deliberately stops
+changing.** `reassertMirror()` (v1.31.75) re-sends once when the host parks. If *that* one is lost too, nothing
+will ever say it again — both peers sit waiting for the other and the table is dead for good. The host now
+**re-asserts on a heartbeat while parked** (1.8s, stops the moment control comes back).
+
+**IT HAD STOPPED REPRODUCING, AND CLOSING IT AS A GHOST WOULD HAVE BEEN WRONG.** 35/35 clean on v1.31.74 and
+**30/30 on v1.31.79** — 65 consecutive clean runs, which excludes the recorded 1-in-4 rate at roughly one in a
+hundred million. The right response to "it stopped happening" was not to close it but to **force the mechanism
+and ask what the system does**, which is what found it.
+
+**THE CONFIGURATION THAT MATTERED WAS THE ONE NEVER TESTED**, and the old entry had named it: the deal lost
+**and the client to act next**. Every earlier forced-drop probe left the HOST to move, so what looked like
+persistence was the harness giving up — which is how `reassertMirror` came to be withdrawn once on no evidence
+and then re-landed. `nettest_mirrordrop.js` is that experiment, and this time it is **permanent**, along with a
+dbg-gated `__cmf.dropMirrors(seat, n)`. The last three investigations each built a bespoke probe and threw it
+away, which is precisely why "no HELD events during a failure" could not be re-checked nine versions later.
+
+**Measured, deterministically:**
+
+| swallowed mirrors after a client-won round | before | after |
+| --- | --- | --- |
+| 3 | recovers | recovers |
+| 4 | **deadlocks** | recovers |
+| 8 / 12 | deadlocks | recovers |
+
+A/B at the default of 6: **3 of 3 fail without the heartbeat, 4 of 4 pass with it.**
+
+**WHY THIS WAS SO HARD TO CATCH: a mirror is a full SNAPSHOT, not a delta.** Any later mirror heals a lost one,
+so the render storm normally papers over the loss entirely — the hands agree again within milliseconds. The
+damage that *persists* is not a wrong hand at all; it is the client sitting a whole **round** behind with nobody
+on turn. The card-id divergence in the original reports was the same bug caught in the brief window before a
+later mirror healed it, which is why it looked rarer and stranger than it was.
+
+**Two things the probe got wrong first, both of which read as product bugs:**
+- **"Both Fight and Pass are disabled" is the CORRECT resting state** for the seat that just won a round — the
+  winner leads, so Pass is illegal, and Fight waits for a selection. It reproduces with **zero** drops. Liveness
+  has to be "select a card, does Fight light up", not "is any button enabled".
+- **Asserting the divergence as a missing CARD** made the probe report a healthy table at every drop count, for
+  the snapshot reason above. It asserts the client's **round** against the host's now.
+
+**Not the drag-to-play bug** (Aj asked). Two independent proofs: `nettest_sync` never drives the drag path — it
+clicks Fight and Pass — and the fork was measured at 2-3 in 8 on 2026-08-30/31, after the drag fix landed
+2026-08-29 in v1.31.56. What the drag bug *did* cause is the "we can't get to round 2 legally" report that
+prompted the suite's existence. Three separate things, and the entry now says so.
+
+The closed entry, the rejected hypotheses and the "clear the dedupe cache on a round change" no-op (which was
+about to be built twice) move to [`DECISIONS.md`](DECISIONS.md#host-client-fork).
 
 ### v1.31.79 — the Demon Lord never spends a card it is about to win with
 

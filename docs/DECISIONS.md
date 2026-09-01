@@ -161,6 +161,45 @@ turn — while a Full Set deck holds 13 per suit and sees one occasionally. Aj's
 effectively shanking every non mono suit player"*) understates it. Straight flush is trivial for them too.
 This is a better reason than "suits do not rank" for why v1.14 cut them.
 
+<a id="host-client-fork"></a>
+## The host/client fork — closed 2026-09-01
+
+- **THE FORK `nettest_sync` CAUGHT IS UNDERSTOOD AND FIXED (v1.31.80), after being open since 2026-08-28.**
+  The mechanism, stated plainly: **a mirror is the only thing that can tell a client the round advanced and the
+  turn is now its own — and a parked host's state deliberately stops changing.** `reassertMirror()` (v1.31.75)
+  re-sends once at the park; if that one is lost too, nothing will ever say it again, both peers sit waiting for
+  the other, and the table is dead for good. v1.31.80 adds a **heartbeat while parked**.
+  **THE CONFIGURATION THAT MATTERED WAS THE ONE NEVER TESTED**, and the old entry named it correctly as the
+  missing experiment: the deal lost AND **the client** to act next. Every earlier forced-drop probe left the
+  HOST to move, so what looked like persistence was the harness giving up — which is how `reassertMirror` came
+  to be withdrawn once on no evidence, then re-landed.
+  `nettest_mirrordrop.js` is that experiment, and it is **permanent this time**. Measured on the build before
+  the fix: **3 swallowed mirrors is survivable, 4 deadlocks — deterministically, 3 runs of 3.** With the
+  heartbeat the same board recovers at **12**. A/B: 3/3 fail without, 4/4 pass with.
+  **WHY 3 IS SURVIVABLE AND WHY THE HANDS USUALLY AGREE: a mirror is a full SNAPSHOT, not a delta.** Any later
+  mirror heals a lost one, so the render storm normally papers over the loss — which is exactly why this was so
+  hard to catch and why the recorded card-id divergence was rarer than the underlying fault. The damage that
+  persists is not a wrong HAND, it is the client sitting a whole ROUND behind with nobody on turn.
+  **THE ID-LEVEL DIVERGENCE IN THE OLD REPORTS IS THE SAME BUG SEEN EARLY** — caught in the window before a
+  later mirror healed it.
+  **THREE HYPOTHESES WERE TESTED AND REJECTED ALONG THE WAY. Do not re-run them:** a second ceremony discarding
+  a held round mirror (landing the held mirror first made it WORSE, 5 failures in 8); the broadcast storm (real,
+  fixed in v1.31.65, rate did not move); and the v1.31.64 rules change (A/B'd, predates it).
+  **AND "CLEAR THE DEDUPE CACHE ON A ROUND CHANGE" IS A NO-OP** — `round` is in the mirror, so a round boundary
+  always changes content and the deal mirror is never suppressed by dedupe. This was about to be built twice.
+  **IT HAD STOPPED REPRODUCING SPONTANEOUSLY BEFORE IT WAS FIXED, WHICH NEARLY CLOSED IT AS A GHOST.** 35/35
+  clean on v1.31.74 and **30/30 on v1.31.79** — 65 consecutive clean runs, which excludes the recorded 1-in-4
+  rate at about one in a hundred million. The right response to "it stopped reproducing" was not to close it but
+  to **force the mechanism** and ask what the system does. That is what found it.
+  **IT IS NOT THE DRAG-TO-PLAY BUG** (Aj asked; worth recording because the two are easy to conflate). Two
+  independent proofs: `nettest_sync` never drives the drag path at all — it clicks Fight and Pass — and the fork
+  was measured at 2-3 in 8 on **2026-08-30/31**, after the drag fix landed on **2026-08-29** (v1.31.56). What
+  the drag bug DID cause is the *"we can't get to round 2 legally"* report that prompted the suite's existence.
+  Three separate things: that complaint (drag, fixed v1.31.56), this fork (fixed v1.31.80), and the deadlocked
+  table `nettest_sync` caught on 2026-09-01 (fixed v1.31.75).
+  **`nettest_sync` remains the only suite that compares the two peers to EACH OTHER** rather than each to
+  expectations. Keep it green-or-explained, never disabled.
+
 <a id="ai-strength"></a>
 ## AI strength
 
