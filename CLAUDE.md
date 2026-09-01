@@ -59,6 +59,10 @@ node lessontest_specials.js             # the "Specials" lesson — jab, then a 
 node lessontest_energy.js               # the "Energy & Effects" lesson — bank, activate, spend (18)
 node lessontest_rides.js                # the "Rides" lesson — the J really enters your zone (15)
 node lessontest_forms.js                # the "Form Changes" lesson — the Q really enters your zone (15)
+node lessontest_twos.js                 # the "The 2" lesson AND the apex card text — asserts the text is
+                                        # DERIVED from the live rules, not a hardcoded string (29)
+#   The 2 lesson runs on a DELIBERATELY ILLEGAL deck (the Rival needs six 2s) and a per-lesson `pilot` rather
+#   than the AI; each gated step names the cards it accepts, so ignoring the instructions cannot dead-end it.
 #   lessonlib.js is a shared HELPER for the seven above, not a suite — don't run it directly
 node piletest.js                                # energy/shuffle pile viewers + promote (30)
 node revealtest.js                              # Outbalance's hand read: the modal, and that it never
@@ -137,13 +141,51 @@ reading each rig's output at lesson start). Do not re-derive it:
 - `tutRigInitiative` / `tutRigZones` / `tutRigEnergyOrder` seed energy by SUIT, so they pick from ~13 candidates
   and cannot be starved.
 
-**ALL TEN LESSONS HAVE A SUITE as of v1.31.74**, sharing `lessonlib.js` (a helper, not a suite — the
+**THE APEX 2 CARRIES REMINDER TEXT, AND IT IS DERIVED (v1.31.76).** It is the only card with no activated
+effect (`effectOf` returns null for rank 2 by design), so its reader body was blank while it holds more rules
+than any card in the game — and the fallback called it *"No effect — a pure fight card"*. `cardTextHTML` now has
+a rank-2 branch. **Every claim reads the live rule** (`E.isSeqTwos()`, `E.isApexInfinity()`) because `noSeqTwos`
+and `highTwos` invert what it says; a hardcoded note is a lie in two of three settings. **It is REMINDER text,
+styled italic via `.cvReminder`** — what the GAME does to the card, not what the CARD does — so it is never read
+as an activatable effect. Assert the DERIVATION (switch the rule, require the sentence to change), never the
+string.
+**A RULES CHANGE MUST REFRESH AN OPEN READER**, because `showCard` is not part of `render()`. Narrow but real:
+the panel is read-only while a game is live, so it bites AFTER a game ends, when the finished board is still on
+screen and Custom rules is editable again.
+
+**ELEVEN LESSONS, ALL WITH A SUITE as of v1.31.76** (ten as of v1.31.74). **`The 2` is BASICS #5, right after
+`Specials`** — where five-card plays first appear, so its second rule starts mattering there. Adding a lesson
+mid-list renumbers the ones below it; nothing asserts a lesson `num`, so that is mechanical, sharing `lessonlib.js` (a helper, not a suite — the
 `nettest_lobby.js` convention). **Assert what the lesson CLAIMS, not that the panel rendered:** the step text
 makes factual promises the gate does not check — a shield broke, the card banked, the transform is in your zone,
 "your cards are all low so you can't beat their lead" (that one is `legalFightPlays(...).length===0`, the
 engine's own answer). For an ungated tour like `zones`, assert each step's selector **exists AND carries
 `.tut-spot`**: `applySpot` does `querySelectorAll` and lights nothing when an id is renamed, and the tour still
 clicks to the end.
+**A SCRIPTED LESSON MUST NAME THE CARDS EACH STEP ACCEPTS (v1.31.76), or a player who ignores the instruction
+dead-ends it.** The "The 2" lesson spends ten specific cards over three rounds, so a wrong play burns one the
+finale needs — Aj broke it in ninety seconds by leading something other than the Ace the step asked for. A step's
+`only` returns the exact ids; `updateActions` then disables **Fight and Pass** with a note, and `only:[]` means no
+play is possible at all (the boost step, where Fight would spend the boost as a jab). Generalises `needSpecial`.
+**The check must sit ABOVE the empty-selection early return** — below it, Pass stays live and passing with
+nothing selected still breaks the script. And a SUITE must play what the step SPOTLIGHTS (`playSpot`), never
+pick by rank: a drawn same-rank card silently chooses a set the step refuses.
+
+**A TUTORIAL MAY USE A DELIBERATELY ILLEGAL DECK, AND THE PLAYER'S HAND MUST STILL LOOK LEGAL (v1.31.76).** The
+Rival needs SIX 2s and a seat holds four, so `tutCard` fabricates them — safe because a class deck already ships
+duplicate rank+suit with distinct ids (`7D#24`), art is keyed `rank+suit` and `EFFECTS` by suit+rank.
+**But every fabricated card leaves its ORIGINAL in the deck, and it gets drawn** — Aj's hand held two 5♦ and two
+5♥. `tutDropDupes` strips them. The Rival's hidden zones may stay illegal (Aj: *"the player can't see that
+anyway"*); its plays may not, so its 2s are ordered to keep every played combination suit-distinct.
+
+**A UI HELPER MUST RETRY — AND `lessonlib` HAD ONE THAT DID NOT.** `playAny` was written without the retry every
+other helper in that file has, and `lessontest_twos` caught it at once: that lesson's prep makes the RIVAL lead,
+so the board is busy at exactly the moment the suite answers. `playIds(ids)` (play an exact set) retries too.
+Since v1.31.74 the board says why out loud — "Hold on — the board is still resolving." — which is what named it.
+**A TUTORIAL PREP THAT PLAYS FOR THE RIVAL MUST NOT RESTORE THE TURN.** `tutCastRivalTech` saves and restores it
+because an ACTIVATION is not a turn; `E.play` advances the turn itself, so restoring hands it straight back to
+the Rival and the player can never answer. Copying that function without noticing the difference cost a red run.
+
 **A UI HELPER MUST RETRY, BECAUSE `busy` SWALLOWS CLICKS SILENTLY.** `doFight`/`doPass`/`toggle` each `return`
 on `busy` with no message, so a single click plus an assertion reads as "the button is broken" — `playPair` and
 `passTurn` retry and report how long they took, which is how the 2-second window below was measured at all.
@@ -984,6 +1026,23 @@ falls behind and reads stale. **Compare CONTENT, never `stateSeq`**: that counte
 host's own plays and the round draw never advance it and a stamp-based skip would drop real updates. A seat's
 cache is dropped on join and rejoin, so a reconnecting peer is never deduped against state it missed.
 
+**FIVE MECHANICAL HABITS, each of which cost real time on 2026-09-01. None is an engineering problem.**
+- **USE `Edit` FOR ANCHORED REPLACEMENTS, NOT A `python3 - <<'PY'` HEREDOC.** Heredocs were used for nearly every
+  edit that day and went wrong three distinct ways: an `assert` inside one failed and the file was left
+  untouched while the surrounding `&&` chain still printed success; two edits reported "applied" having matched
+  nothing; and one left a task the harness still showed as **Running after 3h 16m** with every child long dead.
+- **ABSOLUTE PATHS IN EVERY COMMAND.** The session cwd does not persist the way it looks like it does. Four
+  commands ran from the repo root instead of `code/`; one `MODULE_NOT_FOUND` was misdiagnosed as a port
+  collision, and a batch of eight "clean" suite runs had in fact run nothing at all.
+- **`cp CardmenFighter.html ../CardmenFighter.html` AFTER EVERY BUILD.** `build.js` writes only `code/`. Aj
+  played the ROOT copy and sent three rounds of screenshots of a build missing the fixes being described to him.
+  **And when a report smells stale, run `cmp` — do not drop the hypothesis because the reporter says they are on
+  the right branch.** They were. The file was not.
+- **NEVER REBUILD WHILE A BATCH IS RUNNING.** Three measurements were invalidated this way and had to be redone.
+- **COPY THE RETRY WHEN YOU ADD A HELPER.** `playAny`, `activateSpot` and `passTurn` were each written without
+  the retry every other helper in `lessonlib` has, and each presented as a product bug. `passTurn` was worse than
+  missing it: it reported success on ANY state change, so it masked real failures for several runs.
+
 **A THROWAWAY DIAGNOSTIC IS THE LEAST TRUSTWORTHY CODE IN THE ROOM.** Hunting the Quicks bugs, two bespoke
 probes lied before the real suite told the truth: one clicked `#tutNextBtn` before the tutorial panel had
 rendered it, so `if(b)b.click()` did nothing and it reported **8 consecutive false failures**; the other planted
@@ -1214,13 +1273,13 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.74 — 2026-08-31, every suite run serially, 69 suites and 0 FAIL** (a full sweep is
+Status as of **v1.31.76 — 2026-09-01, every suite run serially, 70 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
 `test` 333, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
 `versiontest` 15, `sharetest` 16, `qrtest` 32, `peektest` 31, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
-`lessontest_rides` 15, `lessontest_forms` 15, `qrref` 26 (darwin only, corroborates rather than
+`lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
 The 43 netplay suites: `nettest_3p` 7, `activate` 6, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
