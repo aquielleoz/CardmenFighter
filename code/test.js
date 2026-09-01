@@ -882,15 +882,50 @@ function cards(ids) { return ids.map(card); }
   ok(E.legalFightPlays(gF, 1).length === 1, 'staged: with +2 banked the pair of Queens beats a pair of Kings');
   ok(E.transformGateOK(gF, 1, 'queen') === true, 'staged: …and the Queen tier is actually unlocked, so a refusal means something');
   AI.playPhase(gF, 1, [], 'knight', []);
-  ok(gF.players[1].forms.length === 0, 'commit: the TRANSFORM is refused — the Queen is holding the boosted pair together');
+  /* Count QUEENS in the zone, not forms.length: a transform DRAWS a card, and if that card is a Jack the AI
+   * transforms again — so `forms.length === 1` is a coin flip on the deck. It flaked 8 runs in 40. */
+  function queens(g) { return g.players[1].forms.filter(function (c) { return c.rank === 12; }).length; }
+  ok(queens(gF) === 0, 'commit: the TRANSFORM is refused — the Queen is holding the boosted pair together');
   ok(AI.chooseMove(gF, 1, 'knight').action === 'play', 'commit: …and the pair of Queens is still there to play');
 
   var gG = seat([mk(12, 'H', 'a'), mk(12, 'S', 'b'), mk(12, 'C', 'c')], pairK);
   gG.players[1].nextPlayBoost = 2;
   gG.players[0].shields = 2; gG.players[1].shields = 2;                    // the gate is 'table': the Queen tier needs numPlayers*2 = 4 shields lost across the table
   AI.playPhase(gG, 1, [], 'knight', []);
-  ok(gG.players[1].forms.length === 1, 'commit: with a third Queen the transform goes through — a pair still survives it');
+  ok(queens(gG) === 1, 'commit: with a third Queen the transform goes through — a pair still survives it');
   ok(AI.chooseMove(gG, 1, 'knight').action === 'play', 'commit: …and so does the fight');
+
+  /* H/I. THE BROADWAY PITCH is the other cost that is not the effect's own card: Critical Hit (9♠) discards a
+   * 10/J/Q/K/A as well, and the ENGINE picks which. It found this suite before this suite found it — case G
+   * flaked 2 runs in 40 because a Critical Hit drawn by the transform pitched one of the Queens. */
+  function pitchSeat(hand) {
+    var g = seat(hand, pairK);
+    g.players[1].nextPlayBoost = 2;
+    g.players[0].shields = 2; g.players[1].shields = 2;                   // 1-2 shields is what makes destroyShield worth casting
+    return g;
+  }
+  var gH = pitchSeat([mk(12, 'H', 'a'), mk(12, 'S', 'b'), mk(9, 'S')]);   // every Broadway card here IS the boosted pair
+  ok(E.effectOf(mk(9, 'S')).pitchHigh === true, 'staged: 9♠ Critical Hit really does cost a Broadway discard');
+  var logH = [];
+  AI.playPhase(gH, 1, logH, 'knight', []);
+  ok(logH.map(function (e) { return e.play; }).indexOf('DESTROY') < 0,
+     'commit: Critical Hit is REFUSED — its pitch could only come out of the boosted pair');
+  ok(AI.chooseMove(gH, 1, 'knight').action === 'play', 'commit: …so the pair of Queens survives to be played');
+
+  /* …but when the boosted play holds NO Broadway card, the pitch cannot touch it and the cast must go through.
+   * The refusal is deliberately strict — ANY load-bearing Broadway card refuses — so this is the shape of
+   * negative that has to pass: a pair of 5s to protect, and a lone spare 10 as the only Broadway in hand. */
+  var pair6 = [mk(6, 'H', 'q1'), mk(6, 'H', 'q2')];
+  var gI = seat([mk(5, 'D', 'a'), mk(5, 'H', 'b'), mk(9, 'S'), mk(10, 'S', 'spare')], pair6);
+  gI.players[1].nextPlayBoost = 2; gI.players[0].shields = 2; gI.players[1].shields = 2;
+  ok(E.legalFightPlays(gI, 1).length > 0, 'staged: with +2 the pair of 5s beats a pair of 6s');
+  var logI = [];
+  AI.playPhase(gI, 1, logI, 'knight', []);
+  ok(logI.map(function (e) { return e.play; }).indexOf('DESTROY') >= 0,
+     'commit: with the only Broadway card spare, Critical Hit goes through');
+  ok(gI.players[1].hand.filter(function (c) { return c.rank === 5; }).length === 2,
+     'commit: …and the boosted pair of 5s is untouched');
+  ok(AI.chooseMove(gI, 1, 'knight').action === 'play', 'commit: …so the fight is still on');
 
   // E. no boost banked — the guard must be inert, or it reads as "never equip"
   var gE = seat([mk(6, 'C', 'a'), mk(6, 'C', 'b'), mk(6, 'C', 'c')], [mk(5, 'H', 'p1'), mk(5, 'H', 'p2')]);

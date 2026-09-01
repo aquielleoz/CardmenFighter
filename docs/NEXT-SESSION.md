@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**364**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**371**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including all 43 `nettest_*` suites and the ten `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -43,11 +43,13 @@ passing, and `reassertMirror()` lands with a measured A/B.
 
 **⚑ WHERE TO PICK UP — the top of the BACKLOG.** The boost line is finished: v1.31.77 stopped the AI passing on
 a boost it had paid for, and v1.31.78 stopped anything else in the same turn eating the play it bought
-(**0 in 1200 duels**). What replaced it at the top is the GENERAL form found while measuring that: **167
-activations in 1200 duels throw away the seat's only legal fight**, `transform` being 94 of them. That entry is
-a MEASUREMENT, not a diagnosis — read its caution about the Forms game before treating 94 as 94 mistakes, and
-note the fix is a balance change rather than a bug fix. Below it, the **host/client fork** `nettest_sync`
-catches is still open and still intermittent at roughly one run in four.
+(**0 in 1200 duels**). The general form of it — 166 activations that leave the seat with no legal fight — was
+then measured head-to-head and is **not worth fixing**; it lives in [`DECISIONS.md`](DECISIONS.md#ai-strength)
+under a new **AI strength** heading, along with the only method in this repo that can measure AI strength at
+all. **Read that before proposing any "the AI plays badly here" change** — every existing sim runs the same AI
+on both seats and is structurally blind to strength. What is left at the top is small and unambiguous
+(`pickValueBoost` boosting a fight it has already won); the **host/client fork** `nettest_sync` catches is the
+real open item, still intermittent at roughly one run in four.
 
 **The "The 2" lesson is unusual and a fresh session will otherwise be baffled by it.** Three things it does that
 no other lesson does, all documented in the source and in CLAUDE.md:
@@ -75,28 +77,14 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 ### Correctness
 
-- **AN ACTIVATION CAN THROW AWAY THE SEAT'S ONLY LEGAL FIGHT — 167 TIMES IN 1200 DUELS** (measured
-  2026-09-01, and this is the GENERAL form of the boost bug closed in v1.31.78). Count activations after which
-  `legalFightPlays` goes from >0 to 0 with a pile on the table:
-  ```
-  transform 94 · equip 31 · destroyShield 13 · shield 6 · ramp 5 · lockout 4 · discardOpp 4 · valueBoost 4
-  removeEquip 3 · ward 3          — 167 of 16,844 activations, and 0 of them with a boost banked
-  ```
-  **The zero is the useful half:** v1.31.78's `keepsTheWin` covers the boosted case completely, so what is left
-  is the unboosted one — the AI spends a card, loses the fight it could have won, and (unlike the boost case)
-  has not pre-paid for it, so the loss is one round rather than a round plus a card.
-  **`transform` is two thirds of it and is the one to think hardest about.** A J/Q/K is both the highest thing
-  in hand and the entry to the Forms game, so "transform it" and "fight with it" compete every time — and the
-  Forms game is a long-run investment that may well be worth a round. Do not assume 94 is 94 mistakes.
-  **`valueBoost` 4 is a distinct, smaller bug and cheap to fix:** `pickValueBoost` never asks whether we are
-  ALREADY winning, so it can spend a boost (and the card carrying it) on a fight we had won anyway — and in
-  those four it spent the card the play needed. `counterfeitHelps` already has the guard to copy:
-  `if (beatsCur(pl.hand)) return false;`.
-  **The one-line experiment is to drop the `if (!pl.nextPlayBoost) return true;` line from `keepsTheWin`**,
-  making it unconditional — but that is a BALANCE change across 16,844 activations, not a bug fix, so it needs
-  `analysis.js` and `personasim.js` (control spread = the noise floor) before anyone believes a win-rate
-  reading. The instrument is `scratchpad/selfharm.js`'s shape: wrap `E.activate`, compare `legalFightPlays`
-  either side of the call.
+- **`pickValueBoost` NEVER ASKS WHETHER WE ARE ALREADY WINNING** (found 2026-09-01 while measuring the entry
+  now in [`DECISIONS.md`](DECISIONS.md#ai-strength)). It casts whenever `boostEnablesWin` finds SOME play the
+  boost converts into an overtake, without checking that a legal play already exists — so it can spend a boost,
+  and the card carrying it, on a fight already won, and in 3 of 1200 duels the card it spent was one the play
+  needed. `counterfeitHelps` has the guard to copy verbatim: `if (beatsCur(pl.hand)) return false;`.
+  **Small: worth ~nothing in win rate** (it is 3 of the 166 in that entry, which pool to about a point in
+  total). It is here because it is unambiguous — unlike the transform cases, there is no argument that
+  spending a card on a fight you had already won is a real choice.
 - **★ THE HOST/CLIENT FORK `nettest_sync` CATCHES — STILL OPEN.**
   Measured **1 failure in 8** on 2026-08-30 after the mirror dedupe, and **2-3 in 8** before it. At n=8 those
   are not distinguishable, so **do not read the dedupe as an improvement** — treat the rate as "roughly one run
@@ -487,18 +475,33 @@ branch, which does not go through `pick` and was seed 101's culprit.
   where the Queen tier was shield-gated shut, so it was refusing nothing; the gate is now staged and asserted
   directly.
 
+**A THIRD COST THAT IS NOT THE EFFECT'S OWN CARD, found by the suite rather than by me: the BROADWAY PITCH.**
+Critical Hit / Ultima Attack / Armor Piercing discard a 10/J/Q/K/A as well, and the ENGINE picks which — so a
+staged hand of three Queens has a Queen pitched every time. It surfaced as a **flaky test**, 2 runs in 40, and
+`keepsTheWin` now refuses a `pitchHigh` cast when ANY Broadway card in hand is load-bearing. Naming our own
+pitch through `opts.pitch` was built first and then **removed**: no test could tell it from the engine's default
+(which already takes the lowest card), and ours could pitch a *higher* card than the engine would. The strict
+refusal needs no knowledge of the engine's rule and costs nothing measurable.
+
+**AND THE FLAKE BEFORE THAT ONE WAS THE SUITE'S OWN FAULT: a transform DRAWS A CARD.** If that card is a Jack
+the AI transforms again, so `forms.length === 1` was a coin flip on the deck — 8 runs in 40. It counts QUEENS in
+the zone now. Both flakes were found by running the gate 40× rather than once; **a suite that is green on one
+run is not evidence, and neither of these would have survived to the sweep.**
+
 **Cost of the guard: nothing measurable.** 16,939 → 16,873 activations over 1200 games (0.4%), pacing unchanged
 at 11.08 mean rounds. It can only bite in the one turn after a boost is banked.
 
-22 assertions in `test.js` (342 → **364**), and every part of the guard was verified to discriminate by
-reintroducing the defect one piece at a time: the `pick` wiring (5 red), the transform wiring (2), the `wheel`
-line (1), and `effectFor` (2).
+29 assertions in `test.js` (342 → **371**), stable over 50 consecutive runs, and every part of the guard was
+verified to discriminate by reintroducing the defect one piece at a time: the `pick` wiring (5 red), the
+transform wiring (2), the `wheel` line (1), `effectFor` (2) and the Broadway pitch (2).
 
-**A new BACKLOG entry came out of the measurement,** and it is the general form of this bug: **167 activations
-in 1200 duels throw away the seat's only legal fight**, `transform` being 94 of them — and **0 of the 167 have a
-boost banked**, which is what says this fix is complete rather than partial. Making `keepsTheWin` unconditional
-is a one-line experiment, but it is a balance change across 16,844 activations, so it is filed with the
-instrument rather than shipped.
+**The general form came out of the measurement and was then measured too**: **166 activations in 1200 duels
+throw away the seat's only legal fight**, `transform` being 95 of them — and **0 of the 166 have a boost
+banked**, which is what says this fix is complete rather than partial. Protecting the rest is **not worth
+doing**: head-to-head over 8000 decided games, the transform-only variant Aj asked about ("unlock the JQK") is
+**+0.70 / +0.81 points at knight / demon, under 1.5σ — indistinguishable from zero**, and protecting every
+activation is +1.08 / +1.61. Filed in [`DECISIONS.md`](DECISIONS.md#ai-strength) with the method, which is the
+durable half: **no existing sim can measure AI strength**, because they all run the same AI on both seats.
 
 ### v1.31.77 — the AI stops throwing away the value boost it just paid for
 

@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 364 + 34 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 371 + 34 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 364 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 371 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction — 34, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
@@ -1275,7 +1275,7 @@ stray processes before suspecting the code. And never wait on work with `while p
 
 Status as of **v1.31.78 — 2026-09-01, every suite run serially, 70 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
-`test` 364, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
+`test` 371, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
 `versiontest` 24, `sharetest` 16, `qrtest` 32, `peektest` 31, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
@@ -1477,6 +1477,14 @@ never sees it and the refusal silently never fired. `keepsTheWin` reads `effectF
 taking the effect from its caller, so no call site can get it wrong. The Broadway pitch (`eff.pitchHigh`) is a
 second card the model does not remove either; it measured ZERO failures in 1200 games and is a known hole, not
 an oversight.
+**THE BROADWAY PITCH IS THE THIRD SUCH COST, AND A FLAKY TEST FOUND IT.** `pitchHigh` (Critical Hit / Ultima
+Attack / Armor Piercing) discards a 10/J/Q/K/A as well, chosen by the ENGINE — so `keepsTheWin` refuses such a
+cast when ANY Broadway card in hand is load-bearing. Naming our own via `opts.pitch` was built and **removed**:
+the engine's default already takes the lowest card, so no test could separate them, and ours could pitch a
+higher one. **An unexercised branch is not a safeguard, it is untested code.**
+**RUN A NEW SUITE 40 TIMES, NOT ONCE.** Two flakes hid in one green run here: a transform **draws a card**, so
+`forms.length === 1` was a coin flip on whether that card was a Jack (8 in 40), and the pitch above was 2 in 40.
+Both would have reached a full sweep looking fine.
 **AND THE WHEEL BROKE ITS OWN TEST.** "Is 8♣ still in hand?" **passed on the broken build** — the Wheel shuffles
 the **Discard** back in as well, so the card it had just spent was dealt straight back. Assert the activation
 log. A sibling assertion read `forms.length === 0` on a board where the Queen tier was shield-gated shut
@@ -1741,7 +1749,9 @@ definition, so it cannot delete them.
 
 - `docs/NEXT-SESSION.md` — **start here**: build/test header, the RANKED backlog (open work only), full
   changelog. Split on 2026-08-31; anything settled moved to `DECISIONS.md`.
-- `docs/DECISIONS.md` — **settled decisions and analyses: things that are NOT work.** Measured dead ends,
+- `docs/DECISIONS.md` — **settled decisions and analyses: things that are NOT work.** Includes **AI strength**,
+  which carries the only method here that can measure it — every sim runs the same AI on both seats, so they
+  are structurally blind to "is this change stronger?". Measured dead ends,
   declined proposals, and the reasoning behind them. **Read it before proposing anything that sounds
   obvious** — several entries exist because the obvious thing was tried and measured (the `loss=all`
   avenue, LAN discovery, the APK, the collapsing hand, why FLUSH is not a shape, the Tiến lên chop ladder).

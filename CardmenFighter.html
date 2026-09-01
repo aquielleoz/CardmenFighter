@@ -4207,19 +4207,34 @@
        * will this card DO for this player" is an `effectFor` question. Reading it here rather than taking it as
        * a parameter is deliberate: no call site can get it wrong. */
       var ef = E.effectFor ? E.effectFor(st, p, c) : E.effectOf(c);
-      /* THE WHEEL IS THE ONE EFFECT WHOSE COST IS NOT ITS OWN CARD. Ares's Super `reclaim` (eff.wheel) shuffles
-       * the WHOLE hand back into the deck and draws six fresh, so the play-out below — remove this card, is a
-       * fight still legal? — models it as cheap and it destroys everything. It was the only survivor of this
-       * guard in 1200 duels (twice), and both times the boosted pair went into the deck.
-       * The Broadway pitch (`eff.pitchHigh`) is a SECOND card this model does not remove either; it measured
-       * ZERO failures in the same 1200 games, so it is a known hole left open rather than an oversight —
-       * modelling it means either duplicating the engine's auto-pick rule (lowest fightValue first, engine.js
-       * ~1223) or passing `opts.pitch`, and neither is worth it for a fault nobody has seen. */
+      /* TWO EFFECTS COST MORE THAN THEIR OWN CARD, and the play-out below only removes the card itself.
+       * THE WHEEL: Ares's Super `reclaim` (eff.wheel) shuffles the WHOLE hand back into the deck and draws six
+       * fresh, so no play survives it. It was the only survivor of this guard in 1200 duels (twice), and both
+       * times the boosted pair went into the deck.
+       * THE BROADWAY PITCH: `eff.pitchHigh` (Ultima Attack / Critical Hit / Armor Piercing) discards a SECOND
+       * card — a 10/J/Q/K/A, chosen by the ENGINE, not by us. Rather than duplicate its auto-pick rule (lowest
+       * fightValue first, engine.js ~1223), refuse when ANY Broadway card in hand would break the play. Naming
+       * our own via `opts.pitch` was built and then removed: the engine's default already takes the lowest card,
+       * so no test could tell the two apart, and ours could pitch a HIGHER card than the engine would. The
+       * strict form needs no knowledge of the rule and cannot cost much — a boost, a pitchHigh card and an
+       * unsafe pitch coincide almost never (0 times in 1200 duels).
+       * It is NOT unreachable, though, which is why it is closed rather than noted: a staged hand of three
+       * Queens pitches a Queen every time, and that is what made a test flake 2 runs in 40. */
       if (ef && ef.wheel) return false;
-      var i = pl.hand.indexOf(c); if (i < 0) return true;
-      pl.hand.splice(i, 1);
+      if (pl.hand.indexOf(c) < 0) return true;
+      if (!stillFights([c])) return false;
+      if (ef && ef.pitchHigh) {
+        var bw = pl.hand.filter(function (x) { return x !== c && isBroadway(x); });
+        for (var bi = 0; bi < bw.length; bi++) if (!stillFights([c, bw[bi]])) return false;   // ANY unsafe candidate refuses the cast
+      }
+      return true;
+    }
+    // Would a fight still be legal with these cards gone? A hypothetical, so the hand is put back exactly.
+    function stillFights(gone) {
+      var kept = pl.hand;
+      pl.hand = kept.filter(function (x) { return gone.indexOf(x) < 0; });
       var still = E.legalFightPlays(st, p).length > 0;
-      pl.hand.splice(i, 0, c);                                             // restore: this is a hypothetical, not a spend
+      pl.hand = kept;
       return still;
     }
     function pick(pred, avoidCombo) {
@@ -4234,7 +4249,8 @@
       return best;
     }
     // REWORK: does the hand hold a Broadway card (10/J/Q/K/A) to pay a pitch cost, other than exclId?
-    function broadwayPitchAvail(exclId) { return pl.hand.some(function (c) { return c.id !== exclId && (c.rank === 1 || c.rank === 10 || c.rank === 11 || c.rank === 12 || c.rank === 13); }); }
+    function isBroadway(c) { return c.rank === 1 || c.rank === 10 || c.rank === 11 || c.rank === 12 || c.rank === 13; }
+    function broadwayPitchAvail(exclId) { return pl.hand.some(function (c) { return c.id !== exclId && isBroadway(c); }); }   // one definition of Broadway — keepsTheWin needs it too
     if (diff === 'minion') {                                    // barely uses effects — only a desperate shield gain
       while (guard++ < 3) {
         if (st.pending) return;
