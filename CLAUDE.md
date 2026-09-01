@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 208 + 28 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 342 + 34 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,8 +41,8 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 208 assertions, must end 0 FAIL
-node netview.test.js                            # netplay snapshot redaction — 28, must end 0 FAIL
+node test.js                                    # engine + AI suite — 342 assertions, must end 0 FAIL
+node netview.test.js                            # netplay snapshot redaction — 34, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
 node browsertest.js                             # headless duel smoke
@@ -1273,11 +1273,11 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.76 — 2026-09-01, every suite run serially, 70 suites and 0 FAIL** (a full sweep is
+Status as of **v1.31.77 — 2026-09-01, every suite run serially, 70 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
-`test` 333, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
+`test` 342, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 15, `sharetest` 16, `qrtest` 32, `peektest` 31, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 24, `sharetest` 16, `qrtest` 32, `peektest` 31, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -1285,7 +1285,7 @@ The 43 netplay suites: `nettest_3p` 7, `activate` 6, `actloop` 22, `ceremony` 9,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 14, `kick` 11, `log` 14, `losspick3` 7,
 `losspick_remote3` 6, `names` 8, `narrate` 10, `phantasm` 8, `prefight` 13, `react3` 7, `record` 12, `relay` 17,
-`reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 11,
+`reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
 `target3` 6, `trim` 14, `unready` 12, `version` 14.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
@@ -1444,6 +1444,22 @@ nowhere else.
 opponents' fights were always 0; and no player count was recorded at all. Opponents' fights are counted in
 **`buildOppBeats`**, the one place both drivers funnel through — the same reason readability features belong
 there. Any multiplayer export older than v1.31.5 is merged and fight-blank, and cannot be repaired.
+
+**A HOLD-BACK RULE MUST KNOW WHAT THE AI ALREADY SPENT (v1.31.77).** `chooseMove`'s jab branch has two rules
+about conserving a card — the **strategic pass** (concede a winnable jab when the hand is at or under
+`STRAT_PASS_MAX`) and **`safe`** (never break a pair to win a jab) — and both were blind to `nextPlayBoost`. So
+the AI cast Imbue with Power *specifically* to overtake a 2, then passed: `pickValueBoost` fires only when
+`boostEnablesWin` says the boost converts a loss into an overtake, which makes a banked boost **a decision to
+take this fight, made one activation earlier**, and the round reset zeroes it, so passing burns the card rather
+than deferring it. **Ask of any "hold this card for later" rule whether an earlier step in the same turn has
+already committed to now.**
+**THE RECORDED DIAGNOSIS BLAMED THE RESPONSE WINDOW AND WAS WRONG** — it reproduces with one `playPhase` call and
+one `chooseMove`, no window, no UI. The window theory came from an isolated Node check that passed 20/20; that
+check happened to stage a hand of more than five, which is exactly the condition under which the strategic pass
+does not fire. **A staging detail can be the whole variable — vary the hand size before believing a repro.**
+**AND THE OBVIOUS DETECTOR REPORTS A NULL RESULT.** "After a pass, is `nextPlayBoost` still set?" finds **1 in
+600** on the broken build, because a duel pass usually ends the round and the round reset clears the boost before
+`takeTurn` returns. Detect the turn LOG holding both a `BOOST` and a `pass`: **33 in 600, down to 4**.
 
 **A COMBO card reads as dead in every sim.** Counterfeit (♠8) helps on 25%/39% of its chances when the caster
 has an edge (own buff, or their pile debuffed by Caltrops ♠7 — both Rogue, both in the same deck), and ~3% when

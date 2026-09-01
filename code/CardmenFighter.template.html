@@ -4191,9 +4191,10 @@ __QR__
       /* A LESSON MAY FLY THE RIVAL ITSELF (Aj, 2026-09-01: *"we need the ai pilot to sequence this in a way
        * that's useful for the tutorial"*). A tutorial needs the opponent to demonstrate specific things in a
        * specific order; a difficulty tier cannot promise that, and measurement showed why — `minion` never uses
-       * effects at all, and `knight` does the right things in isolation but hits a real bug in a live game (it
-       * activates a value boost and then passes, see the BACKLOG). A pilot returns a log in exactly the AI's
-       * shape, so `buildOppBeats` presents it identically and nothing downstream can tell the difference. */
+       * effects at all, and `knight` used to activate a value boost and then pass (fixed in v1.31.77; the
+       * strategic pass was blind to `nextPlayBoost`), which is the kind of thing a tier can regress at any time.
+       * A pilot returns a log in exactly the AI's shape, so `buildOppBeats` presents it identically and nothing
+       * downstream can tell the difference. */
       var log=(tutorialMode && currentLesson && currentLesson.pilot)
               ? currentLesson.pilot(state, RIVAL)
               : AI.takeTurn(state, RIVAL, difficulty, [YOU]);   // [YOU] = suspend if you can answer a Quick

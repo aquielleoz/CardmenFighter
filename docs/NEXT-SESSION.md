@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**333**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**342**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including all 43 `nettest_*` suites and the ten `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.76.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.77.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.76**, working tree clean, full sweep green at **70 suites**. The only branch is
+`main` is at **v1.31.77**, working tree clean, full sweep green at **70 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -35,16 +35,18 @@ Expect **0 FAIL** from each. The two gate counts in the header above are asserte
 cannot drift; every other suite's expected count lives in **CLAUDE.md**, which is the authority. A full sweep is
 70 suites and ~10 minutes — background it, and **never two suites at once** (fixed ports).
 
-**The last four versions:** **v1.31.76** the 2 explains itself — reminder text on the card, derived from the live
-rules, plus a Basics lesson built on a deliberately illegal deck · **v1.31.75** `nettest_sync` learns to play a
-whole game, a deadlocked table stops passing, and `reassertMirror()` lands with a measured A/B · **v1.31.74**
+**The last four versions:** **v1.31.77** the AI stops throwing away the value boost it just paid for ·
+**v1.31.76** the 2 explains itself — reminder text on the card, derived from the live rules, plus a Basics
+lesson built on a deliberately illegal deck · **v1.31.75** `nettest_sync` learns to play a whole game, a
+deadlocked table stops passing, and `reassertMirror()` lands with a measured A/B · **v1.31.74**
 seven lesson suites and the enabled-but-inert control they found · **v1.31.73** the Quicks lesson was broken five
 ways.
 
-**⚑ WHERE TO PICK UP — the top of the BACKLOG, and the order changed on 2026-09-01.** The **AI boost-then-pass
-bug** is now first, ahead of the host/client fork, because it **reproduces on demand and affects every real
-game** where the AI boosts against a human who could counter, while the fork has not reproduced in 20 clean runs.
-Aj found it by asking whether the AI was at fault; it was.
+**⚑ WHERE TO PICK UP — the top of the BACKLOG.** The AI boost-then-pass bug shipped fixed in **v1.31.77**, and
+the residue it left behind is now the first entry: a boost can still be wasted when a LATER activation in the
+same turn spends the card it was banked for (4 games in 600, down from 33). That entry says explicitly not to
+fix it blind — read it before touching `playPhase`. Below it, the **host/client fork** `nettest_sync` catches is
+still open and still intermittent at roughly one run in four.
 
 **The "The 2" lesson is unusual and a fresh session will otherwise be baffled by it.** Three things it does that
 no other lesson does, all documented in the source and in CLAUDE.md:
@@ -72,28 +74,21 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 ### Correctness
 
-- **★ THE AI ACTIVATES A VALUE BOOST AND THEN PASSES, THROWING IT AWAY** (found 2026-09-01 while building the
-  "The 2" lesson; Aj suspected the AI before I did, and was right).
-  Observed in a real game, knight tier, from the battle log:
+- **AN ACTIVATION AFTER A BANKED BOOST CAN SPEND THE CARD THE BOOST WAS FOR** (measured 2026-09-01, while
+  fixing the boost-then-pass bug below it in the changelog). `playPhase` banks the boost and then keeps
+  looping, so a later pitch cost, transform or equip can remove the very card `boostEnablesWin` picked the
+  boost for — and the turn ends in a pass with the boost still banked. **Measured at 4 games in 600** knight-
+  tier duels (down from 33 before the `chooseMove` fix, which was the other 29), and every one of the four has
+  a further activation logged between the `BOOST` and the `pass`:
   ```
-  Rival played a Jab - A♦.          You played a Jab - 2♠.
-  Rival played a Technique - A♥ Imbue with Power — Increase the value of your next play by 2.
-  Rival passed.                     You won the round of Jabs.
+  ["BOOST","DRAW","DESTROY","TRANSFORM","pass"]     ["TRANSFORM","BOOST","EQUIP","DISCARD","pass"]
+  ["TRANSFORM","BOOST","RAMP","DISCARD","pass"]      ["BOOST","EQUIP","pass"]
   ```
-  Its 2 at 15+2=**17** beats the 2 on the table at 15. It identified the winning line (`pickValueBoost` only
-  fires when `boostEnablesWin` says a boost converts a loss into an overtake), spent the card to enable it, and
-  then passed.
-  **The engine is NOT at fault and neither is the boost logic** — both measured: `legalFightPlays` returns 0
-  without the boost and **1 with it**, and `applyEquip` reports 17 vs the pile's 15, `beats()` true.
-  **THE TRIGGER IS THE RESPONSE WINDOW.** Isolated in Node — no UI, no window machinery — `AI.takeTurn` does
-  `BOOST` and then the fight, **20 out of 20**. In a real game the cast is a Technique, so it is COUNTERABLE and
-  opens a respond window; `playPhase` has `if (st.pending) return;` and the turn suspends. On resume the Rival
-  passes with `nextPlayBoost` still banked, and the boost is lost when the round ends.
-  **Where to look:** how a suspended AI turn resumes after `st.pending` clears — the resume path appears not to
-  re-run the play decision, or runs it in a context that chooses `pass`. `chooseMove` itself is fine: with the
-  boost banked it has a legal play.
-  **Why it matters beyond the tutorial:** this fires whenever the AI boosts against a human who could counter,
-  which is every time. The AI looks like it is wasting cards at random.
+  **Do not fix it blind** — the honest repair is either to cast the boost LAST (after every other activation
+  has settled the hand) or to re-check `boostEnablesWin` before each subsequent `act`, and those are different
+  bets about which card matters more. Reproduce one of the four seeds first; the detector is a turn log holding
+  both a `BOOST` and a `pass`, which is the shape to keep because `nextPlayBoost` is cleared by the round reset
+  and so reads 0 by the time the pass returns.
 - **★ THE HOST/CLIENT FORK `nettest_sync` CATCHES — STILL OPEN.**
   Measured **1 failure in 8** on 2026-08-30 after the mirror dedupe, and **2-3 in 8** before it. At n=8 those
   are not distinguishable, so **do not read the dedupe as an improvement** — treat the rate as "roughly one run
@@ -441,6 +436,52 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.77 — the AI stops throwing away the value boost it just paid for
+
+Aj's battle log, knight tier:
+
+```
+Rival played a Jab - A♦.          You played a Jab - 2♠.
+Rival played a Technique - A♥ Imbue with Power — Increase the value of your next play by 2.
+Rival passed.                     You won the round of Jabs.
+```
+
+Its 2 sits at 15+2 = **17** against the 2 on the table at 15. It found the winning line, spent a card to enable
+it, and then declined to make it. Aj suspected the AI before I did, and was right.
+
+**THE RESPONSE WINDOW WAS THE RECORDED DIAGNOSIS AND IT IS INNOCENT.** The backlog entry said the trigger was the
+Technique being counterable — the cast opens a window, `playPhase` returns on `st.pending`, and the resume path
+was assumed not to re-run the play decision. It does: staged with a hand of six, the turn suspends four times,
+resumes four times and ends in `["BOOST","EQUIP","RAMP","DRAW","play"]`. **The bug reproduces with no window, no
+UI and no netplay at all** — one `AI.playPhase` call followed by one `AI.chooseMove`.
+
+**It is `chooseMove`'s jab branch, which has two hold-back rules and neither knows about `nextPlayBoost`:**
+- the **strategic pass** concedes a winnable jab whenever the hand is at or under `STRAT_PASS_MAX` (5) — which
+  is most late-game hands, and it fires in duels at every smart tier, i.e. the shipped configuration;
+- **`safe`** refuses to play a card that anchors a pair, and the boosted winner is often exactly that (a 2 with
+  its partner in hand).
+
+Both are good rules about *conserving* a card for later. They are wrong here because **a banked boost has
+already been paid for**: `pickValueBoost` casts only when `boostEnablesWin` says the boost converts a losing
+follow into an overtake, so the boost *is* a decision to take this fight, made one activation earlier — and
+`nextPlayBoost` is cleared by the round reset, so passing does not defer the card, it burns it. Now the
+strategic pass is skipped while a boost is banked, and a boosted turn with no `safe` option plays the most
+expendable winner rather than passing.
+
+**Measured, 600 knight-tier duels each way, detecting a turn log that holds both a `BOOST` and a `pass`:**
+**33 wasted boosts → 4.** Boost casts are unchanged (595 → 594), so the AI is not boosting more, it is finishing
+what it starts. The residue is a different bug and is now the top BACKLOG entry: a later activation in the same
+turn can spend the card the boost was banked for, and all four survivors have an activation logged between the
+`BOOST` and the `pass`.
+
+**The detector is the durable part.** The obvious probe — "after a pass, is `nextPlayBoost` still set?" — reports
+**1 in 600 on the broken build**, because a duel pass usually ends the round and the round reset zeroes the
+boost before the call returns. That is a null result on a bug firing 33 times. Read the turn's log instead.
+
+Three assertions in `test.js` (333 → 342 with the staging), each verified to discriminate by reintroducing the
+defect: the strategic-pass half, the `safe` half, and a **negative** — with nothing banked the strategic pass
+must still fire, so the fix cannot be "delete the hold-back". `test.js` **342** / `netview` **34**, 0 FAIL.
 
 ### v1.31.76 — the 2 explains itself, on the card and in a lesson of its own
 

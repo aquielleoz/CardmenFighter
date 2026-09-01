@@ -746,6 +746,55 @@ function cards(ids) { return ids.map(card); }
 })();
 
 
+// ===== A BANKED VALUE BOOST MUST BE SPENT ON THE FIGHT IT BOUGHT (v1.31.77) =====
+/* Aj's log, knight tier: "Rival played a Technique - A♥ Imbue with Power" then "Rival passed", holding a 2 that
+ * the boost puts at 17 against the 2 on the table at 15. The response window was suspected and is innocent —
+ * this reproduces with no window and no UI. `chooseMove`'s jab branch has two hold-back rules, and both are
+ * blind to `nextPlayBoost`: the strategic pass fires on hand length alone, and `safe` refuses a card anchoring
+ * a pair. `pickValueBoost` had already decided this fight was worth a card, and the boost dies at round end. */
+(function () {
+  function mk(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  // seat 1 follows a lone 2 (value 15) holding the other 2 — a tie, so nothing is legal until the boost lands.
+  function staged(handExtra) {
+    var g = E.newGame(null, { numPlayers: 2 });
+    g.round = 3; g.turn = 1; g.passes = 0;
+    g.players[1].hand = [mk(1, 'H'), mk(2, 'D')].concat(handExtra || []);          // A♥ = Imbue with Power (+2)
+    g.players[1].energy = []; for (var i = 0; i < 12; i++) g.players[1].energy.push(mk(3, 'H', 'e' + i));
+    var combo = E.detectCombo([mk(2, 'S')]);
+    g.pile = { combo: combo, byPlayer: 0, raw: combo.value, rawKey0: combo.key[0], lockedDelta: 0, mod: 0 };
+    g.lastPlayer = 0;
+    return g;
+  }
+  var g1 = staged([mk(9, 'C')]);
+  ok(E.legalFightPlays(g1, 1).length === 0, 'staged: the 2 only TIES the pile, so nothing is legal yet');
+  var log1 = [];
+  AI.playPhase(g1, 1, log1, 'knight', []);
+  ok(log1.length === 1 && log1[0].play === 'BOOST', 'boost: knight casts Imbue with Power to enable the overtake');
+  ok(g1.players[1].nextPlayBoost === 2 && E.legalFightPlays(g1, 1).length === 1,
+     'boost: …and the banked +2 makes exactly one play legal');
+  /* THE BUG: hand length 2 is under STRAT_PASS_MAX, so the strategic pass threw the card away. It only fires
+   * in a duel at a smart tier, which is the shipped duel configuration. */
+  ok(AI.chooseMove(g1, 1, 'knight').action === 'play', 'boost: the strategic pass must NOT discard the fight the boost paid for');
+  var mv1 = AI.chooseMove(g1, 1, 'knight');
+  ok(!!mv1.cards && mv1.cards.length === 1 && mv1.cards[0].rank === 2, 'boost: …and it plays the boosted 2 that wins it');
+
+  // the OTHER hold-back rule, reached when the winning card also anchors a pair
+  var g2 = staged([mk(2, 'H'), mk(9, 'C')]);
+  var log2 = [];
+  AI.playPhase(g2, 1, log2, 'knight', []);
+  ok(g2.players[1].nextPlayBoost === 2, 'staged: the boost is banked with a pair of 2s in hand');
+  ok(AI.chooseMove(g2, 1, 'knight').action === 'play', 'boost: "don’t break a Special" must not discard it either');
+
+  // the hold-backs are UNTOUCHED with no boost banked — the fix must not simply delete the strategic pass
+  var g3 = staged([mk(9, 'C')]);
+  g3.players[1].hand = [mk(9, 'C'), mk(4, 'H')];                       // a plain winnable jab, low hand
+  var lowPile = E.detectCombo([mk(3, 'S')]);
+  g3.pile = { combo: lowPile, byPlayer: 0, raw: lowPile.value, rawKey0: lowPile.key[0], lockedDelta: 0, mod: 0 };
+  ok(E.legalFightPlays(g3, 1).length > 0 && !g3.players[1].nextPlayBoost, 'staged: a winnable jab, low hand, no boost');
+  ok(AI.chooseMove(g3, 1, 'knight').action === 'pass', 'boost: with nothing banked the strategic pass still fires');
+})();
+
+
 // ===== PHANTASMAL ILLUSION — the copy, restored (v1.31.6) =====
 // Aj's design: the copy takes the BASE card values, is then subject to boosts and debuffs, and you MAY swap
 // one card in. A bare copy ties, and ties never win — so you always need one of the three.

@@ -490,11 +490,22 @@
         if (ef && ef.quick) return false;                                  // don't burn a Quick on a jab
         return true;
       });
+      /* A BANKED BOOST HAS ALREADY BEEN PAID FOR, SO NEVER DECLINE THE FIGHT IT BOUGHT. `pickValueBoost` only
+       * casts when `boostEnablesWin` says a boost converts a losing follow into an overtake — so a banked boost
+       * IS a decision to take this fight, made one step earlier. Both hold-back rules below then threw it away:
+       * the strategic pass fires on hand length alone (<=5), and `safe` refuses a card that anchors a pair — and
+       * `nextPlayBoost` is cleared at the end of the round, so the pass wastes the card outright rather than
+       * deferring it. Aj's log: Imbue with Power, then "Rival passed" with the boosted 2 unbeatable in hand. */
+      var boosted = (st.players[p].nextPlayBoost || 0) > 0;
       if (safe.length) {
         // strategic pass (Demon only, 1v1): conserve hand for Specials by conceding a jab when low
-        if (strategicPass && mayStratPass(st, p) && wantsStratPass(st, p)) { stratPasses++; return { action: 'pass' }; }
+        if (!boosted && strategicPass && mayStratPass(st, p) && wantsStratPass(st, p)) { stratPasses++; return { action: 'pass' }; }
         safe.sort(function (a, b) { return a.combo.value - b.combo.value; }); return { action: 'play', cards: safe[0].cards };
       }
+      // every option already BEATS the pile; singles are keepOf-sorted, so singles[0] is the cheapest card to let
+      // go. `options[0]` is the fallback because a CHOP answers a lone 2 with a multi-card shape (chopReach), so
+      // "the pile is a single" does not guarantee that a single is on offer.
+      if (boosted) return { action: 'play', cards: (singles[0] || options[0]).cards };
       return { action: 'pass' };
     }
     // a Special pile — only a bigger Special beats it
