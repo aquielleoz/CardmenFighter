@@ -22,42 +22,45 @@ live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.76**, working tree clean. The only branch is **`feat/qr-scanning`** (parked, built, green at
-21/0 — see the BACKLOG entry for the condition that would revive it). Everything else is merged and pruned.
+`main` is at **v1.31.76**, working tree clean, full sweep green at **70 suites**. The only branch is
+**`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
-**Sanity check before you touch anything** (from `code/`, ~1 minute):
+**Sanity check** (from `code/`, ~1 minute):
 
 ```bash
 npm test && node mptest.js && node landscapetest.js
 ```
 
-Expect **0 FAIL** from each. The two gate counts in the header above are **asserted by `versiontest`**, which
-runs both suites and compares, so they cannot drift; every other suite's expected count lives in **CLAUDE.md**,
-which is the authority and says so. A **full sweep is 69 suites and takes ~10 minutes** — run it in the
-background, and **never two suites at once** (they bind fixed ports). Verified green in full at v1.31.75.
+Expect **0 FAIL** from each. The two gate counts in the header above are asserted by `versiontest`, so they
+cannot drift; every other suite's expected count lives in **CLAUDE.md**, which is the authority. A full sweep is
+70 suites and ~10 minutes — background it, and **never two suites at once** (fixed ports).
 
-**What the last four versions were** (the changelog has each in full):
-**v1.31.75** `nettest_sync` learns to play a whole game — it answers clean-up picks and every window — a
-deadlocked table stops passing, and `reassertMirror()` lands with a measured A/B · **v1.31.74** seven lesson
-suites, so all ten lessons are covered, plus the enabled-but-inert control they found · **v1.31.73** the Quicks
-lesson was broken five ways · **v1.31.72** one `resolveIds`, not two.
+**The last four versions:** **v1.31.76** the 2 explains itself — reminder text on the card, derived from the live
+rules, plus a Basics lesson built on a deliberately illegal deck · **v1.31.75** `nettest_sync` learns to play a
+whole game, a deadlocked table stops passing, and `reassertMirror()` lands with a measured A/B · **v1.31.74**
+seven lesson suites and the enabled-but-inert control they found · **v1.31.73** the Quicks lesson was broken five
+ways.
 
-**⚑ WHERE TO PICK UP.** The BACKLOG below is ranked and its top item is still the right one: **the host/client
-fork**. Two days of work have narrowed it a great deal without closing it, and the entry now records what is
-settled, what was tried and withdrawn, and what the probe of 2026-09-01 actually proved. **Read that entry before
-theorising** — three hypotheses are already eliminated with evidence, and one fix was built, refuted and
-re-justified.
+**⚑ WHERE TO PICK UP — the top of the BACKLOG, and the order changed on 2026-09-01.** The **AI boost-then-pass
+bug** is now first, ahead of the host/client fork, because it **reproduces on demand and affects every real
+game** where the AI boosts against a human who could counter, while the fork has not reproduced in 20 clean runs.
+Aj found it by asking whether the AI was at fault; it was.
 
-**The two habits that produced everything above, both learned expensively:**
-- **Write the prediction down BEFORE the experiment.** The 2026-09-01 probe was built to confirm that a lost
-  mirror deadlocks the table. It refuted that — two divergences, zero stalls — and the only reason that
-  registered as a refutation rather than a partial success is that the prediction was on record first.
-- **Assert agreement AND liveness.** `nettest_sync` compared the two peers' state and passed a table where
-  nobody could act, because a dead table is a perfectly consistent one.
+**The "The 2" lesson is unusual and a fresh session will otherwise be baffled by it.** Three things it does that
+no other lesson does, all documented in the source and in CLAUDE.md:
+- it runs on a **deliberately illegal deck** (`tutCard` fabricates cards — the Rival needs six 2s and a seat
+  holds four), and `tutDropDupes` keeps the player's HAND looking legal;
+- the Rival is flown by a **per-lesson `pilot`** (`lsn.pilot`) instead of `AI.takeTurn`, because a difficulty
+  tier cannot promise a sequence;
+- each gated step **names the exact cards it accepts** (`only`), so ignoring the instructions cannot dead-end it.
+`pilot` and `only` are general hooks but currently serve one lesson — worth revisiting if nothing else needs
+them, rather than assuming they earn their keep.
 
-**And one about this document:** two things Aj agreed to were never written down here (a tutorial for the 2, and
-opening the battle log as an overlay) and surfaced only because he asked what was missing. Working notes are not
-the record. **If it was agreed, it goes in the BACKLOG the same day.**
+**READ THE FIVE MECHANICAL HABITS IN CLAUDE.md BEFORE STARTING.** They are not engineering lessons; each one cost
+real time on 2026-09-01, and one of them cost *Aj* three rounds of screenshots against a stale file. Briefly: use
+`Edit` rather than a `python3` heredoc for anchored replacements; absolute paths in every command; `cp` the built
+HTML to the repo root after **every** build; never rebuild while a batch is running; and copy the retry when you
+add a UI helper.
 
 ## BACKLOG (open work only — completed items live in the changelog below)
 
@@ -69,7 +72,29 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 ### Correctness
 
-- **★ THE HOST/CLIENT FORK `nettest_sync` CATCHES — STILL OPEN. Start here.**
+- **★ THE AI ACTIVATES A VALUE BOOST AND THEN PASSES, THROWING IT AWAY** (found 2026-09-01 while building the
+  "The 2" lesson; Aj suspected the AI before I did, and was right).
+  Observed in a real game, knight tier, from the battle log:
+  ```
+  Rival played a Jab - A♦.          You played a Jab - 2♠.
+  Rival played a Technique - A♥ Imbue with Power — Increase the value of your next play by 2.
+  Rival passed.                     You won the round of Jabs.
+  ```
+  Its 2 at 15+2=**17** beats the 2 on the table at 15. It identified the winning line (`pickValueBoost` only
+  fires when `boostEnablesWin` says a boost converts a loss into an overtake), spent the card to enable it, and
+  then passed.
+  **The engine is NOT at fault and neither is the boost logic** — both measured: `legalFightPlays` returns 0
+  without the boost and **1 with it**, and `applyEquip` reports 17 vs the pile's 15, `beats()` true.
+  **THE TRIGGER IS THE RESPONSE WINDOW.** Isolated in Node — no UI, no window machinery — `AI.takeTurn` does
+  `BOOST` and then the fight, **20 out of 20**. In a real game the cast is a Technique, so it is COUNTERABLE and
+  opens a respond window; `playPhase` has `if (st.pending) return;` and the turn suspends. On resume the Rival
+  passes with `nextPlayBoost` still banked, and the boost is lost when the round ends.
+  **Where to look:** how a suspended AI turn resumes after `st.pending` clears — the resume path appears not to
+  re-run the play decision, or runs it in a context that chooses `pass`. `chooseMove` itself is fine: with the
+  boost banked it has a legal play.
+  **Why it matters beyond the tutorial:** this fires whenever the AI boosts against a human who could counter,
+  which is every time. The AI looks like it is wasting cards at random.
+- **★ THE HOST/CLIENT FORK `nettest_sync` CATCHES — STILL OPEN.**
   Measured **1 failure in 8** on 2026-08-30 after the mirror dedupe, and **2-3 in 8** before it. At n=8 those
   are not distinguishable, so **do not read the dedupe as an improvement** — treat the rate as "roughly one run
   in four" until someone runs enough replicates to say better.
@@ -202,28 +227,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   cannot invent a malformed card. It could and did; the ranking was wrong, and Aj's follow-up ("loaded a bit
   later") is what corrected it.
 
-- **★ THE AI ACTIVATES A VALUE BOOST AND THEN PASSES, THROWING IT AWAY** (found 2026-09-01 while building the
-  "The 2" lesson; Aj suspected the AI before I did, and was right).
-  Observed in a real game, knight tier, from the battle log:
-  ```
-  Rival played a Jab - A♦.          You played a Jab - 2♠.
-  Rival played a Technique - A♥ Imbue with Power — Increase the value of your next play by 2.
-  Rival passed.                     You won the round of Jabs.
-  ```
-  Its 2 at 15+2=**17** beats the 2 on the table at 15. It identified the winning line (`pickValueBoost` only
-  fires when `boostEnablesWin` says a boost converts a loss into an overtake), spent the card to enable it, and
-  then passed.
-  **The engine is NOT at fault and neither is the boost logic** — both measured: `legalFightPlays` returns 0
-  without the boost and **1 with it**, and `applyEquip` reports 17 vs the pile's 15, `beats()` true.
-  **THE TRIGGER IS THE RESPONSE WINDOW.** Isolated in Node — no UI, no window machinery — `AI.takeTurn` does
-  `BOOST` and then the fight, **20 out of 20**. In a real game the cast is a Technique, so it is COUNTERABLE and
-  opens a respond window; `playPhase` has `if (st.pending) return;` and the turn suspends. On resume the Rival
-  passes with `nextPlayBoost` still banked, and the boost is lost when the round ends.
-  **Where to look:** how a suspended AI turn resumes after `st.pending` clears — the resume path appears not to
-  re-run the play decision, or runs it in a context that chooses `pass`. `chooseMove` itself is fine: with the
-  boost banked it has a legal play.
-  **Why it matters beyond the tutorial:** this fires whenever the AI boosts against a human who could counter,
-  which is every time. The AI looks like it is wasting cards at random.
 
 ### Things a playtester meets immediately
 
