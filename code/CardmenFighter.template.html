@@ -6308,7 +6308,7 @@ __QR__
       netReact={ kind:'discard', seat:seat, g:g, resume:resume };
       busy=true;
       $('rivalStatus').textContent=logName(seat)+' is discarding to hand size…';
-      render(); broadcastMirror(); maybePasso(seat);
+      render(); reassertMirror(); maybePasso(seat);
       return true;
     }
     function isRemoteHumanSeat(seat){ return !!(isHost() && started && seatCtrl && seatCtrl[seat]==='remote'); }
@@ -6867,8 +6867,18 @@ __QR__
       sendTo(s, msg);
     }
   }   // per-seat (a seat's private hand never reaches another peer)
+  /* PARKING IS THE ONE MOMENT THE DEDUPE MUST NOT APPLY.
+   * `broadcastMirror` skips a seat whose mirror is byte-identical to the last one sent — right, because 97% of
+   * them were duplicates from the render storm (v1.31.65) — and `lastMirror` is otherwise cleared ONLY when a
+   * channel is (re)bound. While play continues that is harmless: the next state change makes a fresh mirror.
+   * It stops being harmless the moment the host PARKS, because then its state deliberately stops changing, so
+   * a client that missed the last mirror has nothing to correct it and no reason to act.
+   * DEMONSTRATED: dropping one turn-handover mirror on purpose leaves the two peers disagreeing for longer than
+   * the suite's 6s settle window — the recorded fork's "persistent, not mid-flight" signature — and the
+   * disagreement clears as soon as anything re-asserts. Cost: one extra mirror per park. */
+  function reassertMirror(){ lastMirror={}; broadcastMirror(); }
     function onRender(){ if(isHost() && started && hostState) broadcastMirror(); }   // hook: keep the client's board in lockstep
-    function awaitRival(){ trace('awaitRival', 'host parks, waiting for a client move'); busy=true; $('rivalStatus').textContent='Waiting for opponent…'; render(); broadcastMirror(); }   // park; client will send a move
+    function awaitRival(){ trace('awaitRival', 'host parks, waiting for a client move'); busy=true; $('rivalStatus').textContent='Waiting for opponent…'; render(); reassertMirror(); }   // park; client will send a move
     /* THE OTHER HALF OF awaitRival, and it was missing (found 2026-08-28 from Aj's first real relay game).
      * awaitRival sets TWO things — `busy` and the "Waiting for opponent…" text — and every path that handed
      * control back cleared only `busy`. So the host's board went live while its screen still said the rival was

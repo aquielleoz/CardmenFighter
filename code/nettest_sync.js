@@ -102,7 +102,46 @@ let mock=null;
     }
     return { ok:false, why:last };
   }
-  const t0=Date.now(); let acted=0, drift=null, worst=0;
+  /* ANSWER A CLEAN-UP PICK. `renderHand`'s pick branch appends FLAT `.card` elements straight into `#hand`
+   * with no `.group` wrapper, so a direct-child card is a reliable structural detector for pick mode.
+   * WHY THIS IS HERE: without it the suite deadlocks ITSELF. Every seat but the local one is auto-trimmed, so
+   * the HOST's own end-of-round pick is the only one that stops play (`nettest_trim` documents exactly this) —
+   * and `act()` only ever clicked Fight or Pass. The moment the host ended a round holding more than MAX_HAND
+   * it sat on its picker forever, both sides reading `myTurn=false`, and the run spun out its wall clock. The
+   * client even displayed "Rival is discarding to hand size…" throughout, which is the game working correctly.
+   * A pick is confirmed with FIGHT (`$('fightBtn')` is wired `pick ? confirmPick() : doFight()`). */
+  /* EVERY WINDOW THE GAME CAN PARK ON, answered with the MINIMAL choice. The point of this suite is to keep a
+   * real game moving so the two peers can be compared; exercising what each window DOES is the job of the
+   * suites built for it (`nettest_counter`, `nettest_guard`, `nettest_prefight`). Declining is also the
+   * deterministic choice — springing a Quick sometimes would make runs diverge from each other for reasons
+   * that have nothing to do with the fork.
+   * At 2 players and with a suite that never activates an effect, only the shield guard and the clean-up pick
+   * can actually fire — but answering all of them costs nothing and stops the next added mechanic from
+   * silently re-introducing a harness stall. */
+  const WINDOWS=[['sgNo','shield guard'],['pfDecline','pre-fight Back Stab'],['respDecline','Respond?']];
+  const openWindow=p=>p.evaluate(w=>{ for(const [id,label] of w){ const el=document.getElementById(id);
+      if(el && el.offsetParent) return {id:id, label:label}; } return null; }, WINDOWS);
+  const answerWindow=p=>p.evaluate(w=>{ for(const [id,label] of w){ const el=document.getElementById(id);
+      if(el && el.offsetParent){ el.click(); return label; } } return null; }, WINDOWS);
+  const inPick=p=>p.evaluate(()=>!!document.querySelector('#hand > .card'));
+  const answerPick=p=>p.evaluate(()=>{
+    const cards=[].slice.call(document.querySelectorAll('#hand > .card'));
+    for(const c of cards){
+      c.click();
+      const f=document.getElementById('fightBtn');
+      if(f && !f.disabled){ f.click(); return 'confirmed'; }
+    }
+    return 'could not satisfy the pick';
+  });
+  const t0=Date.now(); let acted=0, drift=null, stall=null, worst=0, picks=0, windows=0;
+  /* A DEADLOCK USED TO PASS THIS SUITE. The loop's `else` branch just waited when neither side was on turn, so
+   * a table where NOBODY can act spun here for the full 120s and fell out with `drift===null` — and the two
+   * assertions below (no divergence; round >= 2) both still passed. That is the exact failure a lost mirror
+   * produces when the mirror it lost was the one handing the turn over: the hands still AGREE, so the
+   * divergence check cannot see it, while the host sits in `awaitRival` and the client never learns it is on
+   * turn. Fifteen seconds is far longer than any legitimate pause here (the longest is the round ceremony plus
+   * `revealDwell`, ~5s) and far shorter than the wall-clock budget. */
+  let idleSince=null;
   while(Date.now()-t0 < 120000 && acted < 60){
     /* Six seconds is far longer than a mirror round-trip on loopback and far shorter than "somebody played a
      * whole evening", so it separates the two cases cleanly. */
@@ -110,9 +149,35 @@ let mock=null;
     if(!st.ok){ drift=st.why; break; }
     if(st.h.finished || st.j.finished) break;
     worst=Math.max(worst,st.h.round);
-    if(st.h.myTurn){ const r=await act(host); if(r==='played'||r==='passed') acted++; }
-    else if(st.j.myTurn){ const r=await act(join); if(r==='played'||r==='passed') acted++; }
-    else await wait(200);
+    /* Picks first: during one NEITHER side reports `myTurn`, so this must be checked before the turn
+     * branches or the loop falls straight through to the idle path and stalls. Not counted as an action —
+     * a pick is bookkeeping, and letting it eat the 60-action budget would cut the game short. */
+    if(await inPick(host)){ await answerPick(host); picks++; idleSince=null; continue; }
+    if(await inPick(join)){ await answerPick(join); picks++; idleSince=null; continue; }
+    { const w=await answerWindow(host) || await answerWindow(join);
+      if(w){ windows++; idleSince=null; continue; } }
+    if(st.h.myTurn){ const r=await act(host); if(r==='played'||r==='passed') acted++; idleSince=null; }
+    else if(st.j.myTurn){ const r=await act(join); if(r==='played'||r==='passed') acted++; idleSince=null; }
+    else {
+      if(idleSince===null) idleSince=Date.now();
+      else if(Date.now()-idleSince > 15000){
+        /* CLASSIFY THE STALL, because "nobody can act" has two very different causes and only one of them is
+         * the game's fault. An UNANSWERED WINDOW means this harness does not know how to play some part of the
+         * game — add it to WINDOWS. NO window open, nobody on turn, and nothing in a pick means the table is
+         * genuinely wedged, which is the product bug this detector exists to catch. */
+        const hw=await openWindow(host), jw=await openWindow(join);
+        const hp=await inPick(host), jp=await inPick(join);
+        const why = hw ? ('HARNESS GAP — an unanswered "'+hw.label+'" window is open on the HOST')
+                  : jw ? ('HARNESS GAP — an unanswered "'+jw.label+'" window is open on the CLIENT')
+                  : (hp||jp) ? 'HARNESS GAP — a card pick is open and was not satisfied'
+                  : 'GENUINELY WEDGED — no window is open and neither side is on turn';
+        stall=why+'; 15s at round '+st.h.round+
+              ' (host says turn='+st.h.turn+', client says turn='+st.j.turn+
+              '; host myTurn='+st.h.myTurn+', client myTurn='+st.j.myTurn+')';
+        break;
+      }
+      await wait(200);
+    }
   }
   /* A RED RUN MUST NAME ITS OWN CAUSE. This used to report the mismatch SENTENCE and nothing else, so the
    * card-id detail and the mirror lifecycle in the backlog entry came from bespoke instrumentation that was
@@ -120,7 +185,7 @@ let mock=null;
    * conclusions like "no HELD events" could not be re-checked nine versions later. Now a failure dumps both
    * hands' card IDS (the gap names the round's deal outright) and the tail of BOTH peers' traces, where the
    * `mirror IN` / `mirror HELD` / `mirror HELD -> DISCARDED` / `mirror APPLIED` sequence lives. */
-  if(drift){
+  if(drift || stall){
     /* `__cmf.hand()` / `handOf()` ALREADY RETURN ID STRINGS — they map `c.id` internally. The first draft here
      * mapped `c=>c.id` again, so every id came out `undefined`: the dump printed blank hands AND the "missing
      * ids" line then confidently reported "the gap is elsewhere". A diagnostic that states a wrong conclusion
@@ -131,9 +196,19 @@ let mock=null;
      * repeats collapsed — so take them as they are. An earlier draft here mapped over `.line`/`.n` as though
      * they were objects; it happened to work via String(e) and would have quietly implied a shape that does
      * not exist. */
-    const tr=p=>p.evaluate(()=>(window.__cmfTrace?window.__cmfTrace():[]).slice(-24));
+    const tr=p=>p.evaluate(()=>(window.__cmfTrace?window.__cmfTrace():[]).slice(-40));
+    /* WHY IS EACH SIDE UNABLE TO ACT? For a stall that is the whole question, and the answer is on screen:
+     * since v1.31.74 `updateActions` writes "Hold on — the board is still resolving." into `#hint` whenever
+     * `busy` is set, so a host showing THAT on its own turn is a stuck `busy` — confirmed rather than inferred.
+     * `#rivalStatus` is the other half of `awaitRival` (it sets both, and every path that hands control back
+     * must clear both — the v1.31.49 lesson). */
+    const ui=p=>p.evaluate(()=>['turnTag','hint','rivalStatus','message']
+      .map(id=>id+'="'+(((document.getElementById(id)||{}).textContent)||'').trim().slice(0,60)+'"').join('  '));
     const hi=await ids(host), ji=await ids(join), ht=await tr(host), jt=await tr(join);
-    console.log('\n--- DIVERGENCE DETAIL -------------------------------------------------');
+    const hu=await ui(host), ju=await ui(join);
+    console.log('\n--- '+(drift?'DIVERGENCE':'STALL')+' DETAIL ------------------------------------------------');
+    console.log('HOST   ui: '+hu);
+    console.log('CLIENT ui: '+ju);
     console.log('HOST   own hand   ('+hi.mine.length+'): '+hi.mine.join(' '));
     console.log('HOST   sees seat1 ('+hi.theirs.length+'): '+hi.theirs.join(' '));
     console.log('CLIENT own hand   ('+ji.mine.length+'): '+ji.mine.join(' '));
@@ -142,12 +217,13 @@ let mock=null;
     if(!usable) console.log('IDS UNUSABLE — cannot say what is missing (host '+JSON.stringify(hi.theirs.slice(0,3))+' client '+JSON.stringify(ji.mine.slice(0,3))+')');
     else { const missing=hi.theirs.filter(x=>ji.mine.indexOf(x)<0);
       console.log('IDS THE CLIENT IS MISSING: '+(missing.length?missing.join(' '):'(none — the counts differ but the ids agree, so the gap is elsewhere)')); }
-    console.log('--- HOST trace (last 24) ---');   ht.forEach(l=>console.log('   '+l));
-    console.log('--- CLIENT trace (last 24) ---'); jt.forEach(l=>console.log('   '+l));
+    console.log('--- HOST trace (last 40) ---');   ht.forEach(l=>console.log('   '+l));
+    console.log('--- CLIENT trace (last 40) ---'); jt.forEach(l=>console.log('   '+l));
     console.log('----------------------------------------------------------------------\n');
   }
   ok(drift===null, 'the two sides never diverge while a real game is played over the relay'+(drift?'  ← DIVERGED: '+drift:''));
-  ok(worst>=2, 'and the game got past round 1 legally — round '+worst+' reached, '+acted+' actions');
+  ok(stall===null, 'and the table never deadlocks — both sides keep being able to act'+(stall?'  ← STALLED: '+stall:''));
+  ok(worst>=2, 'and the game got past round 1 legally — round '+worst+' reached, '+acted+' actions, '+picks+' clean-up picks, '+windows+' windows answered');
 
   /* ONE EVENT, ONE LOG LINE. A client used to narrate every round resolution twice — once from its own
    * ceremony replay, once from the host's broadcast — so its log ran at exactly 2x the host's for round wins
