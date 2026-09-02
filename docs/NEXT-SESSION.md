@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.87.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.88.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.87**, working tree clean, full sweep green at **71 suites**. The only branch is
+`main` is at **v1.31.88**, working tree clean, full sweep green at **71 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -84,16 +84,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   the ceremony teardown (v1.31.67) are both candidates and neither has been demonstrated.
   Likely the same root cause as the `nettest_sync` fork at the top of this list; chase that one first, since it
   reproduces on demand and this does not.
-- **CARDS CAN PAINT BEFORE THEY HAVE A RANK** — two rendered as `0 undefined 0` on Aj's phone and then
-  corrected themselves a moment later (*"the undefined cards loaded a bit later"*). Cosmetic, transient, and the
-  residue of the 2026-08-28 relay game: **the desync it came with was a real bug and is fixed in v1.31.49** (see
-  the changelog — `awaitRival` set two things and every path that handed control back cleared one). Worth
-  guarding anyway: a card with no rank should not render at all.
-  Note I initially ranked this as *"possibly the more diagnostic of the two"* on the theory that a UI stall
-  cannot invent a malformed card. It could and did; the ranking was wrong, and Aj's follow-up ("loaded a bit
-  later") is what corrected it.
-
-
 ### Things a playtester meets immediately
 
 - **SEAT 0 ALWAYS LEADS ROUND 1, SO THE HOST ALWAYS LEADS ONLINE** (Aj: *"in net play it seems like the host
@@ -298,6 +288,40 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.88 — "not synced" is said out loud, instead of the board just sitting there
+
+Aj: *"i think it's better to just warn the client that their game has not synced instead of let them continue the
+game"* — and it is the right shape, because `0 undefined 0`, phantom rounds and a client header three rounds
+ahead of the host are all one thing wearing three faces: **the board in front of you is not the game.**
+
+**THE FIRST DESIGN WAS WRONG AND THE CODEBASE SAID SO.** The obvious detector is a gap in the mirror sequence —
+the client provably missed one, so warn. But **a mirror is a full SNAPSHOT, not a delta**, so any later mirror
+makes a missed one irrelevant; that detector fires constantly on the render storm's ordinary behaviour and is
+pure noise. It is the same property that made the host/client fork so hard to catch (v1.31.80).
+
+**What "out of sync" actually means here is narrower, and it is exactly the reported symptom: this seat acted,
+and nothing came back.** The client already sets `busy` when it sends, so input was ALREADY blocked — what was
+missing was any indication of why. That is the whole "I pressed Pass and nothing happened" experience: not a
+dropped click, a board showing state the host never confirmed.
+
+Five seconds after an intent with no mirror, the existing `#disconBar` carries **"Not synced with the host. Your
+last move has not come back — this board may be out of date."**, the controls stay disabled, and it lifts the
+instant a mirror lands. Reusing that bar rather than inventing a second channel keeps one place where the
+netplay layer tells you something is wrong.
+
+**A CARD WITH NO RANK IS NOT A CARD.** The `0 undefined 0` pair from the 2026-08-28 relay game was
+`rankLabel(undefined)` and `SUIT_SYMBOL[undefined]`, so `cardEl` guards its input rather than each use and
+renders a dim dashed placeholder — which is honestly what it is, a card still arriving.
+
+New suite **`nettest_desync.js`** (7), and both directions discriminate: neutering the watchdog loses the
+warning, neutering the clear leaves it stuck — **which would be worse than none**.
+`__cmf.dropMirrors(seat, n)` now RESETS on `n <= 0`, so a suite can stop dropping and prove the recovery half.
+
+**One thing the test surfaced that is worth keeping:** the banner would not clear at first, because
+`broadcastMirror` dedupes by CONTENT and the dropped sends had already recorded that content as delivered
+(`lastMirror[s]` is set before the drop, modelling a host that believes it sent). Nothing goes out until the
+host's state actually moves — the same property `reassertMirror` exists for at the park points.
 
 ### v1.31.87 — the end screen stops painting itself back over whatever you opened
 
