@@ -26,7 +26,7 @@ const banner=p=>p.evaluate(()=>{
 });
 const logHas=(p,re)=>p.evaluate(r=>[].some.call(document.querySelectorAll('#log .le'),e=>new RegExp(r,'i').test(e.textContent||'')), re.source||re);
 (async()=>{
-  await new Promise(r=>srv.listen(PORT,r));
+  await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>'))); srv.listen(PORT,r); });
   const b=await chromium.launch(LAUNCH);
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
   const shipped=(fs.readFileSync(path.resolve(DIR,'CardmenFighter.html'),'utf8').match(/GAME_VERSION='([^']+)'/)||[])[1];

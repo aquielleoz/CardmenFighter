@@ -35,7 +35,7 @@ const BAD = [/\bYou is\b/, /\bYou has\b/, /\bYou moves\b/, /\bYou plays\b/, /\bY
 const badLines = lines => lines.filter(l => BAD.some(rx => rx.test(l)));
 
 (async()=>{
-  await new Promise(r=>srv.listen(PORT,r));
+  await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>'))); srv.listen(PORT,r); });
   const b=await chromium.launch(LAUNCH);
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));

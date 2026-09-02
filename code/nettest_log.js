@@ -20,7 +20,7 @@ async function waitHand(p){ for(let i=0;i<60;i++){ if((await p.evaluate(()=>docu
 async function waitLog(p,re){ for(let i=0;i<150;i++){ if((await log(p)).some(l=>re.test(l))) return true; await wait(150); } return false; }
 async function waitTurn(p,seat){ for(let i=0;i<200;i++){ if((await turnOf(p))===seat) return true; await wait(150); } return false; }
 (async()=>{
-  await new Promise(r=>srv.listen(PORT,r));
+  await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>'))); srv.listen(PORT,r); });
   const b=await chromium.launch(LAUNCH); const ctx=await b.newContext({viewport:{width:1150,height:860}}); const errs=[];
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));
   const join=await ctx.newPage(); join.on('pageerror',e=>errs.push('join: '+e.message));

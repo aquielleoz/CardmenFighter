@@ -25,6 +25,13 @@ const path = require('path'), fs = require('fs');
 const args = process.argv.slice(2);
 const jobs = Math.max(1, parseInt((args[args.indexOf('-j') + 1]) || '4', 10) || 4);
 const fast = args.includes('--fast');
+/* A PER-SUITE TIMEOUT, because the runner was the other half of the silent-hang problem. `srv.listen` now
+ * rejects on EADDRINUSE (fixed the same day), but a suite can still wedge for other reasons — a browser
+ * that never launches, a poll that never settles — and without this it would hold a lane forever while the
+ * sweep looked merely slow. Generous on purpose: the slowest suite is ~66s alone and `nettest_sync` has
+ * reached 125s under load, so 300s is 2.4x the worst seen. SIGKILL the whole process GROUP, not just node:
+ * the child spawns chromium, and a killed parent cannot clean those up. */
+const TIMEOUT_MS = (parseInt(args[args.indexOf('--timeout') + 1], 10) || 300) * 1000;
 
 /* The six slowest, measured. `--fast` skips them: they are layout / smoke / multiplayer-parity / export, they
  * change rarely, and they are 51% of the wall clock. NEVER put a netplay suite in here — all 44 together are
@@ -47,10 +54,16 @@ let next = 0, port = 8600;
 function runOne(file, lane) {
   return new Promise(res => {
     const started = Date.now();
-    const p = spawn('node', [file], { cwd: here, env: Object.assign({}, process.env, { PORT: String(port++) }) });
-    let out = '';
+    const p = spawn('node', [file], { cwd: here, detached: true, env: Object.assign({}, process.env, { PORT: String(port++) }) });
+    let out = '', timedOut = false;
+    const killer = setTimeout(() => {
+      timedOut = true;
+      try { process.kill(-p.pid, 'SIGKILL'); } catch (e) { try { p.kill('SIGKILL'); } catch (e2) {} }
+    }, TIMEOUT_MS);
     p.stdout.on('data', d => out += d); p.stderr.on('data', d => out += d);
     p.on('close', code => {
+      clearTimeout(killer);
+      if (timedOut) out += `\nFAILED — KILLED after ${TIMEOUT_MS / 1000}s (hung; it held a lane). Run it alone to see where.\n`;
       const secs = ((Date.now() - started) / 1000).toFixed(0);
       /* THE WHOLE SUMMARY LINE, not just the PASS/FAIL fragment. Suites append their own evidence there —
        * `nettest_sync` reports `· rounds N, actions M` — and truncating it hid a real effect: under parallel
@@ -58,9 +71,9 @@ function runOne(file, lane) {
        * went green having tested less. A runner that crops the evidence makes that invisible. */
       const line = (out.match(/^.*PASS: \d+\s+FAIL: \d+.*$/m) || [null])[0];
       const m = out.match(/PASS: (\d+)\s+FAIL: (\d+)/);
-      const failed = code !== 0 || /^FAILED/m.test(out) || (m && +m[2] > 0);
+      const failed = timedOut || code !== 0 || /^FAILED/m.test(out) || (m && +m[2] > 0);
       results.push({ file, code, secs, out, failed, counts: m ? m[0] : '(no PASS line)' });
-      console.log(`${failed ? '✗' : '✓'} ${file.padEnd(30)} ${String(secs).padStart(3)}s  ${line ? line.trim() : ''}`);
+      console.log(`${failed ? '✗' : '✓'} ${file.padEnd(30)} ${String(secs).padStart(3)}s  ${timedOut ? 'TIMED OUT — killed' : (line ? line.trim() : '')}`);
       res();
     });
   });
