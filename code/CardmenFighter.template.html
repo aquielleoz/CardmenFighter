@@ -2753,6 +2753,7 @@ __QR__
 
   function startGame(starter){
     if(starter==null) starter=YOU;
+    endShown=false;                        // a fresh game re-arms the end screen (see endGame)
     applyRules();                          // the ONE newGame call site, so a game always starts under the chosen rules
     var ngOpts = (mpCount>2)
       ? { numPlayers:mpCount, starter:starter, decks: seatDecks.slice(0,mpCount).map(function(d){ return (d==='full'||!d)?null:d; }), basics:gameBasics }
@@ -4561,7 +4562,20 @@ __QR__
     sortState=target; updateSortLabel();   // label shows the arrangement now applied
   }
 
+  /* ONCE PER GAME. `endGame` had no latch, and in netplay it is reached from every render that sees a finished
+   * state — so it re-ran on EVERY incoming mirror, re-showing the win modal each time. Traced on a real duel:
+   * the client entered it at 0.81s, 1.50s and 3.74s, once per mirror, and the host again five seconds later.
+   * That is the whole "you have to press Leave and do the handshake again" report: pressing New Duel DOES open
+   * the setup dialog, and ~1.8s later a re-entry paints the win screen back over it. The dialog was never
+   * broken; something kept clobbering it.
+   * Re-armed where a fresh game actually begins — `startGame` for host and solo, and the client's mirror path
+   * when the incoming state is not finished, because the client never runs `startGame` (it has no `gen++`
+   * either, which is the same asymmetry the BACKLOG entry had already identified). */
+  var endShown=false;
   function endGame(){
+    if(typeof NET!=='undefined' && NET.trace) NET.trace('endGame', 'winner='+(state?state.winner:'?')+' finished='+(state?!!state.finished:'?')+(endShown?' — ALREADY SHOWN, ignored':''));
+    if(endShown) return;
+    endShown=true;
     busy=false; $('rivalStatus').textContent=''; pick=null; TUT.stop();
     if(typeof NET!=='undefined' && NET.clearDiscon) NET.clearDiscon();   // netplay: game's over — clear any disconnect banner/timer
     /* A netplay CLIENT does not write its own record: it never ran the drivers that count opponents' plays, so
@@ -7586,12 +7600,18 @@ __QR__
       trace('mirror APPLIED', 'round='+((st&&st.round)||'?')+' turn='+((st&&st.turn)!=null?st.turn:'?')+
             ' myHand='+((st&&st.players&&st.players[0])?st.players[0].hand.length:'?'));
       if(!started) trace('started: false -> true', 'client path (setup from host)');
+      if(st && !st.finished) endShown=false;   // a client never runs startGame, so this is where a fresh game re-arms its end screen
       started=true; state=st; hostState=null; window.__cmfNetState=st;
       var owedModal = !!((st.pending && st.respondFor===YOU) || (st.shieldResponse && st.shieldResponse.q===YOU) || (st.preFightQ===YOU));   // overlay windows — keep them up (don't flicker away)
       var owedDiscard = !!(st.discardPending && st.discardPending.player===YOU);                                     // interactive hand-picker — must stay unlocked
       var owedLoss = !!(st.pendingLossChoice && st.pendingLossChoice.winner===YOU);                                 // panel-pick: whose shield to strip
       if(owedModal) revealOpen=false;                    // a window the GAME owes you outranks a look at a hand
-      if(!owedModal && !revealOpen) hideOverlay();
+      /* THE END SCREEN IS NOT A TRANSIENT WINDOW, and it was not on this list — so every mirror arriving after
+       * the game finished wiped it. That went unnoticed because `endGame` had no latch and simply painted it
+       * back on the next mirror; adding the latch is what exposed it. Both halves are needed: without the latch
+       * the win modal clobbers whatever the player opened, and without this it vanishes on the next mirror. */
+      var overGame = !!(st && st.finished && endShown);
+      if(!owedModal && !revealOpen && !overGame) hideOverlay();
       hideNetroot();
       /* `trimPending` locks every OTHER seat. The turn is already the round WINNER by the time the clean-up
        * pick opens (`resolveRoundWin` sets it) and `roundDraw` runs AFTER the trim — so a client that had just
