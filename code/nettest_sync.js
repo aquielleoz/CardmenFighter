@@ -231,16 +231,22 @@ let mock=null;
    * THE METRIC MATTERS: the two copies are NOT adjacent (the catch-up line sits between them), so an
    * "adjacent duplicates" check reports zero and an A/B on it reads as a null result. That mistake cost most of
    * a session. Compare COUNTS against the host instead — the host is the authority, so its count is the truth. */
+  /* COUNT THE UNCAPPED HISTORY, NOT THE DOM. `#log` evicts at 80 entries and the two sides' total streams
+   * differ, so past 80 each window covers a different span and a category count drifts by one in EITHER
+   * direction — measured: host 11 / client 12 on one run and host 13 / client 12 on another, on builds whose
+   * narration was identical. A flipping sign is a window artifact, never a duplicate. `__cmf.log()` is the
+   * `fullLog` the Save button writes, which is never trimmed. */
   const lines=p=>p.evaluate(()=>{
-    const L=[].slice.call(document.querySelectorAll('#log > *')).map(e=>e.textContent.trim());
+    const L=(window.__cmf&&window.__cmf.log)?window.__cmf.log():[].slice.call(document.querySelectorAll('#log > *')).map(e=>e.textContent);
     const k=t=>L.filter(x=>t.test(x)).length;
-    return { roundwin:k(/won the round|won with a/), catchup:k(/catch-up/), banner:k(/^Round \d+ begins/) };
+    return { roundwin:k(/won the round|won with a/), catchup:k(/catch-up/), banner:k(/^Round \d+ begins/), total:L.length };
   });
   const lh=await lines(host), lj=await lines(join);
   ok(lh.roundwin>0 && lj.roundwin===lh.roundwin,
      'the client narrates each round result ONCE, like the host ('+lh.roundwin+' vs '+lj.roundwin+')');
   ok(lj.catchup===lh.catchup,
-     '  → and each catch-up once ('+lh.catchup+' vs '+lj.catchup+') — 2x here means the ceremony is narrating locally as well');
+     '  → and each catch-up once ('+lh.catchup+' vs '+lj.catchup+') — 2x here means the ceremony is narrating locally as well'
+     +' [uncapped log lines: host '+lh.total+', client '+lj.total+']');
   /* A BROADCAST TEMPLATE MUST READ CORRECTLY IN EVERY FRAME. `say()` rotates {who} for the reader, but the
    * grammar AROUND it used to be baked in the sender's perspective, so a client saw "You moves 2 cards from
    * their deck" and "Rival move 1 card from your deck". Past tense removes the agreement entirely. */

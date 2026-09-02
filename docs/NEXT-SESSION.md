@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.92.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.93.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.92**, working tree clean, full sweep green at **71 suites**. The only branch is
+`main` is at **v1.31.93**, working tree clean, full sweep green at **71 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -79,14 +79,20 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 *Four reports from a real online duel, 2026-09-02, with screenshots. Ranked: the wedge first.*
 
-- **NO ANIMATION ON THE CLIENT WHEN IT ACTIVATES A JACK.** The transform happens but nothing plays. Compare
-  `buildOppBeats`, which is the one place both drivers funnel through for `flashArt`/`revealEffect` — a client
-  activating for ITSELF is a third path, and CLAUDE.md's standing warning applies: *"a bespoke presentation path
-  silently misses features the shared one gained."*
 - **THE BATTLE LOG HAS NO "JUMP TO NEWEST" WHEN SCROLLED UP.** Scroll back to read something and there is no way
   back to the live end except scrolling. Small, and it compounds with the open item about opening the log as an
   overlay.
 
+- **THE HOST'S RECORD NEVER COUNTS A REMOTE SEAT'S TECHNIQUES** (found 2026-09-02 while fixing the effect art;
+  filed rather than bundled, because it is an export bug and not a presentation one). `bumpEffect` is called
+  from the local drivers and from `buildOppBeats` — neither of which runs for a **remote human seat**. Both host
+  activate branches (`hostApplyMove` ~7416, `hostApplyMoveN` ~7713) `say()` the line and stop, so a client's
+  every cast lands in the engine and in the log but never in `stats`. **And the host's record is the one every
+  seat ADOPTS**, so no netplay game has ever recorded a client's Technique counts — they read as zero for
+  everybody. This is the v1.31.5 bug exactly (*"opponents' fights were always 0"*), one field over.
+  The fix is a `bumpEffect(seat, aeff)` beside each `fxBroadcast` call added in v1.31.93. **It needs a test
+  before it ships**: `nettest_record` already asserts `oppFights>0`, and the sibling assertion belongs there —
+  but `stats` is not exposed, so it wants either a dbg hook or a client cast staged inside that suite's game.
 - **★ BACK TO THE LOBBY AFTER AN ONLINE GAME — seats kept, decks re-pickable, players addable** (Aj,
   2026-08-25 as "one-tap rematch"; re-specified 2026-09-02 after he read v1.31.92 and said *"i thought that was
   what you built"*). **v1.31.92 only stopped the button doing something dangerous** — online, "New Game" now
@@ -319,6 +325,42 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.93 — effect art reaches every seat, and `nettest_sync` stops measuring the log's eviction boundary
+
+**NETPLAY HAD NO EFFECT ART IN ANY DIRECTION, AND THE REPORT WAS THE NARROWEST FACE OF IT.** Aj: *"no animation
+on the client when it activates a Jack"*. Measured, all three dead:
+- **a client's own cast** — the client guard sends the intent and `return`s **before** any presentation;
+- **the host watching a client cast** — both host activate branches (`hostApplyMove`, `hostApplyMoveN`) `say()`
+  the line and stop;
+- **a client watching the host cast** — nothing pushed it; there was no `fx` message in the protocol at all.
+
+**THE HOST ECHOES EVERY CAST TO EVERY SEAT INCLUDING THE CASTER — the emote pattern, for the same reason.** A
+client that flashed optimistically on send would show art for a cast the host then **refused**; the echo only
+fires after `E.activate` succeeded, so what pops is what happened. `showFx(seat, card)` is the single definition
+and its transform/else split is `buildOppBeats`' — a Form pops centre-stage only, because its text is read by
+hovering the zone. **Two broadcast functions, and the split is the whole care:** `fxSend` broadcasts WITHOUT
+presenting (the local activate path has already shown its own), `fxBroadcast` does both. The payload is
+rank/suit/id — public the moment a card is cast, never a hand.
+
+`nettest_activate` 6 → **14**, with **all four call sites A/B'd against their own removal**. The fourth was worth
+running rather than assuming: the transform branch `return`s early, so a call placed one line later would be dead
+code that reads as live.
+
+**`nettest_sync` WAS MEASURING THE LOG'S EVICTION BOUNDARY, NOT THE NARRATION.** It compared category counts in
+`#log`, which `logMsg` caps at 80 entries — and the host and client carry **different total streams** (measured:
+host 93 / client 91, host 90 / client 89), so two 80-entry windows cut from streams of different length hold
+different counts. Games now routinely pass 80 lines, which is what made a latent defect start firing.
+**A FLIPPING SIGN IS A WINDOW ARTIFACT, NEVER A DUPLICATE** — it read host 11 / client 12 on one run and host 13
+/ client 12 on another, on builds whose narration was identical. A duplicate can only ever push one way.
+It reads `__cmf.log()` — the uncapped `fullLog` the Save button writes — and **still catches the bug it exists
+for**: reverting `sayOnce`'s client no-op gives **15 vs 30**, a clean 2x where the old metric gave ±1 noise
+indistinguishable from a real fault.
+
+**AND THE FIRST EXPLANATION OF THAT FLAKE WAS WRONG.** "Eviction causes the drift" was offered after seeing both
+logs pinned at 80 — then the main build evicted identically and passed 4/4. Eviction is necessary and not
+sufficient; the *stream-length difference* is the cause. **A mechanism that explains the failing arm but not the
+passing one is not yet a diagnosis.**
 
 ### v1.31.92 — a dialog you opened stays open, and "New Duel" stops offering a solo game online
 
