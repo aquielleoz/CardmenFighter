@@ -87,7 +87,7 @@ async function lane(i) { while (next < suites.length) { const f = suites[next++]
   const wall = ((Date.now() - t0) / 1000).toFixed(0);
   if (bad.length) {
     console.log('\n──── failures ────');
-    bad.forEach(r => { console.log(`\n=== ${r.file} (exit ${r.code})`); console.log(r.out.split('\n').filter(l => /^✗|FAILED|TIMED OUT|ERROR/.test(l)).slice(0, 12).join('\n')); });
+    bad.forEach(r => { console.log(`\n=== ${r.file} (exit ${r.code})`); console.log(r.out.split('\n').filter(l => /^✗|FAILED|TIMED OUT|ERROR|⚠|⏱/.test(l)).slice(0, 16).join('\n')); });   // ⚠ and ⏱ too: suites print their OWN diagnosis, and cropping it is how a failure arrives unexplained
   }
   console.log(`\n${bad.length ? 'FAILED — ' : ''}${suites.length - bad.length}/${suites.length} suites green in ${wall}s`);
   process.exit(bad.length ? 1 : 0);

@@ -44,7 +44,13 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
   async function driveOne(){
   // Pass whenever we can. The opponents then actually fight, which is what has to get recorded.
-  for(let i=0;i<160;i++){
+  /* BOUNDED BY UNPRODUCTIVE ITERATIONS, NOT RAW ONES. A flat `i<160` counts iterations, and an iteration whose
+   * click is swallowed by `busy` costs budget while advancing nothing — so on a loaded machine the game simply
+   * stops short and the per-seat assertion below fails on a game that never got going. That is the v1.31.9
+   * lesson (`nettest_full`: "a transition used to burn budget") in a suite that predates the fix, and it is how
+   * this went red once under `sweep.js -j 4` while passing 5/5 alone and 1/1 under deliberate load.
+   * `stuck` resets on any progress, so a slow machine now takes MORE iterations rather than fewer rounds. */
+  for(let i=0, stuck=0, seen=''; i<900 && stuck<160; i++){
     const done=await p.evaluate(()=>{ const st=window.__solo.st(); return !st||st.finished; });
     if(done) break;
     await p.evaluate(()=>{
@@ -73,6 +79,8 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     });
     if(prog.round>=4 && prog.o1>0 && prog.o2>0) return prog;
     if(prog.round>=14) return prog;
+    const sig=prog.round+'/'+prog.o1+'/'+prog.o2;
+    if(sig===seen) stuck++; else { stuck=0; seen=sig; }     // progress resets the budget; only a wedged board spends it
   }
   return { round:0, o1:0, o2:0 };
   }

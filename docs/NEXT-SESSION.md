@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**378**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**382**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including all 43 `nettest_*` suites and the ten `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.84.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.85.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.84**, working tree clean, full sweep green at **71 suites**. The only branch is
+`main` is at **v1.31.85**, working tree clean, full sweep green at **71 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -77,14 +77,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 ### Correctness
 
-- **`pickValueBoost` NEVER ASKS WHETHER WE ARE ALREADY WINNING** (found 2026-09-01 while measuring the entry
-  now in [`DECISIONS.md`](DECISIONS.md#ai-strength)). It casts whenever `boostEnablesWin` finds SOME play the
-  boost converts into an overtake, without checking that a legal play already exists — so it can spend a boost,
-  and the card carrying it, on a fight already won, and in 3 of 1200 duels the card it spent was one the play
-  needed. `counterfeitHelps` has the guard to copy verbatim: `if (beatsCur(pl.hand)) return false;`.
-  **Small: worth ~nothing in win rate** (it is 3 of the 166 in that entry, which pool to about a point in
-  total). It is here because it is unambiguous — unlike the transform cases, there is no argument that
-  spending a card on a fight you had already won is a real choice.
 - **★ `stateSeq` IS A CLIENT-INTENT COUNTER, NOT A STATE VERSION — AND THAT IS WHY VALID MOVES GET REFUSED.
   ONE JOB, NOT TWO.** (Merged 2026-08-31 from two entries that each described half of it.)
   The stamp is bumped only in `hostApplyMove`, so **the host's own plays and the round draw never advance it** —
@@ -341,6 +333,54 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.85 — the AI stops boosting a fight it has already won
+
+The last item in the correctness backlog, and it measured far bigger than its filing suggested.
+
+`boostEnablesWin` asks whether **some** play becomes an overtake with the boost. It never asks whether one
+**already was** one — so with a legal fight already on offer, the AI would cast Imbue anyway, spending the card
+for nothing. `pickValueBoost` now returns null when `legalFightPlays` is non-empty, exactly the guard
+`counterfeitHelps` has had all along (`if (beatsCur(pl.hand)) return false`).
+
+**FILED AS "worth ~nothing in win rate". IT IS WORTH ABOUT A POINT.** Paired head-to-head, 12,000 decided games
+per row, the fixed seat against the pre-fix one:
+
+| | effect | |
+| --- | --- | --- |
+| knight | **+0.91 pts** | 2.0σ |
+| demon | **+1.45 pts** | 3.2σ |
+
+The filing under-counted because it reasoned from the 3-in-1200 cases where the spent card was one the winning
+play needed. The real cost is the **~426 pointless casts per 1200 games** it also prevents — 0.35 a game, each
+costing a card. **Comparable to the whole Demon Lord tier behaviour (+1.49), from a two-line guard.** A reminder
+that "3 of 166" was a count of the loudest symptom, not of the harm.
+
+**It ships at every tier, not just demon**, per the standing rule: spending a card on a fight you have already
+won is an unforced error, and removing one of those is not a difficulty lever. Checked: the knight→demon gap is
+**+7.63 → +7.91**, unchanged within noise, and deck balance at demon is flat (spread 9.8/9.9 against 9.2/10.4/9.3
+before).
+
+**It could have gone the other way, which is why it was measured rather than assumed** — boosting while already
+winning can let you win with a *cheaper* card and keep the Ace, and the AI has no model for that. The
+measurement says the saved card is worth more.
+
+**AND THE VERIFYING SWEEP TURNED UP THE THIRD TIMING CLASS, exactly where v1.31.84 said to expect one.**
+`exporttest` went red under `-j 4` on its per-seat assertion while passing 5/5 alone and 1/1 under deliberate
+load. Its driver looped a flat `i<160` — and an iteration whose click is swallowed by `busy` spends budget
+while advancing nothing, so on a loaded machine the game simply stops short and one opponent never fights. That
+is the **v1.31.9 lesson** (`nettest_full`: *"a transition used to burn budget"*) surviving in a suite that
+predates the fix. It is bounded by **unproductive** iterations now (`stuck<160`, reset on any progress, hard
+ceiling 900), so a slow machine takes more iterations rather than fewer rounds.
+**The runner hid the suite's own diagnosis, again.** `exporttest` prints `⚠ no deal produced a fight for both
+opponents` with a per-game breakdown, and `sweep.js`'s failure dump filtered to `✗|FAILED|TIMED OUT|ERROR` —
+so the one line that explained the failure was cropped. It keeps `⚠` and `⏱` now. **Second time this runner
+has thrown away evidence a suite was already printing**; the first was the `nettest_sync` summary line.
+
+Four assertions in `test.js` (378 → **382**), each verified to discriminate by removing the guard. The staging
+makes the two questions give different answers on one board: a pair of 2s that already beats the pile, and a
+pair of 4s that beats it only with +2, with both 4♦ being Counter Spell — a quick, which `pick` never casts
+proactively — so nothing else on the board can fire.
 
 ### v1.31.84 — the rules suite paints instead of sleeping: 25s → 10s
 

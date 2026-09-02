@@ -966,6 +966,23 @@ function cards(ids) { return ids.map(card); }
      'commit: …and the boosted pair of 5s is untouched');
   ok(AI.chooseMove(gI, 1, 'knight').action === 'play', 'commit: …so the fight is still on');
 
+
+  /* N. A BOOST IS NOT CAST ON A FIGHT ALREADY WON (v1.31.85). `boostEnablesWin` asks only whether SOME play
+   * becomes an overtake, never whether one already WAS one — so with a legal fight on offer the AI would spend
+   * Imbue on a round it had won, and in 3 of 1200 duels the card it spent was one the winning play needed.
+   * Staged so the two questions have DIFFERENT answers: the pair of 2s already beats the pile, and the pair of
+   * 4s beats it only with +2. Both 4♦ are Counter Spell — a quick, which `pick` never casts proactively — so
+   * nothing else on this board can fire and the assertion is about the boost alone. */
+  var gN = seat([mk(2, 'S', 'a'), mk(2, 'S', 'b'), mk(4, 'D', 'a'), mk(4, 'D', 'b'), mk(1, 'H')],
+                [mk(5, 'H', 'p1'), mk(5, 'H', 'p2')]);
+  ok(E.legalFightPlays(gN, 1).length > 0, 'staged: the pair of 2s already beats the pile, unboosted');
+  var logN = [];
+  AI.playPhase(gN, 1, logN, 'knight', []);
+  ok(logN.map(function (e) { return e.play; }).indexOf('BOOST') < 0,
+     'boost: not cast on a fight already won — it would spend the card for nothing');
+  ok(!gN.players[1].nextPlayBoost, 'boost: …and nothing is banked');
+  ok(gN.players[1].hand.filter(function (c) { return c.id === '1H'; }).length === 1, 'boost: …so Imbue is still in hand');
+
   // E. no boost banked — the guard must be inert, or it reads as "never equip"
   var gE = seat([mk(6, 'C', 'a'), mk(6, 'C', 'b'), mk(6, 'C', 'c')], [mk(5, 'H', 'p1'), mk(5, 'H', 'p2')]);
   ok(E.legalFightPlays(gE, 1).length > 0, 'staged: the pair of 6s already beats a pair of 5s — no boost wanted');

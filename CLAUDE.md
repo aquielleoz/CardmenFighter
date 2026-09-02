@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 378 + 34 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 382 + 34 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 378 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 382 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction — 34, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
@@ -1196,6 +1196,13 @@ collided** — 8296 `relay`/`rtc3` · 8303 `concede3`/`elim3`/`energy` · 8319 `
 **THE RECORDED FLAKE DID NOT REPRODUCE.** `nettest_rtc` failing at `maxRound=0` under contention was measured on
 the old sandbox; **7 full parallel sweeps here were 72/72 green at every lane count from 2 to 8**, with no suite
 failing once. If it ever does flake, `-j 1` is the fallback and `--fast` still parallelises only stable suites.
+**AND A RAW ITERATION COUNT IS THE THIRD (v1.31.85).** `exporttest` looped `i<160`; an iteration whose click
+`busy` swallows spends budget while advancing nothing, so under `-j 4` the game stopped short and an
+opponent never fought — red under load, 5/5 green alone. Bound by UNPRODUCTIVE iterations (reset the count
+on any progress) so a slow machine takes more of them rather than doing less. This is the v1.31.9 fix
+(`nettest_full`) applied to a suite that predated it — **grep for a bare `for(let i=0;i<N;i++)` driving a
+board before adding another.**
+
 **A POLL BUDGET SIZED FOR A QUIET MACHINE GOES RED WHEN THE SWEEP IS PARALLEL (v1.31.84).** The lesson suites
 polled with **9s**; under `-j 4` `lessontest_rides` blew it once on "the J is spotlit", and a tutorial paces
 its own beats (`revealDwell` is 2650ms) so the margin was thin. All six in `lessonlib.js` are 30s now.
@@ -1319,9 +1326,9 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.84 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
+Status as of **v1.31.85 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
-`test` 378, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
+`test` 382, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
 `versiontest` 24, `sharetest` 16, `qrtest` 32, `peektest` 31, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
