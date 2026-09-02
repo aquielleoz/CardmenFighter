@@ -1196,6 +1196,12 @@ collided** — 8296 `relay`/`rtc3` · 8303 `concede3`/`elim3`/`energy` · 8319 `
 **THE RECORDED FLAKE DID NOT REPRODUCE.** `nettest_rtc` failing at `maxRound=0` under contention was measured on
 the old sandbox; **7 full parallel sweeps here were 72/72 green at every lane count from 2 to 8**, with no suite
 failing once. If it ever does flake, `-j 1` is the fallback and `--fast` still parallelises only stable suites.
+**A POLL BUDGET SIZED FOR A QUIET MACHINE GOES RED WHEN THE SWEEP IS PARALLEL (v1.31.84).** The lesson suites
+polled with **9s**; under `-j 4` `lessontest_rides` blew it once on "the J is spotlit", and a tutorial paces
+its own beats (`revealDwell` is 2650ms) so the margin was thin. All six in `lessonlib.js` are 30s now.
+**A poll budget is a HANG GUARD, not a race** — it returns the instant the condition holds, so a generous
+ceiling costs a passing run nothing. Size it for the SLOWEST plausible machine, never the one you are on.
+
 **A WALL-CLOCK-BOUNDED SUITE TESTS LESS WHEN THE SWEEP IS PARALLEL, AND STAYS GREEN WHILE DOING IT.**
 `nettest_sync` runs until 60 actions **or** 120s. Alone it hits the ACTION cap in ~20s; at `-j 4` it took 125s
 and hit the CLOCK — 12/12 either way, on far fewer actions. It now prints `⚠ stopped on the 120s WALL CLOCK` and
@@ -1313,7 +1319,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.83 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
+Status as of **v1.31.84 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
 `test` 378, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,

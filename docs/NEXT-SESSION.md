@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.83.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.84.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.83**, working tree clean, full sweep green at **71 suites**. The only branch is
+`main` is at **v1.31.84**, working tree clean, full sweep green at **71 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -164,14 +164,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   overflow is a plausible SHARED cause. Measure before filing it as a netplay divergence. (The two seams that
   netplay and solo actually diverge in are mapped in [`DECISIONS.md`](DECISIONS.md#netplay-architecture).)
 
-### Tooling
-
-- **`rulestest` IS 15.1s OF FIXED `wait()` OUT OF 25s** — the same fix v1.31.81 applied to `landscapetest`,
-  worth ~13s, but spread over **60 call sites** rather than one `open()`. Poll for the condition; and note the
-  lesson that cost a red run there: **a settle predicate must include the thing being asserted on** (watching
-  `#hand`'s box let it return while the cards were still growing into it).
-  Lower value than it looks now that the sweep is parallel — 13s off one lane of four is not 13s off the
-  sweep. Do it when touching `rulestest` for another reason.
 ### Features
 
 - **OPEN THE BATTLE LOG AS AN OVERLAY, like the 🔍 View card reader** (Aj, 2026-08-31: *"i think for the logs,
@@ -349,6 +341,47 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.84 — the rules suite paints instead of sleeping: 25s → 10s
+
+The last of the fixed-`wait()` work. `rulestest` carried **50 sleeps of 120-300ms — 15.1s of its 25s** — each
+sitting after a click that mutates the Custom rules panel.
+
+**THEY WERE PADDING, AND THAT WAS PROVEN BEFORE ANYTHING WAS REPLACED.** Collapsing every one of them to
+`wait(0)` still passed **150/150**: the panel re-renders synchronously — plain JS, no animation, no network — so
+nothing was ever being waited *for*.
+
+**But `wait(0)` is not the fix**, because it guarantees nothing on a loaded machine. Each is now a double
+`requestAnimationFrame`, which guarantees the browser has processed **and painted** the change — something a
+fixed 250ms does *not* guarantee once `sweep.js` runs four suites at once. Faster and stronger at the same time,
+which is the same trade `landscapetest` took in v1.31.81.
+
+**Twenty of the fifty went into the HELPERS** (`toggle`, `seg`, `clickQ`) rather than the call sites: one place
+to be right instead of twenty to keep in step, and a new call site gets it for free.
+
+**THE FIRST TRANSFORM BROKE THE SUITE, AND THE MISTAKE IS THE REUSABLE PART.** Fifty sites, four different page
+handles, so the script mapped each `wait()` to a handle by nearest preceding declaration — and silently assigned
+`painted(p5)` to two lines that use a `p3` it had never noticed, on a page closed 24 lines earlier
+(`Target page, context or browser has been closed`). The correct rule was sitting on the line the whole time:
+**use the handle that line already calls**. When a mechanical edit needs to know something about a line, read it
+off the line rather than inferring it from context.
+
+**THE SWEEP CAUGHT A DIFFERENT SUITE, AND THE HONEST STATUS IS "THE BUDGET WAS WRONG", NOT "A BUG WAS FOUND".**
+`lessontest_rides` failed once on `⏱ poll TIMED OUT: the J is spotlit`. Nothing in this change touches it — but
+the lesson suites poll with a **9s** budget, and that was calibrated when the sweep ran one suite at a time. A
+tutorial paces its own beats (`revealDwell` alone is 2650ms), so under `-j 4` the margin is thinner than it
+looks. All six budgets in `lessonlib.js` are **30s** now.
+**A poll budget is a HANG GUARD, not a race** — it returns the instant its condition is true, so a generous
+ceiling costs a passing run nothing, and CLAUDE.md's standing rule is that a slow machine must make a suite
+SLOWER, never red.
+**IT WAS NOT REPRODUCED** — 5 solo runs and 3 under deliberate load all passed — so this is the budget being
+wrong for the new normal rather than a diagnosed cause, and it is written that way on purpose. **Parallelism has
+now surfaced two timing classes: a wall-clock-bounded suite testing LESS (v1.31.82), and a poll budget sized for
+a quiet machine. Expect a third.**
+
+Verified where a paint-flush would fail if it were going to: **25 consecutive solo runs at 150/150**, then a full
+parallel sweep — four suites sharing the machine is exactly the condition under which a flush can fire earlier
+than a 250ms sleep would have.
 
 ### v1.31.83 — a port collision fails in 0s instead of hanging forever
 

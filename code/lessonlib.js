@@ -17,7 +17,14 @@ async function openLesson(id, viewport){
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   let pass=0, fail=0;
   const ok=(c,m)=>{ console.log((c?'✓':'✗')+' '+m); c?pass++:fail++; return !!c; };
-  const until=async(fn,src,ms=9000,arg)=>{ const t0=Date.now();
+  /* 30s, NOT 9s. These budgets are a HANG GUARD, not a race — a poll returns the instant its condition is
+   * true, so a generous ceiling costs a passing run exactly nothing. 9000 was calibrated when the sweep ran
+   * one suite at a time; with `sweep.js -j 4` the page is slow enough that `lessontest_rides` blew it once
+   * on "the J is spotlit" — and a tutorial paces its own beats (`revealDwell` alone is 2650ms), so the
+   * margin was thinner than it looked. CLAUDE.md's standing rule: a slow machine must make a suite SLOWER,
+   * never red. NOTE that failure was seen ONCE and not reproduced (5 solo runs, 3 under artificial load),
+   * so this is the budget being wrong for the new normal, not a diagnosed cause. */
+  const until=async(fn,src,ms=30000,arg)=>{ const t0=Date.now();
     while(Date.now()-t0<ms){ if(await p.evaluate(fn,arg)) return true; await p.waitForTimeout(80); }
     console.log('⏱ poll TIMED OUT: '+src); return false; };
   const step=()=>p.evaluate(()=>{ const t=document.getElementById('tutPanel');
@@ -37,7 +44,7 @@ async function openLesson(id, viewport){
    * so a single sweep of the hand right after an opponent acts clicks into nothing and reads as "no legal play".
    * This helper was written without the retry and `lessontest_twos` caught it immediately — the lesson's own
    * prep makes the Rival lead, so the board is busy at exactly the moment the suite tries to answer. */
-  const playAny=async(multi,ms=9000)=>{ const t0=Date.now();
+  const playAny=async(multi,ms=30000)=>{ const t0=Date.now();
     while(Date.now()-t0<ms){ const r=await playAnyOnce(multi); if(r!==null) return r; await p.waitForTimeout(200); }
     return null; };
   const playAnyOnce=async(multi)=>{ const gids=await p.evaluate(m=>[].map.call(document.querySelectorAll('#hand .group'+(m?'.multi':':not(.multi)')),g=>g.dataset.gid), !!multi);
@@ -49,7 +56,7 @@ async function openLesson(id, viewport){
   /* Play a pair by CARD ID, selecting each card's group. The hand only groups a pair into one `.group.multi`
    * in the "Pairs" SORT MODE — the default layout is singles, so "click the multi group" finds nothing and
    * looks exactly like a rig that failed to deliver a pair. Cost me one red run to learn. */
-  const playPair=async(ms=9000)=>{
+  const playPair=async(ms=30000)=>{
     const ids=await p.evaluate(()=>{ const h=window.__solo.st().players[0].hand, by={};
       h.forEach(c=>{ (by[c.rank]=by[c.rank]||[]).push(c.id); });
       const k=Object.keys(by).find(k=>by[k].length>=2); return k?by[k].slice(0,2):null; });
@@ -86,7 +93,7 @@ async function openLesson(id, viewport){
   /* Play an EXACT set of cards by id, retrying. Every helper here has needed the retry for the same reason —
    * `toggle` and `doFight` return silently while `busy` is set — and since v1.31.74 the board says so out loud
    * ("Hold on — the board is still resolving."), which is what identified this one. Returns null on success. */
-  const playIds=async(ids, ms=9000)=>{ const t0=Date.now(); let last='never attempted';
+  const playIds=async(ids, ms=30000)=>{ const t0=Date.now(); let last='never attempted';
     while(Date.now()-t0<ms){
       last=await p.evaluate(want=>{
         const c=document.getElementById('clearBtn'); if(c && !c.disabled) c.click();
@@ -105,7 +112,7 @@ async function openLesson(id, viewport){
    * highlights precisely those, so this is both what a player sees and what the gate will take — picking by
    * RANK instead let the suite choose a same-rank card the step did not mean (a drawn 5♠ rather than the rigged
    * 5♦), and Fight then stayed disabled about one run in six. */
-  const playSpot=async(ms=9000)=>{
+  const playSpot=async(ms=30000)=>{
     const ids=await p.evaluate(()=>[].map.call(document.querySelectorAll('#hand .card.tut-spot'), c=>c.dataset.id));
     if(!ids.length) return 'no spotlit cards in hand';
     return playIds(ids, ms);
@@ -128,7 +135,7 @@ async function openLesson(id, viewport){
   /* RETRIES, like every other helper here. `updateActions` HIDES the ⚡ control while `busy` (v1.31.74), so a
    * single attempt right after an opponent's answer reports "activate control not offered" and reads as a
    * product bug. Every helper in this file has needed this; the one that lacked it was the one that broke. */
-  const activateSpot=async(ms=9000)=>{ const t0=Date.now(); let last='never attempted';
+  const activateSpot=async(ms=30000)=>{ const t0=Date.now(); let last='never attempted';
     while(Date.now()-t0<ms){ last=await activateSpotOnce(); if(last===null) return null; await p.waitForTimeout(200); }
     return last+' (retried for '+ms+'ms)'; };
   const activateSpotOnce=async()=>{ await deselect();
