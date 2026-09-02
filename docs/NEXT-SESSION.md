@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.90.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.91.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.90**, working tree clean, full sweep green at **71 suites**. The only branch is
+`main` is at **v1.31.91**, working tree clean, full sweep green at **71 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -79,24 +79,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 *Four reports from a real online duel, 2026-09-02, with screenshots. Ranked: the wedge first.*
 
-- **★ THE HOST HANGS AFTER A CLIENT DISCARDS TO HAND SIZE.** The host's own header reads **"your turn"** while
-  the board says **"Hold on — the board is still resolving."** and Fight/Pass are dead. That combination is the
-  documented `busy` wedge signature — CLAUDE.md: *"When netplay 'lags', suspect a stuck `busy` before the
-  transport."* — and it is the same shape as v1.31.20 and v1.31.49, both of which were a path that handed
-  control back without clearing BOTH things `awaitRival` sets.
-  **Where to look:** `hostParkTrim` sets `busy` and the status text for a remote seat's clean-up pick; the
-  resume path after `E.resolveDiscard` must go through `hostTakeBack`, which clears both. `nettest_trim` covers
-  the HOST doing its own pick (every other seat is auto-trimmed) — **it does not cover a REMOTE seat picking,
-  which is exactly this case**, so the suite is green and the bug is real.
-- **★ THE CLIENT IS TOLD THE WRONG THING WHILE TRIMMING TO HAND SIZE — and told it twice, contradicting
-  itself.** One line reads *"Rival forces a discard — choose 1 card to send to your **Shuffle Pile**"* and the
-  picker below reads *"Choose 1 card to send to your **Energy Pile** — keep your Specials! (0/1 picked)"*.
-  Neither the actor nor the destination is right: nobody forced anything (it is the end-of-round trim) and the
-  trim goes to **Energy**, not Shuffle.
-  **Cause is structural and already documented:** v1.31.70 made every seat pick its own end-of-round pitches by
-  **reusing the forced-discard window** (`discardPending` → `{op:'discard'}` → `E.resolveDiscard`) — *"safe
-  because both paths already discard to the ENERGY pile"*. The mechanism was reused; the COPY was not updated,
-  so a trim announces itself as a Telekinesis. `trimPending` already exists to tell the two apart.
 - **★ "NEW DUEL" IN NETPLAY OPENS THE SOLO SETUP, NOT THE HOST/JOIN SCREENS** (Aj, report 6). v1.31.87 stopped
   the end screen painting itself back over the dialog; the dialog it opens is still the wrong one.
   `$('againBtn').addEventListener('click', openSetup)` — one handler, no netplay branch — so a rematch dumps you
@@ -330,6 +312,55 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.91 — the duel host stops wedging when the client discards to hand size
+
+Aj's worst report, from a real online duel, and it is a two-variable mix-up rather than anything to do with
+timing or the transport.
+
+**`hostParkTrim` parks by setting `netReact`. Only `hostApplyMoveN` reads that** — it was written for 3-6
+players. `MP()` is false in a duel, so a client's clean-up discard lands in **`hostApplyMove`**, which checks
+**`netDiscard`** (the Telekinesis window), finds it null, and **returns silently**. The host stays parked on
+*"Rival is discarding to hand size…"* forever, and **a wedged game shows no Leave button — only Concede**, so
+the only exit is a recorded loss.
+
+His host trace ends exactly there:
+
+```
+269.82s  move IN from seat 1 op=pass q=96
+498.86s  move IN from seat 1 op=discard q=226      <- last entry, ever
+```
+
+while his client received a mirror every 1.8s for another five minutes — the v1.31.80 park heartbeat faithfully
+re-asserting a board that would never move.
+
+**IT IS NOT THE 229-SECOND WAIT.** That was the obvious suspect (GRACE_MS is 90s, so a Passo takeover looked
+plausible) and it is wrong: **every duel where the client goes over the hand cap wedges.** The long pick only
+made it likely he would meet it.
+
+**WHY NO SUITE SAW IT:** `nettest_trim` stages the **HOST** over the cap, because in solo that is the only seat
+with an interactive pick — every other seat is auto-trimmed. Nobody had ever put a **REMOTE** seat over it.
+`nettest_remotetrim` (9) does, and reproduces his trace exactly.
+
+**MY FIRST REPRO PASSED AGAINST A WEDGED HOST.** It accepted `round>=2` as proof the table had moved on — but
+`resolveRoundWin` advances the round at RESOLUTION, before the clean-up trim runs, so that was already true
+while the host sat parked. The assertion that works is the **status line**, which only clears when the discard
+is actually applied. A repro that cannot fail is worth less than no repro.
+
+**AND HIS REPORT 1 CAME FREE**, because the repro puts that message on screen. Two things were wrong in one line:
+- **Wrong pile, always.** `discardChosen` pushes to `pl.energy` — *"discards -> Energy pile (shuffle is only for
+  spent energy)"* — so "Shuffle Pile" was never right for **any** forced discard. The picker's own hint two
+  panels down said "Energy Pile", so the screen contradicted itself.
+- **Wrong actor, on the trim.** The clean-up reuses the forced-discard window wholesale (v1.31.70), so it
+  announced itself as a Telekinesis: *"Rival forces a discard"* when nobody forced anything. `trimPending`
+  already rides the mirror to tell them apart; it simply was not being asked.
+
+It now reads **"Clean-up — over the hand limit (10). Discard 3 to your Energy Pile."**
+
+**Every silent return in the reactive-window handlers now traces why it ignored an intent** (`react IGNORED`,
+`react KIND MISMATCH`, `discard IGNORED`). Ignoring is correct for a duplicate and fatal when the window is
+genuinely open, and until now the two were indistinguishable from outside — which is precisely why this took a
+player's saved trace to find. A wedged run should explain itself, like a red one.
 
 ### v1.31.90 — a finished game is actually closed, instead of left lying behind the next screen
 
