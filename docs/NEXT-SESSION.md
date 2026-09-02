@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.89.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.90.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.89**, working tree clean, full sweep green at **71 suites**. The only branch is
+`main` is at **v1.31.90**, working tree clean, full sweep green at **71 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -331,7 +331,43 @@ online duel against a person.*
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
 
-### v1.31.89 — the host no longer opens every online game
+### v1.31.90 — a finished game is actually closed, instead of left lying behind the next screen
+
+Aj, cutting past three of his own bug reports to the thing underneath them: *"before the again button, i just
+want the previous game to fully close…. why is the previous game still there in the back?"*
+
+**BECAUSE NOTHING EVER CLOSED ONE.** `state` was assigned when a game started and never cleared, so a finished
+game was only ever **replaced** by the next one. `leaveOnline` appeared to work because it **reloads the page** —
+that was the only teardown in the entire app. Everything else floats something on top, and anything that does
+not cover the whole viewport lets the dead board show through behind it.
+
+That single fact is underneath most of the netplay end-of-game reports: the win page "left behind", the concede
+confirm sitting over an old board, and starting a new online game with the previous duel visible.
+
+`clearBoard()` ends a game properly — nulls `state`, empties the hand, pile, beaten/stack views, both Forms &
+Rides zones and the opponents strip, clears the status line — and **bumps `gen`**, which voids every pending
+`setTimeout` continuation from the finished game. **That is the client-never-bumps-`gen` asymmetry the BACKLOG
+identified weeks ago finally getting paid**; it was filed as a suspected cause of the end-screen bug, was not
+that, and is genuinely needed here.
+
+Hung off **`openSetup()` — one funnel**, so solo, netplay and any future entry point get it without each
+remembering to.
+
+**Two deliberate exclusions.** The **battle log survives**: the end screen offers to save it and a player who
+just finished may still want it, so `startGame` keeps owning its lifecycle. And it does **not** touch
+`hostState` — that belongs to NET, and the first version assigned it from outside the IIFE, threw
+`hostState is not defined`, and took the whole page down. `nettest_endscreen` caught that, not review.
+
+`nettest_endscreen` gains the assertion that matters (12): with the teardown removed, **4 cards and a 2-card
+pile are still sitting behind the New Duel dialog**; with it, zero. It asserts the CARDS ARE GONE rather than
+that something covers them, which is the distinction the whole bug turns on.
+
+**WHAT THIS DOES NOT FIX**, said plainly because the last entry over-claimed: the **host wedge** on a remote
+seat's hand-size discard is untouched and is still the worst open bug — and while wedged there is no Leave
+button at all, only Concede, so the only exit from a hung game is a recorded loss. `againBtn` also still opens
+the SOLO setup rather than offering host/join; that is now cosmetic rather than the reason you are stuck.
+
+### v1.31.89 — the online opener is rolled for, and announced
 
 Aj: *"in net play it seems like the host always leads the jabs too"*. True, and it had been true forever:
 `newGame` has always honoured `opts.starter`, and the netplay path simply never passed one.

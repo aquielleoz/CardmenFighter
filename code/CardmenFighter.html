@@ -5054,7 +5054,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.89';
+  var GAME_VERSION='v1.31.90';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -6591,6 +6591,9 @@ window.CardFace = {};
     group(vals,'value'); group(costs,'cost');
   }
   function render(){
+    /* NO GAME, NOTHING TO DRAW. Everything below dereferences `state`, and until `clearBoard()` existed there
+     * was no way to be in that position — a game was only ever replaced by another one. */
+    if(!state) return;
     syncOrder(false);
     /* SAY WHY PLAY HAS PAUSED. Every seat but the one picking is auto-trimmed at the end of a round, so the
      * only seat that stops the table is the one holding an interactive hand-limit pick — and until v1.31.69 the
@@ -8311,6 +8314,29 @@ window.CardFace = {};
    * when the incoming state is not finished, because the client never runs `startGame` (it has no `gen++`
    * either, which is the same asymmetry the BACKLOG entry had already identified). */
   var endShown=false;
+  /* THE ONLY TEARDOWN IN THIS APP WAS A PAGE RELOAD, and that is the whole answer to Aj's question — *"why is
+   * the previous game still there in the back?"*. `state` was assigned when a game started and never cleared,
+   * so a finished game was only ever REPLACED by the next one. `leaveOnline` works because it reloads the page;
+   * everything else just floats something on top, and anything that does not cover the whole viewport lets the
+   * dead board show through behind it.
+   * `gen++` is the other half: it voids every pending `setTimeout` continuation from the finished game. The
+   * BACKLOG had already identified that a client never bumps `gen` — this is where that gets paid.
+   * Deliberately does NOT clear the battle log: the end screen offers to save it, and a player who has just
+   * finished a game may still want it. `startGame` owns the log's lifecycle. */
+  function clearBoard(){
+    gen++;
+    /* `hostState` is NET's, not ours — assigning it here threw `hostState is not defined` and took the whole
+     * page down with it. The host's own copy is replaced by the next `hostStartRealN`; this function owns
+     * the BOARD, not the transport. */
+    state=null; selected={}; pick=null; targeting=null; lossPick=null;
+    busy=false; endShown=false; pendingKick=false;
+    try{ hideOverlay(); showCard(null); }catch(e){}
+    ['hand','pile','beaten','stackView','rivalHand','rivalEquip','rivalEquipZone','rivalFormZone','youFormZone','opponents']
+      .forEach(function(id){ var e=$(id); if(e) e.innerHTML=''; });
+    ['message','hint','turnTag','roundTag','rivalStatus','pileLabel']
+      .forEach(function(id){ var e=$(id); if(e) e.textContent=''; });
+    if(typeof NET!=='undefined' && NET.trace) NET.trace('clearBoard', 'the finished game is torn down');
+  }
   function endGame(){
     if(typeof NET!=='undefined' && NET.trace) NET.trace('endGame', 'winner='+(state?state.winner:'?')+' finished='+(state?!!state.finished:'?')+(endShown?' — ALREADY SHOWN, ignored':''));
     if(endShown) return;
@@ -9741,6 +9767,7 @@ window.CardFace = {};
   }
   function openSetup(){
     TUT.stop(); currentLesson=null;   // leaving to set up a fresh duel ends any running tutorial
+    clearBoard();                     // ONE funnel: whatever you were playing is over before this dialog opens
     var html='<h2>New Duel</h2>'+
       '<div class="setup">'+
         /* The CONTROL moved to ⚗️ Custom rules, but the ANSWER stays here: Basics is the beginner ramp, and a
