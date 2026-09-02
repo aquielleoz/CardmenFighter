@@ -87,6 +87,29 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   back to the live end except scrolling. Small, and it compounds with the open item about opening the log as an
   overlay.
 
+- **★ BACK TO THE LOBBY AFTER AN ONLINE GAME — seats kept, decks re-pickable, players addable** (Aj,
+  2026-08-25 as "one-tap rematch"; re-specified 2026-09-02 after he read v1.31.92 and said *"i thought that was
+  what you built"*). **v1.31.92 only stopped the button doing something dangerous** — online, "New Game" now
+  offers Leave, which tears the connection down and makes both players redo the handshake. Aj's actual want is
+  narrower than a rematch and better: *"the host/join screen with both already joined so they can pick decks
+  again if they want, so they can add more players if they want"* — i.e. return to the **LOBBY**, not straight
+  into a new deal. The `🔄 Rematch?` emote is the negotiation; this is the mechanism.
+  **The half that is nearly free:** `seatDeckMap` and `seatNames` survive a game start untouched, and re-ready
+  already works (`clientNotReady`, `nettest_unready`), so once the lobby renders the deck pickers are back.
+  **The three real pieces:**
+  - `started=false` on BOTH ends + `showNetroot()` + `clearBoard()`. The parts exist (`dbgUnstart()`,
+    `clearBoard()` from v1.31.90) but **nothing tells the client to come back** — today the host would return to
+    the lobby while the client sat on a dead board. Needs a `t:` message and both ends asserted.
+  - **A fresh room, or "add more players" cannot work.** `hostStartRealN` calls `relayDropRoom()` at start on
+    purpose (an SDP holds IP addresses), so the code is gone by the time anyone wants to reuse it.
+    `renderHostRtcLobby` already knows how to mint one.
+  - **RESETTING PER-GAME NETPLAY STATE IS THE RISKY HALF**, and it is the same class of bug as everything fixed
+    on 2026-09-02: `hostState`, `netReact`, `netDiscard`, the mirror dedupe cache, the park heartbeat, `busy`,
+    `endShown`, the readiness stamps. Miss one and game two inherits a silent wedge. Enumerate them against the
+    IIFE rather than from memory, and assert the second game plays a full round.
+  **The UI copy is part of the fix.** v1.31.92's dialog is headed *"New online game"* and the button says
+  *"New Game"*, which reads as though the feature exists and is one click away — that is exactly what misled Aj.
+
 *Also CONFIRMED by the same screenshots, already filed below: the netplay host logs the SOLO line (**"New duel —
 you play Berserker (Fig+Rog) vs Aj (Fighter) on Pure Cleric"**) and its header reads **"duel vs AI"** — in an
 online duel against a person.*
@@ -139,11 +162,6 @@ online duel against a person.*
   `--zNetroot`-derived family, never a bare z-index — and **DOM presence is not visibility**, so assert it with
   `elementFromPoint`, not by reading `textContent`.
 
-- **A real one-tap rematch over netplay** (Aj, 2026-08-25 — the `🔄 Rematch?` emote is the expression; this is
-  the action). Today the win overlay's "New Game" just calls `openSetup()`, so an online pair must redo the
-  whole invite-code exchange to play again. Wants: the host restarting the engine and re-broadcasting `t:'setup'`
-  over the **live** connection, seats and decks reused, both sides confirming — plus its own netplay suite. The
-  emote set already covers the negotiation ("Rematch?" → "Yes!"), so this is purely the mechanism.
 - **THE FAMILY-SHAPE PROGRAMME IS ESSENTIALLY COMPLETE. One cheap piece is left.** (Rewritten 2026-08-31: the
   original entry listed eleven sub-items and **ten had shipped**, including all four it called "still missing
   and NOT yet wanted" — trio+single, four+two, airplane and variable-length straights all landed in v1.31.39.
