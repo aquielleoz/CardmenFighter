@@ -5054,7 +5054,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.88';
+  var GAME_VERSION='v1.31.89';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -10807,6 +10807,7 @@ window.CardFace = {};
     // ---- HOST: run the real game; the remote client controls seat 1 (the Rival). ----
     // Unified start for 2–6 players. Seat 0 = host; seats 1..k = the joined remote clients (each with its lobby pick).
     // 2p keeps the awaitRival flow; 3–6p uses the netDriveN driver (both entered via driveRival, gated on MP()).
+    var netStarter=null;   // who opens the NEXT online game; null until the first is dealt (see hostStartRealN)
     function hostStartRealN(hostDeck){
       /* The table is assembled, so the room has no job left. Rooms expire on their own, but an SDP holds IP
        * addresses and leaving one lying around for ten minutes is not a decent default. */
@@ -10828,7 +10829,52 @@ window.CardFace = {};
       clearPersonaStyles();   // drop any style a solo game left behind, but KEEP the names: the joined players' own names are already in seatNames by now, and wiping them cost nettest_names 3 assertions
       for(var s=1;s<=joined;s++){ seatDecks[s]=resolveDeck(seatDeckMap[s]||'random'); seatDiffs[s]='fighter'; }   // 'fighter' = AI fallback for the round-win chooser only
       rivalDeck=seatDecks[1]||'full';
-      startGame(YOU);                                   // host leads round 1
+      /* WHO LEADS IS NOT ALWAYS THE HOST ANY MORE (Aj: *"in net play it seems like the host always leads the
+       * jabs too"*). `newGame` has always honoured `opts.starter`; the netplay path simply never passed one, so
+       * seat 0 opened every online game forever.
+       * MEASURED FIRST, because the obvious premise was wrong. Leading round 1 is not a flat advantage — with
+       * the same AI on both seats, 8000 duels per arm, the edge SWINGS BY TIER: fighter -4.81 points, knight
+       * -2.61, demon +6.45. Leading commits a card and information before the opponent answers, which punishes
+       * weaker play and rewards strong play; it amplifies skill rather than conferring an edge.
+       * That makes the sign unknowable for two humans — and irrelevant to the fix, which is the same either
+       * way: whatever the edge is, it must not land on the same seat every single game.
+       * RANDOM FIRST, THEN ALTERNATE. Random alone can hand one player three openings in a row; alternating
+       * alone is predictable from game one. `netStarter` lives as long as the room, so a rematch swaps. */
+      /* DETERMINISTIC UNDER `dbg=1` UNLESS A SUITE OPTS IN — the same rule the relay already follows, and for
+       * the same reason. Nineteen suites stage from "the host leads round 1"; a rotating opener would make
+       * every one of them a coin flip, and rewriting them all to be opener-agnostic would be a large change
+       * that tests nothing new. So dbg pins seat 0, `?starter=rotate` asks for the shipped behaviour, and
+       * `nettest_starter` is the suite that names it. */
+      /* ROLL FOR IT, THE WAY SOLO ALREADY DOES (Aj: *"why can we not just roll dice like in solo play?"*). The
+       * first version of this quietly alternated — fair, but invisible, and solo has announced the opener with
+       * a visible roll since forever. Online was the only mode that just decided.
+       * A roll is also the honest answer to a measurement that surprised us: leading round 1 is NOT a flat
+       * advantage — same AI on both seats, 8000 duels per arm, it is worth fighter -4.81 points, knight -2.61,
+       * demon +6.45. An amplifier, not an edge, so the sign is unknowable for two humans and the only
+       * defensible thing is to decide it fairly and SHOW that you did. Re-rolled on a tie, like `rollDiceMP`. */
+      var rolls=null, hiRoll=0;
+      for(var g=0; g<40; g++){                            // hang guard; a tie among six dice clears in a few
+        var r2=[], hi=-1, tied=[];
+        for(var d=0; d<n; d++){ var v=1+Math.floor(Math.random()*6); r2.push(v); if(v>hi){ hi=v; tied=[d]; } else if(v===hi) tied.push(d); }
+        if(tied.length===1){ rolls=r2; hiRoll=hi; netStarter=tied[0]; break; }
+      }
+      if(rolls==null) netStarter=0;
+      /* DETERMINISTIC UNDER `dbg=1` UNLESS A SUITE OPTS IN — the rule the relay already follows, for the same
+       * reason. Nineteen suites stage from "the host leads round 1"; a rolled opener makes each a coin flip,
+       * and rewriting them all to be opener-agnostic tests nothing new. `?starter=rotate` asks for the shipped
+       * behaviour; `nettest_starter` is the suite that names it. */
+      try{ var sq=new URLSearchParams(location.search);
+           if(/[?&]dbg=1/.test(location.search) && sq.get('starter')!=='rotate'){ netStarter=0; rolls=null; } }catch(e){}
+      if(netStarter>=n || netStarter<0) netStarter=0;     // a seat that left cannot open
+      trace('opener', 'seat '+netStarter+(rolls?' rolled '+rolls.join('/'):' (dbg: pinned)'));
+      startGame(netStarter);
+      /* SAID AFTER the deal, so `state` exists for `logName`, and through `say` so each seat reads it in its own
+       * frame. Both names travel as SEATS, never as text — the rule whose breach produced "You is out!". */
+      if(rolls){
+        var other=(netStarter===0?1:0);
+        if(n===2) say(netStarter, '🎲 {who} rolled '+rolls[netStarter]+', {foe} rolled '+rolls[other]+' — {who} will lead round 1.', 'round', [other]);
+        else say(netStarter, '🎲 {who} rolled highest ('+hiRoll+') — {who} will lead round 1.', 'round');
+      }
       for(var s2=1;s2<n;s2++) seatCtrl[s2]='remote';    // every opponent seat is a remote human (override resetControllers' 'ai')
       hostState=state;
       seatNames[0]=myName;
