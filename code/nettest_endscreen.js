@@ -102,6 +102,18 @@ const endGameEntries=p=>p.evaluate(()=>{ try{ return window.__cmf.trace().filter
      'and it is STILL open three seconds later, not painted over by the win screen  [saw "'+hv.head+'"]'+
      (/WIN|Wins/i.test(hv.head)?'  ← REPRODUCED: endGame re-entered and clobbered it':''));
 
+  /* ── HALF FOUR: THE OLD GAME IS GONE, NOT MERELY COVERED (Aj: *"why is the previous game still there in the
+   * back?"*). Until `clearBoard()` there was no teardown at all — `state` was assigned when a game began and
+   * never cleared, so a finished board sat behind whatever floated on top of it, and `leaveOnline` "worked"
+   * only because it reloads the page. Asserting the CARDS are gone, not that something covers them. */
+  const behind = await host.evaluate(()=>({
+    hand:document.querySelectorAll('#hand .card').length,
+    pile:document.querySelectorAll('#pile .card').length,
+    forms:document.querySelectorAll('#youFormZone *, #rivalFormZone *').length,
+  }));
+  ok(behind.hand===0 && behind.pile===0 && behind.forms===0,
+     'the finished board is torn down behind the dialog, not just hidden  [hand '+behind.hand+', pile '+behind.pile+', forms '+behind.forms+']');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log((fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
