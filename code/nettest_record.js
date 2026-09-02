@@ -10,7 +10,7 @@
  * Run: node nettest_record.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const http=require('http'),fs=require('fs'),path=require('path');
-const DIR=__dirname,PORT=8317,ROOM='RC'+Date.now().toString().slice(-3);
+const DIR=__dirname,PORT=+(process.env.PORT||8317),ROOM='RC'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':p.endsWith('.html')?'text/html':'application/javascript'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));

@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.81.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.82.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.81**, working tree clean, full sweep green at **71 suites**. The only branch is
+`main` is at **v1.31.82**, working tree clean, full sweep green at **71 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -166,30 +166,16 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 ### Tooling
 
-- **MAKE THE SWEEP PARALLEL — ~309s → ~80s, and the only blocker is fixed ports.** 67 of the 72 suites average
-  **4.6s** and are serial purely because each binds a hardcoded port; `PORT` as an env var (defaulting to
-  today's value, so nothing else changes) would let 3-4 run at once. Two things to respect: three suites already
-  share port **8303** (`concede3`/`elim3`/`energy`), and CLAUDE.md records that the suites are load-sensitive —
-  `nettest_rtc` failed at `maxRound=0` under contention and passes 11/0 alone. **That was measured on a weaker
-  sandbox and is directly testable**: run a 3-way parallel sweep several times and see whether it stays green.
-  If it flakes, the fallback is parallelising only the non-netplay suites.
-  Full timing breakdown: [`DECISIONS.md`](DECISIONS.md#sweep-cost).
 - **`rulestest` IS 15.1s OF FIXED `wait()` OUT OF 25s** — the same fix v1.31.81 applied to `landscapetest`,
   worth ~13s, but spread over **60 call sites** rather than one `open()`. Poll for the condition; and note the
   lesson that cost a red run there: **a settle predicate must include the thing being asserted on** (watching
   `#hand`'s box let it return while the cards were still growing into it).
-- **THE ITERATION LOOP CAN SKIP THE SIX SLOW SUITES; THE PR GATE CANNOT.** They are 51% of the sweep and they
-  are the *stable* ones — layout, smoke, multiplayer parity, export — so skipping them while iterating is cheap
-  and low-risk. **Aj's rule: at least one complete sweep per day of full coding**, plus the existing rule that a
-  full sweep gates every PR. **Never skip the netplay sweep** — all 44 suites are 196s, and `nettest_elim3` sat
-  red for five versions because a change "did not look related" to it.
-
-- **`nettest_full` FAILED ONCE IN SEVEN RUNS on 2026-08-29 and was NOT fully cleared.** It went 4/1 immediately
-  after the v1.31.56 change, then 6/6 green. The failing assertion was **not captured**, which is the mistake to
-  avoid repeating. Structurally the change cannot reach it — on a client the only path into `playCards` is the
-  drag, and that suite drives clicks + Fight, which short-circuits in `doFight` — and the suite has a long
-  documented history of intermittency. Recorded as characterised-but-open rather than dismissed: **capture the
-  failing assertion next time it goes red.**
+  Lower value than it looks now that the sweep is parallel — 13s off one lane of four is not 13s off the
+  sweep. Do it when touching `rulestest` for another reason.
+- **`srv.listen` IS AWAITED WITH NO ERROR HANDLER IN EVERY SUITE**, so a port collision hangs forever instead
+  of failing, and `sweep.js` has no per-suite timeout either — a hung suite would occupy a lane until someone
+  noticed. Cheap to fix (an `error` handler that rejects, plus a generous timeout in the runner) and it turns
+  the single most confusing failure mode — a mysterious stall — into a named error.
 
 ### Features
 
@@ -368,6 +354,72 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.82 — the sweep runs four at a time: 637s → ~180s, and 88s for the loop
+
+`node sweep.js` (also `npm run sweep`), and the reason it can exist is one line per suite: `PORT` now comes from
+the environment, defaulting to today's value, so running any suite by hand is byte-for-byte the behaviour it had.
+
+**"RUN THEM ONE AT A TIME" WAS LOAD-BEARING, NOT CAUTION — AND WORSE THAN DOCUMENTED.** CLAUDE.md recorded one
+shared port (8303). There were **five** colliding groups:
+
+```
+8296 relay/rtc3 · 8303 concede3/elim3/energy · 8319 deckout3/inpage
+8331 actloop/clientwin · 8341 drag/mirrordrop/version
+```
+
+Any of those pairs run together would have fought over a socket — and since `srv.listen` is awaited with no
+error handler, the loser **hangs forever rather than failing**, which is the mysterious-timeout signature this
+file has blamed on the environment more than once.
+
+| | before | after |
+| --- | --- | --- |
+| full sweep, 72 suites | 637s | **~140-240s** (`-j 4`) |
+| `--fast`, 66 suites | ~309s | **88s** |
+
+`--fast` skips the six slow **stable** suites — layout, smoke, multiplayer parity, export — which are 51% of the
+wall clock and rarely change. That is the iteration loop; **a full sweep still gates every PR**, and Aj's rule of
+at least one complete sweep per day of coding stands. **The six are never netplay suites**: all 44 of those
+together are 196s, and `nettest_elim3` once sat red for five versions because a change "did not look related".
+
+**THE RECORDED FLAKE DID NOT REPRODUCE.** CLAUDE.md warned that suites flake under contention (`nettest_rtc` at
+`maxRound=0`). That was measured on the old sandbox; here **11 full parallel sweeps were 72/72 green at every
+lane count from 2 to 8**, with no suite failing once. `-j 1` restores serial behaviour if a parallel run ever
+looks suspicious.
+
+**PARALLELISM CAN MAKE A WALL-CLOCK-BOUNDED SUITE TEST LESS WITHOUT TURNING RED, and `nettest_sync` was doing
+exactly that.** It runs until 60 actions **or** 120 seconds. Alone it finishes in ~20s on the ACTION cap; in the
+parallel sweep it took **125s** and stopped on the CLOCK — still 12/12 green, on far fewer actions. Two fixes,
+because it was invisible twice over: the runner printed only the `PASS: n FAIL: n` fragment and **cropped the
+suite's own `· rounds N, actions M` evidence**, and the suite reported an identical green line either way. It
+now prints a loud `⚠ stopped on the 120s WALL CLOCK` and marks the summary `(TIME-CAPPED)`. **A warning, not a
+failure** — a busy machine should not turn the sweep red — but a shallower run must never look like a full one.
+**Verified by forcing the cap to 12s**, since an unexercised branch is untested code.
+**This is the general hazard of the change, not a quirk of one suite:** anything bounded by wall clock does less
+work when it shares a machine. `nettest_sync` is the only one with a time budget today; check for `Date.now()`
+loops before adding another.
+
+**DO NOT QUOTE A SINGLE SWEEP TIME.** This machine carries live desktop load (~50% CPU, load average 3-6 of 16
+cores) and three identical `-j 4` runs gave 240s, 243s and 147s. Lane counts 4 and up all land in one band; only
+`-j 2` was clearly worse.
+
+**AND THE BRANCH-NAME RULE BECAME A GATE, because this change broke it twice.** `perf/` was invented mid-session
+and used for v1.31.81 and v1.31.82 — one already unerasable from history — and then nearly documented as a sixth
+prefix rather than questioned. Aj: *"it could have been an exp first then a fix second… who knows what other
+sorts of prefix we'll get into? a wild wild west is out there when an llm doesn't even follow it's own rules"*.
+He is right on both counts, and the `exp/` reading is the better one: the parallel sweep genuinely might have
+been reverted if the suites had flaked under contention. `code/checkbranch.js` + `.githooks/pre-push` now refuse
+an undocumented prefix (`git config core.hooksPath .githooks`, once per clone). **Every other rule here is
+already a gate** — build.js hard-fails on a missing version, `versiontest` asserts the doc chain, the sweep
+diffs suite counts — and naming was the last one on trust. It lasted until someone stopped reading it.
+
+**AND THE SCHEDULER MEASURED TO NOTHING.** Aj asked whether longest-first ordering was pulling its weight. It is
+textbook LPT and I had already written it into a PR description as though it were established. A/B'd against the
+deliberate worst case, interleaved: **longest 235s/142s vs shortest 168s/157s — indistinguishable**, the 26s
+between arms sitting inside a 93s spread within one arm. Kept, because it is one `.sort()` reusing a list
+`--fast` needs anyway and it cannot hurt — but with the comment rewritten to say it is theory, not evidence.
+Filed in [`DECISIONS.md`](DECISIONS.md#sweep-scheduling). **Second time in two days that a claim following from
+sound theory turned out to be unmeasurable; the art-stub was the first.**
 
 ### v1.31.81 — the layout suite stops sleeping: 97s → 33s, and a third off the sweep
 

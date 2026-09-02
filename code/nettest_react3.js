@@ -2,7 +2,7 @@
  * holding Counter Spell 4D) gets the Counter window on its own board and counters over the wire — proving reactive
  * windows now belong to the remote human in 3–6p, not the auto-resolver. Over BroadcastChannel. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const http=require('http'),fs=require('fs'),path=require('path');
-const DIR=__dirname,PORT=8297,ROOM='RX'+Date.now().toString().slice(-3);
+const DIR=__dirname,PORT=+(process.env.PORT||8297),ROOM='RX'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));

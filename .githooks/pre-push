@@ -1,0 +1,3 @@
+#!/bin/sh
+# Branch-name gate — see code/checkbranch.js. Enable once per clone:  git config core.hooksPath .githooks
+exec node "$(dirname "$0")/../code/checkbranch.js"

@@ -2,7 +2,7 @@
  * can't beat and pass → c1 wins WITH a combo → c1's own board shows the target picker (from its mirror) and c1 picks
  * c2 over the wire → only c2 loses a shield. Exercises the remote loss-choice park + un-rotation. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const http=require('http'),fs=require('fs'),path=require('path');
-const DIR=__dirname,PORT=8300,ROOM='LR'+Date.now().toString().slice(-3);
+const DIR=__dirname,PORT=+(process.env.PORT||8300),ROOM='LR'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));

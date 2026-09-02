@@ -9,7 +9,7 @@
  * loaded WITH the saved deck and the store is cleared BEFORE the host page loads, so the host is genuinely
  * ignorant of it — which is what a real pair of players looks like. Run: node nettest_customdeck.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
-const DIR=__dirname,PORT=8302;
+const DIR=__dirname,PORT=+(process.env.PORT||8302);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=(r,room)=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${room}&dbg=1`;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));

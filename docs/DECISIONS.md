@@ -344,6 +344,24 @@ independently" — that SHIPPED in v1.31.21.*
 
 ## Test harness
 
+<a id="sweep-scheduling"></a>
+- **LONGEST-FIRST SCHEDULING IN `sweep.js` IS KEPT ON THEORY, NOT ON EVIDENCE (measured 2026-09-02).** Aj asked
+  whether the runner's scheduler was pulling its weight. It is textbook LPT — the floor for N lanes is
+  `max(total_work / N, longest_single_suite)` and bad ordering strands a slow suite in the tail — but A/B'd
+  against the deliberate worst case (shortest first), interleaved so machine drift hits both arms:
+
+  | | run 1 | run 2 | mean |
+  | --- | --- | --- | --- |
+  | longest-first (shipped) | 235s | 142s | 188s |
+  | shortest-first (worst case) | 168s | 157s | 162s |
+
+  **Indistinguishable.** The 26s gap between arms sits inside a 93s spread WITHIN the longest-first arm. It is
+  one `.sort()` line reusing the `SLOW` list that `--fast` needs anyway, so it stays — but **do not quote a
+  saving for it, and do not delete it expecting a slowdown either.** Resolving a ~26s effect against this
+  machine's noise would need many replicates and would be measuring the desktop.
+  **THE GENERAL POINT, and it is the second time in two days:** a claim that follows from sound theory is still
+  a claim. This one was written into a PR description as fact before anyone measured it.
+
 <a id="sweep-cost"></a>
 - **WHERE A FULL SWEEP'S TIME ACTUALLY GOES — timed per suite, 2026-09-01, v1.31.80.** Aj asked; the answer was
   concentrated, and every intuition about it was wrong in a useful way. **Do not re-derive this; re-time it.**

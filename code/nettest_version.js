@@ -11,7 +11,7 @@
  * Run: node nettest_version.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const http=require('http'),fs=require('fs'),path=require('path');
-const DIR=__dirname,PORT=8341;
+const DIR=__dirname,PORT=+(process.env.PORT||8341);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 /* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll

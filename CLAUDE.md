@@ -1184,9 +1184,29 @@ forever is not worth 1s. Do not re-propose it without timing the suites first.
 geometry stops moving" poll; the first version watched `#hand`'s box and returned while the CARDS were still
 growing into it, so two negative cases measured a 60px card against a 66px floor and failed.
 
-**Run them one at a time.** Each suite starts its own HTTP server on a fixed port and drives two or three real
-browser pages; two suites at once flake on CPU contention (`nettest_rtc` in particular fails at `maxRound=0`
-concurrently and passes 11/0 alone). A serial sweep of all 38 takes a few minutes.
+**~~Run them one at a time~~ — USE `node sweep.js`, WHICH RUNS THEM 4 AT A TIME (v1.31.82).** Every suite now
+takes `PORT` from the environment (default unchanged, so running one by hand is exactly as before) and the
+runner hands each job its own. **The old rule was load-bearing, not caution: FIVE port groups actually
+collided** — 8296 `relay`/`rtc3` · 8303 `concede3`/`elim3`/`energy` · 8319 `deckout3`/`inpage` · 8331
+`actloop`/`clientwin` · 8341 `drag`/`mirrordrop`/`version`. This file previously documented only 8303.
+`npm run sweep` (all 72) · `npm run sweep:fast` (skips the six slow STABLE suites — the iteration loop) ·
+`node sweep.js -j 1` for the old serial behaviour when a parallel run looks suspicious.
+**637s → ~140-240s full, and 88s for `--fast`.** The runner schedules LONGEST FIRST, or one lane ends up running
+`landscapetest` while the others sit idle.
+**THE RECORDED FLAKE DID NOT REPRODUCE.** `nettest_rtc` failing at `maxRound=0` under contention was measured on
+the old sandbox; **7 full parallel sweeps here were 72/72 green at every lane count from 2 to 8**, with no suite
+failing once. If it ever does flake, `-j 1` is the fallback and `--fast` still parallelises only stable suites.
+**A WALL-CLOCK-BOUNDED SUITE TESTS LESS WHEN THE SWEEP IS PARALLEL, AND STAYS GREEN WHILE DOING IT.**
+`nettest_sync` runs until 60 actions **or** 120s. Alone it hits the ACTION cap in ~20s; at `-j 4` it took 125s
+and hit the CLOCK — 12/12 either way, on far fewer actions. It now prints `⚠ stopped on the 120s WALL CLOCK` and
+marks its summary `(TIME-CAPPED)`, and `sweep.js` prints each suite's WHOLE summary line rather than cropping to
+the `PASS:`/`FAIL:` fragment, which is what hid the evidence the suite was already reporting. **A warning, not a
+failure — but never let a shallower run look like a full one.** Before adding a suite with a `Date.now()` budget,
+know that parallelism eats into it.
+
+**DO NOT QUOTE A SINGLE SWEEP TIME.** This machine carries live desktop load (WindowServer + apps at ~50% CPU,
+load average 3-6 of 16 cores), and three `-j 4` runs gave 240s, 243s and 147s. Lane counts 4 and up all land in
+the same band; only `-j 2` was clearly worse.
 
 **`awaitRival()` SETS TWO THINGS, AND `hostTakeBack()` CLEARS BOTH (v1.31.49).** `busy` and the
 "Waiting for opponent…" text. Every path that handed control back used to clear only `busy`, so the host's board
@@ -1268,10 +1288,11 @@ assertion is this bug waiting to happen — poll for the condition instead. One 
 evidence, not proof, since the original failure was intermittent; if it recurs, look for another fixed wait
 before blaming the environment.
 
-Unrelated but real: **three suites share port 8303** (`nettest_concede3`, `nettest_elim3`, `nettest_energy`).
-They pass serially because each closes its server, but never run those three concurrently. Also note
-`srv.listen` is awaited with no error handler in every suite, so a port collision hangs forever rather than
-failing — which is why a collision would look like a mysterious timeout.
+Unrelated but real: the hardcoded ports **collided in five groups**, not the one this note used to name — see
+the sweep-runner note above; `PORT` is now an env var and `sweep.js` assigns them, so this is historical. Still
+live, though: **`srv.listen` is awaited with no error handler in every suite**, so a collision hangs forever
+rather than failing — which is why one would look like a mysterious timeout rather than an error, and why
+`sweep.js` has no per-suite timeout to hide behind either.
 
 **Never `pkill` browsers while a suite is running — and never put cleanup in a command that shares a shell
 with a test.** `pkill -f headless_shell` used as tidy-up killed a running `browsertest`'s page mid-flight; the
@@ -1289,7 +1310,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.81 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
+Status as of **v1.31.82 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
 `test` 378, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
@@ -1764,10 +1785,25 @@ Branch first, always.
 | Prefix | For | Example |
 | --- | --- | --- |
 | `feat/` | new player-visible behaviour | `feat/emotes-and-names` |
-| `fix/` | a defect, in the game **or in a suite** | `fix/landscape-dialog-clipping` |
+| `fix/` | a defect, in the game **or in a suite** — including a suite that is too SLOW | `fix/parallel-sweep` |
 | `docs/` | docs, handoff, backlog only | `docs/branch-and-pr-rules` |
 | `exp/` | a balance experiment that **may be reverted** | `exp/shields-scale-down` |
 | `parked/` | built, green, deliberately unmerged | `parked/qr-scanning` |
+
+**THE PREFIX RULE IS A GATE NOW, NOT AN HONOUR SYSTEM — `code/checkbranch.js`, run by `.githooks/pre-push`.**
+Enable it once per clone: `git config core.hooksPath .githooks`. It refuses an undocumented prefix outright and
+*warns* (does not block) on the two-to-four-word style note, because the prefix is the part that drifts and a
+hard stop on wording would be the rule bullying the work. **Every other rule here is already a gate** — build.js
+hard-fails on a missing version, `versiontest` asserts the doc chain, the sweep diffs suite counts against this
+file — and naming was the last one left on trust. It lasted until someone stopped reading it.
+
+**THERE IS ONE `perf/` BRANCH IN HISTORY AND IT IS A MISTAKE, NOT A CATEGORY** (`455b7db`, v1.31.81). It was
+invented mid-session without anyone deciding to, used twice, and Aj rejected it: harness speed work is a `fix/`,
+because a suite that is too slow to run is a defect in the suite. **A prefix you invent mid-session is drift
+until someone agrees to it** — this is exactly how `feature/` and `feat/` came to coexist. Do not add a sixth.
+**And it could have been `exp/` first and `fix/` second** (Aj's reading, and the better one): the parallel
+sweep genuinely might have been reverted if the suites had flaked under contention, which is what `exp/` is
+for. Reaching for a new word was the lazy move, not the necessary one.
 
 **`exp/` exists because reverts are normal here.** v1.31.0's multiplayer package shipped and was reverted by
 v1.31.2, which produced the branch pair `feature/mp-scaling` and `fix/revert-mp-scaling` — a shape that reads as
