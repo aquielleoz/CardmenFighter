@@ -7118,15 +7118,36 @@ __QR__
        * every one of them a coin flip, and rewriting them all to be opener-agnostic would be a large change
        * that tests nothing new. So dbg pins seat 0, `?starter=rotate` asks for the shipped behaviour, and
        * `nettest_starter` is the suite that names it. */
-      var rotate=true;
+      /* ROLL FOR IT, THE WAY SOLO ALREADY DOES (Aj: *"why can we not just roll dice like in solo play?"*). The
+       * first version of this quietly alternated — fair, but invisible, and solo has announced the opener with
+       * a visible roll since forever. Online was the only mode that just decided.
+       * A roll is also the honest answer to a measurement that surprised us: leading round 1 is NOT a flat
+       * advantage — same AI on both seats, 8000 duels per arm, it is worth fighter -4.81 points, knight -2.61,
+       * demon +6.45. An amplifier, not an edge, so the sign is unknowable for two humans and the only
+       * defensible thing is to decide it fairly and SHOW that you did. Re-rolled on a tie, like `rollDiceMP`. */
+      var rolls=null, hiRoll=0;
+      for(var g=0; g<40; g++){                            // hang guard; a tie among six dice clears in a few
+        var r2=[], hi=-1, tied=[];
+        for(var d=0; d<n; d++){ var v=1+Math.floor(Math.random()*6); r2.push(v); if(v>hi){ hi=v; tied=[d]; } else if(v===hi) tied.push(d); }
+        if(tied.length===1){ rolls=r2; hiRoll=hi; netStarter=tied[0]; break; }
+      }
+      if(rolls==null) netStarter=0;
+      /* DETERMINISTIC UNDER `dbg=1` UNLESS A SUITE OPTS IN — the rule the relay already follows, for the same
+       * reason. Nineteen suites stage from "the host leads round 1"; a rolled opener makes each a coin flip,
+       * and rewriting them all to be opener-agnostic tests nothing new. `?starter=rotate` asks for the shipped
+       * behaviour; `nettest_starter` is the suite that names it. */
       try{ var sq=new URLSearchParams(location.search);
-           if(/[?&]dbg=1/.test(location.search) && sq.get('starter')!=='rotate') rotate=false; }catch(e){}
-      if(!rotate) netStarter=0;
-      else if(netStarter==null) netStarter=(Math.random()<0.5?0:1);
-      else netStarter=(netStarter+1)%n;
-      if(netStarter>=n || netStarter<0) netStarter=0;    // a seat that left cannot open
-      trace('opener', 'seat '+netStarter+(rotate?'':' (dbg: pinned)'));
+           if(/[?&]dbg=1/.test(location.search) && sq.get('starter')!=='rotate'){ netStarter=0; rolls=null; } }catch(e){}
+      if(netStarter>=n || netStarter<0) netStarter=0;     // a seat that left cannot open
+      trace('opener', 'seat '+netStarter+(rolls?' rolled '+rolls.join('/'):' (dbg: pinned)'));
       startGame(netStarter);
+      /* SAID AFTER the deal, so `state` exists for `logName`, and through `say` so each seat reads it in its own
+       * frame. Both names travel as SEATS, never as text — the rule whose breach produced "You is out!". */
+      if(rolls){
+        var other=(netStarter===0?1:0);
+        if(n===2) say(netStarter, '🎲 {who} rolled '+rolls[netStarter]+', {foe} rolled '+rolls[other]+' — {who} will lead round 1.', 'round', [other]);
+        else say(netStarter, '🎲 {who} rolled highest ('+hiRoll+') — {who} will lead round 1.', 'round');
+      }
       for(var s2=1;s2<n;s2++) seatCtrl[s2]='remote';    // every opponent seat is a remote human (override resetControllers' 'ai')
       hostState=state;
       seatNames[0]=myName;

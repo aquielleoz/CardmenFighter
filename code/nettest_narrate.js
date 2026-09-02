@@ -30,7 +30,11 @@ async function until(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retu
 /* Sender-baked grammar, as it renders for the seat the sender called "them". Each of these has been shipped at
  * least once: "You moves", "You's hand", "You is out". They are cheap to scan for and they never have a
  * legitimate reading, so this list is a standing guard rather than a snapshot of today's bugs. */
-const BAD = [/\bYou is\b/, /\bYou has\b/, /\bYou moves\b/, /\bYou plays\b/, /\bYou passes\b/, /\bYou wins\b/,
+/* `You leads` joined the list on 2026-09-02, having been introduced the same afternoon by the netplay dice
+ * roll — `'{who} leads round 1'` reads fine on the sender and becomes "You leads" for the seat that won it.
+ * An enumerated scan only catches the verbs someone thought of, which is an argument for adding to it every
+ * time one slips through rather than for trusting it. */
+const BAD = [/\bYou is\b/, /\bYou has\b/, /\bYou moves\b/, /\bYou plays\b/, /\bYou passes\b/, /\bYou wins\b/, /\bYou leads\b/,
              /\bYou lose[s]\b/, /\bYou’s\b/, /\bYou's\b/, /\bYou were locked out\b.*\bthey\b/, /\bYou are locked\b/];
 const badLines = lines => lines.filter(l => BAD.some(rx => rx.test(l)));
 

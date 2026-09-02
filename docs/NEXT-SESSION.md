@@ -75,6 +75,51 @@ said "open work only". Two shipped design specs were deleted outright, since the
 full. **Ranked now: correctness first, then things a playtester meets immediately, then features and balance.**
 A struck-through entry does not belong here — if it shipped, move it to the changelog.*
 
+### Correctness
+
+*Four reports from a real online duel, 2026-09-02, with screenshots. Ranked: the wedge first.*
+
+- **★ THE HOST HANGS AFTER A CLIENT DISCARDS TO HAND SIZE.** The host's own header reads **"your turn"** while
+  the board says **"Hold on — the board is still resolving."** and Fight/Pass are dead. That combination is the
+  documented `busy` wedge signature — CLAUDE.md: *"When netplay 'lags', suspect a stuck `busy` before the
+  transport."* — and it is the same shape as v1.31.20 and v1.31.49, both of which were a path that handed
+  control back without clearing BOTH things `awaitRival` sets.
+  **Where to look:** `hostParkTrim` sets `busy` and the status text for a remote seat's clean-up pick; the
+  resume path after `E.resolveDiscard` must go through `hostTakeBack`, which clears both. `nettest_trim` covers
+  the HOST doing its own pick (every other seat is auto-trimmed) — **it does not cover a REMOTE seat picking,
+  which is exactly this case**, so the suite is green and the bug is real.
+- **★ THE CLIENT IS TOLD THE WRONG THING WHILE TRIMMING TO HAND SIZE — and told it twice, contradicting
+  itself.** One line reads *"Rival forces a discard — choose 1 card to send to your **Shuffle Pile**"* and the
+  picker below reads *"Choose 1 card to send to your **Energy Pile** — keep your Specials! (0/1 picked)"*.
+  Neither the actor nor the destination is right: nobody forced anything (it is the end-of-round trim) and the
+  trim goes to **Energy**, not Shuffle.
+  **Cause is structural and already documented:** v1.31.70 made every seat pick its own end-of-round pitches by
+  **reusing the forced-discard window** (`discardPending` → `{op:'discard'}` → `E.resolveDiscard`) — *"safe
+  because both paths already discard to the ENERGY pile"*. The mechanism was reused; the COPY was not updated,
+  so a trim announces itself as a Telekinesis. `trimPending` already exists to tell the two apart.
+- **★ "NEW DUEL" IN NETPLAY OPENS THE SOLO SETUP, NOT THE HOST/JOIN SCREENS** (Aj, report 6). v1.31.87 stopped
+  the end screen painting itself back over the dialog; the dialog it opens is still the wrong one.
+  `$('againBtn').addEventListener('click', openSetup)` — one handler, no netplay branch — so a rematch dumps you
+  into "Players / Your name / Your class" instead of offering to host or join. **This is the other half of the
+  original report** (*"you have to press leave then do the whole handshake thing again"*): the clobbering is
+  fixed, the destination is not, so the handshake is still the only way back.
+- **THE CONCEDE MODAL CLOSES ITSELF ON THE CLIENT** (Aj, report 5) — without anything being clicked. Likely the
+  same family as the end screen: `applyMirrorNow` calls `hideOverlay()` for anything not on its owed-window
+  list, and the concede confirm is not on it. v1.31.87 added `overGame` for the END screen only; a confirm
+  dialog is the same kind of thing and was not covered. **Check the list, not just this one modal** — anything
+  the player opened that is not an owed response window has the same problem.
+- **NO ANIMATION ON THE CLIENT WHEN IT ACTIVATES A JACK.** The transform happens but nothing plays. Compare
+  `buildOppBeats`, which is the one place both drivers funnel through for `flashArt`/`revealEffect` — a client
+  activating for ITSELF is a third path, and CLAUDE.md's standing warning applies: *"a bespoke presentation path
+  silently misses features the shared one gained."*
+- **THE BATTLE LOG HAS NO "JUMP TO NEWEST" WHEN SCROLLED UP.** Scroll back to read something and there is no way
+  back to the live end except scrolling. Small, and it compounds with the open item about opening the log as an
+  overlay.
+
+*Also CONFIRMED by the same screenshots, already filed below: the netplay host logs the SOLO line (**"New duel —
+you play Berserker (Fig+Rog) vs Aj (Fighter) on Pure Cleric"**) and its header reads **"duel vs AI"** — in an
+online duel against a person.*
+
 ### Things a playtester meets immediately
 
 - **A NETPLAY DUEL HOST LOGS THE SOLO LINE AND SHOWS AN AI TIER.** `logMsg`/`matchupTag` branch on
@@ -96,6 +141,17 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   `#log` is `overflow-y:auto` with no netplay override, so a `min-height:0` chain broken by the `.fighter`
   overflow is a plausible SHARED cause. Measure before filing it as a netplay divergence. (The two seams that
   netplay and solo actually diverge in are mapped in [`DECISIONS.md`](DECISIONS.md#netplay-architecture).)
+
+### Tooling
+
+- **`lessontest_twos` FAILS UNDER PARALLEL LOAD, AND IT IS NOT A TIMEOUT.** 29/0 alone; 23/6 at `-j 4`, taking
+  100s against its usual 20s. The failure is a real state divergence, not a poll giving up:
+  `✗ the Rival led a full house built on three 2s` … `Fight is disabled — hint: Special Full House — doesn't
+  beat the Special Pair`. So the pile was a PAIR when the lesson expected a full house — the scripted `pilot`
+  went off-script under load rather than merely running slowly.
+  **This is a fourth timing class** after wall-clock budgets (v1.31.82), poll budgets (v1.31.84) and raw
+  iteration counts (v1.31.85): a suite whose SEQUENCE depends on beats landing in order. Raising a budget will
+  not fix it. Start by logging what the pilot actually played versus what the step expected.
 
 ### Features
 
@@ -291,8 +347,23 @@ first-mover edge"*. With the same AI on both seats, 8000 duels per arm, leading 
 
 **It is not an edge, it is an amplifier.** Leading commits a card and information before the opponent answers,
 which punishes weak play and rewards strong — so the sign is unknowable for two humans, and irrelevant to the
-fix: whatever it is, it must not land on the same seat every game. **Random first, then alternate**, so a
-rematch swaps and nobody gets three openings in a row.
+fix: whatever it is, it must not land on the same seat every game.
+
+**IT ROLLS DICE, BECAUSE AJ ASKED THE OBVIOUS QUESTION AND IT WAS BETTER THAN THE FIRST ANSWER** (*"why can we
+not just roll dice like in solo play?"*). The first version alternated silently — fair, and invisible. Solo has
+announced the opener with a roll since forever; online was the only mode that just decided. It is announced
+reader-relative, so each seat reads it in its own frame:
+
+```
+HOST  🎲 You rolled 6, Rival rolled 5 — You will lead round 1.
+JOIN  🎲 Rival rolled 6, You rolled 5 — Rival will lead round 1.
+```
+
+**AND WRITING IT INTRODUCED A GRAMMAR BUG OF EXACTLY THE DOCUMENTED KIND.** The first draft said
+`{who} leads round 1`, which renders as **"You leads round 1"** for the seat that won — the same
+subject-verb class as "You is out!" and "You moves". It is `will lead` now, and **`You leads` has been added to
+`nettest_narrate`'s scan**, which had not thought of that verb. An enumerated scan only catches what someone
+thought of, which argues for extending it every time one slips through rather than trusting it.
 
 **THE AWKWARD PART WAS THE BLAST RADIUS, and the answer is a rule this repo already has.** Nineteen suites stage
 from "the host leads round 1"; a rotating opener makes every one of them a coin flip, and rewriting them all to
@@ -340,6 +411,16 @@ warning, neutering the clear leaves it stuck — **which would be worse than non
 host's state actually moves — the same property `reassertMirror` exists for at the park points.
 
 ### v1.31.87 — the end screen stops painting itself back over whatever you opened
+
+> **CORRECTION (2026-09-02, from Aj playing it): THIS DID NOT FIX THE REPORTED EXPERIENCE, and the claim below
+> that it "empties the Correctness backlog" was wrong.** What it fixed is real and measured — `endGame` was
+> re-entering on every mirror — but Aj still could not get back to a fresh online game without Leave and a full
+> handshake, because **`againBtn` opens the SOLO setup** and nothing here changed that (now filed as its own
+> entry). Two further things he hit that this did not touch: during the wedge **there was no Leave button at
+> all, only Concede**, so the only exit from a hung game is a recorded loss; and the concede confirm closes
+> itself on the client, which is the same `hideOverlay()` list this fixed for the END screen only.
+> **The lesson is the claim, not the code: "this closes the backlog" is a statement about a PLAYER'S
+> experience, and only playing it can settle that.** A green suite could not have.
 
 Two BACKLOG entries, one cause, and it was plainer than the standing theory. Aj: *"you have to press leave then
 do the whole handshake thing again"*.
