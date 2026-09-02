@@ -1331,8 +1331,10 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.93 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
-~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
+Status as of **v1.31.93 — 2026-09-02, `npm run sweep`, 77 suites and 0 FAIL in 148s** (four lanes; background
+it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
+var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
+which is what a number nobody can verify looks like). Counts verified:
 `test` 382, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
 `versiontest` 24, `sharetest` 16, `qrtest` 32, `peektest` 31, `lessontest_quicks` 21, `lessontest_howto` 24,

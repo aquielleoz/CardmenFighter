@@ -20,9 +20,9 @@ classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
-## ☀️ START HERE — where we left off (2026-09-01)
+## ☀️ START HERE — where we left off (2026-09-02)
 
-`main` is at **v1.31.93**, working tree clean, full sweep green at **71 suites**. The only branch is
+`main` is at **v1.31.93**, working tree clean, full sweep green at **77 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -33,9 +33,16 @@ npm test && node mptest.js && node landscapetest.js
 
 Expect **0 FAIL** from each. The two gate counts in the header above are asserted by `versiontest`, so they
 cannot drift; every other suite's expected count lives in **CLAUDE.md**, which is the authority. A full sweep is
-71 suites and ~10 minutes — background it, and **never two suites at once** (fixed ports).
+**`npm run sweep`** — 77 suites, four at a time, ~150-250s. `npm run sweep:fast` skips the six slow STABLE
+suites; `node sweep.js -j 1` is the serial fallback if a parallel run ever looks suspicious. **The old "never
+two suites at once" rule is dead** — `PORT` is an env var and the runner assigns one per job (v1.31.82).
 
-**The last four versions:** **v1.31.79** the Demon Lord never spends a card it is about to win with — a tier
+**The last four versions:** **v1.31.93** effect art reaches every seat — netplay had none in ANY direction ·
+**v1.31.92** a dialog you opened survives a mirror, and "New Duel" stops offering a solo game online ·
+**v1.31.91** the duel host stops wedging on a client's clean-up discard · **v1.31.90** a finished game is torn
+down before the next one opens.
+
+**The four before those:** **v1.31.79** the Demon Lord never spends a card it is about to win with — a tier
 BEHAVIOUR, worth a quarter of the knight→demon gap · **v1.31.78** a banked boost commits the turn, and nothing
 may spend the play it bought · **v1.31.77** the AI stops throwing away the value boost it just paid for ·
 **v1.31.76** the 2 explains itself — reminder text on the card, derived from the live rules, plus a Basics
