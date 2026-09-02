@@ -18,7 +18,7 @@
  * Run: node nettest_sync.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const http=require('http'),fs=require('fs'),path=require('path'),{ spawn }=require('child_process');
-const DIR=__dirname,PORT=8335,MOCK=8835;
+const DIR=__dirname,PORT=+(process.env.PORT||8335),MOCK=8835;
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const RELAY='http://127.0.0.1:'+MOCK;
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&stun=0&dbg=1&relay=${encodeURIComponent(RELAY)}`;
@@ -260,6 +260,15 @@ let mock=null;
   ok(h.round===j.round, 'they finish agreeing on the round (host '+h.round+', client '+j.round+')');
   ok(h.bad===0 && j.bad===0, 'and neither side ever held a card with no rank');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
-  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail+'  · rounds '+worst+', actions '+acted);
+  /* WHICH LIMIT STOPPED US IS EVIDENCE, AND IT USED TO BE INVISIBLE. Hitting the 60-action cap means the
+   * suite did all its work; hitting the 120s WALL CLOCK means it ran out of time and tested less — and both
+   * printed an identical green line. Found when the parallel sweep pushed this from ~20s to 125s: still
+   * 12/12, but on far fewer actions. It is a WARNING and not a failure on purpose — a busy machine should
+   * not turn the sweep red — but a shallower run must never look like a full one. */
+  const ranOut = (Date.now()-t0) >= 120000 && acted < 60;
+  if(ranOut) console.log('⚠ stopped on the 120s WALL CLOCK, not the 60-action cap — this run tested LESS than usual'
+                         + ' (contention? run it alone, or with sweep.js -j 1)');
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail+'  · rounds '+worst+', actions '+acted
+              +(ranOut?' (TIME-CAPPED)':''));
   await b.close(); srv.close(); if(mock) mock.kill(); process.exit(fail?1:0);
 })().catch(e=>{ console.log('HARNESS ERROR '+(e&&e.stack||e)); if(mock) mock.kill(); process.exit(1); });

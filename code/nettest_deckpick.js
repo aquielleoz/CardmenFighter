@@ -2,7 +2,7 @@
  * side the deck it picked (Pure Wizard = all ♦ for the host, Pure Rogue = all ♠ for the client) and that the board
  * deck labels match on both ends. Proves the lobby picks actually drive startGame. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
-const DIR=__dirname,PORT=8291,ROOM='DK'+Date.now().toString().slice(-3);
+const DIR=__dirname,PORT=+(process.env.PORT||8291),ROOM='DK'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}`;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));

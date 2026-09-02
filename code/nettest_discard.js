@@ -2,7 +2,7 @@
  * remote client gets the discard PICKER on its own board and chooses which 2 to pitch. Verifies the picker appears
  * from the mirror, the client's chosen ids resolve on the host, its hand shrinks by 2, and no errors / stays in sync. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
-const DIR=__dirname,PORT=8283,ROOM='DC'+Date.now().toString().slice(-3);
+const DIR=__dirname,PORT=+(process.env.PORT||8283),ROOM='DC'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));

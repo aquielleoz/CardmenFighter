@@ -12,7 +12,7 @@
  * `norelay=1` and an unreachable relay both land on exactly today's copy-paste screen. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const http=require('http'), fs=require('fs'), path=require('path'), { spawn } = require('child_process');
-const DIR=__dirname, PORT=8296, MOCK=8797;
+const DIR=__dirname, PORT=+(process.env.PORT||8296), MOCK=8797;
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const RELAY='http://127.0.0.1:'+MOCK;
 const url=(r,extra)=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&stun=0&dbg=1&`+(extra||('relay='+encodeURIComponent(RELAY)));

@@ -7,6 +7,8 @@
     "build": "node build.js && cp CardmenFighter.html ../CardmenFighter.html",
     "test": "node test.js && node netview.test.js",
     "test:smoke": "node browsertest.js",
+    "sweep": "node sweep.js",
+    "sweep:fast": "node sweep.js --fast",
     "cardlist": "node gen-cardlist.js"
   },
   "devDependencies": {
