@@ -203,6 +203,31 @@ This is a better reason than "suits do not rank" for why v1.14 cut them.
 <a id="ai-strength"></a>
 ## AI strength
 
+- **~~THE DEMON LORD SHOULD ONLY BOOST WHEN THE RESULT SECURES THE INITIATIVE~~ — BUILT, MEASURED, DECLINED
+  (2026-09-02).** Aj's proposal, and a reasonable one: *"if he was to boost and then the final value is still
+  middling, i'd like him to consider only for when it is more likely to secure the initiative"*. Built in the
+  same shape as `lockoutWorth` — Aj's own tiers (low 3-6 / mid 7-10 / high 11+), the same two public
+  information sources (`st._seen` and hand sizes), a REASON string, holds tallied by name — so it reasoned only
+  from what a player at the table can see. Head-to-head at demon, 12,000 decided games per row:
+
+  | variant | effect |
+  | --- | --- |
+  | refuse a mid-or-lower result unless rivals' highs are spent (as specified) | **−0.77 pts, −1.70σ** |
+  | refuse only a LOW result (3-6) | −0.07 pts, −0.15σ |
+
+  **The first is actively worse** — roughly half of what the Demon Lord's `keepsTheWin` behaviour bought
+  (v1.31.79), and in the wrong direction for the tier gap it was meant to widen. **The second is free but fires
+  5 times in 400 duels**, so no player would ever perceive it. Aj: *"don't gimp the demon lord"*.
+  **WHY THE INTUITION DOES NOT HOLD, and this is the part worth keeping:** refusing the boost does not save it
+  for a better spot — it means **passing**, conceding the round outright. Winning a middling round still takes
+  the initiative and can strip a shield, and a rival who takes it back has spent a high card to do so. The
+  boost's value only exists against the pile in front of you, so there is no "later" to save it for.
+  **A note on the implementation, for anyone rebuilding it:** the `rivals-spent` evidence branch — the part that
+  made this a model rather than a bare value threshold — fired **4-5 times in 400 games**. Effectively dead
+  code, and by the standing rule that is not a safeguard.
+  **The promising direction is WHICH boost it spends, not WHETHER to spend one.**
+
+
 - **PROTECTING THE AI's LAST LEGAL FIGHT — MEASURED, THEN SHIPPED AS A DEMON-ONLY BEHAVIOUR (v1.31.79).**
   (2026-09-01. Aj: *"will it make the ai win more if we unlocked the JQK? because we might have to fold that
   into the demon lord"*.) **The first answer given was "no, too small to be a difficulty lever", and it was
