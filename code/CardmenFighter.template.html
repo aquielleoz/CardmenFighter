@@ -7080,6 +7080,7 @@ __QR__
     // ---- HOST: run the real game; the remote client controls seat 1 (the Rival). ----
     // Unified start for 2–6 players. Seat 0 = host; seats 1..k = the joined remote clients (each with its lobby pick).
     // 2p keeps the awaitRival flow; 3–6p uses the netDriveN driver (both entered via driveRival, gated on MP()).
+    var netStarter=null;   // who opens the NEXT online game; null until the first is dealt (see hostStartRealN)
     function hostStartRealN(hostDeck){
       /* The table is assembled, so the room has no job left. Rooms expire on their own, but an SDP holds IP
        * addresses and leaving one lying around for ten minutes is not a decent default. */
@@ -7101,7 +7102,31 @@ __QR__
       clearPersonaStyles();   // drop any style a solo game left behind, but KEEP the names: the joined players' own names are already in seatNames by now, and wiping them cost nettest_names 3 assertions
       for(var s=1;s<=joined;s++){ seatDecks[s]=resolveDeck(seatDeckMap[s]||'random'); seatDiffs[s]='fighter'; }   // 'fighter' = AI fallback for the round-win chooser only
       rivalDeck=seatDecks[1]||'full';
-      startGame(YOU);                                   // host leads round 1
+      /* WHO LEADS IS NOT ALWAYS THE HOST ANY MORE (Aj: *"in net play it seems like the host always leads the
+       * jabs too"*). `newGame` has always honoured `opts.starter`; the netplay path simply never passed one, so
+       * seat 0 opened every online game forever.
+       * MEASURED FIRST, because the obvious premise was wrong. Leading round 1 is not a flat advantage — with
+       * the same AI on both seats, 8000 duels per arm, the edge SWINGS BY TIER: fighter -4.81 points, knight
+       * -2.61, demon +6.45. Leading commits a card and information before the opponent answers, which punishes
+       * weaker play and rewards strong play; it amplifies skill rather than conferring an edge.
+       * That makes the sign unknowable for two humans — and irrelevant to the fix, which is the same either
+       * way: whatever the edge is, it must not land on the same seat every single game.
+       * RANDOM FIRST, THEN ALTERNATE. Random alone can hand one player three openings in a row; alternating
+       * alone is predictable from game one. `netStarter` lives as long as the room, so a rematch swaps. */
+      /* DETERMINISTIC UNDER `dbg=1` UNLESS A SUITE OPTS IN — the same rule the relay already follows, and for
+       * the same reason. Nineteen suites stage from "the host leads round 1"; a rotating opener would make
+       * every one of them a coin flip, and rewriting them all to be opener-agnostic would be a large change
+       * that tests nothing new. So dbg pins seat 0, `?starter=rotate` asks for the shipped behaviour, and
+       * `nettest_starter` is the suite that names it. */
+      var rotate=true;
+      try{ var sq=new URLSearchParams(location.search);
+           if(/[?&]dbg=1/.test(location.search) && sq.get('starter')!=='rotate') rotate=false; }catch(e){}
+      if(!rotate) netStarter=0;
+      else if(netStarter==null) netStarter=(Math.random()<0.5?0:1);
+      else netStarter=(netStarter+1)%n;
+      if(netStarter>=n || netStarter<0) netStarter=0;    // a seat that left cannot open
+      trace('opener', 'seat '+netStarter+(rotate?'':' (dbg: pinned)'));
+      startGame(netStarter);
       for(var s2=1;s2<n;s2++) seatCtrl[s2]='remote';    // every opponent seat is a remote human (override resetControllers' 'ai')
       hostState=state;
       seatNames[0]=myName;

@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.88.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.89.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.88**, working tree clean, full sweep green at **71 suites**. The only branch is
+`main` is at **v1.31.89**, working tree clean, full sweep green at **71 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -77,11 +77,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 ### Things a playtester meets immediately
 
-- **SEAT 0 ALWAYS LEADS ROUND 1, SO THE HOST ALWAYS LEADS ONLINE** (Aj: *"in net play it seems like the host
-  always leads the jabs too"*). Verified: `newGame` sets `turn: 0, initiative: 0` with no roll, and
-  `nettest_rtc` encodes it (`'host leads round 1'`). Fine in solo — seat 0 is the player — but online it hands
-  the host a permanent first-mover edge in every game. A design question, not a defect: randomise the opening
-  seat, alternate it, or decide the edge is acceptable and say so.
 - **A NETPLAY DUEL HOST LOGS THE SOLO LINE AND SHOWS AN AI TIER.** `logMsg`/`matchupTag` branch on
   `mpCount>2`, **not on whether this is netplay**, so a 2-player online HOST prints
   *"New duel — you play Pure Cleric vs Dustin (**Fighter**) on Berserker"* and a header ending
@@ -279,6 +274,36 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.89 — the host no longer opens every online game
+
+Aj: *"in net play it seems like the host always leads the jabs too"*. True, and it had been true forever:
+`newGame` has always honoured `opts.starter`, and the netplay path simply never passed one.
+
+**THE ENTRY'S PREMISE WAS WRONG, AND MEASURING FIRST IS WHAT CAUGHT IT.** It called this *"a permanent
+first-mover edge"*. With the same AI on both seats, 8000 duels per arm, leading round 1 is worth:
+
+| tier | leading round 1 |
+| --- | --- |
+| fighter | **−4.81 pts** (6.1σ) |
+| knight | **−2.61 pts** (3.3σ) |
+| demon | **+6.45 pts** (8.2σ) |
+
+**It is not an edge, it is an amplifier.** Leading commits a card and information before the opponent answers,
+which punishes weak play and rewards strong — so the sign is unknowable for two humans, and irrelevant to the
+fix: whatever it is, it must not land on the same seat every game. **Random first, then alternate**, so a
+rematch swaps and nobody gets three openings in a row.
+
+**THE AWKWARD PART WAS THE BLAST RADIUS, and the answer is a rule this repo already has.** Nineteen suites stage
+from "the host leads round 1"; a rotating opener makes every one of them a coin flip, and rewriting them all to
+be opener-agnostic would be a large, risky change that tests nothing new. So **`dbg=1` pins seat 0 and
+`?starter=rotate` asks for the shipped behaviour** — exactly the rule the relay follows (`dbg=1` means no relay
+unless one is named), for exactly the same reason.
+
+The cost of that is real and worth naming: the shipped path is exercised by ONE suite instead of nineteen. So
+**`nettest_starter`** (3) asserts both halves — that dbg genuinely is pinned, or the other suites are resting on
+an undocumented accident; and that with rotation on, both seats open across six fresh rooms. Six coin flips, so
+P(all identical) = 1/32: a real test rather than a hopeful one.
 
 ### v1.31.88 — "not synced" is said out loud, instead of the board just sitting there
 
