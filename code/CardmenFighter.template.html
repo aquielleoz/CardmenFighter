@@ -4248,7 +4248,19 @@ __QR__
     if(!dp || dp.player!==YOU){ return resumeRival(g); }
     busy=false;                                            // let the picker be interactive
     pick={ kind:'discard', need:dp.count, chosen:{}, resumeG:g, from:dp.from||null };
-    setMessage(dp.from ? ('Choose '+dp.count+' of the cards you looked at to bank into Energy — keep the rest.') : ('Rival forces a discard — choose '+dp.count+' card'+(dp.count>1?'s':'')+' to send to your Shuffle Pile.'));
+    /* TWO THINGS WERE WRONG IN THE OLD ONE LINE, and Aj hit both in the same screenshot.
+     * WRONG PILE, ALWAYS: `discardChosen` pushes to `pl.energy` — *"discards -> Energy pile (shuffle is only
+     * for spent energy)"* — so "Shuffle Pile" was never right for any forced discard. The picker's own hint two
+     * panels down said "Energy Pile" and the two contradicted each other on screen.
+     * WRONG ACTOR, ON THE TRIM: the end-of-round clean-up reuses this window wholesale (v1.31.70), so a
+     * hand-size trim announced itself as a Telekinesis — "Rival forces a discard" when nobody forced anything.
+     * `trimPending` already rides the mirror to tell the two apart; it just was not being asked. */
+    var isTrim = !!(state.trimPending && state.trimPending.player===YOU);
+    setMessage(dp.from
+      ? ('Choose '+dp.count+' of the cards you looked at to bank into Energy — keep the rest.')
+      : isTrim
+        ? ('Clean-up — over the hand limit ('+E.MAX_HAND+'). Discard '+dp.count+' to your Energy Pile.')
+        : ('Rival forces a discard — choose '+dp.count+' card'+(dp.count>1?'s':'')+' to send to your Energy Pile.'));
     render();
   }
   // Direction 2: the Rival cast a Technique you can answer. Pause the Rival's turn,
@@ -7350,12 +7362,23 @@ __QR__
         var ng=netGuard; netGuard=null; return hostRivalWindows(ng.g, function(){ ng.cont(fr); });
       }
       // ---- forced-discard window the remote (seat 1) owes: apply the chosen pitches, then re-check + continue ----
+      /* TWO PARK MECHANISMS REACH THIS ONE INTENT, AND THE DUEL HANDLER ONLY KNEW ABOUT ONE (v1.31.91).
+       * `netDiscard` is the duel's forced-discard window (Telekinesis and friends). The end-of-round hand-size
+       * trim parks through `hostParkTrim`, which sets **`netReact`** — a variable only `hostApplyMoveN` reads,
+       * because it was written for 3-6 players. `MP()` is false in a duel, so a client's clean-up discard
+       * landed here, found `netDiscard` null, and **returned silently**: the host stayed parked forever with
+       * "Rival is discarding to hand size…" on screen and no way out but Concede, which is a recorded loss.
+       * Aj hit it in a real duel; his host trace ends on `move IN … op=discard` with nothing after it.
+       * WHY NO SUITE SAW IT: `nettest_trim` stages the HOST over the cap, because that is the only seat with an
+       * interactive pick in solo — nobody had ever put a REMOTE seat over it. `nettest_remotetrim` does. */
       if(it.op==='discard'){
-        if(!netDiscard) return;
+        var trimWin = (netReact && netReact.kind==='discard') ? netReact : null;
+        if(!netDiscard && !trimWin){ trace('discard IGNORED', 'no open discard window (netDiscard null, netReact='+(netReact?netReact.kind:'null')+')'); return; }
         try{ var d=E.resolveDiscard(hostState, (it.ids||[])); if(d && d.ok===false){ send({t:'err', reason:d.reason||'Illegal discard.'}); broadcastMirror(); return; } }
         catch(e){ send({t:'err', reason:'Discard rejected.'}); broadcastMirror(); return; }
         say(1, '{who} discarded '+(it.ids?it.ids.length:0)+' card'+((it.ids&&it.ids.length>1)?'s':'')+'.', 'rival');
-        var nd=netDiscard; netDiscard=null; return hostRivalWindows(nd.g, nd.cont);
+        if(netDiscard){ var nd=netDiscard; netDiscard=null; return hostRivalWindows(nd.g, nd.cont); }
+        var nr=netReact; netReact=null; return nr.resume();   // the trim queue continues with the next seat
       }
       // ---- turn actions ----
       /* PHANTASMAL ILLUSION from a remote seat — see `hostPhantasmIntent`. */
@@ -7617,13 +7640,21 @@ __QR__
       }
       // ---- REACTIVE ops: valid only for the seat whose reactive window is parked (which may NOT be its turn) ----
       if(it.op==='respond'||it.op==='decline'||it.op==='guard'||it.op==='guardPass'||it.op==='discard'){
-        if(!netReact || netReact.seat!==seat) return;                           // stale / duplicate / out-of-window — ignore
+        /* SAY WHY IT WAS IGNORED. This return is correct for a duplicate and FATAL when the window really is
+         * open — and until now it could not tell you which had happened. Aj's host trace ends on
+         * `move IN … op=discard` with nothing after it, which is exactly what this line looks like from
+         * outside: the host stays parked forever and the only way out is Concede (a recorded loss, because a
+         * wedged game shows no Leave button). A red run should explain itself; so should a wedged one. */
+        if(!netReact || netReact.seat!==seat){
+          trace('react IGNORED', 'op='+it.op+' from seat '+seat+' but netReact='+(netReact?('{kind:'+netReact.kind+', seat:'+netReact.seat+'}'):'null'));
+          return;
+        }
         try{
-          if(it.op==='respond'){ if(netReact.kind!=='respond') return; var qc=resolveIds(seat,[it.id])[0], qe=qc?E.effectOf(qc):null; var rr=E.respond(hostState, seat, it.id); if(rr&&rr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:rr.reason||'Illegal response.'}); broadcastMirror(); return; } say(seat, '{who} '+((qe&&qe.kind==='counter')?('countered with '+qe.name+'!'):('answered'+(qe?(' with '+qe.name):'')+' at instant speed.')), 'rival'); }
-          else if(it.op==='decline'){ if(netReact.kind!=='respond') return; E.declineResponse(hostState, seat); say(seat, '{who} let it resolve.', 'dim'); }
-          else if(it.op==='guard'){ if(netReact.kind!=='guard') return; var fr=E.shieldGuard(hostState, seat, it.id); if(fr&&fr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:fr.reason||'Illegal guard.'}); broadcastMirror(); return; } logMsg('<b>'+seatName(seat)+'</b> sprang '+((fr&&fr.guardName)||'a guard')+' — shield holds.', 'rival'); }
-          else if(it.op==='guardPass'){ if(netReact.kind!=='guard') return; E.shieldGuardPass(hostState, seat); say(seat, '{who} took the hit.', 'rival'); }
-          else if(it.op==='discard'){ if(netReact.kind!=='discard') return; var d=E.resolveDiscard(hostState, it.ids||[]); if(d&&d.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:d.reason||'Illegal discard.'}); broadcastMirror(); return; } logMsg('<b>'+seatName(seat)+'</b> discarded '+((it.ids&&it.ids.length)||0)+' card'+(((it.ids&&it.ids.length)||0)>1?'s':'')+'.', 'rival'); }
+          if(it.op==='respond'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=respond but the open window is '+netReact.kind); return; } var qc=resolveIds(seat,[it.id])[0], qe=qc?E.effectOf(qc):null; var rr=E.respond(hostState, seat, it.id); if(rr&&rr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:rr.reason||'Illegal response.'}); broadcastMirror(); return; } say(seat, '{who} '+((qe&&qe.kind==='counter')?('countered with '+qe.name+'!'):('answered'+(qe?(' with '+qe.name):'')+' at instant speed.')), 'rival'); }
+          else if(it.op==='decline'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=decline but the open window is '+netReact.kind); return; } E.declineResponse(hostState, seat); say(seat, '{who} let it resolve.', 'dim'); }
+          else if(it.op==='guard'){ if(netReact.kind!=='guard'){ trace('react KIND MISMATCH', 'op=guard but the open window is '+netReact.kind); return; } var fr=E.shieldGuard(hostState, seat, it.id); if(fr&&fr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:fr.reason||'Illegal guard.'}); broadcastMirror(); return; } logMsg('<b>'+seatName(seat)+'</b> sprang '+((fr&&fr.guardName)||'a guard')+' — shield holds.', 'rival'); }
+          else if(it.op==='guardPass'){ if(netReact.kind!=='guard'){ trace('react KIND MISMATCH', 'op=guardPass but the open window is '+netReact.kind); return; } E.shieldGuardPass(hostState, seat); say(seat, '{who} took the hit.', 'rival'); }
+          else if(it.op==='discard'){ if(netReact.kind!=='discard'){ trace('react KIND MISMATCH', 'op=discard but the open window is '+netReact.kind); return; } var d=E.resolveDiscard(hostState, it.ids||[]); if(d&&d.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:d.reason||'Illegal discard.'}); broadcastMirror(); return; } logMsg('<b>'+seatName(seat)+'</b> discarded '+((it.ids&&it.ids.length)||0)+' card'+(((it.ids&&it.ids.length)||0)>1?'s':'')+'.', 'rival'); }
         }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Rejected.'}); broadcastMirror(); return; }
         var nr=netReact; netReact=null; return nr.resume();
       }
