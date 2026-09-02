@@ -11,6 +11,12 @@
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
 const HTML='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
+/* PAINTED, NOT SLEPT. Fifty sites sat on a fixed 120-300ms after a click — 15.1s of this suite's 25s. The
+ * rules panel re-renders SYNCHRONOUSLY (plain JS, no animation, no network), so those sleeps were padding:
+ * collapsing every one of them to 0 still passed 150/150. `wait(0)` is not the fix though — it guarantees
+ * nothing on a loaded machine. Two animation frames guarantee the browser has processed AND painted the
+ * change, which a fixed 250ms does not once the sweep runs four at a time. Faster and stronger at once. */
+const painted=pg=>pg.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
 /* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll
  * that gave up used to be invisible and surfaced later as an unrelated assertion failing on a board that
  * was still mid-round-trip — the v1.31.9 waitTurnEnds bug, in the general case. A red run must explain
@@ -28,8 +34,11 @@ const flags=p=>p.evaluate(()=>({
   trioOne: CardmenEngine.isTrioOne(), fourTwo: CardmenEngine.isFourTwo(),
   airplane: CardmenEngine.isAirplane(), straightLen: CardmenEngine.isStraightMin(),
 }));
-const openRules=async p=>{ await p.evaluate(()=>document.getElementById('rulesBtn').click()); await wait(300); };
-const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[data-rule="'+k+'"]'); if(b)b.click(); return !!b; }, k);
+const openRules=async p=>{ await p.evaluate(()=>document.getElementById('rulesBtn').click()); await painted(p); };
+/* THE HELPERS FLUSH THEIR OWN PAINT. Twenty call sites each carried a trailing `wait(120..250)` for the
+ * re-render these kick off; putting it in the helper is one place to be right instead of twenty to keep in
+ * step, and a new call site gets it for free. */
+const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.querySelector('.settingRow[data-rule="'+k+'"]'); if(b)b.click(); return !!b; }, k); await painted(p); return r; };
 (async()=>{
   const b=await chromium.launch(LAUNCH);
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
@@ -43,7 +52,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
        chopQuadro:false, chopKits:false, chopSflush:false, chopStrips:false, noFullHouse:false, seqTwos:'low',
        trioOne:false, fourTwo:false, airplane:'off', straightLen:'off'}),
      'the shipped defaults are chosen / targeted / flat shields / scaling draw / no apex rules / no pair shapes');
-  await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(300);
+  await p.evaluate(()=>document.getElementById('newBtn').click()); await painted(p);
   ok(await p.evaluate(()=>!!document.getElementById('rulesBtn')), 'the setup dialog offers ⚗️ Custom rules');
   await openRules(p);
   const keys=await p.evaluate(()=>[].map.call(document.querySelectorAll('.settingRow[data-rule]'),b=>b.getAttribute('data-rule')));
@@ -89,7 +98,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
      }), 'the presets are their own line ABOVE the first heading they govern — "The 2", since Tiến lên and Dou Dizhu now set a rule there');
   /* A preset spans the Shapes/Chops boundary now, which is WHY it can no longer live in either heading. Assert
    * that it really does, or the split quietly turns the preset line into a Shapes-only control. */
-  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="doudizhu"]').click()); await wait(250);
+  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="doudizhu"]').click()); await painted(p);
   const lit = await p.evaluate(()=>{
     const secs={}; let cur=null;
     [].forEach.call(document.querySelectorAll('.settings > *'),e=>{
@@ -101,7 +110,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   ok((lit['Shapes']||[]).length>0 && (lit['Chops']||[]).length>0,
      `  → and a preset lights rules in BOTH sections, which is why it belongs to neither heading `+
      `(Shapes: ${(lit['Shapes']||[]).join(',')||'none'} | Chops: ${(lit['Chops']||[]).join(',')||'none'})`);
-  await p.evaluate(() => document.querySelector('.bulkBtn.clear').click()); await wait(250);
+  await p.evaluate(() => document.querySelector('.bulkBtn.clear').click()); await painted(p);
   ok(await p.evaluate(()=>!document.querySelector('.settings .settingRow.on')),
      '  → and Clear all puts every section back, so the probe leaves no rules behind');
   ok(await p.evaluate(()=>/tuned for the default rules/i.test((document.querySelector('.ruleWarn')||{}).textContent||'')),
@@ -123,20 +132,18 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
                                    ['chopStrips','chopStrips',true],
                                    ['trioOne','trioOne',true],['fourTwo','fourTwo',true]]){
     ok(await toggle(p,key), `toggling ${key}`);
-    await wait(120);
     const f=await flags(p);
     ok(f[field]===want, `  → the engine now reports ${field}=${JSON.stringify(f[field])}`);
   }
   /* THE MODE ROW IS DRIVEN BY ITS SEGMENTS, not by clicking the row — a mode row is a <div> wrapping three
    * <button>s, because nesting buttons is invalid HTML. So the panel has two interaction shapes and both need
    * covering; a suite that only clicked rows would silently never exercise the segments. */
-  const seg=(p,k,v)=>p.evaluate(([k,v])=>{
+  const seg=async(p,k,v)=>{ const r=await p.evaluate(([k,v])=>{
     const b=document.querySelector('.segBtn[data-mode-for="'+k+'"][data-mode-v="'+v+'"]');
     if(b) b.click(); return !!b;
-  },[k,v]);
+  },[k,v]); await painted(p); return r; };
   for(const v of ['kits','poker']){
     ok(await seg(p,'dblPair',v), `picking dblPair=${v}`);
-    await wait(120);
     ok((await flags(p)).dblPair===v, `  → the engine now reports dblPair=${v}`);
   }
   /* THE SECOND MODE ROW: straight length. Three settings of one dial, and "3 or more" is a strict superset of
@@ -145,15 +152,13 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
    * "Trios only" — the same relationship that made the four-card slot a mode. */
   for(const v of ['bare','wings']){
     ok(await seg(p,'airplane',v), `picking airplane=${v}`);
-    await wait(120);
     ok((await flags(p)).airplane===v, `  → the engine now reports airplane=${v}`);
   }
   for(const v of ['3','5']){
     ok(await seg(p,'straightLen',v), `picking straightLen=${v}`);
-    await wait(120);
     ok((await flags(p)).straightLen===v, `  → the engine now reports straightLen=${v}`);
   }
-  await seg(p,'straightLen','3'); await wait(120);
+  await seg(p,'straightLen','3');
   ok(await p.evaluate(()=>{
     const a=[].filter.call(document.querySelectorAll('.segBtn[data-mode-for="dblPair"]'),b=>b.classList.contains('active'));
     return a.length===1 && a[0].getAttribute('data-mode-v')==='poker' && a[0].getAttribute('aria-checked')==='true';
@@ -171,13 +176,11 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
    * where the 2 RANKS inside a chain, and `noSeqTwos` removes it from chains, so the question stops meaning
    * anything. Asserted in BOTH directions — dead while barred, live and reaching the engine once not — because
    * a row that is always dead and a row that is always live both pass a single check. */
-  await p.evaluate(()=>document.querySelector('.bulkBtn.clear').click()); await wait(250);
+  await p.evaluate(()=>document.querySelector('.bulkBtn.clear').click()); await painted(p);
   ok((await flags(p)).seqTwos==='low', 'the 2 plays in chains as the LOW card by default (Chikicha, Big Two)');
   ok(await toggle(p,'highTwos'), 'toggling highTwos while the 2 is allowed in chains');
-  await wait(120);
   ok((await flags(p)).seqTwos==='high', '  → reaches the engine as seqTwos="high" (the legacy J-Q-K-A-2)');
   ok(await toggle(p,'noSeqTwos'), 'now barring the 2 from chains');
-  await wait(150);
   ok((await flags(p)).seqTwos==='off', '  → the bar WINS: the engine reports "off"');
   ok(await p.evaluate(()=>{
        const r=document.querySelector('.settingRow[data-rule="highTwos"]');
@@ -187,7 +190,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
        const r=document.querySelector('.settingRow[data-rule="highTwos"]');
        return !!r && r.classList.contains('on');
      })), '  → and its tick was cleared, so a stale one cannot travel in rulesKey()');
-  await p.evaluate(()=>document.querySelector('.bulkBtn.clear').click()); await wait(250);
+  await p.evaluate(()=>document.querySelector('.bulkBtn.clear').click()); await painted(p);
 
   await p.evaluate(()=>window.__solo.setRulesFromKey('lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chop'));
 
@@ -195,24 +198,24 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
    * (`quadroOn()` is `QUADRO || CHOP_Q`), so an unticked Quadro box next to a ticked "Quadro chops" box told the
    * player something FALSE about the game. The panel ticks it with them — and unticking the shape must take its
    * chop with it, or the display lies again in the other direction. */
-  await p.evaluate(()=>window.__solo.setRulesFromKey('')); await wait(120);
-  await p.evaluate(()=>document.getElementById('ruleDone').click()); await wait(150);
+  await p.evaluate(()=>window.__solo.setRulesFromKey('')); await painted(p);
+  await p.evaluate(()=>document.getElementById('ruleDone').click()); await painted(p);
   await openRules(p);
   const rulesOn = () => p.evaluate(()=>[].filter.call(document.querySelectorAll('.settingRow[data-rule]'),
     r=>/\bon\b/.test(r.className)).map(r=>r.getAttribute('data-rule')));
-  await toggle(p,'chopQuadro'); await wait(200);
+  await toggle(p,'chopQuadro');
   let depOn = await rulesOn();
   ok(depOn.indexOf('quadro')>=0 && depOn.indexOf('chopQuadro')>=0,
      `turning on the Quadro chop ticks Quadro with it (${depOn.join(', ')})`);
   ok((await flags(p)).quadro===true, '  and the engine agrees, so the box is not decorative');
-  await toggle(p,'quadro'); await wait(200);
+  await toggle(p,'quadro');
   depOn = await rulesOn();
   ok(depOn.indexOf('quadro')<0 && depOn.indexOf('chopQuadro')<0,
      `unticking Quadro takes its chop with it (${depOn.join(', ')||'none'}) — the dependency holds both ways`);
-  await toggle(p,'chopKits'); await wait(200);
+  await toggle(p,'chopKits');
   depOn = await rulesOn();
   ok(depOn.indexOf('kits3')>=0 && depOn.indexOf('chopKits')>=0, '3 or more consecutive pairs behaves the same way');
-  await toggle(p,'chopSflush'); await wait(200);
+  await toggle(p,'chopSflush');
   depOn = await rulesOn();
   ok(depOn.indexOf('chopSflush')>=0 && depOn.length===3,
      'while the Straight Flush chop needs no shape row — it is the only way that shape exists');
@@ -222,32 +225,32 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
    * off. A checked box that cannot do anything is worse than a greyed one. */
   const stripRow = () => p.evaluate(()=>{ const r=document.querySelector('.settingRow[data-rule="chopStrips"]');
     return { inert: !!r.disabled, checked: /\bon\b/.test(r.className), engine: CardmenEngine.isChopStrips() }; });
-  await p.evaluate(()=>window.__solo.setRulesFromKey('')); await wait(120);
-  await p.evaluate(()=>document.getElementById('ruleDone').click()); await wait(150);
+  await p.evaluate(()=>window.__solo.setRulesFromKey('')); await painted(p);
+  await p.evaluate(()=>document.getElementById('ruleDone').click()); await painted(p);
   await openRules(p);
   let sr = await stripRow();
   ok(sr.inert && !sr.checked, 'with no chop enabled, "Chops destroy shields too" is inert');
-  await toggle(p,'chopStrips'); await wait(200);
+  await toggle(p,'chopStrips');
   sr = await stripRow();
   ok(!sr.checked && sr.engine === false, '  and clicking it does nothing at all — not merely styled as dead');
-  await toggle(p,'chopQuadro'); await wait(250);
+  await toggle(p,'chopQuadro');
   ok(!(await stripRow()).inert, 'enabling a chop brings it to life');
-  await toggle(p,'chopStrips'); await wait(250);
+  await toggle(p,'chopStrips');
   sr = await stripRow();
   ok(sr.checked && sr.engine === true, '  and then it takes');
-  await toggle(p,'chopQuadro'); await wait(250);
+  await toggle(p,'chopQuadro');
   sr = await stripRow();
   ok(!sr.checked && sr.engine === false && sr.inert,
      'turning the last chop off clears it and returns it to inert — a live setting for a rule nobody is playing');
   await p.evaluate(()=>window.__solo.setRulesFromKey('lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chopQuadro,chopKits,chopSflush,chopStrips'));
-  await p.evaluate(()=>document.getElementById('ruleDone').click()); await wait(150);
+  await p.evaluate(()=>document.getElementById('ruleDone').click()); await painted(p);
   await openRules(p);
 
   ok(await p.evaluate(()=>/Straight Flush beats the 2/.test(
        (document.querySelector('.settingRow[data-rule="chopSflush"] .settingLbl')||{}).textContent||'')),
      'and it is named for the shape a player would call it, with the definition in the note');
   await p.evaluate(()=>window.__solo.setRulesFromKey('lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,chopQuadro,chopKits,chopSflush'));
-  await p.evaluate(()=>document.getElementById('ruleDone').click()); await wait(150);
+  await p.evaluate(()=>document.getElementById('ruleDone').click()); await painted(p);
   await openRules(p);
 
   /* ---------- NOTES BEHIND A `?` (v1.31.35). Thirteen rules with a two-to-three-line note each was a wall of
@@ -261,23 +264,22 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
     const n=document.querySelector('.settingRow[data-rule="'+k+'"] .settingNote');
     return !!(n && n.offsetParent);
   }, k);
-  const clickQ = k => p.evaluate(k=>{ const q=document.querySelector('.ruleQ[data-note-for="'+k+'"]'); if(q)q.click(); return !!q; }, k);
+  const clickQ = async k => { const r = await p.evaluate(k=>{ const q=document.querySelector('.ruleQ[data-note-for="'+k+'"]'); if(q)q.click(); return !!q; }, k); await painted(p); return r; };
   ok((await noteShown('quadro'))===false, 'notes start hidden — the panel is a scannable list, not a wall');
   const wasOn = await p.evaluate(()=>CardmenEngine.isQuadro());
   ok(await clickQ('quadro'), 'the ? is clickable');
-  await wait(150);
   ok(await noteShown('quadro'), 'and it opens that note');
   ok((await p.evaluate(()=>CardmenEngine.isQuadro()))===wasOn,
      'WITHOUT toggling the rule underneath — the row IS a <button>, so the ? has to stop propagation');
   ok((await noteShown('chopKits'))===false, 'and only that one — each note opens on its own');
-  await clickQ('quadro'); await wait(150);
+  await clickQ('quadro');
   ok((await noteShown('quadro'))===false, 'clicking it again closes the note');
   /* KEYBOARD: Enter only. Space is deliberately left alone, because inside a <button> row the browser uses it to
    * activate the row itself, which would toggle the rule while you were trying to read about it. */
   await p.evaluate(()=>{ const q=document.querySelector('.ruleQ[data-note-for="quadro"]');
-    q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); }); await wait(150);
+    q.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); });
   ok(await noteShown('quadro'), 'Enter opens it too');
-  await clickQ('quadro'); await wait(150);
+  await clickQ('quadro');
 
   /* ONE VOCABULARY. The panel used to call these shapes "Kits" while nothing else in the game did, and the rows
    * are now described rather than named (Aj) — so nothing on screen should say Kits, and the board name has to
@@ -331,7 +333,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   /* DOU DIZHU is the fullest set — six shapes plus the bomb's chop — so it is also the sharpest test that a
    * preset REPLACES rather than adds: coming from Tiến lên it must turn chopKits back off, and the four-card slot
    * must stay off, because 连对's floor is three consecutive pairs. */
-  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="doudizhu"]').click()); await wait(250);
+  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="doudizhu"]').click()); await painted(p);
   const dd = await flags(p);
   ok(dd.kits3 && dd.straightLen === '5' && dd.trioOne && dd.fourTwo && dd.airplane === 'wings' && dd.quadro && dd.chopQuadro,
      'Dou Dizhu turns on 3 Kits, long straights, trio+1, four+two, the airplane and the bomb');
@@ -342,7 +344,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
      `so the three presets are three exact states, not three accumulations [got ${ddKey}]`);
   ok((await bulk(p)).filter(b => b.active).length === 1, 'and exactly one reads active at a time');
 
-  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="chikicha"]').click()); await wait(250);
+  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="chikicha"]').click()); await painted(p);
   const after = await flags(p);
   ok(after.dblPair === 'kits' && after.kits3 === true && after.quadro === true && after.chopQuadro === true
      && after.chopKits === false && after.chopSflush === false,
@@ -358,7 +360,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   /* TIẾN LÊN is where `chopKits` belongs (Aj put it here rather than in the Chikicha preset). It is also the
    * check that a second preset does not inherit the first's rules: the four-card double-pair slot must go OFF,
    * since the family's floor is three consecutive pairs, not two. */
-  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="tienlen"]').click()); await wait(250);
+  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="tienlen"]').click()); await painted(p);
   const tl = await flags(p);
   ok(tl.kits3 === true && tl.quadro === true && tl.chopKits === true && tl.chopQuadro === true,
      'Tiến lên turns on both of the family\'s bombs and chops with both');
@@ -375,11 +377,11 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
      'so switching presets REPLACES the rule set rather than adding to it');
   row = await bulk(p);
   ok(row[1].active && !row[0].active, 'and the active marker moves with it');
-  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="chikicha"]').click()); await wait(250);
-  await toggle(p, 'lossAll'); await wait(150);
+  await p.evaluate(() => document.querySelector('.bulkBtn[data-preset="chikicha"]').click()); await painted(p);
+  await toggle(p, 'lossAll');
   ok(!(await bulk(p))[0].active, 'one further change and it stops reading active');
 
-  await p.evaluate(() => document.getElementById('ruleClear').click()); await wait(250);
+  await p.evaluate(() => document.getElementById('ruleClear').click()); await painted(p);
   ok((await p.evaluate(() => window.__solo.rulesKey())) === '', 'Clear all empties the whole rule set');
   ok(JSON.stringify(await flags(p)) === JSON.stringify({ loss: 'chosen', mill: 'targeted', shieldScale: false,
        drawScales: true, apexInf: false, apexNoStrip: false, dblPair: 'off', kits3: false, quadro: false,
@@ -394,14 +396,14 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
 
   // put a customised set back, since the rest of the suite plays a game under it
   await p.evaluate(() => window.__solo.setRulesFromKey('shieldScale,flatDraw'));
-  await p.evaluate(() => document.getElementById('ruleDone').click()); await wait(200);
+  await p.evaluate(() => document.getElementById('ruleDone').click()); await painted(p);
   await openRules(p);
 
   // ---------- a real game must be played under them
-  await p.evaluate(()=>document.getElementById('ruleDone').click()); await wait(300);
+  await p.evaluate(()=>document.getElementById('ruleDone').click()); await painted(p);
   ok(await p.evaluate(()=>/· on/.test((document.getElementById('rulesBtn')||{}).textContent||'')),
      'and the setup button now says "· on", so a customised game is never a surprise');
-  await p.evaluate(()=>{ const s=document.getElementById('setPlayers'); s.value='4'; s.dispatchEvent(new Event('change')); }); await wait(300);
+  await p.evaluate(()=>{ const s=document.getElementById('setPlayers'); s.value='4'; s.dispatchEvent(new Event('change')); }); await painted(p);
   await p.evaluate(()=>{ const g=document.getElementById('goFirstBtn'); if(g)g.click(); });
   ok(await until(async()=>!!(await p.evaluate(()=>window.__solo && window.__solo.st()))), 'a 4-player game starts');
   const live=await p.evaluate(()=>{ const st=window.__solo.st();
@@ -410,9 +412,9 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   ok(live.draw===2, `and the draw did NOT scale: ${live.draw} (default at 4 players would be 4)`);
 
   // ---------- mid-game the panel is READ-ONLY: an edit now would be ignored or incoherent
-  await p.evaluate(()=>document.getElementById('settingsBtn').click()); await wait(300);
+  await p.evaluate(()=>document.getElementById('settingsBtn').click()); await painted(p);
   ok(await p.evaluate(()=>!!document.getElementById('setRules')), 'Settings offers the rules too — where you look when a game feels wrong');
-  await p.evaluate(()=>document.getElementById('setRules').click()); await wait(300);
+  await p.evaluate(()=>document.getElementById('setRules').click()); await painted(p);
   /* BOTH SHAPES. A mode row is a <div>, which cannot be `disabled` at all — its SEGMENTS carry it, and the
    * click wiring is skipped wholesale. Checking only `row.disabled` would have passed a panel whose segments
    * were still live, which is exactly the mid-game edit this is here to prevent. */
@@ -426,7 +428,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   ok((await p.evaluate(()=>{
        const n=document.querySelector('.settingRow[data-rule="quadro"] .settingNote'); return !!(n&&n.offsetParent);
      }))===false, 'mid-game the notes start hidden as usual');
-  await p.evaluate(()=>{ const q=document.querySelector('.ruleQ[data-note-for="quadro"]'); if(q)q.click(); }); await wait(150);
+  await p.evaluate(()=>{ const q=document.querySelector('.ruleQ[data-note-for="quadro"]'); if(q)q.click(); }); await painted(p);
   ok(await p.evaluate(()=>{
        const n=document.querySelector('.settingRow[data-rule="quadro"] .settingNote'); return !!(n&&n.offsetParent);
      }), 'but the ? still opens one — read-only disables editing, not reading');
@@ -446,7 +448,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   await p4.evaluate(()=>window.__solo.setRulesFromKey('basics=basics'));
   ok((await p4.evaluate(()=>window.__solo.rulesKey()))==='basics=basics',
      'Basics serialises like any other mode rule, so it reaches a netplay client and the export');
-  await p4.evaluate(()=>document.getElementById('newBtn').click()); await wait(300);
+  await p4.evaluate(()=>document.getElementById('newBtn').click()); await painted(p4);
   ok(await p4.evaluate(()=>/Basics/.test((document.getElementById('modeHint')||{}).textContent||'')
                        && /Custom rules/.test((document.getElementById('modeHint')||{}).textContent||'')),
      'the setup dialog still SHOWS the mode and names where to change it — Basics is the beginner ramp, so it must not go invisible');
@@ -466,9 +468,9 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
     const c = await b.newContext({ viewport: vp });
     const q = await c.newPage(); q.on('pageerror', e => errs.push('wide: ' + e.message));
     await q.goto(HTML); await wait(450);
-    await q.evaluate(() => document.getElementById('newBtn').click()); await wait(220);
+    await q.evaluate(() => document.getElementById('newBtn').click()); await painted(q);
     const setupW = await q.evaluate(() => Math.round(document.getElementById('modal').getBoundingClientRect().width));
-    await q.evaluate(() => document.getElementById('rulesBtn').click()); await wait(220);
+    await q.evaluate(() => document.getElementById('rulesBtn').click()); await painted(q);
     const out = await q.evaluate(() => {
       const m = document.getElementById('modal');
       const rows = [].slice.call(document.querySelectorAll('.settingRow[data-rule]'));
@@ -485,7 +487,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
     out.setup = setupW;
     /* THE LEAK GUARD: the width is a class on the shared #modal, so the dialog that opens NEXT must not inherit
      * it. showModal resets the class list for exactly this reason. */
-    await q.evaluate(() => document.getElementById('ruleDone').click()); await wait(250);
+    await q.evaluate(() => document.getElementById('ruleDone').click()); await painted(q);
     out.afterW = await q.evaluate(() => Math.round(document.getElementById('modal').getBoundingClientRect().width));
     await c.close();
     return out;
@@ -516,7 +518,7 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
   const p5=await ctx.newPage(); p5.on('pageerror',e=>errs.push('p5: '+e.message));
   await p5.goto(HTML); await wait(500);
   await p5.evaluate(()=>window.__solo.setRulesFromKey('airplane=wings'));
-  await p5.evaluate(()=>document.getElementById('newBtn').click()); await wait(300);
+  await p5.evaluate(()=>document.getElementById('newBtn').click()); await painted(p5);
   await p5.evaluate(()=>{ const g=document.getElementById('goFirstBtn'); if(g)g.click(); });
   ok(await until(async()=>!!(await p5.evaluate(()=>window.__solo && window.__solo.st()))), 'a duel starts for the hand test');
   await p5.evaluate(()=>{
@@ -562,8 +564,8 @@ const toggle=(p,k)=>p.evaluate(k=>{ const b=document.querySelector('.settingRow[
     await p3.goto(HTML); await wait(400);
     await p3.evaluate(()=>{ try{ localStorage.setItem('cmf_rules_v1','lossAll,shieldScale'); localStorage.removeItem('cmf_games_v1'); }catch(e){} });
     await p3.reload(); await wait(600);
-    await p3.evaluate(()=>document.getElementById('newBtn').click()); await wait(250);
-    await p3.evaluate(()=>{ const s=document.getElementById('setPlayers'); s.value='3'; s.dispatchEvent(new Event('change')); }); await wait(250);
+    await p3.evaluate(()=>document.getElementById('newBtn').click()); await painted(p3);
+    await p3.evaluate(()=>{ const s=document.getElementById('setPlayers'); s.value='3'; s.dispatchEvent(new Event('change')); }); await painted(p3);
     await p3.evaluate(()=>{ const g=document.getElementById('goFirstBtn'); if(g)g.click(); });
     await until(async()=>!!(await p3.evaluate(()=>window.__solo && window.__solo.st())));
     const rec=await p3.evaluate(()=>{
