@@ -1800,7 +1800,11 @@ file — and naming was the last one left on trust. It lasted until someone stop
 **THERE IS ONE `perf/` BRANCH IN HISTORY AND IT IS A MISTAKE, NOT A CATEGORY** (`455b7db`, v1.31.81). It was
 invented mid-session without anyone deciding to, used twice, and Aj rejected it: harness speed work is a `fix/`,
 because a suite that is too slow to run is a defect in the suite. **A prefix you invent mid-session is drift
-until someone agrees to it** — this is exactly how `feature/` and `feat/` came to coexist. Do not add a sixth.
+until someone agrees to it** — this is exactly how `feature/` and `feat/` came to coexist. **A SIXTH IS ALLOWED — BY AGREEMENT, NEVER BY SURPRISE** (Aj, 2026-09-02: *"should there be new
+prefixes that necessitate adding, then we'll add them. but no surprises"*). The rule is not scarcity, it is that
+the list is a shared vocabulary: a prefix nobody agreed to is unreadable to everyone else, and two of them
+meaning the same thing is how `feature/` and `feat/` came to coexist. Propose it, then add it to the table AND
+to `checkbranch.js`'s list in the same commit.
 **And it could have been `exp/` first and `fix/` second** (Aj's reading, and the better one): the parallel
 sweep genuinely might have been reverted if the suites had flaked under contention, which is what `exp/` is
 for. Reaching for a new word was the lazy move, not the necessary one.

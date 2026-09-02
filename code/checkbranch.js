@@ -26,5 +26,6 @@ console.error(`✗ branch "${branch}" uses an undocumented prefix.`);
 console.error(`  Allowed (CLAUDE.md → "Branches and PRs"): ${OK.join(' ')}`);
 console.error(`  There is no perf/, chore/, refactor/ or test/ — harness work is a fix/ (a suite too slow to run`);
 console.error(`  is a defect in the suite), and a change that may be reverted is an exp/.`);
-console.error(`  If a sixth prefix is genuinely needed, that is a conversation, not a commit.`);
+console.error(`  A sixth prefix is fine IF IT IS AGREED FIRST — no surprises. Propose it, then add it here`);
+console.error(`  and to CLAUDE.md's table in the same commit. This gate exists because one was not.`);
 process.exit(1);
