@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.85.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.86.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.85**, working tree clean, full sweep green at **71 suites**. The only branch is
+`main` is at **v1.31.86**, working tree clean, full sweep green at **71 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -77,21 +77,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 ### Correctness
 
-- **★ `stateSeq` IS A CLIENT-INTENT COUNTER, NOT A STATE VERSION — AND THAT IS WHY VALID MOVES GET REFUSED.
-  ONE JOB, NOT TWO.** (Merged 2026-08-31 from two entries that each described half of it.)
-  The stamp is bumped only in `hostApplyMove`, so **the host's own plays and the round draw never advance it** —
-  visible in a trace as one `q` carrying two different hand sizes. That is why the v1.31.65 mirror dedupe had to
-  compare CONTENT rather than the stamp.
-  **The cost is not zero, and the record used to say it was.** CLAUDE.md and the v1.31.54 note claimed *"Measured
-  cost: zero (9 sends, 9 received, 0 refused in a full game)"* — measured in the lab, one machine, no latency.
-  **In Aj's real game the guard refused five moves:** three emotes (`q=0`, `q=9`, `q=10`) and **two passes**
-  (`q=11`, `q=14`) — a player pressing Pass and nothing happening.
-  The emote half **SHIPPED in v1.31.57** (emotes and rule suggestions are board-independent, so they are exempt;
-  that also un-broke `nettest_emote`, red at 17/2 since v1.31.54). **The two refused PASSES are still open**, and
-  exemption is not the answer there — a pass *is* formed against a board, so the stamp itself is wrong.
-  **Fix the stamp and the refusal policy together:** once it counts real state changes rather than client
-  intents it will refuse far MORE often, so a correct stamp with today's policy is worse than the bug.
-  And measure it over a REAL connection, not in the lab — that is the mistake that produced the false "zero".
 - **A CLIENT'S HEADER ONCE READ "Round 8 — YOU WON" WHILE THE HOST SAT AT ROUND 5** (Aj, 2026-08-28, third log
   pair). The rest of that report is resolved — the phantom rounds were drag-to-play (v1.31.56), the missing
   lines were the narration audit (v1.31.58), the doubled narration was `sayOnce` (v1.31.53) — but nothing has
@@ -333,6 +318,40 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.86 — a stale pass is still a good pass: the stamp does one job, the policy does the other
+
+The ★ backlog item, and its own warning was the crux: *"fix the stamp and the refusal policy together — once it
+counts real state changes rather than client intents it will refuse far MORE often, so a correct stamp with
+today's policy is worse than the bug."*
+
+**`stateSeq` was doing two jobs and neither properly.** It counted client INTENTS, so the host's own plays and
+the round draw never advanced it — which is why the v1.31.65 dedupe had to compare content instead — while ALSO
+gating intent validity, where it produced **Aj's two refused passes** (`q=11`, `q=14`): a player pressing Pass
+and nothing happening. Split in two:
+
+- **`mirrorSeq`** — a monotonic VERSION, bumped when a mirror's content actually changes. Only job: ordering, so
+  a replayed or delayed mirror is recognisable as older. **Bumped AFTER the content compare**, never before — a
+  fresh number inside the compared body would make every mirror look different and defeat the dedupe that
+  killed the 97%-duplicate render storm.
+- **`boardStamp`** — the round, and the pile being answered. Only job: does this intent still mean what the
+  player meant.
+
+**AND THE POLICY NARROWED TO PLAYS.** The engine was always the real authority: `E.pass` and `E.play` both check
+turn, game-over and the Back Stab lock, `play` checks ownership and legality, and `resolveIds` drops any card
+the seat does not hold. A stale PASS is either still legal — in which case it is exactly what the player asked
+for — or the engine refuses it on its own merits. What the engine **cannot** see is a play that stayed legal
+while changing meaning: cards picked to answer a pair of 5s become a **LEAD** if that round resolved first.
+That is the one case worth a guard, and it is the case the old counter could not detect, because it never
+advanced on the round draw. **The guard was refusing the safe intents and missing the dangerous one.**
+
+**A REFUSAL NOW SAYS SO.** The old path re-broadcast and stayed silent, so the board simply went live again with
+no explanation — indistinguishable from a dropped click, which is exactly how this was reported.
+
+New suite **`nettest_stale.js`** (7), plus `__cmf.forceBS()` alongside `dropMirrors` so a stale intent can be
+sent deterministically instead of by racing the wire. **The A/B is the part that matters: restoring the old
+policy fails exactly the PASS assertion and nothing else** — the suite reproduces Aj's reported bug on the old
+build. Removing the guard entirely fails four, so the play half is not vacuous either.
 
 ### v1.31.85 — the AI stops boosting a fight it has already won
 
