@@ -25,7 +25,7 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
 async function waitFor(fn,t=80,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
 async function turnOff(p){ for(let i=0;i<40;i++){ if(!(await snap(p)).mine) return; await wait(80); } }
 (async()=>{
-  await new Promise(r=>srv.listen(PORT,r));
+  await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>'))); srv.listen(PORT,r); });
   const b=await chromium.launch(LAUNCH);
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));

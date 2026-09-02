@@ -22,7 +22,7 @@ const passC=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(
 function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,100)); }
 async function waitFor(fn){ for(let i=0;i<60;i++){ if(await fn()) return true; await wait(120); } pollTimedOut(fn); return false; }
 (async()=>{
-  await new Promise(r=>srv.listen(PORT,r));
+  await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>'))); srv.listen(PORT,r); });
   const b=await chromium.launch(LAUNCH);
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));

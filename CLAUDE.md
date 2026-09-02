@@ -1289,10 +1289,13 @@ evidence, not proof, since the original failure was intermittent; if it recurs, 
 before blaming the environment.
 
 Unrelated but real: the hardcoded ports **collided in five groups**, not the one this note used to name — see
-the sweep-runner note above; `PORT` is now an env var and `sweep.js` assigns them, so this is historical. Still
-live, though: **`srv.listen` is awaited with no error handler in every suite**, so a collision hangs forever
-rather than failing — which is why one would look like a mysterious timeout rather than an error, and why
-`sweep.js` has no per-suite timeout to hide behind either.
+the sweep-runner note above; `PORT` is now an env var and `sweep.js` assigns them, so this is historical.
+**AND A COLLISION NOW FAILS IN 0s WITH THE REMEDY IN THE MESSAGE (v1.31.83).** `srv.listen` was awaited with no
+error handler in all 44 suites, so it produced no error and no exit — the process just sat there, which is the
+"mysterious timeout" this file has twice blamed on the environment. It rejects with the port, the errno and what
+to do about it. **`sweep.js` also caps each suite at 300s and SIGKILLs the process GROUP** — a suite spawns
+chromium and a killed parent cannot reap its own browsers (measured: 5 alive before, 0 after). A hung suite is
+now a named failure instead of a lane held forever.
 
 **Never `pkill` browsers while a suite is running — and never put cleanup in a command that shares a shell
 with a test.** `pkill -f headless_shell` used as tidy-up killed a running `browsertest`'s page mid-flight; the
@@ -1310,7 +1313,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.82 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
+Status as of **v1.31.83 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
 `test` 378, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,

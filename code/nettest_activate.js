@@ -11,7 +11,7 @@ const turnOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.turn():null);
 const energyOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.energy():0);
 const playFirst=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card'); if(c)c.click(); var f=document.getElementById('fightBtn'); if(f)f.click(); });
 (async()=>{
-  await new Promise(r=>srv.listen(PORT,r));
+  await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>'))); srv.listen(PORT,r); });
   const b=await chromium.launch(LAUNCH);
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));

@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.82.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.83.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.82**, working tree clean, full sweep green at **71 suites**. The only branch is
+`main` is at **v1.31.83**, working tree clean, full sweep green at **71 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -172,11 +172,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   `#hand`'s box let it return while the cards were still growing into it).
   Lower value than it looks now that the sweep is parallel — 13s off one lane of four is not 13s off the
   sweep. Do it when touching `rulestest` for another reason.
-- **`srv.listen` IS AWAITED WITH NO ERROR HANDLER IN EVERY SUITE**, so a port collision hangs forever instead
-  of failing, and `sweep.js` has no per-suite timeout either — a hung suite would occupy a lane until someone
-  noticed. Cheap to fix (an `error` handler that rejects, plus a generous timeout in the runner) and it turns
-  the single most confusing failure mode — a mysterious stall — into a named error.
-
 ### Features
 
 - **OPEN THE BATTLE LOG AS AN OVERLAY, like the 🔍 View card reader** (Aj, 2026-08-31: *"i think for the logs,
@@ -354,6 +349,39 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.83 — a port collision fails in 0s instead of hanging forever
+
+The last of the sweep work, and the one that turns this repo's most confusing failure mode into a named error.
+
+**`srv.listen` was awaited with NO error handler in all 44 suites**, so a port collision produced no error and no
+exit — the process simply sat there. That is the "mysterious timeout" signature, and this file has blamed it on
+the environment more than once. It now rejects with the cause **and the remedy**:
+
+```
+HARNESS ERROR Error: cannot bind port 8777 (EADDRINUSE) — another suite or a stray
+process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>
+```
+
+Exit code 2, in **0 seconds**, measured against a real squatter holding the port.
+
+**And the runner was the other half of it.** `sweep.js` had no per-suite timeout, so a suite that wedged for any
+*other* reason — a browser that never launches, a poll that never settles — would hold a lane indefinitely while
+the sweep merely looked slow. There is a 300s cap now (2.4x the worst ever seen: the slowest suite is ~66s alone
+and `nettest_sync` has reached 125s under load), it marks the run `✗ TIMED OUT — killed`, and it fails the sweep
+rather than letting it pass quietly.
+
+**IT KILLS THE PROCESS GROUP, NOT THE NODE CHILD, and that distinction is the whole fix.** A suite spawns
+chromium; a SIGKILLed parent cannot clean up its own browsers, and stray `headless_shell` processes have been
+misdiagnosed as product bugs here before. Measured directly: **5 browsers alive before the kill, 0 four seconds
+after.**
+
+**TWO PROBES LIED BEFORE THE MEASUREMENT WAS TRUSTWORTHY, and both looked like good news.** The first held a
+stray squatter from an earlier attempt, so the collision test measured the squatter failing rather than the
+suite. The second spawned the child with `cwd:'.'` — the repo root, not `code/` — so it died instantly with
+MODULE_NOT_FOUND, reported `0 browsers` and `ESRCH`, and printed **"CLEAN — the group kill reaped chromium"**
+having killed nothing at all. The absolute-paths habit, again. **A probe must assert that it did the thing it
+claims to be measuring**: the fixed version prints "child alive? yes" and "browsers before kill: 5" first.
 
 ### v1.31.82 — the sweep runs four at a time: 637s → ~180s, and 88s for the loop
 

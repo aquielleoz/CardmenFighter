@@ -61,7 +61,7 @@ const act=p=>p.evaluate(()=>{
 let mock=null;
 (async()=>{
   mock=spawn(process.execPath,[path.join(DIR,'..','relay','mock.js'),String(MOCK)],{stdio:'ignore'});
-  await new Promise(r=>srv.listen(PORT,r)); await wait(700);
+  await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>'))); srv.listen(PORT,r); }); await wait(700);
   const b=await chromium.launch(Object.assign({}, LAUNCH, { args:['--disable-features=WebRtcHideLocalIpsWithMdns'] }));
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};

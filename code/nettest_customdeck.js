@@ -17,7 +17,7 @@ const label=(p,id)=>p.evaluate(id=>((document.getElementById(id)||{}).textConten
 const hasOpt=(p,v)=>p.evaluate(v=>!!document.querySelector('#deckSel option[value="'+v+'"]'), v);
 async function waitHand(p){ for(let i=0;i<60;i++){ if((await p.evaluate(()=>document.querySelectorAll('#hand .card').length))===6) return true; await wait(150); } return false; }
 (async()=>{
-  await new Promise(r=>srv.listen(PORT,r));
+  await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>'))); srv.listen(PORT,r); });
   const b=await chromium.launch(LAUNCH);
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
