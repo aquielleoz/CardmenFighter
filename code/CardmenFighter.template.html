@@ -2745,6 +2745,18 @@ __QR__
     cv.classList.remove('reveal','you'); void cv.offsetWidth;    // …and give it a quick flash (no "X used …" banner — the play-area message + center flash already announce it)
     cv.classList.add('reveal'); if(who==='You') cv.classList.add('you');
   }
+  /* THE SINGLE DEFINITION OF "SHOW THAT AN EFFECT HAPPENED", `seat` in the LOCAL frame (v1.31.93).
+   * The transform/else split is `buildOppBeats`' — a Form pops centre-stage only, because its full text is read
+   * by hovering the Forms & Rides zone rather than shoved into the reader. Netplay had NO effect art in ANY
+   * direction: a client's own cast returned at the client guard before presenting, the host's activate branches
+   * only say()'d, and nothing pushed the host's own casts to a client. Aj saw the narrowest face of it
+   * (*"no animation on the client when activating a Jack"*); all three were dead. */
+  function showFx(seat, card){
+    if(!card) return;
+    var eff=E.effectOf(card), who=logName(seat);
+    if(eff && eff.kind==='transform') flashArt(card, who);
+    else revealEffect(card, who);
+  }
   // Play a sequence of timed "beats" (the Rival's actions), one after another, so each
   // effect gets a reading beat before the next thing happens. gen-guarded so a New Duel cancels it.
   function playBeats(beats, g, done){
@@ -3635,6 +3647,7 @@ __QR__
       setMessage(msg); say(YOU, logTxt, 'you');   // say(), not logMsg: a Ride/transform is public and every seat needs it
       if(typeof TUT!=='undefined' && TUT.note) TUT.note('activate', eff);   // Rides lesson: the transform step gates here (eff.kind==='transform')
       flashArt(card, 'You');                    // center-stage art pop only — a Form's full text is read by hovering it in the Forms & Rides zone, not shoved into the description box
+      if(typeof NET!=='undefined' && NET.sendFx) NET.sendFx(YOU, card);   // ...and to the other seats, who have no driver of their own to show it
       settleWindows(gen, function(){ if(state.finished){ render(); return endGame(); } render(); });
       return;
     }
@@ -3644,6 +3657,7 @@ __QR__
     bumpEffect(YOU, eff);
     TUT.note('activate', eff);
     revealEffect(card, 'You');              // quick flash of what you just played
+    if(typeof NET!=='undefined' && NET.sendFx) NET.sendFx(YOU, card);
     // the Rival (and then you again) may answer on the stack — Counter, spring Leyline, etc.
     settleWindows(gen, function(){
       if(state.finished){ render(); return endGame(); }
@@ -7060,6 +7074,10 @@ __QR__
         else if(m.t==='refused'){                             // the host threw a play away — say so, or it reads as a dropped click
           busy=false; selected={}; setMessage('⚠ '+(m.why||'That play could not be made — have another look.')); render(); }
         else if(m.t==='ping'){ SFX.play('ping'); setMessage('🔔 The host is ready — pinged you.'); }
+        else if(m.t==='fx'){                                  // includes our OWN cast, echoed back by the host
+          var fn=(state&&state.numPlayers)||2;                 // `seat` is ABSOLUTE — rotate into our frame
+          showFx(((((m.seat-mySeat)%fn)+fn)%fn), m.card);
+        }
         else if(m.t==='emote'){                               // includes our OWN, echoed back by the host
           var en=(state&&state.numPlayers)||2;                 // `seat` is ABSOLUTE — rotate into our frame
           emoteFx(((((m.seat-mySeat)%en)+en)%en), m.key);
@@ -7419,6 +7437,7 @@ __QR__
         catch(e){ send({t:'err', reason:'Move rejected.'}); broadcastMirror(); return; }
         if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
         say(1, '{who} played '+(aeff?aeff.name:'a Technique')+'.', 'rival');
+        fxBroadcast(1, acard);   // the remote seat's effect was invisible on the host too — its own board only logged the line
         return hostSettle(g, function(){ hostRivalContinue(g); });   // host may Counter; rival may counter-back; then the rival's turn continues
       }
       try{
@@ -7552,6 +7571,16 @@ __QR__
      * right here — the payload is public (what was played, never anyone's hand) and every seat wants the same
      * canonical game. Aj's call, 2026-08-25, over host-only and per-page-perspective. */
     function sendRecord(rec){ if(isHost() && started && rec) send({t:'record', rec:rec}); }
+    /* EFFECT ART OVER THE WIRE (v1.31.93). The host is the authority on what actually resolved, so it ECHOES
+     * every cast to every seat INCLUDING the caster — the emote pattern exactly, and for the same reason: a
+     * client that flashed optimistically on send would show art for a cast the host then refused. `seat` is
+     * ABSOLUTE; each end rotates. The payload is public the moment the card is cast, and carries rank/suit/id
+     * only — never a hand.
+     * TWO FUNCTIONS, and the split is the whole care: `fxSend` broadcasts WITHOUT presenting (the local
+     * activate path has already shown its own), `fxBroadcast` does both (a remote seat's cast, which the host
+     * had no other way to see). Calling the wrong one double-flashes or shows nothing. */
+    function fxSend(seat, card){ if(!isHost() || !started || !card) return; send({t:'fx', seat:seat, card:{rank:card.rank, suit:card.suit, id:card.id}}); }
+    function fxBroadcast(seat, card){ fxSend(seat, card); showFx(seat, card); }   // the host is seat 0, so its LOCAL frame is the absolute one
     function emoteBroadcast(seat, key){ if(isHost() && started) send({t:'emote', seat:seat, key:key}); }
     /* A client's emote arrives as an intent. Emotes are NOT turn-gated — being able to react when it is not
      * your turn is most of the point — so this is handled before every op that checks whose turn it is. The
@@ -7716,6 +7745,7 @@ __QR__
           r=E.activate(hostState, seat, it.id, { target:tgt, copyId:it.copyId, discard:it.discard, toTop:it.toTop });
           if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
           say(seat, '{who} played '+(ae?ae.name:'a Technique')+'.', 'rival');
+          fxBroadcast(seat, ac);
           hostFlushReveals();          // Outbalance: hand the read to the caster (no-op for every other card)
         } else return;
       }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Move rejected.'}); broadcastMirror(); return; }
@@ -8304,7 +8334,7 @@ __QR__
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); } };
+    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); } };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:var(--zNetroot);background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the
@@ -8338,7 +8368,13 @@ __QR__
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); } }; }
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); },
+    /* THE UNCAPPED LOG. `#log` evicts at 80 entries (see logMsg), and the host and client carry DIFFERENT total
+     * line streams — the host logs host-local lines a client never receives — so past 80 the two windows cover
+     * different spans of history and any category count can drift by one in EITHER direction. `nettest_sync`
+     * compares those counts, so it was measuring the eviction boundary, not the narration. `fullLog` is what the
+     * Save button writes and is never trimmed. */
+    log:function(){ return fullLog.slice(); } }; }
   /* --headerH: measured, not hardcoded. #disconBar hangs off it, and the header's height is not a constant —
    * 56px on desktop, 37px in the landscape band, and ~92px on a portrait phone where it WRAPS to two rows.
    * A hardcoded 54px floated it 17px low in landscape and put it 38px INSIDE the wrapped portrait header,
