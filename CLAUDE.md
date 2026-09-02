@@ -1326,7 +1326,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.86 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
+Status as of **v1.31.87 — 2026-09-01, every suite run serially, 71 suites and 0 FAIL** (a full sweep is
 ~10 minutes; run it in the background, and never two suites at once — they bind fixed ports). Counts verified:
 `test` 382, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
@@ -1334,7 +1334,7 @@ Status as of **v1.31.86 — 2026-09-01, every suite run serially, 71 suites and 
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 45 netplay suites: `nettest_3p` 7, `stale` 7, `mirrordrop` 10, `activate` 6, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
+The 46 netplay suites: `nettest_3p` 7, `stale` 7, `endscreen` 11, `mirrordrop` 10, `activate` 6, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 14, `kick` 11, `log` 14, `losspick3` 7,
 `losspick_remote3` 6, `names` 8, `narrate` 10, `phantasm` 8, `prefight` 13, `react3` 7, `record` 12, `relay` 17,

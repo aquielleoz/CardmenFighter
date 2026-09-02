@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.86.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.87.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.86**, working tree clean, full sweep green at **71 suites**. The only branch is
+`main` is at **v1.31.87**, working tree clean, full sweep green at **71 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -84,26 +84,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   the ceremony teardown (v1.31.67) are both candidates and neither has been demonstrated.
   Likely the same root cause as the `nettest_sync` fork at the top of this list; chase that one first, since it
   reproduces on demand and this does not.
-- **A FINISHED NETPLAY GAME LEAVES ITS WIN PAGE BEHIND** (Aj, 2026-08-28): end a netplay game, go back to the
-  netplay screen, and you are greeted by the PREVIOUS duel's win page until you press Leave online. The end
-  overlay is not cleared when netplay re-renders, so the next lobby is behind a stale modal.
-- **STARTING A NEW NETPLAY GAME DROPS YOU INTO THE PREVIOUS DUEL'S END SCREEN** (Aj, 2026-08-29: *"you have to
-  press leave then do the whole handshake thing again"* — so the cost is a full re-handshake, not just a stray
-  overlay). Reported earlier as "stale win page"; this is the sharper version, and the end screen appears
-  **after** the new game starts, not before.
-  **What is VERIFIED, and it is an asymmetry worth knowing:**
-  - The HOST path is clean. `hostStartRealN` calls `startGame(YOU)`, and `startGame` is the **only** site that
-    runs `gen++` (line ~2653) and `hideOverlay()`.
-  - The CLIENT path never bumps `gen`. `applyMirrorNow` does `started=true; state=st; … render()` with no
-    `gen++` anywhere, so **a stale `setTimeout` continuation from the PREVIOUS game still satisfies `g===gen`**
-    and can run against the new one — including a path that ends at `endGame()`.
-  - `.overlay` is `z-index:100000` and `#netroot` is `99999`, so anything showing when netplay starts sits on
-    top of the lobby; `NET.start` never touches the overlay.
-  **NOT FIXED, because there is no repro yet** — the stale-`gen` asymmetry is the leading candidate and it is
-  still a theory, and theories have been wrong every time this week. **Get the repro first:** play a netplay
-  duel to a finish, start a second one without leaving, and watch whether `endGame()` is re-entered (a
-  breakpoint or a `trace()` in `endGame` will say immediately). If it is, giving the client a `gen++` on the
-  first mirror of a new game is the fix; if it is not, look at what re-shows the overlay instead.
 - **CARDS CAN PAINT BEFORE THEY HAVE A RANK** — two rendered as `0 undefined 0` on Aj's phone and then
   corrected themselves a moment later (*"the undefined cards loaded a bit later"*). Cosmetic, transient, and the
   residue of the 2026-08-28 relay game: **the desync it came with was a real bug and is fixed in v1.31.49** (see
@@ -318,6 +298,37 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.87 — the end screen stops painting itself back over whatever you opened
+
+Two BACKLOG entries, one cause, and it was plainer than the standing theory. Aj: *"you have to press leave then
+do the whole handshake thing again"*.
+
+**`endGame()` HAD NO LATCH.** In netplay it is reached from the mirror path, so it re-ran on **every incoming
+mirror** — traced on a real duel at 0.81s, 1.50s and 3.74s on the client, and again five seconds later on the
+host. Pressing New Duel **does** open the setup dialog; ~1.8s later a re-entry paints the win screen back over
+it. The dialog was never broken — something kept clobbering it.
+
+**THE STANDING THEORY WAS THE CLIENT'S MISSING `gen++`** (a stale `setTimeout` continuation from the previous
+game still satisfying `g===gen`). That asymmetry is real and still documented, but it is not what this was. The
+entry itself said what to do — *"get the repro first; a `trace()` in `endGame` will say immediately"* — and it
+did, in one run. The trace is kept.
+
+**AND THE LATCH EXPOSED A SECOND BUG IT HAD BEEN MASKING.** `applyMirrorNow` calls `hideOverlay()` for anything
+that is not an owed response window, so a mirror arriving after the finish **wiped the client's end screen** —
+the repeated `endGame` had simply been painting it back. Both fixes are needed: without the latch the win modal
+clobbers whatever the player opened, without the overlay guard it vanishes on the next mirror. Re-armed where a
+fresh game actually begins: `startGame` for host and solo, and the client's mirror path when the incoming state
+is not finished, because a client never runs `startGame`.
+
+New suite **`nettest_endscreen.js`** (11). A/B: removing the latch gives **host 2 and client 3** `endGame`
+entries against 1 and 1; removing the overlay guard loses the client's end screen four seconds in.
+
+**ONE ASSERTION IS LABELLED A GUARD, NOT A DISCRIMINATOR, and the label is the point.** The user-visible check —
+New Duel still open three seconds later — **passes on the broken build too**, because `endGame` is reached from
+the turn drivers and the mirror path rather than from a bare render, so provoking one with `forceAll` does not
+reproduce the host's late re-entry. The discriminating evidence is the entry COUNT. Three vacuous assertions
+have shipped in this repo before; saying which of these two kinds an assertion is costs a comment.
 
 ### v1.31.86 — a stale pass is still a good pass: the stamp does one job, the policy does the other
 
