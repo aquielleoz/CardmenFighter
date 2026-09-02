@@ -75,15 +75,6 @@ said "open work only". Two shipped design specs were deleted outright, since the
 full. **Ranked now: correctness first, then things a playtester meets immediately, then features and balance.**
 A struck-through entry does not belong here — if it shipped, move it to the changelog.*
 
-### Correctness
-
-- **A CLIENT'S HEADER ONCE READ "Round 8 — YOU WON" WHILE THE HOST SAT AT ROUND 5** (Aj, 2026-08-28, third log
-  pair). The rest of that report is resolved — the phantom rounds were drag-to-play (v1.31.56), the missing
-  lines were the narration audit (v1.31.58), the doubled narration was `sayOnce` (v1.31.53) — but nothing has
-  been shown to produce a client running THREE ROUNDS ahead of the host. The stale-mirror guard (v1.31.54) and
-  the ceremony teardown (v1.31.67) are both candidates and neither has been demonstrated.
-  Likely the same root cause as the `nettest_sync` fork at the top of this list; chase that one first, since it
-  reproduces on demand and this does not.
 ### Things a playtester meets immediately
 
 - **SEAT 0 ALWAYS LEADS ROUND 1, SO THE HOST ALWAYS LEADS ONLINE** (Aj: *"in net play it seems like the host
