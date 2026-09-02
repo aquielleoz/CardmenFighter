@@ -51,6 +51,28 @@ const endGameEntries=p=>p.evaluate(()=>{ try{ return window.__cmf.trace().filter
   await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
                             const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
   await until(async()=>(await view(join)).yourTurn, 80);
+  /* STAGED WHERE MIRRORS ACTUALLY FLOW. The first version of this ran right after the deal, when the host
+   * holds the turn and is not parked — so nothing was being broadcast and the modal survived WITH OR WITHOUT
+   * the fix: an assertion that could not fail. The host parks the moment it hands the turn over, and its
+   * heartbeat then re-asserts every 1.8s, which is the condition Aj hit.
+   * A DIALOG THE PLAYER OPENED MUST SURVIVE THAT (Aj: *"concede modal closes too fast on client
+   * side even without clicking anything"*). Mirrors arrive constantly in netplay — every 1.8s even on a parked
+   * host — and `applyMirrorNow` closes anything not on its owed-window list. Four seconds is several mirrors. */
+  await join.evaluate(()=>{ const b=document.getElementById('newBtn'); if(b)b.click(); });
+  /* CHECK THE OVERLAY, NOT THE HEADING. `hideOverlay()` only removes the `show` class — `#modal`'s innerHTML
+   * stays exactly where it was — so a heading test passes on a modal nobody can see, and this assertion was
+   * green with the fix removed. Third time today an assertion read something that outlives the thing under
+   * test (the spent 8♣ back in hand, the round number advancing before the trim, and now this). */
+  const shown = async()=>{ const v=await view(join); return v.overlay && /Concede this/i.test(v.head); };
+  const conceOpen = await until(shown, 40);
+  ok(conceOpen, 'the client can open the concede confirm');
+  await wait(4000);
+  const stillOpen = await shown();
+  ok(stillOpen, 'and it is STILL open after several mirrors, not wiped by one'+
+                (stillOpen?'':'  ← REPRODUCED: applyMirrorNow closed a dialog the player opened'));
+  await join.evaluate(()=>{ const b=document.getElementById('cancelCon'); if(b)b.click(); });
+  ok(await until(async()=>!(await view(join)).overlay, 40), '  → and "Keep playing" still closes it');
+
   await join.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled)b.click(); });
   ok(await until(async()=>(await view(host)).round>=2, 120), 'round 2 reached, so Specials are unlocked');
 
@@ -87,7 +109,12 @@ const endGameEntries=p=>p.evaluate(()=>{ try{ return window.__cmf.trace().filter
   /* ── HALF THREE: the report itself. New Duel must open AND STAY — the re-entry landed ~1.8s later, so a check
    * that reads the dialog immediately would pass on the broken build. */
   await host.evaluate(()=>{ const b=document.getElementById('againBtn'); if(b)b.click(); });
-  ok(await until(async()=>/New Duel/i.test((await view(host)).head), 40), 'New Duel opens on the host');
+  /* ONLINE IT MUST NOT BE THE SOLO SETUP (v1.31.92). Not merely the wrong dialog: nothing guards `commitSetup`,
+   * so pressing Go there would start a LOCAL solo game while `role` is still 'host', and the host would keep
+   * broadcasting mirrors of a game the client is not in. */
+  ok(await until(async()=>/New online game/i.test((await view(host)).head), 40), 'online, New Duel offers the ONLINE path, not the solo setup');
+  ok(await host.evaluate(()=>!!document.getElementById('againLeave')), '  → and offers Leave online, the one route that works today');
+  ok(await host.evaluate(()=>!document.getElementById('setPlayers')), '  → with no solo deck/difficulty pickers, which would do nothing here');
   /* A REGRESSION GUARD, NOT A DISCRIMINATOR — said plainly because the difference matters. The host's late
    * re-entry was observed at +5.15s on a real duel (and clobbered the dialog ~1.8s after the click), but I
    * could not make it fire on demand: `endGame` is reached from the turn drivers and the mirror path, not from
@@ -98,7 +125,7 @@ const endGameEntries=p=>p.evaluate(()=>{ try{ return window.__cmf.trace().filter
   await host.evaluate(()=>{ try{ window.__cmf.forceAll(null,null,null,{}); }catch(e){} });
   await wait(1200);
   const hv = await view(host);
-  ok(/New Duel/i.test(hv.head),
+  ok(/New online game/i.test(hv.head),
      'and it is STILL open three seconds later, not painted over by the win screen  [saw "'+hv.head+'"]'+
      (/WIN|Wins/i.test(hv.head)?'  ← REPRODUCED: endGame re-entered and clobbered it':''));
 
@@ -106,13 +133,20 @@ const endGameEntries=p=>p.evaluate(()=>{ try{ return window.__cmf.trace().filter
    * back?"*). Until `clearBoard()` there was no teardown at all — `state` was assigned when a game began and
    * never cleared, so a finished board sat behind whatever floated on top of it, and `leaveOnline` "worked"
    * only because it reloads the page. Asserting the CARDS are gone, not that something covers them. */
+  /* AND THE SOLO FUNNEL STILL TEARS THE GAME DOWN (the v1.31.90 guard). Online now routes to Leave instead, and
+   * the board deliberately stays behind that confirm so "← Back" returns you to your end screen — so this drives
+   * `openSetup()` directly through the dbg surface. Two earlier attempts were worse: calling it as a global
+   * silently threw (it is inside the closure) and asserted against an untouched board, and asserting after a
+   * page reload would only prove that reloading clears the DOM. */
+  await host.evaluate(()=>{ try{ window.__cmf.openSetup(); }catch(e){} });
+  await wait(400);
   const behind = await host.evaluate(()=>({
     hand:document.querySelectorAll('#hand .card').length,
     pile:document.querySelectorAll('#pile .card').length,
     forms:document.querySelectorAll('#youFormZone *, #rivalFormZone *').length,
   }));
   ok(behind.hand===0 && behind.pile===0 && behind.forms===0,
-     'the finished board is torn down behind the dialog, not just hidden  [hand '+behind.hand+', pile '+behind.pile+', forms '+behind.forms+']');
+     'the solo funnel tears the finished board down    [hand '+behind.hand+', pile '+behind.pile+', forms '+behind.forms+']');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log((fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

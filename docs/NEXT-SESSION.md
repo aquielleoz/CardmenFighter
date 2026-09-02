@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.91.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.92.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-01)
 
-`main` is at **v1.31.91**, working tree clean, full sweep green at **71 suites**. The only branch is
+`main` is at **v1.31.92**, working tree clean, full sweep green at **71 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -79,17 +79,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 *Four reports from a real online duel, 2026-09-02, with screenshots. Ranked: the wedge first.*
 
-- **★ "NEW DUEL" IN NETPLAY OPENS THE SOLO SETUP, NOT THE HOST/JOIN SCREENS** (Aj, report 6). v1.31.87 stopped
-  the end screen painting itself back over the dialog; the dialog it opens is still the wrong one.
-  `$('againBtn').addEventListener('click', openSetup)` — one handler, no netplay branch — so a rematch dumps you
-  into "Players / Your name / Your class" instead of offering to host or join. **This is the other half of the
-  original report** (*"you have to press leave then do the whole handshake thing again"*): the clobbering is
-  fixed, the destination is not, so the handshake is still the only way back.
-- **THE CONCEDE MODAL CLOSES ITSELF ON THE CLIENT** (Aj, report 5) — without anything being clicked. Likely the
-  same family as the end screen: `applyMirrorNow` calls `hideOverlay()` for anything not on its owed-window
-  list, and the concede confirm is not on it. v1.31.87 added `overGame` for the END screen only; a confirm
-  dialog is the same kind of thing and was not covered. **Check the list, not just this one modal** — anything
-  the player opened that is not an owed response window has the same problem.
 - **NO ANIMATION ON THE CLIENT WHEN IT ACTIVATES A JACK.** The transform happens but nothing plays. Compare
   `buildOppBeats`, which is the one place both drivers funnel through for `flashArt`/`revealEffect` — a client
   activating for ITSELF is a third path, and CLAUDE.md's standing warning applies: *"a bespoke presentation path
@@ -312,6 +301,39 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.92 — a dialog you opened stays open, and "New Duel" stops offering a solo game online
+
+Two of Aj's field reports, and the first is the general form of a bug v1.31.87 only point-fixed.
+
+**A DIALOG THE PLAYER OPENED MUST SURVIVE A MIRROR.** `applyMirrorNow` calls `hideOverlay()` for anything not on
+its owed-window list, and in netplay mirrors arrive constantly — every 1.8s even on a parked host — so a confirm
+is wiped almost immediately. Aj: *"concede modal closes too fast on client side even without clicking
+anything"*. v1.31.87 fixed exactly one dialog (the end screen) with a bespoke `overGame` flag; **the list was
+the bug, not the modal**. There is a `stickyModal` flag now: a dialog the player opened says so, game-owned
+windows stay on the owed list where they were, and `showModal` resets it so it can never leak onto the next one.
+
+**"NEW DUEL" ONLINE WAS WORSE THAN A WRONG DIALOG.** It called `openSetup` with no netplay branch, and **nothing
+guards `commitSetup`** — so pressing Go there starts a LOCAL solo game while `role` is still `'host'`, and
+`onRender` keeps broadcasting, so the opponent receives mirrors of a game they are not in. Online it now offers
+the one route that works today: leave, which lands you back at the online setup.
+**A true in-place rematch stays the unbuilt BACKLOG feature** — `renderNet()` returns early while `started` is
+true and nothing resets it, so the lobby cannot return without a reload. This only stops the button pointing
+somewhere useless and dangerous.
+
+**THREE VERSIONS OF ONE ASSERTION WERE GREEN BEFORE ONE WAS HONEST**, which is the part worth keeping:
+1. it read `#modal h2` — but `hideOverlay()` only drops the `show` class, so the heading **outlives the visible
+   modal**. Green with the fix removed.
+2. it ran where **no mirrors were flowing** (the host had not parked yet), so there was nothing to survive.
+3. it called `openSetup()` as a global from `evaluate` — the function is inside the closure, so it threw, the
+   `catch` swallowed it, and the assertion ran against an untouched board.
+
+Each looked like a passing test. **Four times today an assertion has been green against a broken build, and the
+cure is the same every time: assert the thing that only changes on SUCCESS, and check the condition you need is
+actually present when you look.** `__cmf.openSetup()` now exposes the solo funnel so the v1.31.90 teardown guard
+stays testable after netplay stopped routing through it.
+
+`nettest_endscreen` is 17.
 
 ### v1.31.91 — the duel host stops wedging when the client discards to hand size
 

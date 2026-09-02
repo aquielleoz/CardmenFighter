@@ -4645,7 +4645,27 @@ __QR__
         '<div class="respOpts"><button id="againBtn" class="respQuick" style="text-align:center;">'+(MP()?'New Game':'New Duel')+'</button>'+
         '<button id="reviewBtn" class="respLet">👁 Review the board &amp; log</button>'+
         '<button id="endSaveBtn" class="respLet">⤓ Save the battle log</button></div>');
-      $('againBtn').addEventListener('click', openSetup);
+      /* ONLINE, "NEW DUEL" MUST NOT OPEN THE SOLO SETUP (Aj: *"starting a new netplay game navigates here and
+       * not to the host/join screens"*). It is not merely the wrong dialog: nothing guards `commitSetup`, so
+       * pressing Go there starts a LOCAL solo game while `role` is still 'host' — and `onRender` keeps
+       * broadcasting, so the client would receive mirrors of a game it is not in.
+       * A true in-place rematch is the unbuilt BACKLOG feature: `renderNet()` returns early while `started` is
+       * true and nothing resets it, so the lobby cannot come back without a reload. Until that exists, the
+       * honest offer is the one thing that works — leave, which lands you back at the online setup. That is
+       * exactly the manual path Aj had to find ("press leave then do the whole handshake thing again"); this
+       * just stops the button pointing somewhere useless. */
+      $('againBtn').addEventListener('click', function(){
+        var online = (typeof NET!=='undefined' && NET.active && NET.active());
+        if(!online) return openSetup();
+        showStickyModal('<h2>New online game</h2>'+
+          '<p>A rematch on this connection is not wired up yet. Leaving online takes you back to the setup screen, where you can host or join again.</p>'+
+          '<div class="confirmBtns">'+
+            '<button id="againBack" class="ghostBtn">← Back</button>'+
+            '<button id="againLeave">← Leave online</button>'+
+          '</div>');
+        $('againBack').addEventListener('click', function(){ hideOverlay(); endGame(); });   // endGame is latched, so this repaints the end screen rather than re-running it
+        $('againLeave').addEventListener('click', function(){ NET.leaveOnline(); });
+      });
       $('reviewBtn').addEventListener('click', enterPeek);   // peek at the final board/log; ↩ Back returns to this screen
       /* Right here, on the end screen, because this is the moment a player has something worth sending and the
        * least patience for finding it. The file carries the netplay trace too. */
@@ -4658,7 +4678,17 @@ __QR__
   /* RESETS THE CLASS LIST. Two dialogs widen themselves by adding a class after this call (the Codex, and the
    * rules panel since v1.31.36); resetting here means neither can leak its width into whatever opens next,
    * however that dialog was closed. */
-  function showModal(html, cls){ overlayDismiss=null; closeCardFull(); var m=$('modal'), ov=$('overlay');
+  /* A DIALOG THE PLAYER OPENED MUST SURVIVE A MIRROR (v1.31.92). `applyMirrorNow` calls `hideOverlay()` for
+   * anything not on its owed-window list, so in netplay — where mirrors arrive constantly, and every 1.8s even
+   * on a parked host — a confirm the player opened is wiped almost immediately. Aj: *"concede modal closes too
+   * fast on client side even without clicking anything"*.
+   * v1.31.87 fixed this for the END screen with a one-off `overGame` flag. That was a point fix to a
+   * list-shaped bug, and this is the general form: the list decides which dialogs survive, so a dialog has to
+   * be able to say it belongs there. RESET in `showModal` so it can never leak onto the next, game-driven one;
+   * game-owned windows (respond, shield-guard, pre-fight, reveal) stay on the owed list where they were. */
+  var stickyModal=false;
+  function showStickyModal(html, cls){ showModal(html, cls); stickyModal=true; }
+  function showModal(html, cls){ overlayDismiss=null; stickyModal=false; closeCardFull(); var m=$('modal'), ov=$('overlay');
     /* Opened WHILE peeking? Stash the end screen the peek is hiding — there is only one #modal, so this
      * dialog would otherwise overwrite it — and un-hide the modal for the duration. `peekStash` is set once
      * per peek: a second dialog replaces the first without losing the end screen underneath. */
@@ -4707,7 +4737,7 @@ __QR__
     /* A dialog opened DURING peek closes back into peek, not out of it — otherwise looking at an energy pile
      * would dump you off the review screen and lose the end screen behind it. */
     if(closePeekDialog()) return;
- peeking=false; revealOpen=false; var ov=$('overlay'); ov.classList.remove('show'); ov.classList.remove('peeking'); document.body.classList.remove('peeking-board'); var bar=$('peekBar'); if(bar) bar.remove(); }
+ peeking=false; revealOpen=false; stickyModal=false; var ov=$('overlay'); ov.classList.remove('show'); ov.classList.remove('peeking'); document.body.classList.remove('peeking-board'); var bar=$('peekBar'); if(bar) bar.remove(); }
 
   // ============ Guided tutorial — a coached first duel (Basics, 2p vs a gentle AI) ============
   var TUT = (function(){
@@ -6030,7 +6060,7 @@ __QR__
   }
   function confirmConcede(){
     var mp=MP();
-    showModal('<h2>Concede this '+(mp?'game':'duel')+'?</h2>'+
+    showStickyModal('<h2>Concede this '+(mp?'game':'duel')+'?</h2>'+
       '<p>You forfeit immediately — your opponent'+(mp?' takes the table':' wins')+'. This can’t be undone.</p>'+
       '<div class="confirmBtns">'+
         '<button id="cancelCon" class="ghostBtn">Keep playing</button>'+
@@ -7752,7 +7782,7 @@ __QR__
        * back on the next mirror; adding the latch is what exposed it. Both halves are needed: without the latch
        * the win modal clobbers whatever the player opened, and without this it vanishes on the next mirror. */
       var overGame = !!(st && st.finished && endShown);
-      if(!owedModal && !revealOpen && !overGame) hideOverlay();
+      if(!owedModal && !revealOpen && !overGame && !stickyModal) hideOverlay();   // …and never a dialog the player opened themselves
       hideNetroot();
       /* `trimPending` locks every OTHER seat. The turn is already the round WINNER by the time the clean-up
        * pick opens (`resolveRoundWin` sets it) and `roundDraw` runs AFTER the trim — so a client that had just
@@ -8308,7 +8338,7 @@ __QR__
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); } }; }
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); } }; }
   /* --headerH: measured, not hardcoded. #disconBar hangs off it, and the header's height is not a constant —
    * 56px on desktop, 37px in the landscape band, and ~92px on a portrait phone where it WRAPS to two rows.
    * A hardcoded 54px floated it 17px low in landscape and put it 38px INSIDE the wrapped portrait header,
