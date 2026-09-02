@@ -161,6 +161,23 @@ turn — while a Full Set deck holds 13 per suit and sees one occasionally. Aj's
 effectively shanking every non mono suit player"*) understates it. Straight flush is trivial for them too.
 This is a better reason than "suits do not rank" for why v1.14 cut them.
 
+<a id="round-skew"></a>
+- **~~A CLIENT'S HEADER READ "Round 8 — YOU WON" WHILE THE HOST SAT AT ROUND 5~~ — ATTRIBUTED TO DRAG-TO-PLAY,
+  CLOSED 2026-09-02.** (Aj, 2026-08-28, third log pair; closed on his own reading: *"i think the 1st one was
+  already fixed when drag play was fixed (it was the one that caused the client to play its own game)"*.)
+  **A client running its own engine is exactly what produces a header several rounds ahead**, and that is what
+  the drag path did until **v1.31.56**: `playCards` had no client guard, so a DRAGGED play ran the local engine
+  and never reached the host — phantom rounds in the client's log, `Pair (NaN, NaN)`, a client "racing to the
+  game end". Clicking Fight went through `doFight`, which was guarded; dragging did not. That asymmetry is why
+  it looked like a sync fault rather than an input-path fault.
+  The rest of that same report was resolved separately: the missing log lines were the narration audit
+  (v1.31.58) and the doubled narration was `sayOnce` (v1.31.53).
+  **NOT INDEPENDENTLY REPRODUCED SINCE**, and that is the honest caveat — no repro was ever built for the
+  three-round skew itself, so this is an attribution, not a demonstration. **If it recurs, that attribution is
+  wrong and the thing to reach for is the desync banner (v1.31.88)**, which now says so out loud rather than
+  letting a client keep playing a board the host never confirmed; the old candidates (the stale-mirror guard,
+  the ceremony teardown) were never demonstrated either and should not be re-chased first.
+
 <a id="host-client-fork"></a>
 ## The host/client fork — closed 2026-09-01
 
