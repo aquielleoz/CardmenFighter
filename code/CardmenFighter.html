@@ -5053,7 +5053,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.85';
+  var GAME_VERSION='v1.31.86';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -10593,9 +10593,25 @@ window.CardFace = {};
            * suggestion is a LOBBY act, where there is no board at all. Stamping them meant a client whose `q`
            * had drifted could not emote or suggest, silently: Aj's real game shows three emotes refused
            * (`op=emote q=0 ... state is 1`), and `nettest_emote` has been red since v1.31.54 for this reason. */
-          var boardless = !!(m.intent && (m.intent.op==='emote' || m.intent.op==='suggest' || m.intent.op==='unready'));
-          if(!boardless && m.q!=null && m.q!==stateSeq){
-            trace('move REFUSED — stale', 'client q='+m.q+' but state is '+stateSeq);
+          /* ONLY A PLAY CAN BE STALE, and only when the PILE it was aimed at has changed (v1.31.86).
+           * The old guard refused every intent whose counter did not match, and the counter advanced on any
+           * client intent at all — so a second action sent before the first mirror came back was refused
+           * silently. Aj's real game: two passes (`q=11`, `q=14`) swallowed, which is a player pressing Pass
+           * and nothing happening.
+           * The engine is the real authority for everything else and always was: `E.pass` and `E.play` both
+           * check `p !== st.turn`, game-over and the Back Stab lock, `play` checks ownership and legality, and
+           * `resolveIds` drops any card the seat does not hold. A stale PASS is either still legal — in which
+           * case it is exactly what the player asked for — or the engine refuses it on its own merits.
+           * What the engine CANNOT see is a play that stayed legal while meaning something else: cards picked
+           * to answer a pair of 5s, arriving after that round resolved, are now a LEAD. That is the one case
+           * worth a guard, and `boardStamp` is what detects it — the old counter could not, because it never
+           * advanced on the round draw. */
+          var boardless = !(m.intent && m.intent.op==='play');
+          if(!boardless && m.bs!=null && m.bs!==boardStamp(hostState)){
+            trace('play REFUSED — the pile moved on', 'client bs='+m.bs+' but board is '+boardStamp(hostState));
+            /* TELL THEM. The old path re-broadcast and said nothing, so the board simply went live again with
+             * no explanation — indistinguishable from a dropped click, which is how this was reported. */
+            sendTo(sseat, {t:'refused', why:'The board moved on before your play arrived — have another look.'});
             broadcastMirror(); return;
           }
           /* A SUGGESTION IS DISPATCHED HERE, ahead of hostApplyMove*, because those return immediately when
@@ -10646,8 +10662,12 @@ window.CardFace = {};
            * the board and let the player act on a board that no longer exists. */
           if(m.q!=null && lastSeq!=null && m.q<lastSeq){ trace('mirror STALE — ignored', 'q='+m.q+' < '+lastSeq); return; }
           if(m.q!=null) lastSeq=m.q;
+          if(m.bs!=null) lastBS=m.bs;                         // the board this seat is now looking at — sent back with a play
+          
           applyMirror(m.st); }
         else if(m.t==='ceremony' && m.seat===mySeat){ clientPlayCeremony(m.res); }
+        else if(m.t==='refused'){                             // the host threw a play away — say so, or it reads as a dropped click
+          busy=false; selected={}; setMessage('⚠ '+(m.why||'That play could not be made — have another look.')); render(); }
         else if(m.t==='ping'){ SFX.play('ping'); setMessage('🔔 The host is ready — pinged you.'); }
         else if(m.t==='emote'){                               // includes our OWN, echoed back by the host
           var en=(state&&state.numPlayers)||2;                 // `seat` is ABSOLUTE — rotate into our frame
@@ -10793,7 +10813,21 @@ window.CardFace = {};
      * plays the host had already rejected — it acted on a board that no longer existed.
      * `stateSeq` advances only when an intent is actually APPLIED, never per render, so a client's intent is
      * valid exactly while the state it was formed against is still current. */
-    var stateSeq=0;
+    /* ONE JOB EACH, because one counter was doing two and doing neither properly (v1.31.86).
+     * `mirrorSeq` — a monotonic VERSION, bumped whenever a mirror's content actually changes. Its only job is
+     *   ordering, so a replayed or delayed mirror can be recognised as older and dropped.
+     * `boardStamp()` — WHAT THE DECISION WAS MADE AGAINST: the round, and the pile being answered. Its only job
+     *   is deciding whether a client's intent still means what the player meant.
+     * The old `stateSeq` was neither. It counted client INTENTS, so the host's own plays and the round draw
+     * never advanced it (visible in a trace as one `q` carrying two different hand sizes) — which is why the
+     * v1.31.65 dedupe had to compare content instead — while ALSO gating intent validity, where it produced
+     * Aj's two refused passes: a pass formed one mirror behind is still a perfectly good pass. */
+    var mirrorSeq=0;
+    function boardStamp(st){
+      if(!st) return '-';
+      var pl=st.pile;
+      return st.round+':'+(pl&&pl.combo ? (pl.byPlayer+'/'+pl.combo.type+pl.combo.size+'/'+(pl.combo.key||[]).join('.')) : 'lead');
+    }
     /* DEDUPE BY CONTENT. `broadcastMirror` is called from every render, and a render happens for animations, hover,
  * effect flashes — measured with a trace, **502 byte-identical mirrors to one seat in 1.4 seconds**. The client
  * applies each one, so it falls seconds behind and its board reads stale: `nettest_sync` was catching that as a
@@ -10809,16 +10843,20 @@ window.CardFace = {};
   function broadcastMirror(){
     if(!hostState) return;
     for(var s=1;s<hostState.numPlayers;s++){
-      var msg={t:'mirror', seat:s, q:stateSeq, st:NetView.mirrorFor(hostState, s)}, j;
-      try{ j=JSON.stringify(msg); }catch(e){ j=null; }
+      /* The version is bumped AFTER the content compare, never before: if `q` were part of the compared body a
+       * fresh number would make every mirror look different and defeat the dedupe that killed the 97%-duplicate
+       * render storm (v1.31.65). Content decides whether to send; the version only labels what is sent. */
+      var body={seat:s, bs:boardStamp(hostState), st:NetView.mirrorFor(hostState, s)}, j;
+      try{ j=JSON.stringify(body); }catch(e){ j=null; }
       if(j!==null && lastMirror[s]===j) continue;              // nothing changed for this seat
       lastMirror[s]=j;
+      var msg={t:'mirror', seat:s, q:++mirrorSeq, bs:body.bs, st:body.st};
       /* dbg only, and PERMANENT ON PURPOSE. A lost mirror is the whole mechanism behind the host/client fork,
        * and it has now been investigated three times with bespoke probes that were thrown away each time —
        * which is exactly why "no HELD events during a failure" could not be re-checked nine versions later.
        * `lastMirror[s]` is set BEFORE the skip because that is the realistic loss: the host believes it sent,
        * so nothing re-sends until its state changes again. Inert unless a test arms it. */
-      if(dbgDropMirror[s] > 0){ dbgDropMirror[s]--; trace('mirror DROPPED (dbg)', 'seat='+s+' q='+stateSeq+' round='+(hostState.round||'?')); continue; }
+      if(dbgDropMirror[s] > 0){ dbgDropMirror[s]--; trace('mirror DROPPED (dbg)', 'seat='+s+' q='+mirrorSeq+' round='+(hostState.round||'?')); continue; }
       sendTo(s, msg);
     }
   }   // per-seat (a seat's private hand never reaches another peer)
@@ -10891,7 +10929,8 @@ window.CardFace = {};
 
     function hostApplyMove(it){
       if(!hostState || hostState.finished || !it || typeof it.op!=='string') return;
-      stateSeq++;   // this intent is being applied, so any other intent formed against the old board is void
+      // (no counter to bump here any more: `mirrorSeq` advances when a mirror's CONTENT changes, and
+      //  whether an intent is still meaningful is `boardStamp`'s job — see the declarations above)
       if(it.op==='emote') return hostEmote(1, it.key);   // never turn-gated
       if(it.op==='reorderEnergy') return hostReorderEnergy(1, it);   // the remote seat in a duel is always 1
       var g=gen, r;
@@ -11396,7 +11435,12 @@ window.CardFace = {};
       if(clientCeremonyRes && clientCeremonyRes.newRound && !m.finished) playRoundCardBeat(clientCeremonyRes, function(){});
     }
     var lastSeq=null;   // the stamp of the newest mirror this client has applied
-    function clientSend(it){ trace('clientSend', ((it&&it.op)||'?')+' q='+(lastSeq!=null?lastSeq:'-')); send({t:'move', seat:mySeat, intent:it, q:lastSeq}); }
+    var lastBS=null;
+    /* dbg only: pretend this seat is looking at an older board, so a suite can send a genuinely stale intent
+     * without having to race the wire. Same reasoning as `dbgDropMirrors` — the alternative is a bespoke
+     * probe that gets thrown away and cannot be re-run. */
+    function dbgForceBS(v){ lastBS=v; return lastBS; }
+    function clientSend(it){ trace('clientSend', ((it&&it.op)||'?')+' bs='+(lastBS!=null?lastBS:'-')); send({t:'move', seat:mySeat, intent:it, q:lastSeq, bs:lastBS}); }
     var iConceded=false;
     function concede(){ iConceded=true; send({t:'concede', seat:mySeat}); }   // notify the host we forfeited; ignore further mirrors (stay on our end screen)
     function onOpponentConcede(seat){
@@ -11796,7 +11840,7 @@ window.CardFace = {};
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors };
+    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); } };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:var(--zNetroot);background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the
@@ -11830,7 +11874,7 @@ window.CardFace = {};
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, trace:function(){ return NET.traceDump(); } }; }
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); } }; }
   /* --headerH: measured, not hardcoded. #disconBar hangs off it, and the header's height is not a constant —
    * 56px on desktop, 37px in the landscape band, and ~92px on a portrait phone where it WRAPS to two rows.
    * A hardcoded 54px floated it 17px low in landscape and put it 38px INSIDE the wrapped portrait header,
