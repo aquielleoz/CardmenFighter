@@ -584,7 +584,8 @@
   #hand .card.picked{transform:translateY(-14px) scale(1.04); outline:3px solid var(--pick); box-shadow:0 10px 20px rgba(0,0,0,.45), 0 0 15px rgba(201,139,255,.6);}
   #hand.disabled{opacity:.55; pointer-events:none;}
   /* Disconnect / reconnect banner (netplay) — amber alert strip pinned to the top of the table */
-  #disconBar{display:none; position:fixed; top:calc(var(--headerH) - 2px); left:50%; transform:translateX(-50%); z-index:400; max-width:92vw;
+  .card.loading{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02)); border-style:dashed; opacity:.55;}   /* a card that has not fully arrived — see cardEl */
+    #disconBar{display:none; position:fixed; top:calc(var(--headerH) - 2px); left:50%; transform:translateX(-50%); z-index:400; max-width:92vw;
     background:linear-gradient(180deg,#3a2a08,#241a06); border:1px solid var(--gold); border-radius:12px; box-shadow:0 8px 26px rgba(0,0,0,.55);
     padding:10px 14px; display:none; align-items:center; gap:14px; font-size:14px; color:#ffe9b8;}
   #disconBar.show{display:flex;}
@@ -5053,7 +5054,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.87';
+  var GAME_VERSION='v1.31.88';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -5745,6 +5746,17 @@ window.CardFace = {};
     return html ? '<span class="efrow">'+html+'</span>' : '';
   }
   function cardEl(card, size){
+    /* A CARD WITH NO RANK IS NOT A CARD. Two rendered as `0 undefined 0` on Aj's phone during the 2026-08-28
+     * relay game and corrected themselves a moment later — a mirror carrying a partly-formed card, painted
+     * before it had a rank. Cosmetic and transient, but "0 undefined 0" reads as data loss to a player, and a
+     * blank placeholder reads as a card still arriving, which is what it is. `rankLabel(undefined)` and
+     * `SUIT_SYMBOL[undefined]` are what produced the string, so guard the input rather than each use. */
+    if(!card || card.rank==null || !card.suit){
+      var ph=document.createElement('div');
+      ph.className='card '+(size?size+' ':'')+'loading';
+      ph.setAttribute('aria-hidden','true');
+      return ph;
+    }
     var d=document.createElement('div');
     d.className='card '+(size?size+' ':'')+(red(card.suit)?'red':'');
     d.dataset.id=card.id;
@@ -10194,9 +10206,31 @@ window.CardFace = {};
     // **Drop** (concede + eliminate) at any point. So the table is never frozen, and a dropout keeps their standing.
     var discon={}, disconTick=null, GRACE_MS=90000;   // host: absolute seat -> { since, passo? }
     var clientSelfDown=false, clientPeerDown=false;   // client: my own link is down / another player is down (host said so)
+    /* OUT OF SYNC IS NOT THE SAME AS DISCONNECTED, and it needs saying out loud (Aj, 2026-09-02: *"i think it's
+     * better to just warn the client that their game has not synced instead of let them continue the game"*).
+     * WHAT IT IS NOT: a gap in the mirror sequence. A mirror is a full SNAPSHOT, not a delta, so ANY later
+     * mirror makes a missed one irrelevant — warning on a gap would cry wolf on the render storm's normal
+     * behaviour. That was the first design here and it was wrong.
+     * WHAT IT IS: this seat acted, and nothing came back. The client sets `busy` when it sends, so input is
+     * ALREADY blocked — what was missing is any indication of why, which is precisely the "I pressed Pass and
+     * nothing happened" report. The board is not merely slow, it is showing a state the host has not confirmed. */
+    var SYNC_WAIT_MS=5000, syncPendingSince=0, syncPendingOp='', clientOutOfSync=false, syncTimer=null;
+    function syncArm(op){
+      syncPendingSince=nowMs(); syncPendingOp=op||'move';
+      if(syncTimer) clearTimeout(syncTimer);
+      syncTimer=setTimeout(function(){
+        if(!syncPendingSince) return;
+        clientOutOfSync=true; trace('OUT OF SYNC', 'no mirror '+SYNC_WAIT_MS+'ms after '+syncPendingOp); renderDisconBar();
+      }, SYNC_WAIT_MS);
+    }
+    function syncClear(){
+      syncPendingSince=0; syncPendingOp='';
+      if(syncTimer){ clearTimeout(syncTimer); syncTimer=null; }
+      if(clientOutOfSync){ clientOutOfSync=false; trace('sync RESTORED', 'a mirror arrived'); renderDisconBar(); }
+    }
     function nowMs(){ return Date.now(); }
     function anyDiscon(){ for(var k in discon){ if(discon.hasOwnProperty(k)) return true; } return false; }
-    function clearDiscon(){ discon={}; clientSelfDown=false; clientPeerDown=false; if(disconTick){ clearInterval(disconTick); disconTick=null; } renderDisconBar(); }
+    function clearDiscon(){ discon={}; clientSelfDown=false; clientPeerDown=false; syncClear(); if(disconTick){ clearInterval(disconTick); disconTick=null; } renderDisconBar(); }
     function hostOnPeerDrop(seat){
       if(!isHost() || !hostState || !started || hostState.finished) return;
       if(seat==null || seat===YOU || !hostState.players[seat] || hostState.players[seat].eliminated) return;
@@ -10250,6 +10284,7 @@ window.CardFace = {};
         bar.className='show';
       } else {                                                            // client view: no countdown/authority, just status
         if(clientSelfDown){ bar.innerHTML='<span class="dcSpin"></span><span class="dcMsg">Reconnecting to the host…</span>'; bar.className='show'; }
+        else if(clientOutOfSync){ bar.innerHTML='<span class="dcSpin"></span><span class="dcMsg"><b>Not synced with the host.</b> Your last move has not come back — this board may be out of date. Waiting…</span>'; bar.className='show'; }
         else if(clientPeerDown==='passo'){ bar.innerHTML='<span class="dcBot">🤖</span><span class="dcMsg">Passo is covering a disconnected player.</span>'; bar.className='show'; }
         else if(clientPeerDown){ bar.innerHTML='<span class="dcSpin"></span><span class="dcMsg">A player disconnected — waiting for them to reconnect…</span>'; bar.className='show'; }
         else { bar.className=''; bar.innerHTML=''; }
@@ -10853,7 +10888,8 @@ window.CardFace = {};
  * one rather than being deduped against the state it missed. */
   var lastMirror={};
   var dbgDropMirror={};   // dbg: seat -> how many outgoing mirrors to swallow (see broadcastMirror)
-  function dbgDropMirrors(seat, n){ dbgDropMirror[seat]=(dbgDropMirror[seat]||0)+(n|0); return dbgDropMirror[seat]; }
+  function dbgDropMirrors(seat, n){ n=n|0; if(n<=0){ dbgDropMirror[seat]=0; return 0; }   // n<=0 RESETS, so a suite can stop dropping and prove the recovery half too
+    dbgDropMirror[seat]=(dbgDropMirror[seat]||0)+n; return dbgDropMirror[seat]; }
   function broadcastMirror(){
     if(!hostState) return;
     for(var s=1;s<hostState.numPlayers;s++){
@@ -11327,6 +11363,7 @@ window.CardFace = {};
       trace('mirror APPLIED', 'round='+((st&&st.round)||'?')+' turn='+((st&&st.turn)!=null?st.turn:'?')+
             ' myHand='+((st&&st.players&&st.players[0])?st.players[0].hand.length:'?'));
       if(!started) trace('started: false -> true', 'client path (setup from host)');
+      syncClear();                             // a mirror is the host's confirmation: whatever we sent has landed or been judged
       if(st && !st.finished) endShown=false;   // a client never runs startGame, so this is where a fresh game re-arms its end screen
       started=true; state=st; hostState=null; window.__cmfNetState=st;
       var owedModal = !!((st.pending && st.respondFor===YOU) || (st.shieldResponse && st.shieldResponse.q===YOU) || (st.preFightQ===YOU));   // overlay windows — keep them up (don't flicker away)
@@ -11460,7 +11497,7 @@ window.CardFace = {};
      * without having to race the wire. Same reasoning as `dbgDropMirrors` — the alternative is a bespoke
      * probe that gets thrown away and cannot be re-run. */
     function dbgForceBS(v){ lastBS=v; return lastBS; }
-    function clientSend(it){ trace('clientSend', ((it&&it.op)||'?')+' bs='+(lastBS!=null?lastBS:'-')); send({t:'move', seat:mySeat, intent:it, q:lastSeq, bs:lastBS}); }
+    function clientSend(it){ trace('clientSend', ((it&&it.op)||'?')+' bs='+(lastBS!=null?lastBS:'-')); syncArm(it&&it.op); send({t:'move', seat:mySeat, intent:it, q:lastSeq, bs:lastBS}); }
     var iConceded=false;
     function concede(){ iConceded=true; send({t:'concede', seat:mySeat}); }   // notify the host we forfeited; ignore further mirrors (stay on our end screen)
     function onOpponentConcede(seat){
