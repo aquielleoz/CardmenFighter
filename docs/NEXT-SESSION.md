@@ -22,27 +22,17 @@ live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(
 
 ## ☀️ START HERE — where we left off (2026-09-03)
 
-**⚑ HANDOFF — v1.31.95 IS COMMITTED ON `feat/lobby-after-game` AND NOT YET MERGED.** Written for whoever picks
-this up next, at any model size. The feature is complete and verified; what is left is mechanical.
-- **What is done:** the code (template only — no engine/ai change), `nettest_endscreen` rewritten (17 → 51),
-  `nettest_lobbyback_rtc` new (23), README/CLAUDE/DECISIONS/this file updated, both HTML copies rebuilt and in sync.
-  Verified: `npm test` 382+34/0; the two suites looped **20× each, 20/20 green**; `npm run sweep` **79/79 in 154s**;
-  `browsertest` smoke pass. The changelog entry `### v1.31.95` below says what changed and why.
-- **What was NOT done:** a final adversarial review pass over the diff (a review workflow failed twice on session
-  limits, not on findings). Optional. If you have budget: `git diff main -- code/CardmenFighter.template.html` and
-  read `hostBackToLobby` / `clientBackToLobby` against the five invariants under **"BACK TO THE LOBBY"** in CLAUDE.md.
-- **To verify in one minute** (from `code/`, absolute paths matter — the session cwd drifts):
-  `cd /Users/Shared/repo/CardmenFighter/code && npm test && PORT=8601 node nettest_endscreen.js && PORT=8602 node nettest_lobbyback_rtc.js`
-- **To ship:** `git push -u origin feat/lobby-after-game`, then a PR titled exactly
-  **`v1.31.95 — back to the lobby after an online game`** (the PR title IS the changelog heading), body = the
-  v1.31.95 changelog entry below, then `gh pr merge --merge --delete-branch`. The pre-push hook checks the prefix.
-- **One judged disagreement, so nobody re-argues it by accident:** seats are RE-CLAIMED with Ready, not kept by
-  number. A second reviewer preferred keeping seats plus compaction at Start; the reasons it lost are in
-  [`DECISIONS.md`](DECISIONS.md#netplay-architecture). The reopened lobby is EMPTY until each client presses Ready
-  — by design.
-
 `main` is at **v1.31.95**, working tree clean, full sweep green at **79 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
+
+**v1.31.95 was built in one session and REVIEWED IN ANOTHER, on purpose** — the build session hit its cap twice
+trying to review its own work with a workflow (~1.2M tokens, no findings), so the review was done solo in a
+fresh session for a few thousand. It found **no defects**; what it checked, and what it deliberately did not,
+is in [PR #133](https://github.com/aquielleoz/CardmenFighter/pull/133): build/template sync, the version chain,
+the duplicate-declaration grep against `main`, removed-identifier check, every new narration line, the six
+**"BACK TO THE LOBBY"** invariants in CLAUDE.md read against the code, the new suites' counts against a real
+sweep, and doc routing. **The one thing no suite can prove is two people playing two games back to back over a
+real connection** — still worth doing once by hand.
 
 **Sanity check** (from `code/`, ~1 minute):
 
