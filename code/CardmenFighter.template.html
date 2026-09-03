@@ -378,7 +378,8 @@
   #logHead{font-size:11px; text-transform:uppercase; letter-spacing:.5px; opacity:.6; font-weight:800; padding:8px 10px 4px; flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:8px;}
   #saveLogBtn, #logNewBtn{font:inherit; font-size:10.5px; letter-spacing:.3px; padding:3px 8px; border-radius:7px; border:1px solid var(--line); background:transparent; color:var(--txt); opacity:.75; cursor:pointer;}
   #saveLogBtn:hover, #logNewBtn:hover{opacity:1; background:rgba(255,255,255,.06);}
-  #logNewBtn{display:none; border-color:var(--gold); color:var(--gold); opacity:.95;}   /* only appears when scrolled up from the newest entry */
+  #logNewBtn{display:none; opacity:.95;}                        /* appears whenever you are away from the newest entry */
+  #logNewBtn.fresh{border-color:var(--gold); color:var(--gold);}  /* ...gold only for the narrower claim: entries arrived behind you */
   #logNewBtn.show{display:inline-block;}
   #logWrap.collapsed #logNewBtn{display:none;}
   #logToggle{font:inherit; font-size:12px; line-height:1; padding:3px 8px; border-radius:7px; border:1px solid var(--line); background:transparent; color:var(--txt); opacity:.75; cursor:pointer;}
@@ -2481,7 +2482,29 @@ __QR__
     if(max<=0) return true;                                     // nothing to scroll — you are always at the newest
     return (max - l.scrollTop) < Math.min(80, max/2);
   }
-  function setLogNewBtn(show){ var b=$('logNewBtn'); if(b) b.classList.toggle('show', show); }
+  /* TWO STATES, AND THEY ARE DIFFERENT INFORMATION (v1.31.94). The button used to appear ONLY when a new line
+   * ARRIVED while you were scrolled away — a new-message indicator, never a way to navigate. So scrolling back
+   * to read something with the game waiting on you offered nothing at all, and the only way to the live end was
+   * scrolling (Aj, 2026-09-02). It is now shown whenever you are away from the newest entry; `fresh` is the
+   * narrower claim that something arrived behind you, and it is what earns the gold. Keeping the colour for
+   * both would make "there is more to read" and "you are just scrolled up" look identical. */
+  var logFresh=false, logBtnState=null;
+  function setLogNewBtn(show, fresh){
+    var b=$('logNewBtn'); if(!b) return;
+    if(fresh) logFresh=true;
+    if(!show) logFresh=false;                 // caught up — stop claiming news, or it cries wolf for the rest of the game
+    var hot=!!(show && logFresh), key=(show?'1':'0')+(hot?'1':'0');
+    /* WRITE ONLY ON A REAL CHANGE. The scroll listener calls this on every scroll event, and `logMsg`'s
+     * auto-follow (`scrollTop = scrollHeight`) fires one per logged line — so an unconditional `textContent`
+     * write forces layout on every entry in a chatty game. Measured: without this guard `lessontest_twos` went
+     * 21s → 100s and failed 6 assertions, while every log assertion still passed. Same bug and same symptom as
+     * the `syncHeaderH` ResizeObserver above; idempotence is what breaks it. */
+    if(key===logBtnState) return;
+    logBtnState=key;
+    b.classList.toggle('show', !!show); b.classList.toggle('fresh', hot);
+    b.textContent = hot ? '↓ New' : '↓ Newest';
+    b.title = hot ? 'Jump to the newest entry — there are new ones' : 'Jump to the newest entry';
+  }
   function scrollLogToBottom(){ var l=$('log'); l.scrollTop=l.scrollHeight; setLogNewBtn(false); }
   // Reader-relative name for a seat in OUR frame: yourself is "You", and a duel's opponent is "Rival"
   // rather than "P2" (seatName is the raw seat label and does not know about duels).
@@ -2510,7 +2533,7 @@ __QR__
     fullLog.push(d.textContent);                       // uncapped plain-text history, for the Save button
     l.appendChild(d); while(l.children.length>80) l.removeChild(l.firstChild);
     if(stick){ l.scrollTop=l.scrollHeight; requestAnimationFrame(function(){ l.scrollTop=l.scrollHeight; }); }   // follow the newest (defer once so a tall entry's height is settled)
-    else setLogNewBtn(true);   // reading history? don't yank — flag "↓ New" instead
+    else setLogNewBtn(true, true);   // reading history? don't yank — flag "↓ New" instead
   }
   function downloadLog(){
     var head=['Cardmen Fighter — Battle Log','You: '+deckLabel(youDeck)+'   vs   Rival: '+deckLabel(rivalDeck)];
@@ -5985,7 +6008,7 @@ __QR__
     if(!collapsed) requestAnimationFrame(scrollLogToBottom);     // expanding shows the newest entry, not the top
   });
   $('logNewBtn').addEventListener('click', scrollLogToBottom);
-  $('log').addEventListener('scroll', function(){ if(logAtBottom()) setLogNewBtn(false); });
+  $('log').addEventListener('scroll', function(){ setLogNewBtn(!logAtBottom()); });   // away from the newest = offer the way back, news or not
   $('youNrgBtn').addEventListener('click', function(){ openPileView('energy'); });     // ⚡ → the ordered energy pile (promote from here)
   $('youShufBtn').addEventListener('click', function(){ openPileView('shuffle'); });   // ♻ → what is queued to come back (read-only)
   $('rivalNrgBtn').addEventListener('click', function(){ openPileView('energy', RIVAL); });
@@ -8407,6 +8430,10 @@ __QR__
       // buildPreDrawBeats is a pure function of the round result — exposing it lets a test assert the
       // ceremony wording DIRECTLY instead of playing random games until a shield-loss ceremony happens
       // (which failed ~1 run in 3 by simply never reaching one).
+      /* Append a real log line. The BUTTON's whole job is a function of log length and scroll position, so a
+       * suite needs an overflowing log without playing twenty rounds for it — and this goes through the real
+       * `logMsg`, which is what decides auto-follow and the fresh flag. */
+      log:function(t,c){ logMsg(t||'\u2026', c||'round'); },
       beats:function(res){ return buildPreDrawBeats(res||{}); },
       names:function(list){ setSeatNames(list); render(); },
       // playtest-log hooks: assert what an EXPORT would actually contain without playing to a real finish

@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.93.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.94.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-02)
 
-`main` is at **v1.31.93**, working tree clean, full sweep green at **77 suites**. The only branch is
+`main` is at **v1.31.94**, working tree clean, full sweep green at **78 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -33,7 +33,7 @@ npm test && node mptest.js && node landscapetest.js
 
 Expect **0 FAIL** from each. The two gate counts in the header above are asserted by `versiontest`, so they
 cannot drift; every other suite's expected count lives in **CLAUDE.md**, which is the authority. A full sweep is
-**`npm run sweep`** — 77 suites, four at a time, ~150-250s. `npm run sweep:fast` skips the six slow STABLE
+**`npm run sweep`** — 78 suites, four at a time, ~150-250s. `npm run sweep:fast` skips the six slow STABLE
 suites; `node sweep.js -j 1` is the serial fallback if a parallel run ever looks suspicious. **The old "never
 two suites at once" rule is dead** — `PORT` is an env var and the runner assigns one per job (v1.31.82).
 
@@ -86,10 +86,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 *Four reports from a real online duel, 2026-09-02, with screenshots. Ranked: the wedge first.*
 
-- **THE BATTLE LOG HAS NO "JUMP TO NEWEST" WHEN SCROLLED UP.** Scroll back to read something and there is no way
-  back to the live end except scrolling. Small, and it compounds with the open item about opening the log as an
-  overlay.
-
 - **THE HOST'S RECORD NEVER COUNTS A REMOTE SEAT'S TECHNIQUES** (found 2026-09-02 while fixing the effect art;
   filed rather than bundled, because it is an export bug and not a presentation one). `bumpEffect` is called
   from the local drivers and from `buildOppBeats` — neither of which runs for a **remote human seat**. Both host
@@ -110,9 +106,13 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   **The half that is nearly free:** `seatDeckMap` and `seatNames` survive a game start untouched, and re-ready
   already works (`clientNotReady`, `nettest_unready`), so once the lobby renders the deck pickers are back.
   **The three real pieces:**
-  - `started=false` on BOTH ends + `showNetroot()` + `clearBoard()`. The parts exist (`dbgUnstart()`,
-    `clearBoard()` from v1.31.90) but **nothing tells the client to come back** — today the host would return to
-    the lobby while the client sat on a dead board. Needs a `t:` message and both ends asserted.
+  - `started=false` on BOTH ends, put `#netroot` back on screen, and `clearBoard()`. The parts exist
+    (`dbgUnstart()`, `clearBoard()` from v1.31.90) but **nothing tells the client to come back** — today the host
+    would return to the lobby while the client sat on a dead board. Needs a new `t:` message (v1.31.93's
+    `t:'fx'` is the worked example: broadcaster inside the NET IIFE, handler in the client dispatch, exported
+    through the NET return object) with both ends asserted.
+    **NOTE there is no `showNetroot()`** — only `hideNetroot()` (~7188, `r.style.display='none'`), called from
+    `hostStartRealN` and the client's setup handler. The un-hide has to be written.
   - **A fresh room, or "add more players" cannot work.** `hostStartRealN` calls `relayDropRoom()` at start on
     purpose (an SDP holds IP addresses), so the code is gone by the time anyone wants to reuse it.
     `renderHostRtcLobby` already knows how to mint one.
@@ -120,6 +120,10 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
     on 2026-09-02: `hostState`, `netReact`, `netDiscard`, the mirror dedupe cache, the park heartbeat, `busy`,
     `endShown`, the readiness stamps. Miss one and game two inherits a silent wedge. Enumerate them against the
     IIFE rather than from memory, and assert the second game plays a full round.
+  **Entry point and test home:** the end screen's `againBtn` handler (~4657 in the template) is where this is
+  triggered from — today its online branch offers the "New online game" dialog. `nettest_endscreen.js` is the
+  suite that already drives that screen and the v1.31.90 teardown (via `__cmf.openSetup()`), so it is where the
+  round trip belongs; `nettest_unready` covers the re-ready path it lands in.
   **The UI copy is part of the fix.** v1.31.92's dialog is headed *"New online game"* and the button says
   *"New Game"*, which reads as though the feature exists and is one click away — that is exactly what misled Aj.
 
@@ -151,14 +155,20 @@ online duel against a person.*
 
 ### Tooling
 
-- **`lessontest_twos` FAILS UNDER PARALLEL LOAD, AND IT IS NOT A TIMEOUT.** 29/0 alone; 23/6 at `-j 4`, taking
-  100s against its usual 20s. The failure is a real state divergence, not a poll giving up:
-  `✗ the Rival led a full house built on three 2s` … `Fight is disabled — hint: Special Full House — doesn't
-  beat the Special Pair`. So the pile was a PAIR when the lesson expected a full house — the scripted `pilot`
-  went off-script under load rather than merely running slowly.
-  **This is a fourth timing class** after wall-clock budgets (v1.31.82), poll budgets (v1.31.84) and raw
-  iteration counts (v1.31.85): a suite whose SEQUENCE depends on beats landing in order. Raising a budget will
-  not fix it. Start by logging what the pilot actually played versus what the step expected.
+- **`lessontest_twos` HAS FAILED UNDER PARALLEL LOAD ONCE, UNEXPLAINED — and the "fourth timing class" label
+  this entry used to carry was invented, not diagnosed.** Observed 2026-09-02: 29/0 alone, 23/6 at `-j 4`, 100s
+  against its usual 20s, with `✗ the Rival led a full house built on three 2s` … `hint: Special Full House —
+  doesn't beat the Special Pair` (so the pile was a PAIR where the lesson expected a full house).
+  **v1.31.94 reproduced that signature EXACTLY from a known cause and fixed it** — an unconditional
+  `textContent` write in the log button's scroll listener starved the page (21s → 100s, 23/6), and idempotence
+  restored 20s. **That code did not exist on 2026-09-02**, so it cannot explain the original observation; but
+  **starvation demonstrably produces this signature**, which makes it a far better hypothesis than a new class
+  of timing bug. The most likely candidate for the original is machine contention — that session had killed
+  batches and an orphaned waiter running alongside the sweep.
+  **Status: not reproducing.** Green at 20s under `-j 4` in clean sweeps since. Kept open rather than closed as
+  a ghost (CLAUDE.md's own rule after the mirror-drop investigation). **If it recurs, look for something
+  starving the page before positing a sequence bug** — and log what the pilot actually played versus what the
+  step expected, which is still the right first move.
 
 ### Features
 
@@ -332,6 +342,40 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.94 — the battle log gets a way back to the newest entry
+
+Aj: *"scroll back to read something and there is no way back to the live end except scrolling."*
+
+**THE CONTROL ALREADY EXISTED — markup, CSS, click handler, scroll listener, and a 2026-08-29 fix that made
+`logAtBottom` honest about short logs.** What was missing is the AFFORDANCE. `setLogNewBtn(true)` had exactly one
+caller: `logMsg`, when a line ARRIVED while you were scrolled away. The scroll listener only ever *hid* it. So it
+was a **new-message indicator that could never be a way to navigate** — scroll up with the game waiting on you,
+nothing arrives, and no control appears at all.
+It is now shown whenever you are away from the newest entry. **`fresh` is the narrower claim** — entries arrived
+behind you — and it is what earns the gold and the "↓ New" wording; away-but-caught-up reads "↓ Newest" in the
+plain style. Keeping the colour for both would make *"there is more to read"* and *"you are just scrolled up"*
+look identical.
+
+**WRITE ONLY ON A REAL CHANGE — THIS IS THE `syncHeaderH` BUG AGAIN, AND IT COST A SWEEP TO FIND.** The scroll
+listener runs on every scroll event, and `logMsg`'s auto-follow (`scrollTop = scrollHeight`) fires one **per
+logged line** — so an unconditional `textContent`/`title` write forces layout on every entry in a chatty game.
+**Measured: `lessontest_twos` went 21s → 100s and failed 6 assertions**, while every log assertion stayed green.
+Same symptom as the ResizeObserver note above it: the page slows, an UNRELATED suite goes red, and nothing about
+the thing you changed looks wrong. Idempotence is the whole fix (`logBtnState`), and it restores the suite to 20s
+exactly.
+**AND IT MEANS THE OPEN `lessontest_twos` BACKLOG ENTRY WAS MISLABELLED.** It called the failure *"sequence
+divergence, a timing class this repo hasn't characterised"* — a name invented for an undiagnosed failure.
+Starvation produces that identical 23/6 signature, so the proven mechanism is the better candidate; the entry
+now says so instead of asserting a new class.
+
+`logtest.js` is new — **16 assertions**, and two of them exist because the first draft was green and blind:
+- **the log ships `collapsed`**, so the panel had 0px of scroll range and `logAtBottom()` was trivially true —
+  four assertions passed vacuously until the suite expanded it first;
+- **a width guard did not discriminate.** `scrollWidth - clientWidth` stays **0** even with a deliberately
+  over-long label, because the head never overflows horizontally — the **button WRAPS**, growing to 92px against
+  Save's 32px and the head to 104px. It compares the two buttons' heights now, and fails at all three viewports
+  on an over-long label.
 
 ### v1.31.93 — effect art reaches every seat, and `nettest_sync` stops measuring the log's eviction boundary
 
