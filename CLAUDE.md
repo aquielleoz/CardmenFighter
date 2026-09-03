@@ -1080,6 +1080,26 @@ cache is dropped on join and rejoin, so a reconnecting peer is never deduped aga
   the retry every other helper in `lessonlib` has, and each presented as a product bug. `passTurn` was worse than
   missing it: it reported success on ANY state change, so it masked real failures for several runs.
 
+**MULTI-AGENT ORCHESTRATION ("ultracode") IS FOR DESIGN, NEVER FOR TESTING OR REVIEW** (Aj, 2026-09-03, after
+hitting his session cap twice in one day: *"so the next session doesn't super bleed out my tokens on testing"*).
+Measured on v1.31.95, the two halves of the same day:
+- **The DESIGN pass paid for itself.** Three state inventories, three independent designs and two judges
+  (~2.7M subagent tokens) found things a solo pass had missed or got wrong: every design independently found the
+  emote dispatch dead after `finished`; one design stopped a clear-the-log-at-setup plan that would have erased
+  the client's dice line in every real game — invisible under `dbg=1`, where the roll is pinned off; the judges
+  found the sync banner armed by boardless intents and the rules panel re-opening over the lobby, and refuted two
+  claims that were headed into comments as fact. **Reach for it when a change has a "risky half" that needs
+  ENUMERATING against the code** — parallel readers are what that costs.
+- **The REVIEW pass returned nothing for ~1.2M tokens.** Four reviewers plus three refuters per finding, launched
+  AFTER the cap had already been hit once; it died on the session limit, was retried, and died on a connection
+  error. A solo read of `git diff` would have cost a fraction, and the repo's own verifiers — the 20× loop, the
+  sweep — had already run.
+- **RULES.** (1) **Testing is never orchestrated**: the suites are the verifiers, and `npm run sweep` plus a 20×
+  loop cost zero model tokens. (2) **The first session-limit notice ends orchestration for the day** — finish
+  solo. (3) **Two lenses, not three**, for an inventory: the third produced overlap, not findings. (4) Before
+  launching any workflow, say in one line what it will spend and whether one careful read answers the same
+  question; if it does, read.
+
 **A THROWAWAY DIAGNOSTIC IS THE LEAST TRUSTWORTHY CODE IN THE ROOM.** Hunting the Quicks bugs, two bespoke
 probes lied before the real suite told the truth: one clicked `#tutNextBtn` before the tutorial panel had
 rendered it, so `if(b)b.click()` did nothing and it reported **8 consecutive false failures**; the other planted
