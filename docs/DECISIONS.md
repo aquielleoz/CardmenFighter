@@ -46,6 +46,29 @@ Nothing here was paraphrased on the way over — the text is as it was written w
     narration (v1.31.53) and the stale-board actions (v1.31.54) alike: **a client may sequence, but never
     infer.**
 
+- **SEATS ARE RE-CLAIMED, NOT KEPT, WHEN THE TABLE GOES BACK TO THE LOBBY (v1.31.95). Compaction was designed
+  and declined.** Aj's words were *"both already joined"*, and the literal reading — keep every seat number
+  across games — was worked out in full by two of the three designs judged for the feature: detect a gone peer
+  (RTC: `dcs[i].readyState`; BC: a roll-call, since BroadcastChannel has no channel state at all), compact and
+  renumber `hostSeatOf`/`seatDeckMap`/`seatNames`/`seatRuleGen`/`seatSuggest`/`chanSeat` together, null the
+  stale channel bindings (`sendTo` returns on the FIRST `chanSeat` match, so a closed channel holding a survivor's
+  new number would swallow its mirrors), re-send `t:'welcome'` point-to-point to every survivor whose number
+  changed, and run it again at Start. ~250 lines and nine functions, every one of which the 48 netplay suites
+  pass through. **It was declined because the seat reset gets the same outcome for free**: every client must
+  press Ready again anyway (the deck travels on `t:'join'` and the picker is disabled while ready, so
+  "pick decks again" REQUIRES un-ready), a peer whose tab is gone never re-joins and is therefore never dealt in,
+  and BC needs no special case. What is given up: seat numbers may change between games at a 3+ table, and the
+  reopened lobby reads "N connecting — waiting for them to choose a deck…" rather than listing names until each
+  seat is re-claimed. Names and decks travel per seat at `t:'setup'`, so nothing mis-assigns. **If "seats kept
+  by number" is ever wanted, the compaction design above is the shape, and the `_iceDown` channel mark
+  (v1.31.95) is its RTC evidence; BC has none.**
+  **Two more things settled in the same pass:** the client's battle log is stashed at lobby time and saveable
+  from the lobby (not cleared at `t:'setup'` — the 🎲 roll line is `say`'d BEFORE setup in `hostStartRealN`, so a
+  clear at setup erases it in every real game and no suite sees it, because `dbg=1` pins the roll off); and the
+  host's `hostStartRealN` message order was NOT changed to make clear-at-setup safe, since the stash removes the
+  need and the reorder's supposed benefit (names in the client's dice line) only holds for duels — the client's
+  `t:'log'` rotation uses `numPlayers` from a `state` that is null until the first mirror.
+
 ## Phone layout
 
 *The bug that prompted this analysis MEASURES CLEAN since v1.31.66 — the overlap was caused by the sideways

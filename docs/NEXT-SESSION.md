@@ -8,21 +8,40 @@ syntax error** — read its `built … bytes` line before believing a surprising
 
 **Test gate:** `npm test` = `node test.js` (**382**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
-including all 43 `nettest_*` suites and the ten `lessontest*` ones, is listed in **CLAUDE.md** with its expected
+including all 49 `nettest_*` suites and the ten `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
 
 **Player style:** **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder,
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.94.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.95.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
-## ☀️ START HERE — where we left off (2026-09-02)
+## ☀️ START HERE — where we left off (2026-09-03)
 
-`main` is at **v1.31.94**, working tree clean, full sweep green at **78 suites**. The only branch is
+**⚑ HANDOFF — v1.31.95 IS COMMITTED ON `feat/lobby-after-game` AND NOT YET MERGED.** Written for whoever picks
+this up next, at any model size. The feature is complete and verified; what is left is mechanical.
+- **What is done:** the code (template only — no engine/ai change), `nettest_endscreen` rewritten (17 → 51),
+  `nettest_lobbyback_rtc` new (23), README/CLAUDE/DECISIONS/this file updated, both HTML copies rebuilt and in sync.
+  Verified: `npm test` 382+34/0; the two suites looped **20× each, 20/20 green**; `npm run sweep` **79/79 in 154s**;
+  `browsertest` smoke pass. The changelog entry `### v1.31.95` below says what changed and why.
+- **What was NOT done:** a final adversarial review pass over the diff (a review workflow failed twice on session
+  limits, not on findings). Optional. If you have budget: `git diff main -- code/CardmenFighter.template.html` and
+  read `hostBackToLobby` / `clientBackToLobby` against the five invariants under **"BACK TO THE LOBBY"** in CLAUDE.md.
+- **To verify in one minute** (from `code/`, absolute paths matter — the session cwd drifts):
+  `cd /Users/Shared/repo/CardmenFighter/code && npm test && PORT=8601 node nettest_endscreen.js && PORT=8602 node nettest_lobbyback_rtc.js`
+- **To ship:** `git push -u origin feat/lobby-after-game`, then a PR titled exactly
+  **`v1.31.95 — back to the lobby after an online game`** (the PR title IS the changelog heading), body = the
+  v1.31.95 changelog entry below, then `gh pr merge --merge --delete-branch`. The pre-push hook checks the prefix.
+- **One judged disagreement, so nobody re-argues it by accident:** seats are RE-CLAIMED with Ready, not kept by
+  number. A second reviewer preferred keeping seats plus compaction at Start; the reasons it lost are in
+  [`DECISIONS.md`](DECISIONS.md#netplay-architecture). The reopened lobby is EMPTY until each client presses Ready
+  — by design.
+
+`main` is at **v1.31.95**, working tree clean, full sweep green at **79 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute):
@@ -33,30 +52,29 @@ npm test && node mptest.js && node landscapetest.js
 
 Expect **0 FAIL** from each. The two gate counts in the header above are asserted by `versiontest`, so they
 cannot drift; every other suite's expected count lives in **CLAUDE.md**, which is the authority. A full sweep is
-**`npm run sweep`** — 78 suites, four at a time, ~150-250s. `npm run sweep:fast` skips the six slow STABLE
+**`npm run sweep`** — 79 suites, four at a time, ~150-250s. `npm run sweep:fast` skips the six slow STABLE
 suites; `node sweep.js -j 1` is the serial fallback if a parallel run ever looks suspicious. **The old "never
 two suites at once" rule is dead** — `PORT` is an env var and the runner assigns one per job (v1.31.82).
 
-**The last four versions:** **v1.31.93** effect art reaches every seat — netplay had none in ANY direction ·
-**v1.31.92** a dialog you opened survives a mirror, and "New Duel" stops offering a solo game online ·
-**v1.31.91** the duel host stops wedging on a client's clean-up discard · **v1.31.90** a finished game is torn
-down before the next one opens.
+**The last four versions:** **v1.31.95** an online table goes BACK TO THE LOBBY after a game — connections kept,
+seats re-claimed with Ready, decks re-pickable, players addable; and a client's 🔄 Rematch? finally reaches the
+host from an end screen · **v1.31.94** the battle log gets a way back to the newest entry · **v1.31.93** effect
+art reaches every seat — netplay had none in ANY direction · **v1.31.92** a dialog you opened survives a mirror,
+and "New Duel" stops offering a solo game online.
 
-**The four before those:** **v1.31.79** the Demon Lord never spends a card it is about to win with — a tier
-BEHAVIOUR, worth a quarter of the knight→demon gap · **v1.31.78** a banked boost commits the turn, and nothing
-may spend the play it bought · **v1.31.77** the AI stops throwing away the value boost it just paid for ·
-**v1.31.76** the 2 explains itself — reminder text on the card, derived from the live rules, plus a Basics
-lesson built on a deliberately illegal deck.
+**The four before those:** **v1.31.91** the duel host stops wedging on a client's clean-up discard · **v1.31.90**
+a finished game is torn down before the next one opens · **v1.31.79** the Demon Lord never spends a card it is
+about to win with — a tier BEHAVIOUR, worth a quarter of the knight→demon gap · **v1.31.78** a banked boost
+commits the turn, and nothing may spend the play it bought.
 
-**⚑ WHERE TO PICK UP — the top of the BACKLOG.** The boost line is finished: v1.31.77 stopped the AI passing on
-a boost it had paid for, and v1.31.78 stopped anything else in the same turn eating the play it bought
-(**0 in 1200 duels**). The general form of it — 166 activations that leave the seat with no legal fight — was
-then measured head-to-head and is **not worth fixing**; it lives in [`DECISIONS.md`](DECISIONS.md#ai-strength)
-under a new **AI strength** heading, along with the only method in this repo that can measure AI strength at
-all. **Read that before proposing any "the AI plays badly here" change** — every existing sim runs the same AI
-on both seats and is structurally blind to strength. What is left at the top is small and unambiguous
-(`pickValueBoost` boosting a fight it has already won); the **host/client fork** `nettest_sync` catches is the
-real open item, still intermittent at roughly one run in four.
+**⚑ WHERE TO PICK UP — the top of the BACKLOG.** The ★ lobby return shipped in v1.31.95, so the top of
+Correctness is now **the host's record never counting a remote seat's Techniques** — a one-line fix beside each
+`fxBroadcast` call that still needs its test before it ships. **Two things about v1.31.95 a fresh session should
+know before touching netplay again:** seats are *re-claimed*, not kept by number (the reopened lobby is empty
+until each client presses Ready — that is the design, recorded in [`DECISIONS.md`](DECISIONS.md#netplay-architecture),
+not a bug), and a client intent is dead once `hostState.finished` as well as when there is no `hostState`, so
+anything a client may send from an END SCREEN is dispatched in the `t:'move'` handler ahead of the drivers. The
+**host/client fork** `nettest_sync` catches remains the open netplay item, still intermittent.
 
 **The "The 2" lesson is unusual and a fresh session will otherwise be baffled by it.** Three things it does that
 no other lesson does, all documented in the source and in CLAUDE.md:
@@ -96,36 +114,19 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   The fix is a `bumpEffect(seat, aeff)` beside each `fxBroadcast` call added in v1.31.93. **It needs a test
   before it ships**: `nettest_record` already asserts `oppFights>0`, and the sibling assertion belongs there —
   but `stats` is not exposed, so it wants either a dbg hook or a client cast staged inside that suite's game.
-- **★ BACK TO THE LOBBY AFTER AN ONLINE GAME — seats kept, decks re-pickable, players addable** (Aj,
-  2026-08-25 as "one-tap rematch"; re-specified 2026-09-02 after he read v1.31.92 and said *"i thought that was
-  what you built"*). **v1.31.92 only stopped the button doing something dangerous** — online, "New Game" now
-  offers Leave, which tears the connection down and makes both players redo the handshake. Aj's actual want is
-  narrower than a rematch and better: *"the host/join screen with both already joined so they can pick decks
-  again if they want, so they can add more players if they want"* — i.e. return to the **LOBBY**, not straight
-  into a new deal. The `🔄 Rematch?` emote is the negotiation; this is the mechanism.
-  **The half that is nearly free:** `seatDeckMap` and `seatNames` survive a game start untouched, and re-ready
-  already works (`clientNotReady`, `nettest_unready`), so once the lobby renders the deck pickers are back.
-  **The three real pieces:**
-  - `started=false` on BOTH ends, put `#netroot` back on screen, and `clearBoard()`. The parts exist
-    (`dbgUnstart()`, `clearBoard()` from v1.31.90) but **nothing tells the client to come back** — today the host
-    would return to the lobby while the client sat on a dead board. Needs a new `t:` message (v1.31.93's
-    `t:'fx'` is the worked example: broadcaster inside the NET IIFE, handler in the client dispatch, exported
-    through the NET return object) with both ends asserted.
-    **NOTE there is no `showNetroot()`** — only `hideNetroot()` (~7188, `r.style.display='none'`), called from
-    `hostStartRealN` and the client's setup handler. The un-hide has to be written.
-  - **A fresh room, or "add more players" cannot work.** `hostStartRealN` calls `relayDropRoom()` at start on
-    purpose (an SDP holds IP addresses), so the code is gone by the time anyone wants to reuse it.
-    `renderHostRtcLobby` already knows how to mint one.
-  - **RESETTING PER-GAME NETPLAY STATE IS THE RISKY HALF**, and it is the same class of bug as everything fixed
-    on 2026-09-02: `hostState`, `netReact`, `netDiscard`, the mirror dedupe cache, the park heartbeat, `busy`,
-    `endShown`, the readiness stamps. Miss one and game two inherits a silent wedge. Enumerate them against the
-    IIFE rather than from memory, and assert the second game plays a full round.
-  **Entry point and test home:** the end screen's `againBtn` handler (~4657 in the template) is where this is
-  triggered from — today its online branch offers the "New online game" dialog. `nettest_endscreen.js` is the
-  suite that already drives that screen and the v1.31.90 teardown (via `__cmf.openSetup()`), so it is where the
-  round trip belongs; `nettest_unready` covers the re-ready path it lands in.
-  **The UI copy is part of the fix.** v1.31.92's dialog is headed *"New online game"* and the button says
-  *"New Game"*, which reads as though the feature exists and is one click away — that is exactly what misled Aj.
+- **A SEAT RE-CLAIMED IN THE REOPENED LOBBY, THEN ABANDONED BEFORE START, IS A GHOST** (filed with v1.31.95;
+  pre-existing — the first lobby has always had it). `ldc.onclose` and `hostOnPeerDrop` act only while `started`,
+  so a client that presses Ready and then closes its tab before the host starts is dealt in and the table parks
+  on it. Over RTC the host now marks the channel `_iceDown` from the ICE handler (v1.31.95, so the roster stops
+  counting it), which is exactly the evidence a Start-time prune would need: drop trailing/any dead seats before
+  `hostStartRealN` reads `nextSeat-1` — but any middle seat means renumbering plus a re-`welcome`, which is the
+  compaction v1.31.95 deliberately declined ([`DECISIONS.md`](DECISIONS.md#netplay-architecture)). Over
+  BroadcastChannel there is no channel state at all. Cheapest honest version: refuse Start while any seated
+  channel is `_iceDown`, with a roster line naming it.
+- **THE CLIENT LOBBY NEVER RENDERS `sig.err`** (filed with v1.31.95; pre-existing, more reachable now that a
+  lobby is revisited with the game over). `renderLobby` has no `errHTML`, unlike `renderSignaling`, so a client
+  whose host closed its tab after a game sits at "Ready ▶" with nothing on screen; pressing Ready starts the
+  join retry, which after 14s writes "Could not sync with the host…" into `sig.err` — and nobody sees it.
 
 *Also CONFIRMED by the same screenshots, already filed below: the netplay host logs the SOLO line (**"New duel —
 you play Berserker (Fig+Rog) vs Aj (Fighter) on Pure Cleric"**) and its header reads **"duel vs AI"** — in an
@@ -342,6 +343,82 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.95 — back to the lobby after an online game
+
+The ★ BACKLOG item. Aj, 2026-09-02, having read v1.31.92's *"New online game"* dialog: *"i thought that was
+what you built"*. What he wanted was narrower than a rematch and better: *"the host/join screen with both
+already joined so they can pick decks again if they want, so they can add more players if they want"* — the
+LOBBY, not a new deal.
+
+**THE HOST'S END-SCREEN BUTTON NOW READS "↩ Back to the lobby", AND DOES IT.** `hostBackToLobby()` narrates
+(first, while `started` is still true — `sayBroadcast` drops anything said after the flip), nulls `hostState`
+BEFORE anything can send or render (so in-order delivery puts every game-one mirror ahead of the lobby message),
+clears the five parked windows and the mirror dedupe cache, resets the seat table, broadcasts one payload-free
+`{t:'lobby'}`, then tears the board down and puts `#netroot` back — there was no `showNetroot()` until now,
+because nothing had ever come back. The client's handler does the same on its side and lands in its lobby with
+"Ready ▶" and a live deck picker. Both lobbies say who won and offer **⤓ Save the last battle log**: the host's
+move takes the end screen off every client before it can press Save, so the finished game's log moves into a
+stash the lobby can write, and game two starts with a clean log on both ends — a client never runs `startGame`,
+so before this its log was never cleared at all.
+
+**SEATS ARE RE-CLAIMED, NOT KEPT.** Three designs were drawn up independently (a smallest-diff one, a
+failure-mode-first one, a player-experience one) and judged; two of them compacted-and-renumbered the seat maps
+when a peer had gone, with a per-seat re-`welcome`. The one that shipped resets the seat table and lets every
+client take a seat the way it did in game one — by pressing Ready, which is the only way a deck can be re-picked
+anyway (the deck travels on `t:'join'`, and the picker is disabled while ready). One decision settles three
+things: nobody is dealt into game two without confirming; a peer whose tab is gone never re-joins and so is
+never dealt in as a ghost — `hostStartRealN` indexes seats contiguously, so a dead seat could not be skipped,
+and `endGame`→`clearDiscon()` has already forgotten who dropped; and BroadcastChannel, which has no channel
+state, needs no special case. The cost is that seat numbers can change between games at a 3+ table. Recorded in
+`DECISIONS.md` so nobody re-argues compaction.
+
+**THE 🔄 REMATCH NEGOTIATION DID NOT EXIST, AND ALL THREE DESIGNS FOUND IT.** `hostApplyMove` and
+`hostApplyMoveN` return on `hostState.finished` before their emote line, so a client's emote from its end
+screen — the one moment the backlog leaned on it — was dropped silently. The emote is dispatched in the `t:'move'`
+handler now, ahead of the drivers, beside `suggest` and `unready` (the same reason: those return without a
+board). The client's end-screen button is **"🔄 Ask for a rematch"** → one-shot **"✓ Asked"**, and the host's end
+screen names the asker on the modal itself (`#rematchAsk`), because the overlay covers both the bubble and the
+log. Asserted in both directions: the host's log count goes 0 → 1, and the line is absent first.
+
+**TWO THINGS THE JUDGES FOUND THAT NO DESIGN HAD.** A client's `clientSend` armed the out-of-sync timer for
+every intent, so a rematch ask — which no mirror will ever answer — painted "Not synced with the host…" five
+seconds later, dim under the end screen and plain during Review; boardless intents (emote, suggest, un-ready)
+arm nothing now, the same trio the stamp check already exempts. And an open ⚗️ rules panel at game end would have
+been re-opened on top of the lobby by the suggestion flush, because only `closePanel` nulled `rulesPanelOpen`;
+`clearBoard` nulls it.
+
+**A CLIENT IS PROVABLY INERT TO A STRAGGLER.** `applyMirrorNow` sets `started=true`, installs the state and hides
+`#netroot` on ANY mirror, so one late mirror of game one would drag a lobbied client back onto a dead board.
+`lobbyHold` is set by `t:'lobby'` and cleared by `t:'setup'`; it is checked at the mirror dispatch (before the
+`lastSeq` bookkeeping, or a stale `q` would poison game two's never-go-backwards floor) and again in
+`applyMirrorNow` for the held-mirror release path, and `mySeat` goes back to 0 so no seat-addressed message can
+match until the host re-welcomes the seat. `__cmf.inject(m)` hands a page a raw message through the real
+handler, and `nettest_endscreen` replays game one's finished mirror into the lobby: the client stays put and the
+trace says *refused*, not *lost*.
+
+**`resetBoardMemory()` — ONE DEFINITION FOR TWO CALLERS.** `startGame` reset the fx layers and the render-diff
+caches inline, and a client never runs `startGame`; game two's first render would have heal-flashed the shields
+against game one's final board and skipped every ROAR/OVERDRIVE beat already in `announcedThresh`, and a beat
+mid-flight when the lobby landed would have stayed painted (every fx-layer clear is gen-gated, and `gen++`
+freezes it). `clearBoard` and `startGame` now share the function; `pendingThreshold`, which neither reset, is
+in it too.
+
+**A DEAD DATACHANNEL READS `open` FOR HALF A MINUTE.** The RTC suite closed the client's page and expected the
+roster to read "No players yet"; it read "1 connecting" for longer than the 30s budget, because an abruptly
+closed tab leaves `readyState==='open'` until DTLS gives up while ICE says `disconnected` within seconds. The
+channel is marked `_iceDown` from the ICE handler and `openChanCount` skips it — the same evidence
+`nettest_rtc_discon` has always relied on.
+
+**Also:** the end screen offers "← Leave online" behind the same prompt the header uses, whose Stay now puts the
+end screen BACK — v1.31.92's "← Back" called the latched `endGame()` and dropped the player onto a bare board
+(`paintEndScreen` is the end screen as a function of `state`). `hostRosterHTML` stops saying "give someone the
+code above" in the branch where there is no code above. The RTC host can ping anyone who is *here*, not only
+the readied. `downloadLog(lines)` takes an optional list.
+
+`nettest_endscreen` 17 → **51** (the round trip: ask, return, straggler, re-pick, game two to round 2);
+`nettest_lobbyback_rtc` is new (**23**: a peer that closed its tab is not at the table, a fresh invite seats a
+new player, game two is a DUEL and plays a round). Both looped 20× before merging.
 
 ### v1.31.94 — the battle log gets a way back to the newest entry
 
