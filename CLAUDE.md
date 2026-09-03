@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.61**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.95**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -609,6 +609,35 @@ intent or is refused on a client.
 index is derived from a **rotated mirror** and is meaningless on the host. `phantasmSolveFor(st, seat, addCard,
 phantId)` is the single definition, and the host re-solves from its OWN state — sending the index would be a
 fabricated-card bug wearing a different hat. Same rule as `resolveIds`: ids in, host resolves.
+
+**BACK TO THE LOBBY (v1.31.95) — the table returns to the lobby after a game, and five things about it are
+invariants, not choices.**
+- **SEATS ARE RE-CLAIMED, NOT KEPT.** `hostBackToLobby()` resets `hostSeatOf`/`seatDeckMap`/`nextSeat`/
+  `seatRuleGen`/`seatSuggest` and nulls every `chanSeat`; a client re-takes a seat by pressing Ready, through the
+  unchanged join handler. That is what makes a gone peer harmless — `hostStartRealN` indexes seats 1..nextSeat-1
+  CONTIGUOUSLY and cannot skip a hole, and `endGame`→`clearDiscon()` has already forgotten who dropped. Do not
+  "improve" this into keeping seat numbers without also building compaction + a per-seat re-`welcome`: three
+  designs were judged and that one was declined (DECISIONS.md, netplay architecture).
+- **A CLIENT INTENT IS DEAD AFTER `finished`, NOT ONLY WITHOUT `hostState`.** Both drivers return on
+  `hostState.finished` first. Anything a client may legitimately send from an END SCREEN — today the 🔄 emote —
+  is dispatched in the `t:'move'` handler ahead of them, beside `suggest` and `unready`. Emotes stopped reaching
+  a finished host in v1.31.54 and nothing noticed until this feature depended on it.
+- **A BOARDLESS INTENT ARMS NO SYNC TIMER.** `clientSend` skips `syncArm` for emote/suggest/unready; no mirror
+  will ever answer them, so arming it painted "Not synced with the host…" 5s after any emote sent with the game
+  over. The same trio the stamp check exempts.
+- **`hostState=null` BEFORE the lobby message is sent; `say` BEFORE `started=false`.** The first is the whole
+  straggler defence on the host side (broadcastMirror, onRender, the park beat and both drivers return on it,
+  and both transports deliver in order); the second because `sayBroadcast` guards `started`. The client half is
+  `lobbyHold` — set at `t:'lobby'`, cleared at `t:'setup'`, checked at the mirror dispatch BEFORE the `lastSeq`
+  bookkeeping and again in `applyMirrorNow` — and `mySeat=0`, so no seat-addressed message matches until the
+  re-welcome. `nettest_endscreen` replays a finished mirror through `__cmf.inject` and asserts the trace says
+  *refused*.
+- **`resetBoardMemory()` IS SHARED BY `startGame` AND `clearBoard`.** Fx layers + render-diff caches +
+  `pendingThreshold`. A client never runs `startGame`, so anything reset only there is never reset on a client;
+  add a per-game presentation cache to that function, not to `startGame`.
+- **A CLOSED TAB'S DATACHANNEL READS `open` FOR ~30s+.** ICE says `disconnected` within seconds; the channel is
+  marked `_iceDown` in `hostNewInvite`'s ICE handler and `openChanCount` skips it. Read `openChanCount` for
+  liveness, never `readyState` alone.
 
 **Netplay must be startable WITHOUT navigating.** `NET.start(role, kind, opts)` enters it in place; `?net=`
 still works and every `nettest_*` suite uses it, but the UI buttons must never set `location.search` — on
@@ -1331,7 +1360,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.94 — 2026-09-03, `npm run sweep`, 78 suites and 0 FAIL in 147s** (four lanes; background
+Status as of **v1.31.95 — 2026-09-03, `npm run sweep`, 79 suites and 0 FAIL in 154s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -1341,7 +1370,7 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 48 netplay suites: `nettest_3p` 7, `stale` 7, `endscreen` 17, `remotetrim` 9, `desync` 7, `starter` 3, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
+The 49 netplay suites: `nettest_3p` 7, `stale` 7, `endscreen` 51, `lobbyback_rtc` 23, `remotetrim` 9, `desync` 7, `starter` 3, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 14, `kick` 11, `log` 14, `losspick3` 7,
 `losspick_remote3` 6, `names` 8, `narrate` 10, `phantasm` 8, `prefight` 13, `react3` 7, `record` 12, `relay` 17,

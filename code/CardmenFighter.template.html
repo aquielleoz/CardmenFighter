@@ -837,6 +837,7 @@
   .modal .respQuick{background:var(--gold); color:#3a2a08;}
   .modal .respQuick .respTxt{font-weight:600; font-size:11.5px; opacity:.85;}
   .modal .respLet{background:var(--panel); color:var(--txt); border:1px solid var(--line); text-align:center !important;}
+  .modal .respOpts .endNote{margin:0 2px; font-size:12px; line-height:1.35; opacity:.8; text-align:left;}   /* one line of context under the end screen's online buttons; a 🔄 ask overwrites it (see emoteFx) */
   /* the hand Outbalance let you look at — wraps, and scrolls rather than overflowing a short viewport */
   .modal .revealHand{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:10px 0; max-height:40vh; overflow-y:auto;}
   .modal .respIncoming{margin-top:10px; padding:9px 11px; background:rgba(255,255,255,.05); border:1px solid var(--line); border-radius:10px; font-size:12.5px; line-height:1.45; opacity:.92;}
@@ -2535,10 +2536,10 @@ __QR__
     if(stick){ l.scrollTop=l.scrollHeight; requestAnimationFrame(function(){ l.scrollTop=l.scrollHeight; }); }   // follow the newest (defer once so a tall entry's height is settled)
     else setLogNewBtn(true, true);   // reading history? don't yank — flag "↓ New" instead
   }
-  function downloadLog(){
+  function downloadLog(lines){   // `lines` defaults to the live log; the lobby passes the LAST game's stash (v1.31.95)
     var head=['Cardmen Fighter — Battle Log','You: '+deckLabel(youDeck)+'   vs   Rival: '+deckLabel(rivalDeck)];
     if(state) head.push('Reached Round '+state.round+(state.finished?(' — '+(state.winner===YOU?'YOU WON':'Rival won')):''));
-    var text=head.concat('',fullLog).join('\n');
+    var text=head.concat('',lines||fullLog).join('\n');
     /* THE TRACE GOES IN THE SAVE FILE. Aj's saved logs were the only evidence that characterised the fork, and
      * they could not say why — nothing recorded which branch each action took. Appended rather than a separate
      * download, because one file is what actually gets sent. */
@@ -2740,6 +2741,10 @@ __QR__
   function emoteFx(seat, key){
     var em=emoteOf(key); if(!em) return;
     SFX.play(em.sfx);
+    /* THE END SCREEN COVERS THE BUBBLE AND THE LOG (v1.31.95), and a rematch ask is the one emote sent from behind
+     * that overlay on purpose — so an end screen that is up names the asker on itself. Your own echo is skipped:
+     * the button you pressed already reads "Asked". */
+    var ra=$('rematchAsk'); if(ra && key==='rematch' && seat!==YOU) ra.textContent='🔄 '+logName(seat)+' wants a rematch!';
     var fx=$('stopfx'); if(!fx || reduceMotion()) return;
     var inner=fx.querySelector('.stx'), me=(seat===YOU);
     inner.innerHTML='<div class="stxMain">'+em.icon+' '+esc(em.label)+'</div><div class="stxSub">'+esc(logName(seat))+'</div>';
@@ -2810,8 +2815,8 @@ __QR__
     resetControllers(state.numPlayers);   // seat 0 = local human, every opponent = AI (netplay will override specific seats to 'remote')
     if(E.setLossTargetInteractive) E.setLossTargetInteractive(function(st, w){ return isHumanSeat(w); });   // a human winner (local or remote) picks whose shield to strip in 'chosen' mode
     if(mpCount>2){ state._diff={}; for(var _s=0;_s<state.numPlayers;_s++) if(_s!==YOU) state._diff[_s]=diffOf(_s); }   // per-seat AI tier for the round-win chooser
-    lastPileData=[]; lastPileOwner=null; pendingKick=false; prevShields={}; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; inCeremony=false; announcedThresh={}; holdShields=false; resetStats(); sortState='unsorted'; updateSortLabel();
-    $('log').innerHTML=''; $('beaten').innerHTML=''; $('kick').className=''; $('kick').innerHTML=''; $('stagefx').className=''; $('stagefx').innerHTML=''; $('roundfx').className=''; $('thresholdfx').className=''; $('thresholdfx').innerHTML=''; document.body.classList.remove('kicking');
+    lastPileData=[]; lastPileOwner=null; pendingKick=false; resetBoardMemory(); resetStats(); sortState='unsorted'; updateSortLabel();   // resetBoardMemory: the fx layers + render-diff caches, shared with clearBoard (v1.31.95)
+    $('log').innerHTML=''; $('beaten').innerHTML='';
     $('rivalDeckName').textContent=deckLabel(rivalDeck); $('youDeckName').textContent=deckLabel(youDeck);
     var modeTag=gameBasics?' · <b class="basicsTag">BASICS</b>':'';
     $('matchupTag').innerHTML=((mpCount>2)?('<b>'+mpCount+'-Rider free-for-all</b> · you: '+deckLabel(seatDecks[0])+oppReveal()):('<b>'+deckLabel(youDeck)+'</b> vs <b>'+(nameOf(1)||'Rival')+'</b> · '+deckLabel(rivalDeck)+' · '+DIFF_NAME[difficulty]))+modeTag;
@@ -4645,14 +4650,32 @@ __QR__
    * BACKLOG had already identified that a client never bumps `gen` — this is where that gets paid.
    * Deliberately does NOT clear the battle log: the end screen offers to save it, and a player who has just
    * finished a game may still want it. `startGame` owns the log's lifecycle. */
+  /* THE PRESENTATION LAYERS AND THE RENDER-DIFF CACHES, one definition for two callers (v1.31.95). `startGame`
+   * used to reset these inline, and a netplay CLIENT never runs `startGame` — so after a lobby return its game two
+   * would have diffed its first render against game one's final board (animateShields would heal-flash the shields
+   * and ring shieldHeal; checkThresholds would skip every tier already in announcedThresh, so ROAR/OVERDRIVE never
+   * played on that seat), and any beat mid-flight when the lobby landed stayed painted: every fx-layer clear is
+   * gen-gated, so `gen++` FREEZES a Round plate (dimming the play area with pointer-events on), a ROAR banner or the
+   * FIGHTER KICK. `pendingThreshold` was never reset by either path — a tier queued by the finishing blow would have
+   * played as the next game's first beat on the host too. `#roundfx`/`#stopfx` keep their inner element; the others
+   * are emptied, as startGame always did. */
+  function resetBoardMemory(){
+    prevShields={}; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; prevTurn=null; inCeremony=false; announcedThresh={}; pendingThreshold=null; holdShields=false;
+    ['kick','stagefx','thresholdfx','roundfx','stopfx'].forEach(function(id){ var e=$(id); if(e){ e.className=''; if(id!=='roundfx' && id!=='stopfx') e.innerHTML=''; } });
+    var af=$('artFlash'); if(af) af.classList.remove('show','you');
+    document.body.classList.remove('kicking');
+  }
   function clearBoard(){
     gen++;
     /* `hostState` is NET's, not ours — assigning it here threw `hostState is not defined` and took the whole
      * page down with it. The host's own copy is replaced by the next `hostStartRealN`; this function owns
      * the BOARD, not the transport. */
-    state=null; selected={}; pick=null; targeting=null; lossPick=null;
+    state=null; selected={}; pick=null; targeting=null; lossPick=null; targetPick=null;
     busy=false; endShown=false; pendingKick=false;
     try{ hideOverlay(); showCard(null); }catch(e){}
+    rulesPanelOpen=null;   // hideOverlay closed the ⚗️ panel's DOM, but only closePanel nulls this — left set, the next refreshRulesPanel (a suggestion; the lobby's flushSuggest) re-opens the panel on top of whatever comes next
+    var eb=$('emoteBar'); if(eb) eb.classList.remove('open');
+    resetBoardMemory();    // the fx layers and the render-diff caches — SHARED with startGame, because a netplay client never runs startGame
     ['hand','pile','beaten','stackView','rivalHand','rivalEquip','rivalEquipZone','rivalFormZone','youFormZone','opponents']
       .forEach(function(id){ var e=$(id); if(e) e.innerHTML=''; });
     ['message','hint','turnTag','roundTag','rivalStatus','pileLabel']
@@ -4674,42 +4697,43 @@ __QR__
       if(recOut && typeof NET!=='undefined' && NET.sendRecord) NET.sendRecord(recOut);
     }
     var youWin=state.winner===YOU;
-    var winnerName=MP()?seatName(state.winner):'Rival';
-    var showWin=function(){
-      SFX.play(youWin?'win':'lose');   // victory cheer / defeat dirge as the result modal appears
-      showModal('<h2>'+(youWin?'YOU WIN! 🦵💥':(MP()?(winnerName+' Wins'):'Rival Wins'))+'</h2>'+
-        '<p>'+(youWin?(MP()?'Last Rider standing. You win the free-for-all!':'Your Fighter lands the finishing kick. Crisis averted.'):(MP()?('You were knocked out — '+winnerName+' took the table. Run it back?'):'Your Fighter is down. Run it back?'))+'</p>'+
-        '<div class="respOpts"><button id="againBtn" class="respQuick" style="text-align:center;">'+(MP()?'New Game':'New Duel')+'</button>'+
-        '<button id="reviewBtn" class="respLet">👁 Review the board &amp; log</button>'+
-        '<button id="endSaveBtn" class="respLet">⤓ Save the battle log</button></div>');
-      /* ONLINE, "NEW DUEL" MUST NOT OPEN THE SOLO SETUP (Aj: *"starting a new netplay game navigates here and
-       * not to the host/join screens"*). It is not merely the wrong dialog: nothing guards `commitSetup`, so
-       * pressing Go there starts a LOCAL solo game while `role` is still 'host' — and `onRender` keeps
-       * broadcasting, so the client would receive mirrors of a game it is not in.
-       * A true in-place rematch is the unbuilt BACKLOG feature: `renderNet()` returns early while `started` is
-       * true and nothing resets it, so the lobby cannot come back without a reload. Until that exists, the
-       * honest offer is the one thing that works — leave, which lands you back at the online setup. That is
-       * exactly the manual path Aj had to find ("press leave then do the whole handshake thing again"); this
-       * just stops the button pointing somewhere useless. */
-      $('againBtn').addEventListener('click', function(){
-        var online = (typeof NET!=='undefined' && NET.active && NET.active());
-        if(!online) return openSetup();
-        showStickyModal('<h2>New online game</h2>'+
-          '<p>A rematch on this connection is not wired up yet. Leaving online takes you back to the setup screen, where you can host or join again.</p>'+
-          '<div class="confirmBtns">'+
-            '<button id="againBack" class="ghostBtn">← Back</button>'+
-            '<button id="againLeave">← Leave online</button>'+
-          '</div>');
-        $('againBack').addEventListener('click', function(){ hideOverlay(); endGame(); });   // endGame is latched, so this repaints the end screen rather than re-running it
-        $('againLeave').addEventListener('click', function(){ NET.leaveOnline(); });
-      });
-      $('reviewBtn').addEventListener('click', enterPeek);   // peek at the final board/log; ↩ Back returns to this screen
-      /* Right here, on the end screen, because this is the moment a player has something worth sending and the
-       * least patience for finding it. The file carries the netplay trace too. */
-      $('endSaveBtn').addEventListener('click', function(){ downloadLog(); this.textContent='✓ Saved'; });
-    };
+    var showWin=function(){ SFX.play(youWin?'win':'lose'); paintEndScreen(); };   // victory cheer / defeat dirge as the result modal appears
     if(pendingKick){ pendingKick=false; playFinisher(youWin, showWin); }
     else showWin();
+  }
+  /* THE END SCREEN AS A FUNCTION OF `state` (v1.31.95), so a dialog opened over it (Leave online?) can put it
+   * BACK: v1.31.92's "← Back" called `endGame()`, which is latched, and so dropped the player onto a bare
+   * finished board. `endGame` decides WHEN (once); this decides WHAT.
+   * ONLINE, THE BUTTON DOES WHAT IT SAYS (Aj, reading v1.31.92's "New online game" dialog: *"i thought that was
+   * what you built"*). The host's reopens the LOBBY for the whole table — connections kept, decks re-pickable,
+   * players addable (`NET.backToLobby`). A client cannot move the table, so its button ASKS: the 🔄 emote is the
+   * negotiation and the host owns the mechanism. Offline the button is the solo setup, as ever — `openSetup` tears
+   * the finished game down first, and `commitSetup` is never reachable online. */
+  function paintEndScreen(){
+    if(!state) return;
+    var online=(typeof NET!=='undefined' && NET.active && NET.active()), host=online && NET.isHost();
+    var youWin=state.winner===YOU, winnerName=MP()?seatName(state.winner):'Rival';
+    var again = !online ? (MP()?'New Game':'New Duel') : (host ? '↩ Back to the lobby' : '🔄 Ask for a rematch');
+    showModal('<h2>'+(youWin?'YOU WIN! 🦵💥':(MP()?(winnerName+' Wins'):'Rival Wins'))+'</h2>'+
+      '<p>'+(youWin?(MP()?'Last Rider standing. You win the free-for-all!':'Your Fighter lands the finishing kick. Crisis averted.'):(MP()?('You were knocked out — '+winnerName+' took the table. Run it back?'):'Your Fighter is down. Run it back?'))+'</p>'+
+      '<div class="respOpts"><button id="againBtn" class="respQuick" style="text-align:center;">'+again+'</button>'+
+      (online ? '<p class="endNote" id="rematchAsk">'+(host ? 'Everyone keeps their connection — each player picks a deck and hits Ready to take a seat.' : 'Only the host can reopen the lobby; when they do, you land there automatically.')+'</p>' : '')+
+      '<button id="reviewBtn" class="respLet">👁 Review the board &amp; log</button>'+
+      '<button id="endSaveBtn" class="respLet">⤓ Save the battle log</button>'+
+      (online ? '<button id="endLeaveBtn" class="respLet">← Leave online</button>' : '')+'</div>');
+    $('againBtn').addEventListener('click', function(){
+      if(!online) return openSetup();
+      if(host){ NET.backToLobby(); return; }
+      sendEmote('rematch');
+      this.disabled=true; this.textContent='✓ Asked — the host reopens the lobby';   // one-shot: a second tap inside the 1.2s cooldown would be dropped with no feedback
+    });
+    $('reviewBtn').addEventListener('click', enterPeek);   // peek at the final board/log; ↩ Back returns to this screen
+    /* Right here, on the end screen, because this is the moment a player has something worth sending and the
+     * least patience for finding it. The file carries the netplay trace too. */
+    $('endSaveBtn').addEventListener('click', function(){ downloadLog(); this.textContent='✓ Saved'; });
+    /* The header's ← Leave is UNDER this overlay, so the end screen offers its own — behind the same prompt the
+     * header uses, whose Stay puts this screen back rather than dropping onto the bare board. */
+    var lv=$('endLeaveBtn'); if(lv) lv.addEventListener('click', function(){ confirmLeaveOnline(paintEndScreen); });
   }
   var overlayDismiss=null;   // set to a fn by dismissible modals (Card Codex); backdrop click invokes it. null = not dismissible (e.g. duel setup)
   /* RESETS THE CLASS LIST. Two dialogs widen themselves by adding a class after this call (the Codex, and the
@@ -6084,16 +6108,17 @@ __QR__
   /* Leave DROPS THE RELAY ROOM and reloads, and it is a known mis-tap (as a floating overlay it covered 79% of
    * the card reader's close button until v1.31.57). The prompt is unconditional, not peek-only — the risk is
    * not peek-specific. */
-  function confirmLeaveOnline(){
+  function confirmLeaveOnline(back){   // `back`: what Stay returns to (the end screen passes itself); default = just close
+    var stay=back||hideOverlay;
     showModal('<h2>Leave online play?</h2>'+
       '<p>You will drop out of this table and go back to the game. Anyone still connected keeps playing.</p>'+
       '<div class="confirmBtns">'+
         '<button id="cancelLeave">Stay</button>'+
         '<button id="confirmLeave" class="danger">← Leave</button>'+
       '</div>');
-    $('cancelLeave').addEventListener('click', hideOverlay);
+    $('cancelLeave').addEventListener('click', stay);
     $('confirmLeave').addEventListener('click', function(){ NET.leaveOnline(); });
-    overlayDismiss=hideOverlay;
+    overlayDismiss=stay;
   }
   function confirmConcede(){
     var mp=MP();
@@ -6865,14 +6890,20 @@ __QR__
       var ldc=lpc.createDataChannel('game');
       lpc.oniceconnectionstatechange=function(){
         var st=lpc.iceConnectionState;
+        /* MARK THE CHANNEL, NOT ONLY THE SEAT (v1.31.95). A tab that closes abruptly leaves its DataChannel reading
+         * `open` until DTLS gives up — well past 30s — while ICE says `disconnected` within seconds. `openChanCount`
+         * is the lobby's only liveness signal, so without this a departed peer counted as "1 connecting" in the
+         * reopened lobby for as long as the transport took to notice. Cleared again on `connected`/`completed`. */
+        ldc._iceDown=/failed|disconnected/.test(st);
         if(/failed|disconnected/.test(st)){
           if(started){ var seat=seatOfChan(ldc); if(seat!=null) hostOnPeerDrop(seat); }        // mid-game: hold their seat + grace countdown
-          else { sig.err='A player connection failed — re-invite them.'; renderNet(); }        // during signaling
+          else { sig.err='A player connection failed — re-invite them.'; renderNet(); }        // during signaling / in a lobby
         } else if(/connected|completed/.test(st)){
           if(started){ var seat2=seatOfChan(ldc); if(seat2!=null) hostOnPeerBack(seat2); }      // self-healed → resume
+          else renderNet();                                                                    // the roster counts it again
         }
       };
-      ldc.onclose=function(){ if(started){ var seat=seatOfChan(ldc); if(seat!=null) hostOnPeerDrop(seat); } };   // channel closed (tab gone) → drop grace
+      ldc.onclose=function(){ if(started){ var seat=seatOfChan(ldc); if(seat!=null) hostOnPeerDrop(seat); } else renderNet(); };   // channel closed (tab gone) → drop grace; in a lobby, just repaint the roster
       hostAddChannel(ldc);                          // onmessage ready before open — no dropped 'join'
       ldc.onopen=function(){ renderNet(); };        // reflect the new connection
       sig.pendingPC=lpc; sig.offer=''; sig.answer=''; sig.step='host-gen'; renderNet();
@@ -7051,6 +7082,12 @@ __QR__
            * when there is no `hostState`, which is the entire lobby, so anything lobby-relevant handled inside
            * them looks right and does nothing. */
           if(sseat!=null && m.intent && m.intent.op==='unready'){ hostUnready(sseat); return; }
+          /* AN EMOTE IS DISPATCHED HERE TOO (v1.31.95), for a reason the drivers cannot see: they return on
+           * `hostState.finished` as well as on `!hostState`, so a client's 🔄 Rematch? from its END SCREEN — the
+           * one moment that emote is the negotiation the lobby return is built on — was dropped silently. Found
+           * three times over, independently, while designing the return. `hostEmote` keeps its own `started`
+           * gate and per-seat cooldown, so the lobby itself stays quiet. */
+          if(sseat!=null && m.intent && m.intent.op==='emote'){ hostEmote(sseat, m.intent.key); return; }
           if(sseat!=null){ if(MP()) hostApplyMoveN(sseat, m.intent); else hostApplyMove(m.intent); } }
         else if(m.t==='concede'){ onOpponentConcede(srcChan?seatOfChan(srcChan):m.seat); }
       } else {
@@ -7076,6 +7113,12 @@ __QR__
                                   .replace(/\{foe\}/g, '<b>'+foe+'</b>'), m.cls||'');
         }
         else if(m.t==='setup'){
+          /* NOT SEATED, NOT IN THIS GAME. `setup` is broadcast, so a client sitting in the lobby without a seat —
+           * it never pressed Ready, or the host started game two before it re-readied — hears it too; `mySeat`
+           * is 0 only in that state, and reading decks[0] would label it with the HOST's deck. It stays in the
+           * lobby, where Ready still works for the next game. */
+          if(!mySeat){ trace('setup IGNORED', 'not seated'); return; }
+          lobbyHold=false; lobbyBack=false; lobbyNote='';        // the game the lobby return was waiting for has begun
           if(m.names && m.names.length){                        // rotate absolute -> local so seatName/logName need no rotation
             var nn=m.names.length, loc=[];
             for(var ai=0; ai<nn; ai++) loc[((((ai-mySeat)%nn)+nn)%nn)] = m.names[ai]||'';
@@ -7086,6 +7129,10 @@ __QR__
           logMsg('Online duel — you play <b>'+deckLabel(youDeck)+'</b>. Round 1, jabs only.', 'round'); }   // adopt this seat's concrete deck (for the board labels)
         else if(m.t==='mirror' && m.seat===mySeat){ connected=true;
           trace('mirror IN', 'round='+((m.st&&m.st.round)||'?')+' turn='+((m.st&&m.st.turn)!=null?m.st.turn:'?')+' q='+(m.q!=null?m.q:'-'));
+          /* IN THE LOBBY, BEFORE THE SEQ BOOKKEEPING (v1.31.95): a mirror for a game this seat has left must not
+           * advance `lastSeq` either, or game two's first mirrors read as stale and are dropped. applyMirrorNow
+           * carries the same guard for the held-mirror release path. */
+          if(lobbyHold){ trace('mirror IGNORED — in the lobby', 'q='+(m.q!=null?m.q:'-')); return; }
           /* NEVER GO BACKWARDS. A replayed or delayed mirror carries an older stamp; applying it would rewind
            * the board and let the player act on a board that no longer exists. */
           if(m.q!=null && lastSeq!=null && m.q<lastSeq){ trace('mirror STALE — ignored', 'q='+m.q+' < '+lastSeq); return; }
@@ -7105,6 +7152,7 @@ __QR__
           var en=(state&&state.numPlayers)||2;                 // `seat` is ABSOLUTE — rotate into our frame
           emoteFx(((((m.seat-mySeat)%en)+en)%en), m.key);
         }
+        else if(m.t==='lobby'){ clientBackToLobby(); }         // the host reopened the lobby after a game (v1.31.95)
         else if(m.t==='record'){                              // adopt the host's complete playtest record
           /* `yourSeat` stays the HOST's — the record is stored verbatim so every seat keeps the identical
            * canonical game. Stamp who adopted it, or later analysis reads a client's copy as the host's own. */
@@ -7186,6 +7234,7 @@ __QR__
     function clientNotReady(){ return isClient() && !started; }
     function dbgUnstart(){ started=false; trace('started: true -> FALSE', 'dbg unstart'); return true; }   // dbg only
     function hideNetroot(){ var r=$('netroot'); if(r) r.style.display='none'; }
+    function showNetroot(){ var r=$('netroot'); if(r) r.style.display=''; }   // the inverse did not exist until v1.31.95: nothing ever came BACK to the lobby
 
     // ---- HOST: run the real game; the remote client controls seat 1 (the Rival). ----
     // Unified start for 2–6 players. Seat 0 = host; seats 1..k = the joined remote clients (each with its lobby pick).
@@ -7195,6 +7244,7 @@ __QR__
       /* The table is assembled, so the room has no job left. Rooms expire on their own, but an SDP holds IP
        * addresses and leaving one lying around for ten minutes is not a decent default. */
       try{ relayDropRoom(); }catch(e){}
+      lobbyBack=false; lobbyNote='';                       // the lobby return, if this game follows one, is over
       /* applyRules() rather than hardcoding the defaults here: this line used to force 'chosen'/'targeted' on
        * every online game, which would have silently overridden the custom-rules menu — and inconsistently,
        * since it never touched shields or draw. The host's rules are the game's rules. */
@@ -7264,6 +7314,69 @@ __QR__
       send({t:'setup', decks:seatDecks.slice(0), hostDeck:youDeck, clientDeck:seatDecks[1], names:seatNames.slice(0, mpCount), rules:rulesKey()});   // clients read decks[mySeat] for their own label
       broadcastMirror();
     }
+    /* ---------- BACK TO THE LOBBY AFTER A GAME (v1.31.95) ----------
+     * Aj, 2026-09-02: *"the host/join screen with both already joined so they can pick decks again if they want,
+     * so they can add more players if they want"* — the LOBBY, not a new deal. `renderNet` returns while `started`
+     * is true and nothing ever reset it, so the lobby could not come back without a reload, and the end screen's
+     * only online offer was Leave (v1.31.92), which redoes the whole handshake.
+     * CONNECTIONS ARE KEPT; SEATS ARE RE-CLAIMED. The seat table is reset and each client takes a seat exactly as
+     * it did in game one — by pressing Ready, which is also the only way it can re-pick a deck (the deck travels on
+     * `t:'join'`, and `#deckSel` is disabled while ready). One decision settles three things: nobody is dealt into
+     * game two without confirming (Ready is consent); a peer whose tab is GONE never re-joins, so it is never dealt
+     * in as a ghost the table would park on forever — `hostStartRealN` indexes seats 1..nextSeat-1 CONTIGUOUSLY, so
+     * a dead seat could not be skipped, and `endGame`→`clearDiscon()` has already forgotten who dropped; and
+     * BroadcastChannel, which has no channel state at all, needs no special case. Compact-and-renumber was designed
+     * and declined — see DECISIONS.md.
+     * THE ORDER INSIDE hostBackToLobby IS LOAD-BEARING, and each line says why. */
+    var lobbyHold=false;   // client: between t:'lobby' and the next t:'setup' every mirror and ceremony is IGNORED — one applied straggler would set started=true and hide the lobby (see applyMirrorNow)
+    var lobbyBack=false, lobbyNote='', lobbyLogStash=[];   // both ends: the lobby is a RETURN — a banner, who won, and "⤓ Save the last battle log"
+    /* clearBoard leaves the log alone because the end screen offers Save; the lobby makes the same promise a
+     * different way — the finished game's log moves into a stash the lobby can save, and the next game starts
+     * clean on BOTH ends (a client never runs startGame, so before this its log was never cleared at all). */
+    function stashLog(){ lobbyLogStash=fullLog.slice(); fullLog=[]; var l=$('log'); if(l) l.innerHTML=''; setLogNewBtn(false); }
+    function noteResult(){ lobbyNote = (state && state.finished && typeof state.winner==='number') ? (state.winner===YOU ? 'You won the last game.' : logName(state.winner)+' won the last game.') : ''; }   // read BEFORE clearBoard nulls state; a client's mirror is seat-rotated, so YOU is right on both ends
+    function hostBackToLobby(){
+      if(!isHost() || !started || !state || !state.finished) return false;   // a FINISHED game only — mid-game the header button is Concede
+      say(YOU, '↩ {who} reopened the lobby.', 'system');   // FIRST: sayBroadcast drops anything said once `started` is false
+      noteResult();
+      hostTakeBack();                                      // busy, "Waiting for opponent…" and the park beat go together (v1.31.49)
+      hostState=null;                                      // BEFORE any send or render: broadcastMirror, onRender, the beat and hostApplyMove* all return on it, and in-order delivery then puts every game-one mirror AHEAD of the lobby message
+      netSettle=null; netGuard=null; netDiscard=null; netParked=null; netReact=null;   // a stale park is matched by the dispatchers BEFORE their gen check — game two's intent consumed, nothing resumes: a wedge
+      for(var rs=0;rs<6;rs++) try{ E.takeReveal(rs); }catch(e){}   // drain an Outbalance read the finished game never flushed: it is module-level in the engine, newGame does not touch it, and hostFlushReveals would push a dead hand to that seat in game two
+      lastMirror={}; clearDiscon(); try{ relayDropRoom(); }catch(e){}   // all idempotent: game two's first mirror is never deduped against game one; discon is empty since endGame; the room was dropped at Start, and a publish in flight then could have re-set it
+      hostSeatOf={}; seatDeckMap={}; nextSeat=1; seatRuleGen={}; seatSuggest={}; oppDeck=null; oppReady=false;
+      for(var i=0;i<chanSeat.length;i++) chanSeat[i]=null;   // every channel is unseated until its owner presses Ready. Over RTC seatOfChan → null, so an intent from a lingering end screen has no seat and every dispatch skips it; over BC the seat is self-reported and reaches hostEmote, which is inert once `started` is false below
+      if(sig) sig.err='';
+      send({t:'lobby'});                                   // the channels are still open; hubMode sends only to open ones
+      flushSuggest();                                      // the now-empty map — suggestions are STATE; each client re-suggests on its join
+      trace('started: true -> FALSE', 'hostBackToLobby'); started=false;
+      if(peeking) exitPeek();                              // BEFORE clearBoard: hideOverlay returns early INTO peek while a dialog is stashed, and .overlay outranks #netroot
+      stashLog(); clearBoard(); lobbyBack=true;
+      refreshNewBtn(); showNetroot(); renderNet();         // render() returns on a null state, so nothing else repaints the header
+      return true;
+    }
+    function clientBackToLobby(){
+      if(!isClient()) return;
+      trace('lobby IN', 'the host reopened the lobby');
+      noteResult();
+      lobbyHold=true;                                      // until the next t:'setup'
+      stopJoinRetry(); iReady=false; iConceded=false; mySeat=0;   // mySeat back to its pre-welcome value: no mirror is ever addressed to seat 0, so nothing can match until the host re-welcomes this seat. iConceded: applyMirror ignores EVERY mirror while it is set — a client that conceded game one would be blind for game two
+      clientCeremonyActive=false; clientCeremonyRes=null; pendingRoundMirror=null; awaitingRoundReveal=false; clientWinSig=null; lastBS=null;   // a HELD deal snapshot released later would re-apply game one; a stale window signature would silently skip game two's first identical window
+      clearDiscon(); window.__cmfNetState=null;
+      trace('started: true -> FALSE', 'lobby from host'); started=false;
+      if(peeking) exitPeek();
+      stashLog(); clearBoard(); lobbyBack=true;
+      refreshNewBtn(); showNetroot(); renderNet();
+    }
+    /* THE LOBBY AS A RETURN: who won, and the log of the game that just ended — which the host's move to the
+     * lobby took off every client's screen before it could press Save. Rendered by both lobbies until setup. */
+    function lobbyBackHTML(){
+      if(!lobbyBack) return '';
+      return '<div class="lobbyStatus">↩ Back in the lobby'+(lobbyNote?' — '+esc(lobbyNote):'.')+
+        (isHost() ? ' Everyone keeps their connection; each player picks a deck and hits Ready to take a seat.' : ' Pick a deck and hit Ready to take your seat.')+
+        (lobbyLogStash.length ? '<br><button id="lobbySaveLog" class="netbtn">⤓ Save the last battle log</button>' : '')+'</div>';
+    }
+    function wireLobbyBack(){ var b=$('lobbySaveLog'); if(b) b.addEventListener('click', function(){ downloadLog(lobbyLogStash); b.textContent='✓ Saved'; }); }
     /* A remote seat reordered its energy pile. The client is UNTRUSTED — E.reorderEnergy re-validates that
      * `ids` is a true permutation of that seat's pile (same lesson as the deck-string intake in v1.28.0), so a
      * rogue payload cannot conjure or delete energy. On success: narrate publicly and rebroadcast. */
@@ -7410,7 +7523,7 @@ __QR__
       if(!hostState || hostState.finished || !it || typeof it.op!=='string') return;
       // (no counter to bump here any more: `mirrorSeq` advances when a mirror's CONTENT changes, and
       //  whether an intent is still meaningful is `boardStamp`'s job — see the declarations above)
-      if(it.op==='emote') return hostEmote(1, it.key);   // never turn-gated
+      // (an emote never reaches here since v1.31.95 — it is dispatched in the t:'move' handler, AHEAD of the `finished` guard above)
       if(it.op==='reorderEnergy') return hostReorderEnergy(1, it);   // the remote seat in a duel is always 1
       var g=gen, r;
       // ---- stack windows the remote (seat 1) owes: apply, then re-enter the parked settle continuation ----
@@ -7700,7 +7813,7 @@ __QR__
     }
     function hostApplyMoveN(seat, it){
       if(!hostState || hostState.finished || !it || typeof it.op!=='string') return;
-      if(it.op==='emote') return hostEmote(seat, it.key);   // never turn-gated
+      // (an emote never reaches here since v1.31.95 — dispatched in the t:'move' handler, ahead of the `finished` guard)
       var n=hostState.numPlayers;
       // ---- energy reorder: never interacts with a window, so handle it before anything else ----
       if(it.op==='reorderEnergy') return hostReorderEnergy(seat, it);
@@ -7820,6 +7933,11 @@ __QR__
       applyMirrorNow(st);
     }
     function applyMirrorNow(st){
+      /* IN THE LOBBY, EVERY MIRROR IS A STRAGGLER (v1.31.95). This function sets `started=true`, installs the state
+       * and hides #netroot on ANY mirror — so one late or replayed game-one mirror would drag a client that has
+       * returned to the lobby back onto a dead board. The host nulls `hostState` before it sends the lobby message,
+       * and in-order delivery makes that sufficient; this is the client half, which makes it PROVABLE. */
+      if(lobbyHold){ trace('mirror IGNORED — in the lobby', 'round='+((st&&st.round)||'?')); return; }
       trace('mirror APPLIED', 'round='+((st&&st.round)||'?')+' turn='+((st&&st.turn)!=null?st.turn:'?')+
             ' myHand='+((st&&st.players&&st.players[0])?st.players[0].hand.length:'?'));
       if(!started) trace('started: false -> true', 'client path (setup from host)');
@@ -7879,7 +7997,7 @@ __QR__
     // card fly-in land together — mirroring the host's deferred draw.
     var clientCeremonyActive=false, clientCeremonyRes=null, pendingRoundMirror=null, awaitingRoundReveal=false;
     function clientPlayCeremony(res){
-      if(isHost() || !res) return;
+      if(isHost() || !res || lobbyHold) return;   // lobbyHold: a ceremony for a game this seat has left (v1.31.95)
       /* A HELD MIRROR DISCARDED HERE IS THE LEADING CANDIDATE FOR THE `nettest_sync` FORK, and this is the
        * only place it can happen. The client is short exactly that round's DEAL, permanently — permanently
        * because `broadcastMirror` dedupes by content, so once the host's state stops changing it never
@@ -7957,7 +8075,12 @@ __QR__
      * without having to race the wire. Same reasoning as `dbgDropMirrors` — the alternative is a bespoke
      * probe that gets thrown away and cannot be re-run. */
     function dbgForceBS(v){ lastBS=v; return lastBS; }
-    function clientSend(it){ trace('clientSend', ((it&&it.op)||'?')+' bs='+(lastBS!=null?lastBS:'-')); syncArm(it&&it.op); send({t:'move', seat:mySeat, intent:it, q:lastSeq, bs:lastBS}); }
+    /* A BOARDLESS INTENT ARMS NO SYNC TIMER (v1.31.95). `syncArm` expects a mirror back within 5s and otherwise
+     * paints "Not synced with the host…" — right for a play, wrong for an emote, a suggestion or an un-ready, none
+     * of which change the board, so no mirror ever answers them. The rematch ask from a FINISHED game is the case
+     * that made it visible: the banner sat under the end screen and showed plainly during Review. The same trio
+     * the stamp check already exempts (v1.31.57), for the same reason. */
+    function clientSend(it){ trace('clientSend', ((it&&it.op)||'?')+' bs='+(lastBS!=null?lastBS:'-')); if(!(it && (it.op==='emote' || it.op==='suggest' || it.op==='unready'))) syncArm(it&&it.op); send({t:'move', seat:mySeat, intent:it, q:lastSeq, bs:lastBS}); }
     var iConceded=false;
     function concede(){ iConceded=true; send({t:'concede', seat:mySeat}); }   // notify the host we forfeited; ignore further mirrors (stay on our end screen)
     function onOpponentConcede(seat){
@@ -8199,7 +8322,7 @@ __QR__
     function renderLobby(root){
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
         '<div class="netbar">Room <b>'+room+'</b> · You are '+(isHost()?'Player 1 (host)':'Player 2')+' · '+connLabel()+' · '+verTag()+rulesChip()+'</div>'+verWarnHTML();
-      var body=nameRowHTML(!isHost() && iReady)+'<h3>Choose your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
+      var body=lobbyBackHTML()+nameRowHTML(!isHost() && iReady)+'<h3>Choose your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
         '<button id="lobbyRules" class="netbtn">'+(isHost()?'⚗️ Custom rules':'⚗️ Rules &amp; suggest')+(customRules()?' · on':'')+'</button>'+''
       if(isHost()){
         var joined=readyCount();   // clients who have readied
@@ -8217,7 +8340,7 @@ __QR__
           : '<button id="lobbyGo" class="netbtn go">Ready ▶</button><p class="nethint">Pick your deck, then hit Ready — the host starts the game.</p>';
       }
       root.innerHTML=head+body+'</div>';
-      wireNameRow();
+      wireNameRow(); wireLobbyBack();
       var pingB=$('lobbyPing'); if(pingB) pingB.addEventListener('click', hostPing);
       var sel=$('deckSel'); if(sel){ sel.value=myDeck; sel.disabled=(!isHost()&&iReady); sel.addEventListener('change', function(){
         if(sel.value===BUILD_DECK_OPT){                                  // "✏️ Custom deck…" → build one, then re-render the lobby
@@ -8267,7 +8390,7 @@ __QR__
      * only sends that when it presses Ready — so between "their DataChannel opened" and "they confirmed" the
      * host had NOTHING to show and said "No players yet" while somebody was plainly sitting there. That is the
      * same complaint as the missing roster, one step earlier in the handshake. */
-    function openChanCount(){ var n=0; for(var i=0;i<dcs.length;i++){ if(dcs[i] && dcs[i].readyState==='open') n++; } return n; }
+    function openChanCount(){ var n=0; for(var i=0;i<dcs.length;i++){ if(dcs[i] && dcs[i].readyState==='open' && !dcs[i]._iceDown) n++; } return n; }   // `_iceDown`: see hostNewInvite — `open` outlives a closed tab by half a minute
     /* THREE COUNTS, AND THE NETBAR WANTS THE LOOSEST ONE. `readyCount()` = confirmed, `joinedCount()` = has a
      * seat, `openChanCount()` = the channel is up. "N connected" should mean *somebody is here*, which is the
      * widest of them — otherwise it reads 0 while a person is visibly sitting in the lobby, which is the
@@ -8277,7 +8400,8 @@ __QR__
       var joined=joinedCount(), open=openChanCount();
       if(joined<1) return '<div class="lobbyStatus">'+
         (open>0 ? '● <b>'+open+'</b> connecting — waiting for them to choose a deck…'
-                : 'No players yet — give someone the code above.')+'</div>';
+                : (sig && sig.step==='host-invite' ? 'No players yet — give someone the code above.'
+                                                   : 'No players yet — press ＋ Invite a player to get a code.'))+'</div>';   // after a game there IS no code above (the room was dropped at Start)
       var names=[]; for(var s=1;s<=joined;s++) names.push(esc(seatName(s)));
       var ready=readyCount();
       return '<div class="lobbyStatus">✓ <b>'+joined+'</b> here: '+names.join(', ')+
@@ -8286,10 +8410,10 @@ __QR__
     }
     // HOST over WebRTC: a combined lobby — deck picker + invite one player at a time (each becomes a hub channel) + Start.
     function renderHostRtcLobby(root){
-      var joined=readyCount(), total=joinedCount()+1, full=(joinedCount()>=MAX_SEATS-1);
+      var total=joinedCount()+1, full=(joinedCount()>=MAX_SEATS-1);
       var errHTML = (sig&&sig.err) ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · '+srvTag()+' · '+hereCount()+' connected · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML();
-      var body=nameRowHTML(false)+'<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
+      var body=lobbyBackHTML()+nameRowHTML(false)+'<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
         '<button id="lobbyRules" class="netbtn">'+(isHost()?'⚗️ Custom rules':'⚗️ Rules &amp; suggest')+(customRules()?' · on':'')+'</button>'+''
       if(sig.step==='host-gen'){ body+='<p>Generating an invite code…</p>'; }
       else if(sig.step==='host-invite'){
@@ -8321,9 +8445,9 @@ __QR__
       }
       body+='<button id="lobbyGo" class="netbtn go"'+(joinedCount()>0?'':' disabled')+'>Start '+(total>2?('('+total+' Riders)'):'Duel')+' ▶</button>'+
         '<p class="nethint">Invite each player, then Start (2–6). Picks stay hidden — no counter-picking.</p>'+
-        (joined>0?'<button id="lobbyPing" class="netbtn">🔔 Ping the table</button><div id="lobbyPingMsg" class="nethint"></div>':'');
+        (hereCount()>0?'<button id="lobbyPing" class="netbtn">🔔 Ping the table</button><div id="lobbyPingMsg" class="nethint"></div>':'');   // anyone HERE, not only the readied — the reopened lobby is full of people who have not pressed Ready yet
       root.innerHTML=head+body+'</div>';
-      wireNameRow();
+      wireNameRow(); wireLobbyBack();
       var pingB=$('lobbyPing'); if(pingB) pingB.addEventListener('click', hostPing);
       var sel=$('deckSel'); if(sel){ sel.value=myDeck; sel.addEventListener('change', function(){ myDeck=sel.value; }); }
       qrInto('qrInvite', sig.offer);
@@ -8357,7 +8481,7 @@ __QR__
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); } };
+    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostPreFight:hostPreFight, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); }, backToLobby:hostBackToLobby, dbgInject:function(m){ onMsg(m); }, lastLog:function(){ return lobbyLogStash.slice(); } };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:var(--zNetroot);background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the
@@ -8397,7 +8521,9 @@ __QR__
      * different spans of history and any category count can drift by one in EITHER direction. `nettest_sync`
      * compares those counts, so it was measuring the eviction boundary, not the narration. `fullLog` is what the
      * Save button writes and is never trimmed. */
-    log:function(){ return fullLog.slice(); } }; }
+    log:function(){ return fullLog.slice(); },
+    inject:function(m){ return NET.dbgInject(m); },   /* hand this page a raw message through the REAL handler — how a suite proves a straggler mirror is ignored in the lobby */
+    lastLog:function(){ return NET.lastLog(); } }; }
   /* --headerH: measured, not hardcoded. #disconBar hangs off it, and the header's height is not a constant —
    * 56px on desktop, 37px in the landscape band, and ~92px on a portrait phone where it WRAPS to two rows.
    * A hardcoded 54px floated it 17px low in landscape and put it 38px INSIDE the wrapped portrait header,
