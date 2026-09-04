@@ -19,7 +19,8 @@
     --zNetroot:99999;                        /* the netplay lobby covers the board */
     --zOverlay:calc(var(--zNetroot) + 1);    /* …and every dialog must outrank the lobby (v1.31.36) */
     --zPeek:calc(var(--zNetroot) + 2);       /* …and while peeking, the panels must outrank the dialog backdrop */
-    --zPeekBar:calc(var(--zNetroot) + 3);    /* …and ↩ Back must outrank the lifted panels */
+    --zPeekDlg:calc(var(--zNetroot) + 3);    /* …and a dialog OPENED during peek must outrank those panels again (v1.31.103) */
+    --zPeekBar:calc(var(--zNetroot) + 4);    /* …and ↩ Back must outrank everything, so peek is never a trap */
     --headerH:56px;   /* the desktop header. The landscape band overrides it — #disconBar hangs off this. */
     --bg:#160e1e; --bg2:#241633; --line:rgba(255,255,255,.12); --gold:#e8c37a;
     --red:#ff5a5a; --txt:#f2ecf6; --panel:rgba(0,0,0,.3); --good:#43c06a; --bad:#e2624a;
@@ -870,6 +871,17 @@
   .overlay.peeking .modal{display:none;}
   .overlay.peeking.dlg{background:rgba(10,4,16,.8); backdrop-filter:blur(3px);}
   .overlay.peeking.dlg .modal{display:block;}
+  /* …AND IT MUST OUTRANK THE LIFTED PANELS AGAIN (v1.31.103). The lifts below put the header, hand, log and the
+     player panels ABOVE `--zOverlay` so they stay reviewable through the thin peek backdrop — correct while
+     peeking, and wrong the moment the player opens one of the viewers those panels launch: the Energy pile
+     rendered UNDER the hand and the header, and its Done button was unreachable, so the only way out was ↩ Back.
+     Raising the overlay only while `.dlg` is set keeps both states right. The pill stays above this on purpose
+     (peek must never be a trap), so the modal buys room for it rather than hiding under it. */
+  .overlay.peeking.dlg{z-index:var(--zPeekDlg); padding-bottom:84px;}
+  /* …and the cap has to come down BY THE SAME AMOUNT. `.modal` caps itself at the whole viewport minus the
+     overlay's own 20px padding, so a taller bottom padding alone would let a full-height dialog overflow the
+     content box and — the overlay being centre-aligned — hang off the TOP, which is the v1.31.14 bug exactly. */
+  .overlay.peeking.dlg .modal{max-height:calc(100vh - 104px); max-height:calc(100dvh - 104px);}
   /* while peeking: lift the log, hand, and description panel above the overlay so they stay reviewable
      (inspect-only). #cardFull rides along — the hand stays tappable during peek, so 🔍 View card can open the
      full reader, and at its own z-index of 37 that reader would open BEHIND the peek backdrop. */
@@ -5070,7 +5082,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.102';
+  var GAME_VERSION='v1.31.103';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -8509,13 +8521,19 @@ window.CardFace = {};
     /* Opened WHILE peeking? Stash the end screen the peek is hiding — there is only one #modal, so this
      * dialog would otherwise overwrite it — and un-hide the modal for the duration. `peekStash` is set once
      * per peek: a second dialog replaces the first without losing the end screen underneath. */
-    if(peeking){ if(peekStash===null) peekStash={ html:m.innerHTML, cls:m.className }; ov.classList.add('dlg'); }
+    /* STASH THE NODES, NEVER THE HTML (v1.31.103). `peekStash={html:m.innerHTML}` restored a screen that LOOKED
+     * right and was completely dead: every one of these windows wires its buttons with addEventListener AFTER
+     * showModal, and innerHTML round-trips build fresh nodes that carry none of them. Aj: *"i could not click the
+     * modal after pressing back"* — that was the end screen, where the cost is New Duel; peek is also offered
+     * from the Respond?, pre-fight and shield-guard windows, where a dead restore wedges the table for everyone.
+     * Moving the children into a fragment and back keeps the SAME nodes, so no call site has to re-wire. */
+    if(peeking){ if(peekStash===null){ var frag=document.createDocumentFragment(); while(m.firstChild) frag.appendChild(m.firstChild); peekStash={ frag:frag, cls:m.className }; } ov.classList.add('dlg'); }
     m.className='modal'+(cls?' '+cls:''); m.innerHTML=html; ov.classList.add('show'); }
   /* Close a dialog opened during peek and fall back INTO peek, rather than out of it. Returns true when it
    * handled the close, so hideOverlay() can defer to it. */
   function closePeekDialog(){
     if(!peeking || peekStash===null) return false;
-    var m=$('modal'); m.className=peekStash.cls; m.innerHTML=peekStash.html; peekStash=null;
+    var m=$('modal'); m.className=peekStash.cls; m.innerHTML=''; m.appendChild(peekStash.frag); peekStash=null;
     $('overlay').classList.remove('dlg'); overlayDismiss=null;
     return true;
   }

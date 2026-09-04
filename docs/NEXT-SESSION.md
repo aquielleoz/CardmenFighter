@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.102.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.103.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
-## ☀️ START HERE — where we left off (2026-09-03)
+## ☀️ START HERE — where we left off (2026-09-04)
 
-`main` is at **v1.31.102**, working tree clean, full sweep green at **82 suites**. The only branch is
+`main` is at **v1.31.103**, working tree clean, full sweep green at **82 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **v1.31.95 was built in one session and REVIEWED IN ANOTHER, on purpose** — the build session hit its cap twice
@@ -103,6 +103,9 @@ online duel against a person.*
 - **★ AN OPPONENT'S EFFECTS ARE NEVER SHOWN WHEN ITS PASS ENDS THE ROUND — the duel driver skips
   `buildOppBeats` entirely** (Aj, 2026-09-04, from real play: *"the enemy played caltrops then passed. i didn't
   get to see his actions because the round end and round begin animations started to fire off"*).
+  **The reported incident is in log 3 vs Laharl, lines 24-25**, and it is the whole bug in two lines:
+  *"Rival played an Equipment - 7♠ Caltrops…"* / *"Rival passed."* — logged back to back, from the same call,
+  with no beat between them and the ceremony starting on top.
   **Located, not guessed.** `runRival` (~4290) checks whether the Rival's turn ended in a pass that resolves the
   round, and if so calls **`finishStep(res, g, effs)`** — which `logMsg`s each effect and goes straight to
   `announceRoundWin` + `resolveRoundCeremony`. The *"turn the Rival's actions into paced beats"* branch, with
@@ -118,7 +121,14 @@ online duel against a person.*
   - it uses **`logMsg`**, which is host-local — so in netplay the other seat never receives these lines at all.
     That is the v1.31.58 class (*nineteen sites had the wrong one*), and this one was missed.
   - it hardcodes **`'Rival'`** instead of `say(seat, '{who} played …')`, so it is wrong at 3-6 players and not
-    reader-relative.
+    reader-relative. **CONFIRMED IN A REAL LOG (Aj, 2026-09-04, log 4 vs Vyers)** — it is visible in a plain
+    SOLO duel, no netplay needed, because the persona has a name and this line does not use it:
+    *"Vyers played a Jab - 6♦."* two lines above *"Rival played a Technique - A♦ Gather Energy…"* and
+    *"Rival passed."* The same log names the opponent two different ways within one round, which is a
+    sharper symptom than the 3-6 player case and reproduces on the first duel you play. **It is not rare:
+    9 of the 26 opponent lines in log 3 say "Rival"** — the round-ending pass goes through here, so it is most
+    rounds. A grammar-scan-shaped guard would catch the whole class: no rendered log line may say "Rival" in a
+    game where the opponent has a persona name.
   Fixing the beats without also fixing these two would leave a line that is visible locally and invisible online.
   **A test must assert the ORDER, not that the log line exists** — the line is already there today, which is
   exactly why nothing caught this. Assert the effect's reveal happens BEFORE the round ceremony begins.
@@ -319,6 +329,44 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.103 — a viewer opened during peek was buried, and the screen behind it came back dead
+
+Aj, from a real phone game, after winning and pressing 👁 Review the board & log, then tapping his own ⚡ energy
+pile: *"it was all in the wrong z indexes ahahha and then i could not close it and then... i could not click the
+modal after pressing back."* **Two separate bugs, and the second is the worse one.**
+
+**The stacking half.** Peek lifts the header, hand, log and player panels above `--zOverlay` so they stay
+reviewable through the thin peek backdrop. That is right while peeking and wrong the instant the player opens
+one of the viewers *those same panels launch*: the shared `#modal` stayed at `--zOverlay`, so the Energy pile
+rendered **under the hand and the header** with its Done button unreachable, leaving ↩ Back as the only exit.
+`--zPeekDlg` (derived, `--zNetroot + 3`) raises the overlay only while `.dlg` is set, so both states are right;
+`--zPeekBar` moves to +4 so **↩ Back still outranks the dialog and peek can never become a trap**. The dialog
+gives the pill 84px of room rather than hiding under it — and its `max-height` comes down by the same amount,
+or a full-height dialog would overflow a centred overlay and hang off the TOP, which is the v1.31.14 bug exactly.
+
+**The dead-screen half, which is not cosmetic.** `showModal` stashed the covered screen as
+`peekStash={html:m.innerHTML}` and `closePeekDialog` restored it the same way. **Every one of these windows
+wires its buttons with `addEventListener` AFTER `showModal`, and an innerHTML round trip builds fresh nodes that
+carry none of them** — so the end screen came back looking perfect and doing nothing: New Duel, Review, Save,
+all inert. It stashes the **NODES** now (into a `DocumentFragment`, and back), so the same elements return with
+their listeners and no call site has to re-wire. On the end screen the cost is a stuck player; **peek is also
+offered from the Respond?, pre-fight and shield-guard windows, where a dead restore wedges the table for
+everyone at it.**
+
+`peektest` 31 → 41. Everything above it ran against `__solo.peek()`'s staged `<h2>END SCREEN</h2>` — a bare
+heading with no buttons, which is why a suite built for exactly this could not see either bug. The new block
+**concedes to reach the REAL end screen** and drives the whole round trip through it, asserting behaviour
+(press the restored button, require it to act) rather than existence. Three traps met while writing it, all of
+this file's standing kind:
+- **A short dialog clears the lifted panels by luck.** With the nearly-empty pile the staged game had, the modal
+  spans y253-526 on a 390px phone and nothing covers its Done button *on the broken build* — the first hit-test
+  was green and blind. Aj's pile held 17 cards; the suite stages 18 so the dialog is full height, the way his
+  was, and then walks its centre line. The red run names the coverers: `top:opponents, bottom:hand`.
+- **At 1280×800 it does not reproduce at all**, either build — the desktop layout leaves a centred dialog clear.
+  The suite drops to 390×780 for this block.
+- **Existence passes on the broken build**, so the listener assertion clicks `#reviewBtn` a second time and
+  requires peek to re-enter. A/B'd: 3 red on the unfixed build, 41/0 on the fixed one.
 
 ### v1.31.102 — the hand's wrapped rows ride over the one above
 

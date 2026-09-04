@@ -95,6 +95,62 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(!(await p.evaluate(()=>window.__solo.peeking())), 'New Duel / Concede pressed during peek closes peek first');
   ok(!(await p.evaluate(()=>!!document.getElementById('peekBar'))), '  → and peek is not offered again on the screen it opens');
 
+  /* ---- THE REAL END SCREEN, WHICH IS THE ONE THAT MATTERS (v1.31.103) ----
+   * Everything above ran against `__solo.peek()`'s staged `<h2>END SCREEN</h2>` — a bare heading with no
+   * buttons, so it could not see either bug Aj hit on his phone. Concede to get the REAL screen, whose buttons
+   * are wired with addEventListener AFTER showModal, and drive the whole round trip through it. */
+  await p.evaluate(()=>document.getElementById('confirmCon').click()); await wait(900);
+  const g=id=>p.evaluate(i=>{ const el=document.getElementById(i); if(!el) return 'absent';
+    const rc=el.getBoundingClientRect(); if(rc.width<3||rc.height<3) return 'not rendered';
+    if(getComputedStyle(el).pointerEvents==='none') return 'inert';
+    const t=document.elementFromPoint(Math.round(rc.left+rc.width/2), Math.round(rc.top+rc.height/2));
+    return (t && (el===t || el.contains(t))) ? 'live' : 'blocked'; }, id);
+  ok(await p.evaluate(()=>!!document.getElementById('reviewBtn')), 'conceding reaches the REAL end screen');
+  await p.evaluate(()=>document.getElementById('reviewBtn').click()); await wait(300);
+  ok(await p.evaluate(()=>window.__solo.peeking()), '  → 👁 Review the board & log enters peek');
+
+  /* PHONE SIZE FOR THIS ONE, because that is where the symptom lives: at 1280x800 the desktop layout leaves a
+     centred dialog clear of the lifted panels whichever build you are on. Aj's phone is 390 wide. */
+  await p.setViewportSize({width:390,height:780}); await wait(400);
+  /* A SHORT DIALOG CLEARS THE LIFTED PANELS BY LUCK — measured: with a nearly empty pile the modal spans
+     y253-526 on this phone and nothing covers its Done button on the BROKEN build, so that hit-test proves
+     nothing. Aj's pile held 17 cards. Stage a real one so the dialog is full height, the way his was. */
+  await p.evaluate(()=>{ const st=window.__solo.st(), me=st.players[0];
+    me.energy = me.energy.concat(me.deck.splice(0, 18)); });
+  await p.evaluate(()=>document.getElementById('youNrgBtn').click()); await wait(350);
+  /* THE STACKING BUG. The peek lifts put the header, hand, log and player panels above `--zOverlay`; a viewer
+     those panels LAUNCH then opened underneath them. A DOM assertion cannot see this — the viewer is present,
+     populated and wired — so walk the dialog's centre line and require the dialog itself to answer. */
+  const covered = await p.evaluate(()=>{ const m=document.querySelector('#overlay .modal'), r=m.getBoundingClientRect();
+    const cx=Math.round(r.left+r.width/2), out=[];
+    [['top',r.top+8],['middle',r.top+r.height/2],['bottom',r.bottom-8]].forEach(([where,y])=>{
+      const t=document.elementFromPoint(cx, Math.round(y));
+      if(!(t && (m===t || m.contains(t)))) out.push(where+':'+(t?(t.id||t.className||t.tagName):'nothing')); });
+    return out; });
+  ok(covered.length===0, 'a full-height viewer opened during peek is ON TOP down its whole height'+
+     (covered.length?'  <-- covered at '+covered.join(', '):''));
+  ok(await p.evaluate(()=>{ const m=document.querySelector('#overlay .modal'), r=m.getBoundingClientRect();
+       return r.top>=0 && r.bottom<=innerHeight+1; }),
+     '  → and making room for the pill did not push the dialog off the screen');
+  const zs = await p.evaluate(()=>{ const n=el=>parseInt(getComputedStyle(el).zIndex,10)||0;
+    return { ov:n(document.getElementById('overlay')), hdr:n(document.querySelector('header')),
+             hand:n(document.getElementById('handWrap')), bar:n(document.getElementById('peekBar')) }; });
+  ok(zs.ov>zs.hdr && zs.ov>zs.hand, `  → and it outranks the lifted panels (dialog ${zs.ov} > header ${zs.hdr}, hand ${zs.hand})`);
+  ok(zs.bar>zs.ov, `  → while ↩ Back still outranks IT, so peek is never a trap (bar ${zs.bar})`);
+  ok(await g('peekBar')==='live', '  → and ↩ Back is genuinely clickable over the dialog');
+
+  /* THE DEAD-LISTENER BUG. Restoring the stashed screen with innerHTML rebuilt the nodes and dropped every
+     handler, so the end screen came back looking perfect and doing nothing. Assert BEHAVIOUR: press the
+     restored button and require it to act. Existence passes on the broken build. */
+  await p.evaluate(()=>document.getElementById('pvDone').click()); await wait(300);
+  ok(await p.evaluate(()=>window.__solo.peeking()), 'Done on the viewer falls back INTO peek');
+  await p.evaluate(()=>document.getElementById('peekBar').click()); await wait(300);
+  ok(await p.evaluate(()=>!window.__solo.peeking() && !!document.getElementById('againBtn')),
+     '  → ↩ Back restores the real end screen');
+  await p.evaluate(()=>document.getElementById('reviewBtn').click()); await wait(300);
+  ok(await p.evaluate(()=>window.__solo.peeking()),
+     '  → and its buttons STILL WORK — the restored nodes kept their listeners');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
