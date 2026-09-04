@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.104.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.105.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-04)
 
-`main` is at **v1.31.104**, working tree clean, full sweep green at **82 suites**. The only branch is
+`main` is at **v1.31.105**, working tree clean, full sweep green at **82 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **v1.31.95 was built in one session and REVIEWED IN ANOTHER, on purpose** — the build session hit its cap twice
@@ -163,30 +163,14 @@ online duel against a person.*
   DECIDED on 2026-08-29 and is unbuilt** — its motivation has since evaporated, so re-measure before building
   it. The corner-overlay arithmetic, and the collapsing-hand proposal that was considered and declined, are in
   [`DECISIONS.md`](DECISIONS.md#phone-layout).
-- **★ THE HEADER IS 92px AND TWO BUTTON ROWS ON EVERY PHONE — collapse it to a burger** (Aj, 2026-09-04:
-  *"can we do a burger there? just so everything is tucked nicely? although those buttons don't really go into a
-  burger menu kinda... what would go well in a burger menu?"*). **Measured at 390×780, 360×800 and 414×896: 92px
-  in all three, 11.8% of the screen at 390**, with the title alone on line 1 (157px of a 390px line) and six
-  buttons wrapping to two rows beside and below it.
-  **Aj's doubt is the right instinct, and the test that resolves it is: a burger is for what you GO LOOKING FOR;
-  the bar is for what you reach for MID-TURN or what shows STATE.**
-  - **In:** ⚙️ Settings, ? How to play, 🃏 Specials, 💡 Hints, 🔊 Sound. The two toggles get *better* — below
-    480px 💡 already collapses to a bare icon whose on/off state reads only as a gold tint, and a menu row can
-    say "Hints: Off" in words.
-  - **Out:** ☰ and New Duel / 🏳 Concede — the concede tint is a state signal and it is the primary end-screen action.
-  - **🃏 IS A FREE DELETION, NOT A MOVE.** `cheatBtn` (header) and `specialsRefBtn` (above the hand) both call
-    `showCheatSheet` — same dialog, two buttons, and the hand-row one is better placed on a phone. **Caveat:
-    `lessontest_howto`'s last step spotlights `#cheatBtn`**, so repoint it to `#specialsRefBtn` in the same
-    commit or `applySpot` lights nothing and the tour still clicks to the end.
-  - **The title wants two lines.** `@media (max-width:480px)` already sets `header h1{white-space:normal}` to
-    permit `CARDMEN / FIGHTER`, but it never fires because the BUTTONS wrap first. With only ☰ + New Duel on the
-    right it has room to stack, which is what Aj means by the one-line title feeling *"slightly off in the small
-    banner space"* — a 157px stripe against a ragged two-row cluster.
-  **Estimated 92px → ~53px (~39px).** With v1.31.104's 51px that is ~90px against the board's measured 83px
-  over-subscription at 393×852 — i.e. this pair is what pays for zones-into-panels above.
-  **`--headerH` IS MEASURED AT RUNTIME AND OBSERVED** (`#disconBar` hangs off it), so the height change
-  propagates for free — but the `ResizeObserver` write must stay conditional or it re-enters every frame and
-  presents as unrelated netplay flakiness. See the v1.31.14 note in CLAUDE.md.
+- **A TIER'S DISPLAY NAME IS TYPED OUT IN THREE PLACES, AND ONE OF THEM DRIFTED FROM DAY ONE.** Aj, 2026-09-04:
+  *"since when did we stop using demon lord?"* — answer, **never**: the PER-OPPONENT picker (`strengthOpts`, the
+  P2…P6 rows in a 3-6 player setup) has read `Demon` since the repo's FIRST commit (`2f2ae86`, 2026-08-22, 467
+  commits ago) while `DIFF_NAME`, the single-opponent picker, the Help text and `oppRoll` all say **Demon Lord**.
+  Relabelled in v1.31.105, but that is the symptom. **`DIFF_NAME` already IS the display map** — every picker
+  should build its options from it instead of re-typing the list, and then a rename cannot half-land. Small,
+  and it removes a whole class: `recruit`/Squire has the same shape and is one careless edit from the same fate.
+
 ### Tooling
 
 - **`landscapetest`'s ↓ New log assertion is INTERMITTENT — 2 failures in 26 runs (2026-09-04), and it has a
@@ -378,6 +362,66 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.105 — the header is a burger, and the wordmark stacks
+
+Aj: *"can we do a burger there? just so everything is tucked nicely?"*, then mid-build *"get that concede in the
+burger too please — all for more play space"*.
+
+**Measured before building, at 390×780 / 360×800 / 414×896: 92px in all three**, 11.8% of the screen at 390,
+with a 157px title alone on line 1 and six buttons wrapping beside and below it. **49px after** — better than
+the ~53px estimated, because Concede went in too. `--headerH` is measured at runtime, so `#disconBar` followed
+for free.
+
+**WHAT GOES IN IS A TEST, NOT A PREFERENCE:** a burger is for what you GO LOOKING FOR; the bar is for what you
+reach for MID-TURN or what shows STATE. That put ⚙️ Settings, ❓ How to play, 💡 Hints and 🔊 Sound in, and left
+☰ alone in the bar. The two toggles read **better** there — a menu row says "Hints: Off" and "Sound: On" in
+words, where the header had a bare glyph below 480px and a gold tint for state.
+**Concede was the one I argued should stay out** (its red tint is a state signal, and it is the primary
+end-screen action); Aj asked for it in and he is right on both counts — a destructive action is better one tap
+deeper, and the end screen carries its own `#againBtn`, so nothing important is buried. The only cost is that
+the "a duel is live" tint no longer shows until the sheet is open, and the board says that louder anyway.
+
+**THE BUTTONS ARE MOVED, NOT REBUILT, and that is the whole reason this was cheap.** Same ids, same nodes, so
+`paintSfxBtn`, the hints IIFE, `$('settingsBtn')`, `refreshNewBtn`, `rulestest`'s click and every tutorial
+spotlight kept working with no rewiring. CLAUDE.md's standing warning is exactly this: the parse check cannot
+see a deletion, and a rebuilt button is a live `$()` returning `null` at boot.
+**The one genuine deletion is `#cheatBtn`** — a duplicate of the `🃏 Specials list` button above the hand, both
+calling `showCheatSheet`. Its tutorial spotlight was repointed to `#specialsRefBtn` (which `lessontest_howto`
+would otherwise have lit nothing for, and still clicked to the end).
+
+**THE WORDMARK STACKS.** `@media (max-width:480px)` already set `header h1{white-space:normal}` to permit
+`CARDMEN / FIGHTER`, and it had never once fired, because the BUTTONS wrapped first. With the bar empty it has
+room, so the break is explicit — which is what Aj meant by the one-line title feeling *"slightly off in the
+small banner space"*: a thin 157px stripe against a ragged cluster, where a stacked block balances it.
+
+**★ A DROPDOWN INSIDE A LIFTED PANEL CANNOT CLIMB OUT OF IT, and the measurement is the whole entry.** Peek
+lifts `#logWrap`, `#handWrap`, `#cardView`, `#cardFull`, `#opponents`, `#rival` **and `header`** to one shared
+`--zPeek`. Equal z-index means DOM order decides, and `#cardView` comes after `<header>` — so with the sheet
+open during peek, every item in it hit-tested **`blocked`**, covered by `#cardView`. The sheet cannot raise
+itself past it: its parent's z-index makes a stacking context, so the child's `--zMenu` resolves *inside* it.
+The header now has its own level, `--zPeekHdr`, between the panels and the peek dialog:
+`--zPeek` +2 · **`--zPeekHdr` +3** · `--zPeekDlg` +4 · `--zPeekBar` +5.
+**I predicted this would work and it did not** — the note written before running it said the lifted parent would
+carry the sheet above the overlay, which is true and irrelevant, because the blocker was never the overlay. This
+is CLAUDE.md's own rule arriving on schedule: when you raise a z-index, hit-test every layer positioned relative
+to it, not just the one that prompted the change.
+Two smaller traps in the same build: **`[hidden]` loses to a `display` rule** — it is only a UA-stylesheet
+default, so `#menuSheet{display:flex}` would have rendered the sheet permanently open, and the override is
+stated explicitly; and the open handler needs `stopPropagation`, or the document listener that closes on an
+outside click sees the same click and shuts it immediately.
+
+**Rider:** the **per-opponent** strength picker said `Demon` where everything else says **Demon Lord** (Aj:
+*"since when did we stop using demon lord?"*). Answer: never — that row has read `Demon` since the repo's first
+commit. Relabelled; the real fix, building every picker from `DIFF_NAME` instead of re-typing the list, is filed.
+
+`peektest` 41 → 43, `phonetest` 51 → 72. The peek assertions were not deleted when the buttons moved — they
+**follow the real path** now (open ☰, hit-test inside it), which is the stricter version and is what caught the
+`#cardView` collision. `phonetest` asserts the bar holds ☰ **and nothing else** (a build that left the five in
+place would still be "one row" on a wide enough phone), that the two wordmark lines really land on different
+rows, that `--headerH` tracked, and that choosing an entry opens its dialog **and** closes the sheet behind it.
+One bug in my own new assertion, caught by it going red: `header .spacer` is `flex:1` — full width, **zero
+height** — so a top-based row count called one row two. It filters on height now.
 
 ### v1.31.104 — the action row collapses to symbols on a phone
 
