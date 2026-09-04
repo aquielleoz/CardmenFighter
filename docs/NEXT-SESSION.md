@@ -100,6 +100,28 @@ online duel against a person.*
 
 ### Things a playtester meets immediately
 
+- **★ AN OPPONENT'S EFFECTS ARE NEVER SHOWN WHEN ITS PASS ENDS THE ROUND — the duel driver skips
+  `buildOppBeats` entirely** (Aj, 2026-09-04, from real play: *"the enemy played caltrops then passed. i didn't
+  get to see his actions because the round end and round begin animations started to fire off"*).
+  **Located, not guessed.** `runRival` (~4290) checks whether the Rival's turn ended in a pass that resolves the
+  round, and if so calls **`finishStep(res, g, effs)`** — which `logMsg`s each effect and goes straight to
+  `announceRoundWin` + `resolveRoundCeremony`. The *"turn the Rival's actions into paced beats"* branch, with
+  `buildOppBeats`/`playBeats`, sits in the OTHER arm of that same `if` and never runs. So an Equipment cast
+  immediately before a round-ending pass gets **no `revealEffect`, no `flashArt`, no `revealDwell`** — it is
+  logged and then buried under the ceremony that starts in the same frame.
+  **THE FREE-FOR-ALL DRIVER ALREADY DOES IT RIGHT**, which is the mirror of the v1.29.3 bug: `runOpponents`
+  plays the beats FIRST and resolves the round inside `playBeats`' completion callback. The duel is the odd one
+  out — so the fix is to make `finishStep` await the beats the way `runOpponents` does, NOT to add a bespoke
+  reveal to `finishStep` (this file's standing warning: *a bespoke presentation path silently misses features
+  the shared one gained*).
+  **TWO MORE BUGS SIT ON THE SAME LINE (4595), and both are documented classes:**
+  - it uses **`logMsg`**, which is host-local — so in netplay the other seat never receives these lines at all.
+    That is the v1.31.58 class (*nineteen sites had the wrong one*), and this one was missed.
+  - it hardcodes **`'Rival'`** instead of `say(seat, '{who} played …')`, so it is wrong at 3-6 players and not
+    reader-relative.
+  Fixing the beats without also fixing these two would leave a line that is visible locally and invisible online.
+  **A test must assert the ORDER, not that the log line exists** — the line is already there today, which is
+  exactly why nothing caught this. Assert the effect's reveal happens BEFORE the round ceremony begins.
 - **★ ZONES-INTO-PANELS IS BUILT AND MEASURED, AND WITHDRAWN UNTIL THE BOARD CAN AFFORD IT** (2026-09-04).
   The 2026-08-29 decision was to move each seat's Forms/Rides and equipment into its panel on a phone, leaving
   `#table` holding only the pile, its label and the message. **Built; it removes EVERY zone/pile collision at
