@@ -103,6 +103,19 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   not touch, precisely because it never asked who acted), so keep that property — hoist the `statOf(player)`
   line above the motion guard rather than moving the tally to an action site. **The test needs emulated reduced
   motion** (`prefers-reduced-motion`), which no suite currently does; that is the real cost of this one.
+- **A BROADCASTCHANNEL LOBBY HAS NO ERROR SURFACE AT ALL** (found 2026-09-03 while fixing the client lobby's
+  `sig.err`; v1.31.97 fixed the RTC half only). **`sig` is created solely on the RTC path** — `kind==='bc'` goes
+  straight to `connectWith(bcTransport(ch))` and never builds one — so every `if(sig) sig.err=…` in the file is
+  a silent no-op on BC, and `renderLobby`'s new `errHTML` has nothing to read. A BC lobby therefore cannot
+  report anything: not a full table, not a peer that vanished.
+  **Lower stakes than it sounds, which is why it is filed and not fixed:** BC is same-machine two-tab play, so
+  the "host closed its tab" case a real player hits is the RTC one, already covered. It matters for the
+  `nettest_*` suites, which are overwhelmingly BC — an error condition there is currently invisible to both the
+  player and the test.
+  **Do NOT fix it by creating a fake `sig` on the BC path.** `sig` is the SIGNALLING state (`step`, `offer`,
+  `answer`) and BC has no signalling; a stub would make `renderSignaling`'s routing and every `sig.step` check
+  ambiguous. The honest shape is a transport-independent `lobbyErr` that both paths write and `renderLobby`
+  reads, with `sig.err` kept as the RTC signalling-specific field it already is.
 - **A SEAT RE-CLAIMED IN THE REOPENED LOBBY, THEN ABANDONED BEFORE START, IS A GHOST** (filed with v1.31.95;
   pre-existing — the first lobby has always had it). `ldc.onclose` and `hostOnPeerDrop` act only while `started`,
   so a client that presses Ready and then closes its tab before the host starts is dealt in and the table parks
@@ -339,7 +352,7 @@ since v1.31.95 put a table back in that lobby with the far end possibly gone.
 **`sig` EXISTS ONLY ON THE RTC PATH.** `kind==='bc'` never creates one, so `if(sig) sig.err=…` is a no-op on a
 BroadcastChannel lobby and this is untestable there — which is why the assertion lives in
 `nettest_lobbyback_rtc` (23 → **26**) and not in `nettest_unready`, where the first version of it was written
-and failed for exactly that reason. A BC lobby still has no error surface at all; that is a separate gap.
+and failed for exactly that reason. A BC lobby still has no error surface at all — filed in the BACKLOG above, with the reason a stubbed `sig` is the wrong fix.
 
 **THE FIRST VERSION OF THIS TEST PASSED WITH THE FIX REMOVED, AND ONLY THE A/B SAID SO.** `renderSignaling` and
 `renderLobby` share the same `<h1>`, and **renderSignaling already paints the error** — so a probe that
