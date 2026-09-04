@@ -44,6 +44,23 @@ const read = p => p.evaluate(()=>{
            table:Math.round(document.getElementById('table').getBoundingClientRect().height) };
 });
 
+/* THE ACTION ROW (v1.31.104). Reads what each button actually SHOWS — the ::before that `font-size:0` swaps in
+ * — alongside the text still in the DOM, so the suite can tell "collapsed to a symbol" from "lost its label". */
+const actionRow = p => p.evaluate(()=>{
+  const ids=['sortBtn','clearBtn','viewCardBtn','ctxBtn','passBtn','fightBtn'];
+  const bs=ids.map(id=>{ const e=document.getElementById(id); if(!e) return {id,gone:true};
+    const r=e.getBoundingClientRect(); if(!r.width) return {id,hidden:true};
+    const cs=getComputedStyle(e), before=getComputedStyle(e,'::before').content;
+    return { id, y:Math.round(r.top), w:Math.round(r.width), text:(e.textContent||'').trim(),
+             fs:parseFloat(cs.fontSize), icon:(before&&before!=='none')?before.replace(/^"|"$/g,''):'',
+             data:e.getAttribute('data-icon')||'' }; }).filter(x=>!x.gone&&!x.hidden);
+  /* BUCKET THE ROWS, NEVER `new Set(top)`. Buttons on the SAME visual row differ by a pixel — `#sortBtn` holds
+     text and the others hold a ::before glyph, so their boxes baseline-align 1px apart, and a distinct-top count
+     called a perfectly good single row TWO. Found the moment 🔍 made it six buttons. */
+  const tops=bs.map(x=>x.y).sort((a,b)=>a-b), rows=tops.length?1+tops.filter((y,i)=>i&&y-tops[i-1]>6).length:0;
+  return { bs, rows, h:Math.round(document.getElementById('actions').getBoundingClientRect().height) };
+});
+
 (async()=>{
   const b=await chromium.launch(LAUNCH);
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
@@ -69,6 +86,56 @@ const read = p => p.evaluate(()=>{
     await stage(p, GROUPED.slice(0,4)); await wait(300);
     const few = await read(p);
     ok(few.rows===1 && few.clipped===0, `  → a one-row hand is left alone (${few.rows} row, clipped ${few.clipped})`);
+
+    /* ---- THE ACTION ROW COLLAPSES TO SYMBOLS ---- (v1.31.104)
+       Measured before building, at 390x780: Sort/Clear/⚡/Pass/Fight wanted THREE rows and 118px, under a hint
+       that is itself two lines. 67px and one row after. */
+    const ar = await actionRow(p);
+    ok(ar.rows===1, `  → the action row fits on ONE row (${ar.rows} row(s), ${ar.h}px)`);
+    /* 🔍 View card JOINED THE ROW in v1.31.104, and its gate is NOT the icon breakpoint: it appears only where
+       the inline description strip is hidden (`max-width:720px and max-height:800px`), because on a taller phone
+       `#side` reads the card inline and the button would open a reader nobody needs. Of the three sizes here only
+       360×800 qualifies — so assert the GATE, not a fixed count, or the suite bakes in whichever it saw first. */
+    const wantView = (w<=720 && h<=800), n = wantView?6:5;
+    const hasView = ar.bs.some(x=>x.id==='viewCardBtn');
+    ok(ar.bs.length===n, `  → all ${n} buttons are on it (${ar.bs.map(x=>x.id.replace('Btn','')).join(' ')})`);
+    ok(hasView===wantView, `  → 🔍 View card is ${wantView?'present':'correctly absent'} at ${w}×${h} (inline reader ${wantView?'hidden':'shown'})`);
+    /* BOTH HALVES. A button showing nothing at all would also be "one row", and a build that simply deleted the
+       labels would pass a glyph check while destroying the accessible name — the words must still be in the DOM. */
+    const mute = ar.bs.filter(x=>x.fs!==0), blank = ar.bs.filter(x=>!x.icon), wordless = ar.bs.filter(x=>!x.text);
+    ok(mute.length===0, `  → every label is collapsed (${mute.map(x=>x.id).join(',')||'none left showing text'})`);
+    ok(blank.length===0, `  → and every one shows a symbol instead (${ar.bs.map(x=>x.icon).join(' ')})`);
+    ok(wordless.length===0, `  → while keeping its word in the DOM for the accessible name`);
+    /* THE ICON MUST TRACK THE LABEL, which is the whole reason this is `attr(data-icon)` and not a per-id
+       ::before. Two labels that really change, both reachable by clicking:
+       — Sort reports STATE, so its compact form keeps the word. The hand above is sorted to Pairs by now. */
+    const sortBtn = ar.bs.filter(x=>x.id==='sortBtn')[0];
+    ok(/Pairs/.test(sortBtn.icon), `  → Sort still reports its state when compact ("${sortBtn.icon}")`);
+    /* — and the context button carries four labels. 10♦ is Phantasmal Illusion, which labels it "Phantasm" on
+         BOTH branches of ctxAction, so it needs no pile staged. A static ⚡ would survive this; the map cannot. */
+    await stage(p, [[10,'D'],[4,'H'],[6,'S'],[13,'C']]); await wait(250);
+    await p.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')].filter(el=>
+      el.querySelector('.card[data-id="g0"]'))[0]; if(g) g.click(); }); await wait(300);
+    const ctxB = (await actionRow(p)).bs.filter(x=>x.id==='ctxBtn')[0];
+    ok(ctxB && ctxB.text==='Phantasm' && ctxB.icon==='🌀',
+       `  → the symbol follows the label, not the button (Phantasm → "${ctxB?ctxB.icon:'—'}")`);
+    await ctx.close();
+  }
+
+  /* THE NEGATIVE HALF, and it is not optional: a rule with no upper bound would strip the words off a desktop
+     too, and every assertion above would still be green. 768 is a portrait tablet — above the 480 breakpoint. */
+  {
+    const ctx=await b.newContext({viewport:{width:768,height:1024}});
+    const p=await ctx.newPage(); p.on('pageerror',e=>errs.push('768: '+e.message));
+    await p.goto(URL); await wait(700);
+    await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
+    await p.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1100);
+    const wide = await actionRow(p);
+    const collapsed = wide.bs.filter(x=>x.fs===0);
+    ok(collapsed.length===0, `a 768px tablet keeps the WORDS (${collapsed.map(x=>x.id).join(',')||'none collapsed'})`);
+    ok(wide.bs.filter(x=>x.id==='sortBtn')[0].text==='Sort: Pairs' ||
+       /^Sort: /.test(wide.bs.filter(x=>x.id==='sortBtn')[0].text),
+       `  → including Sort's full label ("${wide.bs.filter(x=>x.id==='sortBtn')[0].text}")`);
     await ctx.close();
   }
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));

@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.103.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.104.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-04)
 
-`main` is at **v1.31.103**, working tree clean, full sweep green at **82 suites**. The only branch is
+`main` is at **v1.31.104**, working tree clean, full sweep green at **82 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **v1.31.95 was built in one session and REVIEWED IN ANOTHER, on purpose** — the build session hit its cap twice
@@ -141,9 +141,20 @@ online duel against a person.*
   `youFormZone`'s 20px chip, so hosting both grows the panel ~59px. At 780px tall the board cannot absorb that,
   the panel rides up over the table, and the zone goes with it — **a horizontal collision traded for a vertical
   one.** It only pays where the height exists.
-  **The unblocker is the icon action row** (below): `#actions` is 118–132px over two rows on a phone, and one
-  row buys back roughly the ~59px the panels need. Do that first, then re-run `landscapetest` at 390×780 and
-  `phonetest` before re-landing this.
+  **THE UNBLOCKER HAS SHIPPED — v1.31.104's icon action row.** Measured: `#actions` **118px → 67px at 390×780**
+  and **132px → 81px at 360×800**, three rows to one, with `#handWrap` down 51px at both. That is comfortably
+  the ~59px the panels need, so the blocking condition is met.
+  **Re-run `landscapetest` at 390×780 and `phonetest` before re-landing**, and note the entry below it: this
+  budget is spent ONCE, so if the header burger also lands (a further ~39px), prefer to bank that too rather
+  than assume both are available.
+  **THE CASE IS NOW MEASURED RATHER THAN ARGUED, and 327×660 is the one that proves it.** `landscapetest`
+  stopped measuring an animation frame in v1.31.104, and the settled numbers are: 390×780 was **19%** covered
+  before the icon row and is **0%** after — but **327×660 is 210% on every build**, because `#table` is at its
+  **96px min-height** holding a **70px** pile plus four pinned zones of 49-59px. `rivalFormZone` and
+  `youFormZone` overlap **each other** there. **No amount of height buys that back at 660px tall** — the zones
+  have to leave the table, which is this entry. The suite holds it as a ratchet that fails BOTH ways, so the
+  fix cannot land silently.
+  **Start with the chip alternative below**: it is the smaller change and 327×660 is the case that needs it most.
   **Cheaper alternative worth testing first:** render the in-panel equipment as a CHIP rather than a card, the
   way the form zone already does — that alone would cut the panel growth from ~59px to ~20px.
 - **THE PHONE PLAY AREA NEEDS A REAL-DEVICE CHECK, and the decided fix may no longer be needed.** The overlap
@@ -152,10 +163,48 @@ online duel against a person.*
   DECIDED on 2026-08-29 and is unbuilt** — its motivation has since evaporated, so re-measure before building
   it. The corner-overlay arithmetic, and the collapsing-hand proposal that was considered and declined, are in
   [`DECISIONS.md`](DECISIONS.md#phone-layout).
+- **★ THE HEADER IS 92px AND TWO BUTTON ROWS ON EVERY PHONE — collapse it to a burger** (Aj, 2026-09-04:
+  *"can we do a burger there? just so everything is tucked nicely? although those buttons don't really go into a
+  burger menu kinda... what would go well in a burger menu?"*). **Measured at 390×780, 360×800 and 414×896: 92px
+  in all three, 11.8% of the screen at 390**, with the title alone on line 1 (157px of a 390px line) and six
+  buttons wrapping to two rows beside and below it.
+  **Aj's doubt is the right instinct, and the test that resolves it is: a burger is for what you GO LOOKING FOR;
+  the bar is for what you reach for MID-TURN or what shows STATE.**
+  - **In:** ⚙️ Settings, ? How to play, 🃏 Specials, 💡 Hints, 🔊 Sound. The two toggles get *better* — below
+    480px 💡 already collapses to a bare icon whose on/off state reads only as a gold tint, and a menu row can
+    say "Hints: Off" in words.
+  - **Out:** ☰ and New Duel / 🏳 Concede — the concede tint is a state signal and it is the primary end-screen action.
+  - **🃏 IS A FREE DELETION, NOT A MOVE.** `cheatBtn` (header) and `specialsRefBtn` (above the hand) both call
+    `showCheatSheet` — same dialog, two buttons, and the hand-row one is better placed on a phone. **Caveat:
+    `lessontest_howto`'s last step spotlights `#cheatBtn`**, so repoint it to `#specialsRefBtn` in the same
+    commit or `applySpot` lights nothing and the tour still clicks to the end.
+  - **The title wants two lines.** `@media (max-width:480px)` already sets `header h1{white-space:normal}` to
+    permit `CARDMEN / FIGHTER`, but it never fires because the BUTTONS wrap first. With only ☰ + New Duel on the
+    right it has room to stack, which is what Aj means by the one-line title feeling *"slightly off in the small
+    banner space"* — a 157px stripe against a ragged two-row cluster.
+  **Estimated 92px → ~53px (~39px).** With v1.31.104's 51px that is ~90px against the board's measured 83px
+  over-subscription at 393×852 — i.e. this pair is what pays for zones-into-panels above.
+  **`--headerH` IS MEASURED AT RUNTIME AND OBSERVED** (`#disconBar` hangs off it), so the height change
+  propagates for free — but the `ResizeObserver` write must stay conditional or it re-enters every frame and
+  presents as unrelated netplay flakiness. See the v1.31.14 note in CLAUDE.md.
 ### Tooling
 
-*Empty. `lessontest_twos`' one failure is diagnosed, fixed (v1.31.99) and filed as a settled analysis in
-[`DECISIONS.md`](DECISIONS.md#lessontest-twos) — it is a record, not work.*
+- **`landscapetest`'s ↓ New log assertion is INTERMITTENT — 2 failures in 26 runs (2026-09-04), and it has a
+  fixed wait in it.** Seen only while building v1.31.104: **0/6 on v1.31.103, 2/10 on an intermediate build,
+  0/10 on the shipped one**, so it is rare and NOT attributable to the icon row. Deliberately left unfixed:
+  there is no reproduction on the current build to verify a fix against, and changing a suite on a hunch is how
+  the throwaway-probe entries in CLAUDE.md got written.
+  **BOTH ASSERTIONS FAIL TOGETHER AND IT IS ONE CAUSE.** The recorded pair is
+  `shown=false visible=false` and `scrollTop 24` — i.e. **the log auto-followed to the bottom**, so
+  `logAtBottom()` was true and the ↓ New button correctly did not show. The bug is that the suite stopped
+  "reading history", not that the button is broken. Do not chase `setLogNewBtn`.
+  **The shape is the documented one, twice over** (`landscapetest.js` ~305): it takes a **deal-dependent action**
+  (`if(f&&!f.disabled) f.click(); else if(ps&&!ps.disabled) ps.click()` — Fight and Pass emit different numbers
+  of log lines, and a Fight that RESOLVES A ROUND emits a whole ceremony), and then it `wait(800)` before
+  asserting. A round that resolves re-renders the log repeatedly inside that window. **Poll for the line and
+  re-read `scrollTop` at the same instant**, rather than sleeping — the rule this file already carries.
+  Note the staging injects fake `.le` divs straight into `#log` to create the overflow; confirm a re-render does
+  not wipe them before assuming the scroll position is the whole story.
 
 ### Features
 
@@ -329,6 +378,82 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.104 — the action row collapses to symbols on a phone
+
+Aj, after the hand-overlap fix: *"maybe we can also do symbols for the action buttons when the screens are
+smaller?"* — with the mapping he picked: ✕ Clear · ⚡ Activate · ⏭ Pass · ⚔ Fight, **Sort keeps its text**.
+
+**Measured before building, at 390×780: `#actions` was 118px over THREE rows**, under a hint that is itself two
+lines. **67px and one row after** — and 132px → 81px at 360×800, with `#handWrap` down 51px at both. The 568×320
+landscape floor is untouched (width > 480), asserted in that direction too.
+
+**THE ICON IS A PROPERTY OF THE LABEL, NOT OF THE BUTTON, and this is the whole design.** The obvious build is a
+static `::before` per button id, the way the header's 💡 Hints already does it. It is wrong here, because three
+of these four buttons **rewrite their own label**: Fight becomes **Confirm** during a pick, Pass becomes
+**Cancel** (phantasm) or **Skip** (nothing on the pile), and the context button carries four (⚡ Activate /
+🎯 Pick a target / 🎯 Choose target / Phantasm). A fixed glyph shows ⚔ on a button that says Confirm — a control
+whose appearance and behaviour disagree, which is the v1.31.74 failure in a new place. So: one `ACTION_ICONS`
+map, one `setActionLabel(btn,label)` setter, every label routed through it, and CSS reads `attr(data-icon)`.
+**`Cancel` is ↩ and deliberately not ✕** — Clear is ✕ and sits beside it in that exact state.
+
+**The text never leaves the DOM.** `font-size:0` hides it, so the accessible name survives, every suite that
+reads `textContent` is untouched, and the row re-expands to words above 480px with no JS involved.
+
+**SORT KEEPS ITS WORDS BECAUSE IT IS THE ONLY BUTTON THAT REPORTS STATE** rather than naming an action — no
+glyph can say which of Unsorted / Singles / Pairs / Straights you are in. It still compacts, by shedding the
+redundant `Sort:` prefix the ⇅ already says: **131px → 106px, which is what makes 360px fit on one row at all.**
+
+`phonetest` 19 → 42. Three A/Bs, because two different wrong builds pass different subsets:
+- **Against the pre-change build: 15 red.**
+- **Against a STATIC-icon build** — the tempting wrong design — the tracking assertion is the only thing that
+  fires, and it does: `Phantasm → "⚡"`, **3 red**. Built and run rather than argued; selecting 10♦ reaches the
+  `Phantasm` label on both branches of `ctxAction`, so it needs no pile staged.
+- **The negative half at 768×1024**, because a rule with no upper bound would strip the words off a desktop and
+  every other assertion would still be green.
+The suite also asserts the words are still in the DOM, so a build that simply deleted the labels cannot pass a
+glyph check.
+
+**🔍 VIEW CARD JOINED THE ROW** (Aj, mid-build: *"can we include the view card in that row? as a magnifying
+glass?"* and then *"i think it should be after clear? because clear also removes the groupings right?"*). It was
+a gold `.specialsRef` pill in the hand-meta strip; it is an ordinary action-row button now, ordered
+**Sort · Clear · 🔍 · ⚡ · ⏭ · ⚔️** — arrange, arrange, inspect, then act.
+**ITS GATE IS NOT THE ICON BREAKPOINT, and that distinction is the thing to preserve.** It shows only where the
+inline description strip is hidden (`max-width:720px and max-height:800px`), because on a taller phone `#side`
+reads the card inline and the button would open a reader nobody needs. So the row is **five** buttons at
+393×852 and 412×915 and **six** at 360×800, and `phonetest` asserts the GATE rather than a fixed count.
+Six buttons needed the sizing to come with them — 10px side padding and a 5px gap from 480px, one step tighter
+(8px, 4px) below 380px. **Measured floor: one row from 360px up; 327px wraps to two**, which is still better
+than the three it had.
+**AND IT SHORTENED `#handMeta`, which fixed a landscape case by accident:** at 640×360 the board now FITS on one
+screen instead of scrolling. That turned `landscapetest` red, because the floor assertion demanded
+`boardScrolls` — encoding the degradation as a REQUIREMENT rather than a permission. **An assertion that fails
+when the layout improves is the wrong shape**; it is `fits OR scrolls` now, with the reachability check (which
+already covered both) as the real contract.
+
+**AND `landscapetest` HAD BEEN ASSERTING ON AN ANIMATION FRAME — found by this change, fixed with it.** Its
+zone-vs-pile check staged a new pile and measured **in the same `evaluate` as `render()`**, so it read the
+fly-in's START position: 24×34 cards at y410-444, against 38×55 at y268-323 once settled. `settled()` could not
+cover it — that helper watches `#hand`, and this block stages the pile *after* the board is already quiet, so
+the hand-watcher returns on its first comparison. `settledPile()` watches the thing being asserted on, which is
+the rule the existing comment two functions up already states.
+**It had passed by luck for as long as it has existed:** the un-settled start position happened to clear the
+zones until the action row moved the hand up 51px. The suite then reported a 57%-covered pile card on a board
+that is **0% covered once it stops moving — verified on v1.31.103 as well**, so neither the settle fix nor the
+icon row caused it.
+**What the honest measurement then showed is the opposite of a regression:** with the suite fixed, v1.31.103
+covers a pile card **19%** at 390×780 and v1.31.104 covers it **0%**. The icon row FIXED a real collision.
+
+**★ AND IT UNCOVERED A GENUINE PRE-EXISTING ONE AT 327×660 — 210%, on both builds, and NOT fixed here.**
+Arithmetic, not a pinning bug: `#table` sits at its **96px min-height** there, holding a **70px** pile plus
+**four** absolutely-positioned zones of 49-59px — `rivalFormZone` and `youFormZone` overlap **each other**
+before either reaches the pile. The zones have to leave the table, which is exactly the ★ zones-into-panels
+entry. Kept in the suite as a **ratchet**: it fails if the overlap grows, AND it fails if the overlap goes away,
+so the day the real fix lands the line is forced to be tightened to the `<5` every other viewport uses.
+
+**Filed while here:** the icon row was referenced by the zones-into-panels entry as *"the icon action row
+(below)"* and **there was no entry below** — approved in conversation and never written down, which is the
+routing failure CLAUDE.md names. The header burger is now filed properly, with its measurements.
 
 ### v1.31.103 — a viewer opened during peek was buried, and the screen behind it came back dead
 
