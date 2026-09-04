@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.97.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.98.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-03)
 
-`main` is at **v1.31.97**, working tree clean, full sweep green at **79 suites**. The only branch is
+`main` is at **v1.31.98**, working tree clean, full sweep green at **81 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **v1.31.95 was built in one session and REVIEWED IN ANOTHER, on purpose** — the build session hit its cap twice
@@ -42,7 +42,7 @@ npm test && node mptest.js && node landscapetest.js
 
 Expect **0 FAIL** from each. The two gate counts in the header above are asserted by `versiontest`, so they
 cannot drift; every other suite's expected count lives in **CLAUDE.md**, which is the authority. A full sweep is
-**`npm run sweep`** — 79 suites, four at a time, ~150-250s. `npm run sweep:fast` skips the six slow STABLE
+**`npm run sweep`** — 81 suites, four at a time, ~150-250s. `npm run sweep:fast` skips the six slow STABLE
 suites; `node sweep.js -j 1` is the serial fallback if a parallel run ever looks suspicious. **The old "never
 two suites at once" rule is dead** — `PORT` is an env var and the runner assigns one per job (v1.31.82).
 
@@ -94,63 +94,18 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 *Four reports from a real online duel, 2026-09-02, with screenshots. Ranked: the wedge first.*
 
-- **`shieldsLost` IS NEVER COUNTED UNDER REDUCED MOTION — FOR ANY SEAT, SOLO INCLUDED** (found 2026-09-03 while
-  fixing the remote-seat tally; filed rather than bundled, because it needs its own test). It is tallied inside
-  `animateShields`, in the `if(prev!=null && !reduceMotion())` branch that also runs the shatter animation — so a
-  player with reduced motion on exports every game with `shieldsLost: 0` for everybody. That field feeds
-  `docs/CARD-STATS.md` and the `PLAYER-PROFILE.md` ingestion log.
-  **Counting it from a RENDER DIFF is what makes it seat-agnostic** (it is the one stat the remote-seat bug did
-  not touch, precisely because it never asked who acted), so keep that property — hoist the `statOf(player)`
-  line above the motion guard rather than moving the tally to an action site. **The test needs emulated reduced
-  motion** (`prefers-reduced-motion`), which no suite currently does; that is the real cost of this one.
-- **A BROADCASTCHANNEL LOBBY HAS NO ERROR SURFACE AT ALL** (found 2026-09-03 while fixing the client lobby's
-  `sig.err`; v1.31.97 fixed the RTC half only). **`sig` is created solely on the RTC path** — `kind==='bc'` goes
-  straight to `connectWith(bcTransport(ch))` and never builds one — so every `if(sig) sig.err=…` in the file is
-  a silent no-op on BC, and `renderLobby`'s new `errHTML` has nothing to read. A BC lobby therefore cannot
-  report anything: not a full table, not a peer that vanished.
-  **Lower stakes than it sounds, which is why it is filed and not fixed:** BC is same-machine two-tab play, so
-  the "host closed its tab" case a real player hits is the RTC one, already covered. It matters for the
-  `nettest_*` suites, which are overwhelmingly BC — an error condition there is currently invisible to both the
-  player and the test.
-  **Do NOT fix it by creating a fake `sig` on the BC path.** `sig` is the SIGNALLING state (`step`, `offer`,
-  `answer`) and BC has no signalling; a stub would make `renderSignaling`'s routing and every `sig.step` check
-  ambiguous. The honest shape is a transport-independent `lobbyErr` that both paths write and `renderLobby`
-  reads, with `sig.err` kept as the RTC signalling-specific field it already is.
-- **A SEAT RE-CLAIMED IN THE REOPENED LOBBY, THEN ABANDONED BEFORE START, IS A GHOST** (filed with v1.31.95;
-  pre-existing — the first lobby has always had it). `ldc.onclose` and `hostOnPeerDrop` act only while `started`,
-  so a client that presses Ready and then closes its tab before the host starts is dealt in and the table parks
-  on it. Over RTC the host now marks the channel `_iceDown` from the ICE handler (v1.31.95, so the roster stops
-  counting it), which is exactly the evidence a Start-time prune would need: drop trailing/any dead seats before
-  `hostStartRealN` reads `nextSeat-1` — but any middle seat means renumbering plus a re-`welcome`, which is the
-  compaction v1.31.95 deliberately declined ([`DECISIONS.md`](DECISIONS.md#netplay-architecture)). Over
-  BroadcastChannel there is no channel state at all. Cheapest honest version: refuse Start while any seated
-  channel is `_iceDown`, with a roster line naming it.
 *Also CONFIRMED by the same screenshots, already filed below: the netplay host logs the SOLO line (**"New duel —
 you play Berserker (Fig+Rog) vs Aj (Fighter) on Pure Cleric"**) and its header reads **"duel vs AI"** — in an
 online duel against a person.*
 
 ### Things a playtester meets immediately
 
-- **A NETPLAY DUEL HOST LOGS THE SOLO LINE AND SHOWS AN AI TIER.** `logMsg`/`matchupTag` branch on
-  `mpCount>2`, **not on whether this is netplay**, so a 2-player online HOST prints
-  *"New duel — you play Pure Cleric vs Dustin (**Fighter**) on Berserker"* and a header ending
-  `· Fighter` — where `Fighter` is `DIFF_NAME[difficulty]`, an **AI difficulty tier** that means nothing
-  online. The client has its own correct line (*"Online duel — you play X"*, ~6257).
-  **Cosmetic, but it cost real debugging time on 2026-08-28:** I read the AI tier as evidence that the host
-  was playing a bot, and the deck names as evidence of two seats, and built two confident wrong diagnoses on
-  it. Aj spotted both (*"isn t fighter the ai player tag?"*). A label that lies about the mode is worse than
-  no label. Fix: branch on netplay, not on player count.
 - **THE PHONE PLAY AREA NEEDS A REAL-DEVICE CHECK, and the decided fix may no longer be needed.** The overlap
   MEASURES CLEAN since v1.31.66 (it was caused by the sideways scroll and went away with it), but it was only
   ever reported from Aj's phone and has not been re-checked there. **The zones-move-into-the-panels change was
   DECIDED on 2026-08-29 and is unbuilt** — its motivation has since evaporated, so re-measure before building
   it. The corner-overlay arithmetic, and the collapsing-hand proposal that was considered and declined, are in
   [`DECISIONS.md`](DECISIONS.md#phone-layout).
-- **UNVERIFIED LEAD — the "netplay battle log does not scroll" report may not be netplay-specific at all.**
-  `#log` is `overflow-y:auto` with no netplay override, so a `min-height:0` chain broken by the `.fighter`
-  overflow is a plausible SHARED cause. Measure before filing it as a netplay divergence. (The two seams that
-  netplay and solo actually diverge in are mapped in [`DECISIONS.md`](DECISIONS.md#netplay-architecture).)
-
 ### Tooling
 
 - **`lessontest_twos` HAS FAILED UNDER PARALLEL LOAD ONCE, UNEXPLAINED — and the "fourth timing class" label
@@ -340,6 +295,56 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.98 — the defect backlog, cleared
+
+Five filed defects and one filed measurement, taken together so the balance work ahead runs on a clean board
+(Aj: *"let's do the bugs first so we're testing the simulations in clean environments"*). Every fix A/B'd
+against its own removal.
+
+**`shieldsLost` WAS NEVER COUNTED UNDER REDUCED MOTION — FOR ANY SEAT, SOLO INCLUDED.** The tally lived inside
+`animateShields`' `if(prev!=null && !reduceMotion())` branch, beside the shatter, so a player with reduced
+motion on exported every game with `shieldsLost: 0` — and that field feeds `CARD-STATS.md` and the
+`PLAYER-PROFILE.md` ingestion log. **A tally is not an animation**; it is hoisted above the guard, and stays
+driven by the RENDER DIFF rather than moved to an action site, because that is what makes it seat-agnostic (it
+is the one stat v1.31.96's remote-seat bug did not touch — it never asks who acted).
+New `motiontest.js` (**7**) emulates `prefers-reduced-motion` both ways and asserts the page's OWN reading of
+it, not the flag Playwright was handed — otherwise both arms are the same arm.
+
+**A NETPLAY HOST NAMED AN AI DIFFICULTY TIER AT A TABLE OF PEOPLE.** `logMsg` and `matchupTag` branched on
+`mpCount>2`, **not on whether this is netplay**, so an online host printed *"New duel — you play X vs Bea
+(**Fighter**) on Y"* and a header ending `· Fighter`. **Three sites, not one:** `oppRoll()` had it too, so a
+3-6 player online host read *"Dustin (Fighter), Cass (Fighter)"* — `hostStartRealN` sets every remote seat's
+diff to `'fighter'` as a round-win-chooser fallback. A label that lies about the mode is worse than no label:
+it produced two confident wrong diagnoses on 2026-08-28 before Aj spotted it.
+**The test needed a SOLO control**, in `logtest` (**18**) beside the netplay half in `nettest_names` (**13**) —
+a fix that deleted the tier everywhere would look identical online, and the control catches exactly that
+(verified). **And match the SHAPE, not the word:** `Fighter` and `Knight` are DECK names too ("Pure Fighter",
+"Mage Knight"), so a bare `/Fighter|Knight/` flags correct output. The tier only appears parenthesised after a
+name, or as the header's last `·` segment.
+
+**A BROADCASTCHANNEL LOBBY COULD REPORT NOTHING AT ALL.** `sig` is built only on the RTC path, so every
+`if(sig) sig.err=…` was a silent no-op on BC — v1.31.97 fixed the RTC half only. **Not fixed by stubbing a fake
+`sig`**, which would make `renderSignaling`'s routing and every `sig.step` check ambiguous: `lobbyErr` is
+transport-independent, `sig.err` stays the error for a code you pasted, and both renderers show either. The two
+halves A/B independently — removing it fails BC (`nettest_unready` **15**) and leaves RTC green.
+
+**A SEAT WHOSE OWNER LEFT BEFORE START WAS STILL DEALT IN.** `ldc.onclose`/`hostOnPeerDrop` act only while
+`started`, so a client that pressed Ready and closed its tab was counted by `nextSeat-1` and the table parked on
+it forever. Start is now refused while any seated channel is `_iceDown` (v1.31.95's marking is the evidence),
+naming the seat — **not** pruned and renumbered, which is the compaction judged and declined. New
+`nettest_ghostseat.js` (**6**); RTC only, necessarily, since BC exposes no channel state.
+
+**"THE NETPLAY BATTLE LOG DOES NOT SCROLL" DOES NOT REPRODUCE — measured, not argued.** `nettest_log` (**16**)
+now overflows both seats' logs and reports real range: **host 611px, client 547px**. `overflow-y:auto` on both,
+no netplay override. The entry asked for a measurement before filing it as a netplay divergence; there is
+nothing to file.
+
+**AND A NEW SILENT TRAP, FOUND THE HARD WAY: A DUPLICATE KEY IN AN OBJECT LITERAL.** `__cmf` already had a
+`log:` — v1.31.93's uncapped-history accessor — and the new one was added EARLIER in the same literal, so the
+later key silently won: the call returned `fullLog` and appended nothing, with no error, and the failing
+assertion printed `← REPRODUCED` as though the product were broken. Renamed `addLog`. This is the
+duplicate-function trap CLAUDE.md documents, in an object literal, and **the documented grep does not find it**.
 
 ### v1.31.97 — a client can finally see why its lobby is stuck
 

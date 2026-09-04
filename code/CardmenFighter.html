@@ -5056,7 +5056,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.97';
+  var GAME_VERSION='v1.31.98';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -5519,12 +5519,19 @@ window.CardFace = {};
   function personaOf(i){ return seatPersonas[i] || null; }
   function clearPersonaStyles(){ seatPersonas=[]; if(AI.setStyles) AI.setStyles(null); }   // styles only — netplay NAMES belong to the humans
   function clearPersonas(){ clearPersonaStyles(); setSeatNames([myName]); }                // …and the tutorial wants a plain "Rival" back
+  // "Is this an online game?" — asked by every label that would otherwise name an AI tier at a table of people.
+  function netLive(){ return !!(typeof NET!=='undefined' && NET.active && NET.active()); }
   function oppReveal(){                    // ' · vs Etna, Laharl, Flonne' — the pre-match reveal in the header
     var n=[]; for(var i=1;i<mpCount;i++){ var nm=nameOf(i); if(nm) n.push(nm); }
     return n.length ? (' · vs <b>'+n.join('</b>, <b>')+'</b>') : '';
   }
   function oppRoll(){                      // 'Etna (Demon Lord), Laharl (Demon Lord)' — the same reveal, for the log
-    var n=[]; for(var i=1;i<mpCount;i++){ var nm=nameOf(i)||('P'+(i+1)); n.push('<b>'+nm+'</b> ('+(DIFF_NAME[diffOf(i)]||'')+')'); }
+    /* NO AI TIER ONLINE (v1.31.98). `hostStartRealN` sets every remote seat's diff to 'fighter' as a fallback
+     * for the round-win chooser ONLY, so this printed "Dustin (Fighter), Cass (Fighter)" at an online table of
+     * people — a label that lies about the mode. It is worse than no label: read as evidence the host was
+     * playing bots, it produced two confident wrong diagnoses on 2026-08-28 before Aj spotted it. */
+    var on=netLive();
+    var n=[]; for(var i=1;i<mpCount;i++){ var nm=nameOf(i)||('P'+(i+1)); n.push('<b>'+nm+'</b>'+(on?'':' ('+(DIFF_NAME[diffOf(i)]||'')+')')); }
     return n.join(', ');
   }
   // New Duel picks — remembered on this device between visits, with a one-click revert to defaults.
@@ -5787,9 +5794,15 @@ window.CardFace = {};
     if(prev===n){ if(el.children.length!==Math.max(baseShields(),n)) shieldsEl(el,n); return; }  // unchanged — don't rebuild (avoid clobbering an in-flight shatter)
     shieldsEl(el, n);
     var slots=el.children;
+    /* THE TALLY IS NOT AN ANIMATION (v1.31.98). It lived inside the `!reduceMotion()` branch below, beside the
+     * shatter, so a player with reduced motion on exported every game with `shieldsLost: 0` — for EVERY seat,
+     * solo included, and that field feeds CARD-STATS and the PLAYER-PROFILE ingestion log.
+     * Counting it from the RENDER DIFF rather than at an action site is what makes it seat-agnostic — it is
+     * the one stat the v1.31.96 remote-seat bug did not touch, precisely because it never asks who acted — so
+     * it is hoisted above the motion guard, not moved to an action site. */
+    if(prev!=null && n<prev){ var slS=statOf(player); if(slS) slS.shieldsLost += (prev-n); }
     if(prev!=null && !reduceMotion()){
       if(n<prev){                                              // took damage
-        var slS=statOf(player); if(slS) slS.shieldsLost += (prev-n);
         for(var i=n;i<prev && i<slots.length;i++) shatterShield(slots[i]);
         el.classList.remove('shake-shield'); void el.offsetWidth; el.classList.add('shake-shield');
         (function(c){ setTimeout(function(){ c.classList.remove('shake-shield'); }, 500); })(el);
@@ -6546,10 +6559,12 @@ window.CardFace = {};
     $('log').innerHTML=''; $('beaten').innerHTML='';
     $('rivalDeckName').textContent=deckLabel(rivalDeck); $('youDeckName').textContent=deckLabel(youDeck);
     var modeTag=gameBasics?' · <b class="basicsTag">BASICS</b>':'';
-    $('matchupTag').innerHTML=((mpCount>2)?('<b>'+mpCount+'-Rider free-for-all</b> · you: '+deckLabel(seatDecks[0])+oppReveal()):('<b>'+deckLabel(youDeck)+'</b> vs <b>'+(nameOf(1)||'Rival')+'</b> · '+deckLabel(rivalDeck)+' · '+DIFF_NAME[difficulty]))+modeTag;
+    var _on=netLive();   // branch on NETPLAY, not on player count: `DIFF_NAME[difficulty]` is an AI tier and means nothing against a person
+    $('matchupTag').innerHTML=((mpCount>2)?('<b>'+mpCount+'-Rider free-for-all</b> · you: '+deckLabel(seatDecks[0])+oppReveal()):('<b>'+deckLabel(youDeck)+'</b> vs <b>'+(nameOf(1)||'Rival')+'</b> · '+deckLabel(rivalDeck)+' · '+(_on?'Online':DIFF_NAME[difficulty])))+modeTag;
     syncOrder(true);
     var youLead=state.turn===YOU;
     if(mpCount>2) logMsg('New game — <b>'+mpCount+' Riders</b>, last one standing. You play <b>'+deckLabel(seatDecks[0])+'</b>'+(oppRoll()?' against '+oppRoll():'')+'. Round 1, jabs only.', 'system');
+    else if(_on) logMsg('Online duel — you play <b>'+deckLabel(youDeck)+'</b> vs <b>'+(nameOf(1)||'Rival')+'</b> on <b>'+deckLabel(rivalDeck)+'</b>. Each draws '+E.START_HAND+' and holds '+(state.startShields||4)+' shields.', 'system');
     else logMsg('New duel — you play <b>'+deckLabel(youDeck)+'</b> vs <b>'+(nameOf(1)||'Rival')+'</b> (<b>'+DIFF_NAME[difficulty]+'</b>) on <b>'+deckLabel(rivalDeck)+'</b>. Each draws '+E.START_HAND+' and holds '+(state.startShields||4)+' shields.', 'system');
     logMsg('<b>'+(youLead?'You':seatName(state.turn))+'</b> '+(youLead?'have':'has')+' the initiative — <b>Round 1</b>, jabs only.', 'round');
     hideOverlay(); showCard(null);
@@ -10177,6 +10192,15 @@ window.CardFace = {};
     var myId='c'+(''+Math.random()).slice(2,10)+(''+Math.random()).slice(2,6);   // this client's stable id (so the host can tell a new joiner from a 350ms retry on the shared bus)
     var hostSeatOf={}, seatDeckMap={}, nextSeat=1, MAX_SEATS=6;                   // host: cid→seat, seat→deck, next free seat
     var useStun=true, sig=null, pc=null, dc=null;   // WebRTC signaling state
+    /* LOBBY ERRORS ARE NOT SIGNALLING ERRORS (v1.31.98). `sig` is created only on the RTC path — `kind==='bc'`
+     * goes straight to connectWith() and never builds one — so every `if(sig) sig.err=…` was a silent no-op on
+     * BroadcastChannel and a BC lobby could report NOTHING: not a full table, not a peer that vanished.
+     * Stubbing a fake `sig` was the tempting fix and is the wrong one: `sig` holds `step`/`offer`/`answer`, and
+     * BC has no signalling, so a stub would make renderSignaling's routing and every `sig.step` check
+     * ambiguous. `lobbyErr` is transport-independent; `sig.err` stays what it always was — the error for a
+     * code you pasted. Both renderers show either. */
+    var lobbyErr='';
+    function setLobbyErr(m){ lobbyErr=m||''; renderNet(); }
     function active(){ return !!role; }
     /* Only clear a query that actually EXISTS: on Android a downloaded file opens as `content://`, which cannot
      * carry a query string, so assigning location.search there navigates to an unresolvable URI and the game
@@ -10308,7 +10332,7 @@ window.CardFace = {};
       if(joinRetry) return; joinTries=0;
       joinRetry=setInterval(function(){
         if(started){ clearInterval(joinRetry); joinRetry=null; return; }
-        if(++joinTries>40){ clearInterval(joinRetry); joinRetry=null; if(sig){ sig.err='Could not sync with the host. Re-check the codes and reload both tabs.'; renderNet(); } return; }
+        if(++joinTries>40){ clearInterval(joinRetry); joinRetry=null; setLobbyErr('Could not sync with the host. Re-check the codes and reload both tabs.'); return; }   // lobbyErr, not sig.err: a BC client has no `sig` and was told nothing at all
         send({t:'join', deck:myDeck, cid:myId, name:myName, v:netVersion(), sug:myRulesKey()});
       }, 350);
     }
@@ -10601,7 +10625,7 @@ window.CardFace = {};
           if(!pc) return; var st=pc.iceConnectionState;
           if(/failed|disconnected/.test(st)){
             if(started){ clientSelfDown=true; renderDisconBar(); }                              // mid-game: show "reconnecting to host…"
-            else { sig.err='Connection lost ('+st+').'; renderNet(); }
+            else { setLobbyErr('Connection lost ('+st+').'); }
           } else if(/connected|completed/.test(st)){
             if(started && clientSelfDown){ clientSelfDown=false; renderDisconBar(); }            // link restored
           }
@@ -10624,7 +10648,7 @@ window.CardFace = {};
         ldc._iceDown=/failed|disconnected/.test(st);
         if(/failed|disconnected/.test(st)){
           if(started){ var seat=seatOfChan(ldc); if(seat!=null) hostOnPeerDrop(seat); }        // mid-game: hold their seat + grace countdown
-          else { sig.err='A player connection failed — re-invite them.'; renderNet(); }        // during signaling / in a lobby
+          else { setLobbyErr('A player connection failed — re-invite them.'); }        // during signaling / in a lobby
         } else if(/connected|completed/.test(st)){
           if(started){ var seat2=seatOfChan(ldc); if(seat2!=null) hostOnPeerBack(seat2); }      // self-healed → resume
           else renderNet();                                                                    // the roster counts it again
@@ -10827,7 +10851,7 @@ window.CardFace = {};
         else if(m.t==='rules'){                                          // the host edited mid-lobby: adopt and un-ready
           setRulesFromKey(m.k||''); iReady=false; stopJoinRetry(); renderNet();
           setMessage('⚗️ The host changed the rules — check them and hit Ready again.'); }
-        else if(m.t==='full'){ if(!m.cid || m.cid===myId){ if(sig) sig.err='This game is full (6 players max).'; setMessage('⚠ This game is full.'); renderNet(); } }
+        else if(m.t==='full'){ if(!m.cid || m.cid===myId){ setMessage('⚠ This game is full.'); setLobbyErr('This game is full (6 players max).'); } }   // reachable on BC, where `sig` is null
         else if(m.t==='log'){                                   // public narration — resolve {who}/{foe} in OUR frame
           var n=(state&&state.numPlayers)||2, rot=function(abs){ return ((((abs-mySeat)%n)+n)%n); };
           var nm=function(r){ return r===0 ? 'You' : (nameOf(r) || (n===2 ? 'Rival' : ('P'+(r+1)))); };
@@ -11073,7 +11097,7 @@ window.CardFace = {};
       lastMirror={}; clearDiscon(); try{ relayDropRoom(); }catch(e){}   // all idempotent: game two's first mirror is never deduped against game one; discon is empty since endGame; the room was dropped at Start, and a publish in flight then could have re-set it
       hostSeatOf={}; seatDeckMap={}; nextSeat=1; seatRuleGen={}; seatSuggest={}; oppDeck=null; oppReady=false;
       for(var i=0;i<chanSeat.length;i++) chanSeat[i]=null;   // every channel is unseated until its owner presses Ready. Over RTC seatOfChan → null, so an intent from a lingering end screen has no seat and every dispatch skips it; over BC the seat is self-reported and reaches hostEmote, which is inert once `started` is false below
-      if(sig) sig.err='';
+      if(sig) sig.err=''; lobbyErr='';
       send({t:'lobby'});                                   // the channels are still open; hubMode sends only to open ones
       flushSuggest();                                      // the now-empty map — suggestions are STATE; each client re-suggests on its join
       trace('started: true -> FALSE', 'hostBackToLobby'); started=false;
@@ -11876,7 +11900,7 @@ window.CardFace = {};
     function srvTag(){ return relay.room ? 'relay for the handshake only' : 'no server'; }
     function connLabel(){ return connected ? '<span class="ok">● connected</span>' : '<span class="wait">○ waiting for opponent…</span>'; }
     function renderSignaling(root){
-      var errHTML = sig.err ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
+      var errHTML = (sig.err||lobbyErr) ? '<div class="netmsg err">⚠ '+(sig.err||lobbyErr)+'</div>' : '';
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
         '<div class="netbar">Peer-to-peer · '+(isHost()?'Hosting (Player 1)':'Joining (Player 2)')+' · '+srvTag()+' · '+verTag()+'</div>'+errHTML+verWarnHTML();
       var body='';                        // NB: the branches below ASSIGN body, so the name row is prepended
@@ -12055,7 +12079,8 @@ window.CardFace = {};
        * retry's own "Could not sync with the host…" after 14s. A client whose host closed its tab sat at
        * "Ready ▶" with nothing on screen and no way to learn why. More reachable since v1.31.95, because a
        * table now RETURNS to this lobby with the far end possibly gone. */
-      var errHTML = (sig&&sig.err) ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
+      var _e = lobbyErr || (sig&&sig.err) || '';
+      var errHTML = _e ? '<div class="netmsg err">⚠ '+_e+'</div>' : '';
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
         '<div class="netbar">Room <b>'+room+'</b> · You are '+(isHost()?'Player 1 (host)':'Player 2')+' · '+connLabel()+' · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML();
       var body=lobbyBackHTML()+nameRowHTML(!isHost() && iReady)+'<h3>Choose your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
@@ -12126,6 +12151,17 @@ window.CardFace = {};
      * only sends that when it presses Ready — so between "their DataChannel opened" and "they confirmed" the
      * host had NOTHING to show and said "No players yet" while somebody was plainly sitting there. That is the
      * same complaint as the missing roster, one step earlier in the handshake. */
+    /* A SEAT WHOSE CHANNEL IS DEAD (v1.31.98). `ldc.onclose`/`hostOnPeerDrop` act only while `started`, so a
+     * client that presses Ready and then closes its tab BEFORE Start is still dealt in — `hostStartRealN` reads
+     * `nextSeat-1` and the table parks on a seat nobody is behind. v1.31.95's `_iceDown` marking is exactly the
+     * evidence needed; this refuses Start on it and names the seat, which is the cheap honest version. The
+     * alternative — prune and renumber — is the compaction judged and DECLINED (DECISIONS.md, netplay
+     * architecture), because a middle seat means re-`welcome`ing everyone above it.
+     * BroadcastChannel has no channel state at all, so this can only ever cover RTC. */
+    function deadSeats(){
+      var out=[]; for(var i=0;i<dcs.length;i++){ if(dcs[i] && chanSeat[i]!=null && dcs[i]._iceDown) out.push(chanSeat[i]); }
+      return out;
+    }
     function openChanCount(){ var n=0; for(var i=0;i<dcs.length;i++){ if(dcs[i] && dcs[i].readyState==='open' && !dcs[i]._iceDown) n++; } return n; }   // `_iceDown`: see hostNewInvite — `open` outlives a closed tab by half a minute
     /* THREE COUNTS, AND THE NETBAR WANTS THE LOOSEST ONE. `readyCount()` = confirmed, `joinedCount()` = has a
      * seat, `openChanCount()` = the channel is up. "N connected" should mean *somebody is here*, which is the
@@ -12147,7 +12183,7 @@ window.CardFace = {};
     // HOST over WebRTC: a combined lobby — deck picker + invite one player at a time (each becomes a hub channel) + Start.
     function renderHostRtcLobby(root){
       var total=joinedCount()+1, full=(joinedCount()>=MAX_SEATS-1);
-      var errHTML = (sig&&sig.err) ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
+      var errHTML = ((sig&&sig.err)||lobbyErr) ? '<div class="netmsg err">⚠ '+((sig&&sig.err)||lobbyErr)+'</div>' : '';
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online (Hosting)</h1><div class="netbar">Peer-to-peer · '+srvTag()+' · '+hereCount()+' connected · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML();
       var body=lobbyBackHTML()+nameRowHTML(false)+'<h3>Your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
         '<button id="lobbyRules" class="netbtn">'+(isHost()?'⚗️ Custom rules':'⚗️ Rules &amp; suggest')+(customRules()?' · on':'')+'</button>'+''
@@ -12179,7 +12215,10 @@ window.CardFace = {};
         body+=hostRosterHTML()+
           (full?'<p class="nethint">Table full (6).</p>':'<button id="inviteBtn" class="netbtn alt">＋ Invite '+(joinedCount()>0?'another ':'a ')+'player</button>');
       }
-      body+='<button id="lobbyGo" class="netbtn go"'+(joinedCount()>0?'':' disabled')+'>Start '+(total>2?('('+total+' Riders)'):'Duel')+' ▶</button>'+
+      var _dead=deadSeats();
+      body+='<button id="lobbyGo" class="netbtn go"'+((joinedCount()>0 && !_dead.length)?'':' disabled')+'>Start '+(total>2?('('+total+' Riders)'):'Duel')+' ▶</button>'+
+        (_dead.length ? '<p class="nethint err">⚠ '+_dead.map(function(q){ return seatName(q)||('P'+(q+1)); }).join(', ')+
+           ' left before the game started — Start is held until they come back or you reopen the lobby.</p>' : '')+
         '<p class="nethint">Invite each player, then Start (2–6). Picks stay hidden — no counter-picking.</p>'+
         (hereCount()>0?'<button id="lobbyPing" class="netbtn">🔔 Ping the table</button><div id="lobbyPingMsg" class="nethint"></div>':'');   // anyone HERE, not only the readied — the reopened lobby is full of people who have not pressed Ready yet
       root.innerHTML=head+body+'</div>';
@@ -12256,6 +12295,7 @@ window.CardFace = {};
      * and plays to a finish — so without this seam the N-player half of the remote-seat tally (v1.31.96) could
      * only be covered by a whole new suite. Read on the HOST, whose stats are the ones every seat adopts. */
     stats:function(){ return stats; },
+    addLog:function(t,c){ logMsg(t||'\u2026', c||'round'); },   /* mirrors __solo.log. NOT `log:` — that key is already taken below by the uncapped-history accessor (v1.31.93), and a later duplicate key in an object literal SILENTLY wins: the call returned fullLog and appended nothing, with no error. Same class as the duplicate-function trap in CLAUDE.md. */
     /* THE UNCAPPED LOG. `#log` evicts at 80 entries (see logMsg), and the host and client carry DIFFERENT total
      * line streams — the host logs host-local lines a client never receives — so past 80 the two windows cover
      * different spans of history and any category count can drift by one in EITHER direction. `nettest_sync`
