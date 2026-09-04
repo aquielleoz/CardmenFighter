@@ -35,6 +35,40 @@ async function waitFor(fn,t=200,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
   ok(await waitFor(async()=>(await host.evaluate(()=>document.querySelectorAll('#hand .card').length))>0), 'online duel started');
 
+  /* ── THE CLIENT MUST ACTUALLY ACT, or the seat-1 assertions below are vacuous (v1.31.96). The fast finish
+   * beneath this has the client only PASSING, so its jabs/specials/techniques would read 0 on a FIXED build
+   * too. Make it land one fight and one Technique first. */
+  const turnOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.turn():null);
+  const cHand=()=>join.evaluate(()=>window.__cmf.hand()||[]);
+  /* DETERMINISTIC, NOT DRIVEN. `forceAll`'s `opts.turn` also nulls the pile and clears passes/locks, so this
+   * hands the client a clean lead instead of playing rounds until it happens to get one — which it may never,
+   * since the round winner leads and the host keeps winning. */
+  const stageClientTurn = (hostHand, cliHand) => host.evaluate((a)=>{
+    const D=(n,s,t)=>({rank:n,suit:s,id:(t||'')+n+s});
+    const nrg=Array.from({length:6},(_,i)=>D(4,'D','e'+i));            // ♦ energy: Gather Energy (A♦) costs 1 ♦
+    window.__cmf.forceAll([a.h.map(c=>D(c[0],c[1])), a.c.map(c=>D(c[0],c[1]))], [nrg,nrg], [4,4], {round:2, turn:1});
+  }, {h:hostHand, c:cliHand});
+
+  await stageClientTurn([[9,'C'],[9,'H']], [[10,'S'],[3,'C'],[1,'D']]);
+  await wait(500);
+  ok(await turnOf(join)===0, 'the client has the turn on a clean board');
+  const before=(await cHand()).length;
+  await join.evaluate(()=>{ const clr=document.getElementById('clearBtn'); if(clr)clr.click();
+    const c=document.querySelector('#hand .card[data-id="10S"]'); if(c)c.click();
+    const f=document.getElementById('fightBtn'); if(f&&!f.disabled){ f.click(); if(/Confirm/i.test(f.textContent||'')&&!f.disabled) f.click(); } });
+  await waitFor(async()=>(await cHand()).length<before, 40);
+  ok((await cHand()).length<before, 'the client landed a real fight (so the seat-1 fight assertion is not vacuous)');
+
+  await stageClientTurn([[9,'C'],[9,'H']], [[1,'D'],[3,'C'],[6,'H']]);
+  await wait(500);
+  await join.evaluate(()=>{ const clr=document.getElementById('clearBtn'); if(clr)clr.click();
+    const c=document.querySelector('#hand .card[data-id="1D"]'); if(c)c.click();
+    const ca=document.getElementById('cardActivate'), cx=document.getElementById('ctxBtn');
+    if(ca&&ca.offsetParent!==null&&!ca.disabled&&!/off/.test(ca.className)) ca.click();
+    else if(cx&&!cx.disabled&&!/off/.test(cx.className)&&/Activate/i.test(cx.textContent||'')) cx.click(); });
+  await waitFor(async()=>!(await cHand()).includes('1D'), 40);
+  ok(!(await cHand()).includes('1D'), 'the client landed a real Technique (so the seat-1 Technique assertion is not vacuous)');
+
   /* End it fast and for real: hand the host a winning position on the host's authoritative state, then let the
    * normal flow run to the game-over overlay so endGame() — and therefore the record — actually fires. */
   await host.evaluate(()=>{
@@ -70,6 +104,17 @@ async function waitFor(fn,t=200,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   const hostSeat = jr && jr.seats && jr.seats[0];
   const oppFights = hostSeat ? (hostSeat.jabs + hostSeat.specials) : 0;
   ok(oppFights>0, 'it contains the HOST\'s plays — data a client-written record could not have ('+oppFights+')');
+  /* ── THE REMOTE SEAT'S OWN STATS (v1.31.96). Every bumpFight/bumpEffect call site is a LOCAL path — your own
+   * actions, the response windows, and `buildOppBeats`, which covers AI seats only. A remote HUMAN seat's play
+   * and activation reach the host in `hostApplyMove`/`hostApplyMoveN`, which narrate and resolve and never
+   * tally. And the host's record is the one every seat ADOPTS, so a client's plays read as 0 for everybody.
+   * Same shape as the v1.31.5 bug this suite's own header describes, one field over. */
+  const cSeat = jr && jr.seats && jr.seats[1];
+  const cFights = cSeat ? (cSeat.jabs + cSeat.specials) : 0;
+  ok(cFights>0, 'and the CLIENT\'s own fights ('+cFights+') — a remote seat is not counted by any local driver');
+  ok(!!cSeat && cSeat.techniques>0, 'and the CLIENT\'s own Techniques ('+((cSeat&&cSeat.techniques)||0)+')');
+  ok(!!cSeat && cSeat.eff && Object.keys(cSeat.eff).length>0,
+     '  → keyed per effect, which is what CARD-STATS reads ('+JSON.stringify((cSeat&&cSeat.eff)||{})+')');
   ok(!!jr && jr.adoptedBySeat===1, 'the adopter stamps its OWN seat, so analysis cannot mistake a client copy for the host\'s (adoptedBySeat='+(jr&&jr.adoptedBySeat)+')');
   ok(!!jr && jr.yourSeat===0, 'while `yourSeat` still names the AUTHOR (the host), stored verbatim');
   ok(!!jr && jr.v==='2.1-mp', 'and it keeps the v2.1-mp schema ("'+((jr&&jr.v)||'(none)')+'")');

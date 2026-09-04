@@ -2,7 +2,7 @@
 
 A self-contained, single-file dueling card game — a Kamen-Rider-themed TCG you play in any browser, on desktop or phone, fully offline. Strip your rival's shields with card combos, transform into stronger forms, and land the finishing Fighter Kick.
 
-**Status:** v1.31.95 — playable and complete (solo vs AI, guided tutorials, and local/online 2–6 player).
+**Status:** v1.31.96 — playable and complete (solo vs AI, guided tutorials, and local/online 2–6 player).
 
 ## Play
 

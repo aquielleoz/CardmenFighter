@@ -52,6 +52,14 @@ async function waitFor(fn,t=120,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok(await waitFor(async()=>await shieldsOf(c2)===sh0[2]-1, 80, 150),'the CHOSEN target (c2) lost a shield ('+sh0[2]+' → '+(await shieldsOf(c2))+')');
   ok(await shieldsOf(host)===sh0[0],'the host (un-chosen) kept its shields ('+(await shieldsOf(host))+')');
   ok(await shieldsOf(c1)===sh0[1],'the winner c1 kept its shields');
+  /* THE REMOTE SEAT'S FIGHT MUST REACH THE HOST'S TALLY (v1.31.96). c1 led a five-card straight above, so this
+   * is a SPECIAL — `bumpFight` splits single→jabs and everything else→specials. Every bumpFight call site is a
+   * LOCAL path (your own play, and buildOppBeats for AI seats), so a remote human's fights read 0 in the record
+   * every seat ADOPTS. This is the N-PLAYER half; nettest_record covers the duel half. */
+  const c1Stats = await host.evaluate(()=>{ const s=window.__cmf.stats(); return s && s.seats && s.seats[1]; });
+  ok(!!c1Stats && c1Stats.specials>0,
+     'c1\'s straight is counted on the host (specials '+((c1Stats&&c1Stats.specials)||0)+') — hostApplyMoveN tallies a remote seat\'s fight');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
 
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
