@@ -97,6 +97,32 @@ async function invite(host, client, prevOffer){
   await join2.goto(url('rtcjoin'));
   const i2=await invite(host, join2, i1.offer);
   ok(i2.ok && i2.offer!==i1.offer, 'a NEW player connects on a new offer (not game one\'s)');
+  /* A LOBBY ERROR MUST BE VISIBLE TO A CLIENT (v1.31.97). `renderSignaling` and `renderHostRtcLobby` both paint
+   * `sig.err`; `renderLobby` — the screen a CONNECTED client sits on — never did, so every writer of it was
+   * silent here: a lost connection, a full table, and the join retry's own "Could not sync with the host…"
+   * after 14s. A client whose host closed its tab sat at "Ready ▶" with nothing on screen and no way to learn
+   * why. More reachable since v1.31.95, because a table now RETURNS to this lobby with the far end possibly gone.
+   * NOTE `sig` EXISTS ONLY ON THE RTC PATH — `kind==='bc'` never creates one, so `if(sig) sig.err=…` is a no-op
+   * on a BroadcastChannel lobby and this cannot be tested there at all. That is why it lives in this suite and
+   * not in `nettest_unready`, which is BC and where the first version of it failed for that reason.
+   * `t:'full'` is the trigger because it sets `sig.err` through the REAL handler in one message; the join-retry
+   * path costs 14s of wall clock and a lost connection costs an ICE timeout. The renderer does not care which
+   * writer set it, which is the whole point of the gap. */
+  const errText = p => p.evaluate(()=>{ const e=document.querySelector('#netroot .netmsg.err');
+    return e && e.offsetParent!==null ? (e.textContent||'').trim() : null; });
+  /* WAIT FOR THE REAL LOBBY. `renderSignaling` and `renderLobby` share the same <h1>, and renderSignaling
+   * ALREADY paints sig.err — so injecting before the client's DataChannel opens (which is what calls kickoff()
+   * and flips `connected`) tests the renderer that was never broken. The first version of this did exactly
+   * that and passed with the fix removed. `#deckSel` exists only in renderLobby, so it is the honest gate. */
+  const inLobby = p => p.evaluate(()=>!!document.getElementById('deckSel'));
+  ok(await until(async()=>await inLobby(join2), 100), 'the new player reaches the deck-picker lobby (renderLobby, not signaling)');
+  ok((await errText(join2))===null, 'the client lobby shows no error while nothing is wrong');
+  await join2.evaluate(()=>window.__cmf.inject({t:'full'}));
+  await wait(300);
+  const shownErr = await errText(join2);
+  ok(!!shownErr && /full/i.test(shownErr),
+     'a lobby error is rendered where the client can SEE it'+(shownErr?' ["'+shownErr+'"]':' — NOTHING shown, the client is stuck with no explanation'));
+
   await join2.evaluate(()=>{ const el=document.getElementById('netName'); if(el){ el.value='Cass'; el.dispatchEvent(new Event('input')); } });
   await startDuel(host, join2);
   ok(await until(async()=>(await view(host)).round>0 && (await view(join2)).round>0, 120), 'game two is dealt on both ends');

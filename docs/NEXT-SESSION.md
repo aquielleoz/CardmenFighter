@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.96.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.97.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-03)
 
-`main` is at **v1.31.96**, working tree clean, full sweep green at **79 suites**. The only branch is
+`main` is at **v1.31.97**, working tree clean, full sweep green at **79 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **v1.31.95 was built in one session and REVIEWED IN ANOTHER, on purpose** — the build session hit its cap twice
@@ -112,11 +112,6 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
   compaction v1.31.95 deliberately declined ([`DECISIONS.md`](DECISIONS.md#netplay-architecture)). Over
   BroadcastChannel there is no channel state at all. Cheapest honest version: refuse Start while any seated
   channel is `_iceDown`, with a roster line naming it.
-- **THE CLIENT LOBBY NEVER RENDERS `sig.err`** (filed with v1.31.95; pre-existing, more reachable now that a
-  lobby is revisited with the game over). `renderLobby` has no `errHTML`, unlike `renderSignaling`, so a client
-  whose host closed its tab after a game sits at "Ready ▶" with nothing on screen; pressing Ready starts the
-  join retry, which after 14s writes "Could not sync with the host…" into `sig.err` — and nobody sees it.
-
 *Also CONFIRMED by the same screenshots, already filed below: the netplay host logs the SOLO line (**"New duel —
 you play Berserker (Fig+Rog) vs Aj (Fighter) on Pure Cleric"**) and its header reads **"duel vs AI"** — in an
 online duel against a person.*
@@ -332,6 +327,30 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.97 — a client can finally see why its lobby is stuck
+
+`renderSignaling` and `renderHostRtcLobby` both paint `sig.err`. **`renderLobby` — the deck-picker screen a
+CONNECTED client sits on — never did**, so every writer of that field was silent there: a lost connection, a
+full table, and the join retry's own *"Could not sync with the host…"* after 14s. A client whose host closed
+its tab sat at **Ready ▶** with nothing on screen and no way to learn why. Pre-existing, and more reachable
+since v1.31.95 put a table back in that lobby with the far end possibly gone.
+
+**`sig` EXISTS ONLY ON THE RTC PATH.** `kind==='bc'` never creates one, so `if(sig) sig.err=…` is a no-op on a
+BroadcastChannel lobby and this is untestable there — which is why the assertion lives in
+`nettest_lobbyback_rtc` (23 → **26**) and not in `nettest_unready`, where the first version of it was written
+and failed for exactly that reason. A BC lobby still has no error surface at all; that is a separate gap.
+
+**THE FIRST VERSION OF THIS TEST PASSED WITH THE FIX REMOVED, AND ONLY THE A/B SAID SO.** `renderSignaling` and
+`renderLobby` share the same `<h1>`, and **renderSignaling already paints the error** — so a probe that
+identified the screen by its heading could not tell them apart, and injecting before the client's DataChannel
+opens tests the renderer that was never broken. `kickoff()` is what flips `connected`, and it fires on
+`dc.onopen`, which lags the offer/answer exchange. The suite now gates on **`#deckSel`**, which exists only in
+`renderLobby`. **Identify a screen by something only that screen has, never by a heading two screens share.**
+
+And the mechanical one, straight out of this file: **an A/B that returns identical numbers is a broken
+instrument until proven otherwise.** This one did, and the first thing checked was whether `build.js` had
+written — it had. The real cause was the vacuous test above, which the same rule then found.
 
 ### v1.31.96 — a remote seat's plays are counted, not just narrated
 

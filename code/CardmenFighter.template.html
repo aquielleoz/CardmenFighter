@@ -8322,8 +8322,15 @@ __QR__
     }
     // Lobby: after the transport connects, each side picks a deck before the host starts the real board.
     function renderLobby(root){
+      /* THE ERROR HAS TO BE RENDERED HERE TOO (v1.31.97). `renderSignaling` and `renderHostRtcLobby` both paint
+       * `sig.err`; this renderer — the one a CONNECTED client sees, and a BroadcastChannel host — never did. So
+       * every writer of `sig.err` was silent on this screen: a lost connection, a full table, and the join
+       * retry's own "Could not sync with the host…" after 14s. A client whose host closed its tab sat at
+       * "Ready ▶" with nothing on screen and no way to learn why. More reachable since v1.31.95, because a
+       * table now RETURNS to this lobby with the far end possibly gone. */
+      var errHTML = (sig&&sig.err) ? '<div class="netmsg err">⚠ '+sig.err+'</div>' : '';
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
-        '<div class="netbar">Room <b>'+room+'</b> · You are '+(isHost()?'Player 1 (host)':'Player 2')+' · '+connLabel()+' · '+verTag()+rulesChip()+'</div>'+verWarnHTML();
+        '<div class="netbar">Room <b>'+room+'</b> · You are '+(isHost()?'Player 1 (host)':'Player 2')+' · '+connLabel()+' · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML();
       var body=lobbyBackHTML()+nameRowHTML(!isHost() && iReady)+'<h3>Choose your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
         '<button id="lobbyRules" class="netbtn">'+(isHost()?'⚗️ Custom rules':'⚗️ Rules &amp; suggest')+(customRules()?' · on':'')+'</button>'+''
       if(isHost()){
