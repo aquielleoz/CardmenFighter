@@ -108,22 +108,8 @@ online duel against a person.*
   [`DECISIONS.md`](DECISIONS.md#phone-layout).
 ### Tooling
 
-- **`lessontest_twos`: MECHANISM FOUND AND FIXED (v1.31.99), though it never reproduced.** Kept as a record
-  because the reasoning is reusable, not because work remains.
-  **Measured, which is what settled it:** on an idle machine every poll in the lesson harness returns with a
-  huge margin — `atStep` in **0-4ms** of 12000, the Rival's answers in ~1.07s of 30000 (28x) — except one. The
-  full-house wait took **4676ms against a 14000ms budget: a 3.0x margin, the only poll in the harness under 4x.**
-  The single day it failed, the suite ran **100s against its usual 20s — a 5x slowdown**. 3x margin under a 5x
-  slowdown blows that budget and nothing else, which is exactly the observed failure: *"the Rival led a full
-  house built on three 2s"* went red (the pile still held the previous pair, because the Rival had not led yet),
-  and `atStep(8)` followed it because the lesson had not advanced. Every other assertion passed.
-  **v1.31.84 raised these polls 9s → 30s and left two explicit overrides behind** — `atStep`'s 12000 and this
-  14000. Both now use the default; the full-house wait sits at a **6.4x** margin. The other six sub-default
-  budgets in the harness were measured too and all return under 5% of budget, so they are left alone: raising a
-  budget without measuring it is how the first partial fix happened.
-  **It still never reproduced** — 12/12 green under six concurrent copies at load 7.5 — so this is a mechanism
-  that fits every observation, not a caught bug. **If it recurs, the harness now says so itself**: `until` warns
-  on any wait exceeding half its budget in every run, and `LESSONPOLL=1` prints them all.
+*Empty. `lessontest_twos`' one failure is diagnosed, fixed (v1.31.99) and filed as a settled analysis in
+[`DECISIONS.md`](DECISIONS.md#lessontest-twos) — it is a record, not work.*
 
 ### Features
 

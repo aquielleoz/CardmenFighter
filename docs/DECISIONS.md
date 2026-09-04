@@ -478,6 +478,33 @@ independently" — that SHIPPED in v1.31.21.*
   suite awaits `srv.listen` with **no error handler**, so a genuine port collision hangs silently instead of
   failing.
 
+<a id="lessontest-twos"></a>
+- **`lessontest_twos`' ONE FAILURE: MECHANISM FOUND, FIXED IN v1.31.99, NEVER REPRODUCED.** Filed here rather
+  than in the BACKLOG because no work remains — it sat under `## BACKLOG` for two versions and Aj read it and
+  asked whether there was anything to do, which is the documented failure mode ("a settled decision left in the
+  BACKLOG gets re-argued") happening in real time.
+  **What was measured, and it is the transferable part.** Every poll in the lesson harness returns with an
+  enormous margin on an idle machine — `atStep` in **0-4ms** of 12000, the Rival's answers in ~1.07s of 30000
+  (**28x**) — except one: the full-house wait took **4676ms against 14000, a 3.0x margin, the only poll in the
+  harness under 4x.** The single day the suite failed (2026-09-02), it ran **100s against its usual 20s — a 5x
+  slowdown.** A 3x margin under a 5x slowdown blows that budget and nothing else, which is precisely the
+  observed failure: *"the Rival led a full house built on three 2s"* red (the pile still held the previous pair,
+  because the Rival had not led yet), `atStep(8)` red behind it, every other assertion green.
+  **The root cause was a PARTIAL FIX.** v1.31.84 raised these polls 9s → 30s and left two explicit overrides
+  behind. Both take the default now; the full-house wait sits at **6.4x**. The other six sub-default budgets
+  were measured rather than raised on principle — all under 5% of budget — because raising unmeasured budgets is
+  how the first partial fix happened.
+  **TWO EVENTS HAD BEEN CONFLATED, and that is worth keeping.** v1.31.94 fixed a page-starvation bug of my own
+  making that produced an IDENTICAL signature (100s, 23/6) — but it postdates the sighting by a day, so it never
+  explained it. Nothing was changed on 2026-09-02; the failure simply stopped happening. An earlier BACKLOG
+  entry had also labelled it *"sequence divergence, a fourth timing class"* — a name invented for an undiagnosed
+  failure, and wrong.
+  **It never reproduced** (12/12 green under six concurrent copies at load 7.5), so this is a mechanism that
+  fits every observation plus a fix for the only thin budget — **not a caught bug**. If it recurs the harness
+  says so itself: `until` warns on any wait past half its budget in every run, and `LESSONPOLL=1` prints them
+  all. The rule this produced is in [`CLAUDE.md`](../CLAUDE.md) — *measure the margin, or the next partial fix
+  looks complete.*
+
 ## Exported-data facts
 
 - **Old exported logs are v1.0 and merged.** Anything analysed from a multiplayer export before v1.31.5 had
