@@ -580,6 +580,20 @@
   #playMods .pmod.down{background:rgba(230,120,120,.16); border-color:rgba(230,120,120,.5); color:#f0a6a6;}  /* net-negative value */
   #playMods .pmod.cost{background:rgba(150,175,235,.16); border-color:rgba(150,175,235,.5); color:#b9c7f2;}   /* activation-cost modifier (Owl/Ram) */
   #hand{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; max-height:30dvh; overflow-y:auto; padding:24px 6px 6px;}
+  /* PHONE: WRAPPED ROWS OVERLAP, SO THE HAND'S FOOTPRINT SHRINKS AND THE PLAY AREA GETS THE SPACE (v1.31.102).
+     A negative margin on every group shortens each flex LINE by that much; the matching extra padding-top puts
+     the first row back where it was, so only rows 2+ move up. Later DOM order paints later, so the lower row
+     lands IN FRONT with no z-index. Measured at 393x852 with 13 cards before this: 4 rows of 66px plus 18px of
+     gaps = 270px of cards inside a 187px box, i.e. 83px of the hand simply scrolled out of sight. */
+  @media (max-width:720px){
+    #hand{padding-top:calc(24px + var(--handLap));}
+    #hand > .group{margin-top:calc(-1 * var(--handLap));}
+    /* THE LABEL MOVES ABOVE THE CARDS so the overlap eats card ART, not text. A group is [cards][label], so
+       pulling the next row up covers the previous row's label FIRST — measured, 2 of 3 "Pair" labels hidden. */
+    #hand > .group{flex-direction:column-reverse;}
+    #hand > .group .glabel{position:relative; z-index:2; background:var(--bg); padding:0 4px; border-radius:4px;}
+  }
+  :root{--handLap:26px;}   /* how far each wrapped hand row rides over the one above it (phone only) */
   #hand .card{cursor:pointer; transition:transform .18s cubic-bezier(.2,.9,.25,1.35), box-shadow .18s, outline-color .18s; will-change:transform;}
   #hand .card.sel{transform:translateY(-14px) scale(1.04); outline:3px solid var(--gold); box-shadow:0 10px 20px rgba(0,0,0,.45), 0 0 15px rgba(232,195,122,.55);}
   #hand .card.picked{transform:translateY(-14px) scale(1.04); outline:3px solid var(--pick); box-shadow:0 10px 20px rgba(0,0,0,.45), 0 0 15px rgba(201,139,255,.6);}
@@ -5056,7 +5070,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.101';
+  var GAME_VERSION='v1.31.102';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
