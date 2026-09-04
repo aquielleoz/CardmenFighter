@@ -25,6 +25,26 @@ live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(
 `main` is at **v1.31.105**, working tree clean, full sweep green at **82 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
+**2026-09-04 SHIPPED v1.31.103 → v1.31.105, and the through-line is worth reading before the next phone change:
+every one of the day's product bugs was CODE THAT WAS PRESENT AND INERT** — a rule in the file that nothing was
+executing, invisible to the source, to a DOM assertion, and to the suites. Aj found all three by looking at a
+screen.
+- **v1.31.103** — a viewer opened during peek rendered *under* the lifted panels, and the screen behind it came
+  back **dead** (an `innerHTML` stash drops every listener; peek is also offered from the Respond?, pre-fight and
+  shield-guard windows, where that wedges the table).
+- **v1.31.104** — the action row went to symbols (118px/3 rows → 67px/1 at 390). `#actions` collapse is keyed to
+  `max-width:720px` — the phone branch — after 480 shipped for a day and left the whole 481-720 band broken.
+- **v1.31.105** — the header is a burger (92px → **49px**). Together with the action row that is **~94px** back
+  to the play area, against the board's measured **83px** over-subscription at 393×852.
+**THREE TEST BUGS CAME OUT WITH THEM, and they matter more than the fixes.** `landscapetest`'s zone check had
+been asserting on an **animation frame** for its whole life — once it measured honestly, the icon row turned out
+to have FIXED a collision (19% → 0% at 390×780) rather than caused one; its floor assertion demanded a board
+*scroll*, so it failed when the layout improved; and `peektest`'s 31 assertions all ran against a staged
+`<h2>END SCREEN</h2>` with no buttons, which is why a suite built for exactly that bug could not see it.
+**The habit that paid every time: measure the real thing.** Two written predictions were confidently wrong (the
+peek-sheet stacking, and a `🎲 Random` width I sized against a string I had assumed rather than read), and both
+were caught by running the check instead of trusting the note.
+
 **v1.31.95 was built in one session and REVIEWED IN ANOTHER, on purpose** — the build session hit its cap twice
 trying to review its own work with a workflow (~1.2M tokens, no findings), so the review was done solo in a
 fresh session for a few thousand. It found **no defects**; what it checked, and what it deliberately did not,
