@@ -59,6 +59,30 @@ async function waitHand(p){ for(let i=0;i<60;i++){ if((await p.evaluate(()=>docu
   });
   ok(await hasLog(host,/^Bea played/),'the host sees the client by name ("Bea played …")');
   ok(await hasLog(join,/^You played/),'…while the client reads its own play as "You played"');
+  /* NO AI TIER AT A TABLE OF PEOPLE (v1.31.98). `logMsg` and `matchupTag` branched on `mpCount>2`, NOT on
+   * whether this is netplay — so an online HOST printed "New duel — you play X vs Bea (Fighter) on Y" and a
+   * header ending "· Fighter", where Fighter is DIFF_NAME[difficulty], an AI difficulty tier. The client always
+   * had its own correct line, so this was the host's screen only.
+   * Cosmetic, and it cost real debugging time on 2026-08-28: the tier was read as evidence the host was playing
+   * a bot, and two confident wrong diagnoses were built on it. A label that lies about the mode is worse than
+   * no label. The SOLO control — that the tier is still shown against an AI — lives in logtest.js. */
+  const hostLog = (await log(host)).join(' | ');
+  const tag = await host.evaluate(()=>(document.getElementById('matchupTag')||{}).textContent||'');
+  /* MATCH THE SHAPE, NOT THE WORD. "Fighter" and "Knight" are DECK names too — "Pure Fighter", "Mage Knight
+   * (Wiz+Fig)" — so a bare /Fighter|Knight/ flags correct output. The tier only ever appears in two shapes:
+   * parenthesised straight after the opponent's name in the log line, and as the LAST "· " segment of the
+   * header. Assert those. */
+  const TIER = '(?:Squire|Recruit|Fighter|Knight|Demon Lord)';
+  const openLine = hostLog.split(' | ')[0] || '';
+  ok(/Online duel/.test(hostLog), 'the host opens with "Online duel", not "New duel"'+(/New duel/.test(hostLog)?'  ← REPRODUCED: the solo line':''));
+  ok(!new RegExp('vs\\s+\\S+\\s*\\('+TIER+'\\)').test(openLine),
+     'and its opening line does not tag the opponent with an AI tier ["'+openLine.slice(0,80)+'"]');
+  const lastSeg = (tag.split('·').pop()||'').trim();
+  ok(!new RegExp('^'+TIER+'$').test(lastSeg),
+     'the header\'s last segment is not an AI tier ["'+lastSeg+'" in "'+tag.trim()+'"]');
+  ok(lastSeg==='Online', '  → it says "Online" instead');
+  ok(/Bea/.test(tag), '  → and it still names the actual opponent');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\nCLIENT LOG:'); (await log(join)).forEach(l=>console.log('   '+l.slice(0,80)));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

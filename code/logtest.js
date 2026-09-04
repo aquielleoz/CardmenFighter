@@ -92,6 +92,17 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   }
   await p.setViewportSize({width:1100,height:820}); await wait(200);
 
+  /* THE SOLO CONTROL for v1.31.98's netplay label fix. The AI tier is CORRECT against a bot and must survive —
+   * a fix that removed it everywhere would look identical in the netplay suite. `nettest_names` holds the
+   * online half; this is the half that proves the branch, not a deletion. */
+  const soloTag = await p.evaluate(()=>(document.getElementById('matchupTag')||{}).textContent||'');
+  const soloOpen = await p.evaluate(()=>{ const e=document.querySelector('#log > *'); return e?(e.textContent||''):''; });
+  const TIER = '(?:Squire|Recruit|Fighter|Knight|Demon Lord)';
+  ok(new RegExp('·\\s*'+TIER+'\\s*$').test(soloTag.trim()),
+     'solo still shows the AI tier in the header ["'+soloTag.trim()+'"]');
+  ok(new RegExp('vs\\s+\\S+\\s*\\('+TIER+'\\)').test(soloOpen) || /New duel/.test(soloOpen),
+     '  → and the solo opening line still reads "New duel …" with the tier ["'+soloOpen.slice(0,70)+'"]');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

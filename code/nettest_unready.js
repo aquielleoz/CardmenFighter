@@ -70,6 +70,19 @@ const joinView=p=>p.evaluate(()=>{
   ok(afterSeat===beforeSeat && afterSeat!==null,
      `  → and it is the SAME seat (Player ${beforeSeat} → Player ${afterSeat}): un-ready must not free the seat, or hostStartRealN mis-assigns decks`);
 
+  /* THE BC HALF (v1.31.98). This suite is BroadcastChannel, where `sig` is null — so before `lobbyErr` every
+   * `if(sig) sig.err=…` was a silent no-op and this lobby could report NOTHING. v1.31.97 fixed the RTC half
+   * only (asserted in nettest_lobbyback_rtc); this is the transport-independent one. */
+  const errText = p => p.evaluate(()=>{ const e=document.querySelector('#netroot .netmsg.err');
+    return e && e.offsetParent!==null ? (e.textContent||'').trim() : null; });
+  ok(await join.evaluate(()=>!!document.getElementById('deckSel')), 'the BC client is in the deck-picker lobby');
+  ok((await errText(join))===null, 'and shows no error while nothing is wrong');
+  await join.evaluate(()=>window.__cmf.inject({t:'full'}));
+  await wait(300);
+  const bcErr = await errText(join);
+  ok(!!bcErr && /full/i.test(bcErr),
+     'a BroadcastChannel lobby can report an error at all'+(bcErr?' ["'+bcErr+'"]':' — NOTHING shown, `sig` is null here'));
+
   ok(errs.length===0, 'no JS errors'+(errs.length?': '+errs[0]:''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);

@@ -113,6 +113,18 @@ effect at all, which is a security check that looks tightened and is not.
 grep -oE "^ +function [a-zA-Z_$][a-zA-Z0-9_$]*" code/CardmenFighter.template.html | sed 's/^ *function //' | sort | uniq -c | awk '$1>1'
 ```
 
+**AND THE SAME TRAP EXISTS IN AN OBJECT LITERAL, WHERE THE GREP ABOVE CANNOT SEE IT (v1.31.98).** `__cmf`
+already had a `log:` — v1.31.93's uncapped-history accessor — and a second `log:` added EARLIER in the same
+literal was silently overridden: the later key wins, so the call returned `fullLog` and appended nothing, with
+no error. It cost several minutes chasing a product bug that did not exist, and the failing assertion helpfully
+printed `← REPRODUCED`. **Before adding a key to `__cmf` / `__solo` / `NET`'s return object, grep the literal
+for that key name** — these objects are 40+ keys on a handful of very long lines, so re-reading them does not
+work. The grep that finds it:
+
+```bash
+awk '/window.__cmf=/,/^  }/' code/CardmenFighter.template.html | grep -oE "\b[a-zA-Z_$][a-zA-Z0-9_$]*\s*:" | sort | uniq -c | awk '$1>1'
+```
+
 Same-name helpers in genuinely separate closures are fine and common, so triage the hits by whether the FIRST
 LINES are byte-identical — an accidental duplicate almost always is, a legitimate namesake almost never is. That
 test cut eight hits to two. The other was `isTech`, identical across the two halves of the Quicks lesson;
@@ -1380,22 +1392,22 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.97 — 2026-09-03, `npm run sweep`, 79 suites and 0 FAIL in 154s** (four lanes; background
+Status as of **v1.31.98 — 2026-09-03, `npm run sweep`, 81 suites and 0 FAIL in 167s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 382, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 24, `sharetest` 16, `qrtest` 32, `peektest` 31, `logtest` 16, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 24, `sharetest` 16, `qrtest` 32, `peektest` 31, `logtest` 18, `motiontest` 7, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
 The 49 netplay suites: `nettest_3p` 7, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 3, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
-`elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 14, `kick` 11, `log` 14, `losspick3` 7,
-`losspick_remote3` 7, `names` 8, `narrate` 10, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
+`elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 14, `kick` 11, `log` 16, `losspick3` 7,
+`losspick_remote3` 7, `names` 13, `narrate` 10, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 7, `trim` 14, `unready` 12, `version` 14.
+`target3` 7, `ghostseat` 6, `trim` 14, `unready` 15, `version` 14.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state

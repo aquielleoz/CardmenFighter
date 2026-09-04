@@ -80,6 +80,32 @@ async function waitTurn(p,seat){ for(let i=0;i<200;i++){ if((await turnOf(p))===
   ok(jl.some(l=>/^Online duel/.test(l)),'…opening with its own duel line, written in its own frame');
   ok(!jl.some(l=>/vs Rival Full Set|initiative/.test(l)),'…and never the host-framed opening line');
   ok(!jl.some(l=>/\{who\}/.test(l)),'no unresolved {who} placeholder leaked into any line');
+  /* MEASUREMENT, NOT A FIX (v1.31.98). The BACKLOG carried an UNVERIFIED lead: "the netplay battle log does not
+   * scroll". `#log` is `overflow-y:auto` with no netplay override, so a broken `min-height:0` chain would be a
+   * SHARED cause, not a netplay divergence — and the entry said to measure before filing it as one. `logtest.js`
+   * already shows the solo log scrolling (hundreds of px of range once expanded); this is the netplay side of
+   * the same measurement, so the two can be compared instead of argued about. */
+  const scrollRange = p => p.evaluate(()=>{
+    const w=document.getElementById('logWrap'); if(w && w.classList.contains('collapsed')){ const t=document.getElementById('logToggle'); if(t) t.click(); }
+    const l=document.getElementById('log');
+    return l ? { range:l.scrollHeight-l.clientHeight, lines:l.children.length, overflowY:getComputedStyle(l).overflowY } : null;
+  });
+  await wait(300);
+  const hostScroll=await scrollRange(host), joinScroll=await scrollRange(join);
+  console.log('   [measured] host '+JSON.stringify(hostScroll)+'  client '+JSON.stringify(joinScroll));
+  ok(!!hostScroll && hostScroll.overflowY==='auto' && !!joinScroll && joinScroll.overflowY==='auto',
+     'the battle log is scrollable on BOTH netplay seats (overflow-y auto, no netplay override)');
+  /* AND MAKE IT CONCLUSIVE. Range 0 above only means "this short game produced 4 lines" — consistent with a
+   * healthy log AND with a broken one. Overflow it and require real range, which is what distinguishes
+   * "nothing to scroll" from "cannot scroll" (the `min-height:0` chain the lead suspected would show here). */
+  const filled = p => p.evaluate(()=>{ for(var i=0;i<40;i++) window.__cmf.addLog('filler '+i);
+    const l=document.getElementById('log'); return { range:l.scrollHeight-l.clientHeight, lines:l.children.length }; });
+  const hf=await filled(host), jf=await filled(join);
+  console.log('   [measured, filled] host '+JSON.stringify(hf)+'  client '+JSON.stringify(jf));
+  ok(hf.range>100 && jf.range>100,
+     'and it really scrolls once it overflows — host '+hf.range+'px, client '+jf.range+'px of range'+
+     ((hf.range>100&&jf.range>100)?'  → the "netplay log does not scroll" lead does NOT reproduce':'  ← REPRODUCED'));
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\nCLIENT LOG:'); jl.forEach(l=>console.log('   '+l.slice(0,88)));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
