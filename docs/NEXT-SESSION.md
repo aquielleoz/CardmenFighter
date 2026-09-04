@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.100.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.101.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-03)
 
-`main` is at **v1.31.100**, working tree clean, full sweep green at **81 suites**. The only branch is
+`main` is at **v1.31.101**, working tree clean, full sweep green at **81 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **v1.31.95 was built in one session and REVIEWED IN ANOTHER, on purpose** — the build session hit its cap twice
@@ -283,6 +283,34 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.101 — "You was locked out", and the scan that could not see it
+
+From a real phone log Aj sent (2026-09-04, line 97): **"You was locked out (Back Stab) — turn skipped."**
+
+**PAST TENSE NEVER MADE THE COPULA SAFE, AND THAT IS THIS FILE'S OWN RULE WITH A HOLE IN IT.** v1.31.53
+established *use past tense, it removes subject-verb agreement* — true for a REGULAR verb (played, moved,
+sprang) and **false for the verb "to be", which conjugates in the past as well: was/were.** So every template
+of the shape `{who} was …` reads correctly for everyone except the person it names. Same failure as v1.31.55's
+"You is out", one tense over.
+**THE FIX IS NOT A BETTER TENSE, IT IS NO COPULA.** Recast so the EFFECT is the subject and the person is the
+object — `Back Stab locked {who} out` — which has no agreement to get wrong in either direction. **Eight
+templates**: three lockout lines, the `{foe}` half of two Back Stab lines, "{who} is out of cards!", a
+sender-baked *"you are locked out"* that told the SPRINGER it was locked, and the **FIGHTER KICK** line, which
+is the last thing a losing player reads — *"You was taken out!"*
+
+**THE RUNTIME GRAMMAR SCAN COULD NOT HAVE CAUGHT ANY OF IT, MEASURED.** `nettest_narrate` greps the rendered
+client log, so it only ever covers templates THAT RUN happened to emit — re-introducing the exact line from
+Aj's log left all ten assertions green, because the Back Stab lockout never fires in that short game.
+**There is a STATIC half now**: it reads the template source and covers every `say()` in the file at once,
+which is what found the FIGHTER KICK line after a hand-written grep had already missed it twice. Reintroducing
+the reported line now fails it by name and line number.
+Note the scan reads whole LINES, so a comment beside a `say()` must not quote the pattern — the first version
+tripped on its own explanatory comment.
+
+**AND THE RUNTIME LIST NOW CHECKS BOTH DIRECTIONS.** Every entry tested the "You" side only, so a template
+written the other way round (`{who} were locked out`) renders correctly for the reader and wrongly for
+everybody else — "Rival were locked out" — and nothing would have said a word.
 
 ### v1.31.100 — the version line at the top of CLAUDE.md joins the chain
 

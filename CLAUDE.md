@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.100**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.101**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -597,6 +597,19 @@ another seat need to see it?** If yes it is `say`, always.
 the copula on `{foe}`, so a client reading itself as the foe got **"You is out!"** in a real game. Neither name's
 number is known when the template is written, so no present-tense verb and no sender-written possessive is safe
 anywhere in the string — `'{who} put a card on top of your deck'` had to become `…the deck`.
+**PAST TENSE DOES NOT RESCUE THE COPULA (v1.31.101).** "Use past tense" removes agreement for a REGULAR verb
+and not for the verb *to be*, which conjugates in the past too — so `{who} was locked out` reads **"You was
+locked out"** for the person it names. Aj's phone log caught it; eight templates were sitting on the
+assumption, including the **FIGHTER KICK** line a losing player reads last. **Recast so the EFFECT is the
+subject and the person the object** — `Back Stab locked {who} out` — which has no agreement in either direction.
+**AND THE RUNTIME SCAN COULD NOT SEE IT, MEASURED:** `nettest_narrate` greps the log a RUN produced, so it
+covers only templates that game emitted — re-introducing the reported line left all ten assertions green.
+It has a STATIC half now that reads the template source and covers every `say()` at once; that is what found
+the kick line after two hand-written greps missed it. The scan reads whole lines, so **never quote the pattern
+in a comment beside a `say()`** — the first version tripped on its own comment. The runtime list also checks
+BOTH directions now: it only ever tested the "You" side, so `{who} were …` would render fine for the reader and
+wrongly for everyone else.
+
 **A GRAMMAR SCAN IS CHEAPER THAN A REVIEW.** `nettest_narrate` greps the rendered client log for `You is`,
 `You has`, `You moves`, `You’s`. None of those has a legitimate reading, all of them have shipped, and the scan
 catches the next one without anyone re-reading every template.
@@ -1401,7 +1414,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.100 — 2026-09-04, `npm run sweep`, 81 suites and 0 FAIL in 167s** (four lanes; background
+Status as of **v1.31.101 — 2026-09-04, `npm run sweep`, 81 suites and 0 FAIL in 167s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -1414,7 +1427,7 @@ gates), `browsertest` (smoke, 12 duels — prints no PASS line).
 The 49 netplay suites: `nettest_3p` 7, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 3, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 14, `kick` 11, `log` 16, `losspick3` 7,
-`losspick_remote3` 7, `names` 13, `narrate` 10, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
+`losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
 `target3` 7, `ghostseat` 6, `trim` 14, `unready` 15, `version` 14.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a

@@ -34,9 +34,36 @@ async function until(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retu
  * roll — `'{who} leads round 1'` reads fine on the sender and becomes "You leads" for the seat that won it.
  * An enumerated scan only catches the verbs someone thought of, which is an argument for adding to it every
  * time one slips through rather than for trusting it. */
-const BAD = [/\bYou is\b/, /\bYou has\b/, /\bYou moves\b/, /\bYou plays\b/, /\bYou passes\b/, /\bYou wins\b/, /\bYou leads\b/,
-             /\bYou lose[s]\b/, /\bYou’s\b/, /\bYou's\b/, /\bYou were locked out\b.*\bthey\b/, /\bYou are locked\b/];
+/* `You was` joined on 2026-09-04, from a REAL PHONE LOG Aj sent — "You was locked out (Back Stab)". It is the
+ * hole in this file's own governing rule: past tense removes subject-verb agreement for a REGULAR verb
+ * (played, moved, sprang) and NOT for the verb "to be", which conjugates in the past as well — was/were. So
+ * "use past tense" never made a copula safe, and seven templates were sitting on that assumption.
+ * THE FIX IS NOT A BETTER TENSE, IT IS NO COPULA: recast so the EFFECT is the subject and the person is the
+ * object — `Back Stab locked {who} out` — which has no agreement to get wrong in either direction.
+ * AND THE SCAN NEEDS BOTH DIRECTIONS. Every entry above tests the "You" side only, so a template written the
+ * other way round ("{who} were locked out") renders correctly for the reader and wrongly for everyone ELSE —
+ * "Rival were locked out" — and no assertion here would have said a word. */
+const BAD = [/\bYou is\b/, /\bYou was\b/, /\bYou has\b/, /\bYou moves\b/, /\bYou plays\b/, /\bYou passes\b/,
+             /\bYou wins\b/, /\bYou leads\b/, /\bYou lose[s]\b/, /\bYou’s\b/, /\bYou's\b/,
+             /\bYou were locked out\b.*\bthey\b/, /\bYou are locked\b/,
+             /\bRival were\b/, /\bRival are\b/, /\bRival have\b/, /\bRival move\b/, /\bRival play\b/];
 const badLines = lines => lines.filter(l => BAD.some(rx => rx.test(l)));
+
+/* THE STATIC HALF, AND IT IS THE STRONGER ONE (v1.31.101). The scan above reads the log a RUN produced, so it
+ * only ever covers templates this particular game happened to emit — the Back Stab lockout never fires here,
+ * which is why re-introducing "You was locked out" left every assertion green (measured, not assumed).
+ * This reads the TEMPLATE SOURCE instead and covers every say() in the file at once. The rule it encodes is
+ * the one the runtime list keeps learning the hard way: a placeholder is a NAME OF UNKNOWN NUMBER, so no
+ * agreeing verb may follow it — and past tense does not rescue the copula, because "to be" conjugates in the
+ * past too (was/were). Recast so the effect is the subject: `Back Stab locked {who} out`. */
+const fs2=require('fs');
+const TPL=fs2.readFileSync(path.resolve(__dirname,'CardmenFighter.template.html'),'utf8');
+const COPULA=/['"`]\s*\{(?:who|foe)\}\s+(is|was|are|were|has|have|does|goes)\b|\{(?:who|foe)\}\s+(is|was|are|were|has|have|does|goes)\b[^'"`\n]*['"`]\s*,\s*['"]/;
+function copulaTemplates(){
+  return TPL.split('\n').map((l,i)=>({n:i+1,l})).filter(r =>
+    /\bsay(Once)?\s*\(/.test(r.l) && /\{(who|foe)\}\s+(is|was|are|were|has|have|does|goes)\b/.test(r.l)
+      && !/^\s*(\/\/|\*|\/\*)/.test(r.l.trim()));
+}
 
 (async()=>{
   await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>'))); srv.listen(PORT,r); });
@@ -92,6 +119,12 @@ const badLines = lines => lines.filter(l => BAD.some(rx => rx.test(l)));
    * an exact match: the host legitimately logs a few things a client cannot know (peer drops, its own hand). */
   const ratio = jl.length / Math.max(1, hl.length);
   ok(ratio>=0.5 && ratio<=1.6, '  → and the two logs are comparable in length (client '+jl.length+' vs host '+hl.length+')');
+
+  /* Source-level, so it covers every template in the file rather than the ones this run emitted. */
+  const copulas = copulaTemplates();
+  ok(copulas.length===0,
+     'no say() template puts an agreeing verb after {who}/{foe} — a placeholder is a name of unknown number'+
+     (copulas.length ? ':\n     '+copulas.map(r=>r.n+': '+r.l.trim().slice(0,110)).join('\n     ') : ''));
 
   ok(errs.length===0, 'no JS errors'+(errs.length?': '+errs[0]:''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

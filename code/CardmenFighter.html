@@ -5056,7 +5056,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.100';
+  var GAME_VERSION='v1.31.101';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -7559,7 +7559,7 @@ window.CardFace = {};
       resolveRoundCeremony(r, g, function(){ if(g===gen) afterHumanAction(); });
       return;
     }
-    if(r.forcedSkip){ setMessage('Locked out — turn skipped.'); say(YOU, '{who} was locked out (Back Stab) — turn skipped.', 'you'); }
+    if(r.forcedSkip){ setMessage('Locked out — turn skipped.'); say(YOU, 'Back Stab locked {who} out — turn skipped.', 'you'); }   // no agreeing verb after a placeholder — see nettest_narrate's static scan (v1.31.101)
     else { setMessage('You passed.'); say(YOU, '{who} passed.', 'you'); }
     if(state.finished){ render(); return endGame(); }
     render();
@@ -7723,7 +7723,7 @@ window.CardFace = {};
       /* PAST TENSE ON BOTH HALVES. v1.31.55 moved {who}'s verb to past tense and left this copula alone, so a
        * client reading itself as {foe} got "You is out!" — Aj's log, 2026-08-29. A verb attached to {foe} needs
        * the same treatment as one attached to {who}; neither name's number is known when the template is written. */
-      sayOnce(w, '💥 {who} landed the FIGHTER KICK — {foe} was taken out!', cls, struck.length?struck:[w===YOU?RIVAL:YOU]);
+      sayOnce(w, '💥 {who} landed the FIGHTER KICK — it took {foe} out!', cls, struck.length?struck:[w===YOU?RIVAL:YOU]);
     }
     else if(res.prevented && !res.shieldStripped){
       setMessage('🛡 The loss was prevented!');
@@ -7975,8 +7975,8 @@ window.CardFace = {};
         else if(e.fight==='pass'){ beats.push({ dwell:950, run:function(){ say(seat, '{who} passed.', 'rival'); setMessage('<b>'+who+'</b> passed.'); render(); } }); }
         else if(e.discard){ beats.push({ dwell:600, run:function(){ say(seat, '{who} discarded '+e.discard+' to hand size.', 'rival'); } }); }
         else if(e.forcedDiscard){ beats.push({ dwell:750, run:function(){ say(seat, '{who} discarded '+e.forcedDiscard+' card'+(e.forcedDiscard>1?'s':'')+'.', 'rival'); } }); }
-        else if(e.lockedSkip){ beats.push({ dwell:650, run:function(){ say(seat, '{who} is locked out — turn skipped.', 'warn'); setMessage('<b>'+who+'</b> is locked out — turn skipped.'); render(); } }); }
-        else if(e.stuck){ beats.push({ dwell:650, run:function(){ say(seat, '{who} is out of cards!', 'warn'); setMessage('<b>'+who+'</b> is out of cards!'); render(); } }); }
+        else if(e.lockedSkip){ beats.push({ dwell:650, run:function(){ say(seat, 'Back Stab locked {who} out — turn skipped.', 'warn'); setMessage('<b>'+who+'</b> is locked out — turn skipped.'); render(); } }); }
+        else if(e.stuck){ beats.push({ dwell:650, run:function(){ say(seat, '{who} ran out of cards!', 'warn'); setMessage('<b>'+who+'</b> is out of cards!'); render(); } }); }
       });
     return beats;
   }
@@ -8197,7 +8197,7 @@ window.CardFace = {};
     hideOverlay();
     if(card) flashArt(card, 'You');
     setMessage('🗡 You spring <b>Back Stab</b> — the Rival is locked!');
-    say(YOU, '{who} sprang Back Stab — {foe} was locked out of this turn.', 'you', [RIVAL]);
+    say(YOU, '{who} sprang Back Stab — it locked {foe} out of this turn.', 'you', [RIVAL]);
     bumpEffect(YOU, E.effectOf(card));
     render();
     settleWindows(g, function(){ resumeRival(g); });   // Rival may Counter it; then its turn resumes (now locked → forced skip)
@@ -8218,7 +8218,7 @@ window.CardFace = {};
     if(!r.ok){ E.preFightPass(state, q); return proceed(); }
     busy=true;
     setMessage('🗡 '+logName(q)+' springs <b>Back Stab</b> — your turn is locked!');
-    say(q, '{who} sprang Back Stab — you are locked out of this turn.', 'rival');
+    say(q, '{who} sprang Back Stab — it locked {foe} out of this turn.', 'rival', [YOU]);   // was a baked "you": the springer read it as itself being locked
     bumpEffect(q, E.effectOf(mv.card));
     render();
     settleWindows(g, function(){                       // you (active) may Counter the Back Stab
@@ -11558,7 +11558,7 @@ window.CardFace = {};
       Array.prototype.forEach.call(document.querySelectorAll('.respQuick'), function(btn){
         btn.addEventListener('click', function(){ var id=btn.getAttribute('data-id'), card=hostState.players[YOU].hand.filter(function(c){return c.id===id;})[0];
           var r=E.preFightCast(hostState, YOU, id); if(!r.ok){ setMessage(r.reason); return; } hideOverlay();
-          if(card) flashArt(card,'You'); setMessage('🗡 You spring Back Stab!'); say(YOU, '{who} sprang Back Stab — {foe} was locked.', 'you', [hostState.turn]); bumpEffect(YOU, E.effectOf(card)); render();
+          if(card) flashArt(card,'You'); setMessage('🗡 You spring Back Stab!'); say(YOU, '{who} sprang Back Stab — it locked {foe} out.', 'you', [hostState.turn]); bumpEffect(YOU, E.effectOf(card)); render();
           hostSettleN(g, function(){ if(g===gen) proceed(); }); });                 // the active player may Counter the Back Stab
       });
       $('pfDecline').addEventListener('click', function(){ hideOverlay(); E.preFightPass(hostState, YOU); render(); proceed(); });
@@ -11614,7 +11614,7 @@ window.CardFace = {};
           if(g!==gen) return;
           var r;
           try{
-            if(E.isLocked(hostState, seat)){ r=E.pass(hostState, seat); say(seat, '{who} is locked out (Back Stab) — turn skipped.', 'warn'); }
+            if(E.isLocked(hostState, seat)){ r=E.pass(hostState, seat); say(seat, 'Back Stab locked {who} out — turn skipped.', 'warn'); }
             else if(it.op==='play'){ r=E.play(hostState, seat, resolveIds(seat, it.ids)); if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; } say(seat, '{who} played '+playPhrase(r.combo)+(r.boosted?' (boosted)':'')+'.', 'rival'); bumpFight(seat, r.combo && r.combo.type); }
             else { r=E.pass(hostState, seat); if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; } say(seat, '{who} passed.', 'rival'); }
           }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Move rejected.'}); broadcastMirror(); return; }
