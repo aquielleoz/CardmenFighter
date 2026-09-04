@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.101.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.102.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-03)
 
-`main` is at **v1.31.101**, working tree clean, full sweep green at **81 suites**. The only branch is
+`main` is at **v1.31.102**, working tree clean, full sweep green at **82 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **v1.31.95 was built in one session and REVIEWED IN ANOTHER, on purpose** — the build session hit its cap twice
@@ -42,7 +42,7 @@ npm test && node mptest.js && node landscapetest.js
 
 Expect **0 FAIL** from each. The two gate counts in the header above are asserted by `versiontest`, so they
 cannot drift; every other suite's expected count lives in **CLAUDE.md**, which is the authority. A full sweep is
-**`npm run sweep`** — 81 suites, four at a time, ~150-250s. `npm run sweep:fast` skips the six slow STABLE
+**`npm run sweep`** — 82 suites, four at a time, ~150-250s. `npm run sweep:fast` skips the six slow STABLE
 suites; `node sweep.js -j 1` is the serial fallback if a parallel run ever looks suspicious. **The old "never
 two suites at once" rule is dead** — `PORT` is an env var and the runner assigns one per job (v1.31.82).
 
@@ -100,6 +100,42 @@ online duel against a person.*
 
 ### Things a playtester meets immediately
 
+- **★ AN OPPONENT'S EFFECTS ARE NEVER SHOWN WHEN ITS PASS ENDS THE ROUND — the duel driver skips
+  `buildOppBeats` entirely** (Aj, 2026-09-04, from real play: *"the enemy played caltrops then passed. i didn't
+  get to see his actions because the round end and round begin animations started to fire off"*).
+  **Located, not guessed.** `runRival` (~4290) checks whether the Rival's turn ended in a pass that resolves the
+  round, and if so calls **`finishStep(res, g, effs)`** — which `logMsg`s each effect and goes straight to
+  `announceRoundWin` + `resolveRoundCeremony`. The *"turn the Rival's actions into paced beats"* branch, with
+  `buildOppBeats`/`playBeats`, sits in the OTHER arm of that same `if` and never runs. So an Equipment cast
+  immediately before a round-ending pass gets **no `revealEffect`, no `flashArt`, no `revealDwell`** — it is
+  logged and then buried under the ceremony that starts in the same frame.
+  **THE FREE-FOR-ALL DRIVER ALREADY DOES IT RIGHT**, which is the mirror of the v1.29.3 bug: `runOpponents`
+  plays the beats FIRST and resolves the round inside `playBeats`' completion callback. The duel is the odd one
+  out — so the fix is to make `finishStep` await the beats the way `runOpponents` does, NOT to add a bespoke
+  reveal to `finishStep` (this file's standing warning: *a bespoke presentation path silently misses features
+  the shared one gained*).
+  **TWO MORE BUGS SIT ON THE SAME LINE (4595), and both are documented classes:**
+  - it uses **`logMsg`**, which is host-local — so in netplay the other seat never receives these lines at all.
+    That is the v1.31.58 class (*nineteen sites had the wrong one*), and this one was missed.
+  - it hardcodes **`'Rival'`** instead of `say(seat, '{who} played …')`, so it is wrong at 3-6 players and not
+    reader-relative.
+  Fixing the beats without also fixing these two would leave a line that is visible locally and invisible online.
+  **A test must assert the ORDER, not that the log line exists** — the line is already there today, which is
+  exactly why nothing caught this. Assert the effect's reveal happens BEFORE the round ceremony begins.
+- **★ ZONES-INTO-PANELS IS BUILT AND MEASURED, AND WITHDRAWN UNTIL THE BOARD CAN AFFORD IT** (2026-09-04).
+  The 2026-08-29 decision was to move each seat's Forms/Rides and equipment into its panel on a phone, leaving
+  `#table` holding only the pile, its label and the message. **Built; it removes EVERY zone/pile collision at
+  360×800, 393×852 and 412×915 — and regresses 390×780**, where `landscapetest` caught a pile card **100%
+  covered**.
+  **The cause is measured, not guessed:** `#youEquipZone` renders a CARD and is **59px tall**, against
+  `youFormZone`'s 20px chip, so hosting both grows the panel ~59px. At 780px tall the board cannot absorb that,
+  the panel rides up over the table, and the zone goes with it — **a horizontal collision traded for a vertical
+  one.** It only pays where the height exists.
+  **The unblocker is the icon action row** (below): `#actions` is 118–132px over two rows on a phone, and one
+  row buys back roughly the ~59px the panels need. Do that first, then re-run `landscapetest` at 390×780 and
+  `phonetest` before re-landing this.
+  **Cheaper alternative worth testing first:** render the in-panel equipment as a CHIP rather than a card, the
+  way the form zone already does — that alone would cut the panel growth from ~59px to ~20px.
 - **THE PHONE PLAY AREA NEEDS A REAL-DEVICE CHECK, and the decided fix may no longer be needed.** The overlap
   MEASURES CLEAN since v1.31.66 (it was caused by the sideways scroll and went away with it), but it was only
   ever reported from Aj's phone and has not been re-checked there. **The zones-move-into-the-panels change was
@@ -283,6 +319,42 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.102 — the hand's wrapped rows ride over the one above
+
+Aj played a real game on his phone: *"it's really crowding there… especially with rides and forms and the
+equipment and then the targeting"*, with screenshots. `landscapetest` guards the SIDEWAYS phone; **nothing
+guarded PORTRAIT with a real hand** — and a real hand is not six cards. `MAX_HAND` is an END-OF-TURN discard
+limit, so a player is on turn holding more than ten on **78% of turns**, and 17 has been seen.
+
+**MEASURED FIRST, AND THE MEASUREMENT MOVED THE GOAL.** At 393×852 with 13 cards: four rows of 66px plus 18px
+of gaps = **270px of cards inside a 187px box, so 83px of the hand was simply scrolled out of sight** — while
+the play area was simultaneously starved at 96px for 105px of content. The hand was not short of room so much
+as quietly hiding a row and a half of it.
+Wrapped rows now ride over the one above by `--handLap` (26px, phone only): a negative margin on every group
+shortens each flex LINE, and the matching extra `padding-top` puts the first row back, so **only rows 2+ move**.
+Later DOM order paints later, so the lower row lands IN FRONT with no z-index — which is what Aj pictured.
+**At 360×800 the hand goes 172 → 146px and the play area 181 → 207px.** At 393×852 the hand still shrinks and
+the clipping goes to zero, but the play area does not move: that regime is bound by the 170px inline card
+reader, not by the hand.
+
+**THE GROUP LABEL HAD TO MOVE ABOVE THE CARDS, and only a measurement said so.** A `.group` is `[cards][label]`,
+so pulling the next row up covers the LABEL first — measured, **2 of 3 "Pair" labels hidden**. They render above
+the cards now, with a small background. Note labels only exist in the PAIRS/STRAIGHTS sort, so a staged hand of
+distinct ranks produces none and the coverage check passes vacuously: `phonetest` sorts first, and asserts the
+labels exist before asserting they survive.
+
+**`phonetest.js` is new (19)** and guards the two things the measurement forced rather than the two that were
+obvious: that a ONE-ROW hand is left completely alone (the saving only exists from the second row), and that
+the sort really produced labels. Both halves A/B against their own removal — `--handLap:0` loses 13px of hand
+to the scroll, and labels-below loses 2 of 3 at every size.
+
+**WHAT IS NOT HERE, AND WHY.** The decided zones-into-panels fix was built, measured, and **withdrawn from this
+version**: it removes every zone/pile collision at 360×800, 393×852 and 412×915, and REGRESSES 390×780, where
+`landscapetest` caught a pile card **100% covered**. The cause is measured — `#youEquipZone` renders a card and
+is **59px tall** against `youFormZone`'s 20px chip, so hosting both grows the panel ~59px, and at 780px tall the
+board cannot absorb it: the panel rides up over the table and takes the zone with it. It trades a horizontal
+collision for a vertical one and only pays where the height exists. Filed in the BACKLOG with the numbers.
 
 ### v1.31.101 — "You was locked out", and the scan that could not see it
 
