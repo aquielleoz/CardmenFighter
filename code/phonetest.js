@@ -87,6 +87,43 @@ const actionRow = p => p.evaluate(()=>{
     const few = await read(p);
     ok(few.rows===1 && few.clipped===0, `  → a one-row hand is left alone (${few.rows} row, clipped ${few.clipped})`);
 
+    /* ---- THE HEADER IS ONE ROW AND THE WORDMARK STACKS ---- (v1.31.105)
+       Measured before building, at 390×780 / 360×800 / 414×896: 92px in all three — 11.8% of the screen at 390
+       — with a 157px title alone on line 1 and six buttons wrapping beside and below it. 54px after. */
+    const hdr = await p.evaluate(()=>{
+      const h=document.querySelector('header'), r=h.getBoundingClientRect();
+      /* HEIGHT, not width. `header .spacer` is `flex:1` — full width and ZERO height — so it reports a top
+         halfway down the bar and a width-only filter counted a perfectly good single row as two. */
+      const kids=[...h.children].filter(e=>e.getBoundingClientRect().height>3)
+        .map(e=>({id:e.id||e.tagName.toLowerCase(), y:Math.round(e.getBoundingClientRect().top)}));
+      const tops=kids.map(k=>k.y).sort((a,b)=>a-b);
+      const words=[...h.querySelectorAll('h1 .tWord')].map(e=>Math.round(e.getBoundingClientRect().top));
+      return { h:Math.round(r.height), rows:tops.length?1+tops.filter((y,i)=>i&&y-tops[i-1]>8).length:0,
+               buttons:[...h.querySelectorAll(':scope > button, :scope > * > button')]
+                 .filter(e=>e.getBoundingClientRect().width>0).map(e=>e.id),
+               wordLines:new Set(words).size,
+               headerH:getComputedStyle(document.documentElement).getPropertyValue('--headerH').trim() };});
+    ok(hdr.rows===1, `  → the header is ONE row (${hdr.rows}), ${hdr.h}px`);
+    ok(hdr.h<70, `  → and it is well under the 92px it used to cost (${hdr.h}px)`);
+    /* THE WORDMARK. `white-space:normal` only PERMITTED the wrap and it never fired, because the buttons wrapped
+       first — so assert the two words land on DIFFERENT lines, not merely that the rule is present. */
+    ok(hdr.wordLines===2, `  → CARDMEN / FIGHTER stacks onto ${hdr.wordLines} lines`);
+    /* ONLY ☰ AND New Duel ARE LOOSE. A build that left the five in the bar would still be "one row" on a wide
+       enough phone, so name what is allowed rather than counting rows alone. */
+    ok(hdr.buttons.length===1 && hdr.buttons[0]==='menuBtn',
+       `  → and ☰ is the only control left in the bar (${hdr.buttons.join(', ')||'none'})`);
+    ok(hdr.headerH===hdr.h+'px', `  → --headerH tracked the change to ${hdr.headerH} (#disconBar hangs off it)`);
+    /* THE SHEET OPENS, AND A DIALOG CLOSES IT. `showModal` does that for every dialog at once rather than per
+       call site, so this covers the entries added later too. */
+    await p.evaluate(()=>document.getElementById('menuBtn').click()); await wait(250);
+    ok(await p.evaluate(()=>!document.getElementById('menuSheet').hidden), '  → ☰ opens the sheet');
+    await p.evaluate(()=>document.getElementById('settingsBtn').click()); await wait(400);
+    ok(await p.evaluate(()=>document.getElementById('menuSheet').hidden &&
+         document.getElementById('overlay').classList.contains('show')),
+       '  → and choosing an entry opens its dialog AND closes the sheet behind it');
+    await p.evaluate(()=>{ const d=document.getElementById('setDone')||document.getElementById('rulesDone');
+      if(d) d.click(); else window.__solo && document.getElementById('overlay').click(); }); await wait(400);
+
     /* ---- THE ACTION ROW COLLAPSES TO SYMBOLS ---- (v1.31.104)
        Measured before building, at 390x780: Sort/Clear/⚡/Pass/Fight wanted THREE rows and 118px, under a hint
        that is itself two lines. 67px and one row after. */

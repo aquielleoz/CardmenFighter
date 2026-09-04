@@ -19,8 +19,10 @@
     --zNetroot:99999;                        /* the netplay lobby covers the board */
     --zOverlay:calc(var(--zNetroot) + 1);    /* …and every dialog must outrank the lobby (v1.31.36) */
     --zPeek:calc(var(--zNetroot) + 2);       /* …and while peeking, the panels must outrank the dialog backdrop */
-    --zPeekDlg:calc(var(--zNetroot) + 3);    /* …and a dialog OPENED during peek must outrank those panels again (v1.31.103) */
-    --zPeekBar:calc(var(--zNetroot) + 4);    /* …and ↩ Back must outrank everything, so peek is never a trap */
+    --zPeekHdr:calc(var(--zNetroot) + 3);    /* …and the HEADER outranks its fellow panels, or its ☰ sheet drops behind them (v1.31.105) */
+    --zPeekDlg:calc(var(--zNetroot) + 4);    /* …and a dialog OPENED during peek must outrank all of those (v1.31.103) */
+    --zMenu:calc(var(--zNetroot) - 1);       /* the ☰ sheet: over the board, UNDER the lobby and every dialog (v1.31.105) */
+    --zPeekBar:calc(var(--zNetroot) + 5);    /* …and ↩ Back must outrank everything, so peek is never a trap */
     --headerH:56px;   /* the desktop header. The landscape band overrides it — #disconBar hangs off this. */
     --bg:#160e1e; --bg2:#241633; --line:rgba(255,255,255,.12); --gold:#e8c37a;
     --red:#ff5a5a; --txt:#f2ecf6; --panel:rgba(0,0,0,.3); --good:#43c06a; --bad:#e2624a;
@@ -59,10 +61,26 @@
   header .diffWrap{display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; opacity:.8; color:var(--txt); white-space:nowrap;}
   header select{font:inherit; font-size:13px; font-weight:700; color:var(--txt); background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:7px 9px; cursor:pointer; color-scheme:dark;}
   header select:focus{outline:1px solid var(--gold);}
-  header h1, header #helpBtn, header #cheatBtn, header #sfxBtn, header #hintsBtn, header #settingsBtn, header #newBtn{flex:0 0 auto;}   /* title + buttons never shrink or clip */
-  header #cheatBtn, header #sfxBtn, header #settingsBtn{font-size:16px; line-height:1;}
-  header #sfxBtn.muted{opacity:.5;}
-  header #hintsBtn{font-size:12px;}
+  header h1, header #menuWrap{flex:0 0 auto;}   /* title + controls never shrink or clip */
+  /* THE BURGER (v1.31.105). Aj: *"can we do a burger there? just so everything is tucked nicely?"* — the header
+     measured 92px and TWO button rows on every phone (390x780, 360x800, 414x896), 11.8% of the screen at 390,
+     with a 157px title alone on line 1 and six buttons wrapping beside and below it.
+     WHAT GOES IN IS A TEST, not a preference: a burger is for what you GO LOOKING FOR; the bar is for what you
+     reach for MID-TURN or what shows STATE. So ☰ and New Duel / 🏳 Concede stay out (the concede tint IS state,
+     and it is the primary end-screen action) and the rest go in — where the two toggles read BETTER, because a
+     menu row can say "Hints: Off" and "Sound: On" in words where the header had a bare glyph and a gold tint. */
+  #menuWrap{position:relative;}
+  header #menuBtn{font-size:16px; line-height:1;}
+  header #menuBtn.open{border-color:var(--gold); color:var(--gold);}
+  /* `[hidden]` LOSES TO A `display` RULE — the attribute is only a UA stylesheet default, so `display:flex` here
+     would override it and the sheet would render permanently open. State the override explicitly. */
+  #menuSheet{position:absolute; right:0; top:calc(100% + 7px); z-index:var(--zMenu);
+    display:flex; flex-direction:column; gap:4px; padding:6px; min-width:186px;
+    background:#241633; border:1px solid var(--line); border-radius:12px; box-shadow:0 14px 34px rgba(0,0,0,.6);}
+  #menuSheet[hidden]{display:none;}
+  #menuSheet button{width:100%; text-align:left; white-space:nowrap; font-size:13px;}
+  #menuSheet #newBtn{margin-top:4px; border-top:1px solid var(--line); border-radius:9px;}   /* the destructive one sits apart */
+  header #sfxBtn.muted{opacity:.6;}
   header #hintsBtn.on{background:rgba(240,200,80,.18); border-color:var(--gold); color:var(--gold);}
   /* Play-hint classes on hand groups (only when Hints is on) */
   #hand .group.hdead{opacity:.34; filter:grayscale(.5);}
@@ -80,8 +98,11 @@
     header{flex-wrap:wrap; justify-content:flex-end; gap:6px 8px; padding:8px 12px;}
     /* let the title shrink and wrap to two lines (CARDMEN / FIGHTER) when the button row gets crowded */
     header h1{font-size:15px; white-space:normal; line-height:1.04; flex:0 1 auto; min-width:0;}
-    header #hintsBtn{font-size:0; padding:7px 10px;}
-    header #hintsBtn::before{content:'💡'; font-size:16px; line-height:1;}
+    /* THE TITLE STACKS. `white-space:normal` above only PERMITS the wrap; it never fired, because the BUTTONS
+       wrapped first. With ☰ + New Duel the row has room, so the break is explicit — which is what Aj means by
+       the one-line title feeling *"slightly off in the small banner space"*: a thin 157px stripe against a
+       ragged cluster, where a stacked block balances it. */
+    header h1 .tWord{display:block;}
   }
 
   main{flex:1 1 auto; display:flex; flex-direction:column; min-height:0; padding:8px 10px 0; gap:8px;}
@@ -317,7 +338,19 @@
   #oppList .setRow span:first-child{color:var(--gold); font-size:13px;}
   #oppList .oppPick{display:flex; gap:6px; flex:1 1 auto; min-width:0; justify-content:flex-end;}
   #oppList .oppPick select{min-width:0; flex:1 1 0;}
-  #oppList .oppPick select.strength{flex:0 0 118px;}
+  /* SIZED TO ITS OWN WIDEST OPTION, not to a number (v1.31.105). It was `0 0 118px` and "Demon Lord" needs
+     125px — 83px of text plus 20px of padding plus the chevron — so the longest tier name was clipped to
+     "Demon Lor" at EVERY width, which is what Aj saw. `auto` cannot go stale: rename a tier longer and the
+     control still fits it, where the next hardcoded number would clip again the same way. The deck select
+     beside it is `flex:1 1 0` and simply gives up the difference (it has 117-267px to spare). */
+  #oppList .oppPick select.strength{flex:0 0 auto;}
+  /* AND THE ROW HAS TO AFFORD BOTH. At 360px the pair wants 120px ("🎲 Random") + 126px ("Demon Lord") + the
+     6px gap = 252 into 241px of row, so sizing the strength control honestly pushed the DECK one from a 3px
+     clip to an 11px one — it was already truncating "🎲 Random", which is its DEFAULT value and therefore the
+     everyday case. Trimming the side padding on this list only, below 480px, buys 8px per control and lands
+     both inside the row (measured 236 of 241). The deck select still truncates the long class names — that is
+     by design, `flex:1 1 0; min-width:0` — but no longer on the value most people never change. */
+  @media (max-width:480px){ #oppList .oppPick select{padding-left:6px; padding-right:6px;} #oppList .oppPick{gap:5px;} }
   .modal .diceArea{display:flex; align-items:center; justify-content:center; gap:22px; margin:14px 0 4px; min-height:78px; flex-wrap:wrap;}
   .modal .diceArea.mp{gap:10px 14px;}
   .modal .diceArea.mp .die{font-size:34px;} .modal .diceArea.mp .dieLabel{font-size:11px;}
@@ -908,8 +941,16 @@
      (inspect-only). #cardFull rides along — the hand stays tappable during peek, so 🔍 View card can open the
      full reader, and at its own z-index of 37 that reader would open BEHIND the peek backdrop. */
   body.peeking-board #logWrap, body.peeking-board #handWrap, body.peeking-board #cardView,
-  body.peeking-board #cardFull, body.peeking-board header,
+  body.peeking-board #cardFull,
   body.peeking-board #opponents, body.peeking-board #rival{position:relative; z-index:var(--zPeek);}
+  /* THE HEADER SITS ONE LEVEL ABOVE ITS FELLOW LIFTED PANELS (v1.31.105), and only because of the ☰ sheet.
+     MEASURED, not reasoned: with the header on the shared `--zPeek`, `#cardView` — same z-index, LATER in the
+     document — painted over the open sheet, and every item in it hit-tested `blocked`. The sheet cannot climb
+     out on its own: its parent's z-index makes a stacking context, so a child's `--zMenu` is resolved inside it.
+     This is the standing rule in CLAUDE.md arriving on schedule — when you raise a z-index, hit-test every layer
+     positioned relative to it, not just the one that prompted the change. The header covers only the top strip
+     plus wherever its sheet drops, so nothing else is hidden by the promotion. */
+  body.peeking-board header{position:relative; z-index:var(--zPeekHdr);}
   body.peeking-board #hand.disabled, body.peeking-board #hand{pointer-events:auto; opacity:1;}   /* re-enable hover/tap to read cards, even at game over */
   body.peeking-board #actions{pointer-events:none; opacity:.4;}   /* but the action buttons (Sort/Clear/Pass/Fight/Activate) stay disabled while peeking */
   .peekBar{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:var(--zPeekBar); font:inherit; font-weight:800; font-size:14px; color:#3a2a08; background:var(--gold); border:none; border-radius:22px; padding:11px 22px; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.5);}
@@ -1318,15 +1359,30 @@
 </head>
 <body>
 <header>
-  <h1>CARDMEN FIGHTER <small>duel vs AI</small></h1>
+  <h1><span class="tWord">CARDMEN</span> <span class="tWord">FIGHTER</span> <small>duel vs AI</small></h1>
   <div class="spacer"></div>
   <span id="matchupTag" class="matchupTag"></span>
-  <button id="hintsBtn" title="Show or hide play hints">💡 Hints: Off</button>
-  <button id="sfxBtn" title="Sound on/off">🔊</button>
-  <button id="settingsBtn" title="Settings">⚙️</button>
-  <button id="cheatBtn" title="Specials cheat sheet">🃏</button>
-  <button id="helpBtn" title="How to play">?</button>
-  <button class="primary" id="newBtn">New Duel</button>
+  <!-- THE BUTTONS ARE MOVED, NOT REBUILT (v1.31.105). Same ids, same nodes, so `paintSfxBtn`, the hints IIFE,
+       `$('settingsBtn')`, `rulestest`'s click and every tutorial spotlight keep working with no rewiring — and
+       CLAUDE.md's standing warning applies: the parse check cannot see a deletion, and a rebuilt button is a
+       live `$()` returning null at boot. The one genuine DELETION is `#cheatBtn`, a duplicate of the
+       `🃏 Specials list` button above the hand: both called `showCheatSheet`. -->
+  <div id="menuWrap">
+    <button id="menuBtn" title="Menu" aria-haspopup="true" aria-expanded="false">☰</button>
+    <div id="menuSheet" hidden>
+      <button id="hintsBtn" title="Show or hide play hints">💡 Hints: Off</button>
+      <button id="sfxBtn" title="Sound on/off">🔊</button>
+      <button id="settingsBtn" title="Settings">⚙️ Settings</button>
+      <button id="helpBtn" title="How to play">❓ How to play</button>
+      <!-- LAST, AND BEHIND A RULE. Aj: *"get that concede in the burger too"*. It keeps its id and both its
+           state classes (`.primary` gold as New Duel, `.conceding` red mid-duel), so `refreshNewBtn` and every
+           suite that clicks it are untouched. Two things follow and both are fine: a destructive action is
+           BETTER one tap deeper, and the end screen carries its own `#againBtn`, so nothing important is buried.
+           The cost is that the red "a duel is live" tint no longer shows until the sheet is open — the board
+           says the same thing louder. -->
+      <button class="primary" id="newBtn">New Duel</button>
+    </div>
+  </div>
 </header>
 <main>
   <div id="disconBar"></div>
@@ -4884,7 +4940,7 @@ __QR__
    * game-owned windows (respond, shield-guard, pre-fight, reveal) stay on the owed list where they were. */
   var stickyModal=false;
   function showStickyModal(html, cls){ showModal(html, cls); stickyModal=true; }
-  function showModal(html, cls){ overlayDismiss=null; stickyModal=false; closeCardFull(); var m=$('modal'), ov=$('overlay');
+  function showModal(html, cls){ overlayDismiss=null; stickyModal=false; closeCardFull(); closeMenu(); var m=$('modal'), ov=$('overlay');
     /* Opened WHILE peeking? Stash the end screen the peek is hiding — there is only one #modal, so this
      * dialog would otherwise overwrite it — and un-hide the modal for the duration. `peekStash` is set once
      * per peek: a second dialog replaces the first without losing the end screen underneath. */
@@ -5126,7 +5182,7 @@ __QR__
       { text:"From <b>Round 2</b>, Specials unlock. The simplest is a <b>pair</b> — two cards of the same number. Select two matching cards and <b>Fight</b>.", hi:['#hand','#fightBtn'], prep:tutEnsurePair, requireSpecial:true, gate:function(t,d){ return t==='play' && d && d.size>1; }, wait:"Play a pair…" },
       { text:"Shield broken! 🛡 Bigger Specials exist too: <b>trio</b> (three of a number), <b>straight</b> (five in a row, any suits), and <b>full house</b> (a trio + a pair). Suit never matters — a run of one suit is just a straight.", hi:'#rivalShields', btn:"How do they rank? ▸" },
       { text:"Two helpers for spotting combos: the <b>Sort</b> button cycles <b>Singles → Pairs → Straights</b> to line your hand up, and <b>💡 Hints</b> (top bar) dims cards you can’t play right now and dashes a group that can <b>break</b> to beat the pile. Try tapping <b>Sort</b>.", hi:'#sortBtn', btn:"Next ▸" },
-      { text:"Same shape beats same shape by <b>value</b> (ties don’t win); a bigger shape beats a smaller one. Keep the <b>Specials cheat sheet</b> handy — tap it any time from the board.", hi:'#cheatBtn', btn:"Finish" }
+      { text:"Same shape beats same shape by <b>value</b> (ties don’t win); a bigger shape beats a smaller one. Keep the <b>Specials cheat sheet</b> handy — tap it any time from the board.", hi:'#specialsRefBtn', btn:"Finish" }
     ];
   }
   function lessonEnergySteps(){
@@ -6183,7 +6239,6 @@ __QR__
   $('hand').addEventListener('mouseleave', showRestCard);   // hovering out reverts the panel to the selected card (or empty)
   $('newBtn').addEventListener('click', requestNewDuel);
   $('helpBtn').addEventListener('click', function(){ showHelp(!(state && !state.finished)); });   // mid-duel: close/dismiss resumes the duel; pre-game or finished: back to New Duel setup
-  $('cheatBtn').addEventListener('click', showCheatSheet);   // quick Specials reference, reachable any time from the board
   $('rival').addEventListener('click', function(){ if(targetPick && !MP() && state.turn===YOU && !state.finished) chooseTargetSeat(RIVAL); });   // duel: tap the rival panel to confirm a targeting effect
   $('specialsRefBtn').addEventListener('click', showCheatSheet);   // spelled-out reference right above the hand
   $('viewCardBtn').addEventListener('click', function(){ if(cvCard) openCardFull(); });   // tight screens: open the full-screen card reader (no-op with nothing selected)
@@ -6191,9 +6246,26 @@ __QR__
   $('cardFullClose').addEventListener('click', closeCardFull);
   $('cardFull').addEventListener('click', function(e){ if(e.target===$('cardFull')) closeCardFull(); });   // tap the backdrop to close
   (function(){ var hb=$('hintsBtn'); function paint(){ hb.textContent='💡 Hints: '+(hintsOn?'On':'Off'); hb.classList.toggle('on', hintsOn); } hb.addEventListener('click', function(){ hintsOn=!hintsOn; try{ localStorage.setItem(HINTS_KEY, hintsOn?'1':'0'); }catch(e){} paint(); if(state) render(); }); paint(); })();
-  function paintSfxBtn(){ var sb=$('sfxBtn'); if(!sb) return; sb.textContent=SFX.isMuted()?'🔇':'🔊'; sb.classList.toggle('muted', SFX.isMuted()); sb.title=SFX.isMuted()?'Sound off — tap to enable':'Sound on — tap to mute'; }
+  function paintSfxBtn(){ var sb=$('sfxBtn'); if(!sb) return; sb.textContent=SFX.isMuted()?'🔇 Sound: Off':'🔊 Sound: On'; sb.classList.toggle('muted', SFX.isMuted()); sb.title=SFX.isMuted()?'Sound off — tap to enable':'Sound on — tap to mute'; }
   $('sfxBtn').addEventListener('click', function(){ SFX.toggle(); paintSfxBtn(); }); paintSfxBtn();
   $('settingsBtn').addEventListener('click', showSettings);
+  /* THE ☰ SHEET (v1.31.105). A FUNCTION DECLARATION so `showModal` can call it whatever the source order —
+   * every entry that opens a dialog must close the menu behind it, and doing that in `showModal` covers the
+   * ones added later for free rather than per call site. The two TOGGLES deliberately leave it open, so you can
+   * read the state you just changed.
+   * A DROPDOWN AND NOT A MODAL, on purpose: three of these four open a dialog of their own, and a modal that
+   * opens a modal has to hand the first one back. It is a child of `<header>`, so `body.peeking-board header`
+   * lifts it along with everything else during peek and the sheet needs no peek rule of its own. */
+  function closeMenu(){ var sh=$('menuSheet'), b=$('menuBtn'); if(!sh||!b) return;
+    sh.hidden=true; b.classList.remove('open'); b.setAttribute('aria-expanded','false'); }
+  (function(){
+    var wrap=$('menuWrap'), btn=$('menuBtn'), sheet=$('menuSheet');
+    function setOpen(on){ sheet.hidden=!on; btn.classList.toggle('open', on); btn.setAttribute('aria-expanded', on?'true':'false'); }
+    /* stopPropagation, or the document listener below sees this same click and shuts it again immediately. */
+    btn.addEventListener('click', function(e){ e.stopPropagation(); setOpen(sheet.hidden); });
+    document.addEventListener('click', function(e){ if(!sheet.hidden && !wrap.contains(e.target)) setOpen(false); });
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape' && !sheet.hidden) setOpen(false); });
+  })();
   document.addEventListener('pointerdown', function unlock(){ SFX.resume(); document.removeEventListener('pointerdown', unlock); });   // browsers gate audio until a gesture — unlock on the first tap
   initTutDrag();   // coach panel is draggable
 
@@ -6359,7 +6431,12 @@ __QR__
       if(!mp){ list.innerHTML=''; return; }
       sel.opps=sel.opps||[];
       while(sel.opps.length < n-1) sel.opps.push({ deck:'random', diff: sel.diff||'fighter' });
-      var strengthOpts='<option value="random">🎲</option><option value="minion">Minion</option><option value="recruit">Squire</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon</option>';
+      /* "Demon Lord", not "Demon" — matching `DIFF_NAME`, the single-opponent picker, the Help text and the log.
+         Aj: *"since when did we stop using demon lord?"*. Answer: never — this row has read "Demon" since the
+         repo's FIRST commit (2f2ae86, 2026-08-22) and nothing changed it; the two pickers were simply never the
+         same. A tier's DISPLAY name lives in `DIFF_NAME` and every picker should read it from there rather than
+         re-typing the list, which is the real fix and is filed. */
+      var strengthOpts='<option value="random">🎲</option><option value="minion">Minion</option><option value="recruit">Squire</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon Lord</option>';
       var html='';
       for(var i=0;i<n-1;i++){
         html+='<label class="setRow"><span>P'+(i+2)+'</span><span class="oppPick">'+

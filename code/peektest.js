@@ -45,7 +45,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     return { peeking:window.__solo.peeking(),
       log:g('logToggle'), save:g('saveLogBtn'), yourNrg:g('youNrgBtn'), yourShuf:g('youShufBtn'),
       specials:g('specialsRefBtn'), help:g('helpBtn'), settings:g('settingsBtn'), sfx:g('sfxBtn'),
-      hints:g('hintsBtn'), newBtn:g('newBtn'), peekBar:g('peekBar'),
+      hints:g('hintsBtn'), newBtn:g('newBtn'), peekBar:g('peekBar'), menuBtn:g('menuBtn'),
       oppNrg:hit(document.querySelector('.oppNrgBtn')), oppPanel:hit(document.querySelector('.oppPanel')),
       /* The GROUP is the click target, not the card: `.group .card{pointer-events:none}` by design, so the
          whole stack of a pair reacts as one. Asserting the card reports "inert" on a perfectly working hand. */
@@ -59,11 +59,24 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
   // ---- WHAT PEEKS ----
   const peeks=[['log','the battle log toggle'],['save','⤓ Save'],['yourNrg','your energy pile'],
-    ['yourShuf','your shuffle pile'],['specials','🃏 Specials list'],['help','? How to play'],
-    ['settings','⚙️ Settings — Aj: "also let\'s you check the rules"'],['sfx','🔊 sound'],['hints','💡 Hints'],
-    ['newBtn','🏳 Concede / New Duel'],['peekBar','↩ Back'],['oppNrg',"an opponent's energy pile"],
+    ['yourShuf','your shuffle pile'],['specials','🃏 Specials list'],['menuBtn','☰ the menu'],
+    ['peekBar','↩ Back'],['oppNrg',"an opponent's energy pile"],
     ['oppPanel',"an opponent's panel"],['handCard','a card group in your hand']];
   peeks.forEach(([k,label])=>ok(s[k]==='live', `PEEKS: ${label} is clickable [${s[k]}]`));
+
+  /* HELP / SETTINGS / SOUND / HINTS MOVED BEHIND ☰ IN v1.31.105, and the spec did not change with them: peek
+     must still REACH them. So follow the real path rather than dropping the assertions — open the sheet and
+     hit-test what is inside it. This is the stricter version anyway: the sheet is a child of `<header>`, which
+     peek lifts to `--zPeek`, and the sheet's own `--zMenu` is BELOW `--zOverlay` — so it only clears the peek
+     backdrop because its lifted parent carries it, which is exactly the kind of stacking assumption that has
+     broken twice in this file. A DOM check could not see it. */
+  await p.evaluate(()=>document.getElementById('menuBtn').click()); await wait(250);
+  const inMenu = await state();
+  ok(inMenu.peeking, 'the ☰ sheet opens WITHOUT leaving peek');
+  [['help','? How to play'],['settings','⚙️ Settings — Aj: "also let\'s you check the rules"'],
+   ['sfx','🔊 sound'],['hints','💡 Hints'],['newBtn','🏳 Concede / New Duel']]
+    .forEach(([k,label])=>ok(inMenu[k]==='live', `  → and ${label} is clickable inside it [${inMenu[k]}]`));
+  await p.evaluate(()=>document.getElementById('menuBtn').click()); await wait(200);
 
   // ---- WHAT STAYS DEAD ---- (inert, not merely covered: covering it would also hide the board)
   [['fight','Fight'],['pass','Pass'],['sort','Sort'],['clear','Clear'],['ctx','⚡ Activate']]
