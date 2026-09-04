@@ -119,6 +119,27 @@ const actionRow = p => p.evaluate(()=>{
     const ctxB = (await actionRow(p)).bs.filter(x=>x.id==='ctxBtn')[0];
     ok(ctxB && ctxB.text==='Phantasm' && ctxB.icon==='🌀',
        `  → the symbol follows the label, not the button (Phantasm → "${ctxB?ctxB.icon:'—'}")`);
+
+    /* ---- ENABLED MUST NOT LOOK LIKE DISABLED ---- (v1.31.104)
+       Aj: *"the fight button is all grey and the change from inactive to active is very subtle"*. The cause was
+       not missing CSS — `#fightBtn{background:var(--gold)}` had been in the file all along and LOST TO
+       `#actions button` ON SPECIFICITY, (0,1,0,0) against (0,1,0,1). So assert the COMPUTED background of a real
+       enabled button: reading the stylesheet, or checking the rule exists, passes on the broken build.
+       A card is selected right now (the phantasm click above), so Fight is live in round 1. */
+    const paint = () => p.evaluate(()=>{
+      const gold=getComputedStyle(document.documentElement).getPropertyValue('--gold').trim();
+      const px=h=>{const m=h.replace('#','');return 'rgb('+[0,2,4].map(i=>parseInt(m.substr(i,2),16)).join(', ')+')';};
+      const f=document.getElementById('fightBtn'), ps=document.getElementById('passBtn'), c=getComputedStyle(f);
+      return { goldRGB:px(gold), fightBg:c.backgroundColor, fightOff:f.disabled,
+               passLit:/232, 195, 122/.test(getComputedStyle(ps).borderColor), passOff:ps.disabled||ps.classList.contains('off') };});
+    const lit = await paint();
+    ok(!lit.fightOff && lit.fightBg===lit.goldRGB,
+       `  → an ENABLED Fight is actually gold, not the panel colour (${lit.fightBg} vs ${lit.goldRGB})`);
+    /* AND THE OFF STATE MUST DIFFER — a build that painted every Fight gold would pass the line above. */
+    await p.evaluate(()=>{ const c=document.getElementById('clearBtn'); if(c && !c.disabled) c.click(); }); await wait(350);
+    const dark = await paint();
+    ok(dark.fightOff && dark.fightBg!==lit.goldRGB,
+       `  → and a DISABLED Fight is not (${dark.fightBg}), so the two states are told apart`);
     await ctx.close();
   }
 

@@ -1420,7 +1420,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 382, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 127, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 26, `sharetest` 16, `qrtest` 32, `peektest` 41, `logtest` 18, `motiontest` 7, `phonetest` 45, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 26, `sharetest` 16, `qrtest` 32, `peektest` 41, `logtest` 18, `motiontest` 7, `phonetest` 51, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

@@ -689,9 +689,24 @@
   #actions button{font:inherit; font-weight:800; font-size:15px; padding:11px 16px; border-radius:11px; border:1px solid var(--line); cursor:pointer; color:var(--txt); background:var(--panel);}
   #actions button:disabled,#actions button.off{opacity:.38; color:var(--txt); cursor:not-allowed;}   /* clearly grey out unusable actions (Phantasm/Fight when you can't) */
   #sortBtn{font-size:13px; padding:11px 13px;}
-  #fightBtn{background:var(--gold); color:#3a2a08; border-color:transparent;}
-  #fightBtn.confirm{background:var(--pick); color:#2a0a3a;}
-  #fightBtn:disabled,#passBtn:disabled{opacity:.4; cursor:not-allowed;}
+  /* THE PRIMARY ACTION WAS NEVER ACTUALLY GOLD — A SPECIFICITY BUG, NOT A DESIGN CHOICE (v1.31.104).
+     `#fightBtn{background:var(--gold)}` sat in this file for a long time and never applied: `#actions button`
+     above is (0,1,0,1) — one id plus one element — against `#fightBtn`'s (0,1,0,0), so the panel background won
+     wherever both were set. MEASURED: computed background `rgba(0,0,0,.3)` on an ENABLED Fight button.
+     The tell that names it: `.confirm` DID apply, because a class beats an element — so Confirm rendered purple
+     while Fight rendered grey, two states of one button disagreeing about whether the rule exists at all.
+     Aj: *"the fight button is all grey and the change from inactive to active is very subtle"* — reported as a
+     contrast problem, and it was a rule that had silently done nothing.
+     Scoped `:not(:disabled)` deliberately: a washed-out gold at 40% opacity is a weak "off", and the whole point
+     is that the ON state must be unmistakable. Off is the plain panel, on is a gold pill. */
+  #actions #fightBtn:not(:disabled){background:var(--gold); color:#3a2a08; border-color:transparent;}
+  #actions #fightBtn.confirm:not(:disabled){background:var(--pick); color:#2a0a3a; border-color:transparent;}
+  /* …AND THE ACT GROUP SAYS SO WHEN IT IS LIVE. The tools on the left (Sort / Clear / 🔍) stay neutral on
+     purpose — they are pressable almost all the time, so lighting them too would spend the signal on nothing.
+     Gold in this row means "this is a move you can make right now". Static, so reduced-motion needs no branch. */
+  #actions #ctxBtn:not(:disabled):not(.off), #actions #passBtn:not(:disabled):not(.off){
+    border-color:rgba(232,195,122,.85); box-shadow:0 0 0 1px rgba(232,195,122,.16), 0 0 9px rgba(232,195,122,.15);}
+  #actions #fightBtn:disabled,#actions #passBtn:disabled{opacity:.4; cursor:not-allowed;}
   /* one context-aware button — normal when usable, greyed when not (no special highlight) */
   #ctxBtn.off{background:var(--panel); color:var(--txt); opacity:.5; border-color:var(--line); cursor:not-allowed;}
 
@@ -1106,19 +1121,23 @@
     #hint{flex:1 0 100%; order:-1; margin:0 0 6px;}
     #hand{max-height:22dvh;}
   }
-  @media (max-width:480px){
-    #actions button{padding:9px 12px; font-size:14px;}
-    #sortBtn{padding:9px 11px;}
-    /* THE ACTION ROW GOES TO SYMBOLS (v1.31.104). Measured at 390px: the five buttons wanted two rows, and the
-       row above them is already a two-line hint — so the whole block cost a third of the hand region. The text
-       stays in the DOM (`font-size:0` only hides it), so the accessible name survives and nothing that reads
-       `textContent` moves. `attr(data-icon)` rather than a per-id glyph because Fight/Pass/Activate each rewrite
-       their own label — see ACTION_ICONS.
-       SORT KEEPS ITS WORDS, and it is the only one that does: it is the only button here whose label reports
-       STATE (Unsorted / Singles / Pairs / Straights) rather than naming an action, and an icon cannot say which
-       of four it is. */
-    /* SIX buttons since 🔍 joined, so the padding and gap come in with it — measured, not trimmed on principle:
-       at 13px of side padding and a 6px gap the row wanted 369px of a 366px line at 390 and wrapped. */
+  /* THE ACTION ROW GOES TO SYMBOLS (v1.31.104). Measured at 390px: the buttons wanted three rows, and the row
+     above them is already a two-line hint — so the whole block cost a third of the hand region. The text stays
+     in the DOM (`font-size:0` only hides it), so the accessible name survives and nothing that reads
+     `textContent` moves. `attr(data-icon)` rather than a per-id glyph because Fight/Pass/Activate each rewrite
+     their own label — see ACTION_ICONS.
+     SORT KEEPS ITS WORDS, and it is the only one that does: it is the only button here whose label reports STATE
+     (Unsorted / Singles / Pairs / Straights) rather than naming an action, and an icon cannot say which of four.
+
+     THE BREAKPOINT IS 720px — THE PHONE BRANCH — AND IT WAS 480 FOR ONE VERSION, WHICH WAS WRONG (Aj, from a
+     real screen: *"these aren't icons..."*). 480 was picked as "a phone" and never measured against the thing
+     that matters, which is whether the WORDS fit: Sort: Unsorted 131 + Clear 51 + 🔍 View card 97 + ⚡ Activate 87
+     + Pass 47 + Fight 50 = 463px, ~493 with gaps. So the text row wraps below ~500px and the icons did not come
+     in until 480 — a 20px window where it was already broken, and a whole band (481-720) that got the phone
+     LAYOUT with a desktop action row. Aj's screen was in it, and 🔍 View card being visible is what proves it:
+     that button's own gate is `max-width:720px`. Reuse the branch that already means "this is a phone" rather
+     than inventing a second number for it. */
+  @media (max-width:720px){
     #actions{gap:5px;}
     #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #passBtn, #actions #fightBtn{font-size:0; padding:9px 10px;}
     #actions #viewCardBtn::before, #actions #clearBtn::before, #actions #ctxBtn::before, #actions #passBtn::before, #actions #fightBtn::before{
@@ -1128,16 +1147,30 @@
     #actions #sortBtn{font-size:0; padding:9px 11px;}
     #actions #sortBtn::before{content:attr(data-icon); font-size:13.5px; line-height:1.24;}
   }
+  @media (max-width:480px){
+    #actions button{padding:9px 12px; font-size:14px;}
+    #sortBtn{padding:9px 11px;}
+  }
   @media (max-width:380px){ .card{width:40px;height:58px;} .card .c{font-size:20px;} .card.big{width:52px;height:76px;} }
   /* One step tighter for the narrowest phones. 327px is the narrowest viewport `landscapetest` covers, and six
      buttons plus Sort's state word do not fit there at the 480px sizing — measured 331px of a 303px line. */
   @media (max-width:380px){
-    #actions{gap:4px;}
-    #actions button{padding:8px 8px;}
-    #actions #sortBtn{padding:8px 8px;}
+    /* 3px, not 4. 320x568 — iPhone 5/5s/SE-1st in PORTRAIT, a real device — landed exactly on the limit at 4px:
+       284px needed into 284px of line, so it wrapped. The icons are distinct pills; the gap is the cheapest px
+       here and 5 of them is the difference between one row and two. */
+    #actions{gap:3px;}
+    /* ID SELECTORS, NOT `#actions button`. The rules above set the padding per id, and an id beats a type
+       selector whatever the source order — so the `#actions button{padding:8px 8px}` this block used to carry
+       was INERT for the five icon buttons and applied to nothing but the emote bar. Measured: Clear was 34px at
+       both 327 and 360, i.e. identical, which is what a silently-dropped rule looks like. */
+    #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #passBtn, #actions #fightBtn{padding:8px 8px;}
+    /* MEASURED 2px OVER at 327x660 — clientW 291, the six buttons wanted 293 — so the room comes off the widest
+       item, which is Sort's state word. Sized against `⇅ Straights`, the LONGEST of the four states, not the
+       `⇅ Unsorted` a fresh board happens to show. */
+    #actions #sortBtn{padding:8px 6px;}
     #actions #viewCardBtn::before, #actions #clearBtn::before, #actions #ctxBtn::before,
     #actions #passBtn::before, #actions #fightBtn::before{font-size:16px;}
-    #actions #sortBtn::before{font-size:12.5px;}
+    #actions #sortBtn::before{font-size:11.5px;}
   }
   /* really tight (short) phones + landscape: the inline description strip eats scarce vertical space, so drop it and
      offer a "🔍 View card" button that opens the full-screen reader instead (the whole page becomes the description box). */

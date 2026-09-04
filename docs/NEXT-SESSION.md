@@ -431,6 +431,36 @@ screen instead of scrolling. That turned `landscapetest` red, because the floor 
 when the layout improves is the wrong shape**; it is `fits OR scrolls` now, with the reachability check (which
 already covered both) as the real contract.
 
+**THE BREAKPOINT WAS 480px FOR A DAY AND THAT WAS WRONG** (Aj, from a real screen: *"these aren't icons..."*,
+then *"i just tested on my pc this time"*). 480 was picked as "a phone" and never measured against the thing
+that decides it — whether the WORDS fit. They need **~493px** (`Sort: Unsorted` 131 + Clear 51 + 🔍 View card 97
++ ⚡ Activate 87 + Pass 47 + Fight 50, plus gaps), so the text row wraps below ~500 and the icons did not arrive
+until 480: a 20px window already broken, and a whole band (**481-720**) getting the phone LAYOUT with a desktop
+action row. **It is `max-width:720px` now — the phone branch itself** — rather than a second number invented for
+the same idea. 🔍 View card being visible in Aj's screenshot is what pinned it down: that button's own gate is
+720, so his viewport had to be inside the broken band.
+**And two rows anywhere "feels like a no no" (Aj), so the narrow end is closed too:** 327×660 was **2px** over
+(291px of line, 293 needed) and 320×568 — iPhone 5/5s/SE-1st in portrait, a real device — landed **exactly** on
+it. Sized against `⇅ Straights`, the LONGEST sort state rather than the `⇅ Unsorted` a fresh board shows: both
+are one row now, with 5-12px to spare. A latent specificity bug came out with it — the ≤380 step's
+`#actions button{padding:8px 8px}` was **inert**, because an id beats a type selector whatever the source order,
+and the tell was Clear measuring 34px at both 327 and 360.
+
+**★ AND THE PRIMARY ACTION HAD NEVER BEEN GOLD — A SPECIFICITY BUG, NOT A MISSING RULE** (Aj: *"can we make the
+active buttons glow? ... the fight button is all grey and the change from inactive to active is very subtle"*).
+`#fightBtn{background:var(--gold)}` has been in the stylesheet for a long time and **never applied**:
+`#actions button` is **(0,1,0,1)** — one id plus one element — against `#fightBtn`'s **(0,1,0,0)**.
+**MEASURED: computed background `rgba(0,0,0,.3)` on an ENABLED Fight.**
+**The tell that names it: `.confirm` DID apply**, because a class beats an element — so Confirm rendered purple
+while Fight rendered grey, two states of one button disagreeing about whether the rule exists. Reported as a
+contrast complaint; it was a rule that had silently done nothing.
+Fixed by scoping to `#actions #fightBtn:not(:disabled)`, and the `:not(:disabled)` is deliberate — a washed gold
+at 40% opacity is a weak "off", and the point is that ON must be unmistakable. Plus a gold border + soft static
+glow on **⚡ Activate and ⏭ Pass when they are live**; the tools (Sort / Clear / 🔍) stay neutral, because they
+are pressable almost always and lighting them too would spend the signal on nothing.
+**The guard asserts the COMPUTED background of a real enabled button, and both states** — reading the stylesheet
+passes on the broken build, and so would a build that painted every Fight gold. A/B'd: 3 red on the bug.
+
 **AND `landscapetest` HAD BEEN ASSERTING ON AN ANIMATION FRAME — found by this change, fixed with it.** Its
 zone-vs-pile check staged a new pile and measured **in the same `evaluate` as `render()`**, so it read the
 fly-in's START position: 24×34 cards at y410-444, against 38×55 at y268-323 once settled. `settled()` could not
