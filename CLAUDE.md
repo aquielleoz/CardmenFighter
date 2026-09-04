@@ -1269,6 +1269,15 @@ on any progress) so a slow machine takes more of them rather than doing less. Th
 (`nettest_full`) applied to a suite that predated it — **grep for a bare `for(let i=0;i<N;i++)` driving a
 board before adding another.**
 
+**AND MEASURE THE MARGIN, OR THE NEXT PARTIAL FIX LOOKS COMPLETE (v1.31.99).** v1.31.84 raised the lesson polls
+to 30s and left TWO explicit overrides behind, which is what left an intermittent tail. Instrumenting every wait
+found exactly one outlier: `atStep` returns in **0-4ms** of 12000 and the Rival's answers in ~1.07s of 30000
+(28x), while the full-house wait took **4676ms of 14000 — a 3.0x margin, the only poll under 4x** — and the one
+day that suite failed it ran **5x slow**. `until` now warns on any wait past half its budget in every run, and
+`LESSONPOLL=1` prints them all. **A poll returning at 13.4s of 14s is a green run one slow machine away from
+red, and nothing said so.** Raise a budget because you measured it, never on principle — the six other
+sub-default budgets in the harness all return under 5% and were deliberately left alone.
+
 **A POLL BUDGET SIZED FOR A QUIET MACHINE GOES RED WHEN THE SWEEP IS PARALLEL (v1.31.84).** The lesson suites
 polled with **9s**; under `-j 4` `lessontest_rides` blew it once on "the J is spotlit", and a tutorial paces
 its own beats (`revealDwell` is 2650ms) so the margin was thin. All six in `lessonlib.js` are 30s now.
@@ -1392,7 +1401,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.98 — 2026-09-03, `npm run sweep`, 81 suites and 0 FAIL in 167s** (four lanes; background
+Status as of **v1.31.99 — 2026-09-03, `npm run sweep`, 81 suites and 0 FAIL in 167s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:

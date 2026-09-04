@@ -24,16 +24,30 @@ async function openLesson(id, viewport){
    * margin was thinner than it looked. CLAUDE.md's standing rule: a slow machine must make a suite SLOWER,
    * never red. NOTE that failure was seen ONCE and not reproduced (5 solo runs, 3 under artificial load),
    * so this is the budget being wrong for the new normal, not a diagnosed cause. */
+  /* REPORT THE MARGIN, NOT JUST THE VERDICT (v1.31.99). A poll that returns at 13.4s of a 14s budget is a
+   * green run one slow machine away from red, and nothing said so — the budgets here were raised 9s → 30s in
+   * v1.31.84 for exactly that reason. `LESSONPOLL=1` prints how long every wait actually took, so the margin
+   * is a measurement instead of a guess; a timeout always prints. */
+  const POLLLOG = !!process.env.LESSONPOLL;
   const until=async(fn,src,ms=30000,arg)=>{ const t0=Date.now();
-    while(Date.now()-t0<ms){ if(await p.evaluate(fn,arg)) return true; await p.waitForTimeout(80); }
-    console.log('⏱ poll TIMED OUT: '+src); return false; };
+    while(Date.now()-t0<ms){ if(await p.evaluate(fn,arg)){
+      const el=Date.now()-t0;
+      if(POLLLOG || el>ms*0.5) console.log('   ⏱ '+el+'ms of '+ms+'ms'+(el>ms*0.5?'  ← OVER HALF THE BUDGET':'')+': '+src);
+      return true; } await p.waitForTimeout(80); }
+    console.log('⏱ poll TIMED OUT after '+ms+'ms: '+src); return false; };
   const step=()=>p.evaluate(()=>{ const t=document.getElementById('tutPanel');
     return { n:(t&&t.querySelector('.tutStep')||{}).textContent||'', text:(t&&t.querySelector('.tutText')||{}).textContent||'',
              hasNext:!!(t&&t.querySelector('#tutNextBtn')), spots:document.querySelectorAll('.tut-spot').length }; });
   const at=async()=>{ const m=/(\d+)\s*\/\s*(\d+)/.exec((await step()).n); return m?{i:+m[1],n:+m[2]}:null; };
   const next=async()=>{ const hit=await p.evaluate(()=>{ const btn=document.getElementById('tutNextBtn'); if(!btn) return false; btn.click(); return true; });
     if(!hit) console.log('⚠ next(): #tutNextBtn was not present — the lesson did not advance'); return hit; };
-  const atStep=(k)=>until(i=>{ const m=/(\d+)\s*\/\s*(\d+)/.exec((document.querySelector('.tutStep')||{}).textContent||''); return !!m && +m[1]>=i; }, 'reach step '+k, 12000, k);
+  /* NO SUB-DEFAULT BUDGETS. v1.31.84 raised these polls 9s → 30s because parallel load blew them, and left two
+   * explicit overrides behind — this one and the full-house wait in lessontest_twos. Measured on an idle
+   * machine, every atStep returns in 0-4ms, so 12s was never buying anything; the full-house wait takes 4.7s,
+   * a 3x margin, and the one day lessontest_twos failed the suite ran 5x slow (100s against 20s). 3x margin
+   * under a 5x slowdown is the whole story. A poll budget is a HANG GUARD, not a race — it returns the instant
+   * the condition holds, so a generous ceiling costs a passing run nothing. */
+  const atStep=(k)=>until(i=>{ const m=/(\d+)\s*\/\s*(\d+)/.exec((document.querySelector('.tutStep')||{}).textContent||''); return !!m && +m[1]>=i; }, 'reach step '+k, 30000, k);
   const st=()=>p.evaluate(()=>window.__solo.st());
   /* Clear any selection. `clearBtn` alone is not enough — it can be disabled — so click every selected group
    * too. A leftover selection stages a FIGHT and makes unrelated controls read as dead. */
