@@ -338,7 +338,19 @@
   #oppList .setRow span:first-child{color:var(--gold); font-size:13px;}
   #oppList .oppPick{display:flex; gap:6px; flex:1 1 auto; min-width:0; justify-content:flex-end;}
   #oppList .oppPick select{min-width:0; flex:1 1 0;}
-  #oppList .oppPick select.strength{flex:0 0 118px;}
+  /* SIZED TO ITS OWN WIDEST OPTION, not to a number (v1.31.105). It was `0 0 118px` and "Demon Lord" needs
+     125px — 83px of text plus 20px of padding plus the chevron — so the longest tier name was clipped to
+     "Demon Lor" at EVERY width, which is what Aj saw. `auto` cannot go stale: rename a tier longer and the
+     control still fits it, where the next hardcoded number would clip again the same way. The deck select
+     beside it is `flex:1 1 0` and simply gives up the difference (it has 117-267px to spare). */
+  #oppList .oppPick select.strength{flex:0 0 auto;}
+  /* AND THE ROW HAS TO AFFORD BOTH. At 360px the pair wants 120px ("🎲 Random") + 126px ("Demon Lord") + the
+     6px gap = 252 into 241px of row, so sizing the strength control honestly pushed the DECK one from a 3px
+     clip to an 11px one — it was already truncating "🎲 Random", which is its DEFAULT value and therefore the
+     everyday case. Trimming the side padding on this list only, below 480px, buys 8px per control and lands
+     both inside the row (measured 236 of 241). The deck select still truncates the long class names — that is
+     by design, `flex:1 1 0; min-width:0` — but no longer on the value most people never change. */
+  @media (max-width:480px){ #oppList .oppPick select{padding-left:6px; padding-right:6px;} #oppList .oppPick{gap:5px;} }
   .modal .diceArea{display:flex; align-items:center; justify-content:center; gap:22px; margin:14px 0 4px; min-height:78px; flex-wrap:wrap;}
   .modal .diceArea.mp{gap:10px 14px;}
   .modal .diceArea.mp .die{font-size:34px;} .modal .diceArea.mp .dieLabel{font-size:11px;}

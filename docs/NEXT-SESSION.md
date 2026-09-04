@@ -411,6 +411,18 @@ default, so `#menuSheet{display:flex}` would have rendered the sheet permanently
 stated explicitly; and the open handler needs `stopPropagation`, or the document listener that closes on an
 outside click sees the same click and shuts it immediately.
 
+**Rider 2 — the picker that clipped it.** Aj asked for a *marquee* on the per-opponent strength control; there
+cannot be one, and it is not needed. A native `<select>`'s closed-state text is drawn by the browser and is
+neither stylable nor animatable — and the real cause was a hardcoded `flex:0 0 118px` against the **125px**
+"Demon Lord" needs (83px of text + 20px padding + the chevron), so it clipped at every width. It is
+**`flex:0 0 auto`** now, sized to its own widest option, which cannot go stale the way the next hardcoded number
+would. **That pushed the DECK select from a 3px clip to an 11px one** — the pair wants 252px into a 241px row at
+360 — so this list's side padding drops 4px below 480px, landing both inside (236 of 241).
+**Honest limit: the deck picker still truncates.** Its default is `🎲 Random class`, not the `🎲 Random` I first
+measured — I sized against a string I had assumed rather than read — and its longest option
+(`Mage Knight (Wiz+Fig)`) needs **191px**, so truncation there is inherent to `flex:1 1 0; min-width:0` and is by
+design. "Random c…" is better than "Randor"; it is not "fixed".
+
 **Rider:** the **per-opponent** strength picker said `Demon` where everything else says **Demon Lord** (Aj:
 *"since when did we stop using demon lord?"*). Answer: never — that row has read `Demon` since the repo's first
 commit. Relabelled; the real fix, building every picker from `DIFF_NAME` instead of re-typing the list, is filed.

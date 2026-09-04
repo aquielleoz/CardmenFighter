@@ -1414,7 +1414,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.105 — 2026-09-04, `npm run sweep`, 82 suites and 0 FAIL in 169s** (four lanes; background
+Status as of **v1.31.105 — 2026-09-04, `npm run sweep`, 82 suites and 0 FAIL in 159s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
