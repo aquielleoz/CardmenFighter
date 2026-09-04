@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.95.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.96.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-03)
 
-`main` is at **v1.31.95**, working tree clean, full sweep green at **79 suites**. The only branch is
+`main` is at **v1.31.96**, working tree clean, full sweep green at **79 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **v1.31.95 was built in one session and REVIEWED IN ANOTHER, on purpose** — the build session hit its cap twice
@@ -94,16 +94,15 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 *Four reports from a real online duel, 2026-09-02, with screenshots. Ranked: the wedge first.*
 
-- **THE HOST'S RECORD NEVER COUNTS A REMOTE SEAT'S TECHNIQUES** (found 2026-09-02 while fixing the effect art;
-  filed rather than bundled, because it is an export bug and not a presentation one). `bumpEffect` is called
-  from the local drivers and from `buildOppBeats` — neither of which runs for a **remote human seat**. Both host
-  activate branches (`hostApplyMove` ~7416, `hostApplyMoveN` ~7713) `say()` the line and stop, so a client's
-  every cast lands in the engine and in the log but never in `stats`. **And the host's record is the one every
-  seat ADOPTS**, so no netplay game has ever recorded a client's Technique counts — they read as zero for
-  everybody. This is the v1.31.5 bug exactly (*"opponents' fights were always 0"*), one field over.
-  The fix is a `bumpEffect(seat, aeff)` beside each `fxBroadcast` call added in v1.31.93. **It needs a test
-  before it ships**: `nettest_record` already asserts `oppFights>0`, and the sibling assertion belongs there —
-  but `stats` is not exposed, so it wants either a dbg hook or a client cast staged inside that suite's game.
+- **`shieldsLost` IS NEVER COUNTED UNDER REDUCED MOTION — FOR ANY SEAT, SOLO INCLUDED** (found 2026-09-03 while
+  fixing the remote-seat tally; filed rather than bundled, because it needs its own test). It is tallied inside
+  `animateShields`, in the `if(prev!=null && !reduceMotion())` branch that also runs the shatter animation — so a
+  player with reduced motion on exports every game with `shieldsLost: 0` for everybody. That field feeds
+  `docs/CARD-STATS.md` and the `PLAYER-PROFILE.md` ingestion log.
+  **Counting it from a RENDER DIFF is what makes it seat-agnostic** (it is the one stat the remote-seat bug did
+  not touch, precisely because it never asked who acted), so keep that property — hoist the `statOf(player)`
+  line above the motion guard rather than moving the tally to an action site. **The test needs emulated reduced
+  motion** (`prefers-reduced-motion`), which no suite currently does; that is the real cost of this one.
 - **A SEAT RE-CLAIMED IN THE REOPENED LOBBY, THEN ABANDONED BEFORE START, IS A GHOST** (filed with v1.31.95;
   pre-existing — the first lobby has always had it). `ldc.onclose` and `hostOnPeerDrop` act only while `started`,
   so a client that presses Ready and then closes its tab before the host starts is dealt in and the table parks
@@ -333,6 +332,41 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.96 — a remote seat's plays are counted, not just narrated
+
+Filed on 2026-09-02 as *"the host's record never counts a remote seat's Techniques"*. **The entry understated
+it: three of the four stat fields were blank, not one.**
+
+**EVERY `bumpFight`/`bumpEffect` CALL SITE IS A LOCAL PATH** — your own actions, the response windows, and
+`buildOppBeats`, which covers **AI** seats only. A remote HUMAN's play and activation arrive at
+`hostApplyMove`/`hostApplyMoveN`, which resolve them, narrate them, broadcast the art (v1.31.93) and never
+tally. **And the host's record is the one every seat ADOPTS at game end**, so a client's whole game read as
+zero for everybody. Exactly the v1.31.5 bug (*"opponents' fights were always 0"*) one field over.
+
+| stat | you | AI opponent | remote human |
+| --- | --- | --- | --- |
+| jabs / specials | ✓ | ✓ `buildOppBeats` | **was ✗** |
+| techniques / `eff` | ✓ | ✓ `buildOppBeats` | **was ✗** |
+| shieldsLost | ✓ | ✓ | ✓ |
+
+**`shieldsLost` SURVIVED ONLY BY ACCIDENT, AND THE ACCIDENT HAS ITS OWN BUG.** It is counted inside
+`animateShields` from a RENDER DIFF rather than at an action site, so it never cared who acted — but it sits
+inside `if(prev!=null && !reduceMotion())`, so **with reduced motion on it is counted for nobody, including you
+in solo play**. Filed, not fixed here: it needs its own test under emulated reduced motion.
+
+Four sites, each A/B'd against its own removal. **Two of them were in `hostApplyMoveN` and no duel suite can
+reach them** — the same unexercised-branch trap v1.31.93's fourth A/B caught. Covering them needed a seam:
+the finished record only exists at game end, and **no 3-player suite both has a client ACT and plays to a
+finish**, so `__cmf.stats()` now exposes the live tally and the two N-player sites are asserted where a client
+already acts — `nettest_target3` (a client activates) and `nettest_losspick_remote3` (a client leads a
+straight). `nettest_record` 12 → **18** covers the duel half.
+
+**THE NEW ASSERTIONS WERE VACUOUS ON THE FIRST TRY AND SAID SO.** `nettest_record` ends the game with the client
+only PASSING, so seat 1 reads zero on a FIXED build too. It now stages the client a clean lead — `forceAll`'s
+`opts.turn` nulls the pile and clears passes/locks — makes it land one fight and one Technique, and **asserts
+both landed** before asserting they were counted. Driving toward a client turn instead was tried and does not
+terminate: the round winner leads, and the host keeps winning.
 
 ### v1.31.95 — back to the lobby after an online game
 

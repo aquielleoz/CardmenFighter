@@ -59,6 +59,15 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok(c2Dropped,'the CHOSEN opponent (c2) lost a shield ('+sh0[2]+' → '+(await shieldsOf(c2))+')');
   ok(await shieldsOf(host) === sh0[0],'the host was NOT hit ('+(await shieldsOf(host))+')');
   ok(await shieldsOf(c1) === sh0[1],'the caster c1 was NOT hit ('+(await shieldsOf(c1))+')');
+  /* THE REMOTE SEAT'S TECHNIQUE MUST REACH THE HOST'S TALLY (v1.31.96). `hostApplyMoveN` resolves a client's
+   * activation and narrates it; every bumpEffect call site is a LOCAL path (your own actions, the response
+   * windows, and buildOppBeats — which covers AI seats only), so seat 1's Techniques read 0 in the record that
+   * every seat ADOPTS. This is the N-PLAYER half; nettest_record covers the duel half. Read live from the host
+   * rather than from a finished record, because this suite does not play to a game end. */
+  const cStats = await host.evaluate(()=>{ const s=window.__cmf.stats(); return s && s.seats && s.seats[1]; });
+  ok(!!cStats && cStats.techniques>0,
+     'the client\'s Technique is counted on the host ('+((cStats&&cStats.techniques)||0)+') — hostApplyMoveN tallies a remote seat');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
 
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

@@ -7574,6 +7574,7 @@ __QR__
         if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
         say(1, '{who} played '+(aeff?aeff.name:'a Technique')+'.', 'rival');
         fxBroadcast(1, acard);   // the remote seat's effect was invisible on the host too — its own board only logged the line
+        bumpEffect(1, aeff);     // ...and uncounted: every other bumpEffect site is a LOCAL path, so the host's record — the one every seat ADOPTS — had this seat at zero
         return hostSettle(g, function(){ hostRivalContinue(g); });   // host may Counter; rival may counter-back; then the rival's turn continues
       }
       try{
@@ -7584,7 +7585,7 @@ __QR__
         }
       }catch(e){ send({t:'err', reason:'Move rejected.'}); broadcastMirror(); return; }   // never let a malformed remote payload crash the host
       if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
-      if(it.op==='play'){ say(1, '{who} played '+playPhrase(r.combo)+(r.boosted?' (boosted)':'')+'.', 'rival'); }
+      if(it.op==='play'){ say(1, '{who} played '+playPhrase(r.combo)+(r.boosted?' (boosted)':'')+'.', 'rival'); bumpFight(1, r.combo && r.combo.type); }
       else if(it.op==='pass'){ say(1, '{who} passed.', 'rival'); }
       hostAfterRivalMove(r, g);
     }
@@ -7863,7 +7864,7 @@ __QR__
           var r;
           try{
             if(E.isLocked(hostState, seat)){ r=E.pass(hostState, seat); say(seat, '{who} is locked out (Back Stab) — turn skipped.', 'warn'); }
-            else if(it.op==='play'){ r=E.play(hostState, seat, resolveIds(seat, it.ids)); if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; } say(seat, '{who} played '+playPhrase(r.combo)+(r.boosted?' (boosted)':'')+'.', 'rival'); }
+            else if(it.op==='play'){ r=E.play(hostState, seat, resolveIds(seat, it.ids)); if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; } say(seat, '{who} played '+playPhrase(r.combo)+(r.boosted?' (boosted)':'')+'.', 'rival'); bumpFight(seat, r.combo && r.combo.type); }
             else { r=E.pass(hostState, seat); if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; } say(seat, '{who} passed.', 'rival'); }
           }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Move rejected.'}); broadcastMirror(); return; }
           netParked=null;
@@ -7882,6 +7883,7 @@ __QR__
           if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
           say(seat, '{who} played '+(ae?ae.name:'a Technique')+'.', 'rival');
           fxBroadcast(seat, ac);
+          bumpEffect(seat, ae);
           hostFlushReveals();          // Outbalance: hand the read to the caster (no-op for every other card)
         } else return;
       }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Move rejected.'}); broadcastMirror(); return; }
@@ -8516,6 +8518,10 @@ __QR__
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
   if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); },
+    /* THE LIVE TALLY. The finished record only exists at game end, and no 3-player suite both has a client ACT
+     * and plays to a finish — so without this seam the N-player half of the remote-seat tally (v1.31.96) could
+     * only be covered by a whole new suite. Read on the HOST, whose stats are the ones every seat adopts. */
+    stats:function(){ return stats; },
     /* THE UNCAPPED LOG. `#log` evicts at 80 entries (see logMsg), and the host and client carry DIFFERENT total
      * line streams — the host logs host-local lines a client never receives — so past 80 the two windows cover
      * different spans of history and any category count can drift by one in EITHER direction. `nettest_sync`
