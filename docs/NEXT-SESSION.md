@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.98.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.99.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-03)
 
-`main` is at **v1.31.98**, working tree clean, full sweep green at **81 suites**. The only branch is
+`main` is at **v1.31.99**, working tree clean, full sweep green at **81 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **v1.31.95 was built in one session and REVIEWED IN ANOTHER, on purpose** — the build session hit its cap twice
@@ -108,20 +108,22 @@ online duel against a person.*
   [`DECISIONS.md`](DECISIONS.md#phone-layout).
 ### Tooling
 
-- **`lessontest_twos` HAS FAILED UNDER PARALLEL LOAD ONCE, UNEXPLAINED — and the "fourth timing class" label
-  this entry used to carry was invented, not diagnosed.** Observed 2026-09-02: 29/0 alone, 23/6 at `-j 4`, 100s
-  against its usual 20s, with `✗ the Rival led a full house built on three 2s` … `hint: Special Full House —
-  doesn't beat the Special Pair` (so the pile was a PAIR where the lesson expected a full house).
-  **v1.31.94 reproduced that signature EXACTLY from a known cause and fixed it** — an unconditional
-  `textContent` write in the log button's scroll listener starved the page (21s → 100s, 23/6), and idempotence
-  restored 20s. **That code did not exist on 2026-09-02**, so it cannot explain the original observation; but
-  **starvation demonstrably produces this signature**, which makes it a far better hypothesis than a new class
-  of timing bug. The most likely candidate for the original is machine contention — that session had killed
-  batches and an orphaned waiter running alongside the sweep.
-  **Status: not reproducing.** Green at 20s under `-j 4` in clean sweeps since. Kept open rather than closed as
-  a ghost (CLAUDE.md's own rule after the mirror-drop investigation). **If it recurs, look for something
-  starving the page before positing a sequence bug** — and log what the pilot actually played versus what the
-  step expected, which is still the right first move.
+- **`lessontest_twos`: MECHANISM FOUND AND FIXED (v1.31.99), though it never reproduced.** Kept as a record
+  because the reasoning is reusable, not because work remains.
+  **Measured, which is what settled it:** on an idle machine every poll in the lesson harness returns with a
+  huge margin — `atStep` in **0-4ms** of 12000, the Rival's answers in ~1.07s of 30000 (28x) — except one. The
+  full-house wait took **4676ms against a 14000ms budget: a 3.0x margin, the only poll in the harness under 4x.**
+  The single day it failed, the suite ran **100s against its usual 20s — a 5x slowdown**. 3x margin under a 5x
+  slowdown blows that budget and nothing else, which is exactly the observed failure: *"the Rival led a full
+  house built on three 2s"* went red (the pile still held the previous pair, because the Rival had not led yet),
+  and `atStep(8)` followed it because the lesson had not advanced. Every other assertion passed.
+  **v1.31.84 raised these polls 9s → 30s and left two explicit overrides behind** — `atStep`'s 12000 and this
+  14000. Both now use the default; the full-house wait sits at a **6.4x** margin. The other six sub-default
+  budgets in the harness were measured too and all return under 5% of budget, so they are left alone: raising a
+  budget without measuring it is how the first partial fix happened.
+  **It still never reproduced** — 12/12 green under six concurrent copies at load 7.5 — so this is a mechanism
+  that fits every observation, not a caught bug. **If it recurs, the harness now says so itself**: `until` warns
+  on any wait exceeding half its budget in every run, and `LESSONPOLL=1` prints them all.
 
 ### Features
 
@@ -295,6 +297,33 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.99 — the one poll in the lesson harness without margin
+
+Aj: *"wasn't the lessontest_twos bug already fixed?"* **No — and the two events had been conflated.** v1.31.94
+fixed a starvation bug of my own making that produced an IDENTICAL signature (100s, 23/6) but postdates the
+2026-09-02 sighting by a day, so it never explained it. Nothing was changed on 2026-09-02; the failure simply
+stopped happening.
+
+**MEASURE THE MARGIN, NOT THE VERDICT.** Instrumenting every wait in the harness found one outlier: on an idle
+machine `atStep` returns in **0-4ms** of a 12000ms budget and the Rival's answers in ~1.07s of 30000 (28x), but
+the full-house wait takes **4676ms of 14000 — a 3.0x margin, the only poll in the harness under 4x.** The day it
+failed, the suite ran **100s against its usual 20s: a 5x slowdown.** 3x margin under a 5x slowdown blows that
+one budget and nothing else — which is precisely what was observed, *"the Rival led a full house built on three
+2s"* red because the pile still held the previous pair (the Rival had not led yet), `atStep(8)` red behind it,
+and every other assertion green.
+
+**v1.31.84 RAISED THESE POLLS 9s → 30s AND LEFT TWO EXPLICIT OVERRIDES BEHIND** — `atStep`'s 12000 and this
+14000. A partial fix is what leaves an intermittent tail. Both now take the default; the full-house wait sits at
+**6.4x**. The other six sub-default budgets were measured rather than raised on principle — all return under 5%
+of budget, so they stay: raising a budget without measuring it is how the first partial fix happened.
+
+**THE HARNESS NOW REPORTS ITS OWN MARGINS.** `until` warns on any wait that exceeds half its budget, in every
+run, and `LESSONPOLL=1` prints them all. A poll returning at 13.4s of 14s is a green run one slow machine away
+from red, and nothing used to say so — which is the whole reason this took two sessions to characterise.
+
+**IT STILL NEVER REPRODUCED** — 12/12 green under six concurrent copies at load 7.5. So this is a mechanism that
+fits every observation and a fix for the only thin budget, not a caught bug, and the BACKLOG entry says so.
 
 ### v1.31.98 — the defect backlog, cleared
 

@@ -56,7 +56,7 @@ const { openLesson } = require('./lessonlib');
 
   /* AND THE FLIP, at five cards, with the reveal in the step BEFORE the instruction. */
   const ledFh=await until(()=>{ const s=window.__solo.st();
-      return !!s.pile && s.pile.combo.type==='fullhouse' && s.pile.combo.cards.filter(c=>c.rank===2).length===3; },'the Rival leads 222 + a pair',14000);
+      return !!s.pile && s.pile.combo.type==='fullhouse' && s.pile.combo.cards.filter(c=>c.rank===2).length===3; },'the Rival leads 222 + a pair');   // no override: the default 30s. At 4.7s idle this was the only poll in the harness under a 4x margin
   ok(ledFh,'the Rival led a full house built on three 2s');
   const s7=(await step()).text;
   ok(/four cards or more/i.test(s7) && /lowest/i.test(s7),'step 7 explains the flip BEFORE asking you to beat it');
