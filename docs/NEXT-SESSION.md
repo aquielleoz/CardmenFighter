@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.99.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.100.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-03)
 
-`main` is at **v1.31.99**, working tree clean, full sweep green at **81 suites**. The only branch is
+`main` is at **v1.31.100**, working tree clean, full sweep green at **81 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **v1.31.95 was built in one session and REVIEWED IN ANOTHER, on purpose** — the build session hit its cap twice
@@ -297,6 +297,23 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.100 — the version line at the top of CLAUDE.md joins the chain
+
+Found while merging v1.31.99: **CLAUDE.md's own header said `v1.31.95` against a real v1.31.99 — four versions
+stale** — while its `Status as of` line two hundred lines below was correct. That header is the FIRST line every
+session reads.
+
+`versiontest` covered README → build → both screens → the handoff's `Current version` and `main is at` → a
+changelog heading, and left out **the file that documents the rule it was breaking**: *"a number nobody can
+verify is the number that rots."* Both CLAUDE.md version lines are asserted against README now, and the
+assertion discriminates — reintroducing the stale line fails it.
+
+**Two notes for whoever extends this next.** The suite ALREADY read CLAUDE.md, for the `test`/`netview` counts —
+adding a second `fs.readFileSync` into the same scope was a `SyntaxError: Identifier 'claude' has already been
+declared`, caught loudly by the parser, which is the pleasant version of the duplicate-key trap v1.31.98 hit
+silently in an object literal. And the fix reuses that read rather than adding one: **check what a suite already
+loads before loading it again.**
 
 ### v1.31.99 — the one poll in the lesson harness without margin
 

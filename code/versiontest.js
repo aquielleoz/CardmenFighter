@@ -51,6 +51,11 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok(hv===want, `the handoff header's "Current version" matches README ("${hv||'NONE'}" vs "${want}")`);
   const mv=(hdr.match(/`main` is at \*\*(v\d+\.\d+\.\d+[a-z]?)\*\*/)||[])[1];
   ok(mv===want, `START HERE's "\`main\` is at" matches README ("${mv||'NONE'}" vs "${want}")`);
+  /* AND CLAUDE.md's OWN HEADER (v1.31.100). The chain covered README -> build -> both screens -> the handoff's
+   * two lines -> a changelog heading, and left the line at the top of the file every session reads FIRST. It
+   * drifted FOUR versions unnoticed (v1.31.95 against a real v1.31.99) while CLAUDE.md's status line two
+   * hundred lines below was correct — the same "a number nobody can verify is the number that rots" this suite
+   * exists for, in the file that documents the rule. */
   const ht=(hdr.match(/`node test\.js` \(\*\*(\d+)\*\*\)/)||[])[1];
   ok(!!ht && !!eng && +ht===eng.pass, `the header's test.js count is REAL (says ${ht||'nothing'}, measured ${eng?eng.pass:'?'})`);
   const hn=(hdr.match(/`node netview\.test\.js` \(\*\*(\d+)\*\*\)/)||[])[1];
@@ -62,6 +67,10 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok(!/\*\*\d+ \/ 0\*\*/.test(hdr),
      'the header states no hand-maintained "NN / 0" expectations — unverifiable numbers are what rot');
   const claude=fs.readFileSync(path.resolve(__dirname,'..','CLAUDE.md'),'utf8');
+  const cv=(claude.match(/^Current version: \*\*(v\d+\.\d+\.\d+[a-z]?)\*\*/m)||[])[1];
+  ok(cv===want, `CLAUDE.md's "Current version" matches README ("${cv||'NONE'}" vs "${want}")`);
+  const csv=(claude.match(/^Status as of \*\*(v\d+\.\d+\.\d+[a-z]?)\b/m)||[])[1];
+  ok(csv===want, `…and its "Status as of" line does too ("${csv||'NONE'}" vs "${want}")`);
   const cc=claude.match(/`test` (\d+), `netview` (\d+)/)||[];
   ok(!!cc[1] && !!eng && +cc[1]===eng.pass, `CLAUDE.md's \`test\` count is REAL (says ${cc[1]||'nothing'}, measured ${eng?eng.pass:'?'})`);
   ok(!!cc[2] && !!nv  && +cc[2]===nv.pass,  `…and its \`netview\` count is REAL (says ${cc[2]||'nothing'}, measured ${nv?nv.pass:'?'})`);
