@@ -65,6 +65,42 @@ effects going unseen when its pass ended the round — went out in v1.31.106.*
 
 ### Things a playtester meets immediately
 
+- **★ THE LANDSCAPE BAND STILL HAS THE ZONE/PILE OVERLAP, AND IT IS THE WORST ONE IN THE GAME**
+  (measured 2026-09-07). v1.31.110 fixed PORTRAIT by moving the zones into the player panels; the landscape
+  band was never in scope and is far worse than portrait ever was. Deterministic, worst-case:
+  **800x360 = 176% covered · 844x390 = 110% · 568x320 = 89% · 932x430 = 25%** (47% with a zone expanded).
+  A/B'd against v1.31.109 — pre-existing, nothing to do with the reparent.
+  **Why the portrait fix does not reach it:** the band `(orientation:landscape) and (max-height:520px)`
+  **keeps the desktop structure on purpose** — that is its whole design — so the zones stay pinned to the
+  corners of a `#table` around 90px tall. `placeZones()` explicitly EXCLUDES the band, because reparenting
+  there measured worse (667x375 went 0% -> 41%): the panels are already squeezed flat, so a chip has no line
+  to ride. **This needs its own answer, not an extension of the portrait one.**
+  **The strongest clue is where the width comes from: the LABEL, not the cards.** The zone reads
+  "<name>’s Forms & Rides", so the opponent's randomly-drawn persona name sets how far it reaches over the
+  pile — the same build measured `rivalFormZone` at **143px, 148px and 175px** on consecutive runs, moving
+  932x430 between 3% and 25%. Shortening, truncating or re-siting that label may be most of the fix, and it
+  is cheaper than re-laying the band out.
+  **RATCHETED in `landscapetest` at all four sizes, both directions and both states** — tighten each line to
+  the `<5` the other viewports use as it is fixed.
+  **Why it hid:** the suite named nine viewports and ran the zone/pile check on **three**. Everything else
+  about the landscape band was asserted; this one thing was not.
+
+- **THE CARD VIEWER'S CLOSE BUTTON IS IN THE WRONG CORNER FOR A THUMB** (Aj, 2026-09-07: *"can we move the
+  close button to the center bottom instead of upper right? it's so far away from the magnifying glass button
+  and the hand..."*). Both things he names are at the BOTTOM of a phone screen — the 🔍 that opens the reader
+  lives in the action row and the hand sits above it — so the one control that dismisses it is the only part of
+  the interaction at the far end of the reach. Centre-bottom, full-width-ish, the way the reader's own content
+  already flows. Check it against `viewtest` (which runs at 390x780 because `#viewCardBtn` only exists inside
+  `(max-width:720px) and (max-height:800px)`) and against the peek overlay, which shares the dialog furniture.
+
+- **TAPPING AN EQUIPMENT ON THE BOARD SHOULD OPEN THE CARD VIEWER** (Aj, 2026-09-07: *"when we click equipments
+  on the board, can we open the card viewer?"*). Today it calls `showCard`, which fills the `#cardView`
+  description strip — on a phone that is a thin band at the bottom, not the reader the 🔍 opens.
+  **Read this together with what v1.31.110 just did to that click**, or it will be built twice: the collapsed
+  chip's tap is now "expand into the card", and the EXPANDED card's tap is `showCard`. So the natural home for
+  this is the second tap — expanded card → full viewer — which also gives the Forms mini-cards the same
+  treatment for free, since they are the same gesture on the same kind of thing. Decide the two together.
+
 - **THE HEADER STILL SAYS "duel vs AI" IN EVERY MODE — including an online duel against a person, and a
   six-player free-for-all.** From the 2026-09-02 screenshots. **Located:** the subtitle is *static markup* —
   `<h1>… <small>duel vs AI</small></h1>` — and **nothing ever writes to it**, so it is not "wrong in netplay",

@@ -367,12 +367,37 @@ const CASES=[
      (`width:150%`), and its right-hand bleed extended the scroll box for the ~1.3s the banner shows.
      Zones are STAGED here: with no Forms or equipment in play they do not render at all, and the assertion
      would pass on a board that cannot show the bug. */
-  for(const [w,h,what] of [[327,660,'narrow phone'],[390,780,'phone'],[1280,800,'desktop']]){
+  /* THE LANDSCAPE SIZES WERE NEVER IN THIS LOOP, AND THEY ARE THE BROKEN ONES (added 2026-09-07). The suite
+     names nine viewports in CASES and ran the zone/pile check on THREE — two portrait and a desktop — so the
+     whole landscape band, which is the reason this file exists, was measured for every other collision and
+     never for this one. It hid a pile card **176% covered at 800x360**. Found only because v1.31.110's
+     portrait fix was re-measured at sizes the fix did not claim; a viewport nobody measures is a viewport
+     nobody fixes. Adding a size here is cheap — do it before trusting a layout fix at the sizes it names. */
+  for(const [w,h,what] of [[327,660,'narrow phone'],[390,780,'phone'],
+                           [568,320,'SE-1st landscape'],[640,360,'budget Android landscape'],
+                           [667,375,'iPhone SE landscape'],[800,360,'Android landscape'],
+                           [844,390,'iPhone 13/14 landscape'],[932,430,'14 Pro Max landscape'],
+                           [1280,800,'desktop']]){
     const p=await open(w,h,2); const tag=`${what} ${w}x${h}`;
     await p.evaluate(()=>{
       const st=window.__solo.st();
       const F=(r,su,t)=>({rank:r,suit:su,tier:t,name:t==='ride'?'Giant Ram':'Pandora',card:{rank:r,suit:su,id:'f'+r+su}});
       const EQ=(n,r,su)=>({id:'eq'+r+su,name:n,delta:1,oppDelta:0,counters:3,decay:true,card:{rank:r,suit:su,id:'e'+r+su}});
+      /* THE HAND IS STAGED TOO, AND IT HAS TO BE (2026-09-07). This block used to leave the DEAL alone, so the
+         hand's own width and wrap varied run to run, which moves `#table` and therefore every zone pinned to
+         its corners: 568x320 measured **0%, 19% and 51% on three consecutive runs of the same build**, and
+         932x430 went 3% -> 6% -> 16%. A number that swings that far cannot carry a ratchet — the "still REAL"
+         floor duly failed at 0% on a build nobody had touched. Same deal-dependence that made three netplay
+         suites flake; the answer is the same one: stage it. Ten fixed cards, matching `stress`. */
+      const mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
+      st.players[0].hand=[3,4,5,6,7,8,9,10,11,12].map((r,i)=>mk(r,'HDCS'[i%4],'h'+i));
+      /* AND THE OPPONENT'S NAME, WHICH TURNED OUT TO BE THE REAL VARIABLE. Instrumenting the bimodal runs
+         showed every rect identical except `rivalFormZone`'s WIDTH — 143 / 148 / 175 across six runs of one
+         build — because the zone is labelled "<name>’s Forms & Rides" and the persona is drawn at RANDOM.
+         A longer name is a wider zone reaching further over the pile. Pinning it makes the width the test's
+         choice instead of the shuffle's, and "Demon Lord" is the longest name the pickers ship, so this is
+         the worst case as well as a fixed one. */
+      window.__solo.setName(1,'Demon Lord');
       st.players[0].forms=[F(11,'C','ride'),F(12,'S','queen')];
       st.players[1].forms=[F(11,'D','ride'),F(12,'H','queen')];
       st.players[0].equipment=[EQ("Hero's Javelin",2,'D')];
@@ -406,7 +431,48 @@ const CASES=[
        nobody re-measured), and **393x852 had an unrecorded 8%** that no assertion mentioned. Chipping the
        equipment zone 59px -> 24px on phones did NOT fix either one — the pile is covered by the FORM zones on
        the left — so the reparent is the fix and the chip is only what made room for it. */
-    ok(m.worst<5, `${tag}: no pile card is covered by a Forms/equipment zone (worst ${m.worst}%)`);
+    /* THE LANDSCAPE BAND IS BROKEN HERE AND THE FIX IS NOT THIS PR — carried as a RATCHET, the same shape the
+       327x660 entry above used and the same reason: a suppression goes quiet forever, a ratchet asks to be
+       removed on the day it stops being true. A/B'd against v1.31.109 at every one of these sizes and the
+       numbers are IDENTICAL, so this is pre-existing and not zones-into-panels; the band keeps the desktop
+       structure by design, so the zones are still pinned to the corners of a `#table` only ~90px tall.
+       Filed as ★ LANDSCAPE ZONE/PILE OVERLAP in the BACKLOG. Tighten each line to `<5` as it is fixed. */
+    /* [collapsed, expanded] — both recorded, so neither can drift. Every number here is REPRODUCIBLE: four
+       consecutive runs printed these exactly, once the hand and the opponent's name were pinned above. */
+    const KNOWN={'568x320':[89,89],'800x360':[176,176],'844x390':[110,110],'932x430':[25,47]};
+    const cap=KNOWN[`${w}x${h}`];
+    if(cap){
+      console.log(`   ⚠ ${tag}: KNOWN landscape zone/pile overlap, ${m.worst}% — filed as ★ landscape zone/pile overlap.`);
+      ok(m.worst<=cap[0], `${tag}: the known overlap has not grown (${m.worst}% vs the recorded ${cap[0]}%)`);
+      ok(m.worst>5, `${tag}: …and it is still REAL — if this line fails, it is FIXED: tighten it to <5`);
+    } else {
+      ok(m.worst<5, `${tag}: no pile card is covered by a Forms/equipment zone (worst ${m.worst}%)`);
+    }
+
+    /* AND THE EXPANDED STATE, WHICH NOTHING HAD EVER MEASURED (v1.31.110). Both zones grow on a tap — the
+       Forms strip into mini-cards, and now the equipment chip into a card — and Aj's own screenshot of the
+       feature was taken in exactly that state. Asserted as "expanding must not make it WORSE" rather than
+       against a fixed number, because that invariant is the actual promise and it holds at the known-bad
+       sizes too, where a fixed threshold could only be a second carve-out. It discriminates: the equipment
+       expand measured 53-188% in the landscape band before it was gated to portrait. */
+    await p.evaluate(()=>{ const s=document.querySelector('.formStrip'); if(s) s.click(); });
+    await p.evaluate(()=>{ const e=document.querySelector('.eq'); if(e) e.click(); });
+    await settledPile(p);
+    const x=await p.evaluate(()=>{
+      const zr=[...document.querySelectorAll('.formZone,.equipZone')].filter(e=>e.getBoundingClientRect().width>2)
+                .map(e=>e.getBoundingClientRect());
+      const ov=(a,b)=>Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left))*Math.max(0,Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top));
+      let worst=0;
+      [...document.querySelectorAll('#pile .card')].forEach(c=>{ const cr=c.getBoundingClientRect(), area=cr.width*cr.height;
+        let cov=0; zr.forEach(z=>{ cov+=ov(cr,z); }); if(area) worst=Math.max(worst, cov/area); });
+      const mn=document.querySelector('main');
+      return { worst:Math.round(worst*100), minis:document.querySelectorAll('.formMini').length,
+               scrollW:mn.scrollWidth, clientW:mn.clientWidth };
+    });
+    ok(x.minis>0, `${tag}: STAGED EXPANDED — the Forms zone really opened into ${x.minis} cards`);
+    if(cap) ok(x.worst<=cap[1], `${tag}: …and the expanded overlap has not grown either (${x.worst}% vs the recorded ${cap[1]}%)`);
+    else    ok(x.worst<=m.worst, `${tag}: expanding a zone does not cover the pile any further (${m.worst}% → ${x.worst}%)`);
+    ok(x.scrollW<=x.clientW+1, `${tag}: …and does not start a sideways scroll (${x.scrollW} vs ${x.clientW})`);
     await p.context().close();
   }
 

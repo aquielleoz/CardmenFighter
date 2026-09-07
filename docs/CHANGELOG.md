@@ -52,6 +52,53 @@ removed on the day it stopped being true.
 
 **`landscapetest` 127 -> 126** — two assertions became one.
 
+---
+
+**FOLLOW-UPS THE SAME DAY, all from Aj playing the build on his phone.**
+
+**The equipment chip expands — into the desktop box, and nothing else.** Of the chip sitting beside two
+expanded Form cards in one panel: *"it would be nice if we could also expand the spiked armor here like the
+forms and rides"*. The first cut answered that with a card thumbnail beside the text and applied it to every
+screen; Aj rejected it on sight — *"why did we change desktops too? the expanded on mobile could have copied
+desktop's and it would've been fine"* — and he is right on both counts. Desktop had no problem to solve, and
+the chip is a PHONE compaction, so the only sane expanded state is the thing it was compacted from. `.eqOpen`
+is now pure CSS un-compaction inside the phone branch: every declaration restores a value the four compaction
+rules took away and deliberately nothing more. **Verified by comparison rather than by eye — the expanded chip
+matches the desktop box on flex direction, padding, art, and all three text sizes, and a click on desktop now
+changes nothing at all.** The rule worth keeping: *when a layout is a REDUCTION of another one, expanding it
+means restoring that one, not designing a third.*
+Two more corrections from the same pass: the first cut closed the Forms zone when the equipment opened, which
+`landscapetest` caught with 0 mini cards — having both open side by side is the entire request — and the
+expand is offered only where the chip exists, gated on the same query that compacts it.
+
+**The Forms zone label drops the owner's name in a panel, and wraps to two lines.** *"we don't need the
+Adell's here. it's already in his panel"*. Floating over `#table` the name is load-bearing, since nothing else
+says whose zone it is; inside a panel headed by that seat it is a second label for something already labelled.
+The name is its own span so the panel hides it in CSS rather than the renderer asking which layout is live.
+**It is also the cheapest half of the landscape bug filed below** — the label, not the cards, is what sets a
+zone's width: 175px down to 52px here.
+
+**The INCARNATION banner sits on top of its cards** (*"can we make the incarnation banner go on top of the
+cards?"*). It was a plain SIBLING of the card row — a column on the desktop zone, and a neighbour eating ~250px
+of width the moment the panel laid the zone out as a row. Wrapping banner and cards in one stack makes the
+relationship structural, so it holds in both layouts with no media query restating it.
+
+**AND MEASURING THE FEATURE FOUND TWO THINGS BIGGER THAN THE FEATURE.**
+- **A regression from v1.31.110 itself, one day old: 667x375 — an iPhone SE held sideways — went 0% -> 41%.**
+  `placeZones()` gated on `(max-width:720px)` alone, and 667 passes that while the landscape band has already
+  squeezed the panels flat, so a zone riding a panel line has nowhere to ride. Portrait gains what landscape
+  loses. The gate now names the landscape band's own query, and the equipment expand is refused there for the
+  same reason — measured at 53-188% before it was.
+- **The landscape band's own zone/pile overlap, pre-existing and far worse than portrait ever was** — up to
+  **176%**. A/B'd against v1.31.109 at every size: identical, so it is not the reparent. Filed and ratcheted;
+  see the BACKLOG.
+
+**`landscapetest` 126 -> 175, and the reason is the finding.** The suite named nine viewports and ran the
+zone/pile check on **three**. It runs on all nine now, in both the collapsed and expanded states — the state
+Aj's screenshot was actually taken in, which nothing had ever measured. Two sources of run-to-run variance had
+to be pinned first: the deal, and — the one worth remembering — **the opponent's randomly drawn persona name**,
+which sets the width of a zone labelled "<name>’s Forms & Rides" and moved one viewport between 3% and 25%.
+
 ### v1.31.109 — the online opener rolls dice you can watch, ties and all
 
 Aj: *"might be better too if people can see the dice being rolled like in single player"*, then, asked whether
