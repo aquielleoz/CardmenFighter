@@ -67,6 +67,18 @@ wider. 900 is measured, not chosen: it is the first width at which the suite sta
 also contributes its MIN-CONTENT to both tracks, so the panel needs `min-height:0` or its 379px of text sizes
 the rows itself — that was eight more reds before the number was right.
 
+**AND THE HAND TRIM CLIPPED EVERY SELECTED CARD, which is the cost of feeding one panel from another.** The
+trim above took `#hand`'s top padding to 7px, sized against the HOVER lift — but a selected card is
+`translateY(-14px) scale(1.04)` with a 3px outline, and `#hand` is `overflow:auto`, so everything above the
+padding box was cut: **headroom -3px, against desktop's +14px.** Aj caught it in a screenshot the same day.
+Back to 20px, +10px of headroom, and the reader pays for it out of the span. **Size hand padding against the
+SELECTED transform, never the hover one** — the selected lift is double.
+
+**The artwork grows back where the panel is tall.** Capping it to a 52px strip was right when the reader had
+144px and the art WAS the panel; with both rows it has 350-420px, so the cap became the thing making it small
+(Aj: *"maybe we can do with bigger images?"*). 120px in the span band, still a strip at 800-844px, which has
+no room to give.
+
 Result at 844x390 (no span): reader **229x144 → 259x159**, content **500 → 379**, **29% → 42% visible**, hand
 **41% → 37%**. At 900px and wider: **93-100% visible**, from about 30%. Desktop is unchanged, deliberately —
 the span stops at the landscape band's own ceiling rather than reaching into the standard desktop layout.
