@@ -489,7 +489,24 @@ function cards(ids) { return ids.map(card); }
     g4.turn = 0; g4.round = 3; g4.pile = { combo: E.detectCombo([sc(6, 'D')]), byPlayer: 1 }; g4.lastPlayer = 1;
     E.activate(g4, 0, '8S');
     var copy = w.hand.filter(function (c) { return c.temp; })[0];
-    ok(copy && copy.valueBonus === 1 && E.fightValue(copy) === copy.rank + 1, 'REWORK 4b: Pandora Counterfeit copies at +1 value');
+    /* THIS ASSERTION USED TO ENCODE THE BUG (v1.31.107). It read `fightValue(copy) === copy.rank + 1`, which is
+       exactly what Aj hit: `detectCombo` groups by `fightValue`, so a boosted copy of a 6 evaluated as a 7 and
+       could not pair with a real 6 — it could only ever be played as a jab, inverting the upgrade. The rule is
+       that BASE PRINTED VALUES decide what Specials a card belongs to and modifiers apply on top of the pile,
+       so the copy keeps its `valueBonus` DATA and `fightValue` stops reading it. Assert both halves: the card
+       keeps its identity, AND the bonus still reaches the play. */
+    ok(copy && copy.valueBonus === 1, 'REWORK 4b: Pandora Counterfeit copies at +1 value (the bonus is on the card)');
+    ok(copy && E.fightValue(copy) === copy.rank, '  …but fightValue is the PRINTED value, so the copy keeps its identity');
+    var realSame = sc(copy.rank, copy.suit === 'D' ? 'C' : 'D');
+    var cfPair = E.detectCombo([realSame, copy]);
+    ok(cfPair && cfPair.type === 'pair', '  …so it PAIRS with a real card of its rank (Aj: "it\'s a 7 and it should be able to pair up with a 7")');
+    ok(cfPair && E.applyEquip(cfPair, 0, g4).value === cfPair.value + 1, '  …and the +1 lands on the PLAY, where every other modifier lives');
+    /* AND IT PERSISTS ON THE PILE, like the pre-fight boost and unlike Giant Boar (Aj: "counterfeit's boost is
+       applied to the pile and persists until that pile is defeated, like most boosts"). */
+    var g4b = E.newGame(null, { starter: 0 }); g4b.turn = 0; g4b.round = 3; g4b.pile = null; g4b.passes = 0;
+    g4b.players[0].hand = [realSame, copy];
+    ok(E.play(g4b, 0, [realSame, copy]).ok, '  …the pair is legal to play');
+    ok(g4b.pile && g4b.pile.combo.value === copy.rank + 1, '  …and the pile it leaves carries the +1 until it is beaten');
     // Annoint +counter (Cassandra)
     var g6 = E.newGame(null, { starter: 0 }); var cc = g6.players[0];
     cc.forms = [{ rank: 12, suit: 'H', tier: 'queen' }];
