@@ -80,5 +80,57 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   ok(NV.mirrorFor(st, 1).trimPending === null, 'and it is null when nobody is trimming');
 })();
 
-console.log((fail === 0 ? '\nPASS' : '\nFAIL') + ': ' + pass + '  FAIL: ' + fail);
+/* ---- A MIRROR MUST BE A SERIALISABLE TREE, NOT A VIEW ONTO THE HOST (v1.31.114) ----------------------
+ * The bug this exists for: `remapSR`/`remapStack` copied every key with `for (var k in o)`, so the mirror
+ * carried `result` — which IS `st.roundWinResult`, which holds `state: st`. The mirror pointed back at the
+ * raw host state and was CIRCULAR.
+ * WHY NOTHING CAUGHT IT. On BroadcastChannel, `postMessage` uses structured clone, which handles cycles
+ * happily and simply ships the whole host state; every guard-window suite (nettest_guard, roundstall,
+ * clientwin) runs `net=host`, i.e. BroadcastChannel. Only a real RTCDataChannel calls `JSON.stringify`,
+ * where it throws — inside a catch that DISCARDS the mirror. So the threatened seat never received the
+ * window the host was parked waiting on, and the table wedged, in exactly the configuration no suite ran.
+ * These assertions are transport-independent, which is the point: they hold the invariant the wire needs
+ * without needing a wire. Reintroduce either blanket copy and the first one goes red immediately. */
+(function () {
+  var st = E.newGame(null, { starter: 0 });
+  var me = st.players[0], foe = st.players[1];
+  var L = { rank: 9, suit: 'D', id: 'ley' }, a = { rank: 8, suit: 'H', id: 'p1' }, b = { rank: 8, suit: 'S', id: 'p2' };
+  foe.hand = [L, { rank: 3, suit: 'C', id: 'low' }];
+  foe.energy = []; for (var i = 1; i <= 12; i++) foe.energy.push({ rank: i, suit: 'D', id: 'fe' + i });
+  me.hand = [a, b, { rank: 5, suit: 'C', id: 'x' }];
+  st.round = 3; st.turn = 0; st.pile = null; st.lastPlayer = null; st.passes = 0;
+  E.play(st, 0, [a, b]); E.pass(st, 1);                      // seat 1 must lose a shield and holds Leyline
+  /* NOT VACUOUS: without an OPEN window there is nothing to alias, and every assertion below would pass on
+     the broken build. The staging is the half that matters. */
+  ok(!!st.shieldResponse && st.shieldResponse.q === 1, 'STAGED: a real round opened the shield-guard window on seat 1');
+  ok(!!st.roundWinResult && st.roundWinResult.state === st, '  → and the host result really does hold a back-reference to state');
+
+  for (var seat = 0; seat < st.numPlayers; seat++) {
+    var m = NV.mirrorFor(st, seat), serialised = null, threw = '';
+    try { serialised = JSON.stringify(m); } catch (e) { threw = e.message.split('\n')[0]; }
+    ok(serialised !== null, 'seat ' + seat + ': the mirror is JSON-serialisable with a window open' + (threw ? ' — THREW: ' + threw : ''));
+    ok(!m.shieldResponse || m.shieldResponse.result === undefined, 'seat ' + seat + ': the mirror does not carry the host result object');
+    ok(m.roundWinResult === null, 'seat ' + seat + ': ceremony state stays host-only (the redaction is real, not aliased around)');
+  }
+  var m1 = NV.mirrorFor(st, 1);
+  ok(m1.shieldResponse.q === 0, 'the threatened seat reads itself as 0, like every other seat reference');
+  ok(m1.shieldResponse.guardId === 'ley', '  → and still learns WHICH card it may spring');
+  ok(m1.shieldResponse.obj && m1.shieldResponse.obj.source != null, '  → and what is threatening it (obj.source, the one field the modal reads)');
+  ok(m1.shieldResponse.obj.target === 0, '  → with the object\'s target ROTATED, not the absolute seat');
+  /* THE GENERAL FORM, so a future field cannot reintroduce it quietly: nothing anywhere in a mirror may be
+     the host state or a player of it. Checked by identity over the whole tree, not by key name. */
+  var hostObjs = [st].concat(st.players), bad = null;
+  (function walk(v, path) {
+    if (bad || !v || typeof v !== 'object') return;
+    for (var h = 0; h < hostObjs.length; h++) if (v === hostObjs[h]) { bad = path; return; }
+    for (var k in v) if (Object.prototype.hasOwnProperty.call(v, k)) walk(v[k], path + '.' + k);
+  })(NV.mirrorFor(st, 1), 'mirror');
+  ok(bad === null, 'no part of a mirror is identity-equal to the host state or one of its players' + (bad ? ' — found at ' + bad : ''));
+})();
+
+/* THE HOUSE SUMMARY FORM. This file still had the pre-2026-08-31 version, which printed
+   `FAIL: 41  FAIL: 6` on a red run — the PASS count wearing the word FAIL, and no `PASS:` token at all,
+   so a sweep grepping for one reports a crash rather than a failure. That was fixed in 59 files and this
+   one was missed, which matters more here than most: it is one of the two GATE suites. */
+console.log('\n' + (fail ? 'FAILED — ' : '') + 'PASS: ' + pass + '  FAIL: ' + fail);
 process.exit(fail ? 1 : 0);

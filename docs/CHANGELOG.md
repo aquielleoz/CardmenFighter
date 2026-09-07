@@ -15,6 +15,57 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.114 — the netplay mirror aliased the raw host state, and wedged real online games
+
+**A SHIPPED NETPLAY WEDGE, found by enumerating for something else.** `netview.js`'s `mirrorFor` builds the
+per-seat snapshot a client receives. Almost every field is projected by NAME — `remapPile`, `discardPending`,
+`pendingLossChoice`, `trimPending` all list what they send. Two helpers instead copied every key blindly with
+`for (var k in o)`, and one of them carried `shieldResponse.result` — which **is** `st.roundWinResult`, which
+holds `state: st`. So the mirror pointed back at the raw host state and was **circular**.
+
+**Verified end to end through a real round, not a staged object:** seat 0 leads a pair, seat 1 passes and must
+lose a shield while holding Leyline, `st.shieldResponse` opens, and `JSON.stringify(mirrorFor(st,1))` throws
+*Converting circular structure to JSON*.
+
+**What that did, every link confirmed in code:**
+- `broadcastMirror` does `try{ j=JSON.stringify(body) }catch(e){ j=null }` — the throw is swallowed, AND
+  because `j===null` the content dedupe is skipped, so it re-sends on every render.
+- `sendTo` in RTC hub mode does `dcs[i].send(JSON.stringify(m))` inside another swallowing catch. On a real
+  online game the mirror is **silently discarded**.
+- `hostRivalWindows` sets `netGuard`, `busy = true`, calls `broadcastMirror()` and returns — waiting for an
+  `{op:'guard'}` intent the client can never know to send. **The table wedges**: host board dead on `busy`,
+  client sitting on "Rival is fighting…". That is the exact signature this project has twice recorded as
+  "netplay lag", and v1.31.80's park heartbeat cannot rescue it because re-asserting the same unserialisable
+  mirror fails identically every time.
+- It also silently defeated the `roundWinResult: null` redaction three lines below it, since that is the very
+  object `result` aliased.
+
+**WHY 85 GREEN SUITES COULD NOT SEE IT.** Every guard-window suite — `nettest_guard`, `roundstall`,
+`clientwin` — runs `?net=host`, i.e. **BroadcastChannel**, whose structured clone handles cycles happily (and
+ships the whole host state instead). Only `nettest_rtc*` uses `JSON.stringify` transport, and it never opens a
+guard window. **The bug lived exactly where nothing tested.** On BroadcastChannel it does not wedge; it leaks.
+
+**The fix is the file's own existing style**: both helpers now project by name. `shieldResponse` sends `q`,
+`winner`, `guardId`, `roundWin` and an `obj` narrowed to the one property the modal reads (`source`) with its
+seat rotated; the stack sends named fields, with `opts` reduced to the single seat-bearing option a client
+reads — and that seat is now ROTATED, where the blanket copy had been shipping an absolute seat to a client
+whose own seat is 0.
+
+**`netview.test` 34 → 47, and the guard is transport-independent on purpose** — it holds the invariant the
+wire needs without needing a wire. Beyond the specific case there is a general one: a walk over the whole
+mirror asserting no node is identity-equal to the host state or any of its players, so the next field cannot
+reintroduce this quietly. **A/B'd against `main`'s original `netview.js`: six red**, the walker naming
+`mirror.shieldResponse.result.state` directly.
+**And the A/B is the lesson.** Two hand-patched attempts at reintroducing the bug reported a clean pass —
+because the patch had mangled the file rather than restored the old behaviour, once badly enough to be a
+syntax error. Only `git show main:code/netview.js` gave a true comparison. **Reintroduce a bug with VERSION
+CONTROL, never with an edit** — an edit that fails to apply looks exactly like a guard that does not work.
+
+**Also fixed in passing: `netview.test.js` still had the pre-2026-08-31 summary line**, printing
+`FAIL: 41  FAIL: 6` — the PASS count wearing the word FAIL, with no `PASS:` token for a sweep to find. That
+was corrected in 59 files and this one was missed, which matters more than most: it is one of the two GATE
+suites, so it is the red output a person is most likely to be reading.
+
 ### v1.31.113 — the last two blind spots to a Form-granted Quick
 
 The tail of the v1.31.112 audit, both filed at the time because neither made anything unreachable.
