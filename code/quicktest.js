@@ -48,6 +48,19 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(grant.patched && !grant.base,
      `STAGED: Hector makes Sanctuary a Quick (base quick=${grant.base}, with the Form=${grant.patched})`);
 
+  /* THE ⏩ BADGE MUST SAY SO TOO (v1.31.113). `cardEl` read the BASE effect, so a card the Form had just made
+     answerable carried no badge — the affordance existed and the card denied it. `cardEl` now takes an
+     optional OWNER and the two hand renderers pass YOU; everywhere else (the pile, both seats' zone minis, the
+     deck preview) it is omitted on purpose, because judging a RIVAL's card against YOUR zone would be wrong in
+     the other direction. The negative is the half that matters: the apex 2 has no effect at all, so a badge on
+     it would mean the owner-aware branch is simply badging everything. */
+  const badge = await p.evaluate(()=>({
+    sanc: !!document.querySelector('#hand .card[data-id="sanc"] .qbadge'),
+    two:  !!document.querySelector('#hand .card[data-id="y2"] .qbadge'),
+    seen: document.querySelectorAll('#hand .card').length }));
+  ok(badge.sanc, `the Form-made Quick carries the ⏩ badge in your hand (${badge.seen} cards rendered)`);
+  ok(!badge.two, '  → and the apex 2, which has no effect at all, does not');
+
   // lead the unbeatable 2 so the Rival must act with an effect rather than a fight
   await p.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')]
     .filter(el=>el.querySelector('.card[data-id="y2"]'))[0]; if(g) g.click(); }); await wait(250);

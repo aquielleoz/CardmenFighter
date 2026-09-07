@@ -4456,7 +4456,11 @@
       var v = card.rank;                                         // high cards win fights / anchor combos
       if (top && (card.rank === 1 || card.rank === 2)) v += 8;   // TOP tier: hoard the apex 2 / Ace — don't fodder your trumps into jab rounds
       if (counts[card.rank] >= 2) v += 10 + card.rank;           // part of a Special — prize it (more when higher)
-      var ef = E.effectOf(card);
+      /* `effectFor`: a Form can GRANT `quick`, and reading the base effect made the AI value its OWN
+         Form-made Quick as ordinary fodder — Sanctuary under Hector, Back Stab under Perseus/Hermes, Armor
+         Piercing under Hippolyta. Same audit as v1.31.112's `eligibleQuicks`; this half is a heuristic, so it
+         made the AI play slightly worse rather than making anything unreachable. */
+      var ef = E.effectFor ? E.effectFor(st, p, card) : E.effectOf(card);
       if (ef) {
         if (ef.quick) v += 6;                                    // hold a Quick (Counter / Annoint / Brilliant Tactic)
       }
@@ -4486,7 +4490,7 @@
       var safe = singles.filter(function (x) {
         var c = x.cards[0];
         if (counts[c.rank] >= 2) return false;                              // don't break a Special
-        var ef = E.effectOf(c);
+        var ef = E.effectFor ? E.effectFor(st, p, c) : E.effectOf(c);      // a Form-GRANTED Quick counts too
         if (ef && ef.quick) return false;                                  // don't burn a Quick on a jab
         return true;
       });
@@ -5381,7 +5385,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.112';
+  var GAME_VERSION='v1.31.113';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -6084,7 +6088,13 @@ window.CardFace = {};
     keys.forEach(function(kk){ var inner=EFF_ICON_SVG[kk]; if(inner) html+='<span class="efi"><svg viewBox="0 0 24 24">'+inner+'</svg></span>'; });
     return html ? '<span class="efrow">'+html+'</span>' : '';
   }
-  function cardEl(card, size){
+  /* `seat` IS OPTIONAL AND ONLY THE ⏩ BADGE USES IT (v1.31.113). A Form can GRANT `quick`, so whether a card
+   * is answerable depends on WHOSE zone it is judged against — and `cardEl` draws your hand, the pile, both
+   * seats' zone minis and the deck preview, so there is no single right owner to assume. Passing YOUR forms
+   * for a RIVAL's card would be wrong in the other direction, and `FORM_SUIT_MATCH` is false so any Q/K/J
+   * lifts every suit, which makes that wrong OFTEN rather than rarely. Omitted, it reads the base effect
+   * exactly as before: the badge is then absent rather than false, which is the safe way to be incomplete. */
+  function cardEl(card, size, seat){
     /* A CARD WITH NO RANK IS NOT A CARD. Two rendered as `0 undefined 0` on Aj's phone during the 2026-08-28
      * relay game and corrected themselves a moment later — a mirror carrying a partly-formed card, painted
      * before it had a rank. Cosmetic and transient, but "0 undefined 0" reads as data loss to a player, and a
@@ -6108,7 +6118,7 @@ window.CardFace = {};
       d.innerHTML='<span class="r">'+rankLabel(card.rank)+'</span><span class="c">'+SUIT_SYMBOL[card.suit]+'</span><span class="s">'+rankLabel(card.rank)+'</span>';
     }
     d.innerHTML += effIcon(card);                // effect glyph at the bottom (what the card does at a glance)
-    var qef=E.effectOf(card);
+    var qef=(seat!=null && typeof state!=='undefined' && state && E.effectFor) ? E.effectFor(state, seat, card) : E.effectOf(card);
     if(qef && qef.quick) d.innerHTML += '<span class="qbadge" title="Quick — can be played in response">⏩</span>';   // top-right ⏩ marks a Quick
     return d;
   }
@@ -7315,7 +7325,7 @@ window.CardFace = {};
     if(pick){                                          // pick mode: flat individual cards, no grouping/drag
       var eligible=(pick.from&&pick.from.length)?function(id){ return pick.from.indexOf(id)>=0; }:function(){ return true; };
       orderedHand().forEach(function(c){
-        var el=cardEl(c,''); markBoost(el, c); markTransform(el, c);
+        var el=cardEl(c,'', YOU); markBoost(el, c); markTransform(el, c);   // YOUR hand: judge Quick against YOUR zone
         var pickOk=eligible(c.id);
         if(!pickOk) el.classList.add('notpick');                              // dig restriction: only the looked cards are selectable
         if(pick.chosen[c.id]) el.classList.add('picked');
@@ -7347,7 +7357,7 @@ window.CardFace = {};
       var cardrow=document.createElement('div'); cardrow.className='cardrow';
       g.cards.forEach(function(c,idx){
         if(kind==='fullhouse' && idx===3){ var gap=document.createElement('span'); gap.className='fhgap'; cardrow.appendChild(gap); }
-        var el=cardEl(c,''); markBoost(el, c); markTransform(el, c);
+        var el=cardEl(c,'', YOU); markBoost(el, c); markTransform(el, c);   // YOUR hand: judge Quick against YOUR zone
         if(g.cards.length===1 && pendingEnter[c.id] && canEnter){ el.classList.add('enter'); el.style.animationDelay=(enterDelayBase+enterIdx*55)+'ms'; enterIdx++; }
         cardrow.appendChild(el);
       });
@@ -8491,7 +8501,9 @@ window.CardFace = {};
     var you=state.players[YOU], e=you.energy.length, pend=state.pending;
     return you.hand.filter(function(c){
       /* `effectFor`, NOT `effectOf` (v1.31.112). SIX Form/Super patches grant `quick` — Sanctuary under
-         Hector and under Apollo, Back Stab under Perseus and Hermes, Armor Piercing under Hippolyta — and
+         Hector and under Apollo, Back Stab under Perseus and Hermes, Armor Piercing under Hippolyta, and
+         Hand-to-Hand Mastery under the Spade King (that last one was missing from this very comment until a
+         reachability probe counted the grants; ENUMERATE THEM FROM `BOOSTS`, never from memory) — and
          reading the BASE effect made every one of them invisible here. This is not a cosmetic miss: when
          this list comes back empty `promptHumanResponse` **auto-declines for you** and no window ever opens,
          so a player holding a Form-made Quick was silently passed. Aj's *"sanctuary did not prompt use"* is
