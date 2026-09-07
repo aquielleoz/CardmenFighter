@@ -5022,8 +5022,42 @@ window.CardFace = {};
     function rot(i) { return (typeof i === 'number' && i >= 0) ? ((i - seat + n) % n) : i; }
     var players = []; for (var i = 0; i < n; i++) players[rot(i)] = clonePlayer(st.players[i], i === seat, 'p' + i, rot);
     function remapPile(p) { if (!p) return null; return { byPlayer: rot(p.byPlayer), mod: p.mod || 0, phantom: !!p.phantom, combo: p.combo ? { type: p.combo.type, value: p.combo.value, size: p.combo.size, key: (p.combo.key || []).slice(), cards: cards(p.combo.cards) } : null }; }
-    function remapStack(s) { return (s || []).map(function (o) { var c = {}; for (var k in o) c[k] = o[k]; if (typeof o.p === 'number') c.p = rot(o.p); if (typeof o.target === 'number') c.target = rot(o.target); if (typeof o.winner === 'number') c.winner = rot(o.winner); if (o.card) c.card = card(o.card); return c; }); }
-    function remapSR(sr) { if (!sr) return null; var c = {}; for (var k in sr) c[k] = sr[k]; if (typeof sr.q === 'number') c.q = rot(sr.q); if (typeof sr.winner === 'number') c.winner = rot(sr.winner); return c; }
+    /* SAME TREATMENT for the stack. The blanket copy carried `eff` and `opts` by reference — `opts.target`
+       is an ABSOLUTE seat (engine.js effectTarget reads it) reaching a client whose own seat is 0, and
+       `passed` is a map keyed by absolute seat. `eff` is static card data so it is safe to pass through,
+       but it is named here rather than swept up, so the next key added to a stack object does not travel
+       by accident. A seat that is not on the mirror cannot be silently misread. */
+    function remapStack(s) {
+      return (s || []).map(function (o) {
+        var c = { oid: o.oid, kind: o.kind, source: o.source || null };
+        if (typeof o.p === 'number') c.p = rot(o.p);
+        if (typeof o.target === 'number') c.target = rot(o.target);
+        if (typeof o.winner === 'number') c.winner = rot(o.winner);
+        if (typeof o.n === 'number') c.n = o.n;
+        if (o.countered != null) c.countered = !!o.countered;
+        if (o.card) c.card = card(o.card);
+        if (o.eff) c.eff = o.eff;                                  // static EFFECTS data — no seats, no cycles
+        if (o.opts) c.opts = { target: rot(o.opts.target) };       // the only seat-bearing opt a client reads
+        return c;
+      });
+    }
+    /* PROJECT, NEVER COPY THE KEYS (v1.31.114). This was `for (var k in sr) c[k] = sr[k]`, which carried
+       `obj` (an alias INTO st.stack) and `result` (which IS st.roundWinResult, and that holds `state: st`).
+       So the mirror pointed back at the raw host state and was CIRCULAR — verified through a real round:
+       `JSON.stringify(mirrorFor(st,1))` throws. On BroadcastChannel structured clone swallows the cycle and
+       ships the whole host state; on a real RTCDataChannel the send throws inside a catch that discards it,
+       so the threatened seat never receives the window it is being waited on for, and the table wedges.
+       It also silently defeated the `roundWinResult: null` redaction three lines below, since that is the
+       very object `result` aliased. Everything else in this file names its fields; these two helpers were
+       the exceptions, and both were the bug. `obj` is projected down to the ONE property the client reads
+       (`sr.obj.source`, template openShieldGuardModal) with its seat rotated. */
+    function remapSR(sr) {
+      if (!sr) return null;
+      return {
+        q: rot(sr.q), winner: rot(sr.winner), guardId: sr.guardId || null, roundWin: !!sr.roundWin,
+        obj: sr.obj ? { source: sr.obj.source || null, n: sr.obj.n || 0, target: rot(sr.obj.target) } : null
+      };
+    }
     return {
       numPlayers: n, players: players, round: st.round, basics: !!st.basics,
       turn: rot(st.turn), initiative: rot(st.initiative), lastPlayer: (st.lastPlayer == null ? null : rot(st.lastPlayer)),
@@ -5385,7 +5419,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.113';
+  var GAME_VERSION='v1.31.114';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
