@@ -464,7 +464,11 @@
       var v = card.rank;                                         // high cards win fights / anchor combos
       if (top && (card.rank === 1 || card.rank === 2)) v += 8;   // TOP tier: hoard the apex 2 / Ace — don't fodder your trumps into jab rounds
       if (counts[card.rank] >= 2) v += 10 + card.rank;           // part of a Special — prize it (more when higher)
-      var ef = E.effectOf(card);
+      /* `effectFor`: a Form can GRANT `quick`, and reading the base effect made the AI value its OWN
+         Form-made Quick as ordinary fodder — Sanctuary under Hector, Back Stab under Perseus/Hermes, Armor
+         Piercing under Hippolyta. Same audit as v1.31.112's `eligibleQuicks`; this half is a heuristic, so it
+         made the AI play slightly worse rather than making anything unreachable. */
+      var ef = E.effectFor ? E.effectFor(st, p, card) : E.effectOf(card);
       if (ef) {
         if (ef.quick) v += 6;                                    // hold a Quick (Counter / Annoint / Brilliant Tactic)
       }
@@ -494,7 +498,7 @@
       var safe = singles.filter(function (x) {
         var c = x.cards[0];
         if (counts[c.rank] >= 2) return false;                              // don't break a Special
-        var ef = E.effectOf(c);
+        var ef = E.effectFor ? E.effectFor(st, p, c) : E.effectOf(c);      // a Form-GRANTED Quick counts too
         if (ef && ef.quick) return false;                                  // don't burn a Quick on a jab
         return true;
       });

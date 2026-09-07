@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.112.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.113.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.112**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.113**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -59,17 +59,6 @@ full. **Ranked now: correctness first, then things a playtester meets immediatel
 A struck-through entry does not belong here — if it shipped, move it to [`CHANGELOG.md`](CHANGELOG.md).*
 
 ### Correctness
-
-- **THE ⏩ QUICK BADGE AND TWO AI HEURISTICS STILL READ THE BASE EFFECT** (found by the 2026-09-07 audit; the
-  method is in CLAUDE.md, two greps). Neither makes anything unreachable, which is why they were left.
-  - **`cardEl`'s ⏩ badge** reads `effectOf`, so a Form-made Quick carries no badge — the card IS answerable
-    and does not say so. **Not a one-liner**: `cardEl` has no seat argument, and computing it from YOUR forms
-    would mislabel a RIVAL's card in the other direction (`FORM_SUIT_MATCH` is false, so any Q/K/J lifts every
-    suit). Either thread an owner through `cardEl` or compute the badge only where the owner is known.
-  - **`ai.js` `keepValue` (+6 to hold a Quick) and the don't-burn-a-Quick-on-a-jab filter** read `effectOf`, so
-    the AI undervalues a Quick its own Form granted and will fodder it into a jab. Both sit where `st` and `p`
-    are in scope, so the change is small; it is a STRENGTH change, so re-read DECISIONS.md#ai-strength before
-    quoting a win-rate effect from it.
 
 - **★ SHOULD A SHIELD *GAIN* BE ALLOWED IN THE GUARD WINDOW? (the Hector half of the Sanctuary report)**
   The Apollo half shipped in **v1.31.112** — a Form- or Super-granted immunity is now seen by the window, at

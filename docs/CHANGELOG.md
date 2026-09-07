@@ -15,6 +15,35 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.113 — the last two blind spots to a Form-granted Quick
+
+The tail of the v1.31.112 audit, both filed at the time because neither made anything unreachable.
+
+**THE ⏩ BADGE NOW KNOWS WHOSE CARD IT IS.** `cardEl` read the base effect, so a card a Form had just made
+answerable carried no badge — the affordance existed and the card denied it. It was left filed because it is
+not a one-liner: `cardEl` draws your hand, the pile, both seats' zone minis and the deck preview, and judging a
+RIVAL's card against YOUR zone would be wrong in the other direction — `FORM_SUIT_MATCH` is false, so any Q/K/J
+lifts every suit and that wrong would be common rather than rare. So the owner is an **optional** argument that
+only the two hand renderers pass; omitted, the badge is absent rather than false, which is the safe way to be
+incomplete.
+
+**AND THE AI STOPS TREATING ITS OWN GRANTED QUICK AS FODDER.** Two heuristics in `chooseMove` — the +6 to hold
+a Quick, and the refusal to burn one on a jab — read the base effect too.
+**Measured before claiming it does anything, because a heuristic fix is worthless if the branch is dead:** over
+200 demon-tier games, a seat holds a Form on **47% of turns** and **450 held cards had their Quick GRANTED by a
+Form** — Armor Piercing 214, Sanctuary 90, Back Stab 81, **Hand-to-Hand Mastery 65**, the last of which no
+earlier note had listed. That is ~2.25 cards per game mis-valued.
+**No win-rate claim is made and none can be**: every sim here runs the same AI on both seats, so they are
+structurally blind to "is this stronger" (`DECISIONS.md#ai-strength`). This is a correctness fix to a
+heuristic's INPUT.
+**The probe's first run reported zero, and its own staging line is what caught it** — `seats holding a Form: 0`
+against a driver that does not exist. A throwaway diagnostic that does not assert its staging reports a clean
+null result and means nothing.
+
+**`quicktest` 4 → 6**, both directions: the granted Quick carries the badge, and the apex 2 — which has no
+effect at all — does not, so a branch that simply badges everything would fail. A/B'd against the base-effect
+build: one red.
+
 ### v1.31.112 — a Form-granted guard is a guard
 
 Aj, from real play with Hector Form and Apollo Mode both up: *"sanctuary did not prompt use when i was about
