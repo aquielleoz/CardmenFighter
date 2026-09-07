@@ -9,7 +9,29 @@
 (function (root) {
   'use strict';
 
-  function card(c) { return c ? { rank: c.rank, suit: c.suit, id: c.id } : null; }
+  /* A CARD'S IDENTITY IS NOT JUST rank/suit/id (v1.31.115). This whitelist was three fields, and the engine
+   * attaches three more that decide what the card IS rather than what it looks like — so a client received a
+   * DIFFERENT CARD from the one the host held:
+   *   `temp`        — `effectOf` short-circuits on it (engine.js:1017, :1022): a Counterfeit or Illusion copy
+   *                   is a pure fight body with NO effect. Stripped, the client's copy resolved to the
+   *                   ORIGINAL card's effect, so the reader printed a full Technique — name, cost, rules —
+   *                   and `activatableCard` lit the ⚡ Activate button. The host then refused the intent,
+   *                   because ITS card still had `temp`. Silent on both ends.
+   *   `valueBonus`  — `copyBonus` sums it (engine.js:1122) and it feeds `applyEquip`, which `fightLegal`
+   *                   uses to decide whether Fight lights up. Stripped, a client computed the play a point
+   *                   or two short and Fight stayed dark for a play the host would have accepted. This is
+   *                   the exact number v1.31.107 was added to make visible.
+   *   `counterfeit` — the marker the copy is identified by.
+   * Copied only when PRESENT, so an ordinary card's mirror shape is unchanged. This is not a redaction
+   * boundary being widened: a hidden card never comes through here, it comes from `dummies()`. */
+  function card(c) {
+    if (!c) return null;
+    var o = { rank: c.rank, suit: c.suit, id: c.id };
+    if (c.temp) o.temp = true;
+    if (c.counterfeit) o.counterfeit = true;
+    if (c.valueBonus) o.valueBonus = c.valueBonus;
+    return o;
+  }
   function cards(a) { return (a || []).map(card); }
   function equip(e) {
     // equipment entries carry a card plus (optionally) a live counter — both public.

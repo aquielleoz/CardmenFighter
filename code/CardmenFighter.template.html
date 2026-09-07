@@ -8044,9 +8044,22 @@ __QR__
        * fresh number would make every mirror look different and defeat the dedupe that killed the 97%-duplicate
        * render storm (v1.31.65). Content decides whether to send; the version only labels what is sent. */
       var body={seat:s, bs:boardStamp(hostState), st:NetView.mirrorFor(hostState, s)}, j;
-      try{ j=JSON.stringify(body); }catch(e){ j=null; }
+      /* LOUD, NOT SILENT (v1.31.115). This catch used to swallow the failure entirely, which is how a mirror
+       * that could not be serialised went unnoticed for as long as it did: the host believed it had sent, the
+       * client received nothing, and the only symptom was a table that stopped. The trace ring is the one
+       * place a netplay fault is allowed to be noisy — `trace` already collapses repeats into a {n} counter
+       * and caps at 500, so a parked board cannot flood it. */
+      try{ j=JSON.stringify(body); }catch(e){ j=null; trace('mirror UNSERIALISABLE', 'seat='+s+' — '+((e&&e.message)||e)); }
       if(j!==null && lastMirror[s]===j) continue;              // nothing changed for this seat
       lastMirror[s]=j;
+      /* AND SEND THE WIRE VALUE, WHICH DELETES THE TRANSPORT ASYMMETRY RATHER THAN TESTING AROUND IT.
+       * BroadcastChannel uses structured clone: it happily ships cycles, Maps, undefined and host object
+       * references. An RTCDataChannel carries a STRING. So the two transports could disagree about what a
+       * mirror even is — and every guard-window suite runs on BroadcastChannel, which is exactly why a
+       * JSON-only fault shipped. We already paid for the stringify above; parsing it back costs one call per
+       * CHANGED mirror (~29 a game, measured in v1.31.65) and makes both transports carry identical bytes.
+       * Anything BC would have tolerated is now equally absent on BC, where a suite can see it. */
+      if(j!==null) body=JSON.parse(j);
       var msg={t:'mirror', seat:s, q:++mirrorSeq, bs:body.bs, st:body.st};
       /* dbg only, and PERMANENT ON PURPOSE. A lost mirror is the whole mechanism behind the host/client fork,
        * and it has now been investigated three times with bespoke probes that were thrown away each time —

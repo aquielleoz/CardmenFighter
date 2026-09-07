@@ -4929,7 +4929,29 @@ window.CardFace = {};
 (function (root) {
   'use strict';
 
-  function card(c) { return c ? { rank: c.rank, suit: c.suit, id: c.id } : null; }
+  /* A CARD'S IDENTITY IS NOT JUST rank/suit/id (v1.31.115). This whitelist was three fields, and the engine
+   * attaches three more that decide what the card IS rather than what it looks like — so a client received a
+   * DIFFERENT CARD from the one the host held:
+   *   `temp`        — `effectOf` short-circuits on it (engine.js:1017, :1022): a Counterfeit or Illusion copy
+   *                   is a pure fight body with NO effect. Stripped, the client's copy resolved to the
+   *                   ORIGINAL card's effect, so the reader printed a full Technique — name, cost, rules —
+   *                   and `activatableCard` lit the ⚡ Activate button. The host then refused the intent,
+   *                   because ITS card still had `temp`. Silent on both ends.
+   *   `valueBonus`  — `copyBonus` sums it (engine.js:1122) and it feeds `applyEquip`, which `fightLegal`
+   *                   uses to decide whether Fight lights up. Stripped, a client computed the play a point
+   *                   or two short and Fight stayed dark for a play the host would have accepted. This is
+   *                   the exact number v1.31.107 was added to make visible.
+   *   `counterfeit` — the marker the copy is identified by.
+   * Copied only when PRESENT, so an ordinary card's mirror shape is unchanged. This is not a redaction
+   * boundary being widened: a hidden card never comes through here, it comes from `dummies()`. */
+  function card(c) {
+    if (!c) return null;
+    var o = { rank: c.rank, suit: c.suit, id: c.id };
+    if (c.temp) o.temp = true;
+    if (c.counterfeit) o.counterfeit = true;
+    if (c.valueBonus) o.valueBonus = c.valueBonus;
+    return o;
+  }
   function cards(a) { return (a || []).map(card); }
   function equip(e) {
     // equipment entries carry a card plus (optionally) a live counter — both public.
@@ -5419,7 +5441,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.114';
+  var GAME_VERSION='v1.31.115';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -11846,9 +11868,22 @@ window.CardFace = {};
        * fresh number would make every mirror look different and defeat the dedupe that killed the 97%-duplicate
        * render storm (v1.31.65). Content decides whether to send; the version only labels what is sent. */
       var body={seat:s, bs:boardStamp(hostState), st:NetView.mirrorFor(hostState, s)}, j;
-      try{ j=JSON.stringify(body); }catch(e){ j=null; }
+      /* LOUD, NOT SILENT (v1.31.115). This catch used to swallow the failure entirely, which is how a mirror
+       * that could not be serialised went unnoticed for as long as it did: the host believed it had sent, the
+       * client received nothing, and the only symptom was a table that stopped. The trace ring is the one
+       * place a netplay fault is allowed to be noisy — `trace` already collapses repeats into a {n} counter
+       * and caps at 500, so a parked board cannot flood it. */
+      try{ j=JSON.stringify(body); }catch(e){ j=null; trace('mirror UNSERIALISABLE', 'seat='+s+' — '+((e&&e.message)||e)); }
       if(j!==null && lastMirror[s]===j) continue;              // nothing changed for this seat
       lastMirror[s]=j;
+      /* AND SEND THE WIRE VALUE, WHICH DELETES THE TRANSPORT ASYMMETRY RATHER THAN TESTING AROUND IT.
+       * BroadcastChannel uses structured clone: it happily ships cycles, Maps, undefined and host object
+       * references. An RTCDataChannel carries a STRING. So the two transports could disagree about what a
+       * mirror even is — and every guard-window suite runs on BroadcastChannel, which is exactly why a
+       * JSON-only fault shipped. We already paid for the stringify above; parsing it back costs one call per
+       * CHANGED mirror (~29 a game, measured in v1.31.65) and makes both transports carry identical bytes.
+       * Anything BC would have tolerated is now equally absent on BC, where a suite can see it. */
+      if(j!==null) body=JSON.parse(j);
       var msg={t:'mirror', seat:s, q:++mirrorSeq, bs:body.bs, st:body.st};
       /* dbg only, and PERMANENT ON PURPOSE. A lost mirror is the whole mechanism behind the host/client fork,
        * and it has now been investigated three times with bespoke probes that were thrown away each time —

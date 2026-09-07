@@ -132,5 +132,37 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
    `FAIL: 41  FAIL: 6` on a red run — the PASS count wearing the word FAIL, and no `PASS:` token at all,
    so a sweep grepping for one reports a crash rather than a failure. That was fixed in 59 files and this
    one was missed, which matters more here than most: it is one of the two GATE suites. */
+/* ---- A COPY MUST ARRIVE AS A COPY (v1.31.115) --------------------------------------------------------
+ * `card()` whitelisted rank/suit/id, and the engine attaches three more fields that decide what a card IS:
+ * `temp` (effectOf short-circuits on it — a Counterfeit or Illusion copy has NO effect), `valueBonus` (what
+ * copyBonus sums, which feeds the Fight-enable test) and `counterfeit`. Stripped, a client held a DIFFERENT
+ * CARD from the host: the reader printed the original's full Technique text and lit ⚡ Activate on a pure
+ * fight body, and the host then refused the intent. Nothing threw at either end.
+ * These assert IDENTITY, not shape: the discriminating line is `effectOf` on the client's own copy. */
+(function () {
+  var st = E.newGame(null, { starter: 0 });
+  var copy = { rank: 7, suit: 'D', id: 'CF7D#1', temp: true, counterfeit: true, valueBonus: 1 };
+  var plain = { rank: 4, suit: 'H', id: 'plain4H' };
+  st.players[1].hand = [copy, plain];
+  /* NOT VACUOUS: if 7♦ had no base effect, "the client sees no effect" would pass on the broken build too. */
+  ok(E.effectOf({ rank: 7, suit: 'D', id: 'x' }) !== null, 'STAGED: the copied card 7♦ really does have a base effect to leak');
+  ok(E.effectOf(copy) === null, '  → and the HOST correctly reads the copy as having none');
+
+  var mine = NV.mirrorFor(st, 1).players[0].hand;      // seat 1 reading its OWN hand
+  var c = mine[0];
+  ok(c.temp === true, 'the mirror carries `temp`, so a copy stays a copy on the wire');
+  ok(c.valueBonus === 1, '  → and `valueBonus`, the number the Fight-enable test needs');
+  ok(c.counterfeit === true, '  → and the marker it is identified by');
+  ok(E.effectOf(c) === null, '  → so the CLIENT reads it as a pure fight body too, not as the original card');
+  ok(mine[1].temp === undefined && mine[1].counterfeit === undefined && mine[1].valueBonus === undefined,
+     'an ordinary card is unchanged — the fields are carried only when present');
+
+  /* The same card seen by the OTHER seat, on the pile, must keep its identity too — an Illusion is `temp`
+     and sits on the pile, where every seat reads it. */
+  st.pile = { combo: { type: 'single', value: 7, size: 1, key: [7], cards: [copy] }, byPlayer: 1 };
+  var pc = NV.mirrorFor(st, 0).pile.combo.cards[0];
+  ok(pc.temp === true, 'a temp card on the PILE keeps its identity for the other seat as well');
+})();
+
 console.log('\n' + (fail ? 'FAILED — ' : '') + 'PASS: ' + pass + '  FAIL: ' + fail);
 process.exit(fail ? 1 : 0);
