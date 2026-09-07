@@ -113,8 +113,7 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 ### Correctness
 
 *Empty. The four reports from the 2026-09-02 online duel are all shipped; the last of them — an opponent's
-effects going unseen when its pass ended the round — went out in v1.31.106. The solo-line/"duel vs AI" header
-report from those same screenshots is still open and lives under "Things a playtester meets immediately".*
+effects going unseen when its pass ended the round — went out in v1.31.106.*
 
 ### Things a playtester meets immediately
 
@@ -143,6 +142,18 @@ report from those same screenshots is still open and lives under "Things a playt
   **Start with the chip alternative below**: it is the smaller change and 327×660 is the case that needs it most.
   **Cheaper alternative worth testing first:** render the in-panel equipment as a CHIP rather than a card, the
   way the form zone already does — that alone would cut the panel growth from ~59px to ~20px.
+- **THE HEADER STILL SAYS "duel vs AI" IN EVERY MODE — including an online duel against a person, and a
+  six-player free-for-all.** From the 2026-09-02 screenshots. **Located:** the subtitle is *static markup* —
+  `<h1>… <small>duel vs AI</small></h1>` — and **nothing ever writes to it**, so it is not "wrong in netplay",
+  it is wrong everywhere except a solo duel. `#matchupTag` right beside it IS kept current, so that is the
+  pattern to copy; note the `<small>` is `display:none` below 560px, which is why this only shows on a desktop
+  and why a phone-only test would miss it.
+  **The other half of that report is already SHIPPED and should not be re-chased:** the host logging the SOLO
+  start line (*"New duel — you play X vs Rival (Demon Lord)"*) in an online duel was fixed in **v1.31.98**, when
+  `netLive()` gave that branch an `Online duel — …` arm. Verified 2026-09-07.
+  **Filed properly on 2026-09-07 after I nearly lost it:** it had lived only in a section intro, and when I
+  cleared that intro I replaced it with a pointer to a place it did not exist. Open work belongs in an entry.
+
 - **THE PHONE PLAY AREA NEEDS A REAL-DEVICE CHECK, and the decided fix may no longer be needed.** The overlap
   MEASURES CLEAN since v1.31.66 (it was caused by the sideways scroll and went away with it), but it was only
   ever reported from Aj's phone and has not been re-checked there. **The zones-move-into-the-panels change was
@@ -231,22 +242,24 @@ report from those same screenshots is still open and lives under "Things a playt
   untouched. Also check the wide panel still fits at 1512×945; there is no slack left.
   Why FLUSH will never be one of them is in [`DECISIONS.md`](DECISIONS.md#balance).
 - **Rogue "slash": an on-demand card that LOWERS the current pile's value** (Aj, 2026-08-25 — filed for when
-  Rogue needs a boost in balancing; nothing built). Distinct from Caltrops, which is a standing `oppDelta` debuff
-  on opponents' cards. Aj's example: pile is a boosted pair of 4s at effective 6, you hold a pair of 5s; a
-  "slash 2" drops the pile to 4 and your 5s become legal. The engine already has the hook — `st.pile.mod`,
-  folded in by `refreshPile()`.
-  - **Measured support (`stucksim.js`):** at 6 players every deck is stuck on ~85% of following turns, and
-    **62-72% of those are VALUE-stuck** (right shape, too low) rather than shape-stuck. Pure Rogue is **68%
-    value-stuck, the LEAST shape-blocked deck (32%)**, and has the highest share of **deficit-of-one** losses
-    (14%) — it misses by a single point more than anyone. A slash-2 would convert roughly **24% of Rogue's stuck
-    turns into plays** (~20% of its following turns), against a current 7.2 plays per game.
-  - **It is not a Rogue-specific problem.** Every deck is 62-72% value-stuck and a slash-2 would unlock 19-24%
-    for any of them, so this works as a *card* (only Rogue holds it) rather than as a fix for a Rogue weakness.
-    Rogue benefits slightly more than average, and benefits most from the cheap slash-1.
-  - **Corrects an earlier claim:** Rogue's problem was described as "shape, not economy". It is **value**.
-  - Also noted: **Caltrops is stronger in multiplayer than its text says.** `equipDelta` sums `oppDelta` across
-    *every* opponent, so one Caltrops is -2 to all five at a six-player table. Its text reads "the Rival's
-    highest card" (duel wording) and undersells it.
+  Rogue needs a boost in balancing; nothing built). Distinct from Caltrops, which is a standing `oppDelta`
+  debuff on opponents' cards. Aj's example: the pile is a boosted pair of 4s at effective 6 and you hold a pair
+  of 5s; a "slash 2" drops the pile to 4 and your 5s become legal. **The engine already has the hook** —
+  `st.pile.mod`, folded in by `refreshPile()`, and the value-modifier model it must obey is
+  [`DECISIONS.md#value-modifiers`](DECISIONS.md#value-modifiers).
+  **The measured support is settled: [`DECISIONS.md#value-stuck`](DECISIONS.md#value-stuck)** — read it there,
+  including the correction to an earlier claim about Rogue. Do not re-derive it, and do not copy its numbers
+  back here. **What is open is only the card:** cost, whether it is a Quick, and how much it slashes.
+
+- **CALTROPS' TEXT UNDERSELLS IT AT A TABLE, and the fix is a card-text edit plus `gen-cardlist.js`.**
+  `equipDelta` sums `oppDelta` across **every** opponent, so one Caltrops is −2 to all five at a six-player
+  table — but its text reads *"the Rival's highest card"*, which is duel wording. Promoted to its own entry on
+  2026-09-07: it had been an "also noted" bullet inside the Rogue-slash proposal, where a real text bug reads as
+  background colour. **This is the documented class** — CLAUDE.md's *"card text speaks to a TABLE, not a duel"*
+  already lists `equipDelta` (Caltrops, Spiked Armor), `rideCostDelta` (Giant Ram) and `swanValue` (Giant Swan)
+  as having been fixed once; check whether all four still read correctly before editing just this one.
+  **Run `node gen-cardlist.js` afterwards** or `docs/CARD-LIST.md` goes stale.
+
 - **A count-up "charge" CLASS** (Aj, 2026-08-25 — his current lean; nothing built). Full analysis in
   **[`docs/COUNT-UP-DESIGN.md`](COUNT-UP-DESIGN.md)**, which came out of his brother asking why the game has
   shields at all and proposing "Kick Coins" — a count-up replacing them wholesale. Aj's landing point: not a
@@ -271,92 +284,50 @@ report from those same screenshots is still open and lives under "Things a playt
 
 ### Balance and design
 
-- **6-player games run 33 rounds; duels run 11. That is probably the root cause.** (2026-08-24, from Aj's
-  question "is it weird that everybody mills but not everybody loses a shield?") Under the live
-  `SPECIAL_LOSS_MODE='chosen'` + `MILL_SCOPE='targeted'` pairing a Special win costs the table **one** shield
-  however many people are at it, so total shields scale with player count while damage does not. Median length
-  goes **11 (2p) -> 15 -> 22 -> 33 (6p)**. The engine's own defaults (`all`+`universal`) hold it **flat at ~10
-  rounds** at every count.
-  - Everything else we chased today — jab-round grind, option starvation (0.5 legal plays when following at
-    6p), initiative concentration (1.6-1.9x) — has **three times as long to compound** in a 6-player game.
-    Consider fixing length before designing around any of those symptoms.
-  - Do NOT just flip to `all`+`universal`: ~9 rounds may be too short for six players, and it is a large rules
-    change. The question worth designing is whether something between the corners lands at ~15-18 rounds —
-    e.g. a Special win stripping shields from *more than one* rival as the table grows, or `START_SHIELDS`
-    scaling down with player count instead.
-  - Measure with the one-off in this session's history (median/mean/max rounds by player count for both
-    pairings); worth turning into a small committed harness if this is picked up.
-- **Initiative has no catch-up, and that is probably the real problem** (Aj, from play — 2026-08-23; the
-  finding that came out of testing and REJECTING the jab-cantrip, see the note below). In `engine.js` ~1685 a
-  round win does `st.initiative = winner; st.turn = winner;` — **the round winner leads the next round.** That
-  is a rich-get-richer loop, and it collides with two other rules:
-  - **only a special breaks a shield**, and
-  - you may only beat the pile with a **higher value of the SAME shape**.
+- **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
+  corners.** Median **11 (2p) → 15 → 22 → 33 (6p)** live; the engine's own defaults hold it flat at ~10. The
+  measurement, and why you must NOT simply flip to `all`+`universal`, are settled in
+  [`DECISIONS.md`](DECISIONS.md#game-length).
+  **What is actually open:** design something that lands at **~15–18 rounds** at six players — e.g. a Special
+  win stripping shields from *more than one* rival as the table grows, or `START_SHIELDS` scaling **down** with
+  player count (the promising re-land direction, PATCHNOTES 0k). Worth a small committed harness for
+  median/mean/max rounds by player count, since the original numbers came from a one-off.
 
-  So a player who is not winning rounds can almost never *lead*, and therefore can almost never deploy a
-  special — their full house is dead weight until somebody else happens to lead a full house at a lower value.
-  Aj, mid-game: *"three rounds in a row throwing jab after jab… I didn't want to break my full house to answer
-  their pair."* It gets worse with player count, because the pile is contested by more people.
-
-  **The game has CARD catch-up (shields-as-cards, loser-mill) and NO INITIATIVE catch-up.** That asymmetry is
-  the thing to attack. Directions, none designed yet:
+- **★ INITIATIVE HAS NO CATCH-UP, AND THAT IS PROBABLY THE REAL PROBLEM** (Aj, from play, 2026-08-23).
+  `engine.js` ~1685 does `st.initiative = winner; st.turn = winner;` — **the round winner leads the next
+  round** — a rich-get-richer loop, colliding with two other rules: **only a Special breaks a shield**, and you
+  may only beat the pile with a **higher value of the SAME shape**. So a player who is not winning rounds can
+  almost never *lead*, and therefore can almost never deploy a Special: their full house is dead weight until
+  somebody happens to lead a lower one. Aj, mid-game: *"three rounds in a row throwing jab after jab… I didn't
+  want to break my full house to answer their pair."* It worsens with player count.
+  **The game has CARD catch-up (shields-as-cards, loser-mill) and NO INITIATIVE catch-up. That asymmetry is the
+  thing to attack.** Directions, none designed yet:
   - **Rotate the lead** instead of awarding it to the winner — clockwise, or to whoever has led least recently.
-    Cheap to try and directly measurable (`mpsim.js`, and watch whether special-cast rates rise).
-  - **Let a bigger shape answer a smaller one at a cost** (energy, or reduced banking), so holding a special is
+    Cheap to try and directly measurable.
+  - **Let a bigger shape answer a smaller one at a cost** (energy, or reduced banking), so holding a Special is
     never structurally dead.
   - **Frame passing as a real choice in the UI.** Aj: *"I think the real strat is really to pass."* The engine
-    agrees — a pass spends no hand cards and still banks energy via the loser-mill — but the tutorial currently
-    teaches *"leading a jab is the safe way to stock energy"*, which may be teaching the weaker line.
-  - **STUDIED 2026-08-23 — the strategic pass does NOT work in multiplayer; the gate stays.** `passsim.js`
-    measures it as a within-game A/B (same table, half the seats allowed to pass, seats rotated, one deck and
-    one tier for everyone), so deck, tier and seat luck are identical in both arms by construction:
+    agrees — a pass spends no hand cards and still banks energy via the loser-mill — but the tutorial teaches
+    *"leading a jab is the safe way to stock energy"*, which may be teaching the weaker line.
+  **READ [`DECISIONS.md#strategic-pass`](DECISIONS.md#strategic-pass) FIRST.** The AI-side strategic pass was
+  studied and is **inert in multiplayer** (the gate stays) — do not re-run it. That entry also carries the two
+  findings that matter more than the pass did — how concentrated initiative actually is (with the harness that
+  prints it, which is what any fix here is evaluated against), and that **the AI is not jab-locked** while the
+  human feels starved. Read both there before redesigning anything.
+  **One cheap experiment is still untried and belongs before any redesign:** `ai.js` hard-gates the strategic
+  pass to `numPlayers === 2`, so **every free-for-all balance number we have was measured with it switched
+  off**. Drop the guard, re-run `mpsim.js`, and see whether the jab-spam is partly an AI artefact rather than a
+  rules problem. It would be embarrassing to redesign initiative to fix a missing `if`.
 
-    | case | delta to the passing arm | |
-    | --- | --- | --- |
-    | demon DUEL | **+17.3 pts** | real — reproduces the original "~59% vs always-contest" |
-    | knight duel | +1.5 | noise — the duel edge is a **demon** edge, not a smart-tier one |
-    | 6p, thresholds 5→10 (fires up to 8x/game) | +0.6 / −1.7 / +1.7 / −0.9 / −2.2 | all noise |
-    | 3p / 4p, 3200 games | +0.9 / −0.1 | noise |
-
-    So the old comment was wrong in an interesting way: it said conceding "hands the trick to several
-    opponents", implying **harm**. There is no harm — the policy is **inert**. Conserving a card is a
-    **two-body** attrition edge; against five opponents the marginal card stops mattering, so the pass fires
-    and changes nothing. Raising the threshold just buys more firings of the same zero.
-  - **Aj's own policy was also tested and is the better idea, but still not significant.** The shipped rule
-    concedes on *hand size*; Aj was conceding because he *held a full house he meant to lead*. That is a
-    different rule (`AI.setStratPassMode('combo')` — concede a jab whenever you hold a Special). It is the only
-    variant with a consistently positive sign, **+0.9 at both 3p and 4p over 3200 games** — inside noise. Worth
-    revisiting **after** an initiative fix, because its whole premise is "I will get to lead this later", which
-    is exactly what the initiative loop denies. A low-power +4.0 regressed to +0.9 at 6x the games; don't be
-    fooled by the first run.
-  - **Two things the study turned up that matter more than the pass itself:**
-    1. **Initiative concentration grows with player count.** The busiest leader holds **40% of rounds at 4p**
-       (fair 25%) and **32% at 6p** (fair 17%) — 1.6-1.9x its share. Everyone leads *eventually* across a
-       33-round game, but the local streaks are real, and that is the "three rounds in a row" feeling.
-       `passsim.js` prints this, so it is the harness to evaluate any initiative fix against.
-    2. **The AI is not jab-locked at all — only ~20% of its plays are jabs** (it casts ~56 Specials a game at
-       6p). A human felt starved of Specials while the AI was swimming in them. **That asymmetry is the real
-       lead**, and it is consistent with the initiative loop: the AI keeps winning rounds, keeps the lead, and
-       keeps leading Specials. Find out what the AI does that a human cannot before redesigning anything.
-  - The original observation, for the record. `ai.js` 363:
-    `if (strategicPass && st.numPlayers === 2 && hand.length <= STRAT_PASS_MAX) return {action:'pass'}` —
-    deliberately passing a *winnable* jab to conserve cards is **hard-gated to 1v1**. In a free-for-all no AI
-    ever strategic-passes, which is exactly the mode where Aj found passing to be right. Two consequences:
-    (a) the AI is probably playing the multiplayer game wrong, and (b) **every free-for-all balance number we
-    have was measured with strategic passing switched off**, so `mpsim.js` may not describe the real strategic
-    landscape at all. Cheapest possible experiment: drop the `numPlayers === 2` guard, re-run `mpsim.js`, and
-    watch both the win rates and how many jab exchanges a game contains. Do this BEFORE designing an initiative
-    fix — the jab-spam may be partly an AI artefact rather than a rules problem, and it would be embarrassing
-    to redesign initiative to fix a missing `if`.
 - **The "outbid" pass model for the AI** (Aj — parked 2026-08-24, may come back). The AI currently picks the
   *lowest safe single* to contest a jab, and never asks *"will this card even survive five opponents?"* Aj's
   reason #3 for passing was exactly that: middling values get outbid, so spending them is waste. Unlike the
   shipped hand-size heuristic (measured inert in multiplayer, see the note below) this signal **gets stronger
   as the table grows**, which is the dimension where the problem actually scales.
   - **Decide by measurement whether it goes on knight AND demon, or demon only** (Aj's explicit question). Do
-    not assume it transfers: the *existing* strategic pass measured **+17.3 pts for demon and +1.5 for knight**
-    in duels — same code, and the effect was real for one tier and noise for the other. `passsim.js` takes a
-    tier argument for exactly this.
+    not assume it transfers: the existing strategic pass measured real for ONE TIER and noise for the other in
+    duels, on the same code — see [`DECISIONS.md#strategic-pass`](DECISIONS.md#strategic-pass). `passsim.js`
+    takes a tier argument for exactly this.
   - Implement as a third `setStratPassMode('outbid')` beside `'hand'` and `'combo'` so all three stay
     comparable in one harness.
 - **A gacha-style storyline** (Aj, idea — parked, ahead of netplay AI in the queue, not designed). Nothing

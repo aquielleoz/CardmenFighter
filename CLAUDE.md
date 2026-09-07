@@ -1125,13 +1125,11 @@ Measured on v1.31.95, the two halves of the same day:
   launching any workflow, say in one line what it will spend and whether one careful read answers the same
   question; if it does, read.
 
-**THE VALUE-MODIFIER MODEL IS SETTLED AND LIVES IN `DECISIONS.md#value-modifiers` — READ IT BEFORE TOUCHING
-`fightValue`, `applyEquip` OR `lockedDelta`.** Short form: **a card's PRINTED value decides what Specials it can
-belong to; modifiers apply on top of the PLAY and persist until that play is defeated.** It had been decided,
-implemented and documented ONLY IN A CHANGELOG ENTRY, so on 2026-09-07 I asked Aj a question he had already
-answered years of versions earlier — the exact failure this file's routing table names. Anything that changes a
-CARD's value changes its IDENTITY: `detectCombo` groups by `fightValue`, so a "7 that counts as 8" pairs with
-nothing. Counterfeit's `valueBonus` was the one violation and cost a real game to find (v1.31.107).
+**BEFORE TOUCHING `fightValue`, `applyEquip` OR `lockedDelta`, READ
+[`DECISIONS.md#value-modifiers`](docs/DECISIONS.md#value-modifiers).** It settles which layer a value modifier
+belongs in, and getting it wrong is not a style error: anything that changes a CARD's value changes its
+IDENTITY, because `detectCombo` groups by `fightValue`. Counterfeit was the one violation and it took a real
+game to find (v1.31.107).
 
 **AN ENTRY'S POSITION IN A TABLE SAYS NOTHING ABOUT WHAT GATES IT (2026-09-07).** `copyPlus` lives in the
 `S` (Rogue) block of `BOOSTS`, so I told Aj his **Q♣** could not have boosted his **♠8** Counterfeit and that
@@ -1986,6 +1984,23 @@ definition, so it cannot delete them.
   differently · changelog = what shipped.
 - `docs/NEXT-SESSION.md` — **start here**: build/test header, the RANKED backlog (open work only), full
   changelog. Split on 2026-08-31; anything settled moved to `DECISIONS.md`.
+- **A LINK IS CHEAP; A RESTATED FACT IS NOT** (Aj, 2026-09-07: *"if we have to update multiple places just to
+  record, then one of those places will be forgotten and go stale one time or another"* — and he is describing
+  this repo's actual history: the handoff header drifted THIRTEEN versions, and the `test.js` count sat in three
+  places until `versiontest` was taught to assert all of them).
+  **So: every measurement, number and conclusion lives in EXACTLY ONE file. Everywhere else points at it.**
+  A pointer rots only if a file or anchor is renamed; a copied number rots every time the number changes, and
+  silently. This refines the older "a cross-reference is cheap" note rather than contradicting it — cross-refer
+  freely, restate never. A BACKLOG entry names the lever and links the study; it does not repeat the study's
+  numbers, and **this file does not repeat DECISIONS.md's conclusions** — it says when to go read them.
+  **If a number genuinely must appear twice, make the second copy ASSERTED, not written** — that is what
+  `versiontest` does for every suite count and the whole version chain, and it is the only form of duplication
+  here that has ever survived contact with time.
+  **AUDITED 2026-09-07** against the whole BACKLOG. The tell for a settled analysis hiding in open work is a
+  results TABLE or a "measured/studied" date inside a bullet that otherwise describes a task; four came out.
+  Two other shapes turned up worth looking for: a real task buried as an "also noted" sub-bullet of an unrelated
+  proposal, and **open work recorded only in a section INTRO rather than an entry** — I deleted such an intro
+  that same morning and nearly lost the report with it.
 - `docs/DECISIONS.md` — **settled decisions and analyses: things that are NOT work.** Includes **AI strength**,
   which carries the only method here that can measure it — every sim runs the same AI on both seats, so they
   are structurally blind to "is this change stronger?". Measured dead ends,
@@ -2000,7 +2015,9 @@ definition, so it cannot delete them.
 - `docs/RELAY-DESIGN.md` — the **signalling relay**: why polling over D1 rather than WebSockets over Durable
   Objects, the mailbox-of-slots model, the cost arithmetic, and the privacy change it forces.
 - `docs/ORIGIN-EXPERIMENT.md` — the **origin probe** (`code/origin-probe.html` + `code/serve.js`): does an
-  https origin actually unblock the camera? Instrument built and validated; **results table still empty**.
+  https origin actually unblock the camera? **Read it for the answer; do not summarise it here.** This line used
+  to say *"results table still empty"* — it had been RUN AND SETTLED on 2026-08-28 and the summary rotted while
+  the doc stayed correct, which is the whole reason a docs map lists what a file is FOR and never what it says.
 - `docs/PATCHNOTES.md` — balance principles + win-rate history. `docs/REWORK-HISTORY.md` — how it got here.
 - `docs/BUILD-PLAN-v0.82.md`, `docs/Cardmen-Fighter-Design-v0.70.md`, `docs/STACK-DESIGN-v0.53.md` —
   historical snapshots, not current truth.

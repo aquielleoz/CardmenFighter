@@ -237,6 +237,81 @@ This is a better reason than "suits do not rank" for why v1.14 cut them.
   the ceremony teardown) were never demonstrated either and should not be re-chased first.
 
 <a id="host-client-fork"></a>
+## The strategic pass, and what the study found instead <a id="strategic-pass"></a>
+
+**Moved out of the BACKLOG on 2026-09-07 — it is a measured result, not work.** It had been sitting inside the
+open "initiative has no catch-up" entry, where a settled dead end reads as something still to try.
+
+**STUDIED 2026-08-23 — the strategic pass does NOT work in multiplayer; the `numPlayers === 2` gate stays.**
+`passsim.js` measures it as a within-game A/B (same table, half the seats allowed to pass, seats rotated, one
+deck and one tier for everyone), so deck, tier and seat luck are identical in both arms by construction:
+
+| case | delta to the passing arm | |
+| --- | --- | --- |
+| demon DUEL | **+17.3 pts** | real — reproduces the original "~59% vs always-contest" |
+| knight duel | +1.5 | noise — the duel edge is a **demon** edge, not a smart-tier one |
+| 6p, thresholds 5→10 (fires up to 8x/game) | +0.6 / −1.7 / +1.7 / −0.9 / −2.2 | all noise |
+| 3p / 4p, 3200 games | +0.9 / −0.1 | noise |
+
+**The old comment was wrong in an interesting way.** It said conceding "hands the trick to several opponents",
+implying HARM. There is no harm — the policy is **inert**. Conserving a card is a **two-body** attrition edge;
+against five opponents the marginal card stops mattering, so the pass fires and changes nothing. Raising the
+threshold just buys more firings of the same zero.
+
+**Aj's own policy is the better idea and still not significant.** The shipped rule concedes on *hand size*; Aj
+was conceding because he *held a Special he meant to lead* (`AI.setStratPassMode('combo')`). It is the only
+variant with a consistently positive sign — **+0.9 at both 3p and 4p over 3200 games** — inside noise. A
+low-power **+4.0 regressed to +0.9 at 6× the games**; do not be fooled by a first run. Worth revisiting only
+**after** an initiative fix, because its whole premise is "I will get to lead this later", which is exactly what
+the initiative loop denies. That revisit is the open half and stays in the BACKLOG.
+
+### Two findings from that study that matter more than the pass
+
+- **Initiative concentration grows with player count.** The busiest leader holds **40% of rounds at 4p** (fair
+  25%) and **32% at 6p** (fair 17%) — 1.6–1.9× its share. Everyone leads *eventually* across a 33-round game,
+  but the local streaks are real, and that is the "three rounds in a row" feeling. **`passsim.js` prints this,
+  so it is the harness any initiative fix is evaluated against.**
+- **The AI is not jab-locked at all — only ~20% of its plays are jabs** (it casts ~56 Specials a game at 6p).
+  A human felt starved of Specials while the AI was swimming in them. **That asymmetry is the real lead**, and
+  it is consistent with the initiative loop: the AI keeps winning rounds, keeps the lead, keeps leading
+  Specials. **Find out what the AI does that a human cannot before redesigning anything.**
+
+## Game length by player count <a id="game-length"></a>
+
+**Measured 2026-08-24, from Aj's question "is it weird that everybody mills but not everybody loses a shield?"**
+Moved out of the BACKLOG on 2026-09-07: the measurement is settled, the lever it implies is not.
+
+Under the live `SPECIAL_LOSS_MODE='chosen'` + `MILL_SCOPE='targeted'` pairing, a Special win costs the table
+**one** shield however many people are at it — so total shields scale with player count while damage does not.
+Median length goes **11 (2p) → 15 → 22 → 33 (6p)**. The engine's own defaults (`all` + `universal`) hold it
+**flat at ~10 rounds** at every count.
+
+**Everything else chased that day compounds for three times as long in a 6-player game** — jab-round grind,
+option starvation (0.5 legal plays when following at 6p), initiative concentration. Consider length before
+designing around any of those symptoms.
+
+**Do NOT just flip to `all` + `universal`.** ~9 rounds may be too short for six players, it is a large rules
+change, and `loss='all'` is separately a measured balance disaster — see the [`loss=all`](#balance) entry and
+PATCHNOTES 0j. The open design question is whether something between the corners lands at ~15–18 rounds; that
+half stays in the BACKLOG.
+
+## Where the deck is stuck: VALUE, not shape <a id="value-stuck"></a>
+
+**Measured with `stucksim.js`, 2026-08-25.** Moved out of the BACKLOG on 2026-09-07 — it is a measurement that
+should not be re-run, sitting inside an open card proposal.
+
+At 6 players **every deck is stuck on ~85% of following turns**, and **62–72% of those are VALUE-stuck** (right
+shape, too low) rather than shape-stuck.
+
+- **Pure Rogue is 68% value-stuck and the LEAST shape-blocked deck (32%)**, with the highest share of
+  **deficit-of-one** losses (14%) — it misses by a single point more than anyone.
+- **It is not a Rogue-specific problem.** Every deck is 62–72% value-stuck, so a "slash −2" would unlock
+  **19–24%** of stuck turns for *any* of them. That is why the proposal works as a **card** (only Rogue holds
+  it) rather than as a fix for a Rogue weakness. Rogue benefits slightly more than average, and benefits most
+  from the cheap slash-1.
+- **CORRECTS AN EARLIER CLAIM.** Rogue's problem was described as *"shape, not economy"*. It is **value**. Do
+  not re-derive this.
+
 ## The host/client fork — closed 2026-09-01
 
 - **THE FORK `nettest_sync` CAUGHT IS UNDERSTOOD AND FIXED (v1.31.80), after being open since 2026-08-28.**
