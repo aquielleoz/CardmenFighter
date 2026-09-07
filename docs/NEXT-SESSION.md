@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.108.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.109.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.108**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.109**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -141,6 +141,23 @@ effects going unseen when its pass ended the round — went out in v1.31.106.*
   exercise it lacked.
 
 ### Tooling
+
+- **`lessontest_forms` blew a THIRTY-SECOND poll once under `-j 4` — and 30s is not slowness, it is a dead end**
+  (2026-09-07). `⏱ poll TIMED OUT after 30000ms: the Q is spotlit`, in a sweep. **Not reproducible on demand
+  and not attributable:** 3/3 alone, **4/4 in parallel on that build AND 4/4 in parallel on `main`**, and the
+  change it appeared under does not touch the lesson path (lessons launch by clicking a `.lessonRow`; the dice
+  live in the setup dialog's roll).
+  **Why 30s matters.** v1.31.84 raised all six lesson polls 9s → 30s precisely to end this class, and the note
+  there says a poll budget is a HANG GUARD, not a race — it returns the instant the condition holds. Blowing the
+  whole 30s therefore means the condition never became true, not that the machine was slow. The rig is not the
+  suspect either: CLAUDE.md measured `tutRigForms` placing a Q **8/8**, with a fallback whose failure needs all
+  four jacks behind shields (1 in 270,725).
+  **THE ONE THING THAT WOULD SETTLE IT COSTS NOTHING, and should be added before hunting:** on timeout, print
+  `step()` — it already returns the step number, its text and `spots`. That separates the two live hypotheses,
+  which need completely different fixes: **the lesson never reached that step** (an earlier gate silently failed
+  to advance) versus **it is on the right step and the `.tut-spot` selector matched nothing** (a rig or
+  spotlight-selector problem). Right now a red run cannot tell you which, which is the whole reason this entry
+  exists rather than a fix. Make the suite self-diagnosing; do not write a bespoke probe.
 
 - **`landscapetest`'s ↓ New log assertion is INTERMITTENT — 2 failures in 26 runs (2026-09-04), and it has a
   fixed wait in it.** Seen only while building v1.31.104: **0/6 on v1.31.103, 2/10 on an intermediate build,

@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.108**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.109**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -1140,6 +1140,15 @@ I read the DATA's shape and inferred a rule from where the entry sat, instead of
 LOOKUP that decide it. **Read the code that consults a table before believing the table's layout is the rule** —
 and when the person reporting the bug says the boost fired, that is evidence, not a thing to talk them out of.
 
+**IF THE GAME DECIDES SOMETHING BY CHANCE, SHOW THE CHANCE — INCLUDING THE FALSE STARTS** (Aj, 2026-09-07:
+*"ties are drama! we need the drama"*). The roll site's own comment already says the point: *"the defensible
+thing is to decide it fairly and SHOW that you did."* A chance outcome resolved in silence is indistinguishable
+from a fixed one — the player has only your word for it — so the process is the feature, not the result.
+**And the RETRIES are part of the process, not noise to compress out.** Solo re-rolls a tie visibly (*"Tie —
+both rolled 4. Rolling again…"*); the netplay host resolved ties inside a `for` loop and broadcast only the
+winning pair, which is the same information and none of the drama. When a mechanism can loop, ask whether the
+loop is worth watching before you throw its middle away — here it is the most interesting part.
+
 **A PROBABILISTIC ASSERTION IS SETTLED BY COUNTING, NOT BY READING — and never by a workflow (2026-09-07).**
 `nettest_starter` played SIX rooms and required both seats to have opened at least once. The opener is a fresh
 die every game, so that is six coin flips: **P(all six identical) = 2 × (1/2)^6 = 1/32**, and the suite's own
@@ -1445,7 +1454,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.108 — 2026-09-07, `npm run sweep`, 84 suites and 0 FAIL in 160s** (four lanes; background
+Status as of **v1.31.109 — 2026-09-07, `npm run sweep`, 84 suites and 0 FAIL in 184s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -1455,7 +1464,7 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 49 netplay suites: `nettest_3p` 7, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 8, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
+The 49 netplay suites: `nettest_3p` 7, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 14, `kick` 11, `log` 16, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
