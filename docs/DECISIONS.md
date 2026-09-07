@@ -108,6 +108,41 @@ doubt.*
   Vertical space IS genuinely tight (see the 340px floor and `landscapetest`), but the hand is the thing a card
   player looks at most, so it is the wrong first lever; the secondary chrome is the cheap one.
 
+## The value-modifier model <a id="value-modifiers"></a>
+
+**Settled long ago, implemented, and written down only in a changelog entry — which is why it got re-asked on
+2026-09-07 and cost a round trip.** Aj, restating it: *"all modifiers are applied on top of the pile. the card
+values, the base ones, what's printed on the card determine what specials it can belong to."* Recorded here so
+nobody asks again.
+
+**THE RULE, in two halves:**
+1. **A card's PRINTED value decides what Specials it can belong to.** `detectCombo` groups and sequences by
+   `fightValue`, so anything that changes a card's value changes its *identity* — a "7 that counts as 8" pairs
+   with nothing. Shape is base values, always.
+2. **Modifiers apply on top of the PLAY, and persist until that play is defeated** — the pile's value tracks
+   them, the cards never do.
+
+**The three flavours, and which layer each lives in:**
+
+| kind | example | where | persists on the pile? |
+| --- | --- | --- | --- |
+| **conditional, standing** | Giant Boar (+1 **on your turn only**), Giant Swan (defensive) | `rideValue`, via `applyEquip` | **Boar no** — it only helps you BEAT a pile, never hold one, so it is excluded from `lockedDelta`. Swan yes. |
+| **one-shot, then locked** | the pre-fight boost, a Counterfeit copy's `copyPlus` | `applyEquip` **and** `lockedDelta` | **yes** — frozen at play time, holds the pile until it is beaten |
+| **ongoing, board-tracking** | equipment ± (`delta` / `oppDelta`) | `equipDelta`, re-read by `refreshPile` | **yes, and it keeps moving** — equip a debuff against a standing pile and it blunts it now |
+
+`play()` stores `{raw, rawKey0, lockedDelta, mod}` and `refreshPile(st)` recomputes
+`value = raw + lockedDelta + equipDelta(st, byPlayer)` from scratch, so add and remove are both correct.
+
+**THE ONE PLACE THAT VIOLATED IT WAS COUNTERFEIT, and it took a real game to find** (v1.31.107). A boosted copy
+carried `valueBonus` on the CARD and `fightValue` added it, so the copy could not pair, trio or run with a real
+card of its rank — it could only ever be played as a jab, which inverts the upgrade, since the copy's whole
+purpose is completing a set. **Phantasmal Illusion already copied "at base values"**; Counterfeit was the lone
+exception. The bonus is a play-level delta now (`copyBonus`), in both `applyEquip` and `lockedDelta`.
+
+**There is currently NO cast Technique that boosts only on the attack and falls off on the opponent's turn.**
+Giant Boar does exactly that, but it is a Ride, not a 1-10 effect card (Aj, 2026-09-07). If one is ever added,
+it belongs in `applyEquip` and **not** in `lockedDelta` — Boar is the worked example.
+
 ## Shapes we deliberately did not build
 
 *Moved out of the handoff header on 2026-08-31. Both were settled by reading the source rules, and both are the

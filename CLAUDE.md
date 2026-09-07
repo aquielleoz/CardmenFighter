@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.106**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.107**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 382 + 34 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 387 + 34 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 382 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 387 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction — 34, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
@@ -1125,6 +1125,14 @@ Measured on v1.31.95, the two halves of the same day:
   launching any workflow, say in one line what it will spend and whether one careful read answers the same
   question; if it does, read.
 
+**THE VALUE-MODIFIER MODEL IS SETTLED AND LIVES IN `DECISIONS.md#value-modifiers` — READ IT BEFORE TOUCHING
+`fightValue`, `applyEquip` OR `lockedDelta`.** Short form: **a card's PRINTED value decides what Specials it can
+belong to; modifiers apply on top of the PLAY and persist until that play is defeated.** It had been decided,
+implemented and documented ONLY IN A CHANGELOG ENTRY, so on 2026-09-07 I asked Aj a question he had already
+answered years of versions earlier — the exact failure this file's routing table names. Anything that changes a
+CARD's value changes its IDENTITY: `detectCombo` groups by `fightValue`, so a "7 that counts as 8" pairs with
+nothing. Counterfeit's `valueBonus` was the one violation and cost a real game to find (v1.31.107).
+
 **AN ENTRY'S POSITION IN A TABLE SAYS NOTHING ABOUT WHAT GATES IT (2026-09-07).** `copyPlus` lives in the
 `S` (Rogue) block of `BOOSTS`, so I told Aj his **Q♣** could not have boosted his **♠8** Counterfeit and that
 his copy must have had `valueBonus: 0`. Wrong, and he had already said otherwise: **`FORM_SUIT_MATCH` is `false`
@@ -1423,13 +1431,13 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.106 — 2026-09-07, `npm run sweep`, 83 suites and 0 FAIL in 160s** (four lanes; background
+Status as of **v1.31.107 — 2026-09-07, `npm run sweep`, 84 suites and 0 FAIL in 164s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 382, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 127, `decktest` 42, `viewtest` 10,
+`test` 387, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 127, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 26, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 18, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 26, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 18, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

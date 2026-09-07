@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**382**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**387**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including all 49 `nettest_*` suites and the ten `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.106.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.107.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-04)
 
-`main` is at **v1.31.106**, working tree clean, full sweep green at **82 suites**. The only branch is
+`main` is at **v1.31.107**, working tree clean, full sweep green at **82 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **2026-09-04 SHIPPED v1.31.103 → v1.31.105, and the through-line is worth reading before the next phone change:
@@ -372,6 +372,48 @@ report from those same screenshots is still open and lives under "Things a playt
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.107 — a Counterfeit copy is a printed 7 again, so it can pair with one
+
+Aj, from real play, holding a 7♣ and a boosted copy of a 7♦ and being told **"Not a legal combination."**:
+*"i used the counterfeit and cloned a 7... it's a 7 and it should be able to pair up with a 7. and because of
+giant boar, i should be a total +2 (boar + counterfeit boost)."* Right on every count.
+
+**`fightValue` added the copy's `valueBonus`, and `detectCombo` groups by `fightValue`** — so a Pandora/Hermes
+boosted copy of a 7 evaluated as an **8** and matched nothing. Measured: **pair, trio and straight all returned NONE**.
+A boosted copy could only ever be played as a jab, which *inverts* the upgrade, because the copy's whole purpose
+is completing a set.
+
+**It was the only per-card value modifier in the game.** Every other one — equipment, the pre-fight boost, Giant
+Boar — is a **play-level** delta in `applyEquip` that adjusts the combo and leaves the cards alone; that is why
+Boar's +1 never broke a pair. **Phantasmal Illusion already copied "at base values."** Counterfeit was the lone
+exception, and `copyBonus(cards)` moves it into the same layer as everything else — in `applyEquip` so it still
+helps you BEAT the pile, and in `lockedDelta` so it **persists until that pile is defeated**, like the pre-fight
+boost and unlike Boar (which is attack-only and correctly excluded).
+The chip row now reads **"value +2 from Giant Boar, Counterfeit copy"** — the total Aj was counting on. It could
+not previously show the second one at all, because `playModifiers` is a board-only readout and this modifier
+rides the cards; it takes the selection now.
+
+**THE FAILING GATE ASSERTION WAS ENCODING THE BUG.** `test.js` asserted
+`fightValue(copy) === copy.rank + 1` — precisely the defect. Replaced with six that state the rule instead: the
+card keeps its `valueBonus` DATA, its `fightValue` is the printed rank, it **pairs with a real card of its
+rank**, the +1 lands on the play, and the pile it leaves holds at +1. `test` 382 → **387**.
+
+**New suite `counterfeittest` (11)**, because the symptom was a UI string and **no suite drove
+`promptCounterfeit` at all** — the whole copy-picker flow was unexercised. It stages Aj's board, casts through
+the real picker, and asserts the hint is no longer *"Not a legal combination."*, Fight is live, the chip row
+names both modifiers, and the pile holds at 8. A/B'd against the pre-fix build: **6 red, including the literal
+reported string**.
+It deliberately stages a **CLUB** Form against a **SPADE** Counterfeit, because `FORM_SUIT_MATCH` is `false`
+(variant B, a Form lifts all suits) — a same-suit rig would pass on a build where that gating was wrong, and it
+is the detail that made me misdiagnose the report in the first place.
+
+**Two docs fixes came out of it, and they matter more than the code.** The value-modifier model was settled,
+implemented and written down **only in a changelog entry**, so I asked Aj a question he had already answered —
+the exact routing failure CLAUDE.md names. It is now `DECISIONS.md#value-modifiers` with the three flavours of
+modifier and which layer each lives in, and CLAUDE.md points at it. And a new rule from my misdiagnosis: **an
+entry's position in a table says nothing about what gates it** — I inferred suit-gating from `copyPlus` living
+in the `S` block and told Aj his Q♣ could not have boosted his ♠8, when the lookup two lines down says it does.
 
 ### v1.31.106 — an opponent's effects are seen before the round lands on top of them
 

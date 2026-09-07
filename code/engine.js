@@ -1115,8 +1115,14 @@
     return d;
   }
   function effectiveCost(st, p, card) { return Math.max(0, activationCost(card) + rideCostDelta(st, p, card)); }
+  /* A boosted Counterfeit copy's +value, summed over the copies actually IN this play (v1.31.107). It sits
+   * here because this is where every value modifier lives — equipment, the pre-fight boost, Giant Boar — and
+   * a play-level delta cannot disturb the shape the cards make. Summed, not maxed: two copies each add. */
+  function copyBonus(cards) {
+    var d = 0; (cards || []).forEach(function (c) { d += (c.valueBonus || 0); }); return d;
+  }
   function applyEquip(combo, p, st) {
-    var d = equipDelta(st, p) + playBoost(st, p) + rideValue(st, p);
+    var d = equipDelta(st, p) + playBoost(st, p) + rideValue(st, p) + copyBonus(combo && combo.cards);
     if (!d || !combo) return combo;
     var key = combo.key.slice(); key[0] += d;
     return { type: combo.type, size: combo.size, value: combo.value + d, key: key, cards: combo.cards };
@@ -1125,7 +1131,7 @@
   // UI can show "+1 from Giant Boar" / "+3 from Giant Boar, Hero's Sword" / "−2 from Spiked Armor". Offensive
   // context (your play on your turn): Giant Boar (+1, your turn only), your own equipment `delta`, opponents'
   // `oppDelta` against you, and a charged pre-fight boost. Totals to the same number applyEquip adds.
-  function playModifiers(st, p) {
+  function playModifiers(st, p, cards) {
     var out = [];
     if (st.turn === p) {
       var forms = st.players[p].forms || [];
@@ -1135,6 +1141,7 @@
     for (var q = 0; q < st.numPlayers; q++) if (q !== p)
       st.players[q].equipment.forEach(function (e) { if (e.oppDelta) out.push({ amount: e.oppDelta, source: e.name }); });
     var pb = playBoost(st, p); if (pb) out.push({ amount: pb, source: 'charged play' });
+    var cb = copyBonus(cards); if (cb) out.push({ amount: cb, source: 'Counterfeit copy' });   // `cards` optional: the selection being weighed
     return out;
   }
   // Itemize the COST modifiers on p's activations this turn (a different axis from value): Giant Owl (−1 to your
@@ -1719,7 +1726,7 @@
     // the pre-fight boost (playBoost) + Giant Swan (defensive). Giant Boar (offensive) is excluded — it only
     // helps you BEAT a pile, never hold one. Equipment is NOT frozen here; refreshPile() layers the live
     // equipment delta on top, so the pile's value keeps tracking the board as equipment is added or removed.
-    var swan = swanValue(st, p), lockedDelta = playBoost(st, p) + swan;
+    var swan = swanValue(st, p), lockedDelta = playBoost(st, p) + swan + copyBonus(cards);   // a Counterfeit copy's bonus rides the pile until the pile is beaten — like the pre-fight boost, unlike Giant Boar
     /* `chopped` HAS TO BE STAMPED HERE, because the next line throws away the thing that was beaten. At resolve
      * time a Quadro led into an empty pile, a Quadro played over a lower Quadro, and a Quadro that chopped a pair
      * of 2s leave byte-identical piles — same type, size, key, cards and player — so "did this win by chopping?"
@@ -2254,7 +2261,16 @@
   function fightValue(card) {
     var r = card.rank, v = (r >= 3 && r <= 13) ? r : (r === 1 ? 14 : (r === 2 ? 15 : r));   // 3..10, J, Q, K, A(14), 2(15 apex)
     if (APEX_INF && r === 2) return Infinity;   // apex rework: a 2 is unbeatable (and strips no shield — see applyRoundLoss)
-    return v + (card.valueBonus || 0);   // Counterfeit copies can carry a +value bonus (Pandora/Hermes)
+    /* THE PRINTED VALUE, AND NOTHING ELSE (v1.31.107). This used to add `card.valueBonus`, the +value a
+     * Pandora/Hermes-boosted Counterfeit copy carries — the ONE per-card value modifier in the game, and the
+     * only thing that ever changed a card's IDENTITY rather than a play's strength. `detectCombo` groups by
+     * `fightValue`, so a boosted copy of a 7 evaluated as an 8 and could not pair, trio or run with a real 7:
+     * measured, it could only ever be played as a JAB, which inverted the upgrade — the copy's whole purpose is
+     * completing a set. Aj, from real play, holding two 7s: *"it's a 7 and it should be able to pair up with a
+     * 7"*, and the rule he states is the game's: **base printed values decide what Specials a card belongs to;
+     * modifiers apply on top of the pile.** The bonus moved to `copyBonus`, alongside every other modifier.
+     * Phantasmal Illusion already copied "at base values" — Counterfeit was the lone violation. */
+    return v;
   }
   // Energy to activate a card's effect. J/Q/K cost a flat 10 to transform into the zone; Ace keeps cost 1;
   // 3-10 cost their number; 2 has no activated effect (returns 15 defensively but is never activated).

@@ -3050,7 +3050,10 @@ __QR__
   function renderPlayMods(spectating){
     var el=$('playMods'); if(!el) return; el.innerHTML='';
     if(!state || state.finished || spectating) return;
-    var vals=(E.playModifiers?E.playModifiers(state, YOU):[]);
+    /* PASS THE SELECTION (v1.31.107). A boosted Counterfeit copy's +value is a property of the CARDS in the
+       play, not of the board, so the chip row cannot see it without them — it would read "value +1 from Giant
+       Boar" while the play is actually going in at +2, which is the number Aj was counting on. */
+    var vals=(E.playModifiers?E.playModifiers(state, YOU, selectedCards()):[]);
     var costs=(E.costModifiers?E.costModifiers(state, YOU):[]);
     function signed(n){ return (n>0?'+':(n<0?'−':''))+Math.abs(n); }
     function chip(cls, amt, src){ var s=document.createElement('span'); s.className='pmod '+cls;
