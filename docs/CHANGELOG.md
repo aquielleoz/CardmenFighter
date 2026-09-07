@@ -15,6 +15,54 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.116 — every park keeps saying so, not just the two that were fixed by name
+
+**ONE LOST MIRROR DEADLOCKED A THREE-PLAYER TABLE, PERMANENTLY.** Not four, not a burst — one. Measured with
+the new `nettest_parkbeat3` against `main`.
+
+A parked host's state deliberately stops changing, so the mirror that says *"the turn is yours"* is the only
+thing that seat will ever be told — and `broadcastMirror` writes `lastMirror[s]` **before** it sends, so a
+mirror that is lost has already poisoned the dedupe against its own retry. v1.31.75 added `reassertMirror()`
+for exactly this and v1.31.80 added `startParkBeat()`; both were wired into **`awaitRival` and
+`hostParkTrim` by name**, and the other seven parks kept a bare `broadcastMirror()`. Nine parks, two
+protected. All nine now do `reassertMirror(); startParkBeat();` — which subsumes the broadcast, so it is a
+replacement and not an addition:
+
+| where | the host is waiting for | template |
+| --- | --- | --- |
+| `hostSettle` | the rival to answer a Technique | `:8217` |
+| `hostSettleN` | a remote seat to answer a Technique | `:8251` |
+| `hostRivalWindows` | the rival to spring a shield guard | `:8264` |
+| `hostRivalWindows` | the rival to discard | `:8267` |
+| `driveN` | a remote seat's reactive window | `:8408` |
+| `driveN` | **a remote human's turn** (`netParked`) | `:8412` |
+| `hostPreFight` | a remote seat to spring Back Stab | `:8424` |
+| `hostSettleRoundThenCeremony` | a remote seat to guard | `:8517` |
+| `hostPickLossTarget` | a remote winner to pick a target | `:8537` |
+
+**AND THE DUEL PARK'S OWN THRESHOLD DID NOT TRANSFER, WHICH IS WHY THIS NEEDED MEASURING.** v1.31.80 measured
+`awaitRival` at *three swallowed mirrors survivable, four deadlocking*, and `nettest_mirrordrop` reproduces it —
+but that probe drops mirrors around a **ceremony**, and a ceremony keeps rendering (banner, shatter, deal), so
+each render makes a fresh mirror and the table heals itself. Eight swallowed mirrors and the unfixed build still
+recovered. **The idle parks have no animation at all**: the host renders once, parks, and emits exactly **one**
+mirror — visible in the host trace as a single `mirror DROPPED (dbg) seat=1 q=4`. So the threshold there is 1,
+and `nettest_mirrordrop` was structurally incapable of showing it.
+
+**`nettest_parkbeat3.js` (10 assertions) is the measurement.** Three players over BroadcastChannel; the host
+leads round 1, parks on seat 1, and the mirrors to that seat are swallowed. It asserts the staging (the host
+really parked on seat 1), then the **control** — that the drop actually blinded that seat, so a probe that
+quietly breaks nothing cannot report a healthy table — then that the seat is told again and can really play
+into the round. A/B'd through `git show main:code/CardmenFighter.template.html` rather than a hand-edit:
+
+| build | 1 drop | 6 drops | 12 drops |
+| --- | --- | --- | --- |
+| `main` | **deadlock** | **deadlock** | — |
+| this | recovers (`reassertMirror` alone) | recovers | recovers |
+
+At `DROPS=1` on this build the control assertion fires and says *"THE DROP DID NOT LAND: raise DROPS, this run
+proves nothing"* — the re-assert heals a single loss before anything can observe it, which is the assertion
+working, not a regression. The default is 6, comfortably past the re-assert and into what only the beat covers.
+
 ### v1.31.115 — a copy arrives as a copy, and an unserialisable mirror says so
 
 Three changes, all from the mirror-contract audit that followed v1.31.114. The first is a live bug; the other

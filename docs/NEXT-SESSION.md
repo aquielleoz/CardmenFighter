@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.115.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.116.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.115**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.116**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -59,6 +59,27 @@ full. **Ranked now: correctness first, then things a playtester meets immediatel
 A struck-through entry does not belong here — if it shipped, move it to [`CHANGELOG.md`](CHANGELOG.md).*
 
 ### Correctness
+
+- **★ THE MIRROR-CONTRACT AUDIT'S THREE UNFIXED FINDINGS.** v1.31.114/.115 took the two live bugs and
+  v1.31.116 the park heartbeat; these are what the judge left standing. Each is a mirror or transport fault, so
+  each is silent on BroadcastChannel and only bites over RTC or at 3–6 players — the same shape as both bugs
+  that did ship.
+  - **`send()` stringifies OUTSIDE its `try` (template `:7177`).** So a body that will not serialise throws out
+    of `send` rather than being caught, and the caller dies with it. The caller that matters is `endGame`: a
+    fault there aborts the end screen for everyone. Move the `JSON.stringify` inside, and trace the failure the
+    way `broadcastMirror` now does — the loud-failure half of v1.31.115, applied to the other sender.
+  - **A ROTATION-DIFFERENTIAL TEST.** Every mirror bug found so far was a field that was copied when it should
+    have been projected, or projected when it should have been rotated, and `netview.test.js` can only assert
+    the fields someone thought to name. The test that generalises: build `mirrorFor(st, s)` for **every** seat
+    of one non-trivial state and require every seat-valued field to differ by exactly the rotation — a field
+    that is identical across seats is either public or a bug, and the list of public ones is short and
+    reviewable. That inverts the burden from "did we remember this key" to "why is this key not rotating".
+  - **THREE FIELDS ARE MISSING FROM THE MIRROR ENTIRELY**, and the third is user-visible at every table of 3+:
+    `_effUsed` (so a client cannot tell whether the first-effect discount is still available), `startShields`
+    (so a client cannot render the shield track against its start), and **`struck`/`spared` on the round
+    result** — without which a client cannot name who lost a shield and falls back to *"a rival lost a
+    shield"*. That last one is the v1.29.6 lesson (never infer the loser — read `result.struck`) reappearing
+    as a redaction gap rather than a UI one.
 
 - **★ SHOULD A SHIELD *GAIN* BE ALLOWED IN THE GUARD WINDOW? (the Hector half of the Sanctuary report)**
   The Apollo half shipped in **v1.31.112** — a Form- or Super-granted immunity is now seen by the window, at
