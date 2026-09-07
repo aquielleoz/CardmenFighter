@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.116.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.117.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.116**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.117**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -59,6 +59,20 @@ full. **Ranked now: correctness first, then things a playtester meets immediatel
 A struck-through entry does not belong here — if it shipped, move it to [`CHANGELOG.md`](CHANGELOG.md).*
 
 ### Correctness
+
+- **`lessontest_twos` FAILED ONCE UNDER LOAD, AND THE SIGNATURE POINTS AT THE PREP, NOT THE POLL** (seen once
+  in a `-j 4` sweep, 2026-09-07; 3/3 solo and 86/86 on an immediate re-sweep, so it is rare). Do not file this
+  as "flaky" and re-tune a budget — this repo's record is that an intermittent has been a REAL dependency every
+  single time, and the captured hint names one:
+  `Fight is disabled — hint: Special Full House — doesn't beat the Special Pair.`
+  **The pile was a PAIR when the lesson had just claimed the Rival led `222` + a pair.** So the failing thing is
+  the PREP playing for the Rival, not the assertion waiting on it: a full house went in and a pair came out,
+  which is the shape of a partially-landed play — the documented `busy`-swallows-a-click class that
+  `lessonlib`'s helpers retry for and that has already presented as a product bug three times.
+  **The cheap first move is to make the prep self-diagnosing** rather than to raise the 30s poll (it timed out
+  at its full budget, so the budget is not the constraint): have the Rival-leads step assert WHAT it led and say
+  so, the way `why()` prints the refusal state. A prep that reports what it actually did would have named this
+  in one run.
 
 - **★ THE MIRROR-CONTRACT AUDIT'S THREE UNFIXED FINDINGS.** v1.31.114/.115 took the two live bugs and
   v1.31.116 the park heartbeat; these are what the judge left standing. Each is a mirror or transport fault, so
@@ -98,7 +112,8 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Things a playtester meets immediately
 
-- **★ EXPANDING A ZONE PUSHES THE BOARD PAST ITS HEIGHT ON THE TIGHTEST PHONES** (measured 2026-09-07).
+- **★ EXPANDING A ZONE PUSHES THE BOARD PAST ITS HEIGHT ON THE TIGHTEST PHONES** (measured 2026-09-07)
+  `[ratchet: phone-zone-expand-overflow]`
   v1.31.111 made both panel zones expandable; at **327x660 opening a seat's Forms and equipment adds 75px to
   that panel and pushes `#board` 63px past its height** (393x852 goes 10px over; 360x800, 390x780 and 412x915
   stay at 0). Above the 340px floor the stated contract is everything-on-one-screen, so a board that scrolls

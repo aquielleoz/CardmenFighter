@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.116**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.117**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -1322,6 +1322,18 @@ was deleted rather than re-tuned. **A suppressed number goes quiet forever and a
 the day it stops being true** — so when you must ship a known failure, encode the cap AND a floor, and say in
 the comment what to do when the floor fails.
 
+**AND THE TWO HALVES OF A RATCHET ARE NOW TIED TOGETHER BY A GATE, BECAUSE PROSE COULD NOT DO IT (v1.31.117).**
+A known failure lives in two places — the ratchet in the suite that measures it, and the BACKLOG entry someone
+is meant to action — and nothing connected them, so v1.31.111 fixed the landscape overlap, correctly deleted
+its ratchets, and left the entry quoting **"25-176%"** for five versions. **The asymmetry is what makes this
+inevitable rather than careless:** deleting a ratchet is a HAPPY act done inside the suite, and the doc is
+nowhere in the author's view at that moment — so no amount of "remember to check the BACKLOG" survives it.
+Tag both sides — `RATCHET:<slug>` in the suite, `[ratchet: <slug>]` in the entry — and `versiontest` asserts
+the two sets are EQUAL, with a different remedy each way: a ratchet with no entry is invisible to planners, an
+entry with no ratchet means **the fix already landed and the entry is now a stale measurement**. Verified by
+reintroducing both drifts; two reds. **When you add a known failure, tag it; when you delete one, the gate
+will tell you what else to close.**
+
 **A RECORDED MEASUREMENT IS ONLY TRUE OF THE BUILD IT WAS TAKEN ON — RE-MEASURE BEFORE BUILDING AGAINST ONE.**
 Every number in the zones-into-panels entry was wrong by the time anyone acted on it, three versions of layout
 work later, and re-measuring first also killed that entry's own "cheaper alternative" and found a viewport
@@ -1525,13 +1537,13 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.116 — 2026-09-07, `npm run sweep`, 86 suites and 0 FAIL in 179s** (four lanes; background
+Status as of **v1.31.117 — 2026-09-07, `npm run sweep`, 86 suites and 0 FAIL in 173s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 393, `netview` 55, `mptest` 82, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 27, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 29, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

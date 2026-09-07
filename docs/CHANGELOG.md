@@ -15,6 +15,37 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.117 — a known failure is filed in two places, and now they cannot drift apart
+
+Closing out v1.31.116 turned up the last struck-through BACKLOG entry, and it was carrying a measurement that
+had stopped being true: it said the landscape band *"still measures 25-176%"* when **v1.31.111 had fixed that
+band five versions earlier** and `landscapetest` now asserts `<5` at every size it opens, with no ratchet left.
+A stale number is worse than no number, because it is specific enough to plan against.
+
+**THE SUITE ALREADY KNEW.** Its ratchets printed `filed as ★ landscape zone/pile overlap` and were deleted with
+the fix — exactly right, and exactly the moment the entry became false. Nothing connected the two halves.
+
+**AND THE ASYMMETRY IS WHY A PROSE RULE WOULD NOT HAVE HELD.** Deleting a ratchet is a *happy* act, done inside
+a suite, with the BACKLOG nowhere in the author's view. "Remember to check the docs" is precisely the kind of
+rule this repo has watched rot — the branch-prefix rule sat on trust until someone stopped reading it, which is
+why it became `checkbranch.js`. Every rule here that survived became a gate.
+
+**So the halves are tagged and `versiontest` asserts they match.** `RATCHET:<slug>` in the suite,
+`[ratchet: <slug>]` in the BACKLOG entry, set equality in both directions, a different remedy each way:
+
+| drift | what the gate says |
+| --- | --- |
+| ratchet in a suite, no entry | *NOT FILED … or nobody will action it* |
+| entry, no ratchet in any suite | *THE FIX LANDED … the entry's measurements are STALE* |
+
+The second is today's bug, caught at the instant it is created rather than five versions later. Verified by
+reintroducing each drift: two reds, each naming the slug and the remedy. The registry contents are printed in
+both assertions **including when it is empty**, because two empty sets agree perfectly and that is what a
+vacuous pass looks like from the outside.
+
+One ratchet exists today (`phone-zone-expand-overflow`, `landscapetest.js`), so the standing cost is two lines.
+`versiontest` 27 → 29.
+
 ### v1.31.116 — every park keeps saying so, not just the two that were fixed by name
 
 **ONE LOST MIRROR DEADLOCKED A THREE-PLAYER TABLE, PERMANENTLY.** Not four, not a burst — one. Measured with
