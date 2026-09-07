@@ -1148,7 +1148,29 @@
     #logWrap.collapsed #logHead > span:first-child{font-size:0;}
     #logWrap.collapsed #logHead > span:first-child::before{content:'LOG'; font-size:10px; letter-spacing:1.5px;}
     #table{min-height:96px; padding:4px 0;}
-    .equipZone{max-width:min(54%,150px);} .equipZone .eq{min-width:0; padding:5px 9px;} .equipZone .eqName{font-size:12px; max-width:128px;} .equipZone .eqEff{font-size:10px;} .equipZone .eqCtr{font-size:11px;} .equipZone .eqCtr b{font-size:12px;}
+    /* THE EQUIPMENT IS A CHIP ON A PHONE (v1.31.110), not a three-line card. Measured before changing anything:
+       an `.eq` is name / effect / counter stacked, **59px tall**, against a form zone's 37-49px — and four of
+       them are pinned to the corners of a `#table` that is only **150px** at 327x660, where a pile card came out
+       **91% covered**. The row that decides it is `.eqEff`: dropping the effect line is what turns 59px into a
+       chip, and it costs the least, because the full card with its rules text is one tap away (the box already
+       opens the reader on click, and hover on desktop) while the two things you must see AT A GLANCE — what it
+       is, and how many counters are left — stay. Desktop keeps the card; this is inside the phone branch. */
+    /* IN A PANEL THEY ARE INLINE CHIPS, not corner overlays. Same shape as `.oppPanel .oppZones`, which has
+       hosted zones inside a panel since the free-for-all shipped — reusing that pattern rather than inventing a
+       second one. `position:static` is the whole move: it takes them out of `#table`'s stacking and lets the
+       panel's own wrap decide where they sit. */
+    .panelZones{display:contents;}
+    .panelZones .formZone, .panelZones .equipZone{
+      position:static; left:auto; right:auto; top:auto; bottom:auto; max-width:none;
+      flex-direction:row; align-items:center; gap:4px; z-index:auto;}
+    .panelZones .formZone:empty, .panelZones .equipZone:empty{display:none;}
+    .panelZones .eq{padding:2px 7px;}
+    .panelZones .eqName{font-size:11px; max-width:92px;}
+    .equipZone{max-width:min(54%,150px);}
+    .equipZone .eq{min-width:0; padding:3px 9px; flex-direction:row; align-items:center; gap:7px;}
+    .equipZone .eqEff{display:none;}
+    .equipZone .eqName{font-size:12px; max-width:112px;}
+    .equipZone .eqCtr{font-size:11px;} .equipZone .eqCtr b{font-size:12px;}
     #side{height:clamp(132px,20vh,172px); flex-direction:row; align-items:stretch; border-left:none; border-top:1px solid var(--line); padding-left:0; padding-top:8px;}
     #cardView{flex:1 1 auto; flex-direction:row; align-items:flex-start; gap:10px; padding:10px 12px;}   /* image left, text right (strip) */
     #cardView .cvBigFace{display:none;}                                  /* mobile: hide the full layout (its printed text is unreadable at strip size) */
@@ -1395,6 +1417,7 @@
     <span class="stat deck">🂠 <b id="rivalDeck">0</b></span>
     <span class="stat">♻ <span id="rivalShuf">0</span></span>
     <span class="equip" id="rivalEquip"></span>
+    <span class="panelZones" id="rivalZones"></span>   <!-- phone: the Forms/equipment zones move in here — see placeZones -->
     <span class="stat" id="rivalStatus" style="margin-left:auto;color:var(--gold);"></span>
   </div>
   <div id="board">
@@ -1432,6 +1455,7 @@
         <span class="stat deck">🂠 <b id="youDeck">0</b> deck</span>
         <span class="stat"><button type="button" id="youShufBtn" class="statBtn" title="Open your shuffle pile">♻ <span id="youShuf" class="shufBox clickable">0</span></button></span>
         <span class="equip" id="youEquip"></span>
+        <span class="panelZones" id="youZones"></span>     <!-- phone: ditto — see placeZones -->
       </span>
       <span class="metaRight"><button id="specialsRefBtn" class="specialsRef" title="Open the Specials cheat sheet">🃏 Specials list</button><span id="turnTag" class="you"></span></span>
     </div>
@@ -5223,7 +5247,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.109';
+  var GAME_VERSION='v1.31.110';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -10028,6 +10052,10 @@ window.CardFace = {};
   function paintSfxBtn(){ var sb=$('sfxBtn'); if(!sb) return; sb.textContent=SFX.isMuted()?'🔇 Sound: Off':'🔊 Sound: On'; sb.classList.toggle('muted', SFX.isMuted()); sb.title=SFX.isMuted()?'Sound off — tap to enable':'Sound on — tap to mute'; }
   $('sfxBtn').addEventListener('click', function(){ SFX.toggle(); paintSfxBtn(); }); paintSfxBtn();
   $('settingsBtn').addEventListener('click', showSettings);
+  /* Place the zones once at boot, then only when the branch FLIPS (rotation, a resized desktop window). */
+  placeZones();
+  try{ var zmq=window.matchMedia('(max-width:720px)');
+       if(zmq.addEventListener) zmq.addEventListener('change', placeZones); else if(zmq.addListener) zmq.addListener(placeZones); }catch(e){}
   /* THE ☰ SHEET (v1.31.105). A FUNCTION DECLARATION so `showModal` can call it whatever the source order —
    * every entry that opens a dialog must close the menu behind it, and doing that in `showModal` covers the
    * ones added later for free rather than per call site. The two TOGGLES deliberately leave it open, so you can
@@ -10282,6 +10310,34 @@ window.CardFace = {};
   }
   var DICE=['⚀','⚁','⚂','⚃','⚄','⚅'];
   // Build the initiative dice: 2 (You vs Rival) for a duel, or one per player in a free-for-all.
+  /* ZONES INTO PANELS ON A PHONE (v1.31.110). Each seat's Forms/Rides and equipment are absolutely pinned to
+   * the CORNERS of `#table`, floating over the pile. That is fine where the table is tall; it is not where it
+   * is short — measured at 327x660 the table is 150px holding a 70px pile plus four zones, and a pile card came
+   * out 91% covered, with `rivalFormZone` and `youFormZone` overlapping EACH OTHER.
+   * MOVING THEM DOES NOT CONJURE HEIGHT — the panels are on the same screen. It wins because the panels are
+   * WRAPPING FLEX ROWS with horizontal slack, so a chip rides a line that already exists, where a zone row
+   * inside `#table` would cost a whole new line the short board cannot pay for. That is why the equipment chip
+   * (59px -> 24px) came first: it is what makes the rider cheap.
+   * A DOM MOVE, NOT A COPY. Everything renders by id — `#youFormZone`, `#rivalEquipZone` — so relocating the
+   * nodes keeps every renderer, listener and animation working with no call site aware of it. Copies would
+   * need a second render path and would drift, which is this file's most-repeated lesson.
+   * Driven by `matchMedia`, NOT a resize handler: the media query fires only when the branch actually changes,
+   * where a resize callback runs on every frame of a rotation — and an unconditional write inside one is what
+   * starved the page in v1.31.14. */
+  function placeZones(){
+    /* The list lives INSIDE the function on purpose. As a `var` beside it, the declaration hoists but the
+       ASSIGNMENT does not — and this is called from the wiring block several hundred lines earlier, so it read
+       `undefined` and threw on boot. A function declaration hoists whole; an initialised var does not. */
+    var homes=[['rivalFormZone','rivalZones'],['rivalEquipZone','rivalZones'],
+               ['youFormZone','youZones'],['youEquipZone','youZones']];
+    var phone=window.matchMedia && window.matchMedia('(max-width:720px)').matches;
+    var table=$('table'); if(!table) return;
+    homes.forEach(function(pair){
+      var z=$(pair[0]), host=phone?$(pair[1]):table;
+      if(!z || !host || z.parentNode===host) return;      // only on a real change — a no-op move still reflows
+      host.appendChild(z);
+    });
+  }
   function buildDice(n){
     var da=$('diceArea'); if(!da) return; da.style.opacity='';
     if(n<=2){ da.className='diceArea'; da.innerHTML='<div class="dieWrap"><span class="dieLabel you">You</span><span class="die" id="dieYou">⚀</span></div><span class="dieVs">vs</span><div class="dieWrap"><span class="dieLabel rival">Rival</span><span class="die" id="dieRival">⚀</span></div>'; return; }

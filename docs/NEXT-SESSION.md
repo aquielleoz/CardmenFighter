@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.109.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.110.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.109**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.110**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -65,31 +65,6 @@ effects going unseen when its pass ended the round — went out in v1.31.106.*
 
 ### Things a playtester meets immediately
 
-- **★ ZONES-INTO-PANELS IS BUILT AND MEASURED, AND WITHDRAWN UNTIL THE BOARD CAN AFFORD IT** (2026-09-04).
-  The 2026-08-29 decision was to move each seat's Forms/Rides and equipment into its panel on a phone, leaving
-  `#table` holding only the pile, its label and the message. **Built; it removes EVERY zone/pile collision at
-  360×800, 393×852 and 412×915 — and regresses 390×780**, where `landscapetest` caught a pile card **100%
-  covered**.
-  **The cause is measured, not guessed:** `#youEquipZone` renders a CARD and is **59px tall**, against
-  `youFormZone`'s 20px chip, so hosting both grows the panel ~59px. At 780px tall the board cannot absorb that,
-  the panel rides up over the table, and the zone goes with it — **a horizontal collision traded for a vertical
-  one.** It only pays where the height exists.
-  **THE UNBLOCKER HAS SHIPPED — v1.31.104's icon action row.** Measured: `#actions` **118px → 67px at 390×780**
-  and **132px → 81px at 360×800**, three rows to one, with `#handWrap` down 51px at both. That is comfortably
-  the ~59px the panels need, so the blocking condition is met.
-  **Re-run `landscapetest` at 390×780 and `phonetest` before re-landing**, and note the entry below it: this
-  budget is spent ONCE, so if the header burger also lands (a further ~39px), prefer to bank that too rather
-  than assume both are available.
-  **THE CASE IS NOW MEASURED RATHER THAN ARGUED, and 327×660 is the one that proves it.** `landscapetest`
-  stopped measuring an animation frame in v1.31.104, and the settled numbers are: 390×780 was **19%** covered
-  before the icon row and is **0%** after — but **327×660 is 210% on every build**, because `#table` is at its
-  **96px min-height** holding a **70px** pile plus four pinned zones of 49-59px. `rivalFormZone` and
-  `youFormZone` overlap **each other** there. **No amount of height buys that back at 660px tall** — the zones
-  have to leave the table, which is this entry. The suite holds it as a ratchet that fails BOTH ways, so the
-  fix cannot land silently.
-  **Start with the chip alternative below**: it is the smaller change and 327×660 is the case that needs it most.
-  **Cheaper alternative worth testing first:** render the in-panel equipment as a CHIP rather than a card, the
-  way the form zone already does — that alone would cut the panel growth from ~59px to ~20px.
 - **THE HEADER STILL SAYS "duel vs AI" IN EVERY MODE — including an online duel against a person, and a
   six-player free-for-all.** From the 2026-09-02 screenshots. **Located:** the subtitle is *static markup* —
   `<h1>… <small>duel vs AI</small></h1>` — and **nothing ever writes to it**, so it is not "wrong in netplay",
@@ -102,12 +77,12 @@ effects going unseen when its pass ended the round — went out in v1.31.106.*
   **Filed properly on 2026-09-07 after I nearly lost it:** it had lived only in a section intro, and when I
   cleared that intro I replaced it with a pointer to a place it did not exist. Open work belongs in an entry.
 
-- **THE PHONE PLAY AREA NEEDS A REAL-DEVICE CHECK, and the decided fix may no longer be needed.** The overlap
-  MEASURES CLEAN since v1.31.66 (it was caused by the sideways scroll and went away with it), but it was only
-  ever reported from Aj's phone and has not been re-checked there. **The zones-move-into-the-panels change was
-  DECIDED on 2026-08-29 and is unbuilt** — its motivation has since evaporated, so re-measure before building
-  it. The corner-overlay arithmetic, and the collapsing-hand proposal that was considered and declined, are in
-  [`DECISIONS.md`](DECISIONS.md#phone-layout).
+- **THE PHONE PLAY AREA NEEDS A REAL-DEVICE CHECK.** It MEASURES clean — the zone/pile overlap is **0% at
+  327×660, 360×800, 390×780, 393×852 and 412×915** since v1.31.110 moved the zones into the panels — but every
+  report of it came from Aj's phone and none of the fixes has been confirmed there. What is left is a look, not
+  a change. The corner-overlay arithmetic, and the collapsing-hand proposal that was considered and declined,
+  are in [`DECISIONS.md`](DECISIONS.md#phone-layout).
+
 - **A TIER'S DISPLAY NAME IS TYPED OUT IN THREE PLACES, AND ONE OF THEM DRIFTED FROM DAY ONE.** Aj, 2026-09-04:
   *"since when did we stop using demon lord?"* — answer, **never**: the PER-OPPONENT picker (`strengthOpts`, the
   P2…P6 rows in a 3-6 player setup) has read `Demon` since the repo's FIRST commit (`2f2ae86`, 2026-08-22, 467

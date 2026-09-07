@@ -15,6 +15,43 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.110 — the Forms and equipment move into the player panels on a phone
+
+The four zone boxes — each seat's Forms/Rides and its equipment — are absolutely pinned to the CORNERS of
+`#table`, floating over the pile. Decided 2026-08-29, built and withdrawn 2026-09-04, and landed here now that
+the icon action row (v1.31.104) and the header burger (v1.31.105) have paid for it.
+
+**MEASURING FIRST CHANGED BOTH THE PROBLEM AND THE PLAN.** The filed numbers were stale by three versions, and
+the entry's own "cheaper alternative" — the equipment chip — turned out not to fix anything on its own. Both
+measurements and what they cost are in [`DECISIONS.md`](DECISIONS.md#phone-layout); they are not repeated here.
+The chip shipped anyway, as the ENABLER rather than the fix: an `.eq` is a three-line card, and dropping its
+effect line on phones is what lets a panel host one, with the full rules text still one tap away in the reader
+the box already opens.
+
+**THE FIX IS A DOM MOVE.** `placeZones()` reparents the four zones into `<span class="panelZones">` hosts inside
+the opponent strip and `#handMeta` below `max-width:720px`, and back into `#table` above it. Nothing else
+changes: every renderer, listener and animation addresses these nodes **by id**, so relocating them is invisible
+to all of it — a copy would have needed a second render path and would have drifted. The CSS mirrors
+`.oppPanel .oppZones`, which has hosted zones inside a panel since the free-for-all shipped; `display:contents`
+on the host and `position:static` on the zones is the whole move.
+
+**It wins because the panels have HORIZONTAL slack.** Moving a box between two boxes on the same screen conjures
+no height — the panels are wrapping flex rows, so a chip rides a line that already exists, where the same zone
+inside a 150px `#table` costs a line the short board cannot pay for. Driven by `matchMedia`, not a resize
+handler: the query fires only when the branch actually flips, and an unconditional write inside a resize
+callback is what starved the page in v1.31.14.
+
+**Result, measured at five phone sizes — 327x660, 360x800, 390x780, 393x852, 412x915: 0% covered at every one.**
+
+**THE RATCHET WAS COLLECTED.** v1.31.104 left 327x660 as an exception that fails BOTH ways — *"it still fails if
+the overlap grows, AND it fails if the overlap goes away, so the day the real fix lands this line fails for
+being too generous and gets tightened to the `<5` every other viewport uses"*. It duly went red for the second
+reason, and the exception was deleted rather than re-tuned. That is the whole argument for writing a known
+failure as a ratchet instead of a suppression: a suppressed number goes quiet forever, and this one asked to be
+removed on the day it stopped being true.
+
+**`landscapetest` 127 -> 126** — two assertions became one.
+
 ### v1.31.109 — the online opener rolls dice you can watch, ties and all
 
 Aj: *"might be better too if people can see the dice being rolled like in single player"*, then, asked whether

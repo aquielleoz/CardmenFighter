@@ -397,23 +397,16 @@ const CASES=[
     });
     ok(m.zones>0 && m.piles>0, `${tag}: staged — ${m.zones} zones and ${m.piles} pile cards on screen`);
     ok(m.scrollW<=m.clientW+1, `${tag}: the board does NOT scroll sideways (${m.scrollW} vs ${m.clientW})`);
-    /* 327x660 IS A REAL, PRE-EXISTING FAILURE — do not read this exception as the suite going soft.
-       Uncovered the day this assertion stopped measuring an animation frame (v1.31.104), and measured at
-       **210% on v1.31.103 too**, so it is not the settle fix and it is not the icon row. The cause is arithmetic:
-       `#table` is at its 96px min-height there, holding a 70px pile plus FOUR absolutely-positioned zones of
-       49-59px — `rivalFormZone` and `youFormZone` overlap each OTHER before either reaches the pile. No pinning
-       fixes that; the zones have to leave the table, which is the ★ zones-into-panels entry in the BACKLOG.
-       Kept as a RATCHET rather than deleted: it still fails if the overlap grows, and the day the real fix lands
-       this line fails for being too generous and gets tightened to the <5 everything else uses. */
-    const KNOWN_OVERLAP={'327x660':210};
-    if(KNOWN_OVERLAP[`${w}x${h}`]!==undefined){
-      const cap=KNOWN_OVERLAP[`${w}x${h}`];
-      console.log(`   ⚠ ${tag}: KNOWN pre-existing zone/pile overlap, ${m.worst}% — filed as ★ zones-into-panels.`);
-      ok(m.worst<=cap, `${tag}: the known overlap has not grown (${m.worst}% vs the recorded ${cap}%)`);
-      ok(m.worst>5, `${tag}: …and it is still REAL — if this line fails, the bug is FIXED: tighten it to <5`);
-    } else {
-      ok(m.worst<5, `${tag}: no pile card is covered by a Forms/equipment zone (worst ${m.worst}%)`);
-    }
+    /* 327x660 WAS A CARVE-OUT AND IS NOT ONE ANY MORE (v1.31.110). It held a RATCHET — fail if the overlap
+       grows, AND fail if it goes away — written so the fix could not land silently, and on 2026-09-07 it duly
+       failed the second way: zones-into-panels moved the four zones out of `#table` into the player panels and
+       took this viewport to 0%. The exception was collected and deleted, so every size answers one question.
+       Two corrections to the record it carried, both measured on the day: the overlap was **91%, not the 210%
+       written here** (the icon row and the header burger had already halved it between v1.31.104 and .109, and
+       nobody re-measured), and **393x852 had an unrecorded 8%** that no assertion mentioned. Chipping the
+       equipment zone 59px -> 24px on phones did NOT fix either one — the pile is covered by the FORM zones on
+       the left — so the reparent is the fix and the chip is only what made room for it. */
+    ok(m.worst<5, `${tag}: no pile card is covered by a Forms/equipment zone (worst ${m.worst}%)`);
     await p.context().close();
   }
 

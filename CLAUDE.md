@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.109**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.110**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -1258,6 +1258,22 @@ structure** and only reclaims vertical space; if you add anything to the vertica
 untouched. The landscape block must stay **after** the phone branch in the stylesheet: at 667×375 both match
 and landscape has to win.
 
+**A KNOWN FAILURE IS A RATCHET, NEVER A SUPPRESSION — and this one collected (v1.31.104 -> v1.31.110).**
+`landscapetest` carried a 327x660 carve-out written to fail BOTH ways: *"it still fails if the overlap grows,
+AND it fails if the overlap goes away, so the day the real fix lands this line fails for being too generous and
+gets tightened to the `<5` every other viewport uses."* Six versions later zones-into-panels took that viewport
+to 0% and the line duly went red for the second reason, which is the signal it was built to send; the exception
+was deleted rather than re-tuned. **A suppressed number goes quiet forever and a ratchet asks to be removed on
+the day it stops being true** — so when you must ship a known failure, encode the cap AND a floor, and say in
+the comment what to do when the floor fails.
+
+**A RECORDED MEASUREMENT IS ONLY TRUE OF THE BUILD IT WAS TAKEN ON — RE-MEASURE BEFORE BUILDING AGAINST ONE.**
+Every number in the zones-into-panels entry was wrong by the time anyone acted on it, three versions of layout
+work later, and re-measuring first also killed that entry's own "cheaper alternative" and found a viewport
+whose collision nothing had recorded. The numbers are in `docs/DECISIONS.md#phone-layout`; the habit is the
+part that belongs here. **A filed measurement ages exactly as fast as the thing it measured** — and a stale one
+is worse than none, because it is specific enough to plan against.
+
 **Dialogs are covered too, since v1.31.14** — every dialog shares ONE `.overlay`/`.modal` pair, which had no
 `max-height` and no `overflow` while the overlay centres, so a tall modal hung off both edges with nothing to
 scroll (the 812px setup dialog clipped even at desktop 1280×800). `#disconBar` no longer hardcodes `top:54px`:
@@ -1454,11 +1470,11 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.109 — 2026-09-07, `npm run sweep`, 84 suites and 0 FAIL in 184s** (four lanes; background
+Status as of **v1.31.110 — 2026-09-07, `npm run sweep`, 84 suites and 0 FAIL in 174s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 387, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 127, `decktest` 42, `viewtest` 10,
+`test` 387, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 126, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
 `versiontest` 27, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 18, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
