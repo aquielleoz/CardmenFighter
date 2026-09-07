@@ -152,15 +152,6 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   **Filed properly on 2026-09-07 after I nearly lost it:** it had lived only in a section intro, and when I
   cleared that intro I replaced it with a pointer to a place it did not exist. Open work belongs in an entry.
 
-- **~~THE PHONE PLAY AREA NEEDS A REAL-DEVICE CHECK~~ — CONFIRMED ON AJ'S PHONE, 2026-09-07, IN PORTRAIT.**
-  Three screenshots across the day: the zones sitting in their panels with the pile clear, the equipment chip
-  expanded, and the Forms label wrapped with the owner's name dropped. *"the zones into panels look very
-  beautifully done."* The measurement said 0% at five portrait sizes and the device agrees, which closes a
-  report that had only ever come from a phone.
-  **LANDSCAPE IS NOT CONFIRMED and is not fixed** — see the ★ entry above; that band still measures 25-176%
-  and no screenshot of it exists. The corner-overlay arithmetic and the declined collapsing-hand proposal are
-  in [`DECISIONS.md`](DECISIONS.md#phone-layout).
-
 - **A TIER'S DISPLAY NAME IS TYPED OUT IN THREE PLACES, AND ONE OF THEM DRIFTED FROM DAY ONE.** Aj, 2026-09-04:
   *"since when did we stop using demon lord?"* — answer, **never**: the PER-OPPONENT picker (`strengthOpts`, the
   P2…P6 rows in a 3-6 player setup) has read `Demon` since the repo's FIRST commit (`2f2ae86`, 2026-08-22, 467

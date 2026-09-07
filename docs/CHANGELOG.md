@@ -348,6 +348,12 @@ removed on the day it stopped being true.
 
 ---
 
+**CONFIRMED ON A REAL DEVICE, IN PORTRAIT** (2026-09-07, three screenshots — the zones in their panels with
+the pile clear, the equipment chip expanded, the Forms label wrapped): *"the zones into panels look very
+beautifully done."* The 0% at five portrait sizes is what the phone shows, which closes a report that had only
+ever come from a phone in the first place. Landscape was fixed separately in v1.31.111 and is asserted at every
+size the suite opens, but no camera has looked at it.
+
 **FOLLOW-UPS THE SAME DAY, all from Aj playing the build on his phone.**
 
 **The equipment chip expands — into the desktop box, and nothing else.** Of the chip sitting beside two
