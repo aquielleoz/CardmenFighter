@@ -63,7 +63,8 @@ npx playwright install chromium` in `code/`, then run one suite at a time. The *
 ## Docs
 
 - [`docs/CARD-LIST.md`](docs/CARD-LIST.md) — the current card list (generated from `engine.js`). Start here.
-- [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) — current state, changelog, and the open backlog.
+- [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) — current state and the open backlog.
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — what shipped, and why, newest first.
 - [`docs/REWORK-HISTORY.md`](docs/REWORK-HISTORY.md) — how the game evolved into its current form.
 - [`docs/RIDES-AND-FORMS.md`](docs/RIDES-AND-FORMS.md) — design of the J/Q/K Forms & Rides layer.
 - [`docs/ENERGY-REORDER-DESIGN.md`](docs/ENERGY-REORDER-DESIGN.md) — design for the reorderable energy pile (proposed, not built).
