@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.107.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.108.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.107**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.108**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -141,18 +141,6 @@ effects going unseen when its pass ended the round — went out in v1.31.106.*
   exercise it lacked.
 
 ### Tooling
-
-- **`nettest_starter` is INTERMITTENT under load — and it may be reporting a REAL bug** (2026-09-07). It failed
-  once in a `-j 4` sweep with `with ?starter=rotate the opener varies between the seats [0, 0, 0, 0, 0, 0] ←
-  the host is still opening every game`, then went **3/3 green run alone**. **Not caused by the change it
-  appeared under** — that branch was markdown plus `versiontest.js`, and the built game was byte-identical to
-  merged `main`, so this exists on main.
-  **Do not file it as a flake and move on.** This file's own record is that an intermittent suite has had a
-  real, findable cause *every single time*, and the failure text describes a `rotate` option that did not
-  rotate — which is a product claim, not a timing one. Two candidates, and they are distinguishable:
-  the documented parallelism class (a wall-clock or iteration budget eaten by contention, so the run ends before
-  the rotation shows), or a genuine race in how the opener is chosen. **`[0,0,0,0,0,0]` — six games, same
-  opener — is the thing to explain**; a budget problem would more likely give a short or partial series.
 
 - **`landscapetest`'s ↓ New log assertion is INTERMITTENT — 2 failures in 26 runs (2026-09-04), and it has a
   fixed wait in it.** Seen only while building v1.31.104: **0/6 on v1.31.103, 2/10 on an intermediate build,

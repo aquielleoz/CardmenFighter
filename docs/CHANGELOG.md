@@ -15,6 +15,38 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.108 — the opener suite asserts the roll, not the luck
+
+`nettest_starter` went red in a sweep with `[0, 0, 0, 0, 0, 0]` — *"the host is still opening every game"*. It
+was filed as an intermittent product bug correlated with `-j 4`. **It was neither intermittent in the way that
+implies, nor a product bug.**
+
+**It is arithmetic.** The opener is a fresh die every game (deliberately — the roll is announced, it does not
+alternate), and the suite played **six** rooms and required both seats to appear. Six coin flips:
+**P(all six identical) = 2 × (½)⁶ = 1/32 ≈ 3.1%.** The suite's own comment did that calculation and called it
+*"a real test rather than a hopeful one"* — but a 1-in-32 false failure is a suite that reddens ~3% of sweeps by
+construction.
+**Measured for zero tokens before changing anything: 20 solo runs, nineteen varied, one `[0,0,0,0,0,0]`.** It
+reproduces standalone, so the `-j 4` correlation was one observation of a 3% event.
+
+**THE FIX IS TO ASSERT THE MECHANISM, NOT THE OUTCOME.** The trace already carries
+`opener seat N rolled a/b` (and `opener seat 0 (dbg: pinned)` when dbg pins it), so a single game can prove
+what the feature actually claims: **a die was rolled, the two faces differ** (ties re-roll), and **the higher
+roll opened**. That is deterministic, it is a stronger claim than "both seats turned up eventually", and it
+needs three rooms rather than six — so the suite is faster too.
+Which seats actually came up is still **printed**, because a human reading a green run should see it; it is
+just never the thing that fails.
+
+**Verified both directions.** Deterministic: **20/20 green**, against 19/20 before. Discriminating: with the
+rotate opt-out sabotaged so dbg pins every game — the original bug this suite exists for — it fails **5**
+assertions and now names the cause outright, `opener seat 0 (dbg: pinned)`, instead of reporting a
+suspicious-looking series. `nettest_starter` 3 → **8** (that 3 was itself stale).
+
+**Ultracode was launched at this and killed.** Aj opted in; the free 20× loop and a closed-form probability
+answered it completely before the agents finished. The rule that already existed in CLAUDE.md — *say whether one
+careful read answers the same question first* — earns a sharper trigger from it: **an assertion whose subject is
+a random process is settled by counting, not by reading, and never by a workflow.**
+
 ### 2026-09-07 — the changelog moved here
 
 `NEXT-SESSION.md` had reached **6,061 lines, of which 5,716 were this** — the file a session is told to read

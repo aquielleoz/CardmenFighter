@@ -36,7 +36,11 @@ async function openerOnce(b, room, rotate){
   const logs=async pg=>pg.evaluate(()=>((document.getElementById('log')||{}).textContent||''));
   const dice=async pg=>pg.evaluate(()=>{const l=document.getElementById('log'); if(!l) return '';
     const hit=[...l.children].map(e=>e.textContent).filter(t=>/🎲/.test(t)); return hit.length?hit[0]:'';});
-  const out={ t:t, hostLog:await logs(host), joinLog:await logs(join), hostDice:await dice(host), joinDice:await dice(join) };
+  /* THE OPENER'S OWN TRACE LINE is what makes this deterministic: `opener seat N rolled a/b` when a die
+     really decided it, `opener seat 0 (dbg: pinned)` when dbg pinned it. Asserting the MECHANISM beats
+     asserting the OUTCOME — see the note on assertion 2. */
+  const trace=await host.evaluate(()=>{ try{ return (window.__cmf.trace()||[]).filter(l=>/\bopener\b/.test(l)).pop()||''; }catch(e){ return ''; } });
+  const out={ t:t, trace:trace, hostLog:await logs(host), joinLog:await logs(join), hostDice:await dice(host), joinDice:await dice(join) };
   await ctx.close();
   return out;
 }
@@ -48,19 +52,30 @@ async function openerOnce(b, room, rotate){
 
   /* 1. THE DEFAULT UNDER dbg IS PINNED, and this has to be asserted or the other nineteen suites are resting on
    *    an undocumented accident. */
-  const pinned=[];
-  for(let i=0;i<3;i++) pinned.push((await openerOnce(b, ROOM+'p'+i, false)).t);
+  const pinnedRuns=[]; for(let i=0;i<3;i++) pinnedRuns.push(await openerOnce(b, ROOM+'p'+i, false));
+  const pinned=pinnedRuns.map(r=>r.t);
   ok(pinned.every(t=>t===0), 'under dbg=1 the opener is pinned to seat 0, so staged suites stay deterministic  ['+pinned.join(', ')+']');
+  ok(pinnedRuns.every(r=>/\(dbg: pinned\)/.test(r.trace)), '  → and it is PINNED, not a die that happened to land on 0 three times');
 
-  /* 2. WITH THE SHIPPED BEHAVIOUR ASKED FOR, the opener is not always the host. Six fresh rooms: each starts
-   *    from a coin flip, so seeing BOTH seats open is the assertion. P(all six identical) = 1/32 by chance,
-   *    so this is a real test rather than a hopeful one. */
-  const runs=[]; for(let i=0;i<6;i++) runs.push(await openerOnce(b, ROOM+'r'+i, true));
+  /* 2. WITH THE SHIPPED BEHAVIOUR ASKED FOR, A DIE REALLY DECIDES IT — asserted as the MECHANISM, not as an
+   *    outcome. This used to play six rooms and require both seats to appear, and its own comment did the
+   *    arithmetic that condemns it: **P(all six identical) = 1/32**, treated as acceptable. It is not — that is
+   *    a suite that goes red on ~3% of sweeps by construction, and on 2026-09-07 it did, was filed as a
+   *    load-related product bug, and cost a diagnosis. Measured then: 20 solo runs, ONE `[0,0,0,0,0,0]`.
+   *    The opener is a fresh die every game (deliberately — the roll is shown, it does not alternate), so
+   *    "both seats appeared" is a statistical side-effect. `opener seat N rolled a/b` is the CAUSE, and it
+   *    proves more in one game than six games of coin flips: a die was rolled, the two faces differ (ties
+   *    re-roll), and THE HIGHER ROLL OPENED. Three rooms, because the assertion no longer needs luck. */
+  const runs=[]; for(let i=0;i<3;i++) runs.push(await openerOnce(b, ROOM+'r'+i, true));
   const rotated=runs.map(r=>r.t);
-  const sawBoth = rotated.some(t=>t===0) && rotated.some(t=>t===1);
-  ok(sawBoth, 'with ?starter=rotate the opener varies between the seats  ['+rotated.join(', ')+']'+
-              (sawBoth?'':'  ← the host is still opening every game'));
+  const rolls=runs.map(r=>{ const m=/opener seat (\d+) rolled (\d+)\/(\d+)/.exec(r.trace); return m?{seat:+m[1],a:+m[2],b:+m[3]}:null; });
+  ok(rolls.every(Boolean), 'with ?starter=rotate a DIE decides the opener, not the dbg pin  ['+runs.map(r=>r.trace||'no trace').join(' | ')+']');
+  ok(rolls.every(r=>r && r.a!==r.b), '  → and the faces always differ, so a tie really did re-roll');
+  ok(rolls.every(r=>r && r.seat===(r.a>r.b?0:1)), '  → and the HIGHER roll opened, which is the whole claim  ['+rolls.map(r=>r?`${r.a}/${r.b}→${r.seat}`:'—').join(', ')+']');
   ok(rotated.every(t=>t===0||t===1), '  → and it is always a real seat, never out of range  ['+rotated.join(', ')+']');
+  /* Printed, NOT asserted. Which seats actually came up is luck; a human reading a green run should still see
+     it, but it must never be the thing that fails. */
+  console.log('   · observed openers across the three rooms: ['+rotated.join(', ')+'] (informational — luck, not an assertion)');
 
   /* 3. AND IT IS ANNOUNCED, which is the whole point of rolling rather than quietly alternating (Aj: *"why can
    *    we not just roll dice like in solo play?"*). Solo has always shown the roll; online used to just decide.

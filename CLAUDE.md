@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.107**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.108**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -1140,6 +1140,22 @@ I read the DATA's shape and inferred a rule from where the entry sat, instead of
 LOOKUP that decide it. **Read the code that consults a table before believing the table's layout is the rule** —
 and when the person reporting the bug says the boost fired, that is evidence, not a thing to talk them out of.
 
+**A PROBABILISTIC ASSERTION IS SETTLED BY COUNTING, NOT BY READING — and never by a workflow (2026-09-07).**
+`nettest_starter` played SIX rooms and required both seats to have opened at least once. The opener is a fresh
+die every game, so that is six coin flips: **P(all six identical) = 2 × (1/2)^6 = 1/32**, and the suite's own
+comment did that arithmetic and called it *"a real test rather than a hopeful one"*. It is not — it is a suite
+that goes red on ~3% of sweeps by construction. When it duly did, it looked like an intermittent product bug
+correlated with `-j 4`, and was filed as one.
+**Twenty solo runs settled it in three minutes for zero tokens: nineteen varied, one `[0,0,0,0,0,0]`.** Not
+load, not a race, not the product. **THE TELL, and the trigger to look for: an assertion whose subject is a
+RANDOM PROCESS.** Count the runs and compute the rate before reading a line of code — and before reaching for
+ultracode, which was launched here and killed once the arithmetic landed. This is the fourth entry in this file
+where measuring beat reasoning; it is the cheapest of them.
+**AND THE FIX IS TO ASSERT THE MECHANISM, NEVER THE OUTCOME.** `opener seat N rolled a/b` is in the trace, so
+one game can prove a die was rolled, the faces differ (ties re-roll) and **the higher roll opened** — which is
+the actual claim, is deterministic, and says more than six lucky games. A broken build now fails with
+`opener seat 0 (dbg: pinned)` instead of a suspicious-looking series.
+
 **A THROWAWAY DIAGNOSTIC IS THE LEAST TRUSTWORTHY CODE IN THE ROOM.** Hunting the Quicks bugs, two bespoke
 probes lied before the real suite told the truth: one clicked `#tutNextBtn` before the tutorial panel had
 rendered it, so `if(b)b.click()` did nothing and it reported **8 consecutive false failures**; the other planted
@@ -1429,7 +1445,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.107 — 2026-09-07, `npm run sweep`, 84 suites and 0 FAIL in 164s** (four lanes; background
+Status as of **v1.31.108 — 2026-09-07, `npm run sweep`, 84 suites and 0 FAIL in 160s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -1439,7 +1455,7 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 49 netplay suites: `nettest_3p` 7, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 3, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
+The 49 netplay suites: `nettest_3p` 7, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 8, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 14, `kick` 11, `log` 16, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
