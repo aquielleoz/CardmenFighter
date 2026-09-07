@@ -451,6 +451,17 @@ the 1,036-char invite is **v23 / 109 modules** — 3.0 CSS px per module on desk
 **Aj confirmed a real phone reads it (2026-08-25)**, so the shipped geometry is proven; the landscape 2.0 case
 is the one still unverified by a camera.
 
+**NEVER PASS A FUNCTION WITH OPTIONAL PARAMETERS DIRECTLY TO `addEventListener` (2026-09-07).**
+`downloadLog(lines)` defaults to the live log via `lines||fullLog`; wired as `addEventListener('click',
+downloadLog)` it received the **PointerEvent** in `lines`, which is truthy, so every saved battle log was the
+single line `[object PointerEvent]` — for fifteen versions, silently: the file downloaded, the name was right,
+the header was right, nothing threw. It was found only because Aj sent one while reporting something else.
+**The cost is what makes this worth a rule: a saved log is this project's main diagnostic instrument**, and it
+had been destroying the evidence it existed to collect. `$('x').addEventListener('click', function(){ f(); })`
+— always, when `f` takes anything at all.
+**And the suite shape that misses it: `logtest` asserted that button's HEIGHT at three viewports and never
+clicked it.** Measuring a control is not driving it.
+
 **A UI-DRIVING SUITE MUST LEAVE NO SELECTION BEHIND.** `nettest_actloop` failed 1 run in 10 with the Activate
 control stuck `off` — because its own board probe clicked a card to see whether Fight enabled and never
 deselected it. A leftover multi-card selection is staged as a **FIGHT** ("Special Pair — fight!"), and you cannot
@@ -1497,13 +1508,13 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.110 — 2026-09-07, `npm run sweep`, 84 suites and 0 FAIL in 168s** (four lanes; background
+Status as of **v1.31.110 — 2026-09-07, `npm run sweep`, 84 suites and 0 FAIL in 167s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 387, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 175, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 27, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 18, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 27, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -1620,6 +1631,10 @@ Form-granted Quick. Some older comments and doc lines say "any Q + any K"; the c
 Perseus **or** Hermes Super, Sanctuary under Hector, Armor Piercing under Hippolyta), so any code deciding
 *"is this a Quick?"* must use **`effectFor`**. `ai.js` read `effectOf` in three places and therefore never sprang Back Stab
 in any mode (fixed v1.29.1). If a Form-granted behaviour appears dead, check which one the call site reads.
+**A FOURTH SITE IS OPEN, and it is in `engine.js`, not `ai.js`** — `shieldGuardCard` decides which card the
+shield-guard window offers and reads `effectOf`, so no Form or Super grant can qualify. Reported from real
+play; see the ★ Sanctuary entry in the BACKLOG for the analysis. **Grep `effectOf(` before assuming the sweep
+of v1.29.1 finished the job.**
 
 **AI personas vary STYLE, not STRENGTH — and `personasim.js` is the guard.** Each AI seat draws a persona
 (name + targeting style) from its difficulty tier at game start; `PERSONAS` and `drawPersonas` live in

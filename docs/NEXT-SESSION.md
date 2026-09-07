@@ -60,8 +60,35 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Correctness
 
-*Empty. The four reports from the 2026-09-02 online duel are all shipped; the last of them — an opponent's
-effects going unseen when its pass ended the round — went out in v1.31.106.*
+- **★ SANCTUARY IS NEVER OFFERED IN THE SHIELD-GUARD WINDOW, EVEN WITH APOLLO LIVE** (Aj, 2026-09-07, from
+  real play with both Hector Form and Apollo Mode up: *"sanctuary did not prompt use when i was about to lose
+  shields. it's quick now with all the supers activated so it should work at around the same timing as the
+  leyline"*).
+  **LOCATED — `shieldGuardCard`, `engine.js:1830`**, three lines, and it is wrong twice over:
+  ```js
+  pl.hand.filter(function (c) { var e = effectOf(c); return e && e.impl && e.immune && ... })[0]
+  ```
+  1. **It reads `effectOf`, so no Form- or Super-granted property can ever qualify.** This is the documented
+     `effectOf`/`effectFor` trap — the one that hid three bugs in `ai.js` — in a **fourth** site, and this one
+     is still open. Every seat funnels through this function (`rivalMayGuard`, `mpResolveAIShieldWindows` and
+     the netplay `guard` intent all use the `guardId` it produces), so one line fixes it everywhere.
+  2. **The flag is spelled differently.** Apollo's override grants **`shieldImmune`**; the predicate tests
+     **`immune`**. At resolve time `applyEffect` treats them identically (both set `pl.shieldImmune`,
+     `engine.js:1469` and `:1475`), so the predicate is the only place in the engine that knows one spelling
+     and not the other. Fixing (1) alone would still not offer it.
+  **AND THE GATE IS NOT QUICKNESS — do not chase `quick`.** `shieldGuardCard` never tests it; Leyline is
+  offered because it carries `immune`/`cantLose`, and happens to also be Quick. So Aj's inference ("it's quick
+  now, so it should work like Leyline") points at the right *timing* and the wrong *mechanism*.
+  **The two Forms are NOT the same case, and only one of them is a plain bug:**
+  - **Apollo (Super) — unambiguous.** Its override is `{quick:true, shieldImmune:true}`: the card really does
+    stop the shield loss, so it belongs in that window and is being excluded by a spelling and a stale lookup.
+  - **Hector (King) — a rules question.** Its override is `{quick:true}` only. Base Sanctuary *gains* a shield
+    (`shield:1, shieldAll:true`); it does not prevent the strip. Offering a GAIN in a window built for
+    PREVENTION is a design decision, and not a small one: `resolveShieldLossObj` only kicks when the target is
+    already at 0, so gaining a shield first **converts a Fighter Kick into an ordinary strip**. Decide it
+    before widening the predicate.
+  **Test it at both tiers**, and note `shieldAll` — every player gains, so a duel is a wash on the shield race
+  and the interesting assertion is the kick conversion, not the shield count.
 
 ### Things a playtester meets immediately
 

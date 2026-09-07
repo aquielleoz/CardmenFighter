@@ -71,6 +71,19 @@ Two more corrections from the same pass: the first cut closed the Forms zone whe
 `landscapetest` caught with 0 mini cards — having both open side by side is the entire request — and the
 expand is offered only where the chip exists, gated on the same query that compacts it.
 
+**⤓ SAVE WROTE A BATTLE LOG WITH NO BATTLE LOG IN IT, AND HAD FOR FIFTEEN VERSIONS.** Aj sent one while
+reporting something else and the whole body was a single line: `[object PointerEvent]`. `downloadLog(lines)`
+takes an optional argument — the lobby uses it to save the last game's stash — and it was passed **straight to
+`addEventListener`**, so `lines` received the click event, which is truthy, so `lines||fullLog` preferred it
+over the log. Nothing threw; the file downloaded, with the right name and a correct header. Silent since the
+parameter landed in v1.31.95.
+**This is the repo's primary diagnostic instrument** — several bugs in this changelog were found only because
+a saved log existed to compare — so it had been quietly destroying the evidence it was there to collect.
+**`logtest` measured that button's HEIGHT and never clicked it** (18 -> 21). It now captures the text through
+`Blob` and asserts both directions: the log lines are present AND no stringified event is. Verified by
+reintroducing the bug — two reds, and the failure prints the offending line.
+**The rule: never pass a function with optional parameters directly to `addEventListener`.**
+
 **The Forms zone label drops the owner's name in a panel, and wraps to two lines.** *"we don't need the
 Adell's here. it's already in his panel"*. Floating over `#table` the name is load-bearing, since nothing else
 says whose zone it is; inside a panel headed by that seat it is a second label for something already labelled.

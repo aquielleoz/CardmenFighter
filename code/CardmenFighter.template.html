@@ -6344,7 +6344,13 @@ __QR__
   $('passBtn').addEventListener('click', function(){ pick?cancelPick():doPass(); });
   $('ctxBtn').addEventListener('click', onCtxClick);
   $('cardActivate').addEventListener('click', onActivateClick);
-  $('saveLogBtn').addEventListener('click', downloadLog);
+  /* CALLED, NOT PASSED. `downloadLog(lines)` takes an OPTIONAL argument that the lobby uses to save the last
+   * game's stash; wired straight as a listener, `lines` received the **PointerEvent**, which is truthy, so
+   * `lines||fullLog` chose the event and the whole battle log became the single line `[object PointerEvent]`.
+   * Aj sent one of these while reporting something else, and the file had no log in it. Silent since the
+   * parameter was added in v1.31.95 — the button downloaded a file, named it correctly and threw nothing.
+   * **Never pass a function with optional parameters directly to addEventListener.** */
+  $('saveLogBtn').addEventListener('click', function(){ downloadLog(); });
   $('logToggle').addEventListener('click', function(){
     var collapsed=$('logWrap').classList.toggle('collapsed');
     this.textContent=collapsed?'▸':'▾'; this.title=collapsed?'Expand the log':'Collapse the log';
