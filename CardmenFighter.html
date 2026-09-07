@@ -5223,7 +5223,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.108';
+  var GAME_VERSION='v1.31.109';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -10302,19 +10302,10 @@ window.CardFace = {};
   }
   // Free-for-all: roll a die for every player, highest leads (ties reroll among the tied).
   function rollDiceMP(){
-    var reduce=reduceMotion(), els=[]; for(var i=0;i<mpCount;i++) els.push($('mpDie'+i));
+    var els=[]; for(var i=0;i<mpCount;i++) els.push($('mpDie'+i));
     function oneRound(done){
       var rolls=[]; for(var j=0;j<mpCount;j++) rolls.push(1+Math.floor(Math.random()*6));
-      if(reduce){ els.forEach(function(el,i){ if(el) el.textContent=DICE[rolls[i]-1]; }); return done(rolls); }
-      els.forEach(function(el){ if(el) el.classList.add('rolling'); });
-      var t=0, iv=setInterval(function(){
-        els.forEach(function(el){ if(el) el.textContent=DICE[Math.floor(Math.random()*6)]; });
-        if(++t>=12){ clearInterval(iv);
-          els.forEach(function(el,i){ if(el){ el.textContent=DICE[rolls[i]-1]; el.classList.remove('rolling'); el.classList.add('land'); } });
-          setTimeout(function(){ els.forEach(function(el){ if(el) el.classList.remove('land'); }); }, 450);
-          done(rolls);
-        }
-      }, 70);
+      tumbleDice(els, rolls, function(){ done(rolls); });   // shared with the duel and the online roll — see tumbleDice
     }
     (function go(){ oneRound(function(rolls){
       var max=Math.max.apply(null, rolls), top=[]; rolls.forEach(function(v,i){ if(v===max) top.push(i); });
@@ -10331,22 +10322,68 @@ window.CardFace = {};
     else { $('setupMsg').innerHTML=(starter===YOU?'You chose to <b>go first</b>.':'You chose to <b>go second</b> — the Rival leads.'); }
     setTimeout(function(){ startGame(starter); }, 250);
   }
+  /* ONE TUMBLE, THREE CALLERS (v1.31.109): the solo duel, the solo free-for-all, and now the online roll.
+   * All three had — or would have had — the same twelve-tick loop written out by hand.
+   * THE FINALS ARE A PARAMETER, and that is the whole reason this is extracted rather than merely tidy: online
+   * the HOST owns the roll, so the client has to land on the host's numbers instead of generating its own.
+   * Solo generates then calls; netplay receives then calls. Reduced motion skips straight to the faces. */
+  function tumbleDice(els, finals, done){
+    els=els.filter(Boolean);
+    if(reduceMotion()){ els.forEach(function(el,i){ el.textContent=DICE[finals[i]-1]; }); return done(); }
+    els.forEach(function(el){ el.classList.add('rolling'); });
+    var t=0, iv=setInterval(function(){
+      els.forEach(function(el){ el.textContent=DICE[Math.floor(Math.random()*6)]; });
+      if(++t>=12){ clearInterval(iv);
+        els.forEach(function(el,i){ el.textContent=DICE[finals[i]-1]; el.classList.remove('rolling'); el.classList.add('land'); });
+        setTimeout(function(){ els.forEach(function(el){ el.classList.remove('land'); }); }, 450);
+        done();
+      }
+    }, 70);
+  }
+  /* THE ONLINE OPENER ROLL (v1.31.109). Aj: *"might be better too if people can see the dice being rolled like
+   * in single player"*, then *"ties are drama! we need the drama"*.
+   * `seq` is EVERY round the host rolled, ties included — not just the deciding pair. The host resolved ties
+   * inside a `for` loop and broadcast only the winner, which is the same information and none of the theatre;
+   * see the rule in CLAUDE.md. Both seats replay the identical sequence, because the HOST owns the roll and a
+   * client that generated its own numbers would show a different game than it is playing.
+   * SEATS ARE LOCAL HERE. `seq` and `winner` arrive already rotated into the reader's frame (see
+   * `localiseRolls`), so index 0 is always "you" and `buildDice`'s own labels come out right on every seat —
+   * the same reason `seatNames` is stored rotated rather than every call site rotating. */
+  function diceEls(n){
+    if(n<=2) return [$('dieYou'), $('dieRival')];
+    var out=[]; for(var i=0;i<n;i++) out.push($('mpDie'+i)); return out;
+  }
+  function localiseRolls(arr, n, seat){ var out=[]; for(var a=0;a<n;a++) out[((((a-seat)%n)+n)%n)]=arr[a]; return out; }
+  function showOpenerRoll(seq, winner, n, done){
+    if(!seq || !seq.length) return done();               // dbg pinned the opener: no roll happened, so show nothing and cost nothing
+    showStickyModal('<h2>🎲 Who leads round 1?</h2>'+
+      '<div id="diceArea" class="diceArea"></div>'+
+      '<div id="rollMsg" class="setupMsg">Rolling…</div>');
+    buildDice(n);
+    var msg=$('rollMsg'), i=0;
+    (function next(){
+      var last=(i===seq.length-1);
+      tumbleDice(diceEls(n), seq[i], function(){
+        if(!last){
+          var hi=Math.max.apply(null, seq[i]);
+          if(msg) msg.innerHTML='🎲 Tie at <b>'+hi+'</b> — rolling again…';
+          i++; setTimeout(next, reduceMotion()?200:750);
+          return;
+        }
+        /* `logName`'s rule, with `n` standing in for the state read. This runs BEFORE the deal, so `state` is
+           null and `MP()` would answer false for a six-player table; and the client has not had `t:'setup'`
+           yet, so `seatNames` is empty and a duel opponent is "Rival" rather than a name. */
+        var who=(winner===0)?'You':(nameOf(winner)||(n>2?('P'+(winner+1)):'Rival'));
+        if(msg) msg.innerHTML='🎲 '+(winner===0?'<b>You lead!</b>':'<b>'+who+'</b> leads round 1.');
+        setTimeout(function(){ hideOverlay(); done(); }, reduceMotion()?250:1150);
+      });
+    })();
+  }
   function rollDice(cb){
-    var reduce=reduceMotion(), yEl=$('dieYou'), rEl=$('dieRival');
+    var yEl=$('dieYou'), rEl=$('dieRival');
     function round(done){
       var fy=1+Math.floor(Math.random()*6), fr=1+Math.floor(Math.random()*6);
-      if(reduce){ yEl.textContent=DICE[fy-1]; rEl.textContent=DICE[fr-1]; done(fy,fr); return; }
-      yEl.classList.add('rolling'); rEl.classList.add('rolling');
-      var t=0, iv=setInterval(function(){
-        yEl.textContent=DICE[Math.floor(Math.random()*6)]; rEl.textContent=DICE[Math.floor(Math.random()*6)];
-        if(++t>=12){ clearInterval(iv);
-          yEl.textContent=DICE[fy-1]; rEl.textContent=DICE[fr-1];
-          yEl.classList.remove('rolling'); rEl.classList.remove('rolling');
-          yEl.classList.add('land'); rEl.classList.add('land');
-          setTimeout(function(){ yEl.classList.remove('land'); rEl.classList.remove('land'); }, 450);
-          done(fy,fr);
-        }
-      }, 70);
+      tumbleDice([yEl,rEl], [fy,fr], function(){ done(fy,fr); });
     }
     (function go(){ round(function(y,r){ if(y===r){ $('setupMsg').innerHTML='🎲 Tie — both rolled <b>'+y+'</b>. Rolling again…'; setTimeout(go, 700); } else cb(y,r); }); })();
   }
@@ -11118,6 +11155,19 @@ window.CardFace = {};
           logMsg(String(m.tpl||'').replace(/\{who\}/g, '<b>'+who+'</b>')
                                   .replace(/\{foe\}/g, '<b>'+foe+'</b>'), m.cls||'');
         }
+        else if(m.t==='dice'){
+          /* NOT SEATED, NO DICE — the same guard `setup` carries below and for the same reason: `dice` is
+           * broadcast, so a client sitting in the lobby without a seat hears it too and must not be shown an
+           * overlay for a game it is not in.
+           * ROTATED INTO THIS SEAT'S FRAME. The host sends ABSOLUTE seats; `localiseRolls` turns them into the
+           * local order so index 0 is this reader, which is what makes `buildDice`'s "You" label correct on
+           * every screen without any call site knowing about rotation — the `seatNames` convention exactly.
+           * STICKY, or the host's own mirror wipes it a frame after it opens: `applyMirrorNow` calls
+           * `hideOverlay()` for anything not vouched for, which is the v1.31.92 trap. */
+          if(!mySeat) return;
+          var dn=m.n||2, dseq=(m.seq||[]).map(function(r){ return localiseRolls(r, dn, mySeat); });
+          showOpenerRoll(dseq, ((((m.starter-mySeat)%dn)+dn)%dn), dn, function(){});
+        }
         else if(m.t==='setup'){
           /* NOT SEATED, NOT IN THIS GAME. `setup` is broadcast, so a client sitting in the lobby without a seat —
            * it never pressed Ready, or the host started game two before it re-readied — hears it too; `mySeat`
@@ -11291,21 +11341,30 @@ window.CardFace = {};
        * advantage — same AI on both seats, 8000 duels per arm, it is worth fighter -4.81 points, knight -2.61,
        * demon +6.45. An amplifier, not an edge, so the sign is unknowable for two humans and the only
        * defensible thing is to decide it fairly and SHOW that you did. Re-rolled on a tie, like `rollDiceMP`. */
-      var rolls=null, hiRoll=0;
+      /* EVERY ROUND IS KEPT, TIES INCLUDED (v1.31.109). This loop used to throw its tied rounds away and hand
+       * on only the deciding pair, so online saw one clean roll where solo shows the whole nervous sequence.
+       * Aj: *"ties are drama! we need the drama"* — the re-roll is the part that proves the dice are real. */
+      var rolls=null, hiRoll=0, seq=[];
       for(var g=0; g<40; g++){                            // hang guard; a tie among six dice clears in a few
         var r2=[], hi=-1, tied=[];
         for(var d=0; d<n; d++){ var v=1+Math.floor(Math.random()*6); r2.push(v); if(v>hi){ hi=v; tied=[d]; } else if(v===hi) tied.push(d); }
+        seq.push(r2);
         if(tied.length===1){ rolls=r2; hiRoll=hi; netStarter=tied[0]; break; }
       }
-      if(rolls==null) netStarter=0;
+      if(rolls==null){ netStarter=0; seq=[]; }
       /* DETERMINISTIC UNDER `dbg=1` UNLESS A SUITE OPTS IN — the rule the relay already follows, for the same
        * reason. Nineteen suites stage from "the host leads round 1"; a rolled opener makes each a coin flip,
        * and rewriting them all to be opener-agnostic tests nothing new. `?starter=rotate` asks for the shipped
        * behaviour; `nettest_starter` is the suite that names it. */
       try{ var sq=new URLSearchParams(location.search);
-           if(/[?&]dbg=1/.test(location.search) && sq.get('starter')!=='rotate'){ netStarter=0; rolls=null; } }catch(e){}
+           if(/[?&]dbg=1/.test(location.search) && sq.get('starter')!=='rotate'){ netStarter=0; rolls=null; seq=[]; } }catch(e){}   // …and no seq, so the ~49 staged suites animate nothing and pay nothing
       if(netStarter>=n || netStarter<0) netStarter=0;     // a seat that left cannot open
-      trace('opener', 'seat '+netStarter+(rolls?' rolled '+rolls.join('/'):' (dbg: pinned)'));
+      trace('opener', 'seat '+netStarter+(rolls?' rolled '+rolls.join('/')+(seq.length>1?' after '+(seq.length-1)+' tie'+(seq.length>2?'s':''):''):' (dbg: pinned)'));
+      /* THE CLIENTS GET THE SAME SEQUENCE, and they get it BEFORE the deal — the roll decides who opens, so it
+       * has to be watched before the board it decided appears. The host then animates its own copy and only
+       * deals in the callback; `startGame` closes the dice modal itself via `hideOverlay`. */
+      if(seq.length) send({t:'dice', seq:seq, starter:netStarter, n:n});
+      showOpenerRoll(seq, netStarter, n, function(){
       startGame(netStarter);
       /* SAID AFTER the deal, so `state` exists for `logName`, and through `say` so each seat reads it in its own
        * frame. Both names travel as SEATS, never as text — the rule whose breach produced "You is out!". */
@@ -11319,6 +11378,7 @@ window.CardFace = {};
       seatNames[0]=myName;
       send({t:'setup', decks:seatDecks.slice(0), hostDeck:youDeck, clientDeck:seatDecks[1], names:seatNames.slice(0, mpCount), rules:rulesKey()});   // clients read decks[mySeat] for their own label
       broadcastMirror();
+      });
     }
     /* ---------- BACK TO THE LOBBY AFTER A GAME (v1.31.95) ----------
      * Aj, 2026-09-02: *"the host/join screen with both already joined so they can pick decks again if they want,

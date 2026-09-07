@@ -15,6 +15,50 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.109 — the online opener rolls dice you can watch, ties and all
+
+Aj: *"might be better too if people can see the dice being rolled like in single player"*, then, asked whether
+online could skip the tie re-rolls the way the host already did internally: ***"no, ties are drama! we need the
+drama."*** He is right, and it is now a project rule — the roll site's own comment already said the point
+(*"the defensible thing is to decide it fairly and SHOW that you did"*), and **a chance outcome resolved in
+silence is indistinguishable from a fixed one.**
+
+**The host used to roll inside a `for` loop, throw the tied rounds away, and announce only the winning pair.**
+Same information, none of the theatre. It now keeps **every** round and broadcasts the sequence, and both seats
+replay it — because the host owns the roll, and a client generating its own numbers would animate a different
+game than the one it is about to play.
+
+**ONE TUMBLE, THREE CALLERS.** The solo duel and the solo free-for-all each had the same twelve-tick loop
+written out by hand, and online would have made three. `tumbleDice(els, finals, done)` takes the **finals as a
+parameter**, which is not tidiness — it is the whole reason the client can land on the host's faces.
+**Seats are rotated at receipt** (`localiseRolls`), so index 0 is always the reader and `buildDice`'s existing
+"You" label is correct on every screen without any call site knowing about rotation — the `seatNames`
+convention exactly. The overlay is **sticky**, or `applyMirrorNow`'s `hideOverlay()` wipes it a frame after it
+opens (the v1.31.92 trap, pointing straight at this feature).
+
+**Observed on both seats across six real duels:** the same two faces in mirrored order (host `⚅⚀`, client
+`⚀⚅`), the same winner in each seat's own wording, and the tie message on **both** screens — one tie in two of
+the rooms, two in another. The trace records them too: `opener seat 0 rolled 4/3 after 2 ties`.
+
+**TWO THINGS I GOT WRONG, both caught by the suites rather than by me.**
+- I claimed the ~49 netplay suites were shielded because `dbg=1` pins the opener and rolls nothing. **Three do
+  not pass `dbg=1`** — `full`, `deckpick`, `inpage` — so they got the animation, and `nettest_full` snapshotted
+  an empty hand. They are right to animate: opting out of the pin is asking for production behaviour.
+- The first fix was the documented settle bug, from a rule I had quoted the same day. `startDuel` waited for
+  `#hand .card > 0`, which is **true on the first card while the rest are still arriving**, so `nettest_full`
+  read 3 of 6 — intermittently. It waits for the count to **stop changing** now.
+  **`startDuel` returning before the deal was always a lie**; it only stopped mattering that the deal was
+  synchronous. Every netplay suite gets a truer contract out of it.
+
+`nettest_starter` 8 → **10**: both seats must actually SEE dice tumbling, and the faces must be the same set in
+each seat's own order — which catches a client that invents numbers *and* a rotation that forgets whose die is
+whose. Sampled DURING the roll, because the overlay closes itself when it lands. 10/10 across ten consecutive
+runs.
+
+**Filed, not fixed:** `lessontest_forms` blew a 30s poll once in a sweep (`the Q is spotlit`). Not reproducible
+— 3/3 alone, 4/4 in parallel here, 4/4 in parallel on `main` — and the lesson path does not touch this change.
+The entry says what one free line would settle it.
+
 ### v1.31.108 — the opener suite asserts the roll, not the luck
 
 `nettest_starter` went red in a sweep with `[0, 0, 0, 0, 0, 0]` — *"the host is still opening every game"*. It

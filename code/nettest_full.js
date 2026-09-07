@@ -62,7 +62,7 @@ async function playLanded(p, before){
   await host.goto(url('host')); await join.goto(url('join')); await host.waitForTimeout(1000); await startDuel(host, join);
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
   const hs0=await snap(host), js0=await snap(join);
-  ok(hs0.hand.length===6 && js0.hand.length===6,'both real boards dealt 6 cards');
+  ok(hs0.hand.length===6 && js0.hand.length===6,`both real boards dealt 6 cards (host ${hs0.hand.length}, client ${js0.hand.length})`);
 
   /* Bound by WALL CLOCK and by productive actions, not by a raw iteration count: a transition or a slow mirror
    * used to burn a step, so the budget could be exhausted without the game ever advancing. */

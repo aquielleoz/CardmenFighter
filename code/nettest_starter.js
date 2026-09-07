@@ -30,8 +30,17 @@ async function openerOnce(b, room, rotate){
   const host=await ctx.newPage(), join=await ctx.newPage();
   await host.goto(url('host')); await join.goto(url('join'));
   await until(()=>join.evaluate(()=>!!document.getElementById('lobbyGo')));
+  /* THE DICE THEMSELVES (v1.31.109). Sampled DURING the roll, because the overlay closes itself when it lands —
+     read afterwards there is nothing to see. Both seats must show the SAME faces, each in its OWN order, since
+     the host owns the roll and a client generating its own numbers would show a different game than it plays. */
+  const faces=pg=>pg.evaluate(()=>{const d=document.getElementById('diceArea');
+    return d?[...d.querySelectorAll('.die')].map(e=>e.textContent).join(''):''; });
+  const diceSeen={host:[], join:[]};
+  const sampler=setInterval(()=>{ [['host',host],['join',join]].forEach(([k,pg])=>{
+    faces(pg).then(f=>{ if(f && diceSeen[k][diceSeen[k].length-1]!==f) diceSeen[k].push(f); }).catch(()=>{}); }); }, 60);
   await startDuel(host, join);
   await until(()=>dealt(host));
+  clearInterval(sampler);
   const t=await turnOf(host);                    // the HOST's frame is absolute: 0 = host opens, 1 = client opens
   const logs=async pg=>pg.evaluate(()=>((document.getElementById('log')||{}).textContent||''));
   const dice=async pg=>pg.evaluate(()=>{const l=document.getElementById('log'); if(!l) return '';
@@ -40,7 +49,8 @@ async function openerOnce(b, room, rotate){
      really decided it, `opener seat 0 (dbg: pinned)` when dbg pinned it. Asserting the MECHANISM beats
      asserting the OUTCOME — see the note on assertion 2. */
   const trace=await host.evaluate(()=>{ try{ return (window.__cmf.trace()||[]).filter(l=>/\bopener\b/.test(l)).pop()||''; }catch(e){ return ''; } });
-  const out={ t:t, trace:trace, hostLog:await logs(host), joinLog:await logs(join), hostDice:await dice(host), joinDice:await dice(join) };
+  const out={ t:t, trace:trace, hostFaces:diceSeen.host, joinFaces:diceSeen.join,
+              hostLog:await logs(host), joinLog:await logs(join), hostDice:await dice(host), joinDice:await dice(join) };
   await ctx.close();
   return out;
 }
@@ -73,6 +83,19 @@ async function openerOnce(b, room, rotate){
   ok(rolls.every(r=>r && r.a!==r.b), '  → and the faces always differ, so a tie really did re-roll');
   ok(rolls.every(r=>r && r.seat===(r.a>r.b?0:1)), '  → and the HIGHER roll opened, which is the whole claim  ['+rolls.map(r=>r?`${r.a}/${r.b}→${r.seat}`:'—').join(', ')+']');
   ok(rotated.every(t=>t===0||t===1), '  → and it is always a real seat, never out of range  ['+rotated.join(', ')+']');
+
+  /* THE ROLL IS WATCHABLE ON BOTH SEATS (v1.31.109). Aj: *"might be better too if people can see the dice being
+     rolled like in single player"*. The host owns the roll, so the CLIENT must land on the host's numbers — a
+     client rolling its own would animate a different game than the one it is about to play. Each seat renders
+     them in ITS OWN order (index 0 is the reader), so the two strings are REVERSES of each other in a duel:
+     host `⚅⚀`, client `⚀⚅`. Asserting "same faces, own order" catches both a client that invents numbers and a
+     rotation that forgets whose die is whose. */
+  const bothSaw = runs.filter(r=>r.hostFaces.length && r.joinFaces.length);
+  ok(bothSaw.length===runs.length, `both seats actually SAW dice tumbling (${bothSaw.length}/${runs.length} games)`);
+  const mirrored = runs.every(r=>{ const h=r.hostFaces[r.hostFaces.length-1]||'', j=r.joinFaces[r.joinFaces.length-1]||'';
+    return h.length===2 && j.length===2 && h===j.split('').reverse().join(''); });
+  ok(mirrored, '  → and they are the SAME dice, each seat reading its own first  ['+
+     runs.map(r=>(r.hostFaces[r.hostFaces.length-1]||'—')+'/'+(r.joinFaces[r.joinFaces.length-1]||'—')).join(' ')+']');
   /* Printed, NOT asserted. Which seats actually came up is luck; a human reading a green run should still see
      it, but it must never be the thing that fails. */
   console.log('   · observed openers across the three rooms: ['+rotated.join(', ')+'] (informational — luck, not an assertion)');
