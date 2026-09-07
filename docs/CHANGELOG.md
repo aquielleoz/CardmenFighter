@@ -42,6 +42,28 @@ would leave a dead control, so each chip now reads its own card — more precise
 and free in height. The equipment chip's compaction moved to a shared media-query LIST so one copy serves the
 phone branch and this band rather than a second copy to drift.
 
+**AND THE CARD READER GETS THE ROOM THE HAND WAS NOT USING.** Aj, from the same session: *"we don't need this
+much hand space right? the card description is too cramped in landscape mode"*. Measured at 844x390 he was
+right and it was worse than it looked — `#handWrap` held **161px, 41% of the viewport**, for cards only 59px
+tall, while `#cardView` had **144px and needed 500px**. Three levers, and the order matters because the
+obvious one is the weakest:
+- **Width, which dominates.** The text needed 327px in a 199px column and 228px in desktop's 317px one — the
+  panel was tall because it was NARROW. Landscape is the one band with horizontal room to spare.
+- **The art**, capped from `aspect-ratio:3/2` (133px, i.e. the whole panel) to a 52px strip; `cover` crops, so
+  it still reads as this card. Shrunk rather than hidden, on Aj's call.
+- **The hand**, ~15px of padding and margins. `#board`'s hand row is `auto`, so every pixel goes to the reader.
+  The CARD SIZE is untouched: a smaller card is a worse trade than a shorter margin.
+
+Result at 844x390: reader **229x144 → 259x159**, content **500 → 379**, **29% → 42% visible**, hand **41% → 37%**.
+Desktop is unchanged.
+**Two mistakes worth the reading, both caught by measuring rather than by review.** `#side{flex-basis:…}` was
+written first and is inert — `#board` is a GRID, so the panel's flex basis does nothing, and the change
+measured as *exactly* no change. Then widening the grid track unconditionally re-introduced a three-column
+grid below 721px, where the phone branch collapses it to one and hides `#side` — **a track is reserved even
+when nothing occupies it**, so the width came straight out of `#table`: 568x320 went to 132% pile coverage,
+56% zone-on-zone and a wrapped 5-card special. `landscapetest` named all four within a minute. Gated on
+`min-width:721px`, the existing phone boundary.
+
 **`landscapetest` 175 → 192.** All four landscape carve-outs were collected — they were ratchets, cap AND
 floor, so the day the overlap went the floor failed and said so. Added: zone-vs-zone at every size in both
 states, the landscape band's refuse-and-read behaviour asserted as a design rather than reported as six reds,
