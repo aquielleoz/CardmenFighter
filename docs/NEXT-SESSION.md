@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.110.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.111.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.110**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.111**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -107,25 +107,31 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Things a playtester meets immediately
 
-- **★ THE LANDSCAPE BAND STILL HAS THE ZONE/PILE OVERLAP, AND IT IS THE WORST ONE IN THE GAME**
-  (measured 2026-09-07). v1.31.110 fixed PORTRAIT by moving the zones into the player panels; the landscape
-  band was never in scope and is far worse than portrait ever was. Deterministic, worst-case:
-  **800x360 = 176% covered · 844x390 = 110% · 568x320 = 89% · 932x430 = 25%** (47% with a zone expanded).
-  A/B'd against v1.31.109 — pre-existing, nothing to do with the reparent.
-  **Why the portrait fix does not reach it:** the band `(orientation:landscape) and (max-height:520px)`
-  **keeps the desktop structure on purpose** — that is its whole design — so the zones stay pinned to the
-  corners of a `#table` around 90px tall. `placeZones()` explicitly EXCLUDES the band, because reparenting
-  there measured worse (667x375 went 0% -> 41%): the panels are already squeezed flat, so a chip has no line
-  to ride. **This needs its own answer, not an extension of the portrait one.**
-  **The strongest clue is where the width comes from: the LABEL, not the cards.** The zone reads
-  "<name>’s Forms & Rides", so the opponent's randomly-drawn persona name sets how far it reaches over the
-  pile — the same build measured `rivalFormZone` at **143px, 148px and 175px** on consecutive runs, moving
-  932x430 between 3% and 25%. Shortening, truncating or re-siting that label may be most of the fix, and it
-  is cheaper than re-laying the band out.
-  **RATCHETED in `landscapetest` at all four sizes, both directions and both states** — tighten each line to
-  the `<5` the other viewports use as it is fixed.
-  **Why it hid:** the suite named nine viewports and ran the zone/pile check on **three**. Everything else
-  about the landscape band was asserted; this one thing was not.
+- **★ EXPANDING A ZONE PUSHES THE BOARD PAST ITS HEIGHT ON THE TIGHTEST PHONES** (measured 2026-09-07).
+  v1.31.111 made both panel zones expandable; at **327x660 opening a seat's Forms and equipment adds 75px to
+  that panel and pushes `#board` 63px past its height** (393x852 goes 10px over; 360x800, 390x780 and 412x915
+  stay at 0). Above the 340px floor the stated contract is everything-on-one-screen, so a board that scrolls
+  because a user opened an inspector is a contract break, not a nicety.
+  **It also makes a measurement unstable, which is how it was found:** once the board overflows, where the
+  pile sits relative to the other panel depends on the scroll, so `landscapetest`'s coverage read 0% on ten
+  consecutive standalone runs and 33% on about one suite run in five — reported as `youFormZone over card2`.
+  The suite now asserts the OVERFLOW instead, which is deterministic, and ratchets it at both sizes; the
+  coverage line is deliberately not asserted there until this is fixed.
+  **Do not reach for smaller mini-cards** — the arithmetic says the growth is 33px (Forms) + 42px (equipment)
+  against 63px of overflow, so trimming card size cannot close it. The candidates are a zone that expands as an
+  OVERLAY instead of a layout change, or expanding one zone at a time at these sizes only — and note Aj
+  explicitly asked for both zones open at once, so the second needs his say-so.
+
+- **THE SETUP DIALOG SHOULD BE THREE COLUMNS IN LANDSCAPE** (Aj, 2026-09-07, with a screenshot of New Duel):
+  *"can we do this in 3 columns for landscape? player count, name, your deck; opponent strength and decks;
+  buttons"*. It is one tall column of five label/control rows plus the roll strip, which is exactly the shape
+  that does not fit a short viewport — `landscapetest` already has to assert the dialog *scrolls* to reach its
+  last control at 568x320. His grouping is the natural one: your setup, their setup, actions.
+  **Precedent to copy, not invent:** the Custom rules panel is the one dialog that already goes multi-column
+  (`.modal` is shared by every dialog, so the width lives on a class on that panel alone, and `showModal`
+  resets `#modal`'s class list so a wide dialog cannot leak into the next one). Do the same here rather than
+  widening `.modal`. Note the rules panel's columns are keyed to WIDTH (1040px/1400px); this one wants short
+  and wide, so the query is the landscape band, not a width breakpoint.
 
 - **THE CARD VIEWER'S CLOSE BUTTON IS IN THE WRONG CORNER FOR A THUMB** (Aj, 2026-09-07: *"can we move the
   close button to the center bottom instead of upper right? it's so far away from the magnifying glass button
@@ -138,7 +144,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 - **TAPPING AN EQUIPMENT ON THE BOARD SHOULD OPEN THE CARD VIEWER** (Aj, 2026-09-07: *"when we click equipments
   on the board, can we open the card viewer?"*). Today it calls `showCard`, which fills the `#cardView`
   description strip — on a phone that is a thin band at the bottom, not the reader the 🔍 opens.
-  **Read this together with what v1.31.110 just did to that click**, or it will be built twice: the collapsed
+  **Read this together with what v1.31.111 just did to that click**, or it will be built twice: the collapsed
   chip's tap is now "expand into the card", and the EXPANDED card's tap is `showCard`. So the natural home for
   this is the second tap — expanded card → full viewer — which also gives the Forms mini-cards the same
   treatment for free, since they are the same gesture on the same kind of thing. Decide the two together.

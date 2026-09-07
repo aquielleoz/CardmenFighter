@@ -64,6 +64,22 @@ const CASES=[
    * happened to clear the zones until v1.31.104's action row moved the hand up 51px, and it then reported a
    * 57%-covered pile card on a board that is 0% covered once it stops moving (verified on BOTH builds).
    * Exactly the rule the comment above already states: the settle signature must include the thing asserted on. */
+  /* A SETTLE PREDICATE MUST INCLUDE THE THING BEING ASSERTED ON — this file's own recorded lesson, and it
+     caught me a second time on 2026-09-07. The zone/pile assertion is about BOTH boxes, and this watched only
+     the pile: expanding a zone grows a panel, which pushes `#table` down, so the pile can come to rest a frame
+     before the zone above it has finished growing. Result was one run in four measuring 33% at 327x660 while
+     the other three read 0% — an intermittent, which is worse than a clean red. It samples both now. */
+  async function settledBoard(p){
+    let last=null;
+    for(let i=0;i<100;i++){
+      const g=await p.evaluate(()=>[...document.querySelectorAll('#pile .card,.formZone,.equipZone')].map(c=>{ const r=c.getBoundingClientRect();
+        return [Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height)].join(':'); }).join('|'));
+      if(g && g===last) return true;
+      last=g; await wait(60);
+    }
+    console.log('   ⏱ poll TIMED OUT: the board never stopped moving');
+    return false;
+  }
   async function settledPile(p){
     let last=null;
     for(let i=0;i<100;i++){
@@ -408,17 +424,32 @@ const CASES=[
     });
     /* MEASURE ONLY ONCE THE PILE HAS LANDED — see settledPile. Staging and measuring in one evaluate reads the
        fly-in's first frame, which is neither where the cards are nor how big they are. */
-    await settledPile(p);
+    await settledBoard(p);
     const m=await p.evaluate(()=>{
       const mn=document.querySelector('main');
-      const zr=[...document.querySelectorAll('.formZone,.equipZone')].filter(e=>e.getBoundingClientRect().width>2)
-                .map(e=>e.getBoundingClientRect());
+      const zEls=[...document.querySelectorAll('.formZone,.equipZone')].filter(e=>e.getBoundingClientRect().width>2);
+      const ids=zEls.map(e=>e.id||e.className), zr=zEls.map(e=>e.getBoundingClientRect());
       const ov=(a,b)=>Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left))*Math.max(0,Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top));
-      let worst=0;
-      [...document.querySelectorAll('#pile .card')].forEach(c=>{ const cr=c.getBoundingClientRect(), area=cr.width*cr.height;
-        let cov=0; zr.forEach(z=>{ cov+=ov(cr,z); }); if(area) worst=Math.max(worst, cov/area); });
+      let worst=0, who='';
+      [...document.querySelectorAll('#pile .card')].forEach((c,ci)=>{ const cr=c.getBoundingClientRect(), area=cr.width*cr.height;
+        let cov=0, by=[]; zr.forEach((z,zi)=>{ const o=ov(cr,z); if(o>0) by.push(ids[zi]); cov+=o; });
+        if(area && cov/area>worst){ worst=cov/area; who='card'+ci+'@'+Math.round(cr.left)+','+Math.round(cr.top)+' under '+by.join('+'); } });
+      /* ZONE vs ZONE, not only zone vs pile. The two Forms zones share the LEFT column (`#rivalFormZone`
+         top, `#youFormZone` bottom) and the original 2026-08-29 analysis said they overlap each other before
+         either reaches the pile — but no assertion ever checked it, so v1.31.111's first cut cleared the pile
+         at every size and printed 0% while the two labels were rendered on top of one another. A screenshot
+         caught it; a number should have. Reported as a fraction of the SMALLER box, so a big zone brushing a
+         small one still reads high. */
+      let zz=0, zzPair='';
+      for(let i=0;i<zr.length;i++) for(let j=i+1;j<zr.length;j++){
+        const a=zr[i], b=zr[j], area=Math.min(a.width*a.height, b.width*b.height);
+        if(!area) continue;
+        const f=ov(a,b)/area;
+        if(f>zz){ zz=f; zzPair=(ids[i]||'?')+' × '+(ids[j]||'?'); }
+      }
       return { scrollW:mn.scrollWidth, clientW:mn.clientWidth, zones:zr.length,
-               piles:document.querySelectorAll('#pile .card').length, worst:Math.round(worst*100) };
+               piles:document.querySelectorAll('#pile .card').length, worst:Math.round(worst*100), who:who,
+               zz:Math.round(zz*100), zzPair:zzPair };
     });
     ok(m.zones>0 && m.piles>0, `${tag}: staged — ${m.zones} zones and ${m.piles} pile cards on screen`);
     ok(m.scrollW<=m.clientW+1, `${tag}: the board does NOT scroll sideways (${m.scrollW} vs ${m.clientW})`);
@@ -431,47 +462,84 @@ const CASES=[
        nobody re-measured), and **393x852 had an unrecorded 8%** that no assertion mentioned. Chipping the
        equipment zone 59px -> 24px on phones did NOT fix either one — the pile is covered by the FORM zones on
        the left — so the reparent is the fix and the chip is only what made room for it. */
-    /* THE LANDSCAPE BAND IS BROKEN HERE AND THE FIX IS NOT THIS PR — carried as a RATCHET, the same shape the
-       327x660 entry above used and the same reason: a suppression goes quiet forever, a ratchet asks to be
-       removed on the day it stops being true. A/B'd against v1.31.109 at every one of these sizes and the
-       numbers are IDENTICAL, so this is pre-existing and not zones-into-panels; the band keeps the desktop
-       structure by design, so the zones are still pinned to the corners of a `#table` only ~90px tall.
-       Filed as ★ LANDSCAPE ZONE/PILE OVERLAP in the BACKLOG. Tighten each line to `<5` as it is fixed. */
-    /* [collapsed, expanded] — both recorded, so neither can drift. Every number here is REPRODUCIBLE: four
-       consecutive runs printed these exactly, once the hand and the opponent's name were pinned above. */
-    const KNOWN={'568x320':[89,89],'800x360':[176,176],'844x390':[110,110],'932x430':[25,47]};
-    const cap=KNOWN[`${w}x${h}`];
-    if(cap){
-      console.log(`   ⚠ ${tag}: KNOWN landscape zone/pile overlap, ${m.worst}% — filed as ★ landscape zone/pile overlap.`);
-      ok(m.worst<=cap[0], `${tag}: the known overlap has not grown (${m.worst}% vs the recorded ${cap[0]}%)`);
-      ok(m.worst>5, `${tag}: …and it is still REAL — if this line fails, it is FIXED: tighten it to <5`);
-    } else {
-      ok(m.worst<5, `${tag}: no pile card is covered by a Forms/equipment zone (worst ${m.worst}%)`);
-    }
+    /* THE LANDSCAPE CARVE-OUTS WERE COLLECTED IN v1.31.111 — all four, on the day the fix landed. They were
+       ratchets, not suppressions: cap AND floor, so the day the overlap went away the floor failed and said
+       so in its own message. It duly did, at 568x320, 800x360, 844x390 and 932x430 together, and the table
+       was deleted rather than re-tuned. Every viewport in this loop now answers the same question, which is
+       the whole point of writing a known failure this way. What it was hiding, for the record: a pile card
+       **176% covered** at 800x360, in a band the suite named and never measured for this. */
+    ok(m.worst<5, `${tag}: no pile card is covered by a Forms/equipment zone (worst ${m.worst}%${m.worst?' — '+m.who:''})`);
+    ok(m.zz<5, `${tag}: no two zones overlap each other (worst ${m.zz}%${m.zzPair?' — '+m.zzPair:''})`);
 
     /* AND THE EXPANDED STATE, WHICH NOTHING HAD EVER MEASURED (v1.31.110). Both zones grow on a tap — the
-       Forms strip into mini-cards, and now the equipment chip into a card — and Aj's own screenshot of the
-       feature was taken in exactly that state. Asserted as "expanding must not make it WORSE" rather than
-       against a fixed number, because that invariant is the actual promise and it holds at the known-bad
-       sizes too, where a fixed threshold could only be a second carve-out. It discriminates: the equipment
-       expand measured 53-188% in the landscape band before it was gated to portrait. */
+       Forms strip into mini-cards, and the equipment chip into its desktop box — and every screenshot of
+       those features was taken in exactly that state.
+       THE LANDSCAPE BAND IS A DIFFERENT ASSERTION, not a weaker one (v1.31.111). Growing is REFUSED there,
+       because `#table` is 87px and two stacked 56px zones cannot fit; so instead of asserting an expansion
+       that must not happen, assert the design that replaced it — the strip stays collapsed AND a chip reads
+       its own card, which is the read path that refusal owes the player. A suite that only knew the portrait
+       behaviour would report six reds for a deliberate decision. */
+    const landBand = (h<=520 && w>h);
     await p.evaluate(()=>{ const s=document.querySelector('.formStrip'); if(s) s.click(); });
     await p.evaluate(()=>{ const e=document.querySelector('.eq'); if(e) e.click(); });
-    await settledPile(p);
+    await settledBoard(p);
     const x=await p.evaluate(()=>{
-      const zr=[...document.querySelectorAll('.formZone,.equipZone')].filter(e=>e.getBoundingClientRect().width>2)
-                .map(e=>e.getBoundingClientRect());
+      const zEls=[...document.querySelectorAll('.formZone,.equipZone')].filter(e=>e.getBoundingClientRect().width>2);
+      const ids=zEls.map(e=>e.id||e.className), zr=zEls.map(e=>e.getBoundingClientRect());
       const ov=(a,b)=>Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left))*Math.max(0,Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top));
-      let worst=0;
-      [...document.querySelectorAll('#pile .card')].forEach(c=>{ const cr=c.getBoundingClientRect(), area=cr.width*cr.height;
-        let cov=0; zr.forEach(z=>{ cov+=ov(cr,z); }); if(area) worst=Math.max(worst, cov/area); });
+      let worst=0, who='';
+      [...document.querySelectorAll('#pile .card')].forEach((c,ci)=>{ const cr=c.getBoundingClientRect(), area=cr.width*cr.height;
+        let cov=0, by=[]; zr.forEach((z,zi)=>{ const o=ov(cr,z); if(o>0) by.push(ids[zi]); cov+=o; });
+        if(area && cov/area>worst){ worst=cov/area; who='card'+ci+'@'+Math.round(cr.left)+','+Math.round(cr.top)+' under '+by.join('+'); } });
+      let zz=0, zzPair='';
+      for(let i=0;i<zr.length;i++) for(let j=i+1;j<zr.length;j++){
+        const a=zr[i], b=zr[j], area=Math.min(a.width*a.height, b.width*b.height);
+        if(!area) continue;
+        const f=ov(a,b)/area;
+        if(f>zz){ zz=f; zzPair=(ids[i]||'?')+' × '+(ids[j]||'?'); }
+      }
       const mn=document.querySelector('main');
-      return { worst:Math.round(worst*100), minis:document.querySelectorAll('.formMini').length,
+      const bd=document.getElementById('board');
+      return { worst:Math.round(worst*100), who:who, zz:Math.round(zz*100), zzPair:zzPair,
+               minis:document.querySelectorAll('.formMini').length, over:Math.max(0,bd.scrollHeight-bd.clientHeight),
                scrollW:mn.scrollWidth, clientW:mn.clientWidth };
     });
-    ok(x.minis>0, `${tag}: STAGED EXPANDED — the Forms zone really opened into ${x.minis} cards`);
-    if(cap) ok(x.worst<=cap[1], `${tag}: …and the expanded overlap has not grown either (${x.worst}% vs the recorded ${cap[1]}%)`);
-    else    ok(x.worst<=m.worst, `${tag}: expanding a zone does not cover the pile any further (${m.worst}% → ${x.worst}%)`);
+    if(landBand){
+      ok(x.minis===0, `${tag}: the Forms strip does NOT expand here — 87px of table cannot hold two 56px zones (${x.minis} mini cards)`);
+      /* NOT VACUOUS: a refusal with no replacement would be a dead control. Require the chip to actually put
+         a card in the reader, and require the reader to have been empty first so the click is what filled it. */
+      const read=await p.evaluate(()=>{
+        const cv=document.getElementById('cardView'); const before=(cv&&cv.textContent||'').trim();
+        const c=document.querySelector('.formChip'); if(!c) return {none:true};
+        c.click();
+        return { before:before, after:((cv&&cv.textContent)||'').trim() };
+      });
+      ok(!read.none && read.after && read.after!==read.before,
+         `${tag}: …and a chip READS its card instead (reader went "${(read.before||'').slice(0,22)}" → "${(read.after||'').slice(0,28)}")`);
+    } else {
+      ok(x.minis>0, `${tag}: STAGED EXPANDED — the Forms zone really opened into ${x.minis} cards`);
+      /* ONE SIZE OVERFLOWS THE BOARD WHEN A ZONE EXPANDS, AND ITS COVERAGE NUMBER IS THEREFORE UNSTABLE.
+         At 327x660 expanding both of a seat's zones adds 75px to a panel and pushes `#board` **63px** past
+         its height (393x852 goes 10px over; every other phone size stays at 0). Once the board overflows,
+         where the pile sits relative to the other panel depends on the scroll, so the coverage read 0% on ten
+         consecutive standalone runs and 33% on roughly one suite run in five — an intermittent, and this file
+         is emphatic that an intermittent is worse than a clean red.
+         So assert the CAUSE, which is deterministic and is the actual defect: the board must not overflow
+         because a zone opened. It is a RATCHET — it fails if the overflow grows AND when it goes away — and
+         the coverage line is deliberately not asserted at those sizes until it does. Filed as ★ EXPANDING A
+         ZONE OVERFLOWS THE BOARD in the BACKLOG. */
+      const OVF={'327x660':63,'393x852':10};
+      const cap=OVF[`${w}x${h}`];
+      if(cap!==undefined){
+        console.log(`   ⚠ ${tag}: KNOWN — expanding a zone pushes the board ${x.over}px past its height; coverage is scroll-dependent there and is not asserted.`);
+        ok(x.over<=cap, `${tag}: the known expand overflow has not grown (${x.over}px vs the recorded ${cap}px)`);
+        ok(x.over>0, `${tag}: …and it is still REAL — if this line fails it is FIXED: drop this entry and assert coverage`);
+      } else {
+        ok(x.over===0, `${tag}: expanding a zone does not push the board past its height (${x.over}px)`);
+        ok(x.worst<5, `${tag}: expanding a zone still covers no pile card (${m.worst}% → ${x.worst}%${x.worst?' — '+x.who:''})`);
+      }
+    }
+    ok(x.zz<5, `${tag}: no two zones overlap each other in that state (worst ${x.zz}%${x.zzPair?' — '+x.zzPair:''})`);
     ok(x.scrollW<=x.clientW+1, `${tag}: …and does not start a sideways scroll (${x.scrollW} vs ${x.clientW})`);
     await p.context().close();
   }

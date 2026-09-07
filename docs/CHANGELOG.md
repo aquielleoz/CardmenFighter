@@ -15,6 +15,89 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.111 — the landscape band stops covering its own pile
+
+The band `(orientation:landscape) and (max-height:520px)` keeps the desktop structure on purpose and reclaims
+vertical space inside it — and in doing so it had never once mentioned the zones. It shrank the pile and the
+gaps and left four corner overlays sized for a **desktop-width** table. Measured worst case: a pile card
+**176% covered at 800x360**, 110% at 844x390, 89% at 568x320, 25% at 932x430.
+
+**The failure is arithmetic, and stating it that way gave the fix.** At 800x360 the left zones ended at x=250
+and the right ones began at x=370 — a **120px channel** — against a **203px** pile, centred, so both ends ran
+underneath. 667x375 had passed the whole time for no better reason than its channel happening to be 253px. So
+the property to hold is *the widest pile fits between the zones*, and the lever is the width CAP, since a zone
+renders at whatever its content wants up to `max-width`. At 100px the tightest size keeps ~32px of clearance
+each side. **Every landscape size is now 0%.**
+
+**Capping the width alone fixed the pile and produced the OTHER collision** — the one the 2026-08-29 analysis
+had named and no assertion had ever checked: `rivalFormZone` and `youFormZone` overlapping **each other**,
+because a narrower box wraps its label onto three lines and grows. A screenshot showed it in a second; the
+zone/pile number said 0%. So the label goes in this band, and that is not a loss of information — **the
+equipment zones in the same two corners have never had one**, and position has always done the work. There is
+now a zone-vs-zone assertion beside the zone-vs-pile one.
+
+**The strip no longer expands in this band, and the chips read instead.** `#table` is 87px and two stacked
+expanded zones are 112px, so expanding there could only reproduce what this version removes. Refusing it alone
+would leave a dead control, so each chip now reads its own card — more precise than expanding the whole zone,
+and free in height. The equipment chip's compaction moved to a shared media-query LIST so one copy serves the
+phone branch and this band rather than a second copy to drift.
+
+**AND THE CARD READER GETS THE ROOM THE HAND WAS NOT USING.** Aj, from the same session: *"we don't need this
+much hand space right? the card description is too cramped in landscape mode"*. Measured at 844x390 he was
+right and it was worse than it looked — `#handWrap` held **161px, 41% of the viewport**, for cards only 59px
+tall, while `#cardView` had **144px and needed 500px**. Three levers, and the order matters because the
+obvious one is the weakest:
+- **Width, which dominates.** The text needed 327px in a 199px column and 228px in desktop's 317px one — the
+  panel was tall because it was NARROW. Landscape is the one band with horizontal room to spare.
+- **The art**, capped from `aspect-ratio:3/2` (133px, i.e. the whole panel) to a 52px strip; `cover` crops, so
+  it still reads as this card. Shrunk rather than hidden, on Aj's call.
+- **The hand**, ~15px of padding and margins. `#board`'s hand row is `auto`, so every pixel goes to the reader.
+  The CARD SIZE is untouched: a smaller card is a worse trade than a shorter margin.
+
+**AND FROM 900px WIDE THE READER TAKES BOTH GRID ROWS**, which is the change that actually finishes it. Aj
+boxed the two regions in a screenshot — *"the card description box needs more space. we could use less hand
+space in landscape i think"* — and the slack turned out to be HORIZONTAL and enormous: at 2000x666 the hand row
+is **1964px wide and the cards occupy 376px of it, 19%**. So `#side` spans row 1 AND row 2 while the hand keeps
+columns 1-2: the hand gives up width it was never using and the reader gains the whole height of the board.
+`#table` does not move, so the zone/pile channel is untouched by construction.
+**Gated at 900px because 800-844px cannot pay for it.** Below that, taking column 3 out of the hand row makes
+the ACTION ROW wrap to two lines, which shoved the bar 21px off screen at 800x360 (4p), took the play area to
+0px and collided the equipment zones at 844x390 — seven reds from a change that is purely beneficial 90px
+wider. 900 is measured, not chosen: it is the first width at which the suite stays green. A spanning grid item
+also contributes its MIN-CONTENT to both tracks, so the panel needs `min-height:0` or its 379px of text sizes
+the rows itself — that was eight more reds before the number was right.
+
+**AND THE HAND TRIM CLIPPED EVERY SELECTED CARD, which is the cost of feeding one panel from another.** The
+trim above took `#hand`'s top padding to 7px, sized against the HOVER lift — but a selected card is
+`translateY(-14px) scale(1.04)` with a 3px outline, and `#hand` is `overflow:auto`, so everything above the
+padding box was cut: **headroom -3px, against desktop's +14px.** Aj caught it in a screenshot the same day.
+Back to 20px, +10px of headroom, and the reader pays for it out of the span. **Size hand padding against the
+SELECTED transform, never the hover one** — the selected lift is double.
+
+**The artwork grows back where the panel is tall.** Capping it to a 52px strip was right when the reader had
+144px and the art WAS the panel; with both rows it has 350-420px, so the cap became the thing making it small
+(Aj: *"maybe we can do with bigger images?"*). 120px in the span band, still a strip at 800-844px, which has
+no room to give.
+
+Result at 844x390 (no span): reader **229x144 → 259x159**, content **500 → 379**, **29% → 42% visible**, hand
+**41% → 37%**. At 900px and wider: **93-100% visible**, from about 30%. Desktop is unchanged, deliberately —
+the span stops at the landscape band's own ceiling rather than reaching into the standard desktop layout.
+**Two mistakes worth the reading, both caught by measuring rather than by review.** `#side{flex-basis:…}` was
+written first and is inert — `#board` is a GRID, so the panel's flex basis does nothing, and the change
+measured as *exactly* no change. Then widening the grid track unconditionally re-introduced a three-column
+grid below 721px, where the phone branch collapses it to one and hides `#side` — **a track is reserved even
+when nothing occupies it**, so the width came straight out of `#table`: 568x320 went to 132% pile coverage,
+56% zone-on-zone and a wrapped 5-card special. `landscapetest` named all four within a minute. Gated on
+`min-width:721px`, the existing phone boundary.
+
+**`landscapetest` 175 → 192.** All four landscape carve-outs were collected — they were ratchets, cap AND
+floor, so the day the overlap went the floor failed and said so. Added: zone-vs-zone at every size in both
+states, the landscape band's refuse-and-read behaviour asserted as a design rather than reported as six reds,
+and culprit names in every failure message (`card2@170,296 under youFormZone` is what turned the last
+intermittent from a mystery into an entry). Two settle bugs fell out on the way: the settle predicate watched
+only the pile while the assertion was about zones too, and one size's coverage is scroll-dependent — that one
+is filed, ratcheted on the overflow that causes it, and NOT fixed here.
+
 ### v1.31.110 — the Forms and equipment move into the player panels on a phone
 
 The four zone boxes — each seat's Forms/Rides and its equipment — are absolutely pinned to the CORNERS of
