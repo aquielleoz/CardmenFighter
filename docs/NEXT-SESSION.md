@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.105.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.106.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE — where we left off (2026-09-04)
 
-`main` is at **v1.31.105**, working tree clean, full sweep green at **82 suites**. The only branch is
+`main` is at **v1.31.106**, working tree clean, full sweep green at **82 suites**. The only branch is
 **`feat/qr-scanning`** (parked; see its BACKLOG entry for what would revive it).
 
 **2026-09-04 SHIPPED v1.31.103 → v1.31.105, and the through-line is worth reading before the next phone change:
@@ -112,46 +112,12 @@ A struck-through entry does not belong here — if it shipped, move it to the ch
 
 ### Correctness
 
-*Four reports from a real online duel, 2026-09-02, with screenshots. Ranked: the wedge first.*
-
-*Also CONFIRMED by the same screenshots, already filed below: the netplay host logs the SOLO line (**"New duel —
-you play Berserker (Fig+Rog) vs Aj (Fighter) on Pure Cleric"**) and its header reads **"duel vs AI"** — in an
-online duel against a person.*
+*Empty. The four reports from the 2026-09-02 online duel are all shipped; the last of them — an opponent's
+effects going unseen when its pass ended the round — went out in v1.31.106. The solo-line/"duel vs AI" header
+report from those same screenshots is still open and lives under "Things a playtester meets immediately".*
 
 ### Things a playtester meets immediately
 
-- **★ AN OPPONENT'S EFFECTS ARE NEVER SHOWN WHEN ITS PASS ENDS THE ROUND — the duel driver skips
-  `buildOppBeats` entirely** (Aj, 2026-09-04, from real play: *"the enemy played caltrops then passed. i didn't
-  get to see his actions because the round end and round begin animations started to fire off"*).
-  **The reported incident is in log 3 vs Laharl, lines 24-25**, and it is the whole bug in two lines:
-  *"Rival played an Equipment - 7♠ Caltrops…"* / *"Rival passed."* — logged back to back, from the same call,
-  with no beat between them and the ceremony starting on top.
-  **Located, not guessed.** `runRival` (~4290) checks whether the Rival's turn ended in a pass that resolves the
-  round, and if so calls **`finishStep(res, g, effs)`** — which `logMsg`s each effect and goes straight to
-  `announceRoundWin` + `resolveRoundCeremony`. The *"turn the Rival's actions into paced beats"* branch, with
-  `buildOppBeats`/`playBeats`, sits in the OTHER arm of that same `if` and never runs. So an Equipment cast
-  immediately before a round-ending pass gets **no `revealEffect`, no `flashArt`, no `revealDwell`** — it is
-  logged and then buried under the ceremony that starts in the same frame.
-  **THE FREE-FOR-ALL DRIVER ALREADY DOES IT RIGHT**, which is the mirror of the v1.29.3 bug: `runOpponents`
-  plays the beats FIRST and resolves the round inside `playBeats`' completion callback. The duel is the odd one
-  out — so the fix is to make `finishStep` await the beats the way `runOpponents` does, NOT to add a bespoke
-  reveal to `finishStep` (this file's standing warning: *a bespoke presentation path silently misses features
-  the shared one gained*).
-  **TWO MORE BUGS SIT ON THE SAME LINE (4595), and both are documented classes:**
-  - it uses **`logMsg`**, which is host-local — so in netplay the other seat never receives these lines at all.
-    That is the v1.31.58 class (*nineteen sites had the wrong one*), and this one was missed.
-  - it hardcodes **`'Rival'`** instead of `say(seat, '{who} played …')`, so it is wrong at 3-6 players and not
-    reader-relative. **CONFIRMED IN A REAL LOG (Aj, 2026-09-04, log 4 vs Vyers)** — it is visible in a plain
-    SOLO duel, no netplay needed, because the persona has a name and this line does not use it:
-    *"Vyers played a Jab - 6♦."* two lines above *"Rival played a Technique - A♦ Gather Energy…"* and
-    *"Rival passed."* The same log names the opponent two different ways within one round, which is a
-    sharper symptom than the 3-6 player case and reproduces on the first duel you play. **It is not rare:
-    9 of the 26 opponent lines in log 3 say "Rival"** — the round-ending pass goes through here, so it is most
-    rounds. A grammar-scan-shaped guard would catch the whole class: no rendered log line may say "Rival" in a
-    game where the opponent has a persona name.
-  Fixing the beats without also fixing these two would leave a line that is visible locally and invisible online.
-  **A test must assert the ORDER, not that the log line exists** — the line is already there today, which is
-  exactly why nothing caught this. Assert the effect's reveal happens BEFORE the round ceremony begins.
 - **★ ZONES-INTO-PANELS IS BUILT AND MEASURED, AND WITHDRAWN UNTIL THE BOARD CAN AFFORD IT** (2026-09-04).
   The 2026-08-29 decision was to move each seat's Forms/Rides and equipment into its panel on a phone, leaving
   `#table` holding only the pile, its label and the message. **Built; it removes EVERY zone/pile collision at
@@ -190,6 +156,30 @@ online duel against a person.*
   Relabelled in v1.31.105, but that is the symptom. **`DIFF_NAME` already IS the display map** — every picker
   should build its options from it instead of re-typing the list, and then a rename cannot half-land. Small,
   and it removes a whole class: `recruit`/Squire has the same shape and is one careless edit from the same fate.
+
+- **★ THE BROADWAY PITCH CHOOSES ITSELF, FOR BOTH SIDES** (Aj, 2026-09-07, from real play: *"oh no it did not
+  let me pick which broadway card.... this is a bug for sure.. and probably more of a problem in multiplayer
+  clients"*, then *"the ai should absolutely smart pitch as well... especially for the ones who are smarter"*).
+  `pitchHigh` (Critical Hit / Ultima Attack / Armor Piercing) discards a 10/J/Q/K/A as an additional cost, and
+  the ENGINE picks it — the **lowest** Broadway card, with no say from anybody. Aj cast Critical Hit and it
+  silently pitched his 10♣.
+  **THIS IS NOT THE `opts.pitch` DECISION CLAUDE.md ALREADY RECORDS, and the difference is the whole entry.**
+  That removal was about the AI naming its own pitch and the reasoning was *"the engine's default already takes
+  the lowest card, so no test could separate them, and ours could pitch a higher one"* — i.e. an ARBITRARY choice
+  that measured no better than the default, correctly deleted as unexercised code. Neither half below is
+  arbitrary, and both are separable by a test that stages the lowest Broadway card as load-bearing (in a straight)
+  and a higher one as spare, then asserts WHICH card left.
+  - **The human picker.** Keeping a 10 for a straight and pitching the Ace is a real decision and the player
+    never gets it. Route it through **`discardPending`** — the existing, documented window for an interactive
+    discard, which already works on a remote seat, which is what Aj means about multiplayer clients. Note
+    `discardPending` has exactly two sites today (CLAUDE.md); this would be a third.
+  - **The AI's smart pitch, tier-gated.** Same shape as **`keepsTheWin`**, and it can reuse its method directly:
+    `legalFightPlays` on a hypothetical hand answers "is this Broadway card load-bearing?" — which is precisely
+    what the lowest-card default cannot see. Gate on `isTop(diff)` the way the Demon Lord's `keepsTheWin` is, so
+    it reads as a tier behaviour rather than a global strength bump; `personasim`/`analysis` measure the tier
+    step if it moves at all.
+  **Both need `opts.pitch` BACK in the engine**, which is the thing that was deleted — and each of them is the
+  exercise it lacked.
 
 ### Tooling
 
@@ -382,6 +372,48 @@ online duel against a person.*
   games that currently reach a reshuffle (`node recyclesim.js`).
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+
+### v1.31.106 — an opponent's effects are seen before the round lands on top of them
+
+Aj, from real play: *"the enemy played caltrops then passed. i didn't get to see his actions because the round
+end and round begin animations started to fire off"*.
+
+**The duel driver had two arms and only one of them presented anything.** `runRival` checks whether the Rival's
+turn ended in a pass that resolves the round; if so it called `finishStep`, which hand-rolled two `logMsg` lines
+and went straight to `announceRoundWin` — while `buildOppBeats`, with its `revealEffect`, `flashArt` and
+`revealDwell`, sat in the OTHER arm and never ran. **The free-for-all driver already did it right** (`runOpponents`
+plays the beats and resolves inside `playBeats`' completion callback), so the duel was the odd one out — the
+mirror of the v1.29.3 bug. The fix routes through the shared layer rather than adding a reveal to `finishStep`,
+because a bespoke presentation path silently misses every feature the shared one gains.
+
+**MEASURED: 0ms → 3603ms** between the effect's log line and the round resolving on top of it.
+
+**Deleting the special case fixed two more bugs on the same lines, both documented classes.** They used
+**`logMsg`**, which is host-local, so in netplay the other seat never received them at all (the v1.31.58 class,
+missed in that sweep); and they hardcoded **`'Rival'`** where `logName` returns the persona's name — visible in
+a plain SOLO duel and reproducing on the first one you play. Aj's log 4 reads *"Vyers played a Jab"* two lines
+above *"Rival passed."*, and **9 of the 26 opponent lines in log 3 say "Rival"**, because a round-ending pass
+goes through here and that is most rounds.
+
+**★ AND THE SHIELD-GUARD NARRATION EXISTED AS TWO BYTE-IDENTICAL COPIES ~400 LINES APART** — `rivalMayGuard` and
+the duel driver's round-ending branch — carrying all three bugs each. That is the `resolveIds` / `isChopOf` drift
+shape, and **fixing one while missing the other is worse than fixing neither**, because the two then disagree
+about the same event. `narrateShieldGuard(seat, card, fr)` is the single definition now. It also carried a
+**fourth** problem the others did not: *"its shield holds"* is a SENDER-BAKED POSSESSIVE, so the player whose
+shield it actually is would read someone else's word for their own — `the shield` has no owner to get wrong,
+exactly as `{who} put a card on top of the deck`.
+
+**New suite `oppbeatstest` (8).** It asserts the **ORDER, never the presence** — the log line was always there,
+which is exactly why nothing caught this; a suite that greps for "played a Technique" is green on the broken
+build. It stages the one turn that reaches the path (YOU lead the apex 2, unbeatable and legal in round 1, so
+the Rival must pass — and a duel pass against a lead resolves the round), which measured **8/8 across fresh
+deals** before being written into a suite. It also carries the naming scan the backlog asked for: no rendered
+log line may say "Rival" when the opponent has a persona name, plus the vacuity guard that the persona exists
+and is used. A/B'd against the pre-fix build: **3 red**, including the 0ms gap.
+
+**Still open, filed rather than fixed:** four more hardcoded-`'Rival'` `logMsg` sites (`~3928` the Rival's
+auto-discard, `~3957`/`~3960` its counter of your Technique, and the `took the hit` line). The counter pair is
+not a one-liner — *"countered **your** X"* bakes the addressee in, so it needs `{foe}` rather than a rename.
 
 ### v1.31.105 — the header is a burger, and the wordmark stacks
 

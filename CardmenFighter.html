@@ -5207,7 +5207,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.105';
+  var GAME_VERSION='v1.31.106';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -7769,6 +7769,21 @@ window.CardFace = {};
       if(g!==gen){hideOverlay();return;} hideOverlay();
       var fr=E.shieldGuardPass(state, YOU); say(YOU, '{who} took the hit.', 'dim'); cont(fr); });
   }
+  /* ONE DEFINITION, CALLED TWICE (v1.31.106). This narration existed as TWO BYTE-IDENTICAL COPIES ~400 lines
+   * apart — here and in the duel driver's round-ending-pass branch — which is the drift shape CLAUDE.md
+   * records for `resolveIds` and `isChopOf`. Fixing one and missing the other is worse than fixing neither,
+   * because the two then disagree about the same event.
+   * All three of the day's bugs were in both copies: host-local `logMsg`, a hardcoded 'Rival' where `logName`
+   * gives the persona's name, and a SENDER-BAKED POSSESSIVE — "its shield holds" is written from the sender's
+   * seat, so the player whose shield it is would read someone else's word for their own. `the shield` has no
+   * owner to get wrong, exactly as `{who} put a card on top of the deck`. */
+  function narrateShieldGuard(seat, card, fr){
+    var nm=logName(seat);
+    if(card) flashArt(card, nm);
+    quickFlash(nm, fr.guardName, false);
+    setMessage('🛡 <b>'+nm+' sprang '+fr.guardName+' — the shield holds!</b>');
+    say(seat, '{who} sprang '+fr.guardName+' in response — the shield holds.', 'rival');
+  }
   // Direction 1: YOU cast a destroyShield technique (Critical Hit / Ultima Attack). If the Rival
   // holds a guard (Leyline), let its AI decide to spring it or take the hit — resolved inline.
   function rivalMayGuard(){
@@ -7776,8 +7791,8 @@ window.CardFace = {};
     var rpl=state.players[RIVAL];
     var gcard=rpl.hand.filter(function(c){return c.id===state.shieldResponse.guardId;})[0];
     var fr=(rpl.shields<=2) ? E.shieldGuard(state, RIVAL, state.shieldResponse.guardId) : E.shieldGuardPass(state, RIVAL);
-    if(fr.guarded){ if(gcard) flashArt(gcard, 'Rival'); quickFlash('Rival', fr.guardName, false); setMessage('🛡 <b>Rival sprang '+fr.guardName+' — its shield holds!</b>'); logMsg('<b>Rival</b> sprang '+fr.guardName+' in response — its shield holds.', 'rival'); }
-    else { logMsg('<b>Rival</b> took the hit.', 'dim'); }
+    if(fr.guarded) narrateShieldGuard(RIVAL, gcard, fr);
+    else say(RIVAL, '{who} took the hit.', 'dim');   // …and the decline is narrated the same way, for the same three reasons
   }
   // COUNTERFEIT: choose a card from the Rival's current play to copy into your hand.
   function promptCounterfeit(cardId){
@@ -8181,10 +8196,10 @@ window.CardFace = {};
           var q=state.shieldResponse.q, rpl=state.players[q];
           var rgcard=rpl.hand.filter(function(c){return c.id===state.shieldResponse.guardId;})[0];
           var fr=(rpl.shields<=2) ? E.shieldGuard(state, q, state.shieldResponse.guardId) : E.shieldGuardPass(state, q);
-          if(fr.guarded){ if(rgcard) flashArt(rgcard, 'Rival'); quickFlash('Rival', fr.guardName, false); setMessage('🛡 <b>Rival sprang '+fr.guardName+' — its shield holds!</b>'); logMsg('<b>Rival</b> sprang '+fr.guardName+' in response — its shield holds.', 'rival'); }
-          return finishStep(fr, g, log.filter(function(e){return e.play;}));   // finishStep renders (with the ceremony's held draw/shield)
+          if(fr.guarded) narrateShieldGuard(q, rgcard, fr);   // shared with rivalMayGuard — see narrateShieldGuard
+          return finishStep(fr, g, log);   // the WHOLE log — finishStep paces it as beats, then resolves
         }
-        return finishStep(pres, g, log.filter(function(e){return e.play;}));   // finishStep renders (with the ceremony's held draw/shield)
+        return finishStep(pres, g, log);   // the WHOLE log — finishStep paces it as beats, then resolves
       }
       // Turn the Rival's actions into paced "beats". Effect activations reveal the card in the side
       // panel and dwell so you can read them; the fight/pass beats render the board.
@@ -8479,14 +8494,32 @@ window.CardFace = {};
       });
     })();
   }
-  function finishStep(res, g, effs){
-    if(effs && effs.length) effs.forEach(function(e){ logMsg('<b>Rival</b> played '+effPhrase(e.card)+'.', 'rival'); bumpEffect(RIVAL, e.card?E.effectOf(e.card):null); });
-    logMsg('<b>Rival</b> passed.', 'rival');
-    announceRoundWin(res);
-    if(state.finished){ render(); busy=false; return endGame(); }    // Fighter Kick — terminal, no round card
-    resolveRoundCeremony(res, g, function(){
+  /* THE BEATS RUN FIRST, AND THE ROUND RESOLVES INSIDE THEIR CALLBACK (v1.31.106).
+   * Aj, from real play: *"the enemy played caltrops then passed. i didn't get to see his actions because the
+   * round end and round begin animations started to fire off"*. This function is the duel's round-ending-pass
+   * path, and it used to hand-roll two `logMsg` lines and go STRAIGHT to `announceRoundWin` — so an Equipment
+   * cast immediately before the pass got no `revealEffect`, no `flashArt` and no `revealDwell`, and was buried
+   * under a ceremony starting in the same frame. `buildOppBeats` was sitting in the OTHER arm of the same `if`.
+   * **THE FREE-FOR-ALL DRIVER ALREADY DID THIS RIGHT** — `runOpponents` plays the beats and resolves inside
+   * `playBeats`' completion callback. The duel was the odd one out, which is the mirror of the v1.29.3 bug.
+   * Routing through the shared layer rather than adding a reveal here is deliberate: a bespoke presentation
+   * path silently misses every feature the shared one gains.
+   * IT FIXES TWO MORE BUGS ON THE SAME LINES, both documented classes. The hand-rolled lines used `logMsg`,
+   * which is HOST-LOCAL — so in netplay the other seat never received them at all (the v1.31.58 class, missed
+   * in that sweep) — and they hardcoded **'Rival'** where `logName` would give the persona's name. That second
+   * one is visible in a plain SOLO duel and reproduces on the first one you play: Aj's log 4 reads
+   * *"Vyers played a Jab"* two lines above *"Rival passed."*, and 9 of the 26 opponent lines in log 3 say
+   * "Rival" — a round-ending pass goes through here, so it is most rounds. `buildOppBeats` says all of it with
+   * `say(seat, '{who} …')`, so both are fixed by deleting the special case rather than by patching it. */
+  function finishStep(res, g, log){
+    playBeats(buildOppBeats(log||[], RIVAL), g, function(){
       if(g!==gen) return;
-      if(state.turn===YOU){ busy=false; $('rivalStatus').textContent=''; render(); } else runRival();
+      announceRoundWin(res);
+      if(state.finished){ render(); busy=false; return endGame(); }    // Fighter Kick — terminal, no round card
+      resolveRoundCeremony(res, g, function(){
+        if(g!==gen) return;
+        if(state.turn===YOU){ busy=false; $('rivalStatus').textContent=''; render(); } else runRival();
+      });
     });
   }
 
