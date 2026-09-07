@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.105**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.106**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -1125,6 +1125,15 @@ Measured on v1.31.95, the two halves of the same day:
   launching any workflow, say in one line what it will spend and whether one careful read answers the same
   question; if it does, read.
 
+**AN ENTRY'S POSITION IN A TABLE SAYS NOTHING ABOUT WHAT GATES IT (2026-09-07).** `copyPlus` lives in the
+`S` (Rogue) block of `BOOSTS`, so I told Aj his **Q♣** could not have boosted his **♠8** Counterfeit and that
+his copy must have had `valueBonus: 0`. Wrong, and he had already said otherwise: **`FORM_SUIT_MATCH` is `false`
+by default** — variant B, *a Form lifts all suits* — so any Queen in the zone patches every suit's card. The
+flag sits two lines below the lookup, and this file's own Forms note already says "any J + any Q + any K".
+I read the DATA's shape and inferred a rule from where the entry sat, instead of reading the three lines of
+LOOKUP that decide it. **Read the code that consults a table before believing the table's layout is the rule** —
+and when the person reporting the bug says the boost fired, that is evidence, not a thing to talk them out of.
+
 **A THROWAWAY DIAGNOSTIC IS THE LEAST TRUSTWORTHY CODE IN THE ROOM.** Hunting the Quicks bugs, two bespoke
 probes lied before the real suite told the truth: one clicked `#tutNextBtn` before the tutorial panel had
 rendered it, so `if(b)b.click()` did nothing and it reported **8 consecutive false failures**; the other planted
@@ -1414,13 +1423,13 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.105 — 2026-09-04, `npm run sweep`, 82 suites and 0 FAIL in 159s** (four lanes; background
+Status as of **v1.31.106 — 2026-09-07, `npm run sweep`, 83 suites and 0 FAIL in 160s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 382, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 127, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 26, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 18, `motiontest` 7, `phonetest` 72, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 26, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 18, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
