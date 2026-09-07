@@ -1365,6 +1365,30 @@
      `min-width:721px` is the existing phone boundary, not a new number. */
   @media (orientation:landscape) and (max-height:520px) and (min-width:721px){
     #board{grid-template-columns:auto minmax(0,1fr) clamp(240px,32vw,360px);}
+    /* THE READER TAKES BOTH ROWS, AND THE HAND GIVES UP THE WIDTH IT WAS NOT USING (v1.31.111).
+       Aj, with the two regions boxed in a screenshot: *"the card description box needs more space. we could
+       use less hand space in landscape i think"*. Measured, the slack is HORIZONTAL and enormous — at 2000x666
+       the hand row is **1964px wide and the cards occupy 376px of it, 19%** — while the reader was boxed into
+       row 1 alone. So the panel spans row 1 AND row 2 and the hand keeps columns 1-2: the hand loses width it
+       was never using, and the reader gains the whole height of the board instead of half of it.
+       `#table` does not move, so the zone/pile channel this version fixed is untouched by construction. */
+    /* AND THE SPANNED PANEL MUST NOT SIZE THE ROWS. A grid item spanning two tracks contributes its
+       MIN-CONTENT to them, so the reader's 379px of text immediately grew row 2 and shoved the action bar
+       21px off screen at 800x360, took the play area to 0px, and collided the two equipment zones at
+       844x390 — eight reds, all from one missing `min-height`. The panel already scrolls; it just has to be
+       allowed to be shorter than its content. */
+
+  }
+
+  /* THE SPAN NEEDS WIDTH TO PAY FOR ITSELF, AND 800-844px DOES NOT HAVE IT. Giving column 3 both rows costs
+     the hand row that column's width; at 800x360 (4p) and 844x390 (6p) the ACTION ROW then wraps to two lines
+     and the whole bar goes 21px off screen, taking the play area to 0px and colliding the equipment zones.
+     Seven reds, from a change that is purely beneficial 90px wider. So it is gated on width, and the number
+     is measured rather than chosen: 900px is the first width where `landscapetest` stays green. */
+  @media (orientation:landscape) and (max-height:520px) and (min-width:900px){
+    #board > #side{grid-column:3; grid-row:1 / span 2; min-height:0;}
+    #board > #handWrap{grid-column:1 / span 2; grid-row:2;}
+    #cardView{min-height:0;}
   }
 
   @media (orientation:landscape) and (min-height:380px) and (max-height:520px){

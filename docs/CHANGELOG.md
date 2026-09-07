@@ -54,8 +54,22 @@ obvious one is the weakest:
 - **The hand**, ~15px of padding and margins. `#board`'s hand row is `auto`, so every pixel goes to the reader.
   The CARD SIZE is untouched: a smaller card is a worse trade than a shorter margin.
 
-Result at 844x390: reader **229x144 → 259x159**, content **500 → 379**, **29% → 42% visible**, hand **41% → 37%**.
-Desktop is unchanged.
+**AND FROM 900px WIDE THE READER TAKES BOTH GRID ROWS**, which is the change that actually finishes it. Aj
+boxed the two regions in a screenshot — *"the card description box needs more space. we could use less hand
+space in landscape i think"* — and the slack turned out to be HORIZONTAL and enormous: at 2000x666 the hand row
+is **1964px wide and the cards occupy 376px of it, 19%**. So `#side` spans row 1 AND row 2 while the hand keeps
+columns 1-2: the hand gives up width it was never using and the reader gains the whole height of the board.
+`#table` does not move, so the zone/pile channel is untouched by construction.
+**Gated at 900px because 800-844px cannot pay for it.** Below that, taking column 3 out of the hand row makes
+the ACTION ROW wrap to two lines, which shoved the bar 21px off screen at 800x360 (4p), took the play area to
+0px and collided the equipment zones at 844x390 — seven reds from a change that is purely beneficial 90px
+wider. 900 is measured, not chosen: it is the first width at which the suite stays green. A spanning grid item
+also contributes its MIN-CONTENT to both tracks, so the panel needs `min-height:0` or its 379px of text sizes
+the rows itself — that was eight more reds before the number was right.
+
+Result at 844x390 (no span): reader **229x144 → 259x159**, content **500 → 379**, **29% → 42% visible**, hand
+**41% → 37%**. At 900px and wider: **93-100% visible**, from about 30%. Desktop is unchanged, deliberately —
+the span stops at the landscape band's own ceiling rather than reaching into the standard desktop layout.
 **Two mistakes worth the reading, both caught by measuring rather than by review.** `#side{flex-basis:…}` was
 written first and is inert — `#board` is a GRID, so the panel's flex basis does nothing, and the change
 measured as *exactly* no change. Then widening the grid track unconditionally re-introduced a three-column
