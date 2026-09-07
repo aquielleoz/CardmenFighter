@@ -5441,7 +5441,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.115';
+  var GAME_VERSION='v1.31.116';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -12038,7 +12038,15 @@ window.CardFace = {};
       if(!hostState){ return done && done(); }
       if(hostState.pending && hostState.respondFor===RIVAL){
         netSettle={ g:g, done:done };
-        busy=true; render(); broadcastMirror();
+      /* A PARKED HOST MUST KEEP SAYING SO — and only TWO of the seven parks did (v1.31.116). v1.31.75 added
+         `reassertMirror` and v1.31.80 the beat, both wired into `awaitRival` and `hostParkTrim` BY NAME, and
+         every other park kept a bare `broadcastMirror()`. That is the one call that cannot be trusted at a
+         park: it DEDUPES against `lastMirror`, and a parked host's state deliberately stops changing, so if
+         the single send is lost nothing will ever say it again — the seat that owes the answer never learns
+         it owes one, and the host waits on it forever. Measured for the handover park in v1.31.80: three
+         swallowed mirrors survivable, FOUR deadlock. `reassertMirror` clears the dedupe; the beat re-asserts
+         every 1.8s and stops itself in `hostTakeBack`. It subsumes the broadcast, so this is a replacement. */
+        busy=true; render(); reassertMirror(); startParkBeat();
         return;
       }
       if(hostState.pending && hostState.respondFor===YOU){
@@ -12072,7 +12080,7 @@ window.CardFace = {};
       if(hostState.pending && hostState.respondFor===YOU){ render(); return promptHumanResponse(g, function(){ hostSettleN(g, done); }); }
       if(hostState.pending && hostState.respondFor!=null && hostState.respondFor!==YOU){
         netParked=null; netReact={ kind:'respond', seat:hostState.respondFor, g:g, resume:function(){ hostSettleN(g, done); } };
-        busy=true; render(); broadcastMirror(); maybePasso(netReact.seat); return;
+        busy=true; render(); reassertMirror(); startParkBeat(); maybePasso(netReact.seat); return;
       }
       hostFlushReveals();                 // an Outbalance that waited out a response window resolves here
       render(); if(done) done();
@@ -12085,10 +12093,10 @@ window.CardFace = {};
       if(!hostState){ return cont && cont(); }
       if(hostState.shieldResponse && hostState.shieldResponse.q===RIVAL){
         if(!hostState.shieldResponse.guardId){ E.shieldGuardPass(hostState, 1); return hostRivalWindows(g, cont); }   // no guard to spring — just take the hit
-        netGuard={ g:g, cont:cont }; busy=true; render(); broadcastMirror(); return;
+        netGuard={ g:g, cont:cont }; busy=true; render(); reassertMirror(); startParkBeat(); return;
       }
       if(hostState.discardPending && hostState.discardPending.player===RIVAL){
-        netDiscard={ g:g, cont:cont }; busy=true; render(); broadcastMirror(); return;
+        netDiscard={ g:g, cont:cont }; busy=true; render(); reassertMirror(); startParkBeat(); return;
       }
       cont && cont();
     }
@@ -12221,11 +12229,11 @@ window.CardFace = {};
         if(hostState.preFightQ===YOU){ return promptHumanPreFight(g); }
         if(hostState.pending && hostState.respondFor===YOU){ render(); return promptHumanResponse(g, step); }
         var w=netOppWindow();                                                   // a remote opponent owes a reactive window → park + broadcast so THEY answer it
-        if(w){ netParked=null; netReact={ kind:w.kind, seat:w.seat, g:g, resume:step }; busy=true; $('rivalStatus').textContent=seatName(w.seat)+(w.kind==='discard'?' is discarding…':(w.kind==='guard'?' may guard…':' may respond…')); render(); broadcastMirror(); maybePasso(w.seat); return; }
+        if(w){ netParked=null; netReact={ kind:w.kind, seat:w.seat, g:g, resume:step }; busy=true; $('rivalStatus').textContent=seatName(w.seat)+(w.kind==='discard'?' is discarding…':(w.kind==='guard'?' may guard…':' may respond…')); render(); reassertMirror(); startParkBeat(); maybePasso(w.seat); return; }
         if(hostState.finished){ hostTakeBack(); render(); broadcastMirror(); return endGame(); }
         if(hostState.turn===YOU){ busy=false; $('rivalStatus').textContent=''; render(); broadcastMirror(); return; }   // control back to the host
         var p=hostState.turn;
-        netReact=null; busy=true; $('rivalStatus').textContent=seatName(p)+' is playing…'; netParked={ seat:p, g:g, resume:step }; render(); broadcastMirror(); maybePasso(p);   // remote human's turn → park (Passo acts if it holds the seat)
+        netReact=null; busy=true; $('rivalStatus').textContent=seatName(p)+' is playing…'; netParked={ seat:p, g:g, resume:step }; render(); reassertMirror(); startParkBeat(); maybePasso(p);   // remote human's turn → park (Passo acts if it holds the seat)
       })();
     }
     // Pre-fight (Back Stab) window before the active player's fight/pass: the next player may spring a lockout Quick.
@@ -12237,7 +12245,7 @@ window.CardFace = {};
       var q=pf.q;
       if(q===YOU){ return promptHostPreFight(g, proceed); }
       netParked=null; netReact={ kind:'prefight', seat:q, g:g, cont:proceed };
-      busy=true; $('rivalStatus').textContent=seatName(q)+' may spring Back Stab…'; render(); broadcastMirror(); maybePasso(q);
+      busy=true; $('rivalStatus').textContent=seatName(q)+' may spring Back Stab…'; render(); reassertMirror(); startParkBeat(); maybePasso(q);
     }
     function promptHostPreFight(g, proceed){
       var quicks=eligiblePreFightQuicks();
@@ -12338,7 +12346,7 @@ window.CardFace = {};
       if(g!==gen) return;
       if(hostState.shieldResponse && hostState.shieldResponse.q===YOU){ return openShieldGuardModal(r, function(fr){ hostRunCeremony(fr||r, g); }); }
       if(hostState.shieldResponse && hostState.shieldResponse.q!=null){
-        if(hostState.shieldResponse.guardId){ netParked=null; netReact={ kind:'guard', seat:hostState.shieldResponse.q, g:g, resume:function(){ hostSettleRoundThenCeremony(r, g); } }; busy=true; render(); broadcastMirror(); maybePasso(netReact.seat); return; }
+        if(hostState.shieldResponse.guardId){ netParked=null; netReact={ kind:'guard', seat:hostState.shieldResponse.q, g:g, resume:function(){ hostSettleRoundThenCeremony(r, g); } }; busy=true; render(); reassertMirror(); startParkBeat(); maybePasso(netReact.seat); return; }
         E.shieldGuardPass(hostState, hostState.shieldResponse.q); return hostSettleRoundThenCeremony(r, g);   // no guard to spring → take the hit, re-check
       }
       hostRunCeremony(r, g);
@@ -12350,7 +12358,7 @@ window.CardFace = {};
       var winner = (hostState.pendingLossChoice ? hostState.pendingLossChoice.winner : r.roundWinner);
       if(winner===YOU){ return promptLossTarget(r, g, contAfter); }                 // host picks via its opponent panels
       netParked=null; netReact={ kind:'loss', seat:winner, g:g, cont:contAfter };    // remote winner picks (their mirror shows pendingLossChoice)
-      busy=true; $('rivalStatus').textContent=seatName(winner)+' is choosing a target…'; render(); broadcastMirror(); maybePasso(winner);
+      busy=true; $('rivalStatus').textContent=seatName(winner)+' is choosing a target…'; render(); reassertMirror(); startParkBeat(); maybePasso(winner);
     }
     function hostRunCeremony(fr, g){
       announceRoundWin(fr);

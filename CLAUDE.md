@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.115**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.116**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -274,6 +274,9 @@ node nettest_clientwin.js    # the MIRROR of roundstall: a client move that does
 node nettest_mirrordrop.js   # THE FORCED-DROP PROBE: swallow N mirrors after a client-won round and require
                              # the table to recover (10). `DROPS=n` re-finds the threshold — 4 deadlocked before
                              # v1.31.80's park heartbeat. Keep it: three earlier probes for this were thrown away.
+                             # It only reaches the CEREMONY parks; the idle ones need the suite below.
+node nettest_parkbeat3.js    # THE IDLE PARK, at 3 players (10). Same drop idiom, aimed at `driveN`'s
+                             # remote-human-turn park, where nothing animates — so ONE lost mirror deadlocks it.
 node nettest_sync.js         # THE CROSS-CHECK: plays a real game over the ROOM CODE and makes the two sides
                              # prove they AGREE — round, each side's view of the other's hand size, and that NARRATION is not doubled
                              # (count ratio vs the host, never adjacency) — against
@@ -1522,7 +1525,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.115 — 2026-09-07, `npm run sweep`, 85 suites and 0 FAIL in 177s** (four lanes; background
+Status as of **v1.31.116 — 2026-09-07, `npm run sweep`, 86 suites and 0 FAIL in 179s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -1532,7 +1535,7 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 49 netplay suites: `nettest_3p` 7, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
+The 50 netplay suites: `nettest_3p` 7, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 14, `kick` 11, `log` 16, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
@@ -1560,6 +1563,19 @@ a parked host's state deliberately stops changing** — so if the single `reasse
 too, nothing will ever say it again and both peers wait for each other forever. `startParkBeat()` re-asserts
 every 1.8s while parked and stops in `hostTakeBack`. Measured: 3 swallowed mirrors survivable, **4 deadlocks**,
 deterministically; with the beat, 12 recovers.
+**AND THE FIX WAS WIRED IN BY NAME, SO IT COVERED TWO PARKS OF NINE FOR SIX VERSIONS (v1.31.116).** Both
+v1.31.75's `reassertMirror` and v1.31.80's beat were added to `awaitRival` and `hostParkTrim` — the two parks
+the investigation of the day happened to be standing in — and every other park kept a bare `broadcastMirror()`,
+which is the one call that cannot be trusted at a park because it dedupes against a `lastMirror` it writes
+BEFORE sending. **When a fix is a property of a KIND of site, enumerate the kind** — `grep -n 'busy=true'` found
+all nine in a minute, and the seven that were missing had been missing since the day the fix landed.
+**A THRESHOLD MEASURED AT ONE PARK DOES NOT TRANSFER TO ANOTHER, AND THE DIFFERENCE IS ANIMATION.** The 3-vs-4
+number above was measured around a CEREMONY, which keeps rendering — banner, shatter, deal — so each render
+makes a fresh mirror and the table heals itself; `nettest_mirrordrop` therefore cannot fail at an idle park, and
+eight swallowed mirrors left the unfixed build recovering. At `driveN`'s remote-turn park nothing animates: the
+host renders once, parks, emits exactly **one** mirror, and **one lost mirror deadlocks a 3-player table
+permanently** (`nettest_parkbeat3`, A/B'd against `main` through `git show`). Ask what else is rendering before
+believing a drop-count threshold.
 **A MIRROR IS A FULL SNAPSHOT, NOT A DELTA, AND THAT IS WHY THIS HID FOR SO LONG.** Any later mirror heals a
 lost one, so the render storm papers over almost every loss and the HANDS agree again within milliseconds. The
 damage that persists is the client a whole ROUND behind with nobody on turn — so **assert the round, not the
