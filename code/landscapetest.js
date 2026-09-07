@@ -527,7 +527,10 @@ const CASES=[
          So assert the CAUSE, which is deterministic and is the actual defect: the board must not overflow
          because a zone opened. It is a RATCHET — it fails if the overflow grows AND when it goes away — and
          the coverage line is deliberately not asserted at those sizes until it does. Filed as ★ EXPANDING A
-         ZONE OVERFLOWS THE BOARD in the BACKLOG. */
+         ZONE OVERFLOWS THE BOARD in the BACKLOG, tagged RATCHET:phone-zone-expand-overflow — `versiontest`
+         asserts that tag against the BACKLOG in BOTH directions, so deleting this ratchet on the day the fix
+         lands goes red until the entry is closed too. That link is what was missing when v1.31.111 fixed the
+         landscape overlap and left its entry quoting a measurement that had stopped being true. */
       const OVF={'327x660':63,'393x852':10};
       const cap=OVF[`${w}x${h}`];
       if(cap!==undefined){

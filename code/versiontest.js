@@ -84,6 +84,38 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok(!!cc[1] && !!eng && +cc[1]===eng.pass, `CLAUDE.md's \`test\` count is REAL (says ${cc[1]||'nothing'}, measured ${eng?eng.pass:'?'})`);
   ok(!!cc[2] && !!nv  && +cc[2]===nv.pass,  `…and its \`netview\` count is REAL (says ${cc[2]||'nothing'}, measured ${nv?nv.pass:'?'})`);
 
+  /* ---- THE RATCHET REGISTRY (2026-09-07). A known failure is filed in two places — a ratchet in the suite
+   * that measures it, and a BACKLOG entry someone is meant to action — and NOTHING connected them, so the two
+   * halves drifted the moment one was touched. v1.31.111 fixed the landscape zone/pile overlap and deleted its
+   * ratchets; the BACKLOG entry describing that overlap survived for five versions still quoting "25-176%",
+   * which is worse than no number at all because it is specific enough to plan against.
+   * THE ASYMMETRY IS THE WHOLE POINT: deleting a ratchet is a HAPPY act (the bug is fixed) done inside the
+   * suite, and the doc is nowhere in the author's view at that moment. So the check has to run from outside
+   * both. Two directions, two different remedies:
+   *   a ratchet with no entry  → the known failure is invisible to anyone planning work;
+   *   an entry with no ratchet → THE FIX ALREADY LANDED, and the entry is now a stale measurement.
+   * Cost is one tag per known failure on each side. There is normally at most a handful.
+   * The token is BUILT rather than written so this file cannot match its own explanation — the trap
+   * `nettest_narrate` hit when its scan tripped on the comment beside the line it was scanning. */
+  const RTAG='RATCHET'+':';
+  const codeRatchets=new Map();
+  fs.readdirSync(__dirname).filter(f=>/test.*\.js$/.test(f) && f!=='versiontest.js').forEach(function(f){
+    const src=fs.readFileSync(path.join(__dirname,f),'utf8'), re=new RegExp(RTAG+'([a-z0-9-]+)','g');
+    let m; while((m=re.exec(src))) codeRatchets.set(m[1], f);
+  });
+  const docRatchets=new Map();
+  { const re=/\[ratchet: ([a-z0-9-]+)\]/g; let m; while((m=re.exec(handoff))) docRatchets.set(m[1], true); }
+  const orphanCode=[...codeRatchets.keys()].filter(k=>!docRatchets.has(k));
+  const orphanDoc =[...docRatchets.keys()].filter(k=>!codeRatchets.has(k));
+  /* PRINT THE REGISTRY, because two empty sets agree perfectly and that is exactly what a vacuous pass looks
+   * like. A reader must be able to see whether this checked anything. */
+  ok(orphanCode.length===0,
+     `every suite ratchet is filed in the BACKLOG [${codeRatchets.size} ratchet(s): ${[...codeRatchets].map(e=>e[0]+' ← '+e[1]).join(', ')||'none'}]`+
+     (orphanCode.length?`  ← NOT FILED: ${orphanCode.join(', ')} — add "[ratchet: <slug>]" to its BACKLOG entry, or nobody will action it`:''));
+  ok(orphanDoc.length===0,
+     `every BACKLOG ratchet entry still has a live ratchet [${docRatchets.size} entry(ies): ${[...docRatchets.keys()].join(', ')||'none'}]`+
+     (orphanDoc.length?`  ← THE FIX LANDED: ${orphanDoc.join(', ')} — no suite ratchets this any more, so the entry's measurements are STALE. Close it or rewrite it against what the suite measures today`:''));
+
   const built=fs.readFileSync(HTML,'utf8');
   ok(!built.includes('__VERSION__'), 'no unsubstituted __VERSION__ survived into the built page');
   const stamped=(built.match(/GAME_VERSION='([^']+)'/)||[])[1];
