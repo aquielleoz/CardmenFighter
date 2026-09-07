@@ -1825,11 +1825,29 @@
     return { ok: true, state: st, made: stored.type, value: stored.value, swapped: swapping };
   }
 
+  /* THE SINGLE DEFINITION OF "this card can guard a shield loss" (v1.31.112). It was inlined in two places
+   * and both had the same two faults, which is exactly why it is one function now — the house rule that
+   * produced `isChopOf` and `resolveIds`.
+   * 1. **`effectFor`, not `effectOf`.** A Form or Super can GRANT the immunity; the base card need not have
+   *    it. Apollo Mode does precisely that to Sanctuary, and reading the base effect made it invisible — Aj
+   *    played a whole game with Apollo up and was never offered it.
+   * 2. **BOTH SPELLINGS.** Leyline carries `immune`; Apollo's patch carries `shieldImmune`. `resolveEffect`
+   *    treats them identically (each sets `pl.shieldImmune`), so the gate was the only place in the engine
+   *    that knew one and not the other.
+   * `needCantLose` is untouched and is NOT an oversight: at 0 shields the threat is the Fighter Kick, which
+   * `wouldBeSaved` says only `cantLose` (or a Holy Shroud absorb) can stop, because plain shield-immunity
+   * cannot save a shield you do not have. Apollo grants immunity, not `cantLose`, so Sanctuary is correctly
+   * still not offered against a kick. */
+  function guardEffFor(st, q, card) {
+    var e = effectFor(st, q, card);
+    if (!e || !e.impl) return null;
+    return (e.immune || e.shieldImmune) ? e : null;
+  }
   // A held card that can be SPRUNG in response to a shield threat to become immune this round (Leyline Ascension).
   // needCantLose: at 0 shields the threat is a KICK, so only a "can't lose this round" card qualifies.
   function shieldGuardCard(st, q, needCantLose) {
     var pl = st.players[q];
-    return pl.hand.filter(function (c) { var e = effectOf(c); return e && e.impl && e.immune && (!needCantLose || e.cantLose) && canAfford(pl, c); })[0] || null;
+    return pl.hand.filter(function (c) { var e = guardEffFor(st, q, c); return e && (!needCantLose || e.cantLose) && canAfford(pl, c); })[0] || null;
   }
   // ---- shield-loss stack (the priority backbone; §STACK-DESIGN) ----
   // A shield loss is a stack object; the threatened player may respond (spring Leyline) before it
@@ -1969,8 +1987,11 @@
     var pl = st.players[q];
     var card = pl.hand.filter(function (c) { return c.id === cardId; })[0];
     if (!card) return { ok: false, reason: "You don't hold that card." };
-    var eff = effectOf(card);
-    if (!eff || !eff.immune) return { ok: false, reason: 'That card cannot guard a shield.' };
+    /* THE SAME LOOKUP, and it had a THIRD fault the offer site did not: it passed the BASE effect to
+       `resolveEffect`, so a Form-granted guard that somehow got this far would have resolved WITHOUT its
+       granted immunity — gaining a shield and then losing one. `guardEffFor` returns the patched effect. */
+    var eff = guardEffFor(st, q, card);
+    if (!eff) return { ok: false, reason: 'That card cannot guard a shield.' };
     if (!canAfford(pl, card)) return { ok: false, reason: 'Not enough Fighter Energy (need ' + costHint(card) + ').' };
     pl.hand = pl.hand.filter(function (c) { return c.id !== cardId; });
     payEnergy(pl, card);

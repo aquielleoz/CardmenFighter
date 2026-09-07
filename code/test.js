@@ -463,6 +463,42 @@ function cards(ids) { return ids.map(card); }
     c6.shields = 2; o6.shields = 3;
     var r6 = E.activate(g6, 0, '10H');
     ok(r6.ok && c6.shields === 3 && o6.shields === 4, 'REWORK: Sanctuary gives BOTH players +1 shield');
+
+    /* THE SHIELD-GUARD WINDOW MUST SEE A FORM-GRANTED IMMUNITY (v1.31.112). Aj, from real play with Apollo
+       up: *"sanctuary did not prompt use when i was about to lose shields"*. `shieldGuardCard` and
+       `shieldGuard` both read `effectOf`, so no Form or Super grant could ever qualify, and both tested
+       `e.immune` while Apollo's patch spells it `shieldImmune`. Four assertions, and the NEGATIVES are the
+       load-bearing ones — without them a "fix" that offers any old card, or that offers Sanctuary against a
+       kick it genuinely cannot stop, would pass. */
+    var apollo = function () {                                  // ♥ Super = Ride + Q + K, which is what patches Sanctuary
+      var g = E.newGame(null, { starter: 0 }); var p0 = g.players[0];
+      p0.forms = [{ rank: 11, suit: 'H', tier: 'ride' }, { rank: 12, suit: 'H', tier: 'queen' }, { rank: 13, suit: 'H', tier: 'king' }];
+      p0.hand = [sc(10, 'H')]; energy(p0, 12, 'H');
+      return g;
+    };
+    var ga = apollo();
+    ok(E.effectFor(ga, 0, sc(10, 'H')).shieldImmune === true, 'STAGED: Apollo really grants Sanctuary shieldImmune');
+    ok(!E.effectOf(sc(10, 'H')).immune && !E.effectOf(sc(10, 'H')).shieldImmune,
+       '  → and the BASE card carries neither flag, so reading effectOf could never have found it');
+    ok(E.shieldGuardCard(ga, 0, false) && E.shieldGuardCard(ga, 0, false).id === '10H',
+       'the guard window OFFERS Apollo Sanctuary against an ordinary shield loss');
+    /* NOT OFFERED AGAINST A KICK, and this is correct rather than a leftover: `wouldBeSaved` says at 0
+       shields only `cantLose` or a Holy Shroud absorb prevents it, because plain immunity cannot save a
+       shield you do not have. Apollo grants immunity, NOT cantLose. This is the assertion that stops the
+       next person "finishing" the fix by loosening the kick branch. */
+    ok(E.shieldGuardCard(ga, 0, true) === null,
+       '  → but NOT against a Fighter Kick, which only "can\'t lose this round" stops');
+    var gb = E.newGame(null, { starter: 0 }); var pb = gb.players[0];
+    pb.hand = [sc(10, 'H')]; energy(pb, 12, 'H');               // same card, no Super
+    ok(E.shieldGuardCard(gb, 0, false) === null,
+       '  → and plain Sanctuary is still no guard: it GAINS a shield, it does not prevent the loss');
+    /* LEYLINE IS 9♦, NOT 9♥ — the Cleric block swaps 9/10 (Holy Shroud=9♥, Sanctuary=10♥), so the first
+       draft of this control staged Holy Shroud and failed. Left as a comment because the swap is exactly the
+       kind of thing that reads as a product bug when it is a deck fact. */
+    var gl = E.newGame(null, { starter: 0 }); var pls = gl.players[0];
+    pls.hand = [sc(9, 'D')]; energy(pls, 12, 'D');               // Leyline: the control that must keep working
+    ok(E.shieldGuardCard(gl, 0, false) && E.shieldGuardCard(gl, 0, true),
+       '  → Leyline still guards both an ordinary loss and a kick (the spelling change broke nothing)');
   })();
   // ---- Phase 4b: the Rides (Swan defense, Owl/Ram cost) + copy/counter boosts ----
   (function () {

@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**387**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**393**) + `node netview.test.js` (**34**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including all 49 `nettest_*` suites and the ten `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.111.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.112.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.111**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.112**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -60,50 +60,20 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Correctness
 
-- **★ SANCTUARY IS NEVER OFFERED IN THE SHIELD-GUARD WINDOW, EVEN WITH APOLLO LIVE** (Aj, 2026-09-07, from
-  real play with both Hector Form and Apollo Mode up: *"sanctuary did not prompt use when i was about to lose
-  shields. it's quick now with all the supers activated so it should work at around the same timing as the
-  leyline"*).
-  **LOCATED — `shieldGuardCard`, `engine.js:1830`**, three lines, and it is wrong twice over:
-  ```js
-  pl.hand.filter(function (c) { var e = effectOf(c); return e && e.impl && e.immune && ... })[0]
-  ```
-  1. **It reads `effectOf`, so no Form- or Super-granted property can ever qualify.** This is the documented
-     `effectOf`/`effectFor` trap — the one that hid three bugs in `ai.js` — in a **fourth** site, and this one
-     is still open. Every seat funnels through this function (`rivalMayGuard`, `mpResolveAIShieldWindows` and
-     the netplay `guard` intent all use the `guardId` it produces), so one line fixes it everywhere.
-  2. **The flag is spelled differently.** Apollo's override grants **`shieldImmune`**; the predicate tests
-     **`immune`**. At resolve time `applyEffect` treats them identically (both set `pl.shieldImmune`,
-     `engine.js:1469` and `:1475`), so the predicate is the only place in the engine that knows one spelling
-     and not the other. Fixing (1) alone would still not offer it.
-  **AND THE GATE IS NOT QUICKNESS — do not chase `quick`.** `shieldGuardCard` never tests it; Leyline is
-  offered because it carries `immune`/`cantLose`, and happens to also be Quick. So Aj's inference ("it's quick
-  now, so it should work like Leyline") points at the right *timing* and the wrong *mechanism*.
-  **The two Forms are NOT the same case, and only one of them is a plain bug:**
-  - **Apollo (Super) — unambiguous.** Its override is `{quick:true, shieldImmune:true}`: the card really does
-    stop the shield loss, so it belongs in that window and is being excluded by a spelling and a stale lookup.
-  - **Hector (King) — a rules question.** Its override is `{quick:true}` only. Base Sanctuary *gains* a shield
-    (`shield:1, shieldAll:true`); it does not prevent the strip. Offering a GAIN in a window built for
-    PREVENTION is a design decision, and not a small one: `resolveShieldLossObj` only kicks when the target is
-    already at 0, so gaining a shield first **converts a Fighter Kick into an ordinary strip**. Decide it
-    before widening the predicate.
-  **AND FIXING BOTH DEFECTS STILL WOULD NOT HAVE SAVED THE GAME HE LOST — read this before scoping the work.**
-  Aj's log of 2026-09-07 (Sage vs Vyers, lost in round 10) has him at **0 shields from round 7**, killed by a
-  Fighter Kick. Facing a kick, `resolveRoundWin` passes `needCantLose=true` (`engine.js:1882`), and only
-  `cantLose` qualifies — `wouldBeSaved` says so outright at `:678`: *"at 0, the kick is prevented only by
-  'can't lose this round' or a Holy Shroud counter"*, because plain shield-immunity cannot save a shield you
-  do not have. Apollo grants **`shieldImmune`**, not `cantLose`. So the two defects above matter while you
-  still hold a shield, and **the moment a player actually dies is governed by the rules question, not by
-  them**: only the shield GAIN — converting a kick into an ordinary strip — reaches that case. Do not ship the
-  two-line fix believing it addresses the report that prompted this.
-  **THAT LOG DOES NOT REPRODUCE IT, and the reason is worth recording so nobody re-reads it looking:** he held
-  no King that game (both K plays were FIGHT plays, a pair of Kings — his only transforms were Penelope, a
-  Queen, and the Giant Owl Ride), so there was no Hector and no Super, and a plain Technique correctly gets no
-  response window. The analysis above stands on the code, not on that log. Round 6 of it does show the guard
-  window working normally — *"You sprang Leyline Ascension in response — the shield held"* — which is the
-  control case a fix should keep green.
-  **Test it at both tiers**, and note `shieldAll` — every player gains, so a duel is a wash on the shield race
-  and the interesting assertion is the kick conversion, not the shield count.
+- **★ SHOULD A SHIELD *GAIN* BE ALLOWED IN THE GUARD WINDOW? (the Hector half of the Sanctuary report)**
+  The Apollo half shipped in **v1.31.112** — a Form- or Super-granted immunity is now seen by the window, at
+  all three engine sites and in the modal that describes it. What is left is a RULES QUESTION, not a bug.
+  **Under Hector (King) Sanctuary is only a Quick.** Base Sanctuary *gains* a shield (`shield:1, shieldAll`);
+  it does not prevent the strip, so it correctly does not qualify for a window built for PREVENTION.
+  **And this is the half that decides Aj's actual game**, so it matters more than it sounds: he died to a
+  Fighter Kick at 0 shields, where `wouldBeSaved` allows only `cantLose` or a Holy Shroud absorb — immunity
+  cannot save a shield you do not have. A GAIN, resolved before the strip, would convert that kick into an
+  ordinary strip and he would have lived. That is a real change to how the game ends, which is why it was not
+  made on his behalf.
+  **If it is taken:** the predicate is `guardEffFor` (one definition, `engine.js`), and the test to write is
+  the KICK CONVERSION, not the shield count — `shieldAll` means every player gains, so a duel is a wash on
+  the shield race and counting shields would prove nothing. `test.js` already asserts the kick is refused
+  today, so that assertion is the one to invert deliberately rather than delete.
 
 ### Things a playtester meets immediately
 
