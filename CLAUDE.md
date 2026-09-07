@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.109**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.110**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -450,6 +450,17 @@ the 1,036-char invite is **v23 / 109 modules** — 3.0 CSS px per module on desk
 2.0 in landscape where height binds. Shrinking the payload lowers the version and improves all of it at once.
 **Aj confirmed a real phone reads it (2026-08-25)**, so the shipped geometry is proven; the landscape 2.0 case
 is the one still unverified by a camera.
+
+**NEVER PASS A FUNCTION WITH OPTIONAL PARAMETERS DIRECTLY TO `addEventListener` (2026-09-07).**
+`downloadLog(lines)` defaults to the live log via `lines||fullLog`; wired as `addEventListener('click',
+downloadLog)` it received the **PointerEvent** in `lines`, which is truthy, so every saved battle log was the
+single line `[object PointerEvent]` — for fifteen versions, silently: the file downloaded, the name was right,
+the header was right, nothing threw. It was found only because Aj sent one while reporting something else.
+**The cost is what makes this worth a rule: a saved log is this project's main diagnostic instrument**, and it
+had been destroying the evidence it existed to collect. `$('x').addEventListener('click', function(){ f(); })`
+— always, when `f` takes anything at all.
+**And the suite shape that misses it: `logtest` asserted that button's HEIGHT at three viewports and never
+clicked it.** Measuring a control is not driving it.
 
 **A UI-DRIVING SUITE MUST LEAVE NO SELECTION BEHIND.** `nettest_actloop` failed 1 run in 10 with the Activate
 control stuck `off` — because its own board probe clicked a card to see whether Fight enabled and never
@@ -1258,6 +1269,49 @@ structure** and only reclaims vertical space; if you add anything to the vertica
 untouched. The landscape block must stay **after** the phone branch in the stylesheet: at 667×375 both match
 and landscape has to win.
 
+**WHEN A LAYOUT IS A REDUCTION OF ANOTHER ONE, EXPANDING IT MEANS RESTORING THAT ONE — NOT DESIGNING A THIRD**
+(Aj, 2026-09-07: *"why did we change desktops too? the expanded on mobile could have copied desktop's and it
+would've been fine"*). The phone equipment chip is the desktop `.eq` box with its effect line dropped; asked to
+make it expandable, I invented a new presentation — a card thumbnail in a row — and applied it to every screen,
+changing desktop, which had no problem to solve. The correct expanded state was already written down: the box
+it was compacted FROM. The rewrite is smaller, has no third layout to keep in step, and follows any future
+change to the base box for free. **Ask what the compact form is a compaction OF before designing its opposite**,
+and prove the restore by COMPARING the two rendered boxes — flex direction, padding, every text size — rather
+than by looking at them.
+
+**A LAYOUT NUMBER MOVES WITH THINGS THAT ARE NOT THE LAYOUT — PIN THEM BEFORE YOU RECORD IT (2026-09-07).**
+Adding landscape sizes to `landscapetest`'s zone/pile check produced a number that swung **0%, 19%, 51% on
+three runs of one build**, which is unratchetable and, worse, an intermittent red. Instrumenting the runs
+showed every rectangle identical except one zone's WIDTH — 143 / 148 / 175 — because a Forms zone is labelled
+`<name>’s Forms & Rides` and **the opponent's persona is drawn at random**. The deal moves it too, through the
+hand's own width. Both are now staged (`__solo.setName`, a fixed hand) and four consecutive runs print the
+same numbers. **The tell is bimodal or wide-swinging geometry on a build nobody touched** — do not pad the cap
+to cover it, find what is moving. And note where it pointed: the label, not the cards, is what reaches over
+the pile, which is a clue about the fix and not only about the test.
+
+**AND A SUITE THAT NAMES NINE VIEWPORTS MAY BE CHECKING THREE.** The same block had run its zone/pile
+assertion on two portrait sizes and a desktop while `CASES` listed nine, so the entire landscape band — the
+reason that file exists — was asserted for every other collision and never for this one. It hid a pile card
+**176% covered**. Found only because a portrait fix was re-measured at sizes it did not claim. **Before
+trusting a layout fix, run its measurement at every size the suite already opens** — adding a size to a loop
+is cheap, and a viewport nobody measures is a viewport nobody fixes.
+
+**A KNOWN FAILURE IS A RATCHET, NEVER A SUPPRESSION — and this one collected (v1.31.104 -> v1.31.110).**
+`landscapetest` carried a 327x660 carve-out written to fail BOTH ways: *"it still fails if the overlap grows,
+AND it fails if the overlap goes away, so the day the real fix lands this line fails for being too generous and
+gets tightened to the `<5` every other viewport uses."* Six versions later zones-into-panels took that viewport
+to 0% and the line duly went red for the second reason, which is the signal it was built to send; the exception
+was deleted rather than re-tuned. **A suppressed number goes quiet forever and a ratchet asks to be removed on
+the day it stops being true** — so when you must ship a known failure, encode the cap AND a floor, and say in
+the comment what to do when the floor fails.
+
+**A RECORDED MEASUREMENT IS ONLY TRUE OF THE BUILD IT WAS TAKEN ON — RE-MEASURE BEFORE BUILDING AGAINST ONE.**
+Every number in the zones-into-panels entry was wrong by the time anyone acted on it, three versions of layout
+work later, and re-measuring first also killed that entry's own "cheaper alternative" and found a viewport
+whose collision nothing had recorded. The numbers are in `docs/DECISIONS.md#phone-layout`; the habit is the
+part that belongs here. **A filed measurement ages exactly as fast as the thing it measured** — and a stale one
+is worse than none, because it is specific enough to plan against.
+
 **Dialogs are covered too, since v1.31.14** — every dialog shares ONE `.overlay`/`.modal` pair, which had no
 `max-height` and no `overflow` while the overlay centres, so a tall modal hung off both edges with nothing to
 scroll (the 812px setup dialog clipped even at desktop 1280×800). `#disconBar` no longer hardcodes `top:54px`:
@@ -1454,13 +1508,13 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.109 — 2026-09-07, `npm run sweep`, 84 suites and 0 FAIL in 184s** (four lanes; background
+Status as of **v1.31.110 — 2026-09-07, `npm run sweep`, 84 suites and 0 FAIL in 167s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 387, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 127, `decktest` 42, `viewtest` 10,
+`test` 387, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 175, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 27, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 18, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 27, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -1577,6 +1631,10 @@ Form-granted Quick. Some older comments and doc lines say "any Q + any K"; the c
 Perseus **or** Hermes Super, Sanctuary under Hector, Armor Piercing under Hippolyta), so any code deciding
 *"is this a Quick?"* must use **`effectFor`**. `ai.js` read `effectOf` in three places and therefore never sprang Back Stab
 in any mode (fixed v1.29.1). If a Form-granted behaviour appears dead, check which one the call site reads.
+**A FOURTH SITE IS OPEN, and it is in `engine.js`, not `ai.js`** — `shieldGuardCard` decides which card the
+shield-guard window offers and reads `effectOf`, so no Form or Super grant can qualify. Reported from real
+play; see the ★ Sanctuary entry in the BACKLOG for the analysis. **Grep `effectOf(` before assuming the sweep
+of v1.29.1 finished the job.**
 
 **AI personas vary STYLE, not STRENGTH — and `personasim.js` is the guard.** Each AI seat draws a persona
 (name + targeting style) from its difficulty tier at game start; `PERSONAS` and `drawPersonas` live in
@@ -1871,7 +1929,9 @@ not a class problem but a rules problem. The lever belongs at the rules level �
   BACKLOG entry, the way the sweep-cost entries do.
 - Debug hooks exist and are URL-gated: `?dbg=1` (netplay) and `?dbgsolo=1` (exposes `window.__solo` with
   `st()/render()/setPulse()` for headless UI checks). Keep new hooks inert without their flag.
-  `__solo.rulesKey/setRulesFromKey` reach the rules serialiser, `__solo.resolveDeck` the deck roll; and
+  `__solo.rulesKey/setRulesFromKey` reach the rules serialiser, `__solo.resolveDeck` the deck roll,
+  **`__solo.setName(seat,name)` pins a seat's name so a LAYOUT measurement stops moving with the random
+  persona** (a Forms zone is labelled `<name>’s Forms & Rides`, so the name sets the zone's width); and
   **`__cmf.clientSend(msg)` sends a raw client intent**, which is the only way to test a HOST-side authority
   check — a client's own gate is a courtesy, and going through the UI exercises that copy instead of the one
   that matters.

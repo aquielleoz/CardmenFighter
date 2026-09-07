@@ -103,6 +103,28 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(new RegExp('vs\\s+\\S+\\s*\\('+TIER+'\\)').test(soloOpen) || /New duel/.test(soloOpen),
      '  → and the solo opening line still reads "New duel …" with the tier ["'+soloOpen.slice(0,70)+'"]');
 
+  /* ⤓ SAVE MUST CONTAIN THE LOG (2026-09-07). This suite already measured the Save button — its HEIGHT — and
+   * never once clicked it, so for fifteen versions it downloaded a file whose entire body was the single line
+   * `[object PointerEvent]`: `downloadLog(lines)` was passed straight to `addEventListener`, the event landed
+   * in `lines`, and `lines||fullLog` preferred it. Nothing threw, the file arrived, the name was right.
+   * Aj found it by sending me one.
+   * CAPTURED THROUGH `Blob`, not through a real download: the text handed to the Blob is exactly what gets
+   * written, and it needs no download plumbing, no temp dir and no wait. Assert BOTH directions — the log
+   * lines are present AND the event string is absent — because a body that is empty for some other reason
+   * would pass a check for the absence alone. */
+  const saved = await p.evaluate(()=>{
+    var cap=null, B=window.Blob;
+    window.Blob=function(parts,opts){ cap=String((parts&&parts[0])||''); return new B(parts,opts); };
+    try{ document.getElementById('saveLogBtn').click(); } finally { window.Blob=B; }
+    return cap;
+  });
+  const liveLines = await p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'),e=>e.textContent.trim()).filter(Boolean));
+  ok(!!saved && /Cardmen Fighter — Battle Log/.test(saved), 'the ⤓ Save button produces a file with the log header');
+  ok(!/PointerEvent|\[object /.test(saved||''),
+     '  → and NOT a stringified event'+(/\[object /.test(saved||'')?' — GOT: '+saved.split('\n').filter(l=>/\[object /.test(l))[0]:''));
+  ok(liveLines.length>0 && saved.indexOf(liveLines[liveLines.length-1])>=0,
+     `  → it really carries the battle log (${liveLines.length} lines on screen; looked for "${(liveLines[liveLines.length-1]||'').slice(0,44)}")`);
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

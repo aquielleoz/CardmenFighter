@@ -159,6 +159,7 @@
   .formZone{position:absolute; left:8px; display:none; flex-direction:column; gap:5px; align-items:flex-start; z-index:3; pointer-events:none; max-width:min(46%,188px);}
   #rivalFormZone{top:30px;} #youFormZone{bottom:4px;}
   .formZone .zoneLbl{font-size:.62rem; letter-spacing:.09em; text-transform:uppercase; opacity:.5; font-weight:700; padding-left:3px;}
+  .formZone .formStack{display:flex; flex-direction:column; gap:5px; min-width:0;}   /* the INCARNATION banner rides ABOVE its cards, in either layout — see renderFormsZone */
   .formZone .formRow{pointer-events:auto; display:flex; flex-wrap:wrap; gap:5px;}
   .formZone .card.formMini{width:40px; min-width:40px; height:56px; border-radius:7px; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,.45); border:1.5px solid rgba(140,130,235,.65);}
   .formZone .card.formMini.ride{border-color:rgba(255,196,60,.7);}
@@ -1148,7 +1149,44 @@
     #logWrap.collapsed #logHead > span:first-child{font-size:0;}
     #logWrap.collapsed #logHead > span:first-child::before{content:'LOG'; font-size:10px; letter-spacing:1.5px;}
     #table{min-height:96px; padding:4px 0;}
-    .equipZone{max-width:min(54%,150px);} .equipZone .eq{min-width:0; padding:5px 9px;} .equipZone .eqName{font-size:12px; max-width:128px;} .equipZone .eqEff{font-size:10px;} .equipZone .eqCtr{font-size:11px;} .equipZone .eqCtr b{font-size:12px;}
+    /* THE EQUIPMENT IS A CHIP ON A PHONE (v1.31.110), not a three-line card. Measured before changing anything:
+       an `.eq` is name / effect / counter stacked, **59px tall**, against a form zone's 37-49px — and four of
+       them are pinned to the corners of a `#table` that is only **150px** at 327x660, where a pile card came out
+       **91% covered**. The row that decides it is `.eqEff`: dropping the effect line is what turns 59px into a
+       chip, and it costs the least, because the full card with its rules text is one tap away (the box already
+       opens the reader on click, and hover on desktop) while the two things you must see AT A GLANCE — what it
+       is, and how many counters are left — stay. Desktop keeps the card; this is inside the phone branch. */
+    /* IN A PANEL THEY ARE INLINE CHIPS, not corner overlays. Same shape as `.oppPanel .oppZones`, which has
+       hosted zones inside a panel since the free-for-all shipped — reusing that pattern rather than inventing a
+       second one. `position:static` is the whole move: it takes them out of `#table`'s stacking and lets the
+       panel's own wrap decide where they sit. */
+    .panelZones{display:contents;}
+    .panelZones .formZone, .panelZones .equipZone{
+      position:static; left:auto; right:auto; top:auto; bottom:auto; max-width:none;
+      flex-direction:row; align-items:center; gap:4px; z-index:auto;}
+    .panelZones .formZone:empty, .panelZones .equipZone:empty{display:none;}
+    /* IN A PANEL THE LABEL IS TWO SHORT LINES AND NO NAME. The panel header already names the seat, and the
+       label was the widest thing in the zone — on one line it pushed the cards out of the row. */
+    .panelZones .zoneWho{display:none;}
+    .panelZones .zoneLbl{white-space:normal; max-width:5.2em; line-height:1.15; padding-left:0; align-self:center;}
+    .panelZones .formStack{gap:3px;}
+    .panelZones .superBadge{font-size:.6rem; padding:2px 6px; letter-spacing:.04em;}   /* it sits over ~3 mini cards here, not a table-wide zone */
+    .panelZones .eq{padding:2px 7px;}
+    .panelZones .eqName{font-size:11px; max-width:92px;}
+    .equipZone{max-width:min(54%,150px);}
+    .equipZone .eq{min-width:0; padding:3px 9px; flex-direction:row; align-items:center; gap:7px;}
+    .equipZone .eqEff{display:none;}
+    .equipZone .eqName{font-size:12px; max-width:112px;}
+    .equipZone .eqCtr{font-size:11px;} .equipZone .eqCtr b{font-size:12px;}
+    /* TAPPED OPEN = THE DESKTOP BOX, PUT BACK. Every declaration here restores a value the four rules above
+       took away, and deliberately nothing more: this state has no design of its own, it is the absence of the
+       compaction. If a base `.eq` value changes, change it in ONE place and this follows — a number invented
+       here instead would be a third presentation quietly drifting from the other two. */
+    .equipZone.zoneOpen{max-width:min(70%,190px);}
+    .equipZone .eq.eqOpen{padding:7px 12px; flex-direction:column; align-items:center; gap:2px;}
+    .equipZone .eq.eqOpen .eqEff{display:block;}
+    .equipZone .eq.eqOpen .eqName{font-size:13.5px; max-width:150px;}
+    .equipZone .eq.eqOpen .eqCtr{font-size:12px;} .equipZone .eq.eqOpen .eqCtr b{font-size:13.5px;}
     #side{height:clamp(132px,20vh,172px); flex-direction:row; align-items:stretch; border-left:none; border-top:1px solid var(--line); padding-left:0; padding-top:8px;}
     #cardView{flex:1 1 auto; flex-direction:row; align-items:flex-start; gap:10px; padding:10px 12px;}   /* image left, text right (strip) */
     #cardView .cvBigFace{display:none;}                                  /* mobile: hide the full layout (its printed text is unreadable at strip size) */
@@ -1395,6 +1433,7 @@
     <span class="stat deck">🂠 <b id="rivalDeck">0</b></span>
     <span class="stat">♻ <span id="rivalShuf">0</span></span>
     <span class="equip" id="rivalEquip"></span>
+    <span class="panelZones" id="rivalZones"></span>   <!-- phone: the Forms/equipment zones move in here — see placeZones -->
     <span class="stat" id="rivalStatus" style="margin-left:auto;color:var(--gold);"></span>
   </div>
   <div id="board">
@@ -1432,6 +1471,7 @@
         <span class="stat deck">🂠 <b id="youDeck">0</b> deck</span>
         <span class="stat"><button type="button" id="youShufBtn" class="statBtn" title="Open your shuffle pile">♻ <span id="youShuf" class="shufBox clickable">0</span></button></span>
         <span class="equip" id="youEquip"></span>
+        <span class="panelZones" id="youZones"></span>     <!-- phone: ditto — see placeZones -->
       </span>
       <span class="metaRight"><button id="specialsRefBtn" class="specialsRef" title="Open the Specials cheat sheet">🃏 Specials list</button><span id="turnTag" class="you"></span></span>
     </div>
@@ -1534,9 +1574,11 @@ __QR__
   var pulseDetail=false; try{ pulseDetail = localStorage.getItem(PULSE_KEY)==='1'; }catch(e){}   // detailed energy pulses — DEFAULT OFF (net delta); Settings toggles it
   var pick=null;               // active selection: {kind:'discard'|'top', cardId, need, chosen:{}}
   var formsOpen=null;          // which Forms & Rides zone is expanded to full cards — a seat key like 'p0'/'p2', or null (collapsed to chips)
+  var equipOpen=null;          // …and the same for the equipment zone (v1.31.110): tap the chip, see the card
   var oppOpen=null;            // which opponent PANEL is expanded to real zones in a free-for-all (seat index, or null)
   function zoneKeyFor(seat){ return 'p'+seat; }
   function collapseForms(){ if(formsOpen!==null){ formsOpen=null; render(); } }
+  function collapseEquip(){ if(equipOpen!==null){ equipOpen=null; render(); } }
   var targeting=null;          // {cardId} while choosing an equipment to remove
   var pileSig=null;            // signature of the pile currently rendered (skip rebuild/re-animate)
   var flipFrom=null;           // {cardId: DOMRect} captured from the hand for a play-to-pile FLIP
@@ -2449,7 +2491,17 @@ __QR__
     el.style.display='flex';
     if(typeof seat!=='number') seat=(mine?YOU:RIVAL);
     var zk=zoneKeyFor(seat), superOn=E.hasSuper(pl);
-    var lbl=document.createElement('div'); lbl.className='zoneLbl'; lbl.textContent=(mine?'Your':(logName(seat)+'’s'))+' Forms & Rides'; el.appendChild(lbl);
+    /* THE OWNER'S NAME IS ITS OWN SPAN so the panel can drop it (v1.31.110). Aj, of "ADELL'S FORMS & RIDES"
+       sitting in Adell's own panel two inches from the word "Adell": *"we don't need the Adell's here. it's
+       already in his panel"*. Floating over `#table` the name is load-bearing — nothing else says whose zone
+       it is — and inside a panel it is a second label for something already labelled. A SPAN rather than a JS
+       branch, because which layout is live is a media question and the renderer should not be asking it.
+       It is also the cheapest half of the landscape overlap: the LABEL is what sets this zone's width, and a
+       name is most of the label. Built with text nodes, not innerHTML — the name is player-typed. */
+    var lbl=document.createElement('div'); lbl.className='zoneLbl';
+    var who=document.createElement('span'); who.className='zoneWho';
+    who.textContent=(mine?'Your':(logName(seat)+'’s'))+' ';
+    lbl.appendChild(who); lbl.appendChild(document.createTextNode('Forms & Rides')); el.appendChild(lbl);
     // COLLAPSED (default): a compact tap-to-expand strip — just rank/suit chips, or the single INCARNATION line when Super is live.
     if(formsOpen!==zk && !targeting){
       var strip=document.createElement('div'); strip.className='formStrip'; strip.title='Tap to expand';
@@ -2459,7 +2511,15 @@ __QR__
       el.appendChild(strip); return;
     }
     // EXPANDED: full mini-cards (tap one to read it; tap anywhere else collapses the zone). Targeting always shows full cards.
-    if(superOn){ var sb=document.createElement('div'); sb.className='superBadge'; sb.textContent='⚡ INCARNATION'; el.appendChild(sb); }
+    /* THE BANNER AND THE CARDS ARE ONE STACK (v1.31.110). Aj, of the INCARNATION banner sitting to the LEFT of
+       his J/Q/K in the panel: *"can we make the incarnation banner go on top of the cards?"* — it was a plain
+       SIBLING of the card row, which reads as a column on the desktop zone and became a neighbour the moment
+       the panel laid its zone out as a ROW, where it ate ~250px of the width the cards needed. Wrapping the two
+       makes the relationship structural instead of incidental: the banner belongs TO the cards, so it stacks
+       with them in either layout and no media query has to restate it. Desktop is unchanged — a column inside
+       a column renders identically. */
+    var stack=document.createElement('div'); stack.className='formStack';
+    if(superOn){ var sb=document.createElement('div'); sb.className='superBadge'; sb.textContent='⚡ INCARNATION'; stack.appendChild(sb); }
     var TIER={ride:'Ride',queen:'Form Change',king:'Form Change'};
     var row=document.createElement('div'); row.className='formRow';
     pl.forms.forEach(function(f){
@@ -2474,7 +2534,7 @@ __QR__
       } else { (function(fc){ c.addEventListener('click', function(e){ e.stopPropagation(); showCard(fc); }); })(f.card); }   // tap to read (touch); stays expanded
       row.appendChild(c);
     });
-    el.appendChild(row);
+    stack.appendChild(row); el.appendChild(stack);
   }
   // N-player: a compact panel per opponent, in seat order (next-after-you leftmost → before-you rightmost).
   function renderOpponents(){
@@ -2537,14 +2597,37 @@ __QR__
     var box=document.createElement('div'); box.className='eq '+(info.good?'buff':'debuff')+(opts.flash?' eqFlash':'')+(opts.ghost?' eqSpent':'');
     var art=e.card && window.CardArt && (window.CardArt[e.card.rank+e.card.suit] || window.CardArt[e.card.id]);
     if(art) box.classList.add('hasArt'), box.style.backgroundImage='linear-gradient(180deg,rgba(8,6,16,.42),rgba(8,6,16,.72)), url("'+art+'")';   // card art behind the text (light scrim keeps it readable)
+    /* THE EXPANDED CHIP IS THE DESKTOP BOX — NOTHING NEW (v1.31.110). Aj, of the phone chip beside two expanded
+       Form cards: *"it would be nice if we could also expand the spiked armor here like the forms and rides"*.
+       The first cut answered that with a card THUMBNAIL beside the text, and applied it everywhere, which he
+       rejected on sight: *"why did we change desktops too? the expanded on mobile could have copied desktop's
+       and it would've been fine"*. He is right, and it is the smaller change as well as the better one —
+       desktop had no problem to solve, and the chip is a PHONE compaction, so the only sane expanded state is
+       the thing it was compacted FROM. `.eqOpen` is therefore pure CSS un-compaction inside the phone branch:
+       no thumbnail, no wrapper, no third presentation to keep in step with the other two.
+       **The general rule: when a layout is a REDUCTION of another one, expanding it means restoring that one,
+       not designing a new one.** Targeting and the spent ghost are untouched — neither is a state you browse. */
     box.innerHTML='<div class="eqName">'+(e.name||'Equipment')+'</div>'+
       (info.eff?'<div class="eqEff">'+info.eff+'</div>':'')+
       (opts.ghost?'<div class="eqCtr eqGone">◇ gone</div>':'<div class="eqCtr">◆ <b>'+Math.max(0,e.counters)+'</b></div>');   // one diamond + the count, not a row of pips
-    box.title=opts.ghost?((e.name||'')+' — left play (spent or removed — see the log)'):((e.name||'')+' — '+e.counters+' counter'+(e.counters===1?'':'s'));
+    var open=!!(opts.open && e.card && !opts.ghost && !targeting);
+    if(open) box.classList.add('eqOpen');
+    box.title=opts.ghost?((e.name||'')+' — left play (spent or removed — see the log)'):((e.name||'')+' — '+e.counters+' counter'+(e.counters===1?'':'s')+(open?'':' — tap to expand'));
     if(!opts.ghost){
       if(e.card){ (function(fc){ box.addEventListener('mouseenter', function(){ showCard(fc); }); })(e.card); }   // hover → full card + rules in the description box below
       if(targeting){ box.classList.add('targetable'); (function(id){ box.addEventListener('click', function(){ doRemove(targeting.cardId, id); }); })(e.id); }
-      else if(e.card){ (function(fc){ box.addEventListener('click', function(){ showCard(fc); }); })(e.card); }   // tap to read (touch)
+      else if(open && e.card){ (function(fc){ box.addEventListener('click', function(ev){ ev.stopPropagation(); showCard(fc); }); })(e.card); }   // already open → tap reads it, exactly like a formMini
+      /* ONLY WHERE THE CHIP EXISTS. `zonesInPanel()` is the same gate that compacts the box in the first
+         place, so desktop and the landscape band keep the untouched tap-to-read — there is no chip there and
+         therefore nothing to expand. One gate, not a second one to drift.
+         AND IT DOES NOT CLOSE THE FORMS ZONE. The first cut cleared `formsOpen` here, on a tidy-looking "one
+         zone open at a time" instinct — and `landscapetest`'s new expanded-state staging went red with 0 mini
+         cards, which is the whole point Aj was making: he had his J/Q/K open and wanted the equipment open
+         BESIDE them. Both zones stop the event, so neither document-level outside-tap handler sees the other's
+         click, and they coexist. */
+      else if(e.card){ (function(fc,zk){ box.addEventListener('click', function(ev){ ev.stopPropagation();
+        if(!zonesInPanel()){ showCard(fc); return; }
+        equipOpen=zk; render(); }); })(e.card, opts.zk||null); }
     }
     return box;
   }
@@ -2552,7 +2635,9 @@ __QR__
     if(!el) return;
     el.innerHTML='';
     if(typeof seat!=='number') seat=(mine?YOU:RIVAL);
-    var zk=zoneKeyFor(seat)+':', now=Date.now(), live={}, flashing=false;   // per-SEAT fx key: 'rival' collided across opponents
+    var zkey=zoneKeyFor(seat), zk=zkey+':', now=Date.now(), live={}, flashing=false;   // per-SEAT fx key: 'rival' collided across opponents
+    var open=(equipOpen===zkey) && zonesInPanel();   // a rotation out of the phone branch puts the box back, no state to clear
+    el.classList.toggle('zoneOpen', open);   // the zone's own max-width clamps the expanded box otherwise
     (pl.equipment||[]).forEach(function(e){
       var info=equipInfo(e, mine, seat), key=zk+e.id, prev=equipFx[key];
       var flashUntil=prev?prev.flashUntil:0;
@@ -2560,7 +2645,7 @@ __QR__
       equipFx[key]={ counters:e.counters, flashUntil:flashUntil, name:e.name, good:info.good, card:e.card, gone:false };
       live[key]=true;
       var flash=now<flashUntil; if(flash) flashing=true;
-      el.appendChild(buildEqBox(e, info, { flash:flash }));
+      el.appendChild(buildEqBox(e, info, { flash:flash, open:open, zk:zkey }));
     });
     for(var key in equipFx){                                                             // a tracked equip that vanished = spent to 0 & retired → brief "spent" ghost
       if(!equipFx.hasOwnProperty(key) || key.indexOf(zk)!==0 || live[key]) continue;
@@ -2978,7 +3063,7 @@ __QR__
       ? { numPlayers:mpCount, starter:starter, decks: seatDecks.slice(0,mpCount).map(function(d){ return (d==='full'||!d)?null:d; }), basics:gameBasics }
       : { decks:[ youDeck==='full'?null:youDeck, rivalDeck==='full'?null:rivalDeck ], starter:starter, basics:gameBasics };
     if(tutorialMode) ngOpts.shields=tutShields;   // shorter HP so a guided lesson can reach the Fighter Kick
-    gen++; state=E.newGame(null, ngOpts); if(tutorialMode){ (currentLesson&&currentLesson.rig?currentLesson.rig:tutRig)(state); } selected={}; fullLog=[]; pick=null; targeting=null; targetPick=null; busy=false; handOrder=[]; layout=[]; gidSeq=0; drag=null; pileSig=null; flipFrom=null; pendingEnter={}; equipFx={}; formsOpen=null;
+    gen++; state=E.newGame(null, ngOpts); if(tutorialMode){ (currentLesson&&currentLesson.rig?currentLesson.rig:tutRig)(state); } selected={}; fullLog=[]; pick=null; targeting=null; targetPick=null; busy=false; handOrder=[]; layout=[]; gidSeq=0; drag=null; pileSig=null; flipFrom=null; pendingEnter={}; equipFx={}; formsOpen=null; equipOpen=null;
     resetControllers(state.numPlayers);   // seat 0 = local human, every opponent = AI (netplay will override specific seats to 'remote')
     if(E.setLossTargetInteractive) E.setLossTargetInteractive(function(st, w){ return isHumanSeat(w); });   // a human winner (local or remote) picks whose shield to strip in 'chosen' mode
     if(mpCount>2){ state._diff={}; for(var _s=0;_s<state.numPlayers;_s++) if(_s!==YOU) state._diff[_s]=diffOf(_s); }   // per-seat AI tier for the round-win chooser
@@ -6248,6 +6333,7 @@ __QR__
   }
 
   document.addEventListener('click', function(e){ if(formsOpen && !(e.target.closest && e.target.closest('.formZone'))) collapseForms(); });
+  document.addEventListener('click', function(e){ if(equipOpen && !(e.target.closest && e.target.closest('.equipZone'))) collapseEquip(); });
   // tap outside an opponent's popover to close it (targeting force-opens them, so leave those alone)
   document.addEventListener('click', function(e){
     if(oppOpen==null || targeting) return;
@@ -6258,7 +6344,13 @@ __QR__
   $('passBtn').addEventListener('click', function(){ pick?cancelPick():doPass(); });
   $('ctxBtn').addEventListener('click', onCtxClick);
   $('cardActivate').addEventListener('click', onActivateClick);
-  $('saveLogBtn').addEventListener('click', downloadLog);
+  /* CALLED, NOT PASSED. `downloadLog(lines)` takes an OPTIONAL argument that the lobby uses to save the last
+   * game's stash; wired straight as a listener, `lines` received the **PointerEvent**, which is truthy, so
+   * `lines||fullLog` chose the event and the whole battle log became the single line `[object PointerEvent]`.
+   * Aj sent one of these while reporting something else, and the file had no log in it. Silent since the
+   * parameter was added in v1.31.95 — the button downloaded a file, named it correctly and threw nothing.
+   * **Never pass a function with optional parameters directly to addEventListener.** */
+  $('saveLogBtn').addEventListener('click', function(){ downloadLog(); });
   $('logToggle').addEventListener('click', function(){
     var collapsed=$('logWrap').classList.toggle('collapsed');
     this.textContent=collapsed?'▸':'▾'; this.title=collapsed?'Expand the log':'Collapse the log';
@@ -6285,6 +6377,12 @@ __QR__
   function paintSfxBtn(){ var sb=$('sfxBtn'); if(!sb) return; sb.textContent=SFX.isMuted()?'🔇 Sound: Off':'🔊 Sound: On'; sb.classList.toggle('muted', SFX.isMuted()); sb.title=SFX.isMuted()?'Sound off — tap to enable':'Sound on — tap to mute'; }
   $('sfxBtn').addEventListener('click', function(){ SFX.toggle(); paintSfxBtn(); }); paintSfxBtn();
   $('settingsBtn').addEventListener('click', showSettings);
+  /* Place the zones once at boot, then only when the branch FLIPS (rotation, a resized desktop window). */
+  placeZones();
+  try{ ['(max-width:720px)','(orientation:landscape) and (max-height:520px)'].forEach(function(q){   // BOTH — a rotation can cross either
+         var mq=window.matchMedia(q);
+         if(mq.addEventListener) mq.addEventListener('change', placeZones); else if(mq.addListener) mq.addListener(placeZones);
+       }); }catch(e){}
   /* THE ☰ SHEET (v1.31.105). A FUNCTION DECLARATION so `showModal` can call it whatever the source order —
    * every entry that opens a dialog must close the menu behind it, and doing that in `showModal` covers the
    * ones added later for free rather than per call site. The two TOGGLES deliberately leave it open, so you can
@@ -6539,6 +6637,46 @@ __QR__
   }
   var DICE=['⚀','⚁','⚂','⚃','⚄','⚅'];
   // Build the initiative dice: 2 (You vs Rival) for a duel, or one per player in a free-for-all.
+  /* ZONES INTO PANELS ON A PHONE (v1.31.110). Each seat's Forms/Rides and equipment are absolutely pinned to
+   * the CORNERS of `#table`, floating over the pile. That is fine where the table is tall; it is not where it
+   * is short — measured at 327x660 the table is 150px holding a 70px pile plus four zones, and a pile card came
+   * out 91% covered, with `rivalFormZone` and `youFormZone` overlapping EACH OTHER.
+   * MOVING THEM DOES NOT CONJURE HEIGHT — the panels are on the same screen. It wins because the panels are
+   * WRAPPING FLEX ROWS with horizontal slack, so a chip rides a line that already exists, where a zone row
+   * inside `#table` would cost a whole new line the short board cannot pay for. That is why the equipment chip
+   * (59px -> 24px) came first: it is what makes the rider cheap.
+   * A DOM MOVE, NOT A COPY. Everything renders by id — `#youFormZone`, `#rivalEquipZone` — so relocating the
+   * nodes keeps every renderer, listener and animation working with no call site aware of it. Copies would
+   * need a second render path and would drift, which is this file's most-repeated lesson.
+   * Driven by `matchMedia`, NOT a resize handler: the media query fires only when the branch actually changes,
+   * where a resize callback runs on every frame of a rotation — and an unconditional write inside one is what
+   * starved the page in v1.31.14. */
+  /* AND LANDSCAPE IS EXCLUDED, BECAUSE THAT BAND KEEPS THE DESKTOP STRUCTURE ON PURPOSE. Reparenting on
+   * `(max-width:720px)` alone was measured wrong the day after it shipped: at **667x375 — iPhone SE held
+   * sideways — it took the overlap from 0% to 41%**, because 667 passes the width gate while the landscape
+   * band has already squeezed the panels flat, so a zone riding a panel line has nowhere to ride. Portrait
+   * gains what landscape loses. The gate therefore names the LANDSCAPE BAND'S OWN QUERY rather than inventing
+   * a height threshold beside it — a third breakpoint is a thing that drifts, and this file has the scars.
+   * BOTH queries need a listener: a rotation can cross either one. */
+  function shortLandscape(){ return !!(window.matchMedia && window.matchMedia('(orientation:landscape) and (max-height:520px)').matches); }
+  function zonesInPanel(){
+    if(!window.matchMedia) return false;
+    return window.matchMedia('(max-width:720px)').matches && !shortLandscape();
+  }
+  function placeZones(){
+    /* The list lives INSIDE the function on purpose. As a `var` beside it, the declaration hoists but the
+       ASSIGNMENT does not — and this is called from the wiring block several hundred lines earlier, so it read
+       `undefined` and threw on boot. A function declaration hoists whole; an initialised var does not. */
+    var homes=[['rivalFormZone','rivalZones'],['rivalEquipZone','rivalZones'],
+               ['youFormZone','youZones'],['youEquipZone','youZones']];
+    var phone=zonesInPanel();
+    var table=$('table'); if(!table) return;
+    homes.forEach(function(pair){
+      var z=$(pair[0]), host=phone?$(pair[1]):table;
+      if(!z || !host || z.parentNode===host) return;      // only on a real change — a no-op move still reflows
+      host.appendChild(z);
+    });
+  }
   function buildDice(n){
     var da=$('diceArea'); if(!da) return; da.style.opacity='';
     if(n<=2){ da.className='diceArea'; da.innerHTML='<div class="dieWrap"><span class="dieLabel you">You</span><span class="die" id="dieYou">⚀</span></div><span class="dieVs">vs</span><div class="dieWrap"><span class="dieLabel rival">Rival</span><span class="die" id="dieRival">⚀</span></div>'; return; }
@@ -8905,6 +9043,12 @@ __QR__
     peek:function(){ var m=$('modal'); if(!$('overlay').classList.contains('show')){ m.innerHTML='<h2>END SCREEN</h2>'; $('overlay').classList.add('show'); } enterPeek(); return peeking; },
     unpeek:exitPeek, peeking:function(){ return peeking; }, modalShown:function(){ return getComputedStyle($('modal')).display!=='none'; }, rulesKey:rulesKey, setRulesFromKey:setRulesFromKey, resolveDeck:resolveDeck, setPulse:function(b){pulseDetail=b;}, activate:function(id,o){ return activate(id,o); },
       seatName:seatName, logName:logName, persona:function(i){ var q=personaOf(i); return q?q.name:null; },   // tests assert the RIGHT seat is named, with personas live
+      /* SETTING a seat name is a LAYOUT hook, not a naming one (2026-09-07). The Forms zone is labelled
+         "<name>’s Forms & Rides", the persona is drawn at RANDOM each game, and the label is what sets the
+         zone's WIDTH — so at 932x430 the same build measured the pile 3% covered with a short name and 6%
+         with a long one, and 568x320 swung 0% to 51%. A layout suite cannot ratchet a number that moves with
+         the opponent's name; this makes the width the test's choice instead of the shuffle's. */
+      setName:function(i,n){ seatNames[i]=n; render(); },
       // buildPreDrawBeats is a pure function of the round result — exposing it lets a test assert the
       // ceremony wording DIRECTLY instead of playing random games until a shield-loss ceremony happens
       // (which failed ~1 run in 3 by simply never reaching one).

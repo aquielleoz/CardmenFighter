@@ -71,12 +71,27 @@ Nothing here was paraphrased on the way over — the text is as it was written w
 
 ## Phone layout
 
-*The bug that prompted this analysis MEASURES CLEAN since v1.31.66 — the overlap was caused by the sideways
-scroll and went away with it. The corner-overlay arithmetic and the declined proposal are kept because both
-would otherwise be re-derived; the unbuilt zone move is tracked in the BACKLOG, where its motivation is now in
-doubt.*
+*SHIPPED IN v1.31.110 — the zones-into-panels move below was built, and the overlap is **0% at 327x660,
+360x800, 390x780, 393x852 and 412x915**. The arithmetic and the declined proposal are kept because both would
+otherwise be re-derived. What is still open is a look at a real device, which is a BACKLOG line, not work.*
 
-- **~~THE PLAY AREA IS CLOBBERED ON A NARROW PHONE~~ MEASURED CLEAN since v1.31.66 — the overlap was caused by the sideways scroll, and went away with it. The zones-into-panels spec below was NOT built; keep it only if a real device still shows the problem.** Original entry: (Aj, 2026-08-29, screenshot at
+- **THE CHIP ALONE DOES NOT FIX IT — MEASURED, so do not propose it as the cheap version of this.** The BACKLOG
+  carried *"cheaper alternative worth testing first: render the in-panel equipment as a CHIP rather than a card
+  … that alone would cut the panel growth from ~59px to ~20px"*. Both halves were measured on 2026-09-07: the
+  chip is real (an `.eq` is **59px** stacked, **24px** as a chip once `.eqEff` is dropped), and it moves the
+  collision **91% → 80% at 327x660 and not at all at 393x852**, because **the pile is covered by the FORM zones
+  on the left, not the equipment on the right**. It shipped anyway — as the ENABLER, since the panels have to
+  absorb whatever they host — but it is not a substitute for the reparent.
+- **AND THE FILED NUMBERS WERE STALE BY THREE VERSIONS.** The entry recorded 327x660 as **210% covered** and the
+  form zone as a **"20px chip"**. Re-measured on v1.31.109 before any change: **91%**, form zones **37-49px**,
+  and a **393x852 collision of 8% that nothing had recorded at all**. The icon row (v1.31.104) and the header
+  burger (v1.31.105) had halved it in between and nobody re-read the number. **Re-measure before building
+  against a recorded measurement** — it is only true of the build it was taken on.
+
+- **~~THE PLAY AREA IS CLOBBERED ON A NARROW PHONE~~ FIXED in v1.31.110 by the spec below.** It measured clean
+  from v1.31.66 (the sideways scroll had been the cause) and came BACK once `landscapetest` stopped measuring an
+  animation frame in v1.31.104 — the horizontal collision described here had been there the whole time, unseen.
+  Original entry: (Aj, 2026-08-29, screenshot at
   ~327 CSS px: "Round 6" written over the pile label, the rival's FORMS & RIDES header over the pile cards, and
   the Hero's Javelin equip card covering the right half of a Full House). `#table` is a centred flex column with
   **four absolutely-positioned overlays pinned to its corners**:
@@ -95,12 +110,17 @@ doubt.*
   **THE FIX HAS A PRECEDENT IN THIS FILE ALREADY:** `.oppPanel .oppZones .formZone{position:static; left:auto;
   right:auto; top:auto; bottom:auto; max-width:100%;}` — the opponents strip de-absolutes the same zone when it
   renders inline. Do that at phone width so the zones flow and the pile owns the centre.
-  **DECIDED 2026-08-29 — ZONES MOVE INTO THE PANELS (phone only).** The rival's Forms/Rides and equipment render
+  **DECIDED 2026-08-29, SHIPPED 2026-09-07 (v1.31.110) — ZONES MOVE INTO THE PANELS (phone only).** The rival's Forms/Rides and equipment render
   in the rival panel, yours in your hand panel, reusing `.oppPanel .oppZones`; `#table` then holds only the pile,
   its label and the message, so the pile gets the full 257px. The framing that settled it: **the zones are
   per-player state, the table is shared state** — on a phone the info belongs next to the player it describes,
   which is better rather than merely smaller. Prerequisite: the `.fighter` wrap fix above, since the panels grow
   to 2-3 lines. Second piece already exists — `#handMeta` carries an empty `<span class="equip" id="youEquip">`.
+  **As built it is a DOM MOVE, not a second render path**: `placeZones()` reparents the four zones by id under
+  `matchMedia('(max-width:720px)')`, so every renderer, listener and animation keeps working untouched. And the
+  reason it wins is worth stating, because "move a box between two boxes on the same screen" conjures no height:
+  **the panels are wrapping flex rows with horizontal slack**, so a chip rides a line that already exists, where
+  the same zone inside a 150px `#table` costs a whole new line the short board cannot pay for.
   **AJ'S COLLAPSING-HAND PROPOSAL WAS CONSIDERED AND DECLINED** (*"make the hand collapse like the mobile
   keyboard … this will mean that the drag to play functionality will be lost"*). It does not address this cause:
   the collision is horizontal, between edge-pinned overlays and the centred pile, so more vertical space does

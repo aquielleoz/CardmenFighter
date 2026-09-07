@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.109.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.110.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.109**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.110**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -60,36 +60,89 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Correctness
 
-*Empty. The four reports from the 2026-09-02 online duel are all shipped; the last of them — an opponent's
-effects going unseen when its pass ended the round — went out in v1.31.106.*
+- **★ SANCTUARY IS NEVER OFFERED IN THE SHIELD-GUARD WINDOW, EVEN WITH APOLLO LIVE** (Aj, 2026-09-07, from
+  real play with both Hector Form and Apollo Mode up: *"sanctuary did not prompt use when i was about to lose
+  shields. it's quick now with all the supers activated so it should work at around the same timing as the
+  leyline"*).
+  **LOCATED — `shieldGuardCard`, `engine.js:1830`**, three lines, and it is wrong twice over:
+  ```js
+  pl.hand.filter(function (c) { var e = effectOf(c); return e && e.impl && e.immune && ... })[0]
+  ```
+  1. **It reads `effectOf`, so no Form- or Super-granted property can ever qualify.** This is the documented
+     `effectOf`/`effectFor` trap — the one that hid three bugs in `ai.js` — in a **fourth** site, and this one
+     is still open. Every seat funnels through this function (`rivalMayGuard`, `mpResolveAIShieldWindows` and
+     the netplay `guard` intent all use the `guardId` it produces), so one line fixes it everywhere.
+  2. **The flag is spelled differently.** Apollo's override grants **`shieldImmune`**; the predicate tests
+     **`immune`**. At resolve time `applyEffect` treats them identically (both set `pl.shieldImmune`,
+     `engine.js:1469` and `:1475`), so the predicate is the only place in the engine that knows one spelling
+     and not the other. Fixing (1) alone would still not offer it.
+  **AND THE GATE IS NOT QUICKNESS — do not chase `quick`.** `shieldGuardCard` never tests it; Leyline is
+  offered because it carries `immune`/`cantLose`, and happens to also be Quick. So Aj's inference ("it's quick
+  now, so it should work like Leyline") points at the right *timing* and the wrong *mechanism*.
+  **The two Forms are NOT the same case, and only one of them is a plain bug:**
+  - **Apollo (Super) — unambiguous.** Its override is `{quick:true, shieldImmune:true}`: the card really does
+    stop the shield loss, so it belongs in that window and is being excluded by a spelling and a stale lookup.
+  - **Hector (King) — a rules question.** Its override is `{quick:true}` only. Base Sanctuary *gains* a shield
+    (`shield:1, shieldAll:true`); it does not prevent the strip. Offering a GAIN in a window built for
+    PREVENTION is a design decision, and not a small one: `resolveShieldLossObj` only kicks when the target is
+    already at 0, so gaining a shield first **converts a Fighter Kick into an ordinary strip**. Decide it
+    before widening the predicate.
+  **AND FIXING BOTH DEFECTS STILL WOULD NOT HAVE SAVED THE GAME HE LOST — read this before scoping the work.**
+  Aj's log of 2026-09-07 (Sage vs Vyers, lost in round 10) has him at **0 shields from round 7**, killed by a
+  Fighter Kick. Facing a kick, `resolveRoundWin` passes `needCantLose=true` (`engine.js:1882`), and only
+  `cantLose` qualifies — `wouldBeSaved` says so outright at `:678`: *"at 0, the kick is prevented only by
+  'can't lose this round' or a Holy Shroud counter"*, because plain shield-immunity cannot save a shield you
+  do not have. Apollo grants **`shieldImmune`**, not `cantLose`. So the two defects above matter while you
+  still hold a shield, and **the moment a player actually dies is governed by the rules question, not by
+  them**: only the shield GAIN — converting a kick into an ordinary strip — reaches that case. Do not ship the
+  two-line fix believing it addresses the report that prompted this.
+  **THAT LOG DOES NOT REPRODUCE IT, and the reason is worth recording so nobody re-reads it looking:** he held
+  no King that game (both K plays were FIGHT plays, a pair of Kings — his only transforms were Penelope, a
+  Queen, and the Giant Owl Ride), so there was no Hector and no Super, and a plain Technique correctly gets no
+  response window. The analysis above stands on the code, not on that log. Round 6 of it does show the guard
+  window working normally — *"You sprang Leyline Ascension in response — the shield held"* — which is the
+  control case a fix should keep green.
+  **Test it at both tiers**, and note `shieldAll` — every player gains, so a duel is a wash on the shield race
+  and the interesting assertion is the kick conversion, not the shield count.
 
 ### Things a playtester meets immediately
 
-- **★ ZONES-INTO-PANELS IS BUILT AND MEASURED, AND WITHDRAWN UNTIL THE BOARD CAN AFFORD IT** (2026-09-04).
-  The 2026-08-29 decision was to move each seat's Forms/Rides and equipment into its panel on a phone, leaving
-  `#table` holding only the pile, its label and the message. **Built; it removes EVERY zone/pile collision at
-  360×800, 393×852 and 412×915 — and regresses 390×780**, where `landscapetest` caught a pile card **100%
-  covered**.
-  **The cause is measured, not guessed:** `#youEquipZone` renders a CARD and is **59px tall**, against
-  `youFormZone`'s 20px chip, so hosting both grows the panel ~59px. At 780px tall the board cannot absorb that,
-  the panel rides up over the table, and the zone goes with it — **a horizontal collision traded for a vertical
-  one.** It only pays where the height exists.
-  **THE UNBLOCKER HAS SHIPPED — v1.31.104's icon action row.** Measured: `#actions` **118px → 67px at 390×780**
-  and **132px → 81px at 360×800**, three rows to one, with `#handWrap` down 51px at both. That is comfortably
-  the ~59px the panels need, so the blocking condition is met.
-  **Re-run `landscapetest` at 390×780 and `phonetest` before re-landing**, and note the entry below it: this
-  budget is spent ONCE, so if the header burger also lands (a further ~39px), prefer to bank that too rather
-  than assume both are available.
-  **THE CASE IS NOW MEASURED RATHER THAN ARGUED, and 327×660 is the one that proves it.** `landscapetest`
-  stopped measuring an animation frame in v1.31.104, and the settled numbers are: 390×780 was **19%** covered
-  before the icon row and is **0%** after — but **327×660 is 210% on every build**, because `#table` is at its
-  **96px min-height** holding a **70px** pile plus four pinned zones of 49-59px. `rivalFormZone` and
-  `youFormZone` overlap **each other** there. **No amount of height buys that back at 660px tall** — the zones
-  have to leave the table, which is this entry. The suite holds it as a ratchet that fails BOTH ways, so the
-  fix cannot land silently.
-  **Start with the chip alternative below**: it is the smaller change and 327×660 is the case that needs it most.
-  **Cheaper alternative worth testing first:** render the in-panel equipment as a CHIP rather than a card, the
-  way the form zone already does — that alone would cut the panel growth from ~59px to ~20px.
+- **★ THE LANDSCAPE BAND STILL HAS THE ZONE/PILE OVERLAP, AND IT IS THE WORST ONE IN THE GAME**
+  (measured 2026-09-07). v1.31.110 fixed PORTRAIT by moving the zones into the player panels; the landscape
+  band was never in scope and is far worse than portrait ever was. Deterministic, worst-case:
+  **800x360 = 176% covered · 844x390 = 110% · 568x320 = 89% · 932x430 = 25%** (47% with a zone expanded).
+  A/B'd against v1.31.109 — pre-existing, nothing to do with the reparent.
+  **Why the portrait fix does not reach it:** the band `(orientation:landscape) and (max-height:520px)`
+  **keeps the desktop structure on purpose** — that is its whole design — so the zones stay pinned to the
+  corners of a `#table` around 90px tall. `placeZones()` explicitly EXCLUDES the band, because reparenting
+  there measured worse (667x375 went 0% -> 41%): the panels are already squeezed flat, so a chip has no line
+  to ride. **This needs its own answer, not an extension of the portrait one.**
+  **The strongest clue is where the width comes from: the LABEL, not the cards.** The zone reads
+  "<name>’s Forms & Rides", so the opponent's randomly-drawn persona name sets how far it reaches over the
+  pile — the same build measured `rivalFormZone` at **143px, 148px and 175px** on consecutive runs, moving
+  932x430 between 3% and 25%. Shortening, truncating or re-siting that label may be most of the fix, and it
+  is cheaper than re-laying the band out.
+  **RATCHETED in `landscapetest` at all four sizes, both directions and both states** — tighten each line to
+  the `<5` the other viewports use as it is fixed.
+  **Why it hid:** the suite named nine viewports and ran the zone/pile check on **three**. Everything else
+  about the landscape band was asserted; this one thing was not.
+
+- **THE CARD VIEWER'S CLOSE BUTTON IS IN THE WRONG CORNER FOR A THUMB** (Aj, 2026-09-07: *"can we move the
+  close button to the center bottom instead of upper right? it's so far away from the magnifying glass button
+  and the hand..."*). Both things he names are at the BOTTOM of a phone screen — the 🔍 that opens the reader
+  lives in the action row and the hand sits above it — so the one control that dismisses it is the only part of
+  the interaction at the far end of the reach. Centre-bottom, full-width-ish, the way the reader's own content
+  already flows. Check it against `viewtest` (which runs at 390x780 because `#viewCardBtn` only exists inside
+  `(max-width:720px) and (max-height:800px)`) and against the peek overlay, which shares the dialog furniture.
+
+- **TAPPING AN EQUIPMENT ON THE BOARD SHOULD OPEN THE CARD VIEWER** (Aj, 2026-09-07: *"when we click equipments
+  on the board, can we open the card viewer?"*). Today it calls `showCard`, which fills the `#cardView`
+  description strip — on a phone that is a thin band at the bottom, not the reader the 🔍 opens.
+  **Read this together with what v1.31.110 just did to that click**, or it will be built twice: the collapsed
+  chip's tap is now "expand into the card", and the EXPANDED card's tap is `showCard`. So the natural home for
+  this is the second tap — expanded card → full viewer — which also gives the Forms mini-cards the same
+  treatment for free, since they are the same gesture on the same kind of thing. Decide the two together.
+
 - **THE HEADER STILL SAYS "duel vs AI" IN EVERY MODE — including an online duel against a person, and a
   six-player free-for-all.** From the 2026-09-02 screenshots. **Located:** the subtitle is *static markup* —
   `<h1>… <small>duel vs AI</small></h1>` — and **nothing ever writes to it**, so it is not "wrong in netplay",
@@ -102,12 +155,15 @@ effects going unseen when its pass ended the round — went out in v1.31.106.*
   **Filed properly on 2026-09-07 after I nearly lost it:** it had lived only in a section intro, and when I
   cleared that intro I replaced it with a pointer to a place it did not exist. Open work belongs in an entry.
 
-- **THE PHONE PLAY AREA NEEDS A REAL-DEVICE CHECK, and the decided fix may no longer be needed.** The overlap
-  MEASURES CLEAN since v1.31.66 (it was caused by the sideways scroll and went away with it), but it was only
-  ever reported from Aj's phone and has not been re-checked there. **The zones-move-into-the-panels change was
-  DECIDED on 2026-08-29 and is unbuilt** — its motivation has since evaporated, so re-measure before building
-  it. The corner-overlay arithmetic, and the collapsing-hand proposal that was considered and declined, are in
-  [`DECISIONS.md`](DECISIONS.md#phone-layout).
+- **~~THE PHONE PLAY AREA NEEDS A REAL-DEVICE CHECK~~ — CONFIRMED ON AJ'S PHONE, 2026-09-07, IN PORTRAIT.**
+  Three screenshots across the day: the zones sitting in their panels with the pile clear, the equipment chip
+  expanded, and the Forms label wrapped with the owner's name dropped. *"the zones into panels look very
+  beautifully done."* The measurement said 0% at five portrait sizes and the device agrees, which closes a
+  report that had only ever come from a phone.
+  **LANDSCAPE IS NOT CONFIRMED and is not fixed** — see the ★ entry above; that band still measures 25-176%
+  and no screenshot of it exists. The corner-overlay arithmetic and the declined collapsing-hand proposal are
+  in [`DECISIONS.md`](DECISIONS.md#phone-layout).
+
 - **A TIER'S DISPLAY NAME IS TYPED OUT IN THREE PLACES, AND ONE OF THEM DRIFTED FROM DAY ONE.** Aj, 2026-09-04:
   *"since when did we stop using demon lord?"* — answer, **never**: the PER-OPPONENT picker (`strengthOpts`, the
   P2…P6 rows in a 3-6 player setup) has read `Demon` since the repo's FIRST commit (`2f2ae86`, 2026-08-22, 467
