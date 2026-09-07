@@ -1522,13 +1522,13 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.112 — 2026-09-07, `npm run sweep`, 84 suites and 0 FAIL in 169s** (four lanes; background
+Status as of **v1.31.112 — 2026-09-07, `npm run sweep`, 85 suites and 0 FAIL in 178s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 393, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 27, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 27, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 4, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -1645,10 +1645,24 @@ Form-granted Quick. Some older comments and doc lines say "any Q + any K"; the c
 Perseus **or** Hermes Super, Sanctuary under Hector, Armor Piercing under Hippolyta), so any code deciding
 *"is this a Quick?"* must use **`effectFor`**. `ai.js` read `effectOf` in three places and therefore never sprang Back Stab
 in any mode (fixed v1.29.1). If a Form-granted behaviour appears dead, check which one the call site reads.
-**A FOURTH SITE IS OPEN, and it is in `engine.js`, not `ai.js`** — `shieldGuardCard` decides which card the
-shield-guard window offers and reads `effectOf`, so no Form or Super grant can qualify. Reported from real
-play; see the ★ Sanctuary entry in the BACKLOG for the analysis. **Grep `effectOf(` before assuming the sweep
-of v1.29.1 finished the job.**
+**THE v1.29.1 SWEEP DID NOT FINISH, AND THE AUDIT THAT PROVES IT IS CHEAP — RUN IT (2026-09-07).** Four more
+sites were found after it, the last two the same day. The audit is two greps and takes a minute:
+1. **Bound the risk**: pull every key any `BOOSTS` patch sets — today `quick`(6), `draw`(4), `n`(4), `boost`(3),
+   `delta`(3), `copyPlus`/`eqMode`/`ride`(2), and one each of `all cantLose form half immune kind oppDelta
+   phantasmPlus reclaimDiscard reveal scope shieldImmune wheel addCounter`. **Only `kind` is set by a single
+   patch** (Athena turning Leyline `ward`→`reclaim`), so most `kind` checks are noise — that is what makes the
+   list triageable rather than 60 call sites.
+2. **Cross-reference**: every `effectOf(` whose result is read for one of those keys is a candidate.
+**`quick` is the dangerous one and the reason is the failure mode, not the count**: `promptHumanResponse`
+treats an empty `eligibleQuicks()` as "nothing to answer with" and **auto-declines for the player**, so a
+Form-made Quick did not merely look wrong — it was silently passed, with no window and no log line. Fixed in
+v1.31.112 along with three sites in the shield-guard path. The tell that these are oversights rather than
+decisions: `eligiblePreFightQuicks` sat twenty lines below `eligibleQuicks` already using `effectFor`, with a
+comment explaining why.
+**Known and still open**: the ⏩ Quick badge on a card face (`cardEl`) reads `effectOf`, so a Form-made Quick
+carries no badge — `cardEl` has no seat argument and using YOUR forms for a rival's card would be wrong in the
+other direction. And two `ai.js` HEURISTICS (`keepValue`, and the don't-burn-a-Quick-on-a-jab filter) undervalue
+a granted Quick. Both are filed; neither makes anything unreachable.
 
 **AI personas vary STYLE, not STRENGTH — and `personasim.js` is the guard.** Each AI seat draws a persona
 (name + targeting style) from its difficulty tier at game start; `PERSONAS` and `drawPersonas` live in

@@ -8490,7 +8490,15 @@ window.CardFace = {};
   function eligibleQuicks(){
     var you=state.players[YOU], e=you.energy.length, pend=state.pending;
     return you.hand.filter(function(c){
-      var ef=E.effectOf(c);
+      /* `effectFor`, NOT `effectOf` (v1.31.112). SIX Form/Super patches grant `quick` — Sanctuary under
+         Hector and under Apollo, Back Stab under Perseus and Hermes, Armor Piercing under Hippolyta — and
+         reading the BASE effect made every one of them invisible here. This is not a cosmetic miss: when
+         this list comes back empty `promptHumanResponse` **auto-declines for you** and no window ever opens,
+         so a player holding a Form-made Quick was silently passed. Aj's *"sanctuary did not prompt use"* is
+         this as much as it is the shield-guard window.
+         The tell that it was an oversight rather than a decision: `eligiblePreFightQuicks`, twenty lines
+         below, already reads `effectFor` and says why in its own comment. Someone fixed that one. */
+      var ef=(E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c));
       if(!ef||!ef.impl||!ef.quick||!E.canAfford(you, c)) return false;
       if(ef.kind==='protect') return pend.eff.kind==='removeEquip' && you.equipment.length>0;
       return true;                                   // Counter Spell answers any Technique

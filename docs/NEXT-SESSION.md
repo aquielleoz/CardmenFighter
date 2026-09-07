@@ -60,6 +60,17 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Correctness
 
+- **THE ⏩ QUICK BADGE AND TWO AI HEURISTICS STILL READ THE BASE EFFECT** (found by the 2026-09-07 audit; the
+  method is in CLAUDE.md, two greps). Neither makes anything unreachable, which is why they were left.
+  - **`cardEl`'s ⏩ badge** reads `effectOf`, so a Form-made Quick carries no badge — the card IS answerable
+    and does not say so. **Not a one-liner**: `cardEl` has no seat argument, and computing it from YOUR forms
+    would mislabel a RIVAL's card in the other direction (`FORM_SUIT_MATCH` is false, so any Q/K/J lifts every
+    suit). Either thread an owner through `cardEl` or compute the badge only where the owner is known.
+  - **`ai.js` `keepValue` (+6 to hold a Quick) and the don't-burn-a-Quick-on-a-jab filter** read `effectOf`, so
+    the AI undervalues a Quick its own Form granted and will fodder it into a jab. Both sit where `st` and `p`
+    are in scope, so the change is small; it is a STRENGTH change, so re-read DECISIONS.md#ai-strength before
+    quoting a win-rate effect from it.
+
 - **★ SHOULD A SHIELD *GAIN* BE ALLOWED IN THE GUARD WINDOW? (the Hector half of the Sanctuary report)**
   The Apollo half shipped in **v1.31.112** — a Form- or Super-granted immunity is now seen by the window, at
   all three engine sites and in the modal that describes it. What is left is a RULES QUESTION, not a bug.

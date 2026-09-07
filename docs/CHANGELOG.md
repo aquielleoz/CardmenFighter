@@ -40,6 +40,22 @@ not `cantLose`. So the round Aj actually died in is governed by the OTHER half o
 question and is still open: base Sanctuary *gains* a shield rather than preventing the loss, and a gain before
 resolution would convert a kick into an ordinary strip.
 
+**AND THE AUDIT AJ ASKED FOR FOUND A WORSE ONE IN THE SAME CLASS.** *"any other similar effects we are
+missing?"* — bounded properly rather than grepped blind: pull every key any `BOOSTS` patch can set (22, and
+only `kind` is set by a single patch, which is what makes the list triageable), then cross-reference every
+`effectOf` that reads one.
+**`eligibleQuicks()` — the Respond? window's own list — read `effectOf`**, so all SIX `quick`-granting patches
+were invisible: Sanctuary under Hector and Apollo, Back Stab under Perseus and Hermes, Armor Piercing under
+Hippolyta. The failure mode is what makes it worse than the guard-window bug: `promptHumanResponse` treats an
+empty list as *"nothing to answer with"* and **auto-declines for the player** — no window, no log line, so the
+card reads as broken rather than unoffered. The tell that it was an oversight: `eligiblePreFightQuicks` sits
+twenty lines below it already using `effectFor`, with a comment saying why.
+**New suite `quicktest.js` (4)** drives it end to end — Hector in the zone, the Rival casts, the window must
+open and name Sanctuary. A/B'd: two reds on the broken build.
+Left filed rather than fixed, because neither makes anything unreachable: the ⏩ badge on a card face (needs an
+owner threaded through `cardEl`, or it mislabels a Rival's card the other way) and two `ai.js` heuristics that
+undervalue a granted Quick.
+
 **`test.js` 387 → 393.** Five assertions, and the NEGATIVES carry the weight — plain Sanctuary is still no
 guard, Leyline still guards both cases, and the kick is still refused. Verified by reverting the fix: one red,
 green again after. Worth keeping from writing them: the first Leyline control staged **9♥, which is Holy
