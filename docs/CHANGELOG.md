@@ -15,6 +15,42 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.115 — a copy arrives as a copy, and an unserialisable mirror says so
+
+Three changes, all from the mirror-contract audit that followed v1.31.114. The first is a live bug; the other
+two delete the conditions that let v1.31.114 ship unnoticed.
+
+**A CLIENT WAS HOLDING A DIFFERENT CARD FROM THE HOST.** `netview.js`'s `card()` whitelisted `rank/suit/id`,
+and the engine attaches three more fields that decide what a card IS rather than what it looks like:
+- **`temp`** — `effectOf` short-circuits on it (`engine.js:1017`, `:1022`), because a Counterfeit or Illusion
+  copy is a pure fight body with no effect. Stripped, the client's copy resolved to the **original card's**
+  effect: the reader printed a full Technique — name, type, cost, rules text — and `activatableCard` lit the
+  ⚡ Activate button. Pressing it sent an intent the host refused, since ITS card still had `temp`. Verified:
+  the host reads the copy as `null`, the client read it as *"Forceful Strip"*.
+- **`valueBonus`** — summed by `copyBonus` and folded into `applyEquip`, which `fightLegal` uses to decide
+  whether Fight lights up. Stripped, a client computed the play short and Fight stayed dark for a play the
+  host would have accepted. That is the exact number v1.31.107 was added to make visible.
+- **`counterfeit`** — the marker the copy is identified by.
+Carried only when present, so an ordinary card's mirror shape is unchanged. This is not a redaction boundary
+being widened — a hidden card never comes through `card()`, it comes from `dummies()`.
+
+**AN UNSERIALISABLE MIRROR IS NOW LOUD.** `broadcastMirror`'s `catch` swallowed the failure completely, which
+is how v1.31.114's wedge went unnoticed for as long as it did: the host believed it had sent, the client got
+nothing, and the only symptom was a table that stopped. It traces now. The trace ring already collapses
+repeats into a `{n}` counter and caps at 500, so a parked board cannot flood it.
+
+**AND THE TRANSPORT ASYMMETRY IS DELETED RATHER THAN TESTED AROUND.** BroadcastChannel uses structured clone:
+it ships cycles, Maps and host object references happily. An RTCDataChannel carries a STRING. So the two
+transports could disagree about what a mirror even IS — and every guard-window suite runs on BroadcastChannel,
+which is precisely why a JSON-only fault shipped. `broadcastMirror` already pays a full `JSON.stringify`; it
+now feeds the PARSED value back and sends that, so both transports carry identical bytes. Anything BC would
+have tolerated is now equally absent on BC, **where a suite can see it**. One `JSON.parse` per changed mirror
+per seat — ~29 a game, by v1.31.65's own measurement.
+
+**`netview.test` 47 → 55**, asserting IDENTITY rather than shape: the discriminating line is `effectOf` on the
+client's own copy, plus the same card on the PILE for the other seat. A/B'd against `main` via `git show`:
+five red.
+
 ### v1.31.114 — the netplay mirror aliased the raw host state, and wedged real online games
 
 **A SHIPPED NETPLAY WEDGE, found by enumerating for something else.** `netview.js`'s `mirrorFor` builds the
