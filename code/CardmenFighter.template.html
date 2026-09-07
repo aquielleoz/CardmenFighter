@@ -1173,20 +1173,6 @@
     .panelZones .superBadge{font-size:.6rem; padding:2px 6px; letter-spacing:.04em;}   /* it sits over ~3 mini cards here, not a table-wide zone */
     .panelZones .eq{padding:2px 7px;}
     .panelZones .eqName{font-size:11px; max-width:92px;}
-    .equipZone{max-width:min(54%,150px);}
-    .equipZone .eq{min-width:0; padding:3px 9px; flex-direction:row; align-items:center; gap:7px;}
-    .equipZone .eqEff{display:none;}
-    .equipZone .eqName{font-size:12px; max-width:112px;}
-    .equipZone .eqCtr{font-size:11px;} .equipZone .eqCtr b{font-size:12px;}
-    /* TAPPED OPEN = THE DESKTOP BOX, PUT BACK. Every declaration here restores a value the four rules above
-       took away, and deliberately nothing more: this state has no design of its own, it is the absence of the
-       compaction. If a base `.eq` value changes, change it in ONE place and this follows — a number invented
-       here instead would be a third presentation quietly drifting from the other two. */
-    .equipZone.zoneOpen{max-width:min(70%,190px);}
-    .equipZone .eq.eqOpen{padding:7px 12px; flex-direction:column; align-items:center; gap:2px;}
-    .equipZone .eq.eqOpen .eqEff{display:block;}
-    .equipZone .eq.eqOpen .eqName{font-size:13.5px; max-width:150px;}
-    .equipZone .eq.eqOpen .eqCtr{font-size:12px;} .equipZone .eq.eqOpen .eqCtr b{font-size:13.5px;}
     #side{height:clamp(132px,20vh,172px); flex-direction:row; align-items:stretch; border-left:none; border-top:1px solid var(--line); padding-left:0; padding-top:8px;}
     #cardView{flex:1 1 auto; flex-direction:row; align-items:flex-start; gap:10px; padding:10px 12px;}   /* image left, text right (strip) */
     #cardView .cvBigFace{display:none;}                                  /* mobile: hide the full layout (its printed text is unreadable at strip size) */
@@ -1271,9 +1257,54 @@
      capped by dvh. Cards shrink via --cs, but --pm is raised to compensate so the PILE stays near full size —
      that is the thing you actually read mid-play, and it is the part that had no room at all.
      Comes AFTER the phone branch on purpose: at 667x375 both match, and this one must win. */
+  /* THE EQUIPMENT IS A CHIP WHEREVER THE BOARD IS SMALL — the phone branch AND the landscape band, from ONE
+     copy (v1.31.111). It shipped inside `@media (max-width:720px)` in v1.31.110, so an 800x360 phone held
+     sideways kept the full 66px card box over an 87px `#table`. The query is a LIST rather than a second copy
+     of the block: the two branches want the identical compaction, and the way this file loses arguments with
+     itself is two copies of one rule drifting apart. */
+  @media (max-width:720px), (orientation:landscape) and (max-height:520px){
+    .equipZone{max-width:min(54%,150px);}
+    .equipZone .eq{min-width:0; padding:3px 9px; flex-direction:row; align-items:center; gap:7px;}
+    .equipZone .eqEff{display:none;}
+    .equipZone .eqName{font-size:12px; max-width:112px;}
+    .equipZone .eqCtr{font-size:11px;} .equipZone .eqCtr b{font-size:12px;}
+    /* TAPPED OPEN = THE DESKTOP BOX, PUT BACK. Every declaration here restores a value the four rules above
+       took away, and deliberately nothing more: this state has no design of its own, it is the absence of the
+       compaction. If a base `.eq` value changes, change it in ONE place and this follows — a number invented
+       here instead would be a third presentation quietly drifting from the other two. */
+    .equipZone.zoneOpen{max-width:min(70%,190px);}
+    .equipZone .eq.eqOpen{padding:7px 12px; flex-direction:column; align-items:center; gap:2px;}
+    .equipZone .eq.eqOpen .eqEff{display:block;}
+    .equipZone .eq.eqOpen .eqName{font-size:13.5px; max-width:150px;}
+    .equipZone .eq.eqOpen .eqCtr{font-size:12px;} .equipZone .eq.eqOpen .eqCtr b{font-size:13.5px;}
+  }
+
   @media (orientation:landscape) and (max-height:520px){
     :root{ --headerH:37px; }        /* measured: the landscape header is 37px, so a hardcoded 54px floated 17px low */
     :root{ --cs:.82; --pm:1.15; }                              /* pile = .82 x 1.15 = .94, near full size */
+    /* THE ZONES MUST LEAVE THE PILE A CHANNEL (v1.31.111), and until now this band never mentioned them at
+     * all — it shrank the pile and the gaps and left four corner overlays sized for a DESKTOP-width table.
+     * The failure is pure arithmetic, measured at 800x360: the left zones ended at x=250 and the right ones
+     * began at x=370, a **120px channel**, and the pile is **203px** wide and centred — so both ends ran
+     * underneath and an end card came out **176% covered**. 667x375 passed the whole time for no better
+     * reason than its channel happening to be 253px.
+     * So the rule to hold is "the widest pile fits between the zones", and the lever is the CAP, because a
+     * zone renders at whatever its content wants up to `max-width` and the content here is a label. At 100px
+     * the tightest size (844x390) keeps ~32px of clearance each side; measure, do not re-derive.
+     * The LABEL WRAPS instead of setting the width, and it KEEPS THE OWNER'S NAME — unlike the panel, where
+     * the panel header supplies it. Here the two Forms zones float one above the other in the same corner,
+     * so two identical "FORMS & RIDES" labels would be genuinely ambiguous about whose is whose. */
+    .formZone, .equipZone{max-width:min(24%,100px);}
+    /* AND THE LABEL GOES, because the two Forms zones share the left column and the table is 87px tall.
+     * Capping the width alone fixed the pile and traded it for the OTHER collision the original analysis
+     * named — `rivalFormZone` and `youFormZone` overlapping EACH OTHER — because a narrower box wraps its
+     * label onto three lines and grows. A screenshot showed it instantly; the zone/pile measurement did not,
+     * which is why there is now a zone-vs-zone assertion beside it.
+     * Dropping it is not a loss of information: **the equipment zones in the same two corners have never had
+     * a label**, and position has always done the work — top is the seat above, bottom is you. That is the
+     * precedent, in this very component. The chips carry a per-card tooltip and read on tap. */
+    .formZone .zoneLbl{display:none;}
+    .equipZone .eqName{max-width:84px;}
     header{padding:3px 10px; gap:6px;}
     header h1{font-size:13px;}
     header h1 small{display:none;}
@@ -2504,10 +2535,29 @@ __QR__
     lbl.appendChild(who); lbl.appendChild(document.createTextNode('Forms & Rides')); el.appendChild(lbl);
     // COLLAPSED (default): a compact tap-to-expand strip — just rank/suit chips, or the single INCARNATION line when Super is live.
     if(formsOpen!==zk && !targeting){
-      var strip=document.createElement('div'); strip.className='formStrip'; strip.title='Tap to expand';
+      /* IN THE LANDSCAPE BAND THE STRIP NEVER EXPANDS, AND THE CHIPS BECOME THE READ PATH (v1.31.111).
+         Arithmetic, not taste: `#table` is **87px** at 800x360, the two Forms zones are stacked in the SAME
+         left column (`#rivalFormZone{top:30px}` / `#youFormZone{bottom:4px}`), and expanded mini-cards are
+         56px each — 112px of content for 87px of table, so expanding there can only produce the overlap this
+         version exists to remove. Refusing it would leave no way to read a Form, so each CHIP reads its own
+         card instead; that is strictly more precise than expanding the whole zone, and it costs no height.
+         `stopPropagation` so a chip never also toggles the strip in the layouts that do expand. */
+      var land=shortLandscape();
+      var strip=document.createElement('div'); strip.className='formStrip';
+      strip.title=land?'Tap a card to read it':'Tap to expand';
       if(superOn){ strip.innerHTML='<span class="superBadge mini">⚡ INCARNATION</span>'; }
-      else { strip.innerHTML=pl.forms.map(function(f){ return '<span class="formChip'+(f.tier==='ride'?' ride':'')+'">'+rankLabel(f.rank)+'<span class="'+(red(f.suit)?'sr':'')+'">'+SUIT_SYMBOL[f.suit]+'</span></span>'; }).join(''); }
-      strip.addEventListener('click', function(e){ e.stopPropagation(); formsOpen=zk; render(); });
+      else pl.forms.forEach(function(f){
+        var c=document.createElement('span');
+        c.className='formChip'+(f.tier==='ride'?' ride':'');
+        c.innerHTML=rankLabel(f.rank)+'<span class="'+(red(f.suit)?'sr':'')+'">'+SUIT_SYMBOL[f.suit]+'</span>';
+        if(f.card){
+          c.title=(f.name||'')+' — tap to read';
+          (function(fc){ c.addEventListener('mouseenter', function(){ showCard(fc); }); })(f.card);
+          (function(fc){ c.addEventListener('click', function(ev){ ev.stopPropagation(); showCard(fc); }); })(f.card);
+        }
+        strip.appendChild(c);
+      });
+      if(!land) strip.addEventListener('click', function(e){ e.stopPropagation(); formsOpen=zk; render(); });
       el.appendChild(strip); return;
     }
     // EXPANDED: full mini-cards (tap one to read it; tap anywhere else collapses the zone). Targeting always shows full cards.
@@ -6379,9 +6429,14 @@ __QR__
   $('settingsBtn').addEventListener('click', showSettings);
   /* Place the zones once at boot, then only when the branch FLIPS (rotation, a resized desktop window). */
   placeZones();
+  /* AND RE-RENDER, because the branch is now read at RENDER time as well as at move time (v1.31.111):
+   * `buildEqBox` asks `zonesInPanel()` whether the chip may expand, and `renderFormsZone` asks
+   * `shortLandscape()` whether its strip expands or its chips read. Placing the nodes without re-rendering
+   * would leave a rotated board holding the previous branch's handlers until something else redrew it. */
+  function zoneBranchChanged(){ placeZones(); if(typeof state!=='undefined' && state) render(); }
   try{ ['(max-width:720px)','(orientation:landscape) and (max-height:520px)'].forEach(function(q){   // BOTH — a rotation can cross either
          var mq=window.matchMedia(q);
-         if(mq.addEventListener) mq.addEventListener('change', placeZones); else if(mq.addListener) mq.addListener(placeZones);
+         if(mq.addEventListener) mq.addEventListener('change', zoneBranchChanged); else if(mq.addListener) mq.addListener(zoneBranchChanged);
        }); }catch(e){}
   /* THE ☰ SHEET (v1.31.105). A FUNCTION DECLARATION so `showModal` can call it whatever the source order —
    * every entry that opens a dialog must close the menu behind it, and doing that in `showModal` covers the
