@@ -849,7 +849,7 @@ unusable at cost 8.
   noise, not a real shift). Final suit map: **♦ Wizard · ♥ Cleric · ♣ Fighter · ♠ Rogue.**
 
 > **Gap:** the 2-as-apex + J/Q/K Rides/Forms rework (v0.70–v0.85) is not logged card-by-card here —
-> that arc lives in **NEXT-SESSION.md**. The rework-era entries below are the balance-relevant highlights only.
+> that arc lives in **CHANGELOG.md**. The rework-era entries below are the balance-relevant highlights only.
 
 ### v0.84 — Transform economy (rework)
 - J/Q/K transforms set to **FREE · draw 1 · table-gated** (unlock at total table shields lost:

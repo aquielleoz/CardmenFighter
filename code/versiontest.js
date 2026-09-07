@@ -29,8 +29,17 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
    * though it had. The version stamp is derived and therefore cannot drift; the changelog is hand-written and
    * silently can, which is exactly the asymmetry this closes. */
   const handoff=fs.readFileSync(path.resolve(__dirname,'..','docs','NEXT-SESSION.md'),'utf8');
-  ok(want ? handoff.indexOf('### '+want) >= 0 : false,
-     `docs/NEXT-SESSION.md carries a "### ${want}" changelog heading — a shipped version with no entry is how a change becomes unfindable`);
+  /* THE CHANGELOG MOVED OUT on 2026-09-07 (`NEXT-SESSION.md` was 6,061 lines and almost all of it was this), so
+   * the heading assertion follows it to `CHANGELOG.md`. */
+  const chlog=fs.readFileSync(path.resolve(__dirname,'..','docs','CHANGELOG.md'),'utf8');
+  ok(want ? chlog.indexOf('### '+want) >= 0 : false,
+     `docs/CHANGELOG.md carries a "### ${want}" heading — a shipped version with no entry is how a change becomes unfindable`);
+  /* AND THE SPLIT HAS TO HOLD. A version heading appearing back in the handoff doc means the two files are
+   * drifting into one again, which is how it reached 6,061 lines the first time — so that is a red suite, not
+   * a style note. Checked below `## BACKLOG` only, since an entry could legitimately QUOTE a version above it. */
+  const afterBacklog=handoff.slice(handoff.indexOf('## BACKLOG'));
+  const strayHeading=(afterBacklog.match(/^### v\d+\.\d+\.\d+/m)||[])[0];
+  ok(!strayHeading, `no changelog entry has crept back into NEXT-SESSION.md (found "${strayHeading||'none'}") — shipped work belongs in CHANGELOG.md`);
   /* THE HANDOFF DOC'S OWN HEADER IS PART OF THE CHAIN NOW (2026-08-31). This suite guarded
    * README → build → both screens → a changelog heading, and NOT the header a next session reads FIRST. So on
    * 2026-08-31 that header still said **v1.31.61**, `test.js` **325** and `netview` **28** against a real

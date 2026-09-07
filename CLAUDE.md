@@ -341,7 +341,7 @@ the setup dialog footer and the netplay lobby bar. **Do not add a second version
 drift is worse than none, because it makes a stale build look current. It exists because a real bug report
 ("the client has no name field") was a *stale download* of a feature shipped two versions earlier, and nothing
 on screen could say so; `versiontest.js` asserts the whole chain including the **repo-root copy**, which is the
-file people download — **and, since v1.31.33, that `docs/NEXT-SESSION.md` carries a `### vX.Y.Z` heading for
+file people download — **and, since v1.31.33, that the changelog (`docs/CHANGELOG.md` since 2026-09-07) carries a `### vX.Y.Z` heading for
 that version.** The stamp is derived and cannot drift; a hand-written changelog silently can, and v1.31.33
 nearly shipped with no entry because the script writing it threw on a stale anchor *before* its write. When a shipped feature is reported missing, check the reporter's build before the code.
 **AND SINCE 2026-08-31 THE HANDOFF HEADER IS IN THE CHAIN TOO, because it drifted THIRTEEN VERSIONS.** The guard
@@ -1435,7 +1435,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 387, `netview` 34, `mptest` 82, `rulestest` 150, `landscapetest` 127, `decktest` 42, `viewtest` 10,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 26, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 18, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 27, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 18, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -1820,7 +1820,7 @@ not a class problem but a rules problem. The lever belongs at the rules level �
 - Match the surrounding density: long single-line statements and trailing `//` comments are the house style
   here. Don't reformat existing code while making a change.
 - **Ship a changelog entry.** Every user-visible change gets a `### vX.Y.Z — short title` section at the
-  **top** of the changelog in `docs/NEXT-SESSION.md` (newest-first, directly under `## BACKLOG`), written as
+  **top** of [`docs/CHANGELOG.md`](docs/CHANGELOG.md) (newest-first), written as
   what changed and why, and bump the version in `README.md`'s `**Status:**` line. Move any item you completed
   out of `## BACKLOG`.
 - **FOUR DOCS, AND WRITING A THING INTO THE WRONG ONE IS HOW IT GETS LOST OR REDONE** (Aj, 2026-09-01, after a
@@ -1832,7 +1832,7 @@ not a class problem but a rules problem. The lever belongs at the rules level �
   | someone to DO it | `NEXT-SESSION.md` **`## BACKLOG`** — open work only |
   | nobody to redo or re-argue it | `DECISIONS.md` — measured dead ends, declined proposals, settled analyses |
   | the next session to WORK differently | **this file** — rules and invariants, not history |
-  | the record of what shipped and why | `NEXT-SESSION.md` **changelog** — newest-first, under the BACKLOG |
+  | the record of what shipped and why | **`CHANGELOG.md`** — newest-first, append-only history |
 
   **Each mistake has its own failure mode, and all four have happened here:** open work written into a changelog
   entry is invisible, because a changelog is history and nobody actions it (v1.31.81's parallelism and
@@ -1950,7 +1950,7 @@ paste`. If a PR wants two bumps it is two PRs.
 1. `npm test` — 0 FAIL, non-negotiable — plus every suite whose area you touched.
 2. `node build.js && cp CardmenFighter.html ../CardmenFighter.html`, then confirm `git status` is clean, so the
    built file provably matches the template.
-3. A changelog entry at the top of `docs/NEXT-SESSION.md`, the `**Status:**` line in `README.md` bumped (the UI
+3. A changelog entry at the top of `docs/CHANGELOG.md`, the `**Status:**` line in `README.md` bumped (the UI
    stamp is derived from it), and any completed BACKLOG item moved out.
 4. `node gen-cardlist.js` if a card's name, cost, or text changed.
 
@@ -1982,8 +1982,11 @@ definition, so it cannot delete them.
 - **WHICH DOC A THING GOES IN is a rule, not a preference — see the routing table under Conventions.** The
   short form: BACKLOG = someone should do it · `DECISIONS.md` = nobody should redo it · this file = work
   differently · changelog = what shipped.
-- `docs/NEXT-SESSION.md` — **start here**: build/test header, the RANKED backlog (open work only), full
-  changelog. Split on 2026-08-31; anything settled moved to `DECISIONS.md`.
+- `docs/NEXT-SESSION.md` — **start here**: build/test header, START HERE, and the RANKED backlog (open work
+  only). 6,061 lines → 293 when the changelog was split out on 2026-09-07.
+- `docs/CHANGELOG.md` — what shipped and why, newest first. Append-only history; nobody actions it, which is
+  why open work, a settled analysis or a rule written here is lost. `versiontest` asserts it carries a heading
+  for the current version, and that no entry creeps back into `NEXT-SESSION.md`.
 - **A LINK IS CHEAP; A RESTATED FACT IS NOT** (Aj, 2026-09-07: *"if we have to update multiple places just to
   record, then one of those places will be forgotten and go stale one time or another"* — and he is describing
   this repo's actual history: the handoff header drifted THIRTEEN versions, and the `test.js` count sat in three
