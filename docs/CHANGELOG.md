@@ -15,6 +15,53 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.112 — a Form-granted guard is a guard
+
+Aj, from real play with Hector Form and Apollo Mode both up: *"sanctuary did not prompt use when i was about
+to lose shields. it's quick now with all the supers activated so it should work at around the same timing as
+the leyline"*. Apollo patches Sanctuary with `shieldImmune` — it really does stop the shield loss — and the
+window never offered it.
+
+**THREE SITES, AND THE THIRD WAS THE INTERESTING ONE.** `shieldGuardCard` decides which card is offered and
+`shieldGuard` validates and applies it; both read **`effectOf`**, the card's BASE effect, so no Form or Super
+grant could ever qualify — the documented trap that hid three bugs in `ai.js`, here in `engine.js`. Both also
+tested **`e.immune`** while Apollo's patch spells it **`shieldImmune`**, and `resolveEffect` treats the two
+identically, so the gate was the only place in the engine that knew one spelling and not the other. The third:
+`shieldGuard` passed the BASE effect to `resolveEffect`, so a granted guard that somehow got through would
+have resolved **without** its immunity — gaining a shield and then losing one.
+All three now go through one `guardEffFor`, the house habit that produced `isChopOf` and `resolveIds`.
+The UI had the same trap one layer up: the modal described the guard with `effectOf`, which would have pitched
+Apollo's Sanctuary as the plain "every player gains 1 Shield" Technique it is without the Super.
+
+**WHAT IS DELIBERATELY STILL REFUSED, and it is asserted so nobody "finishes" the job:** Sanctuary is not
+offered against a **Fighter Kick**. `wouldBeSaved` says at 0 shields only `cantLose` — or a Holy Shroud
+absorb — prevents it, because plain immunity cannot save a shield you do not have, and Apollo grants immunity,
+not `cantLose`. So the round Aj actually died in is governed by the OTHER half of that entry, which is a rules
+question and is still open: base Sanctuary *gains* a shield rather than preventing the loss, and a gain before
+resolution would convert a kick into an ordinary strip.
+
+**AND THE AUDIT AJ ASKED FOR FOUND A WORSE ONE IN THE SAME CLASS.** *"any other similar effects we are
+missing?"* — bounded properly rather than grepped blind: pull every key any `BOOSTS` patch can set (22, and
+only `kind` is set by a single patch, which is what makes the list triageable), then cross-reference every
+`effectOf` that reads one.
+**`eligibleQuicks()` — the Respond? window's own list — read `effectOf`**, so all SIX `quick`-granting patches
+were invisible: Sanctuary under Hector and Apollo, Back Stab under Perseus and Hermes, Armor Piercing under
+Hippolyta. The failure mode is what makes it worse than the guard-window bug: `promptHumanResponse` treats an
+empty list as *"nothing to answer with"* and **auto-declines for the player** — no window, no log line, so the
+card reads as broken rather than unoffered. The tell that it was an oversight: `eligiblePreFightQuicks` sits
+twenty lines below it already using `effectFor`, with a comment saying why.
+**New suite `quicktest.js` (4)** drives it end to end — Hector in the zone, the Rival casts, the window must
+open and name Sanctuary. A/B'd: two reds on the broken build.
+Left filed rather than fixed, because neither makes anything unreachable: the ⏩ badge on a card face (needs an
+owner threaded through `cardEl`, or it mislabels a Rival's card the other way) and two `ai.js` heuristics that
+undervalue a granted Quick.
+
+**`test.js` 387 → 393.** Five assertions, and the NEGATIVES carry the weight — plain Sanctuary is still no
+guard, Leyline still guards both cases, and the kick is still refused. Verified by reverting the fix: one red,
+green again after. Worth keeping from writing them: the first Leyline control staged **9♥, which is Holy
+Shroud** — the Cleric block swaps 9/10, so Sanctuary is 10♥ and Leyline is 9♦. That reads as a product bug
+when it is a deck fact.
+
 ### v1.31.111 — the landscape band stops covering its own pile
 
 The band `(orientation:landscape) and (max-height:520px)` keeps the desktop structure on purpose and reclaims

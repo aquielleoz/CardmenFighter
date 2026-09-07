@@ -4223,11 +4223,18 @@ __QR__
   function openShieldGuardModal(r, cont){
     var g=gen, sr=state.shieldResponse;
     cont = cont || function(fr){ finishPassRound(fr); };
-    var guardCard=state.players[YOU].hand.filter(function(c){return c.id===sr.guardId;})[0], geff=guardCard?E.effectOf(guardCard):{};
+    /* `effectFor`, NOT `effectOf` — the same trap one layer up (v1.31.112). The engine now offers a guard a
+       Form or Super GRANTED, so the modal describing it must read the patched effect or it names the base
+       card's cost and flags: Apollo's Sanctuary would be pitched to the player as the plain "every player
+       gains 1 shield" Technique it is without the Super. `boosted` is set by `effectFor` itself, so the
+       prompt can say out loud that the guard exists because of what is in your zone. */
+    var guardCard=state.players[YOU].hand.filter(function(c){return c.id===sr.guardId;})[0];
+    var geff=guardCard?E.effectFor(state, YOU, guardCard):{};
     var threat = sr.roundWin ? ('Rival’s <b>'+(TYPE[r&&r.comboType]||'Special')+'</b>') : ('Rival’s <b>'+((sr.obj&&sr.obj.source)||'attack')+'</b>');
     var html='<h2>🛡 Shield threatened!</h2>'+
       '<p>'+threat+' is about to strip one of your shields. Spring <b>'+(geff.name||'your guard')+'</b> to become immune this round?</p>'+
-      '<div class="respIncoming"><b>'+(geff.name||'')+'</b> ('+(guardCard?cardSym(guardCard):'')+' · '+(geff.cost||0)+'⚡) — '+(geff.text||'')+'</div>'+
+      '<div class="respIncoming"><b>'+(geff.name||'')+'</b> ('+(guardCard?cardSym(guardCard):'')+' · '+(geff.cost||0)+'⚡) — '+(geff.text||'')+
+        (geff.boosted?' <i>(empowered by your '+(geff.boostTier==='super'?'Super':'Form')+')</i>':'')+'</div>'+
       tableContextHTML()+
       '<div class="respOpts"><button class="respQuick" id="sgYes">🛡 Guard with '+(geff.name||'it')+'</button>'+
       '<button id="sgNo" class="respLet">Take the hit</button></div>'+peekBtnHTML();
@@ -4719,7 +4726,15 @@ __QR__
   function eligibleQuicks(){
     var you=state.players[YOU], e=you.energy.length, pend=state.pending;
     return you.hand.filter(function(c){
-      var ef=E.effectOf(c);
+      /* `effectFor`, NOT `effectOf` (v1.31.112). SIX Form/Super patches grant `quick` — Sanctuary under
+         Hector and under Apollo, Back Stab under Perseus and Hermes, Armor Piercing under Hippolyta — and
+         reading the BASE effect made every one of them invisible here. This is not a cosmetic miss: when
+         this list comes back empty `promptHumanResponse` **auto-declines for you** and no window ever opens,
+         so a player holding a Form-made Quick was silently passed. Aj's *"sanctuary did not prompt use"* is
+         this as much as it is the shield-guard window.
+         The tell that it was an oversight rather than a decision: `eligiblePreFightQuicks`, twenty lines
+         below, already reads `effectFor` and says why in its own comment. Someone fixed that one. */
+      var ef=(E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c));
       if(!ef||!ef.impl||!ef.quick||!E.canAfford(you, c)) return false;
       if(ef.kind==='protect') return pend.eff.kind==='removeEquip' && you.equipment.length>0;
       return true;                                   // Counter Spell answers any Technique
