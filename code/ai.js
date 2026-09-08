@@ -4,7 +4,7 @@
  * combo (to try to win the trick with a combo and strip a shield); otherwise it
  * dumps a low single. When following, it plays the cheapest beating combo, else
  * passes. It uses card effects generically (kind-driven) and answers the
- * opponent's Techniques with Quicks (Counter Spell / Emergency Maintenance).
+ * opponent's Techniques with Quicks (Counter Spell / Annoint).
  * ========================================================================== */
 (function (root) {
   'use strict';
@@ -306,9 +306,9 @@
     return null;
   }
 
-  // Offensive Quick boost (Brilliant Tactic): when we'd otherwise pass, find the cheapest play
-  // that beats the pile ONLY with the +boost, and spring it to overtake. Returns {cards, boostId} or null.
-
+  /* The `quickBoostPlay` header that used to sit here described a REACTIVE overtake that no longer exists —
+     Brilliant Tactic was un-quicked into a technique-speed pre-fight boost, and the function went with it.
+     Left orphaned, it read as documentation for `rankCounts` directly below. Deleted v1.31.125. */
   function rankCounts(hand) { var m = {}; hand.forEach(function (c) { m[c.rank] = (m[c.rank] || 0) + 1; }); return m; }
 
   // Demon-Lord "strategic pass": concede a winnable JAB to conserve hand for Specials when running
@@ -470,7 +470,7 @@
          made the AI play slightly worse rather than making anything unreachable. */
       var ef = E.effectFor ? E.effectFor(st, p, card) : E.effectOf(card);
       if (ef) {
-        if (ef.quick) v += 6;                                    // hold a Quick (Counter / Annoint / Brilliant Tactic)
+        if (ef.quick) v += 6;                                    // hold a Quick (Counter Spell / Annoint / Leyline — Brilliant Tactic was un-quicked)
       }
       return v;
     }
@@ -488,13 +488,13 @@
         });
         return { action: 'play', cards: combos[0].cards };
       }
-      return { action: 'play', cards: (singles[0] || options[0]).cards };           // dump the most expendable jab (junk, not a STOPPER/combo card)
+      return { action: 'play', cards: (singles[0] || options[0]).cards };           // dump the most expendable jab (junk, not a combo card)
     }
 
     // following
     if (st.pile.combo.size === 1) {
       // a jab pile — only higher singles beat it. Win with plain fodder; never spend a card that's
-      // worth holding (part of a pair/trio, a STOPPER, or a Quick) just to win a jab. Else pass.
+      // worth holding (part of a pair/trio, or a Quick) just to win a jab. Else pass.
       var safe = singles.filter(function (x) {
         var c = x.cards[0];
         if (counts[c.rank] >= 2) return false;                              // don't break a Special
@@ -774,7 +774,7 @@
       });
       return best;
     }
-    // Emergency Maintenance: save our own equipment from a removal aimed at it.
+    // Annoint: save our own equipment from a removal aimed at it.
     if (eff.kind === 'removeEquip' && qp.equipment.length > 0) {
       var prot = bestQuick('protect');
       if (prot) { var pr = E.respond(st, q, prot.id); if (pr.ok) return pr; }
@@ -810,7 +810,8 @@
     }
   }
 
-  // ---- take a full turn: PLAY phase, then one FIGHT action (with a STOPPER escape) ----
+  // ---- take a full turn: PLAY phase, then one FIGHT action ----
+  // (the "STOPPER escape" this line used to name was deleted with the mechanic in v1.31.13)
   // `humans` (optional) = indices the AI must NOT auto-respond for; if a response
   // window opens for one of them the turn suspends (st.pending stays set) and this
   // returns the partial log — call takeTurn again once the human has responded.

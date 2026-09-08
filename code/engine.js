@@ -665,7 +665,8 @@
   // shield immunity; Holy Shroud = an equipped absorber that spends one of its own counters instead.
   function shieldSaved(st, q) {
     var pl = st.players[q];
-    if (pl.shieldImmune) return true;                                            // Sphere of Invulnerability (shield loss only)
+    if (pl.shieldImmune) return true;                                            // shield-loss immunity — Leyline's `immune`, or Apollo-Sanctuary's `shieldImmune`. (There is no card called
+                                                                                 // "Sphere of Invulnerability"; that name outlived the card by a long way.)
     return absorbSaved(st, q);                                                   // Holy Shroud absorber
   }
   // Read-only peek: would q's loss be prevented anyway (no side effects)? Used to gate the reactive window.
@@ -1270,18 +1271,11 @@
     if (pitchCard && res) res.pitched = { rank: pitchCard.rank, suit: pitchCard.suit, id: pitchCard.id };
     return res;
   }
-
-  // Would ANY living opponent both want and be able to answer this pending Technique? (N-player)
-  function opponentCanRespond(st, p, eff) {
-    for (var q = 0; q < st.numPlayers; q++) {
-      if (q === p || st.players[q].eliminated) continue;
-      var opp = st.players[q];
-      var holds = function (kind) { return opp.hand.some(function (c) { var ef = effectFor(st, q, c); return ef && ef.impl && ef.kind === kind && canAfford(opp, c); }); };
-      if (holds('counter')) return true;                                                     // Counter Spell answers any Technique
-      if (holds('protect') && eff.kind === 'removeEquip' && opp.equipment.length > 0) return true; // Emergency Maintenance vs removal
-    }
-    return false;
-  }
+  /* `opponentCanRespond` WAS DELETED HERE (v1.31.125). It answered "may anyone respond?" for the RETIRED
+     one-level window — Counter Spell vs any Technique, Annoint vs a removal — and the v0.58 stack rework
+     replaced it with `canAddToStack`, which admits ANY affordable Quick. It survived as dead code, still
+     EXPORTED on the engine API, which made it the natural place a reader would go to "fix" a response-window
+     bug: narrower than the real gate, and wrong in a direction that looks like a safety check. */
 
   // ---- effect stack: an activated Technique/Quick is a stack object; players pass priority
   // (active-first, auto-passing anyone with no Quick) answering with Quicks until it resolves —
@@ -1291,10 +1285,14 @@
     st.stack.push({ oid: newOid(st), kind: 'effect', p: p, card: card, eff: eff, opts: opts, countered: false });
     return openResponseWindow(st);
   }
-  // ---- PRE-FIGHT WINDOW (Phase 2): before the ACTIVE player's Play Sub-Phase, the NON-active player
-  // may spring a proactive Quick. Gated to Back Stab (the lockout Quick — the card whose whole point is
-  // this timing); widen preFightHolder to open it for any Quick. The sprung Quick goes on the stack, so
-  // the active player still gets to answer it (e.g. Counter Spell the Back Stab). ----
+  /* ---- THE PRE-FIGHT WINDOW: the priority pass before the active player's shedding play.
+     It is NOT a Back Stab carve-out, which is what this comment used to imply — see
+     `docs/PHASES-AND-PRIORITY.md` §3: priority is passed around before the active player may play, and every
+     player's Quicks are legal there. `preFightHolder` below already tests plain `e.quick` and gates nothing to
+     one card; the NARROWING to lockout Quicks lives in the UI (`eligiblePreFightQuicks`), which is where to
+     look, and it is filed in the BACKLOG along with the fact that this window is offered to ONE seat and
+     gives up rather than passing priority on.
+     The sprung Quick goes on the stack, so it can itself be answered (e.g. Counter Spell the Back Stab). ---- */
   function preFightHolder(st) {
     if (st.finished || st.pending || st.shieldResponse || st.stack.length || st.preFightHandled) return -1;   // one window per active-player fight (survives UI suspend/resume)
     var q = nextPlayer(st, st.turn), opp = st.players[q];
@@ -1320,7 +1318,10 @@
     payEnergy(qp, card);
     var o = opts || {};
     if (o.target == null) o.target = st.turn;                          // a pre-fight Back Stab always locks the ACTIVE player (in 2p that's nextPlayer(q); in 3p+ they differ)
-    return pushEffect(st, q, card, eff, o);                            // opens a response window for the active player
+    /* Opens a response window — for every living opponent of `q` in turn, NOT just the active player, which
+       is what this line used to claim. They coincide in a duel and usually do not at 3-6 (see the BACKLOG:
+       priority is walked from the CONTROLLER rather than the active player). */
+    return pushEffect(st, q, card, eff, o);
   }
   function preFightPass(st, q) { if (st.preFightQ === q) st.preFightQ = null; st.preFightHandled = true; return { ok: true, state: st }; }
 
@@ -1478,9 +1479,7 @@
       case 'valueBoost':                                  // Infuse / Imbue / Divine Tactic: charge your next play
         pl.nextPlayBoost = (pl.nextPlayBoost || 0) + (eff.boost || 0);
         spendCard(pl, card); break;
-      case 'shieldImmune':                                // Sphere of Invulnerability: no shield loss this round
-        pl.shieldImmune = true; spendCard(pl, card); break;
-      case 'onWin':                                       // Finishing Blow: your next combo win strips an extra shield
+      case 'onWin':                                       // Armor Piercing (renamed from Finishing Blow): your next combo win strips an extra shield
         pl.finishingBlow = true; spendCard(pl, card); break;
       case 'lockout':                                     // Back Stab: the target skips the WHOLE ROUND (no fights, no Techniques)
         hostileTargets(st, p, oppIdx, 'lockout', eff).forEach(function (t) {
@@ -1561,12 +1560,13 @@
           st.stack.push({ oid: newOid(st), kind: 'shieldloss', target: t, n: (eff.n || 1), winner: p, source: eff.name, noKick: true, noGuard: true });
         });
         spendCard(pl, card); break;
-      case 'counter':                                     // proactively cast Counter Spell with nothing on the stack to counter — fizzles
-        spendCard(pl, card); break;
-      case 'protect':                                     // proactively cast Annoint — shield your own equipment for the round (fizzles if you have none)
-        var ownEq = pl.equipment.filter(function (e) { return !opts.target || e.id === opts.target; })[0];
-        if (ownEq) { ownEq.protectedRound = st.round; if (eff.addCounter) ownEq.counters += eff.addCounter; }   // Cassandra: also add a counter
-        spendCard(pl, card); break;
+      /* NO `counter` / `protect` CASES HERE, AND THAT IS NOT AN OVERSIGHT (v1.31.125). `resolveTopEffect`
+         handles both BEFORE it would ever delegate to this switch — a Counter Spell marks the object beneath
+         it, an Annoint shields the equipment a removal below is aiming at — so these cases were unreachable.
+         They were also actively misleading: their comments described the §0.4 proactive-fizzle path, which is
+         real behaviour implemented in `resolveTopEffect` (a counter with nothing beneath it finds no object
+         and the card goes to `removed` — that IS the fizzle). Deleted rather than commented, because dead code
+         that looks alive in the layer you would read first is the trap CLAUDE.md keeps recording. */
       case 'befuddle':
         var opp2 = st.players[oppIdx];
         for (var i3 = 0; i3 < (eff.n || 6); i3++) { var bc = drawOne(opp2); if (bc) opp2.energy.push(bc); }
@@ -1589,7 +1589,7 @@
           if (zHit) { spendCard(pl, card); break; }
         }
         var tgt2 = pickEquip(st, p, opts.target);
-        if (tgt2 && tgt2.e.protectedRound !== st.round) {   // Emergency Maintenance can shield the target this round
+        if (tgt2 && tgt2.e.protectedRound !== st.round) {   // Annoint can shield the target this round
           var ownerPl = st.players[tgt2.q];
           ownerPl.equipment = ownerPl.equipment.filter(function (x) { return x !== tgt2.e; });
           refreshPile(st);   // a pile already on the table loses this equipment's contribution (recomputed live)
@@ -1973,7 +1973,7 @@
     if (!wonWithCombo || !strikeTargets.length) return finishRoundWin(st, result);   // jab win (or no valid target): nobody loses a shield
     var wpl = st.players[winner];
     var strips = 1;
-    if (wpl.finishingBlow) { strips = 2; wpl.finishingBlow = false; result.finishingBlow = true; }   // Finishing Blow: one extra
+    if (wpl.finishingBlow) { strips = 2; wpl.finishingBlow = false; result.finishingBlow = true; }   // Armor Piercing: one extra
     st.roundWinResult = result;
     strikeTargets.forEach(function (q) {
       st.stack.push({ oid: newOid(st), kind: 'shieldloss', target: q, n: strips, winner: winner, source: 'fight' });
@@ -2371,7 +2371,7 @@
     isPartsKey: isPartsKey, buildFromParts: buildFromParts, presetParts: presetParts,
     canAfford: canAfford, payEnergy: payEnergy, costReq: costReq, reorderEnergy: reorderEnergy, promoteEnergy: promoteEnergy, idSuits: idSuits, costHint: costHint, countSuit: countSuit, defaultPips: defaultPips,
     discardToLimit: discardToLimit, MAX_HAND: MAX_HAND,
-    effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, opponentCanRespond: opponentCanRespond, useEquipment: useEquipment, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
+    effectOf: effectOf, cardName: cardName, activate: activate, respond: respond, declineResponse: declineResponse, useEquipment: useEquipment, equipTargets: equipTargets, chooseTop: chooseTop, resolveDiscard: resolveDiscard, applyEquip: applyEquip, equipDelta: equipDelta, refreshPile: refreshPile, playModifiers: playModifiers, costModifiers: costModifiers,
     START_HAND: START_HAND, DRAW_PER_ROUND: DRAW_PER_ROUND, START_SHIELDS: START_SHIELDS,
     setShieldsPerPlayer: setShieldsPerPlayer, isShieldsPerPlayer: isShieldsPerPlayer,
     drawCountFor: drawCountFor, startShieldsFor: startShieldsFor,   // the UI must show the SCALED numbers, not the constants
