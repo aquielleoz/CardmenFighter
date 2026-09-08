@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**393**) + `node netview.test.js` (**60**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**397**) + `node netview.test.js` (**60**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including all 49 `nettest_*` suites and the ten `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.119.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.120.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.119**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.120**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -114,14 +114,14 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
     neither a fight nor a Technique, and activated equipment is coming — but Back Stab's text denies fights and
     **Techniques**, and `respond()` accepts one today (engine.js:1329).
 
-- **★ A TECHNIQUE CAN NEVER FINISH A GAME, AND THE BUTTON DOES NOT SAY SO.** `destroyShield` is flagged
-  `noGuard` **and** `noKick`, so against an opponent on 0 shields the ⚡ on Ultima Attack / Critical Hit is
-  fully lit, you pay the energy **plus** the Broadway pitch, and nothing happens. The audit filed this as a
-  deliberate divergence on the strength of a code comment; **Aj overruled it** — *"the techniques are shield
-  losses. player loss is only through kicks. kicks only happen when there are no shields left."* So a technique
-  striking a 0-shield player should kick. Two halves: make the kick reachable, and refuse or grey the cast when
-  it would do nothing.
-
+- **A SHIELD-LOSS TECHNIQUE CAN BE CAST AT A RIVAL WITH NO SHIELDS, AND SILENTLY DOES NOTHING.** Critical Hit
+  ♠9 and Ultima Attack ♣10 both read *"Target Rival loses 1 shield."* Against a rival on 0 the ⚡ is fully lit,
+  you pay the energy **and** the Broadway pitch, and nothing happens.
+  **The fix is to refuse the cast, NOT to make it kick.** `noKick` on `destroyShield` is correct and the audit
+  classified it correctly: *"no shield loss technique is a kick. none can be turned into kicks — check the
+  wording"* (Aj, 2026-09-08). The Fighter Kick is a FIGHT outcome — a Special win against a rival already at 0
+  — and the card text never claims otherwise. A Technique can take you to 0 and never past it.
+  `activateBlock` is the home: it already carries fizzle guardrails for `counter` and `protect`.
 - **THE ENGINE AND THE UI DISAGREE ABOUT WHO MAY RESPOND.** `canAddToStack` (engine.js:1331) admits any
   affordable Quick; the UI's `eligibleQuicks` is narrower, so the engine opens a window the screen then
   auto-declines — e.g. an Annoint holder against a non-removal. Solo it is invisible; **on a netplay client it

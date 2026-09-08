@@ -288,10 +288,12 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   // a name is only for OTHERS — you stay "You" in your own frame
   const nbYou=await beatsFor({ roundWinner:0, comboType:'pair', shieldStripped:true, struck:[1] });
   ok(/^You\b/.test(nbYou), '…but you are still "You" to yourself: "'+nbYou+'"');
-  // unnamed seats keep the placeholder
+  /* An unnamed seat falls back to "Rival N", NUMBERED (v1.31.120) — it was `P2`, and the point of the change
+     is that the number survives into the default so an un-renamed rival is still identifiable. Assert the
+     number is there, not merely that some placeholder is: "Rival" alone is the bug this replaced. */
   await p.evaluate(()=>window.__solo.names(['', '', 'Bo'])); await wait(300);
   const mixed=await p.evaluate(()=>[].map.call(document.querySelectorAll('.oppPanel .oppName'),e=>e.textContent.trim()));
-  ok(mixed.some(t=>/\bP2\b/.test(t)) && mixed.some(t=>/Bo/.test(t)), 'an unnamed seat keeps its P<n> placeholder: '+JSON.stringify(mixed));
+  ok(mixed.some(t=>/\bRival 2\b/.test(t)) && mixed.some(t=>/Bo/.test(t)), 'an unnamed seat falls back to a NUMBERED default: '+JSON.stringify(mixed));
   // hostile text is sanitised, not rendered
   await p.evaluate(()=>window.__solo.names(['', '<img src=x onerror=alert(1)>', 'Bo'])); await wait(300);
   const safe=await p.evaluate(()=>{ const el=document.querySelector('.oppPanel .oppName'); return { html:el.innerHTML, imgs:document.querySelectorAll('.oppPanel img').length }; });

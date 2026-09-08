@@ -15,6 +15,53 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.120 — four defects from the priority audit, and a fourth namer nobody knew about
+
+The cheap, deterministic half of the audit — the fixes that do not wait on the Fight End rebuild.
+
+**THE AI DID NOT RATE LOSING ITS WHOLE TURN AS A THREAT.** `respondDecision`'s Counter Spell test was four
+inline `||`s and `lockout` was not among them, so the AI declined Back Stab while visibly holding Counter
+Spell and then sat out the round. It is a declared table now, and the guard against the next omission is a
+**test**: every effect kind the card set can produce must appear in exactly one of `THREAT_KIND` /
+`BENIGN_KIND`, or `test.js` fails **naming the kind**.
+**The list is deliberately NOT inverted.** "Anything not declared benign is a threat" is the tempting fix and
+it is a **strength** change — the AI would counter far more than it does today, which this repo measures
+before shipping. Behaviour moves by exactly one kind; the rest is a guard.
+
+**THE AI'S IMMUNITY FILTER KNEW ONLY ONE OF THE TWO SPELLINGS.** It tested `e.immune`; the engine's
+`guardEffFor` has admitted `immune || shieldImmune` since v1.31.112. So an AI in Apollo Mode holding Sanctuary
+took an Ultima Attack on the chin and would have sprung the same card against a fight-win strip a moment
+later. It calls `guardEffFor` now — exported for the purpose — so the next spelling added there reaches the AI
+for free. Third instance of the `effectFor` family.
+
+**THE DEFAULT NAME IS "Rival N" FOR EVERY SEAT, HOST INCLUDED** (Aj: *"we need to add a number to Rival so that
+you'll know which rival… we can still keep Rival + number as the default name for everyone"*). It replaces two
+defaults that disagreed — `P2` in `seatName`, a bare `Rival` in `logName`'s duel branch — and fixes the guard
+modal, which said *"Rival's Special is about to strip one of your shields"* at a six-player table, naming
+someone who was not there and withholding the one fact you needed.
+**AND IT SURFACED A FOURTH NAMER.** The netplay log receiver carried its own private copy of the rule —
+`r===0 ? 'You' : (nameOf(r) || (n===2 ? 'Rival' : 'P'+(r+1)))` — so **every public narration line a client
+renders** went through it rather than through `logName`. Found by changing the default in one place and
+watching a client's log not change. It calls `logName` now.
+
+**A SHIELD-LOSS TECHNIQUE CAN NO LONGER BE CAST AT A RIVAL WITH NOTHING TO LOSE.** Critical Hit ♠9 and Ultima
+Attack ♣10 both read *"Target Rival loses 1 shield."*; against a table where no rival had one, the ⚡ was fully
+lit and the cast burned the energy **and** the Broadway pitch for nothing.
+**The fix is refusal, not a kill, and getting that wrong was the near-miss of the day.** I read Aj's *"player
+loss is only through kicks; kicks only happen when there are no shields left"* as licence to make the
+Technique kick, and filed the audit's correct classification as a bug. He caught it: *"no shield loss technique
+is a kick. none can be turned into kicks... check the wording please."* The wording is the whole argument. The
+Fighter Kick is a **fight** outcome; a Technique takes you to 0 and never past it. `noKick` was right all
+along — see [`DECISIONS.md`](DECISIONS.md#priority-divergences).
+
+**AND THE UI STOPPED DISAGREEING WITH THE ENGINE ABOUT WHO MAY RESPOND.** `eligibleQuicks` hid Annoint unless
+the pending effect was a removal; `canAddToStack` grants priority for any affordable Quick. So the engine
+opened a window the screen reported empty and `promptHumanResponse` auto-declined one the player was owed —
+invisible solo, a visible round trip on a netplay client. Offering a Quick that will fizzle is correct:
+casting is free and a Quick with no target fizzles rather than being illegal.
+
+`test.js` 393 → 397.
+
 ### v1.31.119 — the rotation differential was deal-dependent, and it shipped a flaky gate
 
 Same-day repair of v1.31.118. **`netview.test.js` failed 2 runs in 20**, and `versiontest` — which RUNS the
