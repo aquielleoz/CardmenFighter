@@ -2092,7 +2092,8 @@ Written 2026-08-25 after a cleanup found **18 merged branches** still on the rem
 `push --force-with-lease` back to the previous merge — recoverable, but only because it was caught immediately.
 Branch first, always.
 
-**Five prefixes, no synonyms.** `feature/` is dead; it is `feat/`.
+**Six prefixes, no synonyms.** `feature/` is dead; it is `feat/`. `epic/` was the sixth, added
+2026-09-08 by the documented process below rather than by surprise.
 
 | Prefix | For | Example |
 | --- | --- | --- |
@@ -2101,6 +2102,7 @@ Branch first, always.
 | `docs/` | docs, handoff, backlog only | `docs/branch-and-pr-rules` |
 | `exp/` | a balance experiment that **may be reverted** | `exp/shields-scale-down` |
 | `parked/` | built, green, deliberately unmerged | `parked/qr-scanning` |
+| `epic/` | work too big for one PR: a long-lived integration branch that sub-branches PR **into** | `epic/priority-windows` |
 
 **THE PREFIX RULE IS A GATE NOW, NOT AN HONOUR SYSTEM — `code/checkbranch.js`, run by `.githooks/pre-push`.**
 Enable it once per clone: `git config core.hooksPath .githooks`. It refuses an undocumented prefix outright and
@@ -2117,6 +2119,21 @@ prefixes that necessitate adding, then we'll add them. but no surprises"*). The 
 the list is a shared vocabulary: a prefix nobody agreed to is unreadable to everyone else, and two of them
 meaning the same thing is how `feature/` and `feat/` came to coexist. Propose it, then add it to the table AND
 to `checkbranch.js`'s list in the same commit.
+**`epic/` IS THE SIXTH, AND IT IS WHAT THAT PROCESS LOOKS LIKE WHEN IT WORKS** (Aj, 2026-09-08:
+*"i'm also thinking of moving this to it's own whole epic separate from main. so we can leave main as is...
+and then test the entirety of this thing before we merge"*). Proposed, agreed, then added to the table and to
+`checkbranch.js` in one commit — the exact sequence `perf/` skipped. **Reach for it only when the work cannot
+be one PR**; a branch that could have been a `feat/` and is called an `epic/` is the same drift wearing a
+bigger word. Four rules, and each is a way a long branch dies:
+- **Sub-branches PR INTO the epic, never into `main`.** The epic is the integration point; `main` sees exactly
+  one merge, at the end.
+- **The version is held for the whole epic and bumped ONCE at the merge.** Bump it early and the handoff
+  header, the README and both in-game screens all claim a version nobody can download — precisely the drift
+  `versiontest` exists to catch.
+- **Merge `main` INTO the epic after every session spent elsewhere.** An epic's real enemy is `main` moving
+  underneath it, and one heroic rebase at the end is how these turn into abandoned branches.
+- **The sweep must be green ON THE EPIC before the merge**, not merely on each sub-branch. Testing the whole
+  thing together is the entire reason to have one — a green sub-branch says nothing about the integration.
 **And it could have been `exp/` first and `fix/` second** (Aj's reading, and the better one): the parallel
 sweep genuinely might have been reverted if the suites had flaked under contention, which is what `exp/` is
 for. Reaching for a new word was the lazy move, not the necessary one.
