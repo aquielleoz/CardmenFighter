@@ -1,5 +1,32 @@
 # The Fight End priority window — rebuild plan
 
+> ## ⏳ THIS IS A WORKING PLAN. IT IS MEANT TO DIE.
+>
+> **Status: LIVE while `epic/priority-windows` is unmerged.** Written 2026-09-08, and it is `BUILD-PLAN-v0.82`
+> for this epic — the same species of document, headed for the same shelf.
+>
+> - **What outlives it:** [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md). **That** is current truth for the
+>   rules, and where the two disagree it wins — several rulings landed here first and were then written up
+>   properly there. This file is scheduling, enumeration and reasoning; it is not the rules.
+> - **How it ends:** step 23 folds anything still worth keeping into its real home — measurements to
+>   `DECISIONS.md`, remaining levers to the BACKLOG, rules to `CLAUDE.md`, the model to
+>   `PHASES-AND-PRIORITY.md` — and **deletes this file.** That is the intended ending, not an optional tidy-up.
+> - **If you are reading this and the epic has merged, it is HISTORICAL** and step 23 did not finish. Trust the
+>   four docs above; treat everything here as a record of how the decision was reached.
+>
+> **It is deliberately NOT in `versiontest`'s citation gate** (Aj, 2026-09-08). Being in that list would mark it
+> as a live doc, which is exactly the wrong signal for a file whose job is to expire — and the risk this
+> document actually carries is not a rotten `file:line` but going **zombie**: half-actioned, superseded by
+> later decisions, still reading as authoritative. CLAUDE.md's own staleness sweep found the same thing —
+> *"the staleness this repo actually suffers is not in names or counts, which are gated; it is in CLAIMS."*
+> A gate cannot catch that. **This header is the countermeasure: an expiry date a reader meets first.**
+>
+> **Already superseded inside this file**, so read the warnings rather than the section titles: the
+> **commit sequence was rewritten** (v2, 23 steps — the v1 fifteen are gone and the audit above them says
+> why), the **sentinel design was dropped entirely**, and the judges' argument about its `kind` is kept only
+> for the reasoning. The three standing defects are lettered **A/B/C** precisely so a renumber cannot break
+> what cites them.
+
 **The fix is a DELETION.** [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) §3 says that before the Fight
 End Sub-Phase priority is passed around — every player, in turn order, any Quick, before *anything* happens.
 What was built instead is a shield-**guard** dialog: `driveShieldStack` (`engine.js`) offers a window to the
