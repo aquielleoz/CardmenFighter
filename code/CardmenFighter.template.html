@@ -598,8 +598,15 @@
   /* full-screen card reader — the whole page becomes the description box (for tight screens where the inline strip is hidden) */
   #cardFull{position:fixed; inset:0; z-index:37; display:none; flex-direction:column; background:linear-gradient(180deg,#1b1026,#120a1c); padding:14px;}
   #cardFull.show{display:flex;}
-  #cardFull #cardFullClose{align-self:flex-end; flex:0 0 auto; font:inherit; font-weight:800; font-size:15px; color:var(--txt); background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:9px 15px; cursor:pointer;}
-  #cardFull .cfScroll{flex:1 1 auto; min-height:0; overflow-y:auto; display:flex; flex-direction:column; align-items:center; gap:14px; padding:12px 4px 4px; max-width:560px; width:100%; margin:0 auto;}
+  /* CENTRE-BOTTOM, NOT TOP-RIGHT (Aj, 2026-09-07: *"can we move the close button to the center bottom instead
+     of upper right? it's so far away from the magnifying glass button and the hand"*). Both things he names
+     live at the BOTTOM of a phone: the 🔍 that opens this reader is in the action row and the hand sits just
+     above it — so the one control that dismisses it was the only part of the interaction at the far end of the
+     reach. Done with `order` rather than by moving the markup, so nothing that queries the DOM shifts and the
+     button is still the first thing a keyboard reaches. Sized to a real 44px tap target and capped to the art
+     width so it reads as part of the card rather than a stray bar. */
+  #cardFull #cardFullClose{order:2; align-self:center; width:100%; max-width:440px; margin-top:12px; flex:0 0 auto; font:inherit; font-weight:800; font-size:16px; color:var(--txt); background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:13px 15px; cursor:pointer;}
+  #cardFull .cfScroll{order:1; flex:1 1 auto; min-height:0; overflow-y:auto; display:flex; flex-direction:column; align-items:center; gap:14px; padding:12px 4px 4px; max-width:560px; width:100%; margin:0 auto;}
   #cardFull .cfArt{flex:0 0 auto; width:100%; max-width:440px; aspect-ratio:3/2; background-size:cover; background-position:center; border-radius:14px; border:1px solid var(--line);}
   #cardFull .cfArt.empty{display:none;}
   #cardFull .cfText{flex:0 0 auto; width:100%; text-align:left;}

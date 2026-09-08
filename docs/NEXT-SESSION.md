@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.120.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.121.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.120**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.121**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -215,14 +215,6 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   resets `#modal`'s class list so a wide dialog cannot leak into the next one). Do the same here rather than
   widening `.modal`. Note the rules panel's columns are keyed to WIDTH (1040px/1400px); this one wants short
   and wide, so the query is the landscape band, not a width breakpoint.
-
-- **THE CARD VIEWER'S CLOSE BUTTON IS IN THE WRONG CORNER FOR A THUMB** (Aj, 2026-09-07: *"can we move the
-  close button to the center bottom instead of upper right? it's so far away from the magnifying glass button
-  and the hand..."*). Both things he names are at the BOTTOM of a phone screen — the 🔍 that opens the reader
-  lives in the action row and the hand sits above it — so the one control that dismisses it is the only part of
-  the interaction at the far end of the reach. Centre-bottom, full-width-ish, the way the reader's own content
-  already flows. Check it against `viewtest` (which runs at 390x780 because `#viewCardBtn` only exists inside
-  `(max-width:720px) and (max-height:800px)`) and against the peek overlay, which shares the dialog furniture.
 
 - **TAPPING AN EQUIPMENT ON THE BOARD SHOULD OPEN THE CARD VIEWER** (Aj, 2026-09-07: *"when we click equipments
   on the board, can we open the card viewer?"*). Today it calls `showCard`, which fills the `#cardView`
