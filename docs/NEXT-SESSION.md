@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**393**) + `node netview.test.js` (**55**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**393**) + `node netview.test.js` (**60**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including all 49 `nettest_*` suites and the ten `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.117.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.118.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.117**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.118**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -316,32 +316,6 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   win stripping shields from *more than one* rival as the table grows, or `START_SHIELDS` scaling **down** with
   player count (the promising re-land direction, PATCHNOTES 0k). Worth a small committed harness for
   median/mean/max rounds by player count, since the original numbers came from a one-off.
-
-- **★ INITIATIVE HAS NO CATCH-UP, AND THAT IS PROBABLY THE REAL PROBLEM** (Aj, from play, 2026-08-23).
-  `engine.js` ~1685 does `st.initiative = winner; st.turn = winner;` — **the round winner leads the next
-  round** — a rich-get-richer loop, colliding with two other rules: **only a Special breaks a shield**, and you
-  may only beat the pile with a **higher value of the SAME shape**. So a player who is not winning rounds can
-  almost never *lead*, and therefore can almost never deploy a Special: their full house is dead weight until
-  somebody happens to lead a lower one. Aj, mid-game: *"three rounds in a row throwing jab after jab… I didn't
-  want to break my full house to answer their pair."* It worsens with player count.
-  **The game has CARD catch-up (shields-as-cards, loser-mill) and NO INITIATIVE catch-up. That asymmetry is the
-  thing to attack.** Directions, none designed yet:
-  - **Rotate the lead** instead of awarding it to the winner — clockwise, or to whoever has led least recently.
-    Cheap to try and directly measurable.
-  - **Let a bigger shape answer a smaller one at a cost** (energy, or reduced banking), so holding a Special is
-    never structurally dead.
-  - **Frame passing as a real choice in the UI.** Aj: *"I think the real strat is really to pass."* The engine
-    agrees — a pass spends no hand cards and still banks energy via the loser-mill — but the tutorial teaches
-    *"leading a jab is the safe way to stock energy"*, which may be teaching the weaker line.
-  **READ [`DECISIONS.md#strategic-pass`](DECISIONS.md#strategic-pass) FIRST.** The AI-side strategic pass was
-  studied and is **inert in multiplayer** (the gate stays) — do not re-run it. That entry also carries the two
-  findings that matter more than the pass did — how concentrated initiative actually is (with the harness that
-  prints it, which is what any fix here is evaluated against), and that **the AI is not jab-locked** while the
-  human feels starved. Read both there before redesigning anything.
-  **One cheap experiment is still untried and belongs before any redesign:** `ai.js` hard-gates the strategic
-  pass to `numPlayers === 2`, so **every free-for-all balance number we have was measured with it switched
-  off**. Drop the guard, re-run `mpsim.js`, and see whether the jab-spam is partly an AI artefact rather than a
-  rules problem. It would be embarrassing to redesign initiative to fix a missing `if`.
 
 - **The "outbid" pass model for the AI** (Aj — parked 2026-08-24, may come back). The AI currently picks the
   *lowest safe single* to contest a jab, and never asks *"will this card even survive five opponents?"* Aj's

@@ -7173,9 +7173,21 @@ __QR__
     // reaches another peer over the internet. ----
     var hubMode=false, dcs=[], chanSeat=[];   // RTC host: open client channels + each channel's assigned seat
     function hostAddChannel(chan){ chan.onmessage=function(e){ var m; try{ m=JSON.parse(e.data); }catch(_){ return; } onMsg(m, chan); }; dcs.push(chan); chanSeat.push(null); trace('hostAddChannel', 'channels now '+dcs.length); }
+    /* THE STRINGIFY WAS OUTSIDE THE TRY, AND THIS IS THE ONE SENDER WHERE THAT MATTERS (v1.31.118). `sendTo`
+       and `sendTo0` already serialise inside theirs; `send` did not, so an unserialisable body threw straight
+       OUT of send and killed its caller rather than being swallowed. The caller that matters is `endGame` — a
+       fault there aborts the end screen for everybody.
+       AND THE SERIALISE IS UNCONDITIONAL NOW, WHICH IS THE HALF THAT MAKES IT TESTABLE. BroadcastChannel uses
+       structured clone and never stringifies, so a JSON-only fault on this path was unreachable by ANY suite —
+       every `nettest_*` runs on BC. Same move as v1.31.115's parse-through for mirrors: pay one stringify on a
+       path carrying a handful of messages a round, and both transports carry identical bytes. A body BC would
+       have tolerated is now equally refused on BC, where a test can see it. */
     function send(m){
-      if(hubMode){ var s=JSON.stringify(m); for(var i=0;i<dcs.length;i++){ try{ if(dcs[i].readyState==='open') dcs[i].send(s); }catch(e){} } return; }
-      try{ transport && transport.send(m); }catch(e){}
+      var s;
+      try{ s=JSON.stringify(m); }
+      catch(e){ trace('send UNSERIALISABLE', 't='+((m&&m.t)||'?')+' — '+((e&&e.message)||e)); return; }
+      if(hubMode){ for(var i=0;i<dcs.length;i++){ try{ if(dcs[i].readyState==='open') dcs[i].send(s); }catch(e){} } return; }
+      try{ transport && transport.send(JSON.parse(s)); }catch(e){}
     }
     function sendTo(seat, m){    // deliver only to `seat` (RTC hub); on BC/client it broadcasts and the recipient filters by seat/cid
       if(hubMode){ for(var i=0;i<dcs.length;i++){ if(chanSeat[i]===seat){ try{ if(dcs[i].readyState==='open') dcs[i].send(JSON.stringify(m)); }catch(e){} return; } } return; }
@@ -8326,6 +8338,14 @@ __QR__
         finished:!!(hostState && hostState.finished),
         shieldStripped:!!res.shieldStripped, opening:!!res.opening, newRound:res.newRound, shieldToHand:!!res.shieldToHand };
       if(res.milled){ o.milled={}; for(var k in res.milled){ if(res.milled[k]!=null) o.milled[rot(+k)]=res.milled[k]; } }
+      /* WHO LOST THE SHIELD HAD TO BE ON THE WIRE, and the announcement's own comment said so (v1.31.118).
+         `announceRoundWin` reads `res.struck`; a client's ceremony result never carried it, so `struck` was
+         [] and `foe` fell through to the multiplayer default — every client at 3-6 players read
+         "a rival lost a shield" about a seat the host could name. A duel was fine (the 2p fallback is
+         `w===YOU?'Rival':'You'`), which is exactly why it hid. Seat arrays, so ROTATED like `eliminated`:
+         this is the v1.29.6 lesson — never infer the loser, read `result.struck` — as a redaction gap. */
+      if(res.struck) o.struck=res.struck.map(rot);
+      if(res.spared) o.spared=res.spared.map(rot);
       if(res.eliminated) o.eliminated=res.eliminated.map(rot);
       return o;
     }

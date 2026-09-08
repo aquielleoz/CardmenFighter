@@ -175,6 +175,15 @@
        * ever set for the seat actually picking, and it exists so the OTHER seats can say why play has paused
        * instead of showing an unexplained gap mid-round. */
       trimPending: st.trimPending ? { player: rot(st.trimPending.player), need: st.trimPending.need } : null,
+      /* TWO PUBLIC STATE SCALARS THAT NEVER TRAVELLED (v1.31.118). Neither is hidden information — they are
+         facts about the GAME, not about a hand — and a client renders them wrong without them:
+           `startShields` — `baseShields()` (template) draws the shield track from it and falls back to
+                            `E.START_SHIELDS` (4). So a tutorial (2) or a table with shields-per-player on
+                            (2+n, i.e. 8 at six players) renders four slots on every client.
+           `_effUsed`     — `firstEffectThisTurn` is `!st._effUsed`, and it drives the Giant Owl −1 discount
+                            and the Giant Ram +1 tax. Without it a client prices this turn's activation as
+                            though the discount were always still available. */
+      startShields: st.startShields, _effUsed: !!st._effUsed,
       roundWinResult: null,   // ceremony state is host-only; the client renders the settled board
       _mirror: true, _seat: seat
     };
