@@ -84,6 +84,48 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   so, the way `why()` prints the refusal state. A prep that reports what it actually did would have named this
   in one run.
 
+- **RE-CHECK `setRecycleTech`, AND THE DISCARD PILE NOBODY CAN SEE** (Aj, 2026-09-08, on finding out
+  decks thin: *"so were decks actually getting thinner without me noticing? huh?"*). They are, and the
+  "without noticing" half is structural rather than careless.
+  - **What thins.** `spendCard` is `(RECYCLE_TECH ? pl.shuffle : pl.removed).push(card)` and **`RECYCLE_TECH`
+    defaults false**, so every normally-resolved Technique leaves the pool for good. So does the Broadway
+    pitch, Counter Spell's own card, Annoint's own card, and anything Sabotage or an equipment-destroy kills.
+  - **What does NOT thin, and is the reason this is easy to miss.** Spent **energy returns to the Shuffle
+    Pile** (`payEnergy` pushes there, both the coloured pips and the generic remainder), and a **countered**
+    card goes there too. So the pile a player watches most closely is the one that cycles perfectly.
+  - **Two escape valves, both narrow:** Ares's Super `reclaim` pulls Shuffle + Discard + hand back into the
+    deck, and Hippolyta's `reclaimDiscard` pulls the Discard back. Nothing else touches `removed`.
+  - **THERE IS NO DISCARD-PILE VIEWER.** `openPileView` is only ever called with `'energy'` and `'shuffle'`
+    (⚡ and ♻). The one zone that only ever grows, and that permanently shrinks your game, is the one zone
+    you cannot open. **That is almost certainly the whole answer to "without me noticing".**
+  - **IT HAS BEEN MEASURED BEFORE — AND THE NUMBER ONLY COVERS DUELS, ON A BUILD FROM BEFORE THE DRAW
+    SCALED.** [`ENERGY-REORDER-DESIGN.md`](ENERGY-REORDER-DESIGN.md) records **154/400 = 39% of games ever
+    reshuffle**, median first reshuffle **round 12**, **0.41 reshuffles per game**. Read straight, that is the
+    answer to *"why did I never notice"*: in ~61% of games the deck never runs dry, so the thinning never
+    bites. **Two reasons not to stop there**, and the doc says the second itself (*"at v1.28.1 and will
+    drift"*):
+    - **`recyclesim` calls `newGame` with no player count, so every one of those games was a DUEL.**
+    - **It predates v1.31.3, which scaled the per-round draw to `numPlayers`.** At six players that is a
+      **6-card draw against the 2 those games ran on** — three times the rate through the deck, and thinning
+      compounds every cycle because `removed` never refills the Shuffle Pile. The duel figure cannot be
+      carried across; **re-measure at 3/4/6p before concluding anything about multiplayer.**
+    - **HYPOTHESIS, UNTESTED, worth one run rather than an argument:** this may be a thread in ♦'s
+      multiplayer dominance, which Aj raised independently (*"the insane win rate in multiplayer"*). Wizard is
+      the **ramp/reclaim** class, and reclaim is worth most exactly when the pool is thin and cycling fast —
+      which is the 6p condition and not the duel one. `CARD-STATS` already shows Pure Wizard middling in a
+      duel and climbing with the table. **This is a lead, not a finding**; the honest test is `analysis.js`
+      with `RECYCLE` on and off at 6p, which needs no new code.
+  - **Two jobs, and they are separable.** (1) Measure the magnitude — how many cards a real game removes, and
+    whether it materially changes deck-out pressure; `recyclesim.js` measures cycling pressure already and
+    `analysis.js` takes `RECYCLE` as an argument, so **option "all Techniques recycle" is measurable today
+    with no new code**. (2) Decide whether the Discard deserves a viewer, which is a UI question independent
+    of the balance one — and cheap, since the pile viewer is already generic over a zone name.
+  - **Related, and deliberately NOT bundled:** whether Counter Spell's own card should go to the Shuffle Pile
+    instead. Aj: *"let's leave counter spell alone for now."* It is a **buff** rather than a consistency fix
+    (every Technique goes to the Discard; ♦ is not singled out), and it lands on the class that already
+    scales hardest with player count. The three options are written up on `epic/priority-windows` in
+    `FIGHT-END-PLAN.md` → *Where a mid-cast card goes*.
+
 - **★ THE FIGHT END WINDOW IS A SHIELD-GUARD, NOT A PRIORITY WINDOW.** *(replaces the old "should a shield
   GAIN qualify" entry, which was misfiled as a rules question — Aj answered it and it is a build.)*
   [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) §3: **before** the Fight End Sub-Phase priority is passed
