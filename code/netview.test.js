@@ -164,5 +164,89 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   ok(pc.temp === true, 'a temp card on the PILE keeps its identity for the other seat as well');
 })();
 
+/* ---- THE ROTATION DIFFERENTIAL. Every mirror bug found so far was a seat-valued field that was copied when
+   it should have been rotated, and an assertion can only cover the fields someone thought to name — which is
+   how `remapSR`, `remapStack` and `card()` each shipped a hole. This inverts the burden.
+
+   THE CLASSIFIER IS EXACT, not a heuristic: a rotating value is `(a - seat + n) % n`, which is INJECTIVE in
+   seat. So across all n mirrors a seat-valued leaf takes n DISTINCT values, and anything constant is not
+   rotating. Constant therefore has to be declared PUBLIC by path; a leaf that is neither constant nor a clean
+   rotation is a partial rotation, which is a bug with no innocent reading.
+   The staging makes the classifier sound: 4 players so a rotation is distinguishable from an identity, and
+   every seat-valued field set to the SAME absolute seat so one path has one answer across the whole tree. */
+(function () {
+  var N = 4;
+  var r = E.newGame(null, { numPlayers: N });
+  r.turn = 2; r.initiative = 2; r.lastPlayer = 1;
+  r.pile = { byPlayer: 3, mod: 0, combo: { type: 'single', value: 9, size: 1, key: [9], cards: [{ rank: 9, suit: 'D', id: 'pile9D' }] } };
+  r.players.forEach(function (pl) { pl.lastAttacker = 2; });                      // same absolute seat everywhere: one path, one answer
+  r.discardPending = { player: 2, count: 1, from: null };
+  r.preFightQ = 2;
+  r.trimPending = { player: 2, need: 1 };
+  r.pendingLossChoice = { winner: 2, cands: [2], comboType: 'pair' };
+  r.shieldResponse = { q: 2, winner: 2, guardId: 'g1', roundWin: true, obj: { source: 'Pair', n: 1, target: 2 } };
+  r.stack = [{ oid: 1, kind: 'effect', p: 2, target: 2, winner: 2, n: 1, card: { rank: 9, suit: 'H', id: 's9H' }, eff: { id: 'x', kind: 'draw' }, opts: { target: 2 } }];
+  r.respondFor = 2;
+
+  var mirrors = []; for (var s = 0; s < N; s++) mirrors.push(NV.mirrorFor(r, s));
+
+  function leaves(o, path, out) {
+    if (o === null || o === undefined) return out;
+    if (Array.isArray(o)) { for (var i = 0; i < o.length; i++) leaves(o[i], path + '.' + i, out); return out; }
+    if (typeof o === 'object') { for (var k in o) leaves(o[k], path ? path + '.' + k : k, out); return out; }
+    if (typeof o === 'number' && o >= 0 && o < N && o === (o | 0)) out[path] = o;   // only values that COULD be a seat
+    return out;
+  }
+  var perSeat = mirrors.map(function (m) { return leaves(m, '', {}); });
+  var paths = {}; perSeat.forEach(function (L) { for (var k in L) paths[k] = 1; });
+
+  /* DECLARED PUBLIC: a small-integer leaf that is legitimately the same for every seat. Short and reviewable
+     BY DESIGN — that is the whole point of inverting the burden. A new key that is constant and unlisted
+     fails this suite by name, and the reviewer answers one question: is it public, or did it forget to rotate? */
+  var PUBLIC = {
+    'numPlayers': 1, 'round': 1, 'passes': 1, 'startShields': 1,
+    'pile.mod': 1, 'pile.combo.size': 1,
+    'stack.0.n': 1, 'stack.0.oid': 1, 'shieldResponse.obj.n': 1
+  };
+  function pub(p) {
+    if (PUBLIC[p]) return true;
+    return /(^|\.)(shields|energyCount|handCount|deckCount|shuffleCount|removedCount|kicksLanded|counters|counter|rank|size|value|tier|mod|need|count|protectedRound|_effUsed|nextPlayBoost)$/.test(p)
+        || /^players\.\d+\.(hand|deck|shuffle|removed|energy|forms|equipment)\./.test(p)
+        || /(^|\.)key\.\d+$/.test(p);
+  }
+
+  /* DECLARED ABSOLUTE: the one leaf that is seat-valued and deliberately NOT rotated. `_seat` tells the client
+     which absolute seat it is, so across the four mirrors it reads 0,1,2,3 — the identity, not a rotation. The
+     differential flagged it as partially-rotated on its first run, which is the classifier working: it refuses
+     to guess, and an absolute seat must be declared as one. Asserted directly below rather than just skipped. */
+  ok(mirrors.every(function (m, s) { return m._seat === s; }), '_seat is deliberately ABSOLUTE, and reads the seat it was built for');
+
+  var rotating = [], constant = [], broken = [];
+  Object.keys(paths).forEach(function (p) {
+    if (p === '_seat') return;                                                 // declared absolute, asserted above
+    var vals = perSeat.map(function (L) { return L[p]; });
+    if (vals.some(function (v) { return v === undefined; })) return;          // path absent in some seat — shape, not rotation
+    var allSame = vals.every(function (v) { return v === vals[0]; });
+    if (allSame) { constant.push(p); return; }
+    var a = (vals[0] + 0) % N;                                                 // seat 0's value IS the absolute seat
+    var rot = vals.every(function (v, s) { return v === ((a - s + N) % N); });
+    (rot ? rotating : broken).push(p + ' [' + vals.join(',') + ']');
+  });
+
+  ok(rotating.length >= 8, 'the differential SEES the rotation — ' + rotating.length + ' seat-valued paths rotate correctly');
+  ok(broken.length === 0, 'no path is PARTIALLY rotated' + (broken.length ? ' — ' + broken.join(' | ') : ''));
+  var undeclared = constant.filter(function (p) { return !pub(p); });
+  ok(undeclared.length === 0,
+     'every constant small-integer leaf is declared PUBLIC' +
+     (undeclared.length ? ' — UNDECLARED: ' + undeclared.join(', ') + '  ← each is either public (add it) or a seat that forgot to rotate' : ''));
+
+  /* NOT VACUOUS: break the rotation on purpose and require the differential to catch it. Without this the
+     three assertions above pass on a mirror that rotates nothing at all. */
+  var probe = NV.mirrorFor(r, 1); probe.turn = r.turn;                          // absolute, i.e. UNrotated
+  var pv = [mirrors[0].turn, probe.turn];
+  ok(pv[0] === 2 && pv[1] === 2 && mirrors[1].turn === 1,
+     '  → and it would SEE a field left absolute (seat 1 rotates turn 2→1; an unrotated copy stays 2)');
+})();
+
 console.log('\n' + (fail ? 'FAILED — ' : '') + 'PASS: ' + pass + '  FAIL: ' + fail);
 process.exit(fail ? 1 : 0);

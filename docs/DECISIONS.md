@@ -649,6 +649,29 @@ independently" — that SHIPPED in v1.31.21.*
   IDENTITY is its composition key, so "editing" is really delete + re-add, and anything pointing at the old key
   must be migrated.
 
+## Initiative catch-up — DECLINED, and it was never Aj's report <a id="initiative-catchup"></a>
+
+**Struck off 2026-09-08.** Aj: *"i never put the initiative catch up on the backlog myself. i don't think
+there is a problem with how initiative is gained right now. you can come back to me with more concrete data
+if you want. otherwise, strike it off."*
+
+The entry sat under ★ Correctness for two weeks proposing three undesigned rules changes to the core round
+loop — rotate the lead, let a bigger shape answer a smaller one at a cost, reframe passing in the UI — on the
+strength of one mid-game remark (*"three rounds in a row throwing jab after jab"*) that had been written up
+as a structural finding. **The designer did not think the mechanic was broken, and was never asked.**
+
+**The habit this is here to break:** an observation from play is DATA; the diagnosis attached to it is a
+CLAIM, and this one was promoted to a starred correctness item without measurement and without the one
+person who could say whether it was a problem. A ★ means "someone should do this next" — putting an
+undesigned rules change there gives it standing it never earned. **Attribute a backlog entry to whoever
+actually asked for it, and when that is nobody, say so in the entry.**
+
+**What would revive it:** concrete data, not a report. [`#strategic-pass`](#strategic-pass) already carries
+the harness that prints initiative concentration and the finding that the AI is *not* jab-locked while a
+human feels starved — so the question is answerable by measurement, and that measurement is the price of
+re-opening it. The rich-get-richer reading of `st.initiative = winner` stays true as a description; what was
+never established is that it costs the game anything.
+
 ## Historical
 
 *Recently closed (see the changelog): the **deck builder** parts system (v1.27.0/v1.28.0) and its lesson

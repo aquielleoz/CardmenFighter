@@ -15,6 +15,55 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.118 — the mirror audit's last three findings, and a test that finds the next one
+
+The three the judge left standing after v1.31.114/.115/.116. Each was silent on BroadcastChannel and bit only
+over RTC or at 3-6 players — the same shape as both bugs that did ship.
+
+**`send()` SERIALISED OUTSIDE ITS `try`, AND IT IS THE ONE SENDER WHERE THAT MATTERS.** `sendTo` and `sendTo0`
+already stringify inside theirs; `send` did not, so an unserialisable body threw straight *out* of send and
+killed its caller instead of being swallowed. The caller that matters is `endGame` — a fault there aborts the
+end screen for everybody.
+**And the serialise is unconditional now, which is the half that makes it testable.** BroadcastChannel uses
+structured clone and never stringifies, so a JSON-only fault on this path was unreachable by **any** suite —
+every `nettest_*` runs on BC. Fixing only the `try` would have left a bug no test could ever see. Same move as
+v1.31.115's parse-through for mirrors, on a path carrying a handful of messages a round.
+
+**THREE FIELDS NEVER TRAVELLED, AND ONE OF THEM IS USER-VISIBLE AT EVERY TABLE OF 3+.**
+- **`struck` / `spared`** — `announceRoundWin` reads `res.struck` to name who lost a shield; `ceremonyResFor`
+  never carried it, so on a client `struck` was `[]` and `foe` fell through to the multiplayer default. Every
+  client at 3-6 players read **"a rival lost a shield"** about a seat the host could name. A duel was fine (its
+  fallback is `w===YOU?'Rival':'You'`), which is exactly why it hid. Seat arrays, so rotated like `eliminated`.
+  The announcement's own comment had already filed it: *"resolving it needs the struck seats on the wire."*
+  This is the v1.29.6 lesson — never infer the loser, read `result.struck` — returning as a redaction gap.
+- **`startShields`** — `baseShields()` draws the shield track from it and falls back to `E.START_SHIELDS` (4),
+  so a tutorial (2) or a table with shields-per-player on (2+n, i.e. **8** at six players) rendered four slots
+  on every client.
+- **`_effUsed`** — `firstEffectThisTurn` is `!st._effUsed`, and it drives the Giant Owl −1 discount and the
+  Giant Ram +1 tax. Without it a client priced this turn's activation as though the discount were still there.
+
+**AND THE ROTATION DIFFERENTIAL, WHICH IS THE PART THAT OUTLIVES THIS ENTRY.** Every mirror bug so far was a
+seat-valued field copied when it should have been rotated, and an assertion can only cover fields someone
+thought to name — which is how `remapSR`, `remapStack` and `card()` each shipped a hole. The test builds
+`mirrorFor` for **every** seat of one staged state and classifies every small-integer leaf automatically:
+
+**the classifier is exact, not a heuristic.** A rotating value is `(a - seat + n) % n`, which is *injective in
+seat* — so a seat-valued leaf takes `n` distinct values and **constant ⟺ not rotating**. Constant must then be
+declared PUBLIC by path; neither-constant-nor-clean-rotation is a partial rotation, which has no innocent
+reading. That inverts the burden from *"did we remember this key"* to *"why is this key not rotating"*, and the
+declared list stays short by design.
+
+It found three things on its first run, one of which is a category nobody had named: **`_seat` is seat-valued
+and deliberately absolute** (it tells the client which seat it is, so it reads 0,1,2,3 — the identity, not a
+rotation). The classifier refused to guess, which is correct; it is now declared and asserted directly.
+**Verified by reintroducing two rotation bugs**: dropping `rot()` from `shieldResponse.q` (the v1.31.114 class)
+and from a stack object's `opts.target` — both red. The second was caught by the differential *alone*, with no
+named assertion for that path, which is the whole point.
+
+`netview.test.js` 55 → 60. Also strikes the initiative catch-up item to
+[`DECISIONS.md`](DECISIONS.md#initiative-catchup) — Aj: *"i never put the initiative catch up on the backlog
+myself… strike it off."*
+
 ### v1.31.117 — a known failure is filed in two places, and now they cannot drift apart
 
 Closing out v1.31.116 turned up the last struck-through BACKLOG entry, and it was carrying a measurement that
