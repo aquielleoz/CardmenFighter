@@ -1146,6 +1146,20 @@ Measured on v1.31.95, the two halves of the same day:
   solo. (3) **Two lenses, not three**, for an inventory: the third produced overlap, not findings. (4) Before
   launching any workflow, say in one line what it will spend and whether one careful read answers the same
   question; if it does, read.
+- **(5) A SUBAGENT'S FINDING AND A SUBAGENT'S SEVERITY ARE NOT THE SAME CLAIM, AND ONLY ONE OF THEM IS
+  RELIABLE (2026-09-08).** A design pass over the Fight End window found four real defects — every one of
+  them confirmed by opening the code. Two came labelled *"live in the build you're playing"*, I repeated that
+  to Aj, and **both labels were wrong**: `noopDestroy` produces no wrong outcome in the shipped
+  configuration, and the discarded `driveShieldStack` result is read by nothing on that path. The finding was
+  right; the severity was invented. **Severity is the half that decides scheduling** — Aj had already said
+  *"let's do the two live bugs first"* on the strength of it, which would have spent a `fix/` branch and a
+  version on two latent defects sitting inside the very functions an epic was about to rewrite.
+  **The check is cheap and specific: does the shipped configuration reach it?** Both answers came from two
+  greps — `DAMAGE_SPAN`/`DAMAGE_ALL` are not wired to the custom rules menu, so no player can reach the
+  multi-target hole; and the one site that reads `struck` is the round-win path, which never enters
+  `openResponseWindow`. A defect reachable only by a sim is real and is not urgent.
+  **Report a severity you measured, or report the finding without one.** "This is live" is a claim about the
+  player's build, and a subagent has never seen it.
 
 **BEFORE TOUCHING `fightValue`, `applyEquip` OR `lockedDelta`, READ
 [`DECISIONS.md#value-modifiers`](docs/DECISIONS.md#value-modifiers).** It settles which layer a value modifier
