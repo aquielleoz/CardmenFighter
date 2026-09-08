@@ -587,9 +587,72 @@ versiontest.js. *Gate:* `node versiontest.js`. *Revertable alone:* **yes**.
 
 ---
 
+## Decisions — answered by Aj, 2026-09-08
+
+Ten of the twelve, plus two rules he volunteered. **The rules themselves live in
+`docs/PHASES-AND-PRIORITY.md`; this is the scheduling record.** Numbering matches the open list below.
+
+| # | subject | ruling |
+| --- | --- | --- |
+| 1 | a shield gain beats the kick | **Yes.** Any gain cast in time is kick-proof, by timing rather than by rule. |
+| 3 | where the mill sits | **Below the window.** Catch-up energy and the shield-draw happen inside Fight End; their order within it does not matter yet and nobody should invent one. |
+| 4 | the go-round's origin | **The controller of the top object — everywhere**, so there is no Fight End special case. Empty stack at Fight End starts at the **round winner**, who is the incoming initiative holder (nobody is "active"). |
+| 5 | base Sanctuary | **No change; the current behaviour is correct and my framing of it as a defect was wrong.** Base 10♥ is a Technique, so it is activated **proactively on your own turn** — Aj: *"you would see the play and know that you don't have a hand to beat it. so you could instead activate sanctuary."* The Quick versions (♥ King, Apollo) exist as a **panic button**, *"because humans will forget they have it."* So base Sanctuary is not refused, it is **early**. |
+| 6 | one window or one per struck seat | **One.** Every shield loss in a round lands **simultaneously**, after everyone has been asked. Kicks are simultaneous too, and Aj confirmed that is wanted. |
+| 7 | pre-fight in the same job | **Yes** — *"it just makes our rules consistent."* Doubles the blast radius and buys one window model instead of three. |
+| 8 | Passo at the window | **Defend.** Passo springs an immunity for the seat it covers rather than passing. A dropped player's Leyline still saves their last shield. |
+| 10 | how often the AI casts | **Defer and measure** — *"let's run a/b tests to get the right feel for this when we cross that bridge."* Not a design question; a tuning one. |
+| 11 | the tap cost | **Opt-in prompts, per card, in the card reader.** See below — this is a feature spec, not a yes/no. |
+| 12 | the mid-turn shatter beat | **Yes**, a Critical Hit should shatter like a round loss does. |
+
+**Two rules Aj volunteered, both of which change more than they look:**
+- **A triggered ability opens the dance in ANY phase** — correcting this plan's and the rules doc's earlier
+  claim that some phases grant nobody priority. A phase runs until the stack is empty and everyone has
+  passed, however many times its own outcomes re-fill it. **So Fight End is not "window, then outcomes":** an
+  equipment reading *"when you lose a shield, remove a counter and draw"* triggers on the loss, goes on the
+  stack **inside** the sub-phase, and the dance runs again there.
+- **Holding priority** — adding does not hand priority on, so a player may stack several Quicks before
+  letting anyone speak. This is what forces Counter Spell to target.
+
+### Q11 in full — the prompt-preference design
+
+The window opens every round for everyone; **whether you are asked is a per-player, per-card preference.**
+Aj's spec:
+- **Every prompt is OFF by default.**
+- **Except the timing that card already had**: you are still prompted for Sanctuary and Leyline when your
+  shields are threatened. So the default experience is **what players get today**, which is the point.
+- **The card reader carries the checkboxes** — one per other timing that card could legally be cast at, all
+  **unchecked** by default.
+
+Three things follow that the implementation must not get wrong:
+- **This is a NOTIFICATION layer, not a rules layer.** The window opens and priority is genuinely passed
+  whatever the checkboxes say; an unchecked timing is an **auto-pass**, not an illegal one. Netplay must
+  treat it as the seat passing, not as a seat that was never asked.
+- **It very nearly answers the wall-clock question by itself** — a defaulted table adds no modal and no
+  human think-time to the vast majority of windows, so the added beat is close to free where it matters
+  (`nettest_sync`'s clock, the lesson polls).
+- **The preference is per DEVICE, like the deck picker's** — so it belongs with the other local settings and
+  must never travel in a mirror or a rules key. A seat's prompt preferences are nobody else's business.
+
+---
+
 ## Open questions for Aj
 
-Rules only. Everything the code could settle has been settled above.
+**Only 2 and 9 are still open** — the other ten are answered in the table above, and the full text of each
+is kept below because the question states the context the one-line ruling assumes.
+
+- **2 — still open.** Re-explained 2026-09-08 and awaiting a yes: it does NOT blank both strips. The gained
+  shield is consumed by strip 1; strip 2 does nothing because *"already broken?"* is sampled **once, before
+  the loop**, and the existing no-overkill rule then refuses the second. Net: one cheap shield gain fully
+  answers the game's most expensive finisher. Consistent with the card's own text, but previously
+  unreachable, so it wants a deliberate yes.
+- **9 — still open.** Wire tolerance. The rebuild renames what goes over the wire, netplay **warns** on a
+  version mismatch rather than refusing, so an old client's `guard` message reaches a new host that does not
+  know it — and the table hangs silently, with no error and no log line. Keep a two-line arm mapping the dead
+  ops onto `respond`/`decline` for one version, or drop them? The recommendation on the floor is **keep for
+  one version**: a silent permanent park is the worst failure mode this codebase has, and someone playing a
+  download from last month cannot tell why.
+
 
 1. **Does the Fighter Kick restriction survive?** Today at 0 shields only `cantLoseRound` or a Holy Shroud
    absorb stops the strike, and `test.js` carries an assertion whose comment names whoever does this work.

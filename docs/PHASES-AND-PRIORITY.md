@@ -57,18 +57,10 @@ This runs identically at every point below that says "priority". It is MTG's mod
 6. When **every player has passed in succession**, the **top** object resolves.
 7. **After each resolution, priority returns to the active player**, and we go back to step 2 — the object
    beneath is still waiting and has not been passed on yet.
-   - **⚠ OPEN — THIS AND THE FIGHT END RULE DISAGREE IN ONE CASE, AND NOBODY HAS RULED ON IT (2026-09-08).**
-     Fight End restarts each go-round at **the controller of the top object** (§3). This step restarts at
-     **the active player**. Usually those are the same seat, which is why the worked example below does not
-     expose it — but they part company as soon as the active player answers a response *on their own turn*:
-     X casts A, Y answers with quick B, X answers with quick C. C resolves; the top is now **B**, which
-     **Y** controls. "Active player" hands priority to X; "controller of the top" hands it to Y.
-     Aj's Fight End ruling was reasoned generally — *"it should actually go back to A because it's their
-     spell on top of the stack"* — so it may be intended to replace this step outright, which would make the
-     whole model **one rule with no Fight End special case**. It may equally be a fallback he reached for
-     only because Fight End has no natural active player. **Do not unify them on your own judgement**; the
-     difference is a real change to tempo in ordinary play, and it decides whether §3 needs its own rule at
-     all.
+   - **SETTLED 2026-09-08: IT IS THE CONTROLLER, EVERYWHERE.** Aj, shown the one case where the two
+     readings part company (X casts A, Y answers with quick B, X answers with quick C; C resolves and the
+     top is now **Y's** B): *"in this case, it should be the controller."* So there is **one rule and no
+     Fight End special case** — step 7 above is the general form, and §3 does not restate it.
 8. Repeat until the stack is empty.
 
 ### Worked example (Aj's, verbatim in substance)
@@ -87,6 +79,25 @@ An equipment's *"At the beginning of your next upkeep, remove one counter"* trig
 | 8 | active | priority returns to the active player. Passes. |
 | 9 | non-active | passes |
 | 10 | — | the counter removal — still on the stack — finally resolves |
+
+### A TRIGGERED ABILITY STARTS THE DANCE, IN ANY PHASE, AT ANY TIME
+
+**This corrects an earlier version of this file, which said in two places that a given phase grants nobody
+priority** (Aj, 2026-09-08: *"i actually made a booboo by saying that nobody gets priority in this or that
+phase.... actually if a triggered ability is put onto the stack at anytime, it starts the priority dance"*).
+
+There is no phase, and no sub-phase, that is closed to priority. **Anything put on the stack opens the dance
+where it stands.** Aj's example: an equipment reading *"when you lose a shield, remove 1 counter from this
+equipment and draw a card"* triggers **inside the Fight End Sub-Phase** the moment its controller loses a
+shield — the ability goes on the stack, the dance runs, and players may add Quicks there.
+
+So a phase is not "a window, then the outcome". A phase runs **until the stack is empty and everyone has
+passed**, however many times its own outcomes re-fill the stack.
+
+**When the stack is empty, nobody is the active player** — Aj is explicit — *"until the next round where it
+goes to the player with the initiative."* That is why the empty-stack origin at Fight End is the **round
+winner**: not because they are somehow active, but because winning the round *is* taking the initiative, so
+they are the incoming initiative holder. Same seat, better reason.
 
 ## 3. The phases
 
@@ -168,7 +179,9 @@ pile stands.
   resolves. Then the top is A's draw again, so the next go-round starts at **A**: B, C, back to A → A's
   resolves. Only then is the stack empty and only then does it return to C.
 
-- **Fight End Sub-Phase.** **Nobody gets priority inside it** — only before it. The outcome resolves: a
+- **Fight End Sub-Phase.** ~~Nobody gets priority inside it~~ — **that was wrong, see the trigger rule
+  above.** No priority is handed out for the outcomes *themselves*, but any outcome that TRIGGERS something
+  puts it on the stack and the dance runs there. The outcome resolves: a
   Special win strips a shield, a Jab win banks energy, and the winner takes initiative. **The catch-up energy
   and the shield-draw happen here too** (Aj, 2026-09-08) — i.e. *below* the window, so a player casting into
   the window is doing so knowing the energy is still to come. **The order of the outcomes inside the
@@ -178,7 +191,9 @@ pile stands.
 
 Once per round. There is a timing at the **beginning** of clean-up where triggered abilities may be put on
 the stack (*"at the beginning of the Clean-up…"*) — **no card has one yet**. If anything is put there, the
-priority dance begins anew. Otherwise nothing in clean-up grants priority.
+priority dance begins anew. **And per the trigger rule above, clean-up's own outcomes can trigger abilities
+too** — a discard-to-hand-size is a real event a future card may care about — so "nothing in clean-up grants
+priority" is a statement about today's card set, never about the phase.
 
 - Every player discards down to hand size, to the Energy Pile.
 - Round-long effects expire.
