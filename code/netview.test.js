@@ -179,7 +179,16 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   var r = E.newGame(null, { numPlayers: N });
   r.turn = 2; r.initiative = 2; r.lastPlayer = 1;
   r.pile = { byPlayer: 3, mod: 0, combo: { type: 'single', value: 9, size: 1, key: [9], cards: [{ rank: 9, suit: 'D', id: 'pile9D' }] } };
-  r.players.forEach(function (pl) { pl.lastAttacker = 2; });                      // same absolute seat everywhere: one path, one answer
+  /* STAGE THE ZONES OUT OF THE SEAT RANGE. `players.0` is a DIFFERENT player for each seat (it is always
+     "me"), so a card's `rank` at that path legitimately varies across seats — and Ace/2/3 are ranks 1, 2, 3,
+     which land inside [0,N) and read as a broken rotation. Measured at 2 failures in 20 before this line.
+     Every card here is rank >= 5, so no card field can be mistaken for a seat at all. */
+  r.players.forEach(function (pl, i) {
+    pl.lastAttacker = 2;                                                          // same absolute seat everywhere: one path, one answer
+    pl.hand = [{ rank: 9, suit: 'D', id: 'h' + i + 'a' }, { rank: 12, suit: 'C', id: 'h' + i + 'b' }];
+    pl.deck = [{ rank: 7, suit: 'S', id: 'd' + i + 'a' }];
+    pl.shuffle = []; pl.removed = []; pl.energy = [{ rank: 8, suit: 'H', id: 'e' + i }];
+  });
   r.discardPending = { player: 2, count: 1, from: null };
   r.preFightQ = 2;
   r.trimPending = { player: 2, need: 1 };
@@ -221,9 +230,13 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
      to guess, and an absolute seat must be declared as one. Asserted directly below rather than just skipped. */
   ok(mirrors.every(function (m, s) { return m._seat === s; }), '_seat is deliberately ABSOLUTE, and reads the seat it was built for');
 
+  /* DECLARE FIRST, CLASSIFY SECOND. `pub()` has to run BEFORE the rotation check, not only against the
+     constants: a player-relative leaf varies across seats without rotating, so classifying it first sends it
+     to `broken` and the suite fails on a mirror that is perfectly correct. The declaration IS the exemption. */
   var rotating = [], constant = [], broken = [];
   Object.keys(paths).forEach(function (p) {
     if (p === '_seat') return;                                                 // declared absolute, asserted above
+    if (pub(p)) return;                                                        // declared public / player-relative — cannot be a seat
     var vals = perSeat.map(function (L) { return L[p]; });
     if (vals.some(function (v) { return v === undefined; })) return;          // path absent in some seat — shape, not rotation
     var allSame = vals.every(function (v) { return v === vals[0]; });
@@ -235,7 +248,7 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
 
   ok(rotating.length >= 8, 'the differential SEES the rotation — ' + rotating.length + ' seat-valued paths rotate correctly');
   ok(broken.length === 0, 'no path is PARTIALLY rotated' + (broken.length ? ' — ' + broken.join(' | ') : ''));
-  var undeclared = constant.filter(function (p) { return !pub(p); });
+  var undeclared = constant;                                                   // pub() already filtered above
   ok(undeclared.length === 0,
      'every constant small-integer leaf is declared PUBLIC' +
      (undeclared.length ? ' — UNDECLARED: ' + undeclared.join(', ') + '  ← each is either public (add it) or a seat that forgot to rotate' : ''));

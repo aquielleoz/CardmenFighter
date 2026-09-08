@@ -15,6 +15,33 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.119 — the rotation differential was deal-dependent, and it shipped a flaky gate
+
+Same-day repair of v1.31.118. **`netview.test.js` failed 2 runs in 20**, and `versiontest` — which RUNS the
+gate suites to check the counts written in the docs — failed 1 in 3 with `netview.test.js … DID NOT REPORT`.
+The full sweep had passed it at 86/86 by luck.
+
+**The cause is the one this file already has a rule for, and I skipped the rule.** *"Run a new suite 40 times,
+not once."* I ran it once.
+
+`players.0` in a mirror is **"me"** — a DIFFERENT player for each seat. So a card's `rank` at
+`players.0.hand.5.rank` legitimately varies from seat to seat, and Ace/2/3 are ranks **1, 2, 3**, which fall
+inside the seat range `[0,N)`. The differential read those varying values as a **partial rotation** — the one
+classification that is supposed to have no innocent reading — and failed on a mirror that was perfectly
+correct. Observed: `players.0.hand.5.rank [1,1,2,2]`.
+
+**Two fixes, because either alone would leave the trap set.**
+- **Order of operations.** `pub()` now runs BEFORE the rotation check, not only against the constants. A
+  player-relative leaf varies across seats without rotating, so classifying it first sends it to `broken`. The
+  declaration has to be an exemption from classification, not a filter applied afterwards.
+- **Deterministic staging.** Every player's zones are staged with rank ≥ 5 cards, so no card field can be
+  mistaken for a seat at all. The suite no longer depends on the shuffle — which it never should have, and
+  which is the third suite in this repo to learn it.
+
+**Re-verified not vacuous** after changing the classifier, which mattered more than usual since the change was
+*to the classifier*: three reintroduced rotation bugs — `shieldResponse.q`, a stack object's `opts.target`, and
+top-level `turn` — all red, all naming the path. **0 failures in 40 runs.**
+
 ### v1.31.118 — the mirror audit's last three findings, and a test that finds the next one
 
 The three the judge left standing after v1.31.114/.115/.116. Each was silent on BroadcastChannel and bit only
