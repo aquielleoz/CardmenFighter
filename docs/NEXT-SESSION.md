@@ -402,6 +402,13 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   win stripping shields from *more than one* rival as the table grows, or `START_SHIELDS` scaling **down** with
   player count (the promising re-land direction, PATCHNOTES 0k). Worth a small committed harness for
   median/mean/max rounds by player count, since the original numbers came from a one-off.
+  **RE-MEASURE DECK CYCLING IN THE SAME PASS** (Aj, 2026-09-08: *"maybe we'll retest when we get to fixing
+  shield-loss=all"*). The two are coupled and it is not obvious: the only recorded cycling figure — 39% of
+  games ever reshuffle — is **duel-only and pre-dates the draw scaling to `numPlayers`**, so nobody knows
+  what a six-player deck does. **Anything that changes game LENGTH changes how many times a deck cycles**,
+  and every cycle is lossy because spent Techniques go to `removed` and never refill the Shuffle Pile. So a
+  length fix and a cycling measurement want the same harness and the same runs — see the `setRecycleTech`
+  entry above for the full trace, including the untested ♦-dominance lead.
 
 - **The "outbid" pass model for the AI** (Aj — parked 2026-08-24, may come back). The AI currently picks the
   *lowest safe single* to contest a jab, and never asks *"will this card even survive five opponents?"* Aj's
