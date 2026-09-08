@@ -94,10 +94,16 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 - **★ PRIORITY IS OFFERED TO THE WRONG PLAYERS, IN THE WRONG ORDER.** Model:
   [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) §1–2 — priority starts with the **active player**
   (whoever owns the turn *now*) and passes in **turn order**; any addition resets the all-passed check.
-  - `openResponseWindow` walks from `(top.p + k)`, i.e. from the **controller**, and `k` starts at **1** so the
-    controller is **skipped entirely** — the active player never gets priority back on their own object and
-    cannot add to it (engine.js:1345). Both coincide only when the active player is the controller with nothing
-    more to add, which is the common duel case and why it survived.
+  - `openResponseWindow` walks from `(top.p + k)`, i.e. from the **controller**, with `k` starting at **1**.
+    That is TWO divergences, and they hide for different reasons (engine.js:1345):
+    **the skip** — `k=1` means the controller never gets priority back on their own object, so the active
+    player cannot add to something they just cast. Present at **every** player count; invisible only because
+    they usually have nothing more to add, and the code never offers, so nobody learns they could have.
+    **the starting point** — walking from the controller instead of the active player. **The modulus hides
+    this, not the player count in any interesting sense:** at n=2, `(controller+1) % 2` is always the other
+    player, so when a non-active player responds, "next after the controller" *is* the active player by
+    arithmetic and the order cannot be wrong. From **n=3** they come apart as soon as the controller is not the
+    active player — A casts, B answers, and the code offers **C → A** where the model says **A → B → C**.
   - The **pre-fight window is offered to one seat only** and gives up rather than passing it on, so at 3-6p a
     human in seat 3+ can never spring it (engine.js:1298).
   - **`pushEffect` adds to the stack without resetting `passed`**, and `activate()` has no open-window guard —
