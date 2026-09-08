@@ -46,6 +46,72 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
   ok((await st()).disabled===false,'after Clear the last-read card is still readable (reader is not empty)');
   await p.evaluate(()=>document.getElementById('viewCardBtn').click()); await p.waitForTimeout(300);
   ok(await p.evaluate(()=>!document.querySelector('#cardFull .cfEmpty')),'and it still opens on a real card, never the placeholder');
+  /* TAPPING A ZONE CARD OPENS THE READER — BUT ONLY WHERE THE OVERLAY *IS* THE READER (v1.31.122).
+     Aj: *"when we click equipments on the board, can we open the card viewer?"* `readCard` gates on whether
+     `#viewCardBtn` is on screen, which is exactly the rule that hides `#side`, so there is no second
+     breakpoint to drift.
+     BOTH DIRECTIONS OR THIS PROVES NOTHING: a build that always opened the overlay would pass the positive
+     half, and throwing a full-screen panel over a desktop board on every zone tap is the obvious way to get
+     this wrong. The negative half runs at a size where the side panel exists. */
+  await p.evaluate(()=>{
+    const st=window.__solo.st();
+    st.players[0].forms=[{rank:12,suit:'C',tier:'queen',name:'Hippolyta',card:{rank:12,suit:'C',id:'zf12C'}}];
+    window.__solo.render();
+  });
+  await p.waitForTimeout(250);
+  const zoneTap = await p.evaluate(()=>{
+    /* `.formChip` on a phone (the collapsed strip), `.formMini` where the zone renders full cards —
+       same gesture on the same thing, which is why both route through `readCard`. */
+    const m=document.querySelector('.formChip, .formMini'); if(!m) return {staged:false, open:false, body:''};
+    document.getElementById('cardFull').classList.remove('show');
+    m.click();
+    return { staged:true, open:document.getElementById('cardFull').classList.contains('show'),
+             body:(document.querySelector('#cardFull .cfText')||{}).textContent||'' };
+  });
+  ok(zoneTap.staged, 'STAGED: a Forms mini-card is on the board to tap');
+  ok(zoneTap.open===true, 'tapping a zone card OPENS the full reader where there is no side panel');
+  ok(/Hippolyta|Q♣|12/.test(zoneTap.body) || zoneTap.body.length>0, '  → and the reader is showing that card, not an empty shell');
+
+  /* EQUIPMENT, WHICH IS THE THING AJ ACTUALLY ASKED ABOUT, and it is the TWO-tap path: v1.31.111 made the
+     collapsed chip's first tap "expand into the card", so the read is the SECOND tap. Same `readCard`, but
+     asserted separately — "it is the same helper" is exactly the reasoning that has been wrong all day. */
+  await p.evaluate(()=>{
+    const st=window.__solo.st();
+    st.players[0].equipment=[{ id:'ze1', name:'Caltrops', counters:3, card:{rank:7,suit:'S',id:'ze7S'} }];
+    window.__solo.render();
+  });
+  await p.waitForTimeout(250);
+  const eqTap = await p.evaluate(()=>{
+    document.getElementById('cardFull').classList.remove('show');
+    const chip=document.querySelector('.equipZone .eq'); if(!chip) return {staged:false, open:false, twoTap:false};
+    chip.click();                                                      // 1st tap: expand the chip
+    const expanded=document.querySelector('.equipZone .eq.eqOpen') || document.querySelector('.equipZone .eq');
+    const afterFirst=document.getElementById('cardFull').classList.contains('show');
+    expanded.click();                                                  // 2nd tap: read it
+    return { staged:true, afterFirst:afterFirst,
+             open:document.getElementById('cardFull').classList.contains('show') };
+  });
+  ok(eqTap.staged, 'STAGED: an equipment chip is on the board');
+  ok(eqTap.afterFirst===false, '  → the FIRST tap expands the chip and does not open the reader (v1.31.111 behaviour intact)');
+  ok(eqTap.open===true, '  → and the SECOND tap opens the card viewer — Aj\'s "when we click equipments on the board, can we open the card viewer?"');
+  await p.evaluate(()=>document.getElementById('cardFull').classList.remove('show'));
+
+  // …and the negative: where the side panel EXISTS, the tap must fill it and NOT throw an overlay up.
+  await p.evaluate(()=>document.getElementById('cardFull').classList.remove('show'));
+  await p.setViewportSize({width:1100, height:820}); await p.waitForTimeout(300);
+  await p.evaluate(()=>window.__solo.render()); await p.waitForTimeout(200);
+  const deskTap = await p.evaluate(()=>{
+    const m=document.querySelector('.formChip, .formMini'); if(!m) return {staged:false, open:false};
+    m.click();
+    const side=document.getElementById('side');
+    return { staged:true, open:document.getElementById('cardFull').classList.contains('show'),
+             panelShown:!!(side && side.offsetParent!==null),
+             btnShown:!!(document.getElementById('viewCardBtn')||{}).offsetParent };
+  });
+  ok(deskTap.staged && deskTap.panelShown && !deskTap.btnShown, 'STAGED: at 1100x820 the side panel is present and the 🔍 is not');
+  ok(deskTap.open===false, '  → so the same tap does NOT throw the overlay up — it fills the panel, as before');
+  await p.setViewportSize({width:390, height:780}); await p.waitForTimeout(200);
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

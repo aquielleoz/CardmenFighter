@@ -5474,7 +5474,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.121';
+  var GAME_VERSION='v1.31.122';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -6491,7 +6491,7 @@ window.CardFace = {};
         if(f.card){
           c.title=(f.name||'')+' — tap to read';
           (function(fc){ c.addEventListener('mouseenter', function(){ showCard(fc); }); })(f.card);
-          (function(fc){ c.addEventListener('click', function(ev){ ev.stopPropagation(); showCard(fc); }); })(f.card);
+          (function(fc){ c.addEventListener('click', function(ev){ ev.stopPropagation(); readCard(fc); }); })(f.card);
         }
         strip.appendChild(c);
       });
@@ -6518,8 +6518,8 @@ window.CardFace = {};
       if(targeting){                                             // zone removal: highlight the Rides/Forms this card may hit
         var isRide=f.tier==='ride', valid=(isRide&&targeting.ride)||(!isRide&&targeting.form);
         if(valid){ c.classList.add('targetable'); (function(id){ c.addEventListener('click', function(){ doRemove(targeting.cardId, id); }); })(f.card.id); }
-        else { (function(fc){ c.addEventListener('click', function(){ showCard(fc); }); })(f.card); }
-      } else { (function(fc){ c.addEventListener('click', function(e){ e.stopPropagation(); showCard(fc); }); })(f.card); }   // tap to read (touch); stays expanded
+        else { (function(fc){ c.addEventListener('click', function(){ readCard(fc); }); })(f.card); }
+      } else { (function(fc){ c.addEventListener('click', function(e){ e.stopPropagation(); readCard(fc); }); })(f.card); }   // tap to read (touch); stays expanded
       row.appendChild(c);
     });
     stack.appendChild(row); el.appendChild(stack);
@@ -6604,7 +6604,7 @@ window.CardFace = {};
     if(!opts.ghost){
       if(e.card){ (function(fc){ box.addEventListener('mouseenter', function(){ showCard(fc); }); })(e.card); }   // hover → full card + rules in the description box below
       if(targeting){ box.classList.add('targetable'); (function(id){ box.addEventListener('click', function(){ doRemove(targeting.cardId, id); }); })(e.id); }
-      else if(open && e.card){ (function(fc){ box.addEventListener('click', function(ev){ ev.stopPropagation(); showCard(fc); }); })(e.card); }   // already open → tap reads it, exactly like a formMini
+      else if(open && e.card){ (function(fc){ box.addEventListener('click', function(ev){ ev.stopPropagation(); readCard(fc); }); })(e.card); }   // already open → tap opens the reader, exactly like a formMini
       /* ONLY WHERE THE CHIP EXISTS. `zonesInPanel()` is the same gate that compacts the box in the first
          place, so desktop and the landscape band keep the untouched tap-to-read — there is no chip there and
          therefore nothing to expand. One gate, not a second one to drift.
@@ -6614,7 +6614,7 @@ window.CardFace = {};
          BESIDE them. Both zones stop the event, so neither document-level outside-tap handler sees the other's
          click, and they coexist. */
       else if(e.card){ (function(fc,zk){ box.addEventListener('click', function(ev){ ev.stopPropagation();
-        if(!zonesInPanel()){ showCard(fc); return; }
+        if(!zonesInPanel()){ readCard(fc); return; }
         equipOpen=zk; render(); }); })(e.card, opts.zk||null); }
     }
     return box;
@@ -6832,6 +6832,21 @@ window.CardFace = {};
     tx.innerHTML=cardTextHTML(cvCard);
   }
   function openCardFull(){ renderCardFull(); $('cardFull').classList.add('show'); }
+  /* TAP-TO-READ, WHEREVER THE READER ACTUALLY IS (Aj, 2026-09-07: *"when we click equipments on the board, can
+     we open the card viewer?"*). On a screen where `#side` is hidden the 🔍 full reader IS the reader, so a tap
+     has to open it — filling a panel nobody can see is the bug. Where the panel exists, filling it is right and
+     throwing a full-screen overlay over the board would be obnoxious.
+     GATED ON WHETHER THE 🔍 IS ON SCREEN, NOT ON A COPY OF ITS MEDIA QUERY. `#viewCardBtn` is displayed by
+     exactly the rule that hides `#side` (`max-width:720px and max-height:800px`), so asking the button is
+     asking the real condition — and it cannot drift if that breakpoint ever moves. Note the boundary is
+     narrow-AND-short, not portrait: a 667x375 landscape phone has no panel either, while 844x390 keeps one.
+     HOVER IS DELIBERATELY UNTOUCHED — a mouse pointer implies a panel, and hover-to-open-an-overlay would be
+     unusable. This is the TAP path only. */
+  function readCard(card){
+    showCard(card);                                        // always fill the panel; the full reader renders from the same `cvCard`
+    var b=$('viewCardBtn');
+    if(b && b.offsetParent!==null) openCardFull();         // the 🔍 is on screen ⇒ the panel is not ⇒ the overlay is the reader
+  }
   function closeCardFull(){ $('cardFull').classList.remove('show'); }
   // The name/type/body block for a card — shared by the side panel (showCard) and the Card Codex detail view.
   var SUIT_WORD={C:'club',D:'diamond',H:'heart',S:'spade'};

@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.121.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.122.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.121**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.122**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -215,14 +215,6 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   resets `#modal`'s class list so a wide dialog cannot leak into the next one). Do the same here rather than
   widening `.modal`. Note the rules panel's columns are keyed to WIDTH (1040px/1400px); this one wants short
   and wide, so the query is the landscape band, not a width breakpoint.
-
-- **TAPPING AN EQUIPMENT ON THE BOARD SHOULD OPEN THE CARD VIEWER** (Aj, 2026-09-07: *"when we click equipments
-  on the board, can we open the card viewer?"*). Today it calls `showCard`, which fills the `#cardView`
-  description strip — on a phone that is a thin band at the bottom, not the reader the 🔍 opens.
-  **Read this together with what v1.31.111 just did to that click**, or it will be built twice: the collapsed
-  chip's tap is now "expand into the card", and the EXPANDED card's tap is `showCard`. So the natural home for
-  this is the second tap — expanded card → full viewer — which also gives the Forms mini-cards the same
-  treatment for free, since they are the same gesture on the same kind of thing. Decide the two together.
 
 - **THE HEADER STILL SAYS "duel vs AI" IN EVERY MODE — including an online duel against a person, and a
   six-player free-for-all.** From the 2026-09-02 screenshots. **Located:** the subtitle is *static markup* —
