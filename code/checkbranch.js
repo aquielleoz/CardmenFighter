@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* BRANCH-NAME GATE. CLAUDE.md documents five prefixes and no synonyms; that rule sat on the honour system and
+/* BRANCH-NAME GATE. CLAUDE.md documents six prefixes and no synonyms; that rule sat on the honour system and
  * was broken twice in two days by inventing `perf/` mid-session — once already unerasable from history.
  * Aj, 2026-09-02: *"who knows what other sorts of prefix we'll get into? a wild wild west is out there when an
  * llm doesn't even follow it's own rules"*.
@@ -7,7 +7,7 @@
  * versiontest asserts the doc chain, the sweep diffs suite counts against CLAUDE.md. This is that, for naming.
  * Run directly, or let .githooks/pre-push run it. */
 const { execSync } = require('child_process');
-const OK = ['feat/', 'fix/', 'docs/', 'exp/', 'parked/'];   // keep in step with CLAUDE.md's table
+const OK = ['feat/', 'fix/', 'docs/', 'exp/', 'parked/', 'epic/'];   // keep in step with CLAUDE.md's table
 const branch = (process.argv[2] || execSync('git rev-parse --abbrev-ref HEAD').toString()).trim();
 
 if (branch === 'main' || branch === 'HEAD') process.exit(0);
@@ -26,6 +26,7 @@ console.error(`✗ branch "${branch}" uses an undocumented prefix.`);
 console.error(`  Allowed (CLAUDE.md → "Branches and PRs"): ${OK.join(' ')}`);
 console.error(`  There is no perf/, chore/, refactor/ or test/ — harness work is a fix/ (a suite too slow to run`);
 console.error(`  is a defect in the suite), and a change that may be reverted is an exp/.`);
-console.error(`  A sixth prefix is fine IF IT IS AGREED FIRST — no surprises. Propose it, then add it here`);
+console.error(`  A further prefix is fine IF IT IS AGREED FIRST — no surprises. Propose it, then add it here`);
 console.error(`  and to CLAUDE.md's table in the same commit. This gate exists because one was not.`);
+console.error(`  epic/ was the sixth and was added that way (2026-09-08); perf/ was not, and is in history.`);
 process.exit(1);
