@@ -29,6 +29,16 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
   s=await st();
   ok(s.readerOpen===true,'it now opens the reader');
   ok(await p.evaluate(()=>!document.querySelector('#cardFull .cfEmpty')),'the reader shows a real card, not the placeholder');
+  /* WHERE the close button IS, not just that it works. This suite already clicked it and never measured it —
+     the inverse of `logtest`'s Save button, which was measured for fifteen versions and never clicked. Both
+     halves matter: a control can be reachable by script and out of reach for a thumb. */
+  const cb = await p.evaluate(()=>{ const b=document.getElementById('cardFullClose'),
+      r=b.getBoundingClientRect(), R=document.getElementById('cardFull').getBoundingClientRect();
+    return { off:Math.abs((r.left+r.width/2)-(R.left+R.width/2)), frac:(r.top+r.height/2-R.top)/R.height, h:Math.round(r.height) }; });
+  ok(cb.off<8, 'the reader\'s close button is horizontally CENTRED ('+Math.round(cb.off)+'px off centre)');
+  ok(cb.frac>0.66, '  → and sits in the bottom third, beside the 🔍 that opened it and the hand ('+Math.round(cb.frac*100)+'% down)');
+  ok(cb.h>=44, '  → and is a real thumb target ('+cb.h+'px tall)');
+
   await p.evaluate(()=>document.getElementById('cardFullClose').click()); await p.waitForTimeout(250);
   // Clear deselects for play but deliberately leaves the last card described, so the reader still has
   // something real to show — the button stays enabled and that is correct, not a leak.

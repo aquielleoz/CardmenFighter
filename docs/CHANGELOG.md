@@ -15,6 +15,27 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.121 — the card reader's Close button is where your thumb already is
+
+Aj, 2026-09-07: *"can we move the close button to the center bottom instead of upper right? it's so far away
+from the magnifying glass button and the hand…"*
+
+Both things he names live at the **bottom** of a phone — the 🔍 that opens the reader sits in the action row
+and the hand is just above it — so the one control that dismisses it was the only part of the interaction at
+the far end of the reach. It is centre-bottom now, capped to the art width so it reads as part of the card
+rather than a stray bar, and sized to a real **46px** tap target (was ~33px).
+
+Done with CSS `order`, not by moving the markup: nothing that queries the DOM shifts, and the button is still
+the first thing a keyboard reaches.
+
+**AND `viewtest` NOW MEASURES IT.** The suite already clicked this button and had never once asked where it
+was — the exact inverse of `logtest`, which measured the Save button's height at three viewports for fifteen
+versions and never clicked it. Both halves matter: a control can be perfectly reachable by script and out of
+reach for a thumb. Three assertions — horizontally centred, in the bottom third, at least 44px tall —
+**verified against the old build, which fails two of them at 137px off centre and 5% down the screen.**
+
+`viewtest` 10 → 13.
+
 ### v1.31.120 — four defects from the priority audit, and a fourth namer nobody knew about
 
 The cheap, deterministic half of the audit — the fixes that do not wait on the Fight End rebuild.
