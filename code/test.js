@@ -1556,5 +1556,38 @@ function cards(ids) { return ids.map(card); }
   ok(!!AI.THREAT_KIND.lockout, 'lockout IS rated a threat — Back Stab costs the whole turn, the reason this table exists');
 })();
 
+
+/* CARD TEXT SPEAKS TO A TABLE, NOT A DUEL — as a scan rather than a review (v1.31.123). Four texts once
+   understated their own effect because the code loops every opponent while the text named one; they were
+   fixed, and on 2026-09-07 Caltrops was re-filed as still broken when it already read "EVERY Rival's". So the
+   class costs time in BOTH directions now — a real regression, and a false report nobody re-checked.
+   A GRAMMAR SCAN IS CHEAPER THAN A REVIEW (the `nettest_narrate` pattern). It flags singular duel wording on
+   the effects that are structurally table-wide, which is decidable from the effect object: `oppDelta` is summed
+   across every opponent by `applyEquip`, `shieldAll` gives every player a shield, `all` locks every rival.
+   NOT a blanket ban on "the Rival": Armor Piercing's *"the Rival you strike"* is correct and precise — the
+   target is decided at resolution, not at cast — and "Target Rival" is the documented house pattern for a
+   genuinely single-target card. Only the table-wide ones are scanned, and only for the singular.
+   AND WHEN ARMOR PIERCING GAINS `all`, THIS FIRING ON IT IS THE POINT, NOT A FALSE POSITIVE (Aj, 2026-09-08:
+   *"we might do all for armor piercing when i get around to that"*). The moment it hits every rival, *"the
+   Rival you strike"* stops being true. **Update the TEXT with the mechanic; do not exempt the card** — an
+   exemption here rebuilds exactly the gap this scan exists to close. */
+(function () {
+  var DUEL = /\bthe Rival\b|\byour Rival\b|\bthe opponent\b/i;
+  var wide = [], bad = [];
+  ['D', 'H', 'C', 'S'].forEach(function (su) {
+    for (var r = 1; r <= 13; r++) {
+      var e = E.effectOf({ rank: r, suit: su, id: 's' + r + su });
+      if (!e || !e.text) continue;
+      if (!(e.oppDelta || e.shieldAll || e.all)) continue;             // structurally table-wide
+      wide.push(r + su + ' ' + e.name);
+      if (DUEL.test(e.text)) bad.push(r + su + ' ' + e.name + ' — "' + e.text + '"');
+    }
+  });
+  ok(wide.length >= 3, 'the scan SEES the table-wide cards (' + wide.length + ': ' + wide.join(', ') + ')');
+  ok(bad.length === 0,
+     'no table-wide card describes itself in the singular' +
+     (bad.length ? ' — ' + bad.join(' | ') + '  ← the code hits EVERY opponent; say so ("EVERY Rival\'s", "every Rival")' : ''));
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);
