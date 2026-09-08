@@ -22,8 +22,18 @@ live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.126**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
-entry says what would revive it).
+`main` is at **v1.31.126**, working tree clean.
+
+**⚡ THE PRIORITY WORK LIVES ON `epic/priority-windows` — GO THERE BEFORE TOUCHING ANY WINDOW.** The two ★
+priority entries below are **answered but not built**: Aj settled twelve rules questions on 2026-09-08 and
+they are recorded on that branch, not here. Read
+[`FIGHT-END-PLAN.md`](FIGHT-END-PLAN.md) *(on the epic)* for the enumeration, the disposition tables and the
+commit sequence, and [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) — **which the epic has newer than
+`main` does** — for the rules themselves. The epic is the integration branch: sub-branches PR **into** it,
+the version is held until it merges, and `main` is merged **into** it after any session spent elsewhere
+(CLAUDE.md → "Branches and PRs").
+
+Other branches: **`feat/qr-scanning`** (parked; its BACKLOG entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
 
@@ -90,10 +100,21 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   - **note the model: a shield loss is NOT a stack object** (Aj, 2026-09-08) — *"it just happens; it's the
     priority windows around that that prevent/increase shield loss."* So the fix is the WINDOW, not putting
     the loss on the stack. Old `STACK-DESIGN` §3 said the opposite and the code half-implements it.
+    **The code's `kind:'shieldloss'` objects are a QUEUE wearing a stack's clothes** — `applyRoundLoss` pushes
+    one per struck target and `driveShieldStack` drains them in order — and Aj's 2026-09-08 ruling that every
+    loss in a round lands **simultaneously** removes the only thing that ordering was for. After the rebuild
+    the pending losses are plain data on state and the stack holds real objects only.
+  - **⚡ ANSWERED AND SCHEDULED on `epic/priority-windows`.** All five findings, plus four more the design pass
+    found. Do not start from this entry.
 
-- **★ PRIORITY IS OFFERED TO THE WRONG PLAYERS, IN THE WRONG ORDER.** Model:
-  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) §1–2 — priority starts with the **active player**
-  (whoever owns the turn *now*) and passes in **turn order**; any addition resets the all-passed check.
+- **★ PRIORITY IS OFFERED TO THE WRONG PLAYERS, IN THE WRONG ORDER.** **⚡ Scheduled on
+  `epic/priority-windows`, and the model below CHANGED on 2026-09-08 — read the epic's copy of
+  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md), not this summary.** Aj reversed the origin rule:
+  priority now starts with the **CONTROLLER of the top stack object**, and with the active player only when
+  the stack is empty. This entry previously said the opposite (*"priority starts with the active player"*),
+  which was correct when it was written and is quoted here only so the reversal is visible. The rest of the
+  entry stands: the code diverges from the model in the ways below, and the fix now lands in the epic's
+  step 6 rather than on its own.
   - `openResponseWindow` walks from `(top.p + k)`, i.e. from the **controller**, with `k` starting at **1**.
     That is TWO divergences, and they hide for different reasons (`openResponseWindow`, engine.js):
     **the skip** — `k=1` means the controller never gets priority back on their own object, so the active
