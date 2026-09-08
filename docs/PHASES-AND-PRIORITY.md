@@ -17,13 +17,24 @@ a bug or a gap** — those are tracked in [`NEXT-SESSION.md`](NEXT-SESSION.md)'s
   **It CHANGES as turns pass.** The Fight Phase loops turns between players while the pile is climbed, so the
   active player rotates within a single round — it is whoever owns the turn *right now*, re-read at every
   point below that says "active player".
-  **And it can be NOBODY.** Once every player has passed their turn, the round has no active player — which is
-  exactly the situation in the window before the Fight End Sub-Phase, and the reason that window is Quicks
-  only.
+  **And it can be NOBODY** — but NOT where this file first said it was. The window before the Fight End
+  Sub-Phase **does** have an active player: the round winner (§3). The genuinely ownerless stretch is **inside
+  the Fight End Sub-Phase**, once the losses land — and it stays ownerless until the next round, when the
+  initiative holder takes over. That correction matters because the two states behave differently on an empty
+  stack: one runs a final go-round, the other just proceeds.
+  It is also not the reason the pre-Fight-End window is Quicks-only; see that window's own entry.
 - **Turn order** — seat order, fixed at game start by the dice roll. Priority always passes in turn order.
-- **Controller** — whoever put an object on the stack. **Priority does not start with them.** It starts with
-  the *active player*, whoever that currently is, and passes in turn order from there. A non-active player who
-  responds does not thereby get to go first on the next round of priority.
+- **Controller** — whoever put an object on the stack. **PRIORITY STARTS WITH THEM**, and passes in turn
+  order from there.
+  **⚠ THIS ENTRY SAID THE EXACT OPPOSITE UNTIL 2026-09-08, IN BOLD** — *"Priority does not start with them.
+  It starts with the active player."* Aj reversed it when shown the case that separates the two readings
+  (X casts A, Y answers with quick B, X answers with quick C; C resolves, and the top is now **Y's** B):
+  *"in this case, it should be the controller."* The old line is quoted here rather than deleted because it
+  is what the ENGINE still implements, and because anyone who read this file before that date is carrying
+  the reversed rule in their head. **The controller-origin rule is the current one; §2 step 7 is its full
+  statement.**
+  On an **empty** stack there is no controller, so the origin falls to the active player — and where there is
+  no active player either, there is no go-round at all (§3, the boundary rule).
 - **The stack** — LIFO. Things that are put on it: a played Technique or Quick, and a **triggered ability**.
 - **Quick** — a card that may be put on the stack when it is *not* your turn, or when the stack is not empty.
   Everything else can only be played on your own turn with an **empty stack**.
@@ -31,14 +42,24 @@ a bug or a gap** — those are tracked in [`NEXT-SESSION.md`](NEXT-SESSION.md)'s
 **The one rule that generates all the others:** *to add to a non-empty stack, or to add at all when it is not
 your turn, the card must be a Quick.* That is why cards need `quick` at all.
 
+**It has exactly one exception, and it is deliberate:** at the **pre-Fight-End window** nothing but a Quick is
+ever legal — even for the active player facing an empty stack, where this rule would otherwise permit a
+Technique. Aj's reason is the timing itself, not the stack: *"this timing is only the transition between
+sub-phases."* Do not try to derive that case from the rule above; it does not follow from it.
+
 ## 2. The priority dance
 
 This runs identically at every point below that says "priority". It is MTG's model
-([reference](https://www.reddit.com/r/magicTCG/comments/4pf4f1/turn_order_priority_the_stack_and_you/)).
+([reference](https://www.reddit.com/r/magicTCG/comments/4pf4f1/turn_order_priority_the_stack_and_you/))
+**with one deliberate deviation, in step 7: we restart a go-round at the CONTROLLER of the top object where
+MTG restarts at the active player.** Flagged because the similarity is otherwise close enough that someone
+could "correct" our engine toward MTG and think they were fixing a bug.
 
 1. Something is put on the stack.
-2. The **active player** receives priority. They may add more to the stack — **Quicks only, because the stack
-   is not empty**. Adding does not resolve anything.
+2. **The controller of that object** receives priority — the player who put it there (see step 7: the
+   origin is always the top object's controller, never the active player as such; they are usually the same
+   seat, which is why this is easy to write down wrongly). They may add more to the stack — **Quicks only,
+   because the stack is not empty**. Adding does not resolve anything.
    - **YOU MAY ADD SEVERAL THINGS BEFORE PASSING — "holding priority"** (Aj, 2026-09-08). Adding does not
      hand priority on; you keep it until you pass. So one player can stack two or three Quicks in a row and
      only then let anyone else speak. Uncommon, and legal.
@@ -55,12 +76,14 @@ This runs identically at every point below that says "priority". It is MTG's mod
    their turn *and* the stack is not empty).
 5. **Any addition to the stack RESETS the all-passed check.** Everyone gets priority again.
 6. When **every player has passed in succession**, the **top** object resolves.
-7. **After each resolution, priority returns to the active player**, and we go back to step 2 — the object
-   beneath is still waiting and has not been passed on yet.
-   - **SETTLED 2026-09-08: IT IS THE CONTROLLER, EVERYWHERE.** Aj, shown the one case where the two
-     readings part company (X casts A, Y answers with quick B, X answers with quick C; C resolves and the
-     top is now **Y's** B): *"in this case, it should be the controller."* So there is **one rule and no
-     Fight End special case** — step 7 above is the general form, and §3 does not restate it.
+7. **After each resolution, priority goes to the CONTROLLER OF THE NEW TOP OBJECT**, and we go back to
+   step 2 — the object beneath is still waiting and has not been passed on yet. When the resolution leaves
+   the stack **empty**, priority goes to the **active player** instead; if there is no active player, there
+   is no go-round and the phase simply proceeds (see the boundary rule in §3).
+   - **SETTLED 2026-09-08, and it used to read "the active player" here.** Aj, shown the one case where the
+     two readings part company (X casts A, Y answers with quick B, X answers with quick C; C resolves and
+     the top is now **Y's** B): *"in this case, it should be the controller."* So there is **one rule and no
+     Fight End special case** — this step is the general form and §3 does not restate it.
 8. Repeat until the stack is empty.
 
 ### Worked example (Aj's, verbatim in substance)
@@ -76,7 +99,7 @@ An equipment's *"At the beginning of your next upkeep, remove one counter"* trig
 | 5 | non-active | passes |
 | 6 | active | priority regained. Could Counter Spell the draw. Chooses to pass. |
 | 7 | — | both have passed since the draw was added → **the draw resolves** (top of stack) |
-| 8 | active | priority returns to the active player. Passes. |
+| 8 | active | priority returns to **the controller of the new top** — the counter removal is the active player's own equipment trigger, so here that is the same seat. Passes. |
 | 9 | non-active | passes |
 | 10 | — | the counter removal — still on the stack — finally resolves |
 
@@ -151,8 +174,12 @@ pile stands.
   not beat the pile, the play stands.
 
 - **Before the Fight End Sub-Phase, priority is passed around again** — before *anything* happens: before
-  shields are stripped, before initiative is determined. **Every player has already passed their turn by
-  this point, so it is NOBODY's turn, and this window is therefore Quicks only.**
+  shields are stripped, before initiative is determined. **This window is Quicks only.**
+  - *Careful with the reason, because this file gave a wrong one first.* It is not "nobody's turn, therefore
+    Quicks" — the **round winner IS the active player for this window** (§3, the go-round). It is Aj's
+    reason: *"this timing is only the transition between sub-phases"*, so nothing but a Quick is ever legal
+    here, whatever the stack holds and whoever is active. The §2 test (non-empty stack, or not your turn) is
+    not what does the work at this one timing.
   - **IT OPENS EVERY ROUND** (Aj, 2026-09-08). Not only when something is at stake. In practice a player
     holding no castable Quick is auto-passed — the engine already does that, `canAddToStack` — so it costs an
     empty-handed player nothing and is invisible to them. It is a *window*, not a *prompt*.

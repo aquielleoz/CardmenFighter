@@ -596,7 +596,7 @@ Ten of the twelve, plus two rules he volunteered. **The rules themselves live in
 | --- | --- | --- |
 | 1 | a shield gain beats the kick | **Yes.** Any gain cast in time is kick-proof, by timing rather than by rule. |
 | 3 | where the mill sits | **Below the window.** Catch-up energy and the shield-draw happen inside Fight End; their order within it does not matter yet and nobody should invent one. |
-| 4 | the go-round's origin | **The controller of the top object — everywhere**, so there is no Fight End special case. Empty stack at Fight End starts at the **round winner**, who is the incoming initiative holder (nobody is "active"). |
+| 4 | the go-round's origin | **The controller of the top object — everywhere**, so there is no Fight End special case. On an empty stack it is the **active player** — which for the pre-Fight-End window is the round winner. *(An earlier row here said "nobody is active"; that was wrong, and the correction is the boundary rule: the winner IS active for the WINDOW, and nobody is active once the sub-phase itself begins.)* |
 | 5 | base Sanctuary | **No change; the current behaviour is correct and my framing of it as a defect was wrong.** Base 10♥ is a Technique, so it is activated **proactively on your own turn** — Aj: *"you would see the play and know that you don't have a hand to beat it. so you could instead activate sanctuary."* The Quick versions (♥ King, Apollo) exist as a **panic button**, *"because humans will forget they have it."* So base Sanctuary is not refused, it is **early**. |
 | 6 | one window or one per struck seat | **One.** Every shield loss in a round lands **simultaneously**, after everyone has been asked. Kicks are simultaneous too, and Aj confirmed that is wanted. |
 | 7 | pre-fight in the same job | **Yes** — *"it just makes our rules consistent."* Doubles the blast radius and buys one window model instead of three. |
@@ -667,13 +667,16 @@ The second reading is the one the version scheme already implies, but it is a ru
 number promises, so it is Aj's to make. **Whichever is chosen, CLAUDE.md's netplay-handshake paragraph must
 be rewritten in the same commit** — leaving it stating the old rule is how a settled decision gets re-argued.
 
-### And one small ruling this shook loose
+### The "wasted flag" question — asked, and it dissolves
 
-Today the banked `finishingBlow` is **consumed even when its second strip is wasted** (`applyRoundLoss` sets
-`wpl.finishingBlow = false` as it computes `strips`, before anything is known about the target's shields).
-Against a seat at 0 the extra strip does nothing — no overkill — so the card is spent for no effect. Should a
-wasted strip still eat the flag, or should it survive to the next win? Defensible either way; today's answer
-is "eat it", by accident rather than by decision.
+I asked whether a wasted Armor Piercing strip should still eat the banked flag. Aj: *"the effect also only
+lasts until the end of the round.... so your next win wouldn't see it anyway"* — and **the code agrees**. The
+round reset clears `finishingBlow` alongside `preventShield`, `shieldImmune`, `cantLoseRound` and `lockRound`,
+all of which "last only their round". Winning ends the round, so there is no later win inside it to inherit
+the flag.
+So there was never a choice here: `applyRoundLoss`'s explicit `wpl.finishingBlow = false` is **redundant with
+the round reset**, not a policy. Harmless, and worth knowing before someone "fixes" it in either direction.
+**Closed, not deferred.**
 
 ---
 
