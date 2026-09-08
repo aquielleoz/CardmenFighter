@@ -74,6 +74,94 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   so, the way `why()` prints the refusal state. A prep that reports what it actually did would have named this
   in one run.
 
+- **★ THE FIGHT END WINDOW IS A SHIELD-GUARD, NOT A PRIORITY WINDOW.** *(replaces the old "should a shield
+  GAIN qualify" entry, which was misfiled as a rules question — Aj answered it and it is a build.)*
+  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) §3: **before** the Fight End Sub-Phase priority is passed
+  around, every player's Quicks are available, and it is nobody's turn so the window is Quicks-only. The code
+  offers a fixed *Guard with X / Take the hit* dialog to the **threatened seat only**, admitting only
+  `immune || shieldImmune` (`guardEffFor`, engine.js:1841). Five confirmed findings, one cause:
+  - only **one** guard card is ever offered — the engine picks it, so holding Leyline *and* an Apollo-Sanctuary
+    means hand order chooses for you (engine.js:1848);
+  - the winner gets no window at all, so Armor Piercing can never be added reactively even under Hippolyta,
+    which the old design named explicitly (engine.js:1977);
+  - a shield GAIN never qualifies, which is Aj's original Sanctuary report;
+  - the stack view is filtered to effect objects, so the thing you are being asked about is invisible
+    (template:3245);
+  - **note the model: a shield loss is NOT a stack object** (Aj, 2026-09-08) — *"it just happens; it's the
+    priority windows around that that prevent/increase shield loss."* So the fix is the WINDOW, not putting
+    the loss on the stack. Old `STACK-DESIGN` §3 said the opposite and the code half-implements it.
+
+- **★ PRIORITY IS OFFERED TO THE WRONG PLAYERS, IN THE WRONG ORDER.** Model:
+  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) §1–2 — priority starts with the **active player**
+  (whoever owns the turn *now*) and passes in **turn order**; any addition resets the all-passed check.
+  - `openResponseWindow` walks from `(top.p + k)`, i.e. from the **controller**, and `k` starts at **1** so the
+    controller is **skipped entirely** — the active player never gets priority back on their own object and
+    cannot add to it (engine.js:1345). Both coincide only when the active player is the controller with nothing
+    more to add, which is the common duel case and why it survived.
+  - The **pre-fight window is offered to one seat only** and gives up rather than passing it on, so at 3-6p a
+    human in seat 3+ can never spring it (engine.js:1298).
+  - **`pushEffect` adds to the stack without resetting `passed`**, and `activate()` has no open-window guard —
+    unreachable through the solo UI, reachable on a netplay host (engine.js:1290).
+  - **`noopDestroy` suppresses priority for EVERYONE** and is computed from one target while the effect can
+    resolve against many (engine.js:1343).
+  - **A Back-Stab-locked player may cast Techniques.** Aj, 2026-09-08: they **keep priority** — equipment are
+    neither a fight nor a Technique, and activated equipment is coming — but Back Stab's text denies fights and
+    **Techniques**, and `respond()` accepts one today (engine.js:1329).
+
+- **★ A TECHNIQUE CAN NEVER FINISH A GAME, AND THE BUTTON DOES NOT SAY SO.** `destroyShield` is flagged
+  `noGuard` **and** `noKick`, so against an opponent on 0 shields the ⚡ on Ultima Attack / Critical Hit is
+  fully lit, you pay the energy **plus** the Broadway pitch, and nothing happens. The audit filed this as a
+  deliberate divergence on the strength of a code comment; **Aj overruled it** — *"the techniques are shield
+  losses. player loss is only through kicks. kicks only happen when there are no shields left."* So a technique
+  striking a 0-shield player should kick. Two halves: make the kick reachable, and refuse or grey the cast when
+  it would do nothing.
+
+- **THE ENGINE AND THE UI DISAGREE ABOUT WHO MAY RESPOND.** `canAddToStack` (engine.js:1331) admits any
+  affordable Quick; the UI's `eligibleQuicks` is narrower, so the engine opens a window the screen then
+  auto-declines — e.g. an Annoint holder against a non-removal. Solo it is invisible; **on a netplay client it
+  costs a visible round trip**, the board going busy waiting on a decline the player never chose. One predicate,
+  two definitions — the `resolveIds` lesson.
+
+- **"RIVAL" IS HARDCODED IN THE PRIORITY MODALS, WRONG AT 3-6 PLAYERS.** `openShieldGuardModal`
+  (template:4239) says *"Rival's Special is about to strip one of your shields"* — naming a player who is not
+  at the table and withholding the one fact you need. **Aj's fix is broader than the string:** default names
+  become **Rival + a number** for *everyone*, host and human seats included, so an un-renamed seat is still
+  identifiable. Names stay dynamic.
+
+- **TWO AI HEURISTICS MISS QUICKS THEY HOLD.**
+  - `respondDecision`'s threat list (ai.js:775) is four kinds — `destroyShield`, `removeEquip`, `discardOpp`,
+    `energyDenyOpp` — and **`lockout` is not among them**, so the AI declines Back Stab while holding Counter
+    Spell and then sits out the round. Losing your whole turn is the one hostile effect it does not rate.
+    **Derive "threat" rather than adding a fifth item**, or the next hostile kind repeats it.
+  - Its reactive immunity filter tests only `e.immune` (ai.js:771) and never `e.shieldImmune`, so an AI in
+    Apollo Mode holding Sanctuary takes the hit — the `effectFor`-family shape again, third instance.
+
+- **A 2-PLAYER NETPLAY PRE-FIGHT WINDOW IS SET ON THE CLIENT AND ABANDONED BY THE HOST** (template:4182) — the
+  duel move handler has no op for it. Needs a client holding a Form-granted lockout Quick, so it is narrow, but
+  the audit rates it a permanent hang.
+
+- **ARMOR PIERCING IS "+1 TO YOUR NEXT FIGHT WIN", NOT "+1 TO A SHIELD LOSS YOU CAUSE"** (engine.js:1483). Arm
+  it, then cast Ultima Attack or Critical Hit, and the +1 does not apply — the flag survives to your next fight
+  win instead. The card text agrees with the code; the design intended the other reading. Also `extraShield: 1`
+  is declared and never read, so a second cast cannot stack and a Form patch raising it would do nothing.
+
+- **COUNTER SPELL DOES NOT TARGET** (engine.js:1372) — it always counters the object immediately beneath it.
+  Indistinguishable from the design in a duel with a 2-deep stack; at 3-6p a 3-deep stack is reachable (A casts,
+  B answers with a non-counter Quick, C counters) and C's Counter Spell hits the wrong object.
+
+- **THE PRIORITY UI SHOWS NO STACK.** The prompt names only the top object, and the stack view that would fix
+  it sits behind an opaque overlay (template:4802). In a Counter-a-Counter chain the player being asked for
+  priority cannot see what they are responding to.
+
+- **HOUSEKEEPING: 17 CONFIRMED STALE COMMENTS AND DEAD FUNCTIONS in the priority/effect path**, several of the
+  exact class CLAUDE.md warns about — code that looks alive in the layer you would read first. `opponentCanRespond`
+  is **dead, still exported**, and describes the retired one-level window, so it is the natural place someone
+  would "fix" a response bug; `rivalMayGuard` is uncalled; `resolveEffect`'s `counter`/`protect` cases are
+  unreachable; `Sphere of Invulnerability` is an orphaned effect kind whose comments describe it as live; and
+  four/five comments each still name **Emergency Maintenance** (= Annoint), **Finishing Blow** (= Armor
+  Piercing, and the AI's log tag is still `'FINISH'`), Brilliant Tactic as a Quick, and STOPPER hold-back logic
+  for a deleted mechanic. Do this as one sweep, not seventeen tickets.
+
 - **★ THE MIRROR-CONTRACT AUDIT'S THREE UNFIXED FINDINGS.** v1.31.114/.115 took the two live bugs and
   v1.31.116 the park heartbeat; these are what the judge left standing. Each is a mirror or transport fault, so
   each is silent on BroadcastChannel and only bites over RTC or at 3–6 players — the same shape as both bugs
@@ -94,23 +182,6 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
     result** — without which a client cannot name who lost a shield and falls back to *"a rival lost a
     shield"*. That last one is the v1.29.6 lesson (never infer the loser — read `result.struck`) reappearing
     as a redaction gap rather than a UI one.
-
-- **★ SHOULD A SHIELD *GAIN* BE ALLOWED IN THE GUARD WINDOW? (the Hector half of the Sanctuary report)**
-  The Apollo half shipped in **v1.31.112** — a Form- or Super-granted immunity is now seen by the window, at
-  all three engine sites and in the modal that describes it. What is left is a RULES QUESTION, not a bug.
-  **Under Hector (King) Sanctuary is only a Quick.** Base Sanctuary *gains* a shield (`shield:1, shieldAll`);
-  it does not prevent the strip, so it correctly does not qualify for a window built for PREVENTION.
-  **And this is the half that decides Aj's actual game**, so it matters more than it sounds: he died to a
-  Fighter Kick at 0 shields, where `wouldBeSaved` allows only `cantLose` or a Holy Shroud absorb — immunity
-  cannot save a shield you do not have. A GAIN, resolved before the strip, would convert that kick into an
-  ordinary strip and he would have lived. That is a real change to how the game ends, which is why it was not
-  made on his behalf.
-  **If it is taken:** the predicate is `guardEffFor` (one definition, `engine.js`), and the test to write is
-  the KICK CONVERSION, not the shield count — `shieldAll` means every player gains, so a duel is a wash on
-  the shield race and counting shields would prove nothing. `test.js` already asserts the kick is refused
-  today, so that assertion is the one to invert deliberately rather than delete.
-
-### Things a playtester meets immediately
 
 - **★ EXPANDING A ZONE PUSHES THE BOARD PAST ITS HEIGHT ON THE TIGHTEST PHONES** (measured 2026-09-07)
   `[ratchet: phone-zone-expand-overflow]`
