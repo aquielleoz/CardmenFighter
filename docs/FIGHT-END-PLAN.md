@@ -795,7 +795,7 @@ The second reading is the one the version scheme already implies, but it is a ru
 number promises, so it is Aj's to make. **Whichever is chosen, CLAUDE.md's netplay-handshake paragraph must
 be rewritten in the same commit** — leaving it stating the old rule is how a settled decision gets re-argued.
 
-### Where a mid-cast card goes — ⚠ OPEN, and the code disagrees with the description
+### Where a mid-cast card goes — the slip is closed, and a REAL question came out of it
 
 Aj settled that the card is **mid-cast** while its effect is on The Stack, and flagged that future ♦ cards may
 redirect it: *"might send it back to the hand instead of to the energy pile like counter spell."*
@@ -807,14 +807,37 @@ redirect it: *"might send it back to the hand instead of to the energy pile like
 | an effect that **resolves normally** | `spendCard` — the **Shuffle Pile** or **Removed**, depending on `RECYCLE_TECH` |
 | **Counter Spell's own card**, having countered something | **Removed** |
 
-The Energy Pile is fed by discard-to-hand-size, the catch-up mill and deliberate banking — not by casting.
-So either the description is a slip for "Shuffle Pile", or the intent is that a countered card should become
-**energy** and the code has never done it. **These are materially different**: energy is a spendable resource
-handed to the player who was just countered, the Shuffle Pile is a future draw, and Removed is gone outright.
-Do not guess — a redirect card cannot be written until the thing it redirects *from* is fixed.
+**CLOSED: it was a slip.** Aj — *"countered cards go to the shuffle pile"* — which is what the code does.
+No change.
 
-**Not a blocker for this epic** (nothing in the rebuild moves a card), but it is cheap to settle now and
-expensive to discover while writing the first ♦ card that cares.
+**BUT THE SECOND HALF IS A REAL PROPOSAL, AND IT IS A BUFF RATHER THAN A FIX.** Aj: *"Counter Spell's own
+card should go to the shuffle too >.< poor wizard is getting shanked."* The framing assumes ♦ is being
+singled out. **It is not.** `RECYCLE_TECH` defaults **false**, so `spendCard` sends **every** normally-resolved
+Technique to Removed — Counter Spell is treated exactly like Critical Hit, Sanctuary and the rest. Annoint
+(`protect`, ♥5) sits in the identical branch and would ask the same question.
+
+So the shipped design is coherent as it stands: **spend a card and it is gone; get countered and you get it
+back.** Being countered is already a partial refund — you lose the tempo and the energy, the card returns.
+Sending Counter Spell to the Shuffle Pile would make it **the only Technique in the game that recurs after
+doing its job**.
+
+**Three options, and they are genuinely different games:**
+| | what it means | who it helps |
+| --- | --- | --- |
+| leave it | Counter Spell is spent like every Technique | nobody; status quo |
+| Counter Spell alone → Shuffle | the only recurring Technique in the game | ♦ specifically, and `protect`/♥5 will want the same |
+| **all** Techniques → Shuffle | this is `setRecycleTech(true)`, which already exists | everyone, evenly |
+
+**The balance note Aj half-raised himself** (*"doesn't explain the insane win rate in multiplayer tho"*): ♦
+already scales hardest with player count — `CARD-STATS.md` has Pure Wizard middling in a duel and climbing
+with the table, and `PATCHNOTES.md` records its runaway at 6p under the reverted `loss=all`. **A unique-recursion
+buff lands on the class that already over-performs where it over-performs.** That is not an argument against
+it — Aj may want ♦ to have exactly this identity — but it should be a decision, not a side effect.
+
+Note `RECYCLE_TECH` is **not player-facing**: only `analysis.js` sets it, so it is a studied lever rather than
+a shipped rule. If option three appeals, it is measurable today with the harness that already exists.
+
+**Not a blocker for this epic** — nothing in the rebuild moves a card.
 
 ### The "wasted flag" question — asked, and it dissolves
 

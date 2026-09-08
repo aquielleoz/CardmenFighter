@@ -58,10 +58,11 @@ a bug or a gap** — those are tracked in [`NEXT-SESSION.md`](NEXT-SESSION.md)'s
   when the suits are expanded: *"some diamond cards ... might send it back to the hand"*. Build the
   destination as a **property of the resolution**, not as `push` calls scattered through `resolveTopEffect`,
   or every such card becomes a new branch there.
-  **⚠ OPEN: what a countered card's DEFAULT destination is.** Aj described it as the energy pile; the code
-  does something else, and the three current answers are all different — see the plan's *Where a mid-cast
-  card goes* note. Settle it before writing any card that redirects one, because "instead of the usual place"
-  needs a usual place.
+  **A countered card goes to its owner's SHUFFLE PILE** (Aj, 2026-09-08, confirming the code). So being
+  countered is a partial refund: the tempo and the energy are lost, the card comes back. A **spent** card is
+  different — every normally-resolved Technique goes to Removed while `RECYCLE_TECH` is off, which is the
+  shipped default. **Open, and tracked in the plan:** whether Counter Spell's own card should join the
+  countered card in the Shuffle Pile, which would make it the only recurring Technique in the game.
 
   **If some other part of the ARCHITECTURE wants a stack, it may have one** (Aj: *"we don't need to use The
   Stack for that, but if it would be beneficial for our architecture use a stack, then by all means"*) — just
