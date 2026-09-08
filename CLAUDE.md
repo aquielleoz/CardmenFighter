@@ -1098,6 +1098,14 @@ host's own plays and the round draw never advance it and a stamp-based skip woul
 cache is dropped on join and rejoin, so a reconnecting peer is never deduped against state it missed.
 
 **FIVE MECHANICAL HABITS, each of which cost real time on 2026-09-01. None is an engineering problem.**
+- **THE BACKTICK TRAP IS NOT ONLY HEREDOCS — IT IS ANY DOUBLE-QUOTED SHELL STRING (2026-09-08).** The same
+  failure hit `gh pr create --body "…"`: every `` `term` `` in the body was executed as a command and replaced
+  with nothing, so a findings table shipped reading *"` + `: the ⚡ is lit at 0 shields"*. The shell even said
+  so — `command not found: pushEffect` — eight times, in the middle of successful-looking output nobody was
+  reading. **Write any prose containing backticks to a FILE and pass `--body-file`**, the same way a heredoc
+  must be quoted. The tell is a `command not found` for a word from your own text.
+  **What saved the day was that the DOCS went through a quoted heredoc and were untouched** — only the PR body
+  was damaged, and it was repairable. Check the artifact, not the exit code: this command "succeeded".
 - **AND IF YOU DO USE ONE, QUOTE THE DELIMITER — `<<'PY'`, NEVER `<<PY`.** An unquoted heredoc is interpolated
   by the shell, so every `` `backtick` `` in the text is run as a command and replaced with nothing. Caught
   2026-09-02 writing a DECISIONS.md entry: `playCards`, `doFight`, `sayOnce` and `Pair (NaN, NaN)` were all
