@@ -649,6 +649,38 @@ independently" — that SHIPPED in v1.31.21.*
   IDENTITY is its composition key, so "editing" is really delete + re-add, and anything pointing at the old key
   must be migrated.
 
+## The priority design docs vs what actually shipped <a id="priority-divergences"></a>
+
+**Audited 2026-09-08** — 74 findings, 64 confirmed by adversarial verification. The live model is
+[`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md); the open defects are in the BACKLOG. **This section is the
+third bucket: places where the shipped game deliberately differs from `STACK-DESIGN-v0.53.md`, so nobody
+re-argues them or "restores" the doc.**
+
+- **The base Quick list is THREE, not the doc's five.** §0.6 and §10 lock *Counter Spell, Annoint, Leyline,
+  Armor Piercing, Hand-to-Hand Mastery*. `BASE_OVERRIDES` is baked over `EFFECTS` (engine.js:987) and strips
+  `quick` from **Armor Piercing ♣7** and **Hand-to-Hand Mastery ♠3**, leaving **D4, D9, H5**. Deliberate:
+  the override blocks say so in comments (*"Armor Piercing loses Quick (moved to Hippolyta)"*), instant speed
+  became a **Form reward**, and `test.js:259` locks it — a verifier reversed it and took the suite to 392/1.
+  **The doc's five-card list is stale spec.** Note this narrows the reactive-AP gap: it only bites a player
+  holding Hippolyta.
+- **STOPPER was deleted, not kept.** §0.5 explicitly recommended keeping the fight-turn commit path; the
+  mechanic was removed outright in v1.31.13. §0.5 and the §4 STOPPERs row are stale spec.
+- **`st.priority` / `st.lastPassed` were never built, on purpose.** `st.pending` / `st.respondFor` survive as
+  **aliases** for "top object" and "who holds priority" — §9's own Phase-1 note gives the reason (zero test
+  churn, and the UI + AI read them). A grep for the design's names therefore says nothing about whether the
+  design shipped; see CLAUDE.md.
+- **The pre-fight window is an extension beyond the doc.** It appears in no section of `STACK-DESIGN`. Aj's
+  model explains what it actually is — the priority pass before the shedding play — so it is not a Back Stab
+  carve-out, but the *narrowing to lockout Quicks* in both layers is a deliberate gate, not an oversight.
+- **§2's priority loop shipped step-for-step**, LIFO resolution and Counter-a-Counter included, and §3's
+  **no-overkill / `wasBroken`** rule shipped exactly as written. Recorded here because both were doubted.
+
+**One classification in that audit was overruled by the designer and moved to the BACKLOG:** `destroyShield`
+being `noKick` was defended by a code comment and filed as deliberate. Aj, 2026-09-08: *"the techniques are
+shield losses. player loss is only through kicks. kicks only happen when there are no shields left."* **A code
+comment is evidence of intent, not proof of it** — when a divergence is defended only by the comment of
+whoever wrote it, ask the designer before recording it as settled.
+
 ## Initiative catch-up — DECLINED, and it was never Aj's report <a id="initiative-catchup"></a>
 
 **Struck off 2026-09-08.** Aj: *"i never put the initiative catch up on the backlog myself. i don't think
