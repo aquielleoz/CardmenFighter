@@ -15,6 +15,36 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.122 — tapping a zone card opens the reader, where the reader is the overlay
+
+Aj, 2026-09-07: *"when we click equipments on the board, can we open the card viewer?"*
+
+It called `showCard`, which fills `#side` — and on the screens where you would tap an equipment, `#side` is
+`display:none`. So the tap filled a panel nobody could see.
+
+**THE GATE IS DERIVED, NOT A COPY OF THE BREAKPOINT.** `readCard` asks whether `#viewCardBtn` is on screen,
+because the 🔍 is displayed by exactly the rule that hides the panel (`max-width:720px and max-height:800px`).
+Asking the button is asking the real condition, and it cannot drift if that media query ever moves — which is
+the failure this repo keeps paying for (three deck-picker defaults, two definitions of `logName`, a fourth
+namer found yesterday).
+
+**AND THE BOUNDARY IS NOT "PORTRAIT", WHICH IS THE OBVIOUS WRONG GUESS.** It is narrow **and** short, so of the
+sizes `landscapetest` already opens: 390x780, 568x320 and 667x375 have no panel; 800x360, 844x390 and 932x430
+keep one. A big landscape phone needs nothing.
+
+Wired at the five **tap** sites — Forms chips, Forms mini-cards (both the plain and the targeting-refused
+paths), an expanded equipment box, and an equipment box on a screen with no chip. **Hover is deliberately
+untouched:** a pointer implies a panel, and hover-to-open-a-full-screen-overlay would be unusable.
+
+**`viewtest` asserts BOTH directions and the two-tap.** A build that always opened the overlay would pass the
+positive half, and throwing a full-screen panel over a desktop board on every zone tap is the obvious way to
+get this wrong — so the negative half runs at 1100x820 where the panel exists. Equipment is asserted separately
+from Forms rather than assumed equivalent ("it is the same helper" is the reasoning that has been wrong twice
+this week): first tap expands the chip and does **not** open the reader, second tap does.
+**Verified by breaking it both ways** — never open, and always open — each caught by the opposite assertion.
+
+`viewtest` 13 → 21.
+
 ### v1.31.121 — the card reader's Close button is where your thumb already is
 
 Aj, 2026-09-07: *"can we move the close button to the center bottom instead of upper right? it's so far away
