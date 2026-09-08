@@ -446,6 +446,50 @@ should normally broadcast. Do not report this as live until step 1's drop probe 
 `nettest_mirrordrop` already use. This repo has twice recorded a "flake" that was the environment and twice
 recorded one that was real; the probe settles it either way, and reasoning does not.
 
+## ⚠ THE COMMIT SEQUENCE BELOW PREDATES THE 2026-09-08 RULINGS — READ THIS FIRST
+
+The fifteen steps were written the morning of 2026-09-08, **before** Aj settled the twelve questions. Two of
+them are now wrong and seven workstreams are missing. **Do not build from the sequence until it has been
+restructured**; it is kept as-is because most individual steps are still sound and re-deriving them would
+cost more than reading this warning.
+
+**Wrong as written:**
+- **Step 5** builds Fight End as a straight line — window, then outcomes. The trigger rule makes it a
+  **loop** (see the scoping note directly below).
+- **Step 6** parameterises the priority walk *"so existing objects are byte-identical"*. That was correct
+  while the origin change was contained to Fight End; Aj's ruling changed the origin for **every** object, so
+  the step cannot be inert and its gate is wrong. **Upside: this is now where the ★ backlog item "priority is
+  offered to the wrong players, in the wrong order" gets fixed**, which the sequence previously left open.
+
+**Missing entirely — every one of them a post-plan ruling:**
+| # | workstream | from |
+| --- | --- | --- |
+| a | the **pre-fight window** rebuilt the same way | Q7 |
+| b | **holding priority** — adding no longer hands priority on | volunteered |
+| c | **Counter Spell targeting**, which (b) forces | volunteered |
+| d | **simultaneous** shield loss and kicks; today it is sequential | Q6 |
+| e | the **prompt-preference** layer, per card, in the card reader | Q11 |
+| f | the **shatter beat** for a mid-turn Critical Hit | Q12 |
+| g | **refuse the handshake** on a second-number mismatch, and rewrite CLAUDE.md's warn-don't-refuse paragraph | Q9 |
+
+So the sequence covers roughly **half** the work as it now stands.
+
+### Triggered abilities: a constraint, NOT a workstream (measured, and confirmed by Aj)
+
+**No card in the game has a triggered ability today.** Measured rather than assumed: only two kinds are ever
+pushed to the stack, `effect` and `shieldloss`; equipment counters tick **directly** inside the round reset
+alongside the other round-scoped flags; Holy Shroud's absorb is a direct decrement. Nothing anywhere is a
+trigger.
+
+Aj's example — *"when you lose a shield, remove 1 counter from this equipment and draw a card"* — is
+therefore **a card that does not exist yet**, and he confirmed the consequence: *"yes and yes"* to **not**
+building a trigger system now, and to treating the rule as a constraint on what we build instead.
+
+**The constraint, concretely:** Fight End's resolution must be written as a **loop** — apply the outcomes,
+then if the stack is non-empty re-enter the dance, and only leave the sub-phase when the stack is empty *and*
+everyone has passed. Written as a straight line it works perfectly today and becomes a rewrite the first time
+any card triggers. **Do not build the trigger system; do not foreclose it.** One function's shape, no more.
+
 ## Commit sequence
 
 Fifteen small commits, not fifteen version bumps. **Group them into PRs before starting** — the repo rule is
