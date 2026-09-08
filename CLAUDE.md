@@ -1668,6 +1668,22 @@ Note the trap in the `prefight` case: **`hasSuper` requires a Ride.** Super Mode
 (`engine.js` ~190, variant B) — a Q + K alone is NOT Super, so staging forms without a J silently disables every
 Form-granted Quick. Some older comments and doc lines say "any Q + any K"; the code is the truth.
 
+**THE PRIORITY MODEL LIVED IN TWO HISTORICAL FILES AND NEITHER POINTED AT THE OTHER (2026-09-08).** The phase
+structure with its priority windows was in `Cardmen-Fighter-Design-v0.70.md` §7; the LIFO stack loop was in
+`STACK-DESIGN-v0.53.md` §2 — the file *titled* "Priority Rework", which never mentions a phase boundary. Both
+are filed in the docs map as "historical snapshots, not current truth", so **there was no current-truth
+statement of how priority works at all**, and the code was the only authority.
+**The cost, measured:** I read the file whose title matched, concluded from a grep for `hasPriority` /
+`passPriority` / `pushStack` that the priority loop had never been built, and told Aj so **twice** — while
+`openResponseWindow` (engine.js ~1338) had been running exactly that loop, with per-object `passed` sets and a
+reset on every new Quick. The same gap made the pre-fight window read as a Back Stab special case instead of
+what it is: the priority pass before the shedding play. **`docs/PHASES-AND-PRIORITY.md` is now the one live
+statement — read it, and do not reconstruct the model from the code's call sites or from a doc title.**
+**AND THE GENERAL FORM, which is the part worth keeping: a grep for the DESIGN's function names is not a test
+for whether a design shipped.** `openResponseWindow` implements §2 step-for-step under a different name, and
+`st.pending`/`st.respondFor` are aliases for "top object" and "who holds priority" — a fact stated in a comment
+directly above the loop. Read the layer that would have to DO the thing; a name is not the mechanism.
+
 **`effectOf` vs `effectFor` — the trap that hid three bugs.** `effectOf(card)` is the card's **base** effect;
 `effectFor(st, p, card)` applies that player's Form/Super boosts. A Form can **grant `quick`** — SIX patches, enumerated
 from `BOOSTS` rather than remembered, because every hand-written list of them so far has been short by one:
@@ -2165,5 +2181,9 @@ definition, so it cannot delete them.
   to say *"results table still empty"* — it had been RUN AND SETTLED on 2026-08-28 and the summary rotted while
   the doc stayed correct, which is the whole reason a docs map lists what a file is FOR and never what it says.
 - `docs/PATCHNOTES.md` — balance principles + win-rate history. `docs/REWORK-HISTORY.md` — how it got here.
+- **`docs/PHASES-AND-PRIORITY.md` — CURRENT TRUTH for turn structure and priority.** Dictated by Aj
+  2026-09-08 and the only live statement of the model. **Read it before touching any window, the stack, or
+  anything that grants priority.**
 - `docs/BUILD-PLAN-v0.82.md`, `docs/Cardmen-Fighter-Design-v0.70.md`, `docs/STACK-DESIGN-v0.53.md` —
-  historical snapshots, not current truth.
+  historical snapshots, not current truth — **and specifically wrong about priority**, which is what
+  `PHASES-AND-PRIORITY.md` now owns.
