@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.125**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.126**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -1342,6 +1342,25 @@ entry with no ratchet means **the fix already landed and the entry is now a stal
 reintroducing both drifts; two reds. **When you add a known failure, tag it; when you delete one, the gate
 will tell you what else to close.**
 
+**A `file:NNNN` CITATION IS A COPIED NUMBER, AND IT ROTS ON EVERY EDIT ABOVE IT (2026-09-08).** A staleness
+sweep of the live docs found **8 of 20** line references already pointing at the wrong line: the one for the
+stack view landed on a subtitle, the one for `respondDecision`'s threat list on `return best;`, the one for
+`openShieldGuardModal` on an unrelated client guard — and **most had drifted that same day**
+*(and this paragraph cannot quote them, because the gate scans this file — the `nettest_narrate` trap of
+tripping on your own example, which it duly did on the first run)*, from comment blocks added and dead functions deleted in the very session that
+wrote them. **Cite a SYMBOL** (`guardEffFor`, `openResponseWindow`, `THREAT_KIND`): greppable, says what you
+meant, and survives an edit above it. `versiontest` gates this now across the four live docs; the approximate
+form (`engine.js` ~1447) is deliberately still allowed, because the tilde is honest about drifting and banning
+it pushes people back to prose that names nothing.
+**THE OTHER TWO AXES WERE CLEAN, WHICH IS THE USEFUL HALF OF THE RESULT.** All **85** suite counts declared in
+this file matched what the suites print, and of the identifiers named in the live docs only five are absent
+from the code — `hasPriority` / `passPriority` / `pushStack` / `setRework` / `isTech` — each a deliberate
+tombstone whose entry is *about* its absence. **So the staleness this repo actually suffers is not in names or
+counts, which are gated; it is in CLAIMS** — a measurement, or an assertion that something is still broken.
+Three of those were found and killed on 2026-09-07/08 (a landscape overlap, the Caltrops text, this file's own
+`effectOf` "still open" list), and none of them would have been caught by any mechanical scan. The only
+defence that has worked is the one already in this file: **make the second copy ASSERTED, not written.**
+
 **A RECORDED MEASUREMENT IS ONLY TRUE OF THE BUILD IT WAS TAKEN ON — RE-MEASURE BEFORE BUILDING AGAINST ONE.**
 Every number in the zones-into-panels entry was wrong by the time anyone acted on it, three versions of layout
 work later, and re-measuring first also killed that entry's own "cheaper alternative" and found a viewport
@@ -1545,13 +1564,13 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.125 — 2026-09-08, `npm run sweep`, 86 suites and 0 FAIL in 178s** (four lanes; background
+Status as of **v1.31.126 — 2026-09-08, `npm run sweep`, 86 suites and 0 FAIL in 178s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 399, `netview` 60, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 29, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 30, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
