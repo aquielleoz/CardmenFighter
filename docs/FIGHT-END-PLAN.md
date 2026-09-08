@@ -795,6 +795,27 @@ The second reading is the one the version scheme already implies, but it is a ru
 number promises, so it is Aj's to make. **Whichever is chosen, CLAUDE.md's netplay-handshake paragraph must
 be rewritten in the same commit** — leaving it stating the old rule is how a settled decision gets re-argued.
 
+### Where a mid-cast card goes — ⚠ OPEN, and the code disagrees with the description
+
+Aj settled that the card is **mid-cast** while its effect is on The Stack, and flagged that future ♦ cards may
+redirect it: *"might send it back to the hand instead of to the energy pile like counter spell."*
+
+**There are three destinations in the code today and none of them is the energy pile:**
+| what | where it goes |
+| --- | --- |
+| an effect that is **countered** | the **Shuffle Pile** (`resolveTopEffect`'s countered branch) |
+| an effect that **resolves normally** | `spendCard` — the **Shuffle Pile** or **Removed**, depending on `RECYCLE_TECH` |
+| **Counter Spell's own card**, having countered something | **Removed** |
+
+The Energy Pile is fed by discard-to-hand-size, the catch-up mill and deliberate banking — not by casting.
+So either the description is a slip for "Shuffle Pile", or the intent is that a countered card should become
+**energy** and the code has never done it. **These are materially different**: energy is a spendable resource
+handed to the player who was just countered, the Shuffle Pile is a future draw, and Removed is gone outright.
+Do not guess — a redirect card cannot be written until the thing it redirects *from* is fixed.
+
+**Not a blocker for this epic** (nothing in the rebuild moves a card), but it is cheap to settle now and
+expensive to discover while writing the first ♦ card that cares.
+
 ### The "wasted flag" question — asked, and it dissolves
 
 I asked whether a wasted Armor Piercing strip should still eat the banked flag. Aj: *"the effect also only
