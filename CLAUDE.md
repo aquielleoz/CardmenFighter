@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.124**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.125**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -1545,7 +1545,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.124 — 2026-09-08, `npm run sweep`, 86 suites and 0 FAIL in 178s** (four lanes; background
+Status as of **v1.31.125 — 2026-09-08, `npm run sweep`, 86 suites and 0 FAIL in 178s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -1713,10 +1713,15 @@ Form-made Quick did not merely look wrong — it was silently passed, with no wi
 v1.31.112 along with three sites in the shield-guard path. The tell that these are oversights rather than
 decisions: `eligiblePreFightQuicks` sat twenty lines below `eligibleQuicks` already using `effectFor`, with a
 comment explaining why.
-**Known and still open**: the ⏩ Quick badge on a card face (`cardEl`) reads `effectOf`, so a Form-made Quick
-carries no badge — `cardEl` has no seat argument and using YOUR forms for a rival's card would be wrong in the
-other direction. And two `ai.js` HEURISTICS (`keepValue`, and the don't-burn-a-Quick-on-a-jab filter) undervalue
-a granted Quick. Both are filed; neither makes anything unreachable.
+**ALL THREE OF THIS LIST'S "still open" ITEMS HAVE SHIPPED — verified 2026-09-08, and the list itself was the
+last stale thing in the entry.** The ⏩ badge took a seat argument in v1.31.113 (`cardEl(card, size, seat)` →
+`qef` from `effectFor`); `keepValue` and the don't-burn-a-Quick-on-a-jab filter both read `effectFor` now. A
+"known and still open" list is the shape that rots fastest here, because nobody deletes an entry when they fix
+the thing — **when you close one of these, close the note in the same commit.**
+**What IS left is smaller and different in kind:** three sites render a response BUTTON's label with
+`effectOf` (template `:4877`, `:4938`, `:8524`), so a Form-granted Quick is offered correctly and then
+described with its base type — the card is playable, the label just says "Technique" where the game means
+"Quick Technique". Display only.
 
 **AI personas vary STYLE, not STRENGTH — and `personasim.js` is the guard.** Each AI seat draws a persona
 (name + targeting style) from its difficulty tier at game start; `PERSONAS` and `drawPersonas` live in

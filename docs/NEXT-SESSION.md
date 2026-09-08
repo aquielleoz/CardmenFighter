@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.124.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.125.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.124**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.125**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -158,15 +158,6 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 - **THE PRIORITY UI SHOWS NO STACK.** The prompt names only the top object, and the stack view that would fix
   it sits behind an opaque overlay (template:4802). In a Counter-a-Counter chain the player being asked for
   priority cannot see what they are responding to.
-
-- **HOUSEKEEPING: 17 CONFIRMED STALE COMMENTS AND DEAD FUNCTIONS in the priority/effect path**, several of the
-  exact class CLAUDE.md warns about — code that looks alive in the layer you would read first. `opponentCanRespond`
-  is **dead, still exported**, and describes the retired one-level window, so it is the natural place someone
-  would "fix" a response bug; `rivalMayGuard` is uncalled; `resolveEffect`'s `counter`/`protect` cases are
-  unreachable; `Sphere of Invulnerability` is an orphaned effect kind whose comments describe it as live; and
-  four/five comments each still name **Emergency Maintenance** (= Annoint), **Finishing Blow** (= Armor
-  Piercing, and the AI's log tag is still `'FINISH'`), Brilliant Tactic as a Quick, and STOPPER hold-back logic
-  for a deleted mechanic. Do this as one sweep, not seventeen tickets.
 
 - **★ THE MIRROR-CONTRACT AUDIT'S THREE UNFIXED FINDINGS.** v1.31.114/.115 took the two live bugs and
   v1.31.116 the park heartbeat; these are what the judge left standing. Each is a mirror or transport fault, so

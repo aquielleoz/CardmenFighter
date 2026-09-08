@@ -15,6 +15,41 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.125 — deleting the code that would have misled the Fight End rebuild
+
+No behaviour change. The audit's housekeeping bucket, done as one sweep — and done **before** the Fight End
+work rather than after, because every item is something a reader of that code would have believed.
+
+**FOUR DEAD THINGS, EACH VERIFIED UNREACHABLE BY ITS CALL GRAPH BEFORE DELETION** (the parse check cannot see
+a deletion, so "it looks unused" is not enough):
+- **`opponentCanRespond`** — answered *"may anyone respond?"* for the **retired one-level window** (Counter
+  Spell vs any Technique, Annoint vs a removal) and was replaced by `canAddToStack`, which admits any
+  affordable Quick. It was still **exported on the engine API**, which made it the natural place to "fix" a
+  response-window bug: narrower than the real gate, and wrong in the direction that looks like a safety check.
+- **`rivalMayGuard`** — `destroyShield` can no longer open a shield-guard window, so nothing had called it in
+  a long time; it was reachable only from a comment.
+- **`resolveEffect`'s `counter` and `protect` cases** — `resolveTopEffect` handles both before it would ever
+  delegate, so they were unreachable *and* actively misleading: their comments described the proactive-fizzle
+  path, which is real behaviour implemented elsewhere.
+- **The `shieldImmune` KIND** — zero cards carry it (the FIELD is live and handled inside `case 'shield'`).
+  **Nearly a false alarm worth recording:** reading six lines of `case 'shield'` suggested Apollo's *"you can't
+  lose a shield until end of round"* was never applied. It is — at line 1469, a few lines further down. Read to
+  the end of the case before reporting a bug.
+
+**AND THE NAMES.** Comments still called Annoint *"Emergency Maintenance"* (5), Armor Piercing *"Finishing
+Blow"* (4), Brilliant Tactic a Quick, and described **STOPPER** hold-back logic for a mechanic deleted in
+v1.31.13 — plus an orphaned `quickBoostPlay` header sitting directly above `rankCounts`, where it read as that
+function's documentation. Two engine comments were not merely stale but *wrong about priority*: one implied the
+pre-fight window is a Back Stab carve-out (it is the priority pass before the shedding play, and the narrowing
+lives in the UI), and one claimed `pushEffect` opens a window "for the active player" (it opens one for every
+living opponent of the caster — the same thing in a duel, usually not at 3-6).
+
+**`CLAUDE.md`'s own "known and still open" `effectOf` list was the last stale thing in the entry** — all three
+items had shipped (the ⏩ badge in v1.31.113, both AI heuristics since). *When you close one of these, close
+the note in the same commit.* What remains is smaller and different in kind: three sites render a response
+button's LABEL with `effectOf`, so a Form-granted Quick is offered correctly and then described with its base
+type. Display only, and now recorded as such.
+
 ### v1.31.124 — one tier list instead of three, and a subtitle that stops lying
 
 Two small ones, both the same shape: a fact typed out more than once.

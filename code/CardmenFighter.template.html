@@ -4216,7 +4216,7 @@ __QR__
     });
   }
   // Direction 1: you cast a Technique — if a response window opened, let the Rival's
-  // AI answer it (Counter Spell / Emergency Maintenance) synchronously.
+  // AI answer it (Counter Spell / Annoint) synchronously.
   function rivalMayRespond(humanEffName){
     if(!state.pending || state.respondFor!==RIVAL) return null;
     var resp=AI.respondDecision(state, RIVAL);
@@ -4342,14 +4342,9 @@ __QR__
   }
   // Direction 1: YOU cast a destroyShield technique (Critical Hit / Ultima Attack). If the Rival
   // holds a guard (Leyline), let its AI decide to spring it or take the hit — resolved inline.
-  function rivalMayGuard(){
-    if(!state.shieldResponse || state.shieldResponse.q!==RIVAL) return;
-    var rpl=state.players[RIVAL];
-    var gcard=rpl.hand.filter(function(c){return c.id===state.shieldResponse.guardId;})[0];
-    var fr=(rpl.shields<=2) ? E.shieldGuard(state, RIVAL, state.shieldResponse.guardId) : E.shieldGuardPass(state, RIVAL);
-    if(fr.guarded) narrateShieldGuard(RIVAL, gcard, fr);
-    else say(RIVAL, '{who} took the hit.', 'dim');   // …and the decline is narrated the same way, for the same three reasons
-  }
+  /* `rivalMayGuard` WAS DELETED HERE (v1.31.125). It resolved the RIVAL's shield-guard window inline, and
+     `destroyShield` can no longer open one — the target answers the TECHNIQUE one level up instead, which is
+     the intended unification. Nothing has called it since; it was reachable only from a comment. */
   // COUNTERFEIT: choose a card from the Rival's current play to copy into your hand.
   function promptCounterfeit(cardId){
     var pool=state.pile.combo.cards, seen={}, uniq=[];
@@ -4752,7 +4747,7 @@ __QR__
           var q=state.shieldResponse.q, rpl=state.players[q];
           var rgcard=rpl.hand.filter(function(c){return c.id===state.shieldResponse.guardId;})[0];
           var fr=(rpl.shields<=2) ? E.shieldGuard(state, q, state.shieldResponse.guardId) : E.shieldGuardPass(state, q);
-          if(fr.guarded) narrateShieldGuard(q, rgcard, fr);   // shared with rivalMayGuard — see narrateShieldGuard
+          if(fr.guarded) narrateShieldGuard(q, rgcard, fr);   // see narrateShieldGuard (its other caller, `rivalMayGuard`, was deleted in v1.31.125)
           return finishStep(fr, g, log);   // the WHOLE log — finishStep paces it as beats, then resolves
         }
         return finishStep(pres, g, log);   // the WHOLE log — finishStep paces it as beats, then resolves
