@@ -2044,7 +2044,16 @@ __QR__
   function saveMyName(v){ myName=cleanName(v); try{ localStorage.setItem(NAME_KEY, myName); }catch(e){} }
   function nameOf(i){ return (seatNames && seatNames[i]) ? seatNames[i] : ''; }
   function setSeatNames(list){ seatNames=(list||[]).map(cleanName); }
-  function seatName(i){ return i===YOU?'You':(nameOf(i)||('P'+(i+1))); }
+  /* THE DEFAULT NAME IS "Rival N" FOR EVERY SEAT, HOST INCLUDED (Aj, 2026-09-08): *"we need to add a number
+     to Rival so that you'll know which rival (in case they don't change their name) … we can still keep Rival
+     + number as the default name for everyone (even the human players/host)."* It replaces two different
+     defaults that disagreed — `P2` here and a bare `Rival` in `logName`'s duel branch — so an un-renamed seat
+     was identifiable in one place and not the other. Numbered by SEAT, so the host is "Rival 1"; you always
+     read as "You" in your own frame, and the number is what other people see. A duel therefore reads
+     "Rival 2", which is uniform rather than pretty — the alternative was a per-player-count special case, and
+     those are what produced the two defaults in the first place. */
+  function defaultName(i){ return 'Rival '+(i+1); }
+  function seatName(i){ return i===YOU?'You':(nameOf(i)||defaultName(i)); }
   /* Your own strip showed a bare "You", so your name was invisible to you — the one person who cannot see it
      in the log (you always read as "You" there). Show "Name (You)" when set, and make it the way you change it. */
   function paintWhoLabels(){
@@ -2883,7 +2892,7 @@ __QR__
   function scrollLogToBottom(){ var l=$('log'); l.scrollTop=l.scrollHeight; setLogNewBtn(false); }
   // Reader-relative name for a seat in OUR frame: yourself is "You", and a duel's opponent is "Rival"
   // rather than "P2" (seatName is the raw seat label and does not know about duels).
-  function logName(i){ return i===YOU ? 'You' : (nameOf(i) || (MP() ? ('P'+(i+1)) : 'Rival')); }
+  function logName(i){ return i===YOU ? 'You' : (nameOf(i) || defaultName(i)); }   // one default for every count — see defaultName
   /* Narrate a GAME EVENT. `actor` is the absolute seat acting, or null for a neutral line.
    * The template carries a `{who}` placeholder instead of a baked-in name, because phrasing is
    * reader-relative — the same event is "You played" to the actor and "Rival played" to everyone else.
@@ -3415,6 +3424,17 @@ __QR__
     }
     if(eff.kind==='removeEquip' && (E.removeTargets?E.removeTargets(state, YOU, eff):E.equipTargets(state, YOU)).length===0) return 'No Equipment or zone card to target.';
     if(eff.kind==='counterfeit' && (!state.pile || state.pile.byPlayer===YOU)) return 'No Rival play to copy right now.';
+    /* A SHIELD-LOSS TECHNIQUE WITH NOTHING TO DESTROY (v1.31.120). Critical Hit ♠9 and Ultima Attack ♣10 both
+       read "Target Rival loses 1 shield."; against a table where no rival HAS one, the ⚡ was fully lit and the
+       cast burned the energy AND the Broadway pitch for nothing. Refusing is the fix; making it KILL is not —
+       a Technique can take you to 0 and never past it, because the Fighter Kick is a FIGHT outcome. Aj,
+       2026-09-08: "no shield loss technique is a kick. none can be turned into kicks... check the wording
+       please." The wording is the whole argument, and `noKick` on destroyShield is correct. */
+    if(eff.kind==='destroyShield'){
+      var _sh=false;
+      for(var _i=0;_i<state.numPlayers;_i++){ if(_i!==YOU && !state.players[_i].eliminated && state.players[_i].shields>0){ _sh=true; break; } }
+      if(!_sh) return 'No rival has a shield to destroy.';
+    }
     // fizzle guardrails: don't let you burn a Quick that would do nothing on your own turn
     if(eff.kind==='counter') return 'Nothing to counter — hold it to answer a Rival Technique.';
     if(eff.kind==='protect' && state.players[YOU].equipment.length===0) return 'No equipment of yours to protect.';
@@ -4236,7 +4256,13 @@ __QR__
        prompt can say out loud that the guard exists because of what is in your zone. */
     var guardCard=state.players[YOU].hand.filter(function(c){return c.id===sr.guardId;})[0];
     var geff=guardCard?E.effectFor(state, YOU, guardCard):{};
-    var threat = sr.roundWin ? ('Rival’s <b>'+(TYPE[r&&r.comboType]||'Special')+'</b>') : ('Rival’s <b>'+((sr.obj&&sr.obj.source)||'attack')+'</b>');
+    /* NAME THE SEAT, DO NOT SAY "Rival" (v1.31.120). At 3-6 players this modal read "Rival’s Special is about
+       to strip one of your shields" — naming a player who is not at the table, and withholding the single fact
+       you need to decide whether to spend the guard. `sr.winner` is the striker (this modal only opens for
+       `sr.q === YOU`, so the striker is never you and "You’s" cannot occur). A destroyShield threat carries no
+       attacker seat on the mirror, so it leads with the SOURCE rather than inventing an owner for it. */
+    var atk = (typeof sr.winner === 'number' && sr.winner >= 0) ? (logName(sr.winner)+'’s ') : '';
+    var threat = sr.roundWin ? (atk+'<b>'+(TYPE[r&&r.comboType]||'Special')+'</b>') : (atk+'<b>'+((sr.obj&&sr.obj.source)||'attack')+'</b>');
     var html='<h2>🛡 Shield threatened!</h2>'+
       '<p>'+threat+' is about to strip one of your shields. Spring <b>'+(geff.name||'your guard')+'</b> to become immune this round?</p>'+
       '<div class="respIncoming"><b>'+(geff.name||'')+'</b> ('+(guardCard?cardSym(guardCard):'')+' · '+(geff.cost||0)+'⚡) — '+(geff.text||'')+
@@ -4744,8 +4770,16 @@ __QR__
          below, already reads `effectFor` and says why in its own comment. Someone fixed that one. */
       var ef=(E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c));
       if(!ef||!ef.impl||!ef.quick||!E.canAfford(you, c)) return false;
-      if(ef.kind==='protect') return pend.eff.kind==='removeEquip' && you.equipment.length>0;
-      return true;                                   // Counter Spell answers any Technique
+      /* NO EXTRA KIND FILTER — THIS MUST MATCH THE ENGINE'S `canAddToStack` EXACTLY (v1.31.120). There was a
+         `protect` clause here hiding Annoint unless the pending effect was a removal, and the engine has no
+         such test: it grants priority for ANY affordable Quick. So the engine opened a window this list then
+         reported empty, and `promptHumanResponse` auto-declined a window the player was legitimately owed.
+         Invisible solo; on a netplay CLIENT it is a visible round trip — the board goes busy waiting on the
+         wire for a decline nobody chose.
+         And offering a Quick that will fizzle is CORRECT, not a leak: casting is free and a Quick with no
+         legal target fizzles on resolution rather than being illegal (PHASES-AND-PRIORITY.md §1-2). One
+         predicate, two definitions was the bug — the same shape as `resolveIds` and `guardEffFor`. */
+      return true;
     });
   }
   // Settle the response stack: the Rival's AI answers its own windows inline (recursively), and when
@@ -7697,7 +7731,12 @@ __QR__
         else if(m.t==='full'){ if(!m.cid || m.cid===myId){ setMessage('⚠ This game is full.'); setLobbyErr('This game is full (6 players max).'); } }   // reachable on BC, where `sig` is null
         else if(m.t==='log'){                                   // public narration — resolve {who}/{foe} in OUR frame
           var n=(state&&state.numPlayers)||2, rot=function(abs){ return ((((abs-mySeat)%n)+n)%n); };
-          var nm=function(r){ return r===0 ? 'You' : (nameOf(r) || (n===2 ? 'Rival' : ('P'+(r+1)))); };
+          /* CALL `logName`, DO NOT RESTATE IT (v1.31.120). This was a private fourth namer with its own copy
+             of the default-name rule — `n===2 ? 'Rival' : 'P'+(r+1)` — so EVERY public narration line a client
+             renders went through it rather than through the function the rest of the game uses. It was found
+             by changing the default in one place and watching a client's log not change. `logName` takes a
+             LOCAL index and `rot` has already converted, so this is a drop-in. */
+          var nm=logName;
           var who=nm(rot(m.actor));
           /* THE SECOND NAME HAD TO TRAVEL AS SEATS. It used to be interpolated by the host as literal text, so a
            * client read the HOST's word for it — "You won with a Pair - You lose a shield", both of them "You". */

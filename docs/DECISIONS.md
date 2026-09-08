@@ -675,11 +675,17 @@ re-argues them or "restores" the doc.**
 - **§2's priority loop shipped step-for-step**, LIFO resolution and Counter-a-Counter included, and §3's
   **no-overkill / `wasBroken`** rule shipped exactly as written. Recorded here because both were doubted.
 
-**One classification in that audit was overruled by the designer and moved to the BACKLOG:** `destroyShield`
-being `noKick` was defended by a code comment and filed as deliberate. Aj, 2026-09-08: *"the techniques are
-shield losses. player loss is only through kicks. kicks only happen when there are no shields left."* **A code
-comment is evidence of intent, not proof of it** — when a divergence is defended only by the comment of
-whoever wrote it, ask the designer before recording it as settled.
+**`destroyShield` being `noKick` is CORRECT, and the round trip is worth recording.** The audit classified it
+as a deliberate divergence. I overruled it on a misreading of Aj's *"the techniques are shield losses. player
+loss is only through kicks. kicks only happen when there are no shields left"* — reading it as *a technique
+striking a 0-shield player should kick*. He meant the opposite: techniques cause **shield** losses only, and
+**player** loss happens exclusively through the Fighter Kick, which is a FIGHT outcome. *"no shield loss
+technique is a kick. none can be turned into kicks... check the wording please."* The wording is
+**"Target Rival loses 1 shield."** — nothing more, on both cards.
+**The lesson is mine, not the audit's: when a designer's answer would REVERSE a verified finding, re-read the
+card before acting on it.** The finding survived adversarial verification and I discarded it on one ambiguous
+sentence. What remains is a genuine defect of a different shape — the cast is legal, fully paid for, and does
+nothing — and it is filed in the BACKLOG as a refusal, not a kick.
 
 ## Initiative catch-up — DECLINED, and it was never Aj's report <a id="initiative-catchup"></a>
 

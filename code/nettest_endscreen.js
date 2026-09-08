@@ -172,11 +172,11 @@ const click=(p,id)=>p.evaluate(id=>{ const b=document.getElementById(id); if(b &
   const jl=await join.evaluate(()=>({ ready:/Ready/.test((document.getElementById('lobbyGo')||{}).textContent||''), unready:!!document.getElementById('lobbyUnready'),
                                       pickerOn:!(document.getElementById('deckSel')||{disabled:true}).disabled, save:!!document.getElementById('lobbySaveLog') }));
   ok(jl.ready && !jl.unready && jl.pickerOn, '  → un-readied: "Ready ▶" is offered, no "↩ Not ready", and the deck picker is LIVE  ['+JSON.stringify(jl)+']');
-  ok(/Back in the lobby/.test(jt) && /Rival won the last game/.test(jt), '  → and it is told who won, reader-relative ("Rival won")');
+  ok(/Back in the lobby/.test(jt) && /Rival \d+ won the last game/.test(jt), '  → and it is told who won, reader-relative, with the seat NUMBERED ("Rival N won")');
   ok(jl.save && await host.evaluate(()=>!!document.getElementById('lobbySaveLog')), '  → both lobbies offer "⤓ Save the last battle log"');
   const jLast=await lastLog(join), hLast=await lastLog(host);
-  ok(jLast.length>=clientLogBefore && /Rival reopened the lobby/.test(jLast[jLast.length-1]||''),
-     'the client\'s stashed log ends with "Rival reopened the lobby" — said BEFORE started flipped, or nobody hears it  [last: "'+(jLast[jLast.length-1]||'')+'"]');
+  ok(jLast.length>=clientLogBefore && /Rival \d+ reopened the lobby/.test(jLast[jLast.length-1]||''),
+     'the client\'s stashed log ends with "Rival N reopened the lobby" — said BEFORE started flipped, or nobody hears it  [last: "'+(jLast[jLast.length-1]||'')+'"]');
   ok(/You reopened the lobby/.test(hLast[hLast.length-1]||''), '  → the host\'s ends with "You reopened the lobby" (the same template, each end\'s own frame)');
   ok((await liveLog(join)).length===0 && (await liveLog(host)).length===0, '  → and both LIVE logs are empty — game two starts clean on both ends (a client never runs startGame)');
 

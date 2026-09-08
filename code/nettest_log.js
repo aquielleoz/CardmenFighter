@@ -2,7 +2,8 @@
  * (join/welcome/err/peer/ceremony) — the host narrated everything locally and a client's log was
  * EMPTY all game, even for its own moves. Narration now goes through say(actor, '{who} …'), which
  * broadcasts the TEMPLATE plus the actor's absolute seat so each side renders it in its own frame:
- * the actor reads "You played", everyone else reads "Rival played" (or "P3" in a free-for-all).
+ * the actor reads "You played"; everyone else reads the seat's name, defaulting to "Rival N" (v1.31.120 —
+ * one numbered default at every player count, replacing a bare "Rival" in duels and "P3" in a free-for-all).
  * Run: node nettest_log.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8313),ROOM='LG'+Date.now().toString().slice(-3);
@@ -50,10 +51,10 @@ async function waitTurn(p,seat){ for(let i=0;i<200;i++){ if((await turnOf(p))===
   // the HOST plays: the host reads "You", the client must read "Rival"
   await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="lg4D"]'); if(c)c.click(); const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
   ok(await waitLog(host,/^You played/),'host log: "You played …"');
-  ok(await waitLog(join,/^Rival played/),'CLIENT log now shows the host\'s play as "Rival played …" (was empty before)');
-  const hp=(await log(host)).find(l=>/^You played/.test(l)), jp=(await log(join)).find(l=>/^Rival played/.test(l));
+  ok(await waitLog(join,/^Rival \d+ played/),'CLIENT log now shows the host\'s play as "Rival N played …" (was empty before)');
+  const hp=(await log(host)).find(l=>/^You played/.test(l)), jp=(await log(join)).find(l=>/^Rival \d+ played/.test(l));
   // guard: if either line is missing the assertion should FAIL, not throw and abort the remaining checks
-  ok(!!hp && !!jp && hp.replace(/^You played/,'')===jp.replace(/^Rival played/,''),
+  ok(!!hp && !!jp && hp.replace(/^You played/,'')===jp.replace(/^Rival \d+ played/,''),
      'both sides describe the same card ('+(hp||'(missing)')+' / '+(jp||'(missing)')+')');
 
   // the CLIENT plays: mirrored phrasing
@@ -72,7 +73,7 @@ async function waitTurn(p,seat){ for(let i=0;i<200;i++){ if((await turnOf(p))===
   });
   ok(played,'the client found a legal jab to answer with');
   ok(await waitLog(join,/^You played/),'CLIENT log shows its OWN play as "You played …"');
-  ok(await waitLog(host,/^Rival played/),'host log shows the client\'s play as "Rival played …"');
+  ok(await waitLog(host,/^Rival \d+ played/),'host log shows the client\'s play as "Rival N played …" — the default name carries its seat number');
 
   // the client's log is genuinely populated, not just one line
   const jl=await log(join);

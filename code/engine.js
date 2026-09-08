@@ -2364,6 +2364,7 @@
     effectTarget: effectTarget,   // who a pending effect is aimed at — the UI needs it to say so out loud
     HOSTILE_SINGLE: HOSTILE_SINGLE,
     shieldGuard: shieldGuard, shieldGuardPass: shieldGuardPass, shieldGuardCard: shieldGuardCard,
+    guardEffFor: guardEffFor,   // the single definition of "can this card guard" — ai.js calls it rather than restating `immune || shieldImmune`
     DECKS: DECKS, DECK_ORDER: DECK_ORDER, BASE_SUIT: BASE_SUIT, buildDeck: buildDeck,
     PARTS_TOTAL: PARTS_TOTAL, PARTS_SUITS: PARTS_SUITS, PARTS_PREFIX: PARTS_PREFIX,
     partsCount: partsCount, partsValid: partsValid, partsKey: partsKey, parseParts: parseParts,

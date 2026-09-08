@@ -748,6 +748,19 @@
   // AI (player q) decides whether to answer the pending Technique with a Quick. Always
   // resolves the window (respond or decline) so st.pending is cleared. Returns the
   // engine result of whichever it chose.
+  /* WHICH EFFECTS ARE WORTH A COUNTER SPELL — a declared TABLE rather than four inline `||`s, because the
+     inline version silently omitted `lockout` (v1.31.120). Back Stab costs you your entire turn, and it was
+     the one hostile effect the AI did not rate: it declined Back Stab while visibly holding Counter Spell,
+     then sat out the round.
+     THE LIST IS NOT INVERTED, ON PURPOSE. "Everything not declared benign is a threat" is the tempting fix and
+     it is a STRENGTH change — the AI would counter far more than it does today, and this repo measures those
+     before shipping (personasim / analysis). So behaviour moves by exactly one kind, and the guard against the
+     next omission is a TEST: `test.js` requires every effect kind the card set can produce to appear in
+     exactly one of these two tables. A new kind fails the suite by name instead of defaulting to "harmless". */
+  var THREAT_KIND = { destroyShield: 1, removeEquip: 1, discardOpp: 1, energyDenyOpp: 1, lockout: 1 };
+  var BENIGN_KIND = { draw: 1, ramp: 1, reclaim: 1, recycle: 1, shield: 1, transform: 1, valueBoost: 1,
+                      equip: 1, protect: 1, ward: 1, counter: 1, counterfeit: 1, onWin: 1, phantasm: 1 };
+
   function respondDecision(st, q) {
     if (!st.pending || st.respondFor !== q) return null;
     if (!effectsAllowed(st, q)) return E.declineResponse(st, q);   // analysis: pure-fighter never answers with a Quick
@@ -766,16 +779,18 @@
       var prot = bestQuick('protect');
       if (prot) { var pr = E.respond(st, q, prot.id); if (pr.ok) return pr; }
     }
-    // Reactive Leyline: spring an immunity Quick to blank a destroyShield technique aimed at us.
+    /* Reactive immunity: spring an immunity Quick to blank a destroyShield technique aimed at us.
+       THIS TESTED `e.immune` ONLY, and there are TWO spellings — the engine's `guardEffFor` has admitted
+       `immune || shieldImmune` since v1.31.112 and the second was never carried across. So an AI in Apollo
+       Mode holding Sanctuary took the hit, then would have sprung the very same card against a fight-win
+       strip a moment later. Call the ENGINE's predicate instead of restating it: one definition, and the next
+       spelling added there reaches the AI for free. Same rule as `isChopOf` and `resolveIds`. */
     if (eff.kind === 'destroyShield' && qp.shields <= 2) {
-      var immuneQ = qp.hand.filter(function (c) { var e = E.effectFor(st, q, c); return e && e.impl && e.quick && e.immune && E.canAfford(qp, c); })[0];
+      var immuneQ = qp.hand.filter(function (c) { return E.guardEffFor(st, q, c) && E.canAfford(qp, c); })[0];
       if (immuneQ) { var ir = E.respond(st, q, immuneQ.id); if (ir.ok) return ir; }
     }
     // Counter Spell: negate the genuinely threatening Techniques (not friendly draws/ramp).
-    var threat = eff.kind === 'destroyShield'
-      || (eff.kind === 'removeEquip' && qp.equipment.length > 0)
-      || eff.kind === 'discardOpp'
-      || eff.kind === 'energyDenyOpp';
+    var threat = !!THREAT_KIND[eff.kind] && !(eff.kind === 'removeEquip' && qp.equipment.length === 0);
     if (threat) {
       var cs = bestQuick('counter');
       if (cs) { var cr = E.respond(st, q, cs.id); if (cr.ok) return cr; }
@@ -913,7 +928,8 @@
     if (aiPreFightLock(st, q, activeP, diff)) { var bs = lockoutQuick(st, q); if (bs) return { cast: bs.id, card: { rank: bs.rank, suit: bs.suit, id: bs.id } }; }
     return { pass: true };
   }
-  var API = { chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
+  var API = { THREAT_KIND: THREAT_KIND, BENIGN_KIND: BENIGN_KIND,   // exported so test.js can require every effect kind to be CLASSIFIED
+    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
     lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;

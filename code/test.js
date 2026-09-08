@@ -1530,5 +1530,31 @@ function cards(ids) { return ids.map(card); }
   E.setQuadro(false); E.setKits3(false); E.setDoublePair('off');
 })();
 
+
+/* EVERY EFFECT KIND MUST BE CLASSIFIED AS A THREAT OR AS BENIGN (v1.31.120). The AI's Counter Spell decision
+   was four inline `||`s and silently omitted `lockout`, so Back Stab — which costs you your whole turn — was
+   the one hostile effect it did not rate. The tables are declared in ai.js now; this is what stops the next
+   kind from defaulting to "harmless" by being forgotten.
+   INVERTING the list instead ("anything not benign is a threat") would have been a STRENGTH change and this
+   repo measures those, so the guard is a test rather than a default. */
+(function () {
+  var kinds = {}, DK = E.DECKS ? Object.keys(E.DECKS) : [];
+  ['D', 'H', 'C', 'S'].forEach(function (su) {
+    for (var r = 1; r <= 13; r++) {
+      var e = E.effectOf({ rank: r, suit: su, id: 't' + r + su });
+      if (e && e.impl && e.kind) kinds[e.kind] = (kinds[e.kind] || 0) + 1;
+    }
+  });
+  var all = Object.keys(kinds).sort();
+  var unclassified = all.filter(function (k) { return !AI.THREAT_KIND[k] && !AI.BENIGN_KIND[k]; });
+  var both = all.filter(function (k) { return AI.THREAT_KIND[k] && AI.BENIGN_KIND[k]; });
+  ok(all.length >= 12, 'the kind sweep SEES the card set (' + all.length + ' distinct effect kinds across 52 cards)');
+  ok(unclassified.length === 0,
+     'every effect kind is classified threat-or-benign for the AI' +
+     (unclassified.length ? ' — UNCLASSIFIED: ' + unclassified.join(', ') + '  ← add each to THREAT_KIND or BENIGN_KIND in ai.js; forgetting is how `lockout` went unrated' : ''));
+  ok(both.length === 0, 'no kind is in BOTH tables' + (both.length ? ' — ' + both.join(', ') : ''));
+  ok(!!AI.THREAT_KIND.lockout, 'lockout IS rated a threat — Back Stab costs the whole turn, the reason this table exists');
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);
