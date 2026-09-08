@@ -103,6 +103,16 @@ pile stands.
 - **Before the Fight End Sub-Phase, priority is passed around again** — before *anything* happens: before
   shields are stripped, before initiative is determined. **Every player has already passed their turn by
   this point, so it is NOBODY's turn, and this window is therefore Quicks only.**
+  - **IT OPENS EVERY ROUND** (Aj, 2026-09-08). Not only when something is at stake. In practice a player
+    holding no castable Quick is auto-passed — the engine already does that, `canAddToStack` — so it costs an
+    empty-handed player nothing and is invisible to them. It is a *window*, not a *prompt*.
+  - **AND THE LOSS TARGET IS PICKED BEFORE IT** — before priority is passed at all — *"so that people will know
+    if they want to activate shield protection or no."* A defender deciding whether to spend a card must know
+    the strike is aimed at them; asking first and revealing after would make the decision a coin flip.
+    **This is the order the code already has**, which is worth knowing before rebuilding the window:
+    `resolveRoundWin` returns early with `needsLossTarget` (`engine.js:1937`) before any strip, and
+    `st.shieldResponse` is only set once the pick has completed (`:1902`). The rebuild changes the window's
+    NATURE — a whitelist of guard cards becomes a priority window admitting any Quick — and not its position.
 
 - **Fight End Sub-Phase.** **Nobody gets priority inside it** — only before it. The outcome resolves: a
   Special win strips a shield, a Jab win banks energy, and the winner takes initiative.
