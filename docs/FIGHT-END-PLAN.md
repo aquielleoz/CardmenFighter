@@ -407,6 +407,45 @@ exactly one file. The four things that matter for planning:
 
 ---
 
+## The three standing defects, and what their severity actually is
+
+These three exist in `main` today; the rebuild does not create them. Each was re-checked against the
+**shipped configuration** before being scheduled, because the first framing of them — *"live bugs, fix them
+on main first"* — did not survive contact with the code. Aj folded them into the epic once the severity was
+accurate. **Do not re-derive any of this; that is the whole point of writing it down.**
+
+**1 · `noopDestroy` — a rules deviation, not a wrong outcome. Owned by step 13.**
+It suppresses the ENTIRE priority window whenever the named target sits at 0 shields. In the shipped game the
+*outcome* is nonetheless right: every `destroyShield` push carries `noKick` and `noGuard`, so the effect
+genuinely is a no-op against that seat. What is lost is the window itself — nobody may cast any Quick at that
+moment — which is a fault in the model, not in the arithmetic.
+The half that DOES produce a wrong outcome needs several struck seats, i.e. `DAMAGE_SPAN > 1` or
+`DAMAGE_ALL` — and **neither is wired to the custom rules menu** (grep `setDamageSpan` in the template: no
+hits). So no player can reach it; only sims and probes can. That is precisely why this is a step-13 deletion
+and not a `fix/` on `main`.
+
+**2 · The discarded `sres` — real, latent today, load-bearing inside this epic. Owned by step 13, asserted in step 11.**
+`struck` / `prevented` / `spared` are computed for a mid-turn `destroyShield` and binned. Nothing reads them
+on that path today: `settleWindows` does not, the activation handler does not, and `buildPreDrawBeats` — the
+one site that does read `struck` — is the ROUND-WIN path, which never enters `openResponseWindow`. Hence no
+symptom in `main`.
+It stops being latent here, because the rebuild routes shield loss through that same return. And it carries a
+**design** question rather than only a fix: once the result reaches the caller, `holdShields` reads
+`res.shieldStripped`, so a mid-turn Critical Hit would start playing the shield-shatter beat it does not play
+today. Improvement or surprise depending on intent — **Open question 12**.
+
+**3 · `clientCheckWindow`'s window signature — plausible, unproven, and step 1 IS the experiment.**
+A response window is keyed `'resp:' + pending.card.id`, and `respond` resets the passed set on **every**
+object, so a seat that already passed on object X is legitimately re-granted priority on X after anyone adds
+a Quick. If no intervening mirror reaches that client showing a different window (or none), the signature is
+unchanged, `clientCheckWindow` returns early, and the modal never re-opens — an owed window silently
+swallowed, which at a park is a permanent deadlock.
+**Whether it reproduces without a dropped mirror is NOT established.** The intermediate state differs, so it
+should normally broadcast. Do not report this as live until step 1's drop probe has run at `DROPS=0..4`
+**and** the same probe has been A/B'd against `main` via `git show` — the idiom `nettest_parkbeat3` and
+`nettest_mirrordrop` already use. This repo has twice recorded a "flake" that was the environment and twice
+recorded one that was real; the probe settles it either way, and reasoning does not.
+
 ## Commit sequence
 
 Fifteen small commits, not fifteen version bumps. **Group them into PRs before starting** — the repo rule is
@@ -606,6 +645,12 @@ Rules only. Everything the code could settle has been settled above.
     designed alongside it (an inline "you may respond" affordance rather than an overlay, a one-tap pass, a
     remembered *auto-pass unless I am struck*), or should it ship as a modal and be judged in play? **None of
     these touches the rules.**
+
+12. **Should a mid-turn Critical Hit play the shield-shatter beat?** Fixing the discarded `sres` (standing
+    defect 2) makes `res.shieldStripped` reach the caller, and `holdShields` keys the shatter off it — so a
+    Technique's shield loss would animate the way a round loss does. Arguably what should always have
+    happened; also a visible change to a card people have played for months. Yes, no, or a quieter beat of
+    its own?
 
 ---
 
