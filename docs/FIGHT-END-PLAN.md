@@ -604,6 +604,8 @@ Ten of the twelve, plus two rules he volunteered. **The rules themselves live in
 | 10 | how often the AI casts | **Defer and measure** — *"let's run a/b tests to get the right feel for this when we cross that bridge."* Not a design question; a tuning one. |
 | 11 | the tap cost | **Opt-in prompts, per card, in the card reader.** See below — this is a feature spec, not a yes/no. |
 | 12 | the mid-turn shatter beat | **Yes**, a Critical Hit should shatter like a round loss does. |
+| 2 | one gain answers a 2-strip finisher | **Yes**, confirmed — *"i have no problems with what occurred."* Note the scenario is narrower than first written: nobody *chooses* Armor Piercing against a 0-shield seat, so it only arises from a flag banked earlier and spent automatically on the next win. And the rebuild shrinks it further, since a reactive Armor Piercing is cast having already seen the target. |
+| 9 | wire tolerance | **No tolerance — refuse the handshake** and tell both players to update. Reverses the standing warn-don't-refuse rule; see below. |
 
 **Two rules Aj volunteered, both of which change more than they look:**
 - **A triggered ability opens the dance in ANY phase** — correcting this plan's and the rules doc's earlier
@@ -646,74 +648,32 @@ is kept below because the question states the context the one-line ruling assume
   the loop**, and the existing no-overkill rule then refuses the second. Net: one cheap shield gain fully
   answers the game's most expensive finisher. Consistent with the card's own text, but previously
   unreachable, so it wants a deliberate yes.
-- **9 — still open.** Wire tolerance. The rebuild renames what goes over the wire, netplay **warns** on a
-  version mismatch rather than refusing, so an old client's `guard` message reaches a new host that does not
-  know it — and the table hangs silently, with no error and no log line. Keep a two-line arm mapping the dead
-  ops onto `respond`/`decline` for one version, or drop them? The recommendation on the floor is **keep for
-  one version**: a silent permanent park is the worst failure mode this codebase has, and someone playing a
-  download from last month cannot tell why.
+### Q9 reverses a documented decision, deliberately — and one sub-question is still open
 
+Aj, 2026-09-08: *"in different versions, the handshake is refused and both players are recommended to update
+to the most recent version."* **CLAUDE.md currently says the opposite**, and says why: *"It warns, it does not
+refuse — a patch-level difference is usually harmless and locking two friends out would be the worse
+failure."* That reasoning was written when a version difference meant cosmetics. It stops being true here:
+after this epic a version difference can mean **the two players are playing different games**, which is the
+exact harm the build handshake was added to prevent in the first place.
 
-1. **Does the Fighter Kick restriction survive?** Today at 0 shields only `cantLoseRound` or a Holy Shroud
-   absorb stops the strike, and `test.js` carries an assertion whose comment names whoever does this work.
-   Under a true priority window any Quick may be **cast**, so a Hector-Sanctuary is cast, gains a shield, and
-   `wasBroken` is false — no kick. **That makes plain shield-gain effectively kick-proof by timing.** Intended,
-   or must a gain still fail to save a player at zero?
+So the reversal is sound where the rules moved. **What is NOT settled is the granularity**, and it matters
+because it decides whether two friends on v1.32.4 and v1.32.5 can play at all:
+- **Refuse on ANY difference** — simplest, and impossible to get subtly wrong.
+- **Refuse on a MINOR difference, warn on a PATCH one** — i.e. the second number, which is precisely what
+  this epic bumps and precisely what this project uses to mean *the rules moved*. A cosmetic patch would
+  still let friends play.
+The second reading is the one the version scheme already implies, but it is a rule about how much a version
+number promises, so it is Aj's to make. **Whichever is chosen, CLAUDE.md's netplay-handshake paragraph must
+be rewritten in the same commit** — leaving it stating the old rule is how a settled decision gets re-argued.
 
-2. **One Sanctuary blanks BOTH strips of an Armor Piercing and the kick.** `wasBroken` is sampled once per
-   object while the loop runs `obj.n` times. It matches the card's own *"never overkills"* text, but it was
-   previously unreachable. Confirm the rule, or say the second strip should re-read the board.
+### And one small ruling this shook loose
 
-3. **Does the mill move below the window?** §3 says priority passes before *anything* happens, and the mill is
-   a Fight End outcome (§3: *"a Jab win banks energy"*). Putting the window above it lets a Leyline reclaim
-   change a loser's runway before they are milled. **`LOSER_MILL` currently defaults false**, so in the shipped
-   configuration this costs nothing today — but the rule is off, not absent.
-
-4. **Who gets priority first when there is no active player?** The plan seeds the walk at the **round winner**
-   (`st.lastPlayer`), in turn order, which is the only reading consistent with §1 and is what makes reactive
-   Armor Piercing reachable. Alternatives: the struck seat, or the seat after the last to pass. (`st.turn`
-   points at the last passer and is the one clearly wrong answer.)
-
-5. **Plain Sanctuary stays refused.** Base 10♥ is `type:'Technique'` with no `quick`; it becomes castable only
-   under the ♥ King or Apollo. The King tier is the cleanest demonstration of *timing, not a new rule* — but if
-   *"Sanctuary should work"* was meant to include the unboosted card, that is a **data change** (`quick` on the
-   base effect) and a different decision.
-
-6. **One window per round, or one per struck seat?** Under `SPECIAL_LOSS_MODE='all'` today,
-   `driveShieldStack` opens one per object and resolves object 1 before offering object 2 — so at 4 players
-   seat 1's shield is gone before seat 3 is asked. §3 reads as ONE window and that is what this plan builds,
-   but it changes who can protect whom.
-
-7. **Rebuild the pre-fight window in the same pass?** Identical defect one phase earlier: `preFightHolder`
-   offers to exactly one seat and gives up on that seat's single pass, and `eligiblePreFightQuicks` narrows to
-   a whitelist of one kind. The engine's own comment above `preFightHolder` files it. Leaving it turns a
-   two-model engine into a three-model one; doing it roughly doubles the blast radius.
-
-8. **Is Passo meant to pass Fight End priority, or spring an immunity for the seat it covers?** Today it takes
-   the hit. Passing matches its never-initiates charter, but it means a disconnected player's Leyline never
-   saves their last shield from a kick. **Related and separate:** should a Passo-held seat be *offered* the
-   window at all, given each offer costs a park, a full-snapshot `reassertMirror` and a fixed 450ms — and is
-   that 450ms a wanted readability beat, or incidental (it was sized for turns, which happen once a round)?
-
-9. **Wire tolerance.** After the deletion, keep no-op arms mapping the dead `guard`/`guardPass` ops onto
-   `decline`/`respond` for one version, or let them be dropped? Netplay **warns** on a version mismatch rather
-   than refusing, so a dropped op is a silent permanent park on a real table.
-
-10. **How often should an AI seat CAST rather than pass here?** There is no existing model to reach for —
-    `THREAT_KIND` is keyed on a pending effect's kind and there is no effect at Fight End. This decides how the
-    rebuild *feels* more than any UI copy will, and it is also the largest wall-clock variable in the change.
-
-11. **The tap cost.** For a player holding one affordable Quick all game, this is a *prompt* every round, not
-    an invisible window — and the answer will almost always be "pass". Do you want an ergonomic mitigation
-    designed alongside it (an inline "you may respond" affordance rather than an overlay, a one-tap pass, a
-    remembered *auto-pass unless I am struck*), or should it ship as a modal and be judged in play? **None of
-    these touches the rules.**
-
-12. **Should a mid-turn Critical Hit play the shield-shatter beat?** Fixing the discarded `sres` (standing
-    defect 2) makes `res.shieldStripped` reach the caller, and `holdShields` keys the shatter off it — so a
-    Technique's shield loss would animate the way a round loss does. Arguably what should always have
-    happened; also a visible change to a card people have played for months. Yes, no, or a quieter beat of
-    its own?
+Today the banked `finishingBlow` is **consumed even when its second strip is wasted** (`applyRoundLoss` sets
+`wpl.finishingBlow = false` as it computes `strips`, before anything is known about the target's shields).
+Against a seat at 0 the extra strip does nothing — no overkill — so the card is spent for no effect. Should a
+wasted strip still eat the flag, or should it survive to the next win? Defensible either way; today's answer
+is "eat it", by accident rather than by decision.
 
 ---
 

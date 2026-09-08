@@ -94,10 +94,26 @@ shield — the ability goes on the stack, the dance runs, and players may add Qu
 So a phase is not "a window, then the outcome". A phase runs **until the stack is empty and everyone has
 passed**, however many times its own outcomes re-fill the stack.
 
-**When the stack is empty, nobody is the active player** — Aj is explicit — *"until the next round where it
-goes to the player with the initiative."* That is why the empty-stack origin at Fight End is the **round
-winner**: not because they are somehow active, but because winning the round *is* taking the initiative, so
-they are the incoming initiative holder. Same seat, better reason.
+### THE BOUNDARY: AN EMPTY-STACK GO-ROUND NEEDS AN ACTIVE PLAYER, AND FIGHT END HAS NONE
+
+Aj, 2026-09-08: *"when shields are broken DURING fight end, no one is the active player and the phases and
+sub-phases just continue to change."* So there are two different situations and only one of them ends in a
+polite go-round:
+
+| | before Fight End (the window) | inside Fight End (after the losses land) |
+| --- | --- | --- |
+| active player | the **round winner** | **nobody** |
+| stack empties | a final go-round runs — winner, then turn order — and the sub-phase begins only when all pass | **no go-round.** The phase simply proceeds |
+| stack non-empty | dance, origin = controller of the top | dance, origin = controller of the top |
+
+**An empty stack plus no active player is not a window — it is the phase moving on.** That is the whole
+content of *"the phases and sub-phases just continue to change"*, and it is what stops a trigger resolving
+inside Fight End from opening an endless series of empty go-rounds.
+
+Nobody is active again **until the next round, when it becomes the initiative holder** — which is the round
+winner, since winning the round *is* taking the initiative. So the same seat that was active for the window
+becomes active again a moment later, by a different route. Do not collapse the two: between them lies the
+sub-phase where nobody is, and that is exactly where a shield-loss trigger fires.
 
 ## 3. The phases
 
@@ -151,7 +167,10 @@ pile stands.
 - **THE GO-ROUND AT FIGHT END, IN FULL** (Aj, 2026-09-08, worked through card by card). No turn is in
   progress, so two things a normal turn supplies for free have to be stated: who the **active player** is,
   and where each go-round **starts**.
-  1. The **round winner is the active player** for the whole sub-phase.
+  1. The **round winner is the active player — for THIS WINDOW, which runs BEFORE the sub-phase**, not
+     inside it (Aj, 2026-09-08: *"player c is the active player BEFORE fight end. remember, the priorities
+     are passed around before the sub-phase changes"*). The distinction is load-bearing; see the boundary
+     rule below.
   2. The winner **picks who takes the hit first**, before any priority is passed — and **does not get to
      re-pick** later, however long the sub-phase runs.
   3. **A go-round starts at the controller of the top stack object**, or at the **active player when the
