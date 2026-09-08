@@ -35,7 +35,24 @@ a bug or a gap** — those are tracked in [`NEXT-SESSION.md`](NEXT-SESSION.md)'s
   statement.**
   On an **empty** stack there is no controller, so the origin falls to the active player — and where there is
   no active player either, there is no go-round at all (§3, the boundary rule).
-- **The stack** — LIFO. Things that are put on it: a played Technique or Quick, and a **triggered ability**.
+- **The Stack** — LIFO, and **it holds EFFECTS. Only effects.** (Aj, 2026-09-08: *"The Stack was only ever
+  meant to contain the effects of cards. not the cards themselves. just the effects."*)
+  What goes on it: the **effect** of a played Technique or Quick, and the **effect** of a triggered ability —
+  which is still a card's effect, the equipment's. Nothing else is eligible, ever.
+  **The card is not on The Stack.** Tying an effect to the card that produced it is how you *draw* it and how
+  a countered effect knows which card to return, and that convenience is fine — but it is a pointer, not
+  membership. Say "the effect of the 9♠", never "the 9♠ is on the stack".
+  **This is a rules statement with teeth, because it settles three questions at once by refusing them:**
+  a **shield loss** is not an effect, so it is never on The Stack (§4); the **pass bookkeeping** for a
+  go-round is not an effect, so it lives on the window, not on an object; and a **sentinel** standing in for
+  "we are at Fight End" is not an effect, so it could never have belonged there either — which is a better
+  reason to have dropped it than "we found we did not need it".
+  **The engine's `st.stack` is not the same thing today** — it also carries `kind:'shieldloss'` entries,
+  which are a work QUEUE and not effects at all. After the rebuild it holds one kind and the `kind`
+  discriminator can go with them.
+  **If some other part of the ARCHITECTURE wants a stack, it may have one** (Aj: *"we don't need to use The
+  Stack for that, but if it would be beneficial for our architecture use a stack, then by all means"*) — just
+  never `st.stack`, and never called The Stack.
 - **Quick** — a card that may be put on the stack when it is *not* your turn, or when the stack is not empty.
   Everything else can only be played on your own turn with an **empty stack**.
 

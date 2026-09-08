@@ -508,13 +508,22 @@ separately produces intermediate states nobody designed — a game where you may
 Spell still cannot say what it counters is worse than either end. One boolean, one atomic flip, one-line
 revert. Nothing ships mid-way regardless, because the epic merges once.
 
+**WHAT `st.stack` IS FOR, SETTLED 2026-09-08.** The Stack holds **effects, only effects** — see
+`PHASES-AND-PRIORITY.md` §1. Not cards (an effect merely points at the card that produced it), not shield
+losses, not pass bookkeeping, not sentinels. Today `st.stack` violates this with `kind:'shieldloss'` entries
+that are a work **queue**; step 10 removes them, after which the collection holds one kind and the `kind`
+discriminator can go with them. Anything else in the architecture may use a stack data structure freely — it
+just may not use *this* one, or borrow the name.
+
 **THE SENTINEL IS GONE, AND THAT IS THE BIGGEST STRUCTURAL CHANGE.** v1 proposed a fake `kind:'fightend'`
 stack object whose only job was to hold the pass bookkeeping, because `openResponseWindow` records passes
 **on** the top object (`top.passed[q]`) and an empty-stack window has no object to write on. Aj's settled
 model makes that unnecessary: **the passes belong to the GO-ROUND, not to an object.** A single
 `st.prioPassed` set plus `st.prioOrigin`, both cleared on every addition and every resolution, does the same
 work — with no invented object, no `resolveTopEffect` special case, and no risk of the sentinel leaking into
-a mirror, a concede filter or a stack view. It also keeps faith with *"shield loss is not a stack object"*
+a mirror, a concede filter or a stack view. **And the stronger reason, which arrived after: a sentinel is not
+an EFFECT, so it was never eligible for The Stack in the first place.** "We turned out not to need it" was
+luck; "it could not have gone there" is the rule. It also keeps faith with *"shield loss is not a stack object"*
 rather than quietly re-introducing a synthetic one next to it.
 
 **Grouping into PRs** (one version bump per PR, and the PR title is the changelog heading). A defensible
@@ -590,7 +599,7 @@ stack is non-empty, leave only when the stack is empty *and* everyone has passed
 anyway, because a straight line becomes a rewrite the first time any card triggers. *Gate:* `npm test` with
 **identical counts**; `analysis.js`/`mpsim.js` in band; full sweep, expected no-op. *Revertable alone:* yes.
 
-**10 · feat(engine): shield loss stops being a stack object, and lands simultaneously.** The
+**10 · feat(engine): shield loss leaves The Stack, and lands simultaneously.** The
 `kind:'shieldloss'` pushes become plain state — a list of `{target, n}` — because they were a **queue wearing
 a stack's clothes** and Aj's simultaneity ruling removes the only thing their ordering was for. Then:
 **sample "was this seat already broken?" for EVERY target before applying ANY strip**, or the second read
