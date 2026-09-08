@@ -15,6 +15,33 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.124 — one tier list instead of three, and a subtitle that stops lying
+
+Two small ones, both the same shape: a fact typed out more than once.
+
+**THE PER-OPPONENT PICKER SAID "Demon" FROM THE REPO'S FIRST COMMIT** (`2f2ae86`, 467 commits) while
+`DIFF_NAME`, the single-opponent picker, the Help text and `oppRoll` all said **Demon Lord**. v1.31.105
+relabelled it; this removes the way it happened. `DIFF_NAME` already **is** the display map, so both pickers
+build their options from it now via `diffOptionsHTML`, and a rename cannot half-land. `recruit`/Squire had the
+identical shape and was one careless edit from the same fate.
+**The test asserts the two pickers AGREE, not that either contains a string** — a per-list check passes with
+two copies present and only notices drift after a human does. Agreement is what catches a copy *reappearing*,
+the same reasoning as `test.js`'s cross-size kit assertion.
+
+**THE HEADER SUBTITLE READ "duel vs AI" IN EVERY MODE** — an online duel against a person, a six-player
+free-for-all, all of it — because it was **static markup that nothing ever wrote to**. It was never "wrong in
+netplay"; it was wrong everywhere except a solo duel. `#matchupTag` beside it was always kept current, so the
+subtitle now joins it at the same write: `N-Rider free-for-all` / `online duel` / `duel vs AI`.
+It is `display:none` below 560px, which is why only a desktop ever showed it and a phone-only test would
+never have caught it — so the assertion runs at 1100x820.
+
+**AND A NOTE ON VERIFYING THESE.** The first A/B for the tier fix used `sed`, which silently matched nothing
+because of the emoji in the anchor, and printed no failure — which reads exactly like an assertion that does
+not discriminate. Re-done through a python `assert` on the anchor it fails **84/1**. *Any probe that patches a
+file must assert its anchor count* is already a rule in `CLAUDE.md`; this is the second time this week it paid.
+
+`mptest` 82 → 85.
+
 ### v1.31.123 — the Caltrops report was false, so the fix is a scan instead of an edit
 
 Asked to fix Caltrops' text, which a BACKLOG entry filed on 2026-09-07 said read *"the Rival's highest card"* —

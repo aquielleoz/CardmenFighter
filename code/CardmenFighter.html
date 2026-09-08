@@ -1501,7 +1501,7 @@
 </head>
 <body>
 <header>
-  <h1><span class="tWord">CARDMEN</span> <span class="tWord">FIGHTER</span> <small>duel vs AI</small></h1>
+  <h1><span class="tWord">CARDMEN</span> <span class="tWord">FIGHTER</span> <small id="modeSub">duel vs AI</small></h1>
   <div class="spacer"></div>
   <span id="matchupTag" class="matchupTag"></span>
   <!-- THE BUTTONS ARE MOVED, NOT REBUILT (v1.31.105). Same ids, same nodes, so `paintSfxBtn`, the hints IIFE,
@@ -5474,7 +5474,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.123';
+  var GAME_VERSION='v1.31.124';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -6051,6 +6051,18 @@ window.CardFace = {};
     return key;
   }
   var DIFF_NAME={minion:'Minion',recruit:'Squire',fighter:'Fighter',knight:'Knight',demon:'Demon Lord'};   // 'recruit' stays the KEY (ai.js branches on it, cmf_setup_v1 stores it); Squire is display only
+  /* ONE LIST, NOT THREE (v1.31.124). `DIFF_NAME` already IS the display map, and both pickers re-typed it —
+     so the per-opponent picker read **"Demon"** from the repo's FIRST commit (`2f2ae86`, 467 commits) while
+     `DIFF_NAME`, the single-opponent picker, the Help text and `oppRoll` all said "Demon Lord". Relabelling it
+     in v1.31.105 fixed the symptom; this removes the way it happened. `recruit`/Squire has the identical shape
+     and was one careless edit from the same fate.
+     Key order is insertion order for string keys, so the rendered order is `DIFF_NAME`'s order — which is the
+     difficulty ramp, and the one place to change it. */
+  function diffOptionsHTML(randomLabel){
+    var h='<option value="random">'+randomLabel+'</option>';
+    for(var k in DIFF_NAME) h+='<option value="'+k+'">'+DIFF_NAME[k]+'</option>';
+    return h;
+  }
   var LOG_KEY='cmf_games_v1', memGames=[];   // playtest log (localStorage w/ in-memory fallback)
   var SEEN_HELP_KEY='cmf_seen_help_v1';      // set once the rules have auto-shown on first play
   var TUT_DONE_KEY='cmf_tut_done_v1';        // set once the guided tutorial is finished (or the player says they know how) → declutters New Duel
@@ -7075,6 +7087,12 @@ window.CardFace = {};
     $('rivalDeckName').textContent=deckLabel(rivalDeck); $('youDeckName').textContent=deckLabel(youDeck);
     var modeTag=gameBasics?' · <b class="basicsTag">BASICS</b>':'';
     var _on=netLive();   // branch on NETPLAY, not on player count: `DIFF_NAME[difficulty]` is an AI tier and means nothing against a person
+    /* THE SUBTITLE SAID "duel vs AI" IN EVERY MODE (v1.31.124) — including an online duel against a person and
+       a six-player free-for-all — because it was STATIC MARKUP that nothing ever wrote to. `#matchupTag`
+       beside it was always kept current, so this just joins it at the same write. It is `display:none` below
+       560px, which is why only a desktop shows it and a phone-only test would never have caught it. */
+    var _sub=$('modeSub');
+    if(_sub) _sub.textContent = (mpCount>2) ? (mpCount+'-Rider free-for-all') : (_on ? 'online duel' : 'duel vs AI');
     $('matchupTag').innerHTML=((mpCount>2)?('<b>'+mpCount+'-Rider free-for-all</b> · you: '+deckLabel(seatDecks[0])+oppReveal()):('<b>'+deckLabel(youDeck)+'</b> vs <b>'+(nameOf(1)||'Rival')+'</b> · '+deckLabel(rivalDeck)+' · '+(_on?'Online':DIFF_NAME[difficulty])))+modeTag;
     syncOrder(true);
     var youLead=state.turn===YOU;
@@ -10551,7 +10569,7 @@ window.CardFace = {};
         '<label class="setRow"><span>Players</span><select id="setPlayers"><option value="2">2 · Duel</option><option value="3">3 · Free-for-all</option><option value="4">4 · Free-for-all</option><option value="5">5 · Free-for-all</option><option value="6">6 · Free-for-all</option></select></label>'+
         '<label class="setRow"><span>Your name</span><input id="setName" type="text" maxlength="14" placeholder="You" autocomplete="off" spellcheck="false"></label>'+
         '<label class="setRow"><span>Your class</span><select id="setYouDeck">'+deckOptionsHTML()+'</select></label>'+
-        '<label class="setRow" id="rowOppStrength"><span>Opponent strength</span><select id="setDiff"><option value="random">🎲 Random</option><option value="minion">Minion</option><option value="recruit">Squire</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon Lord</option></select></label>'+
+        '<label class="setRow" id="rowOppStrength"><span>Opponent strength</span><select id="setDiff">'+diffOptionsHTML('🎲 Random')+'</select></label>'+
         '<label class="setRow" id="rowOppClass"><span>Opponent class</span><select id="setRivalDeck">'+deckOptionsHTML()+'</select></label>'+
         '<div id="oppList"></div>'+
       '</div>'+
@@ -10620,7 +10638,7 @@ window.CardFace = {};
          repo's FIRST commit (2f2ae86, 2026-08-22) and nothing changed it; the two pickers were simply never the
          same. A tier's DISPLAY name lives in `DIFF_NAME` and every picker should read it from there rather than
          re-typing the list, which is the real fix and is filed. */
-      var strengthOpts='<option value="random">🎲</option><option value="minion">Minion</option><option value="recruit">Squire</option><option value="fighter">Fighter</option><option value="knight">Knight</option><option value="demon">Demon Lord</option>';
+      var strengthOpts=diffOptionsHTML('🎲');
       var html='';
       for(var i=0;i<n-1;i++){
         html+='<label class="setRow"><span>P'+(i+2)+'</span><span class="oppPick">'+

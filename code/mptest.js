@@ -38,6 +38,34 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     return p.evaluate(()=>!!(window.__solo && window.__solo.st() && window.__solo.st().numPlayers===3));
   }
 
+  /* ============ THE TIER LIST IS ONE LIST, AND THE SUBTITLE STOPS LYING (v1.31.124) ============
+     `DIFF_NAME` is the display map and both pickers used to re-type it, which is how the per-opponent picker
+     read "Demon" from the repo's FIRST commit while everything else said "Demon Lord".
+     ASSERT THAT THE TWO PICKERS AGREE, not that either contains a string. A per-list check passes with two
+     copies present and only catches the drift after someone notices it — agreement is what catches a copy
+     REAPPEARING, the same reasoning as `test.js`'s cross-size kit assertion. */
+  await p.goto(URL); await wait(700);
+  await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
+  await p.evaluate(()=>{ const s=document.getElementById('setPlayers'); s.value='3'; s.dispatchEvent(new Event('change')); }); await wait(350);
+  const tiers = await p.evaluate(()=>{
+    /* ONE select each: at 3 players `#oppList` holds TWO `.strength` rows, so a bare querySelectorAll over
+       them returns the list twice and the comparison fails on a build that is perfectly correct. */
+    const txt=el=>el?[].map.call(el.querySelectorAll('option'), o=>o.value+':'+o.textContent.trim()):[];
+    const one=txt(document.getElementById('setDiff')), many=txt(document.querySelector('#oppList select.strength'));
+    const strip=a=>a.filter(x=>!/^random:/.test(x));
+    return { one:strip(one), many:strip(many), n:strip(one).length };
+  });
+  ok(tiers.n>=5, 'STAGED: both difficulty pickers are rendered ('+tiers.n+' tiers)');
+  ok(JSON.stringify(tiers.one)===JSON.stringify(tiers.many),
+     'the two difficulty pickers render the SAME tiers, in the same order — one list, not two'+
+     ' [single: '+tiers.one.join(', ')+']'+(JSON.stringify(tiers.one)===JSON.stringify(tiers.many)?'':'  ← per-opp: '+tiers.many.join(', ')));
+
+  await p.evaluate(()=>{ document.querySelectorAll('#oppList select.strength').forEach(s=>{ s.value='knight'; s.dispatchEvent(new Event('change')); }); }); await wait(200);
+  await p.evaluate(()=>{ const b=document.getElementById('goFirstBtn'); if(b)b.click(); }); await wait(1200);
+  const sub3 = await p.evaluate(()=>(document.getElementById('modeSub')||{}).textContent||'');
+  ok(/3-Rider free-for-all/.test(sub3),
+     'the header subtitle names the MODE, not "duel vs AI" — it was static markup nothing ever wrote to ["'+sub3+'"]');
+
   // ================= A1: P3 springs Back Stab on your fight when P2 is out =================
   ok(await start3p(), '3-player free-for-all started');
   const staged=await p.evaluate(()=>{
