@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.123.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.124.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.123**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.124**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -215,26 +215,6 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   resets `#modal`'s class list so a wide dialog cannot leak into the next one). Do the same here rather than
   widening `.modal`. Note the rules panel's columns are keyed to WIDTH (1040px/1400px); this one wants short
   and wide, so the query is the landscape band, not a width breakpoint.
-
-- **THE HEADER STILL SAYS "duel vs AI" IN EVERY MODE — including an online duel against a person, and a
-  six-player free-for-all.** From the 2026-09-02 screenshots. **Located:** the subtitle is *static markup* —
-  `<h1>… <small>duel vs AI</small></h1>` — and **nothing ever writes to it**, so it is not "wrong in netplay",
-  it is wrong everywhere except a solo duel. `#matchupTag` right beside it IS kept current, so that is the
-  pattern to copy; note the `<small>` is `display:none` below 560px, which is why this only shows on a desktop
-  and why a phone-only test would miss it.
-  **The other half of that report is already SHIPPED and should not be re-chased:** the host logging the SOLO
-  start line (*"New duel — you play X vs Rival (Demon Lord)"*) in an online duel was fixed in **v1.31.98**, when
-  `netLive()` gave that branch an `Online duel — …` arm. Verified 2026-09-07.
-  **Filed properly on 2026-09-07 after I nearly lost it:** it had lived only in a section intro, and when I
-  cleared that intro I replaced it with a pointer to a place it did not exist. Open work belongs in an entry.
-
-- **A TIER'S DISPLAY NAME IS TYPED OUT IN THREE PLACES, AND ONE OF THEM DRIFTED FROM DAY ONE.** Aj, 2026-09-04:
-  *"since when did we stop using demon lord?"* — answer, **never**: the PER-OPPONENT picker (`strengthOpts`, the
-  P2…P6 rows in a 3-6 player setup) has read `Demon` since the repo's FIRST commit (`2f2ae86`, 2026-08-22, 467
-  commits ago) while `DIFF_NAME`, the single-opponent picker, the Help text and `oppRoll` all say **Demon Lord**.
-  Relabelled in v1.31.105, but that is the symptom. **`DIFF_NAME` already IS the display map** — every picker
-  should build its options from it instead of re-typing the list, and then a rename cannot half-land. Small,
-  and it removes a whole class: `recruit`/Squire has the same shape and is one careless edit from the same fate.
 
 - **★ THE BROADWAY PITCH CHOOSES ITSELF, FOR BOTH SIDES** (Aj, 2026-09-07, from real play: *"oh no it did not
   let me pick which broadway card.... this is a bug for sure.. and probably more of a problem in multiplayer
