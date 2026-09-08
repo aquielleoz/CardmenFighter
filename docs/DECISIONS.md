@@ -657,10 +657,10 @@ third bucket: places where the shipped game deliberately differs from `STACK-DES
 re-argues them or "restores" the doc.**
 
 - **The base Quick list is THREE, not the doc's five.** §0.6 and §10 lock *Counter Spell, Annoint, Leyline,
-  Armor Piercing, Hand-to-Hand Mastery*. `BASE_OVERRIDES` is baked over `EFFECTS` (engine.js:987) and strips
+  Armor Piercing, Hand-to-Hand Mastery*. `BASE_OVERRIDES` is baked over `EFFECTS` (the `BASE_OVERRIDES` bake, engine.js) and strips
   `quick` from **Armor Piercing ♣7** and **Hand-to-Hand Mastery ♠3**, leaving **D4, D9, H5**. Deliberate:
   the override blocks say so in comments (*"Armor Piercing loses Quick (moved to Hippolyta)"*), instant speed
-  became a **Form reward**, and `test.js:259` locks it — a verifier reversed it and took the suite to 392/1.
+  became a **Form reward**, and a `test.js` assertion locks it (`REWORK base: Armor Piercing / Hand-to-Hand / Back Stab lose Quick`) — a verifier reversed it and took the suite to 392/1.
   **The doc's five-card list is stale spec.** Note this narrows the reactive-AP gap: it only bites a player
   holding Hippolyta.
 - **STOPPER was deleted, not kept.** §0.5 explicitly recommended keeping the fight-turn commit path; the

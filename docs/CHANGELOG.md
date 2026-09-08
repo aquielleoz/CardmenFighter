@@ -15,6 +15,44 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.126 — a staleness sweep of every live doc, and the one axis that was rotten
+
+Asked for a staleness check across the docs. Three axes, run mechanically.
+
+**SUITE COUNTS: CLEAN.** All **85** counts declared in `CLAUDE.md` match what the suites print. `versiontest`
+plus the habit have held.
+
+**IDENTIFIERS: CLEAN.** Of every code symbol named in the four live docs, exactly five are absent from the
+codebase — `hasPriority`, `passPriority`, `pushStack`, `setRework`, `isTech` — and each is a **deliberate
+tombstone** whose surrounding entry is *about* its absence.
+
+**FILE:LINE CITATIONS: 8 OF 20 ALREADY WRONG.** `template:3245` pointed at a subtitle, `ai.js:775` at
+`return best;`, `template:4239` at an unrelated client guard, `template:4802` at a comment in `eligibleQuicks`.
+**Most had drifted the same day they were written** — every comment block added and every dead function
+deleted in v1.31.120–.125 shifted everything below it.
+
+The rule that answers this was already in `CLAUDE.md`, one level up, about numbers: *"a pointer rots only if a
+file or anchor is renamed; a copied number rots every time the number changes, and silently."* **A line number
+is a copied number.** All twenty are symbol citations now — `guardEffFor`, `openResponseWindow`, `THREAT_KIND`
+— which are greppable, say what was meant, and survive an edit above them. `versiontest` gates it across the
+four live docs, **verified by reintroducing one**, which fails naming the doc and the citation.
+**And the gate caught its own rule on the first run** — the `CLAUDE.md` paragraph explaining the fix quoted
+three of the drifted citations as examples, which the scanner reads as violations. That is exactly the
+`nettest_narrate` trap already recorded here (*"never quote the pattern in a comment beside a `say()`"*), and
+it is the second time this week a scan has tripped on its own explanation. The examples are described rather
+than quoted now.
+The approximate form (`engine.js` ~1447) is deliberately still allowed: the tilde is honest about drifting, and
+banning it pushes people back to prose that names nothing at all.
+
+**AND THE RESULT WORTH KEEPING IS THE NEGATIVE ONE.** Names and counts are gated and clean. **The staleness
+this repo actually suffers is in CLAIMS** — a recorded measurement, or an assertion that something is still
+broken. Three were found and killed on 2026-09-07/08: a landscape overlap quoted at "25-176%" five versions
+after it was fixed, a Caltrops text bug that had already been fixed, and this file's own `effectOf` "still
+open" list, all three of whose items had shipped. **No mechanical scan would have caught any of them.** The
+only defence that has worked is the one already recorded: make the second copy ASSERTED, not written.
+
+`versiontest` 29 → 30.
+
 ### v1.31.125 — deleting the code that would have misled the Fight End rebuild
 
 No behaviour change. The audit's housekeeping bucket, done as one sweep — and done **before** the Fight End

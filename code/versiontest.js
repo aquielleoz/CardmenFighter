@@ -116,6 +116,26 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
      `every BACKLOG ratchet entry still has a live ratchet [${docRatchets.size} entry(ies): ${[...docRatchets.keys()].join(', ')||'none'}]`+
      (orphanDoc.length?`  ← THE FIX LANDED: ${orphanDoc.join(', ')} — no suite ratchets this any more, so the entry's measurements are STALE. Close it or rewrite it against what the suite measures today`:''));
 
+  /* ---- NO `file:NNNN` CITATIONS IN THE LIVE DOCS (2026-09-08). A staleness sweep found **8 of 20** line
+   * references already pointing at the wrong line, and most had drifted THAT DAY — every comment block added
+   * and every dead function deleted shifts everything below it. A line number claims a precision it cannot
+   * keep for one commit.
+   * CLAUDE.md already has the rule one level up, about numbers: "a pointer rots only if a file or anchor is
+   * renamed; a copied number rots every time the number changes, and silently." A line number is a copied
+   * number. **Cite a SYMBOL** — `guardEffFor`, `openResponseWindow`, `THREAT_KIND` — which is greppable, says
+   * what you meant, and survives an edit above it.
+   * The approximate form (`engine.js` ~1447) is left alone on purpose: the tilde is honest about drifting, and
+   * banning it would push people back to prose that names nothing at all. */
+  const LINECITE=/\b(?:engine|ai|netview|qr|build|sweep|test|[a-z_0-9]*test)\.js:\d{2,5}|\btemplate:\d{2,5}|CardmenFighter\.template\.html:\d{2,5}/g;
+  const liveDocs=[['CLAUDE.md',claude],['docs/NEXT-SESSION.md',handoff],
+                  ['docs/DECISIONS.md',fs.readFileSync(path.resolve(__dirname,'..','docs','DECISIONS.md'),'utf8')],
+                  ['docs/PHASES-AND-PRIORITY.md',fs.readFileSync(path.resolve(__dirname,'..','docs','PHASES-AND-PRIORITY.md'),'utf8')]];
+  const cites=[];
+  liveDocs.forEach(function(d){ const m=d[1].match(LINECITE); if(m) m.forEach(function(x){ cites.push(d[0]+' → '+x); }); });
+  ok(cites.length===0,
+     'no live doc cites a FILE:LINE — they drift on every edit above them'+
+     (cites.length?'  ← '+cites.slice(0,6).join(', ')+(cites.length>6?' …+'+(cites.length-6):'')+'  — cite a SYMBOL instead':' [4 docs scanned]'));
+
   const built=fs.readFileSync(HTML,'utf8');
   ok(!built.includes('__VERSION__'), 'no unsubstituted __VERSION__ survived into the built page');
   const stamped=(built.match(/GAME_VERSION='([^']+)'/)||[])[1];

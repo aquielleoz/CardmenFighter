@@ -110,8 +110,8 @@ pile stands.
     if they want to activate shield protection or no."* A defender deciding whether to spend a card must know
     the strike is aimed at them; asking first and revealing after would make the decision a coin flip.
     **This is the order the code already has**, which is worth knowing before rebuilding the window:
-    `resolveRoundWin` returns early with `needsLossTarget` (`engine.js:1937`) before any strip, and
-    `st.shieldResponse` is only set once the pick has completed (`:1902`). The rebuild changes the window's
+    `resolveRoundWin` returns early with `needsLossTarget` (`engine.js`) before any strip, and
+    `st.shieldResponse` is only set once the pick has completed (inside `driveShieldStack`). The rebuild changes the window's
     NATURE — a whitelist of guard cards becomes a priority window admitting any Quick — and not its position.
 
 - **Fight End Sub-Phase.** **Nobody gets priority inside it** — only before it. The outcome resolves: a
