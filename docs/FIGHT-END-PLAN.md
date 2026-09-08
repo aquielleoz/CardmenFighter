@@ -37,8 +37,11 @@ entered. On the wire nothing is invented — the window travels as the existing 
 > (settle the remote-only silent deadlock first, on the existing window, before anything is deleted; ship the
 > UI copy before the switch rather than after). Their graft lists converge, so this plan is the strangler
 > **spine** with risk-first's **ordering** for the first three commits and its UI/phone gates folded in. Where
-> they genuinely disagreed — the sentinel's `kind` — this plan takes the fidelity judge's `'fightend'`; see
-> *The kick* and step 6 for why.
+> they genuinely disagreed — the sentinel's `kind` — this plan took the fidelity judge's `'fightend'`.
+> **⚠ SUPERSEDED: there is no sentinel any more.** Aj's ruling that passes belong to the go-round rather than
+> to an object removed the need for one entirely (sequence v2, step 5), so the judges' disagreement is moot.
+> Kept because the reasoning still records why a `kind:'effect'` sentinel would have been a round-killing bug
+> had we needed one.
 
 ---
 
@@ -70,7 +73,7 @@ Symbols only. A repo gate (`versiontest`) fails any live doc citing `file:NNNN`.
 | template | `hostApplyMoveN` (`op==='guard'`) | host-authoritative application of a remote guard | Narrates with `logMsg`, which is HOST-LOCAL — so a remote seat's guard was never seen by anyone else, while the sibling `respond` arm above it correctly uses `say()`. Deleting it silently fixes a v1.31.58-class bug. |
 | template | `hostApplyMoveN` (`op==='guardPass'`) | host applying a remote decline | Collapses into the `decline` arm. Nothing to salvage. |
 | template | `clientCheckWindow` (`guard:` sig + dispatch) | the `'guard:'+guardId+':'+roundWin` signature and `openShieldGuardModal(null, function(){})` | Both go with the modal. See *Netplay and the mirror* — the `resp:` signature above them needs work of its own. |
-| ai.js | `shieldGuardAI` | the AI's ENTIRE answer to the Fight End window: `if (pl.shields <= 2)` spring the engine-chosen card, else take the hit | Never chose a card and never considered anything but immunity. Deleting it leaves the AI with **no Fight End policy at all** — see step 14. Two things must be preserved in the replacement: the `isHuman` suspend and the `effectsAllowed` gate. |
+| ai.js | `shieldGuardAI` | the AI's ENTIRE answer to the Fight End window: `if (pl.shields <= 2)` spring the engine-chosen card, else take the hit | Never chose a card and never considered anything but immunity. Deleting it leaves the AI with **no Fight End policy at all** — see step 21. Two things must be preserved in the replacement: the `isHuman` suspend and the `effectsAllowed` gate. |
 | ai.js | `playPhase` (the `st.shieldResponse` guard in the activation loop) | suspends proactive activation while a guard window is open | The line directly above it, `if (st.pending) return;`, is the general-window equivalent and covers the rebuilt window. **The two are adjacent — it is easy to delete the wrong one.** |
 | ai.js | `act` (`if (st.shieldResponse) shieldGuardAI(...)`) | drains the MID-TURN guard window a `destroyShield` may have opened | `resolveAIWindows(st, humans, log)` sits six lines above. See step 4: this path is very likely already dead. |
 | ai.js | `takeTurn` (first guard) | a turn that begins with an open guard window answers it and returns | The `st.pending` branch immediately below absorbs it. Note the ORDER: this gate currently outranks the response-window gate; that precedence disappears with the merge. |
@@ -134,7 +137,7 @@ Symbols only. A repo gate (`versiontest`) fails any live doc citing `file:NNNN`.
 
 | file | symbol | what it does today | note |
 | --- | --- | --- | --- |
-| engine.js | `canAddToStack` | `effectFor` truthy + `impl` + `quick` + `canAfford` | The replacement predicate, and correct as written: `effectFor` means Form-granted Quicks count, `[].some` auto-passes an empty hand, and it deliberately does **not** consult `isLocked` (§5: a locked player keeps priority). Two blind spots, neither a blocker: it looks only at HAND, so a reactive activated equipment would be silently auto-passed the day one exists. **It is NOT exported** — export it (step 6) or every consumer restates the predicate. |
+| engine.js | `canAddToStack` | `effectFor` truthy + `impl` + `quick` + `canAfford` | The replacement predicate, and correct as written: `effectFor` means Form-granted Quicks count, `[].some` auto-passes an empty hand, and it deliberately does **not** consult `isLocked` (§5: a locked player keeps priority). Two blind spots, neither a blocker: it looks only at HAND, so a reactive activated equipment would be silently auto-passed the day one exists. **It is NOT exported** — export it (step 11, where the template needs it to auto-pass) or every consumer restates the predicate. |
 | engine.js | `pushEffect` | push-then-open; the one-line contract every cast funnels through | Mint the sentinel with the same `newOid`/push shape rather than a parallel construction. |
 | engine.js | `resolveRoundWin` (deferred pick) | returns early with `needsLossTarget` and `st.pendingLossChoice`, before any strip | This is decision (b), already correct. Only caution: at 2 players and on a jab win this branch is skipped entirely, so the window must open on those paths too. |
 | engine.js | `resolveRoundWin` (`APEX_NOSTRIP` / `chopped && !CHOP_STRIPS`) | clear `wonWithCombo` | Rule layer, untouched — but they are why a large share of rounds reach Fight End with no window at all today. |
@@ -161,7 +164,7 @@ Symbols only. A repo gate (`versiontest`) fails any live doc citing `file:NNNN`.
 | ai.js | `lockoutQuick` | finds the affordable lockout Quick for the pre-fight window; reads `effectFor` | Not a Fight End site — listed because it is the CORRECT pattern to copy. Its comment records why `effectOf` here was a shipped bug. |
 | ai.js | `aiPreFightLock` | the AI's only existing "should I act in someone else's window" policy | Copy the SHAPE (difficulty gate → `effectsAllowed` → card availability → board condition), not the content — it answers for exactly one card kind. |
 | ai.js | `chooseMove` → `keepValue` | a Quick in hand is worth +6 not-to-throw-away; reads `effectFor` | No code change, but **flag it for balance re-measurement**: +6 was tuned against a window that admitted one whitelisted card. Do not touch it speculatively. |
-| ai.js | `playPhase` (proactive Sphere / Leyline picks) | proactive casts of the very cards the window springs reactively | Main Sub-Phase, not window sites. Listed so a keyword sweep does not delete them. Second-order: a genuinely open window makes *holding* them the better line, which is a policy question for step 14. |
+| ai.js | `playPhase` (proactive Sphere / Leyline picks) | proactive casts of the very cards the window springs reactively | Main Sub-Phase, not window sites. Listed so a keyword sweep does not delete them. Second-order: a genuinely open window makes *holding* them the better line, which is a policy question for step 21. |
 | netview.js | `mirrorFor` (`pending` / `respondFor` keys) | `pending: remapStack([st.pending])[0]`, `respondFor: rot(st.respondFor)` | The direct answer to "what replaces `remapSR`": nothing new. `remapStack` rotates `p`, `target`, `winner` and `opts.target` and carries `oid`, `kind`, `source`, `n`, `countered`, `card`, `eff` — a strict superset of what `remapSR` projected. |
 | netview.js | `snapshotFor` (player flags) / `clonePlayer` (scalar sweep) | round-long public badges: `shieldImmune`, `cantLoseRound`, `preventShield` | RESULT state, not window state — and they become MORE important after the rebuild, since Sanctuary works by timing and a client must see the flag flip between the window closing and the loss landing. Worth an explicit assertion in whatever replaces `nettest_guard`. |
 
@@ -402,29 +405,31 @@ exactly one file. The four things that matter for planning:
 
 - **The auto-pass is genuinely free.** `canAddToStack` is evaluated inside the engine loop; when it is false for every seat, `st.pending` is never set and no layer above the engine learns a window was considered. No render, no modal, no mirror, no wire, no dwell.
 - **The single highest-leverage decision for wall clock is to reuse `promptHumanResponse` and keep `#respDecline`.** That is the difference between roughly a +6% loop cost and a suite-by-suite stall hunt, and it needs no `netview.js` change.
-- **The AI's Fight End cast rate is the largest wall-clock variable in the whole change**, by an order of magnitude, through `settleWindows`' 1400ms dwell. It is a design choice, not a performance one — which is why step 10 ports the old one-line rule verbatim and step 14 changes it separately, against an otherwise-settled build.
+- **The AI's Fight End cast rate is the largest wall-clock variable in the whole change**, by an order of magnitude, through `settleWindows`' 1400ms dwell. It is a design choice, not a performance one — which is why step 16 ports the old one-line rule verbatim and step 21 changes it separately, against an otherwise-settled build. **Aj's prompt-preference design (step 15) cuts the HUMAN half of this to near zero by defaulting every prompt off**, which leaves the AI's rate as the whole of it.
 - **If wall clock ever becomes the reason to reduce this window, the lever is the dwell, not the window's existence.** Skipping the window changes the rules; shortening a dwell does not. And a *second* skip predicate — "nothing is at stake here" — is the `guardEffFor` mistake in a new costume: a narrower second definition of "may this player act", wrong in a direction that looks like a safety check.
 
 ---
 
 ## The three standing defects, and what their severity actually is
 
-These three exist in `main` today; the rebuild does not create them. Each was re-checked against the
+These three exist in `main` today; the rebuild does not create them. **Lettered, not numbered, because they
+are not sequence steps** — an earlier version numbered them 1-3 and then cited "step 13" from the v1
+sequence, which the v2 renumber silently invalidated. Each names its owning step below. Each was re-checked against the
 **shipped configuration** before being scheduled, because the first framing of them — *"live bugs, fix them
 on main first"* — did not survive contact with the code. Aj folded them into the epic once the severity was
 accurate. **Do not re-derive any of this; that is the whole point of writing it down.**
 
-**1 · `noopDestroy` — a rules deviation, not a wrong outcome. Owned by step 13.**
+**Defect A · `noopDestroy` — a rules deviation, not a wrong outcome. Owned by step 19.**
 It suppresses the ENTIRE priority window whenever the named target sits at 0 shields. In the shipped game the
 *outcome* is nonetheless right: every `destroyShield` push carries `noKick` and `noGuard`, so the effect
 genuinely is a no-op against that seat. What is lost is the window itself — nobody may cast any Quick at that
 moment — which is a fault in the model, not in the arithmetic.
 The half that DOES produce a wrong outcome needs several struck seats, i.e. `DAMAGE_SPAN > 1` or
 `DAMAGE_ALL` — and **neither is wired to the custom rules menu** (grep `setDamageSpan` in the template: no
-hits). So no player can reach it; only sims and probes can. That is precisely why this is a step-13 deletion
-and not a `fix/` on `main`.
+hits). So no player can reach it; only sims and probes can. That is precisely why this rides the whitelist deletion
+(step 19) rather than a `fix/` on `main`.
 
-**2 · The discarded `sres` — real, latent today, load-bearing inside this epic. Owned by step 13, asserted in step 11.**
+**Defect B · The discarded `sres` — real, latent today, load-bearing inside this epic. Owned by step 19, asserted in step 17, and its visible consequence is step 14 (the shatter beat).**
 `struck` / `prevented` / `spared` are computed for a mid-turn `destroyShield` and binned. Nothing reads them
 on that path today: `settleWindows` does not, the activation handler does not, and `buildPreDrawBeats` — the
 one site that does read `struck` — is the ROUND-WIN path, which never enters `openResponseWindow`. Hence no
@@ -434,7 +439,7 @@ It stops being latent here, because the rebuild routes shield loss through that 
 `res.shieldStripped`, so a mid-turn Critical Hit would start playing the shield-shatter beat it does not play
 today. Improvement or surprise depending on intent — **Open question 12**.
 
-**3 · `clientCheckWindow`'s window signature — plausible, unproven, and step 1 IS the experiment.**
+**Defect C · `clientCheckWindow`'s window signature — plausible, unproven, and step 1 IS the experiment.**
 A response window is keyed `'resp:' + pending.card.id`, and `respond` resets the passed set on **every**
 object, so a seat that already passed on object X is legitimately re-granted priority on X after anyone adds
 a Quick. If no intervening mirror reaches that client showing a different window (or none), the signature is
@@ -490,146 +495,216 @@ then if the stack is non-empty re-enter the dance, and only leave the sub-phase 
 everyone has passed. Written as a straight line it works perfectly today and becomes a rewrite the first time
 any card triggers. **Do not build the trigger system; do not foreclose it.** One function's shape, no more.
 
-## Commit sequence
+## Commit sequence — v2, rewritten 2026-09-08 against the rulings
 
-Fifteen small commits, not fifteen version bumps. **Group them into PRs before starting** — the repo rule is
-one version bump per PR and the PR title IS the changelog heading, and the grouping decides what a revert
-actually reverts. A defensible split: 1-4 (prerequisites), 5-9 (the machine, flag off), 10-11 (AI + suite),
-12-13 (the switch and the deletion), 14-15 (policy and docs). Every commit ends with
-`node build.js && cp CardmenFighter.html ../CardmenFighter.html` and a clean `git status`.
+**Twenty-three commits, one flag, and a different shape from v1.** The v1 sequence assumed Fight End was
+"window, then outcomes" and that the priority change could be contained to Fight End. Both are false now, so
+this is a restructure rather than a patch. What changed and why is in the audit section above; this is the
+plan you build from.
 
-**1 · fix: a priority window's identity survives being re-granted.**
-Re-key `clientCheckWindow` on `pending.oid` **plus** a priority generation (`st.prioGen`, bumped wherever
-`respond` resets the passed sets and wherever a window opens), projected as a named scalar in `mirrorFor`
-beside `respondFor`. Add the self-heal in `applyMirrorNow`. Ship the drop probe. **This is a live bug today**
-and lands with nothing deleted.
-*Files:* engine.js, netview.js, CardmenFighter.template.html, netview.test.js, a new `nettest_priosig.js`.
-*Gate:* `npm test` — netview.test's declared-public differential firing on `prioGen` is it working. The full
-netplay sweep. The probe at `DROPS=0..4` **and** the same probe against `main` via `git show`, to prove the
-pre-fix build deadlocks. *Revertable alone:* **yes**.
+**ONE FLAG FOR THE WHOLE MODEL — `PRIORITY_V2`, not `FIGHT_END_PRIORITY`.** The origin rule, holding
+priority, Counter Spell targeting and the Fight End window are **one coherent model**, and flipping them
+separately produces intermediate states nobody designed — a game where you may hold priority but Counter
+Spell still cannot say what it counters is worse than either end. One boolean, one atomic flip, one-line
+revert. Nothing ships mid-way regardless, because the epic merges once.
 
-**2 · fix: every priority consumer tolerates a cardless object, staged and asserted.**
-Four sites throw on the first Fight End window, in four layers: `openResponseWindow`'s `top.eff.kind` read
-before any kind check; `resolveTopEffect`'s `st.players[top.p]`; `ai.js` `respondDecision`'s
-`var eff = pend.eff` followed by `eff.kind`; and the template's `promptHumanResponse` / `humanResponds`
-`E.effectOf(pend.card)`. Fix each **and prove it** by staging a synthetic cardless `st.pending`: require
-`respondDecision` to return rather than throw, the object to survive `JSON.stringify(st)` and a
-`NetView.mirrorFor` round trip, and the Respond? modal to render. `eligibleQuicks` needs no change — it reads
-only the hand.
-*Files:* engine.js, ai.js, template, test.js, netview.test.js, quicktest.js.
-*Gate:* `npm test` with the staged cases; quicktest; nettest_counter; nettest_react3; **`nettest_guard`
-untouched and green** (that is how you know nothing leaked early); browsertest; full sweep.
-*Revertable alone:* **yes**.
+**THE SENTINEL IS GONE, AND THAT IS THE BIGGEST STRUCTURAL CHANGE.** v1 proposed a fake `kind:'fightend'`
+stack object whose only job was to hold the pass bookkeeping, because `openResponseWindow` records passes
+**on** the top object (`top.passed[q]`) and an empty-stack window has no object to write on. Aj's settled
+model makes that unnecessary: **the passes belong to the GO-ROUND, not to an object.** A single
+`st.prioPassed` set plus `st.prioOrigin`, both cleared on every addition and every resolution, does the same
+work — with no invented object, no `resolveTopEffect` special case, and no risk of the sentinel leaking into
+a mirror, a concede filter or a stack view. It also keeps faith with *"shield loss is not a stack object"*
+rather than quietly re-introducing a synthetic one next to it.
 
-**3 · test: harnesses learn to answer a Respond? window.**
-`lessonlib.js` shared handler with the house retry; `browsertest`'s fall-through becomes an explicit named
-failure; `nettest_sync`'s `WINDOWS` list, stale comment and stall classifier. A no-op today.
-*Files:* lessonlib.js, browsertest.js, nettest_sync.js, nettest_record.js, exporttest.js, mptest.js.
-*Gate:* full sweep, **assertion counts UNCHANGED** — this step must be provably inert. Then break
-`browsertest` deliberately with an unknown overlay and require the new failure to name it.
-*Revertable alone:* **yes**.
+**Grouping into PRs** (one version bump per PR, and the PR title is the changelog heading). A defensible
+split: **A** 1-4 · **B** 5-8 · **C** 9-13 · **D** 14-15 · **E** 16-17 · **F** 18-19 · **G** 20 ·
+**H** 21-23. Every commit ends with `node build.js && cp CardmenFighter.html ../CardmenFighter.html` and a
+clean `git status`.
 
-**4 · fix: instrument, then delete, the dead mid-turn shield-guard path.**
-Every `destroyShield` push carries `noGuard: true` and is the only other `kind:'shieldloss'` push, so
-`driveShieldStack`'s window is already fight-only, `sr.roundWin` is a constant `true`, and
-`openShieldGuardModal`'s non-roundWin branch, `hostRivalContinue`'s guard branch, `driveRival`'s mid-turn
-branch and three `ai.js` gates are all likely unreachable. **A grep is not a reachability test** — this repo
-has three recorded cases of an orphaned path reading as live for many versions. Add a dbg-gated counter to all
-six, run one full sweep, confirm zero, then delete.
-*Files:* ai.js, template. *Gate:* full sweep with the counters; `mptest` as the cheapest post-deletion UI
-canary. *Revertable alone:* **yes**.
+### A — prerequisites (nothing gated, nothing deleted)
 
-**5 · refactor: one seam, behind `setFightEndPriority(false)`.**
-`enterFightEnd(st, winner, wonWithCombo, strikeTargets, winSize)` becomes the target of both `resolveRoundWin`
-and `chooseLossTarget`; `applyRoundLoss`'s body becomes `applyRoundLossBody(st, ctx)`. With the flag off,
-`enterFightEnd` calls the body directly and behaviour is identical. Add `st.fightEndResult` and a reader — the
-replacement for the eight `cont(fr)` closures — before anything depends on it.
-*Files:* engine.js. *Gate:* `npm test` printing **identical** counts; `analysis.js` and `mpsim.js` inside
-their bands (a behaviour-identical refactor that moves a win rate is not behaviour-identical); full sweep,
-expected no-op. *Revertable alone:* **yes**.
+**1 · fix: a priority window's identity survives being re-granted.** Unchanged from v1. Re-key
+`clientCheckWindow` on `pending.oid` **plus** a priority generation, projected in `mirrorFor`; self-heal in
+`applyMirrorNow`; ship the drop probe. Holding priority (step 7) makes this *more* acute — one player adding
+twice produces two objects with no change of holder. *Gate:* `npm test`; full netplay sweep; the probe at
+`DROPS=0..4` **and** A/B'd against `main` via `git show`. **Filed as PLAUSIBLE, UNPROVEN — this step's probe
+is what settles whether it is live.** *Revertable alone:* yes.
 
-**6 · feat(engine): the sentinel and a parameterised origin, unreachable.**
-`FIGHTEND_EFF` as a **static, seat-free literal**; `newFightEndObj`; `openResponseWindow`'s `while` admits
-`'fightend'`; the walk takes `origin`/`k0` from the object so existing objects are byte-identical;
-`resolveTopEffect`'s early branch. **Export `canAddToStack`.** Nothing mints a sentinel yet.
-*Files:* engine.js, test.js. *Gate:* `npm test`, `netview.test`, `sweep:fast`. *Revertable alone:* **yes**.
+**2 · fix: every priority consumer tolerates a window with NO OBJECT.** Widened from v1, which only had to
+survive a *cardless* object. With the sentinel gone, a Fight End go-round has **no top object at all**, so
+every consumer that reaches through `st.pending` needs a null path: `openResponseWindow`'s `top.eff.kind`,
+`resolveTopEffect`'s `st.players[top.p]`, `ai.js` `respondDecision`'s `pend.eff`, and the template's
+`promptHumanResponse` / `humanResponds` `E.effectOf(pend.card)`. Prove it by staging an objectless window and
+requiring: `respondDecision` returns rather than throws, it survives `JSON.stringify(st)` and a
+`NetView.mirrorFor` round trip, and the Respond? modal renders. *Gate:* as v1, plus **`nettest_guard`
+untouched and green** — that is how you know nothing leaked early. *Revertable alone:* yes.
 
-**7 · test: the shadow comparator, flag still off.**
-With the old model live, record both answers wherever `driveShieldStack` would open the window and assert over
-N live AI games at 2/3/6 players that the new model's offer set is a strict **superset** of the whitelist's,
-and that no seat is offered whom `canAddToStack` refuses. The only artefact that can say the migration is safe
-*before* it happens. Costs nothing in the shipped build.
-*Files:* engine.js, test.js. *Gate:* `npm test`, `sweep:fast`. *Revertable alone:* **yes**.
+**3 · test: harnesses learn to answer a Respond? window.** Unchanged from v1. `lessonlib` shared handler with
+the house retry; `browsertest`'s fall-through becomes a named failure; `nettest_sync`'s `WINDOWS` list and
+stall classifier. *Gate:* full sweep with **assertion counts UNCHANGED** — this step must be provably inert.
+*Revertable alone:* yes.
 
-**8 · fix: route round resolution through the settle funnel, and fix the park hygiene.**
-Insert the `hostSettleN` / `hostSettle` / `settleWindows` hop above the existing `shieldResponse` branches in
-`hostSettleRoundThenCeremony`, `hostAfterRivalMove`, `finishPassRound`/`doPassBody` and both `runOpponents`
-siblings — provably dead inserts with the flag off. Same commit: `hostSettle` gains `maybePasso` and a status
-line; `settleWindows` gains the `isClientActive()` guard **at the funnel**.
-*Files:* template. *Gate:* full sweep (the inserts must be inert), plus nettest_roundstall, nettest_clientwin,
-nettest_discon3. *Revertable alone:* **yes**.
+**4 · fix: instrument, then delete, the dead mid-turn shield-guard path.** Unchanged from v1. Six likely-dead
+sites; **a grep is not a reachability test**, so add dbg-gated counters, run one full sweep, confirm zero,
+then delete. *Gate:* full sweep with counters; `mptest` as the post-deletion UI canary. *Revertable alone:* yes.
 
-**9 · feat(ui): the window says what is at stake.**
-`promptHumanResponse` gains a null-safe lead and Fight End copy that ports v1.31.120's framing (striker seat +
-combo type, via `logName`); its Quick-button loop switches to `effectFor` and carries `boosted`/`boostTier` so
-the *(empowered by your Super)* note survives; `renderStack` shows the pending loss; `driveN`'s
-`' may guard…'` becomes copy that reads correctly at Fight End; `remapStack` gains the `targets` rotation.
-*Files:* template, netview.js, netview.test.js, quicktest.js, nettest_narrate.js. *Gate:* quicktest;
-nettest_narrate's static half; landscapetest and phonetest at the 340px floor and in landscape.
-*Revertable alone:* **yes**.
+### B — the priority core (behind `PRIORITY_V2`, default off)
 
-**10 · ai: a Fight End branch that changes nothing.**
-An explicit early branch in `respondDecision` on the window kind, whose policy is a **verbatim port** of
-`shieldGuardAI`'s rule (spring an immunity at ≤2 shields, else pass), keeping the `isHuman` suspend and the
-`effectsAllowed` / `kindOK` gates. Rename the `immune || shieldImmune` test `immunityEffFor`.
-*Files:* ai.js, test.js. *Gate:* `npm test`; every sim runs to completion; `analysis.js` in band.
-*Revertable alone:* **yes**.
+**5 · refactor: pass bookkeeping moves from the objects to the go-round.** `st.prioPassed` + `st.prioOrigin`,
+cleared wherever `respond` clears the per-object sets today and after every resolution. **Behaviour-identical
+with the flag off**, and it is what removes the need for a sentinel. *Files:* engine.js, netview.js (both are
+new state and must be declared public or redacted deliberately), netview.test.js. *Gate:* `npm test` and
+`netview.test` — **the declared-public differential firing on the two new keys is it working**; full sweep
+expected inert. *Revertable alone:* yes.
 
-**11 · test: `fightendtest.js`, run against the flag ON while the default is off.**
-Assertions 1-8, 11-14 above. **Run it 40 times, not once** — two flakes hid in one green run the last time
-this AI surface was touched.
-*Files:* a new `fightendtest.js`, sweep.js, CLAUDE.md's suite table. *Gate:* 40 clean runs; `npm test`; full
-sweep. *Revertable alone:* **yes**.
+**6 · feat(engine): the origin is the controller — for EVERY object, not just Fight End.** The walk starts at
+`k0 = 0` from the top object's controller instead of `k = 1`. **This is NOT inert and v1 wrongly said it
+would be** (it was written to keep existing objects byte-identical, before Aj changed the rule globally).
+**This step is where the ★ backlog item "priority is offered to the wrong players, in the wrong order" is
+fixed** — both halves: the skipped controller, and the walk origin. At n=2 the modulus hides it, so **assert
+at n≥3**, where A casts and B answers and the model wants A→B→C. *Gate:* `npm test` with n=3 and n=6 order
+assertions; `analysis.js`/`mpsim.js` in band (a priority-order change that moves a win rate wants explaining,
+not accepting); full sweep. *Revertable alone:* yes.
 
-**12 · flip `FIGHT_END_PRIORITY` on, and gate the old window off in the same commit.**
-**Non-negotiable:** the flip must also gate `driveShieldStack`'s window branch behind `!FIGHT_END_PRIORITY`.
-Otherwise both windows open in the same round, the table gets two prompts for one decision, and no red run can
-tell you which window it was looking at. Gated this way the flag flips the whole model atomically in both
-directions and a revert is one boolean.
-*Files:* engine.js. *Gate:* full sweep at `-j 4` **and** `-j 1`; `fightendtest` ×20; the idle-park drop probe
-re-aimed at the **live** Fight End park; `nettest_sync` reporting neither HARNESS GAP nor TIME-CAPPED; one
-**real solo game** and one **two-device netplay game** (see *Missing from all*). *Revertable alone:* **yes** —
-one boolean.
+**7 · feat(engine): holding priority.** Adding to the stack no longer hands priority on; the adder keeps it
+until they pass. `respond` stops implicitly yielding. *Gate:* `npm test` staging one seat stacking two Quicks
+and requiring the go-round to resume at that seat; `nettest_counter`; `quicktest`; full sweep.
+*Revertable alone:* yes.
 
-**13 · refactor: delete the whitelist model.**
-Everything in the DELETE table. Rewrite `test.js`'s four assertions, `netview.test.js`'s six plus the
-declared-public entry, and `nettest_guard` onto `{op:'respond'}`. Move `remapSR`'s block comment onto
-`remapStack`.
-*Files:* engine.js, ai.js, netview.js, template, test.js, netview.test.js, nettest_guard.js.
-*Gate:* `grep -i` every removed identifier across `code/` and `docs/`; CLAUDE.md's duplicate-function grep and
-the `__cmf`/`NET` object-literal duplicate-key awk; `mptest` as the UI canary (it caught the v1.31.71 deletion
-on its third assertion); full sweep. *Revertable alone:* **yes**.
+**8 · feat: Counter Spell targets.** Forced by step 7 — *"counter the object beneath me"* stops being
+unambiguous the moment one player can stack two. The target is chosen **before** the card goes on the stack.
+Reuse the existing confirm-first shape (`targetPick.chosen`, context button reads ⚡ Activate); nothing is
+spent until confirmed. `resolveTopEffect`'s counter branch reads the named object instead of scanning
+downward. **`gen-cardlist.js` after any text change.** *Gate:* `npm test` staging a two-object stack and
+requiring each to be counterable by name; `nettest_counter`; `quicktest`; the Quicks lesson suite; full sweep.
+*Revertable alone:* yes.
 
-**14 · feat(ai): a real Fight End policy, then measure.**
-Build from `bestQuick` widened to a predicate and `aiPreFightLock`'s shape. Severity from the board (target's
-shields, kick-or-not, strip count, am-I-the-winner), not from `THREAT_KIND`.
-*Files:* ai.js, test.js, fightendtest.js. *Gate:* **three `personasim` CONTROL runs first** to re-establish the
-noise floor before reading any spread; then `analysis.js` and `mpsim.js` with the resolved-CONFIG line read,
-not assumed; browsertest **timed** before and after; full sweep in band. *Revertable alone:* **yes**.
+### C — Fight End itself (flag still off)
 
-**15 · chore: remove the flag, and close the docs.**
-Delete `FIGHT_END_PRIORITY` and `setFightEndPriority` — a mode flag left behind after the model settles is the
-`REWORK` shape this repo deleted once already. Then: README `**Status:**`, a `### vX.Y.Z` heading in
+**9 · refactor: `enterFightEnd` as a LOOP, not a line.** v1's straight-line seam is the step the trigger rule
+invalidates. One seam for both `resolveRoundWin` and `chooseLossTarget`; `applyRoundLoss`'s body becomes
+`applyRoundLossBody`. **The loop shape is the deliverable**: apply the outcomes, re-enter the dance if the
+stack is non-empty, leave only when the stack is empty *and* everyone has passed. **No card triggers today**
+(measured — see the scoping note above), so the loop runs exactly once and this is inert; write it as a loop
+anyway, because a straight line becomes a rewrite the first time any card triggers. *Gate:* `npm test` with
+**identical counts**; `analysis.js`/`mpsim.js` in band; full sweep, expected no-op. *Revertable alone:* yes.
+
+**10 · feat(engine): shield loss stops being a stack object, and lands simultaneously.** The
+`kind:'shieldloss'` pushes become plain state — a list of `{target, n}` — because they were a **queue wearing
+a stack's clothes** and Aj's simultaneity ruling removes the only thing their ordering was for. Then:
+**sample "was this seat already broken?" for EVERY target before applying ANY strip**, or the second read
+sees a board the first strip changed. Kicks become simultaneous, which Aj confirmed is wanted and **can end
+a 3-6p game in a way sequential resolution cannot**. *Gate:* `npm test` staging two seats at 0 struck
+together and requiring **both** eliminated; `nettest_kick`; `nettest_elim3`; `nettest_losspick3`;
+`mpsim`/`analysis` in band; full sweep. *Revertable alone:* yes.
+
+**11 · feat(engine): the Fight End go-round, gated.** With 5-10 in place this is small: the winner is the
+active player for the window, picks the target first and cannot re-pick, the go-round runs, **Quicks only
+whatever the stack holds**, and the sub-phase begins when all pass on an empty stack. **Inside** the
+sub-phase nobody is active, so an empty stack means the phase proceeds with **no** go-round — that boundary
+is what stops a future trigger opening an endless series of empty rounds. *Gate:* `npm test` with the flag
+forced on; full sweep with it off (inert). *Revertable alone:* yes.
+
+**12 · test: the shadow comparator, flag still off.** As v1: record both answers wherever the old window
+would open and assert over N live AI games at 2/3/6p that the new offer set is a strict **superset** of the
+whitelist's and that no seat is offered whom `canAddToStack` refuses. The only artefact that can say the
+migration is safe *before* it happens. **Note its baseline moved** — step 6 changed who is offered on
+ordinary objects too, so the comparator must be written against post-6 behaviour, not against `main`.
+*Revertable alone:* yes.
+
+**13 · fix: the settle funnel, park hygiene, and Passo defends.** v1's step 8 plus Aj's Passo ruling. Insert
+the `hostSettleN`/`hostSettle`/`settleWindows` hop above the existing branches; `settleWindows` gains the
+`isClientActive()` guard **at the funnel**. **Passo springs an immunity for the seat it covers rather than
+passing** — a dropped player's Leyline still saves their last shield. **Enumerate the parks by KIND, not by
+name:** `grep -n 'busy=true'` found nine last time and a by-name fix covered two of them for six versions;
+each needs `reassertMirror` and the park beat. *Gate:* full sweep; roundstall; clientwin; discon3; parkbeat3;
+mirrordrop re-aimed at the new park. *Revertable alone:* yes.
+
+### D — the player's side
+
+**14 · feat(ui): the window says what is at stake, and a mid-turn strike shatters.** v1's step 9 plus Q12.
+`promptHumanResponse` gains a null-safe lead (there may be **no object**) and Fight End copy naming the
+striker and combo type via `logName`; the Quick-button loop switches to **`effectFor`** so a Form-granted
+Quick is not mislabelled — **this closes one of CLAUDE.md's three remaining `effectOf`-label sites**;
+`renderStack` shows the pending loss. **Q12:** fixing the discarded `driveShieldStack` result makes
+`res.shieldStripped` reach the caller, so `holdShields` gives a mid-turn Critical Hit the shatter beat it has
+never played. *Gate:* quicktest; `nettest_narrate`'s static half; landscapetest and phonetest at the 340px
+floor and in landscape. *Revertable alone:* yes.
+
+**15 · feat(ui): prompt preferences, per card, in the card reader.** Q11. **Every prompt OFF by default
+except the timing that card already had**, so Sanctuary and Leyline still speak when your shields are
+threatened and the default experience is today's. Checkboxes in the card reader for the other timings, all
+unchecked. **This is a NOTIFICATION layer, not a rules layer** — the window opens and priority genuinely
+passes regardless; an unchecked timing is an **auto-pass**, and netplay must see a seat that passed, not a
+seat never asked. **Per-device, like the deck picker's** — never in a mirror, never in a rules key. *Gate:* a
+new suite driving both defaults and one opted-in timing; `nettest_sync` must not report TIME-CAPPED; the
+lesson polls' margins re-read with `LESSONPOLL=1`. *Revertable alone:* yes.
+
+### E — the AI
+
+**16 · ai: a Fight End branch that changes nothing.** v1's step 10. An explicit branch in `respondDecision`
+whose policy is a **verbatim port** of `shieldGuardAI`'s rule, keeping the `isHuman` suspend and the
+`effectsAllowed`/`kindOK` gates. Rename the `immune || shieldImmune` test `immunityEffFor`. *Gate:* `npm
+test`; every sim runs to completion; `analysis.js` in band. *Revertable alone:* yes.
+
+**17 · test: `fightendtest.js`, against the flag ON while the default is off.** v1's step 11, widened to the
+new rules: the origin at n≥3, holding priority, Counter Spell naming its target, simultaneous kicks, the
+empty-stack boundary, and **an assertion that goes red if the whitelist is reintroduced**. **Run it 40 times,
+not once** — two flakes hid in one green run the last time this surface was touched. *Revertable alone:* yes.
+
+### F — the switch
+
+**18 · flip `PRIORITY_V2` on, and gate the old window off in the same commit.** **Non-negotiable:** the flip
+must also gate `driveShieldStack`'s window behind `!PRIORITY_V2`, or both windows open in one round and no
+red run can say which it was looking at. *Gate:* full sweep at `-j 4` **and** `-j 1`; `fightendtest` ×20; the
+idle-park drop probe re-aimed at the live park; `nettest_sync` reporting neither HARNESS GAP nor TIME-CAPPED;
+**one real solo game and one two-device netplay game.** *Revertable alone:* yes — one boolean.
+
+**19 · refactor: delete the whitelist model.** Everything in the DELETE table, including `noopDestroy` and
+the discarded `sres` (standing defects 1 and 2). Rewrite `test.js`'s four assertions, `netview.test.js`'s six
+plus the declared-public entry, and `nettest_guard` onto `{op:'respond'}`. *Gate:* `grep -i` every removed
+identifier across `code/` **and** `docs/`; CLAUDE.md's duplicate-function grep and the `__cmf`/`NET`
+object-literal duplicate-key awk; `mptest` as the UI canary; full sweep. *Revertable alone:* yes.
+
+### G — the other window
+
+**20 · refactor: the pre-fight window becomes the same window.** Q7 — *"it just makes our rules
+consistent."* Identical defect one phase earlier: `preFightHolder` offers to exactly one seat and gives up on
+that seat's single pass, and `eligiblePreFightQuicks` narrows to a whitelist of one kind (`lockout`). With
+A-F done this is a deletion plus a call into the same loop. **Leaving it out is what turns a two-model engine
+into a three-model one.** *Gate:* `nettest_prefight`; `mptest`; a n≥3 assertion that a seat 3+ human can
+spring a Quick here (they never could); full sweep. *Revertable alone:* yes.
+
+### H — policy, the wire, and the docs
+
+**21 · feat(ai): a real Fight End policy, then measure.** v1's step 14. Severity from the board — target's
+shields, kick-or-not, strip count, am-I-the-winner — not from `THREAT_KIND`, which keys on a pending effect's
+kind and **there is no effect at Fight End**. Aj: *"let's run a/b tests to get the right feel."* *Gate:*
+**three `personasim` CONTROL runs first** to re-establish the noise floor before reading any spread — a
+single 900-game run printed 5.6, 1.3 and 4.6 on the same build; then `analysis.js` and `mpsim.js` with the
+resolved-CONFIG line **read, not assumed**; browsertest **timed** before and after. *Revertable alone:* yes.
+
+**22 · feat(netplay): refuse the handshake across a MINOR version difference.** Q9. Aj: *"in different
+versions, the handshake is refused and both players are recommended to update."* Granularity settled as the
+**second number** — v1.32.4 and v1.32.5 still play; v1.31 and v1.32 do not — because that is what this
+project's version scheme already means by *the rules moved*. **CLAUDE.md's warn-don't-refuse paragraph must
+be rewritten in THIS commit**, since its stated reasoning ("a patch-level difference is usually harmless")
+survives intact and only its conclusion changes. *Gate:* `nettest_version` extended both ways — a patch
+difference still plays and still warns, a minor difference is refused with copy naming both versions; matched
+builds stay **silent**. *Revertable alone:* yes.
+
+**23 · chore: remove the flag, and close the docs.** Delete `PRIORITY_V2` — a mode flag left behind after the
+model settles is the `REWORK` shape this repo deleted once already. Then README `**Status:**` (**v1.32.0** —
+the first minor bump in a long time, and it is a minor because *the rules moved*), a `### v1.32.0` heading in
 `docs/CHANGELOG.md`, the handoff header, CLAUDE.md's suite-count table, and the **dead-symbol tombstones** —
-`guardEffFor`, `shieldGuardCard` and `wouldBeSaved` are named in CLAUDE.md, `docs/NEXT-SESSION.md` and
-`versiontest.js`'s own citation-style comment, and the `file:line` gate cannot see a dead name. Close
-CLAUDE.md's three-remaining-`effectOf`-label-sites note, since this work fixes one of them. Route by the
-CLAUDE.md table: measurements → `DECISIONS.md` (dated, and re-taken after step 14 rather than carried
-forward); remaining levers → BACKLOG with `RATCHET:` tags on both sides; rules → CLAUDE.md.
-*Files:* engine.js, README.md, docs/CHANGELOG.md, docs/NEXT-SESSION.md, docs/DECISIONS.md, CLAUDE.md,
-versiontest.js. *Gate:* `node versiontest.js`. *Revertable alone:* **yes**.
+`guardEffFor`, `shieldGuardCard`, `wouldBeSaved` are named in CLAUDE.md, `NEXT-SESSION.md` and
+`versiontest.js`'s own citation comment, and **the `file:line` gate cannot see a dead name**. Fold
+`PHASES-AND-PRIORITY.md` and this file's surviving content into their final homes; strike both ★ entries and
+the epic pointer from the BACKLOG. Route by the CLAUDE.md table: measurements → `DECISIONS.md` (**re-taken
+after step 21, not carried forward**); remaining levers → BACKLOG with `RATCHET:` tags on both sides; rules →
+CLAUDE.md. *Gate:* `node versiontest.js`; **a full sweep on the epic** before the merge, per the epic rules.
 
----
 
 ## Decisions — answered by Aj, 2026-09-08
 
@@ -754,7 +829,9 @@ the round reset**, not a policy. Harmless, and worth knowing before someone "fix
   mid-lesson gets a Respond? modal the script never mentions — on a surface where a step's `only:[…]` can
   disable Fight and Pass but **cannot disable a modal**, and where spending a Quick burns a card a later step
   needs (Aj broke "The 2" in ninety seconds by playing the wrong card). Either the tutorial runtime auto-passes
-  this window, or every gated step gains a Quick allowance. Neither is planned; it belongs in step 9 or its own
+  this window, or every gated step gains a Quick allowance. **Step 15 largely dissolves this by accident** —
+  prompts default OFF, so a lesson player is auto-passed and never sees the modal; confirm that covers all
+  three lessons rather than assuming it, and it belongs in step 15 or its own
   commit and it needs Aj's call, which is why the tap-cost question is Open question 11.
 
 ---
