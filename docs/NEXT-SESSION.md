@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**397**) + `node netview.test.js` (**60**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**399**) + `node netview.test.js` (**60**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including all 49 `nettest_*` suites and the ten `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.122.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.123.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.122**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
+`main` is at **v1.31.123**, working tree clean. The only branch is **`feat/qr-scanning`** (parked; its BACKLOG
 entry says what would revive it).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
@@ -335,15 +335,6 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   **The measured support is settled: [`DECISIONS.md#value-stuck`](DECISIONS.md#value-stuck)** — read it there,
   including the correction to an earlier claim about Rogue. Do not re-derive it, and do not copy its numbers
   back here. **What is open is only the card:** cost, whether it is a Quick, and how much it slashes.
-
-- **CALTROPS' TEXT UNDERSELLS IT AT A TABLE, and the fix is a card-text edit plus `gen-cardlist.js`.**
-  `equipDelta` sums `oppDelta` across **every** opponent, so one Caltrops is −2 to all five at a six-player
-  table — but its text reads *"the Rival's highest card"*, which is duel wording. Promoted to its own entry on
-  2026-09-07: it had been an "also noted" bullet inside the Rogue-slash proposal, where a real text bug reads as
-  background colour. **This is the documented class** — CLAUDE.md's *"card text speaks to a TABLE, not a duel"*
-  already lists `equipDelta` (Caltrops, Spiked Armor), `rideCostDelta` (Giant Ram) and `swanValue` (Giant Swan)
-  as having been fixed once; check whether all four still read correctly before editing just this one.
-  **Run `node gen-cardlist.js` afterwards** or `docs/CARD-LIST.md` goes stale.
 
 - **A count-up "charge" CLASS** (Aj, 2026-08-25 — his current lean; nothing built). Full analysis in
   **[`docs/COUNT-UP-DESIGN.md`](COUNT-UP-DESIGN.md)**, which came out of his brother asking why the game has

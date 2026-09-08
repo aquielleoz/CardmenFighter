@@ -15,6 +15,33 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.31.123 — the Caltrops report was false, so the fix is a scan instead of an edit
+
+Asked to fix Caltrops' text, which a BACKLOG entry filed on 2026-09-07 said read *"the Rival's highest card"* —
+duel wording on an effect that hits every opponent.
+
+**It already read "EVERY Rival's",** in both the base card and the Rogue override. So did Spiked Armor. And the
+two the entry told us to check alongside them — Giant Ram and Giant Swan, which are **Rides**, so their text
+lives in `RIDE_TEXT` and not in `EFFECTS` — read correctly too: *"every Rival's first effect"* and *"when a
+Rival tries to beat them"*. **All four were fine. Nothing needed editing.**
+
+The one card in the set that does say *"the Rival"* is **Armor Piercing ♣7** — *"the Rival you strike loses 1
+additional shield"* — and that is correct and precise: the target is decided at resolution, not at cast, so the
+relative clause is doing real work. Flagging it would have been the wrong fix twice over.
+
+**SO THE DELIVERABLE IS A GUARD, NOT AN EDIT.** This class has now cost time in *both* directions — a real
+regression once (four cards, fixed), and a false report nobody re-checked. `test.js` scans it now, the way
+`nettest_narrate` scans narration grammar: any card whose effect is **structurally** table-wide — `oppDelta`
+(summed across every opponent by `applyEquip`), `shieldAll`, or `all` — must not describe itself in the
+singular.
+
+It is deliberately **not** a blanket ban on "the Rival": only table-wide effects are scanned, so Armor Piercing
+and the five `Target Rival` cards (the documented house pattern for a genuinely single-target card) are
+untouched. **Verified by reintroducing the original bug** — Caltrops back to duel wording — which goes red
+naming both it and Spiked Armor.
+
+`test.js` 397 → 399.
+
 ### v1.31.122 — tapping a zone card opens the reader, where the reader is the overlay
 
 Aj, 2026-09-07: *"when we click equipments on the board, can we open the card viewer?"*
