@@ -686,7 +686,20 @@ until they pass. `respond` stops implicitly yielding. *Gate:* `npm test` staging
 and requiring the go-round to resume at that seat; `nettest_counter`; `quicktest`; full sweep.
 *Revertable alone:* yes.
 
-**8 · feat: Counter Spell targets.** Forced by step 7 — *"counter the object beneath me"* stops being
+**8 · feat: Counter Spell targets. ✅ DONE 2026-09-09.** **AND STEP 7 NEEDED NO CODE — step 6 absorbed it.**
+Verified rather than assumed: p1 answers, and is offered priority again on its own object, so a player can
+stack two Quicks today. That is what makes this step load-bearing rather than hypothetical.
+**THE CARD TEXT WAS ALREADY RIGHT.** Counter Spell reads *"Counter **target** Technique"* — the house
+targeting language — so the text has always promised a choice the code never offered. No text change, and no
+`gen-cardlist.js` run.
+**Only ONE render site, not three.** The other two `respQuick` loops are the PRE-FIGHT window, whose
+whitelist admits `kind === 'lockout'` only, so a counter can never appear there.
+**Two bugs of my own, both caught by assertions rather than review:** the validation sat AFTER the hand and
+energy were taken, so a refused cast still cost the card — which is why *"was it refused"* and *"was anything
+spent"* are separate assertions; and the first test read the `countered` flag after a full drain, when a
+resolved object has already been POPPED. It asserts the card's DESTINATION now — countered goes to the
+owner's Shuffle Pile, resolved is spent to Removed — which is the outcome a player actually experiences.
+*Original text follows.* Forced by step 7 — *"counter the object beneath me"* stops being
 unambiguous the moment one player can stack two. The target is chosen **before** the card goes on the stack.
 Reuse the existing confirm-first shape (`targetPick.chosen`, context button reads ⚡ Activate); nothing is
 spent until confirmed. `resolveTopEffect`'s counter branch reads the named object instead of scanning

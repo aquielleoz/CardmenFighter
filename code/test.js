@@ -738,6 +738,61 @@ function cards(ids) { return ids.map(card); }
      (gen2 > gen1 ? '' : '  ← gen ' + gen1 + ' -> ' + gen2 + ': a client keyed on (oid, prioGen) still cannot tell them apart'));
 })();
 
+// ===== A COUNTER SPELL NAMES WHAT IT COUNTERS (epic step 8) =====
+/* Step 6 let a player hold priority and stack two Quicks, at which point "the object beneath me" stops being
+   unambiguous — Aj named this himself as the cost of holding priority. The target is chosen BEFORE the card
+   goes on the stack and validated there, so a bad name is refused with the energy unspent rather than
+   silently countering something else at resolve time. */
+(function () {
+  function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  /* p0 casts a Technique; p1 holds priority and stacks a Leyline on top; p2 then has TWO things it could
+     counter. Rebuilt per case because countering is destructive. */
+  function twoOnTheStack() {
+    var g = E.newGame(null, { numPlayers: 3 });
+    g.round = 3; g.turn = 0; g.pile = null;
+    g.players[0].hand = [sc(3, 'D'), sc(6, 'C')];
+    g.players[1].hand = [sc(9, 'D'), sc(6, 'C')];                       // Leyline — a Quick that is not a counter
+    g.players[2].hand = [sc(4, 'D'), sc(6, 'C')];                       // Counter Spell
+    for (var i = 0; i < 3; i++) { g.players[i].energy = []; for (var j = 0; j < 12; j++) g.players[i].energy.push(sc(4, 'D', 'e' + i + j)); }
+    E.activate(g, 0, '3D', { target: 1 });
+    while (g.respondFor != null && g.respondFor !== 1) E.declineResponse(g, g.respondFor);
+    E.respond(g, 1, '9D');                                              // p1 stacks the Leyline on top
+    while (g.respondFor != null && g.respondFor !== 2) E.declineResponse(g, g.respondFor);
+    return g;
+  }
+  /* THE COUNTER MUST RESOLVE BEFORE ANYTHING IS MARKED. `respond` only puts it ON the stack — and since
+     step 6 the caster HOLDS priority, so it does not resolve until the go-round drains. Asserting straight
+     after `respond` reads as "the choice did nothing" and is the test's fault, not the engine's. */
+  function drain(g) { var n = 0; while (g.respondFor != null && n++ < 12) E.declineResponse(g, g.respondFor); }
+  /* ASSERT WHERE THE CARD ENDS UP, not the `countered` flag. A resolved object is POPPED, so after a full
+     drain the stack is empty and a flag check finds nothing — which reads as "the choice did nothing".
+     `resolveTopEffect` sends a COUNTERED object's card to its owner's SHUFFLE pile, while a resolved one is
+     spent to REMOVED. That difference is the outcome a player actually experiences. */
+  function inShuffle(g, seat, id) { return g.players[seat].shuffle.some(function (c) { return c.id === id; }); }
+
+  var g0 = twoOnTheStack(), tg = E.counterTargets(g0);
+  ok(tg.length === 2 && g0.respondFor === 2,
+     'counter target: TWO objects on the stack and p2 holds priority (staging — ' + tg.length + ' targets, offering ' + g0.respondFor + ')');
+
+  var a = twoOnTheStack(), ta = E.counterTargets(a);
+  E.respond(a, 2, '4D', { counterOid: ta[1].oid }); drain(a);                 // name p1's Leyline, the TOP
+  ok(inShuffle(a, 1, '9D') && !inShuffle(a, 0, '3D'),
+     'counter target: naming the TOP object counters that one (Leyline fizzles to p1 shuffle, the Technique resolves)');
+
+  var b = twoOnTheStack(), tb = E.counterTargets(b);
+  E.respond(b, 2, '4D', { counterOid: tb[0].oid }); drain(b);                 // name p0's Technique, the BOTTOM
+  ok(inShuffle(b, 0, '3D') && !inShuffle(b, 1, '9D'),
+     'counter target: naming the BOTTOM object counters THAT one and leaves the other alone' +
+     ((inShuffle(b, 0, '3D') && !inShuffle(b, 1, '9D')) ? '' : '  ← the old scan always took the topmost, so the choice did nothing'));
+
+  var c = twoOnTheStack();
+  var e0 = c.players[2].energy.length, h0 = c.players[2].hand.length;
+  var bad = E.respond(c, 2, '4D', { counterOid: 'oNOPE' });
+  ok(!bad.ok, 'counter target: an oid that is not on the stack is REFUSED' + (bad.ok ? '  ← accepted' : ''));
+  ok(c.players[2].energy.length === e0 && c.players[2].hand.length === h0,
+     'counter target: …and NOTHING is spent on the refusal (energy ' + e0 + '->' + c.players[2].energy.length + ', hand ' + h0 + '->' + c.players[2].hand.length + ')');
+})();
+
 // ===== THE GO-ROUND STARTS AT THE CONTROLLER (epic step 6) =====
 /* `k = 1` skipped the controller, so a player could never add to something they had just cast. Asserted at
    n=3 because AT n=2 THE MODULUS HIDES IT: `(controller + 1) % 2` is always the other player, so the old
