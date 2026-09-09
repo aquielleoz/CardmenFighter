@@ -3599,18 +3599,40 @@
       }
       else strikeTargets = losers.slice();
     }
-    return applyRoundLoss(st, winner, wonWithCombo, strikeTargets, st.pile.combo.size);
+    return enterFightEnd(st, winner, wonWithCombo, strikeTargets, st.pile.combo.size);
   }
   // Complete a deferred 'chosen' loss pick (from resolveRoundWin's needsLossTarget). `target` is the struck seat.
   function chooseLossTarget(st, target) {
     var pc = st.pendingLossChoice; if (!pc) return { ok: false, reason: 'No loss choice pending.' };
     if (pc.cands.indexOf(target) < 0) target = pc.cands[0];                    // guard: must be one of the candidates
     st.pendingLossChoice = null;
-    return applyRoundLoss(st, pc.winner, true, [target], pc.winSize);
+    return enterFightEnd(st, pc.winner, true, [target], pc.winSize);
   }
-  // Apply the round result: mill the loser(s), strip the struck shield(s), then finish. Shared by the immediate and
-  // the deferred (chosen-target) paths so behaviour is identical either way.
-  function applyRoundLoss(st, winner, wonWithCombo, strikeTargets, winSize) {
+  /* FIGHT END IS A LOOP, NOT A LINE (epic step 9) — the single seam both the immediate and the deferred
+     (chosen-target) paths enter through, so behaviour cannot drift between them.
+     WHY A LOOP WHEN NOTHING LOOPS YET. `PHASES-AND-PRIORITY.md`: a triggered ability opens the dance in ANY
+     phase, so a phase runs until the stack is empty AND everyone has passed — however many times its own
+     outcomes re-fill it. An equipment reading "when you lose a shield, remove a counter and draw" would
+     trigger INSIDE this sub-phase, on the strip this function just applied.
+     NO CARD IN THE GAME HAS A TRIGGERED ABILITY TODAY — measured, not assumed: only `effect` and
+     `shieldloss` are ever pushed, equipment counters tick directly in the round reset, and Holy Shroud's
+     absorb is a direct decrement.
+
+     ⚠ AND THE LOOP CANNOT BE BUILT HERE YET — `finishRoundWin` DISCARDS THE STACK. It opens with
+     `st.stack = []`, commented "shield-loss stack is spent by here", which is true of shieldloss objects and
+     silently throws away any EFFECT object. Since `applyRoundLossBody` ends by calling it (directly, or via
+     `driveShieldStack`), a drain placed after the body finds an empty stack every time: not inert, but
+     UNREACHABLE — an unexercised branch pretending to be a safeguard. It was written, staged with a
+     synthetic trigger, measured as never running, and removed rather than shipped.
+     What this step delivers is the SEAM: one entry point where `resolveRoundWin` and `chooseLossTarget` used
+     to call the body separately, so the loop has somewhere to live. Making it reachable means separating
+     "apply the outcomes" from "finish the round" so the drain can sit between them — which is step 11's
+     restructure, and is now recorded there as a prerequisite rather than a surprise. */
+  function enterFightEnd(st, winner, wonWithCombo, strikeTargets, winSize) {
+    return applyRoundLossBody(st, winner, wonWithCombo, strikeTargets, winSize);
+  }
+  // Apply the round result: mill the loser(s), strip the struck shield(s), then finish.
+  function applyRoundLossBody(st, winner, wonWithCombo, strikeTargets, winSize) {
     var losers = livingNonWinners(st, winner);
     // Jab wins strip no shield, so there is no "struck" target — but the round loser(s) still bank catch-up
     // energy equal to the winning play (1 card on a jab). So a jab always mills EVERY non-winner; only Special
@@ -3939,7 +3961,7 @@
   // Ladder (low->high): 3 4 5 6 7 8 9 10 J(11) Q(12) K(13) A(1) 2 . Rank stays the card's identity (1-13).
   function fightValue(card) {
     var r = card.rank, v = (r >= 3 && r <= 13) ? r : (r === 1 ? 14 : (r === 2 ? 15 : r));   // 3..10, J, Q, K, A(14), 2(15 apex)
-    if (APEX_INF && r === 2) return Infinity;   // apex rework: a 2 is unbeatable (and strips no shield — see applyRoundLoss)
+    if (APEX_INF && r === 2) return Infinity;   // apex rework: a 2 is unbeatable (and strips no shield — see applyRoundLossBody)
     /* THE PRINTED VALUE, AND NOTHING ELSE (v1.31.107). This used to add `card.valueBonus`, the +value a
      * Pandora/Hermes-boosted Counterfeit copy carries — the ONE per-card value modifier in the game, and the
      * only thing that ever changed a card's IDENTITY rather than a play's strength. `detectCombo` groups by

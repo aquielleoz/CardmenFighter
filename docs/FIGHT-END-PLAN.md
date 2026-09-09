@@ -709,7 +709,16 @@ requiring each to be counterable by name; `nettest_counter`; `quicktest`; the Qu
 
 ### C — Fight End itself (flag still off)
 
-**9 · refactor: `enterFightEnd` as a LOOP, not a line.** v1's straight-line seam is the step the trigger rule
+**9 · refactor: `enterFightEnd` as a LOOP, not a line. ⚠ PARTLY DONE 2026-09-09 — THE LOOP HAS A
+PREREQUISITE NOBODY KNEW ABOUT.** `finishRoundWin` opens with `st.stack = []`, commented *"shield-loss stack
+is spent by here"* — true of shieldloss objects, and it silently throws away any EFFECT object. Since
+`applyRoundLossBody` ends by calling it (directly, or through `driveShieldStack`), a drain placed after the
+body finds an empty stack **every time**: not inert, **unreachable**. It was written, staged with a synthetic
+trigger, measured as never running, and **removed rather than shipped** — an unexercised branch is untested
+code, not a safeguard, and this repo has the scar tissue to prove it.
+**What landed is the SEAM**, which has value on its own: `resolveRoundWin` and `chooseLossTarget` called the
+body separately and now both enter through `enterFightEnd`, so the loop has somewhere to live and the two
+paths cannot drift. **Making it reachable is step 11's job** — recorded there as a prerequisite. v1's straight-line seam is the step the trigger rule
 invalidates. One seam for both `resolveRoundWin` and `chooseLossTarget`; `applyRoundLoss`'s body becomes
 `applyRoundLossBody`. **The loop shape is the deliverable**: apply the outcomes, re-enter the dance if the
 stack is non-empty, leave only when the stack is empty *and* everyone has passed. **No card triggers today**
@@ -726,7 +735,14 @@ a 3-6p game in a way sequential resolution cannot**. *Gate:* `npm test` staging 
 together and requiring **both** eliminated; `nettest_kick`; `nettest_elim3`; `nettest_losspick3`;
 `mpsim`/`analysis` in band; full sweep. *Revertable alone:* yes.
 
-**11 · feat(engine): the Fight End go-round, gated.** With 5-10 in place this is small: the winner is the
+**11 · feat(engine): the Fight End go-round, gated.**
+**⚠ PREREQUISITE, found doing step 9: `finishRoundWin` DISCARDS THE STACK.** Its first statement is
+`st.stack = []`. Anything an outcome triggers is thrown away before it can resolve, so this step must
+separate **"apply the outcomes"** from **"finish the round"** and put the drain between them — otherwise the
+loop step 9 exists for can never run, and the trigger rule cannot be honoured however correct the go-round
+is. Do this FIRST in the step, not last: everything else here assumes a trigger survives long enough to be
+answered. That `st.stack = []` comment is honest about what it was written for and wrong about what it now
+does — fix the comment with the code. With 5-10 in place this is small: the winner is the
 active player for the window, picks the target first and cannot re-pick, the go-round runs, **Quicks only
 whatever the stack holds**, and the sub-phase begins when all pass on an empty stack. **Inside** the
 sub-phase nobody is active, so an empty stack means the phase proceeds with **no** go-round — that boundary
