@@ -599,11 +599,20 @@ DELETE table is substantially right; and all three defects step 20 names are rea
 this is a restructure rather than a patch. What changed and why is in the audit section above; this is the
 plan you build from.
 
-**ONE FLAG FOR THE WHOLE MODEL — `PRIORITY_V2`, not `FIGHT_END_PRIORITY`.** The origin rule, holding
-priority, Counter Spell targeting and the Fight End window are **one coherent model**, and flipping them
-separately produces intermediate states nobody designed — a game where you may hold priority but Counter
-Spell still cannot say what it counters is worse than either end. One boolean, one atomic flip, one-line
-revert. Nothing ships mid-way regardless, because the epic merges once.
+**THERE IS NO FLAG. THE EPIC IS THE FLAG** (Aj, 2026-09-09: *"ah not having the switch is fine. we have this
+whole epic around it"*). The v2 preamble promised `PRIORITY_V2` — one boolean, one atomic flip, one-line
+revert — and steps 5, 6 and 8 were then built without it, live and ungated. Rather than retro-fit it, the
+promise is withdrawn, because the flag was **the wrong grain of the same idea**:
+- **The isolation already exists, coarser and stronger.** Nothing reaches a player until the epic merges as
+  one unit, and the branch point is a clean rollback for the whole model at once. A boolean would have been a
+  SECOND isolation mechanism doing the same job worse.
+- **Its "off" state would not have been the old game.** Off, after steps 5-8, means the old Fight End window
+  sitting on top of new controller-priority, holding priority and Counter Spell targeting — a fifth
+  configuration nobody has played or tested. A rollback switch whose off position is untested is not one.
+- **So the rollback target is the epic's BRANCH POINT**, and using it costs the day rather than a keystroke.
+  That is the accepted trade; it is written here rather than implied.
+The model's coherence argument still stands, and is why the pieces do not reach `main` separately: a game
+where you may hold priority but Counter Spell cannot say what it counters is worse than either end.
 
 **WHAT `st.stack` IS FOR, SETTLED 2026-09-08.** The Stack holds **effects, only effects** — see
 `PHASES-AND-PRIORITY.md` §1. Not cards (an effect merely points at the card that produced it), not shield
@@ -695,7 +704,7 @@ anyway**. Deleting them here buys a smaller diff later at the cost of a second r
 sites; **a grep is not a reachability test**, so add dbg-gated counters, run one full sweep, confirm zero,
 then delete. *Gate:* full sweep with counters; `mptest` as the post-deletion UI canary. *Revertable alone:* yes.
 
-### B — the priority core (behind `PRIORITY_V2`, default off)
+### B — the priority core (LIVE on the epic — there is no flag; see the preamble)
 
 **5 · refactor: pass bookkeeping moves from the objects to the go-round. ✅ DONE 2026-09-09.**
 **IT IS NOT QUITE INERT, AND THE PART THAT IS NOT CLOSES A ★ BACKLOG ENTRY.** Moving the passes to a single
@@ -714,7 +723,7 @@ seat, so shipping it unrotated hands every client a map that means something dif
 nothing on a client needs it — `respondFor` already says whether this seat owes an answer.
 *Original text follows.* `st.prioPassed` + `st.prioOrigin`,
 cleared wherever `respond` clears the per-object sets today and after every resolution. **Behaviour-identical
-with the flag off**, and it is what removes the need for a sentinel. *Files:* engine.js, netview.js (both are
+against `main`'s behaviour**, and it is what removes the need for a sentinel. (The v2 text said "with the flag off"; there is no flag — see the preamble.) *Files:* engine.js, netview.js (both are
 new state and must be declared public or redacted deliberately), netview.test.js. *Gate:* `npm test` and
 `netview.test` — **the declared-public differential firing on the two new keys is it working**; full sweep
 expected inert. *Revertable alone:* yes.
@@ -858,12 +867,17 @@ not once** — two flakes hid in one green run the last time this surface was to
 
 ### F — the switch
 
-**18 · flip `PRIORITY_V2` on, and gate the old window off in the same commit.** **⚠ SEE P4 (the flag was never built and 5/6/8 shipped live), P5 (the gate is unachievable as sequenced) and P6 (four ai.js gates to repoint first).**
+**18 · REPLACE the old guard window with the Fight End go-round — one commit, no flip.**
+**THIS IS NO LONGER A FLAG FLIP** (see the preamble). With no `PRIORITY_V2` there is nothing to turn on; this
+commit makes step 11's go-round the live path and removes `driveShieldStack`'s window in the same change, so
+the two are never both open. **⚠ SEE P5 (the gate is unachievable as sequenced — move the six
+directly-affected assertions into this commit) and P6 (four `ai.js` gates still on `st.pending`; repoint them
+FIRST).**
  **Non-negotiable:** the flip
-must also gate `driveShieldStack`'s window behind `!PRIORITY_V2`, or both windows open in one round and no
+must also REMOVE `driveShieldStack`'s window in the same commit, or both windows open in one round and no
 red run can say which it was looking at. *Gate:* full sweep at `-j 4` **and** `-j 1`; `fightendtest` ×20; the
 idle-park drop probe re-aimed at the live park; `nettest_sync` reporting neither HARNESS GAP nor TIME-CAPPED;
-**one real solo game and one two-device netplay game.** *Revertable alone:* yes — one boolean.
+**one real solo game and one two-device netplay game.** *Revertable alone:* **yes, by reverting the commit** — not by a boolean, because there is not one.
 
 **19 · refactor: delete the whitelist model.**
 **⚠ CARRIES STEP 4's DEFERRED SITES — read this before assuming the DELETE table is the whole list.** Step 4
@@ -927,7 +941,7 @@ survives intact and only its conclusion changes. *Gate:* `nettest_version` exten
 difference still plays and still warns, a minor difference is refused with copy naming both versions; matched
 builds stay **silent**. *Revertable alone:* yes.
 
-**23 · chore: remove the flag, and close the docs.** Delete `PRIORITY_V2` — a mode flag left behind after the
+**23 · chore: close the docs.** ~~Delete `PRIORITY_V2`~~ — **there is no flag to remove** (see the preamble). The rule below is kept because it still applies to any mode flag left behind after the
 model settles is the `REWORK` shape this repo deleted once already. Then README `**Status:**` (**v1.32.0** —
 the first minor bump in a long time, and it is a minor because *the rules moved*), a `### v1.32.0` heading in
 `docs/CHANGELOG.md`, the handoff header, CLAUDE.md's suite-count table, and the **dead-symbol tombstones** —
