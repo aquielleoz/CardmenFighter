@@ -585,7 +585,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, discardPending: null, shieldResponse: null, stack: [], roundWinResult: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, shieldResponse: null, stack: [], roundWinResult: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -1283,6 +1283,14 @@
   // the UI + AI read (the top object + who currently holds priority). ----
   function pushEffect(st, p, card, eff, opts) {
     st.stack.push({ oid: newOid(st), kind: 'effect', p: p, card: card, eff: eff, opts: opts, countered: false });
+    /* ANY ADDITION RESETS THE ALL-PASSED CHECK — `PHASES-AND-PRIORITY.md` §2 step 5. `respond` always did
+       this; `pushEffect` did NOT, which is the BACKLOG's "pushEffect adds to the stack without resetting
+       passed" (unreachable through the solo UI, reachable on a netplay host, where `activate` has no
+       open-window guard). So this line is a real behaviour change and the one part of step 5 that is not
+       inert: a seat that had passed on the object underneath is now asked again, which is what the model
+       says should happen when the board changes under them. The other half of that entry — the missing
+       open-window guard on `activate` — is still open. */
+    st.prioPassed = {};
     return openResponseWindow(st);
   }
   /* ---- THE PRE-FIGHT WINDOW: the priority pass before the active player's shedding play.
@@ -1339,7 +1347,12 @@
     var last = { ok: true, state: st };
     while (st.stack.length && st.stack[st.stack.length - 1].kind === 'effect') {
       var top = st.stack[st.stack.length - 1];
-      if (!top.passed) top.passed = {};                                 // per-object set of opponents who have passed this window
+      /* THE PASSES BELONG TO THE GO-ROUND, NOT TO THE OBJECT (epic step 5). They used to live on each
+         stack object, which only ever worked because at most one object could hold a non-empty set: `respond`
+         clears every object's on any addition. One set on state says the same thing with no bookkeeping to
+         keep in step — and it is what lets a Fight End go-round, which has NO object to hang a set on, use
+         the same machinery instead of needing an invented sentinel to carry it. */
+      if (!st.prioPassed) st.prioPassed = {};
       // a destroyShield aimed at a target already at 0 shields is a no-op — never open a guard window (no shield to save)
       var dsTarget = top.eff.kind === 'destroyShield' ? effectTarget(st, top.p, top.opts) : -1;
       var noopDestroy = dsTarget >= 0 && st.players[dsTarget].shields <= 0;
@@ -1347,7 +1360,7 @@
       if (!noopDestroy) {                                               // offer priority to each living opponent in seat order after the controller
         for (var k = 1; k < st.numPlayers; k++) {
           var cand = (top.p + k) % st.numPlayers;
-          if (st.players[cand].eliminated || top.passed[cand]) continue;
+          if (st.players[cand].eliminated || st.prioPassed[cand]) continue;
           if (canAddToStack(st, cand)) { q = cand; break; }
         }
       }
@@ -1362,6 +1375,7 @@
         return { ok: true, state: st, effect: top.eff.id, kind: top.eff.kind, pending: true };
       }
       last = resolveTopEffect(st);                                      // everyone passed → resolve, then re-loop
+      st.prioPassed = {};                                               // a resolution starts a fresh go-round on whatever is now on top
       if (st.finished) return last;
     }
     if (st.stack.length && st.stack[st.stack.length - 1].kind === 'shieldloss') {
@@ -1406,7 +1420,7 @@
     qp.hand = qp.hand.filter(function (c) { return c.id !== quickCardId; });
     payEnergy(qp, qcard);
     st.stack.push({ oid: newOid(st), kind: 'effect', p: q, card: qcard, eff: qeff, opts: {}, countered: false });
-    st.stack.forEach(function (o) { o.passed = {}; });                 // a Quick changed the board — everyone gets fresh priority on every object
+    st.prioPassed = {};                                                // a Quick changed the board — everyone gets fresh priority
     st.pending = null; st.respondFor = null;
     var res = openResponseWindow(st);
     res.respondedWith = qeff.id; res.respondKind = qeff.kind; res.respondName = qeff.name;
@@ -1417,8 +1431,8 @@
   function declineResponse(st, q) {
     if (!st.pending || st.respondFor !== q) return { ok: false, reason: 'No response window.' };
     var top = st.pending;
-    if (!top.passed) top.passed = {};
-    top.passed[q] = true;                            // q passes; other opponents may still answer this object (N-player)
+    if (!st.prioPassed) st.prioPassed = {};
+    st.prioPassed[q] = true;                         // q passes; other opponents may still answer (N-player)
     st.pending = null; st.respondFor = null;
     return openResponseWindow(st);                    // offer to the next opponent, or resolve when all have passed
   }

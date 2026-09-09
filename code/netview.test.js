@@ -209,6 +209,20 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   var perSeat = mirrors.map(function (m) { return leaves(m, '', {}); });
   var paths = {}; perSeat.forEach(function (L) { for (var k in L) paths[k] = 1; });
 
+  /* `prioPassed` IS REDACTED ON PURPOSE (epic step 5). It is keyed by ABSOLUTE seat, so shipping it
+     unrotated would hand every client a map whose keys mean something different at each seat — the exact
+     class of bug `rot()` exists for. Nothing on a client needs it either: `respondFor` already says whether
+     this seat owes an answer. Asserted rather than left to chance, because the natural "fix" for a missing
+     field is to add it to `mirrorFor`, and doing that without rotating is silent. */
+  (function () {
+    var gp = E.newGame(null, { numPlayers: 3 });
+    gp.prioPassed = { 0: true, 2: true };
+    var mp = NV.mirrorFor(gp, 1);
+    ok(!('prioPassed' in mp),
+       'prioPassed is NOT mirrored — it is absolute-seat-keyed and the client does not need it' +
+       (('prioPassed' in mp) ? '  ← it leaked; either rotate it or drop it, never ship it raw' : ''));
+  })();
+
   /* AN OBJECTLESS PRIORITY WINDOW SURVIVES THE MIRROR (epic step 2). A Fight End go-round runs on an empty
      stack, so `respondFor` is set and `pending` is null. `promptFor` used to require the OBJECT, which made
      such a window read as "waiting on someone else" — the client would never know it owed an answer. */

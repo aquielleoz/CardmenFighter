@@ -638,7 +638,22 @@ then delete. *Gate:* full sweep with counters; `mptest` as the post-deletion UI 
 
 ### B — the priority core (behind `PRIORITY_V2`, default off)
 
-**5 · refactor: pass bookkeeping moves from the objects to the go-round.** `st.prioPassed` + `st.prioOrigin`,
+**5 · refactor: pass bookkeeping moves from the objects to the go-round. ✅ DONE 2026-09-09.**
+**IT IS NOT QUITE INERT, AND THE PART THAT IS NOT CLOSES A ★ BACKLOG ENTRY.** Moving the passes to a single
+`st.prioPassed` is behaviour-identical everywhere except `pushEffect`, which pushed onto the stack **without**
+resetting the all-passed check — the BACKLOG's *"`pushEffect` adds to the stack without resetting `passed`"*,
+unreachable through the solo UI and reachable on a netplay host. A single set forces the question, and the
+answer the model gives is unambiguous: §2 step 5, *any addition resets the all-passed check*. So a seat that
+had passed is now re-offered when the board changes under it. Asserted, and A/B'd: removing that one line
+reddens exactly that one assertion. **The other half of that BACKLOG entry — `activate` having no open-window
+guard — is still open.**
+**`st.prioOrigin` IS DEFERRED TO STEP 6, deliberately.** Nothing reads it until the walk origin changes, and
+this repo's own rule is that an unexercised branch is untested code rather than a safeguard. Step 6 adds it
+where it is consumed.
+**`prioPassed` is REDACTED from the mirror, and that is asserted** (`netview.test`): it is keyed by ABSOLUTE
+seat, so shipping it unrotated hands every client a map that means something different at each seat, and
+nothing on a client needs it — `respondFor` already says whether this seat owes an answer.
+*Original text follows.* `st.prioPassed` + `st.prioOrigin`,
 cleared wherever `respond` clears the per-object sets today and after every resolution. **Behaviour-identical
 with the flag off**, and it is what removes the need for a sentinel. *Files:* engine.js, netview.js (both are
 new state and must be declared public or redacted deliberately), netview.test.js. *Gate:* `npm test` and

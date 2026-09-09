@@ -738,6 +738,35 @@ function cards(ids) { return ids.map(card); }
      (gen2 > gen1 ? '' : '  ← gen ' + gen1 + ' -> ' + gen2 + ': a client keyed on (oid, prioGen) still cannot tell them apart'));
 })();
 
+// ===== THE PASSES BELONG TO THE GO-ROUND (epic step 5) =====
+/* They used to live on each stack OBJECT. That only ever worked because at most one object could hold a
+   non-empty set — `respond` clears every object's on any addition — so one set on state says the same thing.
+   The half that is NOT inert is `pushEffect`: it pushed without resetting, which is the BACKLOG's
+   "pushEffect adds to the stack without resetting passed". A seat that had already passed is now asked again
+   when the board changes under it, which is what §2 step 5 of the model says should happen. */
+(function () {
+  function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  var g = E.newGame(null, { numPlayers: 3 });
+  g.round = 3; g.turn = 0; g.pile = null;
+  g.players[0].hand = [sc(3, 'D'), sc(3, 'D', 'b'), sc(5, 'C')];
+  g.players[0].energy = []; for (var i = 0; i < 8; i++) g.players[0].energy.push(sc(4, 'D', 'e' + i));
+  for (var q = 1; q < 3; q++) { g.players[q].hand = [sc(4, 'D'), sc(6, 'C')]; g.players[q].energy = [];
+    for (var j = 0; j < 4; j++) g.players[q].energy.push(sc(4, 'D', 'f' + q + j)); }
+
+  E.activate(g, 0, '3D', { target: 1 });
+  ok(g.respondFor === 1, 'go-round: p1 is offered first (staging holds)');
+  E.declineResponse(g, 1);
+  ok(g.prioPassed && g.prioPassed[1] === true, 'go-round: the pass is recorded on STATE, not on the object');
+  ok(g.stack.every(function (o) { return !o.passed; }), 'go-round: no stack object carries a passed set any more');
+
+  var before = g.respondFor;
+  E.activate(g, 0, 'b3D', { target: 2 });                  // a second cast while a window is open — pushEffect
+  ok(!g.prioPassed[1],
+     'go-round: pushEffect RESETS the all-passed check, so a seat that passed is asked again' +
+     (g.prioPassed[1] ? '  ← p1 stays passed; the board changed under them and they were never re-offered' : '') +
+     ' [was offering ' + before + ']');
+})();
+
 // ===== NO MID-TURN SHIELD-GUARD WINDOW CAN EXIST (epic step 4) =====
 /* THE KEYSTONE FOR A DELETION, and it is a mechanism rather than a sample. `driveShieldStack` skips its
    guard window when the object carries `noGuard`, and there are exactly TWO `kind:'shieldloss'` pushes in the
