@@ -114,6 +114,29 @@ const appliedCount=async p=>(await traceOf(p)).filter(l=>/mirror APPLIED/.test(l
   await wait(400);
   ok(!(await respOpen(join)), 'a REPEAT of the same generation is still de-duped — the fix did not break the thing the signature is for');
 
+  /* AN OBJECTLESS WINDOW STILL RENDERS (epic step 2). A Fight End go-round runs on an empty stack, so
+     `respondFor` is set and `pending` is null. Every consumer used to require the OBJECT, so such a window was
+     INVISIBLE — not a crash, a silently parked table. Nothing mints one until step 11, which is exactly why it
+     is injected here: otherwise this surface goes untested until the day it goes live. The WORDING is step
+     14's; all this asserts is that the window opens and the player can act. */
+  await join.evaluate(()=>document.getElementById('respDecline').click());
+  await until(async()=>!(await respOpen(join)));
+  const aOl=await appliedCount(join);
+  const objectless=await join.evaluate((q)=>{
+    const st=JSON.parse(JSON.stringify(window.__cmfNetState));
+    const C=(n,su,t)=>({rank:n,suit:su,id:(t||'p')+n+su});
+    st.players[0].hand=[C(4,'D'),C(6,'C')];
+    st.players[0].energy=[C(4,'D','e'),C(4,'D','e2'),C(4,'D','e3'),C(4,'D','e4')];
+    st.pending=null; st.respondFor=0; st.prioGen=77; st.finished=false;   // a window, and no object at all
+    return { t:'mirror', seat:1, q:q, bs:'x', st:st };
+  }, ++seq);
+  await join.evaluate(m=>window.__cmf.inject(m), objectless);
+  ok(await until(async()=>(await appliedCount(join))>aOl), 'objectless window: the mirror is APPLIED');
+  const olOpen=await until(()=>respOpen(join));
+  ok(olOpen, 'objectless window: the Respond? window still OPENS with no object'+
+     (olOpen?'':'  ← the window is invisible to the client, so nobody answers and the table parks'));
+  ok(!errs.some(e=>/Cannot read|undefined/.test(e)), 'objectless window: rendering it threw nothing'+(errs.length?'  ← '+errs.slice(0,2).join(' | '):''));
+
   ok(errs.length===0, 'no page errors'+(errs.length?'  ← '+errs.slice(0,3).join(' | '):''));
   console.log((fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);

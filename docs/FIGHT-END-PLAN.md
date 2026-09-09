@@ -581,7 +581,21 @@ is what settles whether it is live.**
 evidence and the precise claim. `nettest_priosig.js` (8) is in the sweep; `test.js` 399 → 403.
 *Revertable alone:* yes.
 
-**2 · fix: every priority consumer tolerates a window with NO OBJECT.** Widened from v1, which only had to
+**2 · fix: every priority consumer tolerates a window with NO OBJECT. ✅ DONE 2026-09-09.**
+**TWO OF THE FOUR SITES THIS STEP NAMED DO NOT HOLD, and the real finding is bigger and different in kind.**
+`openResponseWindow`'s `top.eff.kind` and `resolveTopEffect`'s `st.players[top.p]` are both reached only from
+inside `while (stack.length && top.kind === 'effect')`, so `top` is always a real object there — neither can
+see an objectless window, today or later. What IS wrong is that **twenty-three sites across four files gate on
+`st.pending` being truthy to decide whether a window exists at all.** The window is `respondFor`; `pending` is
+merely the OBJECT it is about. So an objectless window was not crashy, it was **invisible** —
+`respondDecision` returned null, the AI loop never ran, `promptFor` reported "waiting on someone else", and
+the table parked with nobody able to act. One definition, twenty-three copies, and the wrong definition.
+All twenty-three now read `respondFor`; every site that DEREFERENCES `pending` is null-safe. Provably inert
+today, because `pending` and `respondFor` are set and cleared as a pair at all four engine sites.
+**Deliberately still deferred to step 5:** the engine's `respond`/`declineResponse` SEMANTICS for an
+objectless window, because with no object there is nowhere to record a pass — that is exactly what
+`st.prioPassed` is for. Step 2 makes the window visible and renderable; step 5 makes it answerable.
+*Original text follows.* Widened from v1, which only had to
 survive a *cardless* object. With the sentinel gone, a Fight End go-round has **no top object at all**, so
 every consumer that reaches through `st.pending` needs a null path: `openResponseWindow`'s `top.eff.kind`,
 `resolveTopEffect`'s `st.players[top.p]`, `ai.js` `respondDecision`'s `pend.eff`, and the template's

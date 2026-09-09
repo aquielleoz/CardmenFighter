@@ -738,6 +738,33 @@ function cards(ids) { return ids.map(card); }
      (gen2 > gen1 ? '' : '  ← gen ' + gen1 + ' -> ' + gen2 + ': a client keyed on (oid, prioGen) still cannot tell them apart'));
 })();
 
+// ===== AN OBJECTLESS PRIORITY WINDOW IS VISIBLE AND DRAINABLE (epic step 2) =====
+/* A Fight End go-round runs on an EMPTY stack, so the window has no object at all — `respondFor` is set and
+   `pending` is null. Twenty-three consumers used to gate on `pending` being truthy, which made such a window
+   INVISIBLE rather than crashy: `respondDecision` returned null, the AI loop never ran, and the table parked
+   with nobody able to act. Staged here because nothing MINTS one until step 11, so without staging this
+   whole surface would go untested until the day it goes live. */
+(function () {
+  function sc(r, su) { return { rank: r, suit: su, id: '' + r + su }; }
+  var g = E.newGame(null, { numPlayers: 3 });
+  g.round = 3; g.turn = 0; g.pile = null;
+  for (var i = 0; i < 3; i++) g.players[i].hand = [sc(4, 'D'), sc(6, 'C')];
+  g.players[1].energy = []; for (var e = 0; e < 4; e++) g.players[1].energy.push(sc(4, 'D'));
+  g.pending = null; g.respondFor = 1;                       // the shape step 11 will mint: a window, no object
+
+  ok(g.pending === null && g.respondFor === 1, 'objectless window: staged (respondFor set, pending null)');
+
+  var d = AI.respondDecision(g, 1);
+  ok(d !== null,
+     'objectless window: the AI SEES it and acts' +
+     (d !== null ? '' : '  ← returned null, which is how a window with no object used to park the table silently'));
+
+  var json = null, threw = null;
+  try { json = JSON.stringify(g); } catch (ex) { threw = ex.message; }
+  ok(json !== null, 'objectless window: the state still serialises for the wire' + (threw ? '  ← ' + threw : ''));
+  // the mirror half of this lives in netview.test.js, where NV is in scope
+})();
+
 // ===== BACK STAB / OUTBALANCE REDESIGN (v1.31.4) + the AI timing model =====
 (function () {
   function mkc(r, su) { return { rank: r, suit: su, id: '' + r + su }; }

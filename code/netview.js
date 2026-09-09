@@ -48,7 +48,7 @@
     if (st.shieldResponse && st.shieldResponse.q === s) return { kind: 'shieldGuard' };
     if (st.discardPending && st.discardPending.player === s) return { kind: 'discard', count: st.discardPending.count || 1 };
     if (st.preFightQ === s) return { kind: 'preFight' };
-    if (st.pending && st.respondFor === s) return { kind: 'respond' };
+    if (st.respondFor === s) return { kind: 'respond' };   // the window is respondFor — an objectless go-round still owes this seat an answer
     if (st.turn === s) return { kind: 'turn' };
     return null; // waiting on someone else
   }
