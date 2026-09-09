@@ -585,7 +585,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, discardPending: null, shieldResponse: null, stack: [], roundWinResult: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, discardPending: null, shieldResponse: null, stack: [], roundWinResult: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -1352,6 +1352,12 @@
         }
       }
       if (q >= 0) {
+        /* A GRANT of priority is a distinct event even when the OBJECT is one this seat already passed on.
+           `respond` clears every object's `passed` set, so after someone answers, an object lower on the stack
+           is legitimately re-offered to a seat that had passed it — same oid, same holder, same everything a
+           client can see. `prioGen` is what makes the two grants distinguishable downstream; without it a
+           client dedupes the second one away and the table waits on a window nobody was shown. */
+        st.prioGen = (st.prioGen || 0) + 1;
         st.pending = top; st.respondFor = q;
         return { ok: true, state: st, effect: top.eff.id, kind: top.eff.kind, pending: true };
       }

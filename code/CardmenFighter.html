@@ -2188,7 +2188,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, discardPending: null, shieldResponse: null, stack: [], roundWinResult: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, discardPending: null, shieldResponse: null, stack: [], roundWinResult: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -2955,6 +2955,12 @@
         }
       }
       if (q >= 0) {
+        /* A GRANT of priority is a distinct event even when the OBJECT is one this seat already passed on.
+           `respond` clears every object's `passed` set, so after someone answers, an object lower on the stack
+           is legitimately re-offered to a seat that had passed it — same oid, same holder, same everything a
+           client can see. `prioGen` is what makes the two grants distinguishable downstream; without it a
+           client dedupes the second one away and the table waits on a window nobody was shown. */
+        st.prioGen = (st.prioGen || 0) + 1;
         st.pending = top; st.respondFor = q;
         return { ok: true, state: st, effect: top.eff.id, kind: top.eff.kind, pending: true };
       }
@@ -5110,7 +5116,7 @@ window.CardFace = {};
       turn: rot(st.turn), initiative: rot(st.initiative), lastPlayer: (st.lastPlayer == null ? null : rot(st.lastPlayer)),
       pile: remapPile(st.pile), passes: st.passes || 0,
       finished: !!st.finished, winner: (typeof st.winner === 'number') ? rot(st.winner) : null,
-      pending: st.pending ? remapStack([st.pending])[0] : null, respondFor: (st.respondFor == null ? null : rot(st.respondFor)),
+      pending: st.pending ? remapStack([st.pending])[0] : null, respondFor: (st.respondFor == null ? null : rot(st.respondFor)), prioGen: st.prioGen || 0,   // NOT seat-valued: a counter, same for every seat, so it is declared PUBLIC rather than rotated
       discardPending: st.discardPending ? { player: rot(st.discardPending.player), count: st.discardPending.count, from: (st.discardPending.from || null) } : null,   // `from` = a dig's looked-at card ids (only the owner's own real ids, which they hold)
       shieldResponse: remapSR(st.shieldResponse), stack: remapStack(st.stack),
       preFightQ: (st.preFightQ == null ? null : rot(st.preFightQ)), preFightHandled: !!st.preFightHandled,
@@ -12544,7 +12550,15 @@ window.CardFace = {};
     function clientCheckWindow(){
       if(!isClientActive() || !state || state.finished) return;
       var sig=null;
-      if(state.pending && state.respondFor===YOU) sig='resp:'+((state.pending.card&&state.pending.card.id)||'?');
+      /* KEYED ON THE OBJECT'S oid AND THE PRIORITY GENERATION, not the card id (v1.32.0 step 1). Two reasons,
+         and the second is the bug. A card id is absent on an object that HAS no card, so every such window
+         collapsed to the same 'resp:?'. And `respond` clears every object's `passed` set, so an object lower
+         on the stack is legitimately re-offered to a seat that already passed it — identical card, identical
+         holder — and the old signature could not tell the second grant from the first. It matched, this
+         returned early, the modal never re-opened, and the table waited forever on a window nobody was shown.
+         `prioGen` bumps on every GRANT, so a re-offer always reads as new; it does NOT bump per render, so a
+         client applying fifty identical mirrors still de-dupes down to one modal. */
+      if(state.pending && state.respondFor===YOU) sig='resp:'+(state.pending.oid||'?')+':'+(state.prioGen||0);
       else if(state.shieldResponse && state.shieldResponse.q===YOU) sig='guard:'+((state.shieldResponse.guardId||'')+':'+(state.shieldResponse.roundWin?'w':'m'));
       else if(state.discardPending && state.discardPending.player===YOU) sig='disc:'+(state.discardPending.count||1);
       else if(state.pendingLossChoice && state.pendingLossChoice.winner===YOU) sig='loss:'+(state.pendingLossChoice.cands||[]).join(',');
