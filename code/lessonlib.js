@@ -35,6 +35,23 @@ async function openLesson(id, viewport){
       if(POLLLOG || el>ms*0.5) console.log('   ⏱ '+el+'ms of '+ms+'ms'+(el>ms*0.5?'  ← OVER HALF THE BUDGET':'')+': '+src);
       return true; } await p.waitForTimeout(80); }
     console.log('⏱ poll TIMED OUT after '+ms+'ms: '+src); return false; };
+  /* ANSWER A PRIORITY WINDOW THE BOARD PUTS UP, so a covered board is not mistaken for a broken lesson
+     (epic step 3). Every helper below polls the board; a modal covers it, so each would retry to timeout and
+     report the LESSON broken when the truth is that the harness never learned this window. Today no lesson
+     reaches one outside its own script — which is why it LOGS LOUDLY rather than passing silently: the sweep
+     is grepped for this line and must find none, so "inert" is measured rather than assumed. After step 18 a
+     Fight End window opens every round and this stops eleven suites going red at once.
+     Deliberately last-resort — called only after an attempt has already failed — so a lesson that drives its
+     own window (the Quicks lesson counters a real Technique) always gets there first. */
+  const answerWindow=async()=>{
+    const hit=await p.evaluate(()=>{
+      const ov=document.getElementById('overlay');
+      if(!ov || !ov.classList.contains('show')) return null;
+      const PASS=[['respDecline','Respond?'],['pfDecline','pre-fight'],['sgNo','shield guard']];
+      for(const [id,label] of PASS){ const el=document.getElementById(id); if(el && el.offsetParent){ el.click(); return label; } }
+      return null; });
+    if(hit) console.log('   ⚠ lessonlib answered a '+hit+' window the lesson did not script');
+    return hit; };
   const step=()=>p.evaluate(()=>{ const t=document.getElementById('tutPanel');
     return { n:(t&&t.querySelector('.tutStep')||{}).textContent||'', text:(t&&t.querySelector('.tutText')||{}).textContent||'',
              hasNext:!!(t&&t.querySelector('#tutNextBtn')), spots:document.querySelectorAll('.tut-spot').length }; });
@@ -59,7 +76,7 @@ async function openLesson(id, viewport){
    * This helper was written without the retry and `lessontest_twos` caught it immediately — the lesson's own
    * prep makes the Rival lead, so the board is busy at exactly the moment the suite tries to answer. */
   const playAny=async(multi,ms=30000)=>{ const t0=Date.now();
-    while(Date.now()-t0<ms){ const r=await playAnyOnce(multi); if(r!==null) return r; await p.waitForTimeout(200); }
+    while(Date.now()-t0<ms){ const r=await playAnyOnce(multi); if(r!==null) return r; await answerWindow(); await p.waitForTimeout(200); }
     return null; };
   const playAnyOnce=async(multi)=>{ const gids=await p.evaluate(m=>[].map.call(document.querySelectorAll('#hand .group'+(m?'.multi':':not(.multi)')),g=>g.dataset.gid), !!multi);
     for(const gid of gids){ await deselect();
@@ -79,7 +96,7 @@ async function openLesson(id, viewport){
      * and the hand still renders as interactive, so the clicks land on nothing and the report reads "Fight is
      * disabled" with an empty selection. Measured: the window after the Rival's turn is ~2s. */
     const t0=Date.now(); let last='never attempted';
-    while(Date.now()-t0<ms){ last=await attemptPair(ids); if(last===null) return null; await p.waitForTimeout(200); }
+    while(Date.now()-t0<ms){ last=await attemptPair(ids); if(last===null) return null; await answerWindow(); await p.waitForTimeout(200); }
     return last+' (retried for '+ms+'ms)';
   };
   const attemptPair=async(ids)=>{
@@ -119,6 +136,7 @@ async function openLesson(id, viewport){
         if(!f || f.disabled) return 'Fight is disabled — hint: '+((document.getElementById('hint')||{}).textContent||'');
         f.click(); return null; }, ids);
       if(last===null) return null;
+      await answerWindow();
       await p.waitForTimeout(200);
     }
     return last+' (retried for '+ms+'ms)'; };
@@ -141,6 +159,7 @@ async function openLesson(id, viewport){
       const moved=await p.evaluate(b=>{ const s=window.__solo.st();
         return s.round!==b.round || (s.passes||0)>b.passes; }, before);
       if(moved) return Date.now()-t0;
+      await answerWindow();
       await p.waitForTimeout(150);
     }
     console.log('⏱ Pass never took effect in '+ms+'ms'); return null; };
@@ -150,7 +169,7 @@ async function openLesson(id, viewport){
    * single attempt right after an opponent's answer reports "activate control not offered" and reads as a
    * product bug. Every helper in this file has needed this; the one that lacked it was the one that broke. */
   const activateSpot=async(ms=30000)=>{ const t0=Date.now(); let last='never attempted';
-    while(Date.now()-t0<ms){ last=await activateSpotOnce(); if(last===null) return null; await p.waitForTimeout(200); }
+    while(Date.now()-t0<ms){ last=await activateSpotOnce(); if(last===null) return null; await answerWindow(); await p.waitForTimeout(200); }
     return last+' (retried for '+ms+'ms)'; };
   const activateSpotOnce=async()=>{ await deselect();
     return p.evaluate(()=>{ const c=document.querySelector('#hand .card.tut-spot') || document.querySelector('#hand .group.tut-spot .card') || document.querySelector('#hand .card.transformReady');

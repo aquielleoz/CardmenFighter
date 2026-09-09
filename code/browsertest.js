@@ -50,7 +50,14 @@ const path = require('path');
             (respondMode ? document.getElementById('sgYes') : document.getElementById('sgNo')).click();
             return { guarded: true };
           }
-          return { over: true };
+          /* AN OVERLAY THIS HARNESS CANNOT ANSWER IS A NAMED FAILURE, NOT "the game ended" (epic step 3).
+             This used to fall through to `over`, so a window the driver did not know how to work read as an
+             end state: the sim stopped early, still counted as a completed game, and understated maxRound.
+             The caller's own win regex is the classifier, so there is ONE definition of "this is the end"
+             rather than a loose fall-through here and a strict test there. Inert today — every overlay this
+             smoke reaches is either handled above or a real end screen. */
+          if (/YOU WIN|Rival Wins/i.test(m.textContent)) return { over: true };
+          return { unknown: (m.textContent||'').replace(/\s+/g,' ').trim().slice(0,90) };
         }
         // pick/confirm mode (end-of-turn hand-limit discard) — select until Confirm enables
         if (document.getElementById('fightBtn').textContent === 'Confirm') {
@@ -73,6 +80,7 @@ const path = require('path');
       }, sim % 2 === 0);
       if (act.responded || act.declined) { if(act.responded) responded++; else declined++; blocked = 0; await page.waitForTimeout(10); continue; }
       if (act.picked) { blocked = 0; await page.waitForTimeout(8); continue; }
+      if (act.unknown) { errors.push('sim'+sim+' hit an overlay the harness cannot answer: "'+act.unknown+'" — teach browsertest this window (see the overlay branch at the top of the driver)'); break; }
       if (act.over) { done = true; break; }
       if (act.blocked) { if (++blocked > 200) { errors.push('sim'+sim+' truly stuck'); break; } await page.waitForTimeout(15); continue; }
       blocked = 0;
