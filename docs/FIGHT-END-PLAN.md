@@ -714,7 +714,19 @@ spring a Quick here (they never could); full sweep. *Revertable alone:* yes.
 
 ### H — policy, the wire, and the docs
 
-**21 · feat(ai): a real Fight End policy, then measure.** v1's step 14. Severity from the board — target's
+**21 · ⚡ THE ONE STEP TO ORCHESTRATE — feat(ai): a real Fight End policy, then measure.**
+**REACH FOR ULTRACODE HERE, AND NOWHERE ELSE IN THIS EPIC** (Aj asked to be reminded, 2026-09-09:
+*"please remind me then haha"*). Every other step is mechanical: the design exists, and the suites are free
+verifiers that cost zero model tokens — step 1 was implemented solo and its A/B *proved* the fix where a
+reviewer would only have opined. **This step is different because the question has no correct answer to look
+up.** "How often should an AI seat cast into the Fight End window" is a design question about how the game
+FEELS, there is no existing model to port (`THREAT_KIND` keys on a pending effect's kind and there is no
+effect at Fight End), and it is simultaneously the largest wall-clock variable in the change. That is the
+shape CLAUDE.md says orchestration pays for — a risky half that needs enumerating, and independent designs
+worth judging. Say in one line what it will spend before launching, and remember the verify fan-out must be
+capped by SELECTION: a 2026-09-08 run spawned one verifier per finding and cost 78 agents / 12.1M tokens
+against a ~12-agent estimate.
+ v1's step 14. Severity from the board — target's
 shields, kick-or-not, strip count, am-I-the-winner — not from `THREAT_KIND`, which keys on a pending effect's
 kind and **there is no effect at Fight End**. Aj: *"let's run a/b tests to get the right feel."* *Gate:*
 **three `personasim` CONTROL runs first** to re-establish the noise floor before reading any spread — a
