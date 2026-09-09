@@ -1,5 +1,21 @@
 # The Fight End priority window — rebuild plan
 
+> ## 📍 WHERE WE ARE — end of 2026-09-09
+>
+> **Steps 1-10 addressed; NEXT IS STEP 11.** Sweep 87/87, `main` untouched at v1.31.126, nothing half-built.
+> - **1, 2, 3, 5, 6, 8 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code either —
+>   its behavioural half was measured to be already true, and its refactor is folded into step 11.
+> - **4 and 9 are PARTLY done on purpose**, each with its remainder recorded at the step that will land it
+>   (19 and 11). Neither is a loose end.
+> - **READ THE PREMISE CHECK BEFORE STARTING 11.** All four load-bearing steps came back *partly*; step 11
+>   has three prerequisites it never named — **P1** (`respond`/`declineResponse` still refuse an objectless
+>   window, and it comes BEFORE the `finishRoundWin` restructure), **P2** (build the empty-stack walk
+>   parameterised by ORIGIN or step 20 forks it), **P3** (park the continuation on state, and not on
+>   `roundWinResult`).
+> - **Step 11 is the cliff.** Everything so far has been revertable alone and fails as a red suite; this is
+>   the first step where a mistake produces a wedged table, which is the failure mode this codebase detects
+>   worst. Start it fresh.
+
 > ## ⏳ THIS IS A WORKING PLAN. IT IS MEANT TO DIE.
 >
 > **Status: LIVE while `epic/priority-windows` is unmerged.** Written 2026-09-08, and it is `BUILD-PLAN-v0.82`
