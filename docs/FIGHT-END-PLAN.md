@@ -660,7 +660,19 @@ new state and must be declared public or redacted deliberately), netview.test.js
 `netview.test` — **the declared-public differential firing on the two new keys is it working**; full sweep
 expected inert. *Revertable alone:* yes.
 
-**6 · feat(engine): the origin is the controller — for EVERY object, not just Fight End.** The walk starts at
+**6 · feat(engine): the origin is the controller — for EVERY object. ✅ DONE 2026-09-09.**
+**HALF THE ★ ENTRY DISSOLVED RATHER THAN BEING FIXED, and that is worth understanding before reading the
+diff.** It filed TWO divergences: the *skip* (`k = 1`, so the controller never gets priority back) and the
+*starting point* ("walking from the controller instead of the active player"). Aj reversed the origin rule on
+2026-09-08 — **the controller IS the origin now** — so the code was accidentally right about the second and
+wrong only about the first. The whole step is `k = 1` → `k = 0`. A filed bug can stop being a bug because the
+RULE moved, with nothing in the code changing to make it so.
+**It also delivers HOLDING PRIORITY for free** (step 7's subject): "the walk starts at whoever just added" and
+"you keep priority after adding" are the same sentence.
+**Measured, and it moves win rates — see [`DECISIONS.md#controller-priority`](DECISIONS.md#controller-priority).**
+Headline: +18% Quick responses, deck spread 12.6 → 9.2, pacing unmoved. The spread move is a consequence of
+more interaction, not a balance lever; do not tune it.
+*Original text follows.* The walk starts at
 `k0 = 0` from the top object's controller instead of `k = 1`. **This is NOT inert and v1 wrongly said it
 would be** (it was written to keep existing objects byte-identical, before Aj changed the rule globally).
 **This step is where the ★ backlog item "priority is offered to the wrong players, in the wrong order" is
