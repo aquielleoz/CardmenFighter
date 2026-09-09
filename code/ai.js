@@ -737,7 +737,7 @@
     if (r.pending) {
       if (isHuman(humans, st.respondFor)) return true;        // human decides — leave st.pending for the UI
       resolveAIWindows(st, humans, log);                      // AI opponent answers recursively (Counter-a-Counter)
-      if (st.pending && isHuman(humans, st.respondFor)) return true;   // the recursion opened a window a human must answer
+      if (st.respondFor != null && isHuman(humans, st.respondFor)) return true;   // the recursion opened a window a human must answer
     }
     // a destroyShield may have opened a reactive shield-guard window (Leyline) for the target:
     // an AI target guards/passes right here; a human target's window is left set for the UI.
@@ -762,9 +762,13 @@
                       equip: 1, protect: 1, ward: 1, counter: 1, counterfeit: 1, onWin: 1, phantasm: 1 };
 
   function respondDecision(st, q) {
-    if (!st.pending || st.respondFor !== q) return null;
+    /* THE WINDOW IS `respondFor`; `pending` is only the OBJECT it is about, and a Fight End go-round has
+       none. Gating on the object made an objectless window invisible here — this returned null, `driveN`'s
+       loop below never ran, and nothing drained it. Not a crash: a silently parked table. */
+    if (st.respondFor !== q) return null;
     if (!effectsAllowed(st, q)) return E.declineResponse(st, q);   // analysis: pure-fighter never answers with a Quick
-    var qp = st.players[q], pend = st.pending, eff = pend.eff;
+    var qp = st.players[q], pend = st.pending, eff = pend && pend.eff;
+    if (!eff) return E.declineResponse(st, q);   // no object to react to — pass. A real Fight End policy is step 21, deliberately not here
     function bestQuick(kind) {
       if (!kindOK(kind, q)) return null;               // analysis: blocked reactive kind
       var best = null, bestEff = null;
@@ -803,7 +807,7 @@
   // (left for the UI to prompt).
   function resolveAIWindows(st, humans, log) {
     var guard = 0;
-    while (st.pending && st.respondFor != null && !isHuman(humans, st.respondFor) && guard++ < 64) {
+    while (st.respondFor != null && !isHuman(humans, st.respondFor) && guard++ < 64) {
       var q = st.respondFor, rr = respondDecision(st, q);
       if (!rr) break;
       if (log && rr.respondedWith) log.push({ respond: rr.respondKind, respName: rr.respondName, respBy: q, countered: !!rr.countered });
@@ -858,7 +862,7 @@
     if (st.pending) {                                               // a response window is open (Counter-a-Counter chain)
       if (isHuman(humans, st.respondFor)) return log;               // human answers via the UI — suspend
       resolveAIWindows(st, humans, log);
-      if (st.pending && isHuman(humans, st.respondFor)) return log;
+      if (st.respondFor != null && isHuman(humans, st.respondFor)) return log;
     }
     if (st.discardPending) {                                 // a forced discard from a prior suspended action
       if (isHuman(humans, st.discardPending.player)) return log;   // still needs the human to choose
@@ -885,7 +889,7 @@
         var pr = E.preFightCast(st, qq, bs.id, {});
         if (pr && pr.ok !== false) {
           log.push({ preFight: 'lock', by: qq, card: card });
-          if (pr.pending) { resolveAIWindows(st, humans, log); if (st.pending && isHuman(humans, st.respondFor)) return log; }
+          if (pr.pending) { resolveAIWindows(st, humans, log); if (st.respondFor != null && isHuman(humans, st.respondFor)) return log; }
         }
       } else { E.preFightPass(st, qq); }
     }

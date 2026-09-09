@@ -4743,7 +4743,7 @@
     if (r.pending) {
       if (isHuman(humans, st.respondFor)) return true;        // human decides — leave st.pending for the UI
       resolveAIWindows(st, humans, log);                      // AI opponent answers recursively (Counter-a-Counter)
-      if (st.pending && isHuman(humans, st.respondFor)) return true;   // the recursion opened a window a human must answer
+      if (st.respondFor != null && isHuman(humans, st.respondFor)) return true;   // the recursion opened a window a human must answer
     }
     // a destroyShield may have opened a reactive shield-guard window (Leyline) for the target:
     // an AI target guards/passes right here; a human target's window is left set for the UI.
@@ -4768,9 +4768,13 @@
                       equip: 1, protect: 1, ward: 1, counter: 1, counterfeit: 1, onWin: 1, phantasm: 1 };
 
   function respondDecision(st, q) {
-    if (!st.pending || st.respondFor !== q) return null;
+    /* THE WINDOW IS `respondFor`; `pending` is only the OBJECT it is about, and a Fight End go-round has
+       none. Gating on the object made an objectless window invisible here — this returned null, `driveN`'s
+       loop below never ran, and nothing drained it. Not a crash: a silently parked table. */
+    if (st.respondFor !== q) return null;
     if (!effectsAllowed(st, q)) return E.declineResponse(st, q);   // analysis: pure-fighter never answers with a Quick
-    var qp = st.players[q], pend = st.pending, eff = pend.eff;
+    var qp = st.players[q], pend = st.pending, eff = pend && pend.eff;
+    if (!eff) return E.declineResponse(st, q);   // no object to react to — pass. A real Fight End policy is step 21, deliberately not here
     function bestQuick(kind) {
       if (!kindOK(kind, q)) return null;               // analysis: blocked reactive kind
       var best = null, bestEff = null;
@@ -4809,7 +4813,7 @@
   // (left for the UI to prompt).
   function resolveAIWindows(st, humans, log) {
     var guard = 0;
-    while (st.pending && st.respondFor != null && !isHuman(humans, st.respondFor) && guard++ < 64) {
+    while (st.respondFor != null && !isHuman(humans, st.respondFor) && guard++ < 64) {
       var q = st.respondFor, rr = respondDecision(st, q);
       if (!rr) break;
       if (log && rr.respondedWith) log.push({ respond: rr.respondKind, respName: rr.respondName, respBy: q, countered: !!rr.countered });
@@ -4864,7 +4868,7 @@
     if (st.pending) {                                               // a response window is open (Counter-a-Counter chain)
       if (isHuman(humans, st.respondFor)) return log;               // human answers via the UI — suspend
       resolveAIWindows(st, humans, log);
-      if (st.pending && isHuman(humans, st.respondFor)) return log;
+      if (st.respondFor != null && isHuman(humans, st.respondFor)) return log;
     }
     if (st.discardPending) {                                 // a forced discard from a prior suspended action
       if (isHuman(humans, st.discardPending.player)) return log;   // still needs the human to choose
@@ -4891,7 +4895,7 @@
         var pr = E.preFightCast(st, qq, bs.id, {});
         if (pr && pr.ok !== false) {
           log.push({ preFight: 'lock', by: qq, card: card });
-          if (pr.pending) { resolveAIWindows(st, humans, log); if (st.pending && isHuman(humans, st.respondFor)) return log; }
+          if (pr.pending) { resolveAIWindows(st, humans, log); if (st.respondFor != null && isHuman(humans, st.respondFor)) return log; }
         }
       } else { E.preFightPass(st, qq); }
     }
@@ -4999,7 +5003,7 @@ window.CardFace = {};
     if (st.shieldResponse && st.shieldResponse.q === s) return { kind: 'shieldGuard' };
     if (st.discardPending && st.discardPending.player === s) return { kind: 'discard', count: st.discardPending.count || 1 };
     if (st.preFightQ === s) return { kind: 'preFight' };
-    if (st.pending && st.respondFor === s) return { kind: 'respond' };
+    if (st.respondFor === s) return { kind: 'respond' };   // the window is respondFor — an objectless go-round still owes this seat an answer
     if (st.turn === s) return { kind: 'turn' };
     return null; // waiting on someone else
   }
@@ -8616,7 +8620,7 @@ window.CardFace = {};
         if(g!==gen) return;
         render();                                                                 // settle the board to the final state
         if(state.preFightQ===YOU){ return promptHumanPreFight(g); }               // Rival is about to fight — you may spring Back Stab
-        if(state.pending && state.respondFor===YOU){ return promptHumanResponse(g); }   // your turn to answer a Quick
+        if(state.respondFor===YOU){ return promptHumanResponse(g); }   // your turn to answer a Quick
         if(state.shieldResponse && state.shieldResponse.q===YOU){ return openShieldGuardModal(null, function(){ resumeRival(g); }); }   // Rival's destroyShield threatens you — spring a guard
         if(state.discardPending && state.discardPending.player===YOU){ return promptHumanDiscard(g); }   // Rival forced you to discard
         if(state.finished){ busy=false; return endGame(); }
@@ -8687,7 +8691,7 @@ window.CardFace = {};
     // below handles `respondFor===YOU` — so in a free-for-all a window owed to seat 2+ was handled by
     // NEITHER: that seat never countered, and the undrained window left the turn parked. `respondDecision`
     // is seat-generic and always advances state (respond or decline), so this terminates.
-    while(state.pending && state.respondFor!=null && state.respondFor!==YOU && !isHumanSeat(state.respondFor) && guard++<64){
+    while(state.respondFor!=null && state.respondFor!==YOU && !isHumanSeat(state.respondFor) && guard++<64){
       var q=state.respondFor;
       var resp=AI.respondDecision(state, q);
       if(!resp) break;
@@ -8703,30 +8707,35 @@ window.CardFace = {};
       quickFlash(logName(lastQ), lastResp.respondName, !!lastResp.countered); render();
       return setTimeout(function(){
         if(g!==gen) return;
-        if(state.pending && state.respondFor===YOU){ render(); return promptHumanResponse(g, function(){ settleWindows(g, done); }); }
+        if(state.respondFor===YOU){ render(); return promptHumanResponse(g, function(){ settleWindows(g, done); }); }
         render(); done();
       }, reduceMotion()?300:1400);
     }
-    if(state.pending && state.respondFor===YOU){ render(); return promptHumanResponse(g, function(){ settleWindows(g, done); }); }
+    if(state.respondFor===YOU){ render(); return promptHumanResponse(g, function(){ settleWindows(g, done); }); }
     render(); done();
   }
   function promptHumanResponse(g, cont){
     cont = cont || function(){ resumeRival(g); };
-    var pend=state.pending, rivalEff=E.effectOf(pend.card)||{}, rivalName=rivalEff.name||'a Technique';
+    /* THERE MAY BE NO OBJECT. The window is `respondFor`; `pending` is the object it is about, and a Fight
+       End go-round has none (step 11). Everything below is null-safe so the modal RENDERS rather than throwing
+       — the Fight End WORDING is step 14's, and lands before step 18 makes such a window reachable. */
+    var pend=state.pending||null, rivalEff=(pend&&E.effectOf(pend.card))||{}, rivalName=rivalEff.name||'a Technique';
     var quicks=eligibleQuicks();
     if(!quicks.length){ if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'decline'}); busy=true; render(); return; } E.declineResponse(state, YOU); return cont(); }   // nothing to answer with — auto-pass
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     /* WHO cast it and WHO it is aimed at were both missing — Aj: "who or what is being targetted? why should I
      * counter it? this lacks some vital information." In a free-for-all that decides the whole choice: a
      * Telekinesis aimed at P2 is none of your business, one aimed at YOU is worth a Counter Spell. */
-    var caster=(typeof pend.p==='number') ? pend.p : null;
+    var caster=(pend && typeof pend.p==='number') ? pend.p : null;
     var aimed=null;
     if(caster!=null && E.effectTarget && (E.HOSTILE_SINGLE && E.HOSTILE_SINGLE[rivalEff.kind]))
-      aimed=E.effectTarget(state, caster, pend.opts||{});
+      aimed=E.effectTarget(state, caster, (pend&&pend.opts)||{});
     var casterTxt=(caster!=null) ? ('<b>'+logName(caster)+'</b>') : 'Someone';
     var aimTxt='';
     if(aimed!=null) aimTxt = (aimed===YOU) ? ' at <b class="respAtYou">YOU</b>' : (' at <b>'+logName(aimed)+'</b>');
-    var lead='<p>'+casterTxt+' cast <b>'+rivalName+'</b>'+aimTxt+'. Play a Quick in response, or let it resolve.</p>';
+    var lead = pend
+      ? ('<p>'+casterTxt+' cast <b>'+rivalName+'</b>'+aimTxt+'. Play a Quick in response, or let it resolve.</p>')
+      : '<p>You have priority. Play a Quick, or pass.</p>';   // placeholder until step 14 writes the Fight End copy
     // when it is not aimed at you, say so plainly rather than leaving you to work it out
     if(aimed!=null && aimed!==YOU) lead+='<p class="respNotYou">It does not target you — countering only helps '+logName(aimed)+'.</p>';
     var incoming=(rivalEff.text?('<div class="respIncoming"><b>'+rivalName+'</b> ('+cardSym(pend.card)+') — '+rivalEff.text+'</div>'):'');
@@ -8757,7 +8766,7 @@ window.CardFace = {};
     if(g!==gen){ hideOverlay(); return; }
     var qcard=state.players[YOU].hand.filter(function(c){return c.id===quickId;})[0];
     var qeff=qcard?E.effectOf(qcard):null;
-    var pendName=(E.effectOf(state.pending.card)||{}).name||'the Technique';
+    var pendName=((state.pending && E.effectOf(state.pending.card))||{}).name||'the Technique';
     var r=E.respond(state, YOU, quickId);
     if(!r.ok){ setMessage(r.reason); return; }
     hideOverlay();
@@ -8884,7 +8893,7 @@ window.CardFace = {};
       if(state.finished){ busy=false; $('rivalStatus').textContent=''; render(); return endGame(); }
       if(state.discardPending && state.discardPending.player===YOU){ return promptHumanDiscard(g); }  // a rival forced YOU to discard — prompt (resumes via resumeRival→runOpponents)
       if(state.preFightQ===YOU){ return promptHumanPreFight(g); }                                   // resumes via resumeRival→runOpponents
-      if(state.pending && state.respondFor===YOU){ return promptHumanResponse(g); }                 // ditto
+      if(state.respondFor===YOU){ return promptHumanResponse(g); }                 // ditto
       if(state.turn===YOU){ busy=false; $('rivalStatus').textContent=''; render(); return; }        // back to the human
       var p=state.turn;
       if(isHumanSeat(p)){ return awaitHumanSeat(p, g); }   // a human occupies this opponent seat — pause for their input (unreachable today: all opponents are 'ai')
@@ -9524,7 +9533,7 @@ window.CardFace = {};
     revealEffect(tech, 'Rival');
     logMsg('<b>Rival</b> casts <b>'+name+'</b>.', 'rival');
     render();
-    if(state.pending && state.respondFor===YOU){
+    if(state.respondFor===YOU){
       tutAwaitCounter=true;
       setMessage('The Rival cast <b>'+name+'</b> — spring <b>Counter Spell</b>!');
       /* SETTLE THE CHAIN, THEN hand the turn back. This used to jump straight to `state.turn=YOU`, skipping
@@ -10118,7 +10127,7 @@ window.CardFace = {};
   var pileWhich='energy', pileSel=null, pileRead=null, pileSeat=0;   // pileSeat: whose pile we are looking at (0 = you)
   function pileCanReorder(){
     if(pileSeat!==YOU) return false;                                  // another player's pile is VIEW ONLY
-    return !!(state && !state.finished && state.turn===YOU && !state.pending && state.respondFor==null && !busy && !TUT.blocking());
+    return !!(state && !state.finished && state.turn===YOU && state.respondFor==null && !busy && !TUT.blocking());
   }
   function pileCards(which){
     var pl=state && state.players[pileSeat]; if(!pl) return [];
@@ -12155,7 +12164,7 @@ window.CardFace = {};
     function hostSettle(g, done){
       if(g!==gen) return;
       if(!hostState){ return done && done(); }
-      if(hostState.pending && hostState.respondFor===RIVAL){
+      if(hostState.respondFor===RIVAL){
         netSettle={ g:g, done:done };
       /* A PARKED HOST MUST KEEP SAYING SO — and only TWO of the seven parks did (v1.31.116). v1.31.75 added
          `reassertMirror` and v1.31.80 the beat, both wired into `awaitRival` and `hostParkTrim` BY NAME, and
@@ -12168,7 +12177,7 @@ window.CardFace = {};
         busy=true; render(); reassertMirror(); startParkBeat();
         return;
       }
-      if(hostState.pending && hostState.respondFor===YOU){
+      if(hostState.respondFor===YOU){
         render();
         return promptHumanResponse(g, function(){ hostSettle(g, done); });
       }
@@ -12196,8 +12205,8 @@ window.CardFace = {};
     function hostSettleN(g, done){
       if(g!==gen) return;
       if(!hostState){ return done && done(); }
-      if(hostState.pending && hostState.respondFor===YOU){ render(); return promptHumanResponse(g, function(){ hostSettleN(g, done); }); }
-      if(hostState.pending && hostState.respondFor!=null && hostState.respondFor!==YOU){
+      if(hostState.respondFor===YOU){ render(); return promptHumanResponse(g, function(){ hostSettleN(g, done); }); }
+      if(hostState.respondFor!=null && hostState.respondFor!==YOU){
         netParked=null; netReact={ kind:'respond', seat:hostState.respondFor, g:g, resume:function(){ hostSettleN(g, done); } };
         busy=true; render(); reassertMirror(); startParkBeat(); maybePasso(netReact.seat); return;
       }
@@ -12340,7 +12349,7 @@ window.CardFace = {};
           if(st.shieldResponse.guardId) return { kind:'guard', seat:st.shieldResponse.q };
           E.shieldGuardPass(st, st.shieldResponse.q); continue;                 // nothing to spring → take the hit, keep scanning
         }
-        if(st.pending && st.respondFor!=null && st.respondFor!==YOU) return { kind:'respond', seat:st.respondFor };
+        if(st.respondFor!=null && st.respondFor!==YOU) return { kind:'respond', seat:st.respondFor };
         if(st.discardPending && st.discardPending.player!=null && st.discardPending.player!==YOU) return { kind:'discard', seat:st.discardPending.player };
         return null;
       }
@@ -12354,7 +12363,7 @@ window.CardFace = {};
         if(hostState.shieldResponse && hostState.shieldResponse.q===YOU){ return openShieldGuardModal(null, step); }   // your shield threatened
         if(hostState.discardPending && hostState.discardPending.player===YOU){ hostTakeBack(); render(); broadcastMirror(); return promptHumanDiscard(g); }
         if(hostState.preFightQ===YOU){ return promptHumanPreFight(g); }
-        if(hostState.pending && hostState.respondFor===YOU){ render(); return promptHumanResponse(g, step); }
+        if(hostState.respondFor===YOU){ render(); return promptHumanResponse(g, step); }
         var w=netOppWindow();                                                   // a remote opponent owes a reactive window → park + broadcast so THEY answer it
         if(w){ netParked=null; netReact={ kind:w.kind, seat:w.seat, g:g, resume:step }; busy=true; $('rivalStatus').textContent=seatName(w.seat)+(w.kind==='discard'?' is discarding…':(w.kind==='guard'?' may guard…':' may respond…')); render(); reassertMirror(); startParkBeat(); maybePasso(w.seat); return; }
         if(hostState.finished){ hostTakeBack(); render(); broadcastMirror(); return endGame(); }
@@ -12523,7 +12532,7 @@ window.CardFace = {};
       syncClear();                             // a mirror is the host's confirmation: whatever we sent has landed or been judged
       if(st && !st.finished) endShown=false;   // a client never runs startGame, so this is where a fresh game re-arms its end screen
       started=true; state=st; hostState=null; window.__cmfNetState=st;
-      var owedModal = !!((st.pending && st.respondFor===YOU) || (st.shieldResponse && st.shieldResponse.q===YOU) || (st.preFightQ===YOU));   // overlay windows — keep them up (don't flicker away)
+      var owedModal = !!((st.respondFor===YOU) || (st.shieldResponse && st.shieldResponse.q===YOU) || (st.preFightQ===YOU));   // overlay windows — keep them up (don't flicker away)
       var owedDiscard = !!(st.discardPending && st.discardPending.player===YOU);                                     // interactive hand-picker — must stay unlocked
       var owedLoss = !!(st.pendingLossChoice && st.pendingLossChoice.winner===YOU);                                 // panel-pick: whose shield to strip
       if(owedModal) revealOpen=false;                    // a window the GAME owes you outranks a look at a hand
@@ -12558,7 +12567,7 @@ window.CardFace = {};
          returned early, the modal never re-opened, and the table waited forever on a window nobody was shown.
          `prioGen` bumps on every GRANT, so a re-offer always reads as new; it does NOT bump per render, so a
          client applying fifty identical mirrors still de-dupes down to one modal. */
-      if(state.pending && state.respondFor===YOU) sig='resp:'+(state.pending.oid||'?')+':'+(state.prioGen||0);
+      if(state.respondFor===YOU) sig='resp:'+((state.pending&&state.pending.oid)||'-')+':'+(state.prioGen||0);
       else if(state.shieldResponse && state.shieldResponse.q===YOU) sig='guard:'+((state.shieldResponse.guardId||'')+':'+(state.shieldResponse.roundWin?'w':'m'));
       else if(state.discardPending && state.discardPending.player===YOU) sig='disc:'+(state.discardPending.count||1);
       else if(state.pendingLossChoice && state.pendingLossChoice.winner===YOU) sig='loss:'+(state.pendingLossChoice.cands||[]).join(',');

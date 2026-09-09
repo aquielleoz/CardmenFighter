@@ -209,6 +209,22 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   var perSeat = mirrors.map(function (m) { return leaves(m, '', {}); });
   var paths = {}; perSeat.forEach(function (L) { for (var k in L) paths[k] = 1; });
 
+  /* AN OBJECTLESS PRIORITY WINDOW SURVIVES THE MIRROR (epic step 2). A Fight End go-round runs on an empty
+     stack, so `respondFor` is set and `pending` is null. `promptFor` used to require the OBJECT, which made
+     such a window read as "waiting on someone else" — the client would never know it owed an answer. */
+  (function () {
+    var gw = E.newGame(null, { numPlayers: 3 });
+    gw.pending = null; gw.respondFor = 2;
+    var mv = null, threw = null;
+    try { mv = NV.mirrorFor(gw, 1); } catch (ex) { threw = ex.message; }
+    ok(mv !== null, 'objectless window: mirrorFor survives a window with no object' + (threw ? '  ← ' + threw : ''));
+    ok(mv && mv.pending === null && mv.respondFor === (2 - 1 + 3) % 3,
+       'objectless window: the mirror carries a null object and a ROTATED holder');
+    var pr = NV.promptFor ? NV.promptFor(gw, 2) : null;
+    if (NV.promptFor) ok(pr && pr.kind === 'respond',
+       'objectless window: the seat is told it owes a RESPOND' + (pr && pr.kind === 'respond' ? '' : '  ← reads as "waiting on someone else", so nobody ever answers'));
+  })();
+
   /* DECLARED PUBLIC: a small-integer leaf that is legitimately the same for every seat. Short and reviewable
      BY DESIGN — that is the whole point of inverting the burden. A new key that is constant and unlisted
      fails this suite by name, and the reviewer answers one question: is it public, or did it forget to rotate? */
