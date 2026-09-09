@@ -2960,8 +2960,18 @@
       var dsTarget = top.eff.kind === 'destroyShield' ? effectTarget(st, top.p, top.opts) : -1;
       var noopDestroy = dsTarget >= 0 && st.players[dsTarget].shields <= 0;
       var q = -1;
-      if (!noopDestroy) {                                               // offer priority to each living opponent in seat order after the controller
-        for (var k = 1; k < st.numPlayers; k++) {
+      /* THE GO-ROUND STARTS AT THE CONTROLLER — `k = 0`, not 1 (epic step 6).
+         `PHASES-AND-PRIORITY.md` §2: priority goes to the player who put the object there, then passes in
+         turn order, and the go-round ends when it comes back to them. `k = 1` skipped the controller
+         entirely, so a player could never add to something they had just cast — which is also what
+         "holding priority" means, so this one character delivers both.
+         THE OTHER HALF OF THE BACKLOG ENTRY DISSOLVED RATHER THAN BEING FIXED. It filed a second divergence,
+         "walking from the controller instead of the active player" — and Aj reversed that rule on
+         2026-09-08: the controller IS the origin now. The code was accidentally right about the origin and
+         wrong only about the skip. A filed bug can stop being a bug because the RULE moved, and nothing in
+         the code changed to make it so. */
+      if (!noopDestroy) {
+        for (var k = 0; k < st.numPlayers; k++) {
           var cand = (top.p + k) % st.numPlayers;
           if (st.players[cand].eliminated || st.prioPassed[cand]) continue;
           if (canAddToStack(st, cand)) { q = cand; break; }

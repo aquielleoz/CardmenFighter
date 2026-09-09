@@ -257,6 +257,32 @@ This is a better reason than "suits do not rank" for why v1.14 cut them.
   the ceremony teardown) were never demonstrated either and should not be re-chased first.
 
 <a id="host-client-fork"></a>
+## Giving the controller priority on their own object <a id="controller-priority"></a>
+
+**Measured 2026-09-09, `epic/priority-windows` step 6.** `openResponseWindow` walked `k = 1..n-1` from the
+controller, so the player who cast an object was never offered priority on it. `k = 0` fixes the ★ BACKLOG
+entry's "skip" half and, by the same character, delivers *holding priority* — you can add to what you just
+cast. Three runs of `node analysis.js 200 on` per arm, non-overlapping on both metrics:
+
+| | `k = 1` (before) | `k = 0` (after) |
+| --- | --- | --- |
+| Quick responses / run | 6857 · 6961 · 6956 | **8172 · 8196 · 8199** |
+| deck spread (#1 − #11) | 12.0 · 13.4 · 12.5 | **9.2 · 8.7 · 9.8** |
+| Pure Wizard win% | 56.5 · 56.9 · 55.8 | **54.0 · 53.8 · 54.3** |
+| avg rounds (Pure Wizard) | 12.2 · 12.3 · 12.3 | 12.2 · 12.2 · 12.3 |
+
+**+18% Quick responses is the DIRECT effect** — one more seat can act in every window — and it is the tightest
+number here (three runs within 27 of each other), so it is the one to trust.
+
+**The spread narrowing ~3.4 points is a CONSEQUENCE, not the goal.** More interaction compresses win rates
+toward 50%, and the deck with the most to lose is the one that was winning: Pure Wizard drops ~2.3. It is a
+welcome direction — deck spread is this repo's primary balance metric, and the v1.31.0 revert happened because
+spread blew out to 40.7 — but **this was a rules correctness fix and the balance move is a side effect.** Do
+not cite it as a balance lever, and do not "tune" it.
+
+**Pacing does not move**, which is the standing "options, not tempo" result holding for a priority change as
+well as for every new shape.
+
 ## The strategic pass, and what the study found instead <a id="strategic-pass"></a>
 
 **Moved out of the BACKLOG on 2026-09-07 — it is a measured result, not work.** It had been sitting inside the

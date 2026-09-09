@@ -738,6 +738,42 @@ function cards(ids) { return ids.map(card); }
      (gen2 > gen1 ? '' : '  ← gen ' + gen1 + ' -> ' + gen2 + ': a client keyed on (oid, prioGen) still cannot tell them apart'));
 })();
 
+// ===== THE GO-ROUND STARTS AT THE CONTROLLER (epic step 6) =====
+/* `k = 1` skipped the controller, so a player could never add to something they had just cast. Asserted at
+   n=3 because AT n=2 THE MODULUS HIDES IT: `(controller + 1) % 2` is always the other player, so the old
+   walk and the new one agree at every step and a duel assertion would pass on both builds. */
+(function () {
+  function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function tbl() {
+    var g = E.newGame(null, { numPlayers: 3 });
+    g.round = 3; g.turn = 0; g.pile = null;
+    for (var i = 0; i < 3; i++) {
+      g.players[i].hand = (i === 0) ? [sc(3, 'D'), sc(4, 'D'), sc(6, 'C')] : [sc(4, 'D'), sc(6, 'C')];
+      g.players[i].energy = []; for (var j = 0; j < 8; j++) g.players[i].energy.push(sc(4, 'D', 'e' + i + j));
+    }
+    return g;
+  }
+  var g = tbl();
+  E.activate(g, 0, '3D', { target: 1 });
+  ok(g.respondFor === 0,
+     'go-round origin: the CONTROLLER is offered priority on their own object first' +
+     (g.respondFor === 0 ? '' : '  ← offered ' + g.respondFor + '; k=1 skipped them, so they could never add to what they just cast'));
+
+  var order = [g.respondFor], guard = 0;
+  while (g.respondFor != null && guard++ < 6) { E.declineResponse(g, g.respondFor); if (g.respondFor != null) order.push(g.respondFor); }
+  ok(order.join(',') === '0,1,2',
+     'go-round order at n=3: controller then TURN ORDER — got ' + order.join(',') + (order.join(',') === '0,1,2' ? '' : ', want 0,1,2'));
+
+  /* THE DUEL IS WHY THIS HID. Assert the n=2 case is genuinely indistinguishable, so nobody "simplifies" the
+     n=3 test above into a cheaper duel one and quietly stops testing the thing. */
+  var d = E.newGame(null, { numPlayers: 2 });
+  d.round = 3; d.turn = 0; d.pile = null;
+  d.players[0].hand = [sc(3, 'D'), sc(4, 'D'), sc(6, 'C')]; d.players[1].hand = [sc(4, 'D'), sc(6, 'C')];
+  for (var k = 0; k < 2; k++) { d.players[k].energy = []; for (var m = 0; m < 8; m++) d.players[k].energy.push(sc(4, 'D', 'f' + k + m)); }
+  E.activate(d, 0, '3D', { target: 1 });
+  ok(d.respondFor === 0, 'duel: the controller is offered first here too — but (controller+1)%2 is the OTHER seat, so only n>=3 can tell the two walks apart');
+})();
+
 // ===== THE PASSES BELONG TO THE GO-ROUND (epic step 5) =====
 /* They used to live on each stack OBJECT. That only ever worked because at most one object could hold a
    non-empty set — `respond` clears every object's on any addition — so one set on state says the same thing.
