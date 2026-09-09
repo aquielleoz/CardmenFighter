@@ -237,6 +237,15 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     resolved=(await log()).some(l=>/won with a|won the round of Jabs/.test(l));
     if(resolved) break;
     await p.evaluate(()=>{
+      /* A PRIORITY WINDOW COVERS THE BOARD, and this loop would then spin out its 160 iterations and fail as
+         "a round resolved in a real 3-player game" with nothing pointing at the real cause (epic step 3).
+         Inert today — no window opens during this loop — and after step 18 a Fight End window opens every
+         round. Pass it and let the next iteration carry on. */
+      const ov=document.getElementById('overlay');
+      if(ov && ov.classList.contains('show')){
+        const PASS=['respDecline','pfDecline','sgNo'];
+        for(const id of PASS){ const el=document.getElementById(id); if(el && el.offsetParent){ el.click(); return; } }
+      }
       const clr=document.getElementById('clearBtn'), f=document.getElementById('fightBtn'), ps=document.getElementById('passBtn');
       const cards=[].slice.call(document.querySelectorAll('#hand .card'));
       for(let k=0;k<cards.length;k++){ if(clr)clr.click(); document.querySelectorAll('#hand .card')[k].click(); if(f&&!f.disabled){ f.click(); return; } }
