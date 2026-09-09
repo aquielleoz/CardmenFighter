@@ -794,7 +794,24 @@ stack is non-empty, leave only when the stack is empty *and* everyone has passed
 anyway, because a straight line becomes a rewrite the first time any card triggers. *Gate:* `npm test` with
 **identical counts**; `analysis.js`/`mpsim.js` in band; full sweep, expected no-op. *Revertable alone:* yes.
 
-**10 · feat(engine): shield loss leaves The Stack, and lands simultaneously.** The
+**10 · feat(engine): shield loss leaves The Stack, and lands simultaneously.**
+**⚠ THE BEHAVIOURAL HALF IS ALREADY TRUE — MEASURED 2026-09-09, AND THE STEP'S HEADLINE CLAIM IS FALSE.**
+The plan says *"kicks become simultaneous … can end a 3-6p game in a way sequential resolution cannot."*
+Staged and run: 3 players, `setSpecialLossMode('all')` (the player-facing `lossAll` rule), BOTH rivals at 0
+shields, one Special win. **Both are eliminated, the game ends, p0 wins** — which is the simultaneous outcome,
+on today's build. The reason is structural rather than lucky: eliminating a seat only sets `finished` when
+`aliveCount` reaches 1, so the FIRST elimination never short-circuits the rest.
+**The other two paths where order could matter are closed too.** `wasBroken` is sampled per target and
+`strikeTargets` are distinct seats, so one strip cannot change another's reading. And the single genuine
+cross-talk — `WARD_ALL`'s table-wide Holy Shroud, where the first loss would consume an absorber the second
+also wanted — is **not player-reachable**: `grep wardAll` in the template returns nothing.
+**So what is left of this step is a REFACTOR, not a rules change**: `kind:'shieldloss'` leaving The Stack,
+which it should (Aj: *The Stack holds effects, only effects*) — a queue wearing a stack's clothes.
+**DO IT INSIDE STEP 11, NOT BEFORE IT.** "Simultaneous" structurally means *apply after everyone has been
+asked*, and today asking and applying are fully interleaved: `driveShieldStack` opens a guard window per
+object, and `shieldGuardPass` resolves the declined object immediately before re-driving. Splitting that is a
+restructure of the guard machinery **that steps 18 and 19 delete**, and the thing that asks everyone is step
+11's go-round. Doing it here means writing it twice. The
 `kind:'shieldloss'` pushes become plain state — a list of `{target, n}` — because they were a **queue wearing
 a stack's clothes** and Aj's simultaneity ruling removes the only thing their ordering was for. Then:
 **sample "was this seat already broken?" for EVERY target before applying ANY strip**, or the second read
