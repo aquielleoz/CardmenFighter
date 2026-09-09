@@ -804,7 +804,16 @@ red run can say which it was looking at. *Gate:* full sweep at `-j 4` **and** `-
 idle-park drop probe re-aimed at the live park; `nettest_sync` reporting neither HARNESS GAP nor TIME-CAPPED;
 **one real solo game and one two-device netplay game.** *Revertable alone:* yes — one boolean.
 
-**19 · refactor: delete the whitelist model.** Everything in the DELETE table, including `noopDestroy` and
+**19 · refactor: delete the whitelist model.**
+**⚠ CARRIES STEP 4's DEFERRED SITES — read this before assuming the DELETE table is the whole list.** Step 4
+deleted the three dead `ai.js` gates and `driveRival`'s mid-turn branch, and deferred the rest HERE: the
+template's guard surface is 25+ sites, the large majority of them on the LIVE round-win path. The two known
+mid-turn-only ones are `openShieldGuardModal`'s non-`roundWin` ternary half and `hostRivalContinue`'s branch.
+They are dead by the mechanism `test.js`'s "mid-turn guard" case proves — `destroyShield` pushes carry
+`noGuard`, so no mid-turn window can be created — but each still wants its own reachability argument before
+deletion. **And KEEP `takeTurn`'s entry gate**: it took 188 hits over 420 AI games and answers the ROUND-WIN
+window. The plan listed it among the dead; deleting it leaves AI seats unable to guard at all.
+Everything in the DELETE table, including `noopDestroy` and
 the discarded `sres` (standing defects 1 and 2). Rewrite `test.js`'s four assertions, `netview.test.js`'s six
 plus the declared-public entry, and `nettest_guard` onto `{op:'respond'}`. *Gate:* `grep -i` every removed
 identifier across `code/` **and** `docs/`; CLAUDE.md's duplicate-function grep and the `__cmf`/`NET`
