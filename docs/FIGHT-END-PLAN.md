@@ -609,7 +609,30 @@ the house retry; `browsertest`'s fall-through becomes a named failure; `nettest_
 stall classifier. *Gate:* full sweep with **assertion counts UNCHANGED** — this step must be provably inert.
 *Revertable alone:* yes.
 
-**4 · fix: instrument, then delete, the dead mid-turn shield-guard path.** Unchanged from v1. Six likely-dead
+**4 · fix: instrument, then delete, the dead mid-turn shield-guard path. ✅ PARTLY DONE 2026-09-09.**
+**THE INSTRUMENTATION EARNED ITS KEEP ON THE FIRST RUN: one of the paths this step called dead is ALIVE.**
+There are FOUR `st.shieldResponse` gates in `ai.js`, not three. Over 420 AI games at 2/3/6 players the gates
+in `playPhase`, `act` and `takeTurn`'s tail took **zero** hits — and `takeTurn`'s ENTRY gate took **188**.
+That one is how an AI seat answers a ROUND-WIN guard window pending at the start of its turn; deleting it
+would have left AI seats unable to guard at all, in a way no suite asserts directly. *A grep is not a
+reachability test*, and neither is a plan written by reading one.
+
+**THE KEYSTONE IS A MECHANISM, NOT A SAMPLE** — `test.js`'s "mid-turn guard" case. There are exactly two
+`kind:'shieldloss'` pushes: the round-win one, and `destroyShield`'s, which sets `noGuard: true`;
+`driveShieldStack` skips its window on `noGuard`. So a mid-turn guard window cannot be created. The test
+casts a real Critical Hit at a 3-shield target holding Leyline, requires the cast to land and the shield to
+fall, and then requires **no `shieldResponse`** — so it cannot pass by failing to reach the case, and it
+guards the deletion permanently rather than for one sweep.
+
+**DELETED:** the three dead `ai.js` gates, and `driveRival`'s *"Rival's destroyShield threatens you"* branch.
+**KEPT, with the measurement written onto it:** `takeTurn`'s entry gate.
+
+**DEFERRED TO STEP 19, deliberately.** The template's guard surface is **25+ sites**, not the three this step
+names, and the large majority are on the LIVE round-win path. What is genuinely mid-turn-only —
+`openShieldGuardModal`'s non-`roundWin` ternary half and `hostRivalContinue`'s branch — is dead by the same
+mechanism, but each needs its own reachability argument and **step 19 deletes the whole whitelist model
+anyway**. Deleting them here buys a smaller diff later at the cost of a second round of verification now.
+*Original text follows.* Unchanged from v1. Six likely-dead
 sites; **a grep is not a reachability test**, so add dbg-gated counters, run one full sweep, confirm zero,
 then delete. *Gate:* full sweep with counters; `mptest` as the post-deletion UI canary. *Revertable alone:* yes.
 
