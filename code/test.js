@@ -704,6 +704,38 @@ function cards(ids) { return ids.map(card); }
   ok(gr.respondFor === 2, 'MP response: priority passes past p1 (no Quick) to p2, who can answer');
   var cr = E.respond(gr, 2, '4D');   // p2 Counters the Telekinesis
   ok(cr.ok && !gr.discardPending, 'MP response: p2 Counter Spell negates the Technique (no discard happens)');
+
+  /* PRIORITY IS RE-GRANTED ON AN OBJECT A SEAT ALREADY PASSED, AND ONLY `prioGen` SEPARATES THE TWO GRANTS.
+     `respond` clears EVERY object's `passed` set, so once p2's Counter Spell resolves, the Technique beneath
+     it is offered to p1 again — same oid, same holder, same everything a mirror carries. A client keyed on the
+     card id alone cannot tell the second grant from the first, de-dupes it away, and never opens the modal.
+     Staged rather than hoped for: the assertions below require the collision to actually occur first, so this
+     cannot quietly pass by never reaching the re-grant. */
+  var pg = E.newGame(null, { numPlayers: 3 });
+  pg.players[0].hand = [sc(3, 'D'), sc(5, 'C')]; pg.players[0].energy = [];   // the 5C is a spare: the engine refuses an activation that would empty your hand
+  for (var pe = 0; pe < 3; pe++) pg.players[0].energy.push(sc(4, 'D'));    // p0: Telekinesis only, no Quick to answer with
+  pg.players[1].hand = [sc(4, 'D'), sc(6, 'C')]; pg.players[1].energy = [];
+  for (var pe1 = 0; pe1 < 4; pe1++) pg.players[1].energy.push(sc(4, 'D')); // p1: holds a Quick, so it is offered priority
+  pg.players[2].hand = [sc(4, 'D'), sc(7, 'C')]; pg.players[2].energy = [];
+  for (var pe2 = 0; pe2 < 4; pe2++) pg.players[2].energy.push(sc(4, 'D')); // p2: the seat that answers
+  pg.turn = 0; pg.round = 3; pg.pile = null; pg.lastPlayer = null; pg.passes = 0;
+
+  E.activate(pg, 0, '3D', { target: 1 });
+  var oid1 = pg.pending && pg.pending.oid, gen1 = pg.prioGen, who1 = pg.respondFor;
+  ok(who1 === 1 && !!oid1, 'prioGen: p1 is offered the Technique first (staging holds)');
+
+  E.declineResponse(pg, 1);                                  // p1 passes on it
+  ok(pg.respondFor === 2, 'prioGen: priority moves on to p2 after p1 passes');
+  E.respond(pg, 2, '4D');                                    // p2 answers — this clears every object's passed set
+  E.declineResponse(pg, 1);                                  // drain the window on the Counter Spell itself
+
+  var oid2 = pg.pending && pg.pending.oid, gen2 = pg.prioGen, who2 = pg.respondFor;
+  ok(who2 === 1 && oid2 === oid1,
+     'prioGen: THE COLLISION IS REAL — the same object is re-offered to the same seat' +
+     (who2 === 1 && oid2 === oid1 ? '' : '  ← never reached the re-grant (' + oid1 + '/' + who1 + ' then ' + oid2 + '/' + who2 + '), so the assertion below would be vacuous'));
+  ok(gen2 > gen1,
+     'prioGen: …and the generation separates the two grants, which is the only thing that can' +
+     (gen2 > gen1 ? '' : '  ← gen ' + gen1 + ' -> ' + gen2 + ': a client keyed on (oid, prioGen) still cannot tell them apart'));
 })();
 
 // ===== BACK STAB / OUTBALANCE REDESIGN (v1.31.4) + the AI timing model =====

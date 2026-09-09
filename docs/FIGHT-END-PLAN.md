@@ -466,17 +466,28 @@ It stops being latent here, because the rebuild routes shield loss through that 
 `res.shieldStripped`, so a mid-turn Critical Hit would start playing the shield-shatter beat it does not play
 today. Improvement or surprise depending on intent — **Open question 12**.
 
-**Defect C · `clientCheckWindow`'s window signature — plausible, unproven, and step 1 IS the experiment.**
+**Defect C · `clientCheckWindow`'s window signature — ✅ CONFIRMED LIVE AND FIXED (2026-09-09, step 1).**
 A response window is keyed `'resp:' + pending.card.id`, and `respond` resets the passed set on **every**
 object, so a seat that already passed on object X is legitimately re-granted priority on X after anyone adds
 a Quick. If no intervening mirror reaches that client showing a different window (or none), the signature is
 unchanged, `clientCheckWindow` returns early, and the modal never re-opens — an owed window silently
 swallowed, which at a park is a permanent deadlock.
-**Whether it reproduces without a dropped mirror is NOT established.** The intermediate state differs, so it
-should normally broadcast. Do not report this as live until step 1's drop probe has run at `DROPS=0..4`
-**and** the same probe has been A/B'd against `main` via `git show` — the idiom `nettest_parkbeat3` and
-`nettest_mirrordrop` already use. This repo has twice recorded a "flake" that was the environment and twice
-recorded one that was real; the probe settles it either way, and reasoning does not.
+**SETTLED BY `nettest_priosig.js`, and the A/B is what settles it.** On the pre-fix build the re-grant mirror
+**reaches the handler and is APPLIED** — the trace says so, so it is not the wire — and the window still never
+re-opens. Post-fix, 8/8, and 40 consecutive runs with no flake. `test.js` carries the engine half: it stages
+the re-grant and asserts the collision is REAL (same oid, same seat) *before* asserting the generation
+separates them, so the second assertion cannot pass vacuously by never reaching the re-grant.
+
+**State the claim precisely — it is live GIVEN A LOST FRAME, not on every table.** With the intervening mirror
+delivered, the client sees a frame owing it no window, its signature clears, and the re-grant opens fine even
+unfixed. What the fix removes is the dependency on that frame arriving. That is not a narrow condition:
+`nettest_parkbeat3` measures **one** lost mirror deadlocking a 3-player table permanently, so a lost frame is
+a documented property of this transport rather than a hypothetical.
+
+**The fix:** `st.prioGen` bumps on every GRANT of priority (never per render, so the de-dupe that collapses
+fifty identical mirrors into one modal is untouched), rides the mirror as a declared-PUBLIC scalar, and the
+client keys on `(oid, prioGen)`. Keying on `oid` rather than the card id also pre-pays step 2 — a cardless
+object has no `card.id` and every such window used to collapse to the same `'resp:?'`.
 
 ## ⚠ THE COMMIT SEQUENCE BELOW PREDATES THE 2026-09-08 RULINGS — READ THIS FIRST
 
@@ -565,7 +576,10 @@ clean `git status`.
 `applyMirrorNow`; ship the drop probe. Holding priority (step 7) makes this *more* acute — one player adding
 twice produces two objects with no change of holder. *Gate:* `npm test`; full netplay sweep; the probe at
 `DROPS=0..4` **and** A/B'd against `main` via `git show`. **Filed as PLAUSIBLE, UNPROVEN — this step's probe
-is what settles whether it is live.** *Revertable alone:* yes.
+is what settles whether it is live.**
+**✅ DONE 2026-09-09.** The probe settled it: **live**, given a lost frame. See Defect C above for the
+evidence and the precise claim. `nettest_priosig.js` (8) is in the sweep; `test.js` 399 → 403.
+*Revertable alone:* yes.
 
 **2 · fix: every priority consumer tolerates a window with NO OBJECT.** Widened from v1, which only had to
 survive a *cardless* object. With the sentinel gone, a Fight End go-round has **no top object at all**, so
@@ -709,8 +723,15 @@ object-literal duplicate-key awk; `mptest` as the UI canary; full sweep. *Revert
 consistent."* Identical defect one phase earlier: `preFightHolder` offers to exactly one seat and gives up on
 that seat's single pass, and `eligiblePreFightQuicks` narrows to a whitelist of one kind (`lockout`). With
 A-F done this is a deletion plus a call into the same loop. **Leaving it out is what turns a two-model engine
-into a three-model one.** *Gate:* `nettest_prefight`; `mptest`; a n≥3 assertion that a seat 3+ human can
-spring a Quick here (they never could); full sweep. *Revertable alone:* yes.
+into a three-model one.** **AND IT INHERITS STEP 1'S BUG IN A WORSE FORM — found 2026-09-09 while doing step 1.** `clientCheckWindow`
+keys this window on the **bare constant string `'prefight'`**. The response window at least varied by card;
+this one cannot distinguish two grants under ANY circumstances, lost frame or not. It is harmless today only
+because `preFightHolder` offers to exactly one seat and gives up on that seat's single pass, so a re-grant
+never happens — **the defect is masked by the very defect this step removes.** The moment this becomes a real
+go-round, every re-grant is swallowed. Key it the same way step 1 keyed the response window: the seat plus
+`prioGen`, which by then already rides the mirror. *Gate:* `nettest_prefight`; `mptest`; a n≥3 assertion that
+a seat 3+ human can spring a Quick here (they never could); **a re-grant assertion modelled on
+`nettest_priosig`**; full sweep. *Revertable alone:* yes.
 
 ### H — policy, the wire, and the docs
 

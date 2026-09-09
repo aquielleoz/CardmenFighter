@@ -213,7 +213,7 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
      BY DESIGN — that is the whole point of inverting the burden. A new key that is constant and unlisted
      fails this suite by name, and the reviewer answers one question: is it public, or did it forget to rotate? */
   var PUBLIC = {
-    'numPlayers': 1, 'round': 1, 'passes': 1, 'startShields': 1,
+    'numPlayers': 1, 'round': 1, 'passes': 1, 'startShields': 1, 'prioGen': 1,
     'pile.mod': 1, 'pile.combo.size': 1,
     'stack.0.n': 1, 'stack.0.oid': 1, 'shieldResponse.obj.n': 1
   };
