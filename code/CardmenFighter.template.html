@@ -4760,7 +4760,11 @@ __QR__
         render();                                                                 // settle the board to the final state
         if(state.preFightQ===YOU){ return promptHumanPreFight(g); }               // Rival is about to fight — you may spring Back Stab
         if(state.respondFor===YOU){ return promptHumanResponse(g); }   // your turn to answer a Quick
-        if(state.shieldResponse && state.shieldResponse.q===YOU){ return openShieldGuardModal(null, function(){ resumeRival(g); }); }   // Rival's destroyShield threatens you — spring a guard
+        /* DELETED (epic step 4): the Rival's destroyShield threatening YOU mid-turn. It cannot happen —
+           every `destroyShield` push carries `noGuard: true`, so `driveShieldStack` never opens a window for
+           one, and `test.js`'s "mid-turn guard" case proves it by casting a real Critical Hit at a shielded
+           target holding Leyline and requiring NO `shieldResponse`. The round-win guard windows on this seat
+           are handled further down and are untouched. */
         if(state.discardPending && state.discardPending.player===YOU){ return promptHumanDiscard(g); }   // Rival forced you to discard
         if(state.finished){ busy=false; return endGame(); }
         setTimeout(function(){ if(g===gen) step(); }, 480);

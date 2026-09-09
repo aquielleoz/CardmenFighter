@@ -625,7 +625,6 @@
     var oppIdx = (p + 1) % st.numPlayers;
     while (guard++ < 6) {
       if (st.pending) return;                                                             // a human response window is open — suspend the turn
-      if (st.shieldResponse) return;                                                      // a reactive shield-guard window is open (destroyShield) — suspend
       if (st.discardPending) {                                                            // a forced discard was set (discardOpp)
         if (isHuman(humans, st.discardPending.player)) return;                            // human must choose — suspend
         E.resolveDiscard(st);                                                             // AI target auto-pitches (avoids breaking its Specials)
@@ -741,7 +740,6 @@
     }
     // a destroyShield may have opened a reactive shield-guard window (Leyline) for the target:
     // an AI target guards/passes right here; a human target's window is left set for the UI.
-    if (st.shieldResponse) shieldGuardAI(st, log, humans);
     return true;
   }
 
@@ -858,7 +856,11 @@
     diff = diff || 'fighter';
     (st._diff = st._diff || {})[p] = diff;                          // remember each seat's tier (round-win chooser reads it)
     var log = [];
-    if (st.shieldResponse) return shieldGuardAI(st, log, humans);   // a reactive shield-guard window is open
+    /* ALIVE, AND MEASURED — 188 hits over 420 AI games (epic step 4). Three sibling gates that looked
+       identical were deleted in the same commit because they can only fire on a MID-TURN window, which
+       `noGuard` makes impossible; this one answers the ROUND-WIN window pending at the start of a turn. The
+       plan had listed it among the dead. Deleting it would have left AI seats unable to guard at all. */
+    if (st.shieldResponse) return shieldGuardAI(st, log, humans);
     if (st.pending) {                                               // a response window is open (Counter-a-Counter chain)
       if (isHuman(humans, st.respondFor)) return log;               // human answers via the UI — suspend
       resolveAIWindows(st, humans, log);
@@ -877,7 +879,6 @@
     playPhase(st, p, log, diff, humans);
     if (st.discardPending) return log;                       // a human must choose discards — suspend
     if (st.pending) return log;                              // suspended awaiting a human response
-    if (st.shieldResponse) return log;                       // suspended awaiting a human shield-guard response
     // Phase 2 — non-active pre-fight window: the opponent may spring a proactive Quick (Back Stab) before we fight.
     var pf = E.openPreFight(st);
     if (pf.preFightPending) {

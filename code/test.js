@@ -738,6 +738,33 @@ function cards(ids) { return ids.map(card); }
      (gen2 > gen1 ? '' : '  ← gen ' + gen1 + ' -> ' + gen2 + ': a client keyed on (oid, prioGen) still cannot tell them apart'));
 })();
 
+// ===== NO MID-TURN SHIELD-GUARD WINDOW CAN EXIST (epic step 4) =====
+/* THE KEYSTONE FOR A DELETION, and it is a mechanism rather than a sample. `driveShieldStack` skips its
+   guard window when the object carries `noGuard`, and there are exactly TWO `kind:'shieldloss'` pushes in the
+   engine: the round-win one from `applyRoundLoss`, and `destroyShield`'s — which sets `noGuard: true`. So a
+   guard window can only ever come from a round win, and every branch written for a MID-TURN one is
+   unreachable. Measured alongside this: over 420 AI games the mid-turn gates in `playPhase`, `act` and
+   `takeTurn`'s tail took ZERO hits, while `takeTurn`'s ENTRY gate took 188 — that one answers round-win
+   windows and is very much alive. The plan had listed it among the dead; a grep is not a reachability test. */
+(function () {
+  function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  var g = E.newGame(null, { numPlayers: 2 });
+  g.round = 3; g.turn = 0; g.pile = null;
+  g.players[0].hand = [sc(9, 'S'), sc(13, 'S'), sc(6, 'C')];              // Critical Hit + a Broadway card to pitch + a spare
+  g.players[0].energy = []; for (var i = 0; i < 9; i++) g.players[0].energy.push(sc(4, 'S', 'e' + i));
+  g.players[1].shields = 3;
+  g.players[1].hand = [sc(9, 'D'), sc(6, 'H')];                            // holds Leyline — an immunity it COULD guard with
+  g.players[1].energy = []; for (var j = 0; j < 9; j++) g.players[1].energy.push(sc(4, 'D', 'f' + j));
+
+  var r = E.activate(g, 0, '9S', { target: 1 });
+  ok(r.ok, 'mid-turn guard: the Critical Hit actually casts' + (r.ok ? '' : '  ← ' + r.reason + ', so everything below would be vacuous'));
+  var guard = 0; while (g.respondFor != null && guard++ < 10) E.declineResponse(g, g.respondFor);
+  ok(g.players[1].shields === 2, 'mid-turn guard: …and really strips the shield (3 -> ' + g.players[1].shields + ')');
+  ok(!g.shieldResponse,
+     'mid-turn guard: NO guard window is created — so every branch written for one is dead code' +
+     (g.shieldResponse ? '  ← one WAS created; the deletions in step 4 are wrong and must be reverted' : ''));
+})();
+
 // ===== AN OBJECTLESS PRIORITY WINDOW IS VISIBLE AND DRAINABLE (epic step 2) =====
 /* A Fight End go-round runs on an EMPTY stack, so the window has no object at all — `respondFor` is set and
    `pending` is null. Twenty-three consumers used to gate on `pending` being truthy, which made such a window
