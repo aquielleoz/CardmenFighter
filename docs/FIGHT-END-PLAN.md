@@ -533,6 +533,65 @@ then if the stack is non-empty re-enter the dance, and only leave the sub-phase 
 everyone has passed. Written as a straight line it works perfectly today and becomes a rewrite the first time
 any card triggers. **Do not build the trigger system; do not foreclose it.** One function's shape, no more.
 
+## ⚠ PREMISE CHECK OF STEPS 11 / 18 / 19 / 20 — 2026-09-09, after steps 1-9 shipped
+
+All four came back **PARTLY** — the designs are right, the preconditions are not. Every finding below was
+verified against the code by hand afterwards; none was refuted on adversarial review. Owning steps named.
+
+**P1 · `respond` and `declineResponse` STILL REFUSE AN OBJECTLESS WINDOW. Blocks 11, 19 and 20.**
+Both open `if (!st.pending || st.respondFor !== q) return { ok:false, reason:'No response window.' }`. Step 2
+deferred this to step 5; step 5's note never discharged it, and neither of us noticed. **It is step 11's
+FIRST commit — ahead of the `finishRoundWin` restructure.** The failure mode is not a refusal a caller sees:
+`resolveAIWindows` loops `while (st.respondFor != null && !isHuman(...) && guard++ < 64)` and breaks only on
+a falsy result, so a truthy `{ok:false}` spins it 64 times and exits with the window still open.
+
+**P2 · `st.prioOrigin` WAS NEVER BUILT, and there is no empty-stack walk.** `grep` finds it nowhere in
+`code/`. Step 5 deferred it to step 6; step 6 landed as `k = 1` → `k = 0` and nothing else — correctly, since
+nothing consumed it. **Step 11 must build the empty-stack go-round PARAMETERISED BY ORIGIN**, because step 20
+needs the same primitive with a different one; hard-code "the winner is active" and step 20 forks the loop.
+Note the eliminated/passed filter lives in the caller, not in `canAddToStack`, so a new walk must repeat it.
+
+**P3 · The Fight End continuation must be parked on STATE.** `enterFightEnd`'s arguments live in a JS frame
+the resume path (`respond`/`declineResponse` → `openResponseWindow`) cannot see. **Do not reuse
+`st.roundWinResult`**: `driveShieldStack` reads it as "this is a round win" and would finish the round inside
+its own window. Use a separate field, and **rotate its seat-valued members in `mirrorFor`** like
+`pendingLossChoice` — not redact them — because §3's whole reason for picking the target before the window is
+that the table can see who is threatened.
+
+**P4 · `PRIORITY_V2` DOES NOT EXIST, AND STEPS 5, 6 AND 8 SHIPPED LIVE AND UNGATED.** Section B is headed
+*"behind `PRIORITY_V2`, default off"* and the flag was never written; `grep` finds it only in this file. So
+the preamble's *"one boolean, one atomic flip, one-line revert"* is **false as the tree stands**, and step
+11's "full sweep with it off (inert)" is not an available safety net. Two ways out, and it is Aj's call:
+*(a)* **scope the flag to the Fight End window only** and write the true revert contract down — reverting it
+yields the OLD guard window on top of NEW controller-priority, holding priority and Counter Spell targeting,
+an untested fifth configuration, so the real rollback target is the epic's branch point; or *(b)* **retro-gate
+5, 6 and 8** — and re-measure, because `DECISIONS.md#controller-priority` was taken on the ungated build.
+
+**P5 · Step 18's gate is unachievable as sequenced.** Suites that stage the old window are not rewritten
+until 19, so a flag-on sweep is red. Move the six directly-affected assertions into the flip commit
+(`nettest_guard`'s `sgYes` drive; `netview.test`'s staged-round block and its `prompt.kind === 'shieldGuard'`).
+`test.js`'s `shieldGuardCard` cases call the function directly, survive the flip, and belong in 19.
+
+**P6 · FOUR MORE `ai.js` GATES ARE STILL ON `st.pending`, and step 2 missed them.** Two in `playPhase`, two
+in `takeTurn` — all bare `if (st.pending)`, which is why a grep keyed on `pending && …respondFor` did not see
+them. So step 2's "23 sites" was itself incomplete. An objectless window sets `respondFor` with `pending`
+null, all four read false, and an AI seat plays a whole turn through an open window — `E.play`/`E.pass` have
+no `respondFor` guard. Inert today; **belongs in step 18, ahead of the flip.**
+
+**P7 · Step 19's "KEEP `takeTurn`'s entry gate" cannot be done as written** — the gate is
+`if (st.shieldResponse) return shieldGuardAI(...)` and BOTH symbols are on the DELETE list. Merge it into the
+block below and repoint that to `st.respondFor != null` with `resolveAIWindows`, which is already
+seat-agnostic — and that matters, because at Fight End `st.turn` is the round winner while `respondFor` may
+be someone else. Hard-blocked on P1.
+
+**P8 · Step 20 silently kills pre-fight Back Stab unless an AI policy is ported.** The only pre-fight policy
+is inline; the general window's `respondDecision` has no branch for it.
+
+**WHAT THE CHECK FOUND SOUND**, which matters after seven corrections in nine steps: step 11's go-round
+design matches §3 and `enterFightEnd` is the right hoist point; step 18's mechanical claim — gate
+`driveShieldStack`'s window branch and the whole old surface goes dark — is **verified true**; step 19's
+DELETE table is substantially right; and all three defects step 20 names are real.
+
 ## Commit sequence — v2, rewritten 2026-09-08 against the rulings
 
 **Twenty-three commits, one flag, and a different shape from v1.** The v1 sequence assumed Fight End was
@@ -735,7 +794,8 @@ a 3-6p game in a way sequential resolution cannot**. *Gate:* `npm test` staging 
 together and requiring **both** eliminated; `nettest_kick`; `nettest_elim3`; `nettest_losspick3`;
 `mpsim`/`analysis` in band; full sweep. *Revertable alone:* yes.
 
-**11 · feat(engine): the Fight End go-round, gated.**
+**11 · feat(engine): the Fight End go-round, gated.** **⚠ SEE THE PREMISE CHECK ABOVE — P1, P2, P3 are prerequisites this step does not name, and P1 comes before the `finishRoundWin` restructure.**
+
 **⚠ PREREQUISITE, found doing step 9: `finishRoundWin` DISCARDS THE STACK.** Its first statement is
 `st.stack = []`. Anything an outcome triggers is thrown away before it can resolve, so this step must
 separate **"apply the outcomes"** from **"finish the round"** and put the drain between them — otherwise the
@@ -798,7 +858,8 @@ not once** — two flakes hid in one green run the last time this surface was to
 
 ### F — the switch
 
-**18 · flip `PRIORITY_V2` on, and gate the old window off in the same commit.** **Non-negotiable:** the flip
+**18 · flip `PRIORITY_V2` on, and gate the old window off in the same commit.** **⚠ SEE P4 (the flag was never built and 5/6/8 shipped live), P5 (the gate is unachievable as sequenced) and P6 (four ai.js gates to repoint first).**
+ **Non-negotiable:** the flip
 must also gate `driveShieldStack`'s window behind `!PRIORITY_V2`, or both windows open in one round and no
 red run can say which it was looking at. *Gate:* full sweep at `-j 4` **and** `-j 1`; `fightendtest` ×20; the
 idle-park drop probe re-aimed at the live park; `nettest_sync` reporting neither HARNESS GAP nor TIME-CAPPED;
@@ -821,7 +882,8 @@ object-literal duplicate-key awk; `mptest` as the UI canary; full sweep. *Revert
 
 ### G — the other window
 
-**20 · refactor: the pre-fight window becomes the same window.** Q7 — *"it just makes our rules
+**20 · refactor: the pre-fight window becomes the same window.** **⚠ SEE P2 (needs the origin-parameterised walk) and P8 (port the AI policy or Back Stab dies).**
+ Q7 — *"it just makes our rules
 consistent."* Identical defect one phase earlier: `preFightHolder` offers to exactly one seat and gives up on
 that seat's single pass, and `eligiblePreFightQuicks` narrows to a whitelist of one kind (`lockout`). With
 A-F done this is a deletion plus a call into the same loop. **Leaving it out is what turns a two-model engine
