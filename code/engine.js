@@ -1401,7 +1401,15 @@
     var top = st.stack.pop(), pl = st.players[top.p];
     if (top.countered) { pl.shuffle.push(top.card); return { ok: true, effect: top.eff.id, kind: top.eff.kind, countered: true, state: st }; }
     if (top.eff.kind === 'counter') {
-      for (var i = st.stack.length - 1; i >= 0; i--) { if (st.stack[i].kind === 'effect') { st.stack[i].countered = true; break; } }   // counter the effect beneath
+      /* NAMED TARGET FIRST, then the old "topmost effect beneath me". The fallback is not legacy cruft: a
+         Counter Spell cast with nothing named — the AI, an older peer — must still do something sensible,
+         and with one object on the stack the two rules agree. */
+      var want = top.opts && top.opts.counterOid;
+      for (var i = st.stack.length - 1; i >= 0; i--) {
+        if (st.stack[i].kind !== 'effect') continue;
+        if (want && st.stack[i].oid !== want) continue;
+        st.stack[i].countered = true; break;
+      }   // counter the effect beneath
       pl.removed.push(top.card);
       return { ok: true, effect: top.eff.id, kind: 'counter', state: st };
     }
@@ -1419,7 +1427,15 @@
   }
   // Player q answers the open window with a Quick: it goes on the stack (so it can itself be
   // answered), then priority re-opens.
-  function respond(st, q, quickCardId) {
+  /* WHAT A COUNTER SPELL MAY NAME — one definition, called by `respond` to validate and by the UI to offer
+     (epic step 8). Everything currently on the stack that is an EFFECT and not already countered. It became
+     a real choice the moment step 6 let a player hold priority and stack two Quicks: "the object beneath me"
+     stops being unambiguous, which Aj called out himself as the cost of holding priority. */
+  function counterTargets(st) {
+    return (st.stack || []).filter(function (o) { return o.kind === 'effect' && !o.countered; });
+  }
+
+  function respond(st, q, quickCardId, opts) {
     if (!st.pending || st.respondFor !== q) return { ok: false, reason: 'No response window.' };
     var qp = st.players[q];
     var qcard = qp.hand.filter(function (c) { return c.id === quickCardId; })[0];
@@ -1427,9 +1443,18 @@
     var qeff = effectFor(st, q, qcard);                // effectFor: honor a Form that made this card Quick
     if (!qeff || !qeff.impl || !qeff.quick) return { ok: false, reason: 'That is not a Quick.' };
     if (!canAfford(qp, qcard)) return { ok: false, reason: 'Not enough Fighter Energy of the right suit.' };
+    /* VALIDATE THE TARGET BEFORE SPENDING ANYTHING. This block sat AFTER the hand and energy were taken, so
+       a refused cast still cost the card — caught by the "nothing is spent on the refusal" assertion, which
+       is exactly why that assertion is separate from the "was it refused" one. Names in, engine resolves;
+       the same reasoning as `resolveIds`. */
+    var cOid = (opts && opts.counterOid) || null;
+    if (cOid) {
+      if (qeff.kind !== 'counter') return { ok: false, reason: 'That card does not counter anything.' };
+      if (!counterTargets(st).some(function (o) { return o.oid === cOid; })) return { ok: false, reason: 'That is no longer on the stack to counter.' };
+    }
     qp.hand = qp.hand.filter(function (c) { return c.id !== quickCardId; });
     payEnergy(qp, qcard);
-    st.stack.push({ oid: newOid(st), kind: 'effect', p: q, card: qcard, eff: qeff, opts: {}, countered: false });
+    st.stack.push({ oid: newOid(st), kind: 'effect', p: q, card: qcard, eff: qeff, opts: (cOid ? { counterOid: cOid } : {}), countered: false });
     st.prioPassed = {};                                                // a Quick changed the board — everyone gets fresh priority
     st.pending = null; st.respondFor = null;
     var res = openResponseWindow(st);
@@ -2394,6 +2419,7 @@
     effectTarget: effectTarget,   // who a pending effect is aimed at — the UI needs it to say so out loud
     HOSTILE_SINGLE: HOSTILE_SINGLE,
     shieldGuard: shieldGuard, shieldGuardPass: shieldGuardPass, shieldGuardCard: shieldGuardCard,
+    counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
     guardEffFor: guardEffFor,   // the single definition of "can this card guard" — ai.js calls it rather than restating `immune || shieldImmune`
     DECKS: DECKS, DECK_ORDER: DECK_ORDER, BASE_SUIT: BASE_SUIT, buildDeck: buildDeck,
     PARTS_TOTAL: PARTS_TOTAL, PARTS_SUITS: PARTS_SUITS, PARTS_PREFIX: PARTS_PREFIX,

@@ -4883,7 +4883,19 @@ __QR__
     if(aimed!=null && aimed!==YOU) lead+='<p class="respNotYou">It does not target you — countering only helps '+logName(aimed)+'.</p>';
     var incoming=(rivalEff.text?('<div class="respIncoming"><b>'+rivalName+'</b> ('+cardSym(pend.card)+') — '+rivalEff.text+'</div>'):'');
     var html='<h2>Respond?</h2>'+lead+incoming+tableContextHTML()+'<div class="respOpts">';
+    var ctgts=(E.counterTargets ? E.counterTargets(state) : []);
     quicks.forEach(function(c){ var ef=E.effectOf(c);
+      /* A COUNTER WITH A REAL CHOICE GETS ONE BUTTON PER TARGET (epic step 8). Since step 6 a player can
+         hold priority and stack two Quicks, so "counter the thing beneath me" stops being unambiguous — and
+         the choice has to be made BEFORE the card goes on the stack, which is why it is a button rather than
+         a follow-up prompt. `E.counterTargets` is the same predicate `respond` validates against, so the UI
+         cannot offer something the engine will refuse. With one target the wording is unchanged. */
+      if(ef.kind==='counter' && ctgts.length>1){
+        ctgts.forEach(function(o){
+          var onm=((o.card && E.effectOf(o.card))||{}).name || 'an effect';
+          var who=(typeof o.p==='number') ? logName(o.p) : '';
+          html+='<button class="respQuick" data-id="'+c.id+'" data-coid="'+o.oid+'">'+ef.name+' · counter <b>'+onm+'</b>'+(who?' ('+who+')':'')+' <span class="respTxt">'+ef.cost+'⚡ · '+cardSym(c)+'</span></button>'; });
+        return; }
       html+='<button class="respQuick" data-id="'+c.id+'">'+ef.name+' · '+cardSym(c)+' ('+ef.cost+'⚡)<span class="respTxt">'+ef.text+'</span></button>'; });
     /* THE QUICKS LESSON'S STEP IS GATED ON COUNTERING, so "Let it resolve" cannot satisfy it. Declining does
      * re-cast (see the retry in `humanDeclines`), but every retry SPENDS the Rival's energy, so a player who
@@ -4898,19 +4910,22 @@ __QR__
     html+='<button id="respDecline" class="respLet"'+(tutNeedsCounter?' disabled':'')+'>Let it resolve</button></div>'+peekBtnHTML();
     showModal(html); wirePeek();
     Array.prototype.forEach.call(document.querySelectorAll('.respQuick'), function(btn){
-      btn.addEventListener('click', function(){ humanResponds(g, btn.getAttribute('data-id'), cont); });
+      btn.addEventListener('click', function(){ humanResponds(g, btn.getAttribute('data-id'), cont, btn.getAttribute('data-coid')||null); });
     });
     $('respDecline').addEventListener('click', function(){ humanDeclines(g, cont); });
   }
-  function humanResponds(g, quickId, cont){
+  function humanResponds(g, quickId, cont, coid){
     cont = cont || function(){ resumeRival(g); };
-    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'respond', id:quickId}); busy=true; render(); return; }
+    /* THE CHOSEN TARGET TRAVELS AS AN OID, and the host re-validates it against its OWN stack — same rule as
+       `resolveIds` and `phantasmSolveFor`: a client sends its CHOICE, never its solution. An oid is the
+       host's own identifier for the object, so unlike a stack INDEX it cannot be rotated or stale-shifted. */
+    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'respond', id:quickId, coid:coid||null}); busy=true; render(); return; }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     if(g!==gen){ hideOverlay(); return; }
     var qcard=state.players[YOU].hand.filter(function(c){return c.id===quickId;})[0];
     var qeff=qcard?E.effectOf(qcard):null;
     var pendName=((state.pending && E.effectOf(state.pending.card))||{}).name||'the Technique';
-    var r=E.respond(state, YOU, quickId);
+    var r=E.respond(state, YOU, quickId, coid?{counterOid:coid}:null);
     if(!r.ok){ setMessage(r.reason); return; }
     hideOverlay();
     if(qeff){ flashArt(qcard, 'You'); quickFlash('You', qeff.name, qeff.kind==='counter'); }
@@ -8243,7 +8258,7 @@ __QR__
       if(it.op==='respond' || it.op==='decline'){
         if(!netSettle) return;                                  // no open window — stale/duplicate reply, ignore
         try{
-          if(it.op==='respond'){ var qc=(hostState.players[1].hand.filter(function(c){return c.id===it.id;})[0]), qe=qc?E.effectOf(qc):null; r=E.respond(hostState, 1, it.id); if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal response.'}); broadcastMirror(); return; } if(qe && qe.kind==='counter') say(1, '{who} countered with '+qe.name+'!', 'rival'); else say(1, '{who} answered at instant speed'+(qe?(' with '+qe.name):'')+'.', 'rival'); }
+          if(it.op==='respond'){ var qc=(hostState.players[1].hand.filter(function(c){return c.id===it.id;})[0]), qe=qc?E.effectOf(qc):null; r=E.respond(hostState, 1, it.id, it.coid?{counterOid:it.coid}:null); if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal response.'}); broadcastMirror(); return; } if(qe && qe.kind==='counter') say(1, '{who} countered with '+qe.name+'!', 'rival'); else say(1, '{who} answered at instant speed'+(qe?(' with '+qe.name):'')+'.', 'rival'); }
           else { E.declineResponse(hostState, 1); say(1, '{who} let it resolve.', 'dim'); }
         }catch(e){ send({t:'err', reason:'Response rejected.'}); broadcastMirror(); return; }
         var ns=netSettle; netSettle=null; return hostSettle(ns.g, ns.done);
@@ -8575,7 +8590,7 @@ __QR__
           return;
         }
         try{
-          if(it.op==='respond'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=respond but the open window is '+netReact.kind); return; } var qc=resolveIds(seat,[it.id])[0], qe=qc?E.effectOf(qc):null; var rr=E.respond(hostState, seat, it.id); if(rr&&rr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:rr.reason||'Illegal response.'}); broadcastMirror(); return; } say(seat, '{who} '+((qe&&qe.kind==='counter')?('countered with '+qe.name+'!'):('answered'+(qe?(' with '+qe.name):'')+' at instant speed.')), 'rival'); }
+          if(it.op==='respond'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=respond but the open window is '+netReact.kind); return; } var qc=resolveIds(seat,[it.id])[0], qe=qc?E.effectOf(qc):null; var rr=E.respond(hostState, seat, it.id, it.coid?{counterOid:it.coid}:null); if(rr&&rr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:rr.reason||'Illegal response.'}); broadcastMirror(); return; } say(seat, '{who} '+((qe&&qe.kind==='counter')?('countered with '+qe.name+'!'):('answered'+(qe?(' with '+qe.name):'')+' at instant speed.')), 'rival'); }
           else if(it.op==='decline'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=decline but the open window is '+netReact.kind); return; } E.declineResponse(hostState, seat); say(seat, '{who} let it resolve.', 'dim'); }
           else if(it.op==='guard'){ if(netReact.kind!=='guard'){ trace('react KIND MISMATCH', 'op=guard but the open window is '+netReact.kind); return; } var fr=E.shieldGuard(hostState, seat, it.id); if(fr&&fr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:fr.reason||'Illegal guard.'}); broadcastMirror(); return; } logMsg('<b>'+seatName(seat)+'</b> sprang '+((fr&&fr.guardName)||'a guard')+' — shield holds.', 'rival'); }
           else if(it.op==='guardPass'){ if(netReact.kind!=='guard'){ trace('react KIND MISMATCH', 'op=guardPass but the open window is '+netReact.kind); return; } E.shieldGuardPass(hostState, seat); say(seat, '{who} took the hit.', 'rival'); }
