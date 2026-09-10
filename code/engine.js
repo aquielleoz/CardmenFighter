@@ -585,7 +585,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, shieldResponse: null, stack: [], roundWinResult: null, fightEnd: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, shieldResponse: null, stack: [], roundWinResult: null, fightEnd: null, fightEndResult: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -631,7 +631,7 @@
     if (st.preFightQ === seat) { st.preFightQ = null; st.preFightPending = false; }
     if (aliveCount(st) <= 1) { st.finished = true; st.winner = lastAlive(st); return { ok: true, finished: true, winner: st.winner }; }
     var lead = nextPlayer(st, seat);
-    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.preFightHandled = false; st.roundWinResult = null; st.fightEnd = null; st._effUsed = false;
+    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.preFightHandled = false; st.roundWinResult = null; st.fightEnd = null; st.fightEndResult = null; st._effUsed = false;
     return { ok: true, eliminated: seat, turn: lead };
   }
   function isLocked(st, p) { return !!(st.players[p].lockSkip || st.players[p].lockRound); }   // Back Stab: skip next turn (lockSkip, cleared on pass) or, if boosted, the whole round (lockRound, cleared at round end)
@@ -1429,7 +1429,18 @@
          re-enter this function (it pushes shieldloss objects and drives them), and a still-parked
          continuation would open a second go-round for a window that has already closed. */
       var fe = st.fightEnd; st.fightEnd = null; st.prioPassed = {};
-      return applyRoundLossBody(st, fe.winner, fe.wonWithCombo, fe.strikeTargets, fe.winSize);
+      /* PARK THE FINAL RESULT, for the same reason P3 parks the continuation (epic step 18). The outcomes
+         run HERE — one `declineResponse` deep inside a go-round — and their result is returned up a call
+         chain that ends at whoever answered last. The netplay host is not on that chain: it resumes from a
+         park with the PENDING result it held before the window opened, and `hostRunCeremony` reads the
+         result heavily (`announceRoundWin`, `sendCeremony`, `resolveRoundCeremony`). Handing it the stale
+         one narrates the wrong round.
+         Deliberately NOT `roundWinResult`: `driveShieldStack` reads that as "this is a round win" and would
+         finish the round inside its own window — the collision P3 flagged. Host-only, so `netview` nulls
+         it like the other ceremony state. */
+      var feRes = applyRoundLossBody(st, fe.winner, fe.wonWithCombo, fe.strikeTargets, fe.winSize);
+      st.fightEndResult = feRes;
+      return feRes;
     }
     return last;
   }
@@ -2010,13 +2021,14 @@
       var q = top.target, opp = st.players[q];
       var facingKick = opp.shields <= 0 && !top.noKick;                                       // at 0 shields, this strip is the Fighter Kick
       var canGuard = opp.shields > 0 || facingKick;                                           // guard a real shield, OR spring a "can't lose this round" card vs the kick
-      if (!st.finished && !top.noGuard && canGuard && !wouldBeSaved(st, q)) {                 // read-only peek — don't consume a Holy Shroud here
-        var guard = shieldGuardCard(st, q, facingKick);                                       // vs a kick, only a cantLose guard (Leyline) qualifies
-        if (guard) {
-          st.shieldResponse = { q: q, winner: top.winner, obj: top, result: result, guardId: guard.id, roundWin: roundWin };
-          return { ok: true, state: st, roundWinner: result.roundWinner, wonWithCombo: roundWin || undefined, comboType: result.comboType, shieldResponsePending: true, threatened: q, guardId: guard.id, guardName: effectOf(guard).name };
-        }
-      }
+      /* THE OLD GUARD WINDOW IS GONE (epic step 18) — it used to open here, and it is the other half of
+         the switch above. It offered ONE seat (the threatened one) a yes/no on ONE whitelisted card, which
+         is the defect the whole epic exists to fix: §3 says priority is PASSED AROUND before the sub-phase,
+         it is not a prompt to the victim. Whatever a defender would have sprung here they now spring in the
+         go-round, one phase earlier and alongside everyone else — and step 12 proved exhaustively that the
+         set only grew. The local reads above (`facingKick`, `canGuard`) are kept because
+         `resolveShieldLossObj` and the delete pass at step 19 still want them in view; the branch that
+         PARKED is what has gone. `st.shieldResponse` is now never set by this path. */
       st.stack.pop();
       resolveShieldLossObj(st, top, result);
     }
@@ -2084,8 +2096,16 @@
      to call the body separately, so the loop has somewhere to live. Making it reachable means separating
      "apply the outcomes" from "finish the round" so the drain can sit between them — which is step 11's
      restructure, and is now recorded there as a prerequisite rather than a surprise. */
+  /* ---- THE SWITCH (epic step 18). One commit, no flip, because there is no flag: this makes step 11's
+     go-round the live path AND removes `driveShieldStack`'s window below in the same change. Doing either
+     alone would leave BOTH windows opening in one round, and no red run could say which it was looking at.
+     WHAT CHANGES FOR A PLAYER: the Fight End window stops being a yes/no prompt to the one threatened seat
+     about one whitelisted card, and becomes a priority pass — every seat, in turn order from the winner,
+     any affordable Quick. `PHASES-AND-PRIORITY.md` §3. Step 12 proved nobody loses an answer:
+     EXHAUSTIVELY, every card the old whitelist admitted is a Quick, so `canAddToStack` cannot refuse one.
+     WHAT STOPS IT REGRESSING: `fightendtest`'s canary goes red the day a guard-only predicate returns. */
   function enterFightEnd(st, winner, wonWithCombo, strikeTargets, winSize) {
-    return applyRoundLossBody(st, winner, wonWithCombo, strikeTargets, winSize);
+    return openFightEndWindow(st, winner, wonWithCombo, strikeTargets, winSize);
   }
   // Apply the round result: mill the loser(s), strip the struck shield(s), then finish.
   function applyRoundLossBody(st, winner, wonWithCombo, strikeTargets, winSize) {

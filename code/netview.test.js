@@ -102,21 +102,34 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   E.play(st, 0, [a, b]); E.pass(st, 1);                      // seat 1 must lose a shield and holds Leyline
   /* NOT VACUOUS: without an OPEN window there is nothing to alias, and every assertion below would pass on
      the broken build. The staging is the half that matters. */
-  ok(!!st.shieldResponse && st.shieldResponse.q === 1, 'STAGED: a real round opened the shield-guard window on seat 1');
-  ok(!!st.roundWinResult && st.roundWinResult.state === st, '  → and the host result really does hold a back-reference to state');
+  /* THE SAME ROUND, THE NEW WINDOW (epic step 18, P5). This block used to stage the shield-GUARD window and
+     assert the mirror was safe with it open. Step 18 removed that window: the identical staging now opens
+     the Fight End GO-ROUND — seat 1 is offered priority because it holds an affordable Quick, rather than
+     being prompted about one whitelisted card — so the assertions move onto `fightEnd` and keep their job.
+     `roundWinResult` is no longer set at this point either: the outcomes have not run yet, because the
+     window comes BEFORE the sub-phase (§3). That is the switch working, not a lost assertion — its own
+     redaction is still checked in the loop below, which now proves it stays null rather than redacted. */
+  ok(!!st.fightEnd && st.respondFor === 1, 'STAGED: a real round opened the FIGHT END go-round, offering seat 1');
+  ok(st.fightEnd.winner === 0 && st.fightEnd.strikeTargets.join() === '1',
+     '  → and it carries who struck and who is struck, in ABSOLUTE seats (winner ' + st.fightEnd.winner + ', struck ' + st.fightEnd.strikeTargets.join() + ')');
 
   for (var seat = 0; seat < st.numPlayers; seat++) {
     var m = NV.mirrorFor(st, seat), serialised = null, threw = '';
     try { serialised = JSON.stringify(m); } catch (e) { threw = e.message.split('\n')[0]; }
     ok(serialised !== null, 'seat ' + seat + ': the mirror is JSON-serialisable with a window open' + (threw ? ' — THREW: ' + threw : ''));
-    ok(!m.shieldResponse || m.shieldResponse.result === undefined, 'seat ' + seat + ': the mirror does not carry the host result object');
+    ok(!m.shieldResponse, 'seat ' + seat + ': no shield-guard window is minted at all any more (step 18 removed it)');
     ok(m.roundWinResult === null, 'seat ' + seat + ': ceremony state stays host-only (the redaction is real, not aliased around)');
   }
   var m1 = NV.mirrorFor(st, 1);
-  ok(m1.shieldResponse.q === 0, 'the threatened seat reads itself as 0, like every other seat reference');
-  ok(m1.shieldResponse.guardId === 'ley', '  → and still learns WHICH card it may spring');
-  ok(m1.shieldResponse.obj && m1.shieldResponse.obj.source != null, '  → and what is threatening it (obj.source, the one field the modal reads)');
-  ok(m1.shieldResponse.obj.target === 0, '  → with the object\'s target ROTATED, not the absolute seat');
+  /* ROTATED, NOT REDACTED — the same rule the window itself carries (step 11, P3). §3 picks the target
+     BEFORE the window precisely so a defender can see the strike is aimed at them; a client that cannot
+     see who is struck cannot make the decision the window exists to offer. Seat 1 reads itself as 0. */
+  ok(m1.fightEnd && m1.fightEnd.strikeTargets.join() === '0',
+     'the struck seat reads ITSELF as 0, like every other seat reference');
+  ok(m1.fightEnd.winner === 1, '  → and the striker is rotated too (absolute 0 → 1 from seat 1)');
+  ok(m1.respondFor === 0, '  → and the seat that owes the answer is rotated to itself');
+  ok(m1.fightEnd.wonWithCombo === true && m1.fightEnd.winSize === 2,
+     '  → while the scalars travel as they are (a Special of size 2)');
   /* THE GENERAL FORM, so a future field cannot reintroduce it quietly: nothing anywhere in a mirror may be
      the host state or a player of it. Checked by identity over the whole tree, not by key name. */
   var hostObjs = [st].concat(st.players), bad = null;

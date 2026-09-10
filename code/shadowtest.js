@@ -107,64 +107,62 @@ function newOfferSet(st, origin) {
   return out;
 }
 
-var obs = 0, violations = [], refused = [], oldTotal = 0, newTotal = 0, extraBy = {}, obsBy = {};
+/* ---- HALF B CHANGED MEANING AT STEP 18, AND SAYING SO IS THE POINT ----
+   Until the switch this half compared the two windows side by side in live play. It cannot any more, and
+   not because it broke: `driveShieldStack`'s guard window is GONE, so `st.shieldResponse` is never set and
+   the comparison has nothing on its left-hand side. Deleting the half would throw away the only live
+   evidence in the file; leaving it red would be a suppression. So it flips to the claim that is now the
+   useful one — **the old window is gone AND the new one is really running** — and keeps the two things
+   half A cannot see: that the walk never offers a seat the engine would refuse, and how wide it actually is.
+   THE OLD-WINDOW COUNT IS ASSERTED AT ZERO rather than deleted, which makes this the live counterpart of
+   `fightendtest`'s whitelist canary: reinstate the guard window and this goes red naming it.
+   AND THE ZERO IS NOT ALLOWED TO STAND ALONE. "Nothing opened the old window" is also true of a build where
+   nothing happens at all, which is the vacuous shape this repo has shipped twice — so the go-round floor
+   below is what makes the zero mean something. */
+var obs = 0, oldWindows = 0, refused = [], offerTotal = 0, obsBy = {}, offBy = {}, multi = 0;
 
 COUNTS.forEach(function (np) {
-  extraBy[np] = 0; obsBy[np] = 0;
+  obsBy[np] = 0; offBy[np] = 0;
   for (var g = 0; g < GAMES; g++) {
     var st = E.newGame(null, { numPlayers: np });
     st._diff = {}; for (var i = 0; i < np; i++) st._diff[i] = DIFF;
     var guard = 0;
     while (!st.finished && guard++ < 200000) {
-      if (st.shieldResponse) {
-        var sr = st.shieldResponse;
-        /* THE OLD WINDOW IS ALWAYS EXACTLY ONE SEAT — the threatened one, and only when it holds a card
-           `immunityEffFor` admits. That single-seat shape IS the defect the epic exists to fix (§3: priority is
-           passed around; it is not a prompt to the victim), so this compares one seat against a walk. */
-        var OLD = [sr.q];
-        var NEW = newOfferSet(st, (typeof sr.winner === 'number') ? sr.winner : st.turn);
-        obs++; obsBy[np]++;
-        oldTotal += OLD.length; newTotal += NEW.length;
-        OLD.forEach(function (s) { if (NEW.indexOf(s) < 0) violations.push({ np: np, seat: s, guardId: sr.guardId, offered: NEW.slice(), round: st.round }); });
-        // "by construction" is what every silently-wrong invariant in this repo was called first
+      if (st.shieldResponse) oldWindows++;
+      /* THE SAME OBSERVATION POINT AS BEFORE, AND IT SURVIVES FOR THE SAME REASON: a round-winning pass
+         leaves the window open and `takeTurn` returns (P6), so the next call is what drains it. The window
+         is therefore plainly readable on state between two turns, with no engine patch to measure. */
+      if (st.fightEnd && st.respondFor != null) {
+        var NEW = newOfferSet(st, st.fightEnd.origin);
+        obs++; obsBy[np]++; offerTotal += NEW.length; offBy[np] += NEW.length;
+        if (NEW.length > 1) multi++;
         NEW.forEach(function (s) { if (st.players[s].eliminated || !E.canAddToStack(st, s)) refused.push({ np: np, seat: s, elim: !!st.players[s].eliminated }); });
-        extraBy[np] += NEW.filter(function (s) { return OLD.indexOf(s) < 0; }).length;
       }
       AI.takeTurn(st, st.turn, DIFF);
     }
   }
 });
 
-/* A GREEN RUN ON ZERO OBSERVATIONS PROVES NOTHING — the shape this repo has shipped twice (a vacuous
-   `|| true`, a negative asserted inside the previous cooldown). So the floor is asserted before the
-   comparisons that depend on it.
-   THE FLOOR IS A TOTAL, NOT PER COUNT, AND THAT IS DELIBERATE. Measured across runs, 2 players yields only
-   ~5 openings in 200 duels (1, 5, 6, 8 on four runs): the window needs a Special win against a seat holding
-   an AFFORDABLE Leyline, and a duel deals two random decks. A per-count floor would therefore be a
-   probabilistic assertion — an intermittent red by construction, which this repo has already filed once as
-   a phantom product bug. The duel is not left unproven: half A covers every card at every count
-   deterministically, and it is half A that carries the claim. */
 ok(obs >= 60,
-   'B · the driver REACHED the old window ' + obs + ' times (2p ' + obsBy[2] + ' / 3p ' + obsBy[3] + ' / 6p ' + obsBy[6] + ')' +
+   'B · the driver REACHED the Fight End go-round ' + obs + ' times (2p ' + obsBy[2] + ' / 3p ' + obsBy[3] + ' / 6p ' + obsBy[6] + ')' +
    (obs >= 60 ? '' : '  ← too few to conclude anything; raise GAMES, or the staging has drifted'));
 
-ok(violations.length === 0,
-   'B · SUPERSET holds in live play: every seat the old whitelist offers, the new go-round offers (' + oldTotal + ' old offers)' +
-   (violations.length ? '  ← ' + violations.length + ' VIOLATIONS, e.g. ' + JSON.stringify(violations[0]) +
-    '  — step 18 would take an answer away from a player who has one today' : ''));
+ok(oldWindows === 0,
+   'B · THE OLD WHITELIST WINDOW IS GONE — `shieldResponse` was never set once in ' + (GAMES * COUNTS.length) + ' live games' +
+   (oldWindows === 0 ? '' : '  ← opened ' + oldWindows + ' times: `driveShieldStack` is still minting a guard window, so BOTH windows are live in one round and no red run can say which it saw'));
 
 ok(refused.length === 0,
-   'B · the new walk never offers a seat the engine would refuse (eliminated, or no affordable Quick)' +
+   'B · the walk never offers a seat the engine would refuse (eliminated, or no affordable Quick)' +
    (refused.length ? '  ← ' + refused.length + ', e.g. ' + JSON.stringify(refused[0]) : ''));
 
-/* THE POINT OF THE MIGRATION, QUANTIFIED — and deliberately NOT a threshold. The number moves with cards,
-   decks and AI policy, so a ratchet on it would go red for reasons that are not defects. It is asserted
-   only as "> 0" because a superset that widened NOTHING would satisfy every assertion above while
-   delivering none of what step 18 claims. */
-var delta = newTotal - oldTotal;
-ok(delta > 0,
-   'B · the new window is genuinely WIDER, not merely not-narrower: ' + oldTotal + ' → ' + newTotal + ' offers (+' + delta + ')' +
-   '  [extra seats: 2p ' + extraBy[2] + ' / 3p ' + extraBy[3] + ' / 6p ' + extraBy[6] + ']');
+/* THE WIDENING, QUANTIFIED — and deliberately NOT a threshold beyond "it happens". The old window offered
+   exactly ONE seat, always, and only when that seat held a card the whitelist admitted; so a run in which
+   no window ever offers a second seat would be indistinguishable from the model step 18 replaced. The
+   number itself moves with cards, decks and AI policy, which is why it is recorded rather than ratcheted. */
+ok(multi > 0,
+   'B · the window is genuinely WIDER than the one seat the whitelist offered: ' + multi + ' of ' + obs +
+   ' go-rounds offered more than one seat, ' + offerTotal + ' offers in all' +
+   '  [offers: 2p ' + offBy[2] + ' / 3p ' + offBy[3] + ' / 6p ' + offBy[6] + ']');
 
-console.log((fail ? 'FAILED — ' : '') + 'PASS: ' + pass + '  FAIL: ' + fail + '  · ' + (GAMES * COUNTS.length) + ' games, ' + obs + ' windows');
+console.log((fail ? 'FAILED — ' : '') + 'PASS: ' + pass + '  FAIL: ' + fail + '  · ' + (GAMES * COUNTS.length) + ' games, ' + obs + ' go-rounds');
 process.exit(fail ? 1 : 0);

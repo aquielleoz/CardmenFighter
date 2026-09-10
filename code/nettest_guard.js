@@ -51,11 +51,37 @@ async function waitFor(fn){ for(let i=0;i<60;i++){ if(await fn()) return true; a
   ok(cliTurn,'control passed to the client to answer the combo');
   await passC(join);                                   // client can't beat it → passes → host wins WITH a combo → shield threatened
 
+  /* THE WINDOW CHANGED UNDER THIS SUITE (epic step 18, P5). It used to be the shield-GUARD modal — a yes/no
+     to the threatened seat about one whitelisted card, driven with `#sgYes`. Step 18 replaced it with the
+     Fight End GO-ROUND: the same seat is offered PRIORITY and springs Leyline as an ordinary Quick, from a
+     `.respQuick` button. The claim the suite exists for is unchanged — a client can save its shield over
+     the wire — so the drive moves rather than the assertion.
+     AND THE OLD OUTCOME ASSERTION HAD GONE VACUOUS, which is the part worth catching: with the go-round
+     open the outcomes have NOT run yet (§3 puts the window before the sub-phase), so "shields unchanged"
+     was true merely because nothing had happened. It passed on this very build while the drive above
+     FAILED. The round must be made to resolve before the shield means anything. */
   const guardModal=await waitFor(async()=>await modalUp(join));
-  ok(guardModal,'client shield-guard modal appeared from the mirror');
-  const clicked=await join.evaluate(()=>{ var y=document.getElementById('sgYes'); if(y){ y.click(); return 'guard'; } return null; });
+  ok(guardModal,'the client is offered the Fight End window from the mirror');
+
+  const offered=await join.evaluate(()=>[].slice.call(document.querySelectorAll('.respQuick')).map(b=>b.textContent));
+  ok(offered.some(t=>/Leyline/i.test(t)),
+     'Leyline is offered as an ordinary Quick, not a whitelisted guard'+(offered.length?'  ['+offered.join(' | ').slice(0,90)+']':'  ← no Quick buttons at all'));
+
+  const r0=await roundOf(join);
+  const clicked=await join.evaluate(()=>{ var y=[].slice.call(document.querySelectorAll('.respQuick')).filter(b=>/Leyline/i.test(b.textContent))[0]; if(y){ y.click(); return 'guard'; } return null; });
   ok(clicked==='guard','client sprang Leyline over the wire');
-  await wait(1800);
+
+  /* Drain whatever the cast opens — the Quick goes on the stack and the go-round runs on, so the round only
+     turns over once everyone has passed. Poll for THAT, then read the shield: this is what makes the
+     assertion below mean something. */
+  for(let i=0;i<80;i++){
+    if(await roundOf(join)>r0) break;
+    await join.evaluate(()=>{ var d=document.getElementById('respDecline'); if(d&&!d.disabled)d.click(); });
+    await host.evaluate(()=>{ var d=document.getElementById('respDecline'); if(d&&!d.disabled)d.click(); });
+    await wait(150);
+  }
+  const resolved=await roundOf(join)>r0;
+  ok(resolved,'the round RESOLVED after the cast — so the shield reading below is not vacuous (round '+r0+' → '+(await roundOf(join))+')');
 
   const shAfter=await shieldsOf(join);
   ok(shAfter===shBefore,'client kept its shield via Leyline ('+shBefore+' → '+shAfter+')');
