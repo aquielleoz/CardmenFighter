@@ -1,5 +1,8 @@
 #!/usr/bin/env node
-/* BRANCH-NAME GATE. CLAUDE.md documents six prefixes and no synonyms; that rule sat on the honour system and
+/* BRANCH GATE — two rules, both of which were prose first and were broken.
+ *   1. the branch NAME (prefixes; below)
+ *   2. the INTEGRATION path — `main` and every `epic/*` move only through a PR (see the block below `branch`)
+ * BRANCH-NAME GATE. CLAUDE.md documents six prefixes and no synonyms; that rule sat on the honour system and
  * was broken twice in two days by inventing `perf/` mid-session — once already unerasable from history.
  * Aj, 2026-09-02: *"who knows what other sorts of prefix we'll get into? a wild wild west is out there when an
  * llm doesn't even follow it's own rules"*.
@@ -9,6 +12,48 @@
 const { execSync } = require('child_process');
 const OK = ['feat/', 'fix/', 'docs/', 'exp/', 'parked/', 'epic/'];   // keep in step with CLAUDE.md's table
 const branch = (process.argv[2] || execSync('git rev-parse --abbrev-ref HEAD').toString()).trim();
+
+/* ---- THE INTEGRATION GATE: an epic and `main` MOVE ONLY THROUGH A PR (added 2026-09-10, Aj).
+ * CLAUDE.md's epic rules already said "sub-branches PR INTO the epic, never into `main`" — and every merge
+ * of `epic/priority-windows`, all eleven steps, was a local `git merge` pushed straight up. The rule was
+ * prose, so it lasted exactly as long as the prefix rule did on the honour system.
+ * WHY A PUSH IS THE RIGHT THING TO CATCH, and it is the whole trick: a PR merge happens SERVER-SIDE, so a
+ * correctly-run epic never receives a push from anyone's machine at all. "Did this branch move locally?" and
+ * "did this skip its PR?" are therefore the same question, and this is the only hook that can see it.
+ * THE ONE LEGITIMATE LOCAL PUSH is CLAUDE.md's own "merge `main` INTO the epic after every session spent
+ * elsewhere", which has no PR to hang off. It gets a NAMED escape rather than a hole: `EPIC_PUSH=1`, which
+ * says out loud what it is for and leaves a reason in the shell history. */
+function pushRefs() {
+  // pre-push feeds `<localref> <localsha> <remoteref> <remotesha>` on stdin. Run by hand there is none, and
+  // reading fd 0 from a terminal would HANG — which would make the gate look like a broken push.
+  try {
+    if (process.stdin.isTTY) return [];
+    return require('fs').readFileSync(0, 'utf8').split('\n').filter(Boolean);
+  } catch (e) { return []; }                      // no stdin at all (e.g. `node checkbranch.js`) — nothing to gate
+}
+var blocked = null;
+pushRefs().forEach(function (line) {
+  var f = line.trim().split(/\s+/), rref = f[2] || '', rsha = f[3] || '';
+  var protectedRef = rref === 'refs/heads/main' || rref.indexOf('refs/heads/epic/') === 0;
+  if (!protectedRef) return;
+  if (/^0+$/.test(rsha)) return;                  // the ref does not exist yet — creating an epic is fine
+  if (process.env.EPIC_PUSH === '1') { console.error('⚠ EPIC_PUSH=1 — pushing straight to ' + rref.replace('refs/heads/', '') + '. Use this ONLY to carry `main` into an epic.'); return; }
+  blocked = rref.replace('refs/heads/', '');
+});
+if (blocked) {
+  console.error('✗ refusing to push directly to "' + blocked + '" — it moves through a PULL REQUEST.');
+  console.error('  A PR merge happens on the server, so this branch should never receive a local push.');
+  console.error('  What you almost certainly want, from your sub-branch:');
+  console.error('      git push -u origin <your-branch>');
+  console.error('      gh pr create --base ' + blocked + ' --title "..." --body-file <file>');
+  console.error('      gh pr merge --merge --delete-branch');
+  console.error('  (--body-file, never --body: backticks in a double-quoted shell string are EXECUTED, and');
+  console.error('   that has already shipped a mangled PR body in this repo.)');
+  console.error('  The one exception is carrying `main` into an epic, which has no PR:  EPIC_PUSH=1 git push');
+  console.error('  Rule: CLAUDE.md → "Branches and PRs" → epic/. Eleven step-merges skipped it before this');
+  console.error('  gate existed, which is why it is a gate and not a paragraph.');
+  process.exit(1);
+}
 
 if (branch === 'main' || branch === 'HEAD') process.exit(0);
 if (OK.some(p => branch.startsWith(p))) {

@@ -2149,6 +2149,21 @@ be one PR**; a branch that could have been a `feat/` and is called an `epic/` is
 bigger word. Four rules, and each is a way a long branch dies:
 - **Sub-branches PR INTO the epic, never into `main`.** The epic is the integration point; `main` sees exactly
   one merge, at the end.
+  **AND THAT IS A GATE NOW, BECAUSE AS PROSE IT SURVIVED ZERO SESSIONS (2026-09-10, Aj: *"i dont' see a pr
+  for step 11. can we make it a rule too that we must make prs to merge into epics?"*).** It was already
+  written here when `epic/priority-windows` was created, and then **all eleven step-merges were a local
+  `git merge` pushed straight up** — the prefix rule's exact history, repeated by the same mechanism a
+  fortnight later. `checkbranch.js` refuses a push to `main` or any `epic/*`.
+  **The thing it catches is the PUSH, and that is the whole trick: a PR merge happens SERVER-SIDE, so a
+  correctly-run epic never receives a local push at all** — "did this branch move locally?" and "did this
+  skip its PR?" are the same question, and pre-push is the only place that can see it. Creating an epic is
+  allowed (the remote ref does not exist yet). The one legitimate local push is the `main`-into-epic merge
+  below, which has no PR to hang off; it gets a NAMED escape, `EPIC_PUSH=1 git push`, so the exception is
+  deliberate and visible in the shell history rather than a hole.
+  **THE COST OF SKIPPING THE PR IS NOT CEREMONY, IT IS THE RECORD.** A PR is where an open question gets
+  written down somewhere it will be read — this file already requires that ("say what you are unsure about
+  IN THE PR") — and eleven merges' worth of reasoning now lives only in commit messages, which nobody
+  reviews before the merge because there is nothing to review them *at*.
 - **The version is held for the whole epic and bumped ONCE at the merge.** Bump it early and the handoff
   header, the README and both in-game screens all claim a version nobody can download — precisely the drift
   `versiontest` exists to catch.
