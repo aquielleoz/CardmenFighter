@@ -4,7 +4,29 @@
 all was this. Nothing else moved: the build/test header, `## BACKLOG` and START HERE stay in
 [`NEXT-SESSION.md`](NEXT-SESSION.md), which is still the file to read first.
 
-**What belongs here: the record of what shipped and why — history, newest first, one `### vX.Y.Z — short title`
+**What belongs here: the record of what shipped and why — history, newest first, one `### v1.31.127 — an invite code with an IPv6 candidate could not be pasted
+
+**A code pasted inside a sentence was silently truncated at the first colon.** `dec`'s tolerant extractor —
+the one that digs a code out of *"here you go: C1~o~…"* — matched
+`[A-Za-z0-9+/=,|~._-]`, a character class written for IPv4 addresses and mDNS `.local` names. An IPv6 srflx
+candidate is nothing but colons, so on any network that gathers one the match stopped mid-candidate:
+measured **274 characters down to 203** on a real offer.
+
+**The truncation was worse than a clean rejection.** The surviving prefix still carried all seven `~`
+fields, so `unpackC1` parsed it happily and the failure surfaced two calls later, when WebRTC refused the
+rebuilt SDP — reported to the player as *"Could not read that invite code"*, which blames the paste rather
+than the parse. Copying the code cleanly with the Copy button was always fine; it is the share-it-in-a-chat
+flow, the one the ↗ Send it button exists for, that broke.
+
+**Why it shipped:** whether an IPv6 candidate is gathered at all depends on the network at that moment, so
+the same machine passes and fails on the same build hours apart. `sharetest` was green in one sweep and red
+in the next two on an untouched build.
+
+`sharetest` now appends an IPv6 candidate to a real captured code rather than waiting for the network to
+provide one, so the case is deterministic on every machine. Verified both ways: reinstating the old
+character class turns two assertions red.
+
+### vX.Y.Z — short title`
 section per version.** It is append-only and it is the one place allowed to be a dated snapshot, because nobody
 acts on it. That is also why it is the wrong home for anything else, and all three mistakes have happened:
 - **open work** written here is invisible — a changelog is history and nobody actions it → `NEXT-SESSION.md`'s

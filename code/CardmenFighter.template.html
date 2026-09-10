@@ -7522,7 +7522,19 @@ __QR__
     function dec(code){
       var t=(code||'').trim(), o=unpackC1(t) || b64json(t);
       if(!o){                                                  // dig the code out of "here you go: <code>"
-        var mc=t.match(/C1~[A-Za-z0-9+\/=,|~._-]{40,}/);        if(mc) o=unpackC1(mc[0]);
+        /* THE CLASS MUST INCLUDE `:` — AN IPv6 CANDIDATE IS NOTHING BUT COLONS (2026-09-10). Without it
+           this stops at the first `:` of an IPv6 srflx address, so a code pasted inside a sentence is
+           silently TRUNCATED — measured 274 chars -> 203 on a real offer, cutting off mid-candidate.
+           The damage is worse than a clean rejection: the surviving prefix still has all seven `~` fields,
+           so `unpackC1` SUCCEEDS on the mangled remainder and the failure surfaces two calls later as
+           "Could not read that invite code" out of `setRemoteDescription` — an error that blames the
+           paste rather than the parse.
+           IT IS INTERMITTENT BY NATURE, which is why it survived: whether an IPv6 candidate is gathered
+           at all depends on the network at that moment, so the same machine passes and fails on the same
+           build hours apart. THIS FILE'S OWN NOTE ALREADY ENUMERATED COLONS — the argument for `~` as the
+           separator is that "an address is hex/dots/colons/hyphens" — so the safety case knew about them
+           and this character class did not. Same family as the original `.`-splitting bug. */
+        var mc=t.match(/C1~[A-Za-z0-9+\/=,|~.:_-]{40,}/);       if(mc) o=unpackC1(mc[0]);
         if(!o){ var m=t.match(/[A-Za-z0-9+\/=]{80,}/);          if(m)  o=b64json(m[0]); }
       }
       return o ? { type:o.t, sdp:o.s } : null;
