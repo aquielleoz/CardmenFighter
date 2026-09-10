@@ -170,6 +170,13 @@
       shieldResponse: remapSR(st.shieldResponse), stack: remapStack(st.stack),
       preFightQ: (st.preFightQ == null ? null : rot(st.preFightQ)), preFightHandled: !!st.preFightHandled,
       pendingLossChoice: st.pendingLossChoice ? { winner: rot(st.pendingLossChoice.winner), cands: (st.pendingLossChoice.cands || []).map(rot), comboType: st.pendingLossChoice.comboType } : null,   // winner picks whose shield to strip
+      /* THE FIGHT END WINDOW IS ROTATED, NOT REDACTED (epic step 11, P3). Every member is seat-valued and
+         every one of them is PUBLIC on purpose: `PHASES-AND-PRIORITY.md` §3 picks the loss target BEFORE the
+         window precisely *"so that people will know if they want to activate shield protection or no"*, so a
+         client that cannot see who is struck cannot make the decision the window exists to offer. Contrast
+         `roundWinResult` below, which is redacted because it is ceremony bookkeeping and holds a
+         back-reference to the whole state. `winSize` and `wonWithCombo` are scalars and travel as they are. */
+      fightEnd: st.fightEnd ? { origin: rot(st.fightEnd.origin), winner: rot(st.fightEnd.winner), wonWithCombo: !!st.fightEnd.wonWithCombo, strikeTargets: (st.fightEnd.strikeTargets || []).map(rot), winSize: st.fightEnd.winSize || 0 } : null,
       /* WHO THE TABLE IS WAITING ON while a seat trims to hand size. Seat + COUNT only, never cards — a hand
        * must never travel (see E.takeReveal). Every seat but the local one is auto-trimmed, so this is only
        * ever set for the seat actually picking, and it exists so the OTHER seats can say why play has paused

@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 428 + 64 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 437 + 64 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 428 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 437 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 64, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
@@ -1582,7 +1582,7 @@ Status as of **v1.31.126 — 2026-09-08, `npm run sweep`, 86 suites and 0 FAIL i
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 428, `netview` 64, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
+`test` 437, `netview` 64, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
 `versiontest` 30, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
@@ -1940,6 +1940,14 @@ Full Set deck, "Pure Rogue" was never in the game, and both arms of an A/B retur
 exactly 1/6 — which reads like a clean null result. **If an A/B returns identical counts in both arms, suspect
 the instrument, not the code.** Assert the staging (e.g. that seat 0's deck really is one suit) and count the
 thing you are studying, so a silent zero cannot pass as a finding.
+**AND THE MIRROR OF IT: AN A/B THAT REPORTS A DIFFERENCE CAN ALSO BE THE INSTRUMENT (2026-09-10).** A
+seeded whole-game fingerprint — same seeds, 480 games, hash the outcomes — was used to prove a priority-walk
+extraction behaviour-preserving. The two arms disagreed, which reads as a refactor that changed the game;
+**the same file run twice also disagreed.** The engine and AI reach for bare `Math.random` outside the rng
+`newGame` is handed (persona draw, tie-breaks), so seeding the rng alone does not make a game reproducible.
+Pin `Math.random` too and the arms match byte for byte. **Run the instrument against ITSELF before reading
+either arm** — the existing rule above says a null result can be the instrument, and this is the other half:
+a POSITIVE result can be too, and it is the more persuasive of the two because it looks like a finding.
 
 **`mpsim`'s `flag()` MATCHED SUBSTRINGS until v1.31.26.** `FLAGS` is the joined argument STRING and `flag(name)`
 was `FLAGS.indexOf(name) >= 0`, so `flag('kits')` matched inside the argument `kits3` and asking for `kits3`

@@ -585,7 +585,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, shieldResponse: null, stack: [], roundWinResult: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, shieldResponse: null, stack: [], roundWinResult: null, fightEnd: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -631,7 +631,7 @@
     if (st.preFightQ === seat) { st.preFightQ = null; st.preFightPending = false; }
     if (aliveCount(st) <= 1) { st.finished = true; st.winner = lastAlive(st); return { ok: true, finished: true, winner: st.winner }; }
     var lead = nextPlayer(st, seat);
-    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.preFightHandled = false; st.roundWinResult = null; st._effUsed = false;
+    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.preFightHandled = false; st.roundWinResult = null; st.fightEnd = null; st._effUsed = false;
     return { ok: true, eliminated: seat, turn: lead };
   }
   function isLocked(st, p) { return !!(st.players[p].lockSkip || st.players[p].lockRound); }   // Back Stab: skip next turn (lockSkip, cleared on pass) or, if boosted, the whole round (lockRound, cleared at round end)
@@ -1339,6 +1339,24 @@
     var qp = st.players[q];
     return qp.hand.some(function (c) { var e = effectFor(st, q, c); return e && e.impl && e.quick && canAfford(qp, c); });   // effectFor: a Form can make a card Quick
   }
+  /* ONE GO-ROUND WALK, PARAMETERISED BY ITS ORIGIN (epic step 11, prerequisite P2).
+     `PHASES-AND-PRIORITY.md` §2/§3: a go-round starts at the CONTROLLER of the top object, or at the ACTIVE
+     PLAYER when the stack is empty, and runs in turn order until it comes back to where it began. Those are
+     the same walk with different origins — so this is one function rather than two loops that must be kept
+     in step. The Fight End go-round passes the round winner; the pre-fight window (step 20) passes a third
+     origin again, which is precisely why hard-coding "the winner is active" here would fork the loop.
+     THE ELIMINATED/PASSED FILTER LIVES HERE, NOT IN `canAddToStack` — the premise check flagged that a new
+     walk would have to repeat it, and sharing the walk is how it does not. Returns -1 when everyone left has
+     passed or has nothing castable, which is what "the go-round came back round" means. */
+  function nextPrioHolder(st, origin) {
+    if (!st.prioPassed) st.prioPassed = {};
+    for (var k = 0; k < st.numPlayers; k++) {
+      var cand = (origin + k) % st.numPlayers;
+      if (st.players[cand].eliminated || st.prioPassed[cand]) continue;
+      if (canAddToStack(st, cand)) return cand;
+    }
+    return -1;
+  }
   // Priority loop (1v1): while an effect sits on top of the stack, prompt its NON-controller if they
   // can add a Quick; otherwise resolve the top and re-grant priority (active-first, auto-passing a
   // player with no action). A destroyShield loss underneath is handed to driveShieldStack once the
@@ -1366,14 +1384,10 @@
          "walking from the controller instead of the active player" — and Aj reversed that rule on
          2026-09-08: the controller IS the origin now. The code was accidentally right about the origin and
          wrong only about the skip. A filed bug can stop being a bug because the RULE moved, and nothing in
-         the code changed to make it so. */
-      if (!noopDestroy) {
-        for (var k = 0; k < st.numPlayers; k++) {
-          var cand = (top.p + k) % st.numPlayers;
-          if (st.players[cand].eliminated || st.prioPassed[cand]) continue;
-          if (canAddToStack(st, cand)) { q = cand; break; }
-        }
-      }
+         the code changed to make it so.
+         THE WALK ITSELF NOW LIVES IN `nextPrioHolder` (step 11's P2), so the empty-stack go-round is the same
+         loop with a different origin rather than a second copy of it. */
+      if (!noopDestroy) q = nextPrioHolder(st, top.p);
       if (q >= 0) {
         /* A GRANT of priority is a distinct event even when the OBJECT is one this seat already passed on.
            `respond` clears every object's `passed` set, so after someone answers, an object lower on the stack
@@ -1392,7 +1406,42 @@
       var sres = driveShieldStack(st);
       if (sres && sres.shieldResponsePending) return sres;
     }
+    /* THE EMPTY-STACK GO-ROUND OF THE FIGHT END WINDOW (epic step 11).
+       `PHASES-AND-PRIORITY.md` §3: before the Fight End Sub-Phase, the round WINNER is the active player,
+       the loss target is already picked, and priority is passed around on an EMPTY stack — Quicks only —
+       until everyone passes. Only then does the sub-phase begin and the outcomes land.
+       THIS IS WHERE THE PARKED CONTINUATION IS RESUMED, and it has to be parked on STATE (P3): the arguments
+       live in a JS frame that `respond`/`declineResponse` cannot see, because a human answering the window
+       returns to the event loop and comes back through here on a later call.
+       WHY IT RE-WALKS FROM THE ORIGIN RATHER THAN ENDING: a Quick cast into the window becomes an ordinary
+       object, the dance above runs it from ITS controller, and when the stack empties again the go-round
+       restarts at the active player — §3's worked example, steps 5-7. `resolveTopEffect` already cleared
+       `prioPassed`, so that restart is a fresh round of passes and not a continuation of the old one.
+       INERT UNTIL SOMETHING PARKS `st.fightEnd` — which nothing does yet; step 18 is the switch. */
+    if (st.fightEnd && !st.stack.length && !st.finished) {
+      var fq = nextPrioHolder(st, st.fightEnd.origin);
+      if (fq >= 0) {
+        st.prioGen = (st.prioGen || 0) + 1;
+        st.pending = null; st.respondFor = fq;            // a window with NO object — the shape P1 made answerable
+        return { ok: true, state: st, pending: true, fightEnd: true, respondFor: fq };
+      }
+      /* Everyone passed on an empty stack, so the sub-phase begins. Unpark FIRST: `applyRoundLossBody` can
+         re-enter this function (it pushes shieldloss objects and drives them), and a still-parked
+         continuation would open a second go-round for a window that has already closed. */
+      var fe = st.fightEnd; st.fightEnd = null; st.prioPassed = {};
+      return applyRoundLossBody(st, fe.winner, fe.wonWithCombo, fe.strikeTargets, fe.winSize);
+    }
     return last;
+  }
+  /* Open the Fight End priority window: park the outcomes, then run the first go-round from the winner.
+     The loss target is chosen BEFORE this (`resolveRoundWin`/`chooseLossTarget`) and cannot be re-picked —
+     §3: *"so that people will know if they want to activate shield protection or no."*
+     `origin` is carried separately from `winner` even though they are equal here, because step 20 reuses
+     this machinery for the pre-fight window with a different origin, and `winner` is an OUTCOME argument. */
+  function openFightEndWindow(st, winner, wonWithCombo, strikeTargets, winSize) {
+    st.fightEnd = { origin: winner, winner: winner, wonWithCombo: wonWithCombo, strikeTargets: strikeTargets, winSize: winSize };
+    st.prioPassed = {};
+    return openResponseWindow(st);
   }
   // Resolve the single top effect object. A countered object fizzles to its owner's Shuffle Pile; a
   // Counter Spell counters the effect beneath it; Annoint shields the equipment a removal below aims
@@ -2452,6 +2501,8 @@
     HOSTILE_SINGLE: HOSTILE_SINGLE,
     shieldGuard: shieldGuard, shieldGuardPass: shieldGuardPass, shieldGuardCard: shieldGuardCard,
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
+    canAddToStack: canAddToStack, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
+    openFightEndWindow: openFightEndWindow,   // step 11: built and tested here, made live by step 18
     guardEffFor: guardEffFor,   // the single definition of "can this card guard" — ai.js calls it rather than restating `immune || shieldImmune`
     DECKS: DECKS, DECK_ORDER: DECK_ORDER, BASE_SUIT: BASE_SUIT, buildDeck: buildDeck,
     PARTS_TOTAL: PARTS_TOTAL, PARTS_SUITS: PARTS_SUITS, PARTS_PREFIX: PARTS_PREFIX,
