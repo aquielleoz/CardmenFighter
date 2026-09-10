@@ -2,15 +2,15 @@
 
 > ## 📍 WHERE WE ARE — 2026-09-10
 >
-> **Steps 1-13 addressed; NEXT IS STEP 14** (the window says what is at stake). `main` untouched at
-> v1.31.126. **Step 13 found a real duel deadlock that was not in the plan** — Passo could not move in a
-> 2-player game — see the step.
+> **Steps 1-14 addressed; NEXT IS STEP 15** (prompt preferences in the card reader). `main` untouched at
+> v1.31.126. **Step 14 REFUTED its own fourth piece** — the mid-turn shatter already plays, off the render
+> diff — see the step.
 > **Step 11 is built** — P1, P2, P3 and the go-round itself, with §3's worked example asserted as a
 > sequence. It is INERT: nothing calls `openFightEndWindow` until step 18. Its one deferred piece (the
 > `finishRoundWin` restructure) is deferred with a measurement — see the step.
 > **The cliff is behind us**, and the shape of the remaining work changed with it: 17 is a test against a
 > mechanism that already exists, and 18 is the switch — now with 12's superset PROOF standing behind it.
-> - **1, 2, 3, 5, 6, 8, 11, 12, 13 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
+> - **1, 2, 3, 5, 6, 8, 11, 12, 13, 14 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
 >   either — its behavioural half was measured to be already true.
 > - **⚠ STEP 10'S REFACTOR IS STILL OUTSTANDING, and this line used to say it was folded into 11. It is
 >   not.** §4 says a shield loss is *not* a stack object — it just happens, and what protects it is the
@@ -970,7 +970,37 @@ mirrordrop re-aimed at the new park. *Revertable alone:* yes.
 
 ### D — the player's side
 
-**14 · feat(ui): the window says what is at stake, and a mid-turn strike shatters.** v1's step 9 plus Q12.
+**14 · feat(ui): the window says what is at stake, and a mid-turn strike shatters.**
+
+> **✅ BUILT 2026-09-10 — three of four pieces. THE FOURTH (Q12) IS REFUTED, not deferred.**
+> - **The Fight End copy** replaces the placeholder step 2 left. It names the striker and the play the way
+>   `openShieldGuardModal` learned to in v1.31.120 and for the same reason — at 3-6 players "Rival" names
+>   nobody. Three branches: struck / struck at ZERO shields (which says **FIGHTER KICK**, because that is the
+>   difference between losing a shield and losing the game) / not struck, which says so plainly. A jab win
+>   gets its own line since nothing is stripped.
+> - **The three `effectOf` label sites are closed** (`promptHumanResponse` and both pre-fight prompts). They
+>   OFFERED a Form-granted Quick correctly and then DESCRIBED it with its base type, cost and text — worse
+>   than either alone, because the label is what the player decides on. **That closes CLAUDE.md's item.**
+> - **`renderStack` shows the pending loss**, as a dashed row below the objects and never `.top`, because it
+>   is not a stack object (§4) and nothing resolves it — it lands when the sub-phase begins. Before this the
+>   panel was EMPTY during the one window where something is at stake, since the go-round runs on an empty
+>   stack.
+> - **⚠ Q12 IS REFUTED. The mid-turn shatter already plays.** The step says fixing the discarded
+>   `driveShieldStack` result would let `holdShields` give a mid-turn Critical Hit a shatter it "has never
+>   played". It has: `animateShields` fires the shatter off the RENDER DIFF (`prev != null && n < prev`),
+>   which is independent of any result object. Enumerated: every reader of `res.shieldStripped` (template
+>   `:4469`, `:4473`, `:4560`, `:4677`, `:8481`) is on the round-CEREMONY path, and `holdShields` exists to
+>   DEFER the shatter onto its beat during that ceremony — not to cause it. So there is nothing to fix here.
+>   The discarded `sres` remains a latent defect and is already on step 19's DELETE table as standing
+>   defect 2; that is its right home.
+>
+> **Verified by staging, because nothing mints such a window until step 18** — six assertions added to
+> `nettest_priosig` (18 total), driving a real injected Fight End mirror. Three mutants A/B'd; **the
+> striker-naming one SURVIVED at first**, because the assertion matched `/Rival/` against the whole modal
+> and `tableContextHTML()` renders "Rival's Pair" further down it. It reads the LEAD paragraph now.
+> **A side finding, from a test printing the name it actually got:** `logName`'s default is
+> `'Rival ' + (i+1)` at EVERY count, so a duel opponent with no name is **"Rival 2"**. CLAUDE.md described
+> it as *"a duel opponent → Rival; otherwise P<n>"* and neither half was true. Corrected there. v1's step 9 plus Q12.
 `promptHumanResponse` gains a null-safe lead (there may be **no object**) and Fight End copy naming the
 striker and combo type via `logName`; the Quick-button loop switches to **`effectFor`** so a Form-granted
 Quick is not mislabelled — **this closes one of CLAUDE.md's three remaining `effectOf`-label sites**;

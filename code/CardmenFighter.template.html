@@ -231,6 +231,10 @@
   #stackView .stk{font-size:11px; padding:2px 9px; border-radius:8px; border:1px solid var(--line); background:rgba(255,255,255,.05); opacity:.9;}
   #stackView .stk.top{border-color:var(--gold); box-shadow:0 0 8px rgba(232,195,122,.4);}
   #stackView .stk.countered{text-decoration:line-through; opacity:.5;}
+  /* The pending Fight End loss is not a stack OBJECT (PHASES-AND-PRIORITY §4) and must not read as one —
+     dashed rather than solid, and it never takes .top, because nothing resolves it: it lands when the
+     sub-phase begins. Colour comes from the existing danger token so it stays theme-correct in both modes. */
+  #stackView .stk.pendingLoss{border-style:dashed; border-color:var(--bad,#c9564f); background:rgba(201,86,79,.10); opacity:1;}
   #stackView .stk .who{opacity:.6;}
   #message{font-size:13.5px; text-align:center; min-height:20px; padding:0 8px; max-width:520px;}
   #message b{color:var(--gold);}
@@ -3290,13 +3294,27 @@ __QR__
   }
 
   // The response stack, shown while Quicks are being answered (top resolves first).
+  /* THE STACK VIEW MUST SHOW WHAT THE WINDOW IS ABOUT, and during a Fight End go-round that is not on the
+     stack at all (epic step 14). The go-round runs on an EMPTY stack — the pending shield loss is a decided
+     OUTCOME waiting below the window, not an object (`PHASES-AND-PRIORITY.md` §4: a shield loss is not a
+     stack object). So a player casting into the window saw an empty panel and no statement of the thing
+     they were being asked about. It is rendered as a distinct row BELOW the objects, because that is where
+     it sits in time: every Quick on the stack resolves first, and the loss lands when the sub-phase begins. */
   function renderStack(){
     var el=$('stackView'); var objs=(state.stack||[]).filter(function(o){return o.kind==='effect';});
-    if(objs.length<1){ el.style.display='none'; el.innerHTML=''; return; }
+    var fe=state.fightEnd||null;
+    var pendingLoss = (fe && fe.wonWithCombo && (fe.strikeTargets||[]).length) ? fe : null;
+    if(objs.length<1 && !pendingLoss){ el.style.display='none'; el.innerHTML=''; return; }
     el.style.display='flex';
     var html='';
     for(var i=objs.length-1;i>=0;i--){ var o=objs[i], eff=o.eff, who=logName(o.p), isTop=(i===objs.length-1);
       html+='<div class="stk'+(isTop?' top':'')+(o.countered?' countered':'')+'"><span class="who">'+who+' ▸</span> '+(eff.name||'?')+' · '+cardSym(o.card)+(isTop?' <span class="who">(resolves next)</span>':'')+'</div>';
+    }
+    if(pendingLoss){
+      var lWho=(typeof pendingLoss.winner==='number')?logName(pendingLoss.winner):'The winner';
+      var lType=(state.pile && state.pile.combo && TYPE[state.pile.combo.type]) || 'Special';
+      var lHit=(pendingLoss.strikeTargets||[]).map(function(sq){ return logName(sq); }).join(', ');
+      html+='<div class="stk pendingLoss"><span class="who">'+lWho+'’s '+lType+' ▸</span> 🛡 '+lHit+' '+((pendingLoss.strikeTargets||[]).length>1?'lose':'loses')+' a shield <span class="who">(when the stack clears)</span></div>';
     }
     el.innerHTML=html;
   }
@@ -4876,15 +4894,52 @@ __QR__
     var casterTxt=(caster!=null) ? ('<b>'+logName(caster)+'</b>') : 'Someone';
     var aimTxt='';
     if(aimed!=null) aimTxt = (aimed===YOU) ? ' at <b class="respAtYou">YOU</b>' : (' at <b>'+logName(aimed)+'</b>');
-    var lead = pend
-      ? ('<p>'+casterTxt+' cast <b>'+rivalName+'</b>'+aimTxt+'. Play a Quick in response, or let it resolve.</p>')
-      : '<p>You have priority. Play a Quick, or pass.</p>';   // placeholder until step 14 writes the Fight End copy
+    /* THE FIGHT END WINDOW HAS NO OBJECT, SO IT NEEDS ITS OWN COPY (epic step 14; step 2 left the placeholder
+       this replaces). What the player must know is exactly what `openShieldGuardModal` learned to say in
+       v1.31.120 and for the same reason: **name the seat and the play**, because at 3-6 players "Rival" names
+       nobody and withholding the striker is withholding the whole decision.
+       WHY THE TARGET IS ALREADY KNOWN: §3 has the winner pick before priority is passed — *"so that people
+       will know if they want to activate shield protection or no"* — so `fightEnd.strikeTargets` is populated
+       by the time this renders, and the modal can say who is struck rather than asking blind.
+       Seats arrive ROTATED (netview rotates every member of `fightEnd`), so `logName` is correct as-is and
+       `YOU` compares directly. A jab win strips nothing, hence the `wonWithCombo` branch. */
+    var fe = state.fightEnd || null;
+    var lead;
+    if (pend) {
+      lead = '<p>'+casterTxt+' cast <b>'+rivalName+'</b>'+aimTxt+'. Play a Quick in response, or let it resolve.</p>';
+    } else if (fe) {
+      var feWho = (typeof fe.winner==='number') ? ('<b>'+logName(fe.winner)+'</b>') : 'The winner';
+      var feType = '<b>'+((state.pile && state.pile.combo && TYPE[state.pile.combo.type]) || 'Special')+'</b>';
+      var hit = (fe.strikeTargets||[]);
+      if (!fe.wonWithCombo || !hit.length) {
+        lead = '<p>'+feWho+' won the round with '+feType+' — no shield is lost. Last chance to play a Quick.</p>';
+      } else if (hit.indexOf(YOU) >= 0) {
+        /* AT ZERO SHIELDS THIS IS THE KICK, and that is the single most important thing the window can say —
+           it is the difference between losing a shield and losing the game. `kicksLanded`/`noKick` are not
+           consulted here: a fight win at 0 shields IS the kick (engine `resolveRoundWin`). */
+        var kick = (state.players[YOU] && state.players[YOU].shields <= 0);
+        lead = kick
+          ? ('<p>'+feWho+'’s '+feType+' is about to land the <b class="respAtYou">FIGHTER KICK</b> on <b class="respAtYou">YOU</b>. This is your last window.</p>')
+          : ('<p>'+feWho+'’s '+feType+' is about to strip one of <b class="respAtYou">YOUR</b> shields. Play a Quick, or pass.</p>');
+      } else {
+        var names = hit.map(function(sq){ return logName(sq); }).join(' and ');
+        lead = '<p>'+feWho+'’s '+feType+' is about to strip <b>'+names+'</b>’s shield. Play a Quick, or pass.</p>'
+             + '<p class="respNotYou">You are not struck this round — a Quick here only helps '+names+'.</p>';
+      }
+    } else {
+      lead = '<p>You have priority. Play a Quick, or pass.</p>';
+    }
     // when it is not aimed at you, say so plainly rather than leaving you to work it out
     if(aimed!=null && aimed!==YOU) lead+='<p class="respNotYou">It does not target you — countering only helps '+logName(aimed)+'.</p>';
     var incoming=(rivalEff.text?('<div class="respIncoming"><b>'+rivalName+'</b> ('+cardSym(pend.card)+') — '+rivalEff.text+'</div>'):'');
     var html='<h2>Respond?</h2>'+lead+incoming+tableContextHTML()+'<div class="respOpts">';
     var ctgts=(E.counterTargets ? E.counterTargets(state) : []);
-    quicks.forEach(function(c){ var ef=E.effectOf(c);
+    /* `effectFor`, NOT `effectOf` — the last of CLAUDE.md's three remaining label sites (epic step 14).
+       `eligibleQuicks()` already uses `effectFor`, so a Form-granted Quick is correctly OFFERED here and was
+       then DESCRIBED with its base effect: the button read "Technique" for a card the game was treating as a
+       Quick, with the base cost and base text beside it. Offered right, labelled wrong — which is worse than
+       either, because the label is what the player decides on. */
+    quicks.forEach(function(c){ var ef=E.effectFor(state, YOU, c)||E.effectOf(c);
       /* A COUNTER WITH A REAL CHOICE GETS ONE BUTTON PER TARGET (epic step 8). Since step 6 a player can
          hold priority and stack two Quicks, so "counter the thing beneath me" stops being unambiguous — and
          the choice has to be made BEFORE the card goes on the stack, which is why it is a button rather than
@@ -4959,7 +5014,8 @@ __QR__
     var quicks=eligiblePreFightQuicks();
     if(!quicks.length){ if(clientNet){ NET.clientSend({op:'prefightPass'}); busy=true; render(); return; } E.preFightPass(state, YOU); return resumeRival(g); }
     var html='<h2>Rival is about to fight</h2><p>They hold the initiative. Spring a Quick to lock their turn before they play?</p>'+tableContextHTML()+'<div class="respOpts">';
-    quicks.forEach(function(c){ var ef=E.effectOf(c); html+='<button class="respQuick" data-id="'+c.id+'">'+ef.name+' · '+cardSym(c)+' ('+ef.cost+'⚡)<span class="respTxt">'+ef.text+'</span></button>'; });
+    // `effectFor`: Back Stab is only a Quick under Hermes, so the base effect names the wrong type and cost
+    quicks.forEach(function(c){ var ef=E.effectFor(state, YOU, c)||E.effectOf(c); html+='<button class="respQuick" data-id="'+c.id+'">'+ef.name+' · '+cardSym(c)+' ('+ef.cost+'⚡)<span class="respTxt">'+ef.text+'</span></button>'; });
     html+='<button id="pfDecline" class="respLet">Let them fight</button></div>'+peekBtnHTML();
     showModal(html); wirePeek();
     Array.prototype.forEach.call(document.querySelectorAll('.respQuick'), function(btn){
@@ -8589,7 +8645,8 @@ __QR__
       var quicks=eligiblePreFightQuicks();
       if(!quicks.length){ E.preFightPass(hostState, YOU); return proceed(); }
       var html='<h2>'+seatName(hostState.turn)+' is about to fight</h2><p>Spring a Quick to lock their turn before they play?</p>'+tableContextHTML()+'<div class="respOpts">';
-      quicks.forEach(function(c){ var ef=E.effectOf(c); html+='<button class="respQuick" data-id="'+c.id+'">'+ef.name+' · '+cardSym(c)+' ('+ef.cost+'⚡)<span class="respTxt">'+ef.text+'</span></button>'; });
+      // `effectFor` on the HOST's own seat — same trap, same fix as the two in the main script
+      quicks.forEach(function(c){ var ef=E.effectFor(hostState, YOU, c)||E.effectOf(c); html+='<button class="respQuick" data-id="'+c.id+'">'+ef.name+' · '+cardSym(c)+' ('+ef.cost+'⚡)<span class="respTxt">'+ef.text+'</span></button>'; });
       html+='<button id="pfDecline" class="respLet">Let them fight</button></div>'+peekBtnHTML();
       showModal(html); wirePeek();
       Array.prototype.forEach.call(document.querySelectorAll('.respQuick'), function(btn){
