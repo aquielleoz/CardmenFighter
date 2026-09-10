@@ -791,7 +791,7 @@ downward. **`gen-cardlist.js` after any text change.** *Gate:* `npm test` stagin
 requiring each to be counterable by name; `nettest_counter`; `quicktest`; the Quicks lesson suite; full sweep.
 *Revertable alone:* yes.
 
-### C — Fight End itself (flag still off)
+### C — Fight End itself
 
 **9 · refactor: `enterFightEnd` as a LOOP, not a line. ⚠ PARTLY DONE 2026-09-09 — THE LOOP HAS A
 PREREQUISITE NOBODY KNEW ABOUT.** `finishRoundWin` opens with `st.stack = []`, commented *"shield-loss stack
@@ -848,10 +848,12 @@ does — fix the comment with the code. With 5-10 in place this is small: the wi
 active player for the window, picks the target first and cannot re-pick, the go-round runs, **Quicks only
 whatever the stack holds**, and the sub-phase begins when all pass on an empty stack. **Inside** the
 sub-phase nobody is active, so an empty stack means the phase proceeds with **no** go-round — that boundary
-is what stops a future trigger opening an endless series of empty rounds. *Gate:* `npm test` with the flag
-forced on; full sweep with it off (inert). *Revertable alone:* yes.
+is what stops a future trigger opening an endless series of empty rounds. **THERE IS NO FLAG** (see the
+preamble) — this lands live on the epic, so the gate is the whole sweep, not an on/off pair. *Gate:* `npm
+test`; full sweep; `nettest_priosig`, whose objectless-window assertions this step is the first real
+consumer of. *Revertable alone:* yes.
 
-**12 · test: the shadow comparator, flag still off.** As v1: record both answers wherever the old window
+**12 · test: the shadow comparator, run against the go-round this step's predecessor just built.** As v1: record both answers wherever the old window
 would open and assert over N live AI games at 2/3/6p that the new offer set is a strict **superset** of the
 whitelist's and that no seat is offered whom `canAddToStack` refuses. The only artefact that can say the
 migration is safe *before* it happens. **Note its baseline moved** — step 6 changed who is offered on
@@ -893,7 +895,7 @@ whose policy is a **verbatim port** of `shieldGuardAI`'s rule, keeping the `isHu
 `effectsAllowed`/`kindOK` gates. Rename the `immune || shieldImmune` test `immunityEffFor`. *Gate:* `npm
 test`; every sim runs to completion; `analysis.js` in band. *Revertable alone:* yes.
 
-**17 · test: `fightendtest.js`, against the flag ON while the default is off.** v1's step 11, widened to the
+**17 · test: `fightendtest.js`, against the go-round as built (there is no flag — see the preamble).** v1's step 11, widened to the
 new rules: the origin at n≥3, holding priority, Counter Spell naming its target, simultaneous kicks, the
 empty-stack boundary, and **an assertion that goes red if the whitelist is reintroduced**. **Run it 40 times,
 not once** — two flakes hid in one green run the last time this surface was touched. *Revertable alone:* yes.
