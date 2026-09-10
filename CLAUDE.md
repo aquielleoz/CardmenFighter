@@ -96,6 +96,18 @@ node fightendtest.js                            # THE FIGHT END MODEL (epic step
                                                 # is still offered the window). The other four of step 17's
                                                 # six live in test.js and are cross-referenced, not copied.
                                                 # Run it 40x, not once (16)
+node fightenduitest.js                          # THE TWO REPORTED BUGS, PLAYED IN THE REAL PAGE (epic step
+                                                # 18). `fightendtest` asserts the model headlessly; this
+                                                # asserts what a PLAYER reported, end to end: Sanctuary
+                                                # under HECTOR surviving the Fighter Kick (the ♥K patch is
+                                                # `{quick:true}` ALONE — Apollo's carries `shieldImmune`
+                                                # and was always admitted, so testing Apollo proves
+                                                # nothing), and Armor Piercing (♣7 under HIPPOLYTA, NOT
+                                                # the ♠7 and NOT a Quick at base — measured) landing its
+                                                # extra strip from the window. Every claim is a BOTH-WAYS
+                                                # pair off identical staging: decline and die vs cast and
+                                                # live; decline and strip 1 vs cast and strip 2. Also
+                                                # asserts the Fight End LEDGER (19)
 node prompttest.js                              # PROMPT PREFERENCES (epic step 15): per-card, per-timing
                                                 # checkboxes in the card reader. Asserts the DEFAULTS are
                                                 # today's experience, that only OVERRIDES are stored, and —
@@ -1268,6 +1280,19 @@ Measured on v1.31.95, the two halves of the same day:
   **Report a severity you measured, or report the finding without one.** "This is live" is a claim about the
   player's build, and a subagent has never seen it.
 
+**A DEFAULT DERIVED FROM A PREDICATE OUTLIVES THE PREDICATE (epic step 18).** Step 15's
+`promptDefault(card, eff, 'fightend')` returns `immunityEffFor(...)` — chosen so the prompt defaults would
+reproduce "today's experience" exactly, which was right on the day. Step 18 then DELETED the window that
+predicate described, and the default silently kept describing it: the two cards the whole epic exists to
+fix (Sanctuary under Hector, Armor Piercing under Hippolyta) are both refused by `immunityEffFor`, so both
+are **auto-declined by default** and the fix is invisible to anyone who has not found the checkbox in the
+card reader. Neither step is wrong on its own; nothing connected them.
+**THE TELL IS A DEFAULT THAT CALLS A PREDICATE RATHER THAN NAMING A VALUE** — `grep -n 'function .*Default'`
+and read what each one consults. When you delete or widen a gate, grep for the gate's own name: anything
+still calling it is now describing a world that does not exist.
+**AND IT WAS FOUND BY AN END-TO-END UI TEST, NOT BY READING.** Both unit layers were green — the engine
+opened the window and the card was a legal Quick — because the suppression happens between them, in the UI.
+
 **BEFORE TOUCHING `fightValue`, `applyEquip` OR `lockedDelta`, READ
 [`DECISIONS.md#value-modifiers`](docs/DECISIONS.md#value-modifiers).** It settles which layer a value modifier
 belongs in, and getting it wrong is not a style error: anything that changes a CARD's value changes its
@@ -1689,13 +1714,13 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127 — 2026-09-10, `npm run sweep`, 86 suites and 0 FAIL in 182s** (four lanes; background
+Status as of **v1.31.127 — 2026-09-10, `npm run sweep`, 92 suites and 0 FAIL in 225s ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `fightendtest`, `fightenduitest`, `nettest_passoduel`, `nettest_priosig`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 437, `netview` 64, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 18, `fightendtest` 16, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 18, `fightendtest` 16, `fightenduitest` 19, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
