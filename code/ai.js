@@ -612,7 +612,7 @@
     function broadwayPitchAvail(exclId) { return pl.hand.some(function (c) { return c.id !== exclId && isBroadway(c); }); }   // one definition of Broadway — keepsTheWin needs it too
     if (diff === 'minion') {                                    // barely uses effects — only a desperate shield gain
       while (guard++ < 3) {
-        if (st.pending) return;
+        if (st.respondFor != null) return;                      // P6: the WINDOW is respondFor; an objectless one has no `pending`
         if (pl.shields <= 1) { var s0 = pick(function (ef) { return ef.kind === 'shield'; }); var s0e = s0 && E.effectOf(s0); var s0Safe = !(s0e && s0e.shieldAll && st.players.some(function (q, qi) { return qi !== p && q.shields <= 0; })); if (s0 && s0Safe && act(st, p, s0.id, log, 'SHIELD', humans)) continue; }
         break;
       }
@@ -624,7 +624,14 @@
     var sT = demon ? 3 : 2, drawT = (top ? 6 : demon ? 5 : 3), rampCap = (top ? 15 : demon ? 12 : 9);
     var oppIdx = (p + 1) % st.numPlayers;
     while (guard++ < 6) {
-      if (st.pending) return;                                                             // a human response window is open — suspend the turn
+      /* P6 (epic step 18): `respondFor`, not `pending`. All four of these were bare `if (st.pending)`,
+         which is exactly why step 2's grep — keyed on `pending && …respondFor` — did not see them, and why
+         its "23 sites" was itself an undercount. A Fight End go-round sets `respondFor` with `pending`
+         NULL, so all four read false and an AI seat would play a whole turn straight through an open
+         window: `E.play` and `E.pass` have no `respondFor` guard of their own to stop it.
+         Inert until step 18 makes such a window reachable, which is why these land ahead of the flip
+         rather than after it. */
+      if (st.respondFor != null) return;                                                  // a response window is open — suspend the turn
       if (st.discardPending) {                                                            // a forced discard was set (discardOpp)
         if (isHuman(humans, st.discardPending.player)) return;                            // human must choose — suspend
         E.resolveDiscard(st);                                                             // AI target auto-pitches (avoids breaking its Specials)
@@ -881,10 +888,18 @@
        `noGuard` makes impossible; this one answers the ROUND-WIN window pending at the start of a turn. The
        plan had listed it among the dead. Deleting it would have left AI seats unable to guard at all. */
     if (st.shieldResponse) return shieldGuardAI(st, log, humans);
-    if (st.pending) {                                               // a response window is open (Counter-a-Counter chain)
+    if (st.respondFor != null) {                                    // P6: a response window is open (Counter-a-Counter chain), object or not
       if (isHuman(humans, st.respondFor)) return log;               // human answers via the UI — suspend
       resolveAIWindows(st, humans, log);
       if (st.respondFor != null && isHuman(humans, st.respondFor)) return log;
+      /* DRAINING A WINDOW CAN END THE ROUND, AND AFTER STEP 18 IT ROUTINELY DOES. Before the switch, a
+         round-winning play resolved inside `play()` and the turn had already moved by the time anyone
+         called `takeTurn`. Now `enterFightEnd` OPENS the go-round instead, so the outcomes — and the new
+         round, and the new turn — land when the last seat passes, which happens right here. Carrying on
+         to fight as `p` then throws "Not your turn", because it is now the round winner's.
+         `st.finished` is checked too: the drain can end the GAME (simultaneous kicks), and every caller
+         of `takeTurn` loops on `!finished`. */
+      if (st.finished || st.turn !== p) return log;
     }
     if (st.discardPending) {                                 // a forced discard from a prior suspended action
       if (isHuman(humans, st.discardPending.player)) return log;   // still needs the human to choose
@@ -898,7 +913,7 @@
     }
     playPhase(st, p, log, diff, humans);
     if (st.discardPending) return log;                       // a human must choose discards — suspend
-    if (st.pending) return log;                              // suspended awaiting a human response
+    if (st.respondFor != null) return log;                   // P6: suspended awaiting a response, objectless or not
     // Phase 2 — non-active pre-fight window: the opponent may spring a proactive Quick (Back Stab) before we fight.
     var pf = E.openPreFight(st);
     if (pf.preFightPending) {
