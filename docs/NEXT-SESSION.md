@@ -33,6 +33,16 @@ commit sequence, and [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) — **wh
 the version is held until it merges, and `main` is merged **into** it after any session spent elsewhere
 (CLAUDE.md → "Branches and PRs").
 
+**⏭ NEXT UP IS STEP 18, AND IT IS ALREADY HALF-WRITTEN ON `exp/step18-switch`** (pushed, unmerged,
+2026-09-10). The ENGINE half of the switch works — go-round live, old guard window removed in the same
+change, `test.js`/`netview.test`/`fightendtest` all green, and the seeded fingerprint MOVES, which is the
+switch genuinely changing the game. The NETPLAY half **wedges**: `nettest_guard` measures a client
+springing Leyline over the wire with the round never turning over (2 → 2 through twelve seconds of
+draining). `shieldResponsePending` is read at **seven** sites and only some are handled on that branch.
+**Read step 18's ⚠ block in [`FIGHT-END-PLAN.md`](FIGHT-END-PLAN.md) first** — it names the seven sites and
+the two pieces the attempt proved are needed either way. **Its gate also needs Aj:** one real solo game and
+one two-device netplay game, so 18 cannot be closed by suites alone.
+
 Other branches: **`feat/qr-scanning`** (parked) and **`exp/shield-gain-guard`** (an unreviewed recovered
 stash — it breaks the epic's step-12 proof; read its BACKLOG entry before resuming it). Each has an entry
 saying what would revive it.
