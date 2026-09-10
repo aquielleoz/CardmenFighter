@@ -33,9 +33,9 @@ commit sequence, and [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) — **wh
 the version is held until it merges, and `main` is merged **into** it after any session spent elsewhere
 (CLAUDE.md → "Branches and PRs").
 
-Other branches: **`feat/qr-scanning`** and **`parked/shield-gain-guard`** (both parked; each has a BACKLOG
-entry saying what would revive it — the second one breaks the epic's step-12 proof, so read it before
-resuming that work).
+Other branches: **`feat/qr-scanning`** (parked) and **`exp/shield-gain-guard`** (an unreviewed recovered
+stash — it breaks the epic's step-12 proof; read its BACKLOG entry before resuming it). Each has an entry
+saying what would revive it.
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
 
@@ -386,7 +386,9 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
     (the v1.31.0 fix, mirrored).
   - The one objection that *did* survive: the **leader-snowball is worse under coins**, because a win advances
     only the winner where a shield hit damages everyone, and initiative is already 1.8x concentrated.
-- **A SHIELD GAIN AS A GUARD IS PARKED on `parked/shield-gain-guard`** (2026-09-10). Widens `guardEffFor`
+- **A SHIELD GAIN AS A GUARD IS PARKED on `exp/shield-gain-guard`** (2026-09-10). `exp/` and not `parked/`:
+  the table reserves `parked/` for work that is **built, green** and deliberately unmerged, and this is an
+  unreviewed stash that has never been run — and it may well be reverted, which is what `exp/` is for. Widens `guardEffFor`
   to admit a card that GAINS a shield, so Hector's Sanctuary — a Quick by the Form, but granting no
   immunity — can be sprung at the moment it is for. Aj's own reasoning is in the patch: *"really since it's
   a quick it should be offered everywhere the player gets priority."*
@@ -395,10 +397,17 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   **Why it is not merged:** it breaks the epic's step-12 superset proof, measured — base Sanctuary is
   `quick: false`, and the rebuilt window gates on `canAddToStack`, which requires `quick`. Applied on the
   epic, `shadowtest` half A gives 93 counterexamples and half B 108 live violations.
-  **The condition that would revive it:** finish step 18, then check whether it is still needed at all. The
-  rebuilt window offers every Quick to everyone with priority, which may be what this was reaching for by a
-  different route — Hector-Sanctuary is already admitted there. **Unverified; check, do not assume.**
-  Reproduce by applying the patch on `epic/priority-windows` (the suite does not exist on `main`).
+  **WHEN TO COME BACK TO IT: at step 19, and the answer may be "never".** Step 19 *deletes* `guardEffFor` —
+  it is on the epic's DELETE table by name, along with `shieldGuardCard` and all four API exports. This
+  patch widens a function that is scheduled to stop existing, so it cannot simply be rebased on: the
+  question it answers has to be re-asked of the new window.
+  **Re-ask it as:** *should base Sanctuary be castable in a priority window?* Under the rebuilt model only
+  Quicks are, and base Sanctuary is not one — Hector makes it one, and Hector-Sanctuary is already admitted.
+  So the quoted reasoning (*"since it's a quick it should be offered everywhere the player gets priority"*)
+  may be **satisfied by the rebuild**, and what is left is a card-design question (should the base card be a
+  Quick?) rather than a window question. **Unverified; check at 19, do not assume.**
+  Reproduce the failure by applying the patch on `epic/priority-windows` and running `node shadowtest.js`
+  (the suite does not exist on `main`, so running it on this branch proves nothing).
 
 - **QR SCANNING IS BUILT, GREEN, AND PARKED on `feat/qr-scanning`** (PR #29, closed 2026-08-25, 21/0).
   **Why it is not merged:** scanning needs an origin that can be granted camera access, and a file opened from
