@@ -193,6 +193,7 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   r.preFightQ = 2;
   r.trimPending = { player: 2, need: 1 };
   r.pendingLossChoice = { winner: 2, cands: [2], comboType: 'pair' };
+  r.fightEnd = { origin: 2, winner: 2, wonWithCombo: true, strikeTargets: [2], winSize: 2 };   // every member seat-valued except the two scalars
   r.shieldResponse = { q: 2, winner: 2, guardId: 'g1', roundWin: true, obj: { source: 'Pair', n: 1, target: 2 } };
   r.stack = [{ oid: 1, kind: 'effect', p: 2, target: 2, winner: 2, n: 1, card: { rank: 9, suit: 'H', id: 's9H' }, eff: { id: 'x', kind: 'draw' }, opts: { target: 2 } }];
   r.respondFor = 2;
@@ -244,6 +245,8 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
      fails this suite by name, and the reviewer answers one question: is it public, or did it forget to rotate? */
   var PUBLIC = {
     'numPlayers': 1, 'round': 1, 'passes': 1, 'startShields': 1, 'prioGen': 1,
+    'fightEnd.winSize': 1,   // the SIZE of the winning play, not a seat — constant for every reader
+
     'pile.mod': 1, 'pile.combo.size': 1,
     'stack.0.n': 1, 'stack.0.oid': 1, 'shieldResponse.obj.n': 1
   };

@@ -1,20 +1,29 @@
 # The Fight End priority window — rebuild plan
 
-> ## 📍 WHERE WE ARE — end of 2026-09-09
+> ## 📍 WHERE WE ARE — 2026-09-10
 >
-> **Steps 1-10 addressed; NEXT IS STEP 11.** Sweep 87/87, `main` untouched at v1.31.126, nothing half-built.
-> - **1, 2, 3, 5, 6, 8 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code either —
->   its behavioural half was measured to be already true, and its refactor is folded into step 11.
+> **Steps 1-11 addressed; NEXT IS STEP 12** (the shadow comparator). `main` untouched at v1.31.126.
+> **Step 11 is built** — P1, P2, P3 and the go-round itself, with §3's worked example asserted as a
+> sequence. It is INERT: nothing calls `openFightEndWindow` until step 18. Its one deferred piece (the
+> `finishRoundWin` restructure) is deferred with a measurement — see the step.
+> **The cliff is behind us**, and the shape of the remaining work changed with it: 12 and 17 are tests
+> against a mechanism that already exists, and 18 is the switch.
+> - **1, 2, 3, 5, 6, 8, 11 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
+>   either — its behavioural half was measured to be already true.
+> - **⚠ STEP 10'S REFACTOR IS STILL OUTSTANDING, and this line used to say it was folded into 11. It is
+>   not.** §4 says a shield loss is *not* a stack object — it just happens, and what protects it is the
+>   window that runs before the sub-phase. Step 11 built that window, so the refactor is now *possible*;
+>   it becomes *necessary* at **step 18**, which is where `driveShieldStack`'s own guard window goes away
+>   and the shieldloss objects stop having anything to be responded to. Do it there, not before: while both
+>   windows exist, the objects are still load-bearing.
 > - **4 and 9 are PARTLY done on purpose**, each with its remainder recorded at the step that will land it
 >   (19 and 11). Neither is a loose end.
-> - **READ THE PREMISE CHECK BEFORE STARTING 11.** All four load-bearing steps came back *partly*; step 11
->   has three prerequisites it never named — **P1** (`respond`/`declineResponse` still refuse an objectless
->   window, and it comes BEFORE the `finishRoundWin` restructure), **P2** (build the empty-stack walk
->   parameterised by ORIGIN or step 20 forks it), **P3** (park the continuation on state, and not on
->   `roundWinResult`).
-> - **Step 11 is the cliff.** Everything so far has been revertable alone and fails as a red suite; this is
->   the first step where a mistake produces a wedged table, which is the failure mode this codebase detects
->   worst. Start it fresh.
+> - **THE PREMISE CHECK IS STILL THE THING TO READ FIRST.** All four load-bearing steps came back *partly*.
+>   Step 11's three (**P1/P2/P3**) are now discharged and recorded at the step; **P4-P8 still stand**, and
+>   18, 19 and 20 each carry a ⚠ pointing at theirs.
+> - **The step-11 machinery is what 18 and 20 build on** — `nextPrioHolder(st, origin)` is deliberately
+>   origin-parameterised so step 20 passes its own, and `openFightEndWindow` is the only thing that parks
+>   `st.fightEnd`. Read both before touching either.
 
 > ## ⏳ THIS IS A WORKING PLAN. IT IS MEANT TO DIE.
 >
@@ -837,6 +846,34 @@ together and requiring **both** eliminated; `nettest_kick`; `nettest_elim3`; `ne
 `mpsim`/`analysis` in band; full sweep. *Revertable alone:* yes.
 
 **11 · feat(engine): the Fight End go-round, gated.** **⚠ SEE THE PREMISE CHECK ABOVE — P1, P2, P3 are prerequisites this step does not name, and P1 comes before the `finishRoundWin` restructure.**
+
+> **✅ BUILT 2026-09-10 — except the `finishRoundWin` restructure, which is deferred WITH A MEASUREMENT.**
+> - **P1** — `respond`/`declineResponse` gate on `respondFor`, not `pending`. The failure mode is measured,
+>   not argued: the reproduced build spins `resolveAIWindows` to **65 iterations** and returns with the
+>   window still owed. Seven assertions, seven reds on the reintroduced guard.
+> - **P2** — `nextPrioHolder(st, origin)`, lifted out of `openResponseWindow` so the object dance and the
+>   empty-stack go-round are one walk with two origins. Behaviour-preserving, proven by a seeded fingerprint
+>   over **480 games at 2/3/4/6p** — identical hashes. *(The first run of that A/B reported a DIFFERENCE and
+>   the instrument was at fault: the engine reaches for `Math.random` outside the passed rng, so the probe
+>   was nondeterministic on the same file. Pin `Math.random` too.)*
+> - **P3** — the continuation is parked on `st.fightEnd` and **rotated, not redacted,** in `mirrorFor`; §3
+>   picks the target before the window so the table can see who is struck. `fightEnd.winSize` had to be
+>   declared PUBLIC in `netview.test.js`, which is the leaf-walker doing its job.
+> - **The go-round** — `openFightEndWindow`. §3's worked example is asserted as a SEQUENCE
+>   (`obj:0 obj:1 obj:2 empty:2 empty:0 empty:1`), because every step of it passes individually on walks that
+>   are wrong overall. Three mutants A/B'd; **the first one initially SURVIVED** because the rig staged
+>   `turn === winner`, so nothing could tell the parked origin from `st.turn` — the rig now separates them,
+>   which is the assertion that P2 is a parameter at all.
+> - **INERT:** nothing calls `openFightEndWindow`; step 18 is the switch. Proven, not asserted — the same
+>   480-game fingerprint is unchanged from the P1 baseline.
+>
+> **⏭ DEFERRED, and it belongs to whichever step introduces a TRIGGER — not to 18.** The restructure below
+> exists to stop `finishRoundWin` eating a triggered ability. **Measured over 450 games / 7,961 rounds:
+> `finishRoundWin` never once saw a non-empty stack**, and only four sites ever push (two `effect`, both
+> player casts; two `shieldloss`). So a drain placed there today is unreachable — which is exactly what step
+> 9 built, measured at zero runs, and deleted. Building it again would repeat that mistake with a longer
+> comment. The **seam** step 9 asked for is now real: the go-round runs BEFORE the outcomes, which is §3's
+> order, and `openFightEndWindow` is where a pre-outcome drain would hang.
 
 **⚠ PREREQUISITE, found doing step 9: `finishRoundWin` DISCARDS THE STACK.** Its first statement is
 `st.stack = []`. Anything an outcome triggers is thrown away before it can resolve, so this step must

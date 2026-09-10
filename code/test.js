@@ -912,6 +912,65 @@ function cards(ids) { return ids.map(card); }
   // the mirror half of this lives in netview.test.js, where NV is in scope
 })();
 
+// ===== …AND THE ENGINE LETS THE HOLDER ACT ON IT (epic step 11, prerequisite P1) =====
+/* The step-2 block above proves the window is VISIBLE. It is not the same claim as being ANSWERABLE:
+   `respond` and `declineResponse` both opened `if (!st.pending || ...)`, so the two ways out of the window
+   refused the very shape step 11 mints. Step 4 taught `respondDecision` the distinction and this is its
+   other half — without it the AI decides to pass, the engine refuses the pass, and nothing moves.
+   THE FAILURE IS A PARKED TABLE, NOT AN ERROR, which is why the loop assertion below is the important one:
+   `resolveAIWindows` breaks only on a FALSY result, and a refusal is a truthy `{ok:false}`. */
+(function () {
+  function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function rig() {
+    var g = E.newGame(null, { numPlayers: 3 });
+    g.round = 3; g.turn = 0; g.pile = null; g.stack = []; g.prioPassed = {};
+    for (var i = 0; i < 3; i++) g.players[i].hand = [sc(4, 'D'), sc(6, 'C')];
+    g.players[1].energy = []; for (var e = 0; e < 4; e++) g.players[1].energy.push(sc(4, 'D', 'e' + e));
+    g.pending = null; g.respondFor = 1;
+    return g;
+  }
+
+  // --- passing out of an objectless window
+  var g = rig();
+  var r = E.declineResponse(g, 1);
+  ok(r && r.ok === true,
+     'P1: a holder can PASS an objectless window' +
+     (r && r.ok ? '' : '  ← refused with "' + (r && r.reason) + '"; the AI passes, the engine says no, and the table parks'));
+  ok(g.respondFor === null, 'P1: …and the window closes rather than staying owed' +
+     (g.respondFor === null ? '' : '  ← respondFor is still ' + g.respondFor));
+
+  // --- casting INTO an empty stack: the Quick becomes an ordinary object, walked from its controller
+  var g2 = rig();
+  var before = g2.players[1].hand.length;
+  var r2 = E.respond(g2, 1, '4D');                     // 4♦ Counter Spell, affordable from the staged energy
+  ok(r2 && r2.ok !== false,
+     'P1: a holder can CAST into an objectless window' + (r2 && r2.ok === false ? '  ← refused: ' + r2.reason : ''));
+  /* The card really left the hand and the cast is REPORTED — `respondedWith` is what the UI and the netplay
+     log both read. Deliberately NOT asserting `stack.length === 1`: this Counter Spell has nothing beneath
+     it to counter, so the go-round it opened found no taker and resolved it straight away. An empty stack
+     here is the walk COMPLETING, which is the behaviour wanted; asserting the object was still sitting
+     there would have been asserting that priority had failed to move. */
+  ok(r2 && r2.respondedWith === 'D4' && g2.players[1].hand.length === before - 1,
+     'P1: …and the cast is reported and really spends the card' +
+     ' (respondedWith ' + (r2 && r2.respondedWith) + ', hand ' + before + '→' + g2.players[1].hand.length + ')');
+  ok(g2.respondFor === null && g2.stack.length === 0,
+     'P1: …and the go-round it opened runs to completion, leaving no window owed' +
+     ' (respondFor ' + g2.respondFor + ', stack ' + g2.stack.length + ')');
+
+  /* --- THE ONE THAT NAMES THE REAL FAILURE. `resolveAIWindows` is not exported, so its loop is reproduced
+     verbatim; every seat here is AI, so it must drain in a couple of turns. On the old guard each call
+     returns a truthy refusal, the loop cannot break, and it exits at its 64-iteration guard with the window
+     STILL OPEN — no error, no log line, a table nobody can act on. Assert the iteration count too: a loop
+     that terminates at 64 and one that terminates at 2 both leave `respondFor` null once the guard trips. */
+  var g3 = rig(), spins = 0;
+  while (g3.respondFor != null && spins++ < 64) { var rr = AI.respondDecision(g3, g3.respondFor); if (!rr) break; }
+  ok(spins < 10,
+     'P1: the AI window loop DRAINS an objectless window instead of spinning to its guard (' + spins + ' iterations)' +
+     (spins < 10 ? '' : '  ← REPRODUCED: 64 refusals, then the loop gives up with the window still owed'));
+  ok(g3.respondFor === null,
+     'P1: …and it ends with no window owed' + (g3.respondFor === null ? '' : '  ← still owed by seat ' + g3.respondFor));
+})();
+
 // ===== BACK STAB / OUTBALANCE REDESIGN (v1.31.4) + the AI timing model =====
 (function () {
   function mkc(r, su) { return { rank: r, suit: su, id: '' + r + su }; }
@@ -1250,6 +1309,93 @@ function cards(ids) { return ids.map(card); }
      'commit: with nothing banked the equip goes through exactly as before');
 })();
 
+
+// ===== THE FIGHT END GO-ROUND (epic step 11) =====
+/* `PHASES-AND-PRIORITY.md` §3 carries Aj's worked example card by card — turn order A -> B -> C with C
+   winning the round — and this block is that table, asserted. It is the whole reason the step exists, so it
+   is asserted as a SEQUENCE rather than as a set of separate facts: every individual step below passes on
+   plausible-but-wrong walks (origin at the active player throughout, or a go-round that never restarts),
+   and only the order distinguishes them.
+   NOT LIVE YET: nothing calls `openFightEndWindow` in a real round — step 18 is the switch. It is driven
+   directly here precisely so the surface is tested BEFORE it goes live, which is the whole strangler
+   argument; an untested mechanism switched on in one commit is what this plan is shaped to avoid. */
+(function () {
+  function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  // A = 0, B = 1, C = 2; C won the round with a pair and has already picked A to take the hit.
+  function rig() {
+    var g = E.newGame(null, { numPlayers: 3 });
+    /* `turn` is DELIBERATELY NOT THE WINNER. The round has just ended, so the turn still sits where play
+       stopped — and staging it equal to the winner made a mutant that reads `st.turn` instead of the parked
+       origin pass all 437 assertions. The origin is a PARAMETER (P2, so step 20 can pass its own); a rig in
+       which the two coincide cannot test that it is one. */
+    g.round = 3; g.turn = 1; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null;
+    for (var i = 0; i < 3; i++) {
+      g.players[i].hand = [sc(4, 'D', 'h' + i)];                       // 4D Counter Spell — an affordable Quick each
+      g.players[i].energy = []; for (var e = 0; e < 4; e++) g.players[i].energy.push(sc(4, 'D', 'e' + i + e));
+      g.players[i].shields = 3;
+    }
+    g.pile = { p: 2, combo: { type: 'pair', size: 2, value: 9, cards: [sc(9, 'C', 'x'), sc(9, 'S', 'y')] } };
+    g.lastPlayer = 2;
+    return g;
+  }
+  function walk(g, cap) { var seq = [], n = 0; while (g.respondFor != null && n++ < (cap || 12)) { seq.push((g.pending ? 'obj' : 'empty') + ':' + g.respondFor); E.declineResponse(g, g.respondFor); } return seq; }
+
+  // --- nobody adds anything: the window is winner-first, then turn order, then the sub-phase
+  var g = rig();
+  E.openFightEndWindow(g, 2, true, [0], 2);
+  ok(g.respondFor === 2 && g.pending === null,
+     'fight end: the WINNER is offered first, on an empty stack' +
+     (g.respondFor === 2 && g.pending === null ? '' : '  ← offered ' + g.respondFor + ', pending ' + (g.pending ? 'set' : 'null')));
+  var order = walk(g);
+  ok(order.join(',') === 'empty:2,empty:0,empty:1',
+     'fight end: …then turn order, all on an empty stack (' + order.join(' ') + ')');
+  ok(!g.fightEnd && g.round === 4 && g.players[0].shields === 2,
+     'fight end: all passing on an empty stack BEGINS THE SUB-PHASE — the outcomes land' +
+     ' (round ' + g.round + ', A shields ' + g.players[0].shields + ', parked ' + !!g.fightEnd + ')');
+
+  /* --- THE FULL WORKED EXAMPLE. C passes, A casts into the empty stack, and from there the ORDINARY §2
+     dance takes over on A's object — starting at A, because a controller holds priority (step 6). When it
+     resolves, the stack is empty again and the go-round RESTARTS AT C, the active player, not at A.
+     That restart is the single most mistakable rule in §3 and the only assertion here that catches it. */
+  var g2 = rig();
+  g2.players[0].hand = [sc(4, 'D', 'a1'), sc(4, 'D', 'a2')];           // A holds two, so A is not auto-passed after casting one
+  for (var e2 = 0; e2 < 8; e2++) g2.players[0].energy.push(sc(4, 'D', 'ex' + e2));
+  E.openFightEndWindow(g2, 2, true, [0], 2);
+  E.declineResponse(g2, 2);                                            // C adds nothing and passes
+  var cast = E.respond(g2, 0, 'a14D');                                 // A casts into the EMPTY stack
+  ok(cast.ok !== false && g2.stack.length === 1 && g2.pending && g2.respondFor === 0,
+     'fight end: a Quick cast into the empty window becomes an ordinary object, held by its caster' +
+     (cast.ok === false ? '  ← refused: ' + cast.reason : ''));
+  var rest = walk(g2);
+  ok(rest.join(',') === 'obj:0,obj:1,obj:2,empty:2,empty:0,empty:1',
+     'fight end: THE WORKED EXAMPLE — dance on the object from its controller, then the go-round RESTARTS' +
+     ' AT THE ACTIVE PLAYER (' + rest.join(' ') + ')' +
+     (rest.join(',') === 'obj:0,obj:1,obj:2,empty:2,empty:0,empty:1' ? '' :
+      '  ← expected obj:0 obj:1 obj:2 empty:2 empty:0 empty:1'));
+  ok(!g2.fightEnd && g2.round === 4 && g2.players[0].shields === 2,
+     'fight end: …and the sub-phase still begins afterwards, once for the whole window');
+
+  /* --- THE BOUNDARY (§2). Inside the sub-phase nobody is active, so an empty stack must NOT open another
+     go-round — that is what stops a trigger resolving at Fight End spinning empty rounds forever. The
+     continuation is therefore unparked BEFORE the outcomes run, and this asserts the consequence: driving
+     the whole window leaves no window owed and nothing parked, however many objects passed through it. */
+  ok(g2.respondFor === null && g2.pending === null && g2.stack.length === 0,
+     'fight end: the sub-phase opens NO further go-round — nothing owed, nothing parked, stack empty');
+
+  // --- a seat with nothing castable is auto-passed and never appears in the walk
+  var g3 = rig();
+  g3.players[1].hand = [];                                             // B holds nothing
+  E.openFightEndWindow(g3, 2, true, [0], 2);
+  var o3 = walk(g3);
+  ok(o3.join(',') === 'empty:2,empty:0',
+     'fight end: a seat holding no castable Quick is auto-passed, not prompted (' + o3.join(' ') + ')');
+
+  // --- an eliminated seat is skipped too (the filter lives in the shared walk, not in canAddToStack)
+  var g4 = rig();
+  g4.players[0].eliminated = true;
+  ok(E.nextPrioHolder(g4, 2) === 2 && (g4.prioPassed[2] = true) && E.nextPrioHolder(g4, 2) === 1,
+     'fight end: the shared walk skips an eliminated seat (A out → after C passes it is B, not A)');
+})();
 
 // ===== PHANTASMAL ILLUSION — the copy, restored (v1.31.6) =====
 // Aj's design: the copy takes the BASE card values, is then subject to boosts and debuffs, and you MAY swap
