@@ -2,15 +2,14 @@
 
 > ## 📍 WHERE WE ARE — 2026-09-10
 >
-> **Steps 1-14 addressed; NEXT IS STEP 15** (prompt preferences in the card reader). `main` untouched at
-> v1.31.126. **Step 14 REFUTED its own fourth piece** — the mid-turn shatter already plays, off the render
-> diff — see the step.
+> **Steps 1-15 addressed; NEXT IS STEP 16** (a Fight End AI branch that changes nothing) — section E, the
+> AI. `main` untouched at v1.31.126. **Section D is complete.**
 > **Step 11 is built** — P1, P2, P3 and the go-round itself, with §3's worked example asserted as a
 > sequence. It is INERT: nothing calls `openFightEndWindow` until step 18. Its one deferred piece (the
 > `finishRoundWin` restructure) is deferred with a measurement — see the step.
 > **The cliff is behind us**, and the shape of the remaining work changed with it: 17 is a test against a
 > mechanism that already exists, and 18 is the switch — now with 12's superset PROOF standing behind it.
-> - **1, 2, 3, 5, 6, 8, 11, 12, 13, 14 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
+> - **1, 2, 3, 5, 6, 8, 11, 12, 13, 14, 15 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
 >   either — its behavioural half was measured to be already true.
 > - **⚠ STEP 10'S REFACTOR IS STILL OUTSTANDING, and this line used to say it was folded into 11. It is
 >   not.** §4 says a shield loss is *not* a stack object — it just happens, and what protects it is the
@@ -1009,7 +1008,55 @@ Quick is not mislabelled — **this closes one of CLAUDE.md's three remaining `e
 never played. *Gate:* quicktest; `nettest_narrate`'s static half; landscapetest and phonetest at the 340px
 floor and in landscape. *Revertable alone:* yes.
 
-**15 · feat(ui): prompt preferences, per card, in the card reader.** Q11. **Every prompt OFF by default
+**15 · feat(ui): prompt preferences, per card, in the card reader.**
+
+> **✅ BUILT 2026-09-10 — `code/prompttest.js`, 18 assertions.**
+> - **The defaults ARE today's experience**, which is the half a careless suite would miss: Counter Spell
+>   still speaks on a cast, Leyline and Sanctuary still speak when shields are threatened, and nothing
+>   newly asks. What is off by default is the noise the rebuilt window would add — every Quick you hold,
+>   every round, at Fight End.
+> - **The filter sits ABOVE `eligibleQuicks`, never inside it.** That function is documented as matching the
+>   engine's `canAddToStack` exactly and v1.31.120 fixed a real bug caused by it drifting; it stays the
+>   engine mirror, and `promptedQuicks()` narrows its OUTPUT at the prompt sites. An empty result falls into
+>   the auto-decline that already exists, so an unchecked box is a real pass — over the wire on a client.
+> - **Only OVERRIDES are stored.** Writing the resolved row would freeze today's defaults onto a device
+>   forever, so a later change to a default could never reach anyone who had opened the reader once.
+> - **It is wired into the shield-guard modal too**, not only the go-round. Filtering just the go-round
+>   would ship a checkbox that does nothing today and silently starts working at step 18 — a dead control.
+>   *(`promptDefault` asks `guardEffFor`, which step 19 DELETES: re-derive the Fight End default there
+>   rather than letting it quietly come to mean something else.)*
+>
+> **AND THEN THE SUITE WAS FLAKY AT 20%, WHICH COST MORE THAN THE FEATURE DID.** Worth recording as a
+> sequence, because the shape is the lesson — four changes reasoned from CLAUDE.md rules moved the rate
+> not at all, and one derived from a measurement closed it:
+>
+> | change | derived from | failures |
+> | --- | --- | --- |
+> | original | — | 8/40 |
+> | polled startup (no fixed waits) | a rule | 8/40 |
+> | stall tolerance 25 → 100 | a rule | **14/40** |
+> | bound by UNPRODUCTIVE iterations, not a raw cap | a rule | 7/40 |
+> | **budget = 3x the MEASURED recovery time** | **a measurement** | **0/40** |
+>
+> **The question that settled it took one instrumented run: *does the board ever recover?*** It does —
+> after **9.2s**, on a Rival turn running long ("Rival is fighting…"). Not a wedge, not step 15's
+> auto-pass, no product bug. Every earlier theory was a rule matched to a symptom.
+> **Two traps worth keeping.** The raw-cap removal looked like a failure at 7/40 and was in fact a
+> PREREQUISITE — with the cap in place the loop tolerated the wait and then died of iteration count
+> instead, which is why "raise the budget" appeared disproven when it was merely blocked. And `handN: 12`
+> in every captured stall read as a clean-up trim until CLAUDE.md's own line corrected it: `MAX_HAND` is an
+> END-OF-TURN limit, and a player is on turn with more than ten cards on **78%** of turns.
+>
+> **THE SUITE WAS ALSO GREEN AND BLIND BEFORE THAT, AND A MUTANT PROVED IT.** The first fifteen assertions all passed on a
+> build with the filter *deleted from the live path*, because the liveness loop clicks `respDecline`
+> whenever a modal appears — so it could not tell "no modal" from "a modal I dismissed". It now stages a
+> real cast and asserts the modal BOTH WAYS. Four mutants, all four caught.
+> **Four further corrections were mine, not the product's**, and each first looked like a defect:
+> the suite never started a game, so `guardEffFor` had no state and Leyline's default read false; `#newBtn`
+> is absent on the end screen the liveness loop leaves behind; the poll budget was 6.3s against a measured
+> ~4.0s open (a 1.6x margin — CLAUDE.md's own rule calls that one slow machine from red); and the modal
+> text was sliced to 160 chars, which cut off before the buttons, so **the CONTROL failed on a window that
+> had opened correctly**. That last one is the argument for having a control at all. Q11. **Every prompt OFF by default
 except the timing that card already had**, so Sanctuary and Leyline still speak when your shields are
 threatened and the default experience is today's. Checkboxes in the card reader for the other timings, all
 unchecked. **This is a NOTIFICATION layer, not a rules layer** — the window opens and priority genuinely
