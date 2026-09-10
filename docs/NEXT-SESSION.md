@@ -33,19 +33,26 @@ commit sequence, and [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) — **wh
 the version is held until it merges, and `main` is merged **into** it after any session spent elsewhere
 (CLAUDE.md → "Branches and PRs").
 
-**⏭ NEXT UP IS STEP 18, AND IT IS ALREADY HALF-WRITTEN ON `exp/step18-switch`** (pushed, unmerged,
-2026-09-10). The ENGINE half of the switch works — go-round live, old guard window removed in the same
-change, `test.js`/`netview.test`/`fightendtest` all green, and the seeded fingerprint MOVES, which is the
-switch genuinely changing the game. The NETPLAY half **wedges**: `nettest_guard` measures a client
-springing Leyline over the wire with the round never turning over (2 → 2 through twelve seconds of
-draining). `shieldResponsePending` is read at **seven** sites and only some are handled on that branch.
-**Read step 18's ⚠ block in [`FIGHT-END-PLAN.md`](FIGHT-END-PLAN.md) first** — it names the seven sites and
-the two pieces the attempt proved are needed either way. **Its gate also needs Aj:** one real solo game and
-one two-device netplay game, so 18 cannot be closed by suites alone.
+**⏭ STEP 18 IS BUILT AND MERGED (2026-09-10). NEXT UP IS STEP 19** — the deletion of the whitelist model,
+and **the point of no return**: up to and including 18 a revert is `git revert`, and after 19 it is a
+rebuild. Read step 19 in [`FIGHT-END-PLAN.md`](FIGHT-END-PLAN.md), which carries step 4's deferred sites
+and step 10's refactor as well as its own DELETE table.
+
+**⚠ AND STEP 18 IS NOT CLOSED. ITS GATE NEEDS AJ:** *one real solo game and one two-device netplay game.*
+Suites cannot close it — they say the mechanism works, not whether it feels right or survives a phone.
+Aj's plan as of 2026-09-10 is netplay when the epic is complete, so the solo half is the one to chase.
+**Ask him for a saved battle log**: the download now carries a `--- FIGHT END WINDOWS ---` ledger (one line
+per sub-phase, naming who held priority and anything auto-passed for him), which is enough to answer "how
+often did it fire" and "was anything silently skipped" without a repro.
+**The thing to watch for is FREQUENCY, not correctness.** The go-round opens ~14x more often than the
+window it replaced, every legal timing now prompts by default (Aj chose that on 2026-09-10), and the
+checkbox in the card reader is the lever. If a solo game feels interrupted, that is the dial to turn, not
+a bug to file.
 
 Other branches: **`feat/qr-scanning`** (parked) and **`exp/shield-gain-guard`** (an unreviewed recovered
 stash — it breaks the epic's step-12 proof; read its BACKLOG entry before resuming it). Each has an entry
-saying what would revive it.
+saying what would revive it. **`exp/step18-switch` is gone** — its work landed in step 18's PR, and a
+parked branch whose content has shipped is litter.
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
 
