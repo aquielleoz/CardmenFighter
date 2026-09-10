@@ -818,20 +818,24 @@
   // window opens for one of them the turn suspends (st.pending stays set) and this
   // returns the partial log — call takeTurn again once the human has responded.
   // Resolve a reactive shield-guard window (Leyline) for an AI defender — spring it when a shield matters.
+  /* SHOULD SEAT q SPRING ITS GUARD? ONE DEFINITION, because there are now TWO askers (epic step 13):
+     `shieldGuardAI` below, and **Passo** in the template — a bot holding a dropped player's seat, which
+     Aj ruled must defend rather than always take the hit. A second copy of `shields <= 2` in the template
+     would drift the day this policy changes; the same reasoning as `isChopOf` and `guardEffFor`.
+     It answers only "does this seat WANT to guard" — whether a usable card exists is `shieldGuardCard`'s
+     question, already answered by the time a window is open (`sr.guardId` names it). */
+  function shieldGuardWants(st, q) {
+    if (!effectsAllowed(st, q)) return false;                // analysis: pure-fighter never guards
+    return st.players[q].shields <= 2;                       // save the shield when it matters (Leyline also ramps, rarely wasted)
+  }
   function shieldGuardAI(st, log, humans) {
     var sr = st.shieldResponse; if (!sr) return log;
     var q = sr.q;
     if (isHuman(humans, q)) return log;                      // a human decides via the UI — suspend
-    if (!effectsAllowed(st, q)) { E.shieldGuardPass(st, q); log.push({ shieldGuardPass: true, who: q }); return log; }   // analysis: pure-fighter never guards
-
-    var pl = st.players[q];
-    if (pl.shields <= 2) {                                   // save the shield when it matters (Leyline also ramps, rarely wasted)
-      var res = E.shieldGuard(st, q, sr.guardId);
-      if (res && res.ok === false) { E.shieldGuardPass(st, q); log.push({ shieldGuardPass: true, who: q }); }
-      else log.push({ shieldGuard: true, who: q, name: res.guardName });
-    } else {
-      E.shieldGuardPass(st, q); log.push({ shieldGuardPass: true, who: q });
-    }
+    if (!shieldGuardWants(st, q)) { E.shieldGuardPass(st, q); log.push({ shieldGuardPass: true, who: q }); return log; }
+    var res = E.shieldGuard(st, q, sr.guardId);
+    if (res && res.ok === false) { E.shieldGuardPass(st, q); log.push({ shieldGuardPass: true, who: q }); }
+    else log.push({ shieldGuard: true, who: q, name: res.guardName });
     return log;
   }
   // The affordable lockout Quick (Back Stab) in q's hand, if any.
@@ -934,8 +938,14 @@
     if (aiPreFightLock(st, q, activeP, diff)) { var bs = lockoutQuick(st, q); if (bs) return { cast: bs.id, card: { rank: bs.rank, suit: bs.suit, id: bs.id } }; }
     return { pass: true };
   }
+  /* `shieldGuardWants` is exported for PASSO in the template (epic step 13) — one definition of the guard
+     policy, so the bot holding a dropped seat defends on exactly the terms an AI seat would.
+     NOTE THE SHAPE OF THIS LITERAL: it is a handful of very long lines, so a trailing `//` note added
+     mid-line comments out every export after it. That is not hypothetical — adding this one that way
+     silently removed `preFightMove`, `lockoutWorth` and six others, and `test.js` died on the first of
+     them. Notes go ABOVE the literal; entries go in it. */
   var API = { THREAT_KIND: THREAT_KIND, BENIGN_KIND: BENIGN_KIND,   // exported so test.js can require every effect kind to be CLASSIFIED
-    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
+    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
     lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;

@@ -2,14 +2,15 @@
 
 > ## 📍 WHERE WE ARE — 2026-09-10
 >
-> **Steps 1-12 addressed; NEXT IS STEP 13** (the settle funnel, park hygiene, Passo defends). `main`
-> untouched at v1.31.126. **Step 12 proved the migration safe rather than sampling it** — see the step.
+> **Steps 1-13 addressed; NEXT IS STEP 14** (the window says what is at stake). `main` untouched at
+> v1.31.126. **Step 13 found a real duel deadlock that was not in the plan** — Passo could not move in a
+> 2-player game — see the step.
 > **Step 11 is built** — P1, P2, P3 and the go-round itself, with §3's worked example asserted as a
 > sequence. It is INERT: nothing calls `openFightEndWindow` until step 18. Its one deferred piece (the
 > `finishRoundWin` restructure) is deferred with a measurement — see the step.
 > **The cliff is behind us**, and the shape of the remaining work changed with it: 17 is a test against a
 > mechanism that already exists, and 18 is the switch — now with 12's superset PROOF standing behind it.
-> - **1, 2, 3, 5, 6, 8, 11, 12 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
+> - **1, 2, 3, 5, 6, 8, 11, 12, 13 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
 >   either — its behavioural half was measured to be already true.
 > - **⚠ STEP 10'S REFACTOR IS STILL OUTSTANDING, and this line used to say it was folded into 11. It is
 >   not.** §4 says a shield loss is *not* a stack object — it just happens, and what protects it is the
@@ -926,7 +927,40 @@ migration is safe *before* it happens. **Note its baseline moved** — step 6 ch
 ordinary objects too, so the comparator must be written against post-6 behaviour, not against `main`.
 *Revertable alone:* yes.
 
-**13 · fix: the settle funnel, park hygiene, and Passo defends.** v1's step 8 plus Aj's Passo ruling. Insert
+**13 · fix: the settle funnel, park hygiene, and Passo defends.**
+
+> **✅ BUILT 2026-09-10 — and the step's three pieces turned out to be in three different states.**
+> - **The settle funnel ALREADY EXISTS.** `settleWindows` has carried the
+>   `hostSettleActive() → hostSettleN | hostSettle` hop at the top of the function for some time; the step
+>   describes work already done. What it does NOT have is the `isClientActive()` half — and that is
+>   **defence in depth, not a live bug**: every entry point (`playCards`, `activate`, the pre-fight paths)
+>   already returns early on a client, so nothing reaches the funnel today. Recorded as such rather than
+>   shipped as a fix, because "a client drains windows locally" is a severity claim I could not demonstrate.
+> - **Park hygiene was already done by v1.31.116.** Every genuine HOST park carries `reassertMirror` +
+>   `startParkBeat`; the remaining `busy=true` sites are client-side UI locks, which need neither. The
+>   `grep -n 'busy=true'` enumeration the step asks for was run and came back clean.
+> - **⚠ BUT THE ENUMERATION FOUND SOMETHING ELSE, AND IT WAS A REAL DEADLOCK.** `passoTakeover` is **not**
+>   gated to multiplayer, so a dropped duel opponent gets a Passo caretaker — but `passoStep` only ever
+>   answered `driveN`'s parks (`netReact`, `netParked`). A duel parks on a different set entirely
+>   (`awaitRival` for the turn, `netSettle`, `netGuard`, `netDiscard`) and answers through `hostApplyMove`,
+>   not `hostApplyMoveN`. **Measured by A/B against the unfixed build: 1 host action, then 41 idle polls** —
+>   the host leads once, hands the turn to a bot that cannot move, and has no way out but Concede, which is
+>   a recorded loss. This is the **v1.31.91 bug class exactly**, and that one was found by Aj in a real game.
+>   `awaitRival` now sets `duelWait` (the 2p twin of `netParked`) and calls `maybePasso`; the three window
+>   parks call it too; `passoStep` gained a duel block.
+> - **PASSO DEFENDS** (Aj's ruling) — the guard branch springs the card instead of always taking the hit.
+>   The POLICY is the AI's own: `shieldGuardWants` is now one definition in `ai.js`, called by both
+>   `shieldGuardAI` and Passo, so a bot holding a seat defends on exactly an AI seat's terms.
+>
+> **`nettest_passoduel.js`, 8 assertions, 40 runs green.** Both claims independently A/B'd — the liveness
+> one against the unfixed build, the defends one against a mutant that keeps the duel fix and reverts only
+> the guard branch (the full revert wedges before it reaches that assertion, so it proves nothing there).
+> **FOUR OF MY OWN PROBES WERE WRONG BEFORE THE SUITE WAS RIGHT**, and each looked like a product bug: the
+> driver clicked Fight without selecting a card (the host is the opener, so it must lead) and reported
+> "0 actions" on a healthy board; a debug probe staged in round 1, where Specials are locked, so the pair
+> never played; the guard staging gave 5 energy for a **cost-9** Leyline, so no window ever opened; and two
+> different "the round resolved" polls watched things that never move. **The mutant A/B is what separated a
+> real finding from four instrument faults.** v1's step 8 plus Aj's Passo ruling. Insert
 the `hostSettleN`/`hostSettle`/`settleWindows` hop above the existing branches; `settleWindows` gains the
 `isClientActive()` guard **at the funnel**. **Passo springs an immunity for the seat it covers rather than
 passing** — a dropped player's Leyline still saves their last shield. **Enumerate the parks by KIND, not by

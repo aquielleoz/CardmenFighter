@@ -7417,7 +7417,17 @@ __QR__
       if(netReact && netReact.seat===seat){
         var k=netReact.kind;
         if(k==='respond')  return hostApplyMoveN(seat, {op:'decline'});
-        if(k==='guard')    return hostApplyMoveN(seat, {op:'guardPass'});                 // take the hit
+        /* PASSO DEFENDS (epic step 13, Aj's ruling): *a dropped player's Leyline still saves their last
+           shield.* It used to always take the hit, which quietly made disconnecting the worst thing that
+           could happen to you — the seat kept its standing but stopped defending it.
+           THE POLICY IS THE AI'S OWN, not a copy: `shieldGuardWants` lives in ai.js and `shieldGuardAI`
+           asks the same question, so Passo defends on exactly the terms an AI seat would and the two cannot
+           drift. `sr.guardId` is the card the window already found — no second search here. */
+        if(k==='guard'){
+          var sr=hostState.shieldResponse;
+          if(sr && sr.guardId && AI.shieldGuardWants(hostState, seat)) return hostApplyMoveN(seat, {op:'guard', id:sr.guardId});
+          return hostApplyMoveN(seat, {op:'guardPass'});                                  // not worth a card — take the hit
+        }
         if(k==='discard')  return hostApplyMoveN(seat, {op:'discard', ids:[]});           // [] → engine auto-picks (smart; keeps Specials)
         if(k==='prefight') return hostApplyMoveN(seat, {op:'prefightPass'});
         if(k==='loss'){ var t=null; for(var i=0;i<hostState.numPlayers;i++){ if(i!==seat && !hostState.players[i].eliminated){ t=i; break; } } var lr=E.chooseLossTarget(hostState, t); var nr=netReact; netReact=null; return nr.cont(lr); }   // unreachable in practice (Passo never wins a combo); safe fallback
@@ -7427,6 +7437,32 @@ __QR__
         if(hostState.pile) return hostApplyMoveN(seat, {op:'pass'});
         var low=passoLead(seat);
         return hostApplyMoveN(seat, low ? {op:'play', ids:[low]} : {op:'pass'});          // must lead → lowest card; no cards → forced pass/skip
+      }
+      /* ---- THE DUEL PARKS, WHICH PASSO KNEW NOTHING ABOUT (epic step 13).
+         Everything above is `driveN`'s vocabulary — `netReact` and `netParked` were written for 3-6 players.
+         A duel parks on a different set entirely (`duelWait` for the turn, `netSettle` for a response window,
+         `netGuard` for a shield guard, `netDiscard` for a forced discard) and answers them through
+         `hostApplyMove`, not `hostApplyMoveN`. So `passoTakeover` — which is NOT gated to multiplayer —
+         handed a duel seat to a bot that could not make a single move.
+         MEASURED BEFORE THE FIX, by A/B against the unfixed build: `nettest_passoduel` reports **1 host
+         action then 41 idle polls** — the host leads once, hands the turn to the Passo'd seat, and nothing
+         ever answers. With the fix, 14 actions and 10 idle polls.
+         This is the v1.31.91 bug class exactly, recorded thirty lines above in `hostApplyMove`: a duel park
+         that only the N-player handler knew about, found by Aj in a real game. Windows first, turn last —
+         the same order as the N-player branches, because an open window outranks whose turn it is. */
+      if(!MP() && seat===1){
+        if(netGuard){
+          var dsr=hostState.shieldResponse;
+          if(dsr && dsr.guardId && AI.shieldGuardWants(hostState, 1)) return hostApplyMove({op:'guard', id:dsr.guardId});
+          return hostApplyMove({op:'guardPass'});
+        }
+        if(netDiscard) return hostApplyMove({op:'discard', ids:[]});                      // [] → engine auto-picks (keeps Specials)
+        if(netSettle)  return hostApplyMove({op:'decline'});
+        if(duelWait && hostState.turn===1){
+          if(hostState.pile) return hostApplyMove({op:'pass'});
+          var dlow=passoLead(1);
+          return hostApplyMove(dlow ? {op:'play', ids:[dlow]} : {op:'pass'});
+        }
       }
     }
 
@@ -8212,7 +8248,13 @@ __QR__
     }, PARK_BEAT_MS);
   }
     function onRender(){ if(isHost() && started && hostState) broadcastMirror(); }   // hook: keep the client's board in lockstep
-    function awaitRival(){ trace('awaitRival', 'host parks, waiting for a client move'); busy=true; $('rivalStatus').textContent='Waiting for opponent…'; render(); reassertMirror(); startParkBeat(); }   // park; client will send a move
+    /* `duelWait` MARKS THIS PARK SO PASSO CAN FIND IT (epic step 13). `driveN` sets `netParked` at its turn
+       park and calls `maybePasso`, which is how a dropped seat keeps playing at 3-6 players; the duel park
+       had no marker and no `maybePasso` at all, so a Passo'd opponent in a 2-player game simply never moved
+       and the host sat here forever. A/B'd against the unfixed build: 1 host action, then 41 idle polls.
+       Cleared in `hostTakeBack` alongside `busy` and the status text — the third member of the pair that
+       must always be cleared together. */
+    function awaitRival(){ trace('awaitRival', 'host parks, waiting for a client move'); busy=true; duelWait=true; $('rivalStatus').textContent='Waiting for opponent…'; render(); reassertMirror(); startParkBeat(); maybePasso(1); }   // park; client (or Passo) will send a move
     /* THE OTHER HALF OF awaitRival, and it was missing (found 2026-08-28 from Aj's first real relay game).
      * awaitRival sets TWO things — `busy` and the "Waiting for opponent…" text — and every path that handed
      * control back cleared only `busy`. So the host's board went live while its screen still said the rival was
@@ -8221,7 +8263,8 @@ __QR__
      * Not the v1.31.20 wedge (that one really did leave `busy` set, and its fix at resolveRoundCeremony only
      * covers a move that ENDS the round). This is the ordinary case: a client move that does not end the round
      * and simply passes the turn back. Clear the pair together, never one of them. */
-    function hostTakeBack(){ trace('hostTakeBack', 'control back to the host'); stopParkBeat(); busy=false; $('rivalStatus').textContent=''; }
+    function hostTakeBack(){ trace('hostTakeBack', 'control back to the host'); stopParkBeat(); busy=false; duelWait=false; $('rivalStatus').textContent=''; }
+    var duelWait=false;   // parked in `awaitRival`: the duel host is waiting on seat 1's TURN (the 2p twin of `netParked`)
     var netSettle=null;   // parked: the host is waiting on the remote's respond/decline to an open stack window
     /* ONE DEFINITION, called by both host drivers. The duel handler and the N-player one differed only in the
      * seat and the continuation they run afterwards, and two near-identical blocks 400 lines apart drift — the
@@ -8324,6 +8367,7 @@ __QR__
       if(!hostState){ return done && done(); }
       if(hostState.respondFor===RIVAL){
         netSettle={ g:g, done:done };
+        var _mp=maybePasso;                                    // hoisted read: the park below returns, so call it last
       /* A PARKED HOST MUST KEEP SAYING SO — and only TWO of the seven parks did (v1.31.116). v1.31.75 added
          `reassertMirror` and v1.31.80 the beat, both wired into `awaitRival` and `hostParkTrim` BY NAME, and
          every other park kept a bare `broadcastMirror()`. That is the one call that cannot be trusted at a
@@ -8332,7 +8376,7 @@ __QR__
          it owes one, and the host waits on it forever. Measured for the handover park in v1.31.80: three
          swallowed mirrors survivable, FOUR deadlock. `reassertMirror` clears the dedupe; the beat re-asserts
          every 1.8s and stops itself in `hostTakeBack`. It subsumes the broadcast, so this is a replacement. */
-        busy=true; render(); reassertMirror(); startParkBeat();
+        busy=true; render(); reassertMirror(); startParkBeat(); _mp(1);
         return;
       }
       if(hostState.respondFor===YOU){
@@ -8379,10 +8423,10 @@ __QR__
       if(!hostState){ return cont && cont(); }
       if(hostState.shieldResponse && hostState.shieldResponse.q===RIVAL){
         if(!hostState.shieldResponse.guardId){ E.shieldGuardPass(hostState, 1); return hostRivalWindows(g, cont); }   // no guard to spring — just take the hit
-        netGuard={ g:g, cont:cont }; busy=true; render(); reassertMirror(); startParkBeat(); return;
+        netGuard={ g:g, cont:cont }; busy=true; render(); reassertMirror(); startParkBeat(); maybePasso(1); return;
       }
       if(hostState.discardPending && hostState.discardPending.player===RIVAL){
-        netDiscard={ g:g, cont:cont }; busy=true; render(); reassertMirror(); startParkBeat(); return;
+        netDiscard={ g:g, cont:cont }; busy=true; render(); reassertMirror(); startParkBeat(); maybePasso(1); return;
       }
       cont && cont();
     }
@@ -9291,7 +9335,7 @@ __QR__
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); },
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, shieldsOf:function(seat){ return (state&&state.players[seat])?state.players[seat].shields:null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); },
     /* THE LIVE TALLY. The finished record only exists at game end, and no 3-player suite both has a client ACT
      * and plays to a finish — so without this seam the N-player half of the remote-seat tally (v1.31.96) could
      * only be covered by a whole new suite. Read on the HOST, whose stats are the ones every seat adopts. */
