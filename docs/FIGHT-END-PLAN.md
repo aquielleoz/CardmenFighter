@@ -2,14 +2,14 @@
 
 > ## 📍 WHERE WE ARE — 2026-09-10
 >
-> **Steps 1-15 addressed; NEXT IS STEP 16** (a Fight End AI branch that changes nothing) — section E, the
-> AI. `main` untouched at v1.31.126. **Section D is complete.**
+> **Steps 1-16 addressed; NEXT IS STEP 17** (`fightendtest.js`). `main` untouched at v1.31.126.
+> **Sections A-E are complete except 17; then F is the switch.**
 > **Step 11 is built** — P1, P2, P3 and the go-round itself, with §3's worked example asserted as a
 > sequence. It is INERT: nothing calls `openFightEndWindow` until step 18. Its one deferred piece (the
 > `finishRoundWin` restructure) is deferred with a measurement — see the step.
 > **The cliff is behind us**, and the shape of the remaining work changed with it: 17 is a test against a
 > mechanism that already exists, and 18 is the switch — now with 12's superset PROOF standing behind it.
-> - **1, 2, 3, 5, 6, 8, 11, 12, 13, 14, 15 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
+> - **1, 2, 3, 5, 6, 8, 11, 12, 13, 14, 15, 16 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
 >   either — its behavioural half was measured to be already true.
 > - **⚠ STEP 10'S REFACTOR IS STILL OUTSTANDING, and this line used to say it was folded into 11. It is
 >   not.** §4 says a shield loss is *not* a stack object — it just happens, and what protects it is the
@@ -113,7 +113,7 @@ Symbols only. A repo gate (`versiontest`) fails any live doc citing `file:NNNN`.
 | engine.js | `shieldGuard` | casts into the guard window — calls `resolveEffect` **directly** | The sprung card never touches the stack, so nobody can Counter Spell it and no priority is re-granted. `respond` already does this correctly (§2 step 5). |
 | engine.js | `shieldGuardPass` | declines; **one** seat's pass closes the window outright | `declineResponse` is the analogue: record `top.passed[q]`, re-enter the loop, offer the next seat. |
 | engine.js | `openResponseWindow` (`noopDestroy` branch) | suppresses the ENTIRE priority window for a `destroyShield` aimed at a seat already at 0 shields | Whitelist thinking that leaked into the real loop: it asks whether the TARGET has a shield worth saving when the window's job is priority for everyone. Also wrong under `DAMAGE_SPAN` — `effectTarget` names one seat while resolution can strike several. Already filed in the BACKLOG. |
-| engine.js | API exports (`shieldGuard`, `shieldGuardPass`, `shieldGuardCard`, `guardEffFor`) | all four on the public engine API | Remove them, do not leave shims — that is the `opponentCanRespond` trap the engine's own comment records: exported dead code that looks canonical and is the first place a reader goes. Removing them is also what forces every caller to be found. |
+| engine.js | API exports (`shieldGuard`, `shieldGuardPass`, `shieldGuardCard`) | ~~four~~ **THREE** on the public engine API — **`guardEffFor` was RENAMED `immunityEffFor` at step 16 and SURVIVES.** As `guardEffFor` it was the whitelist gate and belonged on this list; as `immunityEffFor` it answers *does this card grant immunity?*, which `respondDecision`'s Fight End branch and the prompt-preference default both need after the window is gone. Same body, different job. | Remove the other three, do not leave shims — that is the `opponentCanRespond` trap the engine's own comment records: exported dead code that looks canonical and is the first place a reader goes. Removing them is also what forces every caller to be found. |
 | template | `openShieldGuardModal` | the whole guard UI: reads `sr.guardId`, renders two buttons, calls back with the round result | Replaced by `promptHumanResponse`. Reads `state`, not `hostState` — that works only because `hostStartRealN` aliases them. |
 | template | `openShieldGuardModal` → `#sgYes` handler | client sends `{op:'guard', id}`; host/solo calls `E.shieldGuard` | The `guard` op disappears. The client guard here is present and correct — this is not one of the missing-guard sites. |
 | template | `openShieldGuardModal` → `#sgNo` handler | client sends `{op:'guardPass'}`; host/solo calls `E.shieldGuardPass` | Collapses into `respDecline` / `{op:'decline'}`. |
@@ -1067,7 +1067,27 @@ lesson polls' margins re-read with `LESSONPOLL=1`. *Revertable alone:* yes.
 
 ### E — the AI
 
-**16 · ai: a Fight End branch that changes nothing.** v1's step 10. An explicit branch in `respondDecision`
+**16 · ai: a Fight End branch that changes nothing.**
+
+> **✅ BUILT 2026-09-10 — and it really does change nothing: 480 seeded games at 2/3/4/6p, byte-identical
+> fingerprint against the epic's HEAD.**
+> - **The branch** sits where step 4 left `if (!eff) return declineResponse(...)`. Its policy is a verbatim
+>   port of `shieldGuardAI`'s: `shieldGuardWants` decides (one definition, shared with Passo since step 13)
+>   and the card is found with the engine's own predicate. **It is NOT a real Fight End policy** — the
+>   rebuilt window offers any Quick to anyone with priority, and what an AI should do with that is step 21,
+>   which measures. Widening it here would ship an unmeasured behaviour change inside a step whose entire
+>   claim is that it makes none.
+> - **INERT:** nothing mints an objectless window until step 18, so the branch is unreachable in a real
+>   game today. Proven by the fingerprint rather than asserted.
+> - **⚠ `guardEffFor` IS NOW `immunityEffFor` — a global rename, and the reason matters more than the name.**
+>   As `guardEffFor` it was the WHITELIST GATE and belonged on step 19's DELETE table. What survives that
+>   deletion is a different question the AI and the prompt-preference default both still ask — *does this
+>   card grant immunity?* Same body, different job. **Step 19's table is corrected accordingly: three API
+>   exports go, not four.**
+>   **Every mention of `guardEffFor` ELSEWHERE IN THIS FILE is pre-rename** and describes the defect as it
+>   was found; read them as history. The live symbol is `immunityEffFor`. *(CLAUDE.md's "cite a SYMBOL"
+>   rule used `guardEffFor` as its own example, which stopped existing the moment this landed — corrected
+>   there, and a fair illustration of why that rule prefers symbols to line numbers rather than to nothing.)* v1's step 10. An explicit branch in `respondDecision`
 whose policy is a **verbatim port** of `shieldGuardAI`'s rule, keeping the `isHuman` suspend and the
 `effectsAllowed`/`kindOK` gates. Rename the `immune || shieldImmune` test `immunityEffFor`. *Gate:* `npm
 test`; every sim runs to completion; `analysis.js` in band. *Revertable alone:* yes.

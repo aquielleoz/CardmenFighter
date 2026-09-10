@@ -44,7 +44,7 @@ async function freshGame(p) {
   let pass = 0, fail = 0; const ok = (c, m) => { console.log((c ? '✓' : '✗') + ' ' + m); c ? pass++ : fail++; };
 
   /* A GAME MUST BE RUNNING BEFORE ANY DEFAULT CAN BE READ, and the first version of this suite did not start
-     one. `promptDefault` asks the ENGINE whether a card can guard (`guardEffFor`), which needs live state —
+     one. `promptDefault` asks the ENGINE whether a card can guard (`immunityEffFor`), which needs live state —
      so with no game every Fight End default came back false and Leyline looked silenced. The suite was
      wrong, not the defaults. Same startup as `peektest`. */
   await p.goto(URL);

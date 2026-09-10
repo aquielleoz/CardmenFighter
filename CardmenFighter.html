@@ -3566,7 +3566,7 @@
    * `wouldBeSaved` says only `cantLose` (or a Holy Shroud absorb) can stop, because plain shield-immunity
    * cannot save a shield you do not have. Apollo grants immunity, not `cantLose`, so Sanctuary is correctly
    * still not offered against a kick. */
-  function guardEffFor(st, q, card) {
+  function immunityEffFor(st, q, card) {
     var e = effectFor(st, q, card);
     if (!e || !e.impl) return null;
     return (e.immune || e.shieldImmune) ? e : null;
@@ -3575,7 +3575,7 @@
   // needCantLose: at 0 shields the threat is a KICK, so only a "can't lose this round" card qualifies.
   function shieldGuardCard(st, q, needCantLose) {
     var pl = st.players[q];
-    return pl.hand.filter(function (c) { var e = guardEffFor(st, q, c); return e && (!needCantLose || e.cantLose) && canAfford(pl, c); })[0] || null;
+    return pl.hand.filter(function (c) { var e = immunityEffFor(st, q, c); return e && (!needCantLose || e.cantLose) && canAfford(pl, c); })[0] || null;
   }
   // ---- shield-loss stack (the priority backbone; §STACK-DESIGN) ----
   // A shield loss is a stack object; the threatened player may respond (spring Leyline) before it
@@ -3739,8 +3739,8 @@
     if (!card) return { ok: false, reason: "You don't hold that card." };
     /* THE SAME LOOKUP, and it had a THIRD fault the offer site did not: it passed the BASE effect to
        `resolveEffect`, so a Form-granted guard that somehow got this far would have resolved WITHOUT its
-       granted immunity — gaining a shield and then losing one. `guardEffFor` returns the patched effect. */
-    var eff = guardEffFor(st, q, card);
+       granted immunity — gaining a shield and then losing one. `immunityEffFor` returns the patched effect. */
+    var eff = immunityEffFor(st, q, card);
     if (!eff) return { ok: false, reason: 'That card cannot guard a shield.' };
     if (!canAfford(pl, card)) return { ok: false, reason: 'Not enough Fighter Energy (need ' + costHint(card) + ').' };
     pl.hand = pl.hand.filter(function (c) { return c.id !== cardId; });
@@ -4117,7 +4117,14 @@
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
     canAddToStack: canAddToStack, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
     openFightEndWindow: openFightEndWindow,   // step 11: built and tested here, made live by step 18
-    guardEffFor: guardEffFor,   // the single definition of "can this card guard" — ai.js calls it rather than restating `immune || shieldImmune`
+    /* RENAMED FROM `guardEffFor` (epic step 16), and the rename is the point rather than tidying. As
+       `guardEffFor` it was the WHITELIST GATE — the answer to "may this card be offered at the shield-guard
+       window" — and step 19 deletes that gate along with `shieldGuard`, `shieldGuardPass` and
+       `shieldGuardCard`. What survives it is a different question the AI still has to ask: *does this card
+       grant immunity?* Same body, different job, so the name says the job that outlives the window.
+       Still one definition: ai.js and the template's prompt defaults both call it rather than restating
+       `immune || shieldImmune`, which is the miss v1.31.112 fixed. */
+    immunityEffFor: immunityEffFor,
     DECKS: DECKS, DECK_ORDER: DECK_ORDER, BASE_SUIT: BASE_SUIT, buildDeck: buildDeck,
     PARTS_TOTAL: PARTS_TOTAL, PARTS_SUITS: PARTS_SUITS, PARTS_PREFIX: PARTS_PREFIX,
     partsCount: partsCount, partsValid: partsValid, partsKey: partsKey, parseParts: parseParts,
@@ -4916,7 +4923,23 @@
     if (st.respondFor !== q) return null;
     if (!effectsAllowed(st, q)) return E.declineResponse(st, q);   // analysis: pure-fighter never answers with a Quick
     var qp = st.players[q], pend = st.pending, eff = pend && pend.eff;
-    if (!eff) return E.declineResponse(st, q);   // no object to react to — pass. A real Fight End policy is step 21, deliberately not here
+    /* THE FIGHT END BRANCH, AND IT DELIBERATELY CHANGES NOTHING (epic step 16). No object means the Fight
+       End go-round, which step 18 makes the live path in place of `driveShieldStack`'s guard window. On the
+       day of that swap an AI seat must behave exactly as it does today, so the policy here is a VERBATIM
+       port of `shieldGuardAI`'s: `shieldGuardWants` decides (one definition, shared with Passo since step
+       13), and the card is found with `immunityEffFor` — the engine's own predicate, not a restatement.
+       WHAT IT IS NOT: a real Fight End policy. The rebuilt window offers ANY Quick to anyone holding
+       priority, and deciding what an AI should do with that — counter, ramp, hold — is **step 21**, which
+       measures. Widening it here would ship an unmeasured behaviour change inside a step whose whole claim
+       is that it makes none.
+       INERT TODAY: nothing mints an objectless window until step 18, so this branch cannot be reached in a
+       real game — proven by the seeded fingerprint, not asserted. */
+    if (!eff) {
+      if (!shieldGuardWants(st, q)) return E.declineResponse(st, q);
+      var guardC = qp.hand.filter(function (c) { return E.immunityEffFor(st, q, c) && E.canAfford(qp, c); })[0];
+      if (guardC) { var gr = E.respond(st, q, guardC.id); if (gr && gr.ok) return gr; }
+      return E.declineResponse(st, q);
+    }
     function bestQuick(kind) {
       if (!kindOK(kind, q)) return null;               // analysis: blocked reactive kind
       var best = null, bestEff = null;
@@ -4932,13 +4955,13 @@
       if (prot) { var pr = E.respond(st, q, prot.id); if (pr.ok) return pr; }
     }
     /* Reactive immunity: spring an immunity Quick to blank a destroyShield technique aimed at us.
-       THIS TESTED `e.immune` ONLY, and there are TWO spellings — the engine's `guardEffFor` has admitted
+       THIS TESTED `e.immune` ONLY, and there are TWO spellings — the engine's `immunityEffFor` has admitted
        `immune || shieldImmune` since v1.31.112 and the second was never carried across. So an AI in Apollo
        Mode holding Sanctuary took the hit, then would have sprung the very same card against a fight-win
        strip a moment later. Call the ENGINE's predicate instead of restating it: one definition, and the next
        spelling added there reaches the AI for free. Same rule as `isChopOf` and `resolveIds`. */
     if (eff.kind === 'destroyShield' && qp.shields <= 2) {
-      var immuneQ = qp.hand.filter(function (c) { return E.guardEffFor(st, q, c) && E.canAfford(qp, c); })[0];
+      var immuneQ = qp.hand.filter(function (c) { return E.immunityEffFor(st, q, c) && E.canAfford(qp, c); })[0];
       if (immuneQ) { var ir = E.respond(st, q, immuneQ.id); if (ir.ok) return ir; }
     }
     // Counter Spell: negate the genuinely threatening Techniques (not friendly draws/ramp).
@@ -4971,7 +4994,7 @@
   /* SHOULD SEAT q SPRING ITS GUARD? ONE DEFINITION, because there are now TWO askers (epic step 13):
      `shieldGuardAI` below, and **Passo** in the template — a bot holding a dropped player's seat, which
      Aj ruled must defend rather than always take the hit. A second copy of `shields <= 2` in the template
-     would drift the day this policy changes; the same reasoning as `isChopOf` and `guardEffFor`.
+     would drift the day this policy changes; the same reasoning as `isChopOf` and `immunityEffFor`.
      It answers only "does this seat WANT to guard" — whether a usable card exists is `shieldGuardCard`'s
      question, already answered by the time a window is open (`sr.guardId` names it). */
   function shieldGuardWants(st, q) {
@@ -5731,11 +5754,11 @@ window.CardFace = {};
   /* THE DEFAULT IS "THE TIMING THAT CARD ALREADY HAD", so the out-of-the-box experience is today's:
      every Quick already prompts on a cast and a lockout Quick already prompts pre-fight, while the Fight End
      window today offers ONLY the guard whitelist — so Leyline and Sanctuary still speak when your shields
-     are threatened and nothing else newly does. `guardEffFor` is asked rather than restated: it is the
+     are threatened and nothing else newly does. `immunityEffFor` is asked rather than restated: it is the
      engine's single definition of "can this card guard", and step 19 deletes it, at which point this
      default needs re-deriving rather than quietly meaning something else. */
   function promptDefault(card, eff, timing){
-    if(timing==='fightend') return !!(state && E.guardEffFor && E.guardEffFor(state, YOU, card));
+    if(timing==='fightend') return !!(state && E.immunityEffFor && E.immunityEffFor(state, YOU, card));
     return true;
   }
   function promptKeyOf(eff){ return eff && eff.id ? eff.id : null; }
@@ -8948,7 +8971,7 @@ window.CardFace = {};
          wire for a decline nobody chose.
          And offering a Quick that will fizzle is CORRECT, not a leak: casting is free and a Quick with no
          legal target fizzles on resolution rather than being illegal (PHASES-AND-PRIORITY.md §1-2). One
-         predicate, two definitions was the bug — the same shape as `resolveIds` and `guardEffFor`. */
+         predicate, two definitions was the bug — the same shape as `resolveIds` and `immunityEffFor`. */
       return true;
     });
   }

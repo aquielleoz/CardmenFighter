@@ -6,7 +6,7 @@
  * one today — silently, because a window nobody is offered looks exactly like a window nobody wanted.
  *
  * TWO HALVES, AND THE STATIC ONE IS THE PROOF.
- *   A · EXHAUSTIVE (no sampling): the old gate is `guardEffFor` = `immune || shieldImmune`, which does NOT
+ *   A · EXHAUSTIVE (no sampling): the old gate is `immunityEffFor` = `immune || shieldImmune`, which does NOT
  *       require `quick`; the new gate is `canAddToStack`, which DOES. So the whole superset claim reduces to
  *       one question — can any card pass the old gate without being a Quick? Every card is evaluated in
  *       every Form context, so the answer is a proof rather than an observation.
@@ -63,10 +63,10 @@ function ok(c, m) { console.log((c ? '✓' : '✗') + ' ' + m); c ? pass++ : fai
     cards.forEach(function (c) {
       evals++;
       /* CALL THE OLD GATE, DO NOT RESTATE IT. The first draft of this line tested
-         `effectFor(...).immune || .shieldImmune` — a copy of `guardEffFor`'s body — and a mutant that
+         `effectFor(...).immune || .shieldImmune` — a copy of `immunityEffFor`'s body — and a mutant that
          widened the REAL gate sailed past this half entirely while half B caught it. One definition, called;
          the same rule as `isChopOf` and `counterTargets`, and it failed here first time of asking. */
-      var e = E.guardEffFor(g, 0, c);
+      var e = E.immunityEffFor(g, 0, c);
       if (!e) return;                                            // the old gate refuses it — not our problem
       admitted[c.rank + c.suit] = (admitted[c.rank + c.suit] || 0) + 1;
       if (!e.quick) notQuick.push({ card: c.rank + c.suit, name: e.name, forms: forms.map(function (f) { return f.rank + f.suit; }).join('+') || 'none' });
@@ -119,7 +119,7 @@ COUNTS.forEach(function (np) {
       if (st.shieldResponse) {
         var sr = st.shieldResponse;
         /* THE OLD WINDOW IS ALWAYS EXACTLY ONE SEAT — the threatened one, and only when it holds a card
-           `guardEffFor` admits. That single-seat shape IS the defect the epic exists to fix (§3: priority is
+           `immunityEffFor` admits. That single-seat shape IS the defect the epic exists to fix (§3: priority is
            passed around; it is not a prompt to the victim), so this compares one seat against a walk. */
         var OLD = [sr.q];
         var NEW = newOfferSet(st, (typeof sr.winner === 'number') ? sr.winner : st.turn);

@@ -117,6 +117,15 @@ page threw** while `test.js` stayed 333/0 (it never loads the page) and I report
 deleting anything from the template, `grep -i` the removed name and run at least one **UI** suite — `mptest` is
 the cheapest, and it failed on its third assertion.
 
+**AND A RENAME IS A DELETION WEARING A FRIENDLIER FACE (2026-09-10).** `guardEffFor` → `immunityEffFor`
+was applied to `engine.js`, `ai.js` and the template — the three files the symbol is *implemented and
+consumed* in — and the SUITES were forgotten. `shadowtest` calls `E.guardEffFor` directly and died on
+`is not a function`, which the sweep caught in 0s. The parse check cannot see it for the same reason it
+cannot see a deletion: the reference is valid syntax pointing at nothing.
+**The grep must cover `code/*.js` and `docs/`, not just the files you edited** — step 19's own gate already
+says so for its deletions, and a rename earns the same sweep. The tell that you have missed one is a suite
+failing in **0s**: it died at require/first-call, not in a test.
+
 **NOR CAN IT SEE A DUPLICATE DECLARATION, AND THAT ONE IS SILENT FOREVER.** `resolveIds` — the host's only
 defence against a client naming a card it does not hold — was declared **twice in the same scope**,
 byte-identical, 190 lines apart (fixed v1.31.72). Two declarations of one name in one scope is legal JS: the
@@ -1412,7 +1421,7 @@ stack view landed on a subtitle, the one for `respondDecision`'s threat list on 
 `openShieldGuardModal` on an unrelated client guard — and **most had drifted that same day**
 *(and this paragraph cannot quote them, because the gate scans this file — the `nettest_narrate` trap of
 tripping on your own example, which it duly did on the first run)*, from comment blocks added and dead functions deleted in the very session that
-wrote them. **Cite a SYMBOL** (`guardEffFor`, `openResponseWindow`, `THREAT_KIND`): greppable, says what you
+wrote them. **Cite a SYMBOL** (`immunityEffFor`, `openResponseWindow`, `THREAT_KIND`): greppable, says what you
 meant, and survives an edit above it. `versiontest` gates this now across the four live docs; the approximate
 form (`engine.js` ~1447) is deliberately still allowed, because the tilde is honest about drifting and banning
 it pushes people back to prose that names nothing.

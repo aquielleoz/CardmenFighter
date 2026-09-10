@@ -122,7 +122,7 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
    * keep for one commit.
    * CLAUDE.md already has the rule one level up, about numbers: "a pointer rots only if a file or anchor is
    * renamed; a copied number rots every time the number changes, and silently." A line number is a copied
-   * number. **Cite a SYMBOL** — `guardEffFor`, `openResponseWindow`, `THREAT_KIND` — which is greppable, says
+   * number. **Cite a SYMBOL** — `immunityEffFor`, `openResponseWindow`, `THREAT_KIND` — which is greppable, says
    * what you meant, and survives an edit above it.
    * The approximate form (`engine.js` ~1447) is left alone on purpose: the tilde is honest about drifting, and
    * banning it would push people back to prose that names nothing at all. */

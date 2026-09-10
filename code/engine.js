@@ -1952,7 +1952,7 @@
    * `wouldBeSaved` says only `cantLose` (or a Holy Shroud absorb) can stop, because plain shield-immunity
    * cannot save a shield you do not have. Apollo grants immunity, not `cantLose`, so Sanctuary is correctly
    * still not offered against a kick. */
-  function guardEffFor(st, q, card) {
+  function immunityEffFor(st, q, card) {
     var e = effectFor(st, q, card);
     if (!e || !e.impl) return null;
     return (e.immune || e.shieldImmune) ? e : null;
@@ -1961,7 +1961,7 @@
   // needCantLose: at 0 shields the threat is a KICK, so only a "can't lose this round" card qualifies.
   function shieldGuardCard(st, q, needCantLose) {
     var pl = st.players[q];
-    return pl.hand.filter(function (c) { var e = guardEffFor(st, q, c); return e && (!needCantLose || e.cantLose) && canAfford(pl, c); })[0] || null;
+    return pl.hand.filter(function (c) { var e = immunityEffFor(st, q, c); return e && (!needCantLose || e.cantLose) && canAfford(pl, c); })[0] || null;
   }
   // ---- shield-loss stack (the priority backbone; §STACK-DESIGN) ----
   // A shield loss is a stack object; the threatened player may respond (spring Leyline) before it
@@ -2125,8 +2125,8 @@
     if (!card) return { ok: false, reason: "You don't hold that card." };
     /* THE SAME LOOKUP, and it had a THIRD fault the offer site did not: it passed the BASE effect to
        `resolveEffect`, so a Form-granted guard that somehow got this far would have resolved WITHOUT its
-       granted immunity — gaining a shield and then losing one. `guardEffFor` returns the patched effect. */
-    var eff = guardEffFor(st, q, card);
+       granted immunity — gaining a shield and then losing one. `immunityEffFor` returns the patched effect. */
+    var eff = immunityEffFor(st, q, card);
     if (!eff) return { ok: false, reason: 'That card cannot guard a shield.' };
     if (!canAfford(pl, card)) return { ok: false, reason: 'Not enough Fighter Energy (need ' + costHint(card) + ').' };
     pl.hand = pl.hand.filter(function (c) { return c.id !== cardId; });
@@ -2503,7 +2503,14 @@
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
     canAddToStack: canAddToStack, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
     openFightEndWindow: openFightEndWindow,   // step 11: built and tested here, made live by step 18
-    guardEffFor: guardEffFor,   // the single definition of "can this card guard" — ai.js calls it rather than restating `immune || shieldImmune`
+    /* RENAMED FROM `guardEffFor` (epic step 16), and the rename is the point rather than tidying. As
+       `guardEffFor` it was the WHITELIST GATE — the answer to "may this card be offered at the shield-guard
+       window" — and step 19 deletes that gate along with `shieldGuard`, `shieldGuardPass` and
+       `shieldGuardCard`. What survives it is a different question the AI still has to ask: *does this card
+       grant immunity?* Same body, different job, so the name says the job that outlives the window.
+       Still one definition: ai.js and the template's prompt defaults both call it rather than restating
+       `immune || shieldImmune`, which is the miss v1.31.112 fixed. */
+    immunityEffFor: immunityEffFor,
     DECKS: DECKS, DECK_ORDER: DECK_ORDER, BASE_SUIT: BASE_SUIT, buildDeck: buildDeck,
     PARTS_TOTAL: PARTS_TOTAL, PARTS_SUITS: PARTS_SUITS, PARTS_PREFIX: PARTS_PREFIX,
     partsCount: partsCount, partsValid: partsValid, partsKey: partsKey, parseParts: parseParts,

@@ -766,7 +766,23 @@
     if (st.respondFor !== q) return null;
     if (!effectsAllowed(st, q)) return E.declineResponse(st, q);   // analysis: pure-fighter never answers with a Quick
     var qp = st.players[q], pend = st.pending, eff = pend && pend.eff;
-    if (!eff) return E.declineResponse(st, q);   // no object to react to — pass. A real Fight End policy is step 21, deliberately not here
+    /* THE FIGHT END BRANCH, AND IT DELIBERATELY CHANGES NOTHING (epic step 16). No object means the Fight
+       End go-round, which step 18 makes the live path in place of `driveShieldStack`'s guard window. On the
+       day of that swap an AI seat must behave exactly as it does today, so the policy here is a VERBATIM
+       port of `shieldGuardAI`'s: `shieldGuardWants` decides (one definition, shared with Passo since step
+       13), and the card is found with `immunityEffFor` — the engine's own predicate, not a restatement.
+       WHAT IT IS NOT: a real Fight End policy. The rebuilt window offers ANY Quick to anyone holding
+       priority, and deciding what an AI should do with that — counter, ramp, hold — is **step 21**, which
+       measures. Widening it here would ship an unmeasured behaviour change inside a step whose whole claim
+       is that it makes none.
+       INERT TODAY: nothing mints an objectless window until step 18, so this branch cannot be reached in a
+       real game — proven by the seeded fingerprint, not asserted. */
+    if (!eff) {
+      if (!shieldGuardWants(st, q)) return E.declineResponse(st, q);
+      var guardC = qp.hand.filter(function (c) { return E.immunityEffFor(st, q, c) && E.canAfford(qp, c); })[0];
+      if (guardC) { var gr = E.respond(st, q, guardC.id); if (gr && gr.ok) return gr; }
+      return E.declineResponse(st, q);
+    }
     function bestQuick(kind) {
       if (!kindOK(kind, q)) return null;               // analysis: blocked reactive kind
       var best = null, bestEff = null;
@@ -782,13 +798,13 @@
       if (prot) { var pr = E.respond(st, q, prot.id); if (pr.ok) return pr; }
     }
     /* Reactive immunity: spring an immunity Quick to blank a destroyShield technique aimed at us.
-       THIS TESTED `e.immune` ONLY, and there are TWO spellings — the engine's `guardEffFor` has admitted
+       THIS TESTED `e.immune` ONLY, and there are TWO spellings — the engine's `immunityEffFor` has admitted
        `immune || shieldImmune` since v1.31.112 and the second was never carried across. So an AI in Apollo
        Mode holding Sanctuary took the hit, then would have sprung the very same card against a fight-win
        strip a moment later. Call the ENGINE's predicate instead of restating it: one definition, and the next
        spelling added there reaches the AI for free. Same rule as `isChopOf` and `resolveIds`. */
     if (eff.kind === 'destroyShield' && qp.shields <= 2) {
-      var immuneQ = qp.hand.filter(function (c) { return E.guardEffFor(st, q, c) && E.canAfford(qp, c); })[0];
+      var immuneQ = qp.hand.filter(function (c) { return E.immunityEffFor(st, q, c) && E.canAfford(qp, c); })[0];
       if (immuneQ) { var ir = E.respond(st, q, immuneQ.id); if (ir.ok) return ir; }
     }
     // Counter Spell: negate the genuinely threatening Techniques (not friendly draws/ramp).
@@ -821,7 +837,7 @@
   /* SHOULD SEAT q SPRING ITS GUARD? ONE DEFINITION, because there are now TWO askers (epic step 13):
      `shieldGuardAI` below, and **Passo** in the template — a bot holding a dropped player's seat, which
      Aj ruled must defend rather than always take the hit. A second copy of `shields <= 2` in the template
-     would drift the day this policy changes; the same reasoning as `isChopOf` and `guardEffFor`.
+     would drift the day this policy changes; the same reasoning as `isChopOf` and `immunityEffFor`.
      It answers only "does this seat WANT to guard" — whether a usable card exists is `shieldGuardCard`'s
      question, already answered by the time a window is open (`sr.guardId` names it). */
   function shieldGuardWants(st, q) {
