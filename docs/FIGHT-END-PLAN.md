@@ -2,9 +2,12 @@
 
 > ## 📍 WHERE WE ARE — 2026-09-10
 >
-> **Steps 1-17 addressed; NEXT IS STEP 18 — THE SWITCH.** `main` untouched at v1.31.126.
-> **Sections A-E are COMPLETE.** Everything built so far is inert: step 18 is the commit that makes the
-> go-round the live path and removes `driveShieldStack`'s window in the same change.
+> **Steps 1-17 done. STEP 18 IS ATTEMPTED AND PARKED** on `exp/step18-switch` — the engine half works,
+> the netplay half wedges. `main` untouched at v1.31.126, the epic is GREEN and carries no wedge.
+> **READ STEP 18'S ⚠ BLOCK FIRST**: it names the seven `shieldResponsePending` sites, the two pieces the
+> attempt proved are needed (`st.fightEndResult`, `takeTurn`'s early return), and the two vacuous
+> assertions moving the window exposed. **Its gate also needs Aj** — one solo game and one two-device
+> netplay game — so 18 cannot be closed by suites alone.
 > **Step 11 is built** — P1, P2, P3 and the go-round itself, with §3's worked example asserted as a
 > sequence. It is INERT: nothing calls `openFightEndWindow` until step 18. Its one deferred piece (the
 > `finishRoundWin` restructure) is deferred with a measurement — see the step.
@@ -1119,6 +1122,37 @@ not once** — two flakes hid in one green run the last time this surface was to
 ### F — the switch
 
 **18 · REPLACE the old guard window with the Fight End go-round — one commit, no flip.**
+
+> **⚠ ATTEMPTED 2026-09-10 — THE ENGINE HALF WORKS, THE NETPLAY HALF WEDGES. NOT MERGED.**
+> The whole attempt is preserved on **`exp/step18-switch`** (pushed, unmerged). Only **P6** was extracted
+> and merged, because it is proven inert on its own.
+> **WHAT WORKS, and it is most of the step.** `enterFightEnd` opens the go-round instead of applying the
+> outcomes, and `driveShieldStack`'s window is removed in the SAME change so the two are never both open.
+> `test.js` 437, `netview.test` 64, `fightendtest` 16 — all green — and the seeded fingerprint MOVES
+> (`e19a98d` → `fda5f95` over 480 games), which is the switch genuinely changing the game rather than a
+> no-op that looks like success.
+> **WHAT IS BROKEN, measured not suspected.** `nettest_guard`: a client springs Leyline over the wire and
+> **the round never turns over** — round 2 → 2 through twelve seconds of draining both sides. The host's
+> round-win flow was built around `shieldResponse`, which this step stops minting, so
+> `hostSettleRoundThenCeremony` fell straight through to `hostRunCeremony` with the go-round still open.
+> Teaching it to park on `respondFor` and to read the parked final result was **necessary and NOT
+> sufficient** — the wedge survives. **`shieldResponsePending` is read at SEVEN sites** (template `:4370`,
+> `:4865`, `:5235`, `:5238`, `:8622`, `:8625`, plus the settle path); only some are addressed on that
+> branch. **Start there.**
+> **THREE THINGS THE ATTEMPT PROVED, whichever way it is finished:**
+> - **`st.fightEndResult` is needed.** The outcomes run one `declineResponse` deep inside a go-round and
+>   their result returns up a chain the host is not on — it resumes from a park holding the PENDING result,
+>   and `hostRunCeremony` narrates from it. Not `roundWinResult`: `driveShieldStack` reads that as "this is
+>   a round win" and would finish the round inside its own window (P3's collision).
+> - **`takeTurn` must return when the round ends under it.** A round-winning play used to resolve inside
+>   `play()`; now it resolves mid-window, and carrying on threw *"Not your turn"*.
+> - **MOVING THE WINDOW EARLIER EXPOSED TWO VACUOUS ASSERTIONS**, which is worth more than it cost.
+>   `netview.test` asserted the mirror "does not carry the host result object" — true of a window that no
+>   longer opens. `nettest_guard` asserted *"client kept its shield 4 → 4"* and it **passed underneath a
+>   FAILING drive**, because with the go-round open the outcomes have not run, so nothing had changed. Both
+>   are rewritten on the branch to assert the round actually RESOLVED first.
+> **AND THE GATE NEEDS AJ EITHER WAY:** *one real solo game and one two-device netplay game*. Step 18
+> cannot be closed by suites alone.
 **THIS IS NO LONGER A FLAG FLIP** (see the preamble). With no `PRIORITY_V2` there is nothing to turn on; this
 commit makes step 11's go-round the live path and removes `driveShieldStack`'s window in the same change, so
 the two are never both open. **⚠ SEE P5 (the gate is unachievable as sequenced — move the six
