@@ -1143,6 +1143,12 @@ cache is dropped on join and rejoin, so a reconnecting peer is never deduped aga
   because a pipe buffers until exit, so each apparent non-result prompted another launch — and they raced
   for ports, producing `FAILED — 67/88` with a screen of `EADDRINUSE`. **A sweep is exclusive. Start one,
   leave the machine alone, and read the pipe only when it exits.**
+  **AND NEVER PIPE A SWEEP THROUGH `tail -n` (2026-09-10).** `sweep.js` prints each suite's WHOLE summary
+  line specifically so a failure identifies itself — v1.31.84's note records that cropping to the
+  `PASS:`/`FAIL:` fragment is what once hid a suite's own evidence. Piping the run to `tail -4` reproduced
+  that mistake from the other end: a lesson suite failed two assertions, the four surviving lines carried
+  the assertion text but not the SUITE NAME, and identifying it then cost a re-sweep plus 33 loaded runs —
+  which did not reproduce it, so the name is simply gone. **Redirect to a file and grep it.**
   **A SWEEP THAT PRINTS NOTHING IS NOT A SWEEP THAT DID NOTHING.** `node sweep.js | tail -n` shows nothing at
   all until the pipeline closes, and to a file Node block-buffers as well — so an empty output file at the
   two-minute mark is the NORMAL appearance of a healthy run. Check `ps`, never the output length, and never
