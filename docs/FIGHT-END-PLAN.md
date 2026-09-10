@@ -2,13 +2,14 @@
 
 > ## 📍 WHERE WE ARE — 2026-09-10
 >
-> **Steps 1-11 addressed; NEXT IS STEP 12** (the shadow comparator). `main` untouched at v1.31.126.
+> **Steps 1-12 addressed; NEXT IS STEP 13** (the settle funnel, park hygiene, Passo defends). `main`
+> untouched at v1.31.126. **Step 12 proved the migration safe rather than sampling it** — see the step.
 > **Step 11 is built** — P1, P2, P3 and the go-round itself, with §3's worked example asserted as a
 > sequence. It is INERT: nothing calls `openFightEndWindow` until step 18. Its one deferred piece (the
 > `finishRoundWin` restructure) is deferred with a measurement — see the step.
-> **The cliff is behind us**, and the shape of the remaining work changed with it: 12 and 17 are tests
-> against a mechanism that already exists, and 18 is the switch.
-> - **1, 2, 3, 5, 6, 8, 11 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
+> **The cliff is behind us**, and the shape of the remaining work changed with it: 17 is a test against a
+> mechanism that already exists, and 18 is the switch — now with 12's superset PROOF standing behind it.
+> - **1, 2, 3, 5, 6, 8, 11, 12 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
 >   either — its behavioural half was measured to be already true.
 > - **⚠ STEP 10'S REFACTOR IS STILL OUTSTANDING, and this line used to say it was folded into 11. It is
 >   not.** §4 says a shield loss is *not* a stack object — it just happens, and what protects it is the
@@ -890,7 +891,35 @@ preamble) — this lands live on the epic, so the gate is the whole sweep, not a
 test`; full sweep; `nettest_priosig`, whose objectless-window assertions this step is the first real
 consumer of. *Revertable alone:* yes.
 
-**12 · test: the shadow comparator, run against the go-round this step's predecessor just built.** As v1: record both answers wherever the old window
+**12 · test: the shadow comparator, run against the go-round this step's predecessor just built.**
+
+> **✅ BUILT 2026-09-10 — `code/shadowtest.js`, 7 assertions, ~2.6s, in the sweep.**
+> **THE CLAIM TURNED OUT TO BE PROVABLE, NOT MERELY SAMPLEABLE, AND THAT CHANGED THE SUITE'S SHAPE.** The
+> old gate `guardEffFor` is `immune || shieldImmune` and does NOT require `quick`; the new gate
+> `canAddToStack` DOES. So the whole superset question reduces to: *can any card pass the old gate without
+> being a Quick?* **Answer, exhaustively: no.** Every card in every Form context up to three Forms — 299
+> contexts, ~15,500 evaluations — admits exactly **two** cards, `9♦` Leyline Ascension and `10♥` Sanctuary,
+> and both are Quicks wherever they qualify. That is half **A**, and it is what carries the step.
+> Half **B** drives 600 real AI games at 2/3/6p and compares the sets wherever the old window actually
+> opens (~200-250 openings). It exists because **A is a statement about the CARDS and B about the WALK**,
+> and step 18 changes the walk — A alone would still pass on a walk that offered nobody at all.
+> **THE MEASUREMENT STEP 18 IS FOR:** 204 old offers → 310 new (+106), almost all at six players
+> (2p +2 / 3p +9 / 6p +95). At 2 players it is nearly a no-op, which matches §3: in a duel the only other
+> seat is the striker.
+> **Two things to know before touching it.**
+> - **Half A's first draft RESTATED the old gate** (`e.immune || e.shieldImmune`) instead of calling
+>   `guardEffFor`, and a mutant that widened the real gate walked straight past it while half B caught it.
+>   It calls the engine's predicate now. The `isChopOf` rule, failed first time of asking.
+> - **Half A asserts its own STAGING reaches Super Mode**, and that one is load-bearing: a Form can GRANT
+>   `quick`, so a context set with no Jacks evaluates every card at its base effect, finds only Leyline
+>   (already Quick) and reports a clean superset having never tested a Form-granted guard. Removing Jacks
+>   from the pool turns it red. Measured: 64 of 299 contexts are Supers, and Sanctuary appears in exactly
+>   those 64.
+> - **The observation floor is a TOTAL, not per player count, on purpose.** 2p yields only ~5 openings per
+>   200 duels (1/4/5/6/8 across runs) — a per-count floor would be a probabilistic assertion and an
+>   intermittent red by construction. The duel is not left unproven: half A covers it deterministically.
+> A/B'd with two mutants — a non-Quick card admitted to the whitelist, and a walk that drops the threatened
+> seat — both caught, and 40 consecutive runs green. As v1: record both answers wherever the old window
 would open and assert over N live AI games at 2/3/6p that the new offer set is a strict **superset** of the
 whitelist's and that no seat is offered whom `canAddToStack` refuses. The only artefact that can say the
 migration is safe *before* it happens. **Note its baseline moved** — step 6 changed who is offered on
