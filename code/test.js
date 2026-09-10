@@ -912,6 +912,65 @@ function cards(ids) { return ids.map(card); }
   // the mirror half of this lives in netview.test.js, where NV is in scope
 })();
 
+// ===== …AND THE ENGINE LETS THE HOLDER ACT ON IT (epic step 11, prerequisite P1) =====
+/* The step-2 block above proves the window is VISIBLE. It is not the same claim as being ANSWERABLE:
+   `respond` and `declineResponse` both opened `if (!st.pending || ...)`, so the two ways out of the window
+   refused the very shape step 11 mints. Step 4 taught `respondDecision` the distinction and this is its
+   other half — without it the AI decides to pass, the engine refuses the pass, and nothing moves.
+   THE FAILURE IS A PARKED TABLE, NOT AN ERROR, which is why the loop assertion below is the important one:
+   `resolveAIWindows` breaks only on a FALSY result, and a refusal is a truthy `{ok:false}`. */
+(function () {
+  function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function rig() {
+    var g = E.newGame(null, { numPlayers: 3 });
+    g.round = 3; g.turn = 0; g.pile = null; g.stack = []; g.prioPassed = {};
+    for (var i = 0; i < 3; i++) g.players[i].hand = [sc(4, 'D'), sc(6, 'C')];
+    g.players[1].energy = []; for (var e = 0; e < 4; e++) g.players[1].energy.push(sc(4, 'D', 'e' + e));
+    g.pending = null; g.respondFor = 1;
+    return g;
+  }
+
+  // --- passing out of an objectless window
+  var g = rig();
+  var r = E.declineResponse(g, 1);
+  ok(r && r.ok === true,
+     'P1: a holder can PASS an objectless window' +
+     (r && r.ok ? '' : '  ← refused with "' + (r && r.reason) + '"; the AI passes, the engine says no, and the table parks'));
+  ok(g.respondFor === null, 'P1: …and the window closes rather than staying owed' +
+     (g.respondFor === null ? '' : '  ← respondFor is still ' + g.respondFor));
+
+  // --- casting INTO an empty stack: the Quick becomes an ordinary object, walked from its controller
+  var g2 = rig();
+  var before = g2.players[1].hand.length;
+  var r2 = E.respond(g2, 1, '4D');                     // 4♦ Counter Spell, affordable from the staged energy
+  ok(r2 && r2.ok !== false,
+     'P1: a holder can CAST into an objectless window' + (r2 && r2.ok === false ? '  ← refused: ' + r2.reason : ''));
+  /* The card really left the hand and the cast is REPORTED — `respondedWith` is what the UI and the netplay
+     log both read. Deliberately NOT asserting `stack.length === 1`: this Counter Spell has nothing beneath
+     it to counter, so the go-round it opened found no taker and resolved it straight away. An empty stack
+     here is the walk COMPLETING, which is the behaviour wanted; asserting the object was still sitting
+     there would have been asserting that priority had failed to move. */
+  ok(r2 && r2.respondedWith === 'D4' && g2.players[1].hand.length === before - 1,
+     'P1: …and the cast is reported and really spends the card' +
+     ' (respondedWith ' + (r2 && r2.respondedWith) + ', hand ' + before + '→' + g2.players[1].hand.length + ')');
+  ok(g2.respondFor === null && g2.stack.length === 0,
+     'P1: …and the go-round it opened runs to completion, leaving no window owed' +
+     ' (respondFor ' + g2.respondFor + ', stack ' + g2.stack.length + ')');
+
+  /* --- THE ONE THAT NAMES THE REAL FAILURE. `resolveAIWindows` is not exported, so its loop is reproduced
+     verbatim; every seat here is AI, so it must drain in a couple of turns. On the old guard each call
+     returns a truthy refusal, the loop cannot break, and it exits at its 64-iteration guard with the window
+     STILL OPEN — no error, no log line, a table nobody can act on. Assert the iteration count too: a loop
+     that terminates at 64 and one that terminates at 2 both leave `respondFor` null once the guard trips. */
+  var g3 = rig(), spins = 0;
+  while (g3.respondFor != null && spins++ < 64) { var rr = AI.respondDecision(g3, g3.respondFor); if (!rr) break; }
+  ok(spins < 10,
+     'P1: the AI window loop DRAINS an objectless window instead of spinning to its guard (' + spins + ' iterations)' +
+     (spins < 10 ? '' : '  ← REPRODUCED: 64 refusals, then the loop gives up with the window still owed'));
+  ok(g3.respondFor === null,
+     'P1: …and it ends with no window owed' + (g3.respondFor === null ? '' : '  ← still owed by seat ' + g3.respondFor));
+})();
+
 // ===== BACK STAB / OUTBALANCE REDESIGN (v1.31.4) + the AI timing model =====
 (function () {
   function mkc(r, su) { return { rank: r, suit: su, id: '' + r + su }; }

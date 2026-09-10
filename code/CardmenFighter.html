@@ -3038,8 +3038,17 @@
     return (st.stack || []).filter(function (o) { return o.kind === 'effect' && !o.countered; });
   }
 
+  /* THE WINDOW IS `respondFor`; `pending` IS ONLY THE OBJECT IT IS ABOUT (epic step 11, prerequisite P1).
+     A Fight End go-round runs on an EMPTY STACK, so it has a holder and no object — and both entry points
+     used to open `if (!st.pending || ...)`, which refuses exactly that window. The failure mode is not a
+     refusal anyone sees: `resolveAIWindows` (ai.js) loops `while (st.respondFor != null && !isHuman(...))`
+     and breaks only on a FALSY result, so a truthy `{ok:false}` spins it to its 64 guard and returns with
+     the window still open — a silently parked table, which is the failure this codebase detects worst.
+     `respondDecision` was taught the same distinction in step 4; this is the other half of it.
+     Casting into an empty stack is well defined and needs no special case: the push below makes an ordinary
+     object and `openResponseWindow` walks it from its controller like any other. */
   function respond(st, q, quickCardId, opts) {
-    if (!st.pending || st.respondFor !== q) return { ok: false, reason: 'No response window.' };
+    if (st.respondFor !== q) return { ok: false, reason: 'No response window.' };
     var qp = st.players[q];
     var qcard = qp.hand.filter(function (c) { return c.id === quickCardId; })[0];
     if (!qcard) return { ok: false, reason: "You don't hold that card." };
@@ -3065,10 +3074,11 @@
     return res;
   }
   // Player q passes the window: the top effect resolves (the controller had already passed by
-  // casting it), then priority re-opens for whatever is now on top.
+  // casting it), then priority re-opens for whatever is now on top. On an EMPTY stack (a Fight End
+  // go-round) there is nothing to resolve, so this just records the pass and closes the window —
+  // walking on to the next holder is the empty-stack go-round, still to be built (P2).
   function declineResponse(st, q) {
-    if (!st.pending || st.respondFor !== q) return { ok: false, reason: 'No response window.' };
-    var top = st.pending;
+    if (st.respondFor !== q) return { ok: false, reason: 'No response window.' };   // P1 — see `respond`
     if (!st.prioPassed) st.prioPassed = {};
     st.prioPassed[q] = true;                         // q passes; other opponents may still answer (N-player)
     st.pending = null; st.respondFor = null;
