@@ -83,6 +83,12 @@ node nettest_actloop.js                         # play must keep moving AFTER a 
 node nettest_version.js                         # the netplay build handshake, both seats + no false alarm (14)
 node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (36)
 node nettest_rules.js                           # custom rules over netplay: propagation + un-ready (20)
+node nettest_passoduel.js                       # PASSO IN A DUEL (epic step 13). `passoTakeover` is not gated
+                                                # to multiplayer, but `passoStep` only knew driveN's parks —
+                                                # a duel parks on `duelWait`/`netSettle`/`netGuard`/
+                                                # `netDiscard` and NOTHING answered them, so a dropped duel
+                                                # opponent deadlocked the table (measured: 1 host action,
+                                                # then 41 idle polls). Also asserts Passo DEFENDS (8)
 node shadowtest.js                              # THE SHADOW COMPARATOR (epic step 12): whoever the OLD Fight
                                                 # End guard whitelist lets answer, the NEW go-round must let
                                                 # answer too. Half A is EXHAUSTIVE (every card x 299 Form
@@ -1141,6 +1147,12 @@ cache is dropped on join and rejoin, so a reconnecting peer is never deduped aga
   all until the pipeline closes, and to a file Node block-buffers as well — so an empty output file at the
   two-minute mark is the NORMAL appearance of a healthy run. Check `ps`, never the output length, and never
   relaunch on the strength of a quiet file.
+  **A BACKGROUND WAITER IS NOT FREE, AND A DELETED FILE MAKES IT IMMORTAL.** Three `until grep ... /tmp/sw.txt`
+  waiters were still spinning an hour later, because the cleanup above had `rm -f /tmp/sw.txt` — the
+  condition they poll for can now never be true, so they never exit and the task list fills with work that
+  finished long ago. Aj saw the pile before I did. **Poll for a condition that can still become true, prefer
+  the task notification the harness already sends, and never delete the file something is waiting on.** One
+  waiter per thing waited on; `TaskStop` the rest.
   **AND `ps aux | grep -c '[n]ode sweep.js'` INSIDE A COMMAND SUBSTITUTION COUNTS ITSELF.** The bracket trick
   defeats the `grep` process but not the enclosing shell, whose command line also contains the pattern — so
   a clean machine reported "2 alive" twice and nearly earned a third round of `pkill -9`. This is the
@@ -1611,7 +1623,7 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 51 netplay suites: `nettest_3p` 7, `priosig` 11, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
+The 52 netplay suites: `nettest_3p` 7, `priosig` 11, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 14, `kick` 11, `log` 16, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
