@@ -83,6 +83,11 @@ node nettest_actloop.js                         # play must keep moving AFTER a 
 node nettest_version.js                         # the netplay build handshake, both seats + no false alarm (14)
 node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (36)
 node nettest_rules.js                           # custom rules over netplay: propagation + un-ready (20)
+node shadowtest.js                              # THE SHADOW COMPARATOR (epic step 12): whoever the OLD Fight
+                                                # End guard whitelist lets answer, the NEW go-round must let
+                                                # answer too. Half A is EXHAUSTIVE (every card x 299 Form
+                                                # contexts) and carries the claim; half B drives 600 real
+                                                # games and measures the widening. `GAMES=n` (7)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -1123,6 +1128,24 @@ cache is dropped on join and rejoin, so a reconnecting peer is never deduped aga
   **And when a report smells stale, run `cmp` — do not drop the hypothesis because the reporter says they are on
   the right branch.** They were. The file was not.
 - **NEVER REBUILD WHILE A BATCH IS RUNNING.** Three measurements were invalidated this way and had to be redone.
+  **AND THE GENERAL FORM, LEARNED THE EXPENSIVE WAY ON 2026-09-10: ONE SWEEP AT A TIME, AND NOTHING ELSE
+  TOUCHING THE MACHINE.** Three separate self-inflicted failures in one session, each of which first looked
+  like a product or suite problem: (1) `engine.js` was edited mid-sweep, so `versiontest`'s stale-build
+  assertion went red — correctly, about a file I had changed underneath it; (2) two netplay suites were run
+  by hand *during* a sweep, which is a port collision waiting to happen because `sweep.js` assigns ports on
+  the assumption it owns them; (3) **three sweeps were started concurrently** — output looked "empty"
+  because a pipe buffers until exit, so each apparent non-result prompted another launch — and they raced
+  for ports, producing `FAILED — 67/88` with a screen of `EADDRINUSE`. **A sweep is exclusive. Start one,
+  leave the machine alone, and read the pipe only when it exits.**
+  **A SWEEP THAT PRINTS NOTHING IS NOT A SWEEP THAT DID NOTHING.** `node sweep.js | tail -n` shows nothing at
+  all until the pipeline closes, and to a file Node block-buffers as well — so an empty output file at the
+  two-minute mark is the NORMAL appearance of a healthy run. Check `ps`, never the output length, and never
+  relaunch on the strength of a quiet file.
+  **AND `ps aux | grep -c '[n]ode sweep.js'` INSIDE A COMMAND SUBSTITUTION COUNTS ITSELF.** The bracket trick
+  defeats the `grep` process but not the enclosing shell, whose command line also contains the pattern — so
+  a clean machine reported "2 alive" twice and nearly earned a third round of `pkill -9`. This is the
+  self-matching trap already in this file under the busy-wait note, wearing a different hat: print the PIDs
+  (`awk '{print $2}'`) and look at them rather than trusting a count.
 - **COPY THE RETRY WHEN YOU ADD A HELPER.** `playAny`, `activateSpot` and `passTurn` were each written without
   the retry every other helper in `lessonlib` has, and each presented as a product bug. `passTurn` was worse than
   missing it: it reported success on ANY state change, so it masked real failures for several runs.
@@ -1584,7 +1607,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 437, `netview` 64, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 30, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 30, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
