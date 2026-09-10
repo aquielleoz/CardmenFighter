@@ -14,9 +14,11 @@ const OK = ['feat/', 'fix/', 'docs/', 'exp/', 'parked/', 'epic/'];   // keep in 
 const branch = (process.argv[2] || execSync('git rev-parse --abbrev-ref HEAD').toString()).trim();
 
 /* ---- THE INTEGRATION GATE: an epic and `main` MOVE ONLY THROUGH A PR (added 2026-09-10, Aj).
- * CLAUDE.md's epic rules already said "sub-branches PR INTO the epic, never into `main`" — and every merge
- * of `epic/priority-windows`, all eleven steps, was a local `git merge` pushed straight up. The rule was
- * prose, so it lasted exactly as long as the prefix rule did on the honour system.
+ * CLAUDE.md's epic rules already said "sub-branches PR INTO the epic, never into `main`". COUNTED rather
+ * than guessed, after the first version of this comment claimed all eleven steps had skipped it and Aj
+ * pointed at the PR list: steps 1-9 each had one (#184-#191), and FOUR merges skipped — two docs branches,
+ * plus the flag-residue fix and STEP 11, both on the day the gate was written. So the rule held for nine
+ * consecutive code steps and broke on the two fastest days, losing the merge the plan calls the cliff.
  * WHY A PUSH IS THE RIGHT THING TO CATCH, and it is the whole trick: a PR merge happens SERVER-SIDE, so a
  * correctly-run epic never receives a push from anyone's machine at all. "Did this branch move locally?" and
  * "did this skip its PR?" are therefore the same question, and this is the only hook that can see it.

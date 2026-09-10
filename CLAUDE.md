@@ -2149,11 +2149,18 @@ be one PR**; a branch that could have been a `feat/` and is called an `epic/` is
 bigger word. Four rules, and each is a way a long branch dies:
 - **Sub-branches PR INTO the epic, never into `main`.** The epic is the integration point; `main` sees exactly
   one merge, at the end.
-  **AND THAT IS A GATE NOW, BECAUSE AS PROSE IT SURVIVED ZERO SESSIONS (2026-09-10, Aj: *"i dont' see a pr
-  for step 11. can we make it a rule too that we must make prs to merge into epics?"*).** It was already
-  written here when `epic/priority-windows` was created, and then **all eleven step-merges were a local
-  `git merge` pushed straight up** — the prefix rule's exact history, repeated by the same mechanism a
-  fortnight later. `checkbranch.js` refuses a push to `main` or any `epic/*`.
+  **AND THAT IS A GATE NOW (2026-09-10, Aj: *"i dont' see a pr for step 11. can we make it a rule too that
+  we must make prs to merge into epics?"*).** `checkbranch.js` refuses a push to `main` or any `epic/*`.
+  **COUNTED, BECAUSE THE FIRST VERSION OF THIS PARAGRAPH GUESSED AND WAS WRONG.** I wrote *"all eleven
+  step-merges were a local `git merge`"*; Aj replied *"hmmm i can see prs for the previous steps tho"* and he
+  was right. The real split, from `git log --merges`: **steps 1-9 each had a PR (#184-#191). Four merges
+  skipped one** — two docs branches, and, on the day this was noticed, the flag-residue fix and **step 11
+  itself**. Four more are `main`-into-epic carries, which have no PR to skip.
+  **That is a sharper argument for the gate than the version I invented, not a weaker one:** the rule held
+  for nine consecutive code steps and then broke on the two days of fastest movement, and the merge it lost
+  was the one the plan calls *the cliff*. A rule that fails precisely when the work is hardest is worth
+  strictly more than one that never worked — and "it has been fine so far" is exactly the evidence that
+  makes people leave it on trust.
   **The thing it catches is the PUSH, and that is the whole trick: a PR merge happens SERVER-SIDE, so a
   correctly-run epic never receives a local push at all** — "did this branch move locally?" and "did this
   skip its PR?" are the same question, and pre-push is the only place that can see it. Creating an epic is
