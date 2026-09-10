@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.126**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.127**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -435,6 +435,22 @@ the landscape band lays it out horizontally. That, not the sizing cap, is what g
 - **THERE ARE TWO INVITE RENDERERS.** `renderHostRtcLobby` ("Invite a player") is the one a real host reaches;
   the BroadcastChannel path ("Step 1 — send this invite") is the other. A fix applied to one only looks
   untouched rather than broken. **`grep qrInto(` first.**
+
+**AN IPv6 CANDIDATE IS NOTHING BUT COLONS, AND `dec`'s TOLERANT EXTRACTOR DID NOT ALLOW ONE (v1.31.127).**
+The class `[A-Za-z0-9+/=,|~._-]` was written for IPv4 and mDNS — digits, dots, hyphens — so a code pasted
+inside a sentence stopped at the first `:` of an IPv6 srflx address: measured **274 chars -> 203** on a real
+offer. **The truncation is worse than a rejection**, because the surviving prefix still carries all seven
+`~` fields, so `unpackC1` SUCCEEDS and the failure surfaces two calls later as *"Could not read that invite
+code"* from `setRemoteDescription` — an error that blames the paste rather than the parse.
+**THE SAFETY ARGUMENT FOR `~` ALREADY ENUMERATED COLONS** (this file: *"an address is hex/dots/colons/
+hyphens"*) — the reasoning knew and the character class did not, which is the `.`-splitting bug of v1.31.46
+from the other end. When a note lists what a field can contain, check every regex that reads that field
+against the whole list.
+**IT IS INTERMITTENT BY NATURE, WHICH IS HOW IT SHIPPED.** Whether an IPv6 candidate is gathered depends on
+the network at that moment, so the same machine passes and fails on the same build hours apart — `sharetest`
+was green in one sweep and red in the next two, and the first instinct was to blame the change in flight.
+An A/B against `main` settled it in four minutes. **`sharetest` now APPENDS an IPv6 candidate to a real
+captured code**, so the case is deterministic on every machine rather than a coin flip on the network.
 
 **Feature-detect `getSupportedFormats()`, never the `BarcodeDetector` constructor** — it can exist without
 `qr_code`. That distinction is what cleared the decoder when `qr.js` itself was at fault, and it is the check
@@ -1673,13 +1689,13 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.126 — 2026-09-08, `npm run sweep`, 86 suites and 0 FAIL in 178s** (four lanes; background
+Status as of **v1.31.127 — 2026-09-10, `npm run sweep`, 86 suites and 0 FAIL in 182s** (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 437, `netview` 64, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 30, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 18, `fightendtest` 16, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 18, `fightendtest` 16, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

@@ -123,6 +123,23 @@ async function hostTo(page){
        /^C1~a~/.test(wrapped.reply) ? `a code pasted inside a sentence is accepted and produces a real ANSWER code (${wrapped.reply.length} chars)`
                                     : `rejected: "${(wrapped.err||'(no reply, no error)').slice(0,60)}" reply="${wrapped.reply.slice(0,40)}"`);
 
+    /* THE IPv6 CANDIDATE, STAGED — because the natural occurrence is a coin flip on the machine's network
+       and this repo has already filed one probabilistic assertion as a phantom product bug. The extractor's
+       character class omitted `:`, so a pasted-in-a-sentence code was truncated at the first colon of an
+       IPv6 srflx address (measured 274 chars -> 203) and `unpackC1` then SUCCEEDED on the mangled
+       remainder — the failure surfaced as "Could not read that invite code" out of setRemoteDescription,
+       blaming the paste rather than the parse.
+       APPENDING A CANDIDATE TO A REAL CODE, not synthesising a whole one: the ufrag, password and
+       fingerprint stay genuine, so the reply below proves the WHOLE path still works rather than proving
+       a regex in isolation. The address is unreachable and that is fine — setRemoteDescription and
+       createAnswer never try to reach it. Candidate shape is `udp,<type>,<addr>,<port>,` joined by `|`.
+       Before the fix this went red on any machine; after it, on every machine. */
+    const v6=code+'|udp,s,2405:8d40:4cc9:a3bf:908d:9e31:231e:524f,58541,';
+    const wrapped6=await feed(await joiner(), 'here you go: '+v6+'  \nsee you there');
+    ok(/^C1~a~/.test(wrapped6.reply),
+       /^C1~a~/.test(wrapped6.reply) ? `an IPv6 candidate survives the paste — colons are not a truncation point (${v6.length} chars)`
+                                     : `rejected an IPv6 code: "${(wrapped6.err||'(no reply, no error)').slice(0,60)}" — the extractor stopped at the first colon`);
+
     const junk=await feed(await joiner(), 'lol what code');
     ok(/not valid/i.test(junk.err) && !junk.reply,
        junk.err ? `while actual rubbish is still rejected — the tolerance is not a wildcard ("${junk.err.slice(0,44)}")`
