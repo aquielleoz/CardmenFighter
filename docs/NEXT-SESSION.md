@@ -82,21 +82,19 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Correctness
 
-- **★ THE FIGHT END PROMPT DEFAULT STILL DESCRIBES THE WINDOW STEP 18 DELETED — AJ'S CALL** (2026-09-10).
-  `promptDefault(card, eff, 'fightend')` in the template returns `E.immunityEffFor(...)`, chosen at step 15
-  so the defaults would reproduce "today's experience" exactly. Step 18 deleted the window that predicate
-  described. **Both cards the epic exists to fix are refused by it** — Sanctuary under Hector (the ♥K patch
-  is `{quick:true}` alone) and Armor Piercing under Hippolyta — so both are auto-declined by default and
-  the fix is invisible to a player who has not found the checkbox in the card reader. Proven end to end:
-  `fightenduitest`'s scenario C stages the lethal board with the prompt off, the player dies holding the
-  answer, and the ledger names the card.
-  **THIS IS A FEEL DECISION, NOT A BUG FIX, WHICH IS WHY IT IS HERE AND NOT DONE.** Aj's original framing
-  was *"by default, all prompts will be off"*; what shipped was *on for the timing the card already had*;
-  neither is obviously right now. The three options as put to him: leave it (no new noise, the reported
-  bugs stay invisible) · prompt on any card whose effect can change the Fight End outcome
-  (`immune`/`shieldImmune`/`cantLose`/`shield`/`onWin` rather than "is it an immunity card") · prompt on
-  everything (nothing hidden, and the annoyance he predicted). **Same species as epic step 21** and best
-  answered after he has played a solo game — the window now opens ~14x more often than the one it replaced.
+- **`lessontest_quicks` IS RED ~25% OF THE TIME AT `-j 4`, AND NEVER SERIALLY — MEASURED 2026-09-10.**
+  Eleven runs across one day, on three different builds: **2 red in 8 at four lanes, 0 red in 3 at `-j 1`.**
+  One of the reds was on `epic/priority-windows` before any of that day's prompt work, so it **predates**
+  the Fight End changes and is not caused by them.
+  **THE SHAPE IS IDENTICAL EVERY TIME — `PASS: 10  FAIL: 11`** — and it starts at one poll:
+  `⏱ poll TIMED OUT: the Respond? window opens`, after which every assertion that depends on that window
+  falls with it, ending in `lessonlib`'s two `finish()` failures. So there is ONE thing to find: why
+  `tutCastRivalTech`'s window does not open under load. The suite's own notes are the place to start —
+  that lesson has a documented history of the Rival's cast failing on energy (`tutCastRivalTech` used to
+  take `[0]` and give up) and of the lone 4♦ Counter Spell hiding behind a shield (`tutPullShield`).
+  **NOT the same failure as the entry below**, whose signature is the two completion assertions with
+  everything before them PASSING — that one points at a last `next()`, this one at a mid-lesson stall.
+  They may still share a cause; do not assume either way.
 
 - **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
   sweep during epic step 14; not reproduced since). The two failures were `lessonlib`'s shared `finish()`:
@@ -104,12 +102,8 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   them passed**, so the lesson ran its steps and then did not reach the completion modal — which points at
   the LAST `next()` not landing, not at a mid-lesson stall. `finish()` polls for a VISIBLE modal, so a
   timeout fails both (the second because `localStorage` was never written).
-  **A RELATED DATA POINT, NOT A MATCH (2026-09-10, later the same day):** `lessontest_quicks` went red at
-  `-j 4` on the epic with the same two `finish()` failures at the end — but ELEVEN failures in all, starting
-  from *"the Respond? window opens"* timing out, so its cause is a mid-lesson stall rather than a last
-  `next()`. It was 21/21 alone and 21/21 in the serial sweep immediately after, so that one is contention.
-  Recorded because it makes `lessontest_quicks` the first suite to look at if this recurs — not because it
-  closes this entry.
+  **See the `lessontest_quicks` entry above** — measured at ~25% under `-j 4` with a different signature.
+  It is the first suite to look at if this recurs, but it does not close this entry.
   **The suite name is unknown because I piped that sweep through `tail -4` and the summary line scrolled
   past** — `sweep.js` prints whole lines precisely so this evidence survives, and cropping it cost the
   identification. **Capture the full sweep log.**

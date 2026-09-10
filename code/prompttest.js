@@ -6,9 +6,12 @@
  * hold, every round.
  *
  * THE TWO CLAIMS THIS SUITE EXISTS FOR, and they pull in opposite directions:
- *   1. THE DEFAULT EXPERIENCE IS TODAY'S. Every prompt is on for the timing that card already had and off
- *      for the rest, so a player who never opens the reader sees no change at all. A suite that only proved
- *      the checkboxes work would happily pass on a build that had silenced Counter Spell.
+ *   1. EVERY LEGAL TIMING PROMPTS BY DEFAULT (changed 2026-09-10 — this claim used to read "the default
+ *      experience is today's", and the assertion carrying it now requires the OPPOSITE; see the long note
+ *      at `counterFightEnd` for why, because a reversed assertion with no reason is worse than none).
+ *      Aj: *"players can really look at all their cards and decide which effects to activate. legal mind
+ *      you at the timing it's being asked at."* A suite that only proved the checkboxes work would happily
+ *      pass on a build that had silenced a card.
  *   2. AN UNCHECKED TIMING IS AN AUTO-PASS, NOT A SKIPPED WINDOW. The window still opens and priority is
  *      genuinely passed — this is a notification layer, not a rules layer. Asserted as the game CONTINUING
  *      after the prompt is suppressed, because a window nobody answers looks identical to one nobody wanted
@@ -62,8 +65,8 @@ async function freshGame(p) {
     return {
       stored:        JSON.stringify(window.__solo.promptPrefs()),
       counterRespond: q(C(4, 'D'), 'respond'),    // Counter Spell — the classic response timing
-      counterFightEnd: q(C(4, 'D'), 'fightend'),  // …but NOT at Fight End: it guards nothing
-      leylineFightEnd: q(C(9, 'D'), 'fightend'),  // Leyline guards, so it still speaks — today's behaviour
+      counterFightEnd: q(C(4, 'D'), 'fightend'),  // …and NOW at Fight End too — see the assertion below
+      leylineFightEnd: q(C(9, 'D'), 'fightend'),  // Leyline guards, so it always spoke here
       leylineRespond:  q(C(9, 'D'), 'respond'),
       counterPrefight: q(C(4, 'D'), 'prefight'),  // not a lockout Quick — the timing is not even legal
     };
@@ -72,9 +75,23 @@ async function freshGame(p) {
   ok(D.stored === '{}', 'a fresh device stores NO preferences — every answer below is a default (' + D.stored + ')');
   ok(D.counterRespond === true, 'default: Counter Spell is still offered when a Technique is cast — today’s experience');
   ok(D.leylineFightEnd === true, 'default: Leyline still speaks when shields are about to break — today’s experience');
-  ok(D.counterFightEnd === false,
-     'default: Counter Spell does NOT newly prompt at Fight End' +
-     (D.counterFightEnd === false ? '' : '  ← the "annoying very quick" case: every Quick asking every round'));
+  /* THE POLICY CHANGED ON 2026-09-10, AND THIS ASSERTION IS WHERE IT IS RECORDED — it used to require the
+     OPPOSITE, and reversing it silently would erase the reason.
+     WHY IT WAS `false`: step 15's aim was that cards keep pinging exactly where they pinged before the
+     epic, and before the epic the Fight End window WAS the `immunityEffFor` whitelist. So `promptDefault`
+     asked that predicate.
+     WHY IT IS `true` NOW: step 18 DELETED that whitelist and the default went on describing it, which made
+     the two cards the epic exists to fix — Sanctuary under Hector, Armor Piercing under Hippolyta —
+     silently auto-declined by default. Aj's ruling: *"players can really look at all their cards and
+     decide which effects to activate. legal mind you at the timing it's being asked at."* Every legal
+     timing prompts; the checkbox is noise reduction, not capability.
+     THE "annoying very quick" RISK IS REAL AND IS NOW THE PLAYER'S LEVER rather than ours — which is what
+     the checkboxes were built for. The suppression half is asserted further down, both ways, and
+     `fightenduitest` scenario C proves an unchecked card is RECORDED in the saved log rather than
+     vanishing without trace. */
+  ok(D.counterFightEnd === true,
+     'default: EVERY legal timing prompts — Counter Spell now speaks at Fight End too' +
+     (D.counterFightEnd === true ? '' : '  ← the default is filtered again; grep promptDefault for a predicate it should not be consulting'));
   ok(D.counterPrefight === false, 'a timing that is not legal for the card is never wanted (Counter Spell pre-fight)');
 
   /* ---- 2 · THE READER RENDERS THE ROWS, and only for Quicks. `promptLegal` decides which rows exist, so a

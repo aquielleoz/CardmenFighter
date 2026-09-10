@@ -1737,14 +1737,33 @@ __QR__
      are threatened and nothing else newly does. `immunityEffFor` is asked rather than restated: it is the
      engine's single definition of "can this card guard", and step 19 deletes it, at which point this
      default needs re-deriving rather than quietly meaning something else. */
-  function promptDefault(card, eff, timing){
-    if(timing==='fightend') return !!(state && E.immunityEffFor && E.immunityEffFor(state, YOU, card));
-    return true;
-  }
+  /* EVERY LEGAL TIMING PROMPTS BY DEFAULT (Aj, 2026-09-10: *"players can really look at all their cards and
+     decide which effects to activate. legal mind you at the timing it's being asked at"*).
+     THIS USED TO RETURN `immunityEffFor(...)` FOR `fightend` — the whitelist step 18 DELETED. It was right
+     when step 15 shipped: the aim was that cards keep pinging exactly where they pinged before the epic,
+     and before the epic the Fight End window WAS that whitelist. Step 18 removed the window and the default
+     went on describing it, so the two cards the whole epic exists to fix — Sanctuary under Hector, Armor
+     Piercing under Hippolyta — were both auto-declined by default and the fix was invisible to anyone who
+     had not found the checkbox. Neither step was wrong on its own; nothing connected them.
+     THE GENERAL FORM, worth more than this instance: **a default that CALLS A PREDICATE outlives the
+     predicate.** When you delete or widen a gate, grep for its name — anything still consulting it is now
+     describing a world that no longer exists.
+     WHAT THE CHECKBOX IS NOW: noise reduction, not capability. Holding priority means looking at your hand
+     and choosing; the preference decides only whether a window STOPS you. See `promptedQuicks`. */
+  function promptDefault(card, eff, timing){ return true; }
   function promptKeyOf(eff){ return eff && eff.id ? eff.id : null; }
   function promptWanted(card, timing){
     var eff=(state&&E.effectFor)?E.effectFor(state, YOU, card):E.effectOf(card);
     if(!promptLegal(card, eff, timing)) return false;
+    /* A SCRIPTED LESSON IS NOT INTERRUPTED BY A WINDOW IT DID NOT SCRIPT (2026-09-10). With every legal
+       timing prompting, the Fight End go-round stops the player at the END OF EVERY ROUND — and a tutorial
+       is a fixed sequence of gated steps, so an unscripted modal derails it. MEASURED, not reasoned:
+       `lessontest_twos` went red the moment the default flipped, on "the Rival leads 222 + a pair", with
+       `lessonlib` reporting three Respond? windows the lesson never asked for.
+       ONLY `fightend` IS SUPPRESSED. `respond` is what the Quicks lesson teaches and `prefight` is Back
+       Stab's; killing those would break the two lessons that exist to demonstrate a window. No lesson
+       teaches Fight End yet — when one does, this is the line it has to argue with. */
+    if(timing==='fightend' && typeof tutorialMode!=='undefined' && tutorialMode) return false;
     var k=promptKeyOf(eff), row=k?promptPrefs[k]:null;
     if(row && typeof row[timing]==='boolean') return row[timing];
     return promptDefault(card, eff, timing);
@@ -1754,7 +1773,16 @@ __QR__
     (promptPrefs[effId]=promptPrefs[effId]||{})[timing]=!!on;
     savePromptPrefs();
   }
-  // The offer list for a prompt: the engine's own eligibility, then the player's notification preference.
+  /* NOT THE OFFER LIST — THE STOP DECISION (Aj, 2026-09-10). Two questions were being answered by this one
+     filter: *"should this window stop me?"* (the checkbox) and *"once stopped, what may I play?"* (the
+     rules). Using it for both made unchecking a card UNCASTABLE — a capability gate wearing a
+     notification's clothes — so a card you had silenced could not be played even in a window you were
+     stopped for by something else. Every caller now renders the ENGINE's eligibility and uses this only to
+     decide whether to interrupt: an empty result is an auto-pass, a non-empty one opens the window with
+     everything legal in it. THREE CALLERS, enumerated rather than remembered (`grep promptedQuicks(`):
+     `promptHumanResponse`, `promptHumanPreFight`, and `promptHostPreFight` — that third one is the netplay
+     host's own seat and is exactly the site a two-of-three fix would have missed, which is v1.31.116's
+     lesson about fixing a property of a KIND. */
   function promptedQuicks(list, timing){ return (list||[]).filter(function(c){ return promptWanted(c, timing); }); }
 
   var pick=null;               // active selection: {kind:'discard'|'top', cardId, need, chosen:{}}
@@ -5034,15 +5062,15 @@ __QR__
        which is a real pass — on a client it goes over the wire — so an unchecked box never leaves a window
        unanswered. The timing is which window this is: no object means the Fight End go-round. */
     var promptTiming = pend ? 'respond' : (state.fightEnd ? 'fightend' : 'respond');
-    var eligible=eligibleQuicks();
-    var quicks=promptedQuicks(eligible, promptTiming);
+    var eligible=eligibleQuicks();                       // the engine's own answer — `canAddToStack`, mirrored
+    var quicks=promptedQuicks(eligible, promptTiming);   // the STOP decision only; the buttons below use `eligible`
     /* THE THREE OUTCOMES, AND TWO OF THEM ARE INVISIBLE ON SCREEN. "You held nothing" and "you held
        something and your own preference said don't ask" are the same silence to a player, and they are
        completely different bugs — the second is what hid Sanctuary. Recorded with the CARD NAMES so a
        saved log answers "should I have been offered this?" without a repro. */
     var feNames=function(list){ return list.map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return (e&&e.name)||c.id; }).join(', '); };
     if(promptTiming==='fightend'){
-      if(quicks.length) feNote('window SHOWN to you', 'offering: ' + feNames(quicks));
+      if(quicks.length) feNote('window SHOWN to you', 'offering: ' + feNames(eligible) + (eligible.length>quicks.length ? '  (stopped by: ' + feNames(quicks) + ')' : ''));
       else if(eligible.length) feNote('AUTO-PASSED for you — PROMPT OFF', 'you could have cast: ' + feNames(eligible) + '  (card reader → “when shields are about to break”)');
       else feNote('auto-passed for you', 'nothing castable in hand');
     }
@@ -5103,7 +5131,7 @@ __QR__
        then DESCRIBED with its base effect: the button read "Technique" for a card the game was treating as a
        Quick, with the base cost and base text beside it. Offered right, labelled wrong — which is worse than
        either, because the label is what the player decides on. */
-    quicks.forEach(function(c){ var ef=E.effectFor(state, YOU, c)||E.effectOf(c);
+    eligible.forEach(function(c){ var ef=E.effectFor(state, YOU, c)||E.effectOf(c);
       /* A COUNTER WITH A REAL CHOICE GETS ONE BUTTON PER TARGET (epic step 8). Since step 6 a player can
          hold priority and stack two Quicks, so "counter the thing beneath me" stops being unambiguous — and
          the choice has to be made BEFORE the card goes on the stack, which is why it is a button rather than
@@ -5176,11 +5204,15 @@ __QR__
   function promptHumanPreFight(g){
     var clientNet = (typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive());
     if(!clientNet && g!==gen) return;
-    var quicks=promptedQuicks(eligiblePreFightQuicks(), 'prefight');   // step 15: unchecked → the auto-pass below
+    /* Same split as `promptHumanResponse`, and Aj was explicit that this is not a Fight End rule: it is
+       what holding priority means, at every window. (`eligiblePreFightQuicks` is itself still narrowed to
+       `lockout` today — epic step 20 widens it. This changes the FILTER, not the eligibility.) */
+    var pfEligible=eligiblePreFightQuicks();
+    var quicks=promptedQuicks(pfEligible, 'prefight');   // the STOP decision only
     if(!quicks.length){ if(clientNet){ NET.clientSend({op:'prefightPass'}); busy=true; render(); return; } E.preFightPass(state, YOU); return resumeRival(g); }
     var html='<h2>Rival is about to fight</h2><p>They hold the initiative. Spring a Quick to lock their turn before they play?</p>'+tableContextHTML()+'<div class="respOpts">';
     // `effectFor`: Back Stab is only a Quick under Hermes, so the base effect names the wrong type and cost
-    quicks.forEach(function(c){ var ef=E.effectFor(state, YOU, c)||E.effectOf(c); html+='<button class="respQuick" data-id="'+c.id+'">'+ef.name+' · '+cardSym(c)+' ('+ef.cost+'⚡)<span class="respTxt">'+ef.text+'</span></button>'; });
+    pfEligible.forEach(function(c){ var ef=E.effectFor(state, YOU, c)||E.effectOf(c); html+='<button class="respQuick" data-id="'+c.id+'">'+ef.name+' · '+cardSym(c)+' ('+ef.cost+'⚡)<span class="respTxt">'+ef.text+'</span></button>'; });
     html+='<button id="pfDecline" class="respLet">Let them fight</button></div>'+peekBtnHTML();
     showModal(html); wirePeek();
     Array.prototype.forEach.call(document.querySelectorAll('.respQuick'), function(btn){
@@ -8871,11 +8903,12 @@ __QR__
       busy=true; $('rivalStatus').textContent=seatName(q)+' may spring Back Stab…'; render(); reassertMirror(); startParkBeat(); maybePasso(q);
     }
     function promptHostPreFight(g, proceed){
-      var quicks=promptedQuicks(eligiblePreFightQuicks(), 'prefight');   // step 15: the host's own seat, same rule
+      var pfEligible=eligiblePreFightQuicks();
+      var quicks=promptedQuicks(pfEligible, 'prefight');   // the host's own seat — the STOP decision only, same rule
       if(!quicks.length){ E.preFightPass(hostState, YOU); return proceed(); }
       var html='<h2>'+seatName(hostState.turn)+' is about to fight</h2><p>Spring a Quick to lock their turn before they play?</p>'+tableContextHTML()+'<div class="respOpts">';
       // `effectFor` on the HOST's own seat — same trap, same fix as the two in the main script
-      quicks.forEach(function(c){ var ef=E.effectFor(hostState, YOU, c)||E.effectOf(c); html+='<button class="respQuick" data-id="'+c.id+'">'+ef.name+' · '+cardSym(c)+' ('+ef.cost+'⚡)<span class="respTxt">'+ef.text+'</span></button>'; });
+      pfEligible.forEach(function(c){ var ef=E.effectFor(hostState, YOU, c)||E.effectOf(c); html+='<button class="respQuick" data-id="'+c.id+'">'+ef.name+' · '+cardSym(c)+' ('+ef.cost+'⚡)<span class="respTxt">'+ef.text+'</span></button>'; });
       html+='<button id="pfDecline" class="respLet">Let them fight</button></div>'+peekBtnHTML();
       showModal(html); wirePeek();
       Array.prototype.forEach.call(document.querySelectorAll('.respQuick'), function(btn){

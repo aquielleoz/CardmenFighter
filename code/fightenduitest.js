@@ -73,13 +73,12 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
       st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.fightEnd = null; st.fightEndResult = null;
       const cards = [C(9, 'C', 'x'), C(9, 'S', 'y')];
       st.pile = { p: 1, byPlayer: 1, combo: { type: 'pair', size: 2, value: 9, key: [9], cards: cards } };
-      /* SWITCH THE FIGHT END PROMPT ON EXPLICITLY, because the DEFAULT does not cover this card and that
-         is a finding rather than a detail: `promptDefault(card, eff, 'fightend')` returns
-         `immunityEffFor(...)` — the OLD WHITELIST — so by default a player is asked at Fight End only
-         about the cards the deleted gate used to admit. Sanctuary-under-Hector is precisely a card that
-         predicate refuses, so the epic's headline fix is auto-declined for anyone who has not found the
-         checkbox. This suite tests the MECHANISM; whether the default should move is Aj's call and is
-         recorded in the BACKLOG. Turning it on here is the honest way to keep the two questions apart. */
+      /* SET THE PREFERENCE EXPLICITLY RATHER THAN LEANING ON THE DEFAULT, so this suite tests the
+         MECHANISM and `prompttest` owns the policy. It matters that they stay separate: when this file was
+         written the default was `immunityEffFor` — the whitelist step 18 deleted — and it auto-declined
+         both of the cards the epic exists to fix. That is what scenario C below caught. The default is
+         now "every legal timing prompts" (Aj, 2026-09-10), so `true` here is a no-op; it stays because a
+         suite that silently depends on a default cannot tell you when the default moves. */
       window.__solo.setPromptPref('H10', 'fightend', !!prompt);
       window.__solo.render();
       const sanc = you.hand[0];
@@ -238,6 +237,54 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     ok(!!line && /Sanctuary/.test(line),
        'C · …and the ledger names the card you were never asked about — the evidence that did not exist before' +
        (line ? '  [' + line.slice(0, 110) + ']' : '  ← no PROMPT OFF line; a saved log still cannot tell this from "held nothing"'));
+    await p.close(); }
+
+  // ------------------------------------------------- D · AN UNCHECKED CARD IS STILL CASTABLE
+  /* THE HALF AJ ASKED FOR, and the one no suite covered: *"players can really look at all their cards and
+     decide which effects to activate."* One filter was answering two questions — should this window stop
+     me, and what may I play once stopped — so unchecking a card made it UNCASTABLE, a capability gate
+     wearing a notification's clothes. You could be stopped by card X and find card Y missing from the
+     window even though the engine says it is legal.
+     STAGED WITH TWO QUICKS AND ONE OF THEM SILENCED, which is the only shape that can tell the two apart:
+     the window must still open (Leyline stopped you) AND Sanctuary must still be on offer (the rules say
+     it is legal). With the old behaviour the window opens and Sanctuary is simply absent — every
+     one-sided version of this test passes on that build. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('D: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'D · a board for the two-Quick case');
+    const st = await p.evaluate(() => {
+      const st = window.__solo.st(), E = window.CardmenEngine;
+      const C = (r, s, t) => ({ rank: r, suit: s, id: (t || '') + r + s });
+      const you = st.players[0], riv = st.players[1];
+      you.shields = 2; riv.shields = 4;
+      /* Leyline is the ♦9, NOT the ♥9 — the Cleric block swaps 9/10 so ♥9 is Holy Shroud and ♥10 is
+         Sanctuary. Measured; the first draft of this scenario guessed ♥9 and staged a card that is not a
+         Quick at all, which made the window fail to open for a reason that had nothing to do with the
+         claim. Costs need their OWN suit's pips, so the energy is mixed. */
+      you.hand = [C(10, 'H', 'sanc'), C(9, 'D', 'ley')];    // Sanctuary (Quick via Hector) + Leyline (Quick at base)
+      you.energy = [];
+      for (let i = 0; i < 12; i++) you.energy.push(C(3, 'H', 'eh' + i));
+      for (let i = 0; i < 12; i++) you.energy.push(C(3, 'D', 'ed' + i));
+      you.forms = [C(13, 'H', 'hector')];
+      riv.hand = []; riv.energy = [];
+      st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = 1; st.preFightHandled = true;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.fightEnd = null; st.fightEndResult = null;
+      st.pile = { p: 1, byPlayer: 1, combo: { type: 'pair', size: 2, value: 9, key: [9], cards: [C(9, 'C', 'x'), C(9, 'S', 'y')] } };
+      window.__solo.setPromptPref('H10', 'fightend', false);   // SILENCED — must not stop me, must still be playable
+      window.__solo.setPromptPref('D9', 'fightend', true);     // this one is what opens the window
+      window.__solo.render();
+      return { eligible: E.eligibleQuicks ? null : null,
+               sancQuick: !!(E.effectFor(st, 0, you.hand[0]) || {}).quick,
+               leyQuick: !!(E.effectFor(st, 0, you.hand[1]) || {}).quick };
+    });
+    ok(st.sancQuick && st.leyQuick, `D · staged — both cards are legal Quicks here (Sanctuary ${st.sancQuick}, Leyline ${st.leyQuick})`);
+    await p.evaluate(() => document.getElementById('passBtn').click());
+    ok(await until(async () => !!(await modalText(p))), 'D · the window still opens — the un-silenced card stopped you');
+    const offered = await quickBtns(p);
+    ok(offered.some(t => /Leyline/i.test(t)), 'D · …and Leyline, the card that stopped you, is offered');
+    ok(offered.some(t => /Sanctuary/i.test(t)),
+       'D · …AND THE SILENCED CARD IS STILL ON OFFER — the checkbox is notification, not capability' +
+       (offered.some(t => /Sanctuary/i.test(t)) ? '' : '  ← unchecking made it unplayable; the offer list is being filtered by the prompt preference again  [' + offered.join(' | ').slice(0, 80) + ']'));
     await p.close(); }
 
   ok(errs.length === 0, 'no JS errors' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));

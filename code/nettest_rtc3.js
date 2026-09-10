@@ -1,7 +1,7 @@
 /* N-PLAYER over REAL WebRTC (3 players, host-centered star): the host runs a hub, inviting two players via two
  * separate offer/answer exchanges, then starts a 3-Rider game. Verifies multi-peer signaling, per-seat mirror
  * routing (no cross-peer hand leak), N-player turns, and round sync — all over DataChannels, no server. */
-const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const http=require('http'),fs=require('fs'),path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const autoAnswerWindows=require('./netwindows.js'); const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8296),ROOM='RT3'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&stun=0&dbg=1`;
@@ -40,6 +40,11 @@ async function invite(host, client, prevOffer){
   const c1=await ctx.newPage(); c1.on('pageerror',e=>errs.push('c1: '+e.message));
   const c2=await ctx.newPage(); c2.on('pageerror',e=>errs.push('c2: '+e.message));
   await host.goto(url('rtchost')); await c1.goto(url('rtcjoin')); await c2.goto(url('rtcjoin')); await host.waitForTimeout(800);
+  /* ANSWER WINDOWS THIS SUITE DOES NOT SCRIPT — see `netwindows.js`. The duel suites get this from
+     `startDuel`; the 3-player ones hand-roll their lobby, so they install it themselves. Without it a
+     client seat offered priority at Fight End parks the host forever: `nettest_3p` hung 4 times in 8
+     runs the day the prompt default widened, against 8/8 on the build before it. */
+  await autoAnswerWindows(host,'host'); await autoAnswerWindows(c1,'c1'); await autoAnswerWindows(c2,'c2');
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
 
   // Invite player 1.
