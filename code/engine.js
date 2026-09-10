@@ -1838,16 +1838,44 @@
    * `wouldBeSaved` says only `cantLose` (or a Holy Shroud absorb) can stop, because plain shield-immunity
    * cannot save a shield you do not have. Apollo grants immunity, not `cantLose`, so Sanctuary is correctly
    * still not offered against a kick. */
+  /* A SHIELD GAIN IS A GUARD TOO (v1.31.114). Aj's call, and the reasoning is about the PLAYER rather than the
+   * board: *"for human's, having the option to use it when you are about to lose a shield is good — regardless
+   * of how the table looks. it also makes the quick make more sense... really since it's a quick it should be
+   * offered everywhere the player gets priority."* Hector makes Sanctuary a Quick but grants no immunity, so a
+   * window built only for PREVENTION refused the one card the Form had just handed the player for this moment.
+   * **Whether it is a GOOD idea is deliberately not our call.** In a duel `shieldAll` means the Rival gains one
+   * too, so at 1+ shields it is a wash for you and a gift to them — and at 0 shields it converts a Fighter
+   * KICK into an ordinary strip, which is your life. Offering it and letting the player read the table is the
+   * point; gating it to 0 shields was proposed and rejected as deciding for them. */
+  function guardGain(e) { return !!(e && e.kind === 'shield' && (e.shield || 0) > 0); }
   function guardEffFor(st, q, card) {
     var e = effectFor(st, q, card);
     if (!e || !e.impl) return null;
-    return (e.immune || e.shieldImmune) ? e : null;
+    return (e.immune || e.shieldImmune || guardGain(e)) ? e : null;
   }
   // A held card that can be SPRUNG in response to a shield threat to become immune this round (Leyline Ascension).
   // needCantLose: at 0 shields the threat is a KICK, so only a "can't lose this round" card qualifies.
   function shieldGuardCard(st, q, needCantLose) {
     var pl = st.players[q];
-    return pl.hand.filter(function (c) { var e = guardEffFor(st, q, c); return e && (!needCantLose || e.cantLose) && canAfford(pl, c); })[0] || null;
+    /* AT 0 SHIELDS THE THREAT IS THE KICK, and what stops it is NOT what stops an ordinary strip: `wouldBeSaved`
+       allows only `cantLose` (or a Holy Shroud absorb) because plain immunity cannot save a shield you do not
+       have — but a GAIN can, by making you no longer at zero, so the strike takes the new shield instead of
+       your life. So the kick set is `cantLose` OR a gain, and plain `shieldImmune` is still correctly refused. */
+    var ok = pl.hand.filter(function (c) {
+      var e = guardEffFor(st, q, c);
+      if (!e || !canAfford(pl, c)) return false;
+      return needCantLose ? (e.cantLose || guardGain(e)) : true;
+    });
+    if (!ok.length) return null;
+    /* PREVENTION BEATS A GAIN when the seat holds both, because prevention is strictly better — no shield is
+       lost and no Rival gains one. The window carries a single `guardId`, so this is the ONE place that choice
+       is made; offering the worse card because it sorted first in hand would be a silent downgrade. */
+    var best = null, bestRank = -1;
+    ok.forEach(function (c) {
+      var e = guardEffFor(st, q, c), rank = e.cantLose ? 3 : ((e.immune || e.shieldImmune) ? 2 : 1);
+      if (rank > bestRank) { bestRank = rank; best = c; }
+    });
+    return best;
   }
   // ---- shield-loss stack (the priority backbone; §STACK-DESIGN) ----
   // A shield loss is a stack object; the threatened player may respond (spring Leyline) before it
@@ -1993,12 +2021,18 @@
     var eff = guardEffFor(st, q, card);
     if (!eff) return { ok: false, reason: 'That card cannot guard a shield.' };
     if (!canAfford(pl, card)) return { ok: false, reason: 'Not enough Fighter Energy (need ' + costHint(card) + ').' };
+    /* WHAT ACTUALLY HAPPENED, so the UI cannot claim "the shield holds" for a card that did not hold it.
+       A prevention fizzles the loss; a GAIN lets it resolve against the shield just gained. Measured from the
+       state rather than inferred from the effect, because the two can coincide (a gain while already immune). */
+    var before = pl.shields, wasAt0 = before <= 0;
     pl.hand = pl.hand.filter(function (c) { return c.id !== cardId; });
     payEnergy(pl, card);
     resolveEffect(st, q, card, eff, {});                                     // reclaim + round-long shield immunity
     st.shieldResponse = null;
-    var res = driveShieldStack(st);                                          // the guarded object now fizzles (immune)
+    var res = driveShieldStack(st);                                          // the guarded object now fizzles (immune) — or lands on the new shield
     res.guarded = true; res.guardName = eff.name; res.guardedBy = q;
+    res.guardHeld = st.players[q].shields >= before;                         // no NET shield lost
+    res.guardSurvivedKick = wasAt0 && !st.players[q].eliminated;             // a gain turned the Fighter Kick into a strip
     return res;
   }
   // Decline the shield-guard window: take the hit (resolve the object), then finish the round.
