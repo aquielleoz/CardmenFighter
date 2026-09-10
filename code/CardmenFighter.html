@@ -666,6 +666,13 @@
   body.spectating #turnTag{ color:var(--gold); }
   #hand .card.notpick{opacity:.3; filter:grayscale(.7); cursor:default;}   /* dig discard: cards not among the looked-at set are not selectable */
   .cvReminder{ font-style:italic; }   /* REMINDER text (how the game treats this card) vs EFFECT text (what the card does) */
+  /* Prompt preferences (epic step 15). Visually SEPARATED from the card's own text by a rule, because it is
+     a setting about the player, not a property of the card — the same distinction .cvReminder draws. */
+  .cvPrompts{ margin-top:8px; padding-top:7px; border-top:1px solid var(--line); }
+  .cvPromptsHead{ font-size:11px; opacity:.75; margin-bottom:4px; }
+  .cvPromptRow{ display:flex; align-items:center; gap:6px; font-size:11px; padding:2px 0; cursor:pointer; }
+  .cvPromptRow input{ margin:0; flex:0 0 auto; }
+  .cvPromptsNote{ font-size:10px; opacity:.55; font-style:italic; margin-top:4px; }
   #hand .card.boosted{filter:drop-shadow(0 0 6px rgba(150,140,240,.95));}   /* REWORK: a Form is empowering this card */
   #hand .card.transformReady{ animation:transformPulse 1.4s ease-in-out infinite; }   /* REWORK: a J/Q/K you can transform right now */
   @keyframes transformPulse{ 0%,100%{ filter:drop-shadow(0 0 4px rgba(255,196,60,.75)); } 50%{ filter:drop-shadow(0 0 10px rgba(255,196,60,1)); } }
@@ -5692,6 +5699,61 @@ window.CardFace = {};
   var hintsOn=false; try{ hintsOn = localStorage.getItem(HINTS_KEY)==='1'; }catch(e){}   // play hints — DEFAULT OFF (opt-in guidance)
   var PULSE_KEY='cmf_pulse_detail_v1';
   var pulseDetail=false; try{ pulseDetail = localStorage.getItem(PULSE_KEY)==='1'; }catch(e){}   // detailed energy pulses — DEFAULT OFF (net delta); Settings toggles it
+  /* ---- PROMPT PREFERENCES (epic step 15, Q11). Aj: *"i imagine that it will get annoying very quick (pun
+     intended). by default, all prompts will be off, but in the card reader box you can check when you'd like
+     to be prompted."*
+     THIS IS A NOTIFICATION LAYER, NOT A RULES LAYER. The window opens and priority is genuinely passed
+     whatever these say; an unchecked timing is an **auto-pass**, exactly as if you had clicked through it.
+     That falls out for free rather than being built: `promptHumanResponse` already declines for you when the
+     offer list is empty, and on a client that decline goes over the wire — so netplay sees a seat that
+     PASSED, never a seat that was never asked, which is the thing the design says must not break.
+     WHY THE FILTER IS NOT INSIDE `eligibleQuicks`: that function is documented as matching the engine's
+     `canAddToStack` EXACTLY, and v1.31.120 fixed a real bug caused by it drifting. It stays the engine
+     mirror; this filters the mirror's OUTPUT at the prompt sites, so the invariant stays legible.
+     ONLY OVERRIDES ARE STORED. Writing the resolved value would freeze today's defaults into every device
+     forever — a later change to what a card does by default could then never reach anyone who had opened
+     the reader once. Absent key = "use the default", which is also why clearing the store restores today. */
+  var PROMPT_KEY='cmf_prompts_v1';
+  var promptPrefs={}; try{ promptPrefs=JSON.parse(localStorage.getItem(PROMPT_KEY)||'{}')||{}; }catch(e){ promptPrefs={}; }
+  function savePromptPrefs(){ try{ localStorage.setItem(PROMPT_KEY, JSON.stringify(promptPrefs)); }catch(e){} }
+  // the timings a Quick can be offered at, in the order they occur in a round
+  var PROMPT_TIMINGS=[
+    { id:'prefight', label:'Before an opponent fights' },
+    { id:'respond',  label:'When a Technique is cast' },
+    { id:'fightend', label:'When shields are about to break' }
+  ];
+  // Is this timing even legal for this card? A no-row is not the same as an unchecked row.
+  function promptLegal(card, eff, timing){
+    if(!eff || !eff.impl || !eff.quick) return false;
+    if(timing==='prefight') return eff.kind==='lockout';     // matches `eligiblePreFightQuicks`
+    return true;                                             // respond + fightend take any Quick
+  }
+  /* THE DEFAULT IS "THE TIMING THAT CARD ALREADY HAD", so the out-of-the-box experience is today's:
+     every Quick already prompts on a cast and a lockout Quick already prompts pre-fight, while the Fight End
+     window today offers ONLY the guard whitelist — so Leyline and Sanctuary still speak when your shields
+     are threatened and nothing else newly does. `guardEffFor` is asked rather than restated: it is the
+     engine's single definition of "can this card guard", and step 19 deletes it, at which point this
+     default needs re-deriving rather than quietly meaning something else. */
+  function promptDefault(card, eff, timing){
+    if(timing==='fightend') return !!(state && E.guardEffFor && E.guardEffFor(state, YOU, card));
+    return true;
+  }
+  function promptKeyOf(eff){ return eff && eff.id ? eff.id : null; }
+  function promptWanted(card, timing){
+    var eff=(state&&E.effectFor)?E.effectFor(state, YOU, card):E.effectOf(card);
+    if(!promptLegal(card, eff, timing)) return false;
+    var k=promptKeyOf(eff), row=k?promptPrefs[k]:null;
+    if(row && typeof row[timing]==='boolean') return row[timing];
+    return promptDefault(card, eff, timing);
+  }
+  function setPromptPref(effId, timing, on){
+    if(!effId) return;
+    (promptPrefs[effId]=promptPrefs[effId]||{})[timing]=!!on;
+    savePromptPrefs();
+  }
+  // The offer list for a prompt: the engine's own eligibility, then the player's notification preference.
+  function promptedQuicks(list, timing){ return (list||[]).filter(function(c){ return promptWanted(c, timing); }); }
+
   var pick=null;               // active selection: {kind:'discard'|'top', cardId, need, chosen:{}}
   var formsOpen=null;          // which Forms & Rides zone is expanded to full cards — a seat key like 'p0'/'p2', or null (collapsed to chips)
   var equipOpen=null;          // …and the same for the equipment zone (v1.31.110): tap the chip, see the card
@@ -7009,6 +7071,16 @@ window.CardFace = {};
     if(art){ af.className='cfArt'; af.style.backgroundImage='url("'+art+'")'; } else { af.className='cfArt empty'; af.style.backgroundImage=''; }
     tx.innerHTML=cardTextHTML(cvCard);
   }
+  /* DELEGATED, because the reader is rebuilt on every hover and tap and there are TWO of them (`#cardView`
+     and the full-screen `#cardFull`). Wiring the inputs after each render would mean remembering both sites
+     forever; one document-level listener cannot go stale. `stopPropagation` keeps a tick from also being
+     read as a click on whatever the reader sits inside. */
+  document.addEventListener('change', function(ev){
+    var t=ev.target;
+    if(!t || !t.classList || !t.classList.contains('promptPref')) return;
+    ev.stopPropagation();
+    setPromptPref(t.getAttribute('data-eff'), t.getAttribute('data-timing'), t.checked);
+  });
   function openCardFull(){ renderCardFull(); $('cardFull').classList.add('show'); }
   /* TAP-TO-READ, WHEREVER THE READER ACTUALLY IS (Aj, 2026-09-07: *"when we click equipments on the board, can
      we open the card viewer?"*). On a screen where `#side` is hidden the 🔍 full reader IS the reader, so a tap
@@ -7045,6 +7117,25 @@ window.CardFace = {};
     var sym=E.costHint(card, _rd);                 // e.g. "1♦" or "1♦ + 3 any"
     var deltaNote=_rd?(' <span style="color:'+(_rd<0?'var(--good)':'var(--bad)')+'">(now '+_ec+' with your Ride)</span>'):'';
     return '<div class="cvCost"><b>Cost:</b> '+sym+' <span class="costSpell">('+spellCost(card,_rd)+')</span>'+deltaNote+'</div>';
+  }
+  /* WHEN DO YOU WANT TO BE ASKED ABOUT THIS CARD? (epic step 15). Only Quicks get this block — nothing else
+     can be cast into a window, so a checkbox there would describe a timing that cannot happen.
+     IT LIVES IN THE CARD READER because that is where a player is already asking "what does this do and
+     when" — Aj's own placement. It is READ-ONLY NOWHERE: unlike the rules panel this is a per-device
+     notification setting, so it stays editable mid-game and on a client, where the rules panel is not.
+     `data-eff` keys by EFFECT id, not card id, so the preference follows the card across copies (a class
+     deck holds four 4♦) and across games. */
+  function promptPrefsHTML(card, eff){
+    if(!eff || !eff.impl || !eff.quick) return '';
+    var rows=PROMPT_TIMINGS.filter(function(t){ return promptLegal(card, eff, t.id); });
+    if(!rows.length) return '';
+    var k=promptKeyOf(eff); if(!k) return '';
+    var html='<div class="cvPrompts"><div class="cvPromptsHead">Ask me to respond…</div>';
+    rows.forEach(function(t){
+      var on=promptWanted(card, t.id);
+      html+='<label class="cvPromptRow"><input type="checkbox" class="promptPref" data-eff="'+k+'" data-timing="'+t.id+'"'+(on?' checked':'')+'> <span>'+t.label+'</span></label>';
+    });
+    return html+'<div class="cvPromptsNote">Unchecked means the window still opens and you pass automatically — it never changes the rules.</div></div>';
   }
   function cardTextHTML(card){
     var eff=(state&&E.effectFor)?E.effectFor(state, YOU, card):E.effectOf(card);
@@ -7084,7 +7175,7 @@ window.CardFace = {};
       return '<div class="cvName">'+name+' · '+eff.name+'</div>'+
         '<div class="cvType">'+typeTxt+'</div>'+
         costLineHTML(card, eff)+
-        '<div class="cvBody">'+base.text+'</div>'+ upg;
+        '<div class="cvBody">'+base.text+'</div>'+ upg + promptPrefsHTML(card, eff);
     }
     /* THE APEX 2 GETS ITS RULES WHERE ITS EFFECT TEXT WOULD BE (Aj, 2026-09-01: *"we could put some of those
      * rules on the card... since you know, it does not have effect text"*). It is the only card in the game
@@ -8326,6 +8417,16 @@ window.CardFace = {};
        prompt can say out loud that the guard exists because of what is in your zone. */
     var guardCard=state.players[YOU].hand.filter(function(c){return c.id===sr.guardId;})[0];
     var geff=guardCard?E.effectFor(state, YOU, guardCard):{};
+    /* THE PROMPT PREFERENCE REACHES THIS WINDOW TOO (epic step 15), and it has to: this is the SAME timing
+       the reader's "when shields are about to break" row describes, and step 18 replaces this modal with
+       the Fight End go-round. Filtering only the go-round would ship a checkbox that does nothing today
+       and starts working three steps later — a dead control, which this codebase already treats as its own
+       kind of dead end. Unchecked is an AUTO-PASS, taken through the same path the button uses, so netplay
+       sees a seat that passed. */
+    if(guardCard && !promptWanted(guardCard, 'fightend')){
+      if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'guardPass'}); busy=true; render(); return; }
+      var apr=E.shieldGuardPass(state, YOU); say(YOU, '{who} took the hit.', 'dim'); return cont(apr);
+    }
     /* NAME THE SEAT, DO NOT SAY "Rival" (v1.31.120). At 3-6 players this modal read "Rival’s Special is about
        to strip one of your shields" — naming a player who is not at the table, and withholding the single fact
        you need to decide whether to spend the guard. `sr.winner` is the striker (this modal only opens for
@@ -8893,7 +8994,12 @@ window.CardFace = {};
        End go-round has none (step 11). Everything below is null-safe so the modal RENDERS rather than throwing
        — the Fight End WORDING is step 14's, and lands before step 18 makes such a window reachable. */
     var pend=state.pending||null, rivalEff=(pend&&E.effectOf(pend.card))||{}, rivalName=rivalEff.name||'a Technique';
-    var quicks=eligibleQuicks();
+    /* THE PROMPT-PREFERENCE FILTER (epic step 15). `eligibleQuicks` stays the engine mirror; this narrows
+       its output to what YOU asked to be asked about. An empty result falls into the auto-decline below,
+       which is a real pass — on a client it goes over the wire — so an unchecked box never leaves a window
+       unanswered. The timing is which window this is: no object means the Fight End go-round. */
+    var promptTiming = pend ? 'respond' : (state.fightEnd ? 'fightend' : 'respond');
+    var quicks=promptedQuicks(eligibleQuicks(), promptTiming);
     if(!quicks.length){ if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'decline'}); busy=true; render(); return; } E.declineResponse(state, YOU); return cont(); }   // nothing to answer with — auto-pass
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     /* WHO cast it and WHO it is aimed at were both missing — Aj: "who or what is being targetted? why should I
@@ -9023,7 +9129,7 @@ window.CardFace = {};
   function promptHumanPreFight(g){
     var clientNet = (typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive());
     if(!clientNet && g!==gen) return;
-    var quicks=eligiblePreFightQuicks();
+    var quicks=promptedQuicks(eligiblePreFightQuicks(), 'prefight');   // step 15: unchecked → the auto-pass below
     if(!quicks.length){ if(clientNet){ NET.clientSend({op:'prefightPass'}); busy=true; render(); return; } E.preFightPass(state, YOU); return resumeRival(g); }
     var html='<h2>Rival is about to fight</h2><p>They hold the initiative. Spring a Quick to lock their turn before they play?</p>'+tableContextHTML()+'<div class="respOpts">';
     // `effectFor`: Back Stab is only a Quick under Hermes, so the base effect names the wrong type and cost
@@ -12654,7 +12760,7 @@ window.CardFace = {};
       busy=true; $('rivalStatus').textContent=seatName(q)+' may spring Back Stab…'; render(); reassertMirror(); startParkBeat(); maybePasso(q);
     }
     function promptHostPreFight(g, proceed){
-      var quicks=eligiblePreFightQuicks();
+      var quicks=promptedQuicks(eligiblePreFightQuicks(), 'prefight');   // step 15: the host's own seat, same rule
       if(!quicks.length){ E.preFightPass(hostState, YOU); return proceed(); }
       var html='<h2>'+seatName(hostState.turn)+' is about to fight</h2><p>Spring a Quick to lock their turn before they play?</p>'+tableContextHTML()+'<div class="respOpts">';
       // `effectFor` on the HOST's own seat — same trap, same fix as the two in the main script
@@ -13440,7 +13546,11 @@ window.CardFace = {};
    * portrait phone and grew 87px -> 92px once a game started, leaving the boot-time value stale. Observe it. */
   if(window.ResizeObserver){ var hdEl=document.querySelector('header'); if(hdEl) new ResizeObserver(syncHeaderH).observe(hdEl); }
   if(!NET.boot()) openSetup();   // netplay when ?net= is present; otherwise the normal game (byte-identical)
+  /* Prompt-preference hooks (epic step 15). `promptPrefs` returns the STORED overrides, not the resolved
+     rows, because the suite's load-bearing assertion is that only overrides are stored. Duplicate-key check
+     run on this literal before adding — CLAUDE.md's `__cmf` trap applies here too. */
   if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render,
+    promptWanted:promptWanted, setPromptPref:setPromptPref, promptPrefs:function(){ return promptPrefs; }, showCard:showCard,
     /* Peek is only reachable from the end screen, so a suite would have to play a whole duel to get
      * there. These enter/leave it directly — the real functions, not a staged class list, which is the
      * distinction that matters: showModal's peek branch keys off the `peeking` VARIABLE. */
