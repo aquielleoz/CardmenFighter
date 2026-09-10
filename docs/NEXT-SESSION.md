@@ -33,21 +33,31 @@ commit sequence, and [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) — **wh
 the version is held until it merges, and `main` is merged **into** it after any session spent elsewhere
 (CLAUDE.md → "Branches and PRs").
 
-**⏭ STEP 18 IS BUILT AND MERGED (2026-09-10). NEXT UP IS STEP 19** — the deletion of the whitelist model,
-and **the point of no return**: up to and including 18 a revert is `git revert`, and after 19 it is a
-rebuild. Read step 19 in [`FIGHT-END-PLAN.md`](FIGHT-END-PLAN.md), which carries step 4's deferred sites
-and step 10's refactor as well as its own DELETE table.
+**⏭ STEP 18 IS BUILT AND MERGED, AND AJ HAS PLAYED IT SOLO (2026-09-10).** His game reached round 10 and
+ended on a FIGHTER KICK; the saved log shows the go-round running, the decline logged BEFORE the outcome
+(§3's ordering, in a real game), and the round resolving. **The solo half of step 18's gate is met.**
+**THE NETPLAY HALF IS NOT** — Aj's call is to do it once the epic is complete, since it needs two devices.
 
-**⚠ AND STEP 18 IS NOT CLOSED. ITS GATE NEEDS AJ:** *one real solo game and one two-device netplay game.*
-Suites cannot close it — they say the mechanism works, not whether it feels right or survives a phone.
-Aj's plan as of 2026-09-10 is netplay when the epic is complete, so the solo half is the one to chase.
-**Ask him for a saved battle log**: the download now carries a `--- FIGHT END WINDOWS ---` ledger (one line
-per sub-phase, naming who held priority and anything auto-passed for him), which is enough to answer "how
-often did it fire" and "was anything silently skipped" without a repro.
-**The thing to watch for is FREQUENCY, not correctness.** The go-round opens ~14x more often than the
-window it replaced, every legal timing now prompts by default (Aj chose that on 2026-09-10), and the
-checkbox in the card reader is the lever. If a solo game feels interrupted, that is the dial to turn, not
-a bug to file.
+**⚠ BUT THE BUILD HE PLAYED IS NO LONGER THE BUILD.** That one game produced three changes on top of 18:
+every legal timing now prompts by default and the offer list is the ENGINE's eligibility rather than the
+notification preference (#205); **targeting happens on cast**, so a Quick with no legal target cannot be
+cast at all (#207); and the saved log carries a full `--- PRIORITY WINDOWS ---` ledger. **A second solo
+game is worth ten minutes before step 19**, and asking him for the log costs nothing — the ledger now
+records every timing, what was offered, what was cast or declined, and every round resolution including
+the silent ones.
+
+**⏭ NEXT UP IS STEP 19** — the deletion of the whitelist model, and **the point of no return**: up to and
+including 18 a revert is `git revert`, and after 19 it is a rebuild. That is the real reason to get a
+second solo game first. Read step 19 in [`FIGHT-END-PLAN.md`](FIGHT-END-PLAN.md), which carries step 4's
+deferred sites and step 10's refactor as well as its own DELETE table.
+**AND READ 20b, WHICH IS NEW** — priority at Upkeep and Clean-up. Aj's ruling after finding the prompt
+rows incomplete; the model passes priority at five points and the engine implements three.
+
+**WHAT TO WATCH FOR IN A SOLO GAME: frequency, not correctness.** Measured on his game — the go-round
+opened in **2 of 10 rounds**, because it only opens when someone holds a castable Quick. Both prompts were
+useless, and both causes are now fixed (one was the targeting bug he spotted; the other, Leyline offered on
+a jab win with nothing at stake, he ruled **legal and not a bug** — the wording could improve). The dial is
+the card reader's checkbox, not a bug report.
 
 Other branches: **`feat/qr-scanning`** (parked) and **`exp/shield-gain-guard`** (an unreviewed recovered
 stash — it breaks the epic's step-12 proof; read its BACKLOG entry before resuming it). Each has an entry
