@@ -68,9 +68,16 @@ function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
   var g = E.newGame(null, { numPlayers: 3 });
   g.round = 3; g.turn = 1; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null;
   for (var i = 0; i < 3; i++) { g.players[i].hand = []; g.players[i].energy = []; g.players[i].shields = 3; }
-  // seat 1 holds ONLY Counter Spell — a Quick that guards nothing — and can afford it
-  g.players[1].hand = [sc(4, 'D', 'cs')];
-  for (var e = 0; e < 4; e++) g.players[1].energy.push(sc(4, 'D', 'e' + e));
+  /* SEAT 1 HOLDS ONLY HAND-TO-HAND MASTERY — a Quick that guards nothing, made Quick by the ♠K.
+     IT USED TO BE COUNTER SPELL, and that stopped staging the claim on 2026-09-10 when targeting became
+     part of casting: on an EMPTY stack a Counter Spell has no legal target and cannot be cast at all, so
+     the seat is correctly not offered and this canary would have gone red for a reason that has nothing
+     to do with the whitelist. The replacement is a STRONGER canary, not merely a working one — a
+     Form-granted Quick is exactly the kind the old `guardEffFor` refused (its patch is `{quick:true}`
+     alone), so it is the same species as Sanctuary-under-Hector rather than a base card. */
+  g.players[1].hand = [sc(3, 'S', 'hh')];
+  g.players[1].forms = [sc(13, 'S', 'spadeK')];
+  for (var e = 0; e < 6; e++) g.players[1].energy.push(sc(4, 'S', 'e' + e));
   g.pile = { p: 2, combo: { type: 'pair', size: 2, value: 9, cards: [sc(9, 'C', 'x'), sc(9, 'S', 'y')] } };
   g.lastPlayer = 2;
 
@@ -85,7 +92,7 @@ function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
       'reach this window, and every other Quick is silently unplayable at Fight End'));
 
   // and the window is genuinely answerable — a canary that opens a window nobody can use proves nothing
-  var rr = E.respond(g, 1, 'cs4D');
+  var rr = E.respond(g, 1, 'hh3S');
   ok(rr && rr.ok !== false, 'canary: …and they can actually cast into it' + (rr && rr.ok === false ? '  ← ' + rr.reason : ''));
 })();
 
@@ -98,9 +105,13 @@ function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
 (function () {
   var g = E.newGame(null, { numPlayers: 3 });
   g.round = 3; g.turn = 1; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null;
+  /* HAND-TO-HAND MASTERY under the ♠K, not Counter Spell — see the canary's note. It is the right card
+     for THIS block for a second reason: its effect is a draw, so it perturbs nothing the assertions read.
+     Leyline would be castable too and would PREVENT the very shield loss the outcome assertion checks. */
   for (var i = 0; i < 3; i++) {
-    g.players[i].hand = [sc(4, 'D', 'h' + i)];
-    g.players[i].energy = []; for (var e = 0; e < 4; e++) g.players[i].energy.push(sc(4, 'D', 'e' + i + e));
+    g.players[i].hand = [sc(3, 'S', 'h' + i)];
+    g.players[i].forms = [sc(13, 'S', 'k' + i)];
+    g.players[i].energy = []; for (var e = 0; e < 6; e++) g.players[i].energy.push(sc(4, 'S', 'e' + i + e));
     g.players[i].shields = 3;
   }
   g.pile = { p: 2, combo: { type: 'pair', size: 2, value: 9, cards: [sc(9, 'C', 'x'), sc(9, 'S', 'y')] } };
@@ -126,9 +137,13 @@ function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
 (function () {
   var g = E.newGame(null, { numPlayers: 3 });
   g.round = 3; g.turn = 1; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null;
+  /* HAND-TO-HAND MASTERY under the ♠K, not Counter Spell — see the canary's note. It is the right card
+     for THIS block for a second reason: its effect is a draw, so it perturbs nothing the assertions read.
+     Leyline would be castable too and would PREVENT the very shield loss the outcome assertion checks. */
   for (var i = 0; i < 3; i++) {
-    g.players[i].hand = [sc(4, 'D', 'h' + i)];
-    g.players[i].energy = []; for (var e = 0; e < 4; e++) g.players[i].energy.push(sc(4, 'D', 'e' + i + e));
+    g.players[i].hand = [sc(3, 'S', 'h' + i)];
+    g.players[i].forms = [sc(13, 'S', 'k' + i)];
+    g.players[i].energy = []; for (var e = 0; e < 6; e++) g.players[i].energy.push(sc(4, 'S', 'e' + i + e));
     g.players[i].shields = 3;
   }
   g.pile = { p: 2, combo: { type: 'pair', size: 2, value: 9, cards: [sc(9, 'C', 'x'), sc(9, 'S', 'y')] } };

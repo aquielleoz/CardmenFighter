@@ -1335,9 +1335,42 @@
 
   // Can player q put a Quick on the stack right now (any affordable impl Quick)? Used to decide
   // whether to open a response window or AUTO-PASS them (priority auto-passes players with no action).
+  /* TARGETING HAPPENS ON CAST, SO NO LEGAL TARGET MEANS NO CAST (Aj, 2026-09-10: *"it has to target as part
+     of its casting right? and since there are no effects on the stack to target… it shouldn't be
+     castable"*). He found it in a real game: a Fight End go-round on an EMPTY stack offered him Counter
+     Spell as its only option. Measured before changing anything — the engine's own `counterTargets`
+     returned `[]`, `canAddToStack` said true anyway, and `respond` ACCEPTED the cast: hand -1, energy 8→4,
+     nothing countered. Not merely noise in the window; a trap that spends a card for nothing.
+     THREE OF THE SEVEN QUICKS TARGET, and two of them can genuinely have none — Counter Spell (an effect on
+     the stack) and Annoint (a `removeEquip` on the stack, else your own Equipment). Back Stab targets a
+     living rival, which only runs out when the game is already over.
+     WHY THIS IS THE ENGINE AND NOT THE UI. v1.31.120 removed a `protect` clause from `eligibleQuicks` and
+     recorded that *"offering a Quick that will fizzle is CORRECT, not a leak"* — but that was about the UI
+     NARROWING RELATIVE TO THE ENGINE, and its real lesson was **one predicate, two definitions**. Fixing it
+     here keeps that lesson: the UI still mirrors `canCastQuick` rather than restating a rule.
+     `canCastQuick` is the per-card predicate and `canAddToStack` is `some()` over it, so the seat-level and
+     card-level answers cannot drift — which they did before, since `eligibleQuicks` had its own copy. */
+  function quickTargets(st, q, eff) {
+    if (!eff) return null;                                                     // not a targeting effect — nothing to check
+    if (eff.kind === 'counter') return counterTargets(st);
+    if (eff.kind === 'protect') {
+      for (var j = st.stack.length - 1; j >= 0; j--) {                         // an incoming removeEquip is a legal target even with no equipment of your own
+        if (st.stack[j].kind === 'effect' && st.stack[j].eff.kind === 'removeEquip' && pickEquip(st, st.stack[j].p, st.stack[j].opts && st.stack[j].opts.target)) return [1];
+      }
+      return st.players[q].equipment.slice();
+    }
+    if (eff.kind === 'lockout') return hostileTargets(st, q, nextPlayer(st, q), 'lockout', eff);
+    return null;
+  }
+  function canCastQuick(st, q, card) {
+    var qp = st.players[q], e = effectFor(st, q, card);                        // effectFor: a Form can make a card Quick
+    if (!e || !e.impl || !e.quick || !canAfford(qp, card)) return false;
+    var t = quickTargets(st, q, e);
+    return t === null || t.length > 0;
+  }
   function canAddToStack(st, q) {
     var qp = st.players[q];
-    return qp.hand.some(function (c) { var e = effectFor(st, q, c); return e && e.impl && e.quick && canAfford(qp, c); });   // effectFor: a Form can make a card Quick
+    return qp.hand.some(function (c) { return canCastQuick(st, q, c); });
   }
   /* ONE GO-ROUND WALK, PARAMETERISED BY ITS ORIGIN (epic step 11, prerequisite P2).
      `PHASES-AND-PRIORITY.md` §2/§3: a go-round starts at the CONTROLLER of the top object, or at the ACTIVE
@@ -1512,6 +1545,12 @@
     var qeff = effectFor(st, q, qcard);                // effectFor: honor a Form that made this card Quick
     if (!qeff || !qeff.impl || !qeff.quick) return { ok: false, reason: 'That is not a Quick.' };
     if (!canAfford(qp, qcard)) return { ok: false, reason: 'Not enough Fighter Energy of the right suit.' };
+    /* AND NO LEGAL TARGET MEANS NO CAST — the refusal has to be REAL, not merely hidden from the UI. Before
+       this, `respond` accepted a Counter Spell into an empty stack and charged for it; a check that only
+       lived in `canAddToStack` would leave that reachable over the wire, where a client sends a card id.
+       `quickTargets` returns null for the four Quicks that do not target, so they are unaffected. */
+    var qTgt = quickTargets(st, q, qeff);
+    if (qTgt !== null && !qTgt.length) return { ok: false, reason: 'No legal target for ' + (qeff.name || 'that Quick') + '.' };
     /* VALIDATE THE TARGET BEFORE SPENDING ANYTHING. This block sat AFTER the hand and energy were taken, so
        a refused cast still cost the card — caught by the "nothing is spent on the refusal" assertion, which
        is exactly why that assertion is separate from the "was it refused" one. Names in, engine resolves;
@@ -2521,7 +2560,7 @@
     HOSTILE_SINGLE: HOSTILE_SINGLE,
     shieldGuard: shieldGuard, shieldGuardPass: shieldGuardPass, shieldGuardCard: shieldGuardCard,
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
-    canAddToStack: canAddToStack, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
+    canAddToStack: canAddToStack, canCastQuick: canCastQuick, quickTargets: quickTargets, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
     openFightEndWindow: openFightEndWindow,   // step 11: built and tested here, made live by step 18
     /* RENAMED FROM `guardEffFor` (epic step 16), and the rename is the point rather than tidying. As
        `guardEffFor` it was the WHITELIST GATE — the answer to "may this card be offered at the shield-guard

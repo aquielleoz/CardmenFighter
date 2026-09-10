@@ -76,7 +76,13 @@ const appliedCount=async p=>(await traceOf(p)).filter(l=>/mirror APPLIED/.test(l
     st.players[0].hand=[C(4,'D'),C(6,'C')];
     st.players[0].energy=[C(4,'D','e'),C(4,'D','e2'),C(4,'D','e3'),C(4,'D','e4')];
     const tele=C(3,'D','t');
+    /* THE OBJECT MUST BE ON THE STACK, not merely in `pending` (2026-09-10). A real mirror has both —
+       `pending` is the TOP of `st.stack`, not a separate slot — and this rig set only `pending`, which was
+       invisible until targeting became part of casting: `counterTargets` reads `st.stack`, found it empty,
+       so the staged Counter Spell became uncastable, no window opened, and the suite fell over on grant 1.
+       Staging half a board passes right up until something reads the other half. */
     st.pending={ oid:'oPRIO', kind:'effect', p:1, card:tele, eff:E.effectOf(tele), opts:{}, countered:false };
+    st.stack=[st.pending];
     st.respondFor=0;
     st.prioGen=g;                                  // absent entirely on a pre-fix build — that is the A/B
     st.finished=false;
@@ -125,9 +131,13 @@ const appliedCount=async p=>(await traceOf(p)).filter(l=>/mirror APPLIED/.test(l
   const objectless=await join.evaluate((q)=>{
     const st=JSON.parse(JSON.stringify(window.__cmfNetState));
     const C=(n,su,t)=>({rank:n,suit:su,id:(t||'p')+n+su});
-    st.players[0].hand=[C(4,'D'),C(6,'C')];
-    st.players[0].energy=[C(4,'D','e'),C(4,'D','e2'),C(4,'D','e3'),C(4,'D','e4')];
-    st.pending=null; st.respondFor=0; st.prioGen=77; st.finished=false;   // a window, and no object at all
+    /* LEYLINE, NOT COUNTER SPELL — this is the OBJECTLESS case, and since 2026-09-10 a Counter Spell with
+       an empty stack has no legal target and cannot be cast, so the window would correctly auto-pass and
+       this assertion would fail for a reason that has nothing to do with the objectless window. Leyline is
+       the only base Quick that targets nothing. */
+    st.players[0].hand=[C(9,'D'),C(6,'C')];
+    st.players[0].energy=[1,2,3,4,5,6,7,8,9,10].map(n=>C(4,'D','e'+n));
+    st.pending=null; st.stack=[]; st.respondFor=0; st.prioGen=77; st.finished=false;   // a window, and no object at all
     return { t:'mirror', seat:1, q:q, bs:'x', st:st };
   }, ++seq);
   await join.evaluate(m=>window.__cmf.inject(m), objectless);

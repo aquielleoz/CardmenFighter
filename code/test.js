@@ -714,8 +714,13 @@ function cards(ids) { return ids.map(card); }
   var pg = E.newGame(null, { numPlayers: 3 });
   pg.players[0].hand = [sc(3, 'D'), sc(5, 'C')]; pg.players[0].energy = [];   // the 5C is a spare: the engine refuses an activation that would empty your hand
   for (var pe = 0; pe < 3; pe++) pg.players[0].energy.push(sc(4, 'D'));    // p0: Telekinesis only, no Quick to answer with
-  pg.players[1].hand = [sc(4, 'D'), sc(6, 'C')]; pg.players[1].energy = [];
-  for (var pe1 = 0; pe1 < 4; pe1++) pg.players[1].energy.push(sc(4, 'D')); // p1: holds a Quick, so it is offered priority
+  /* p1 ALSO HOLDS LEYLINE (9♦) — restaged 2026-09-10. Targeting is part of casting now, and by the second
+     grant the Telekinesis has been countered, so `counterTargets` is empty and a hand of nothing but
+     Counter Spell can no longer add to the stack. p1 would simply not be offered, and the re-grant this
+     whole block exists to provoke would never happen — the assertion says so rather than passing quietly,
+     which is why it is written to fail on an unreached collision. */
+  pg.players[1].hand = [sc(4, 'D'), sc(9, 'D'), sc(6, 'C')]; pg.players[1].energy = [];
+  for (var pe1 = 0; pe1 < 13; pe1++) pg.players[1].energy.push(sc(4, 'D')); // p1: holds Quicks, so it is offered priority
   pg.players[2].hand = [sc(4, 'D'), sc(7, 'C')]; pg.players[2].energy = [];
   for (var pe2 = 0; pe2 < 4; pe2++) pg.players[2].energy.push(sc(4, 'D')); // p2: the seat that answers
   pg.turn = 0; pg.round = 3; pg.pile = null; pg.lastPlayer = null; pg.passes = 0;
@@ -736,6 +741,75 @@ function cards(ids) { return ids.map(card); }
   ok(gen2 > gen1,
      'prioGen: …and the generation separates the two grants, which is the only thing that can' +
      (gen2 > gen1 ? '' : '  ← gen ' + gen1 + ' -> ' + gen2 + ': a client keyed on (oid, prioGen) still cannot tell them apart'));
+})();
+
+// ===== TARGETING HAPPENS ON CAST: NO LEGAL TARGET, NO CAST (Aj, 2026-09-10) =====
+/* Aj found it in a real game — a Fight End go-round on an EMPTY stack offered him Counter Spell as its only
+   option. Measured before anything changed: `counterTargets` returned [], `canAddToStack` said true anyway,
+   and `respond` ACCEPTED the cast (hand -1, energy 8→4, nothing countered). Not noise in a window; a trap.
+   His ruling: *"it has to target as part of its casting right? and since there are no effects on the stack
+   to target… it shouldn't be castable."*
+   BOTH DIRECTIONS, because "Counter Spell is refused" is also true of a build that has simply broken the
+   card. Each case asserts the refusal AND the same card working the moment a target exists.
+   AND IT PARTLY OVERTURNS v1.31.120, which recorded that *"offering a Quick that will fizzle is CORRECT,
+   not a leak"*. That decision was about the UI narrowing RELATIVE TO THE ENGINE and its lesson was **one
+   predicate, two definitions**; this changes the ENGINE, and the UI still calls `canCastQuick` rather than
+   restating it. Fizzling on RESOLUTION is untouched — a target that stops being legal later still fizzles;
+   what is refused is choosing no target at all. */
+(function () {
+  function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function rig(handExtra) {
+    var g = E.newGame(null, { numPlayers: 2 });
+    g.round = 3; g.turn = 1; g.pile = null; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null;   // turn = 1 so seat 1 can actually cast the Technique the control needs
+    g.players[0].hand = [sc(4, 'D', 'cs')].concat(handExtra || []);
+    g.players[0].energy = []; for (var i = 0; i < 12; i++) g.players[0].energy.push(sc(4, 'D', 'e' + i));
+    g.players[1].hand = [sc(3, 'D', 'tk'), sc(6, 'C', 'sp')];
+    g.players[1].energy = []; for (var j = 0; j < 6; j++) g.players[1].energy.push(sc(4, 'D', 'f' + j));
+    return g;
+  }
+
+  // --- Counter Spell, empty stack: no target exists
+  var a = rig();
+  ok(E.quickTargets(a, 0, E.effectFor(a, 0, a.players[0].hand[0])).length === 0,
+     'targeting: staged — the engine itself reports NO legal target for Counter Spell on an empty stack');
+  ok(E.canCastQuick(a, 0, a.players[0].hand[0]) === false,
+     'targeting: …so it is not castable');
+  ok(E.canAddToStack(a, 0) === false,
+     'targeting: …and a seat holding ONLY it is not granted priority at all' +
+     (E.canAddToStack(a, 0) ? '  ← still offered: the window opens on a seat with no legal play' : ''));
+  a.respondFor = 0;
+  var ra = E.respond(a, 0, 'cs4D');
+  ok(ra && ra.ok === false && /No legal target/i.test(ra.reason || ''),
+     'targeting: …and `respond` REFUSES it — the rule is real, not merely hidden from the UI' +
+     (ra && ra.ok === false ? '' : '  ← ACCEPTED; a client sends a card id, so a UI-only check is reachable over the wire'));
+  ok(a.players[0].hand.length === 1 && a.players[0].energy.length === 12,
+     'targeting: …and the refusal costs NOTHING — card still in hand, energy unspent' +
+     ' (hand ' + a.players[0].hand.length + ', energy ' + a.players[0].energy.length + ')');
+
+  // --- the SAME card, the moment something is on the stack
+  var b = rig();
+  E.activate(b, 1, 'tk3D', { target: 0 });
+  ok(b.stack.length > 0, 'targeting: control staged — a Technique really is on the stack now' +
+     (b.stack.length ? '' : '  ← the activation did not land, so the control below proves nothing'));
+  ok(E.canCastQuick(b, 0, b.players[0].hand[0]) === true,
+     'targeting: CONTROL — the same Counter Spell IS castable once there is something to counter' +
+     (E.canCastQuick(b, 0, b.players[0].hand[0]) ? '' : '  ← the card is simply broken, not target-gated'));
+
+  // --- Annoint: the other Quick that can run out of targets
+  var c = E.newGame(null, { numPlayers: 2 });
+  c.round = 3; c.turn = 0; c.pile = null; c.stack = []; c.pending = null; c.respondFor = null;
+  c.players[0].hand = [sc(5, 'H', 'an')]; c.players[0].equipment = [];
+  c.players[0].energy = []; for (var k = 0; k < 8; k++) c.players[0].energy.push(sc(4, 'H', 'g' + k));
+  ok(E.canCastQuick(c, 0, c.players[0].hand[0]) === false,
+     'targeting: Annoint with NO Equipment in play is not castable either — this is not a Counter Spell special case');
+  c.players[0].equipment = [{ id: 'S7', name: 'Caltrops', counters: 3 }];
+  ok(E.canCastQuick(c, 0, c.players[0].hand[0]) === true,
+     'targeting: CONTROL — give them an Equipment and the same Annoint becomes castable');
+
+  // --- and the four Quicks that target nothing are untouched
+  var d = rig([sc(9, 'D', 'ley')]);
+  ok(E.quickTargets(d, 0, E.effectFor(d, 0, d.players[0].hand[1])) === null && E.canCastQuick(d, 0, d.players[0].hand[1]) === true,
+     'targeting: an UNTARGETED Quick (Leyline) is unaffected — castable on an empty stack, as before');
 })();
 
 // ===== A COUNTER SPELL NAMES WHAT IT COUNTERS (epic step 8) =====
@@ -924,8 +998,11 @@ function cards(ids) { return ids.map(card); }
   function rig() {
     var g = E.newGame(null, { numPlayers: 3 });
     g.round = 3; g.turn = 0; g.pile = null; g.stack = []; g.prioPassed = {};
-    for (var i = 0; i < 3; i++) g.players[i].hand = [sc(4, 'D'), sc(6, 'C')];
-    g.players[1].energy = []; for (var e = 0; e < 4; e++) g.players[1].energy.push(sc(4, 'D', 'e' + e));
+    /* LEYLINE (9♦), NOT COUNTER SPELL — see the note in the Fight End rig. Targeting is part of casting
+       since 2026-09-10, so a Counter Spell on an EMPTY stack cannot be cast and this rig would be staging
+       a window nobody can act in. */
+    for (var i = 0; i < 3; i++) g.players[i].hand = [sc(9, 'D'), sc(6, 'C')];
+    g.players[1].energy = []; for (var e = 0; e < 10; e++) g.players[1].energy.push(sc(4, 'D', 'e' + e));
     g.pending = null; g.respondFor = 1;
     return g;
   }
@@ -942,15 +1019,15 @@ function cards(ids) { return ids.map(card); }
   // --- casting INTO an empty stack: the Quick becomes an ordinary object, walked from its controller
   var g2 = rig();
   var before = g2.players[1].hand.length;
-  var r2 = E.respond(g2, 1, '4D');                     // 4♦ Counter Spell, affordable from the staged energy
+  var r2 = E.respond(g2, 1, '9D');                     // 9♦ Leyline, affordable from the staged energy
   ok(r2 && r2.ok !== false,
      'P1: a holder can CAST into an objectless window' + (r2 && r2.ok === false ? '  ← refused: ' + r2.reason : ''));
   /* The card really left the hand and the cast is REPORTED — `respondedWith` is what the UI and the netplay
-     log both read. Deliberately NOT asserting `stack.length === 1`: this Counter Spell has nothing beneath
-     it to counter, so the go-round it opened found no taker and resolved it straight away. An empty stack
-     here is the walk COMPLETING, which is the behaviour wanted; asserting the object was still sitting
-     there would have been asserting that priority had failed to move. */
-  ok(r2 && r2.respondedWith === 'D4' && g2.players[1].hand.length === before - 1,
+     log both read. Deliberately NOT asserting `stack.length === 1`: the go-round this cast opened found no
+     taker and resolved it straight away. An empty stack here is the walk COMPLETING, which is the
+     behaviour wanted; asserting the object was still sitting there would have been asserting that
+     priority had failed to move. */
+  ok(r2 && r2.respondedWith === 'D9' && g2.players[1].hand.length === before - 1,
      'P1: …and the cast is reported and really spends the card' +
      ' (respondedWith ' + (r2 && r2.respondedWith) + ', hand ' + before + '→' + g2.players[1].hand.length + ')');
   ok(g2.respondFor === null && g2.stack.length === 0,
@@ -1329,9 +1406,15 @@ function cards(ids) { return ids.map(card); }
        origin pass all 437 assertions. The origin is a PARAMETER (P2, so step 20 can pass its own); a rig in
        which the two coincide cannot test that it is one. */
     g.round = 3; g.turn = 1; g.stack = []; g.prioPassed = {}; g.pending = null; g.respondFor = null;
+      /* LEYLINE (9♦), NOT COUNTER SPELL — restaged 2026-09-10 when targeting became part of casting.
+         Counter Spell was the generic "an affordable Quick" here, and on an EMPTY stack it now has no
+         legal target and cannot be cast at all, so this rig stopped staging what it claims to. Leyline is
+         the only base Quick that targets nothing (Counter Spell and Annoint both do), which is itself
+         worth knowing: on an empty stack, an untargeted Quick is the only kind anyone can hold. Cost 9,
+         hence the energy. */
     for (var i = 0; i < 3; i++) {
-      g.players[i].hand = [sc(4, 'D', 'h' + i)];                       // 4D Counter Spell — an affordable Quick each
-      g.players[i].energy = []; for (var e = 0; e < 4; e++) g.players[i].energy.push(sc(4, 'D', 'e' + i + e));
+      g.players[i].hand = [sc(9, 'D', 'h' + i)];                       // 9D Leyline — an affordable, UNTARGETED Quick each
+      g.players[i].energy = []; for (var e = 0; e < 10; e++) g.players[i].energy.push(sc(4, 'D', 'e' + i + e));
       g.players[i].shields = 3;
     }
     g.pile = { p: 2, combo: { type: 'pair', size: 2, value: 9, cards: [sc(9, 'C', 'x'), sc(9, 'S', 'y')] } };
@@ -1358,11 +1441,11 @@ function cards(ids) { return ids.map(card); }
      resolves, the stack is empty again and the go-round RESTARTS AT C, the active player, not at A.
      That restart is the single most mistakable rule in §3 and the only assertion here that catches it. */
   var g2 = rig();
-  g2.players[0].hand = [sc(4, 'D', 'a1'), sc(4, 'D', 'a2')];           // A holds two, so A is not auto-passed after casting one
-  for (var e2 = 0; e2 < 8; e2++) g2.players[0].energy.push(sc(4, 'D', 'ex' + e2));
+  g2.players[0].hand = [sc(9, 'D', 'a1'), sc(9, 'D', 'a2')];           // A holds two, so A is not auto-passed after casting one
+  for (var e2 = 0; e2 < 20; e2++) g2.players[0].energy.push(sc(4, 'D', 'ex' + e2));
   E.openFightEndWindow(g2, 2, true, [0], 2);
   E.declineResponse(g2, 2);                                            // C adds nothing and passes
-  var cast = E.respond(g2, 0, 'a14D');                                 // A casts into the EMPTY stack
+  var cast = E.respond(g2, 0, 'a19D');                                 // A casts into the EMPTY stack
   ok(cast.ok !== false && g2.stack.length === 1 && g2.pending && g2.respondFor === 0,
      'fight end: a Quick cast into the empty window becomes an ordinary object, held by its caster' +
      (cast.ok === false ? '  ← refused: ' + cast.reason : ''));
@@ -1372,8 +1455,14 @@ function cards(ids) { return ids.map(card); }
      ' AT THE ACTIVE PLAYER (' + rest.join(' ') + ')' +
      (rest.join(',') === 'obj:0,obj:1,obj:2,empty:2,empty:0,empty:1' ? '' :
       '  ← expected obj:0 obj:1 obj:2 empty:2 empty:0 empty:1'));
-  ok(!g2.fightEnd && g2.round === 4 && g2.players[0].shields === 2,
-     'fight end: …and the sub-phase still begins afterwards, once for the whole window');
+  /* AND THE CAST CHANGED THE OUTCOME, which is a stronger claim than the old `shields === 2`. A is the
+     struck seat and A cast LEYLINE into the go-round, so the shield holds — the window doing the one thing
+     it exists to do. The old assertion expected the strip to land because the rig used Counter Spell as an
+     inert stand-in; with targeting part of casting, Leyline is the only base Quick castable on an empty
+     stack, so the rig has an effect now and the assertion should say what it is. */
+  ok(!g2.fightEnd && g2.round === 4 && g2.players[0].shields === 3,
+     'fight end: …the sub-phase still begins afterwards, and A\'s Leyline SAVED the shield it was cast to save' +
+     ' (round ' + g2.round + ', A shields ' + g2.players[0].shields + ' of 3, parked ' + !!g2.fightEnd + ')');
 
   /* --- THE BOUNDARY (§2). Inside the sub-phase nobody is active, so an empty stack must NOT open another
      go-round — that is what stops a trigger resolving at Fight End spinning empty rounds forever. The

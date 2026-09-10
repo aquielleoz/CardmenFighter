@@ -175,7 +175,13 @@ sub-phase where nobody is, and that is exactly where a shield-loss trigger fires
 
 - **Upkeep Sub-Phase.** Triggered abilities that say *"at the beginning of your upkeep"* are put on the stack
   here, then the **priority dance** runs. **Equipment counters tick down here** — at the beginning of the
-  turn, not at clean-up.
+  ROUND, not at clean-up.
+  **⚠ THIS SAID "the beginning of the TURN" until 2026-09-10, and Aj corrected it himself** — *"you're
+  right i was thinking of magic. beginning of the round actually makes more sense here. that's where the
+  upkeep lives."* The distinction is invisible at 2 players and real at 3-6, where the Fight Phase loops
+  several turns inside one round. **The engine was already right**: `roundDraw` does
+  `if (e.decay) e.counters -= 1` as it deals the new round, so this was a doc defect and not a code one —
+  checked before changing either.
 - **Draw Sub-Phase.** Each player draws. Round 1 is the exception: a 6-card opening hand and no draw.
 
 > **Equipment at 0 counters goes to the Energy Pile — at any time, not only at a phase boundary.**

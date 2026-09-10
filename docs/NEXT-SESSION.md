@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**437**) + `node netview.test.js` (**64**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**447**) + `node netview.test.js` (**64**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -384,6 +384,24 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   not wipe them before assuming the scroll position is the whole story.
 
 ### Features
+
+- **★ REPLACE THE PER-CARD PRIORITY MODAL WITH "PAUSE AND HIGHLIGHT THE CASTABLE QUICKS IN HAND"** (Aj,
+  2026-09-10, and **explicitly postponed until the epic is done**: *"can we redesign? instead of having a
+  modal for each card... can we just like pause the game and highlight the castable quicks? change of
+  design i know so we could just postpone this to another feat when the epic is done"*).
+  **WHY IT CAME UP:** the epic makes priority a real go-round at several timings, and the current window is
+  a MODAL LISTING CARDS — a second, parallel presentation of a hand you are already looking at. He met it
+  in a real game (`--- PRIORITY WINDOWS ---` in his saved log, rounds 6 and 7) and both prompts were
+  useless: one offered Counter Spell against an empty stack, the other offered Leyline on a jab win with
+  nothing at stake. The second is **legal and not a bug** — his words — but it is a modal you must read and
+  dismiss to learn there was nothing to do.
+  **THE SHAPE:** pause, light up the castable cards in the hand you already have, let the player tap one or
+  pass. The engine side is already there — `E.canCastQuick` is the per-card predicate and the window's
+  offer list is exactly the cards it admits, so this is a presentation change and not a rules one.
+  **DO NOT START IT INSIDE THE EPIC.** It touches `promptHumanResponse`, `promptHumanPreFight` and
+  `promptHostPreFight`, all three of which epic steps 20 and 20b are still rewriting; landing a new
+  presentation under them would make both changes harder to reason about and impossible to revert
+  separately.
 
 - **OPEN THE BATTLE LOG AS AN OVERLAY, like the 🔍 View card reader** (Aj, 2026-08-31: *"i think for the logs,
   we can open it like how we do the view card? but slightly transparent?"* — agreed at the time and, like the 2s
