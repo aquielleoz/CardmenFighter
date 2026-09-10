@@ -146,8 +146,16 @@ const appliedCount=async p=>(await traceOf(p)).filter(l=>/mirror APPLIED/.test(l
     return join.evaluate((a) => {
       const st = JSON.parse(JSON.stringify(window.__cmfNetState));
       const C = (n, su, t) => ({ rank: n, suit: su, id: (t || 'p') + n + su });
-      st.players[0].hand = [C(4,'D'), C(6,'C')];
-      st.players[0].energy = [C(4,'D','e'), C(4,'D','e2'), C(4,'D','e3'), C(4,'D','e4')];
+      /* LEYLINE (9D), NOT COUNTER SPELL — step 15 changed what this window offers, and correctly.
+         Prompt preferences default the Fight End timing ON only for cards that already guarded there;
+         Counter Spell guards nothing, so with it as the only Quick this window now AUTO-PASSES and the
+         modal never appears. That is the "annoying very quick" case being off by default, working.
+         Leyline is the realistic card at this timing and is wanted by default, so this also asserts the
+         DEFAULT rather than fiddling with a preference. Cost 9, hence nine diamond energy — five is not
+         enough, and an unaffordable card is silently not a Quick here (measured the hard way in
+         `nettest_passoduel`). */
+      st.players[0].hand = [C(9,'D','g'), C(6,'C')];
+      st.players[0].energy = [1,2,3,4,5,6,7,8,9,10].map(function(i){ return C(2,'D','e'+i); });
       st.players[0].shields = a.shields;
       st.pile = { byPlayer: 1, mod: 0, combo: { type: 'pair', value: 9, size: 2, key: [9], cards: [C(9,'C','x'), C(9,'S','y')] } };
       st.pending = null; st.respondFor = 0; st.prioGen = a.gen; st.finished = false;
