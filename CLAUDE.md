@@ -1412,7 +1412,7 @@ stack view landed on a subtitle, the one for `respondDecision`'s threat list on 
 `openShieldGuardModal` on an unrelated client guard — and **most had drifted that same day**
 *(and this paragraph cannot quote them, because the gate scans this file — the `nettest_narrate` trap of
 tripping on your own example, which it duly did on the first run)*, from comment blocks added and dead functions deleted in the very session that
-wrote them. **Cite a SYMBOL** (`guardEffFor`, `openResponseWindow`, `THREAT_KIND`): greppable, says what you
+wrote them. **Cite a SYMBOL** (`immunityEffFor`, `openResponseWindow`, `THREAT_KIND`): greppable, says what you
 meant, and survives an edit above it. `versiontest` gates this now across the four live docs; the approximate
 form (`engine.js` ~1447) is deliberately still allowed, because the tilde is honest about drifting and banning
 it pushes people back to prose that names nothing.

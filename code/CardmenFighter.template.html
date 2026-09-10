@@ -1719,11 +1719,11 @@ __QR__
   /* THE DEFAULT IS "THE TIMING THAT CARD ALREADY HAD", so the out-of-the-box experience is today's:
      every Quick already prompts on a cast and a lockout Quick already prompts pre-fight, while the Fight End
      window today offers ONLY the guard whitelist — so Leyline and Sanctuary still speak when your shields
-     are threatened and nothing else newly does. `guardEffFor` is asked rather than restated: it is the
+     are threatened and nothing else newly does. `immunityEffFor` is asked rather than restated: it is the
      engine's single definition of "can this card guard", and step 19 deletes it, at which point this
      default needs re-deriving rather than quietly meaning something else. */
   function promptDefault(card, eff, timing){
-    if(timing==='fightend') return !!(state && E.guardEffFor && E.guardEffFor(state, YOU, card));
+    if(timing==='fightend') return !!(state && E.immunityEffFor && E.immunityEffFor(state, YOU, card));
     return true;
   }
   function promptKeyOf(eff){ return eff && eff.id ? eff.id : null; }
@@ -4936,7 +4936,7 @@ __QR__
          wire for a decline nobody chose.
          And offering a Quick that will fizzle is CORRECT, not a leak: casting is free and a Quick with no
          legal target fizzles on resolution rather than being illegal (PHASES-AND-PRIORITY.md §1-2). One
-         predicate, two definitions was the bug — the same shape as `resolveIds` and `guardEffFor`. */
+         predicate, two definitions was the bug — the same shape as `resolveIds` and `immunityEffFor`. */
       return true;
     });
   }
