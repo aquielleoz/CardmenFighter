@@ -89,6 +89,13 @@ node nettest_passoduel.js                       # PASSO IN A DUEL (epic step 13)
                                                 # `netDiscard` and NOTHING answered them, so a dropped duel
                                                 # opponent deadlocked the table (measured: 1 host action,
                                                 # then 41 idle polls). Also asserts Passo DEFENDS (8)
+node fightendtest.js                            # THE FIGHT END MODEL (epic step 17). Asserts the two things
+                                                # nothing else does — SIMULTANEOUS KICKS (both zero-shield
+                                                # seats die to one Special, both credited) and the
+                                                # WHITELIST CANARY (a seat whose only Quick guards NOTHING
+                                                # is still offered the window). The other four of step 17's
+                                                # six live in test.js and are cross-referenced, not copied.
+                                                # Run it 40x, not once (16)
 node prompttest.js                              # PROMPT PREFERENCES (epic step 15): per-card, per-timing
                                                 # checkboxes in the card reader. Asserts the DEFAULTS are
                                                 # today's experience, that only OVERRIDES are stored, and —
@@ -1643,7 +1650,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 437, `netview` 64, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 30, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 18, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 30, `sharetest` 16, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 18, `fightendtest` 16, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

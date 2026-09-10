@@ -2,14 +2,15 @@
 
 > ## 📍 WHERE WE ARE — 2026-09-10
 >
-> **Steps 1-16 addressed; NEXT IS STEP 17** (`fightendtest.js`). `main` untouched at v1.31.126.
-> **Sections A-E are complete except 17; then F is the switch.**
+> **Steps 1-17 addressed; NEXT IS STEP 18 — THE SWITCH.** `main` untouched at v1.31.126.
+> **Sections A-E are COMPLETE.** Everything built so far is inert: step 18 is the commit that makes the
+> go-round the live path and removes `driveShieldStack`'s window in the same change.
 > **Step 11 is built** — P1, P2, P3 and the go-round itself, with §3's worked example asserted as a
 > sequence. It is INERT: nothing calls `openFightEndWindow` until step 18. Its one deferred piece (the
 > `finishRoundWin` restructure) is deferred with a measurement — see the step.
 > **The cliff is behind us**, and the shape of the remaining work changed with it: 17 is a test against a
 > mechanism that already exists, and 18 is the switch — now with 12's superset PROOF standing behind it.
-> - **1, 2, 3, 5, 6, 8, 11, 12, 13, 14, 15, 16 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
+> - **1, 2, 3, 5, 6, 8, 11, 12, 13, 14, 15, 16, 17 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
 >   either — its behavioural half was measured to be already true.
 > - **⚠ STEP 10'S REFACTOR IS STILL OUTSTANDING, and this line used to say it was folded into 11. It is
 >   not.** §4 says a shield loss is *not* a stack object — it just happens, and what protects it is the
@@ -1092,7 +1093,25 @@ whose policy is a **verbatim port** of `shieldGuardAI`'s rule, keeping the `isHu
 `effectsAllowed`/`kindOK` gates. Rename the `immune || shieldImmune` test `immunityEffFor`. *Gate:* `npm
 test`; every sim runs to completion; `analysis.js` in band. *Revertable alone:* yes.
 
-**17 · test: `fightendtest.js`, against the go-round as built (there is no flag — see the preamble).** v1's step 11, widened to the
+**17 · test: `fightendtest.js`, against the go-round as built (there is no flag — see the preamble).**
+
+> **✅ BUILT 2026-09-10 — `code/fightendtest.js`, 16 assertions, 40 runs green.**
+> **FOUR OF THE SIX ARE ALREADY ASSERTED IN `test.js` AND ARE CROSS-REFERENCED, NOT COPIED** — the origin at
+> n≥3 (its worked example IS a 3-player table), holding priority, Counter Spell naming its target, and the
+> empty-stack boundary. A second copy is the drift this repo has been bitten by four times (`isChopOf`,
+> `resolveIds`, `immunityEffFor`, and `shadowtest`'s own restated gate). The file says so at the top.
+> **The two that nothing anywhere asserted:**
+> - **SIMULTANEOUS KICKS.** §4 says every shield loss in a round lands at once; step 10 MEASURED that both
+>   zero-shield seats are eliminated together and shipped no assertion, so it has been undefended since.
+>   Both dying — and both credited, `kicksLanded === 2` — is what says the *"already broken?"* sample was
+>   taken for every target BEFORE any strip, rather than per-target as each resolves (which spares whoever
+>   is sampled second, because the engine refuses overkill).
+> - **THE WHITELIST CANARY.** Asserted as the POSITIVE property that replaced the whitelist — *a seat whose
+>   only Quick guards NOTHING is still offered the window* — because "the whitelist is absent" passes on a
+>   build that offers nobody at all. A/B'd by genuinely reintroducing it two ways: a guard-only predicate in
+>   the walk, and a winner-only one. Both go red, naming the cause.
+> Plus the whole window driven end to end, and the step-16 AI branch exercised — the only place it runs at
+> all before step 18. v1's step 11, widened to the
 new rules: the origin at n≥3, holding priority, Counter Spell naming its target, simultaneous kicks, the
 empty-stack boundary, and **an assertion that goes red if the whitelist is reintroduced**. **Run it 40 times,
 not once** — two flakes hid in one green run the last time this surface was touched. *Revertable alone:* yes.
