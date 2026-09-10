@@ -275,7 +275,14 @@ async function freshGame(p) {
         /* RETURN THE WHOLE TEXT. Slicing to 160 chars cut off before the BUTTONS — the modal leads with the
            cast and the table context, so "Counter Spell" appears well past that. The control then failed on
            a window that had opened correctly, which reads exactly like the feature being broken. */
-        return /Respond/i.test(el.textContent || '') ? el.textContent.replace(/\s+/g, ' ') : null;
+        /* MATCH THE *RESPOND* WINDOW, NOT ANY MODAL TITLED "Respond?" (epic step 18). Fight End is now a
+           go-round in the SAME modal, and the staged lead here is the apex 2 — unbeatable, so the Rival
+           passes and the round ends in the very next beat. A bare /Respond/ therefore matched
+           "You won the round with Jab — no shield is lost", which is a DIFFERENT timing with its own
+           preference: the negative below failed while the feature worked, and the control could have
+           passed on that same wrong window. "in response" is the cast lead's own wording. */
+        const t = (el.textContent || '').replace(/\s+/g, ' ');
+        return /Respond/i.test(t) && /in response/i.test(t) ? t : null;
       });
       if (m) return m;
       await wait(100);
@@ -288,6 +295,11 @@ async function freshGame(p) {
 
   // (a) the CONTROL — with the default preference ON, the window must appear. Without this half, (b) below
   //     passes on a build where the window never opens for any reason at all.
+  /* AND SHUT THE FIGHT END TIMING OFF FOR THIS PAIR. `fightend` was ticked ON for D4 forty lines above, so
+     with step 18 live the staged round ends into a Fight End window this block is not testing — the drain
+     assertion below then reports a window "left owed" that the game legitimately owes. One timing at a
+     time is what makes each half of the pair mean one thing. */
+  await p.evaluate(() => { window.__solo.setPromptPref('D4', 'fightend', false); });
   await p.evaluate(() => { window.__solo.setPromptPref('D4', 'respond', true); });
   const withPrompt = await stageCast();
   ok(!!withPrompt && /Counter Spell/.test(withPrompt),
@@ -301,7 +313,7 @@ async function freshGame(p) {
   const withoutPrompt = await stageCast();
   ok(withoutPrompt === null,
      'SUPPRESSED: with the prompt OFF, the same cast opens no modal — it is auto-passed' +
-     (withoutPrompt === null ? '' : '  ← still prompted: the filter is not wired into the live path'));
+     (withoutPrompt === null ? '' : '  ← still prompted with: ' + withoutPrompt.slice(0, 140)));
   ok(await until(() => p.evaluate(() => { const st = window.__solo.st(); return !!st && st.respondFor == null; })),
      '…and no response window is left owed — the pass really happened');
 

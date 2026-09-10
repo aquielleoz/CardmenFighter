@@ -2,18 +2,18 @@
 
 > ## 📍 WHERE WE ARE — 2026-09-10
 >
-> **Steps 1-17 done. STEP 18 IS ATTEMPTED AND PARKED** on `exp/step18-switch` — the engine half works,
-> the netplay half wedges. `main` untouched at v1.31.126, the epic is GREEN and carries no wedge.
-> **READ STEP 18'S ⚠ BLOCK FIRST**: it names the seven `shieldResponsePending` sites, the two pieces the
-> attempt proved are needed (`st.fightEndResult`, `takeTurn`'s early return), and the two vacuous
-> assertions moving the window exposed. **Its gate also needs Aj** — one solo game and one two-device
-> netplay game — so 18 cannot be closed by suites alone.
+> **Steps 1-18 done. THE SWITCH IS LIVE**: the Fight End go-round replaced the guard whitelist, in the
+> engine and on both transports, and the old window is asserted GONE in 600 live games. `main` untouched
+> at v1.31.126. **STEP 18'S ONE REMAINING GATE IS AJ** — one real solo game and one two-device netplay
+> game; suites cannot close it. Read step 18's ✅ block for the root cause (it was NOT the seven
+> `shieldResponsePending` sites, which are dead code and belong to 19) and for the `sharetest` defect the
+> work uncovered in the SHIPPED build, which is filed separately and is not this change.
 > **Step 11 is built** — P1, P2, P3 and the go-round itself, with §3's worked example asserted as a
 > sequence. It is INERT: nothing calls `openFightEndWindow` until step 18. Its one deferred piece (the
 > `finishRoundWin` restructure) is deferred with a measurement — see the step.
 > **The cliff is behind us**, and the shape of the remaining work changed with it: 17 is a test against a
 > mechanism that already exists, and 18 is the switch — now with 12's superset PROOF standing behind it.
-> - **1, 2, 3, 5, 6, 8, 11, 12, 13, 14, 15, 16, 17 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
+> - **1, 2, 3, 5, 6, 8, 11, 12, 13, 14, 15, 16, 17, 18 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
 >   either — its behavioural half was measured to be already true.
 > - **⚠ STEP 10'S REFACTOR IS STILL OUTSTANDING, and this line used to say it was folded into 11. It is
 >   not.** §4 says a shield loss is *not* a stack object — it just happens, and what protects it is the
@@ -1123,36 +1123,64 @@ not once** — two flakes hid in one green run the last time this surface was to
 
 **18 · REPLACE the old guard window with the Fight End go-round — one commit, no flip.**
 
-> **⚠ ATTEMPTED 2026-09-10 — THE ENGINE HALF WORKS, THE NETPLAY HALF WEDGES. NOT MERGED.**
-> The whole attempt is preserved on **`exp/step18-switch`** (pushed, unmerged). Only **P6** was extracted
-> and merged, because it is proven inert on its own.
-> **WHAT WORKS, and it is most of the step.** `enterFightEnd` opens the go-round instead of applying the
-> outcomes, and `driveShieldStack`'s window is removed in the SAME change so the two are never both open.
-> `test.js` 437, `netview.test` 64, `fightendtest` 16 — all green — and the seeded fingerprint MOVES
-> (`e19a98d` → `fda5f95` over 480 games), which is the switch genuinely changing the game rather than a
-> no-op that looks like success.
-> **WHAT IS BROKEN, measured not suspected.** `nettest_guard`: a client springs Leyline over the wire and
-> **the round never turns over** — round 2 → 2 through twelve seconds of draining both sides. The host's
-> round-win flow was built around `shieldResponse`, which this step stops minting, so
-> `hostSettleRoundThenCeremony` fell straight through to `hostRunCeremony` with the go-round still open.
-> Teaching it to park on `respondFor` and to read the parked final result was **necessary and NOT
-> sufficient** — the wedge survives. **`shieldResponsePending` is read at SEVEN sites** (template `:4370`,
-> `:4865`, `:5235`, `:5238`, `:8622`, `:8625`, plus the settle path); only some are addressed on that
-> branch. **Start there.**
-> **THREE THINGS THE ATTEMPT PROVED, whichever way it is finished:**
-> - **`st.fightEndResult` is needed.** The outcomes run one `declineResponse` deep inside a go-round and
->   their result returns up a chain the host is not on — it resumes from a park holding the PENDING result,
->   and `hostRunCeremony` narrates from it. Not `roundWinResult`: `driveShieldStack` reads that as "this is
->   a round win" and would finish the round inside its own window (P3's collision).
-> - **`takeTurn` must return when the round ends under it.** A round-winning play used to resolve inside
->   `play()`; now it resolves mid-window, and carrying on threw *"Not your turn"*.
-> - **MOVING THE WINDOW EARLIER EXPOSED TWO VACUOUS ASSERTIONS**, which is worth more than it cost.
->   `netview.test` asserted the mirror "does not carry the host result object" — true of a window that no
->   longer opens. `nettest_guard` asserted *"client kept its shield 4 → 4"* and it **passed underneath a
->   FAILING drive**, because with the go-round open the outcomes have not run, so nothing had changed. Both
->   are rewritten on the branch to assert the round actually RESOLVED first.
-> **AND THE GATE NEEDS AJ EITHER WAY:** *one real solo game and one two-device netplay game*. Step 18
-> cannot be closed by suites alone.
+> ## ✅ BUILT 2026-09-10 — and the wedge was NOT where the attempt said it was.
+>
+> **THE ROOT CAUSE, in one sentence: a round win stopped being a RESULT and became a WINDOW, and six UI
+> sites still tested `r.roundWinner != null`.** `enterFightEnd` returns `{fightEnd:true}` with no
+> `roundWinner`, so in a duel `hostAfterRivalMove` read a round-winning pass as an ordinary turn handover
+> and parked in `awaitRival`; the client's `{op:'respond'}` then reached `hostApplyMove`, found `netSettle`
+> null and **was dropped in silence.** That is the v1.31.91 bug class exactly — a duel park only the
+> N-player handler knows about — and the parked attempt had *re-made* it by setting `netReact` from
+> `hostSettleRoundThenCeremony`, which a duel never calls.
+> **THE SEVEN `shieldResponsePending` SITES WERE A RED HERRING, and this is worth recording because the
+> handoff pointed straight at them.** Nothing sets `st.shieldResponse` any more — `grep 'st.shieldResponse ='`
+> in `engine.js` returns only the four sites that CLEAR it — so every one of those branches is unreachable
+> dead code, i.e. step 19's delete pass, not step 18's blocker. Reading the layer that would have to CONSUME
+> the new shape found the bug in one probe; enumerating the sites the old shape used to touch would not have.
+>
+> **THE FIX IS ONE SEAM, NOT A PARK PER SITE.** `drainFightEnd(r, g, then)` calls `settleWindows`, which
+> already dispatches per mode — solo drains AI seats and prompts you, `hostSettle` parks a duel on
+> `netSettle`, `hostSettleN` parks 3-6 players on `netReact` — and then reads the outcome off
+> `st.fightEndResult`. Wired at `finishPassRound`, `finishStep`, `runOpponents`, `hostAfterRivalMove`, both
+> netplay `driveN` sites and `hostSettleRoundThenCeremony`, which now DELEGATES to `hostSettleN` instead of
+> re-implementing its park. Routing through the shared settle is what inherits `reassertMirror`, the park
+> beat and `maybePasso` without seven copies.
+>
+> **THREE THINGS THE ATTEMPT PROVED, all of them kept:** `st.fightEndResult` is needed (the outcome returns
+> up a chain the host is not on) and is deliberately not `roundWinResult` (P3's collision); `takeTurn` must
+> return when the round ends under it; and moving the window earlier exposed two vacuous assertions.
+>
+> **ONE REAL REGRESSION, FOUND BY A SUITE AND NOT BY READING.** `nettest_passoduel`: Passo answered the
+> go-round with a bare `{op:'decline'}`, so a dropped player's seat stopped defending itself — measured
+> shields 1 → 0 while holding an affordable Leyline, which silently undid Aj's step-13 ruling.
+> `AI.fightEndGuardCard` is now the one definition, self-gated on the window, asked by both
+> `respondDecision` and Passo. **It also repairs something step 16's verbatim port got wrong**: it never
+> asked whether the seat is actually STRUCK, because the old window only ever opened for the threatened
+> seat. Without that clause an AI at two shields burns Leyline on a round it was never going to lose one to
+> — so adding it is what keeps step 18's claim of changing no AI behaviour literally true.
+>
+> **TWO SUITES WERE MEASURING THE OLD WORLD (P5, as predicted).** `prompttest` matched a bare `/Respond/`
+> against a modal Fight End now shares, so its negative failed while the feature worked — and its control
+> could have passed on the same wrong window; it now matches the cast lead's own "in response" wording and
+> switches the other timing off. `shadowtest`'s half B lost its left-hand side entirely and was **reaimed,
+> not deleted**: it asserts the old window is gone AND the go-round is really running, A/B'd against the
+> pre-switch engine for three reds each naming its own cause.
+>
+> **THE WIDENING, MEASURED IN LIVE PLAY:** 4,016 go-rounds over 600 games against ~277 openings for the old
+> whitelist window at the same scale — roughly **14x more windows** — and 909 of them offered more than one
+> seat, which the single-seat model could not do at all.
+>
+> **GATE:** `test.js` 437 · `netview.test` 64 · `fightendtest` 16 · full sweep 90/91 at `-j 1` and at
+> `-j 4`. The one red is **`sharetest`, and it is NOT this change** — it reproduces identically on
+> `epic/priority-windows` AND on `main`, and it is a live shipped defect in the invite-code paste
+> tolerance: `dec`'s extractor class `[A-Za-z0-9+/=,|~._-]` omits **`:`**, so a code containing an IPv6
+> srflx candidate is truncated at the first colon (274 chars → 203), `unpackC1` then succeeds on the
+> mangled remainder and WebRTC rejects the rebuilt SDP. It is intermittent because whether an IPv6
+> candidate is gathered depends on the network at that moment. Filed separately; not carried by this step.
+>
+> **AND THE GATE STILL NEEDS AJ:** *one real solo game and one two-device netplay game.* Step 18 cannot be
+> closed by suites alone, and that has not changed.
+
 **THIS IS NO LONGER A FLAG FLIP** (see the preamble). With no `PRIORITY_V2` there is nothing to turn on; this
 commit makes step 11's go-round the live path and removes `driveShieldStack`'s window in the same change, so
 the two are never both open. **⚠ SEE P5 (the gate is unachievable as sequenced — move the six

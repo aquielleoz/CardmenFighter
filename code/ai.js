@@ -785,8 +785,7 @@
        INERT TODAY: nothing mints an objectless window until step 18, so this branch cannot be reached in a
        real game — proven by the seeded fingerprint, not asserted. */
     if (!eff) {
-      if (!shieldGuardWants(st, q)) return E.declineResponse(st, q);
-      var guardC = qp.hand.filter(function (c) { return E.immunityEffFor(st, q, c) && E.canAfford(qp, c); })[0];
+      var guardC = fightEndGuardCard(st, q);
       if (guardC) { var gr = E.respond(st, q, guardC.id); if (gr && gr.ok) return gr; }
       return E.declineResponse(st, q);
     }
@@ -847,6 +846,27 @@
      would drift the day this policy changes; the same reasoning as `isChopOf` and `immunityEffFor`.
      It answers only "does this seat WANT to guard" — whether a usable card exists is `shieldGuardCard`'s
      question, already answered by the time a window is open (`sr.guardId` names it). */
+  /* WHICH CARD SHOULD SEAT q SPRING AT FIGHT END — ONE DEFINITION, TWO ASKERS (epic step 18).
+     `respondDecision` asks it for an AI seat; **PASSO** asks it in the template for a dropped player's
+     seat. Passo has to get the same answer: Aj's step-13 ruling is that disconnecting must not stop a seat
+     defending itself, and step 18 moved the window Passo used to answer (`netGuard`, a yes/no on one
+     whitelisted card) into the go-round, where the reply is an ordinary `{op:'respond', id}`. A second copy
+     of the policy in the template is the `isChopOf` / `immunityEffFor` mistake for the third time.
+     IT GATES ITSELF ON THE WINDOW rather than trusting its callers: an objectless window is Fight End, an
+     ordinary Counter-a-Counter window is a different question entirely, and Passo answers both through the
+     same park variable.
+     AND IT ASKS WHETHER THIS SEAT IS ACTUALLY STRUCK, which step 16's verbatim port could not: the old
+     window only ever opened for the threatened seat, so `shieldGuardWants` alone was a complete policy
+     there. The go-round offers priority to EVERYONE, so without this an AI at two shields springs Leyline
+     on a round it was never going to lose one to. Restoring that condition is what keeps step 18's claim —
+     that it changes no AI behaviour — literally true. A real Fight End policy is step 21, which measures. */
+  function fightEndGuardCard(st, q) {
+    if (!st.fightEnd || st.pending) return null;                          // not the Fight End go-round
+    if ((st.fightEnd.strikeTargets || []).indexOf(q) < 0) return null;    // not struck this round — nothing to guard
+    if (!shieldGuardWants(st, q)) return null;
+    var qp = st.players[q];
+    return qp.hand.filter(function (c) { return E.immunityEffFor(st, q, c) && E.canAfford(qp, c); })[0] || null;
+  }
   function shieldGuardWants(st, q) {
     if (!effectsAllowed(st, q)) return false;                // analysis: pure-fighter never guards
     return st.players[q].shields <= 2;                       // save the shield when it matters (Leyline also ramps, rarely wasted)
@@ -976,7 +996,7 @@
      silently removed `preFightMove`, `lockoutWorth` and six others, and `test.js` died on the first of
      them. Notes go ABOVE the literal; entries go in it. */
   var API = { THREAT_KIND: THREAT_KIND, BENIGN_KIND: BENIGN_KIND,   // exported so test.js can require every effect kind to be CLASSIFIED
-    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
+    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, fightEndGuardCard: fightEndGuardCard, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
     lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;

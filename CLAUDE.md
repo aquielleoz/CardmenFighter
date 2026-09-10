@@ -104,8 +104,14 @@ node prompttest.js                              # PROMPT PREFERENCES (epic step 
 node shadowtest.js                              # THE SHADOW COMPARATOR (epic step 12): whoever the OLD Fight
                                                 # End guard whitelist lets answer, the NEW go-round must let
                                                 # answer too. Half A is EXHAUSTIVE (every card x 299 Form
-                                                # contexts) and carries the claim; half B drives 600 real
-                                                # games and measures the widening. `GAMES=n` (7)
+                                                # contexts) and carries the claim. **HALF B CHANGED MEANING
+                                                # AT STEP 18** — there is no old window left to compare
+                                                # against, so it now asserts the switch LANDED: zero
+                                                # `shieldResponse` in 600 live games, and the go-round
+                                                # really opening (4016 times, 909 of them offering more than
+                                                # one seat). The zero and the floor are asserted TOGETHER —
+                                                # "nothing opened the old window" is also true of a build
+                                                # where nothing happens. `GAMES=n` (7)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -1189,6 +1195,29 @@ cache is dropped on join and rejoin, so a reconnecting peer is never deduped aga
   the retry every other helper in `lessonlib` has, and each presented as a product bug. `passTurn` was worse than
   missing it: it reported success on ANY state change, so it masked real failures for several runs.
 
+**THERE ARE TWO PARK FAMILIES AND A DUEL CANNOT READ THE N-PLAYER ONE — THIS HAS NOW COST THREE BUGS
+(v1.31.91, v1.31.116, and epic step 18).** `hostApplyMove` (the duel) resumes from **`netSettle`** /
+`netGuard` / `netDiscard`; `hostApplyMoveN` (3-6 players) resumes from **`netReact`** / `netParked`. A park
+written into the wrong family is not an error and prints nothing: the client's intent arrives, the handler
+finds its own variable null, and **returns in silence** — the host waits forever with a plausible status
+line on screen. Step 18 re-made it exactly: a new park in `hostSettleRoundThenCeremony` set `netReact`, and
+that function is N-player only, so a duel client's `{op:'respond'}` was dropped and the round never turned
+over (measured: round 2 → 2 through twelve seconds of draining).
+**THE FIX IS NEVER A NEW PARK — IT IS TO CALL THE SETTLE THAT ALREADY OWNS THE MODE.** `settleWindows`
+dispatches to `hostSettle` (duel) or `hostSettleN` (N-player) and each parks in its own family, so routing a
+new window through it inherits `reassertMirror`, the park beat, `maybePasso` and the right resume variable
+for free — the seven-parks-of-nine lesson (v1.31.116) applied before the drift rather than after it. The
+grep that enumerates the kind: `grep -n 'netReact=\|netSettle=\|netGuard=\|netDiscard=' code/CardmenFighter.template.html`.
+
+**A ROUND WIN IS NO LONGER A RESULT, IT IS A WINDOW (epic step 18).** `resolveRoundWin` → `enterFightEnd`
+opens the Fight End go-round and returns `{fightEnd:true}` with **no `roundWinner`**, so every UI site that
+tested `r.roundWinner != null` fell straight through — six of them, in both drivers and both transports.
+`drainFightEnd(r, g, then)` is the single seam: it runs `settleWindows` and then reads the outcome off
+**`st.fightEndResult`**, which the engine parks as it runs the sub-phase. It is deliberately NOT
+`roundWinResult` — `driveShieldStack` reads that one as "this is a round win" and would finish the round
+inside its own window. **Any new round-win call site goes through `drainFightEnd`**, and the tell that one
+was missed is a table that parks with the round number unchanged.
+
 **MULTI-AGENT ORCHESTRATION ("ultracode") IS FOR DESIGN, NEVER FOR TESTING OR REVIEW** (Aj, 2026-09-03, after
 hitting his session cap twice in one day: *"so the next session doesn't super bleed out my tokens on testing"*).
 Measured on v1.31.95, the two halves of the same day:
@@ -1656,7 +1685,7 @@ which is what a number nobody can verify looks like). Counts verified:
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
 The 52 netplay suites: `nettest_3p` 7, `priosig` 18, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
-`elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 14, `kick` 11, `log` 16, `losspick3` 7,
+`elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 16, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
 `target3` 7, `ghostseat` 6, `trim` 14, `unready` 15, `version` 14.
