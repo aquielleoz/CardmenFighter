@@ -8845,6 +8845,25 @@ __QR__
     // After the strike is decided, resolve the struck seat's guard window (host modal / remote park) then the ceremony.
     function hostSettleRoundThenCeremony(r, g){
       if(g!==gen) return;
+      /* ---- THE FIGHT END GO-ROUND MUST DRAIN BEFORE THE CEREMONY (epic step 18).
+         This function knew only `shieldResponse`, and step 18 stopped minting it — so it fell straight
+         through to `hostRunCeremony` while the go-round was still open: the ceremony narrated a round whose
+         outcomes had not run, and the window was left owed. MEASURED as a wedge in `nettest_guard`: a
+         client sprang Leyline over the wire and the round never turned over (2 → 2 through twelve seconds
+         of draining), while the old "kept its shield 4 → 4" assertion passed underneath it because nothing
+         had happened yet. That vacuous pass is why the round assertion is now in that suite.
+         The host's own seat is prompted; a remote seat PARKS exactly like every other remote window, with
+         `reassertMirror` + the beat + `maybePasso` — the park hygiene v1.31.116 enumerated by kind.
+         `hostState.fightEndResult` is the FINAL outcome, parked by the engine when the sub-phase ran: `r`
+         is the pending window result this function was handed before the window opened, and narrating from
+         it would describe the wrong round. */
+      if(hostState.respondFor != null){
+        var fq = hostState.respondFor;
+        if(fq === YOU) return promptHumanResponse(g, function(){ hostSettleRoundThenCeremony(r, g); });
+        netParked=null; netReact={ kind:'respond', seat:fq, g:g, resume:function(){ hostSettleRoundThenCeremony(r, g); } };
+        busy=true; $('rivalStatus').textContent=seatName(fq)+' may respond…'; render(); reassertMirror(); startParkBeat(); maybePasso(fq); return;
+      }
+      if(hostState.fightEndResult){ var fer=hostState.fightEndResult; hostState.fightEndResult=null; return hostRunCeremony(fer, g); }
       if(hostState.shieldResponse && hostState.shieldResponse.q===YOU){ return openShieldGuardModal(r, function(fr){ hostRunCeremony(fr||r, g); }); }
       if(hostState.shieldResponse && hostState.shieldResponse.q!=null){
         if(hostState.shieldResponse.guardId){ netParked=null; netReact={ kind:'guard', seat:hostState.shieldResponse.q, g:g, resume:function(){ hostSettleRoundThenCeremony(r, g); } }; busy=true; render(); reassertMirror(); startParkBeat(); maybePasso(netReact.seat); return; }
