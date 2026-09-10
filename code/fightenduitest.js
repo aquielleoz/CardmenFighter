@@ -137,9 +137,9 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     /* THE LEDGER IS THE THING AJ SENDS BACK, so it is asserted rather than eyeballed — `logtest` measured
        the Save button's HEIGHT at three viewports and never clicked it, and the log it produced was the
        single line "[object PointerEvent]" for fifteen versions. */
-    const led = await p.evaluate(() => window.__solo.feLog());
-    ok(led.some(l => /SUB-PHASE opens/.test(l) && /struck=You/.test(l)) && led.some(l => /window SHOWN to you/.test(l) && /Sanctuary/.test(l)),
-       'A · the saved-log ledger records the sub-phase and the offer' +
+    const led = await p.evaluate(() => window.__solo.prioLog());
+    ok(led.some(l => /a GO-ROUND opened before it/.test(l) && /priority→/.test(l)) && led.some(l => /\[fight-end\] window SHOWN to you/.test(l) && /Sanctuary/.test(l)),
+       'A · the saved-log ledger records the go-round and the offer' +
        (led.length ? '  [' + led.slice(0, 2).join(' // ').slice(0, 130) + ']' : '  ← the ledger is EMPTY'));
     ok(!out.finished && !out.elim,
        `A · SURVIVED THE FIGHTER KICK by casting Sanctuary in the window (round ${out.round}, shields ${out.shields})` +
@@ -232,7 +232,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     await p.evaluate(() => document.getElementById('passBtn').click());
     const died = await until(() => p.evaluate(() => !!window.__solo.st().finished));
     ok(died, 'C · with the prompt OFF the window is auto-passed and the kick lands — no modal at all');
-    const led = await p.evaluate(() => window.__solo.feLog());
+    const led = await p.evaluate(() => window.__solo.prioLog());
     const line = led.filter(l => /PROMPT OFF/.test(l))[0];
     ok(!!line && /Sanctuary/.test(line),
        'C · …and the ledger names the card you were never asked about — the evidence that did not exist before' +

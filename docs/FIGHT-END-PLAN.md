@@ -1247,6 +1247,52 @@ go-round, every re-grant is swallowed. Key it the same way step 1 keyed the resp
 a seat 3+ human can spring a Quick here (they never could); **a re-grant assertion modelled on
 `nettest_priosig`**; full sweep. *Revertable alone:* yes.
 
+**20b · feat: priority at EVERY point the model passes it — Upkeep and Clean-up.** ⚠ **NEW, AJ'S RULING
+2026-09-10, AND IT IS ITS OWN STEP BY HIS INSTRUCTION.**
+
+**NUMBERED 20b RATHER THAN 21**, because this file's own preamble letters the standing defects A/B/C
+"precisely so a renumber cannot break what cites them" — and 21/22/23 are cited throughout.
+
+**THE RULE, quoted rather than paraphrased** (`PHASES-AND-PRIORITY.md` §1):
+> *To add to a non-empty stack, or to add at all when it is not your turn, the card must be a Quick.*
+
+and §2:
+> **There is no phase, and no sub-phase, that is closed to priority. Anything put on the stack opens the
+> dance where it stands.**
+
+So **a Quick may be cast whenever its holder has priority** — there is no list of phases in the model, and
+the code has one. §3 passes priority at five points: **Upkeep**, each cast in the **Main Sub-Phase**, the
+**pre-fight window**, **Fight End**, and the beginning of **Clean-up**. The engine implements the middle
+three (18 and 20 between them) and **has no Upkeep phase at all** — `grep -ci upkeep engine.js` returns
+**0**.
+
+**WHAT MISLED ME, recorded because it is a reading failure and will recur.** §3 says *"no card has one
+yet"* at Upkeep and at Clean-up. That is a statement about **triggered abilities** — cards that put
+themselves on the stack at that timing. I read it as "nothing can happen there" and told Aj a row for those
+timings would be a dead control. **Every Quick in the game is legal at both**, and no card needs a trigger
+for that to be true. Same shape as CLAUDE.md's `copyPlus` entry: a rule inferred from a nearby sentence
+instead of from the rule that governs.
+
+**SCOPE, enumerated as far as it can be without building:**
+- **The engine has no Beginning Phase.** Adding one is not a window bolted on — it is a phase boundary the
+  round loop does not currently have, and `openResponseWindow` needs an origin there (§2 step 7: empty
+  stack → the active player).
+- **`PROMPT_TIMINGS` is a closed literal of three** (`prefight`/`respond`/`fightend`) against a model with
+  no fixed list. It should be derived from where priority is actually passed, or it goes stale on every
+  phase added.
+- **`promptLegal`'s `prefight` gate to `kind==='lockout'` is step 20's**, not this one's — but both are the
+  same defect (a UI list narrower than the model) and 20 should land first.
+- **✅ THE COUNTER-TICK QUESTION IS ANSWERED (Aj, 2026-09-10) and is NOT work.** §3 said counters tick *"at
+  the beginning of the turn"*; the engine ticks them once per ROUND in `roundDraw`. Asked rather than
+  inferred, and Aj corrected the doc: *"i was thinking of magic. beginning of the round actually makes more
+  sense here. that's where the upkeep lives."* So the engine was right and the spec was wrong —
+  `PHASES-AND-PRIORITY.md` now says ROUND, with the old wording quoted. **Build the Beginning Phase around
+  the round, not the turn.**
+
+*Gate:* an assertion per phase boundary that a seat holding a Quick is offered priority there and can cast
+it; `nettest_priosig`'s re-grant idiom aimed at the new windows; the harness must answer them
+(`netwindows.js` already does, which is why that helper landed first); full sweep. *Revertable alone:* yes.
+
 ### H — policy, the wire, and the docs
 
 **21 · ⚡ THE ONE STEP TO ORCHESTRATE — feat(ai): a real Fight End policy, then measure.**

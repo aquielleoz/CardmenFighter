@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 437 + 64 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 447 + 64 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 437 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 447 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 64, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
@@ -1270,6 +1270,23 @@ tested `r.roundWinner != null` fell straight through — six of them, in both dr
 inside its own window. **Any new round-win call site goes through `drainFightEnd`**, and the tell that one
 was missed is a table that parks with the round number unchanged.
 
+**THE SAVED LOG CARRIES A PRIORITY LEDGER (`prioNote`, 2026-09-10) — AND ITS FIRST TWO VERSIONS BOTH HAD
+THE SAME HOLE.** Aj: *"make the records as complete as you need. no one else will debug this game for
+us."* It rides the download beside the netplay trace, one file being what actually gets sent, and is NOT
+on screen — the go-round opens far too often for a battle-log line.
+**v1 LOGGED ONLY FIGHT END AND ONLY WHEN A WINDOW OPENED.** Aj's first real log came back with **2 entries
+across 10 rounds**, which cannot distinguish a quiet game from a broken one — and a probe then played five
+full rounds and logged **nothing at all**, which is what both look like. The cause: a round win only
+RETURNS a go-round when somebody can add to the stack, so `r.fightEnd` is usually unset and
+`finishPassRound` does not even call the drain. The note moved to **`announceRoundWin`**, the one funnel
+all six round-win paths reach exactly once.
+**AND THE ROUND STAMP WAS OFF BY ONE THERE**, because `state.round` has already advanced by the time
+`announceRoundWin` runs — five rounds came out labelled r2-r6. `prioNote` takes a `roundAt` override for
+that caller. **A diagnostic that is off by one sends the next reader to the wrong round**, which is worse
+than not logging it.
+**THE RULE: log the SILENT case, not just the interesting one.** "Nothing happened" and "the code never
+ran" are the same absence, and telling them apart is the entire value of a ledger.
+
 **MULTI-AGENT ORCHESTRATION ("ultracode") IS FOR DESIGN, NEVER FOR TESTING OR REVIEW** (Aj, 2026-09-03, after
 hitting his session cap twice in one day: *"so the next session doesn't super bleed out my tokens on testing"*).
 Measured on v1.31.95, the two halves of the same day:
@@ -1316,6 +1333,25 @@ and read what each one consults. When you delete or widen a gate, grep for the g
 still calling it is now describing a world that does not exist.
 **AND IT WAS FOUND BY AN END-TO-END UI TEST, NOT BY READING.** Both unit layers were green — the engine
 opened the window and the card was a legal Quick — because the suppression happens between them, in the UI.
+
+**TARGETING HAPPENS ON CAST — NO LEGAL TARGET MEANS NO CAST (Aj, 2026-09-10).** He found it in a real
+game: a Fight End go-round on an EMPTY stack offered him Counter Spell as its only option. Measured before
+anything changed — `counterTargets` returned `[]`, `canAddToStack` said true anyway, and `respond`
+**accepted** the cast: hand -1, energy 8→4, nothing countered. Not noise in a window; a trap that spends a
+card for nothing. Aj: *"it has to target as part of its casting right? and since there are no effects on
+the stack to target… it shouldn't be castable."*
+**THREE OF THE SEVEN QUICKS TARGET** — Counter Spell (an effect on the stack), Annoint (a `removeEquip` on
+the stack, else your own Equipment), Back Stab (a living rival, which only runs out once the game is over).
+So on an EMPTY stack the only castable Quicks are the untargeted ones, and **Leyline is the only base Quick
+in that set** — worth knowing before staging any empty-stack test, because Counter Spell was the generic
+"a Quick" in five of them and all five stopped staging what they claimed.
+**FIZZLING ON RESOLUTION IS UNTOUCHED, AND THE TWO ARE DIFFERENT MOMENTS.** A target that stops being legal
+before resolution still fizzles (someone countered it first); what is refused is choosing no target at all.
+**IT PARTLY OVERTURNS v1.31.120** — *"offering a Quick that will fizzle is CORRECT, not a leak"* — and the
+overturn is deliberate and narrow: that decision was about the UI NARROWING RELATIVE TO THE ENGINE, and its
+lesson was **one predicate, two definitions**. The fix therefore went in the ENGINE (`canCastQuick`, and
+`respond` refuses before spending anything, because a client sends a card id and a UI-only check is
+reachable over the wire), and `eligibleQuicks` now CALLS that predicate instead of restating it.
 
 **A NOTIFICATION PREFERENCE MUST NOT DECIDE WHAT IS LEGAL (2026-09-10).** `promptedQuicks` was answering two
 questions at once — *should this window stop me?* and *once stopped, what may I play?* — so unchecking a
@@ -1757,7 +1793,7 @@ Status as of **v1.31.127 — 2026-09-10, `npm run sweep`, 92 suites and 0 FAIL i
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 437, `netview` 64, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
+`test` 447, `netview` 64, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
 `versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 18, `fightendtest` 16, `fightenduitest` 23, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,

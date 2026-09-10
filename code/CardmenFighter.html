@@ -2949,9 +2949,42 @@
 
   // Can player q put a Quick on the stack right now (any affordable impl Quick)? Used to decide
   // whether to open a response window or AUTO-PASS them (priority auto-passes players with no action).
+  /* TARGETING HAPPENS ON CAST, SO NO LEGAL TARGET MEANS NO CAST (Aj, 2026-09-10: *"it has to target as part
+     of its casting right? and since there are no effects on the stack to target… it shouldn't be
+     castable"*). He found it in a real game: a Fight End go-round on an EMPTY stack offered him Counter
+     Spell as its only option. Measured before changing anything — the engine's own `counterTargets`
+     returned `[]`, `canAddToStack` said true anyway, and `respond` ACCEPTED the cast: hand -1, energy 8→4,
+     nothing countered. Not merely noise in the window; a trap that spends a card for nothing.
+     THREE OF THE SEVEN QUICKS TARGET, and two of them can genuinely have none — Counter Spell (an effect on
+     the stack) and Annoint (a `removeEquip` on the stack, else your own Equipment). Back Stab targets a
+     living rival, which only runs out when the game is already over.
+     WHY THIS IS THE ENGINE AND NOT THE UI. v1.31.120 removed a `protect` clause from `eligibleQuicks` and
+     recorded that *"offering a Quick that will fizzle is CORRECT, not a leak"* — but that was about the UI
+     NARROWING RELATIVE TO THE ENGINE, and its real lesson was **one predicate, two definitions**. Fixing it
+     here keeps that lesson: the UI still mirrors `canCastQuick` rather than restating a rule.
+     `canCastQuick` is the per-card predicate and `canAddToStack` is `some()` over it, so the seat-level and
+     card-level answers cannot drift — which they did before, since `eligibleQuicks` had its own copy. */
+  function quickTargets(st, q, eff) {
+    if (!eff) return null;                                                     // not a targeting effect — nothing to check
+    if (eff.kind === 'counter') return counterTargets(st);
+    if (eff.kind === 'protect') {
+      for (var j = st.stack.length - 1; j >= 0; j--) {                         // an incoming removeEquip is a legal target even with no equipment of your own
+        if (st.stack[j].kind === 'effect' && st.stack[j].eff.kind === 'removeEquip' && pickEquip(st, st.stack[j].p, st.stack[j].opts && st.stack[j].opts.target)) return [1];
+      }
+      return st.players[q].equipment.slice();
+    }
+    if (eff.kind === 'lockout') return hostileTargets(st, q, nextPlayer(st, q), 'lockout', eff);
+    return null;
+  }
+  function canCastQuick(st, q, card) {
+    var qp = st.players[q], e = effectFor(st, q, card);                        // effectFor: a Form can make a card Quick
+    if (!e || !e.impl || !e.quick || !canAfford(qp, card)) return false;
+    var t = quickTargets(st, q, e);
+    return t === null || t.length > 0;
+  }
   function canAddToStack(st, q) {
     var qp = st.players[q];
-    return qp.hand.some(function (c) { var e = effectFor(st, q, c); return e && e.impl && e.quick && canAfford(qp, c); });   // effectFor: a Form can make a card Quick
+    return qp.hand.some(function (c) { return canCastQuick(st, q, c); });
   }
   /* ONE GO-ROUND WALK, PARAMETERISED BY ITS ORIGIN (epic step 11, prerequisite P2).
      `PHASES-AND-PRIORITY.md` §2/§3: a go-round starts at the CONTROLLER of the top object, or at the ACTIVE
@@ -3126,6 +3159,12 @@
     var qeff = effectFor(st, q, qcard);                // effectFor: honor a Form that made this card Quick
     if (!qeff || !qeff.impl || !qeff.quick) return { ok: false, reason: 'That is not a Quick.' };
     if (!canAfford(qp, qcard)) return { ok: false, reason: 'Not enough Fighter Energy of the right suit.' };
+    /* AND NO LEGAL TARGET MEANS NO CAST — the refusal has to be REAL, not merely hidden from the UI. Before
+       this, `respond` accepted a Counter Spell into an empty stack and charged for it; a check that only
+       lived in `canAddToStack` would leave that reachable over the wire, where a client sends a card id.
+       `quickTargets` returns null for the four Quicks that do not target, so they are unaffected. */
+    var qTgt = quickTargets(st, q, qeff);
+    if (qTgt !== null && !qTgt.length) return { ok: false, reason: 'No legal target for ' + (qeff.name || 'that Quick') + '.' };
     /* VALIDATE THE TARGET BEFORE SPENDING ANYTHING. This block sat AFTER the hand and energy were taken, so
        a refused cast still cost the card — caught by the "nothing is spent on the refusal" assertion, which
        is exactly why that assertion is separate from the "was it refused" one. Names in, engine resolves;
@@ -4135,7 +4174,7 @@
     HOSTILE_SINGLE: HOSTILE_SINGLE,
     shieldGuard: shieldGuard, shieldGuardPass: shieldGuardPass, shieldGuardCard: shieldGuardCard,
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
-    canAddToStack: canAddToStack, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
+    canAddToStack: canAddToStack, canCastQuick: canCastQuick, quickTargets: quickTargets, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
     openFightEndWindow: openFightEndWindow,   // step 11: built and tested here, made live by step 18
     /* RENAMED FROM `guardEffFor` (epic step 16), and the rename is the point rather than tidying. As
        `guardEffFor` it was the WHITELIST GATE — the answer to "may this card be offered at the shield-guard
@@ -5774,10 +5813,21 @@ window.CardFace = {};
      so a per-occurrence line in the battle log would be pure noise for a player. It rides the DOWNLOAD
      instead, the same way the netplay trace does and for the same stated reason: one file is what actually
      gets sent. Not dbg-gated — the whole point is that it works in an ordinary game on a phone. */
-  var FE_LOG=[], FE_CAP=300;
-  function feNote(kind, detail){
-    if(FE_LOG.length>=FE_CAP) FE_LOG.shift();
-    FE_LOG.push('r'+((state&&state.round)||'?')+'  '+kind+(detail?('  '+detail):''));
+  var PRIO_LOG=[], PRIO_CAP=400;
+  /* RENAMED FROM `FE_LOG`/`feNote` AND WIDENED TO EVERY TIMING (Aj, 2026-09-10: *"make the records as
+     complete as you need. no one else will debug this game for us"*). The first version logged only Fight
+     End, which answered "how often does the new window stop me" and nothing else — his first real log
+     showed 2 entries across 10 rounds and could not say whether the `respond` window he used in round 7
+     had been offered or taken. A record that covers one timing cannot tell you the shape of a turn. */
+  /* `roundAt` OVERRIDES THE STAMP, and it exists for one caller. `state.round` has ALREADY ADVANCED by the
+     time `announceRoundWin` runs — the engine finishes the round inside `applyRoundLossBody` — so a
+     resolution logged from there is stamped with the round AFTER it. Caught by reading a probe's output:
+     five rounds resolved and came out labelled r2-r6. A diagnostic that is off by one sends the next
+     reader to the wrong round, which is worse than not logging it. */
+  function prioNote(kind, detail, roundAt){
+    if(PRIO_LOG.length>=PRIO_CAP) PRIO_LOG.shift();
+    var rn = (roundAt != null) ? roundAt : ((state && state.round) || '?');
+    PRIO_LOG.push('r'+rn+'  '+kind+(detail?('  '+detail):''));
   }
   var enterDelayBase=0;              // ms offset added to drawn-card deal-in, so a round's new cards arrive on the "Round N" beat
   var ROUND_BEAT=750, ROUND_HOLD=1350;   // ceremony timing (ms): each pre-card beat, and the Round-N card hold
@@ -5819,15 +5869,17 @@ window.CardFace = {};
   // Is this timing even legal for this card? A no-row is not the same as an unchecked row.
   function promptLegal(card, eff, timing){
     if(!eff || !eff.impl || !eff.quick) return false;
-    if(timing==='prefight') return eff.kind==='lockout';     // matches `eligiblePreFightQuicks`
+    if(timing==='prefight') return eff.kind==='lockout';     // matches `eligiblePreFightQuicks` — epic step 20 widens BOTH
     return true;                                             // respond + fightend take any Quick
   }
-  /* THE DEFAULT IS "THE TIMING THAT CARD ALREADY HAD", so the out-of-the-box experience is today's:
-     every Quick already prompts on a cast and a lockout Quick already prompts pre-fight, while the Fight End
-     window today offers ONLY the guard whitelist — so Leyline and Sanctuary still speak when your shields
-     are threatened and nothing else newly does. `immunityEffFor` is asked rather than restated: it is the
-     engine's single definition of "can this card guard", and step 19 deletes it, at which point this
-     default needs re-deriving rather than quietly meaning something else. */
+  /* THREE ROWS, AND THE MODEL HAS FIVE PRIORITY POINTS — the gap is deliberate and temporary.
+     `PHASES-AND-PRIORITY.md` §3 passes priority at: **Upkeep**, each cast in the **Main Sub-Phase**, the
+     **pre-fight window**, **Fight End**, and the beginning of **Clean-up**. Upkeep and Clean-up have no
+     rows because NO CARD HAS A TRIGGER THERE — the doc says so at both, and a row for a timing nothing can
+     use is a dead control, which this codebase already treats as its own kind of dead end.
+     The pre-fight row is narrower than the model, which says verbatim *"Every player's Quicks are
+     available here"* — it is gated to `lockout` because `eligiblePreFightQuicks` still is. **Epic step 20
+     is exactly that widening**, and when it lands this gate goes with it and every Quick gains the row. */
   /* EVERY LEGAL TIMING PROMPTS BY DEFAULT (Aj, 2026-09-10: *"players can really look at all their cards and
      decide which effects to activate. legal mind you at the timing it's being asked at"*).
      THIS USED TO RETURN `immunityEffFor(...)` FOR `fightend` — the whitelist step 18 DELETED. It was right
@@ -7151,9 +7203,9 @@ window.CardFace = {};
         if(tr && tr.length) text += '\n\n--- NETPLAY TRACE ('+tr.length+' entries; newest last) ---\n' + tr.join('\n');
       }
     }catch(e){}
-    /* THE FIGHT END LEDGER GOES IN TOO (epic step 18) — see `feNote`. Appended after the trace because a
-       netplay report wants both and one file is what gets sent. */
-    try{ if(FE_LOG.length) text += '\n\n--- FIGHT END WINDOWS ('+FE_LOG.length+' entries; oldest first) ---\n' + FE_LOG.join('\n'); }catch(e){}
+    /* THE PRIORITY LEDGER GOES IN TOO — see `prioNote`. Appended after the trace because a netplay report
+       wants both and one file is what actually gets sent. */
+    try{ if(PRIO_LOG.length) text += '\n\n--- PRIORITY WINDOWS ('+PRIO_LOG.length+' entries; oldest first) ---\n' + PRIO_LOG.join('\n'); }catch(e){}
     var blob=new Blob([text],{type:'text/plain'}), url=URL.createObjectURL(blob);
     var a=document.createElement('a'); a.href=url; a.download='cardmen-battle-log.txt'; document.body.appendChild(a); a.click();
     document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
@@ -7460,7 +7512,7 @@ window.CardFace = {};
       ? { numPlayers:mpCount, starter:starter, decks: seatDecks.slice(0,mpCount).map(function(d){ return (d==='full'||!d)?null:d; }), basics:gameBasics }
       : { decks:[ youDeck==='full'?null:youDeck, rivalDeck==='full'?null:rivalDeck ], starter:starter, basics:gameBasics };
     if(tutorialMode) ngOpts.shields=tutShields;   // shorter HP so a guided lesson can reach the Fighter Kick
-    gen++; state=E.newGame(null, ngOpts); if(tutorialMode){ (currentLesson&&currentLesson.rig?currentLesson.rig:tutRig)(state); } selected={}; fullLog=[]; FE_LOG=[]; pick=null; targeting=null; targetPick=null; busy=false; handOrder=[]; layout=[]; gidSeq=0; drag=null; pileSig=null; flipFrom=null; pendingEnter={}; equipFx={}; formsOpen=null; equipOpen=null;
+    gen++; state=E.newGame(null, ngOpts); if(tutorialMode){ (currentLesson&&currentLesson.rig?currentLesson.rig:tutRig)(state); } selected={}; fullLog=[]; PRIO_LOG=[]; pick=null; targeting=null; targetPick=null; busy=false; handOrder=[]; layout=[]; gidSeq=0; drag=null; pileSig=null; flipFrom=null; pendingEnter={}; equipFx={}; formsOpen=null; equipOpen=null;
     resetControllers(state.numPlayers);   // seat 0 = local human, every opponent = AI (netplay will override specific seats to 'remote')
     if(E.setLossTargetInteractive) E.setLossTargetInteractive(function(st, w){ return isHumanSeat(w); });   // a human winner (local or remote) picks whose shield to strip in 'chosen' mode
     if(mpCount>2){ state._diff={}; for(var _s=0;_s<state.numPlayers;_s++) if(_s!==YOU) state._diff[_s]=diffOf(_s); }   // per-seat AI tier for the round-win chooser
@@ -8704,6 +8756,17 @@ window.CardFace = {};
   // LATER by logRoundDraw(), after the end-of-round discard + the deferred draw.
   function announceRoundWin(res){
     var w=res.roundWinner, who=logName(w), cls=(w===YOU?'you':'rival');
+    /* EVERY ROUND RESOLUTION IS RECORDED HERE, because this is the one funnel all six round-win paths
+       reach exactly once. The note started life inside `drainFightEnd` and could not see the case that
+       matters: a round win only RETURNS a go-round when somebody can add to the stack, so when nobody
+       holds a castable Quick the sub-phase just runs and `r.fightEnd` is never set — and `finishPassRound`
+       does not even call the drain then. MEASURED: a probe played five full rounds and logged NOTHING,
+       which is exactly what "quiet" and "broken" both look like, and is the distinction this ledger
+       exists to draw. Aj's first real log had the same hole: 2 entries across 10 rounds. */
+    prioNote('FIGHT END — round resolved', 'winner=' + who +
+             ' struck=' + ((res.struck || []).map(logName).join('+') || 'nobody') +
+             (res.kick ? '  ⟵ FIGHTER KICK' : ''),
+             (res.newRound ? res.newRound - 1 : (state && state.round)));
     var spec = res.comboType ? (TYPE[res.comboType]||'Special') : 'Special';
     /* WHO lost the shield now comes from res.struck (engine, v1.29.6). It used to be "whoever was eliminated,
      * else the string 'a rival'" — so in a free-for-all almost every line read "a rival lost a shield" even
@@ -9064,8 +9127,14 @@ window.CardFace = {};
          this as much as it is the shield-guard window.
          The tell that it was an oversight rather than a decision: `eligiblePreFightQuicks`, twenty lines
          below, already reads `effectFor` and says why in its own comment. Someone fixed that one. */
+      /* ONE PREDICATE, CALLED — NOT RESTATED (2026-09-10). This used to spell out `impl && quick &&
+         canAfford` itself, which is the same shape as the `protect` clause v1.31.120 deleted from here:
+         a second definition of the engine's rule, free to drift. It drifted the moment targeting became
+         part of casting — the engine refuses a Counter Spell with nothing on the stack, and this list
+         would still have offered it. `canCastQuick` is the engine's own per-card answer and
+         `canAddToStack` is `some()` over it, so the seat-level walk and this list cannot disagree. */
+      if(!E.canCastQuick(state, YOU, c)) return false;
       var ef=(E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c));
-      if(!ef||!ef.impl||!ef.quick||!E.canAfford(you, c)) return false;
       /* NO EXTRA KIND FILTER — THIS MUST MATCH THE ENGINE'S `canAddToStack` EXACTLY (v1.31.120). There was a
          `protect` clause here hiding Annoint unless the pending effect was a removal, and the engine has no
          such test: it grants priority for ANY affordable Quick. So the engine opened a window this list then
@@ -9096,6 +9165,7 @@ window.CardFace = {};
       var resp=AI.respondDecision(state, q);
       if(!resp) break;
       if(resp.respondedWith){
+        prioNote('  → ' + logName(q) + ' CAST ' + (resp.respondName || resp.respondedWith) + (resp.countered ? '  (a counter)' : ''));
         bumpEffect(q, {kind:resp.respondKind, id:resp.respondedWith});
         if(resp.countered) say(q, '{who} countered with '+resp.respondName+'!', 'rival');
         else say(q, '{who} answered at instant speed with '+resp.respondName+'.', 'rival');
@@ -9130,9 +9200,9 @@ window.CardFace = {};
      a host is a wire callback, not this caller. `st.fightEndResult` is where the engine parks it, and it is
      deliberately NOT `roundWinResult`: `driveShieldStack` reads that one as "this is a round win" (P3). */
   function drainFightEnd(r, g, then){
-    if(!r || !r.fightEnd) return then(r);
+    if(!r || !r.fightEnd) return then(r);   // the SILENT case is logged in `announceRoundWin`, the one funnel every path reaches
     var fe=state.fightEnd||{};
-    feNote('SUB-PHASE opens', 'winner=' + (fe.winner!=null?logName(fe.winner):'?') +
+    prioNote('  ↳ a GO-ROUND opened before it', 'winner=' + (fe.winner!=null?logName(fe.winner):'?') +
            ' struck=' + ((fe.strikeTargets||[]).map(logName).join('+') || 'nobody') +
            (fe.wonWithCombo ? ' (Special)' : ' (jab — no shield at stake)') +
            ' priority→' + (state.respondFor!=null?logName(state.respondFor):'?'));
@@ -9160,11 +9230,11 @@ window.CardFace = {};
        completely different bugs — the second is what hid Sanctuary. Recorded with the CARD NAMES so a
        saved log answers "should I have been offered this?" without a repro. */
     var feNames=function(list){ return list.map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return (e&&e.name)||c.id; }).join(', '); };
-    if(promptTiming==='fightend'){
-      if(quicks.length) feNote('window SHOWN to you', 'offering: ' + feNames(eligible) + (eligible.length>quicks.length ? '  (stopped by: ' + feNames(quicks) + ')' : ''));
-      else if(eligible.length) feNote('AUTO-PASSED for you — PROMPT OFF', 'you could have cast: ' + feNames(eligible) + '  (card reader → “when shields are about to break”)');
-      else feNote('auto-passed for you', 'nothing castable in hand');
-    }
+    var tName = promptTiming==='fightend' ? 'fight-end' : (promptTiming==='prefight' ? 'pre-fight' : 'respond');
+    var onWhat = pend ? ('  vs ' + rivalName) : '';
+    if(quicks.length) prioNote('['+tName+'] window SHOWN to you' + onWhat, 'offering: ' + feNames(eligible) + (eligible.length>quicks.length ? '  (stopped by: ' + feNames(quicks) + ')' : ''));
+    else if(eligible.length) prioNote('['+tName+'] AUTO-PASSED for you — PROMPT OFF' + onWhat, 'you could have cast: ' + feNames(eligible) + '  (card reader → “Ask me to respond…”)');
+    else prioNote('['+tName+'] auto-passed for you' + onWhat, 'nothing castable in hand');
     if(!quicks.length){ if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'decline'}); busy=true; render(); return; } E.declineResponse(state, YOU); return cont(); }   // nothing to answer with — auto-pass
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     /* WHO cast it and WHO it is aimed at were both missing — Aj: "who or what is being targetted? why should I
@@ -9270,6 +9340,7 @@ window.CardFace = {};
     if(qeff && qeff.kind==='counter'){ setMessage('🌀 You <b>Countered</b> '+pendName+'!'); say(YOU, '{who} countered '+pendName+' with '+qeff.name+'!', 'you'); }
     else { setMessage('You answered with <b>'+qeff.name+'</b>.'); say(YOU, '{who} answered with '+qeff.name+' at instant speed.', 'you'); }
     bumpEffect(YOU, qeff);
+    prioNote('  → you CAST ' + (qeff && qeff.name ? qeff.name : quickId) + (qeff && qeff.kind==='counter' ? ('  (countering ' + pendName + ')') : ''));
     render(); cont();
     if(typeof TUT!=='undefined' && TUT.note){ tutAwaitCounter=false; TUT.note('respond', { countered: !!(qeff && qeff.kind==='counter') }); }   // Quicks lesson gates here
   }
@@ -9279,7 +9350,7 @@ window.CardFace = {};
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     if(g!==gen){ hideOverlay(); return; }
     hideOverlay();
-    if(!state.pending && state.fightEnd) feNote('you DECLINED the window');
+    prioNote('  → you DECLINED');
     E.declineResponse(state, YOU);
     say(YOU, '{who} let it resolve.', 'dim');
     render(); cont();
@@ -9289,7 +9360,11 @@ window.CardFace = {};
   // player's Play Sub-Phase. Two directions: you spring it on the Rival (Case A), or the Rival on you (Case B). ----
   function eligiblePreFightQuicks(){
     var you=state.players[YOU];
-    return you.hand.filter(function(c){ var ef=(E.effectFor?E.effectFor(state,YOU,c):E.effectOf(c)); return ef&&ef.impl&&ef.quick&&ef.kind==='lockout'&&E.canAfford(you,c); });   // effectFor: Hermes Mode makes Back Stab a Quick
+    /* The `lockout` narrowing is this window's own (epic step 20 widens it); everything else defers to the
+       engine, so a targeting rule cannot be restated here either. Back Stab targets a living rival, which
+       only runs out once the game is over — so in practice this changes nothing today, and it stops being
+       a second definition, which is the point. */
+    return you.hand.filter(function(c){ var ef=(E.effectFor?E.effectFor(state,YOU,c):E.effectOf(c)); return ef&&ef.kind==='lockout'&&E.canCastQuick(state,YOU,c); });   // effectFor: Hermes Mode makes Back Stab a Quick
   }
   // Case A — the Rival is about to fight and YOU hold Back Stab: offer to spring it and lock their turn.
   function promptHumanPreFight(g){
@@ -13798,7 +13873,7 @@ window.CardFace = {};
   /* Prompt-preference hooks (epic step 15). `promptPrefs` returns the STORED overrides, not the resolved
      rows, because the suite's load-bearing assertion is that only overrides are stored. Duplicate-key check
      run on this literal before adding — CLAUDE.md's `__cmf` trap applies here too. */
-  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, feLog:function(){ return FE_LOG.slice(); },   /* the Fight End ledger the save file carries — see feNote */
+  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
     promptWanted:promptWanted, setPromptPref:setPromptPref, promptPrefs:function(){ return promptPrefs; }, showCard:showCard,
     /* Peek is only reachable from the end screen, so a suite would have to play a whole duel to get
      * there. These enter/leave it directly — the real functions, not a staged class list, which is the
