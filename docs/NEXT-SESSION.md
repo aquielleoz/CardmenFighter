@@ -8,7 +8,7 @@ syntax error** — read its `built … bytes` line before believing a surprising
 
 **Test gate:** `npm test` = `node test.js` (**437**) + `node netview.test.js` (**64**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
-including all 49 `nettest_*` suites and the ten `lessontest*` ones, is listed in **CLAUDE.md** with its expected
+including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
 
 **Player style:** **PLAYER-PROFILE.md** — a living read on how Aj actually plays (control/value grinder,
@@ -33,7 +33,9 @@ commit sequence, and [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) — **wh
 the version is held until it merges, and `main` is merged **into** it after any session spent elsewhere
 (CLAUDE.md → "Branches and PRs").
 
-Other branches: **`feat/qr-scanning`** (parked; its BACKLOG entry says what would revive it).
+Other branches: **`feat/qr-scanning`** and **`parked/shield-gain-guard`** (both parked; each has a BACKLOG
+entry saying what would revive it — the second one breaks the epic's step-12 proof, so read it before
+resuming that work).
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
 
@@ -384,6 +386,20 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
     (the v1.31.0 fix, mirrored).
   - The one objection that *did* survive: the **leader-snowball is worse under coins**, because a win advances
     only the winner where a shield hit damages everyone, and initiative is already 1.8x concentrated.
+- **A SHIELD GAIN AS A GUARD IS PARKED on `parked/shield-gain-guard`** (2026-09-10). Widens `guardEffFor`
+  to admit a card that GAINS a shield, so Hector's Sanctuary — a Quick by the Form, but granting no
+  immunity — can be sprung at the moment it is for. Aj's own reasoning is in the patch: *"really since it's
+  a quick it should be offered everywhere the player gets priority."*
+  **Recovered by accident**: a `git stash pop` after a failed `git stash push` applied an earlier session's
+  stash into unrelated work. It has never been reviewed or run as shipped.
+  **Why it is not merged:** it breaks the epic's step-12 superset proof, measured — base Sanctuary is
+  `quick: false`, and the rebuilt window gates on `canAddToStack`, which requires `quick`. Applied on the
+  epic, `shadowtest` half A gives 93 counterexamples and half B 108 live violations.
+  **The condition that would revive it:** finish step 18, then check whether it is still needed at all. The
+  rebuilt window offers every Quick to everyone with priority, which may be what this was reaching for by a
+  different route — Hector-Sanctuary is already admitted there. **Unverified; check, do not assume.**
+  Reproduce by applying the patch on `epic/priority-windows` (the suite does not exist on `main`).
+
 - **QR SCANNING IS BUILT, GREEN, AND PARKED on `feat/qr-scanning`** (PR #29, closed 2026-08-25, 21/0).
   **Why it is not merged:** scanning needs an origin that can be granted camera access, and a file opened from
   Android's Downloads is `content://` — an opaque origin — so Chrome rejects `getUserMedia` without ever
