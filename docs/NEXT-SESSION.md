@@ -72,6 +72,24 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Correctness
 
+- **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
+  sweep during epic step 14; not reproduced since). The two failures were `lessonlib`'s shared `finish()`:
+  *the completion modal is actually on screen* and *…and the lesson is marked done*. **Everything before
+  them passed**, so the lesson ran its steps and then did not reach the completion modal — which points at
+  the LAST `next()` not landing, not at a mid-lesson stall. `finish()` polls for a VISIBLE modal, so a
+  timeout fails both (the second because `localStorage` was never written).
+  **The suite name is unknown because I piped that sweep through `tail -4` and the summary line scrolled
+  past** — `sweep.js` prints whole lines precisely so this evidence survives, and cropping it cost the
+  identification. **Capture the full sweep log.**
+  **Not reproduced:** an immediate re-sweep was **89/89**, and **33 runs of all eleven lesson suites
+  eleven-at-a-time** (heavier than the sweep's four lanes) were clean. `lessontest_quicks` was the prime
+  suspect — step 14 changed the modal it drives — and passed 21/0 both alone and in the green sweep.
+  **Do not file this as a flake and do not raise a poll budget on it.** This repo's record is that an
+  intermittent has been a real dependency every single time. The cheap next move is the one the
+  `lessontest_twos` entry above already argues for: make the last step self-diagnosing — have `next()` say
+  when it did not click, and have `finish()` print the step it was on when the modal failed to appear. One
+  red run would then name both the suite and the step.
+
 - **`lessontest_twos` FAILED ONCE UNDER LOAD, AND THE SIGNATURE POINTS AT THE PREP, NOT THE POLL** (seen once
   in a `-j 4` sweep, 2026-09-07; 3/3 solo and 86/86 on an immediate re-sweep, so it is rare). Do not file this
   as "flaky" and re-tune a budget — this repo's record is that an intermittent has been a REAL dependency every

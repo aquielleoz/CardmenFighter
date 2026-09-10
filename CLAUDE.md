@@ -1143,6 +1143,12 @@ cache is dropped on join and rejoin, so a reconnecting peer is never deduped aga
   because a pipe buffers until exit, so each apparent non-result prompted another launch — and they raced
   for ports, producing `FAILED — 67/88` with a screen of `EADDRINUSE`. **A sweep is exclusive. Start one,
   leave the machine alone, and read the pipe only when it exits.**
+  **AND NEVER PIPE A SWEEP THROUGH `tail -n` (2026-09-10).** `sweep.js` prints each suite's WHOLE summary
+  line specifically so a failure identifies itself — v1.31.84's note records that cropping to the
+  `PASS:`/`FAIL:` fragment is what once hid a suite's own evidence. Piping the run to `tail -4` reproduced
+  that mistake from the other end: a lesson suite failed two assertions, the four surviving lines carried
+  the assertion text but not the SUITE NAME, and identifying it then cost a re-sweep plus 33 loaded runs —
+  which did not reproduce it, so the name is simply gone. **Redirect to a file and grep it.**
   **A SWEEP THAT PRINTS NOTHING IS NOT A SWEEP THAT DID NOTHING.** `node sweep.js | tail -n` shows nothing at
   all until the pipeline closes, and to a file Node block-buffers as well — so an empty output file at the
   two-minute mark is the NORMAL appearance of a healthy run. Check `ps`, never the output length, and never
@@ -1296,7 +1302,11 @@ made me revert a correct fix on 2026-08-28. Compare counts against the HOST: it 
 is the truth. `nettest_sync` asserts it.
 
 **Narration is reader-relative.** Never write a name into a log line — call `say(actor, '{who} …', cls)`. It
-renders `{who}` in the local frame via `logName` (yourself → "You"; a duel opponent → "Rival"; otherwise `P<n>`)
+renders `{who}` in the local frame via `logName` — yourself → **"You"**, everyone else → their typed name or
+**`defaultName(i)` = "Rival N"** (`N = i+1`), which is ONE default at every player count. *(This line used to
+say "a duel opponent → Rival; otherwise `P<n>`" and neither half was true: a duel opponent with no name reads
+**"Rival 2"**, and `P<n>` is used by the LOBBY roster and the pre-fight strip, not by `logName`. Found
+2026-09-10 writing the Fight End copy, from a test printing the name it actually got.)*
 and, when we are the netplay host, broadcasts the **template** plus the actor's absolute seat so each client
 renders it in *its* frame. A bare `logMsg` is host-local and reaches nobody else — which is how clients ended up
 with a completely empty battle log for every version up to v1.28.2.
@@ -1623,7 +1633,7 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 52 netplay suites: `nettest_3p` 7, `priosig` 11, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
+The 52 netplay suites: `nettest_3p` 7, `priosig` 18, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 14, `kick` 11, `log` 16, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,

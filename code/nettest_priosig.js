@@ -137,6 +137,62 @@ const appliedCount=async p=>(await traceOf(p)).filter(l=>/mirror APPLIED/.test(l
      (olOpen?'':'  ← the window is invisible to the client, so nobody answers and the table parks'));
   ok(!errs.some(e=>/Cannot read|undefined/.test(e)), 'objectless window: rendering it threw nothing'+(errs.length?'  ← '+errs.slice(0,2).join(' | '):''));
 
+  /* THE FIGHT END WINDOW'S COPY (epic step 14). Nothing MINTS such a window until step 18, so without
+     staging one here the wording ships unrendered — and the whole point of the copy is that a player facing
+     a strike can see who is striking and with what (`openShieldGuardModal` learned this in v1.31.120: at
+     3-6 players "Rival" names nobody). Injected exactly like the objectless window above; the client's frame
+     is seat-rotated, so seat 1 is the other player and `strikeTargets:[0]` means YOU are struck. */
+  async function feWindow(shields, targets, q) {
+    return join.evaluate((a) => {
+      const st = JSON.parse(JSON.stringify(window.__cmfNetState));
+      const C = (n, su, t) => ({ rank: n, suit: su, id: (t || 'p') + n + su });
+      st.players[0].hand = [C(4,'D'), C(6,'C')];
+      st.players[0].energy = [C(4,'D','e'), C(4,'D','e2'), C(4,'D','e3'), C(4,'D','e4')];
+      st.players[0].shields = a.shields;
+      st.pile = { byPlayer: 1, mod: 0, combo: { type: 'pair', value: 9, size: 2, key: [9], cards: [C(9,'C','x'), C(9,'S','y')] } };
+      st.pending = null; st.respondFor = 0; st.prioGen = a.gen; st.finished = false;
+      st.fightEnd = { origin: 1, winner: 1, wonWithCombo: true, strikeTargets: a.targets, winSize: 2 };
+      return { t:'mirror', seat:1, q:a.q, bs:'x', st:st };
+    }, { shields: shields, targets: targets, q: q, gen: 900 + q });
+  }
+  const modalText = () => join.evaluate(() => { const m=document.getElementById('modal'); return m?m.textContent:''; });
+  /* READ THE LEAD PARAGRAPH, NOT THE WHOLE MODAL. The first version matched /Rival/ against `modalText()`
+     and passed a mutant that replaced the striker's name with "Someone" — because `tableContextHTML()`
+     renders "Rival's Pair" further down the same modal. An assertion about the LEAD has to read the lead. */
+  const leadText = () => join.evaluate(() => { const p=document.querySelector('#modal p'); return p?p.textContent:''; });
+  const stackText = () => join.evaluate(() => { const v=document.getElementById('stackView'); return (v && v.style.display!=='none') ? v.textContent : ''; });
+
+  await join.evaluate(()=>document.getElementById('respDecline').click());
+  await until(async()=>!(await respOpen(join)));
+  const aFe=await appliedCount(join);
+  await join.evaluate(m=>window.__cmf.inject(m), await feWindow(3, [0], ++seq));
+  ok(await until(async()=>(await appliedCount(join))>aFe), 'fight end copy: the mirror is APPLIED');
+  ok(await until(()=>respOpen(join)), 'fight end copy: the window opens');
+  const t1 = await modalText();
+  ok(/about to strip/i.test(t1) && /YOUR/.test(t1),
+     'fight end copy: it says a shield of YOURS is about to be stripped' + (/about to strip/i.test(t1)?'':'  ← got: '+t1.slice(0,120)));
+  const lead1 = await leadText();
+  const named = /^(.+?)’s Pair is about to strip/.exec(lead1);
+  const strikerName = named ? named[1] : null;
+  ok(!!strikerName && !/^(Someone|The winner)$/.test(strikerName),
+     'fight end copy: the LEAD names the striker ("' + strikerName + '") and the play, not "a Special"' +
+     (strikerName ? '' : '  ← lead read: "' + lead1.slice(0, 140) + '"'));
+
+  /* THE STACK VIEW SHOWS THE PENDING LOSS. The go-round runs on an EMPTY stack, so before this the panel
+     was blank during the one window where something is at stake. */
+  const sv = await stackText();
+  ok(/loses a shield/i.test(sv), 'fight end copy: the stack view shows the pending loss' + (/loses a shield/i.test(sv)?'':'  ← stackView read: "'+sv.slice(0,120)+'"'));
+
+  /* AT ZERO SHIELDS IT IS THE KICK, and saying "a shield" there would understate the only decision that
+     can end the game. Same window, one field different. */
+  await join.evaluate(()=>document.getElementById('respDecline').click());
+  await until(async()=>!(await respOpen(join)));
+  await join.evaluate(m=>window.__cmf.inject(m), await feWindow(0, [0], ++seq));
+  ok(await until(()=>respOpen(join)), 'fight end copy: the window re-opens at 0 shields');
+  const t2 = await modalText();
+  ok(/FIGHTER KICK/.test(t2),
+     'fight end copy: at ZERO shields it names the FIGHTER KICK, not "a shield"' + (/FIGHTER KICK/.test(t2)?'':'  ← got: '+t2.slice(0,140)));
+
   ok(errs.length===0, 'no page errors'+(errs.length?'  ← '+errs.slice(0,3).join(' | '):''));
   console.log((fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);
