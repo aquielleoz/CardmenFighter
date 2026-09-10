@@ -2,7 +2,7 @@
  * chosen target is already at 0 shields, so the strike is the FIGHTER KICK — that player is eliminated and the
  * remaining two continue. Verifies: the eliminated client sees itself OUT (mirror.eliminated), the game is NOT
  * finished (2 alive), the host keeps driving, and the survivors advance to the next round. Over BroadcastChannel. */
-const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const http=require('http'),fs=require('fs'),path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const autoAnswerWindows=require('./netwindows.js'); const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8303),ROOM='EL'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -31,6 +31,11 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   const c1=await ctx.newPage(); c1.on('pageerror',e=>errs.push('c1: '+e.message));
   const c2=await ctx.newPage(); c2.on('pageerror',e=>errs.push('c2: '+e.message));
   await host.goto(url('host')); await c1.goto(url('join')); await c2.goto(url('join')); await host.waitForTimeout(1200);
+  /* ANSWER WINDOWS THIS SUITE DOES NOT SCRIPT — see `netwindows.js`. The duel suites get this from
+     `startDuel`; the 3-player ones hand-roll their lobby, so they install it themselves. Without it a
+     client seat offered priority at Fight End parks the host forever: `nettest_3p` hung 4 times in 8
+     runs the day the prompt default widened, against 8/8 on the build before it. */
+  await autoAnswerWindows(host,'host'); await autoAnswerWindows(c1,'c1'); await autoAnswerWindows(c2,'c2');
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
 
   await ready(c1); await wait(300); await ready(c2);

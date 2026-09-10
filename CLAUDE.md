@@ -107,7 +107,9 @@ node fightenduitest.js                          # THE TWO REPORTED BUGS, PLAYED 
                                                 # extra strip from the window. Every claim is a BOTH-WAYS
                                                 # pair off identical staging: decline and die vs cast and
                                                 # live; decline and strip 1 vs cast and strip 2. Also
-                                                # asserts the Fight End LEDGER (19)
+                                                # asserts the Fight End LEDGER, and that a SILENCED card is
+                                                # still castable — the two-Quick shape is the only one that
+                                                # can tell "did not stop me" from "cannot play it" (23)
 node prompttest.js                              # PROMPT PREFERENCES (epic step 15): per-card, per-timing
                                                 # checkboxes in the card reader. Asserts the DEFAULTS are
                                                 # today's experience, that only OVERRIDES are stored, and —
@@ -377,8 +379,30 @@ npm install            # in code/ — installs the playwright devDependency
 npx playwright install chromium
 ```
 
-Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` is a shared
-helper, not a suite — don't run it directly.
+Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` and
+**`netwindows.js`** are shared helpers, not suites — don't run them directly.
+
+**A WIDER WINDOW BREAKS EVERY HARNESS THAT NEVER LEARNED TO ANSWER ONE (2026-09-10).** When the Fight End
+prompt default widened to "every legal timing", `nettest_3p` started HANGING — **4 times in 8 runs, against
+8/8 on the build before it**, at any port and at `-j 1` as well as `-j 4`, so neither contention nor a port
+collision. The mechanism was an ABSENCE: that file contains no reference to a modal at all, so a client seat
+was offered priority, nobody answered, and the host parked until `sweep.js` SIGKILLed it at 300s.
+**IT WAS NEVER ONE SUITE — 27 of them drive play and never answer a window**, found by grepping
+`fightBtn|passBtn` against `respDecline|respQuick|sgNo|pfDecline` across `nettest_*.js`. All 27 were green
+only because the old window was rare. **An unreliable sweep is worth less than a red one**, because it
+makes every other result unreadable.
+`netwindows.js` answers them: `startDuel` installs it for the 18 duel suites, and the nine hand-rolled
+3-player ones install it themselves. **It waits a GRACE DELAY rather than taking an opt-out flag**, and that
+is the design — ten suites drive these windows deliberately, so a poller that clicked on sight would steal
+their windows and turn one flake into ten; a suite that means to act does so in milliseconds, an unscripted
+window sits open forever. It PASSES and never casts, because choosing a card would change what the suite
+measures.
+**AND ITS FIRST TEN-RUN CHECK WAS WORTHLESS: 10/10 green with ZERO auto-passes logged**, which is exactly
+what "it fixed the hang" and "it never fired and I got lucky" both look like. `NETWINDOWS_GRACE=999999`
+exists to settle that — it arms the helper without letting it act, so the A/B holds every other code path
+identical. Measured that way: **OFF 4 pass / 2 hang · ON 6 pass / 0 hang**, with the log naming the seat.
+**Verify the instrument before believing the result**: the helper throws if `window.__nw` is absent after
+install, because `page.evaluate` on a page that has not navigated yet fails exactly this silently.
 
 **Emotes ride the intent channel, not a new one** (v1.31.16). A client sends `{op:'emote'}`; the host narrates
 with `say()` (reader-relative + broadcast) and then broadcasts `t:'emote'` for the bubble. Three rules: they are
@@ -1280,18 +1304,33 @@ Measured on v1.31.95, the two halves of the same day:
   **Report a severity you measured, or report the finding without one.** "This is live" is a claim about the
   player's build, and a subagent has never seen it.
 
-**A DEFAULT DERIVED FROM A PREDICATE OUTLIVES THE PREDICATE (epic step 18).** Step 15's
-`promptDefault(card, eff, 'fightend')` returns `immunityEffFor(...)` — chosen so the prompt defaults would
+**A DEFAULT DERIVED FROM A PREDICATE OUTLIVES THE PREDICATE (epic step 18; FIXED 2026-09-10).** Step 15's
+`promptDefault(card, eff, 'fightend')` returned `immunityEffFor(...)` — chosen so the prompt defaults would
 reproduce "today's experience" exactly, which was right on the day. Step 18 then DELETED the window that
 predicate described, and the default silently kept describing it: the two cards the whole epic exists to
 fix (Sanctuary under Hector, Armor Piercing under Hippolyta) are both refused by `immunityEffFor`, so both
-are **auto-declined by default** and the fix is invisible to anyone who has not found the checkbox in the
-card reader. Neither step is wrong on its own; nothing connected them.
+were **auto-declined by default** and the fix was invisible to anyone who had not found the checkbox in the
+card reader. Neither step was wrong on its own; nothing connected them.
 **THE TELL IS A DEFAULT THAT CALLS A PREDICATE RATHER THAN NAMING A VALUE** — `grep -n 'function .*Default'`
 and read what each one consults. When you delete or widen a gate, grep for the gate's own name: anything
 still calling it is now describing a world that does not exist.
 **AND IT WAS FOUND BY AN END-TO-END UI TEST, NOT BY READING.** Both unit layers were green — the engine
 opened the window and the card was a legal Quick — because the suppression happens between them, in the UI.
+
+**A NOTIFICATION PREFERENCE MUST NOT DECIDE WHAT IS LEGAL (2026-09-10).** `promptedQuicks` was answering two
+questions at once — *should this window stop me?* and *once stopped, what may I play?* — so unchecking a
+card in the reader made it **uncastable**, even in a window you were stopped for by a different card. A
+capability gate wearing a notification's clothes. Aj: *"players can really look at all their cards and
+decide which effects to activate. legal mind you at the timing it's being asked at."* Now every window
+renders the ENGINE's eligibility (`eligibleQuicks` / `eligiblePreFightQuicks`) and the preference decides
+only whether you are interrupted; an empty preference result is an auto-pass, as before.
+**THREE CALLERS, AND THE THIRD IS THE ONE A CAREFUL FIX MISSES** — `promptHumanResponse`,
+`promptHumanPreFight`, and **`promptHostPreFight`**, the netplay host's own seat, which lives 3,700 lines
+away in the NET IIFE. `grep -n 'promptedQuicks('` is the enumeration; this is v1.31.116's "a fix wired in
+by name covered two parks of nine" in a new place.
+**THE ONLY SHAPE THAT CATCHES IT IS TWO QUICKS WITH ONE SILENCED.** With one card, "did not stop me" and
+"cannot play it" are the same observation. `fightenduitest` scenario D stages both and asserts the silenced
+one is still on offer; A/B'd by reverting the one line, which reds exactly that assertion.
 
 **BEFORE TOUCHING `fightValue`, `applyEquip` OR `lockedDelta`, READ
 [`DECISIONS.md#value-modifiers`](docs/DECISIONS.md#value-modifiers).** It settles which layer a value modifier
@@ -1720,7 +1759,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 437, `netview` 64, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 18, `fightendtest` 16, `fightenduitest` 19, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 18, `fightendtest` 16, `fightenduitest` 23, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

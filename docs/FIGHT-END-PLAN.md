@@ -1180,6 +1180,29 @@ not once** — two flakes hid in one green run the last time this surface was to
 >
 > **AND THE GATE STILL NEEDS AJ:** *one real solo game and one two-device netplay game.* Step 18 cannot be
 > closed by suites alone, and that has not changed.
+>
+> ### ➕ THE PROMPT DEFAULT, DECIDED THE SAME DAY (Aj) — and it is a step 15 revision, not a step 18 one
+> Building `fightenduitest` surfaced that `promptDefault(..., 'fightend')` still returned
+> `immunityEffFor(...)`, the whitelist this step deleted, so **both cards the epic exists to fix were
+> auto-declined by default**. Put to Aj as three options; he chose the widest and corrected the framing
+> while doing it: *"it's not really prompt everything. what happens is when priority is passed (not just
+> on fight end…), players can really look at all their cards and decide which effects to activate. legal
+> mind you at the timing it's being asked at."*
+> **TWO CHANGES, and the second is the one nobody had named.** (1) `promptDefault` returns `true` for every
+> legal timing — the checkbox is now noise reduction rather than the gate. (2) `promptedQuicks` no longer
+> builds the OFFER LIST: it decides only whether a window STOPS you, and every window renders the engine's
+> own eligibility. Silencing a card used to make it **uncastable**, which is a rules change hiding in a
+> notifications feature — and it was live at THREE call sites, the third being `promptHostPreFight` in the
+> NET IIFE, 3,700 lines from the other two.
+> **This lands ahead of step 20 on purpose**: 20 turns the pre-fight window into the same go-round, and it
+> would otherwise inherit the filter.
+>
+> **AND IT COST A HARNESS FIX THAT WAS ALWAYS OWED.** A wider window made `nettest_3p` hang 4 times in 8
+> runs (8/8 clean before it), and the cause generalised immediately: **27 netplay suites drive play and
+> never answer a window**, green only because the old one was rare. `netwindows.js` answers them, with a
+> grace delay rather than opt-out flags so the ten suites that drive windows deliberately keep theirs.
+> **Step 20 would have hit this too** — it widens the pre-fight window the same way — so the debt is paid
+> before it comes due rather than after.
 
 **THIS IS NO LONGER A FLAG FLIP** (see the preamble). With no `PRIORITY_V2` there is nothing to turn on; this
 commit makes step 11's go-round the live path and removes `driveShieldStack`'s window in the same change, so

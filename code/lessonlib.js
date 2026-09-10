@@ -50,6 +50,12 @@ async function openLesson(id, viewport){
       const PASS=[['respDecline','Respond?'],['pfDecline','pre-fight'],['sgNo','shield guard']];
       for(const [id,label] of PASS){ const el=document.getElementById(id); if(el && el.offsetParent){ el.click(); return label; } }
       return null; });
+    /* A FLOOD OF THESE IS A PRODUCT CHANGE, NOT A HARNESS PROBLEM — read it that way before touching the
+       lesson. `promptWanted` in the template SUPPRESSES the `fightend` timing while `tutorialMode` is on,
+       precisely because a scripted lesson cannot survive a window at the end of every round: when the
+       Fight End default flipped on 2026-09-10 this warning fired three times in `lessontest_twos` and the
+       lesson stalled on "the Rival leads 222 + a pair". If that suppression is ever removed, THIS is the
+       line that will tell you why the lessons went red — the failing assertion will name a full house. */
     if(hit) console.log('   ⚠ lessonlib answered a '+hit+' window the lesson did not script');
     return hit; };
   const step=()=>p.evaluate(()=>{ const t=document.getElementById('tutPanel');
