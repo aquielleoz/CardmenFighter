@@ -9598,6 +9598,24 @@ window.CardFace = {};
       then(fr||r);
     });
   }
+  /* THE DECLINE BUTTON NAMES WHAT PASSING ACTUALLY DOES (epic step 20's last piece). It read
+     "Let it resolve" at every window, which was true when there was only one: an object sat on the stack
+     and declining let it resolve. With five priority points it is wrong at four of them — nothing is
+     resolving at a phase boundary, the PHASE is moving, and a player who has just been stopped for the
+     third time in a round deserves to be told which of the five they are looking at.
+     IT KEYS ON WHETHER THERE IS AN OBJECT, NOT ON THE TIMING ID, and that distinction is the whole
+     function: at Upkeep the stack usually holds a counter TICK, so "which boundary am I in" and "what
+     happens if I pass" are different questions. Passing on an object resolves THAT object; passing on an
+     empty stack advances the phase. */
+  function declineLabel(){
+    var pend = state && state.pending;
+    if(pend) return pend.kind === 'tick' ? 'Let the counter come off' : 'Let it resolve';
+    if(state && state.upkeep)  return 'Start the round';
+    if(state && state.cleanup) return 'End the round';
+    if(state && state.fightEnd) return 'Let the round resolve';
+    if(state && state.subPhase === 'main') return 'Move to the fight';
+    return 'Let it resolve';
+  }
   function promptHumanResponse(g, cont){
     cont = cont || function(){ resumeRival(g); };
     /* THERE MAY BE NO OBJECT. The window is `respondFor`; `pending` is the object it is about, and a Fight
@@ -9622,10 +9640,18 @@ window.CardFace = {};
     /* UPKEEP IS CHECKED BEFORE THE OTHERS, because it is objectless AND runs while `subPhase` is 'main' —
        without it the round-start window would label itself as the Main → Fight transition. The two are
        never parked together (the Resolution branch unparks before `finishRoundWin` opens this one). */
-    var promptTiming = pend ? 'respond'
-      : (state.upkeep ? 'upkeep'
+    /* THE BOUNDARY WINS OVER THE OBJECT, and the counter tick is what forced the question. The timing id
+       names WHERE you are, not what happens to be on the stack — the reader's rows read "ask me at this
+       moment". `pend` used to be tested first, which was harmless while every object was a cast card, and
+       wrong the moment a boundary could hold one: at Upkeep the stack holds a TICK, so every equipment
+       countdown was being gated by *"When a Technique is cast"* — a row that is ON by default, for an
+       event that is not a Technique. It also left the `upkeep` row governing almost nothing.
+       `prefight` still keys on `subPhase` rather than on `toPlay`, because `toPlay` is host bookkeeping
+       and is nulled in the mirror — a client has to be able to answer this too. */
+    var promptTiming = state.upkeep ? 'upkeep'
       : (state.cleanup ? 'cleanup'
       : (state.fightEnd ? 'fightend'
+      : (pend ? 'respond'
       : (state.subPhase === 'main' ? 'prefight' : 'respond'))));
     var eligible=eligibleQuicks();                       // the engine's own answer — `canAddToStack`, mirrored
     var quicks=promptedQuicks(eligible, promptTiming);   // the STOP decision only; the buttons below use `eligible`
@@ -9670,7 +9696,14 @@ window.CardFace = {};
        `YOU` compares directly. A jab win strips nothing, hence the `wonWithCombo` branch. */
     var fe = state.fightEnd || null;
     var lead;
-    if (pend) {
+    if (pend && pend.kind === 'tick') {
+      /* NOBODY CAST A TRIGGER, so it must not borrow the cast sentence — the first cut read "You cast Holy
+         Bow — upkeep counter", which is wrong about who did it AND about what it is. A trigger happens TO
+         the table; naming its owner and what it is about to do is the honest version. */
+      lead = '<p><b>'+esc(pend.name||'Equipment')+'</b> is about to lose a counter'
+           + (typeof pend.p==='number' && pend.p!==YOU ? ' ('+logName(pend.p)+'\u2019s)' : '')
+           + '. Play a Quick in response, or let it happen.</p>';
+    } else if (pend) {
       lead = '<p>'+casterTxt+' cast <b>'+rivalName+'</b>'+aimTxt+'. Play a Quick in response, or let it resolve.</p>';
     } else if (fe) {
       var feWho = (typeof fe.winner==='number') ? ('<b>'+logName(fe.winner)+'</b>') : 'The winner';
@@ -9728,7 +9761,7 @@ window.CardFace = {};
      * button with no explanation is its own dead end on a phone, where there is no tooltip. */
     var tutNeedsCounter = tutAwaitCounter && typeof TUT!=='undefined' && TUT.isActive && TUT.isActive();
     if(tutNeedsCounter) html+='<div class="respNotYou">This lesson needs this one countered — tap <b>Counter Spell</b>.</div>';
-    html+='<button id="respDecline" class="respLet"'+(tutNeedsCounter?' disabled':'')+'>Let it resolve</button></div>'+peekBtnHTML();
+    html+='<button id="respDecline" class="respLet"'+(tutNeedsCounter?' disabled':'')+'>'+declineLabel()+'</button></div>'+peekBtnHTML();
     showModal(html); wirePeek();
     Array.prototype.forEach.call(document.querySelectorAll('.respQuick'), function(btn){
       btn.addEventListener('click', function(){ humanResponds(g, btn.getAttribute('data-id'), cont, btn.getAttribute('data-coid')||null); });
