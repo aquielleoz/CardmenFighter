@@ -22,50 +22,53 @@ live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.127**, working tree clean.
+`main` is at **v1.31.127**, untouched. All the work below is on **`epic/priority-windows`**.
 
-**⚡ THE PRIORITY WORK LIVES ON `epic/priority-windows` — GO THERE BEFORE TOUCHING ANY WINDOW.** The two ★
-priority entries below are **answered but not built**: Aj settled twelve rules questions on 2026-09-08 and
-they are recorded on that branch, not here. Read
-[`FIGHT-END-PLAN.md`](FIGHT-END-PLAN.md) *(on the epic)* for the enumeration, the disposition tables and the
-commit sequence, and [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) — **which the epic has newer than
-`main` does** — for the rules themselves. The epic is the integration branch: sub-branches PR **into** it,
-the version is held until it merges, and `main` is merged **into** it after any session spent elsewhere
-(CLAUDE.md → "Branches and PRs").
+**⚡ STEPS 1-20 ARE DONE AND MERGED INTO THE EPIC (2026-09-11).** Step 20 was the big one and it landed in
+two PRs — #213 (the interaction half) and #214 (the two round boundaries). **The epic sweeps 92/92.**
+Sub-branches PR **into** the epic, the version is held until it merges, and `main` is merged **into** it
+after any session spent elsewhere (CLAUDE.md → "Branches and PRs"; `checkbranch.js` enforces both).
 
-**⏭ STEP 18 IS BUILT AND MERGED, AND AJ HAS PLAYED IT SOLO (2026-09-10).** His game reached round 10 and
-ended on a FIGHTER KICK; the saved log shows the go-round running, the decline logged BEFORE the outcome
-(§3's ordering, in a real game), and the round resolving. **The solo half of step 18's gate is met.**
-**THE NETPLAY HALF IS NOT** — Aj's call is to do it once the epic is complete, since it needs two devices.
+**THE GAME CHANGED SHAPE, so read this before touching anything:**
+- **All FIVE priority points in the model now exist** — Upkeep, each cast in the Main Sub-Phase, the
+  Main → Fight transition, Resolution, and Clean-up. `phaseWalk` is the only walk; each boundary is a park
+  plus the same five lines. There is no second priority mechanism left anywhere.
+- **The phases were renamed** (docs only): `Fight Phase` → **Play Phase** (Main · **Fight** ·
+  **Resolution**). The ~344 CODE sites keep the old spelling until step 23 — `fightEnd` in a `.js` file is
+  the old name, not a leftover.
+- **`#fightBtn` has two states: `▶ Next` then `⚔️ Fight`.** Next is the phase move; Fight commits the
+  cards. Dragging ACTIVATES in Main and PLAYS in the Fight Sub-Phase.
+- **Pass is an auto-pass with a brake** — one press carries you through, and stops if anyone ELSE acts in
+  the window it opened. Your own cast never brakes your own pass (`stackMark(st, me)`).
+- **The equipment counter tick is the game's FIRST triggered ability**, with Aj's card text on all five
+  decaying Equipment. Simultaneous triggers are ordered by the PUSH (active player first, so the last seat
+  is on top) — which is why §2 needs no exception for them.
+- **The boundary prompts DEFAULT OFF.** Only `respond` stops you. Four suites whose subject is a boundary
+  window pass **`?prompts=all`**; if a new suite drives one of those windows and sees nothing, that is why.
 
-**⚠ BUT THE BUILD HE PLAYED IS NO LONGER THE BUILD.** That one game produced three changes on top of 18:
-every legal timing now prompts by default and the offer list is the ENGINE's eligibility rather than the
-notification preference (#205); **targeting happens on cast**, so a Quick with no legal target cannot be
-cast at all (#207); and the saved log carries a full `--- PRIORITY WINDOWS ---` ledger. **A second solo
-game is worth ten minutes before step 19**, and asking him for the log costs nothing — the ledger now
-records every timing, what was offered, what was cast or declined, and every round resolution including
-the silent ones.
+**⏭ NEXT IS STEP 21** — a real AI policy for Resolution, and **the one step earmarked for orchestration**
+(CLAUDE.md's rule: design only, never testing or review). Then **22** (refuse the netplay handshake across
+a MINOR version difference) and **23** (close the docs, the ~344-site code rename with its `localStorage`
+migration for the `'fightend'` prompt id, and v1.32.0). Read section H of
+[`FIGHT-END-PLAN.md`](FIGHT-END-PLAN.md).
 
-**⏭ NEXT UP IS STEP 19** — the deletion of the whitelist model, and **the point of no return**: up to and
-including 18 a revert is `git revert`, and after 19 it is a rebuild. That is the real reason to get a
-second solo game first. Read step 19 in [`FIGHT-END-PLAN.md`](FIGHT-END-PLAN.md), which carries step 4's
-deferred sites and step 10's refactor as well as its own DELETE table.
-**AND READ SECTION G, WHICH WAS REWRITTEN 2026-09-11** — steps 20 and 20b are now ONE step, because they
-were the same job wearing two numbers. The engine runs **three parallel priority mechanisms** (the pre-fight
-window is a second implementation with its own state and verbs, not a narrow version of the dance) and has
-**no phase structure at all**. Aj: *"it was hidden under all the obfuscation of doing band aids instead of
-getting to the core of the priority dance."* The castability rule is also spelled out five separate times.
+**⚠ WHAT IS NOT DONE, and none of it is visible in a green sweep:**
+- **No test for the auto-pass brake, and none for drag-to-activate in Main.** The brake has been wrong
+  TWICE (it braked on the passer's own cast; it measured the wrong seat for a remote pass), so it is
+  exactly the thing that should not reach `main` uncovered. `nettest_prefight` already rigs the staging a
+  brake test needs — a rival who really casts at the transition.
+- **Step 18's netplay gate still needs AJ and two devices.** The solo half is met; suites cannot close it.
+- **The tutorials teach a button that no longer exists** — the lesson copy still says "press Fight". ★ in
+  the Correctness list below, and no suite can see it because they all address the button by id.
 
-**WHAT TO WATCH FOR IN A SOLO GAME: frequency, not correctness.** Measured on his game — the go-round
-opened in **2 of 10 rounds**, because it only opens when someone holds a castable Quick. Both prompts were
-useless, and both causes are now fixed (one was the targeting bug he spotted; the other, Leyline offered on
-a jab win with nothing at stake, he ruled **legal and not a bug** — the wording could improve). The dial is
-the card reader's checkbox, not a bug report.
+**WHAT TO WATCH FOR IN A SOLO GAME.** The saved log's `--- PRIORITY WINDOWS ---` ledger now records every
+boundary including the silent auto-advances, names the press that opened a transition (`[Next]`/`[Pass]`),
+and uses the current vocabulary. With the boundary prompts off you should be interrupted only when a
+Technique is cast — anything else is worth a log.
 
 Other branches: **`feat/qr-scanning`** (parked) and **`exp/shield-gain-guard`** (an unreviewed recovered
 stash — it breaks the epic's step-12 proof; read its BACKLOG entry before resuming it). Each has an entry
-saying what would revive it. **`exp/step18-switch` is gone** — its work landed in step 18's PR, and a
-parked branch whose content has shipped is litter.
+saying what would revive it.
 
 **Sanity check** (from `code/`, ~1 minute) — expect **0 FAIL** from each:
 
