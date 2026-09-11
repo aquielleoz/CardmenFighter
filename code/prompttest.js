@@ -20,6 +20,7 @@
  * Run: node prompttest.js
  */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
+const { clickFight, installPageHelpers } = require('./fightclick');
 const path = require('path');
 const URL = 'file://' + path.resolve(__dirname, 'CardmenFighter.html') + '?dbgsolo=1';
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -43,6 +44,7 @@ async function freshGame(p) {
 (async () => {
   const b = await chromium.launch(LAUNCH);
   const p = await b.newPage(); const errs = [];
+  await installPageHelpers(p);   // epic step 20: the two-state Fight button, for drivers that decide inside the page
   p.on('pageerror', e => errs.push(e.message));
   let pass = 0, fail = 0; const ok = (c, m) => { console.log((c ? '✓' : '✗') + ' ' + m); c ? pass++ : fail++; };
 
@@ -198,8 +200,8 @@ async function freshGame(p) {
       clear();
       let did = false;
       const cards = [].slice.call(document.querySelectorAll('#hand .card'));
-      for (const c of cards) { c.click(); const f = $('fightBtn'); if (f && !f.disabled) { f.click(); did = true; break; } }
-      if (!did) { clear(); const pb = $('passBtn'); if (pb && !pb.disabled) { pb.click(); did = true; } }
+      for (const c of cards) { c.click(); if (await window.__pressFight()) { did = true; break; } }
+      if (!did) { clear(); if (await window.__pressPass()) did = true; }
       if (did) { acted++; stuck = 0; } else { stuck++; }
       /* 100 iterations x 70ms = ~7s BEFORE calling it a stall, and the number is not arbitrary: the board
          legitimately disables Fight AND Pass while it animates, saying "Hold on — the board is still
@@ -289,7 +291,7 @@ async function freshGame(p) {
     await wait(250);
     await p.evaluate(() => { const g = [...document.querySelectorAll('#hand .group')].filter(el => el.querySelector('.card[data-id="y2"]'))[0]; if (g) g.click(); });
     await wait(200);
-    await p.evaluate(() => { const f = document.getElementById('fightBtn'); if (f && !f.disabled) f.click(); });
+    await clickFight(p);   // two-state button (epic step 20) — see fightclick.js
     /* POLL GENEROUSLY AND SAY WHY ON FAILURE. Measured: the window opens at ~4.0s — `revealDwell` is 2650ms
        and the Rival's turn runs before it — so the first budget here (6.3s) was only 1.6x the real figure,
        which CLAUDE.md's own margin rule calls a green run one slow machine away from red. 15s, and a

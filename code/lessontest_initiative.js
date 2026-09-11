@@ -27,7 +27,12 @@ const { openLesson } = require('./lessonlib');
    * retried for 2014ms. So: wait for Pass to be enabled, click it exactly ONCE, and require the game to move.
    * Not vacuous in either direction — if Pass were never enabled the wait times out, and on the pre-fix build
    * the single click is swallowed. */
-  ok(await until(()=>{ const b=document.getElementById('passBtn'); return !!b && !b.disabled; },'Pass becomes enabled'),
+  /* PASS LIVES IN THE FIGHT SUB-PHASE NOW (epic step 20), so the move-to-Fight press comes first — it plays
+   * nothing, it only changes sub-phase. The invariant below is untouched and is still the point: whatever
+   * renders ENABLED must work on a single click. */
+  await until(()=>{ const f=document.getElementById('fightBtn'); return !!f && !f.disabled; },'the turn comes back and Fight goes live');
+  await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled && f.textContent==='Fight') f.click(); });
+  ok(await until(()=>{ const b=document.getElementById('passBtn'); return !!b && b.offsetParent!==null && !b.disabled; },'Pass becomes enabled'),
     'Pass eventually renders enabled');
   const shot=await p.evaluate(()=>{ const s=window.__solo.st(), me=s.players[0];
     const snap={round:s.round, turn:s.turn, nrg:me.energy.length};

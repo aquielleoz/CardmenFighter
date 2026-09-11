@@ -13,6 +13,7 @@
  * would pass on any build.
  * Run: node nettest_phantasm.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { selectAndFight, clickFight } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8411),ROOM='PH'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -36,8 +37,7 @@ async function until(fn,t=120,ms=130){ for(let i=0;i<t;i++){ if(await fn()) retu
   await startDuel(host, join);
   ok(await until(async()=>(await join.evaluate(()=>document.querySelectorAll('#hand .card').length))>0), 'duel started');
 
-  await host.evaluate(()=>{
-    const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
+  await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
     const nrg=[]; for(let i=0;i<12;i++) nrg.push(C(4,'D','e'+i));
     window.__cmf.forceAll(
       [[C(9,'H','h'),C(9,'C','h'),C(3,'S','h'),C(4,'S','h')],
@@ -49,8 +49,8 @@ async function until(fn,t=120,ms=130){ for(let i=0;i<t;i++){ if(await fn()) retu
   ok(await join.evaluate(()=>!!document.querySelector('#hand .card[data-id="c10D"]')), 'client holds Phantasmal Illusion (♦10) and a ♦9 to swap in');
 
   // host leads a pair of 9s
-  await host.evaluate(()=>{ ['h9H','h9C'].forEach(id=>{const c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click();});
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ ['h9H','h9C'].forEach(id=>{const c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click();}); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await until(async()=>(await pile(join)).cards>=2, 60), 'the host led a Pair, and the client sees it');
 
   /* Select the illusion → the context button becomes "Phantasm" → confirm the swap. */

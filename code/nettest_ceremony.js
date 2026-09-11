@@ -3,6 +3,7 @@
  * round 2 (combos legal), have the host win with a straight the client can't beat, and assert the client shows the
  * banner, logs the result, and its shield actually drops. (No Leyline, so the shield really falls.) */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8292),ROOM='CM'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -16,9 +17,10 @@ const threshUp=p=>p.evaluate(()=>{ var fx=document.getElementById('thresholdfx')
 const roundBannerUp=p=>p.evaluate(()=>{ var fx=document.getElementById('roundfx'); var el=fx&&fx.querySelector('.rfRound'); return !!(fx && /show/.test(fx.className) && el && /Round/i.test(el.textContent||'')); });
 const enteringCards=p=>p.evaluate(()=>document.querySelectorAll('#hand .card.enter').length);
 const logText=p=>p.evaluate(()=>(document.getElementById('log')||{}).textContent||'');
-const leadCombo=(p,ids)=>p.evaluate(function(ids){ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); ids.forEach(function(id){ var c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click(); }); var f=document.getElementById('fightBtn'); if(f)f.click(); }, ids);
-const leadFirst=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card'); if(c)c.click(); var f=document.getElementById('fightBtn'); if(f)f.click(); });
-const passC=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var b=document.getElementById('passBtn'); if(b)b.click(); });
+const leadCombo=(p,ids)=>selectAndFight(p, ids);            // two-state button since epic step 20 — see fightclick.js
+const leadFirst=p=>selectAndFight(p);                       // two-state button since epic step 20 — see fightclick.js
+const passC=async p=>{ await p.evaluate(()=>{ var c=document.getElementById('clearBtn'); if(c&&!c.disabled)c.click(); });
+                     return clickPass(p); };   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
 /* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll
  * that gave up used to be invisible and surfaced later as an unrelated assertion failing on a board that
  * was still mid-round-trip — the v1.31.9 waitTurnEnds bug, in the general case. A red run must explain

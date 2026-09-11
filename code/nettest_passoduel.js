@@ -19,6 +19,7 @@
  * Run: node nettest_passoduel.js
  */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel = require('./nettest_lobby.js');
+const { selectAndFight, clickFight, clickPass, installPageHelpers } = require('./fightclick');
 const http = require('http'), fs = require('fs'), path = require('path');
 const DIR = __dirname, PORT = +(process.env.PORT || 8451), ROOM = 'PD' + Date.now().toString().slice(-3);
 const srv = http.createServer((q, r) => { let p = path.join(DIR, q.url.split('?')[0] === '/' ? '/CardmenFighter.html' : q.url.split('?')[0]); fs.readFile(p, (e, b) => { if (e) { r.writeHead(404); r.end(); } else { r.writeHead(200, { 'Content-Type': 'text/html' }); r.end(b); } }); });
@@ -37,6 +38,7 @@ const hostRound = p => p.evaluate(() => window.__solo ? null : (window.__cmf && 
   const ctx = await b.newContext({ viewport: { width: 1100, height: 820 } }); const errs = [];
   const host = await ctx.newPage(); host.on('pageerror', e => errs.push('host: ' + e.message));
   const join = await ctx.newPage(); join.on('pageerror', e => errs.push('join: ' + e.message));
+  await installPageHelpers(host); await installPageHelpers(join);   // epic step 20: the two-state Fight button, for drivers that decide inside the page
   let pass = 0, fail = 0; const ok = (c, m) => { console.log((c ? '✓' : '✗') + ' ' + m); c ? pass++ : fail++; };
 
   await host.goto(url('host')); await join.goto(url('join'));
@@ -69,7 +71,7 @@ const hostRound = p => p.evaluate(() => window.__solo ? null : (window.__cmf && 
      on a perfectly healthy board and I nearly filed it as the deadlock it was written to find.
      This is `nettest_sync`'s `act` idiom, and the deselect-between-attempts is load-bearing: a leftover
      multi-card selection is staged as a FIGHT and jams both controls (the `nettest_actloop` lesson). */
-  const act = p => p.evaluate(() => {
+  const act = p => p.evaluate(async () => {
     const clear = () => { const c = document.getElementById('clearBtn'); if (c && !c.disabled) c.click();
                           [].forEach.call(document.querySelectorAll('#hand .card.sel'), x => x.click()); };
     const ov = document.getElementById('overlay');
@@ -81,11 +83,10 @@ const hostRound = p => p.evaluate(() => window.__solo ? null : (window.__cmf && 
     const cards = [].slice.call(document.querySelectorAll('#hand .card'));
     for (const c of cards) {
       c.click();
-      const f = document.getElementById('fightBtn');
-      if (f && !f.disabled) { f.click(); return 'played'; }
+      if (await window.__pressFight()) return 'played';
       clear();
     }
-    const pb = document.getElementById('passBtn'); if (pb && !pb.disabled) { pb.click(); return 'passed'; }
+    if (await window.__pressPass()) return 'passed';
     return 'stuck';
   });
 
@@ -139,10 +140,7 @@ const hostRound = p => p.evaluate(() => window.__solo ? null : (window.__cmf && 
   await wait(500);
 
   const before = await host.evaluate(() => window.__cmf.trace().length);
-  await host.evaluate(() => {
-    ['h9C', 'h9S'].forEach(id => { const c = document.querySelector('#hand .card[data-id="' + id + '"]'); if (c) c.click(); });
-    const f = document.getElementById('fightBtn'); if (f && !f.disabled) f.click();
-  });
+  await selectAndFight(host, ['h9C', 'h9S']);   // two-state button (epic step 20) — see fightclick.js
   /* WAIT FOR THE ROUND TO ACTUALLY RESOLVE, and poll on something that genuinely moves. Two earlier
      attempts did not: a trace grep for /sprang|took the hit/ (no such line exists) and "the pile is empty"
      (it is not — the winning play stays on the table). The host's HAND is the honest signal: it plays two

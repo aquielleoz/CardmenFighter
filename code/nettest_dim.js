@@ -14,6 +14,7 @@
  * the banner appearing is the correct half. Poll for it going AWAY.
  * Run: node nettest_dim.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8381),ROOM='DM'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -44,8 +45,7 @@ async function until(fn,t=120,ms=120){ for(let i=0;i<t;i++){ if(await fn()) retu
   /* The client holds TWELVE cards — over MAX_HAND. At the end of the round it trims to 10 and draws 2, landing
    * back on 12: the incoming hand is EQUAL to the one on screen, never greater. That is the configuration the
    * old `handGrew` proxy could not see. The host holds four low cards so the round resolves quickly. */
-  await host.evaluate(()=>{
-    const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
+  await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
     const many=[]; [3,4,5,6,7,8,9,10,12,13,1,2].forEach((r,i)=>many.push(C(r, 'DHCS'[i%4], 'c')));
     window.__cmf.force([C(3,'D','h'),C(4,'H','h'),C(5,'C','h'),C(6,'S','h')], many);
   });
@@ -54,14 +54,14 @@ async function until(fn,t=120,ms=120){ for(let i=0;i<t;i++){ if(await fn()) retu
   ok(staged>10, `client staged OVER the hand cap (${staged} cards) — the trim will match the draw, which is the case that broke`);
 
   // play the round out: host leads, client answers, host passes → the round resolves and the ceremony runs
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="h3D"]'); if(c)c.click();
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="h3D"]'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await until(async()=>(await snap(join)).yourTurn, 60), 'the turn reached the client');
   /* THE CLIENT MUST PASS, NOT PLAY. Playing drops it to 11, and the trim-then-draw brings it back to 12 —
      GREATER than what was on screen, which the old proxy could see. Passing keeps all 12, so the trim takes it
      to 10 and the draw returns it to 12: EQUAL, never greater. That one-card difference is the whole bug, and
      the first version of this suite played a card and passed on the broken build. */
-  await join.evaluate(()=>{ const p=document.getElementById('passBtn'); if(p&&!p.disabled) p.click(); });
+  await clickPass(join);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
 
   // the banner SHOULD appear — that half was never broken
   const shown = await until(async()=>(await snap(join)).dim, 60);

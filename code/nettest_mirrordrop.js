@@ -16,6 +16,7 @@
  * A failure of 2 with 1 passing is a real deadlock and the fork reproduced on demand.
  * Run: node nettest_mirrordrop.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8341),ROOM='MD'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -46,19 +47,18 @@ const clientOwn=p=>p.evaluate(()=>(window.__cmf&&window.__cmf.hand())||[]);
   ok(await until(async()=>(await snap(host)).round>0), 'duel started');
 
   // the CLIENT holds the apex 2, so the round it wins is deterministic and the turn lands on the client
-  await host.evaluate(()=>{
-    const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
+  await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
     window.__cmf.force([C(3,'D','h'),C(4,'H','h'),C(5,'C','h'),C(6,'S','h')],
                        [C(2,'D','c'),C(7,'H','c'),C(8,'C','c'),C(9,'S','c')]);
   });
   ok(await until(()=>join.evaluate(()=>!!document.querySelector('#hand .card[data-id="c2D"]'))),
      'hands staged — the client holds the apex 2');
 
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="h3D"]'); if(c)c.click();
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="h3D"]'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await until(async()=>(await snap(join)).yourTurn), 'the turn reached the client');
-  await join.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="c2D"]'); if(c)c.click();
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await join.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="c2D"]'); if(c)c.click(); });
+  await clickFight(join);   // two-state button (epic step 20) — see fightclick.js
   ok(await until(async()=>(await snap(host)).yourTurn,60), 'the turn returns to the host, which cannot beat a 2');
 
   /* ARM THE DROP, then pass. Passing ends the round, the client wins it, and the deal + turn handover ride the
@@ -69,7 +69,7 @@ const clientOwn=p=>p.evaluate(()=>(window.__cmf&&window.__cmf.hand())||[]);
   const DROPS = parseInt(process.env.DROPS||'6',10);
   const armed = await host.evaluate(n=>window.__cmf.dropMirrors(1,n), DROPS);
   ok(armed===DROPS, 'armed: the next '+DROPS+' mirror(s) to the client will be dropped');
-  await host.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled)b.click(); });
+  await clickPass(host);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
   ok(await until(async()=>(await snap(host)).round>=2,140), 'the host advanced to round 2 and dealt');
 
   /* 1. DID THE DROP LAND? Without this the rest proves nothing — a probe that silently fails to break anything

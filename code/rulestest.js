@@ -9,6 +9,7 @@
  * never written down. Exactly the pre-v1.31.5 mistake.
  * Run: node rulestest.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
+const { clickFight, enterFight } = require('./fightclick');
 const HTML='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 /* PAINTED, NOT SLEPT. Fifty sites sat on a fixed 120-300ms after a click — 15.1s of this suite's 25s. The
@@ -528,6 +529,11 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
     st.round=3; st.pile=null; st.turn=0; window.__solo.render();
   });
   await wait(350);
+  /* THE HINT NAMES THE SHAPE ONLY IN THE FIGHT SUB-PHASE (epic step 20). In Main the same line explains the
+     phase move instead ("Main sub-phase — drag a card to activate it…"), because that is what the controls
+     do there — so reading it for "Consecutive Trios" was asserting against the wrong sub-phase's copy, not
+     against a lost rename. Enter first, then select; the selection survives the transition either way. */
+  await enterFight(p5);
   const picked = await p5.evaluate(()=>{
     [].forEach.call(document.querySelectorAll('#hand .group'), g=>g.click());
     return document.querySelectorAll('#hand .group.gsel').length;
@@ -535,7 +541,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
   ok(picked === 10, `all ten cards can be selected in the hand — no cap (${picked})`);
   ok(await p5.evaluate(()=>/Consecutive Trios/i.test((document.getElementById('hint')||{}).textContent||'')),
      'and the hint names the shape by its player-facing name, so the rename reaches the board too');
-  await p5.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled) f.click(); });
+  await clickFight(p5);   // two-state button (epic step 20) — see fightclick.js
   await wait(400);
   ok(await p5.evaluate(()=>{ const st=window.__solo.st();
        return !!(st.pile && st.pile.combo.type==='airplane' && st.pile.combo.size===10 && st.players[0].hand.length===0); }),

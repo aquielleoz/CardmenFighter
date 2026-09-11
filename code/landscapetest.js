@@ -11,6 +11,7 @@
  * Every case is the WORST case for its size: battle log OPEN, hand stuffed to MAX_HAND, 5-card pile staged.
  * Run: node landscapetest.js */
 const { chromium }=require('playwright'); const LAUNCH=require('./pwchrome'); const path=require('path');
+const { enterFight } = require('./fightclick');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 // [w, h, players, label]
@@ -316,6 +317,11 @@ const CASES=[
       return { max:Math.round(l.scrollHeight-l.clientHeight), lines:l.children.length }; });
     ok(set.max>4 && set.max<80,
        `log staged with a small overflow: ${set.max}px over ${set.lines} lines (must be under the old 80px slack to discriminate)`);
+    /* THE ACTION HAS TO BE A REAL PLAY, or no log line arrives and this measures nothing (epic step 20).
+       A single Fight press in the Main Sub-Phase is the PHASE MOVE — it logs nothing — so the probe below
+       needs the board already in the Fight Sub-Phase for `!f.disabled` to mean "this play is legal" again.
+       See fightclick.js. */
+    await enterFight(p);
     const acted=await p.evaluate(()=>{ const l=document.getElementById('log'), n0=l.children.length;
       const c=document.querySelector('#hand .card'); if(c)c.click();
       const f=document.getElementById('fightBtn'), ps=document.getElementById('passBtn');

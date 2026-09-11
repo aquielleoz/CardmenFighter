@@ -12,6 +12,7 @@
  * client-only test: the CLIENT must send an intent and not resolve locally, and the HOST must still play.
  * Run: node nettest_drag.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { enterFight } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8341),ROOM='DG'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -71,6 +72,12 @@ async function dragToTable(page, id){
 
   // ---- HOST leads by DRAGGING. The negative half: the guard must not kill dragging for the host. ----
   const hostRoundBefore=(await snap(host)).round;
+  /* DRAG-TO-PLAY LIVES IN THE FIGHT SUB-PHASE NOW (epic step 20, Aj: *"dragging to play activates card
+     effects now, except when in the fight sub-phase"*). In MAIN the same gesture ACTIVATES the card, so
+     this suite's subject — a dragged PLAY going through the host — simply does not happen there, and its
+     failure message ("the drag resolved locally") would be reporting the v1.31.56 bug that is not
+     occurring. Move to the sub-phase the feature lives in before driving it. */
+  await enterFight(host);
   ok(await dragToTable(host,'h3D'), 'the host card was draggable');
   const hostPlayed = await until(async()=>(await snap(host)).pile>0, 60);
   ok(hostPlayed, 'HOST: dragging to the table still plays the card');
@@ -79,6 +86,7 @@ async function dragToTable(page, id){
 
   // ---- CLIENT plays by DRAGGING. This is the bug. ----
   const joinRoundBefore=(await snap(join)).round;
+  await enterFight(join);
   ok(await dragToTable(join,'c9D'), 'the client card was draggable');
 
   const sent = await until(async()=>/clientSend play/.test(await trace(join)), 40);

@@ -54,6 +54,13 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
       modalShown:window.__solo.modalShown(), modalText:(document.getElementById('modal').textContent||'').trim().slice(0,24) };
   });
 
+  /* MOVE TO THE FIGHT SUB-PHASE FIRST (epic step 20), because PASS ONLY EXISTS THERE — in the Main
+     Sub-Phase it is not rendered at all, and "you cannot press a button that is not on screen" is a vacuous
+     way to assert that peek deadens a control. This suite's own rule is the one at stake: assert a control
+     is dead only where it COULD have been live. The press is a phase move and plays nothing, and it happens
+     BEFORE peek, so it does not weaken the "peek never changes state" invariant either. */
+  await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled && f.textContent==='Fight') f.click(); });
+  await wait(400);
   ok(await enter(), 'entered peek through the real enterPeek()');
   let s = await state();
 

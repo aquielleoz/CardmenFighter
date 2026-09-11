@@ -23,6 +23,7 @@
  * hand-editing: 3 goes red there and green here, or the change is a tidy-up rather than a fix.
  * Run: node nettest_parkbeat3.js   ·   DROPS=n to re-find the threshold */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const autoAnswerWindows=require('./netwindows.js');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8453),ROOM='PB'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -74,8 +75,8 @@ const ready=p=>p.evaluate(()=>{ var g=document.getElementById('lobbyGo'); if(g)g
   ok(await host.evaluate(n=>window.__cmf.dropMirrors(1,n), DROPS)===DROPS,
      'armed: the next '+DROPS+' mirrors to seat 1 will be swallowed');
   const before=await snap(c1);
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
 
   // 1. STAGING: the host must actually be parked on seat 1, or nothing below is about the park.
   const parked=await until(async()=>{ const h=await snap(host); return h.turn===1 && /is playing/.test(h.status); }, 60, 200);
@@ -107,7 +108,7 @@ const ready=p=>p.evaluate(()=>{ var g=document.getElementById('lobbyGo'); if(g)g
   ok(live, 'and seat 1 has a live board to act on (pile visible, Pass legal while following)'+(live?'':'  ← its board is dead'));
 
   // …and it really can play into the round: the host must take the turn onward to seat 2.
-  await c1.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled)b.click(); });
+  await clickPass(c1);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
   ok(await until(async()=>(await snap(host)).turn===2, 60, 250),
      'seat 1 acts and the table moves on to seat 2 — the park was cleared, not merely repainted');
 

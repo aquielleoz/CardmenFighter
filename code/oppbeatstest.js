@@ -13,6 +13,7 @@
  *
  * Run: node oppbeatstest.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
+const { selectAndFight, clickFight } = require('./fightclick');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
@@ -46,7 +47,7 @@ const stage = p => p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({
   await p.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')]
     .filter(el=>el.querySelector('.card[data-id="y0"]'))[0]; if(g) g.click(); }); await wait(250);
   const t0 = Date.now();
-  await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f&&!f.disabled) f.click(); });
+  await clickFight(p);   // two-state button (epic step 20) — see fightclick.js
 
   /* Record WHEN each line first appears, and whether the card reader ever lit up. `revealEffect` adds
      `.reveal` to #cardView and pops #artFlash; both are transient, so they are sampled, not read at the end. */

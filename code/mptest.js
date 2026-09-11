@@ -6,7 +6,8 @@
  *       seat 2+ was handled by NEITHER — that seat never countered and the window stayed pending.
  * NOTE ai.js already handled both correctly for AI-vs-AI turns; only the human-acts paths were broken.
  * Run: node mptest.js */
-const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
+const { chromium } = require('playwright');
+const { clickFight } = require('./fightclick'); const LAUNCH = require('./pwchrome'); const path=require('path');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
@@ -90,8 +91,8 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   });
   ok(staged.super===true, 'P3 is in Super Mode (J+Q+K), so Back Stab is a Quick');
   ok(staged.holder===2, 'the transition offers priority to seat 2, not 1 ('+staged.holder+') — the case the old gate dropped');
-  await p.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
-    const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await p.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); });
+    await clickFight(p);   // two-state button (epic step 20) — see fightclick.js
   const bsName=await nm(2), bsOther=await nm(1);
   ok(await hasLog(new RegExp(bsName+'.*sprang Back Stab','i')) && !(await hasLog(new RegExp(bsOther+'.*sprang Back Stab','i'))),
      'seat 2 ('+bsName+') sprang Back Stab against your fight, and it is not credited to seat 1 ('+bsOther+')');
@@ -191,8 +192,8 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     window.__solo.render();
   }); await wait(300);
   // your own play writes the caption; an opponent's turn must then OVERWRITE it
-  await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="4H"]'); if(c)c.click();
-    const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="4H"]'); if(c)c.click(); });
+  await clickFight(p);   // two-state button: Fight moves to the Fight Sub-Phase, Play commits the cards
   // NB: your own fight does not set the centre caption (the log carries it) — the caption after your play is a
   // prompt/status line. What matters for C1 is that an opponent's turn WRITES one at all, asserted next.
   ok(await hasLog(/^You played/), 'your own play is logged');

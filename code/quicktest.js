@@ -13,6 +13,7 @@
  *
  * Run: node quicktest.js */
 const { chromium }=require('playwright'); const LAUNCH=require('./pwchrome'); const path=require('path');
+const { selectAndFight, clickFight } = require('./fightclick');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
@@ -64,7 +65,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   // lead the unbeatable 2 so the Rival must act with an effect rather than a fight
   await p.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')]
     .filter(el=>el.querySelector('.card[data-id="y2"]'))[0]; if(g) g.click(); }); await wait(250);
-  await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f&&!f.disabled) f.click(); });
+  await clickFight(p);   // two-state button (epic step 20) — see fightclick.js
 
   // poll for the Respond? window — the whole point is that it OPENS
   let modal=null;

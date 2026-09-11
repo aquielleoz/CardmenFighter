@@ -31,6 +31,7 @@
  * Run: node fightenduitest.js
  */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const path = require('path');
 const URL = 'file://' + path.resolve(__dirname, 'CardmenFighter.html') + '?dbgsolo=1';
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -112,7 +113,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
        (s.quick && !s.whitelisted ? '' : '  ← not the reported bug any more; re-read the ♥K patch in BOOSTS'));
 
     await clearTransition(p);
-    await p.evaluate(() => document.getElementById('passBtn').click());
+    await clickPass(p);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
     const up = await until(async () => !!(await modalText(p)));
     ok(up, 'A · the Fight End window opens on the seat about to be kicked');
     const txt = await modalText(p) || '';
@@ -135,7 +136,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     if (!await freshGame(p)) ok(false, 'A · second board for the cast');
     await stageKick(p, true);
     await clearTransition(p);
-    await p.evaluate(() => document.getElementById('passBtn').click());
+    await clickPass(p);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
     await until(async () => !!(await modalText(p)));
     const clicked = await p.evaluate(() => { const y = [].slice.call(document.querySelectorAll('.respQuick'))
       .filter(x => /Sanctuary/i.test(x.textContent))[0]; if (y) { y.click(); return true; } return false; });
@@ -187,11 +188,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
   }
   async function leadAces(p) {
     await clearTransition(p);
-    await p.evaluate(() => {
-      const clr = document.getElementById('clearBtn'); if (clr) clr.click();
-      ['n19C', 'n29D'].forEach(id => { const c = document.querySelector('#hand .card[data-id="' + id + '"]'); if (c) c.click(); });
-      const f = document.getElementById('fightBtn'); if (f && !f.disabled) f.click();
-    });
+    await selectAndFight(p, ['n19C', 'n29D']);   // two-state button (epic step 20) — see fightclick.js
   }
 
   { const p = await b.newPage(); p.on('pageerror', e => errs.push('B: ' + e.message));
@@ -252,7 +249,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     if (!await freshGame(p)) ok(false, 'C · a board for the suppressed prompt');
     await stageKick(p, false);
     await clearTransition(p);
-    await p.evaluate(() => document.getElementById('passBtn').click());
+    await clickPass(p);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
     const died = await until(() => p.evaluate(() => !!window.__solo.st().finished));
     ok(died, 'C · with the prompt OFF the window is auto-passed and the kick lands — no modal at all');
     const led = await p.evaluate(() => window.__solo.prioLog());
@@ -302,7 +299,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     });
     ok(st.sancQuick && st.leyQuick, `D · staged — both cards are legal Quicks here (Sanctuary ${st.sancQuick}, Leyline ${st.leyQuick})`);
     await clearTransition(p);
-    await p.evaluate(() => document.getElementById('passBtn').click());
+    await clickPass(p);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
     ok(await until(async () => !!(await modalText(p))), 'D · the window still opens — the un-silenced card stopped you');
     const offered = await quickBtns(p);
     ok(offered.some(t => /Leyline/i.test(t)), 'D · …and Leyline, the card that stopped you, is offered');

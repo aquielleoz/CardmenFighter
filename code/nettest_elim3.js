@@ -3,6 +3,7 @@
  * remaining two continue. Verifies: the eliminated client sees itself OUT (mirror.eliminated), the game is NOT
  * finished (2 alive), the host keeps driving, and the survivors advance to the next round. Over BroadcastChannel. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const autoAnswerWindows=require('./netwindows.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8303),ROOM='EL'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -14,9 +15,10 @@ const roundOf=p=>p.evaluate(()=>parseInt(((document.getElementById('roundTag')||
 const elimSelf=p=>p.evaluate(()=>window.__cmf?window.__cmf.eliminated(0):null);   // seat 0 = "me" on both host and (rotated) client state
 const finishedOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.finished():null);    // reads live `state.finished` — works on host and client
 const ready=p=>p.evaluate(()=>{ var g=document.getElementById('lobbyGo'); if(g)g.click(); });
-const leadFirst=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card'); if(c)c.click(); var f=document.getElementById('fightBtn'); if(f)f.click(); });
-const leadCombo=(p,ids)=>p.evaluate(function(ids){ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); ids.forEach(function(id){ var c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click(); }); var f=document.getElementById('fightBtn'); if(f)f.click(); }, ids);
-const passT=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var b=document.getElementById('passBtn'); if(b)b.click(); });
+const leadFirst=p=>selectAndFight(p);                       // two-state button since epic step 20 — see fightclick.js
+const leadCombo=(p,ids)=>selectAndFight(p, ids);            // two-state button since epic step 20 — see fightclick.js
+const passT=async p=>{ await p.evaluate(()=>{ var c=document.getElementById('clearBtn'); if(c&&!c.disabled)c.click(); });
+                     return clickPass(p); };   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
 /* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll
  * that gave up used to be invisible and surfaced later as an unrelated assertion failing on a board that
  * was still mid-round-trip — the v1.31.9 waitTurnEnds bug, in the general case. A red run must explain
