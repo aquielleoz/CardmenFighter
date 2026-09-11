@@ -71,7 +71,7 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   const staged=await p.evaluate(()=>{
     const st=window.__solo.st(), E=window.CardmenEngine;
     const mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
-    st.round=3; st.turn=0; st.pile=null; st.passes=0; st.preFightHandled=false; st.preFightQ=null;
+    st.round=3; st.turn=0; st.pile=null; st.passes=0; st.subPhase='main'; st.toPlay=null;
     st.players[1].eliminated=true;                                   // P2 is OUT — so P3 becomes the pre-fight holder
     st.players[0].hand=[mk(5,'D'),mk(9,'H')];
     const p3=st.players[2];
@@ -79,10 +79,17 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     p3.forms=[{rank:11,suit:'S',tier:'ride',name:'J'},{rank:12,suit:'S',tier:'queen',name:'Q'},{rank:13,suit:'S',tier:'king',name:'K'}];  // Hermes Super → Back Stab is a Quick
     p3.energy=Array.from({length:14},(_,i)=>mk(2,'S','e'+i));
     window.__solo.render();
-    return { holder: E.openPreFight(st).q, super: E.hasSuper(p3) };
+    /* THE HOLDER IS THE GO-ROUND'S, NOT A BESPOKE WINDOW'S (epic step 20). This read
+       `E.openPreFight(st).q` — a second priority model that named ONE seat. `moveToPlay` opens the real
+       transition and the walk answers the same question, and answers it better: seat 0 is the active
+       player and is offered FIRST now, but holds no castable Quick (5♦/9♥) so `canAddToStack` skips it;
+       seat 1 is eliminated; so priority lands on seat 2 — which is still exactly the case the old gate
+       dropped, proven through the walk everything else uses. */
+    E.moveToPlay(st);
+    return { holder: st.respondFor, super: E.hasSuper(p3) };
   });
   ok(staged.super===true, 'P3 is in Super Mode (J+Q+K), so Back Stab is a Quick');
-  ok(staged.holder===2, 'the pre-fight holder really is seat 2, not 1 ('+staged.holder+') — the case the old gate dropped');
+  ok(staged.holder===2, 'the transition offers priority to seat 2, not 1 ('+staged.holder+') — the case the old gate dropped');
   await p.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
     const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
   const bsName=await nm(2), bsOther=await nm(1);

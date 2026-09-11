@@ -585,7 +585,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], roundWinResult: null, fightEnd: null, fightEndResult: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], roundWinResult: null, fightEnd: null, fightEndResult: null, subPhase: 'main', toPlay: null, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -627,10 +627,9 @@
     if (st.respondFor === seat) st.respondFor = null;
     if (st.pending && st.pending.p === seat) { st.pending = null; st.respondFor = null; }
     if (st.pendingLossChoice && st.pendingLossChoice.winner === seat) st.pendingLossChoice = null;
-    if (st.preFightQ === seat) { st.preFightQ = null; st.preFightPending = false; }
     if (aliveCount(st) <= 1) { st.finished = true; st.winner = lastAlive(st); return { ok: true, finished: true, winner: st.winner }; }
     var lead = nextPlayer(st, seat);
-    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.preFightHandled = false; st.roundWinResult = null; st.fightEnd = null; st.fightEndResult = null; st._effUsed = false;
+    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.subPhase = 'main'; st.toPlay = null; st.roundWinResult = null; st.fightEnd = null; st.fightEndResult = null; st._effUsed = false;
     return { ok: true, eliminated: seat, turn: lead };
   }
   function isLocked(st, p) { return !!(st.players[p].lockSkip || st.players[p].lockRound); }   // Back Stab: skip next turn (lockSkip, cleared on pass) or, if boosted, the whole round (lockRound, cleared at round end)
@@ -1286,45 +1285,21 @@
     st.prioPassed = {};
     return openResponseWindow(st);
   }
-  /* ---- THE PRE-FIGHT WINDOW: the priority pass before the active player's shedding play.
-     It is NOT a Back Stab carve-out, which is what this comment used to imply — see
-     `docs/PHASES-AND-PRIORITY.md` §3: priority is passed around before the active player may play, and every
-     player's Quicks are legal there. `preFightHolder` below already tests plain `e.quick` and gates nothing to
-     one card; the NARROWING to lockout Quicks lives in the UI (`eligiblePreFightQuicks`), which is where to
-     look, and it is filed in the BACKLOG along with the fact that this window is offered to ONE seat and
-     gives up rather than passing priority on.
-     The sprung Quick goes on the stack, so it can itself be answered (e.g. Counter Spell the Back Stab). ---- */
-  function preFightHolder(st) {
-    if (st.finished || st.pending || st.stack.length || st.preFightHandled) return -1;   // one window per active-player fight (survives UI suspend/resume)
-    var q = nextPlayer(st, st.turn), opp = st.players[q];
-    if (isLocked(st, q)) return -1;                                    // a player skipping their own turn can't interject
-    var has = opp.hand.some(function (c) { var e = effectFor(st, q, c); return e && e.impl && e.quick && e.kind === 'lockout' && canAfford(opp, c); });   // Hermes makes Back Stab a Quick
-    return has ? q : -1;
-  }
-  function openPreFight(st) {
-    var q = preFightHolder(st);
-    st.preFightQ = (q < 0) ? null : q;
-    return { preFightPending: q >= 0, q: q };
-  }
-  function preFightCast(st, q, cardId, opts) {
-    if (st.preFightQ !== q) return { ok: false, reason: 'No pre-fight window.' };
-    var qp = st.players[q];
-    var card = qp.hand.filter(function (c) { return c.id === cardId; })[0];
-    if (!card) return { ok: false, reason: "You don't hold that card." };
-    var eff = effectFor(st, q, card);
-    if (!eff || !eff.impl || !eff.quick) return { ok: false, reason: 'That is not a Quick.' };
-    if (!canAfford(qp, card)) return { ok: false, reason: 'Not enough Fighter Energy (need ' + costHint(card) + ').' };
-    st.preFightQ = null; st.preFightHandled = true;
-    qp.hand = qp.hand.filter(function (c) { return c.id !== cardId; });
-    payEnergy(qp, card);
-    var o = opts || {};
-    if (o.target == null) o.target = st.turn;                          // a pre-fight Back Stab always locks the ACTIVE player (in 2p that's nextPlayer(q); in 3p+ they differ)
-    /* Opens a response window — for every living opponent of `q` in turn, NOT just the active player, which
-       is what this line used to claim. They coincide in a duel and usually do not at 3-6 (see the BACKLOG:
-       priority is walked from the CONTROLLER rather than the active player). */
-    return pushEffect(st, q, card, eff, o);
-  }
-  function preFightPass(st, q) { if (st.preFightQ === q) st.preFightQ = null; st.preFightHandled = true; return { ok: true, state: st }; }
+  /* ⚠ A COMMENT STOOD HERE THAT WAS FLATLY WRONG, AND IT SENT READERS TO THE WRONG FILE. It said
+     *"`preFightHolder` below already tests plain `e.quick` and gates nothing to one card; the NARROWING to
+     lockout Quicks lives in the UI (`eligiblePreFightQuicks`), which is where to look"* — while
+     `preFightHolder`, four lines beneath it, read `e.kind === 'lockout'`. The engine narrowed; the comment
+     said it did not and pointed at the template. Kept as a note because it is why the pre-fight window was
+     read as an eligibility problem for three sessions: everyone who looked was told the engine was
+     innocent. **A comment that exonerates the code beneath it is worth distrusting more than most.** */
+  /* THE PRE-FIGHT PARALLEL MODEL WAS HERE AND IS DELETED (epic step 20) — `preFightHolder`,
+     `openPreFight`, `preFightCast` and `preFightPass`, with their own `preFightQ`/`preFightHandled` state.
+     It was not a narrow version of the priority dance; it was a SECOND implementation of priority: one
+     seat (`nextPlayer(st, st.turn)`), one shot, giving up on that seat's single pass, and narrowed to
+     `kind === 'lockout'` so Back Stab was the only card that could ever use it — while
+     `PHASES-AND-PRIORITY.md` §3 says, verbatim, *"Every player's Quicks are available here."*
+     `moveToPlay` + `phaseWalk` replace all four. Aj, 2026-09-11: *"it was hidden under all the
+     obfuscation of doing band aids instead of getting to the core of the priority dance."* */
 
   // Can player q put a Quick on the stack right now (any affordable impl Quick)? Used to decide
   // whether to open a response window or AUTO-PASS them (priority auto-passes players with no action).
@@ -1464,17 +1439,30 @@
        restarts at the active player — §3's worked example, steps 5-7. `resolveTopEffect` already cleared
        `prioPassed`, so that restart is a fresh round of passes and not a continuation of the old one.
        INERT UNTIL SOMETHING PARKS `st.fightEnd` — which nothing does yet; step 18 is the switch. */
+    /* ---- THE MAIN → PLAY TRANSITION (epic step 20) ----
+       `PHASES-AND-PRIORITY.md` §3: priority is passed around before the active player may make their
+       shedding play. It used to be a SECOND priority model — `preFightQ`/`preFightHandled` with its own
+       `preFightCast`/`preFightPass` verbs, offered to ONE seat (`nextPlayer`), narrowed to `lockout`, and
+       giving up on that seat's single pass. It is the same go-round as every other window now, walked by
+       the same `nextPrioHolder` from the same origin rule (§2 step 7: empty stack → the ACTIVE player).
+       QUICKS-ONLY COMES FREE, and that is the tell that the model is right rather than a coincidence:
+       §1's transition rule says only a Quick is ever legal at a sub-phase boundary, and `canCastQuick`
+       — which `nextPrioHolder` walks through — already requires `e.quick`. No special case was needed.
+       IT IS CHECKED BEFORE FIGHT END because the two can never both be parked (different phases), and
+       reading them in a fixed order costs nothing while leaving the invariant obvious. */
+    if (st.toPlay && !st.stack.length && !st.finished) {
+      var tq = phaseWalk(st, st.toPlay.origin);
+      if (tq >= 0) return { ok: true, state: st, pending: true, transition: 'play', respondFor: tq };
+      st.toPlay = null; st.subPhase = 'play';             // everyone passed — the Play Sub-Phase begins
+      return { ok: true, state: st, subPhase: 'play' };
+    }
     if (st.fightEnd && !st.stack.length && !st.finished) {
-      var fq = nextPrioHolder(st, st.fightEnd.origin);
-      if (fq >= 0) {
-        st.prioGen = (st.prioGen || 0) + 1;
-        st.pending = null; st.respondFor = fq;            // a window with NO object — the shape P1 made answerable
-        return { ok: true, state: st, pending: true, fightEnd: true, respondFor: fq };
-      }
+      var fq = phaseWalk(st, st.fightEnd.origin);
+      if (fq >= 0) return { ok: true, state: st, pending: true, fightEnd: true, respondFor: fq };
       /* Everyone passed on an empty stack, so the sub-phase begins. Unpark FIRST: `applyRoundLossBody` can
          re-enter this function (it pushes shieldloss objects and drives them), and a still-parked
          continuation would open a second go-round for a window that has already closed. */
-      var fe = st.fightEnd; st.fightEnd = null; st.prioPassed = {};
+      var fe = st.fightEnd; st.fightEnd = null;
       /* PARK THE FINAL RESULT, for the same reason P3 parks the continuation (epic step 18). The outcomes
          run HERE — one `declineResponse` deep inside a go-round — and their result is returned up a call
          chain that ends at whoever answered last. The netplay host is not on that chain: it resumes from a
@@ -1489,6 +1477,38 @@
       return feRes;
     }
     return last;
+  }
+  /* ONE WALK FOR EVERY EMPTY-STACK GO-ROUND THAT ADVANCES A PHASE (epic step 20). Both boundaries — the
+     Main → Play transition and the one before Fight End — do exactly this: grant priority to the next seat
+     that can act, or report that everyone has passed. They differ ONLY in what happens after the walk
+     ends, which is the caller's business and not the walk's.
+     Copying these five lines twice is how the pre-fight window became a second priority model in the first
+     place, so they live here. `prioGen` is bumped on every grant because a re-grant of the same object to
+     the same seat is otherwise indistinguishable downstream (step 1); `prioPassed` is cleared when the walk
+     COMPLETES so the next go-round is a fresh set of passes and not a continuation of the old one. */
+  function phaseWalk(st, origin) {
+    var q = nextPrioHolder(st, origin);
+    if (q >= 0) {
+      st.prioGen = (st.prioGen || 0) + 1;
+      st.pending = null; st.respondFor = q;               // a window with NO object — the shape P1 made answerable
+      return q;
+    }
+    st.prioPassed = {};
+    return -1;
+  }
+  /* MOVE FROM THE MAIN SUB-PHASE TO THE PLAY SUB-PHASE (epic step 20). Aj, 2026-09-11, after MTG Arena's
+     move-to-combat button: *"fight now would only initiate moving to the play sub-phase"* — the button
+     announces the TRANSITION, not a play, which is why nothing needs cancelling when someone responds.
+     AUTO-ADVANCE IS THE ENGINE'S JOB, not the UI's. If nobody can act, `phaseWalk` returns -1 on the first
+     call and this returns with `subPhase` already 'play' — so a caller that just wants to fight is not
+     made to know about a window nobody could use. Measured: the active player can cast at their own
+     transition on 2.9-4.8% of turns in a duel, so this is the path 19 times in 20. */
+  function moveToPlay(st) {
+    if (st.subPhase === 'play') return { ok: true, state: st, subPhase: 'play' };
+    if (st.finished) return { ok: false, reason: 'The game is over.' };
+    st.toPlay = { origin: st.turn };
+    st.prioPassed = {};
+    return openResponseWindow(st);
   }
   /* Open the Fight End priority window: park the outcomes, then run the first go-round from the winner.
      The loss target is chosen BEFORE this (`resolveRoundWin`/`chooseLossTarget`) and cannot be re-picked —
@@ -1885,6 +1905,15 @@
     if (st.finished) return { ok: false, reason: 'Game over.' };
     if (p !== st.turn) return { ok: false, reason: 'Not your turn.' };
     if (isLocked(st, p)) return { ok: false, reason: 'You are locked out (Back Stab) — you skip this turn.' };
+    /* THE TRANSITION IS A RULES STEP, SO THE ENGINE ENFORCES IT (epic step 20). A shedding play belongs to
+       the Play Sub-Phase, and priority is passed before you get there. `moveToPlay` AUTO-ADVANCES when
+       nobody can act, which is 19 turns in 20, so a caller that simply wants to fight is not made to know
+       about a window nobody could use. When someone CAN act the play is refused and the window is open —
+       the caller drains it and calls again, which is the same shape every other window already has. */
+    if (st.subPhase !== 'play') {
+      moveToPlay(st);
+      if (st.subPhase !== 'play') return { ok: false, reason: 'Priority is being passed before your play.', transition: 'play', state: st };
+    }
     if (!cards || !cards.length) return { ok: false, reason: 'No cards.' };
     var pl = st.players[p];
     var owns = cards.every(function (c) { return pl.hand.some(function (h) { return h.id === c.id; }); });
@@ -1914,23 +1943,46 @@
     refreshPile(st);                                                    // fold in the current equipment contribution (== play-time value, and re-evaluated whenever equipment changes)
     pl.nextPlayBoost = 0;                                               // a pre-fight boost is spent by the play it powers
     st.lastPlayer = p; st.passes = 0;
-    st.turn = nextPlayer(st, p); st.preFightHandled = false; st._effUsed = false;           // fresh pre-fight window for the next active player
+    st.turn = nextPlayer(st, p); st.subPhase = 'main'; st.toPlay = null; st._effUsed = false;           // fresh pre-fight window for the next active player
     return { ok: true, state: st, combo: combo, boosted: stored.value !== combo.value };
   }
 
   function pass(st, p) {
     if (st.finished) return { ok: false, reason: 'Game over.' };
     if (p !== st.turn) return { ok: false, reason: 'Not your turn.' };
+    /* PASSING IS A PLAY-SUB-PHASE ACTION TOO, so it transitions exactly as a play does — see `play`. The
+       LOCKED case below is deliberately left above this: a locked player can neither play nor activate, so
+       there is nothing for anyone to respond to and no window to open. */
+    if (st.subPhase !== 'play' && !isLocked(st, p)) {
+      moveToPlay(st);
+      if (st.subPhase !== 'play') return { ok: false, reason: 'Priority is being passed before your play.', transition: 'play', state: st };
+    }
     if (!st.pile) {
-      // Normally you must lead. A locked-out player (Back Stab) can't play, so leading falls
-      // through to the next player instead of dead-locking the round. Spending this skip clears the lock.
-      if (isLocked(st, p)) { st.players[p].lockSkip = false; st.turn = nextPlayer(st, p); st.preFightHandled = false; st._effUsed = false; return { ok: true, state: st, forcedSkip: true }; }
+      /* A FORCED SKIP IS A PASS (Aj, 2026-09-11: *"skipping their turn was always an auto pass"*), AND IT
+         WAS NOT COUNTED AS ONE HERE. A locked FOLLOWER's skip bumps `st.passes` twelve lines below; a
+         locked LEADER's did not — it advanced the turn and returned. The comment that stood here said it
+         fell through *"instead of dead-locking the round"*, and it created the other deadlock: with every
+         living player locked, nobody can lead, so the round never ends, so `lockRound` — which only clears
+         in `finishRoundWin` — never expires. The game freezes.
+         PRE-EXISTING AND LATENT: staged on the epic build it hangs identically. What made it REACHABLE is
+         epic step 20 widening the pre-fight window from one seat to every seat, so Back Stab is sprung
+         more often — measured 397/400 games finishing at 2-6 players against 400/400 before.
+         THE THRESHOLD IS `aliveCount`, NOT `aliveCount - 1`. With a pile, the player who owns it does not
+         have to pass; with nothing on the table there is no such seat, so every living player must have
+         skipped. */
+      if (isLocked(st, p)) {
+        st.players[p].lockSkip = false;
+        st.passes += 1;
+        if (st.passes >= aliveCount(st)) return finishRoundWin(st, { ok: true, state: st, roundWinner: null, fizzled: true });
+        st.turn = nextPlayer(st, p); st.subPhase = 'main'; st.toPlay = null; st._effUsed = false;
+        return { ok: true, state: st, forcedSkip: true };
+      }
       return { ok: false, reason: 'You must lead — cannot pass.' };
     }
     if (isLocked(st, p)) st.players[p].lockSkip = false;    // a locked follower's forced pass spends the skip
     st.passes += 1;
     if (st.passes >= aliveCount(st) - 1) return resolveRoundWin(st);          // all OTHER living players have passed → last to play wins
-    st.turn = nextPlayer(st, p); st.preFightHandled = false; st._effUsed = false;
+    st.turn = nextPlayer(st, p); st.subPhase = 'main'; st.toPlay = null; st._effUsed = false;
     return { ok: true, state: st };
   }
 
@@ -2086,7 +2138,7 @@
   function setLossTargetInteractive(fn) { lossTargetInteractive = fn; }
   function resolveRoundWin(st) {
     var winner = st.lastPlayer;
-    st.preFightHandled = false;                                                // new round → fresh pre-fight windows
+    st.subPhase = 'main'; st.toPlay = null;                                    // new round → back to the Main Sub-Phase
     var wonWithCombo = st.pile.combo.size > 1;                                 // only Specials strip shields
     /* NO-STRIP IS INDEPENDENT OF INFINITY (2026-08-26). This used to require both, which quietly made
      * `nostrip` alone a no-op — and that is a coherent variant, not a broken one. Aj's case for it: a 2 that
@@ -2505,7 +2557,14 @@
     if (st.finished) return result;
     var winner = result.roundWinner;
     st.round += 1;
-    st.initiative = winner; st.turn = winner; st.lastPlayer = null; st.pile = null; st.passes = 0; st._effUsed = false;
+    /* A FIZZLED ROUND HAS NO WINNER, so it cannot hand out initiative — see `pass`. Everything else a round
+       end does still has to happen, and the locks clearing is the whole point: that is what unsticks the
+       table. Initiative simply stays where it was, moving on only if that seat has since been eliminated. */
+    if (winner == null) {
+      if (!st.players[st.initiative] || st.players[st.initiative].eliminated) st.initiative = nextPlayer(st, st.initiative);
+      st.turn = st.initiative;
+    } else { st.initiative = winner; st.turn = winner; }
+    st.lastPlayer = null; st.pile = null; st.passes = 0; st._effUsed = false;
     st.players.forEach(function (pl) { pl.preventShield = false; pl.nextPlayBoost = 0; pl.shieldImmune = false; pl.cantLoseRound = false; pl.finishingBlow = false; pl.lockRound = false; }); // GUARD, pre-fight boost, immunity, can't-lose, Finishing Blow, and a whole-round lock all last only their round
     st.players.forEach(function (pl) {                               // counters: decay ones lose 1/round; all reset once-per-round; worn-out ones retire to Energy
       pl.equipment.forEach(function (e) { if (e.decay) e.counters -= 1; e.usedThisRound = false; });
@@ -2540,7 +2599,7 @@
     isSpecialLossMode: isSpecialLossMode, isMillScope: isMillScope, setShieldTargetChooser: setShieldTargetChooser, setLossTargetInteractive: setLossTargetInteractive, chooseLossTarget: chooseLossTarget, concede: concede, aliveCount: aliveCount, lastAlive: lastAlive,
     setNoStraightFlush: setNoStraightFlush, fightValue: fightValue, activationCost: activationCost, takeReveal: takeReveal, hasSuper: hasSuper, effectFor: effectFor, boostInfo: boostInfo, rideCostDelta: rideCostDelta, effectiveCost: effectiveCost, removeTargets: removeTargets,
     setTransformCost: setTransformCost, setTransformDraw: setTransformDraw, setTransformGate: setTransformGate, transformGateOK: transformGateOK, transformGateStatus: transformGateStatus, transformCost: transformCost, transformDraw: transformDraw, setBoostScale: setBoostScale, setFormSuitMatch: setFormSuitMatch,
-    openPreFight: openPreFight, preFightCast: preFightCast, preFightPass: preFightPass,
+    moveToPlay: moveToPlay,
     effectTarget: effectTarget,   // who a pending effect is aimed at — the UI needs it to say so out loud
     HOSTILE_SINGLE: HOSTILE_SINGLE,
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two

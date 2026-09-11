@@ -111,7 +111,19 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   foe.energy = []; for (var i = 1; i <= 12; i++) foe.energy.push({ rank: i, suit: 'D', id: 'fe' + i });
   me.hand = [a, b, { rank: 5, suit: 'C', id: 'x' }];
   st.round = 3; st.turn = 0; st.pile = null; st.lastPlayer = null; st.passes = 0;
-  E.play(st, 0, [a, b]); E.pass(st, 1);                      // seat 1 must lose a shield and holds Leyline
+  /* DRAIN THE MAIN → PLAY TRANSITION FIRST (epic step 20). Seat 1 holds an affordable Leyline, so seat 0's
+     play now opens the transition go-round before it — `E.play` refuses with `transition:'play'` until
+     everyone has passed. That is the rules step working, not staging drift: this helper exists precisely
+     because a suite that skips it is testing a game nobody plays. */
+  function toPlay(st, seat) {
+    var r = E.play ? null : null;
+    E.moveToPlay(st);
+    var guard = 0; while (st.respondFor != null && guard++ < 12) E.declineResponse(st, st.respondFor);
+  }
+  toPlay(st, 0);
+  E.play(st, 0, [a, b]);
+  toPlay(st, 1);
+  E.pass(st, 1);                                             // seat 1 must lose a shield and holds Leyline
   /* NOT VACUOUS: without an OPEN window there is nothing to alias, and every assertion below would pass on
      the broken build. The staging is the half that matters. */
   /* THE SAME ROUND, THE NEW WINDOW (epic step 18, P5). This block used to stage the shield-GUARD window and

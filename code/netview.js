@@ -52,7 +52,9 @@
        other seat, v1.31.69), while a priority window is answerable by several seats at once and auto-passes
        anyone who cannot act. The seat that owes a discard owes it first. */
     if (st.discardPending && st.discardPending.player === s) return { kind: 'discard', count: st.discardPending.count || 1 };
-    if (st.preFightQ === s) return { kind: 'preFight' };
+    /* THE `preFight` PROMPT IS GONE (epic step 20) — there is no separate pre-fight window to own it. The
+       Main → Play transition is an ordinary priority window, so the seat that owes an answer owes a
+       `respond`, and the UI reads `subPhase` to know which timing it is looking at. */
     if (st.respondFor === s) return { kind: 'respond' };   // the window is respondFor — an objectless go-round still owes this seat an answer
     if (st.turn === s) return { kind: 'turn' };
     return null; // waiting on someone else
@@ -169,7 +171,7 @@
       pending: st.pending ? remapStack([st.pending])[0] : null, respondFor: (st.respondFor == null ? null : rot(st.respondFor)), prioGen: st.prioGen || 0,   // NOT seat-valued: a counter, same for every seat, so it is declared PUBLIC rather than rotated
       discardPending: st.discardPending ? { player: rot(st.discardPending.player), count: st.discardPending.count, from: (st.discardPending.from || null) } : null,   // `from` = a dig's looked-at card ids (only the owner's own real ids, which they hold)
       stack: remapStack(st.stack),   // `shieldResponse` was projected here until step 19; `respondFor` + `pending` carry strictly more
-      preFightQ: (st.preFightQ == null ? null : rot(st.preFightQ)), preFightHandled: !!st.preFightHandled,
+      subPhase: st.subPhase || 'main', toPlay: null,   // subPhase is PUBLIC (same for every seat); `toPlay` is host bookkeeping like roundWinResult
       pendingLossChoice: st.pendingLossChoice ? { winner: rot(st.pendingLossChoice.winner), cands: (st.pendingLossChoice.cands || []).map(rot), comboType: st.pendingLossChoice.comboType } : null,   // winner picks whose shield to strip
       /* THE FIGHT END WINDOW IS ROTATED, NOT REDACTED (epic step 11, P3). Every member is seat-valued and
          every one of them is PUBLIC on purpose: `PHASES-AND-PRIORITY.md` §3 picks the loss target BEFORE the
