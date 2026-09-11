@@ -199,6 +199,24 @@ sub-phase where nobody is, and that is exactly where a shield-loss trigger fires
 - **Upkeep Sub-Phase.** Triggered abilities that say *"at the beginning of your upkeep"* are put on the stack
   here, then the **priority dance** runs. **Equipment counters tick down here** — at the beginning of the
   ROUND, not at clean-up.
+  **AND THE TICK IS ITSELF ONE OF THOSE TRIGGERS, AS OF 2026-09-11 — the first in the game.** Aj wrote the
+  card text for it: *"At the beginning of each round's upkeep, remove a counter from this equipment."* So
+  it is not bookkeeping that happens before anyone can act: the trigger goes on the stack, the dance runs,
+  and only then does the counter come off. Equipment reaching 0 retires to Energy as part of that
+  resolution.
+  **SIMULTANEOUS TRIGGERS ARE ORDERED BY THE PUSH, AND §2 THEN NEEDS NO EXCEPTION.** They all happen at
+  once, so something must order them; the ACTIVE PLAYER's goes on the stack first and turn order follows,
+  which puts the LAST seat's on top. Aj, working it through: *"3 players had equipment and the initiative
+  was player A's, then Player B and Player C come after in the turn order. So player A as the active
+  player puts their triggered ability first on the stack, then B, then C. since C's trigger is at the top,
+  they gain priority first, then it's passed around in turn order."*
+  **⚠ AN EARLIER CUT STARTED THE GO-ROUND AT THE ACTIVE PLAYER INSTEAD, AND THAT CONTRADICTED §2** — the
+  stack is not empty at Upkeep, so "a go-round starts at the controller of the top stack object" already
+  applied. Aj caught it: *"wait... that's an inconsistency right? because the stack isn't empty yet"*. It
+  was. Ordering the PUSH fixes it without amending anything: the controller of the top object is then
+  exactly the seat that should act first, and the starting seat stops being an artifact of iteration
+  order — which is what a per-object exception would have left behind.
+  The once-per-round `usedThisRound` reset is NOT a trigger and stays immediate: nobody can respond to it.
   **⚠ THIS SAID "the beginning of the TURN" until 2026-09-10, and Aj corrected it himself** — *"you're
   right i was thinking of magic. beginning of the round actually makes more sense here. that's where the
   upkeep lives."* The distinction is invisible at 2 players and real at 3-6, where the Play Phase loops
@@ -318,7 +336,17 @@ pile stands.
 
 Once per round. There is a timing at the **beginning** of clean-up where triggered abilities may be put on
 the stack (*"at the beginning of the Clean-up…"*) — **no card has one yet**. If anything is put there, the
-priority dance begins anew. **And per the trigger rule above, clean-up's own outcomes can trigger abilities
+priority dance begins anew.
+**AND THE DANCE RUNS THERE WHETHER OR NOT ANYTHING IS PUT ON THE STACK, AS OF 2026-09-11.** Aj ruled both
+round boundaries REAL priority points rather than trigger-only hooks: a seat holding a Quick may cast it at
+the end of a round, and *"yes, those are legal"*. So clean-up grants priority unconditionally, starting at
+the **round winner** — the seat about to take the initiative — and a fizzled round leaves it with whoever
+holds initiative already.
+**THIS BOUNDARY WAS UNBUILDABLE UNTIL THE ROUND END WAS SPLIT.** `finishRoundWin` opened with
+`st.stack = []`, so anything cast into clean-up was silently discarded — the plan recorded it as the reason
+the loop could not live there. The spent shield-loss objects are cleared BEFORE the window is parked now,
+once, and nothing clears the stack again; the round-long expiry, the round advance and the Draw all happen
+after the go-round closes rather than before it. **And per the trigger rule above, clean-up's own outcomes can trigger abilities
 too** — a discard-to-hand-size is a real event a future card may care about — so "nothing in clean-up grants
 priority" is a statement about today's card set, never about the phase.
 

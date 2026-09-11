@@ -16,10 +16,10 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 | 3 | Brilliant Tactic | 3 | Increase the value of your next play by 2. |
 | 4 | Disarm | 4 | Disarm target Equipment: move it to its owner's Energy Pile and its effects stop. |
 | 5 | Superior Training | 5 | Look at the top 4 cards of your deck. Put 2 into your Energy Pile and draw the other 2. |
-| 6 | Hero's Javelin | 6 | Equipment — lasts 3 rounds (1 counter spent at the start of each round; then it retires to your Energy). While equipped, your highest card each fight has its value increased by 1. |
+| 6 | Hero's Javelin | 6 | Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, your highest card each fight has its value increased by 1. |
 | 7 | Armor Piercing | 7 | Additional cost: discard a Broadway card (10, J, Q, K, or A). The next fight you win this round, the Rival you strike loses 1 additional shield (never overkills). |
 | 8 | Instant Recovery | 8 | Shuffle your Shuffle Pile into your deck, then draw 2 cards. |
-| 9 | Spiked Armor | 9 | Equipment — lasts 3 rounds (retires to your Energy after). While equipped, EVERY Rival's highest card each fight has its value reduced by 2. |
+| 9 | Spiked Armor | 9 | Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, EVERY Rival's highest card each fight has its value reduced by 2. |
 | 10 | Ultima Attack | 10 | Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield. |
 | 2 | — | — | *Apex trump — no effect; the highest fight value in the game.* |
 
@@ -51,7 +51,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 | 5 | Infuse with Magic | 5 | Increase the value of your next play by 4. |
 | 6 | Back to the Books | 6 | Look at the top 3 cards of your deck. Put 1 into your Energy Pile and draw the other 2. |
 | 7 | Forceful Strip | 7 | Return Target Equipment to its owner's hand. |
-| 8 | Cursed Pendant | 8 | Equipment — lasts 4 rounds (1 counter spent at the start of each round; then it retires to your Energy). Your Rivals' highest card each fight has its value reduced by 2. |
+| 8 | Cursed Pendant | 8 | Equipment — lasts 4 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. Your Rivals' highest card each fight has its value reduced by 2. |
 | 9 | Leyline Ascension *(Quick)* | 9 | You can't lose this round — no shield loss, and at 0 shields no Fighter Kick either. |
 | 10 | Phantasmal Illusion | 10 | Conjure a copy of the current play at its base values. You MAY swap one copied card for one from your hand. Your boosts and Equipment apply to the illusion; the copied cards vanish after the round. |
 | 2 | — | — | *Apex trump — no effect; the highest fight value in the game.* |
@@ -84,7 +84,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 | 5 | Annoint *(Quick)* | 5 | Target Equipment can't be destroyed or disarmed until the end of the round. |
 | 6 | Divine Tactics | 6 | Increase the value of your next play by 5. |
 | 7 | Plead for Peace | 7 | Put target Equipment into its owner's Shuffle Pile. |
-| 8 | Holy Bow | 8 | Equipment — lasts 4 rounds (1 counter spent at the start of each round; then it retires to your Energy). Your highest card each fight has its value increased by 2. |
+| 8 | Holy Bow | 8 | Equipment — lasts 4 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. Your highest card each fight has its value increased by 2. |
 | 9 | Holy Shroud | 9 | If you would lose a shield (or take the Kick at 0), remove 1 counter from Holy Shroud instead. |
 | 10 | Sanctuary | 10 | Every player gains 1 Shield. |
 | 2 | — | — | *Apex trump — no effect; the highest fight value in the game.* |
@@ -116,7 +116,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 | 4 | Poison the Air | 4 | Move every player's Energy Pile to their Shuffle Pile. |
 | 5 | Sabotage | 5 | Destroy target Equipment. |
 | 6 | Never Out of Options | 6 | Look at the top 3 cards of your deck. Put 2 into your Energy Pile and draw the other 1. |
-| 7 | Caltrops | 7 | Equipment — lasts 3 rounds (retires to your Energy after). While equipped, EVERY Rival's highest card each fight has its value reduced by 2. |
+| 7 | Caltrops | 7 | Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, EVERY Rival's highest card each fight has its value reduced by 2. |
 | 8 | Counterfeit | 8 | Copy a card from the current play on the pile into your hand. You must play the copy in a fight this round — at the round's end it fades away. |
 | 9 | Critical Hit | 9 | Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield. |
 | 10 | Back Stab | 10 | Target Rival skips the whole round — no fights, no Techniques. |

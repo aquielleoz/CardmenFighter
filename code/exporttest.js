@@ -13,9 +13,16 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
   const b=await chromium.launch(LAUNCH);
   const p=await (await b.newContext({viewport:{width:1400,height:1000}})).newPage();
-  await installPageHelpers(p);   // epic step 20: the two-state Fight button, for drivers that decide inside the page
+  /* A SHORT HELPER BUDGET, BECAUSE THIS LOOP'S GUARD COUNTS ITERATIONS AND NOT TIME (2026-09-11).
+     `stuck<160` assumes an unproductive pass is cheap. `__pressFight` waits its budget out whenever the
+     button stays DISABLED — the busy case it exists for — so on a board that stops advancing, 160 passes
+     at the 5s default is ~800s. Measured exactly that: two back-to-back runs of this suite came in at
+     14s and **750s**, which is a hang wearing a slowdown's clothes and is what has been killing it at
+     sweep.js's 300s cap. Nothing here is netplay, so 1.2s is ample patience for a solo board. */
+  await installPageHelpers(p, 1200);   // epic step 20: the two-state Fight button, for drivers that decide inside the page
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
+  let cappedByClock=false;   // set by the driver loop; reported on the SUMMARY line so a sweep can see it
 
   /* A FRESH 3-PLAYER GAME, and we may need more than one — see the retry below. */
   async function startGame(){
@@ -52,7 +59,11 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
    * lesson (`nettest_full`: "a transition used to burn budget") in a suite that predates the fix, and it is how
    * this went red once under `sweep.js -j 4` while passing 5/5 alone and 1/1 under deliberate load.
    * `stuck` resets on any progress, so a slow machine now takes MORE iterations rather than fewer rounds. */
+  /* AND A WALL CLOCK AS WELL AS A COUNT, the `nettest_sync` pattern: bound the thing that actually
+     runs away, and SAY SO rather than quietly testing less. */
+  const T0=Date.now(), BUDGET_MS=90000;
   for(let i=0, stuck=0, seen=''; i<900 && stuck<160; i++){
+    if(Date.now()-T0>BUDGET_MS){ cappedByClock=true; break; }
     const done=await p.evaluate(()=>{ const st=window.__solo.st(); return !st||st.finished; });
     if(done) break;
     await p.evaluate(async ()=>{
@@ -85,6 +96,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     const sig=prog.round+'/'+prog.o1+'/'+prog.o2;
     if(sig===seen) stuck++; else { stuck=0; seen=sig; }     // progress resets the budget; only a wedged board spends it
   }
+  if(cappedByClock) console.log('   ⚠ driver stopped on the 90s WALL CLOCK — the board stopped advancing');
   return { round:0, o1:0, o2:0 };
   }
 
@@ -119,6 +131,9 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(rec && rec.seats.every(x=>typeof x.seat==='number' && 'finalShields' in x), 'each seat entry carries its own seat number and final shields');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
-  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
+  /* THE SUMMARY CARRIES THE CAP, because `sweep.js` prints only this line for a PASSING suite — a
+     warning anywhere else is invisible in a sweep, which is precisely where a shallower run needs to be
+     legible. `nettest_sync` set the pattern with its own `(TIME-CAPPED)`. */
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail+(cappedByClock?'  (TIME-CAPPED — the driver stopped on its 90s clock)':''));
   await b.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('HARNESS ERROR',e);process.exit(2);});

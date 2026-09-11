@@ -63,7 +63,8 @@ async function freshGame(p) {
      preferences at all, so every answer here is a DEFAULT and not a remembered tick. */
   const D = await p.evaluate(() => {
     const C = (r, su) => ({ rank: r, suit: su, id: '' + r + su });
-    const q = (c, t) => window.__solo.promptWanted(c, t);
+    const q = (c, t) => window.__solo.promptWanted(c, t);      // does it STOP you?
+    const L = (c, t) => window.__solo.promptLegal(c, t);       // does the row EXIST at all?
     return {
       stored:        JSON.stringify(window.__solo.promptPrefs()),
       counterRespond: q(C(4, 'D'), 'respond'),    // Counter Spell — the classic response timing
@@ -71,12 +72,21 @@ async function freshGame(p) {
       leylineFightEnd: q(C(9, 'D'), 'fightend'),  // Leyline guards, so it always spoke here
       leylineRespond:  q(C(9, 'D'), 'respond'),
       counterPrefight: q(C(4, 'D'), 'prefight'),  // legal since step 20 — see the assertion below
+      legalCounterFightEnd: L(C(4, 'D'), 'fightend'),
+      legalCounterPrefight: L(C(4, 'D'), 'prefight'),
+      legalLeylineFightEnd: L(C(9, 'D'), 'fightend'),
+      legalCounterUpkeep:   L(C(4, 'D'), 'upkeep'),
+      legalCounterCleanup:  L(C(4, 'D'), 'cleanup'),
     };
   });
 
   ok(D.stored === '{}', 'a fresh device stores NO preferences — every answer below is a default (' + D.stored + ')');
   ok(D.counterRespond === true, 'default: Counter Spell is still offered when a Technique is cast — today’s experience');
-  ok(D.leylineFightEnd === true, 'default: Leyline still speaks when shields are about to break — today’s experience');
+  /* THE BOUNDARIES DEFAULT OFF SINCE 2026-09-11 (Aj: *"flip the boundary prompt defaults off"*). Only
+     `respond` stops you out of the box — something has just HAPPENED there. The four boundaries fire on a
+     schedule, several times a round now that all five points exist, so stopping at each by default is a
+     development setting rather than a game. */
+  ok(D.leylineFightEnd === false, 'default: a BOUNDARY does not stop you out of the box — Leyline stays quiet at Resolution');
   /* THE POLICY CHANGED ON 2026-09-10, AND THIS ASSERTION IS WHERE IT IS RECORDED — it used to require the
      OPPOSITE, and reversing it silently would erase the reason.
      WHY IT WAS `false`: step 15's aim was that cards keep pinging exactly where they pinged before the
@@ -91,18 +101,26 @@ async function freshGame(p) {
      the checkboxes were built for. The suppression half is asserted further down, both ways, and
      `fightenduitest` scenario C proves an unchecked card is RECORDED in the saved log rather than
      vanishing without trace. */
-  ok(D.counterFightEnd === true,
-     'default: EVERY legal timing prompts — Counter Spell now speaks at Fight End too' +
-     (D.counterFightEnd === true ? '' : '  ← the default is filtered again; grep promptDefault for a predicate it should not be consulting'));
+  ok(D.counterFightEnd === false && D.counterPrefight === false,
+     'default: the other boundaries are quiet too (fightend ' + D.counterFightEnd + ', prefight ' + D.counterPrefight + ')');
+  /* AND THE HALF THAT MATTERS MOST: quiet is NOT the same as illegal. Aj confirmed it explicitly — "off"
+     must mean the window opens and you pass automatically, never that the card becomes uncastable. With
+     the defaults flipped that distinction stops being theoretical for a handful of cards and starts being
+     load-bearing for every one of them, so it is asserted directly at all five timings. */
+  ok(D.legalCounterFightEnd && D.legalCounterPrefight && D.legalLeylineFightEnd &&
+     D.legalCounterUpkeep && D.legalCounterCleanup,
+     'default OFF ≠ ILLEGAL — every timing a Quick is legal at still EXISTS as a row you can tick' +
+     ' (fightend ' + D.legalCounterFightEnd + ', prefight ' + D.legalCounterPrefight +
+     ', upkeep ' + D.legalCounterUpkeep + ', cleanup ' + D.legalCounterCleanup + ')');
   /* THIS REQUIRED `false` UNTIL EPIC STEP 20, AND THE REVERSAL IS THE POINT. `promptLegal` gated the
      pre-fight row to `kind==='lockout'`, so Counter Spell had no such timing — matching an engine that
      offered that window to one seat and only for Back Stab. `PHASES-AND-PRIORITY.md` §3 says verbatim
      *"Every player's Quicks are available here"*, and step 20 made the code agree: the transition is an
      ordinary priority window, so EVERY Quick has all three timings. Recorded rather than flipped, because
      a reversed assertion with no reason reads as a test bent to fit. */
-  ok(D.counterPrefight === true,
-     'EVERY Quick now has the pre-fight timing — the `lockout` gate is gone (step 20)' +
-     (D.counterPrefight === true ? '' : '  ← still gated; grep promptLegal for a `kind` test that should not be there'));
+  ok(D.legalCounterPrefight === true,
+     'EVERY Quick HAS the pre-fight timing — the `lockout` gate is gone (step 20); it is merely unticked' +
+     (D.legalCounterPrefight === true ? '' : '  ← still gated; grep promptLegal for a `kind` test that should not be there'));
 
   /* ---- 2 · THE READER RENDERS THE ROWS, and only for Quicks. `promptLegal` decides which rows exist, so a
      card with no legal timing must show no block at all rather than an empty one. */
@@ -118,9 +136,12 @@ async function freshGame(p) {
       note: /never changes the rules/.test(quick),
     };
   });
-  ok(R.quickHasHead && R.quickRows === 3,
-     'the reader offers the legal timings for a Quick (' + R.quickRows + ' rows: pre-fight + respond + fightend)' +
-     (R.quickRows === 3 ? '' : '  ← ' + R.quickRows + '; before step 20 a non-lockout Quick had only two'));
+  /* FOUR SINCE UPKEEP BECAME A REAL PRIORITY POINT (epic step 20, Aj 2026-09-11). The count is asserted
+     rather than the labels because the COUNT is what silently drifts when a boundary is added or removed —
+     a row nobody rendered would leave this green if it only checked that some rows exist. */
+  ok(R.quickHasHead && R.quickRows === 5,
+     'the reader offers the legal timings for a Quick (' + R.quickRows + ' rows: respond + upkeep + main→fight + resolution + clean-up)' +
+     (R.quickRows === 5 ? '' : '  ← want 5; a non-lockout Quick had two before step 20, and the model has five priority points'));
   ok(!R.plainHasBlock, 'a non-Quick gets no block at all — a timing it can never be cast at is not a choice');
   ok(R.note, 'the reader says out loud that unchecked never changes the rules — it is a notification layer');
 

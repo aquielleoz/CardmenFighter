@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**447**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**458**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.

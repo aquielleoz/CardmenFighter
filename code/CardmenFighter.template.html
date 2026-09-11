@@ -1741,19 +1741,24 @@ __QR__
      is keyed by `id`, so order here is presentation only and reordering costs nothing. */
   var PROMPT_TIMINGS=[
     { id:'respond',  label:'When a Technique is cast' },
+    { id:'upkeep',   label:'At the start of a round' },
     { id:'prefight', label:'Before a fight — yours or a rival\'s' },
-    { id:'fightend', label:'When shields are about to break' }
+    { id:'fightend', label:'When shields are about to break' },
+    { id:'cleanup',  label:'At the end of a round' }
   ];
   // Is this timing even legal for this card? A no-row is not the same as an unchecked row.
   function promptLegal(card, eff, timing){
     if(!eff || !eff.impl || !eff.quick) return false;
     return true;                                             // EVERY timing takes any Quick (epic step 20 removed the `lockout` gate)
   }
-  /* THREE ROWS, AND THE MODEL HAS FIVE PRIORITY POINTS — the gap is deliberate and temporary.
-     `PHASES-AND-PRIORITY.md` §3 passes priority at: **Upkeep**, each cast in the **Main Sub-Phase**, the
-     **pre-fight window**, **Fight End**, and the beginning of **Clean-up**. Upkeep and Clean-up have no
-     rows because NO CARD HAS A TRIGGER THERE — the doc says so at both, and a row for a timing nothing can
-     use is a dead control, which this codebase already treats as its own kind of dead end.
+  /* ALL FIVE PRIORITY POINTS HAVE A ROW AS OF 2026-09-11 — the model and the reader finally agree. `PHASES-AND-PRIORITY.md` §3
+     passes priority at: **Upkeep**, each cast in the **Main Sub-Phase**, the **Main → Fight transition**,
+     **Resolution**, and the beginning of **Clean-up**.
+     ⚠ THIS BLOCK USED TO SAY Upkeep had no row because "NO CARD HAS A TRIGGER THERE" and a row for a
+     timing nothing can use is a dead control. Aj overturned the premise on 2026-09-11: Upkeep is a REAL
+     priority point, so a seat holding a Quick may cast it at the round boundary whether or not any trigger
+     exists — *"yes, those are legal"*. The row is live, and the old reasoning is kept here only because
+     the same argument still applies to CLEAN-UP until that boundary is built.
      ✅ **THE PRE-FIGHT ROW WAS GATED TO `lockout` AND STEP 20 UNGATED IT** — the model says verbatim
      *"Every player's Quicks are available here"*, and it is now true of the code as well. Upkeep and
      Clean-up are still the two points with no rows, and still for the reason above. */
@@ -1770,7 +1775,32 @@ __QR__
      describing a world that no longer exists.
      WHAT THE CHECKBOX IS NOW: noise reduction, not capability. Holding priority means looking at your hand
      and choosing; the preference decides only whether a window STOPS you. See `promptedQuicks`. */
-  function promptDefault(card, eff, timing){ return true; }
+  /* THE BOUNDARIES DEFAULT OFF; ONLY A CAST STOPS YOU (Aj, 2026-09-11: *"flip the boundary prompt
+     defaults off"*, and earlier: *"the checkboxes will be unchecked by default when we finally ship"*).
+     `respond` is the one timing where something has just HAPPENED that you might want to answer — a
+     Technique on the stack. The four boundaries (upkeep, main→fight, resolution, clean-up) open on a
+     schedule rather than on an event, and with all five points built they fire several times a round; at
+     `return true` that is a modal every round for anyone holding a Quick, which is a development setting,
+     not a game.
+     ⚠ THIS MAKES THE EPIC'S HEADLINE FIX INVISIBLE UNTIL A BOX IS TICKED, and that is worth saying out
+     loud because it has bitten once already: step 15 derived this default from `immunityEffFor`, which
+     auto-declined Sanctuary-under-Hector and Armor-Piercing-under-Hippolyta — *the two cards the whole
+     epic exists to fix* — and the fix was invisible to anyone who had not found the checkbox. The
+     difference now is that it is a UNIFORM, stated rule rather than a predicate that happened to exclude
+     them, and the card reader lists every timing a card is legal at so the choice is discoverable.
+     "OFF" STILL MEANS THE WINDOW OPENS AND YOU PASS AUTOMATICALLY — never that the card becomes
+     uncastable. Aj confirmed that explicitly; `promptedQuicks` filters the STOP, and every window renders
+     the engine's own `eligibleQuicks`. */
+  /* A SUITE THAT TESTS A BOUNDARY WINDOW HAS TO SAY SO, URL-gated and inert without the flag — this
+     repo's convention for every other debug hook. With the boundaries defaulting off, the suites whose
+     SUBJECT is one of those windows (`nettest_guard`, `nettest_prefight`, `nettest_priosig`,
+     `nettest_passoduel`) stopped seeing it at all: five went red the moment the default flipped, none of
+     them because the feature broke. Seeding per-card preferences instead would key every suite to an
+     effect id and drift the first time a rig changes card; `?prompts=all` states the intent once.
+     NOT a second default — it restores the previous one for a test run, and a build without the flag in
+     its URL behaves exactly as a player's does. */
+  var PROMPT_ALL = /[?&]prompts=all/.test(location.search);
+  function promptDefault(card, eff, timing){ return PROMPT_ALL || timing === 'respond'; }
   function promptKeyOf(eff){ return eff && eff.id ? eff.id : null; }
   function promptWanted(card, timing){
     var eff=(state&&E.effectFor)?E.effectFor(state, YOU, card):E.effectOf(card);
@@ -1786,7 +1816,13 @@ __QR__
        duly stalled on the moment the gate came off (*"lessonlib answered a Respond? window the lesson did
        not script"*, three times, then a 30s timeout on "the Rival leads 222 + a pair").
        WHEN A LESSON TEACHES ONE OF THESE, this is the line it has to argue with. */
-    if((timing==='fightend' || timing==='prefight') && typeof tutorialMode!=='undefined' && tutorialMode) return false;
+    /* EVERY BOUNDARY TIMING IS SUPPRESSED IN A LESSON, and `upkeep`/`cleanup` joined the list the day they
+       were built (2026-09-11). The rule is the 2026-09-10 one — a scripted lesson is a fixed sequence of
+       gated steps, so a modal it did not script derails it — and the two new boundaries open EVERY round,
+       which makes them the worst offenders yet: `lessontest_twos` went red on "the Rival leads 222 + a
+       pair" with the play never landing. `respond` is still the one that survives, because the Quicks
+       lesson exists to teach it. Adding a timing without adding it here is how a lesson breaks. */
+    if(timing!=='respond' && typeof tutorialMode!=='undefined' && tutorialMode) return false;
     var k=promptKeyOf(eff), row=k?promptPrefs[k]:null;
     if(row && typeof row[timing]==='boolean') return row[timing];
     return promptDefault(card, eff, timing);
@@ -5227,12 +5263,37 @@ __QR__
       then(fr||r);
     });
   }
+  /* THE DECLINE BUTTON NAMES WHAT PASSING ACTUALLY DOES (epic step 20's last piece). It read
+     "Let it resolve" at every window, which was true when there was only one: an object sat on the stack
+     and declining let it resolve. With five priority points it is wrong at four of them — nothing is
+     resolving at a phase boundary, the PHASE is moving, and a player who has just been stopped for the
+     third time in a round deserves to be told which of the five they are looking at.
+     IT KEYS ON WHETHER THERE IS AN OBJECT, NOT ON THE TIMING ID, and that distinction is the whole
+     function: at Upkeep the stack usually holds a counter TICK, so "which boundary am I in" and "what
+     happens if I pass" are different questions. Passing on an object resolves THAT object; passing on an
+     empty stack advances the phase. */
+  function declineLabel(){
+    var pend = state && state.pending;
+    if(pend) return pend.kind === 'tick' ? 'Let the counter come off' : 'Let it resolve';
+    if(state && state.upkeep)  return 'Start the round';
+    if(state && state.cleanup) return 'End the round';
+    if(state && state.fightEnd) return 'Let the round resolve';
+    if(state && state.subPhase === 'main') return 'Move to the fight';
+    return 'Let it resolve';
+  }
   function promptHumanResponse(g, cont){
     cont = cont || function(){ resumeRival(g); };
     /* THERE MAY BE NO OBJECT. The window is `respondFor`; `pending` is the object it is about, and a Fight
        End go-round has none (step 11). Everything below is null-safe so the modal RENDERS rather than throwing
        — the Fight End WORDING is step 14's, and lands before step 18 makes such a window reachable. */
-    var pend=state.pending||null, rivalEff=(pend&&E.effectOf(pend.card))||{}, rivalName=rivalEff.name||'a Technique';
+    /* A PENDING OBJECT NEED NOT HAVE A CARD, AND SINCE THE UPKEEP TICK IT USUALLY DOES NOT (2026-09-11).
+       The guard used to be `pend && …`, written when the cardless case was a window with NO object at all
+       — so `pend` being null was the same question as "is there a card". A TRIGGER breaks that: the object
+       is real and `pend.card` is undefined, `effectOf` opens with `if (card.temp)`, and every render threw
+       `Cannot read properties of undefined (reading 'temp')`. Found by `browsertest`, which is the only
+       suite that drives a whole duel through the real page — the engine suite cannot see a render. */
+    var pend=state.pending||null, rivalEff=(pend && pend.card && E.effectOf(pend.card))||{};
+    var rivalName=rivalEff.name || (pend && pend.kind==='tick' ? (pend.name||'Equipment') + ' — upkeep counter' : 'a Technique');
     /* THE PROMPT-PREFERENCE FILTER (epic step 15). `eligibleQuicks` stays the engine mirror; this narrows
        its output to what YOU asked to be asked about. An empty result falls into the auto-decline below,
        which is a real pass — on a client it goes over the wire — so an unchecked box never leaves a window
@@ -5241,7 +5302,22 @@ __QR__
        bookkeeping and is nulled in the mirror, exactly like `roundWinResult`, so keying on it would give
        the host one answer and the client another. An objectless window while `subPhase` is still 'main'
        is the Main → Play transition; while it is 'play', the only objectless window left is Fight End. */
-    var promptTiming = pend ? 'respond' : (state.fightEnd ? 'fightend' : (state.subPhase === 'main' ? 'prefight' : 'respond'));
+    /* UPKEEP IS CHECKED BEFORE THE OTHERS, because it is objectless AND runs while `subPhase` is 'main' —
+       without it the round-start window would label itself as the Main → Fight transition. The two are
+       never parked together (the Resolution branch unparks before `finishRoundWin` opens this one). */
+    /* THE BOUNDARY WINS OVER THE OBJECT, and the counter tick is what forced the question. The timing id
+       names WHERE you are, not what happens to be on the stack — the reader's rows read "ask me at this
+       moment". `pend` used to be tested first, which was harmless while every object was a cast card, and
+       wrong the moment a boundary could hold one: at Upkeep the stack holds a TICK, so every equipment
+       countdown was being gated by *"When a Technique is cast"* — a row that is ON by default, for an
+       event that is not a Technique. It also left the `upkeep` row governing almost nothing.
+       `prefight` still keys on `subPhase` rather than on `toPlay`, because `toPlay` is host bookkeeping
+       and is nulled in the mirror — a client has to be able to answer this too. */
+    var promptTiming = state.upkeep ? 'upkeep'
+      : (state.cleanup ? 'cleanup'
+      : (state.fightEnd ? 'fightend'
+      : (pend ? 'respond'
+      : (state.subPhase === 'main' ? 'prefight' : 'respond'))));
     var eligible=eligibleQuicks();                       // the engine's own answer — `canAddToStack`, mirrored
     var quicks=promptedQuicks(eligible, promptTiming);   // the STOP decision only; the buttons below use `eligible`
     /* THE THREE OUTCOMES, AND TWO OF THEM ARE INVISIBLE ON SCREEN. "You held nothing" and "you held
@@ -5253,7 +5329,11 @@ __QR__
        The TIMING KEY stays `'prefight'` — it is a stored preference id in `localStorage` and travels with the
        rest of the code rename at step 23 — but this is the string a human READS in a saved log, so it is docs
        -side, not code-side, and the docs were renamed today. Same reasoning for `fight-end` → `resolution`. */
-    var tName = promptTiming==='fightend' ? 'resolution' : (promptTiming==='prefight' ? 'main→fight' : 'respond');
+    var tName = promptTiming==='fightend' ? 'resolution'
+              : promptTiming==='prefight' ? 'main→fight'
+              : promptTiming==='upkeep'   ? 'upkeep'
+              : promptTiming==='cleanup'  ? 'clean-up'
+              : 'respond';
     var onWhat = pend ? ('  vs ' + rivalName) : '';
     if(quicks.length) prioNote('['+tName+'] window SHOWN to you' + onWhat, 'offering: ' + feNames(eligible) + (eligible.length>quicks.length ? '  (stopped by: ' + feNames(quicks) + ')' : ''));
     else if(eligible.length) prioNote('['+tName+'] AUTO-PASSED for you — PROMPT OFF' + onWhat, 'you could have cast: ' + feNames(eligible) + '  (card reader → “Ask me to respond…”)');
@@ -5281,7 +5361,14 @@ __QR__
        `YOU` compares directly. A jab win strips nothing, hence the `wonWithCombo` branch. */
     var fe = state.fightEnd || null;
     var lead;
-    if (pend) {
+    if (pend && pend.kind === 'tick') {
+      /* NOBODY CAST A TRIGGER, so it must not borrow the cast sentence — the first cut read "You cast Holy
+         Bow — upkeep counter", which is wrong about who did it AND about what it is. A trigger happens TO
+         the table; naming its owner and what it is about to do is the honest version. */
+      lead = '<p><b>'+esc(pend.name||'Equipment')+'</b> is about to lose a counter'
+           + (typeof pend.p==='number' && pend.p!==YOU ? ' ('+logName(pend.p)+'\u2019s)' : '')
+           + '. Play a Quick in response, or let it happen.</p>';
+    } else if (pend) {
       lead = '<p>'+casterTxt+' cast <b>'+rivalName+'</b>'+aimTxt+'. Play a Quick in response, or let it resolve.</p>';
     } else if (fe) {
       var feWho = (typeof fe.winner==='number') ? ('<b>'+logName(fe.winner)+'</b>') : 'The winner';
@@ -5307,7 +5394,8 @@ __QR__
     }
     // when it is not aimed at you, say so plainly rather than leaving you to work it out
     if(aimed!=null && aimed!==YOU) lead+='<p class="respNotYou">It does not target you — countering only helps '+logName(aimed)+'.</p>';
-    var incoming=(rivalEff.text?('<div class="respIncoming"><b>'+rivalName+'</b> ('+cardSym(pend.card)+') — '+rivalEff.text+'</div>'):'');
+    var incoming=(rivalEff.text && pend && pend.card ? ('<div class="respIncoming"><b>'+rivalName+'</b> ('+cardSym(pend.card)+') — '+rivalEff.text+'</div>')
+                 : (pend && pend.kind==='tick' ? ('<div class="respIncoming"><b>'+esc(pend.name||'Equipment')+'</b> — at the beginning of each round’s upkeep, remove a counter from this equipment.</div>') : ''));
     var html='<h2>Respond?</h2>'+lead+incoming+tableContextHTML()+'<div class="respOpts">';
     var ctgts=(E.counterTargets ? E.counterTargets(state) : []);
     /* `effectFor`, NOT `effectOf` — the last of CLAUDE.md's three remaining label sites (epic step 14).
@@ -5338,7 +5426,7 @@ __QR__
      * button with no explanation is its own dead end on a phone, where there is no tooltip. */
     var tutNeedsCounter = tutAwaitCounter && typeof TUT!=='undefined' && TUT.isActive && TUT.isActive();
     if(tutNeedsCounter) html+='<div class="respNotYou">This lesson needs this one countered — tap <b>Counter Spell</b>.</div>';
-    html+='<button id="respDecline" class="respLet"'+(tutNeedsCounter?' disabled':'')+'>Let it resolve</button></div>'+peekBtnHTML();
+    html+='<button id="respDecline" class="respLet"'+(tutNeedsCounter?' disabled':'')+'>'+declineLabel()+'</button></div>'+peekBtnHTML();
     showModal(html); wirePeek();
     Array.prototype.forEach.call(document.querySelectorAll('.respQuick'), function(btn){
       btn.addEventListener('click', function(){ humanResponds(g, btn.getAttribute('data-id'), cont, btn.getAttribute('data-coid')||null); });
@@ -5355,7 +5443,8 @@ __QR__
     if(g!==gen){ hideOverlay(); return; }
     var qcard=state.players[YOU].hand.filter(function(c){return c.id===quickId;})[0];
     var qeff=qcard?E.effectOf(qcard):null;
-    var pendName=((state.pending && E.effectOf(state.pending.card))||{}).name||'the Technique';
+    var pendName=((state.pending && state.pending.card && E.effectOf(state.pending.card))||{}).name
+               || (state.pending && state.pending.kind==='tick' ? ((state.pending.name||'Equipment')+'’s upkeep tick') : 'the Technique');
     var r=E.respond(state, YOU, quickId, coid?{counterOid:coid}:null);
     if(!r.ok){ setMessage(r.reason); return; }
     hideOverlay();
@@ -9904,6 +9993,11 @@ __QR__
      run on this literal before adding — CLAUDE.md's `__cmf` trap applies here too. */
   if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
     promptWanted:promptWanted, setPromptPref:setPromptPref, promptPrefs:function(){ return promptPrefs; }, showCard:showCard,
+    /* LEGAL IS NOT THE SAME QUESTION AS WANTED, and since the boundary defaults went off they give
+       different answers — which is the invariant worth being able to assert: an unchecked timing still
+       EXISTS (the window opens, you pass automatically); it does not make the card uncastable. Wraps
+       `promptLegal` with the same `effectFor` a prompt site uses, so a suite cannot pass the wrong eff. */
+    promptLegal:function(card, timing){ var e=(state&&E.effectFor)?E.effectFor(state, YOU, card):E.effectOf(card); return promptLegal(card, e, timing); },
     /* Peek is only reachable from the end screen, so a suite would have to play a whole duel to get
      * there. These enter/leave it directly — the real functions, not a staged class list, which is the
      * distinction that matters: showModal's peek branch keys off the `peeking` VARIABLE. */

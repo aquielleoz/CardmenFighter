@@ -585,7 +585,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], roundWinResult: null, fightEnd: null, fightEndResult: null, subPhase: 'main', toPlay: null, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], roundWinResult: null, fightEnd: null, fightEndResult: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -629,7 +629,7 @@
     if (st.pendingLossChoice && st.pendingLossChoice.winner === seat) st.pendingLossChoice = null;
     if (aliveCount(st) <= 1) { st.finished = true; st.winner = lastAlive(st); return { ok: true, finished: true, winner: st.winner }; }
     var lead = nextPlayer(st, seat);
-    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.subPhase = 'main'; st.toPlay = null; st.roundWinResult = null; st.fightEnd = null; st.fightEndResult = null; st._effUsed = false;
+    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.subPhase = 'main'; st.toPlay = null; st.upkeep = null; st.upkeepResult = null; st.cleanup = null; st.cleanupResult = null; st.roundWinResult = null; st.fightEnd = null; st.fightEndResult = null; st._effUsed = false;
     return { ok: true, eliminated: seat, turn: lead };
   }
   function isLocked(st, p) { return !!(st.players[p].lockSkip || st.players[p].lockRound); }   // Back Stab: skip next turn (lockSkip, cleared on pass) or, if boosted, the whole round (lockRound, cleared at round end)
@@ -952,26 +952,26 @@
   var BASE_OVERRIDES = {
     D: {  // Wizard: Back to the Books draw 3 → a dig (look 3, 1→Energy, keep 2); Cursed Pendant 5→4 counters; Leyline Ascension loses its recycle/ramp (moved to Athena)
       6: { kind: 'draw', draw: 3, discard: 1, name: 'Back to the Books', type: 'Technique', impl: true, text: 'Look at the top 3 cards of your deck. Put 1 into your Energy Pile and draw the other 2.' },
-      8: { kind: 'equip', oppDelta: -2, counters: 4, name: 'Cursed Pendant', type: 'Equipment', impl: true, text: "Equipment — lasts 4 rounds (1 counter spent at the start of each round; then it retires to your Energy). Your Rivals' highest card each fight has its value reduced by 2." },
+      8: { kind: 'equip', oppDelta: -2, counters: 4, name: 'Cursed Pendant', type: 'Equipment', impl: true, text: "Equipment — lasts 4 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. Your Rivals' highest card each fight has its value reduced by 2." },
       9: { kind: 'ward', immune: true, cantLose: true, quick: true, name: 'Leyline Ascension', type: 'Quick Technique', impl: true, text: "You can't lose this round — no shield loss, and at 0 shields no Fighter Kick either." }
     },
     H: {  // Cleric: rename Holy Sword→Holy Bow; swap 9/10 so Holy Shroud=9, Sanctuary=10
-      8:  { kind: 'equip', delta: 2, counters: 4, name: 'Holy Bow', type: 'Equipment', impl: true, text: 'Equipment — lasts 4 rounds (1 counter spent at the start of each round; then it retires to your Energy). Your highest card each fight has its value increased by 2.' },
+      8:  { kind: 'equip', delta: 2, counters: 4, name: 'Holy Bow', type: 'Equipment', impl: true, text: "Equipment — lasts 4 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. Your highest card each fight has its value increased by 2." },
       9:  { kind: 'equip', absorb: true, counters: 1, decay: false, name: 'Holy Shroud', type: 'Equipment', impl: true, text: 'If you would lose a shield (or take the Kick at 0), remove 1 counter from Holy Shroud instead.' },
       10: { kind: 'shield', shield: 1, shieldAll: true, name: 'Sanctuary', type: 'Technique', impl: true, text: 'Every player gains 1 Shield.' }
     },
     C: {  // Fighter: Hero's Sword renamed Hero's Javelin; Discombobulate→Superior Training (a dig); Armor Piercing loses Quick (moved to Hippolyta); Instant Recovery draw 2 (v1.13 restored the over-nerf to 1); Spiked Armor −1→−2
       5: { kind: 'draw', draw: 4, discard: 2, name: 'Superior Training', type: 'Technique', impl: true, text: 'Look at the top 4 cards of your deck. Put 2 into your Energy Pile and draw the other 2.' },
-      6: { kind: 'equip', delta: 1, counters: 3, name: "Hero's Javelin", type: 'Equipment', impl: true, text: 'Equipment — lasts 3 rounds (1 counter spent at the start of each round; then it retires to your Energy). While equipped, your highest card each fight has its value increased by 1.' },
+      6: { kind: 'equip', delta: 1, counters: 3, name: "Hero's Javelin", type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, your highest card each fight has its value increased by 1." },
       7: { kind: 'onWin', extraShield: 1, pitchHigh: true, name: 'Armor Piercing', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). The next fight you win this round, the Rival you strike loses 1 additional shield (never overkills).' },
       8: { kind: 'reclaim', draw: 2, name: 'Instant Recovery', type: 'Technique', impl: true, text: 'Shuffle your Shuffle Pile into your deck, then draw 2 cards.' },
-      9: { kind: 'equip', oppDelta: -2, counters: 3, name: 'Spiked Armor', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds (retires to your Energy after). While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
+      9: { kind: 'equip', oppDelta: -2, counters: 3, name: 'Spiked Armor', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
       10: { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Ultima Attack', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield.' }
     },
     S: {  // Rogue: Hand-to-Hand and Back Stab lose Quick (moved to Perseus / Hermes); Never Out of Options dig 4→3; Caltrops 5→3 counters
       3:  { kind: 'draw', draw: 2, name: 'Hand-to-Hand Mastery', type: 'Technique', impl: true, text: 'Draw 2 cards.' },
       6:  { kind: 'draw', draw: 3, discard: 2, name: 'Never Out of Options', type: 'Technique', impl: true, text: 'Look at the top 3 cards of your deck. Put 2 into your Energy Pile and draw the other 1.' },
-      7:  { kind: 'equip', oppDelta: -2, counters: 3, name: 'Caltrops', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds (retires to your Energy after). While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
+      7:  { kind: 'equip', oppDelta: -2, counters: 3, name: 'Caltrops', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
       9:  { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Critical Hit', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield.' },
       10: { kind: 'lockout', lockRound: true, name: 'Back Stab', type: 'Technique', impl: true, text: 'Target Rival skips the whole round — no fights, no Techniques.' }
     }
@@ -1380,7 +1380,7 @@
   // effects clear. Returns a pending result (window open) or the last resolution result.
   function openResponseWindow(st) {
     var last = { ok: true, state: st };
-    while (st.stack.length && st.stack[st.stack.length - 1].kind === 'effect') {
+    while (st.stack.length && (st.stack[st.stack.length - 1].kind === 'effect' || st.stack[st.stack.length - 1].kind === 'tick')) {
       var top = st.stack[st.stack.length - 1];
       /* THE PASSES BELONG TO THE GO-ROUND, NOT TO THE OBJECT (epic step 5). They used to live on each
          stack object, which only ever worked because at most one object could hold a non-empty set: `respond`
@@ -1406,6 +1406,10 @@
          the code changed to make it so.
          THE WALK ITSELF NOW LIVES IN `nextPrioHolder` (step 11's P2), so the empty-stack go-round is the same
          loop with a different origin rather than a second copy of it. */
+      /* NO EXCEPTION FOR A TRIGGER. An earlier cut started a tick's go-round at the active player and so
+         contradicted §2 on a non-empty stack; the ordering lives in `pushUpkeepTicks` instead, which puts
+         the ACTIVE player's trigger on FIRST so the last player's ends up on top. The controller of the
+         top object is then exactly the seat that should act first, by the ordinary rule. */
       q = nextPrioHolder(st, top.p);
       if (q >= 0) {
         /* A GRANT of priority is a distinct event even when the OBJECT is one this seat already passed on.
@@ -1415,7 +1419,7 @@
            client dedupes the second one away and the table waits on a window nobody was shown. */
         st.prioGen = (st.prioGen || 0) + 1;
         st.pending = top; st.respondFor = q;
-        return { ok: true, state: st, effect: top.eff.id, kind: top.eff.kind, pending: true };
+        return { ok: true, state: st, effect: top.eff ? top.eff.id : ('tick:' + top.eqId), kind: top.eff ? top.eff.kind : 'tick', pending: true };
       }
       last = resolveTopEffect(st);                                      // everyone passed → resolve, then re-loop
       st.prioPassed = {};                                               // a resolution starts a fresh go-round on whatever is now on top
@@ -1476,6 +1480,26 @@
       st.fightEndResult = feRes;
       return feRes;
     }
+    /* CLEAN-UP, checked before Upkeep because it comes first in the round and the two are sequential —
+       `finishCleanup` is what parks Upkeep, so they can never be live together. */
+    if (st.cleanup && !st.stack.length && !st.finished) {
+      var cq = phaseWalk(st, st.cleanup.origin);
+      if (cq >= 0) return { ok: true, state: st, pending: true, cleanup: true, respondFor: cq };
+      st.cleanup = null;
+      var cr = st.cleanupResult; st.cleanupResult = null;        // unpark BEFORE the outcomes — see the Resolution branch
+      if (cr) return finishCleanup(st, cr);
+    }
+    /* UPKEEP, the fourth boundary, and the same five lines as the other three — `phaseWalk` is still the only
+       walk. It is checked LAST because it is the only one parked from inside `finishRoundWin`, which the
+       Resolution branch above can reach: unparking that one first keeps the two from ever being live
+       together. */
+    if (st.upkeep && !st.stack.length && !st.finished) {
+      var uq = phaseWalk(st, st.upkeep.origin);
+      if (uq >= 0) return { ok: true, state: st, pending: true, upkeep: true, respondFor: uq };
+      st.upkeep = null;
+      var ur = st.upkeepResult; st.upkeepResult = null;          // unpark BEFORE the Draw — see the Resolution branch
+      if (ur) return finishUpkeep(st, ur);
+    }
     return last;
   }
   /* ONE WALK FOR EVERY EMPTY-STACK GO-ROUND THAT ADVANCES A PHASE (epic step 20). Both boundaries — the
@@ -1531,7 +1555,9 @@
   // Counter Spell counters the effect beneath it; Annoint shields the equipment a removal below aims
   // at (or your own); everything else runs its body.
   function resolveTopEffect(st) {
-    var top = st.stack.pop(), pl = st.players[top.p];
+    var top = st.stack.pop();
+    if (top.kind === 'tick') return resolveUpkeepTick(st, top);      // a triggered ability, not a cast card — no `eff`, no `card`
+    var pl = st.players[top.p];
     if (top.countered) { pl.shuffle.push(top.card); return { ok: true, effect: top.eff.id, kind: top.eff.kind, countered: true, state: st }; }
     if (top.eff.kind === 'counter') {
       /* NAMED TARGET FIRST, then the old "topmost effect beneath me". The fallback is not legacy cruft: a
@@ -2193,9 +2219,12 @@
      phase, so a phase runs until the stack is empty AND everyone has passed — however many times its own
      outcomes re-fill it. An equipment reading "when you lose a shield, remove a counter and draw" would
      trigger INSIDE this sub-phase, on the strip this function just applied.
-     NO CARD IN THE GAME HAS A TRIGGERED ABILITY TODAY — measured, not assumed: only `effect` and
-     `shieldloss` are ever pushed, equipment counters tick directly in the round reset, and Holy Shroud's
-     absorb is a direct decrement.
+     ⚠ "NO CARD HAS A TRIGGERED ABILITY TODAY" WAS TRUE UNTIL 2026-09-11 AND IS NOT ANY MORE. The
+     equipment counter tick is one: Aj wrote it as *"At the beginning of each round's upkeep, remove a
+     counter from this equipment"*, and it is pushed as `kind:'tick'` at Upkeep, responded to, and
+     resolved — see `pushUpkeepTicks`. It ticked directly in the round reset when this note was written,
+     which is exactly why the loop below could not be exercised. Holy Shroud's absorb is still a direct
+     decrement, and `effect` / `shieldloss` / `tick` are now the three kinds.
 
      ⚠ AND THE LOOP CANNOT BE BUILT HERE YET — `finishRoundWin` DISCARDS THE STACK. It opens with
      `st.stack = []`, commented "shield-loss stack is spent by here", which is true of shieldloss objects and
@@ -2565,9 +2594,31 @@
     }
     return result;
   }
+  /* THE CLEAN-UP PHASE IS A PRIORITY POINT TOO (epic step 20; Aj ruled both boundaries real on
+     2026-09-11). `PHASES-AND-PRIORITY.md` §3:
+       "Once per round. There is a timing at the **beginning** of clean-up where triggered abilities may be
+        put on the stack … If anything is put there, the priority dance begins anew."
+       "- Every player discards down to hand size, to the Energy Pile.  - Round-long effects expire."
+     So the window opens BEFORE either of those outcomes, which is why this function had to split: the
+     round-long expiry, the round advance and the Draw all belong AFTER the go-round, not before it.
+     THE STACK IS CLEARED FIRST AND THAT IS LOAD-BEARING. `finishRoundWin` has always opened with
+     `st.stack = []` ("shield-loss stack is spent by here"), and the plan flagged it as the thing that made
+     a round-boundary window unbuildable: a Quick cast into clean-up would be silently discarded. Clearing
+     the spent shieldloss objects BEFORE parking the window is what unblocks it — the clear happens once,
+     while the stack is genuinely spent, and nothing clears it again afterwards. */
   function finishRoundWin(st, result) {
     st.stack = []; st.roundWinResult = null;                                // shield-loss stack is spent by here
     if (st.finished) return result;
+    /* WHO IS ACTIVE AT CLEAN-UP: the seat that just won the round. They are about to take the initiative,
+       and a fizzled round (no winner) leaves initiative where it was — the same rule `finishCleanup`
+       applies below, read here before the round advances. */
+    st.cleanup = { origin: (result.roundWinner != null ? result.roundWinner : st.initiative) };
+    st.cleanupResult = result;
+    openResponseWindow(st);
+    return result;
+  }
+  /* Everything the round end does, deferred until the Clean-up go-round closes. */
+  function finishCleanup(st, result) {
     var winner = result.roundWinner;
     st.round += 1;
     /* A FIZZLED ROUND HAS NO WINNER, so it cannot hand out initiative — see `pass`. Everything else a round
@@ -2579,17 +2630,85 @@
     } else { st.initiative = winner; st.turn = winner; }
     st.lastPlayer = null; st.pile = null; st.passes = 0; st._effUsed = false;
     st.players.forEach(function (pl) { pl.preventShield = false; pl.nextPlayBoost = 0; pl.shieldImmune = false; pl.cantLoseRound = false; pl.finishingBlow = false; pl.lockRound = false; }); // GUARD, pre-fight boost, immunity, can't-lose, Finishing Blow, and a whole-round lock all last only their round
-    st.players.forEach(function (pl) {                               // counters: decay ones lose 1/round; all reset once-per-round; worn-out ones retire to Energy
-      pl.equipment.forEach(function (e) { if (e.decay) e.counters -= 1; e.usedThisRound = false; });
-      pl.equipment.filter(function (e) { return e.counters <= 0; }).forEach(function (e) { retireEquip(pl, e); });
-      pl.equipment = pl.equipment.filter(function (e) { return e.counters > 0; });
-    });
+    /* THE ONCE-PER-ROUND RESET IS NOT A TRIGGER — it is bookkeeping nobody can respond to, so it stays
+       immediate. The DECAY moved out: it is now a triggered ability that goes on the Upkeep stack, which
+       is what `pushUpkeepTicks` does once the round reset below is complete. */
+    st.players.forEach(function (pl) { pl.equipment.forEach(function (e) { e.usedThisRound = false; }); });
     st.players.forEach(function (pl) {                               // Counterfeit copies are illusions: any temp card still around fades at round's end
       var real = function (c) { return !c.temp; };
       pl.hand = pl.hand.filter(real); pl.energy = pl.energy.filter(real);
       pl.deck = pl.deck.filter(real); pl.shuffle = pl.shuffle.filter(real); pl.removed = pl.removed.filter(real);
     });
     result.newRound = st.round;
+    /* THE BEGINNING PHASE — UPKEEP IS A REAL PRIORITY POINT (epic step 20; Aj ruled it 2026-09-11 against
+       the alternative of a hook that can never fire). `PHASES-AND-PRIORITY.md` §3:
+         "**Upkeep Sub-Phase.** Triggered abilities that say *"at the beginning of your upkeep"* are put on
+          the stack here, then the **priority dance** runs. **Equipment counters tick down here** — at the
+          beginning of the ROUND, not at clean-up."
+       and §2: "There is no phase, and no sub-phase, that is closed to priority."
+       NO CARD HAS A TRIGGERED ABILITY YET, so nothing is ever PUT on the stack here — which is exactly why
+       the go-round is unconditional rather than conditional on a trigger. Aj's ruling: a seat holding a
+       Quick may cast it at the round boundary, and that is legal play, not a technicality. The dance is
+       therefore reachable and testable today instead of being an unexercised branch — the thing this file
+       already declined to ship once, at Resolution, for want of a trigger.
+       THE DRAW WAITS FOR IT. Everything above is the round RESET; the Draw Sub-Phase comes after Upkeep,
+       so a Quick cast here resolves against the hand you ended the round with and not the one you are
+       about to be dealt. `upkeepResult` parks the result the Draw must fill in, for the same reason
+       `fightEndResult` exists: the outcome is produced deep inside whoever answers last, and the netplay
+       host is not on that call chain. */
+    st.upkeep = { origin: st.turn };
+    st.upkeepResult = result;
+    pushUpkeepTicks(st);
+    openResponseWindow(st);
+    return result;
+  }
+  /* THE COUNTER TICK IS THE GAME'S FIRST TRIGGERED ABILITY (Aj, 2026-09-11, who wrote the card text for
+     it): *"At the beginning of each round's upkeep, remove a counter from this equipment."* — "so that
+     when upkeep starts, this trigger puts an effect there. then starting from the active player (the
+     initiative winner) everybody gets priority. if everybody passes, the remove counters resolve."
+     IT USED TO BE A DIRECT STATE CHANGE inside the round reset, which meant a player given priority at
+     Upkeep saw a board where their equipment had ALREADY retired — priority over an event that had
+     finished. One object per decaying Equipment, matching the card text's "this equipment".
+     RETIREMENT RIDES THE TICK rather than being its own object, because §3 says equipment at 0 counters
+     goes to Energy *"at any time, not only at a phase boundary"* — it is a consequence of the counter
+     reaching zero, not a separately-timed event.
+     IDENTIFIED BY `card.id`, never by index: the stack outlives the array it points into, and an earlier
+     tick resolving can retire an entry and shift every position after it.
+     PUSHED IN TURN ORDER FROM THE ACTIVE PLAYER, AND THAT IS WHAT MAKES §2 HOLD (Aj, 2026-09-11). These
+     triggers are simultaneous, so something has to order them — and ordering the PUSH is what lets the
+     ordinary rule do the rest: *"3 players had equipment and the initiative was player A's… so player A
+     as the active player puts their triggered ability first on the stack, then B, then C. since C's
+     trigger is at the top, they gain priority first, then it's passed around in turn order."*
+     THE FIRST VERSION PUSHED IN SEAT ORDER AND THEN OVERRODE THE ORIGIN to the active player, which broke
+     §2's "a go-round starts at the controller of the top stack object" — Aj caught it: *"wait... that's
+     an inconsistency right? because the stack isn't empty yet"*. It was. With the push ordered, no
+     exception is needed anywhere: the controller of the top object IS the right seat, and the starting
+     seat stops being an artifact of iteration order. */
+  function pushUpkeepTicks(st) {
+    for (var k = 0; k < st.numPlayers; k++) {
+      var p = (st.turn + k) % st.numPlayers;
+      if (st.players[p].eliminated) continue;
+      var eq = st.players[p].equipment || [];
+      for (var i = 0; i < eq.length; i++) {
+        if (!eq[i].decay || !eq[i].card) continue;
+        st.stack.push({ oid: newOid(st), kind: 'tick', p: p, eqId: eq[i].card.id, name: eq[i].name || 'Equipment' });
+      }
+    }
+  }
+  /* Resolve one tick: take a counter off the named Equipment and retire it if that empties it. Silent
+     when the Equipment is already gone — a Disarm answering the trigger is a legitimate way for that to
+     happen, and is the whole reason the tick is respondable at all. */
+  function resolveUpkeepTick(st, top) {
+    var pl = st.players[top.p], eq = pl.equipment || [], hit = null;
+    for (var i = 0; i < eq.length; i++) if (eq[i].card && eq[i].card.id === top.eqId) { hit = eq[i]; break; }
+    if (!hit) return { ok: true, state: st, tick: true, gone: true };
+    hit.counters -= 1;
+    if (hit.counters <= 0) { retireEquip(pl, hit); pl.equipment = eq.filter(function (e) { return e !== hit; }); }
+    return { ok: true, state: st, tick: true, retired: hit.counters <= 0, name: top.name };
+  }
+  /* The Draw Sub-Phase, deferred until the Upkeep go-round closes. Headless only — the UI runs its own
+     trim queue and draw through the ceremony, which is what `DEFER_DRAW` has always meant. */
+  function finishUpkeep(st, result) {
     if (!DEFER_DRAW) {                         // headless: one Clean-up (trim EVERY hand to the cap) then draw. The UI does this itself.
       for (var ci = 0; ci < st.numPlayers; ci++) if (st.players[ci].hand.length > MAX_HAND) discardToLimit(st, ci);
       roundDraw(st, result);

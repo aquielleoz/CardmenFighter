@@ -6,7 +6,7 @@ const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome')
 const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8285),ROOM='G'+Date.now().toString().slice(-4);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
-const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
+const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;   // this suite's SUBJECT is a boundary window, which defaults OFF — see promptDefault
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const D=(n,s,tag)=>({rank:n,suit:s,id:(tag||'')+n+s});
 const turnOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.turn():null);
