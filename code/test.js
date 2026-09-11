@@ -464,12 +464,13 @@ function cards(ids) { return ids.map(card); }
     var r6 = E.activate(g6, 0, '10H');
     ok(r6.ok && c6.shields === 3 && o6.shields === 4, 'REWORK: Sanctuary gives BOTH players +1 shield');
 
-    /* THE SHIELD-GUARD WINDOW MUST SEE A FORM-GRANTED IMMUNITY (v1.31.112). Aj, from real play with Apollo
-       up: *"sanctuary did not prompt use when i was about to lose shields"*. `shieldGuardCard` and
-       `shieldGuard` both read `effectOf`, so no Form or Super grant could ever qualify, and both tested
-       `e.immune` while Apollo's patch spells it `shieldImmune`. Four assertions, and the NEGATIVES are the
-       load-bearing ones — without them a "fix" that offers any old card, or that offers Sanctuary against a
-       kick it genuinely cannot stop, would pass. */
+    /* A FORM-GRANTED IMMUNITY MUST BE VISIBLE (v1.31.112), REWRITTEN ONTO `immunityEffFor` AT STEP 19.
+       Aj, from real play with Apollo up: *"sanctuary did not prompt use when i was about to lose shields"*.
+       The two functions this used to drive — `shieldGuardCard` and `shieldGuard` — are deleted with the
+       whitelist model; `immunityEffFor` is the same body under a different job, answering *does this card
+       grant immunity?* for `respondDecision` and the card reader's prompt default.
+       **ONE ASSERTION HERE NOW REQUIRES THE OPPOSITE OF WHAT IT DID, and that is the behaviour change, not
+       a test being bent to fit** — see the kick case below. */
     var apollo = function () {                                  // ♥ Super = Ride + Q + K, which is what patches Sanctuary
       var g = E.newGame(null, { starter: 0 }); var p0 = g.players[0];
       p0.forms = [{ rank: 11, suit: 'H', tier: 'ride' }, { rank: 12, suit: 'H', tier: 'queen' }, { rank: 13, suit: 'H', tier: 'king' }];
@@ -480,25 +481,31 @@ function cards(ids) { return ids.map(card); }
     ok(E.effectFor(ga, 0, sc(10, 'H')).shieldImmune === true, 'STAGED: Apollo really grants Sanctuary shieldImmune');
     ok(!E.effectOf(sc(10, 'H')).immune && !E.effectOf(sc(10, 'H')).shieldImmune,
        '  → and the BASE card carries neither flag, so reading effectOf could never have found it');
-    ok(E.shieldGuardCard(ga, 0, false) && E.shieldGuardCard(ga, 0, false).id === '10H',
-       'the guard window OFFERS Apollo Sanctuary against an ordinary shield loss');
-    /* NOT OFFERED AGAINST A KICK, and this is correct rather than a leftover: `wouldBeSaved` says at 0
-       shields only `cantLose` or a Holy Shroud absorb prevents it, because plain immunity cannot save a
-       shield you do not have. Apollo grants immunity, NOT cantLose. This is the assertion that stops the
-       next person "finishing" the fix by loosening the kick branch. */
-    ok(E.shieldGuardCard(ga, 0, true) === null,
-       '  → but NOT against a Fighter Kick, which only "can\'t lose this round" stops');
+    ok(!!E.immunityEffFor(ga, 0, sc(10, 'H')),
+       'immunityEffFor SEES Apollo Sanctuary — the grant is found through effectFor, not effectOf');
+    /* AND IT IS NOW OFFERED AGAINST A KICK, WHICH IS THE REVERSE OF WHAT THIS ASSERTED BEFORE STEP 19.
+       The old model refused it: `wouldBeSaved` reasoned that at 0 shields only `cantLose` prevents the
+       kick, because plain immunity "cannot save a shield you do not have" — true of the OLD timing, where
+       the guard window opened inside `driveShieldStack`, below the strike.
+       The Fight End go-round opens ABOVE it (§3), so Sanctuary's shield GAIN resolves first,
+       `resolveShieldLossObj` reads `wasBroken = opp.shields <= 0` as false, and the kick branch is never
+       entered. It works by TIMING and no new rule — and `fightenduitest` scenario A plays exactly that
+       through the real page, both ways: decline and die, cast and live.
+       So the card that used to be refused at 0 shields is the card that now SAVES you there. */
+    var gk = apollo(); gk.players[0].shields = 0;
+    ok(!!E.immunityEffFor(gk, 0, sc(10, 'H')) && E.canCastQuick(gk, 0, gk.players[0].hand[0]),
+       '  → and at ZERO shields it is castable too — the old window refused it there; the go-round does not');
     var gb = E.newGame(null, { starter: 0 }); var pb = gb.players[0];
     pb.hand = [sc(10, 'H')]; energy(pb, 12, 'H');               // same card, no Super
-    ok(E.shieldGuardCard(gb, 0, false) === null,
-       '  → and plain Sanctuary is still no guard: it GAINS a shield, it does not prevent the loss');
+    ok(E.immunityEffFor(gb, 0, sc(10, 'H')) === null && !E.canCastQuick(gb, 0, pb.hand[0]),
+       '  → and plain Sanctuary grants nothing and is not even a Quick: it GAINS a shield, it does not prevent the loss');
     /* LEYLINE IS 9♦, NOT 9♥ — the Cleric block swaps 9/10 (Holy Shroud=9♥, Sanctuary=10♥), so the first
        draft of this control staged Holy Shroud and failed. Left as a comment because the swap is exactly the
        kind of thing that reads as a product bug when it is a deck fact. */
     var gl = E.newGame(null, { starter: 0 }); var pls = gl.players[0];
     pls.hand = [sc(9, 'D')]; energy(pls, 12, 'D');               // Leyline: the control that must keep working
-    ok(E.shieldGuardCard(gl, 0, false) && E.shieldGuardCard(gl, 0, true),
-       '  → Leyline still guards both an ordinary loss and a kick (the spelling change broke nothing)');
+    ok(!!E.immunityEffFor(gl, 0, sc(9, 'D')) && E.canCastQuick(gl, 0, pls.hand[0]),
+       '  → Leyline still reads as an immunity AND is castable on an empty stack (it targets nothing)');
   })();
   // ---- Phase 4b: the Rides (Swan defense, Owl/Ram cost) + copy/counter boosts ----
   (function () {
@@ -954,9 +961,14 @@ function cards(ids) { return ids.map(card); }
   ok(r.ok, 'mid-turn guard: the Critical Hit actually casts' + (r.ok ? '' : '  ← ' + r.reason + ', so everything below would be vacuous'));
   var guard = 0; while (g.respondFor != null && guard++ < 10) E.declineResponse(g, g.respondFor);
   ok(g.players[1].shields === 2, 'mid-turn guard: …and really strips the shield (3 -> ' + g.players[1].shields + ')');
-  ok(!g.shieldResponse,
-     'mid-turn guard: NO guard window is created — so every branch written for one is dead code' +
-     (g.shieldResponse ? '  ← one WAS created; the deletions in step 4 are wrong and must be reverted' : ''));
+  /* THIS ASSERTED `!g.shieldResponse` UNTIL STEP 19, AND THAT FIELD NO LONGER EXISTS — so it had become
+     vacuous by construction: `undefined` is falsy and the line could never fail again. The claim it was
+     making is still worth keeping, so it is re-aimed at something that CAN be false — a mid-turn
+     `destroyShield` resolves leaving no window owed and nothing on the stack. */
+  ok(g.respondFor === null && g.stack.length === 0,
+     'mid-turn destroyShield: resolves outright, leaving NO window owed and an empty stack' +
+     (g.respondFor === null && g.stack.length === 0 ? '' :
+      '  ← respondFor ' + g.respondFor + ', stack ' + g.stack.length + ': something is still parking mid-turn'));
 })();
 
 // ===== AN OBJECTLESS PRIORITY WINDOW IS VISIBLE AND DRAINABLE (epic step 2) =====

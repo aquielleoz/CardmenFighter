@@ -776,7 +776,7 @@
     /* THE FIGHT END BRANCH, AND IT DELIBERATELY CHANGES NOTHING (epic step 16). No object means the Fight
        End go-round, which step 18 makes the live path in place of `driveShieldStack`'s guard window. On the
        day of that swap an AI seat must behave exactly as it does today, so the policy here is a VERBATIM
-       port of `shieldGuardAI`'s: `shieldGuardWants` decides (one definition, shared with Passo since step
+       port of the deleted `shieldGuardAI`'s: `shieldGuardWants` decides (one definition, shared with Passo since step
        13), and the card is found with `immunityEffFor` — the engine's own predicate, not a restatement.
        WHAT IT IS NOT: a real Fight End policy. The rebuilt window offers ANY Quick to anyone holding
        priority, and deciding what an AI should do with that — counter, ramp, hold — is **step 21**, which
@@ -841,11 +841,12 @@
   // returns the partial log — call takeTurn again once the human has responded.
   // Resolve a reactive shield-guard window (Leyline) for an AI defender — spring it when a shield matters.
   /* SHOULD SEAT q SPRING ITS GUARD? ONE DEFINITION, because there are now TWO askers (epic step 13):
-     `shieldGuardAI` below, and **Passo** in the template — a bot holding a dropped player's seat, which
+     `respondDecision`'s Fight End branch above (this policy used to live in `shieldGuardAI`, deleted at
+     step 19), and **Passo** in the template — a bot holding a dropped player's seat, which
      Aj ruled must defend rather than always take the hit. A second copy of `shields <= 2` in the template
      would drift the day this policy changes; the same reasoning as `isChopOf` and `immunityEffFor`.
-     It answers only "does this seat WANT to guard" — whether a usable card exists is `shieldGuardCard`'s
-     question, already answered by the time a window is open (`sr.guardId` names it). */
+     It answers only "does this seat WANT to guard" — whether a usable card exists is a separate question,
+     answered by `fightEndGuardCard` above (it was `shieldGuardCard`'s until step 19 deleted that). */
   /* WHICH CARD SHOULD SEAT q SPRING AT FIGHT END — ONE DEFINITION, TWO ASKERS (epic step 18).
      `respondDecision` asks it for an AI seat; **PASSO** asks it in the template for a dropped player's
      seat. Passo has to get the same answer: Aj's step-13 ruling is that disconnecting must not stop a seat
@@ -871,16 +872,11 @@
     if (!effectsAllowed(st, q)) return false;                // analysis: pure-fighter never guards
     return st.players[q].shields <= 2;                       // save the shield when it matters (Leyline also ramps, rarely wasted)
   }
-  function shieldGuardAI(st, log, humans) {
-    var sr = st.shieldResponse; if (!sr) return log;
-    var q = sr.q;
-    if (isHuman(humans, q)) return log;                      // a human decides via the UI — suspend
-    if (!shieldGuardWants(st, q)) { E.shieldGuardPass(st, q); log.push({ shieldGuardPass: true, who: q }); return log; }
-    var res = E.shieldGuard(st, q, sr.guardId);
-    if (res && res.ok === false) { E.shieldGuardPass(st, q); log.push({ shieldGuardPass: true, who: q }); }
-    else log.push({ shieldGuard: true, who: q, name: res.guardName });
-    return log;
-  }
+  /* `shieldGuardAI` WAS HERE AND IS DELETED (epic step 19). It was the AI's ENTIRE answer to the Fight End
+     window — spring the engine-chosen card if `shields <= 2`, else take the hit — and it never chose a card
+     or considered anything but immunity. `respondDecision`'s Fight End branch replaces it, and the two
+     things worth preserving were: the `isHuman` suspend (now in `resolveAIWindows`' loop condition) and the
+     `effectsAllowed` gate (now the first line of `respondDecision`). A REAL Fight End policy is step 21. */
   // The affordable lockout Quick (Back Stab) in q's hand, if any.
   function lockoutQuick(st, q) {
     if (!kindOK('lockout', q)) return null;            // analysis: blocked lockout kind
@@ -903,11 +899,14 @@
     diff = diff || 'fighter';
     (st._diff = st._diff || {})[p] = diff;                          // remember each seat's tier (round-win chooser reads it)
     var log = [];
-    /* ALIVE, AND MEASURED — 188 hits over 420 AI games (epic step 4). Three sibling gates that looked
-       identical were deleted in the same commit because they can only fire on a MID-TURN window, which
-       `noGuard` makes impossible; this one answers the ROUND-WIN window pending at the start of a turn. The
-       plan had listed it among the dead. Deleting it would have left AI seats unable to guard at all. */
-    if (st.shieldResponse) return shieldGuardAI(st, log, humans);
+    /* THE GUARD ENTRY GATE WAS HERE, AND IT DIED BETWEEN TWO MEASUREMENTS (epic step 19). Step 4 measured
+       it at **188 hits over 420 AI games** and rescued it from the DELETE list on that evidence — correctly,
+       at the time: it answered the ROUND-WIN guard window. Step 18 then stopped minting `st.shieldResponse`
+       at all, and re-taking the same measurement on the current build over the same 420 games at 2-6
+       players gives **0 hits, and the field is never set once**.
+       **A LINE RESCUED BY A MEASUREMENT IS NOT RESCUED FOREVER** — re-take it after anything that changes
+       what mints the state, or a stale rescue keeps dead code alive with a citation attached. The window it
+       answered is now the go-round, handled by the `respondFor` branch immediately below. */
     if (st.respondFor != null) {                                    // P6: a response window is open (Counter-a-Counter chain), object or not
       if (isHuman(humans, st.respondFor)) return log;               // human answers via the UI — suspend
       resolveAIWindows(st, humans, log);

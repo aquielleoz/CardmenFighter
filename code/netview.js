@@ -45,7 +45,12 @@
   // What input, if any, seat `s` owes right now. Mirrors the turn-driver gates in the UI, in priority order.
   function promptFor(st, s) {
     if (st.finished) return null;
-    if (st.shieldResponse && st.shieldResponse.q === s) return { kind: 'shieldGuard' };
+    /* THE `shieldGuard` BRANCH WAS FIRST AND IS DELETED (epic step 19). The reordering was CHECKED rather
+       than assumed, as the step required: `shieldGuard` outranked `discard` and `preFight`, and `respond`
+       ranks BELOW both — so removing the top entry silently promotes `discard`. That is correct and not an
+       accident of ordering: a forced discard is a pick the table is BLOCKED on (`trimPending` locks every
+       other seat, v1.31.69), while a priority window is answerable by several seats at once and auto-passes
+       anyone who cannot act. The seat that owes a discard owes it first. */
     if (st.discardPending && st.discardPending.player === s) return { kind: 'discard', count: st.discardPending.count || 1 };
     if (st.preFightQ === s) return { kind: 'preFight' };
     if (st.respondFor === s) return { kind: 'respond' };   // the window is respondFor — an objectless go-round still owes this seat an answer
@@ -143,23 +148,19 @@
         return c;
       });
     }
-    /* PROJECT, NEVER COPY THE KEYS (v1.31.114). This was `for (var k in sr) c[k] = sr[k]`, which carried
-       `obj` (an alias INTO st.stack) and `result` (which IS st.roundWinResult, and that holds `state: st`).
-       So the mirror pointed back at the raw host state and was CIRCULAR — verified through a real round:
-       `JSON.stringify(mirrorFor(st,1))` throws. On BroadcastChannel structured clone swallows the cycle and
-       ships the whole host state; on a real RTCDataChannel the send throws inside a catch that discards it,
-       so the threatened seat never receives the window it is being waited on for, and the table wedges.
-       It also silently defeated the `roundWinResult: null` redaction three lines below, since that is the
-       very object `result` aliased. Everything else in this file names its fields; these two helpers were
-       the exceptions, and both were the bug. `obj` is projected down to the ONE property the client reads
-       (`sr.obj.source`, template openShieldGuardModal) with its seat rotated. */
-    function remapSR(sr) {
-      if (!sr) return null;
-      return {
-        q: rot(sr.q), winner: rot(sr.winner), guardId: sr.guardId || null, roundWin: !!sr.roundWin,
-        obj: sr.obj ? { source: sr.obj.source || null, n: sr.obj.n || 0, target: rot(sr.obj.target) } : null
-      };
-    }
+    /* PROJECT, NEVER COPY THE KEYS (v1.31.114) — THE RULE OUTLIVES THE FUNCTION IT WAS WRITTEN ON.
+       `remapSR` lived here and was deleted with the whitelist model at epic step 19; this comment is kept
+       deliberately, because it is the record of the bug and the rule governs every field anything adds to
+       a mirror from now on.
+       It was `for (var k in sr) c[k] = sr[k]`, which carried `obj` (an alias INTO st.stack) and `result`
+       (which IS st.roundWinResult, and that holds `state: st`). So the mirror pointed back at the raw host
+       state and was CIRCULAR — verified through a real round: `JSON.stringify(mirrorFor(st,1))` throws. On
+       BroadcastChannel structured clone swallows the cycle and ships the whole host state; on a real
+       RTCDataChannel the send throws inside a catch that discards it, so the threatened seat never receives
+       the window it is being waited on for, and the table wedges. It also silently defeated the
+       `roundWinResult: null` redaction below, since that is the very object `result` aliased.
+       **NAME EVERY FIELD YOU PROJECT.** Everything else in this file does; the two helpers that did not
+       were both the bug. */
     return {
       numPlayers: n, players: players, round: st.round, basics: !!st.basics,
       turn: rot(st.turn), initiative: rot(st.initiative), lastPlayer: (st.lastPlayer == null ? null : rot(st.lastPlayer)),
@@ -167,7 +168,7 @@
       finished: !!st.finished, winner: (typeof st.winner === 'number') ? rot(st.winner) : null,
       pending: st.pending ? remapStack([st.pending])[0] : null, respondFor: (st.respondFor == null ? null : rot(st.respondFor)), prioGen: st.prioGen || 0,   // NOT seat-valued: a counter, same for every seat, so it is declared PUBLIC rather than rotated
       discardPending: st.discardPending ? { player: rot(st.discardPending.player), count: st.discardPending.count, from: (st.discardPending.from || null) } : null,   // `from` = a dig's looked-at card ids (only the owner's own real ids, which they hold)
-      shieldResponse: remapSR(st.shieldResponse), stack: remapStack(st.stack),
+      stack: remapStack(st.stack),   // `shieldResponse` was projected here until step 19; `respondFor` + `pending` carry strictly more
       preFightQ: (st.preFightQ == null ? null : rot(st.preFightQ)), preFightHandled: !!st.preFightHandled,
       pendingLossChoice: st.pendingLossChoice ? { winner: rot(st.pendingLossChoice.winner), cands: (st.pendingLossChoice.cands || []).map(rot), comboType: st.pendingLossChoice.comboType } : null,   // winner picks whose shield to strip
       /* THE FIGHT END WINDOW IS ROTATED, NOT REDACTED (epic step 11, P3). Every member is seat-valued and

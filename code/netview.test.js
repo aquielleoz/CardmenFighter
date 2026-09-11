@@ -43,8 +43,20 @@ ok(NV.snapshotFor(g2, 2).prompt.kind === 'discard' && NV.snapshotFor(g2, 2).prom
 ok(!NV.snapshotFor(g2, 0).prompt || NV.snapshotFor(g2, 0).prompt.kind !== 'discard', 'prompt: discard not shown to others');
 g2.discardPending = null; g2.turn = 1;
 ok(NV.snapshotFor(g2, 1).prompt.kind === 'turn' && NV.snapshotFor(g2, 0).prompt === null, 'prompt: active seat=turn, others=null');
-g2.shieldResponse = { q: 0 };
-ok(NV.snapshotFor(g2, 0).prompt.kind === 'shieldGuard', 'prompt: shieldGuard takes priority');
+/* THE `shieldGuard` PROMPT IS GONE (epic step 19), AND THE REPLACEMENT ASSERTS THE REORDERING IT LEFT
+   BEHIND — which the step required be CHECKED rather than assumed. `shieldGuard` used to rank FIRST,
+   above `discard` and `preFight`, while `respond` ranks below both. Removing the top entry promotes
+   `discard`, and that is correct rather than accidental: a forced discard BLOCKS the table (`trimPending`
+   locks every other seat), whereas a priority window is answerable by several seats at once and
+   auto-passes anyone who cannot act. Asserted, because "it still returns something" would pass on any
+   ordering at all. */
+g2.discardPending = { player: 0, count: 1 }; g2.respondFor = 0;
+ok(NV.snapshotFor(g2, 0).prompt.kind === 'discard',
+   'prompt: a blocking discard outranks a priority window for the same seat');
+g2.discardPending = null;
+ok(NV.snapshotFor(g2, 0).prompt.kind === 'respond',
+   'prompt: …and with the discard gone that seat owes a respond — the window the guard branch used to hide');
+g2.respondFor = null;
 
 // ---- mirrorFor: full redacted, seat-rotated state for the client's render() ----
 var gm = E.newGame(null, { numPlayers: 2 });
@@ -117,7 +129,9 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
     var m = NV.mirrorFor(st, seat), serialised = null, threw = '';
     try { serialised = JSON.stringify(m); } catch (e) { threw = e.message.split('\n')[0]; }
     ok(serialised !== null, 'seat ' + seat + ': the mirror is JSON-serialisable with a window open' + (threw ? ' — THREW: ' + threw : ''));
-    ok(!m.shieldResponse, 'seat ' + seat + ': no shield-guard window is minted at all any more (step 18 removed it)');
+    ok(!('shieldResponse' in m),
+       'seat ' + seat + ': the mirror carries NO `shieldResponse` KEY at all (step 19 deleted the field)' +
+       (('shieldResponse' in m) ? '  ← the key is back; `!m.shieldResponse` would not have caught that' : ''));
     ok(m.roundWinResult === null, 'seat ' + seat + ': ceremony state stays host-only (the redaction is real, not aliased around)');
   }
   var m1 = NV.mirrorFor(st, 1);
@@ -207,7 +221,6 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   r.trimPending = { player: 2, need: 1 };
   r.pendingLossChoice = { winner: 2, cands: [2], comboType: 'pair' };
   r.fightEnd = { origin: 2, winner: 2, wonWithCombo: true, strikeTargets: [2], winSize: 2 };   // every member seat-valued except the two scalars
-  r.shieldResponse = { q: 2, winner: 2, guardId: 'g1', roundWin: true, obj: { source: 'Pair', n: 1, target: 2 } };
   r.stack = [{ oid: 1, kind: 'effect', p: 2, target: 2, winner: 2, n: 1, card: { rank: 9, suit: 'H', id: 's9H' }, eff: { id: 'x', kind: 'draw' }, opts: { target: 2 } }];
   r.respondFor = 2;
 
@@ -261,7 +274,7 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
     'fightEnd.winSize': 1,   // the SIZE of the winning play, not a seat — constant for every reader
 
     'pile.mod': 1, 'pile.combo.size': 1,
-    'stack.0.n': 1, 'stack.0.oid': 1, 'shieldResponse.obj.n': 1
+    'stack.0.n': 1, 'stack.0.oid': 1   // `shieldResponse.obj.n` was here until step 19 deleted the field
   };
   function pub(p) {
     if (PUBLIC[p]) return true;
