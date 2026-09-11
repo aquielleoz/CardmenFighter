@@ -2,26 +2,28 @@
  * Don't run it directly; `sweep.js` skips it by name.
  *
  * THE FIGHT BUTTON HAS TWO STATES SINCE epic step 20, AND EVERY SUITE THAT DROVE IT HAD ONE CLICK.
- * `⚔️ Fight` in the Main Sub-Phase is a PHASE MOVE — it takes you to the Fight Sub-Phase and passes priority
- * on the way, playing nothing — and the same button then reads `👊 Play`, which is what commits the cards.
+ * `▶ Next` in the Main Sub-Phase is a PHASE MOVE — it takes you to the Fight Sub-Phase and passes priority
+ * on the way, playing nothing — and the same button then reads `⚔️ Fight`, which is what commits the cards.
+ * (They were `Fight` then `Play` for half a day; Aj renamed them on 2026-09-11 because the word FIGHT
+ * belongs on the press that throws the cards down, not on the one that walks you to the sub-phase.)
  * So the old idiom (select a card, click Fight, assert) now asserts against a board where nothing was played.
  * That is not a flake and it is not a product bug: it is the design Aj asked for (*"fight now would only
  * initiate moving to the fight sub-phase"*), and 48 suites have to learn the second press.
  *
  * READ THE LABEL; DO NOT COUNT CLICKS. The label IS the sub-phase, which makes this helper correct at three
  * different kinds of site with no per-site knowledge:
- *   - already in the Fight Sub-Phase → the first click plays, the label never becomes `Play` again, done;
- *   - in the Main Sub-Phase → the first click moves, the label turns `Play`, the second click plays;
+ *   - already in the Fight Sub-Phase → the first click plays, the label never becomes `Fight` again, done;
+ *   - in the Main Sub-Phase → the first click moves, the label turns `Fight`, the second click plays;
  *   - a CONFIRM site (`pick` mode wires the same button to `confirmPick`) → the label is `Confirm`, never
- *     `Play`, so the second click can never fire. That is what makes it safe to apply blanket.
+ *     `Fight`, so the second click can never fire. That is what makes it safe to apply blanket.
  *
  * AND IT RETRIES, BECAUSE `busy` SWALLOWS A CLICK SILENTLY. The transition can open a response window, and
  * the board is dead until that settles — a helper without the retry is this repo's single most-repeated test
  * bug (`playAny`, `activateSpot`, `passTurn` each shipped without one and each presented as a product bug).
  *
  * IT REPORTS WHAT IT DID, for the same reason every other helper here does: a red run should explain itself.
- *   'played'   — the button reached `Play` and was pressed, so cards really went down
- *   'moved'    — it transitioned but never offered `Play` (no legal selection, or a window is still open)
+ *   'played'   — the button reached `Fight` and was pressed, so cards really went down
+ *   'moved'    — it transitioned but never offered `Fight` (no legal selection, or a window is still open)
  *   'no-move'  — the click did nothing: refused, not your turn, or the board is someone else's
  *   'no-button'— absent or disabled before we touched it
  */
@@ -52,7 +54,7 @@ async function clickFight(page, budgetMs) {
        never going to change, and the suite read a board one turn too late. The earlier claim that a
        Confirm site was safe "because the second click cannot fire" was true about the CLICK and blind to
        the DELAY. Return the moment the action is done. */
-    if (label !== 'Fight') return label === 'Play' ? 'played' : 'confirmed';
+    if (label !== 'Next') return label === 'Fight' ? 'played' : 'confirmed';
     /* AND IT RE-CLICKS, BECAUSE `busy` SWALLOWS A CLICK SILENTLY AND LEAVES THE BUTTON LOOKING LIVE.
        `doFight` returns on `busy` with no message while `updateActions` may not have repainted yet, so the
        press lands on nothing and the board sits in the Main Sub-Phase looking ready — measured at 2014ms
@@ -62,13 +64,13 @@ async function clickFight(page, budgetMs) {
        THE TWO WAITS ARE DIFFERENT AND THE DISTINCTION IS THE WHOLE DESIGN:
          - button DISABLED → the board is working (busy, or the host is parked on a remote seat's window).
            Wait. Do not re-click. This is the case that needs the full budget.
-         - button ENABLED and still reading `Fight` → our press did nothing. Re-click, bounded, then give
+         - button ENABLED and still reading `Next` → our press did nothing. Re-click, bounded, then give
            up — a genuinely refused press must not burn the whole budget. */
     /* THE TWO DISABLED STATES MEAN DIFFERENT THINGS, AND CONFLATING THEM COST A 300s TIMEOUT.
-       A disabled `Fight` is the board still resolving the transition — which, when a REMOTE seat holds a
+       A disabled `Next` is the board still resolving the transition — which, when a REMOTE seat holds a
        castable Quick, is the host parked until `netwindows` auto-passes after its 6s grace. That one needs
        the full budget.
-       A disabled `Play` means the transition is already DONE and the button is waiting on a selection that
+       A disabled `Fight` means the transition is already DONE and the button is waiting on a selection that
        does not make a legal play — which is the normal answer in a probe loop trying every card in hand.
        Waiting 15s for it is how `browsertest` went from 40s to killed-at-300s. Bound it separately: ~3s
        covers a mid-settle repaint, and anything past that is the board telling you this play is illegal. */
@@ -77,16 +79,21 @@ async function clickFight(page, budgetMs) {
        button underneath was still enabled — and the retry pressed it again, which is a second action
        nobody asked for. A helper that re-clicks is only safe if it can tell "swallowed" from "worked". */
     const modalUp = () => { const o = document.getElementById('overlay'); return !!(o && o.classList.contains('show')); };
-    const until = Date.now() + budget, playCap = 60;
+    /* THE DEAD-`Fight` CAP IS PAID ONCE PER CARD IN A PROBE LOOP, so it has to be small. At 60 polls (3s)
+       it is invisible on a quiet machine and murderous under `-j 4`: `exporttest` bounds itself by 160
+       UNPRODUCTIVE iterations, and 160 x 3s is eight minutes against `sweep.js`'s 300s cap — green and 20s
+       alone, KILLED in the sweep. That is this repo's own rule inverted ("a slow machine should make a
+       suite slower, never red"), and the cost was mine. 20 polls (1s) still covers a mid-settle repaint. */
+    const until = Date.now() + budget, playCap = 20;
     let idle = 0, retries = 0, deadPlay = 0;
     while (Date.now() < until) {
       if (modalUp()) return 'moved';                      // a window opened on our press — that IS an effect
       const g = btn();
-      if (g && g.textContent === 'Play') {
+      if (g && g.textContent === 'Fight') {
         if (!g.disabled) { g.click(); return 'played'; }
         if (++deadPlay >= playCap) return 'moved';        // transitioned, but this selection cannot be played
       } else deadPlay = 0;
-      if (g && g.textContent === 'Fight' && !g.disabled) {
+      if (g && g.textContent === 'Next' && !g.disabled) {
         if (++idle >= 6) { idle = 0; if (++retries > 12) return 'no-move'; g.click(); }
       } else idle = 0;
       await new Promise(r => setTimeout(r, 50));
@@ -128,7 +135,7 @@ async function clickPass(page, budgetMs) {
        and `passBtn.click()` if that rule is ever revisited. */
     if (!shown()) {
       const f = document.getElementById('fightBtn');
-      if (f && !f.disabled && f.textContent === 'Fight') f.click();
+      if (f && !f.disabled && f.textContent === 'Next') f.click();
       while (Date.now() < until && !shown()) await new Promise(r => setTimeout(r, 50));
     }
     /* AND IT RETRIES, for the reason `clickFight` does: `doPass` returns on `busy` SILENTLY while
@@ -156,23 +163,23 @@ async function clickPass(page, budgetMs) {
  * tries, transitions, and reports a play that never happened. `nettest_log` said so precisely: the client
  * "found a legal jab" and then had no log line for it.
  * `enterFight` is the one-line repair, and it is deliberately NOT a rewrite of those loops: once the board
- * is in the Fight Sub-Phase the button reads `Play` and `disabled` answers the original question again, so
+ * is in the Fight Sub-Phase the button reads `Fight` and `disabled` answers the original question again, so
  * every probe keeps its own logic and its own diagnostics. Idempotent — already there, it does nothing.
- * IT NEVER PLAYS. `clickFight` would press a live `Play` and spend whatever happened to be selected; this
- * only ever presses a button reading `Fight`. */
+ * IT NEVER PLAYS. `clickFight` would press a live `Fight` and spend whatever happened to be selected; this
+ * only ever presses a button reading `Next`. */
 async function enterFight(page, budgetMs) {
   return page.evaluate(async (budget) => {
     const btn = () => document.getElementById('fightBtn');
-    if ((btn() || {}).textContent === 'Play') return 'already';
+    if ((btn() || {}).textContent === 'Fight') return 'already';
     const until = Date.now() + budget;
     let idle = 0, clicks = 0;
     while (Date.now() < until) {
       const f = btn();
-      if (f && f.textContent === 'Play') return clicks ? 'entered' : 'already';   // `Play` at all means we are there — enabled or not
+      if (f && f.textContent === 'Fight') return clicks ? 'entered' : 'already';   // `Fight` at all means we are there — enabled or not
       /* RE-CLICK ONLY WHILE IT LOOKS LIVE, and wait patiently while it is disabled — see `clickFight` for
          why those are two different situations. A swallowed press leaves the button enabled; a working
          board leaves it disabled. */
-      if (f && f.textContent === 'Fight' && !f.disabled) {
+      if (f && f.textContent === 'Next' && !f.disabled) {
         if (++idle >= 6) { idle = 0; if (++clicks > 12) return 'stuck'; f.click(); }
       } else idle = 0;
       await new Promise(r => setTimeout(r, 50));
@@ -190,26 +197,36 @@ async function enterFight(page, budgetMs) {
  * after the page is created, then use `await window.__pressFight()` / `await window.__pressPass()` in place of
  * a bare `fightBtn.click()` / `passBtn.click()`. Both return true only if the ACTION really happened, which is
  * the distinction a driver needs: a transition is not a play. */
-async function installPageHelpers(page) {
-  await page.addInitScript(() => {
+/* THE BUDGET IS AN ARGUMENT, AND SOLO DRIVERS MUST NOT PAY THE NETPLAY ONE (2026-09-11).
+ * The 15s ceiling exists for ONE situation: a transition that opens a window for a REMOTE seat parks the
+ * host until `netwindows` auto-passes after its 6s grace. A SOLO driver has no remote seat and can never
+ * park, so every second of that ceiling is waste — and it is waste paid PER ATTEMPT inside a probe loop.
+ * `exporttest` bounds itself by 160 UNPRODUCTIVE iterations: at 15s each that is forty minutes, which is
+ * why it ran 20s alone and was KILLED at `sweep.js`'s 300s cap twice. The first fix capped only the
+ * post-transition case (a disabled `Fight`); the expensive one is PRE-transition, where the button sits
+ * disabled and `idle` never advances — `idle` only counts while the button looks live.
+ * So: 5s by default, comfortably over the 2014ms busy window measured in the Initiative lesson, and the
+ * two in-page drivers that really are netplay pass the long one explicitly. */
+async function installPageHelpers(page, budgetMs) {
+  await page.addInitScript((budget) => {
     const el = id => document.getElementById(id);
     const nap = () => new Promise(r => setTimeout(r, 50));
     window.__pressFight = async function () {
       const a = el('fightBtn');
       if (!a || a.disabled) return false;
-      if (a.textContent === 'Play') { a.click(); return true; }   // already in the Fight Sub-Phase — that click IS the play
-      if (a.textContent !== 'Fight') { a.click(); return true; }  // Confirm — the action, with nothing to wait for
+      if (a.textContent === 'Fight') { a.click(); return true; }   // already in the Fight Sub-Phase — that click IS the play
+      if (a.textContent !== 'Next') { a.click(); return true; }  // Confirm — the action, with nothing to wait for
       a.click();
       const modalUp = () => { const o = el('overlay'); return !!(o && o.classList.contains('show')); };
       let idle = 0, clicks = 0, deadPlay = 0;
-      for (let i = 0; i < 300; i++) {
+      for (let i = 0, lim = Math.ceil(budget / 50); i < lim; i++) {
         if (modalUp()) return false;                      // a window opened on our press — no play happened yet                             // 15s ceiling: a remote seat's window parks the host for ~6s
         const g = el('fightBtn');
-        if (g && g.textContent === 'Play') {
+        if (g && g.textContent === 'Fight') {
           if (!g.disabled) { g.click(); return true; }
-          if (++deadPlay >= 60) return false;                     // transitioned; this selection is simply not legal — see clickFight
+          if (++deadPlay >= 12) return false;                     // ~600ms — paid once per card in a probe loop, so it must stay small; see clickFight
         } else deadPlay = 0;
-        if (g && g.textContent === 'Fight' && !g.disabled) {
+        if (g && g.textContent === 'Next' && !g.disabled) {
           if (++idle >= 6) { idle = 0; if (++clicks > 12) return false; g.click(); }   // swallowed by `busy` — press again
         } else idle = 0;
         await nap();
@@ -220,15 +237,15 @@ async function installPageHelpers(page) {
       const vis = () => { const b = el('passBtn'); return b && b.offsetParent !== null ? b : null; };
       if (!vis()) {                                   // kept for the case Pass is ever gated to one sub-phase again
         const f = el('fightBtn');
-        if (f && !f.disabled && f.textContent === 'Fight') f.click();
-        for (let i = 0; i < 40 && !vis(); i++) await nap();
+        if (f && !f.disabled && f.textContent === 'Next') f.click();
+        for (let i = 0, lim = Math.ceil(budget / 50); i < lim && !vis(); i++) await nap();
       }
       const b = vis();
       if (!b || b.disabled) return false;
       b.click();
       return true;
     };
-  });
+  }, budgetMs || 5000);
 }
 
 module.exports = { clickFight, selectAndFight, clickPass, enterFight, installPageHelpers, FIGHT_BUDGET };

@@ -3880,11 +3880,11 @@ __QR__
       if(d.playZone==='ok' && groupById(d.gid)){
         var dg=groupById(d.gid);
         if(state.subPhase==='play'){ playCards(dg.cards.slice()); return; }
-        if(dg.cards.length>1){ setMessage('One card at a time in the Main sub-phase — press <b>Fight</b> to move to the Fight sub-phase.'); render(); return; }
+        if(dg.cards.length>1){ setMessage('One card at a time in the Main sub-phase — press <b>Next</b> to move to the Fight sub-phase.'); render(); return; }
         selected={}; selected[dg.cards[0].id]=true; showCard(dg.cards[0]);
         var da=ctxAction();
         if(da && da.ok && da.run){ render(); da.run(); }
-        else { setMessage(da && da.reason ? da.reason : 'That card has nothing to activate — press <b>Fight</b> to move to the Fight sub-phase.'); render(); }
+        else { setMessage(da && da.reason ? da.reason : 'That card has nothing to activate — press <b>Next</b> to move to the Fight sub-phase.'); render(); }
         return;
       }
       if(d.targetGid!=null && groupById(d.gid) && groupById(d.targetGid) && canMergeKF(groupById(d.gid).cards, groupById(d.targetGid).cards)){
@@ -3919,10 +3919,23 @@ __QR__
     }
     var tr=$('table').getBoundingClientRect();
     if(e.clientY>=tr.top && e.clientY<=tr.bottom && e.clientX>=tr.left && e.clientX<=tr.right){
-      var g=groupById(drag.gid), canPlay=g && canHumanPlay(g.cards);
+      /* THE ZONE MUST ASK WHAT THE RELEASE WILL ASK, and since step 20 that is two different questions:
+         in the Fight Sub-Phase a release PLAYS, in the Main Sub-Phase it ACTIVATES. Asking `canHumanPlay`
+         in both is what made the zone glow for an unaffordable Quick. */
+      var g=groupById(drag.gid), canPlay, dropTxt;
+      if(state.subPhase==='play'){
+        canPlay = !!(g && canHumanPlay(g.cards));
+        dropTxt = canPlay ? '▲ release to fight' : 'can’t fight with that here';
+      } else if(g && g.cards.length>1){
+        canPlay = false; dropTxt = 'one card at a time in the Main sub-phase';
+      } else {
+        var ca = g ? ctxActionFor(g.cards) : null;
+        canPlay = !!(ca && ca.ok && ca.run);
+        dropTxt = canPlay ? '▲ release to use' : ((ca && ca.reason) || 'nothing to activate on that card');
+      }
       drag.playZone=canPlay?'ok':'no';
       $('table').classList.toggle('pz-ok', canPlay); $('table').classList.toggle('pz-no', !canPlay);
-      var dh=$('dropHint'); dh.className='show '+(canPlay?'ok':'no'); dh.textContent=canPlay?'▲ release to play':'can’t play that here';
+      var dh=$('dropHint'); dh.className='show '+(canPlay?'ok':'no'); dh.textContent=dropTxt;
       return;
     }
     clearZone();
@@ -4011,8 +4024,15 @@ __QR__
   }
 
   // The single context-aware action for the current selection: Activate (default) or Phantasm.
-  function ctxAction(){
-    var sel=selectedCards();
+  /* TAKES THE CARDS, so the DRAG HOVER can ask the same question the RELEASE will answer (2026-09-11).
+     The drop zone used to call `canHumanPlay` — the PLAY test — while a release in the Main Sub-Phase
+     ACTIVATES, so it lit green for a 9♦ Leyline the player could not afford: a legal jab shape, an
+     unaffordable activation, and the board promising "release to play" for something it was about to
+     refuse. Aj caught it on the second attempt and asked, rightly, why the refusal had not shown on the
+     first. One definition answers both halves — the hint can now print the engine's own reason WHILE you
+     drag, instead of after you let go. */
+  function ctxAction(){ return ctxActionFor(selectedCards()); }
+  function ctxActionFor(sel){
     // a staged target waits on an explicit confirm — the button IS the confirm
     if(targetPick && targetPick.chosen!=null)
       return {mode:'activate', label:'⚡ Activate', ok:true, reason:'', gold:true, run:function(){ confirmTargetPick(); }};
@@ -4056,7 +4076,7 @@ __QR__
    * ⏭ with VS16 renders as a boxed media glyph on its own grey rounded plate: a button inside a button. So it
    * stays text presentation, where it is a clean monochrome bar that inherits `color` and greys out with the
    * button. Do not "fix" the inconsistency — look at it first. */
-  var ACTION_ICONS={ 'Fight':'⚔️', 'Play':'👊', 'Confirm':'✓', 'Pass':'⏭', 'Skip':'⏭', 'Cancel':'↩', 'Clear':'✕',
+  var ACTION_ICONS={ 'Fight':'⚔️', 'Next':'▶', 'Confirm':'✓', 'Pass':'⏭', 'Skip':'⏭', 'Cancel':'↩', 'Clear':'✕',
                      '⚡ Activate':'⚡', '🎯 Pick a target':'🎯', '🎯 Choose target':'🎯', 'Phantasm':'🌀' };
   /* Sets BOTH, always. The text stays in the DOM at every width — `font-size:0` hides it, so the accessible name
    * and every suite that reads `textContent` are untouched, and the row re-expands to words on a wider screen
@@ -4087,7 +4107,10 @@ __QR__
       return;
     }
     sort.style.display=''; pass.style.display=''; clear.style.display='';
-    setActionLabel(fight,'Fight'); setActionLabel(pass,'Pass');
+    /* THE RESTING LABEL IS `Next`, because the resting sub-phase is Main. This default is what the
+       `!yourTurn`, busy, locked-out and tutorial-hold branches all render, and leaving it as `Fight` would
+       show the COMMIT word on a board where the next press can only ever be the phase move. */
+    setActionLabel(fight,'Next'); setActionLabel(pass,'Pass');
     fight.disabled=true; pass.disabled=true;
     if(state.finished){ hint.textContent=''; return; }
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()){          // tutorial read step — hold the board until they press the button
@@ -4135,7 +4158,7 @@ __QR__
       ctxBtn.title = ctxM.ok ? "Activate this card's effect" : ctxM.reason;
       var actM=activatableCardSelected(), blockM=actM?activateBlock(actM):null;
       if(actM){ cardAct.style.display=''; cardAct.classList.toggle('off', !!blockM); cardAct.disabled=false; cardAct.title=blockM||'Activate'; cardAct.textContent='⚡'; }
-      setActionLabel(fight,'Fight'); fight.disabled=false;
+      setActionLabel(fight,'Next'); fight.disabled=false;
       /* PASS IS AN AUTO-PASS IN THE MAIN SUB-PHASE (Aj, 2026-09-11: *"how about we have a pass even from
          main and if you click it it auto passes your priorities. but if something happens, you will stop
          autopassing until you click it again?"*). It was briefly HIDDEN here — the literal reading of "Pass
@@ -4151,16 +4174,19 @@ __QR__
          has no slack — the first draft spelled out all three controls and five `landscapetest` assertions
          went red at 800x360 and 932x430, including the 327x660 ratchet (63px -> 78px). The controls are on
          screen and labelled; the hint only has to say which sub-phase you are in and what Fight does. */
-      hint.textContent='Main sub-phase — drag a card to use it, or Fight to move on.'+
+      hint.textContent='Main sub-phase — drag a card to use it, or Next to move on.'+
                        ((state.players[YOU].nextPlayBoost||0)?(' ⚡+'+state.players[YOU].nextPlayBoost+' charged'):'');
       hint.className='';
       return;
     }
-    /* THE SECOND STATE OF ONE BUTTON (Aj: *"A and then it becomes Play and then you can click it again"*).
-       `#fightBtn` keeps its id — 48 suites and five lessons address it — and only its LABEL moves: ⚔️ Fight
-       is "take me to the Fight", 👊 Play is "throw these cards down". Aj renamed the sub-phases rather than
-       the buttons so the two agree: you press Fight and arrive in the Fight Sub-Phase. */
-    setActionLabel(fight,'Play');
+    /* THE SECOND STATE OF ONE BUTTON, AND THE LABELS ARE `Next` THEN `Fight` (Aj, 2026-09-11: *"the fight
+       button to move to the fight sub phase is throwing me off. Let's use Next and then Fight instead of
+       Fight and Play"*). They were Fight then Play, and that reads backwards once you are playing it: the
+       word FIGHT belongs on the press that actually throws the cards down, not on the one that walks you
+       to the sub-phase. `▶ Next` moves, `⚔️ Fight` commits — and the sub-phase names still line up, since
+       Next is what takes you INTO the Fight Sub-Phase.
+       `#fightBtn` keeps its id: 50 suites and five lessons address it, and only the label moves. */
+    setActionLabel(fight,'Fight');
     var leading=!state.pile; pass.disabled=leading;
     var charged=state.players[YOU].nextPlayBoost||0;
     var chargeTag=(charged?' ⚡+'+charged+' charged':'')+(state.players[YOU].finishingBlow?' 🛡‍💥 Armor Piercing armed (next win strips +1)':'');
@@ -4197,7 +4223,7 @@ __QR__
     if(!combo){ hint.textContent='Not a legal combination.'; hint.className='bad'; return; }
     var tutSpecialGate=(typeof TUT!=='undefined' && TUT.needSpecial && TUT.needSpecial() && combo.size<2);   // tutorial: the "make a Special" step won't accept a single-card jab
     if(tutSpecialGate){ hint.textContent='For this lesson, make a Special — pick two cards of the same number.'; hint.className='bad'; fight.disabled=true; }
-    else if(legal){ hint.textContent=kindLabel(combo.type)+chargeTag+(actCard&&!actBlock?' — Play it, or Activate its effect.':' — play it!'); hint.className='good'; fight.disabled=false; }
+    else if(legal){ hint.textContent=kindLabel(combo.type)+chargeTag+(actCard&&!actBlock?' — Fight with it, or Activate its effect.':' — fight!'); hint.className='good'; fight.disabled=false; }
     else if(actCard && !actBlock){ hint.textContent=E.effectOf(actCard).name+' — Activate its effect.'; hint.className='good'; }
     else if(actCard && actBlock){ hint.textContent=E.effectOf(actCard).name+' — '+actBlock; hint.className='bad'; }
     else if(state.round<2 && combo.size>1){ hint.textContent='Round 1 is jabs only.'; hint.className='bad'; }
@@ -4858,7 +4884,7 @@ __QR__
     if(now===lastSubPhase) return;
     var was=lastSubPhase; lastSubPhase=now;
     if(was==='main' && now==='play' && state && state.turn===YOU && !state.finished && !E.isLocked(state, YOU))
-      announcePhase('⚔️ <b>Fight sub-phase</b> — play your cards.', 'you');
+      announcePhase('⚔️ <b>Fight sub-phase</b> — throw your cards down.', 'you');
   }
   var phaseFxT=null;
   function announcePhase(txt, cls){

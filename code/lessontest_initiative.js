@@ -31,7 +31,7 @@ const { openLesson } = require('./lessonlib');
    * nothing, it only changes sub-phase. The invariant below is untouched and is still the point: whatever
    * renders ENABLED must work on a single click. */
   await until(()=>{ const f=document.getElementById('fightBtn'); return !!f && !f.disabled; },'the turn comes back and Fight goes live');
-  await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled && f.textContent==='Fight') f.click(); });
+  await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled && f.textContent==='Next') f.click(); });
   ok(await until(()=>{ const b=document.getElementById('passBtn'); return !!b && b.offsetParent!==null && !b.disabled; },'Pass becomes enabled'),
     'Pass eventually renders enabled');
   const shot=await p.evaluate(()=>{ const s=window.__solo.st(), me=s.players[0];

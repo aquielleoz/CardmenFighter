@@ -17,7 +17,7 @@
  *     produces, and it was the visible symptom of the fork.
  * Run: node nettest_sync.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
-const { installPageHelpers } = require('./fightclick');
+const { installPageHelpers, FIGHT_BUDGET } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path'),{ spawn }=require('child_process');
 const DIR=__dirname,PORT=+(process.env.PORT||8335),MOCK=8835;
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -67,7 +67,7 @@ let mock=null;
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));
   const join=await ctx.newPage(); join.on('pageerror',e=>errs.push('join: '+e.message));
-  await installPageHelpers(host); await installPageHelpers(join);   // epic step 20: the two-state Fight button, for drivers that decide inside the page
+  await installPageHelpers(host, FIGHT_BUDGET); await installPageHelpers(join, FIGHT_BUDGET);   // netplay: a remote seat can park the host past the 6s netwindows grace   // epic step 20: the two-state Fight button, for drivers that decide inside the page
 
   await host.goto(url('rtchost')); await wait(900);
   ok(await until(()=>host.evaluate(()=>{const e=document.getElementById('roomCodeVal'); return !!e&&/^[A-Z0-9]{4}$/.test(e.textContent.trim());}),60,250),

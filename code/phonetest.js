@@ -76,7 +76,7 @@ const actionRow = p => p.evaluate(()=>{
        are on one row" would be asserting five; and `#fightBtn` is the PHASE MOVE in Main, so it is never
        disabled there and the enabled-vs-disabled gold comparison would have no off state to compare against.
        Both assertions stay exactly as strong — they just need the sub-phase where the controls live. */
-    await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled && f.textContent==='Fight') f.click(); });
+    await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled && f.textContent==='Next') f.click(); });
     await wait(400);
 
     await stage(p, GROUPED); ok(await sortToPairs(p), `${label} ${w}×${h}: sorted by pairs`);
@@ -200,7 +200,7 @@ const actionRow = p => p.evaluate(()=>{
        are on one row" would be asserting five; and `#fightBtn` is the PHASE MOVE in Main, so it is never
        disabled there and the enabled-vs-disabled gold comparison would have no off state to compare against.
        Both assertions stay exactly as strong — they just need the sub-phase where the controls live. */
-    await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled && f.textContent==='Fight') f.click(); });
+    await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled && f.textContent==='Next') f.click(); });
     await wait(400);
     const wide = await actionRow(p);
     const collapsed = wide.bs.filter(x=>x.fs===0);
