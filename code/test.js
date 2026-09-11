@@ -1433,7 +1433,17 @@ function cards(ids) { return ids.map(card); }
     g.lastPlayer = 2;
     return g;
   }
-  function walk(g, cap) { var seq = [], n = 0; while (g.respondFor != null && n++ < (cap || 12)) { seq.push((g.pending ? 'obj' : 'empty') + ':' + g.respondFor); E.declineResponse(g, g.respondFor); } return seq; }
+  /* THE WALK NAMES THE BOUNDARY, NOT JUST THE SEAT (epic step 20, Upkeep). Every empty-stack grant used
+     to read `empty:N`, and once Upkeep became a real priority point the round produced TWO go-rounds — so
+     the old label could not tell `Resolution then Upkeep` (correct) from `Resolution twice` (a spin). The
+     sequences below would have passed either way by simply widening the expected string, which is the
+     green-and-blind shape; reading the parked boundary off state makes them discriminate instead. */
+  function walk(g, cap) { var seq = [], n = 0;
+    while (g.respondFor != null && n++ < (cap || 16)) {
+      seq.push((g.pending ? 'obj' : (g.upkeep ? 'up' : (g.cleanup ? 'cu' : (g.fightEnd ? 'fe' : 'empty')))) + ':' + g.respondFor);
+      E.declineResponse(g, g.respondFor);
+    }
+    return seq; }
 
   // --- nobody adds anything: the window is winner-first, then turn order, then the sub-phase
   var g = rig();
@@ -1442,8 +1452,11 @@ function cards(ids) { return ids.map(card); }
      'fight end: the WINNER is offered first, on an empty stack' +
      (g.respondFor === 2 && g.pending === null ? '' : '  ← offered ' + g.respondFor + ', pending ' + (g.pending ? 'set' : 'null')));
   var order = walk(g);
-  ok(order.join(',') === 'empty:2,empty:0,empty:1',
-     'fight end: …then turn order, all on an empty stack (' + order.join(' ') + ')');
+  var WANT1 = 'fe:2,fe:0,fe:1,cu:2,cu:0,cu:1,up:2,up:0,up:1';
+  ok(order.join(',') === WANT1,
+     'fight end: …then turn order on an empty stack, AND THE ROUND\'S REMAINING BOUNDARIES FOLLOW IT IN' +
+     ' ORDER — Resolution, Clean-up, then the new round\'s Upkeep (' + order.join(' ') + ')' +
+     (order.join(',') === WANT1 ? '' : '  ← expected ' + WANT1.replace(/,/g, ' ')));
   ok(!g.fightEnd && g.round === 4 && g.players[0].shields === 2,
      'fight end: all passing on an empty stack BEGINS THE SUB-PHASE — the outcomes land' +
      ' (round ' + g.round + ', A shields ' + g.players[0].shields + ', parked ' + !!g.fightEnd + ')');
@@ -1462,11 +1475,11 @@ function cards(ids) { return ids.map(card); }
      'fight end: a Quick cast into the empty window becomes an ordinary object, held by its caster' +
      (cast.ok === false ? '  ← refused: ' + cast.reason : ''));
   var rest = walk(g2);
-  ok(rest.join(',') === 'obj:0,obj:1,obj:2,empty:2,empty:0,empty:1',
+  var WANT2 = 'obj:0,obj:1,obj:2,fe:2,fe:0,fe:1,cu:2,cu:0,cu:1,up:2,up:0,up:1';
+  ok(rest.join(',') === WANT2,
      'fight end: THE WORKED EXAMPLE — dance on the object from its controller, then the go-round RESTARTS' +
-     ' AT THE ACTIVE PLAYER (' + rest.join(' ') + ')' +
-     (rest.join(',') === 'obj:0,obj:1,obj:2,empty:2,empty:0,empty:1' ? '' :
-      '  ← expected obj:0 obj:1 obj:2 empty:2 empty:0 empty:1'));
+     ' AT THE ACTIVE PLAYER, then Upkeep opens the next round (' + rest.join(' ') + ')' +
+     (rest.join(',') === WANT2 ? '' : '  ← expected ' + WANT2.replace(/,/g, ' ')));
   /* AND THE CAST CHANGED THE OUTCOME, which is a stronger claim than the old `shields === 2`. A is the
      struck seat and A cast LEYLINE into the go-round, so the shield holds — the window doing the one thing
      it exists to do. The old assertion expected the strip to land because the rig used Counter Spell as an
@@ -1488,8 +1501,96 @@ function cards(ids) { return ids.map(card); }
   g3.players[1].hand = [];                                             // B holds nothing
   E.openFightEndWindow(g3, 2, true, [0], 2);
   var o3 = walk(g3);
-  ok(o3.join(',') === 'empty:2,empty:0',
-     'fight end: a seat holding no castable Quick is auto-passed, not prompted (' + o3.join(' ') + ')');
+  var WANT3 = 'fe:2,fe:0,cu:2,cu:0,up:2,up:0';
+  ok(o3.join(',') === WANT3,
+     'fight end: a seat holding no castable Quick is auto-passed, not prompted — at EVERY boundary' +
+     ' (' + o3.join(' ') + ')' +
+     (o3.join(',') === WANT3 ? '' : '  ← expected ' + WANT3.replace(/,/g, ' ')));
+
+  /* --- UPKEEP IS A REAL WINDOW, NOT A PASS-THROUGH. Everything above only ever DECLINES at it, and a
+     go-round nobody can use is indistinguishable from a go-round that does nothing — this repo's own rule
+     is that when a test asserts something did not happen, it must also assert it COULD have. So: drain
+     Resolution, then CAST at Upkeep and require the cast to land on the stack, held by its caster. */
+  var g5 = rig();
+  g5.players[2].hand = [sc(9, 'D', 'c1'), sc(9, 'D', 'c2')];           // TWO, so C is not auto-passed after casting one — the same rig shape the worked example uses
+  for (var e5 = 0; e5 < 20; e5++) g5.players[2].energy.push(sc(4, 'D', 'ec' + e5));
+  E.openFightEndWindow(g5, 2, true, [0], 2);
+  var n5 = 0; while (g5.respondFor != null && !g5.upkeep && n5++ < 12) E.declineResponse(g5, g5.respondFor);
+  ok(!!g5.upkeep && g5.respondFor === 2 && g5.pending === null && g5.round === 4,
+     'upkeep: the new round opens its own go-round on an empty stack, at the active player' +
+     '  (parked ' + !!g5.upkeep + ', offered ' + g5.respondFor + ', round ' + g5.round + ')');
+  var upCast = E.respond(g5, 2, 'c19D');                               // C springs one of its Leylines in Upkeep
+  ok(upCast.ok !== false && g5.stack.length === 1 && g5.pending && g5.respondFor === 2,
+     'upkeep: a Quick really can be CAST there — it becomes an ordinary object held by its caster' +
+     (upCast.ok === false ? '  ← refused: ' + upCast.reason : ''));
+  var n6 = 0; while (g5.respondFor != null && n6++ < 16) E.declineResponse(g5, g5.respondFor);
+  ok(!g5.upkeep && g5.respondFor === null && g5.stack.length === 0,
+     'upkeep: …and draining it leaves nothing owed and nothing parked' +
+     '  (parked ' + !!g5.upkeep + ', owed ' + g5.respondFor + ', stack ' + g5.stack.length + ')');
+
+  /* --- CLEAN-UP IS A REAL WINDOW TOO, and it is the one that could not exist before: `finishRoundWin`
+     opened with `st.stack = []`, so anything cast there was silently discarded. Clearing the spent
+     shieldloss objects BEFORE parking the window is what unblocked it, and this asserts the consequence —
+     a Quick cast at Clean-up survives to resolve. */
+  var g7 = rig();
+  E.openFightEndWindow(g7, 2, true, [0], 2);
+  var n9 = 0; while (g7.respondFor != null && !g7.cleanup && n9++ < 12) E.declineResponse(g7, g7.respondFor);
+  ok(!!g7.cleanup && g7.round === 3,
+     'clean-up: the round\'s end opens its own go-round BEFORE the round advances' +
+     '  (parked ' + !!g7.cleanup + ', round still ' + g7.round + ')');
+  /* CAST WITH WHOEVER ACTUALLY HOLDS PRIORITY rather than a seat picked in advance: Clean-up's go-round
+     starts at the round WINNER, so hard-coding a seat here tests the rig, not the rule. */
+  var cuSeat = g7.respondFor, cuCard = g7.players[cuSeat].hand[0];
+  var cuCast = E.respond(g7, cuSeat, cuCard.id);
+  ok(cuCast.ok !== false && g7.stack.length === 1,
+     'clean-up: a Quick cast there is NOT discarded — the stack survives the round end' +
+     (cuCast.ok === false ? '  ← refused: ' + cuCast.reason : ''));
+  var n10 = 0; while (g7.respondFor != null && n10++ < 40) E.declineResponse(g7, g7.respondFor);
+  ok(!g7.cleanup && !g7.upkeep && g7.round === 4 && g7.stack.length === 0,
+     'clean-up: …and draining every boundary advances the round with nothing left parked' +
+     '  (round ' + g7.round + ', cleanup ' + !!g7.cleanup + ', upkeep ' + !!g7.upkeep + ', stack ' + g7.stack.length + ')');
+
+  /* --- THE COUNTER TICK IS A TRIGGERED ABILITY (Aj, 2026-09-11). It goes on the Upkeep stack, priority
+     runs from the ACTIVE PLAYER, and only then does the counter come off. Before this it was a direct
+     state change inside the round reset, so a seat given priority at Upkeep was looking at a board where
+     its Equipment had already retired. */
+  var g6 = rig();
+  /* ALL THREE SEATS HOLD ONE, so the ORDER is observable. The winner is seat 2, so 2 is the active player
+     at Upkeep and turn order from there is 2 → 0 → 1. */
+  g6.players[2].equipment = [{ id: 'jav', name: "Hero's Javelin", delta: 1, counters: 3, decay: true, card: sc(6, 'C', 'eqj') }];
+  g6.players[0].equipment = [{ id: 'cal', name: 'Caltrops', oppDelta: -2, counters: 1, decay: true, card: sc(7, 'S', 'eqc') }];
+  g6.players[1].equipment = [{ id: 'bow', name: 'Holy Bow', delta: 2, counters: 2, decay: true, card: sc(8, 'H', 'eqb') }];
+  E.openFightEndWindow(g6, 2, true, [0], 2);
+  var n7 = 0; while (g6.respondFor != null && !g6.upkeep && n7++ < 12) E.declineResponse(g6, g6.respondFor);
+  var ticks = g6.stack.filter(function (o) { return o.kind === 'tick'; });
+  ok(ticks.length === 3 && g6.pending && g6.pending.kind === 'tick',
+     'upkeep tick: each decaying Equipment puts a TRIGGER on the Upkeep stack (' + ticks.length + ' ticks, top is ' +
+     (g6.pending ? g6.pending.kind : 'nothing') + ')');
+  /* THE ACTIVE PLAYER'S TRIGGER GOES ON FIRST, so the LAST seat in turn order ends up on top (Aj,
+     2026-09-11). That ordering is the whole reason §2 needs no exception here: with the stack built this
+     way, "a go-round starts at the controller of the top stack object" already names the right seat.
+     Asserting the stack ORDER and the grant TOGETHER is what makes this discriminate — either alone is
+     satisfied by a build that starts everyone at the same arbitrary place. */
+  var owners = ticks.map(function (o) { return o.p; });
+  ok(owners.join(',') === '2,0,1' && g6.respondFor === 1 && g6.pending.p === 1,
+     'upkeep tick: the ACTIVE player\'s trigger is pushed FIRST and the last in turn order sits on TOP,' +
+     ' so §2 hands priority to that seat (stack bottom→top ' + owners.join(',') + ', offered ' + g6.respondFor + ')' +
+     (owners.join(',') === '2,0,1' ? '' : '  ← expected 2,0,1 from an active player of 2'));
+  /* THE COUNTER IS STILL ON while the trigger sits there — that is the whole point of making it
+     respondable, and the assertion that separates "on the stack" from "already applied". */
+  ok(g6.players[1].equipment[0].counters === 2 && g6.players[2].equipment[0].counters === 3 && g6.players[0].equipment.length === 1,
+     'upkeep tick: nothing has ticked yet while the triggers are on the stack' +
+     '  (Holy Bow ' + g6.players[1].equipment[0].counters + ', Javelin ' + g6.players[2].equipment[0].counters +
+     ', Caltrops still equipped ' + (g6.players[0].equipment.length === 1) + ')');
+  var n8 = 0; while (g6.respondFor != null && n8++ < 40) E.declineResponse(g6, g6.respondFor);
+  ok(g6.players[1].equipment.length === 1 && g6.players[1].equipment[0].counters === 1,
+     'upkeep tick: …and everyone passing resolves it — the counter comes off' +
+     '  (Holy Bow ' + (g6.players[1].equipment[0] ? g6.players[1].equipment[0].counters : 'gone') + ' of 2)');
+  /* AT ZERO IT RETIRES, and to ENERGY — §3: equipment at 0 counters goes to the Energy Pile. Caltrops went
+     in on 1 counter, so this round's tick is the one that empties it. */
+  ok(g6.players[0].equipment.length === 0 && g6.players[0].energy.some(function (c) { return c.id === 'eqc7S'; }),
+     'upkeep tick: a counter reaching zero retires the Equipment to its owner\'s ENERGY pile' +
+     '  (equipped ' + g6.players[0].equipment.length + ', in energy ' + g6.players[0].energy.some(function (c) { return c.id === 'eqc7S'; }) + ')');
 
   // --- an eliminated seat is skipped too (the filter lives in the shared walk, not in canAddToStack)
   var g4 = rig();

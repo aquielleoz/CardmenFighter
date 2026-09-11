@@ -172,6 +172,12 @@
       discardPending: st.discardPending ? { player: rot(st.discardPending.player), count: st.discardPending.count, from: (st.discardPending.from || null) } : null,   // `from` = a dig's looked-at card ids (only the owner's own real ids, which they hold)
       stack: remapStack(st.stack),   // `shieldResponse` was projected here until step 19; `respondFor` + `pending` carry strictly more
       subPhase: st.subPhase || 'main', toPlay: null,   // subPhase is PUBLIC (same for every seat); `toPlay` is host bookkeeping like roundWinResult
+      /* UPKEEP IS PUBLIC AND ROTATED, for the reason `subPhase` is: the client has to know WHICH boundary
+         it is being offered priority at, or it labels the window with the wrong timing. `respondFor` alone
+         cannot say — an objectless window is the Main→Fight transition, Resolution or Upkeep depending
+         only on what is parked. Its RESULT is host bookkeeping and is nulled like the other two. */
+      upkeep: st.upkeep ? { origin: rot(st.upkeep.origin) } : null,
+      cleanup: st.cleanup ? { origin: rot(st.cleanup.origin) } : null,   // the fifth priority point, same reasoning as `upkeep`
       pendingLossChoice: st.pendingLossChoice ? { winner: rot(st.pendingLossChoice.winner), cands: (st.pendingLossChoice.cands || []).map(rot), comboType: st.pendingLossChoice.comboType } : null,   // winner picks whose shield to strip
       /* THE FIGHT END WINDOW IS ROTATED, NOT REDACTED (epic step 11, P3). Every member is seat-valued and
          every one of them is PUBLIC on purpose: `PHASES-AND-PRIORITY.md` §3 picks the loss target BEFORE the
@@ -196,6 +202,8 @@
       startShields: st.startShields, _effUsed: !!st._effUsed,
       roundWinResult: null,   // ceremony state is host-only; the client renders the settled board
       fightEndResult: null,   // the same: the parked Fight End outcome is the host'''s ceremony input, and it holds `state`
+      upkeepResult: null,     // …and the parked Draw, for the same reason
+      cleanupResult: null,    // …and the parked round-end work
       _mirror: true, _seat: seat
     };
   }

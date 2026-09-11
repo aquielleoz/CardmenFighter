@@ -23,7 +23,7 @@ const { selectAndFight, clickFight, clickPass, installPageHelpers, FIGHT_BUDGET 
 const http = require('http'), fs = require('fs'), path = require('path');
 const DIR = __dirname, PORT = +(process.env.PORT || 8451), ROOM = 'PD' + Date.now().toString().slice(-3);
 const srv = http.createServer((q, r) => { let p = path.join(DIR, q.url.split('?')[0] === '/' ? '/CardmenFighter.html' : q.url.split('?')[0]); fs.readFile(p, (e, b) => { if (e) { r.writeHead(404); r.end(); } else { r.writeHead(200, { 'Content-Type': 'text/html' }); r.end(b); } }); });
-const url = r => `http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
+const url = r => `http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;   // Passo must ANSWER boundary windows, which default OFF — see promptDefault
 const wait = ms => new Promise(r => setTimeout(r, ms));
 function pollTimedOut(fn) { console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g, ' ').slice(0, 110)); }
 async function until(fn, t = 120, ms = 150) { for (let i = 0; i < t; i++) { if (await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }

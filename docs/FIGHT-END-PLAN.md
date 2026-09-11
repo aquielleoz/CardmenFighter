@@ -556,7 +556,7 @@ So the sequence covers roughly **half** the work as it now stands.
 
 ### Triggered abilities: a constraint, NOT a workstream (measured, and confirmed by Aj)
 
-**No card in the game has a triggered ability today.** Measured rather than assumed: only two kinds are ever
+**~~No card in the game has a triggered ability today.~~ FALSE SINCE 2026-09-11** — the equipment counter tick is one (`kind:'tick'`, pushed at Upkeep, respondable, resolved by the dance). The reasoning below still holds for every OTHER trigger shape; only the premise moved. Measured rather than assumed: only two kinds are ever
 pushed to the stack, `effect` and `shieldloss`; equipment counters tick **directly** inside the round reset
 alongside the other round-scoped flags; Holy Shroud's absorb is a direct decrement. Nothing anywhere is a
 trigger.
