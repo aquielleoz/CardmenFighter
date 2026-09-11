@@ -1503,9 +1503,16 @@
      call and this returns with `subPhase` already 'play' — so a caller that just wants to fight is not
      made to know about a window nobody could use. Measured: the active player can cast at their own
      transition on 2.9-4.8% of turns in a duel, so this is the path 19 times in 20. */
-  function moveToPlay(st) {
+  function moveToPlay(st, p) {
     if (st.subPhase === 'play') return { ok: true, state: st, subPhase: 'play' };
     if (st.finished) return { ok: false, reason: 'The game is over.' };
+    /* THE SEAT IS OPTIONAL AND THE GATE IS HERE (epic step 20). `play`/`pass` have already checked the turn
+       by the time they call this, so they pass nothing; the netplay `toFight` intent — a remote seat
+       pressing Fight in its Main Sub-Phase — arrives with no other gate in front of it, and a transition
+       started by the wrong seat would open a go-round whose origin is somebody else's turn. One definition
+       rather than a copy in each of the two host handlers: that split is what let the duel and the N-player
+       paths drift apart over `guard`/`netGuard` and over `discard`/`netDiscard`. */
+    if (p != null && p !== st.turn) return { ok: false, reason: 'Not your turn.' };
     st.toPlay = { origin: st.turn };
     st.prioPassed = {};
     return openResponseWindow(st);
@@ -1594,6 +1601,12 @@
     qp.hand = qp.hand.filter(function (c) { return c.id !== quickCardId; });
     payEnergy(qp, qcard);
     st.stack.push({ oid: newOid(st), kind: 'effect', p: q, card: qcard, eff: qeff, opts: (cOid ? { counterOid: cOid } : {}), countered: false });
+    /* WHO ADDED IT, counted per seat. The UI's auto-pass brake asks "did anything happen while I was
+       passing?" and `oidSeq` alone answers "did anything happen at all" — which includes the passer's OWN
+       cast, and braking on that is backwards: you cast Leyline into the window your pass opened precisely
+       SO the pass is safe, and holding the pass makes the card pointless. Measured in `nettest_guard`: the
+       client passed, sprang Leyline, and its pass silently evaporated. */
+    st.castSeq = st.castSeq || {}; st.castSeq[q] = (st.castSeq[q] || 0) + 1;
     st.prioPassed = {};                                                // a Quick changed the board — everyone gets fresh priority
     st.pending = null; st.respondFor = null;
     var res = openResponseWindow(st);
