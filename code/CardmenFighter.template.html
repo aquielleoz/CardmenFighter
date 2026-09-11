@@ -1730,10 +1730,18 @@ __QR__
   var PROMPT_KEY='cmf_prompts_v1';
   var promptPrefs={}; try{ promptPrefs=JSON.parse(localStorage.getItem(PROMPT_KEY)||'{}')||{}; }catch(e){ promptPrefs={}; }
   function savePromptPrefs(){ try{ localStorage.setItem(PROMPT_KEY, JSON.stringify(promptPrefs)); }catch(e){} }
-  // the timings a Quick can be offered at, in the order they occur in a round
+  /* THE TIMINGS A QUICK CAN BE OFFERED AT. Ordered GENERAL FIRST, not chronologically (Aj, 2026-09-11:
+     *"technique should come before the fight check box"*). The old comment claimed "the order they occur
+     in a round", which was never true of `respond` — a Technique can be cast at many points in a round and
+     has no fixed position, so the chronology was really only ordering the two BOUNDARIES. Answering a cast
+     is the common case and the one a player meets first; the boundaries are the special ones.
+     THIS LIST GROWS TO FIVE at the rest of epic step 20 — the plan's own note is that these three rows
+     "were written from the windows that happened to exist in the code", and Upkeep and Clean-up each add
+     one. Keep it a list the reader renders from, not a closed literal anything else branches on: the store
+     is keyed by `id`, so order here is presentation only and reordering costs nothing. */
   var PROMPT_TIMINGS=[
-    { id:'prefight', label:'Before a fight — yours or a rival\'s' },
     { id:'respond',  label:'When a Technique is cast' },
+    { id:'prefight', label:'Before a fight — yours or a rival\'s' },
     { id:'fightend', label:'When shields are about to break' }
   ];
   // Is this timing even legal for this card? A no-row is not the same as an unchecked row.

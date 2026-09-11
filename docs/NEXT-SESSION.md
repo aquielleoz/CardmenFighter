@@ -128,6 +128,11 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   and its comment says so), so a go-round that lands back on the caster is the anomaly to chase. Start
   there rather than at the energy/shield rigs the entry suggests above; those explain a cast that never
   happens, and this is a cast that happened and offered priority to the wrong seat.
+  **AND THE SECOND CAPTURE IS BYTE-IDENTICAL TO THE FIRST**, which changes what kind of bug this is: two
+  independent reds, hours apart, both `turn=0 pending=true respondFor=1` with the same hand. A timing
+  flake wanders; this lands in ONE specific wrong state every time it lands wrong. Treat it as a
+  deterministic defect reached on a race, not as slowness — and do not raise a poll budget to "fix" it.
+  Running rate on `feat/phase-boundaries`: **2 red in 13 solo**.
 
 - **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
   sweep during epic step 14; not reproduced since). The two failures were `lessonlib`'s shared `finish()`:
@@ -431,6 +436,22 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   already calls `showCard`), or drop the expand outside landscape entirely and make the title honest.
   **Verify by LAYOUT, not by clicking once** — `shortLandscape()` splits the behaviour, so a fix checked
   only on desktop or only on a phone proves nothing about the other.
+
+- **BEFORE SHIP, THE PROMPT CHECKBOXES DEFAULT TO *UNCHECKED*** (Aj, 2026-09-11: *"the checkboxes will be
+  unchecked by default when we finally ship"*). `promptDefault` currently `return true` — every legal
+  timing stops you — and that is a DEVELOPMENT setting, not the shipping experience: it exists so the epic's
+  new windows are visible while they are being built and playtested. Shipping flips it, and the player opts
+  IN per card, per timing, in the card reader.
+  **THIS IS WHY A FOURTH AND FIFTH PRIORITY POINT ARE AFFORDABLE.** Upkeep and Clean-up (still owed by step
+  20) would each add a stop on every round at today's default, which is the main argument against them;
+  defaulted off, they cost nothing a player did not ask for. Decide the default BEFORE measuring how the
+  windows feel, or the measurement is of the dev setting.
+  **THE HALF TO GET RIGHT IS WHAT "OFF" MEANS, AND IT IS ALREADY WRITTEN DOWN**: unchecked must mean *the
+  window still opens and you pass automatically* — never *the card becomes uncastable*. That distinction
+  cost a real bug once (a notification preference deciding legality) and the reader's own footnote states
+  it; a flipped default makes it load-bearing for every card instead of a few.
+  **AND THE SUITES ENCODE TODAY'S DEFAULT** — `prompttest` asserts "the DEFAULTS are today's experience",
+  so flipping it is a product change AND a suite change, in one commit.
 
 ### Tooling
 
