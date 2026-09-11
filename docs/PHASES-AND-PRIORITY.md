@@ -73,10 +73,23 @@ a bug or a gap** — those are tracked in [`NEXT-SESSION.md`](NEXT-SESSION.md)'s
 **The one rule that generates all the others:** *to add to a non-empty stack, or to add at all when it is not
 your turn, the card must be a Quick.* That is why cards need `quick` at all.
 
-**It has exactly one exception, and it is deliberate:** at the **pre-Fight-End window** nothing but a Quick is
-ever legal — even for the active player facing an empty stack, where this rule would otherwise permit a
-Technique. Aj's reason is the timing itself, not the stack: *"this timing is only the transition between
-sub-phases."* Do not try to derive that case from the rule above; it does not follow from it.
+**AND A SECOND RULE SITS BESIDE IT, ABOUT TIMING RATHER THAN THE STACK:**
+
+> **At a transition between sub-phases, only a Quick is ever legal** — whatever the stack holds, and
+> whoever is active.
+
+Aj's reason, given for the pre-Fight-End window: *"this timing is only the transition between sub-phases."*
+It bites where the rule above would otherwise permit more — the **active player facing an empty stack**,
+who by that rule could play a Technique and here cannot.
+
+**⚠ THIS WAS WRITTEN AS "exactly one exception" UNTIL 2026-09-11, AND IT WAS NEVER AN EXCEPTION — IT WAS A
+RULE WITH ONE INSTANCE VISIBLE.** The file named only the pre-Fight-End window and said *"do not try to
+derive that case from the rule above; it does not follow from it"*, which was true and incomplete: it does
+not follow from the STACK rule because it is a separate rule about TRANSITIONS. The second instance
+appeared the moment the pre-fight window was rebuilt — moving to the Play Sub-Phase is a transition too, so
+the same reason applies to it unchanged, and two instances of one reason is not an exception.
+**Both transitions now in the model:** Main → Play (see *the pre-fight window* in §3) and the one before the
+Fight End Sub-Phase. A third will arrive the day a phase boundary does; it needs no new rule.
 
 ## 2. The priority dance
 
@@ -199,11 +212,32 @@ pile stands.
   passed around before the active player may make their shedding play** (a single or a Special). **Every
   player's Quicks are available here.**
   - In paper this is the active player announcing they are about to play.
-  - In the game it triggers when the player **clicks Fight or drags cards into the play area**.
-  - If anyone casts something, **the play is cancelled**, the new effect goes on the stack, and the whole
-    priority dance begins again.
-  - Afterwards, **because information has changed, players may change the play they intended** and fight
-    again.
+  - **⚠ THE INTERACTION WAS REDESIGNED 2026-09-11 AND THE THREE BULLETS BELOW ARE SUPERSEDED.** They read:
+    *"it triggers when the player clicks Fight or drags cards into the play area"*; *"if anyone casts
+    something, **the play is cancelled**"*; and *"afterwards… players may change the play they intended and
+    fight again."* That is sound as RULES and poor as an interface — Aj: *"seems jarring for the player to
+    select cards to fight with and then be stopped because someone decided to cast a quick."*
+  - **THE WINDOW IS A PHASE TRANSITION, NOT AN ANNOUNCED PLAY** (Aj, 2026-09-11, after MTG Arena's
+    move-to-combat button):
+    1. the active player clicks **Fight**, which ONLY moves them from the Main Sub-Phase to the Play
+       Sub-Phase — it plays nothing;
+    2. the active player passes priority;
+    3. the other players pass priority;
+    4. the Play Sub-Phase begins, and only now is a shedding play made.
+    **Nothing is cancelled because nothing was selected** — the cancellation rule existed only to undo an
+    announcement that no longer happens. The old reason it was needed is still worth knowing: a shedding
+    play is **not an effect**, so it never goes on The Stack (§1) and there is nothing for responses to
+    resolve above; an announced fight has no state anywhere, which is why it could never simply "wait".
+  - **AUTO-ADVANCE WHEN NOBODY CAN ACT** (Aj's call). Measured: the active player can cast at their own
+    transition on **2.9% of turns with the full set and 4.8% as Pure Wizard at 2 players — 0.4 and 0.7
+    prompts per GAME** (16.5% / 4.1 per game at 6p). A step the player meets twice in five duels must not
+    cost a click on every turn; the engine already auto-passes a seat that cannot act (`canAddToStack`) and
+    this is the same principle applied to the transition.
+  - **THE SUB-PHASE DECIDES WHAT A GESTURE MEANS** (Aj, 2026-09-11). In the **Main Sub-Phase**, dragging a
+    card to the play area **activates** it — including the cards that need choices, so it is also how
+    targeting (confirm-first: stage into `targetPick.chosen`, then the context button) and the Phantasmal
+    Illusion picker are entered. In the **Play Sub-Phase**, dragging plays the card as the shedding play.
+    One gesture, two meanings, chosen by the phase — which is why the sub-phase must live on STATE.
 
 - **Play Sub-Phase.** The active player plays a fight card or passes. Playing or passing ends the turn.
 
