@@ -50,8 +50,11 @@ the silent ones.
 including 18 a revert is `git revert`, and after 19 it is a rebuild. That is the real reason to get a
 second solo game first. Read step 19 in [`FIGHT-END-PLAN.md`](FIGHT-END-PLAN.md), which carries step 4's
 deferred sites and step 10's refactor as well as its own DELETE table.
-**AND READ 20b, WHICH IS NEW** — priority at Upkeep and Clean-up. Aj's ruling after finding the prompt
-rows incomplete; the model passes priority at five points and the engine implements three.
+**AND READ SECTION G, WHICH WAS REWRITTEN 2026-09-11** — steps 20 and 20b are now ONE step, because they
+were the same job wearing two numbers. The engine runs **three parallel priority mechanisms** (the pre-fight
+window is a second implementation with its own state and verbs, not a narrow version of the dance) and has
+**no phase structure at all**. Aj: *"it was hidden under all the obfuscation of doing band aids instead of
+getting to the core of the priority dance."* The castability rule is also spelled out five separate times.
 
 **WHAT TO WATCH FOR IN A SOLO GAME: frequency, not correctness.** Measured on his game — the go-round
 opened in **2 of 10 rounds**, because it only opens when someone holds a castable Quick. Both prompts were
@@ -395,6 +398,26 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Features
 
+- **THE RESPOND WINDOW OFFERS DUPLICATE BUTTONS FOR INTERCHANGEABLE COPIES** (Aj, 2026-09-11, screenshot).
+  Holding TWO Counter Spells against two legal targets renders **four** buttons, of which two pairs are the
+  same play — which physical copy leaves your hand changes nothing. The loop in `promptHumanResponse` is
+  `eligible.forEach(card) × ctgts.forEach(target)`, i.e. one button per card INSTANCE.
+  **This is `enumerateCombos`' rule applied to a different list** — *"emits one representative per shape and
+  top value… enumerating them all floods the legal-play list with identical offers."* Dedupe on
+  **`(effect id, target oid)`**, not on card id: two DIFFERENT countering cards must still both appear.
+  Small, no design decision in it, and independent of the redesign below. Note the same loop feeds the
+  non-counter branch, so a player holding two Leylines gets two identical buttons there too — unverified,
+  but it follows from the same line.
+
+- **★ A STACK VISUALISER, AND IT BELONGS WITH THE ENTRY BELOW** (Aj, 2026-09-11: *"not elegant but it works
+  haha i think we need to overhaul this with a stack visualizer in the future"*). The priority window
+  currently DESCRIBES the stack in prose on a button — *"counter Holy Bow (Adell)"* — when the stack is the
+  one piece of state a player most needs to see laid out, and the epic makes it deeper than it has ever
+  been (holding priority stacks several Quicks; §2's worked example runs six grants over two objects).
+  **Same move as the entry below**: stop narrating the board in a modal when the board can be shown. Do the
+  two together — a visualiser plus in-hand highlighting IS the replacement for the modal, and shipping one
+  without the other leaves the prose half in place.
+
 - **★ REPLACE THE PER-CARD PRIORITY MODAL WITH "PAUSE AND HIGHLIGHT THE CASTABLE QUICKS IN HAND"** (Aj,
   2026-09-10, and **explicitly postponed until the epic is done**: *"can we redesign? instead of having a
   modal for each card... can we just like pause the game and highlight the castable quicks? change of
@@ -409,7 +432,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   pass. The engine side is already there — `E.canCastQuick` is the per-card predicate and the window's
   offer list is exactly the cards it admits, so this is a presentation change and not a rules one.
   **DO NOT START IT INSIDE THE EPIC.** It touches `promptHumanResponse`, `promptHumanPreFight` and
-  `promptHostPreFight`, all three of which epic steps 20 and 20b are still rewriting; landing a new
+  `promptHostPreFight`, all three of which epic step 20 is still rewriting; landing a new
   presentation under them would make both changes harder to reason about and impossible to revert
   separately.
 
