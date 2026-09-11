@@ -152,7 +152,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
        the Save button's HEIGHT at three viewports and never clicked it, and the log it produced was the
        single line "[object PointerEvent]" for fifteen versions. */
     const led = await p.evaluate(() => window.__solo.prioLog());
-    ok(led.some(l => /a GO-ROUND opened before it/.test(l) && /priority→/.test(l)) && led.some(l => /\[fight-end\] window SHOWN to you/.test(l) && /Sanctuary/.test(l)),
+    ok(led.some(l => /a GO-ROUND opened before it/.test(l) && /priority→/.test(l)) && led.some(l => /\[resolution\] window SHOWN to you/.test(l) && /Sanctuary/.test(l)),
        'A · the saved-log ledger records the go-round and the offer' +
        (led.length ? '  [' + led.slice(0, 2).join(' // ').slice(0, 130) + ']' : '  ← the ledger is EMPTY'));
     ok(!out.finished && !out.elim,

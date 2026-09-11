@@ -8723,7 +8723,7 @@ window.CardFace = {};
      In the Fight Sub-Phase it plays what is selected, exactly as it always did, under the label `Play`. */
   function doFightBody(g){
     if(state.subPhase === 'play') return playCards(selectedCards());
-    moveToPlayThen(g, function(){ if(g===gen) render(); });   // arrived in the Fight Sub-Phase — the player plays next
+    moveToPlayThen(g, function(){ if(g===gen) render(); }, null, null, 'Next');   // arrived in the Fight Sub-Phase — the player plays next
   }
   function doPass(){
     if(peeking||busy||pick||targeting||targetPick) return;
@@ -8745,7 +8745,7 @@ window.CardFace = {};
     moveToPlayThen(g, doPassBody, function(){
       setMessage('Someone answered — your pass is on hold. Press <b>Pass</b> again to sit the round out.');
       render();
-    });
+    }, null, 'Pass');
   }
   function doPassBody(){
     var r=E.pass(state, YOU);
@@ -9449,7 +9449,11 @@ window.CardFace = {};
        completely different bugs — the second is what hid Sanctuary. Recorded with the CARD NAMES so a
        saved log answers "should I have been offered this?" without a repro. */
     var feNames=function(list){ return list.map(function(c){ var e=E.effectFor?E.effectFor(state, YOU, c):E.effectOf(c); return (e&&e.name)||c.id; }).join(', '); };
-    var tName = promptTiming==='fightend' ? 'fight-end' : (promptTiming==='prefight' ? 'pre-fight' : 'respond');
+    /* THE LEDGER PRINTS THE CURRENT VOCABULARY (Aj, 2026-09-11: *"rename it to main→fight in the ledger"*).
+       The TIMING KEY stays `'prefight'` — it is a stored preference id in `localStorage` and travels with the
+       rest of the code rename at step 23 — but this is the string a human READS in a saved log, so it is docs
+       -side, not code-side, and the docs were renamed today. Same reasoning for `fight-end` → `resolution`. */
+    var tName = promptTiming==='fightend' ? 'resolution' : (promptTiming==='prefight' ? 'main→fight' : 'respond');
     var onWhat = pend ? ('  vs ' + rivalName) : '';
     if(quicks.length) prioNote('['+tName+'] window SHOWN to you' + onWhat, 'offering: ' + feNames(eligible) + (eligible.length>quicks.length ? '  (stopped by: ' + feNames(quicks) + ')' : ''));
     else if(eligible.length) prioNote('['+tName+'] AUTO-PASSED for you — PROMPT OFF' + onWhat, 'you could have cast: ' + feNames(eligible) + '  (card reader → “Ask me to respond…”)');
@@ -9618,7 +9622,7 @@ window.CardFace = {};
      funnel for a REMOTE seat's play or pass (`hostApplyMoveN`). The brake subtracts the ACTOR's own casts,
      so passing the wrong seat would measure the host's casts against a client's pass and brake on exactly
      the wrong events. Defaults to YOU, which is right for solo and for the host's own turn. */
-  function moveToPlayThen(g, proceed, stopIfActed, actor){
+  function moveToPlayThen(g, proceed, stopIfActed, actor, via){
     var me=(actor==null?YOU:actor), mark=stackMark(state, me);
     E.moveToPlay(state);
     /* THE TRANSITION GOES IN THE LEDGER, INCLUDING WHEN IT DOES NOTHING (2026-09-11). Aj's 10-round log
@@ -9628,7 +9632,12 @@ window.CardFace = {};
        a window opened) reappearing one level up, because step 20 added a priority point and no line with
        it. The auto-advance is the case worth logging: it is 19 turns in 20, and its absence is exactly
        what an unreachable transition would look like. */
-    prioNote('MAIN → FIGHT', state.respondFor != null
+    /* AND IT RECORDS WHICH PRESS OPENED IT (Aj, 2026-09-11: *"can't remember if it was offered when i
+       pressed the next button tho..."*). Pressing Next plays nothing, so the BATTLE log has no line for it —
+       this ledger entry is the only record that the transition happened at all, and without the trigger the
+       reader still cannot tell a Next from a Pass. Both reach this funnel. */
+    var viaTxt = '  [' + (via || 'Next') + ']';
+    prioNote('MAIN → FIGHT' + viaTxt, state.respondFor != null
       ? ('go-round opened  origin=' + logName(me) + '  priority→' + logName(state.respondFor))
       : ('auto-advanced — nobody could add to the stack  (origin=' + logName(me) + ')'));
     if(state.respondFor == null) return proceed();
@@ -13348,7 +13357,7 @@ window.CardFace = {};
           netParked=null;
           if(lr && (lr.roundWinner!=null || lr.fightEnd || lr.fizzled)) return hostResolveWin(lr, g, function(fr){ hostSettleRoundThenCeremony(fr, g); });
           driveN();
-        }, null, seat);
+        }, null, seat, 'Next');
       }
       // A fight or a pass first opens the pre-fight (Back Stab) window for the next seat; only then does it resolve.
       if(it.op==='play' || it.op==='pass'){
@@ -13372,7 +13381,7 @@ window.CardFace = {};
           netParked=null;
           if(r && (r.roundWinner!=null || r.fightEnd || r.fizzled)){ return hostResolveWin(r, g, function(fr){ hostSettleRoundThenCeremony(fr, g); }); }   // step 18: a round win may arrive as an OPEN go-round
           driveN();
-        }, (it.op==='pass' ? function(){ broadcastMirror(); } : null), seat);
+        }, (it.op==='pass' ? function(){ broadcastMirror(); } : null), seat, (it.op==='pass' ? 'Pass' : 'Next'));
       }
       var r;
       try{
