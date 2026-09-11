@@ -102,7 +102,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Correctness
 
-- **`lessontest_quicks` IS RED ~25% OF THE TIME AT `-j 4`, AND NEVER SERIALLY — MEASURED 2026-09-10.**
+- **`lessontest_quicks` IS RED ~25% OF THE TIME AT `-j 4`, AND ~1 IN 9 SERIALLY — MEASURED 2026-09-10/11.**
   Eleven runs across one day, on three different builds: **2 red in 8 at four lanes, 0 red in 3 at `-j 1`.**
   One of the reds was on `epic/priority-windows` before any of that day's prompt work, so it **predates**
   the Resolution changes and is not caused by them.
@@ -115,6 +115,19 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   **NOT the same failure as the entry below**, whose signature is the two completion assertions with
   everything before them PASSING — that one points at a last `next()`, this one at a mid-lesson stall.
   They may still share a cause; do not assume either way.
+  **IT DOES REPRODUCE SERIALLY — "never serially" above is now known to be false** (2026-09-11). Measured
+  solo on `feat/phase-boundaries`: **1 red in 9**, byte-identical signature (`PASS: 10  FAIL: 11`, opening
+  on the same poll). The epic baseline `dfc0808` was **0 red in 6** solo in a throwaway worktree, which at
+  these sample sizes is the SAME rate — so this neither establishes a regression from epic step 20 nor
+  clears one. The useful half is that the earlier "0 red in 3 at `-j 1`" was simply too small a sample to
+  say what it said.
+  **AND THERE IS A CONCRETE SIGNATURE NOW, which is the thing this entry was asking for.** The suite's own
+  `WHY` line on a red run reads `turn=0 pending=true respondFor=1`: at round-1 start, with the Rival's
+  Technique on the stack, the response window is open for **seat 1 — the caster's own seat** — instead of
+  for you. `openResponseWindow` deliberately SKIPS the controller (that is what "holding priority" means,
+  and its comment says so), so a go-round that lands back on the caster is the anomaly to chase. Start
+  there rather than at the energy/shield rigs the entry suggests above; those explain a cast that never
+  happens, and this is a cast that happened and offered priority to the wrong seat.
 
 - **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
   sweep during epic step 14; not reproduced since). The two failures were `lessonlib`'s shared `finish()`:
@@ -362,6 +375,25 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
     step if it moves at all.
   **Both need `opts.pitch` BACK in the engine**, which is the thing that was deleted — and each of them is the
   exercise it lacked.
+
+- **CLICKING A FORM/RIDE CHIP OPENS THE READER AND CAN NEVER EXPAND THE ZONE** (Aj, 2026-09-11, playing the
+  build: *"clicking the jack does not expand it. it directly goes to the card viewer"*). The collapsed
+  Forms & Rides strip carries a click handler that sets `formsOpen` — but only outside the short-landscape
+  band — while EVERY CHIP inside it carries its own handler that calls `readCard` and `stopPropagation()`.
+  The chips fill the strip, so the only surface left for the expand is the sliver of padding around them,
+  and with one Form in the zone there is effectively none.
+  **THE STRIP ITSELF PROMISES THE THING IT CANNOT DO**: its `title` is set to *"Tap to expand"* in exactly
+  the layouts where the chip swallows the click, and *"Tap a card to read it"* in the landscape band where
+  refusing to expand is deliberate (v1.31.111 — `#table` is 87px at 800x360 and two expanded zones need
+  112px, so expanding there could only re-create the overlap that version removed).
+  **This is a collision between two correct decisions, not a stray line.** The per-chip read path was added
+  FOR the landscape band, where it is the only way to read a Form; `stopPropagation` was added so a chip
+  would not also toggle the strip "in the layouts that do expand" — and the two together mean those layouts
+  can no longer be expanded at all. Whoever picks this up should decide what the chip means per layout
+  rather than delete either half: plausibly, tap-to-expand and a separate affordance to read (the hover
+  already calls `showCard`), or drop the expand outside landscape entirely and make the title honest.
+  **Verify by LAYOUT, not by clicking once** — `shortLandscape()` splits the behaviour, so a fix checked
+  only on desktop or only on a phone proves nothing about the other.
 
 ### Tooling
 
