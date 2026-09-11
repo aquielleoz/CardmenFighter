@@ -1306,7 +1306,7 @@ to be so fragmented in how it approached the quicks."* Counted:
 | `preFightCast` (engine ~1322) | `impl && quick`, plus its own `canAfford` |
 | **`canCastQuick` (engine ~1367)** | the canonical one — `impl && quick && canAfford && hasTarget` |
 | `respond` (engine ~1546) | `impl && quick`, plus its own `canAfford`, plus its own target check |
-| `promptLegal` (template ~1741) | `impl && quick` — decides which reader rows exist |
+| ~~`promptLegal` (template)~~ | **NOT a fifth copy — corrected 2026-09-11.** It asks *"does this card have this timing AT ALL"*, a STATIC property for rendering the reader's rows. It must never become "castable right now", or a card with no legal target this instant would lose its checkboxes. Four askers, not five; it shares two clauses and answers a different question. |
 
 §1 states the rule ONCE. **`respond` is the authority and it does not call the predicate** — the target
 check was added to it separately on 2026-09-10, in the same commit as a comment reading *"one predicate,

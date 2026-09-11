@@ -1355,12 +1355,28 @@
     if (eff.kind === 'lockout') return hostileTargets(st, q, nextPlayer(st, q), 'lockout', eff);
     return null;
   }
-  function canCastQuick(st, q, card) {
-    var qp = st.players[q], e = effectFor(st, q, card);                        // effectFor: a Form can make a card Quick
-    if (!e || !e.impl || !e.quick || !canAfford(qp, card)) return false;
+  /* ONE SPELLING OF "MAY q CAST THIS CARD RIGHT NOW", AND EVERY ASKER CALLS IT (2026-09-11).
+     `PHASES-AND-PRIORITY.md` §1 states the rule ONCE — *to add to a non-empty stack, or to add at all when
+     it is not your turn, the card must be a Quick* — and the code spelled it out FIVE times:
+     `preFightHolder`, `preFightCast`, `canCastQuick`, `respond` and the template's `promptLegal`. Aj,
+     2026-09-11: *"i thought we kept celebrating having a unified rule only for the design and
+     implementation to be so fragmented in how it approached the quicks."*
+     **`respond` IS THE AUTHORITY AND IT DID NOT CALL THE PREDICATE** — the targeting check was added to it
+     separately the day before, in the same commit as a comment reading "one predicate, called — not
+     restated". That is how five copies happen.
+     IT RETURNS A REASON, NOT A BOOLEAN, because that is what the authority needs and a boolean cannot be
+     widened into one later without a second function appearing beside it. `canCastQuick` is the boolean,
+     derived — never the other way round. */
+  function castRefusal(st, q, card) {
+    var qp = st.players[q], e = card && effectFor(st, q, card);                // effectFor: a Form can make a card Quick
+    if (!e || !e.impl) return 'That card has no effect to cast.';
+    if (!e.quick) return 'That is not a Quick.';
+    if (!canAfford(qp, card)) return 'Not enough Fighter Energy (need ' + costHint(card) + ').';
     var t = quickTargets(st, q, e);
-    return t === null || t.length > 0;
+    if (t !== null && !t.length) return 'No legal target for ' + (e.name || 'that Quick') + '.';
+    return null;
   }
+  function canCastQuick(st, q, card) { return !castRefusal(st, q, card); }
   function canAddToStack(st, q) {
     var qp = st.players[q];
     return qp.hand.some(function (c) { return canCastQuick(st, q, c); });
@@ -1540,14 +1556,12 @@
     var qcard = qp.hand.filter(function (c) { return c.id === quickCardId; })[0];
     if (!qcard) return { ok: false, reason: "You don't hold that card." };
     var qeff = effectFor(st, q, qcard);                // effectFor: honor a Form that made this card Quick
-    if (!qeff || !qeff.impl || !qeff.quick) return { ok: false, reason: 'That is not a Quick.' };
-    if (!canAfford(qp, qcard)) return { ok: false, reason: 'Not enough Fighter Energy of the right suit.' };
-    /* AND NO LEGAL TARGET MEANS NO CAST — the refusal has to be REAL, not merely hidden from the UI. Before
-       this, `respond` accepted a Counter Spell into an empty stack and charged for it; a check that only
-       lived in `canAddToStack` would leave that reachable over the wire, where a client sends a card id.
-       `quickTargets` returns null for the four Quicks that do not target, so they are unaffected. */
-    var qTgt = quickTargets(st, q, qeff);
-    if (qTgt !== null && !qTgt.length) return { ok: false, reason: 'No legal target for ' + (qeff.name || 'that Quick') + '.' };
+    /* THE AUTHORITY CALLS THE PREDICATE (2026-09-11). These four tests — impl, quick, affordable, has a
+       legal target — were spelled out here and the refusal has to be REAL rather than merely hidden from
+       the UI: a client sends a card id, so a check living only in `canAddToStack` is reachable over the
+       wire. `castRefusal` is that same list, in one place, and it hands back the reason. */
+    var qBad = castRefusal(st, q, qcard);
+    if (qBad) return { ok: false, reason: qBad };
     /* VALIDATE THE TARGET BEFORE SPENDING ANYTHING. This block sat AFTER the hand and energy were taken, so
        a refused cast still cost the card — caught by the "nothing is spent on the refusal" assertion, which
        is exactly why that assertion is separate from the "was it refused" one. Names in, engine resolves;
@@ -2530,7 +2544,7 @@
     effectTarget: effectTarget,   // who a pending effect is aimed at — the UI needs it to say so out loud
     HOSTILE_SINGLE: HOSTILE_SINGLE,
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
-    canAddToStack: canAddToStack, canCastQuick: canCastQuick, quickTargets: quickTargets, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
+    canAddToStack: canAddToStack, canCastQuick: canCastQuick, castRefusal: castRefusal, quickTargets: quickTargets, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
     openFightEndWindow: openFightEndWindow,   // step 11: built and tested here, made live by step 18
     /* RENAMED FROM `guardEffFor` (epic step 16), and the rename is the point rather than tidying. As
        `guardEffFor` it was the WHITELIST GATE — the answer to "may this card be offered at the shield-guard

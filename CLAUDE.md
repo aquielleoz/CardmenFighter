@@ -1368,6 +1368,12 @@ capability gate wearing a notification's clothes. Aj: *"players can really look 
 decide which effects to activate. legal mind you at the timing it's being asked at."* Now every window
 renders the ENGINE's eligibility (`eligibleQuicks` / `eligiblePreFightQuicks`) and the preference decides
 only whether you are interrupted; an empty preference result is an auto-pass, as before.
+**AND "FIVE SPELLINGS" WAS FOUR — corrected 2026-09-11 by reading the fifth.** `promptLegal` asks *"does
+this card have this timing at all"*, a STATIC property that renders the card reader's rows; it must never
+become "castable right now" or a card with no target this instant loses its checkboxes. It shares two
+clauses with the predicate and answers a different question. **Count the askers by the QUESTION, not by the
+clauses that look alike.**
+
 **THREE CALLERS, AND THE THIRD IS THE ONE A CAREFUL FIX MISSES** — `promptHumanResponse`,
 `promptHumanPreFight`, and **`promptHostPreFight`**, the netplay host's own seat, which lives 3,700 lines
 away in the NET IIFE. `grep -n 'promptedQuicks('` is the enumeration; this is v1.31.116's "a fix wired in
