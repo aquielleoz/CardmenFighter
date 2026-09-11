@@ -144,6 +144,19 @@ page threw** while `test.js` stayed 333/0 (it never loads the page) and I report
 deleting anything from the template, `grep -i` the removed name and run at least one **UI** suite — `mptest` is
 the cheapest, and it failed on its third assertion.
 
+**AND A DELETED FUNCTION LEFT IN AN EXPORT LITERAL KILLS THE WHOLE PAGE (2026-09-11).** `hostPreFight` was
+deleted at epic step 20 and `hostPreFight:hostPreFight` stayed in the NET module's return object — a
+`ReferenceError` while that object is BUILT, so the IIFE never finishes, `window.__cmf` is never defined,
+and every netplay suite fails on staging with `Cannot read properties of undefined`. The build printed its
+byte count happily: this is the deletion case the parse check cannot see, in the one place greps miss,
+because those literals are single lines 300 characters wide.
+**`grep -n 'name:name'` AFTER DELETING ANY FUNCTION** — the export objects (`NET`'s return, `__cmf`,
+`__solo`, `API` in engine.js) all use the shorthand-looking `x:x` form, so the deleted name appears twice
+on one line and reads as a definition.
+**AND THE CANARY IS A UI SUITE, RUN BEFORE THE SWEEP, NOT AFTER.** `node test.js` is engine-only and stayed
+447/0 throughout; `mptest` finds it in 20 seconds. This file already says to run one after deleting from
+the template — the mistake was sweeping first and reading 3 red netplay suites as three problems.
+
 **AND A RENAME IS A DELETION WEARING A FRIENDLIER FACE (2026-09-10).** `guardEffFor` → `immunityEffFor`
 was applied to `engine.js`, `ai.js` and the template — the three files the symbol is *implemented and
 consumed* in — and the SUITES were forgotten. `shadowtest` calls `E.guardEffFor` directly and died on
@@ -1910,6 +1923,22 @@ copy the summary line from an existing one — do not re-invent it.**
   the v1.31.9 `waitTurnEnds` bug in its general form. Every one of the 27 helpers now prints
   `⏱ poll TIMED OUT: <condition source>`. **Never assert on the other peer's state after a fixed `wait(n)`** —
   poll it (`nettest_rtc`, `nettest_energy` both did, and were fixed).
+
+**A PHASE TRANSITION IS NOT AN ILLEGAL MOVE, AND THE HOST MUST NOT SAY IT IS (epic step 20).** `E.play`
+and `E.pass` open the Main → Play go-round when the seat is still in the Main Sub-Phase and return
+`{ok:false, transition:'play'}` while anyone can still act. Both host intent handlers treated any
+`ok===false` as illegal and replied *"Illegal move."* to the client — so a remote pass was rejected, the
+round never turned over, and the table wedged. `nettest_guard` measured it as round 2 → 2.
+**THE SHAPE TO WATCH FOR: a refusal that means "not yet" rather than "never".** Both handlers now settle
+the window (`hostSettle` / `hostSettleN`, which park for a remote seat) and RE-APPLY the intent the client
+already sent. Any future not-yet refusal needs the same, and a bare `if (r.ok === false)` is where it will
+be missed.
+
+**READ A CONDITION BEFORE THE THING THAT CHANGES IT (2026-09-11).** `settleWindows` narrates an AI's answer,
+and the new timing-aware wording tested `!state.pending` — computed AFTER `respondDecision` had already put
+the answer ON the stack, so `pending` was always set and the transition never got its own sentence. Same
+shape as the simultaneous-kicks rule ("was this player already broken?" must be sampled for every target
+before any strip lands). If a line describes an event, sample its inputs before the event.
 
 **A CLIENT-SIDE GATE IS NOT THE GATE.** `sendEmote`'s 1.2s cooldown is a courtesy; `hostEmote`'s per-seat one
 is the real check, because a client controls its own clock. Driving the UI only ever exercises the courtesy

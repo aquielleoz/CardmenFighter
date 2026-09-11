@@ -68,7 +68,7 @@ async function freshGame(p) {
       counterFightEnd: q(C(4, 'D'), 'fightend'),  // …and NOW at Fight End too — see the assertion below
       leylineFightEnd: q(C(9, 'D'), 'fightend'),  // Leyline guards, so it always spoke here
       leylineRespond:  q(C(9, 'D'), 'respond'),
-      counterPrefight: q(C(4, 'D'), 'prefight'),  // not a lockout Quick — the timing is not even legal
+      counterPrefight: q(C(4, 'D'), 'prefight'),  // legal since step 20 — see the assertion below
     };
   });
 
@@ -92,7 +92,15 @@ async function freshGame(p) {
   ok(D.counterFightEnd === true,
      'default: EVERY legal timing prompts — Counter Spell now speaks at Fight End too' +
      (D.counterFightEnd === true ? '' : '  ← the default is filtered again; grep promptDefault for a predicate it should not be consulting'));
-  ok(D.counterPrefight === false, 'a timing that is not legal for the card is never wanted (Counter Spell pre-fight)');
+  /* THIS REQUIRED `false` UNTIL EPIC STEP 20, AND THE REVERSAL IS THE POINT. `promptLegal` gated the
+     pre-fight row to `kind==='lockout'`, so Counter Spell had no such timing — matching an engine that
+     offered that window to one seat and only for Back Stab. `PHASES-AND-PRIORITY.md` §3 says verbatim
+     *"Every player's Quicks are available here"*, and step 20 made the code agree: the transition is an
+     ordinary priority window, so EVERY Quick has all three timings. Recorded rather than flipped, because
+     a reversed assertion with no reason reads as a test bent to fit. */
+  ok(D.counterPrefight === true,
+     'EVERY Quick now has the pre-fight timing — the `lockout` gate is gone (step 20)' +
+     (D.counterPrefight === true ? '' : '  ← still gated; grep promptLegal for a `kind` test that should not be there'));
 
   /* ---- 2 · THE READER RENDERS THE ROWS, and only for Quicks. `promptLegal` decides which rows exist, so a
      card with no legal timing must show no block at all rather than an empty one. */
@@ -108,8 +116,9 @@ async function freshGame(p) {
       note: /never changes the rules/.test(quick),
     };
   });
-  ok(R.quickHasHead && R.quickRows === 2,
-     'the reader offers the legal timings for a Quick (' + R.quickRows + ' rows: respond + fightend)');
+  ok(R.quickHasHead && R.quickRows === 3,
+     'the reader offers the legal timings for a Quick (' + R.quickRows + ' rows: pre-fight + respond + fightend)' +
+     (R.quickRows === 3 ? '' : '  ← ' + R.quickRows + '; before step 20 a non-lockout Quick had only two'));
   ok(!R.plainHasBlock, 'a non-Quick gets no block at all — a timing it can never be cast at is not a choice');
   ok(R.note, 'the reader says out loud that unchecked never changes the rules — it is a notification layer');
 

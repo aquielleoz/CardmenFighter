@@ -785,6 +785,15 @@
        INERT TODAY: nothing mints an objectless window until step 18, so this branch cannot be reached in a
        real game — proven by the seeded fingerprint, not asserted. */
     if (!eff) {
+      /* TWO OBJECTLESS WINDOWS NOW, AND THEY ARE DIFFERENT DECISIONS (epic step 20). Until this step the
+         only window with no object was Fight End; the Main → Play transition is the second. `st.toPlay`
+         and `st.fightEnd` say which, and answering one with the other's policy would be silent: both look
+         like "no pending effect" from here. */
+      if (st.toPlay) {
+        var bs = transitionQuick(st, q);
+        if (bs) { var br = E.respond(st, q, bs.id); if (br && br.ok) return br; }
+        return E.declineResponse(st, q);
+      }
       var guardC = fightEndGuardCard(st, q);
       if (guardC) { var gr = E.respond(st, q, guardC.id); if (gr && gr.ok) return gr; }
       return E.declineResponse(st, q);
@@ -888,6 +897,20 @@
   // Should the NON-active player q spring Back Stab before the active player fights? Deny an opening
   // LEAD: if the active player is about to lead (no pile) and we hold a combo to capitalize, lock them —
   // they skip, we seize the initiative and lead our own Special next.
+  /* P8, DISCHARGED (epic step 20). The ONLY pre-fight AI policy lived inline in `takeTurn`, reachable
+     through `openPreFight`; deleting that model without porting this would have killed Back Stab outright,
+     which is what the premise check flagged as P8. It is the same policy — `aiPreFightLock` below is
+     untouched — reached through the window that exists now.
+     THE ACTIVE PLAYER IS EXCLUDED, and that is new rather than inherited: the old window was only ever
+     offered to `nextPlayer(st, st.turn)`, so "am I the one about to fight?" could not arise. It can now —
+     the go-round starts AT the active player — and Back Stab locks a RIVAL, so the active player springing
+     it would be locking someone out of a turn that is not happening yet. */
+  function transitionQuick(st, q) {
+    if (q === st.turn) return null;
+    var diff = (st._diff && st._diff[q]) || 'fighter';
+    if (!aiPreFightLock(st, q, st.turn, diff)) return null;
+    return lockoutQuick(st, q);
+  }
   function aiPreFightLock(st, q, activeP, diff) {
     if (diff === 'minion' || diff === 'recruit') return false;   // Recruit doesn't spring Back Stab
     if (!effectsAllowed(st, q)) return false;          // analysis: pure-fighter never springs Back Stab
@@ -933,20 +956,18 @@
     playPhase(st, p, log, diff, humans);
     if (st.discardPending) return log;                       // a human must choose discards — suspend
     if (st.respondFor != null) return log;                   // P6: suspended awaiting a response, objectless or not
-    // Phase 2 — non-active pre-fight window: the opponent may spring a proactive Quick (Back Stab) before we fight.
-    var pf = E.openPreFight(st);
-    if (pf.preFightPending) {
-      var qq = pf.q;
-      if (isHuman(humans, qq)) return log;                   // the human (non-active) decides via the UI — suspend
-      if (aiPreFightLock(st, qq, p, diff)) {
-        var bs = lockoutQuick(st, qq);
-        var card = { rank: bs.rank, suit: bs.suit, id: bs.id };
-        var pr = E.preFightCast(st, qq, bs.id, {});
-        if (pr && pr.ok !== false) {
-          log.push({ preFight: 'lock', by: qq, card: card });
-          if (pr.pending) { resolveAIWindows(st, humans, log); if (st.respondFor != null && isHuman(humans, st.respondFor)) return log; }
-        }
-      } else { E.preFightPass(st, qq); }
+    /* MOVE TO THE PLAY SUB-PHASE (epic step 20). This was a bespoke block driving `openPreFight` /
+       `preFightCast` / `preFightPass` — a second priority model with its own verbs. It is the ordinary
+       go-round now: open the transition, let `resolveAIWindows` drain whatever AI seats hold priority,
+       and suspend if a human owes an answer. `moveToPlay` auto-advances when nobody can act, so on most
+       turns `respondFor` is still null on the next line and nothing else happens. */
+    E.moveToPlay(st);
+    if (st.respondFor != null) {
+      resolveAIWindows(st, humans, log);
+      if (st.respondFor != null && isHuman(humans, st.respondFor)) return log;   // a human holds priority — suspend
+      /* THE SAME REASON AS THE FIGHT END DRAIN ABOVE: answering a window can end the round (a Quick that
+         resolves, a lock that forces a skip), and carrying on to fight as `p` then throws "Not your turn". */
+      if (st.finished || st.turn !== p) return log;
     }
     if (E.isLocked(st, p)) {                                  // a Back Stab just locked us — our fight is a forced skip
       var lr2 = E.pass(st, p);
@@ -982,12 +1003,11 @@
     // hand-limit trim happens once at the round's Clean-up (engine finishRoundWin / UI resolveRoundCeremony), not per turn
   }
 
-  // Drive the NON-active player q's pre-fight decision from the UI (the engine window is already open).
-  function preFightMove(st, q, activeP, diff) {
-    observe(st);
-    if (aiPreFightLock(st, q, activeP, diff)) { var bs = lockoutQuick(st, q); if (bs) return { cast: bs.id, card: { rank: bs.rank, suit: bs.suit, id: bs.id } }; }
-    return { pass: true };
-  }
+  /* `preFightMove` WAS HERE AND IS DELETED (epic step 20). It drove the NON-active player's pre-fight
+     decision from the UI, for a window the UI no longer owns: the transition is an ordinary priority
+     window and `respondDecision` answers it, via `transitionQuick`, for whatever seat holds priority.
+     Its one caller (`rivalPreFightThen` in the template) went with the same model. */
+
   /* `shieldGuardWants` is exported for PASSO in the template (epic step 13) — one definition of the guard
      policy, so the bot holding a dropped seat defends on exactly the terms an AI seat would.
      NOTE THE SHAPE OF THIS LITERAL: it is a handful of very long lines, so a trailing `//` note added
@@ -995,7 +1015,7 @@
      silently removed `preFightMove`, `lockoutWorth` and six others, and `test.js` died on the first of
      them. Notes go ABOVE the literal; entries go in it. */
   var API = { THREAT_KIND: THREAT_KIND, BENIGN_KIND: BENIGN_KIND,   // exported so test.js can require every effect kind to be CLASSIFIED
-    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, fightEndGuardCard: fightEndGuardCard, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
+    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, fightEndGuardCard: fightEndGuardCard, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
     lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;

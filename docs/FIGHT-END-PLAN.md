@@ -1340,11 +1340,48 @@ game), 8.5% at 4p, 10.5% at 6p (~22 per game over 28 rounds)**. The first estima
 instead of affordable casts and reported ~37 per duel, which then drove a scheduling recommendation that
 had to be withdrawn. **Count what prompts, not what exists.**
 
+> **✅ SLICE 1 (#211) AND SLICE 2 BUILT 2026-09-11.** Landing in slices because a thousand-line change that
+> reddens the sweep is unbisectable — the MODEL is not sliced, only the landing.
+> - **Slice 1 — one castability predicate.** `castRefusal(st,q,card) -> null|reason`, `canCastQuick`
+>   derived from it, and `respond` (the authority) finally CALLING it. Inert, and proven so: fingerprint
+>   `a35cb2b` either side. Also corrected the count from five spellings to FOUR — `promptLegal` asks a
+>   static question ("does this card have this timing at all") and must never become "castable right now",
+>   or a card with no target this instant loses its reader rows.
+> - **Slice 2 — the pre-fight window becomes the dance.** `preFightQ`/`preFightHandled`/`openPreFight`/
+>   `preFightHolder`/`preFightCast`/`preFightPass` deleted with `eligiblePreFightQuicks`,
+>   `promptHumanPreFight`, `humanSpringsPreFight`, `rivalPreFightThen`, `hostPreFight`,
+>   `promptHostPreFight`, `AI.preFightMove` and the `prefight`/`prefightPass` wire ops. `st.subPhase` +
+>   `moveToPlay` + **`phaseWalk`**, one walk shared by both empty-stack boundaries.
+>   **QUICKS-ONLY CAME FREE**, which is the tell the model is right: §1's transition rule needs no special
+>   case because `canCastQuick` already requires `quick`.
+>   **P8 DISCHARGED BY MEASUREMENT** — Back Stab fires at **3.1% of rounds, identical to the epic**.
+>   **THE WIDENING IS REAL** — 20.5% of transitions open a window and **1,603 grants went to the ACTIVE
+>   player**, a seat the old window never offered anything to. The fingerprint moves only 1 game in 480,
+>   and that is expected: the AI has no policy for the widened window yet. **That is step 21.**
+>
+> **AND IT EXPOSED A PRE-EXISTING DEADLOCK, NOW FIXED.** With every living player locked for the round
+> nobody can lead, so the round never ends, so `lockRound` — which only clears in `finishRoundWin` — never
+> expires. Staged, the epic hangs identically; widening the window took it from 400/400 finishing to
+> 397/400. Aj: *"skipping their turn was always an auto pass"* — and a locked FOLLOWER's skip did bump
+> `st.passes` while a locked LEADER's did not. It does now, and when every living seat has skipped the
+> round ends with **no winner** (`fizzled`), which `finishRoundWin` and `announceRoundWin` both handle.
+> 400/400.
+>
+> **THREE MISTAKES WORTH THE RECORD, all now rules in CLAUDE.md:** a deleted function left in the NET
+> export literal (`hostPreFight:hostPreFight`) threw at load and killed every netplay suite — the parse
+> check cannot see it and `test.js` is engine-only, so the canary is `mptest` BEFORE the sweep; both host
+> intent handlers read the transition's `{ok:false, transition:'play'}` as *"Illegal move."* and wedged a
+> real duel; and the timing-aware narration sampled `state.pending` AFTER the cast that sets it.
+
 *Gate:* an assertion per boundary that a seat holding an affordable Quick is offered priority there and can
 cast it; `nettest_prefight`; `mptest`; an n>=3 assertion that a seat 3+ human can spring a Quick pre-fight
 (they never could); **a re-grant assertion modelled on `nettest_priosig`**; the harness already answers
 these windows (`netwindows.js`); full sweep. *Revertable alone:* yes, and it is the last structural step —
 21 onward are policy, the wire and docs.
+**STILL TO DO IN THIS STEP:** the Upkeep and Clean-up boundaries, and the INTERACTION half — Fight becomes
+the move-to-Play-Sub-Phase button, dragging activates in Main and plays in Play, and the decline button
+names the phase it is moving into (*"Move to fight"* / *"Let the round end"*, not *"Let it resolve"* at
+three different timings).
 
 ### H — policy, the wire, and the docs
 

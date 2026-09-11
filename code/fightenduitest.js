@@ -46,6 +46,17 @@ async function freshGame(p) {
   await p.evaluate(() => document.getElementById('goFirstBtn').click());
   return await until(() => p.evaluate(() => !!(window.__solo && window.__solo.st() && window.__solo.st().players)));
 }
+/* GET PAST THE MAIN → PLAY TRANSITION FIRST (epic step 20). A pass or a play now opens the transition
+   go-round before it, and these boards deliberately hold castable Quicks — so the FIRST modal a staged
+   board produces is the transition, not the window under test. Draining it in the page keeps each
+   scenario about the thing it names; without this, scenario A read the pre-fight prompt and reported the
+   Fight End copy missing. */
+const clearTransition = p => p.evaluate(() => {
+  const E = window.CardmenEngine, st = window.__solo.st();
+  E.moveToPlay(st);
+  let guard = 0; while (st.respondFor != null && guard++ < 12) E.declineResponse(st, st.respondFor);
+  window.__solo.render();
+});
 const modalText = p => p.evaluate(() => { const m = document.getElementById('modal');
   return (m && m.offsetParent) ? (m.textContent || '').replace(/\s+/g, ' ') : null; });
 const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll('.respQuick')).map(b => b.textContent.replace(/\s+/g, ' ')));
@@ -100,6 +111,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
        `(quick=${s.quick} whitelisted=${s.whitelisted}), it is affordable, and you are at 0 shields` +
        (s.quick && !s.whitelisted ? '' : '  ← not the reported bug any more; re-read the ♥K patch in BOOSTS'));
 
+    await clearTransition(p);
     await p.evaluate(() => document.getElementById('passBtn').click());
     const up = await until(async () => !!(await modalText(p)));
     ok(up, 'A · the Fight End window opens on the seat about to be kicked');
@@ -122,6 +134,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     await p.goto(URL);
     if (!await freshGame(p)) ok(false, 'A · second board for the cast');
     await stageKick(p, true);
+    await clearTransition(p);
     await p.evaluate(() => document.getElementById('passBtn').click());
     await until(async () => !!(await modalText(p)));
     const clicked = await p.evaluate(() => { const y = [].slice.call(document.querySelectorAll('.respQuick'))
@@ -173,6 +186,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     });
   }
   async function leadAces(p) {
+    await clearTransition(p);
     await p.evaluate(() => {
       const clr = document.getElementById('clearBtn'); if (clr) clr.click();
       ['n19C', 'n29D'].forEach(id => { const c = document.querySelector('#hand .card[data-id="' + id + '"]'); if (c) c.click(); });
@@ -210,8 +224,16 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     await stagePierce(p);
     await leadAces(p);
     await until(async () => !!(await modalText(p)));
-    await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d) d.click(); });
-    await until(() => p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; }));
+    /* DRAIN, DO NOT CLICK ONCE. A go-round can grant priority more than once — an addition resets the
+       all-passed check (§2 step 5), and since step 20 the walk starts at the active player rather than
+       skipping them, so a single decline is no longer guaranteed to close the window. Polling for the
+       ROUND to turn over is what makes the shield reading below mean something, which is the same
+       vacuity this suite already guards against elsewhere. */
+    for (let i = 0; i < 40; i++) {
+      if (await p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; })) break;
+      await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d && !d.disabled) d.click(); });
+      await wait(150);
+    }
     const dec = await p.evaluate(() => window.__solo.st().players[1].shields);
     ok(dec === 3,
        `B · CONTROL: declining the same board strips ONE (4 → ${dec}), so the 2 above is the cast and not the staging`);
@@ -229,6 +251,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     await p.goto(URL);
     if (!await freshGame(p)) ok(false, 'C · a board for the suppressed prompt');
     await stageKick(p, false);
+    await clearTransition(p);
     await p.evaluate(() => document.getElementById('passBtn').click());
     const died = await until(() => p.evaluate(() => !!window.__solo.st().finished));
     ok(died, 'C · with the prompt OFF the window is auto-passed and the kick lands — no modal at all');
@@ -278,6 +301,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
                leyQuick: !!(E.effectFor(st, 0, you.hand[1]) || {}).quick };
     });
     ok(st.sancQuick && st.leyQuick, `D · staged — both cards are legal Quicks here (Sanctuary ${st.sancQuick}, Leyline ${st.leyQuick})`);
+    await clearTransition(p);
     await p.evaluate(() => document.getElementById('passBtn').click());
     ok(await until(async () => !!(await modalText(p))), 'D · the window still opens — the un-silenced card stopped you');
     const offered = await quickBtns(p);
