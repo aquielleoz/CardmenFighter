@@ -376,6 +376,43 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   **Both need `opts.pitch` BACK in the engine**, which is the thing that was deleted — and each of them is the
   exercise it lacked.
 
+- **★ THE TUTORIALS TEACH A BUTTON THAT NO LONGER EXISTS, AND EVERY SUITE IS GREEN ABOUT IT** (Aj,
+  2026-09-11: *"we'll have to recheck the tutorials after this epic lands too"* — and it is worse than a
+  recheck). Epic step 20 relabelled `#fightBtn` to **`Next`** in the Main Sub-Phase, and the lesson copy
+  still says *"press **Fight** to lead"* and *"Select two and **Fight**"* (`LESSONS`, the How-to-Play and
+  Basics steps; `hi:['#hand','#fightBtn']` still spotlights the right control). A learner reads the step,
+  looks for a button called Fight, and the board shows Next — on the FIRST lesson, at the first thing the
+  game ever asks them to do.
+  **NO SUITE CAN SEE THIS, and the reason is structural rather than an oversight**: every lesson suite
+  drives the button through `fightclick.js`, which addresses it by ID and reads the LABEL only to decide
+  which press it is. Asserting the step TEXT against the live label is the missing check — exactly the
+  shape CLAUDE.md already names for lessons ("assert what the lesson CLAIMS, not that the panel
+  rendered"), and the same class as the apex-2 reminder text being DERIVED rather than hardcoded.
+  **Scope it properly before editing strings.** The step text is one part; also worth a pass are the
+  rules intro (*"then Fight — lead a card or beat the one on the table"*, which is still TRUE of the Fight
+  Sub-Phase and probably fine), anything that teaches drag-to-play (a drag in the Main Sub-Phase now
+  ACTIVATES), and the Quicks lesson's Respond? flow, which sits on the window step 20 rebuilt. The
+  tutorials were written against a one-sub-phase board and this epic gave the game three.
+
+- **THE DROP HINT OVERFLOWS THE BOARD AND LEAVES A HORIZONTAL SCROLLBAR BEHIND** (Aj, 2026-09-11, two
+  screenshots: the refusal text running off both edges of the play area, then the whole page shifted with a
+  scrollbar). **A REGRESSION FROM THE SAME DAY, AND MINE** — Aj asked for the activation refusal to be
+  visible *while dragging* rather than only after the release, which was right, so `highlightTarget` now
+  feeds `ctxActionFor(...).reason` into `#dropHint`. That pill was built for four fixed short strings and
+  is `position:absolute; white-space:nowrap` with **no `max-width`**, so a full engine sentence
+  ("Needs a Broadway card (10, J, Q, K, or A) in hand to discard as an extra cost") is laid out on one line
+  centred on `#table` and hangs off both sides.
+  **THE SCROLLBAR IS THE SECOND HALF AND IT IS THE WORSE ONE: the pill is hidden by OPACITY, not
+  `display`.** `#dropHint.show{opacity:1}` and `clearZone()` only strips the class — the long `textContent`
+  stays in the layout at full nowrap width **for the rest of the game**, so one drag over an unaffordable
+  card widens the document permanently and every later frame is scrolled sideways. That is why the second
+  screenshot shows a broken board with no drag in progress.
+  **Two small fixes, and they are independent** — cap and wrap the pill (`max-width:min(88%,420px)`,
+  `white-space:normal`, centred) so a long reason is readable, AND clear `textContent` in `clearZone()` so
+  a hidden hint occupies nothing. The second one alone kills the scrollbar.
+  **Verify by MEASURING `document.documentElement.scrollWidth` against `clientWidth` after a drag ends**,
+  not by looking: the element is invisible at that point, so the only evidence is the geometry.
+
 - **CLICKING A FORM/RIDE CHIP OPENS THE READER AND CAN NEVER EXPAND THE ZONE** (Aj, 2026-09-11, playing the
   build: *"clicking the jack does not expand it. it directly goes to the card viewer"*). The collapsed
   Forms & Rides strip carries a click handler that sets `formsOpen` — but only outside the short-landscape

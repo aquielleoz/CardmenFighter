@@ -5413,6 +5413,16 @@ __QR__
   function moveToPlayThen(g, proceed, stopIfActed, actor){
     var me=(actor==null?YOU:actor), mark=stackMark(state, me);
     E.moveToPlay(state);
+    /* THE TRANSITION GOES IN THE LEDGER, INCLUDING WHEN IT DOES NOTHING (2026-09-11). Aj's 10-round log
+       carried thirteen entries and not one of them mentioned the Main → Fight go-round, so the file could
+       not tell "no seat could ever act at a transition" from "step 20's new priority point is not being
+       recorded" — which is the ledger's ORIGINAL hole (CLAUDE.md: v1 logged only Resolution and only when
+       a window opened) reappearing one level up, because step 20 added a priority point and no line with
+       it. The auto-advance is the case worth logging: it is 19 turns in 20, and its absence is exactly
+       what an unreachable transition would look like. */
+    prioNote('MAIN → FIGHT', state.respondFor != null
+      ? ('go-round opened  origin=' + logName(me) + '  priority→' + logName(state.respondFor))
+      : ('auto-advanced — nobody could add to the stack  (origin=' + logName(me) + ')'));
     if(state.respondFor == null) return proceed();
     busy=true; render();
     settleWindows(g, function(){
