@@ -22,6 +22,7 @@
  * can tell a lobby from an end screen left on top of one.
  * Run: node nettest_endscreen.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8437),ROOM='ES'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -72,8 +73,8 @@ const click=(p,id)=>p.evaluate(id=>{ const b=document.getElementById(id); if(b &
   ok(await join.evaluate(l=>document.getElementById('youDeckName').textContent.trim()===l, labelOf.Wizard), 'the client plays the deck it picked (Wizard)');
 
   // round 1 is jabs only — reach round 2 before staging a pair (nettest_kick's lesson)
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   await until(async()=>(await view(join)).yourTurn, 80);
   /* STAGED WHERE MIRRORS ACTUALLY FLOW. The first version of this ran right after the deal, when the host
    * holds the turn and is not parked — so nothing was being broadcast and the modal survived WITH OR WITHOUT
@@ -97,20 +98,19 @@ const click=(p,id)=>p.evaluate(id=>{ const b=document.getElementById(id); if(b &
   await join.evaluate(()=>{ const b=document.getElementById('cancelCon'); if(b)b.click(); });
   ok(await until(async()=>!(await view(join)).overlay, 40), '  → and "Keep playing" still closes it');
 
-  await join.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled)b.click(); });
+  await clickPass(join);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
   ok(await until(async()=>(await view(host)).round>=2, 120), 'round 2 reached, so Specials are unlocked');
 
   // the client at ZERO shields, so the host's pair lands the Fighter Kick and the duel ends
-  await host.evaluate(()=>{
-    const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
+  await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
     window.__cmf.force([C(9,'D','h'),C(9,'H','h'),C(4,'C','h'),C(5,'S','h')],
                        [C(3,'D','c'),C(6,'H','c'),C(7,'C','c'),C(8,'S','c')], null,null, 4, 0);
   });
   await wait(600);
-  await host.evaluate(()=>{ ['h9D','h9H'].forEach(id=>{const c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click();});
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ ['h9D','h9H'].forEach(id=>{const c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click();}); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   await until(async()=>(await view(join)).yourTurn, 80);
-  await join.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled)b.click(); });
+  await clickPass(join);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
   ok(await until(async()=>(await view(host)).finished===true, 140), 'the duel finished on the host');
   ok(await until(async()=>(await view(join)).finished===true, 100), 'and on the client');
   ok(await until(async()=>(await view(join)).overlay===true, 80), 'the client is shown its end screen');
@@ -211,7 +211,8 @@ const click=(p,id)=>p.evaluate(id=>{ const b=document.getElementById(id); if(b &
 
   /* GAME TWO PLAYS A FULL ROUND — the backlog's own test for the risky half. Any stale park, a wedged `busy`, a
    * stale window signature or a dropped mirror shows here as a turn that never lands. */
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await until(async()=>(await view(join)).yourTurn, 100), 'the host leads game two and the turn reaches the client');
   ok(await until(()=>join.evaluate(()=>{ const p=document.getElementById('passBtn'); return !!(p && !p.disabled); }), 40), '  → the client\'s controls are LIVE (Pass enabled)');
   await click(join,'passBtn');

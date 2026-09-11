@@ -6,6 +6,7 @@
  * one numbered default at every player count, replacing a bare "Rival" in duels and "P3" in a free-for-all).
  * Run: node nettest_log.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { selectAndFight, clickFight, clickPass, enterFight } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8313),ROOM='LG'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -39,8 +40,7 @@ async function waitTurn(p,seat){ for(let i=0;i<200;i++){ if((await turnOf(p))===
    * The apex 2 is always fatal (nothing beats value 15) and an Ace nearly always is.
    * Measured before the fix: leads of 6♦/3♥/6♥/Q♠/8♠ all passed; the failing run had led 2♣.
    * Now the host leads a 4 and the client holds a 10, so the answer is guaranteed and the deal is irrelevant. */
-  await host.evaluate(()=>{
-    const C=(n,su)=>({rank:n, suit:su, id:'lg'+n+su});
+  await host.evaluate(()=>{ const C=(n,su)=>({rank:n, suit:su, id:'lg'+n+su});
     window.__cmf.force([C(4,'D'),C(5,'H'),C(6,'C'),C(7,'S'),C(8,'D'),C(9,'H')],    // host leads the 4
                        [C(10,'C'),C(9,'S'),C(8,'H'),C(7,'D'),C(6,'S'),C(5,'C')]);  // client can always answer
   });
@@ -49,7 +49,8 @@ async function waitTurn(p,seat){ for(let i=0;i<200;i++){ if((await turnOf(p))===
      'hands staged, so this suite no longer depends on the deal');
 
   // the HOST plays: the host reads "You", the client must read "Rival"
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="lg4D"]'); if(c)c.click(); const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="lg4D"]'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await waitLog(host,/^You played/),'host log: "You played …"');
   ok(await waitLog(join,/^Rival \d+ played/),'CLIENT log now shows the host\'s play as "Rival N played …" (was empty before)');
   const hp=(await log(host)).find(l=>/^You played/.test(l)), jp=(await log(join)).find(l=>/^Rival \d+ played/.test(l));
@@ -61,6 +62,10 @@ async function waitTurn(p,seat){ for(let i=0;i<200;i++){ if((await turnOf(p))===
   // the client's mirror is ROTATED so its own seat is index 0 — its turn is turn===0, not 1
   ok(await waitTurn(join,0),'it is now the client\'s turn (rotated seat 0)');
   // round 1 is jabs only and the play must BEAT the pile — try each card until Fight enables
+  await enterFight(join);
+   /* `#fightBtn.disabled` only means "this play is legal" in the FIGHT Sub-Phase — in Main the same
+      button is the phase move and is always enabled, so the probe below would click it on the first
+      card it tried and report a play that never happened. See fightclick.js. */
   const played=await join.evaluate(()=>{
     const clr=document.getElementById('clearBtn'), f=document.getElementById('fightBtn');
     const cards=[].slice.call(document.querySelectorAll('#hand .card'));

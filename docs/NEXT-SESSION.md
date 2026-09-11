@@ -102,10 +102,10 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Correctness
 
-- **`lessontest_quicks` IS RED ~25% OF THE TIME AT `-j 4`, AND NEVER SERIALLY — MEASURED 2026-09-10.**
+- **`lessontest_quicks` IS RED ~25% OF THE TIME AT `-j 4`, AND ~1 IN 9 SERIALLY — MEASURED 2026-09-10/11.**
   Eleven runs across one day, on three different builds: **2 red in 8 at four lanes, 0 red in 3 at `-j 1`.**
   One of the reds was on `epic/priority-windows` before any of that day's prompt work, so it **predates**
-  the Fight End changes and is not caused by them.
+  the Resolution changes and is not caused by them.
   **THE SHAPE IS IDENTICAL EVERY TIME — `PASS: 10  FAIL: 11`** — and it starts at one poll:
   `⏱ poll TIMED OUT: the Respond? window opens`, after which every assertion that depends on that window
   falls with it, ending in `lessonlib`'s two `finish()` failures. So there is ONE thing to find: why
@@ -115,6 +115,24 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   **NOT the same failure as the entry below**, whose signature is the two completion assertions with
   everything before them PASSING — that one points at a last `next()`, this one at a mid-lesson stall.
   They may still share a cause; do not assume either way.
+  **IT DOES REPRODUCE SERIALLY — "never serially" above is now known to be false** (2026-09-11). Measured
+  solo on `feat/phase-boundaries`: **1 red in 9**, byte-identical signature (`PASS: 10  FAIL: 11`, opening
+  on the same poll). The epic baseline `dfc0808` was **0 red in 6** solo in a throwaway worktree, which at
+  these sample sizes is the SAME rate — so this neither establishes a regression from epic step 20 nor
+  clears one. The useful half is that the earlier "0 red in 3 at `-j 1`" was simply too small a sample to
+  say what it said.
+  **AND THERE IS A CONCRETE SIGNATURE NOW, which is the thing this entry was asking for.** The suite's own
+  `WHY` line on a red run reads `turn=0 pending=true respondFor=1`: at round-1 start, with the Rival's
+  Technique on the stack, the response window is open for **seat 1 — the caster's own seat** — instead of
+  for you. `openResponseWindow` deliberately SKIPS the controller (that is what "holding priority" means,
+  and its comment says so), so a go-round that lands back on the caster is the anomaly to chase. Start
+  there rather than at the energy/shield rigs the entry suggests above; those explain a cast that never
+  happens, and this is a cast that happened and offered priority to the wrong seat.
+  **AND THE SECOND CAPTURE IS BYTE-IDENTICAL TO THE FIRST**, which changes what kind of bug this is: two
+  independent reds, hours apart, both `turn=0 pending=true respondFor=1` with the same hand. A timing
+  flake wanders; this lands in ONE specific wrong state every time it lands wrong. Treat it as a
+  deterministic defect reached on a race, not as slowness — and do not raise a poll budget to "fix" it.
+  Running rate on `feat/phase-boundaries`: **2 red in 13 solo**.
 
 - **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
   sweep during epic step 14; not reproduced since). The two failures were `lessonlib`'s shared `finish()`:
@@ -192,9 +210,9 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
     scales hardest with player count. The three options are written up on `epic/priority-windows` in
     `FIGHT-END-PLAN.md` → *Where a mid-cast card goes*.
 
-- **★ THE FIGHT END WINDOW IS A SHIELD-GUARD, NOT A PRIORITY WINDOW.** *(replaces the old "should a shield
+- **★ THE RESOLUTION WINDOW IS A SHIELD-GUARD, NOT A PRIORITY WINDOW.** *(replaces the old "should a shield
   GAIN qualify" entry, which was misfiled as a rules question — Aj answered it and it is a build.)*
-  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) §3: **before** the Fight End Sub-Phase priority is passed
+  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) §3: **before** the Resolution Sub-Phase priority is passed
   around, every player's Quicks are available, and it is nobody's turn so the window is Quicks-only. The code
   offers a fixed *Guard with X / Take the hit* dialog to the **threatened seat only**, admitting only
   `immune || shieldImmune` (`guardEffFor`, engine.js). Five confirmed findings, one cause:
@@ -362,6 +380,78 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
     step if it moves at all.
   **Both need `opts.pitch` BACK in the engine**, which is the thing that was deleted — and each of them is the
   exercise it lacked.
+
+- **★ THE TUTORIALS TEACH A BUTTON THAT NO LONGER EXISTS, AND EVERY SUITE IS GREEN ABOUT IT** (Aj,
+  2026-09-11: *"we'll have to recheck the tutorials after this epic lands too"* — and it is worse than a
+  recheck). Epic step 20 relabelled `#fightBtn` to **`Next`** in the Main Sub-Phase, and the lesson copy
+  still says *"press **Fight** to lead"* and *"Select two and **Fight**"* (`LESSONS`, the How-to-Play and
+  Basics steps; `hi:['#hand','#fightBtn']` still spotlights the right control). A learner reads the step,
+  looks for a button called Fight, and the board shows Next — on the FIRST lesson, at the first thing the
+  game ever asks them to do.
+  **NO SUITE CAN SEE THIS, and the reason is structural rather than an oversight**: every lesson suite
+  drives the button through `fightclick.js`, which addresses it by ID and reads the LABEL only to decide
+  which press it is. Asserting the step TEXT against the live label is the missing check — exactly the
+  shape CLAUDE.md already names for lessons ("assert what the lesson CLAIMS, not that the panel
+  rendered"), and the same class as the apex-2 reminder text being DERIVED rather than hardcoded.
+  **Scope it properly before editing strings.** The step text is one part; also worth a pass are the
+  rules intro (*"then Fight — lead a card or beat the one on the table"*, which is still TRUE of the Fight
+  Sub-Phase and probably fine), anything that teaches drag-to-play (a drag in the Main Sub-Phase now
+  ACTIVATES), and the Quicks lesson's Respond? flow, which sits on the window step 20 rebuilt. The
+  tutorials were written against a one-sub-phase board and this epic gave the game three.
+
+- **THE DROP HINT OVERFLOWS THE BOARD AND LEAVES A HORIZONTAL SCROLLBAR BEHIND** (Aj, 2026-09-11, two
+  screenshots: the refusal text running off both edges of the play area, then the whole page shifted with a
+  scrollbar). **A REGRESSION FROM THE SAME DAY, AND MINE** — Aj asked for the activation refusal to be
+  visible *while dragging* rather than only after the release, which was right, so `highlightTarget` now
+  feeds `ctxActionFor(...).reason` into `#dropHint`. That pill was built for four fixed short strings and
+  is `position:absolute; white-space:nowrap` with **no `max-width`**, so a full engine sentence
+  ("Needs a Broadway card (10, J, Q, K, or A) in hand to discard as an extra cost") is laid out on one line
+  centred on `#table` and hangs off both sides.
+  **THE SCROLLBAR IS THE SECOND HALF AND IT IS THE WORSE ONE: the pill is hidden by OPACITY, not
+  `display`.** `#dropHint.show{opacity:1}` and `clearZone()` only strips the class — the long `textContent`
+  stays in the layout at full nowrap width **for the rest of the game**, so one drag over an unaffordable
+  card widens the document permanently and every later frame is scrolled sideways. That is why the second
+  screenshot shows a broken board with no drag in progress.
+  **Two small fixes, and they are independent** — cap and wrap the pill (`max-width:min(88%,420px)`,
+  `white-space:normal`, centred) so a long reason is readable, AND clear `textContent` in `clearZone()` so
+  a hidden hint occupies nothing. The second one alone kills the scrollbar.
+  **Verify by MEASURING `document.documentElement.scrollWidth` against `clientWidth` after a drag ends**,
+  not by looking: the element is invisible at that point, so the only evidence is the geometry.
+
+- **CLICKING A FORM/RIDE CHIP OPENS THE READER AND CAN NEVER EXPAND THE ZONE** (Aj, 2026-09-11, playing the
+  build: *"clicking the jack does not expand it. it directly goes to the card viewer"*). The collapsed
+  Forms & Rides strip carries a click handler that sets `formsOpen` — but only outside the short-landscape
+  band — while EVERY CHIP inside it carries its own handler that calls `readCard` and `stopPropagation()`.
+  The chips fill the strip, so the only surface left for the expand is the sliver of padding around them,
+  and with one Form in the zone there is effectively none.
+  **THE STRIP ITSELF PROMISES THE THING IT CANNOT DO**: its `title` is set to *"Tap to expand"* in exactly
+  the layouts where the chip swallows the click, and *"Tap a card to read it"* in the landscape band where
+  refusing to expand is deliberate (v1.31.111 — `#table` is 87px at 800x360 and two expanded zones need
+  112px, so expanding there could only re-create the overlap that version removed).
+  **This is a collision between two correct decisions, not a stray line.** The per-chip read path was added
+  FOR the landscape band, where it is the only way to read a Form; `stopPropagation` was added so a chip
+  would not also toggle the strip "in the layouts that do expand" — and the two together mean those layouts
+  can no longer be expanded at all. Whoever picks this up should decide what the chip means per layout
+  rather than delete either half: plausibly, tap-to-expand and a separate affordance to read (the hover
+  already calls `showCard`), or drop the expand outside landscape entirely and make the title honest.
+  **Verify by LAYOUT, not by clicking once** — `shortLandscape()` splits the behaviour, so a fix checked
+  only on desktop or only on a phone proves nothing about the other.
+
+- **BEFORE SHIP, THE PROMPT CHECKBOXES DEFAULT TO *UNCHECKED*** (Aj, 2026-09-11: *"the checkboxes will be
+  unchecked by default when we finally ship"*). `promptDefault` currently `return true` — every legal
+  timing stops you — and that is a DEVELOPMENT setting, not the shipping experience: it exists so the epic's
+  new windows are visible while they are being built and playtested. Shipping flips it, and the player opts
+  IN per card, per timing, in the card reader.
+  **THIS IS WHY A FOURTH AND FIFTH PRIORITY POINT ARE AFFORDABLE.** Upkeep and Clean-up (still owed by step
+  20) would each add a stop on every round at today's default, which is the main argument against them;
+  defaulted off, they cost nothing a player did not ask for. Decide the default BEFORE measuring how the
+  windows feel, or the measurement is of the dev setting.
+  **THE HALF TO GET RIGHT IS WHAT "OFF" MEANS, AND IT IS ALREADY WRITTEN DOWN**: unchecked must mean *the
+  window still opens and you pass automatically* — never *the card becomes uncastable*. That distinction
+  cost a real bug once (a notification preference deciding legality) and the reader's own footnote states
+  it; a flipped default makes it load-bearing for every card instead of a few.
+  **AND THE SUITES ENCODE TODAY'S DEFAULT** — `prompttest` asserts "the DEFAULTS are today's experience",
+  so flipping it is a product change AND a suite change, in one commit.
 
 ### Tooling
 

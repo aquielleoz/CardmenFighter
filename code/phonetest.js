@@ -71,6 +71,13 @@ const actionRow = p => p.evaluate(()=>{
     await p.goto(URL); await wait(700);
     await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
     await p.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1100);
+    /* MOVE TO THE FIGHT SUB-PHASE (epic step 20), because this file measures the ACTION ROW and two of its
+       claims only exist there. `#passBtn` is not rendered in the Main Sub-Phase at all, so "all six buttons
+       are on one row" would be asserting five; and `#fightBtn` is the PHASE MOVE in Main, so it is never
+       disabled there and the enabled-vs-disabled gold comparison would have no off state to compare against.
+       Both assertions stay exactly as strong — they just need the sub-phase where the controls live. */
+    await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled && f.textContent==='Next') f.click(); });
+    await wait(400);
 
     await stage(p, GROUPED); ok(await sortToPairs(p), `${label} ${w}×${h}: sorted by pairs`);
     await wait(300);
@@ -188,6 +195,13 @@ const actionRow = p => p.evaluate(()=>{
     await p.goto(URL); await wait(700);
     await p.evaluate(()=>document.getElementById('newBtn').click()); await wait(350);
     await p.evaluate(()=>document.getElementById('goFirstBtn').click()); await wait(1100);
+    /* MOVE TO THE FIGHT SUB-PHASE (epic step 20), because this file measures the ACTION ROW and two of its
+       claims only exist there. `#passBtn` is not rendered in the Main Sub-Phase at all, so "all six buttons
+       are on one row" would be asserting five; and `#fightBtn` is the PHASE MOVE in Main, so it is never
+       disabled there and the enabled-vs-disabled gold comparison would have no off state to compare against.
+       Both assertions stay exactly as strong — they just need the sub-phase where the controls live. */
+    await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f && !f.disabled && f.textContent==='Next') f.click(); });
+    await wait(400);
     const wide = await actionRow(p);
     const collapsed = wide.bs.filter(x=>x.fs===0);
     ok(collapsed.length===0, `a 768px tablet keeps the WORDS (${collapsed.map(x=>x.id).join(',')||'none collapsed'})`);

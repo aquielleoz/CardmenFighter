@@ -13,6 +13,7 @@
  * would pass the first assertion on its own.
  * Run: node nettest_stale.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { selectAndFight, clickFight, clickPass, enterFight } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8421),ROOM='ST'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -40,23 +41,28 @@ const snap=p=>p.evaluate(()=>({
   ok(await until(async()=>(await snap(host)).round>0), 'duel started');
 
   // the host leads a LOW card, so the client has both options in front of it: a legal beat and a legal pass
-  await host.evaluate(()=>{
-    const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
+  await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
     window.__cmf.force([C(3,'D','h'),C(4,'H','h'),C(5,'C','h'),C(6,'S','h')],
                        [C(7,'H','c'),C(8,'C','c'),C(9,'S','c'),C(10,'D','c')]);
   });
   await wait(400);
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="h3D"]'); if(c)c.click();
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="h3D"]'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await until(async()=>(await snap(join)).yourTurn), 'the turn reached the client, with a beatable 3 on the pile');
 
   /* ── HALF TWO FIRST, because it needs the pile intact. A PLAY aimed at a pile that has moved on must be
    * refused AND the player told — without this, half one below could be satisfied by a guard that refuses
    * nothing at all. */
+  /* GET THE TRANSITION OUT OF THE WAY BEFORE STAGING STALENESS (epic step 20). A client's first Fight press
+     sends `{op:'toFight'}`, which is board-INDEPENDENT and so deliberately unstamped — and the mirror that
+     comes back RECOMPUTES the client's board stamp, quietly undoing the `forceBS` below. The suite would
+     then send a perfectly current play and assert it was refused. Enter first; the staleness staged after
+     this survives, because the play press that follows makes no further round trip. */
+  await enterFight(join);
   const stamp = await host.evaluate(()=>window.__cmf.boardStamp());
   await join.evaluate(()=>window.__cmf.forceBS('9:99/pair2/9.9'));      // a board that never existed
-  await join.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await join.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); });
+  await clickFight(join);   // two-state button (epic step 20) — see fightclick.js
   const told = await until(async()=>/board moved on|could not be made/i.test((await snap(join)).msg), 60);
   ok(told, 'a PLAY aimed at a pile that moved on is refused AND the client is told why'+
            (told?'':'  ← a silent refusal reads as a dropped click'));
@@ -68,7 +74,7 @@ const snap=p=>p.evaluate(()=>({
   ok(await until(async()=>(await snap(join)).yourTurn, 60), 'the client still holds the turn after the refusal');
   const before = await host.evaluate(()=>window.__cmf.turn());
   await join.evaluate(()=>window.__cmf.forceBS('1:lead-STALE'));
-  await join.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled)b.click(); });
+  await clickPass(join);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
   const passLanded = await until(async()=>(await host.evaluate(()=>window.__cmf.turn()))!==before, 60);
   ok(passLanded, 'a PASS sent against a stale board is APPLIED — the engine judges it, not a counter'+
                  (passLanded?'':'  ← REPRODUCED: the player pressed Pass and nothing happened'));

@@ -2,6 +2,7 @@
  * and picks a SPECIFIC opponent panel. Verifies the seat-rotation is un-rotated correctly on the host so the chosen
  * opponent is the one hit (and nobody else). Over BroadcastChannel. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const autoAnswerWindows=require('./netwindows.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { selectAndFight, clickFight } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8298),ROOM='TG'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -10,7 +11,7 @@ const D=(n,s,tag)=>({rank:n,suit:s,id:(tag||'')+n+s});
 const turnOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.turn():null);
 const shieldsOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.shields():null);
 const ready=p=>p.evaluate(()=>{ var g=document.getElementById('lobbyGo'); if(g)g.click(); });
-const leadFirst=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card'); if(c)c.click(); var f=document.getElementById('fightBtn'); if(f)f.click(); });
+const leadFirst=p=>selectAndFight(p);                       // two-state button since epic step 20 — see fightclick.js
 /* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll
  * that gave up used to be invisible and surfaced later as an unrelated assertion failing on a board that
  * was still mid-round-trip — the v1.31.9 waitTurnEnds bug, in the general case. A red run must explain

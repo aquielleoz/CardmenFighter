@@ -17,6 +17,7 @@
  *     produces, and it was the visible symptom of the fork.
  * Run: node nettest_sync.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { installPageHelpers, FIGHT_BUDGET } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path'),{ spawn }=require('child_process');
 const DIR=__dirname,PORT=+(process.env.PORT||8335),MOCK=8835;
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -38,7 +39,7 @@ const view=p=>p.evaluate(()=>({
 }));
 /* Act if it is our turn: lead/beat if anything is legal, otherwise pass. Deselects between attempts, because a
  * leftover selection is staged as a FIGHT and jams the controls (the nettest_actloop lesson). */
-const act=p=>p.evaluate(()=>{
+const act=p=>p.evaluate(async ()=>{
   const clear=()=>{ const c=document.getElementById('clearBtn'); if(c&&!c.disabled)c.click();
                     [].forEach.call(document.querySelectorAll('#hand .card.sel'),x=>x.click()); };
   const ov=document.getElementById('overlay');
@@ -50,11 +51,10 @@ const act=p=>p.evaluate(()=>{
   const cards=[].slice.call(document.querySelectorAll('#hand .card'));
   for(const c of cards){
     c.click();
-    const f=document.getElementById('fightBtn');
-    if(f&&!f.disabled){ f.click(); return 'played'; }
+    if(await window.__pressFight()) return 'played';
     clear();
   }
-  const pb=document.getElementById('passBtn'); if(pb&&!pb.disabled){ pb.click(); return 'passed'; }
+  if(await window.__pressPass()) return 'passed';
   return 'stuck';
 });
 
@@ -67,6 +67,7 @@ let mock=null;
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));
   const join=await ctx.newPage(); join.on('pageerror',e=>errs.push('join: '+e.message));
+  await installPageHelpers(host, FIGHT_BUDGET); await installPageHelpers(join, FIGHT_BUDGET);   // netplay: a remote seat can park the host past the 6s netwindows grace   // epic step 20: the two-state Fight button, for drivers that decide inside the page
 
   await host.goto(url('rtchost')); await wait(900);
   ok(await until(()=>host.evaluate(()=>{const e=document.getElementById('roomCodeVal'); return !!e&&/^[A-Z0-9]{4}$/.test(e.textContent.trim());}),60,250),

@@ -7,11 +7,13 @@
  * This drives a real 3-player game far enough for the opponents to act, then asserts the export would contain
  * them. Run: node exporttest.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
+const { installPageHelpers } = require('./fightclick');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
   const b=await chromium.launch(LAUNCH);
   const p=await (await b.newContext({viewport:{width:1400,height:1000}})).newPage();
+  await installPageHelpers(p);   // epic step 20: the two-state Fight button, for drivers that decide inside the page
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
 
@@ -53,18 +55,19 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   for(let i=0, stuck=0, seen=''; i<900 && stuck<160; i++){
     const done=await p.evaluate(()=>{ const st=window.__solo.st(); return !st||st.finished; });
     if(done) break;
-    await p.evaluate(()=>{
+    await p.evaluate(async ()=>{
       const ov=document.getElementById('overlay');
       if(ov&&ov.classList.contains('show')){
         const d=document.getElementById('pfDecline')||document.getElementById('respDecline')||document.getElementById('revOk');
         if(d){ d.click(); return; }
       }
-      const pb=document.getElementById('passBtn'); if(pb&&!pb.disabled){ pb.click(); return; }
+      if(await window.__pressPass()) return;
       // holding the initiative means passing is illegal — lead the lowest card instead
       const clr=document.getElementById('clearBtn'); if(clr)clr.click();
       const c=document.querySelector('#hand .card'); if(c)c.click();
       const f=document.getElementById('fightBtn');
-      if(f&&!f.disabled){ f.click(); if(/Confirm/i.test(f.textContent||'') && !f.disabled) f.click(); }
+      if(f&&/Confirm/i.test(f.textContent||'')&&!f.disabled){ f.click(); return; }   // a pick confirms with this button
+      await window.__pressFight();
     });
     await wait(120);
     /* EXIT ON WHAT THE ASSERTIONS NEED, not on a round count. "Four rounds is plenty of opponent turns" is

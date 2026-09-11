@@ -1,5 +1,12 @@
 # The Fight End priority window — rebuild plan
 
+> **VOCABULARY, 2026-09-11: this plan keeps the OLD words on purpose.** The phases were renamed — `Fight
+> Phase` → **Play Phase**, `Play Sub-Phase` → **Fight Sub-Phase**, `Fight End` → **Resolution** (see
+> [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md), which is the live vocabulary). This file is a plan
+> *against the code*, and the code is not renamed until **step 23**; every "Fight End" below names a
+> function, a state field or a suite that still spells it that way, so rewriting the prose would make the
+> plan stop matching what you grep for. Read "Fight End" here as "Resolution".
+
 > ## 📍 WHERE WE ARE — 2026-09-10
 >
 > **Steps 1-18 done. THE SWITCH IS LIVE**: the Fight End go-round replaced the guard whitelist, in the

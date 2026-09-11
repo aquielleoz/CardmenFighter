@@ -5,6 +5,7 @@
  * the pile to do anything (one swap cannot raise a matched set) and was replaced outright in v1.13. Every
  * assertion below is a case that version could not reach. Run: node phantasmtest.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
+const { selectAndFight, clickFight } = require('./fightclick');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
@@ -80,7 +81,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   await p.evaluate(()=>{ const b=document.getElementById('ctxBtn'); if(b)b.click(); }); await wait(350);
   ok(/Confirm to conjure|Confirm to copy/i.test(await hint()), 'with a buff up it offers to conjure WITHOUT a swap ("'+(await hint()).slice(0,60)+'…")');
   const handBefore=await p.evaluate(()=>window.__solo.st().players[0].hand.length);
-  await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f&&!f.disabled) f.click(); });
+  await clickFight(p);   // two-state button (epic step 20) — see fightclick.js
   const c2r=await conjured();
   ok(c2r.pile && c2r.pile.phantom===true, 'Confirm with NO card selected conjures the illusion and takes the initiative');
   ok(c2r.spent, 'the Illusion card is spent');
@@ -93,15 +94,14 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   await stage(null,true); await wait(300);
   await sel('10D');
   await p.evaluate(()=>{ const b=document.getElementById('ctxBtn'); if(b)b.click(); }); await wait(300);
-  await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f&&!f.disabled) f.click(); });
+  await clickFight(p);   // two-state button (epic step 20) — see fightclick.js
   const c3r=await conjured();
   ok(c3r.pile && c3r.spent, 'Odysseus alone conjures the illusion at +1 — enough on its own');
 
   await fresh();
   // ---- 4. the swap still works, and still costs exactly the one card
   await stage(null,false); await wait(300);
-  await p.evaluate(()=>{
-    const st=window.__solo.st(), mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
+  await p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
     const E=window.CardmenEngine;
     st.players[0].hand=[mk(10,'D'), mk(9,'D'), mk(3,'H')];
     const combo=E.detectCombo([mk(8,'H','a'),mk(8,'C','b'),mk(8,'S','c'),mk(9,'H','d'),mk(9,'C','e')]);   // their full house
@@ -111,7 +111,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   await sel('10D');
   await p.evaluate(()=>{ const b=document.getElementById('ctxBtn'); if(b)b.click(); }); await wait(300);
   await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="9D"]'); if(c)c.click(); }); await wait(250);
-  await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f&&!f.disabled) f.click(); });
+  await clickFight(p);   // two-state button (epic step 20) — see fightclick.js
   const sw=(await conjured()).pile;
   ok(sw && sw.type==='fullhouse', 'swapping one card still flips their full house into yours (88899 → 99988)');
   ok(await p.evaluate(()=>!window.__solo.st().players[0].hand.some(c=>c.id==='9D')), '…and the swapped card is the only real card spent');

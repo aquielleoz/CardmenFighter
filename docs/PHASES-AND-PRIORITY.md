@@ -8,21 +8,31 @@ historical and are wrong in places about this subject specifically — see *Why 
 Dictated by Aj, 2026-09-08. **Where this file and the code disagree, this file is the intent and the code has
 a bug or a gap** — those are tracked in [`NEXT-SESSION.md`](NEXT-SESSION.md)'s BACKLOG, not restated here.
 
+**RENAMED 2026-09-11, and this file is the new vocabulary.** Aj: the phase you spend your turn in is the
+**Play Phase**, because playing is what you do there; its middle sub-phase is the **Fight Sub-Phase**, and
+what used to be called Fight End is the **Resolution Sub-Phase**. So: `Fight Phase` → **Play Phase**,
+`Play Sub-Phase` → **Fight Sub-Phase**, `Fight End` → **Resolution**.
+**The dated quotes below are left exactly as spoken and still say "fight end"** — a quote is a record, not
+prose to edit, and rewriting one would make it impossible to tell what was actually said. Read those as
+*Resolution*. **The CODE still spells it the old way** (`st.fightEnd`, `openFightEndWindow`, `fightendtest`,
+the `'fightend'` prompt-timing id) and is renamed at step 23, with its own `localStorage` migration — so a
+grep that turns up `fightEnd` in a `.js` file has found the old name, not a missed rename.
+
 ---
 
 ## 1. Vocabulary
 
 - **Active player** — the player whose TURN it is. Nothing else. Not "who is doing something", and not
   "who put the thing on the stack".
-  **It CHANGES as turns pass.** The Fight Phase loops turns between players while the pile is climbed, so the
+  **It CHANGES as turns pass.** The Play Phase loops turns between players while the pile is climbed, so the
   active player rotates within a single round — it is whoever owns the turn *right now*, re-read at every
   point below that says "active player".
-  **And it can be NOBODY** — but NOT where this file first said it was. The window before the Fight End
+  **And it can be NOBODY** — but NOT where this file first said it was. The window before the Resolution
   Sub-Phase **does** have an active player: the round winner (§3). The genuinely ownerless stretch is **inside
-  the Fight End Sub-Phase**, once the losses land — and it stays ownerless until the next round, when the
+  the Resolution Sub-Phase**, once the losses land — and it stays ownerless until the next round, when the
   initiative holder takes over. That correction matters because the two states behave differently on an empty
   stack: one runs a final go-round, the other just proceeds.
-  It is also not the reason the pre-Fight-End window is Quicks-only; see that window's own entry.
+  It is also not the reason the pre-Resolution window is Quicks-only; see that window's own entry.
 - **Turn order** — seat order, fixed at game start by the dice roll. Priority always passes in turn order.
 - **Controller** — whoever put an object on the stack. **PRIORITY STARTS WITH THEM**, and passes in turn
   order from there.
@@ -45,7 +55,7 @@ a bug or a gap** — those are tracked in [`NEXT-SESSION.md`](NEXT-SESSION.md)'s
   **This is a rules statement with teeth, because it settles three questions at once by refusing them:**
   a **shield loss** is not an effect, so it is never on The Stack (§4); the **pass bookkeeping** for a
   go-round is not an effect, so it lives on the window, not on an object; and a **sentinel** standing in for
-  "we are at Fight End" is not an effect, so it could never have belonged there either — which is a better
+  "we are at Resolution" is not an effect, so it could never have belonged there either — which is a better
   reason to have dropped it than "we found we did not need it".
   **The engine's `st.stack` is not the same thing today** — it also carries `kind:'shieldloss'` entries,
   which are a work QUEUE and not effects at all. After the rebuild it holds one kind and the `kind`
@@ -78,18 +88,18 @@ your turn, the card must be a Quick.* That is why cards need `quick` at all.
 > **At a transition between sub-phases, only a Quick is ever legal** — whatever the stack holds, and
 > whoever is active.
 
-Aj's reason, given for the pre-Fight-End window: *"this timing is only the transition between sub-phases."*
+Aj's reason, given for the pre-Resolution window: *"this timing is only the transition between sub-phases."*
 It bites where the rule above would otherwise permit more — the **active player facing an empty stack**,
 who by that rule could play a Technique and here cannot.
 
 **⚠ THIS WAS WRITTEN AS "exactly one exception" UNTIL 2026-09-11, AND IT WAS NEVER AN EXCEPTION — IT WAS A
-RULE WITH ONE INSTANCE VISIBLE.** The file named only the pre-Fight-End window and said *"do not try to
+RULE WITH ONE INSTANCE VISIBLE.** The file named only the pre-Resolution window and said *"do not try to
 derive that case from the rule above; it does not follow from it"*, which was true and incomplete: it does
 not follow from the STACK rule because it is a separate rule about TRANSITIONS. The second instance
-appeared the moment the pre-fight window was rebuilt — moving to the Play Sub-Phase is a transition too, so
+appeared the moment the pre-fight window was rebuilt — moving to the Fight Sub-Phase is a transition too, so
 the same reason applies to it unchanged, and two instances of one reason is not an exception.
 **Both transitions now in the model:** Main → Play (see *the pre-fight window* in §3) and the one before the
-Fight End Sub-Phase. A third will arrive the day a phase boundary does; it needs no new rule.
+Resolution Sub-Phase. A third will arrive the day a phase boundary does; it needs no new rule.
 
 ## 2. The priority dance
 
@@ -127,7 +137,7 @@ could "correct" our engine toward MTG and think they were fixing a bug.
    - **SETTLED 2026-09-08, and it used to read "the active player" here.** Aj, shown the one case where the
      two readings part company (X casts A, Y answers with quick B, X answers with quick C; C resolves and
      the top is now **Y's** B): *"in this case, it should be the controller."* So there is **one rule and no
-     Fight End special case** — this step is the general form and §3 does not restate it.
+     Resolution special case** — this step is the general form and §3 does not restate it.
 8. Repeat until the stack is empty.
 
 ### Worked example (Aj's, verbatim in substance)
@@ -155,19 +165,19 @@ phase.... actually if a triggered ability is put onto the stack at anytime, it s
 
 There is no phase, and no sub-phase, that is closed to priority. **Anything put on the stack opens the dance
 where it stands.** Aj's example: an equipment reading *"when you lose a shield, remove 1 counter from this
-equipment and draw a card"* triggers **inside the Fight End Sub-Phase** the moment its controller loses a
+equipment and draw a card"* triggers **inside the Resolution Sub-Phase** the moment its controller loses a
 shield — the ability goes on the stack, the dance runs, and players may add Quicks there.
 
 So a phase is not "a window, then the outcome". A phase runs **until the stack is empty and everyone has
 passed**, however many times its own outcomes re-fill the stack.
 
-### THE BOUNDARY: AN EMPTY-STACK GO-ROUND NEEDS AN ACTIVE PLAYER, AND FIGHT END HAS NONE
+### THE BOUNDARY: AN EMPTY-STACK GO-ROUND NEEDS AN ACTIVE PLAYER, AND RESOLUTION HAS NONE
 
 Aj, 2026-09-08: *"when shields are broken DURING fight end, no one is the active player and the phases and
 sub-phases just continue to change."* So there are two different situations and only one of them ends in a
 polite go-round:
 
-| | before Fight End (the window) | inside Fight End (after the losses land) |
+| | before Resolution (the window) | inside Resolution (after the losses land) |
 | --- | --- | --- |
 | active player | the **round winner** | **nobody** |
 | stack empties | a final go-round runs — winner, then turn order — and the sub-phase begins only when all pass | **no go-round.** The phase simply proceeds |
@@ -175,7 +185,7 @@ polite go-round:
 
 **An empty stack plus no active player is not a window — it is the phase moving on.** That is the whole
 content of *"the phases and sub-phases just continue to change"*, and it is what stops a trigger resolving
-inside Fight End from opening an endless series of empty go-rounds.
+inside Resolution from opening an endless series of empty go-rounds.
 
 Nobody is active again **until the next round, when it becomes the initiative holder** — which is the round
 winner, since winning the round *is* taking the initiative. So the same seat that was active for the window
@@ -191,7 +201,7 @@ sub-phase where nobody is, and that is exactly where a shield-loss trigger fires
   ROUND, not at clean-up.
   **⚠ THIS SAID "the beginning of the TURN" until 2026-09-10, and Aj corrected it himself** — *"you're
   right i was thinking of magic. beginning of the round actually makes more sense here. that's where the
-  upkeep lives."* The distinction is invisible at 2 players and real at 3-6, where the Fight Phase loops
+  upkeep lives."* The distinction is invisible at 2 players and real at 3-6, where the Play Phase loops
   several turns inside one round. **The engine was already right**: `roundDraw` does
   `if (e.decay) e.counters -= 1` as it deals the new round, so this was a doc defect and not a code one —
   checked before changing either.
@@ -199,9 +209,9 @@ sub-phase where nobody is, and that is exactly where a shield-loss trigger fires
 
 > **Equipment at 0 counters goes to the Energy Pile — at any time, not only at a phase boundary.**
 
-### Fight Phase
+### Play Phase
 
-The initiative holder leads. A turn is **Main Sub-Phase → Play Sub-Phase**, looping between players until the
+The initiative holder leads. A turn is **Main Sub-Phase → Fight Sub-Phase**, looping between players until the
 pile stands.
 
 - **Main Sub-Phase.** The active player may activate Techniques and Equipment, and may cast Quicks
@@ -223,7 +233,7 @@ pile stands.
        Sub-Phase — it plays nothing;
     2. the active player passes priority;
     3. the other players pass priority;
-    4. the Play Sub-Phase begins, and only now is a shedding play made.
+    4. the Fight Sub-Phase begins, and only now is a shedding play made.
     **Nothing is cancelled because nothing was selected** — the cancellation rule existed only to undo an
     announcement that no longer happens. The old reason it was needed is still worth knowing: a shedding
     play is **not an effect**, so it never goes on The Stack (§1) and there is nothing for responses to
@@ -236,15 +246,15 @@ pile stands.
   - **THE SUB-PHASE DECIDES WHAT A GESTURE MEANS** (Aj, 2026-09-11). In the **Main Sub-Phase**, dragging a
     card to the play area **activates** it — including the cards that need choices, so it is also how
     targeting (confirm-first: stage into `targetPick.chosen`, then the context button) and the Phantasmal
-    Illusion picker are entered. In the **Play Sub-Phase**, dragging plays the card as the shedding play.
+    Illusion picker are entered. In the **Fight Sub-Phase**, dragging plays the card as the shedding play.
     One gesture, two meanings, chosen by the phase — which is why the sub-phase must live on STATE.
 
-- **Play Sub-Phase.** The active player plays a fight card or passes. Playing or passing ends the turn.
+- **Fight Sub-Phase.** The active player plays a fight card or passes. Playing or passing ends the turn.
 
 - **Loop.** The next player takes their turn (Main → Play), climbing the pile. When a player cannot or does
   not beat the pile, the play stands.
 
-- **Before the Fight End Sub-Phase, priority is passed around again** — before *anything* happens: before
+- **Before the Resolution Sub-Phase, priority is passed around again** — before *anything* happens: before
   shields are stripped, before initiative is determined. **This window is Quicks only.**
   - *Careful with the reason, because this file gave a wrong one first.* It is not "nobody's turn, therefore
     Quicks" — the **round winner IS the active player for this window** (§3, the go-round). It is Aj's
@@ -262,7 +272,7 @@ pile stands.
     `st.shieldResponse` is only set once the pick has completed (inside `driveShieldStack`). The rebuild changes the window's
     NATURE — a whitelist of guard cards becomes a priority window admitting any Quick — and not its position.
 
-- **THE GO-ROUND AT FIGHT END, IN FULL** (Aj, 2026-09-08, worked through card by card). No turn is in
+- **THE GO-ROUND AT RESOLUTION, IN FULL** (Aj, 2026-09-08, worked through card by card). No turn is in
   progress, so two things a normal turn supplies for free have to be stated: who the **active player** is,
   and where each go-round **starts**.
   1. The **round winner is the active player — for THIS WINDOW, which runs BEFORE the sub-phase**, not
@@ -296,7 +306,7 @@ pile stands.
   resolves. Then the top is A's draw again, so the next go-round starts at **A**: B, C, back to A → A's
   resolves. Only then is the stack empty and only then does it return to C.
 
-- **Fight End Sub-Phase.** ~~Nobody gets priority inside it~~ — **that was wrong, see the trigger rule
+- **Resolution Sub-Phase.** ~~Nobody gets priority inside it~~ — **that was wrong, see the trigger rule
   above.** No priority is handed out for the outcomes *themselves*, but any outcome that TRIGGERS something
   puts it on the stack and the dance runs there. The outcome resolves: a
   Special win strips a shield, a Jab win banks energy, and the winner takes initiative. **The catch-up energy
@@ -318,7 +328,7 @@ priority" is a statement about today's card set, never about the phase.
 ## 4. Shield loss is NOT a stack object
 
 **A shield loss just happens.** It is not put on the stack and it is not responded to directly. What protects
-or amplifies it is the **priority window that runs before the Fight End Sub-Phase** — that is where a
+or amplifies it is the **priority window that runs before the Resolution Sub-Phase** — that is where a
 defender springs an immunity and where a striker adds to the damage.
 
 **AND EVERY SHIELD LOSS IN A ROUND HAPPENS AT THE SAME TIME** (Aj, 2026-09-08): *"everyone loses the shield at

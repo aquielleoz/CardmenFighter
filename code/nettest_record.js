@@ -9,6 +9,7 @@
  * adoption is verified through the `__cmf.adopted()` seam instead, which is page-local.
  * Run: node nettest_record.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8317),ROOM='RC'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':p.endsWith('.html')?'text/html':'application/javascript'});r.end(b);}});});
@@ -55,7 +56,8 @@ async function waitFor(fn,t=200,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   const before=(await cHand()).length;
   await join.evaluate(()=>{ const clr=document.getElementById('clearBtn'); if(clr)clr.click();
     const c=document.querySelector('#hand .card[data-id="10S"]'); if(c)c.click();
-    const f=document.getElementById('fightBtn'); if(f&&!f.disabled){ f.click(); if(/Confirm/i.test(f.textContent||'')&&!f.disabled) f.click(); } });
+  });
+  await clickFight(join);   // two-state button (epic step 20) — see fightclick.js
   await waitFor(async()=>(await cHand()).length<before, 40);
   ok((await cHand()).length<before, 'the client landed a real fight (so the seat-1 fight assertion is not vacuous)');
 
@@ -80,10 +82,11 @@ async function waitFor(fn,t=200,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   // host plays its pair; the client can't answer, so the round resolves and strips the last shield
   await host.evaluate(()=>{ const clr=document.getElementById('clearBtn'); if(clr)clr.click();
     ['9S','9H'].forEach(id=>{ const c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click(); });
-    const f=document.getElementById('fightBtn'); if(f&&!f.disabled){ f.click(); if(/Confirm/i.test(f.textContent||'')&&!f.disabled) f.click(); } });
+  });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   for(let i=0;i<60;i++){
-    await join.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled) b.click();
-      const d=document.getElementById('sgNo')||document.getElementById('respDecline')||document.getElementById('pfDecline'); if(d)d.click(); });
+    await clickPass(join);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
+    await join.evaluate(()=>{ const d=document.getElementById('sgNo')||document.getElementById('respDecline')||document.getElementById('pfDecline'); if(d)d.click(); });
     if(await host.evaluate(()=>document.getElementById('overlay').classList.contains('show'))) break;
     await wait(200);
   }

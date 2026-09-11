@@ -9,6 +9,7 @@
  * Deliberately no assertions of its own beyond "the hub lists it" and "it started" — a shared helper that
  * asserts product behaviour makes one bug look like seven. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
+const { clickFight, clickPass } = require('./fightclick');   // epic step 20: Fight is a two-state button and Pass only exists in the Fight Sub-Phase
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 
 async function openLesson(id, viewport){
@@ -88,7 +89,7 @@ async function openLesson(id, viewport){
     for(const gid of gids){ await deselect();
       const armed=await p.evaluate(g=>{ const el=document.querySelector('#hand .group[data-gid="'+g+'"]'); if(!el) return null; el.click();
         const f=document.getElementById('fightBtn'); return f && !f.disabled ? (document.getElementById('hint')||{}).textContent||'' : null; }, gid);
-      if(armed!==null){ await p.evaluate(()=>document.getElementById('fightBtn').click()); return armed||'played'; } }
+      if(armed!==null){ await clickFight(p); return armed||'played'; } }
     await deselect(); return null; };
   /* Play a pair by CARD ID, selecting each card's group. The hand only groups a pair into one `.group.multi`
    * in the "Pairs" SORT MODE — the default layout is singles, so "click the multi group" finds nothing and
@@ -105,23 +106,26 @@ async function openLesson(id, viewport){
     while(Date.now()-t0<ms){ last=await attemptPair(ids); if(last===null) return null; await answerWindow(); await p.waitForTimeout(200); }
     return last+' (retried for '+ms+'ms)';
   };
+  /* THE DIAGNOSTIC MOVED BELOW THE PRESS (epic step 20). `Fight` in the Main Sub-Phase is the PHASE MOVE
+     and is enabled with nothing selected, so "Fight is disabled" no longer separates a bad selection from an
+     illegal play — it is simply never true there. What still separates them is whether the button reaches
+     `Play`, which is exactly what `clickFight` reports. */
   const attemptPair=async(ids)=>{
     await deselect();
-    return p.evaluate(list=>{
+    const selErr=await p.evaluate(list=>{
       const seen=new Set();
       for(const id of list){ const c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(!c) return 'card '+id+' is not rendered';
         const g=c.closest('.group'); if(!g) return 'card '+id+' has no group';
         if(seen.has(g)) continue;                                  // both cards already live in this one group
         seen.add(g); if(!g.classList.contains('gsel')) g.click(); }
-      const f=document.getElementById('fightBtn');
-      if(!f || f.disabled){
-        /* A red run must explain itself: report the whole hand layout and what is selected, since "Fight is
-         * disabled" alone cannot distinguish a bad selection from an illegal play. */
-        const lay=[].map.call(document.querySelectorAll('#hand .group'),g=>
-          (g.classList.contains('gsel')?'[SEL]':'')+[].map.call(g.querySelectorAll('.card'),c=>c.dataset.id).join('+')).join(' ');
-        return 'Fight is disabled — wanted '+list.join('+')+' | layout: '+lay+' | hint: '+((document.getElementById('hint')||{}).textContent||'');
-      }
-      f.click(); return null; }, ids);
+      return null; }, ids);
+    if(selErr) return selErr;
+    if(await clickFight(p) === 'played') return null;
+    return p.evaluate(list=>{
+      const lay=[].map.call(document.querySelectorAll('#hand .group'),g=>
+        (g.classList.contains('gsel')?'[SEL]':'')+[].map.call(g.querySelectorAll('.card'),c=>c.dataset.id).join('+')).join(' ');
+      return 'the play did not land — wanted '+list.join('+')+' | layout: '+lay+' | hint: '+((document.getElementById('hint')||{}).textContent||'');
+    }, ids);
   };
   /* RETRY UNTIL IT LANDS, and report how long it took. `doPass` returns SILENTLY on `busy` (and on peeking /
    * pick / targeting), while `#passBtn` is NOT disabled in those states — so one click on an enabled-looking
@@ -138,9 +142,9 @@ async function openLesson(id, viewport){
         for(const id of want){ const el=document.querySelector('#hand .card[data-id="'+id+'"]'); if(!el) return 'card '+id+' is not rendered';
           const g=el.closest('.group'); if(!g) return 'card '+id+' has no group';
           if(!g.classList.contains('gsel')) g.click(); }
-        const f=document.getElementById('fightBtn');
-        if(!f || f.disabled) return 'Fight is disabled — hint: '+((document.getElementById('hint')||{}).textContent||'');
-        f.click(); return null; }, ids);
+        return null; }, ids);
+      if(last===null && await clickFight(p) !== 'played')            // epic step 20: only `played` means cards really went down
+        last=await p.evaluate(()=>'the play did not land — hint: '+((document.getElementById('hint')||{}).textContent||''));
       if(last===null) return null;
       await answerWindow();
       await p.waitForTimeout(200);
@@ -161,7 +165,7 @@ async function openLesson(id, viewport){
      * unrelated assertion failing further down. A pass either bumps `passes` or ends the round. */
     const before=await p.evaluate(()=>{ const s=window.__solo.st(); return {round:s.round, passes:s.passes||0}; });
     while(Date.now()-t0<ms){
-      await p.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b && !b.disabled) b.click(); });
+      await clickPass(p);   // Pass only exists in the Fight Sub-Phase now — the helper moves there first
       const moved=await p.evaluate(b=>{ const s=window.__solo.st();
         return s.round!==b.round || (s.passes||0)>b.passes; }, before);
       if(moved) return Date.now()-t0;
