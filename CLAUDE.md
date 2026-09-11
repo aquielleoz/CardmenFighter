@@ -89,7 +89,7 @@ node nettest_passoduel.js                       # PASSO IN A DUEL (epic step 13)
                                                 # (and `netGuard` until epic step 19) and NOTHING answered them, so a dropped duel
                                                 # opponent deadlocked the table (measured: 1 host action,
                                                 # then 41 idle polls). Also asserts Passo DEFENDS (8)
-node fightendtest.js                            # THE FIGHT END MODEL (epic step 17). Asserts the two things
+node fightendtest.js                            # THE RESOLUTION MODEL (epic step 17). Asserts the two things
                                                 # nothing else does — SIMULTANEOUS KICKS (both zero-shield
                                                 # seats die to one Special, both credited) and the
                                                 # WHITELIST CANARY (a seat whose only Quick guards NOTHING
@@ -107,7 +107,7 @@ node fightenduitest.js                          # THE TWO REPORTED BUGS, PLAYED 
                                                 # extra strip from the window. Every claim is a BOTH-WAYS
                                                 # pair off identical staging: decline and die vs cast and
                                                 # live; decline and strip 1 vs cast and strip 2. Also
-                                                # asserts the Fight End LEDGER, and that a SILENCED card is
+                                                # asserts the Resolution LEDGER, and that a SILENCED card is
                                                 # still castable — the two-Quick shape is the only one that
                                                 # can tell "did not stop me" from "cannot play it" (23)
 node prompttest.js                              # PROMPT PREFERENCES (epic step 15): per-card, per-timing
@@ -395,7 +395,7 @@ npx playwright install chromium
 Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` and
 **`netwindows.js`** are shared helpers, not suites — don't run them directly.
 
-**A WIDER WINDOW BREAKS EVERY HARNESS THAT NEVER LEARNED TO ANSWER ONE (2026-09-10).** When the Fight End
+**A WIDER WINDOW BREAKS EVERY HARNESS THAT NEVER LEARNED TO ANSWER ONE (2026-09-10).** When the Resolution
 prompt default widened to "every legal timing", `nettest_3p` started HANGING — **4 times in 8 runs, against
 8/8 on the build before it**, at any port and at `-j 1` as well as `-j 4`, so neither contention nor a port
 collision. The mechanism was an ABSENCE: that file contains no reference to a modal at all, so a client seat
@@ -1276,7 +1276,7 @@ for free — the seven-parks-of-nine lesson (v1.31.116) applied before the drift
 grep that enumerates the kind: `grep -n 'netReact=\|netSettle=\|netDiscard=' code/CardmenFighter.template.html`.
 
 **A ROUND WIN IS NO LONGER A RESULT, IT IS A WINDOW (epic step 18).** `resolveRoundWin` → `enterFightEnd`
-opens the Fight End go-round and returns `{fightEnd:true}` with **no `roundWinner`**, so every UI site that
+opens the Resolution go-round and returns `{fightEnd:true}` with **no `roundWinner`**, so every UI site that
 tested `r.roundWinner != null` fell straight through — six of them, in both drivers and both transports.
 `drainFightEnd(r, g, then)` is the single seam: it runs `settleWindows` and then reads the outcome off
 **`st.fightEndResult`**, which the engine parks as it runs the sub-phase. It is deliberately NOT
@@ -1288,7 +1288,7 @@ was missed is a table that parks with the round number unchanged.
 THE SAME HOLE.** Aj: *"make the records as complete as you need. no one else will debug this game for
 us."* It rides the download beside the netplay trace, one file being what actually gets sent, and is NOT
 on screen — the go-round opens far too often for a battle-log line.
-**v1 LOGGED ONLY FIGHT END AND ONLY WHEN A WINDOW OPENED.** Aj's first real log came back with **2 entries
+**v1 LOGGED ONLY RESOLUTION AND ONLY WHEN A WINDOW OPENED.** Aj's first real log came back with **2 entries
 across 10 rounds**, which cannot distinguish a quiet game from a broken one — and a probe then played five
 full rounds and logged **nothing at all**, which is what both look like. The cause: a round win only
 RETURNS a go-round when somebody can add to the stack, so `r.fightEnd` is usually unset and
@@ -1321,7 +1321,7 @@ Measured on v1.31.95, the two halves of the same day:
   launching any workflow, say in one line what it will spend and whether one careful read answers the same
   question; if it does, read.
 - **(5) A SUBAGENT'S FINDING AND A SUBAGENT'S SEVERITY ARE NOT THE SAME CLAIM, AND ONLY ONE OF THEM IS
-  RELIABLE (2026-09-08).** A design pass over the Fight End window found four real defects — every one of
+  RELIABLE (2026-09-08).** A design pass over the Resolution window found four real defects — every one of
   them confirmed by opening the code. Two came labelled *"live in the build you're playing"*, I repeated that
   to Aj, and **both labels were wrong**: `noopDestroy` (deleted at epic step 19) produced no wrong outcome in the shipped
   configuration, and the discarded `driveShieldStack` result is read by nothing on that path. The finding was
@@ -1356,7 +1356,7 @@ still calling it is now describing a world that does not exist.
 opened the window and the card was a legal Quick — because the suppression happens between them, in the UI.
 
 **TARGETING HAPPENS ON CAST — NO LEGAL TARGET MEANS NO CAST (Aj, 2026-09-10).** He found it in a real
-game: a Fight End go-round on an EMPTY stack offered him Counter Spell as its only option. Measured before
+game: a Resolution go-round on an EMPTY stack offered him Counter Spell as its only option. Measured before
 anything changed — `counterTargets` returned `[]`, `canAddToStack` said true anyway, and `respond`
 **accepted** the cast: hand -1, energy 8→4, nothing countered. Not noise in a window; a trap that spends a
 card for nothing. Aj: *"it has to target as part of its casting right? and since there are no effects on
@@ -1499,7 +1499,7 @@ renders `{who}` in the local frame via `logName` — yourself → **"You"**, eve
 **`defaultName(i)` = "Rival N"** (`N = i+1`), which is ONE default at every player count. *(This line used to
 say "a duel opponent → Rival; otherwise `P<n>`" and neither half was true: a duel opponent with no name reads
 **"Rival 2"**, and `P<n>` is used by the LOBBY roster and the pre-fight strip, not by `logName`. Found
-2026-09-10 writing the Fight End copy, from a test printing the name it actually got.)*
+2026-09-10 writing the Resolution copy, from a test printing the name it actually got.)*
 and, when we are the netplay host, broadcasts the **template** plus the actor's absolute seat so each client
 renders it in *its* frame. A bare `logMsg` is host-local and reaches nobody else — which is how clients ended up
 with a completely empty battle log for every version up to v1.28.2.
@@ -2531,6 +2531,15 @@ definition, so it cannot delete them.
 - **`docs/PHASES-AND-PRIORITY.md` — CURRENT TRUTH for turn structure and priority.** Dictated by Aj
   2026-09-08 and the only live statement of the model. **Read it before touching any window, the stack, or
   anything that grants priority.**
+  **THE PHASES WERE RENAMED 2026-09-11 AND THE CODE WAS NOT — THAT SPLIT IS DELIBERATE, NOT A MISSED
+  SWEEP.** `Fight Phase` → **Play Phase** (Main · **Fight** · **Resolution**), because the phase you spend
+  your turn in is the one you play in. The old `Play Sub-Phase` is the **Fight Sub-Phase** and `Fight End` is
+  **Resolution**. Docs and player-facing copy use the new words; the ~344 code sites (`st.fightEnd`,
+  `openFightEndWindow`, `fightendtest.js`, the `'fightend'` prompt-timing id, which needs a `localStorage`
+  migration) are renamed at **step 23**, deliberately after the behaviour stops moving — this file's own rule
+  is that a rename is a deletion wearing a friendlier face, and threading 344 sites through a step that is
+  still changing behaviour makes any red run unbisectable. **So `fightEnd` in a `.js` file is the old name,
+  not a leftover**, and a doc quoting Aj before that date still says "fight end" on purpose.
 - `docs/BUILD-PLAN-v0.82.md`, `docs/Cardmen-Fighter-Design-v0.70.md`, `docs/STACK-DESIGN-v0.53.md` —
   historical snapshots, not current truth — **and specifically wrong about priority**, which is what
   `PHASES-AND-PRIORITY.md` now owns.

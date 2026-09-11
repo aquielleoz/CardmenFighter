@@ -105,7 +105,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 - **`lessontest_quicks` IS RED ~25% OF THE TIME AT `-j 4`, AND NEVER SERIALLY — MEASURED 2026-09-10.**
   Eleven runs across one day, on three different builds: **2 red in 8 at four lanes, 0 red in 3 at `-j 1`.**
   One of the reds was on `epic/priority-windows` before any of that day's prompt work, so it **predates**
-  the Fight End changes and is not caused by them.
+  the Resolution changes and is not caused by them.
   **THE SHAPE IS IDENTICAL EVERY TIME — `PASS: 10  FAIL: 11`** — and it starts at one poll:
   `⏱ poll TIMED OUT: the Respond? window opens`, after which every assertion that depends on that window
   falls with it, ending in `lessonlib`'s two `finish()` failures. So there is ONE thing to find: why
@@ -192,9 +192,9 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
     scales hardest with player count. The three options are written up on `epic/priority-windows` in
     `FIGHT-END-PLAN.md` → *Where a mid-cast card goes*.
 
-- **★ THE FIGHT END WINDOW IS A SHIELD-GUARD, NOT A PRIORITY WINDOW.** *(replaces the old "should a shield
+- **★ THE RESOLUTION WINDOW IS A SHIELD-GUARD, NOT A PRIORITY WINDOW.** *(replaces the old "should a shield
   GAIN qualify" entry, which was misfiled as a rules question — Aj answered it and it is a build.)*
-  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) §3: **before** the Fight End Sub-Phase priority is passed
+  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) §3: **before** the Resolution Sub-Phase priority is passed
   around, every player's Quicks are available, and it is nobody's turn so the window is Quicks-only. The code
   offers a fixed *Guard with X / Take the hit* dialog to the **threatened seat only**, admitting only
   `immune || shieldImmune` (`guardEffFor`, engine.js). Five confirmed findings, one cause:
