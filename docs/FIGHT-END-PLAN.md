@@ -1230,68 +1230,94 @@ plus the declared-public entry, and `nettest_guard` onto `{op:'respond'}`. *Gate
 identifier across `code/` **and** `docs/`; CLAUDE.md's duplicate-function grep and the `__cmf`/`NET`
 object-literal duplicate-key awk; `mptest` as the UI canary; full sweep. *Revertable alone:* yes.
 
-### G — the other window
+### G — THE PRIORITY DANCE ITSELF
 
-**20 · refactor: the pre-fight window becomes the same window.** **⚠ SEE P2 (needs the origin-parameterised walk) and P8 (port the AI policy or Back Stab dies).**
- Q7 — *"it just makes our rules
-consistent."* Identical defect one phase earlier: `preFightHolder` offers to exactly one seat and gives up on
-that seat's single pass, and `eligiblePreFightQuicks` narrows to a whitelist of one kind (`lockout`). With
-A-F done this is a deletion plus a call into the same loop. **Leaving it out is what turns a two-model engine
-into a three-model one.** **AND IT INHERITS STEP 1'S BUG IN A WORSE FORM — found 2026-09-09 while doing step 1.** `clientCheckWindow`
-keys this window on the **bare constant string `'prefight'`**. The response window at least varied by card;
-this one cannot distinguish two grants under ANY circumstances, lost frame or not. It is harmless today only
-because `preFightHolder` offers to exactly one seat and gives up on that seat's single pass, so a re-grant
-never happens — **the defect is masked by the very defect this step removes.** The moment this becomes a real
-go-round, every re-grant is swallowed. Key it the same way step 1 keyed the response window: the seat plus
-`prioGen`, which by then already rides the mirror. *Gate:* `nettest_prefight`; `mptest`; a n≥3 assertion that
-a seat 3+ human can spring a Quick here (they never could); **a re-grant assertion modelled on
-`nettest_priosig`**; full sweep. *Revertable alone:* yes.
+> **⚠ THIS SECTION WAS "the other window" AND THAT FRAMING WAS THE PROBLEM.** It held two steps — 20
+> ("the pre-fight window becomes the same window") and 20b ("priority at Upkeep and Clean-up") — and both
+> were written as windows to add or widen. **Aj, 2026-09-11:** *"we ruled it as it's own step thinking that
+> it was the priority fix/implementation… it was hidden under all the obfuscation of doing band aids
+> instead of getting to the core of the priority dance."*
+> They are **one job**, and the old numbering is retired into step 20 rather than kept: you cannot unify
+> the dance without the phase boundaries (there is nowhere to open it), and phases built around a parallel
+> pre-fight model still leave two models. 21/22/23 keep their numbers — they are cited throughout.
 
-**20b · feat: priority at EVERY point the model passes it — Upkeep and Clean-up.** ⚠ **NEW, AJ'S RULING
-2026-09-10, AND IT IS ITS OWN STEP BY HIS INSTRUCTION.**
+**20 · THE PRIORITY DANCE BECOMES THE ENGINE'S ONLY PRIORITY MECHANISM, AT EVERY POINT THE MODEL PASSES IT.**
 
-**NUMBERED 20b RATHER THAN 21**, because this file's own preamble letters the standing defects A/B/C
-"precisely so a renumber cannot break what cites them" — and 21/22/23 are cited throughout.
+**WHAT IS ACTUALLY THERE, measured 2026-09-11 rather than remembered.** The engine runs **three parallel
+priority mechanisms**, not one with gaps:
 
-**THE RULE, quoted rather than paraphrased** (`PHASES-AND-PRIORITY.md` §1):
-> *To add to a non-empty stack, or to add at all when it is not your turn, the card must be a Quick.*
+| | state | verbs | uses §2's dance? |
+| --- | --- | --- | --- |
+| response window | `respondFor` / `prioPassed` | `respond` / `declineResponse` | ✅ |
+| **pre-fight** | `preFightQ` / `preFightHandled` | `preFightCast` / `preFightPass` | ❌ **a second model** — one seat, one shot, no go-round |
+| Fight End | `fightEnd` | — | ✅ since step 18 |
 
-and §2:
+and **there is no phase structure at all**: `grep -ci phase engine.js` returns 16, every one of them a
+comment. So the pre-fight window is not a narrow version of the dance — it is a **reimplementation of
+priority** with its own state and its own verbs, and un-gating its eligibility list would leave that
+standing. This plan already said as much (*"Leaving it out is what turns a two-model engine into a
+three-model one"*); it was read as an eligibility problem for three sessions anyway.
+
+**THE RULE BEING IMPLEMENTED**, quoted rather than paraphrased — `PHASES-AND-PRIORITY.md` §2:
+> This runs identically at every point below that says "priority".
+
+and:
 > **There is no phase, and no sub-phase, that is closed to priority. Anything put on the stack opens the
 > dance where it stands.**
 
-So **a Quick may be cast whenever its holder has priority** — there is no list of phases in the model, and
-the code has one. §3 passes priority at five points: **Upkeep**, each cast in the **Main Sub-Phase**, the
-**pre-fight window**, **Fight End**, and the beginning of **Clean-up**. The engine implements the middle
-three (18 and 20 between them) and **has no Upkeep phase at all** — `grep -ci upkeep engine.js` returns
-**0**.
+So once the engine has phases and one dance, *"the pre-fight window"*, *"the upkeep window"* and *"the
+clean-up window"* stop being features. They are boundaries that call `openResponseWindow` with the right
+origin (§2 step 7: empty stack → the active player; no active player → no go-round).
 
-**WHAT MISLED ME, recorded because it is a reading failure and will recur.** §3 says *"no card has one
-yet"* at Upkeep and at Clean-up. That is a statement about **triggered abilities** — cards that put
-themselves on the stack at that timing. I read it as "nothing can happen there" and told Aj a row for those
-timings would be a dead control. **Every Quick in the game is legal at both**, and no card needs a trigger
-for that to be true. Same shape as CLAUDE.md's `copyPlus` entry: a rule inferred from a nearby sentence
-instead of from the rule that governs.
+**AND THE CASTABILITY RULE IS SPELLED OUT FIVE TIMES, WHICH IS THE SAME DISEASE ONE LAYER DOWN.** Aj,
+2026-09-11: *"i thought we kept celebrating having a unified rule only for the design and implementation
+to be so fragmented in how it approached the quicks."* Counted:
 
-**SCOPE, enumerated as far as it can be without building:**
-- **The engine has no Beginning Phase.** Adding one is not a window bolted on — it is a phase boundary the
-  round loop does not currently have, and `openResponseWindow` needs an origin there (§2 step 7: empty
-  stack → the active player).
-- **`PROMPT_TIMINGS` is a closed literal of three** (`prefight`/`respond`/`fightend`) against a model with
-  no fixed list. It should be derived from where priority is actually passed, or it goes stale on every
-  phase added.
-- **`promptLegal`'s `prefight` gate to `kind==='lockout'` is step 20's**, not this one's — but both are the
-  same defect (a UI list narrower than the model) and 20 should land first.
-- **✅ THE COUNTER-TICK QUESTION IS ANSWERED (Aj, 2026-09-10) and is NOT work.** §3 said counters tick *"at
-  the beginning of the turn"*; the engine ticks them once per ROUND in `roundDraw`. Asked rather than
-  inferred, and Aj corrected the doc: *"i was thinking of magic. beginning of the round actually makes more
-  sense here. that's where the upkeep lives."* So the engine was right and the spec was wrong —
-  `PHASES-AND-PRIORITY.md` now says ROUND, with the old wording quoted. **Build the Beginning Phase around
-  the round, not the turn.**
+| where | what it spells out |
+| --- | --- |
+| `preFightHolder` (engine ~1308) | `impl && quick && kind==='lockout' && canAfford` |
+| `preFightCast` (engine ~1322) | `impl && quick`, plus its own `canAfford` |
+| **`canCastQuick` (engine ~1367)** | the canonical one — `impl && quick && canAfford && hasTarget` |
+| `respond` (engine ~1546) | `impl && quick`, plus its own `canAfford`, plus its own target check |
+| `promptLegal` (template ~1741) | `impl && quick` — decides which reader rows exist |
 
-*Gate:* an assertion per phase boundary that a seat holding a Quick is offered priority there and can cast
-it; `nettest_priosig`'s re-grant idiom aimed at the new windows; the harness must answer them
-(`netwindows.js` already does, which is why that helper landed first); full sweep. *Revertable alone:* yes.
+§1 states the rule ONCE. **`respond` is the authority and it does not call the predicate** — the target
+check was added to it separately on 2026-09-10, in the same commit as a comment reading *"one predicate,
+called — not restated"*. So this step unifies the PREDICATE as well as the dance: one function that
+answers "may q cast this card right now", called by `respond`, by the pre-fight path while it still
+exists, by `canAddToStack`, and by the UI. A refusal still needs a REASON string, so the shape is
+likely `castRefusal(st, q, card) -> null | reason` with `canCastQuick` as `!castRefusal(...)`.
+
+**DELETE:** `preFightQ`, `preFightHandled`, `openPreFight`, `preFightHolder`, `preFightCast`,
+`preFightPass`, `eligiblePreFightQuicks`, and the template's `promptHumanPreFight` / `promptHostPreFight`
+as separate functions — the three prompt paths collapse toward one.
+**BUILD:** a Beginning Phase (Upkeep, where **equipment counters tick — per ROUND**, Aj's own correction of
+§3 on 2026-09-10; the engine's `roundDraw` is already right), and a Clean-up priority point. Both open the
+same go-round.
+**AND `PROMPT_TIMINGS` STOPS BEING A CLOSED LITERAL** — five points, and today's three rows were written
+from the windows that happened to exist in the code.
+
+**⚠ CARRIES P2 AND P8.** P2: the origin-parameterised walk, which step 11 built for exactly this
+(`nextPrioHolder(st, origin)` takes an origin *because* step 20 passes its own). P8: **port the AI policy
+or Back Stab dies** — the only pre-fight policy is inline in `aiPreFightLock`, and `respondDecision` has no
+branch for it.
+**AND IT INHERITS STEP 1'S BUG IN A WORSE FORM.** `clientCheckWindow` keys the pre-fight window on the bare
+constant string `'prefight'`, so it cannot distinguish two grants under ANY circumstances — harmless today
+only because the one-shot model never re-grants, i.e. **masked by the very defect this step removes.** Key
+it on seat + `prioGen`, as step 1 did for the response window.
+
+**THE COST IS SMALLER THAN IT LOOKS, AND THIS WAS MEASURED BECAUSE AN EARLIER ESTIMATE HERE WAS WRONG BY
+18x.** A priority point only prompts a seat that can actually cast, and that is rare: sampling
+`canAddToStack` at every boundary over 250 AI duels gives **4.7-4.8% at 2 players (~1.6 extra prompts per
+game), 8.5% at 4p, 10.5% at 6p (~22 per game over 28 rounds)**. The first estimate counted phase boundaries
+instead of affordable casts and reported ~37 per duel, which then drove a scheduling recommendation that
+had to be withdrawn. **Count what prompts, not what exists.**
+
+*Gate:* an assertion per boundary that a seat holding an affordable Quick is offered priority there and can
+cast it; `nettest_prefight`; `mptest`; an n>=3 assertion that a seat 3+ human can spring a Quick pre-fight
+(they never could); **a re-grant assertion modelled on `nettest_priosig`**; the harness already answers
+these windows (`netwindows.js`); full sweep. *Revertable alone:* yes, and it is the last structural step —
+21 onward are policy, the wire and docs.
 
 ### H — policy, the wire, and the docs
 
