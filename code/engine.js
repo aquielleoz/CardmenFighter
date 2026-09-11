@@ -585,7 +585,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, shieldResponse: null, stack: [], roundWinResult: null, fightEnd: null, fightEndResult: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], roundWinResult: null, fightEnd: null, fightEndResult: null, preFightQ: null, preFightHandled: false, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -623,7 +623,6 @@
     if (!st || st.finished || !st.players[seat] || st.players[seat].eliminated) return { ok: false };
     eliminatePlayer(st, seat);
     st.stack = (st.stack || []).filter(function (o) { return o.target !== seat && o.p !== seat && o.winner !== seat; });
-    if (st.shieldResponse && st.shieldResponse.q === seat) st.shieldResponse = null;
     if (st.discardPending && st.discardPending.player === seat) st.discardPending = null;
     if (st.respondFor === seat) st.respondFor = null;
     if (st.pending && st.pending.p === seat) { st.pending = null; st.respondFor = null; }
@@ -669,18 +668,12 @@
                                                                                  // "Sphere of Invulnerability"; that name outlived the card by a long way.)
     return absorbSaved(st, q);                                                   // Holy Shroud absorber
   }
-  // Read-only peek: would q's loss be prevented anyway (no side effects)? Used to gate the reactive window.
-  // At 0 shields the incoming loss is a KICK, which only "can't lose this round" (cantLoseRound) prevents —
-  // plain shield-immunity can't save a shield you don't have, so it must NOT suppress the guard window there.
-  function wouldBeSaved(st, q) {
-    var pl = st.players[q];
-    var hasAbsorb = !!findAbsorber(st, q);            // table-wide under WARD_ALL, so the guard window and the
-                                                     // actual resolution cannot disagree
-    if (pl.shields <= 0) return !!pl.cantLoseRound || hasAbsorb;                  // at 0, the kick is prevented only by "can't lose this round" or a Holy Shroud counter
-    if (pl.shieldImmune || pl.cantLoseRound || pl.preventShield) return true;
-    if (hasAbsorb || pl.equipment.some(function (e) { return e.protect === 'special'; })) return true;
-    return false;
-  }
+  /* `wouldBeSaved` WAS HERE AND IS DELETED (epic step 19). It was a read-only peek asking "would this
+     seat's loss be prevented anyway?", used to SUPPRESS the guard window when nothing was at stake — and
+     "nothing is at stake for you" is not a reason to deny priority (`PHASES-AND-PRIORITY.md` §2). It also
+     held a SECOND copy of the prevention ladder that `resolveShieldLossObj` implements independently, so
+     the two could disagree. `findAbsorber` has one caller left, which is the tell that this copy existed
+     only for the whitelist. */
 
   function drawOne(pl) {
     if (pl.deck.length === 0) { if (pl.shuffle.length === 0) return null; pl.deck = shuffle(pl.shuffle); pl.shuffle = []; }
@@ -1302,7 +1295,7 @@
      gives up rather than passing priority on.
      The sprung Quick goes on the stack, so it can itself be answered (e.g. Counter Spell the Back Stab). ---- */
   function preFightHolder(st) {
-    if (st.finished || st.pending || st.shieldResponse || st.stack.length || st.preFightHandled) return -1;   // one window per active-player fight (survives UI suspend/resume)
+    if (st.finished || st.pending || st.stack.length || st.preFightHandled) return -1;   // one window per active-player fight (survives UI suspend/resume)
     var q = nextPlayer(st, st.turn), opp = st.players[q];
     if (isLocked(st, q)) return -1;                                    // a player skipping their own turn can't interject
     var has = opp.hand.some(function (c) { var e = effectFor(st, q, c); return e && e.impl && e.quick && e.kind === 'lockout' && canAfford(opp, c); });   // Hermes makes Back Stab a Quick
@@ -1404,9 +1397,11 @@
          keep in step — and it is what lets a Fight End go-round, which has NO object to hang a set on, use
          the same machinery instead of needing an invented sentinel to carry it. */
       if (!st.prioPassed) st.prioPassed = {};
-      // a destroyShield aimed at a target already at 0 shields is a no-op — never open a guard window (no shield to save)
-      var dsTarget = top.eff.kind === 'destroyShield' ? effectTarget(st, top.p, top.opts) : -1;
-      var noopDestroy = dsTarget >= 0 && st.players[dsTarget].shields <= 0;
+      /* `noopDestroy` WAS HERE AND IS DELETED (epic step 19, standing defect 1). It suppressed the ENTIRE
+         priority window for a `destroyShield` aimed at a seat already at 0 shields — whitelist thinking
+         that had leaked into the real loop, asking whether the TARGET has a shield worth saving when the
+         window's job is priority for EVERYONE. It was also wrong under `DAMAGE_SPAN`: `effectTarget` names
+         one seat while resolution can strike several. */
       var q = -1;
       /* THE GO-ROUND STARTS AT THE CONTROLLER — `k = 0`, not 1 (epic step 6).
          `PHASES-AND-PRIORITY.md` §2: priority goes to the player who put the object there, then passes in
@@ -1420,7 +1415,7 @@
          the code changed to make it so.
          THE WALK ITSELF NOW LIVES IN `nextPrioHolder` (step 11's P2), so the empty-stack go-round is the same
          loop with a different origin rather than a second copy of it. */
-      if (!noopDestroy) q = nextPrioHolder(st, top.p);
+      q = nextPrioHolder(st, top.p);
       if (q >= 0) {
         /* A GRANT of priority is a distinct event even when the OBJECT is one this seat already passed on.
            `respond` clears every object's `passed` set, so after someone answers, an object lower on the stack
@@ -1435,10 +1430,12 @@
       st.prioPassed = {};                                               // a resolution starts a fresh go-round on whatever is now on top
       if (st.finished) return last;
     }
-    if (st.stack.length && st.stack[st.stack.length - 1].kind === 'shieldloss') {
-      var sres = driveShieldStack(st);
-      if (sres && sres.shieldResponsePending) return sres;
-    }
+    /* STANDING DEFECT 2, CLOSED (epic step 19). This read
+         `var sres = driveShieldStack(st); if (sres && sres.shieldResponsePending) return sres;`
+       — a result captured and then thrown away on every path but one, because the only thing it tested
+       was the guard window's own return flag. With that window gone there is nothing to test and nothing
+       to discard: drive the queue and fall through. */
+    if (st.stack.length && st.stack[st.stack.length - 1].kind === 'shieldloss') driveShieldStack(st);
     /* THE EMPTY-STACK GO-ROUND OF THE FIGHT END WINDOW (epic step 11).
        `PHASES-AND-PRIORITY.md` §3: before the Fight End Sub-Phase, the round WINNER is the active player,
        the loss target is already picked, and priority is passed around on an EMPTY stack — Quicks only —
@@ -1998,21 +1995,20 @@
    * 2. **BOTH SPELLINGS.** Leyline carries `immune`; Apollo's patch carries `shieldImmune`. `resolveEffect`
    *    treats them identically (each sets `pl.shieldImmune`), so the gate was the only place in the engine
    *    that knew one and not the other.
-   * `needCantLose` is untouched and is NOT an oversight: at 0 shields the threat is the Fighter Kick, which
-   * `wouldBeSaved` says only `cantLose` (or a Holy Shroud absorb) can stop, because plain shield-immunity
-   * cannot save a shield you do not have. Apollo grants immunity, not `cantLose`, so Sanctuary is correctly
-   * still not offered against a kick. */
+   * WHAT THIS FUNCTION IS NOW, after step 19 deleted everything around it: not a gate on who may act — the
+   * go-round decides that with `canCastQuick` — but the answer to *does this card grant immunity?*, which
+   * `respondDecision`'s Fight End branch and the card reader's prompt default both still need. Same body,
+   * different job; it was called `guardEffFor` while it was the gate. Its `needCantLose` caller
+   * (`shieldGuardCard`) and the `wouldBeSaved` peek that paragraph used to reference are both gone. */
   function immunityEffFor(st, q, card) {
     var e = effectFor(st, q, card);
     if (!e || !e.impl) return null;
     return (e.immune || e.shieldImmune) ? e : null;
   }
-  // A held card that can be SPRUNG in response to a shield threat to become immune this round (Leyline Ascension).
-  // needCantLose: at 0 shields the threat is a KICK, so only a "can't lose this round" card qualifies.
-  function shieldGuardCard(st, q, needCantLose) {
-    var pl = st.players[q];
-    return pl.hand.filter(function (c) { var e = immunityEffFor(st, q, c); return e && (!needCantLose || e.cantLose) && canAfford(pl, c); })[0] || null;
-  }
+  /* `shieldGuardCard` WAS HERE AND IS DELETED (epic step 19). It filtered the hand through the whitelist
+     and returned `[0]` — the ENGINE choosing the player's card for them, and the "first candidate is
+     gambling on the deal" shape CLAUDE.md catalogues. The go-round offers every castable Quick and the
+     player picks. `needCantLose` died with it. */
   // ---- shield-loss stack (the priority backbone; §STACK-DESIGN) ----
   // A shield loss is a stack object; the threatened player may respond (spring Leyline) before it
   // resolves. resolveRoundWin queues one object per loser, then drives the stack: each object
@@ -2057,17 +2053,14 @@
     var result = st.roundWinResult || { ok: true, state: st };
     while (st.stack.length && st.stack[st.stack.length - 1].kind === 'shieldloss') {
       var top = st.stack[st.stack.length - 1];
-      var q = top.target, opp = st.players[q];
-      var facingKick = opp.shields <= 0 && !top.noKick;                                       // at 0 shields, this strip is the Fighter Kick
-      var canGuard = opp.shields > 0 || facingKick;                                           // guard a real shield, OR spring a "can't lose this round" card vs the kick
-      /* THE OLD GUARD WINDOW IS GONE (epic step 18) — it used to open here, and it is the other half of
-         the switch above. It offered ONE seat (the threatened one) a yes/no on ONE whitelisted card, which
-         is the defect the whole epic exists to fix: §3 says priority is PASSED AROUND before the sub-phase,
-         it is not a prompt to the victim. Whatever a defender would have sprung here they now spring in the
-         go-round, one phase earlier and alongside everyone else — and step 12 proved exhaustively that the
-         set only grew. The local reads above (`facingKick`, `canGuard`) are kept because
-         `resolveShieldLossObj` and the delete pass at step 19 still want them in view; the branch that
-         PARKED is what has gone. `st.shieldResponse` is now never set by this path. */
+      /* THE GUARD WINDOW WAS HERE (removed at step 18; its last remains deleted at step 19). It offered
+         ONE seat — the threatened one — a yes/no on ONE whitelisted card, which is the defect the whole
+         epic exists to fix: §3 says priority is PASSED AROUND before the sub-phase, it is not a prompt to
+         the victim. Whatever a defender would have sprung here they now spring in the Fight End go-round,
+         one phase earlier and alongside everyone else; step 12 proved exhaustively that the set only grew.
+         Step 18 kept `facingKick` and `canGuard` as locals "because the delete pass still wants them in
+         view" — it does not, and they were unread. This is now what it always should have been: a queue
+         that resolves. */
       st.stack.pop();
       resolveShieldLossObj(st, top, result);
     }
@@ -2175,36 +2168,14 @@
     });
     return driveShieldStack(st);
   }
-  // Spring the reactive immunity card (Leyline) to save the threatened shield, then finish the round.
-  function shieldGuard(st, q, cardId) {
-    var sr = st.shieldResponse;
-    if (!sr || sr.q !== q) return { ok: false, reason: 'No shield response window.' };
-    var pl = st.players[q];
-    var card = pl.hand.filter(function (c) { return c.id === cardId; })[0];
-    if (!card) return { ok: false, reason: "You don't hold that card." };
-    /* THE SAME LOOKUP, and it had a THIRD fault the offer site did not: it passed the BASE effect to
-       `resolveEffect`, so a Form-granted guard that somehow got this far would have resolved WITHOUT its
-       granted immunity — gaining a shield and then losing one. `immunityEffFor` returns the patched effect. */
-    var eff = immunityEffFor(st, q, card);
-    if (!eff) return { ok: false, reason: 'That card cannot guard a shield.' };
-    if (!canAfford(pl, card)) return { ok: false, reason: 'Not enough Fighter Energy (need ' + costHint(card) + ').' };
-    pl.hand = pl.hand.filter(function (c) { return c.id !== cardId; });
-    payEnergy(pl, card);
-    resolveEffect(st, q, card, eff, {});                                     // reclaim + round-long shield immunity
-    st.shieldResponse = null;
-    var res = driveShieldStack(st);                                          // the guarded object now fizzles (immune)
-    res.guarded = true; res.guardName = eff.name; res.guardedBy = q;
-    return res;
-  }
-  // Decline the shield-guard window: take the hit (resolve the object), then finish the round.
-  function shieldGuardPass(st, q) {
-    var sr = st.shieldResponse;
-    if (!sr || sr.q !== q) return { ok: false, reason: 'No shield response window.' };
-    st.shieldResponse = null;
-    var idx = st.stack.indexOf(sr.obj);                                      // resolve the object they declined to guard
-    if (idx >= 0) { st.stack.splice(idx, 1); resolveShieldLossObj(st, sr.obj, sr.result); }   // sr.result: round-win result, or a mid-turn placeholder
-    return driveShieldStack(st);
-  }
+  /* `shieldGuard` AND `shieldGuardPass` WERE HERE AND ARE DELETED (epic step 19). They were the whitelist
+     window's cast and decline. Both were wrong in the same way and `respond`/`declineResponse` are the
+     analogues that are right:
+     · `shieldGuard` called `resolveEffect` DIRECTLY, so the sprung card never touched the stack — nobody
+       could Counter Spell it and no priority was re-granted (§2 step 5 says any addition resets the
+       all-passed check).
+     · `shieldGuardPass` closed the window on ONE seat's pass. `declineResponse` records the pass and
+       offers the next seat, which is what a go-round is. */
   // When true, finishRoundWin resolves the round but does NOT draw the new hand — the caller (the UI) draws
   // later via roundDraw(), so an end-of-round hand-limit discard can happen BEFORE the new cards are drawn.
   // Headless AI-vs-AI (test/analysis/sims) leave this false, so play()/pass() stay self-contained.
@@ -2516,7 +2487,7 @@
     return result;
   }
   function finishRoundWin(st, result) {
-    st.stack = []; st.shieldResponse = null; st.roundWinResult = null;      // shield-loss stack is spent by here
+    st.stack = []; st.roundWinResult = null;                                // shield-loss stack is spent by here
     if (st.finished) return result;
     var winner = result.roundWinner;
     st.round += 1;
@@ -2558,7 +2529,6 @@
     openPreFight: openPreFight, preFightCast: preFightCast, preFightPass: preFightPass,
     effectTarget: effectTarget,   // who a pending effect is aimed at — the UI needs it to say so out loud
     HOSTILE_SINGLE: HOSTILE_SINGLE,
-    shieldGuard: shieldGuard, shieldGuardPass: shieldGuardPass, shieldGuardCard: shieldGuardCard,
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
     canAddToStack: canAddToStack, canCastQuick: canCastQuick, quickTargets: quickTargets, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
     openFightEndWindow: openFightEndWindow,   // step 11: built and tested here, made live by step 18

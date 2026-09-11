@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 447 + 64 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 447 + 65 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -42,7 +42,7 @@ The underlying commands, if you prefer them raw:
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
 node test.js                                    # engine + AI suite — 447 assertions, must end 0 FAIL
-node netview.test.js                            # netplay snapshot redaction + the mirror contract — 64, must end 0 FAIL
+node netview.test.js                            # netplay snapshot redaction + the mirror contract — 65, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
 node browsertest.js                             # headless duel smoke
@@ -85,8 +85,8 @@ node rulestest.js                               # the custom rules menu: panel, 
 node nettest_rules.js                           # custom rules over netplay: propagation + un-ready (20)
 node nettest_passoduel.js                       # PASSO IN A DUEL (epic step 13). `passoTakeover` is not gated
                                                 # to multiplayer, but `passoStep` only knew driveN's parks —
-                                                # a duel parks on `duelWait`/`netSettle`/`netGuard`/
-                                                # `netDiscard` and NOTHING answered them, so a dropped duel
+                                                # a duel parks on `duelWait`/`netSettle`/`netDiscard`
+                                                # (and `netGuard` until epic step 19) and NOTHING answered them, so a dropped duel
                                                 # opponent deadlocked the table (measured: 1 host action,
                                                 # then 41 idle polls). Also asserts Passo DEFENDS (8)
 node fightendtest.js                            # THE FIGHT END MODEL (epic step 17). Asserts the two things
@@ -1249,7 +1249,8 @@ cache is dropped on join and rejoin, so a reconnecting peer is never deduped aga
 
 **THERE ARE TWO PARK FAMILIES AND A DUEL CANNOT READ THE N-PLAYER ONE — THIS HAS NOW COST THREE BUGS
 (v1.31.91, v1.31.116, and epic step 18).** `hostApplyMove` (the duel) resumes from **`netSettle`** /
-`netGuard` / `netDiscard`; `hostApplyMoveN` (3-6 players) resumes from **`netReact`** / `netParked`. A park
+`netDiscard` (and `netGuard` until epic step 19 deleted the guard window); `hostApplyMoveN` (3-6 players)
+resumes from **`netReact`** / `netParked`. A park
 written into the wrong family is not an error and prints nothing: the client's intent arrives, the handler
 finds its own variable null, and **returns in silence** — the host waits forever with a plausible status
 line on screen. Step 18 re-made it exactly: a new park in `hostSettleRoundThenCeremony` set `netReact`, and
@@ -1259,7 +1260,7 @@ over (measured: round 2 → 2 through twelve seconds of draining).
 dispatches to `hostSettle` (duel) or `hostSettleN` (N-player) and each parks in its own family, so routing a
 new window through it inherits `reassertMirror`, the park beat, `maybePasso` and the right resume variable
 for free — the seven-parks-of-nine lesson (v1.31.116) applied before the drift rather than after it. The
-grep that enumerates the kind: `grep -n 'netReact=\|netSettle=\|netGuard=\|netDiscard=' code/CardmenFighter.template.html`.
+grep that enumerates the kind: `grep -n 'netReact=\|netSettle=\|netDiscard=' code/CardmenFighter.template.html`.
 
 **A ROUND WIN IS NO LONGER A RESULT, IT IS A WINDOW (epic step 18).** `resolveRoundWin` → `enterFightEnd`
 opens the Fight End go-round and returns `{fightEnd:true}` with **no `roundWinner`**, so every UI site that
@@ -1309,11 +1310,18 @@ Measured on v1.31.95, the two halves of the same day:
 - **(5) A SUBAGENT'S FINDING AND A SUBAGENT'S SEVERITY ARE NOT THE SAME CLAIM, AND ONLY ONE OF THEM IS
   RELIABLE (2026-09-08).** A design pass over the Fight End window found four real defects — every one of
   them confirmed by opening the code. Two came labelled *"live in the build you're playing"*, I repeated that
-  to Aj, and **both labels were wrong**: `noopDestroy` produces no wrong outcome in the shipped
+  to Aj, and **both labels were wrong**: `noopDestroy` (deleted at epic step 19) produced no wrong outcome in the shipped
   configuration, and the discarded `driveShieldStack` result is read by nothing on that path. The finding was
   right; the severity was invented. **Severity is the half that decides scheduling** — Aj had already said
   *"let's do the two live bugs first"* on the strength of it, which would have spent a `fix/` branch and a
   version on two latent defects sitting inside the very functions an epic was about to rewrite.
+  **⚠ AND THAT SEVERITY CALL WAS ITSELF TOO GENEROUS, MEASURED 2026-09-11.** Deleting `noopDestroy` at
+  epic step 19 moved the seeded 480-game fingerprint, and restoring only that hunk moved it back exactly:
+  **9 games in 480 differ (1.9%), some with a different WINNER.** So it produced no *reachable wrong*
+  outcome — the multi-target hole needs `DAMAGE_SPAN`, which the rules menu cannot set — but it absolutely
+  had a behavioural effect, because suppressing a priority window denies seats a play they would have made.
+  **"No reachable wrong outcome" is not "no behavioural effect", and a fingerprint is what tells them
+  apart.** Do not call a suppression inert without running one.
   **The check is cheap and specific: does the shipped configuration reach it?** Both answers came from two
   greps — `DAMAGE_SPAN`/`DAMAGE_ALL` are not wired to the custom rules menu, so no player can reach the
   multi-target hole; and the one site that reads `struck` is the round-win path, which never enters
@@ -1793,7 +1801,7 @@ Status as of **v1.31.127 — 2026-09-10, `npm run sweep`, 92 suites and 0 FAIL i
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 447, `netview` 64, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
+`test` 447, `netview` 65, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
 `versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 18, `fightendtest` 16, `fightenduitest` 23, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,

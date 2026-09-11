@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**447**) + `node netview.test.js` (**64**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**447**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -198,8 +198,9 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   around, every player's Quicks are available, and it is nobody's turn so the window is Quicks-only. The code
   offers a fixed *Guard with X / Take the hit* dialog to the **threatened seat only**, admitting only
   `immune || shieldImmune` (`guardEffFor`, engine.js). Five confirmed findings, one cause:
-  - only **one** guard card is ever offered — the engine picks it, so holding Leyline *and* an Apollo-Sanctuary
-    means hand order chooses for you (`shieldGuardCard` picks it, engine.js);
+  - ✅ **CLOSED at epic step 19** — only **one** guard card was ever offered, the engine picking it, so holding
+    Leyline *and* an Apollo-Sanctuary meant hand order chose for you. `shieldGuardCard` is deleted; the
+    go-round offers every castable Quick;
   - the winner gets no window at all, so Armor Piercing can never be added reactively even under Hippolyta,
     which the old design named explicitly (`resolveRoundWin`, engine.js);
   - a shield GAIN never qualifies, which is Aj's original Sanctuary report;
@@ -237,8 +238,8 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
     human in seat 3+ can never spring it (`preFightHolder`, engine.js).
   - **`pushEffect` adds to the stack without resetting `passed`**, and `activate()` has no open-window guard —
     unreachable through the solo UI, reachable on a netplay host (`pushEffect`, engine.js).
-  - **`noopDestroy` suppresses priority for EVERYONE** and is computed from one target while the effect can
-    resolve against many (`openResponseWindow`'s `noopDestroy`, engine.js).
+  - ✅ **CLOSED at epic step 19** — **`noopDestroy` suppressed priority for EVERYONE**, computed from one
+    target while the effect can resolve against many. Deleted from `openResponseWindow`.
   - **A Back-Stab-locked player may cast Techniques.** Aj, 2026-09-08: they **keep priority** — equipment are
     neither a fight nor a Technique, and activated equipment is coming — but Back Stab's text denies fights and
     **Techniques**, and `respond()` accepts one today (`respond`, engine.js).
@@ -257,8 +258,10 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   costs a visible round trip**, the board going busy waiting on a decline the player never chose. One predicate,
   two definitions — the `resolveIds` lesson.
 
-- **"RIVAL" IS HARDCODED IN THE PRIORITY MODALS, WRONG AT 3-6 PLAYERS.** `openShieldGuardModal`
-  (template) says *"Rival's Special is about to strip one of your shields"* — naming a player who is not
+- **"RIVAL" IS HARDCODED IN THE PRIORITY MODALS, WRONG AT 3-6 PLAYERS.** *(The modal half is moot: the
+  string was fixed in v1.31.120 and `openShieldGuardModal` itself was deleted at epic step 19. **The naming
+  half below is still open and is the part Aj asked for.**)* It said
+  *"Rival's Special is about to strip one of your shields"* — naming a player who is not
   at the table and withholding the one fact you need. **Aj's fix is broader than the string:** default names
   become **Rival + a number** for *everyone*, host and human seats included, so an un-renamed seat is still
   identifiable. Names stay dynamic.

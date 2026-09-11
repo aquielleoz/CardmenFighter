@@ -1216,6 +1216,33 @@ idle-park drop probe re-aimed at the live park; `nettest_sync` reporting neither
 **one real solo game and one two-device netplay game.** *Revertable alone:* **yes, by reverting the commit** — not by a boolean, because there is not one.
 
 **19 · refactor: delete the whitelist model.**
+> **⚠ PREMISE CHECK, 2026-09-11 — THREE CORRECTIONS, ALL MEASURED.**
+> - **`takeTurn`'s ENTRY GATE IS NOW DEAD AND MUST GO.** This step says *"KEEP `takeTurn`'s entry gate: it
+>   took 188 hits over 420 AI games"* — and that measurement predates step 18, which stopped minting
+>   `st.shieldResponse` at all. **Re-taken on the current build over the same 420 games at 2-6 players:
+>   0 hits, and `st.shieldResponse` is never set once.** So the plan's ORIGINAL listing was right and the
+>   step-4 correction that rescued it is itself stale. A rescued line is not rescued forever.
+> - **`mpResolveAIShieldWindows` HAS ONE CALL SITE, NOT THREE.** Step 18's restructure of `runOpponents`
+>   removed the other two along with the `shieldResponsePending` branches they sat in.
+> - **`nettest_guard` IS ALREADY REWRITTEN** onto the go-round (`.respQuick`, zero `op:'guard'`) — P5
+>   required it inside step 18, and it landed there.
+>
+> **✅ BUILT 2026-09-11. THE DELETION IS SURGICAL, AND THE SEEDED FINGERPRINT PROVES IT — plus isolates the
+> ONE thing that was not dead.** 480 games at 2/3/4/6p, `Math.random` pinned as well as the rng, instrument
+> run against itself first (identical hash twice):
+> `b13b7ff` → `a35cb2b`. Restoring **only** `noopDestroy` on a copy returns it to `b13b7ff` **exactly**, so
+> every other deletion — the five engine functions, the three API exports, `shieldGuardAI`, the whole
+> 54-line template surface, `remapSR` and the mirror field — is behaviour-preserving, and `noopDestroy` is
+> the sole behavioural change. **Measured impact: 9 of 480 games differ (1.9%), and in some the WINNER
+> changes** (seed 6:15 goes from seat 4 to seat 2).
+> **THAT CORRECTS A SEVERITY NOTE IN CLAUDE.md**, which says `noopDestroy` *"produces no wrong outcome in
+> the shipped configuration"*. True of the multi-target hole it was filed for — `DAMAGE_SPAN`/`DAMAGE_ALL`
+> are unreachable from the rules menu — but the suppression itself denied priority to seats that could have
+> acted, and that changes who wins. **"No reachable WRONG outcome" is not "no behavioural effect."**
+>
+> The template surface greps at **54** lines mentioning `shieldResponse`/`shieldGuard`/`guardId`/`netGuard`,
+> so "25+" is right but low. `test.js` and `netview.test.js` counts in this step are LINE counts, not
+> assertion counts — read them, do not trust either number.
 **⚠ CARRIES STEP 4's DEFERRED SITES — read this before assuming the DELETE table is the whole list.** Step 4
 deleted the three dead `ai.js` gates and `driveRival`'s mid-turn branch, and deferred the rest HERE: the
 template's guard surface is 25+ sites, the large majority of them on the LIVE round-win path. The two known

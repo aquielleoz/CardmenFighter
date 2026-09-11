@@ -3,7 +3,8 @@
  * `passoTakeover` is NOT gated to multiplayer, so a dropped opponent in a 2-player game gets a Passo
  * caretaker exactly like one at a 6-player table. But `passoStep` only ever answered the N-PLAYER parks
  * (`netReact` / `netParked`, both written for `driveN`), and a duel parks on an entirely different set of
- * variables — `awaitRival` for the turn, `netSettle` for a response window, `netGuard` for a shield guard,
+ * variables — `awaitRival` for the turn, `netSettle` for a response window (`netGuard` was a fourth, for
+ * the shield guard, until epic step 19 deleted that window),
  * `netDiscard` for a forced discard. Nothing answered any of them for a Passo'd seat.
  *
  * THIS IS THE v1.31.91 BUG CLASS, WHICH THIS FILE'S OWN HISTORY ALREADY RECORDS: a duel park that only the

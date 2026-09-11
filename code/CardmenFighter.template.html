@@ -4426,7 +4426,6 @@ __QR__
     if(!r.ok){ setMessage(r.reason); return; }
     selected={};
     if(typeof TUT!=='undefined' && TUT.note) TUT.note('pass', r);   // guided lesson: the "pass to bank energy" step advances here
-    if(r.shieldResponsePending){ render(); return openShieldGuardModal(r); }   // your shield is threatened — you may spring your guard
     finishPassRound(r);
   }
   function finishPassRound(r){
@@ -4452,73 +4451,23 @@ __QR__
     render();
     afterHumanAction();
   }
-  // Reactive shield-guard window for YOU: spring your immunity card (Leyline) to save the threatened
-  // shield. `cont` is the continuation after you decide (round-win → finishPassRound; a mid-turn
-  // destroyShield the Rival cast → resume the Rival's turn).
-  function openShieldGuardModal(r, cont){
-    var g=gen, sr=state.shieldResponse;
-    cont = cont || function(fr){ finishPassRound(fr); };
-    /* `effectFor`, NOT `effectOf` — the same trap one layer up (v1.31.112). The engine now offers a guard a
-       Form or Super GRANTED, so the modal describing it must read the patched effect or it names the base
-       card's cost and flags: Apollo's Sanctuary would be pitched to the player as the plain "every player
-       gains 1 shield" Technique it is without the Super. `boosted` is set by `effectFor` itself, so the
-       prompt can say out loud that the guard exists because of what is in your zone. */
-    var guardCard=state.players[YOU].hand.filter(function(c){return c.id===sr.guardId;})[0];
-    var geff=guardCard?E.effectFor(state, YOU, guardCard):{};
-    /* THE PROMPT PREFERENCE REACHES THIS WINDOW TOO (epic step 15), and it has to: this is the SAME timing
-       the reader's "when shields are about to break" row describes, and step 18 replaces this modal with
-       the Fight End go-round. Filtering only the go-round would ship a checkbox that does nothing today
-       and starts working three steps later — a dead control, which this codebase already treats as its own
-       kind of dead end. Unchecked is an AUTO-PASS, taken through the same path the button uses, so netplay
-       sees a seat that passed. */
-    if(guardCard && !promptWanted(guardCard, 'fightend')){
-      if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'guardPass'}); busy=true; render(); return; }
-      var apr=E.shieldGuardPass(state, YOU); say(YOU, '{who} took the hit.', 'dim'); return cont(apr);
-    }
-    /* NAME THE SEAT, DO NOT SAY "Rival" (v1.31.120). At 3-6 players this modal read "Rival’s Special is about
-       to strip one of your shields" — naming a player who is not at the table, and withholding the single fact
-       you need to decide whether to spend the guard. `sr.winner` is the striker (this modal only opens for
-       `sr.q === YOU`, so the striker is never you and "You’s" cannot occur). A destroyShield threat carries no
-       attacker seat on the mirror, so it leads with the SOURCE rather than inventing an owner for it. */
-    var atk = (typeof sr.winner === 'number' && sr.winner >= 0) ? (logName(sr.winner)+'’s ') : '';
-    var threat = sr.roundWin ? (atk+'<b>'+(TYPE[r&&r.comboType]||'Special')+'</b>') : (atk+'<b>'+((sr.obj&&sr.obj.source)||'attack')+'</b>');
-    var html='<h2>🛡 Shield threatened!</h2>'+
-      '<p>'+threat+' is about to strip one of your shields. Spring <b>'+(geff.name||'your guard')+'</b> to become immune this round?</p>'+
-      '<div class="respIncoming"><b>'+(geff.name||'')+'</b> ('+(guardCard?cardSym(guardCard):'')+' · '+(geff.cost||0)+'⚡) — '+(geff.text||'')+
-        (geff.boosted?' <i>(empowered by your '+(geff.boostTier==='super'?'Super':'Form')+')</i>':'')+'</div>'+
-      tableContextHTML()+
-      '<div class="respOpts"><button class="respQuick" id="sgYes">🛡 Guard with '+(geff.name||'it')+'</button>'+
-      '<button id="sgNo" class="respLet">Take the hit</button></div>'+peekBtnHTML();
-    showModal(html); wirePeek();
-    $('sgYes').addEventListener('click', function(){
-      if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'guard', id:sr.guardId}); busy=true; render(); return; }
-    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
-      if(g!==gen){hideOverlay();return;} hideOverlay();
-      var fr=E.shieldGuard(state, YOU, sr.guardId); if(!fr.ok){ setMessage(fr.reason); render(); return; }
-      if(guardCard) flashArt(guardCard, 'You');
-      setMessage('🛡 You sprang <b>'+geff.name+'</b> — shield saved!'); say(YOU, '{who} sprang '+geff.name+' in response — the shield held.', 'you');
-      cont(fr); });
-    $('sgNo').addEventListener('click', function(){
-      if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'guardPass'}); busy=true; render(); return; }
-    if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
-      if(g!==gen){hideOverlay();return;} hideOverlay();
-      var fr=E.shieldGuardPass(state, YOU); say(YOU, '{who} took the hit.', 'dim'); cont(fr); });
-  }
-  /* ONE DEFINITION, CALLED TWICE (v1.31.106). This narration existed as TWO BYTE-IDENTICAL COPIES ~400 lines
-   * apart — here and in the duel driver's round-ending-pass branch — which is the drift shape CLAUDE.md
-   * records for `resolveIds` and `isChopOf`. Fixing one and missing the other is worse than fixing neither,
-   * because the two then disagree about the same event.
-   * All three of the day's bugs were in both copies: host-local `logMsg`, a hardcoded 'Rival' where `logName`
-   * gives the persona's name, and a SENDER-BAKED POSSESSIVE — "its shield holds" is written from the sender's
-   * seat, so the player whose shield it is would read someone else's word for their own. `the shield` has no
-   * owner to get wrong, exactly as `{who} put a card on top of the deck`. */
-  function narrateShieldGuard(seat, card, fr){
-    var nm=logName(seat);
-    if(card) flashArt(card, nm);
-    quickFlash(nm, fr.guardName, false);
-    setMessage('🛡 <b>'+nm+' sprang '+fr.guardName+' — the shield holds!</b>');
-    say(seat, '{who} sprang '+fr.guardName+' in response — the shield holds.', 'rival');
-  }
+  /* `openShieldGuardModal` WAS HERE AND IS DELETED (epic step 19) — the whole guard UI: it read
+     `sr.guardId`, rendered two buttons (`#sgYes` / `#sgNo`) and called back with the round result.
+     `promptHumanResponse` replaces it, and does the same job better in three ways the old modal could not:
+     it offers EVERY castable Quick rather than the one the engine picked, it offers them to every seat
+     holding priority rather than to the victim, and its answer goes on the stack where it can itself be
+     countered. Two details worth not losing with it: it read `state`, not `hostState`, which only worked
+     because `hostStartRealN` aliases them; and its prompt-preference auto-pass is now the `fightend`
+     branch of `promptHumanResponse`. */
+  /* `narrateShieldGuard` WAS HERE AND IS DELETED (epic step 19). It narrated an opponent springing a
+     guard and read `fr.guardName`, which only `shieldGuard` ever returned. A priority answer narrates
+     through `settleWindows`' existing `say()` path instead.
+     **ITS LESSON IS KEPT BECAUSE IT IS NOT ABOUT THIS FUNCTION (v1.31.106).** It existed as TWO
+     BYTE-IDENTICAL COPIES ~400 lines apart — here and in the duel driver — the drift shape CLAUDE.md
+     records for `resolveIds` and `isChopOf`, and all three of that day's bugs were in both copies:
+     host-local `logMsg`, a hardcoded 'Rival' where `logName` gives the persona's name, and a SENDER-BAKED
+     POSSESSIVE ("its shield holds" is written from the sender's seat, so the player whose shield it is
+     reads someone else's word for their own). `the shield` has no owner to get wrong. */
   // Direction 1: YOU cast a destroyShield technique (Critical Hit / Ultima Attack). If the Rival
   // holds a guard (Leyline), let its AI decide to spring it or take the hit — resolved inline.
   /* `rivalMayGuard` WAS DELETED HERE (v1.31.125). It resolved the RIVAL's shield-guard window inline, and
@@ -4933,13 +4882,10 @@ __QR__
       var passed=log.filter(function(e){return e.fight==='pass';})[0];
       if(passed && passed.result && (passed.result.roundWinner!=null || passed.result.fightEnd)){   // step 18: a round-winning pass now returns the WINDOW; finishStep drains it after the beats
         var pres=passed.result;
-        if(pres.shieldResponsePending && state.shieldResponse){          // Rival's shield is threatened — it may spring its guard
-          var q=state.shieldResponse.q, rpl=state.players[q];
-          var rgcard=rpl.hand.filter(function(c){return c.id===state.shieldResponse.guardId;})[0];
-          var fr=(rpl.shields<=2) ? E.shieldGuard(state, q, state.shieldResponse.guardId) : E.shieldGuardPass(state, q);
-          if(fr.guarded) narrateShieldGuard(q, rgcard, fr);   // see narrateShieldGuard (its other caller, `rivalMayGuard`, was deleted in v1.31.125)
-          return finishStep(fr, g, log);   // the WHOLE log — finishStep paces it as beats, then resolves
-        }
+        /* THE DUEL DRIVER'S OWN GUARD BRANCH WAS HERE AND IS DELETED (epic step 19). It was a SECOND
+           copy of `shieldGuardAI`'s policy — a hardcoded `rpl.shields<=2` in the template — resolving the
+           AI's guard window inline. `finishStep`'s `drainFightEnd` runs the go-round instead, and
+           `settleWindows` presents whatever the AI springs with its own flash and dwell. */
         return finishStep(pres, g, log);   // the WHOLE log — finishStep paces it as beats, then resolves
       }
       // Turn the Rival's actions into paced "beats". Effect activations reveal the card in the side
@@ -5307,13 +5253,10 @@ __QR__
   // ---- N-player turn driver: play every AI seat until control returns to the human (seat 0) ----
   // logOppPlays was here: a log-only renderer for opponents' turns. Superseded by buildOppBeats, which
   // logs AND paces/flashes/messages. Deleted rather than left as a second path that could drift again.
-  function mpResolveAIShieldWindows(){                 // auto-resolve any shield-guard windows that belong to AI seats
-    var guard=0;
-    while(state.shieldResponse && state.shieldResponse.q!==YOU && guard++<16){
-      var q=state.shieldResponse.q, rpl=state.players[q];
-      if(rpl.shields<=2 && state.shieldResponse.guardId) E.shieldGuard(state, q, state.shieldResponse.guardId); else E.shieldGuardPass(state, q);
-    }
-  }
+  /* `mpResolveAIShieldWindows` WAS HERE AND IS DELETED (epic step 19). A THIRD copy of `shields<=2`, this
+     one bulk-resolving every AI seat's guard window. `settleWindows`' `AI.respondDecision` loop is already
+     seat-generic and drains any window for any AI seat, which is what made all three copies redundant.
+     The plan expected three call sites in `runOpponents`; step 18's restructure had already removed two. */
   // A human occupies opponent seat p — the turn driver pauses here and waits for their input to arrive.
   // Today this is unreachable (every opponent seat is 'ai'); Phase 5 netplay resumes the driver via
   // applyRemoteInput() once the remote seat's move is broadcast in. The busy flag keeps the local UI locked.
@@ -5335,8 +5278,6 @@ __QR__
     (function step(){
       if(firstStep){ firstStep=false; return setTimeout(function(){ if(g===gen) step(); }, playHold()); }   // let your play linger
       if(g!==gen) return;
-      if(state.shieldResponse && state.shieldResponse.q===YOU){ return openShieldGuardModal(null, function(){ if(g===gen) step(); }); }   // your shield is threatened
-      mpResolveAIShieldWindows();
       if(state.finished){ busy=false; $('rivalStatus').textContent=''; render(); return endGame(); }
       if(state.discardPending && state.discardPending.player===YOU){ return promptHumanDiscard(g); }  // a rival forced YOU to discard — prompt (resumes via resumeRival→runOpponents)
       if(state.preFightQ===YOU){ return promptHumanPreFight(g); }                                   // resumes via resumeRival→runOpponents
@@ -7731,17 +7672,10 @@ __QR__
           var pg=AI.fightEndGuardCard(hostState, seat);
           return hostApplyMoveN(seat, pg ? {op:'respond', id:pg.id} : {op:'decline'});
         }
-        /* PASSO DEFENDS (epic step 13, Aj's ruling): *a dropped player's Leyline still saves their last
-           shield.* It used to always take the hit, which quietly made disconnecting the worst thing that
-           could happen to you — the seat kept its standing but stopped defending it.
-           THE POLICY IS THE AI'S OWN, not a copy: `shieldGuardWants` lives in ai.js and `shieldGuardAI`
-           asks the same question, so Passo defends on exactly the terms an AI seat would and the two cannot
-           drift. `sr.guardId` is the card the window already found — no second search here. */
-        if(k==='guard'){
-          var sr=hostState.shieldResponse;
-          if(sr && sr.guardId && AI.shieldGuardWants(hostState, seat)) return hostApplyMoveN(seat, {op:'guard', id:sr.guardId});
-          return hostApplyMoveN(seat, {op:'guardPass'});                                  // not worth a card — take the hit
-        }
+        /* PASSO'S `guard` BRANCH WAS HERE AND IS DELETED (epic step 19) — the window it answered is gone.
+           Aj's step-13 ruling (*a dropped player's Leyline still saves their last shield*) is preserved in
+           the `respond` branch above, which asks `AI.fightEndGuardCard` — the same policy, for the window
+           that actually exists now. */
         if(k==='discard')  return hostApplyMoveN(seat, {op:'discard', ids:[]});           // [] → engine auto-picks (smart; keeps Specials)
         if(k==='prefight') return hostApplyMoveN(seat, {op:'prefightPass'});
         if(k==='loss'){ var t=null; for(var i=0;i<hostState.numPlayers;i++){ if(i!==seat && !hostState.players[i].eliminated){ t=i; break; } } var lr=E.chooseLossTarget(hostState, t); var nr=netReact; netReact=null; return nr.cont(lr); }   // unreachable in practice (Passo never wins a combo); safe fallback
@@ -7755,7 +7689,7 @@ __QR__
       /* ---- THE DUEL PARKS, WHICH PASSO KNEW NOTHING ABOUT (epic step 13).
          Everything above is `driveN`'s vocabulary — `netReact` and `netParked` were written for 3-6 players.
          A duel parks on a different set entirely (`duelWait` for the turn, `netSettle` for a response window,
-         `netGuard` for a shield guard, `netDiscard` for a forced discard) and answers them through
+         `netDiscard` for a forced discard — `netGuard` was a fourth until step 19 deleted it) and answers them through
          `hostApplyMove`, not `hostApplyMoveN`. So `passoTakeover` — which is NOT gated to multiplayer —
          handed a duel seat to a bot that could not make a single move.
          MEASURED BEFORE THE FIX, by A/B against the unfixed build: `nettest_passoduel` reports **1 host
@@ -7765,11 +7699,6 @@ __QR__
          that only the N-player handler knew about, found by Aj in a real game. Windows first, turn last —
          the same order as the N-player branches, because an open window outranks whose turn it is. */
       if(!MP() && seat===1){
-        if(netGuard){
-          var dsr=hostState.shieldResponse;
-          if(dsr && dsr.guardId && AI.shieldGuardWants(hostState, 1)) return hostApplyMove({op:'guard', id:dsr.guardId});
-          return hostApplyMove({op:'guardPass'});
-        }
         if(netDiscard) return hostApplyMove({op:'discard', ids:[]});                      // [] → engine auto-picks (keeps Specials)
         if(netSettle){                                                                   // the Fight End go-round reaches a duel here — defend, exactly as the N-player branch above does
           var dg=AI.fightEndGuardCard(hostState, 1);
@@ -8421,7 +8350,7 @@ __QR__
       noteResult();
       hostTakeBack();                                      // busy, "Waiting for opponent…" and the park beat go together (v1.31.49)
       hostState=null;                                      // BEFORE any send or render: broadcastMirror, onRender, the beat and hostApplyMove* all return on it, and in-order delivery then puts every game-one mirror AHEAD of the lobby message
-      netSettle=null; netGuard=null; netDiscard=null; netParked=null; netReact=null;   // a stale park is matched by the dispatchers BEFORE their gen check — game two's intent consumed, nothing resumes: a wedge
+      netSettle=null; netDiscard=null; netParked=null; netReact=null;   // a stale park is matched by the dispatchers BEFORE their gen check — game two's intent consumed, nothing resumes: a wedge
       for(var rs=0;rs<6;rs++) try{ E.takeReveal(rs); }catch(e){}   // drain an Outbalance read the finished game never flushed: it is module-level in the engine, newGame does not touch it, and hostFlushReveals would push a dead hand to that seat in game two
       lastMirror={}; clearDiscon(); try{ relayDropRoom(); }catch(e){}   // all idempotent: game two's first mirror is never deduped against game one; discon is empty since endGame; the room was dropped at Start, and a publish in flight then could have re-set it
       hostSeatOf={}; seatDeckMap={}; nextSeat=1; seatRuleGen={}; seatSuggest={}; oppDeck=null; oppReady=false;
@@ -8636,15 +8565,11 @@ __QR__
         var ns=netSettle; netSettle=null; return hostSettle(ns.g, ns.done);
       }
       // ---- shield-guard window the remote (seat 1) owes (round-win Leyline): apply, then re-check + continue ----
-      if(it.op==='guard' || it.op==='guardPass'){
-        if(!netGuard) return;
-        var fr;
-        try{ fr=(it.op==='guard') ? E.shieldGuard(hostState, 1, it.id) : E.shieldGuardPass(hostState, 1); }
-        catch(e){ send({t:'err', reason:'Guard rejected.'}); broadcastMirror(); return; }
-        if(fr && fr.ok===false){ send({t:'err', reason:fr.reason||'Illegal guard.'}); broadcastMirror(); return; }
-        say(1, (fr && fr.guarded) ? ('{who} sprang '+(fr.guardName||'a guard')+' — their shield holds.') : '{who} took the hit.', 'rival');
-        var ng=netGuard; netGuard=null; return hostRivalWindows(ng.g, function(){ ng.cont(fr); });
-      }
+      /* THE DUEL'S `guard`/`guardPass` ARM WAS HERE AND IS DELETED (epic step 19). The `respond`/`decline`
+         arm directly above it is the replacement, and it was always the better one — this arm parked on
+         `netGuard`, a SECOND park variable for a single window, while 3-6 players used
+         `netReact={kind:'guard'}`. That split is the `netDiscard`-vs-`netReact` shape that wedged a real
+         duel in v1.31.91 and again in step 18. One window, one park family. */
       // ---- forced-discard window the remote (seat 1) owes: apply the chosen pitches, then re-check + continue ----
       /* TWO PARK MECHANISMS REACH THIS ONE INTENT, AND THE DUEL HANDLER ONLY KNEW ABOUT ONE (v1.31.91).
        * `netDiscard` is the duel's forced-discard window (Telekinesis and friends). The end-of-round hand-size
@@ -8750,14 +8675,10 @@ __QR__
     }
     // Windows owed to the REMOTE Rival (seat 1): a round-win shield-guard they can spring (Leyline), or a forced
     // discard they must choose. Park + broadcast so the remote decides; auto-resolve only when there's no real choice.
-    var netGuard=null, netDiscard=null;
+    var netDiscard=null;
     function hostRivalWindows(g, cont){
       if(g!==gen) return;
       if(!hostState){ return cont && cont(); }
-      if(hostState.shieldResponse && hostState.shieldResponse.q===RIVAL){
-        if(!hostState.shieldResponse.guardId){ E.shieldGuardPass(hostState, 1); return hostRivalWindows(g, cont); }   // no guard to spring — just take the hit
-        netGuard={ g:g, cont:cont }; busy=true; render(); reassertMirror(); startParkBeat(); maybePasso(1); return;
-      }
       if(hostState.discardPending && hostState.discardPending.player===RIVAL){
         netDiscard={ g:g, cont:cont }; busy=true; render(); reassertMirror(); startParkBeat(); maybePasso(1); return;
       }
@@ -8780,9 +8701,8 @@ __QR__
     function hostRivalContinue(g){
       if(g!==gen) return;
       if(hostState.finished){ hostTakeBack(); render(); broadcastMirror(); return endGame(); }
-      if(hostState.shieldResponse && hostState.shieldResponse.q===YOU){ return openShieldGuardModal(null, function(){ hostRivalContinue(g); }); }
       if(hostState.discardPending && hostState.discardPending.player===YOU){ hostTakeBack(); render(); broadcastMirror(); return promptHumanDiscard(g); }
-      if((hostState.shieldResponse && hostState.shieldResponse.q===RIVAL) || (hostState.discardPending && hostState.discardPending.player===RIVAL)){
+      if(hostState.discardPending && hostState.discardPending.player===RIVAL){
         return hostRivalWindows(g, function(){ hostRivalContinue(g); });
       }
       hostTakeBack(); render(); broadcastMirror();
@@ -8810,13 +8730,7 @@ __QR__
         });
       }
       if(r.roundWinner!=null){
-        if(r.shieldResponsePending && hostState.shieldResponse && hostState.shieldResponse.q===YOU){
-          announceRoundWin(r); return openShieldGuardModal(r, function(fr){ hostFinishRound(fr, g); });
-        }
-        if(r.shieldResponsePending && hostState.shieldResponse && hostState.shieldResponse.q===RIVAL && hostState.shieldResponse.guardId){
-          return hostRivalWindows(g, function(fr){ hostFinishRound(fr||r, g); });   // remote loser may spring Leyline first
-        }
-        return hostFinishRound(r, g);
+        return hostFinishRound(r, g);   // the two `shieldResponsePending` branches that stood here went with the window (step 19)
       }
       hostTakeBack(); render(); broadcastMirror();
       if(hostState.turn!==YOU) awaitRival();     // still the rival's turn (rare in the core loop) → wait for the next move
@@ -8900,10 +8814,9 @@ __QR__
     function netOppWindow(){
       var st=hostState, guard=0;
       while(st && guard++<40){
-        if(st.shieldResponse && st.shieldResponse.q!==YOU){
-          if(st.shieldResponse.guardId) return { kind:'guard', seat:st.shieldResponse.q };
-          E.shieldGuardPass(st, st.shieldResponse.q); continue;                 // nothing to spring → take the hit, keep scanning
-        }
+        /* THE `shieldResponse` SCAN WAS HERE AND IS DELETED (epic step 19). The `respond` line below
+           covers it, and the engine's own auto-pass — `nextPrioHolder` skips any seat `canAddToStack`
+           refuses — replaces the hand-rolled "no guardId, take the hit" continue. */
         if(st.respondFor!=null && st.respondFor!==YOU) return { kind:'respond', seat:st.respondFor };
         if(st.discardPending && st.discardPending.player!=null && st.discardPending.player!==YOU) return { kind:'discard', seat:st.discardPending.player };
         return null;
@@ -8915,7 +8828,6 @@ __QR__
       (function step(){
         if(g!==gen) return;
         if(hostState.finished){ busy=false; $('rivalStatus').textContent=''; render(); broadcastMirror(); return endGame(); }
-        if(hostState.shieldResponse && hostState.shieldResponse.q===YOU){ return openShieldGuardModal(null, step); }   // your shield threatened
         if(hostState.discardPending && hostState.discardPending.player===YOU){ hostTakeBack(); render(); broadcastMirror(); return promptHumanDiscard(g); }
         if(hostState.preFightQ===YOU){ return promptHumanPreFight(g); }
         if(hostState.respondFor===YOU){ render(); return promptHumanResponse(g, step); }
@@ -8978,7 +8890,7 @@ __QR__
         var nrl=netReact; netReact=null; return nrl.cont(lr);
       }
       // ---- REACTIVE ops: valid only for the seat whose reactive window is parked (which may NOT be its turn) ----
-      if(it.op==='respond'||it.op==='decline'||it.op==='guard'||it.op==='guardPass'||it.op==='discard'){
+      if(it.op==='respond'||it.op==='decline'||it.op==='discard'){   // `guard`/`guardPass` went with the window (step 19)
         /* SAY WHY IT WAS IGNORED. This return is correct for a duplicate and FATAL when the window really is
          * open — and until now it could not tell you which had happened. Aj's host trace ends on
          * `move IN … op=discard` with nothing after it, which is exactly what this line looks like from
@@ -8991,8 +8903,10 @@ __QR__
         try{
           if(it.op==='respond'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=respond but the open window is '+netReact.kind); return; } var qc=resolveIds(seat,[it.id])[0], qe=qc?E.effectOf(qc):null; var rr=E.respond(hostState, seat, it.id, it.coid?{counterOid:it.coid}:null); if(rr&&rr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:rr.reason||'Illegal response.'}); broadcastMirror(); return; } say(seat, '{who} '+((qe&&qe.kind==='counter')?('countered with '+qe.name+'!'):('answered'+(qe?(' with '+qe.name):'')+' at instant speed.')), 'rival'); }
           else if(it.op==='decline'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=decline but the open window is '+netReact.kind); return; } E.declineResponse(hostState, seat); say(seat, '{who} let it resolve.', 'dim'); }
-          else if(it.op==='guard'){ if(netReact.kind!=='guard'){ trace('react KIND MISMATCH', 'op=guard but the open window is '+netReact.kind); return; } var fr=E.shieldGuard(hostState, seat, it.id); if(fr&&fr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:fr.reason||'Illegal guard.'}); broadcastMirror(); return; } logMsg('<b>'+seatName(seat)+'</b> sprang '+((fr&&fr.guardName)||'a guard')+' — shield holds.', 'rival'); }
-          else if(it.op==='guardPass'){ if(netReact.kind!=='guard'){ trace('react KIND MISMATCH', 'op=guardPass but the open window is '+netReact.kind); return; } E.shieldGuardPass(hostState, seat); say(seat, '{who} took the hit.', 'rival'); }
+          /* THE `guard` AND `guardPass` ARMS WERE HERE AND ARE DELETED (epic step 19), and deleting the
+             first one silently fixes a v1.31.58-class bug: it narrated with `logMsg`, which is HOST-LOCAL,
+             so a remote seat springing a guard was never seen by anyone else — while the sibling `respond`
+             arm ten lines above correctly uses `say()`. The replacement is that `respond` arm. */
           else if(it.op==='discard'){ if(netReact.kind!=='discard'){ trace('react KIND MISMATCH', 'op=discard but the open window is '+netReact.kind); return; } var d=E.resolveDiscard(hostState, it.ids||[]); if(d&&d.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:d.reason||'Illegal discard.'}); broadcastMirror(); return; } logMsg('<b>'+seatName(seat)+'</b> discarded '+((it.ids&&it.ids.length)||0)+' card'+(((it.ids&&it.ids.length)||0)>1?'s':'')+'.', 'rival'); }
         }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Rejected.'}); broadcastMirror(); return; }
         var nr=netReact; netReact=null; return nr.resume();
@@ -9051,11 +8965,6 @@ __QR__
          it would describe the wrong round. */
       if(hostState.respondFor != null) return hostSettleN(g, function(){ hostSettleRoundThenCeremony(r, g); });   // ONE park per kind — hostSettleN already prompts the host and parks a remote seat
       if(hostState.fightEndResult){ var fer=hostState.fightEndResult; hostState.fightEndResult=null; return hostRunCeremony(fer, g); }
-      if(hostState.shieldResponse && hostState.shieldResponse.q===YOU){ return openShieldGuardModal(r, function(fr){ hostRunCeremony(fr||r, g); }); }
-      if(hostState.shieldResponse && hostState.shieldResponse.q!=null){
-        if(hostState.shieldResponse.guardId){ netParked=null; netReact={ kind:'guard', seat:hostState.shieldResponse.q, g:g, resume:function(){ hostSettleRoundThenCeremony(r, g); } }; busy=true; render(); reassertMirror(); startParkBeat(); maybePasso(netReact.seat); return; }
-        E.shieldGuardPass(hostState, hostState.shieldResponse.q); return hostSettleRoundThenCeremony(r, g);   // no guard to spring → take the hit, re-check
-      }
       hostRunCeremony(r, g);
     }
     // A round resolved: if the winner must pick whose shield to strip (chosen mode), the host picks locally / a remote
@@ -9103,7 +9012,7 @@ __QR__
       syncClear();                             // a mirror is the host's confirmation: whatever we sent has landed or been judged
       if(st && !st.finished) endShown=false;   // a client never runs startGame, so this is where a fresh game re-arms its end screen
       started=true; state=st; hostState=null; window.__cmfNetState=st;
-      var owedModal = !!((st.respondFor===YOU) || (st.shieldResponse && st.shieldResponse.q===YOU) || (st.preFightQ===YOU));   // overlay windows — keep them up (don't flicker away)
+      var owedModal = !!((st.respondFor===YOU) || (st.preFightQ===YOU));   // overlay windows — keep them up (don't flicker away)
       var owedDiscard = !!(st.discardPending && st.discardPending.player===YOU);                                     // interactive hand-picker — must stay unlocked
       var owedLoss = !!(st.pendingLossChoice && st.pendingLossChoice.winner===YOU);                                 // panel-pick: whose shield to strip
       if(owedModal) revealOpen=false;                    // a window the GAME owes you outranks a look at a hand
@@ -9139,7 +9048,6 @@ __QR__
          `prioGen` bumps on every GRANT, so a re-offer always reads as new; it does NOT bump per render, so a
          client applying fifty identical mirrors still de-dupes down to one modal. */
       if(state.respondFor===YOU) sig='resp:'+((state.pending&&state.pending.oid)||'-')+':'+(state.prioGen||0);
-      else if(state.shieldResponse && state.shieldResponse.q===YOU) sig='guard:'+((state.shieldResponse.guardId||'')+':'+(state.shieldResponse.roundWin?'w':'m'));
       else if(state.discardPending && state.discardPending.player===YOU) sig='disc:'+(state.discardPending.count||1);
       else if(state.pendingLossChoice && state.pendingLossChoice.winner===YOU) sig='loss:'+(state.pendingLossChoice.cands||[]).join(',');
       else if(state.preFightQ===YOU) sig='prefight';
@@ -9147,7 +9055,6 @@ __QR__
       clientWinSig=sig;
       if(!sig) return;
       if(sig.indexOf('resp:')===0) promptHumanResponse(gen, function(){});
-      else if(sig.indexOf('guard:')===0) openShieldGuardModal(null, function(){});
       else if(sig.indexOf('disc:')===0) promptHumanDiscard(gen);
       else if(sig.indexOf('loss:')===0) promptLossTarget({ cands:state.pendingLossChoice.cands.slice(), comboType:state.pendingLossChoice.comboType }, gen, function(){});
       else if(sig==='prefight') promptHumanPreFight(gen);
