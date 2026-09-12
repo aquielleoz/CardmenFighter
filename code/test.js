@@ -2143,5 +2143,53 @@ function cards(ids) { return ids.map(card); }
      (bad.length ? ' — ' + bad.join(' | ') + '  ← the code hits EVERY opponent; say so ("EVERY Rival\'s", "every Rival")' : ''));
 })();
 
+/* THE AI CAN CAST THE CARD THE EPIC EXISTS FOR (fix, 2026-09-12).
+   `fightEndGuardCard` filtered the hand through `immunityEffFor` — "is this immunity" — and Sanctuary
+   under HECTOR is `{quick:true}` ALONE on a `kind:'shield'` base. So an AI seat at 0 shields, holding the
+   exact card that saves it, declined and took the Fighter Kick. `fightenduitest` scenario A proves a HUMAN
+   plays that line and lives; no AI could, in any mode, ever.
+   EVERY CLAIM HERE IS A BOTH-WAYS PAIR off identical staging, because "it did not choose the card" and
+   "it could not have chosen any card" are the same observation with one card on the table. */
+(function () {
+  function C(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function rig(shields, forms, hand) {
+    var g = E.newGame(null, { numPlayers: 2 });
+    var p0 = g.players[0];
+    p0.shields = shields; p0.forms = forms; p0.hand = hand;
+    /* energy must cover the COLOURED pips too (`canAfford` -> `costReq`), so an all-one-suit pile
+       silently makes every card unaffordable and the whole rig reads as a refusal. */
+    p0.energy = []; ['D','H','C','S'].forEach(function (su) { for (var i = 0; i < 8; i++) p0.energy.push(C(3, su, 'e' + su + i)); });
+    g.pending = null; g.fightEnd = { strikeTargets: [0], winner: 1 };
+    return g;
+  }
+  var SANC = function () { return C(10, 'H', 'sanc'); };          // Sanctuary
+  var LEY  = function () { return C(9, 'D', 'ley'); };            // Leyline Ascension — immune + cantLose
+  var DUD  = function () { return C(4, 'C', 'dud'); };            // no answer to a shield loss
+  var HECTOR = function () { return [C(13, 'H', 'k')]; };
+
+  // the bug, named: the OLD predicate refuses the card the NEW one accepts
+  var g = rig(0, HECTOR(), [SANC()]);
+  ok(E.effectFor(g, 0, SANC()).quick === true, 'Hector really makes Sanctuary a Quick (the staging is live)');
+  ok(E.immunityEffFor(g, 0, SANC()) === null, 'immunityEffFor REFUSES Sanctuary under Hector — the bug, kept as the reason this test exists');
+  ok(!!E.lossAnswerFor(g, 0, SANC()), 'lossAnswerFor ACCEPTS it: gaining a shield takes you off 0, so the kick branch never runs');
+  var picked = AI.fightEndGuardCard(g, 0);
+  ok(picked && picked.id === 'sanc10H', 'an AI at 0 shields under Hector now springs Sanctuary instead of dying');
+
+  // ...and it is a real refusal, not a rig that accepts anything
+  ok(AI.fightEndGuardCard(rig(0, HECTOR(), [DUD()]), 0) === null, 'a hand with no answer still declines — the rig can say no');
+  ok(AI.fightEndGuardCard(rig(0, [], [SANC()]), 0) === null, 'and WITHOUT the Form it declines: Sanctuary is not a Quick at base, so there is nothing to cast');
+
+  // the seat must actually be the one being struck, and must want to guard
+  ok(AI.fightEndGuardCard(rig(4, HECTOR(), [SANC()]), 0) === null, 'a seat on 4 shields does not burn Sanctuary — shieldGuardWants still gates it');
+  var notStruck = rig(0, HECTOR(), [SANC()]); notStruck.fightEnd.strikeTargets = [1];
+  ok(AI.fightEndGuardCard(notStruck, 0) === null, 'a seat NOT struck this round declines — the go-round offers everyone priority');
+
+  // the cheapest sufficient answer, not hand order — assert it BOTH ways so hand order cannot be what passed it
+  var both = rig(0, HECTOR(), [SANC(), LEY()]);
+  ok(AI.fightEndGuardCard(both, 0).id === 'ley9D', 'with both in hand it takes the CHEAPER Leyline (9) over Sanctuary (10)');
+  var rev = rig(0, HECTOR(), [LEY(), SANC()]);
+  ok(AI.fightEndGuardCard(rev, 0).id === 'ley9D', 'and the same card whichever order the hand is in — not `hand.filter(...)[0]`');
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);
