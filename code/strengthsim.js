@@ -56,7 +56,7 @@ var TIERS = { minion: 1, fighter: 1, knight: 1, demon: 1 };
 /* AN ARM IS `tier` OR `tier:policies` (epic step 21). `knight` alone is the shipped game — every step-21
    policy on. `knight:none` turns them all off, `knight:hold` / `knight:push` enable exactly one. That is
    what makes two changes shipped together still ATTRIBUTABLE: measure each against `:none`, then both. */
-var POLICIES = ['push'];
+var POLICIES = ['push', 'upkeep'];
 function parseArm(spec) {
   var bits = spec.split(':'), tier = bits[0], sel = bits[1];
   if (!TIERS[tier]) { console.error('arms must be tier[:policies] — tiers: ' + Object.keys(TIERS).join(' | ')); process.exit(1); }
@@ -87,6 +87,10 @@ function playGame(seed, armSeat0, armSeat1) {
   var g = E.newGame(mulberry32(seed ^ 0x5bf03635), { numPlayers: 2, decks: decks });
   var arms = [armSeat0, armSeat1], guard = 0;
   AI.setArmPolicy(function (p, name) { return !!arms[p].on[name]; });     // per-seat policy, the whole point
+  /* PERSONA TRAITS ARE ARMED THE SAME WAY. `eager` is a style, not a policy flag, so an arm that names it
+     gets a style map rather than a policy bit — which is what lets a TRAIT be certified strength-neutral
+     before it is handed to a persona. */
+  AI.setStyles({ 0: { eager: !!arms[0].on.upkeep }, 1: { eager: !!arms[1].on.upkeep } });
   while (!g.finished && guard++ < 200000) AI.takeTurn(g, g.turn, arms[g.turn].tier);
   Math.random = realRandom;
   return g.finished ? g.winner : null;

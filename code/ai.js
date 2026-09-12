@@ -137,9 +137,9 @@
      apart afterwards costs more than counting as you go. A throwaway probe cannot do this: these policies
      are called as LOCAL functions, so monkey-patching the export intercepts nothing and reports a
      confident zero — it did, on the first attempt, and the zero was believed for a minute. */
-  var POLICY_STATS = { push: 0 };
-  function policyStats() { return { push: POLICY_STATS.push }; }
-  function resetPolicyStats() { POLICY_STATS.push = 0; }
+  var POLICY_STATS = { push: 0, upkeep: 0 };
+  function policyStats() { return { push: POLICY_STATS.push, upkeep: POLICY_STATS.upkeep }; }
+  function resetPolicyStats() { POLICY_STATS.push = 0; POLICY_STATS.upkeep = 0; }
   function kindOK(kind, p) { return !kindBlock || !kindBlock(kind, p); }
 
   // ---- N-PLAYER TARGETING (Phase 2): which living rival a "choose a rival" effect hits, by difficulty tier ----
@@ -176,6 +176,12 @@
    *   focus   'weakest' | 'leader' | 'random'   who it hits when it holds no grudge
    *   nice    true    never opens hostilities — only ever retaliates (Axelrod's "never defect first")
    *   holds   true    once it has a grudge it stays locked on until that seat is out (unforgiving)
+   *   eager   true    casts at the EARLIEST legal window (Upkeep) rather than waiting for its own turn
+   * `eager` is the first trait admitted by MEASUREMENT rather than by argument: `strengthsim` puts it on one
+   * side of a paired head-to-head and prints +0.10 points / 0.37 sigma at knight, +0.03 / 0.10 at demon over
+   * 32,000 games — so it is style, provably, before anyone shipped it. That check did not exist when the
+   * `nice` flag measured +6 points by smuggling a competence upgrade in with a personality. A trait may only
+   * RE-TIME a behaviour its tier already has; `upkeepCast` refuses `minion` for exactly that reason.
    * Axelrod's fourth property — CLEAR — is the design constraint: a style you cannot read is just a dice roll,
    * so these are deliberately few and blunt. */
   var PERSONAS = [
@@ -189,33 +195,33 @@
     { name:'Jorge',    tier:'minion',  grudge:0.12, focus:'random'  },
 
     { name:'Griflet',   tier:'recruit', grudge:0.25, focus:'weakest' },
-    { name:'Beaumains', tier:'recruit', grudge:0.40, focus:'random'  },
+    { name:'Beaumains', tier:'recruit', grudge:0.40, focus:'random',  eager:true },   // 'fair hands' — the upstart who will not wait his turn
     { name:'Owain',     tier:'recruit', grudge:0.20, focus:'leader'  },
     { name:'Lucan',     tier:'recruit', grudge:0.35, focus:'weakest' },
-    { name:'Sagramore', tier:'recruit', grudge:0.15, focus:'random'  },
+    { name:'Sagramore', tier:'recruit', grudge:0.15, focus:'random',  eager:true },   // le Desirous: acts on the wish the moment he has it
     { name:'Dinadan',   tier:'recruit', grudge:0.30, focus:'leader'  },
 
     { name:'Lefty',    tier:'fighter', grudge:0.50, focus:'weakest' },
     { name:'Bruiser',  tier:'fighter', grudge:0.80, focus:'weakest', holds:true },
-    { name:'Slugger',  tier:'fighter', grudge:0.30, focus:'leader'  },
+    { name:'Slugger',  tier:'fighter', grudge:0.30, focus:'leader',  eager:true },   // swings first, thinks later
     { name:'Tank',     tier:'fighter', grudge:0.60, focus:'leader'  },
     { name:'Duke',     tier:'fighter', grudge:0.40, focus:'random'  },
-    { name:'Knuckles', tier:'fighter', grudge:0.70, focus:'weakest' },
+    { name:'Knuckles', tier:'fighter', grudge:0.70, focus:'weakest', eager:true },
 
     { name:'Lancelot', tier:'knight',  grudge:0.60, focus:'weakest' },
     { name:'Galahad',  tier:'knight',  grudge:1.00, focus:'weakest' },            // pure TIT FOR TAT: answers all, forgives all
-    { name:'Gawain',   tier:'knight',  grudge:1.00, focus:'leader',  holds:true },
-    { name:'Percival', tier:'knight',  grudge:0.50, focus:'leader'  },
+    { name:'Gawain',   tier:'knight',  grudge:1.00, focus:'leader',  holds:true, eager:true },   // famously impetuous
+    { name:'Percival', tier:'knight',  grudge:0.50, focus:'leader',  eager:true },   // the naive one: no instinct for waiting
     { name:'Bedivere', tier:'knight',  grudge:0.70, focus:'weakest' },
     { name:'Bors',     tier:'knight',  grudge:0.85, focus:'leader',  holds:true },
 
     // Disgaea cast. Styles read off the characters — correct any reading that is off, Aj knows the games better:
     { name:'Etna',     tier:'demon',   grudge:0.95, focus:'weakest', holds:true },   // vindictive, preys on the weak, never lets it go
-    { name:'Laharl',   tier:'demon',   grudge:0.75, focus:'leader'  },               // beating whoever is on top IS the ambition
+    { name:'Laharl',   tier:'demon',   grudge:0.75, focus:'leader',  eager:true },   // beating whoever is on top IS the ambition — and he will not be kept waiting
     { name:'Flonne',   tier:'demon',   grudge:1.00, focus:'weakest' },              // love and justice as TIT FOR TAT: answers every strike, forgives instantly
     { name:'Rozalin',  tier:'demon',   grudge:0.55, focus:'leader'  },               // haughty noble, aims high, above petty grudges
     { name:'Adell',    tier:'demon',   grudge:0.40, focus:'leader'  },              // honourable brawler: slow to anger, never holds a grudge
-    { name:'Vyers',    tier:'demon',   grudge:1.00, focus:'random',  holds:true }    // Mid-Boss: fixated on whoever slighted him, forever, theatrically
+    { name:'Vyers',    tier:'demon',   grudge:1.00, focus:'random',  holds:true, eager:true }   // Mid-Boss: fixated forever, theatrically — and always makes the early entrance
   ];
   function personasFor(tier){ return PERSONAS.filter(function(x){ return x.tier===tier; }); }
   // Draw one persona per AI seat, no repeats at the table (6 per tier covers you + 5 AI).
@@ -468,6 +474,7 @@
 
   function chooseMove(st, p, diff) {
     var strategicPass = isSmart(diff); var top = isTop(diff); if (diff === 'demonpass') diff = 'knight';
+    var sty = styleOf(p);                              // persona style — `favour` breaks ties between equal plays
     var options = E.legalFightPlays(st, p);
     var leading = !st.pile;
     if (options.length === 0) return leading ? { action: 'stuck' } : { action: 'pass' };
@@ -490,16 +497,34 @@
       return v;
     }
     function keepOf(x) { return keepValue(x.cards[0]); }
+    /* FAVOUR — a persona's signature class, and the first trait chosen because the CHOICE IS GENUINELY FREE.
+       Measured over 200 knight duels: **36.5% of turns offer two or more plays identical in type, size and
+       value** — equivalent as far as `beats()` can see, so which one you play cannot change the round. That
+       is the same structural accident that makes `grudge`/`focus` safe (in a free-for-all, WHO you hit does
+       not change how well you play), found on a second axis.
+       IT IS A TIE-BREAK AND ONLY A TIE-BREAK. It runs after every real key — `keepValue` for singles, size
+       then value for combos — so it can never overrule a judgement the AI actually made; it only orders
+       options the AI has already called equal. Two earlier candidates were tried and measured unusable:
+       casting at Upkeep (0.04 times per game — invisible) and reordering the proactive chain (only 6.2% of
+       turns have two casts to reorder, and the loop casts both anyway). Frequency is the whole problem with
+       persona traits, and this is the one that has it. */
+    function favourCmp(a, b) {
+      if (!sty || !sty.favour) return 0;
+      var av = a.cards.some(function (c) { return c.suit === sty.favour; }) ? 1 : 0;
+      var bv = b.cards.some(function (c) { return c.suit === sty.favour; }) ? 1 : 0;
+      return bv - av;                                  // lead with your own class when nothing else separates them
+    }
 
     var combos = options.filter(function (x) { return x.combo.size > 1; });
     var singles = options.filter(function (x) { return x.combo.size === 1; });
-    singles.sort(function (a, b) { return keepOf(a) - keepOf(b); });                // most expendable first
+    singles.sort(function (a, b) { return (keepOf(a) - keepOf(b)) || favourCmp(a, b); });   // most expendable first, then the persona's class
 
     if (leading) {
       if (diff !== 'minion' && st.round >= 2 && combos.length) {                    // fighter/demon: lead the strongest special
         combos.sort(function (a, b) {
           if (b.combo.size !== a.combo.size) return b.combo.size - a.combo.size;    // bigger special first
-          return b.combo.value - a.combo.value;                                     // then stronger
+          if (b.combo.value !== a.combo.value) return b.combo.value - a.combo.value; // then stronger
+          return favourCmp(a, b);                                                   // then the persona's class
         });
         return { action: 'play', cards: combos[0].cards };
       }
@@ -550,7 +575,7 @@
   // If an activation opens a response window for a HUMAN opponent, the phase suspends
   // (leaves st.pending set) so the UI can prompt them; the turn resumes on re-entry.
   function playPhase(st, p, log, diff, humans) {
-    var pl = st.players[p], guard = 0;
+    var pl = st.players[p], guard = 0, sty = styleOf(p);   // persona style — `rush` reorders the chain below
     if (!effectsAllowed(st, p)) return;                // analysis: pure-fighter (no proactive effects/transforms)
     // lowest-cost affordable card whose effect matches `pred`. When `avoidCombo` is set, skip a
     // card that is holding a pair/trio together — so a LOW-value effect won't cannibalise a Special.
@@ -651,6 +676,19 @@
         E.resolveDiscard(st);                                                             // AI target auto-pitches (avoids breaking its Specials)
       }
       var e = pl.energy.length, opp = st.players[oppIdx];
+      /* RUSH — a PERSONA TRAIT, and the first one chosen by FREQUENCY rather than by what was handy.
+         `playPhase` tries its effects in a fixed order every turn and the transform sits near the END, after
+         the defensive casts. A `rush` persona tries it FIRST: same card, same `keepsTheWin` guard, same
+         legality — only the position in the chain moves, which is style by construction.
+         WHY THIS ONE: measured over 200 knight duels, TRANSFORM fires **4.64 times per game**, against 1.10
+         for the next most common cast and **0.04** for the Upkeep cast that was tried first. A trait nobody
+         can see is a dice roll (Axelrod's CLEAR property, the design constraint on these knobs), and 0.04 per
+         game is invisible — one game in twenty-five. This is the same idea on a behaviour that actually
+         happens. */
+      if (sty && sty.rush && !basic) {
+        var trR = pickTransform(st, p);
+        if (trR && keepsTheWin(trR) && act(st, p, trR.id, log, 'TRANSFORM', humans)) continue;
+      }
       var re = pick(function (ef) { return ef.kind === 'removeEquip'; });
       if (re && !basic && opp.equipment.length > 0 && act(st, p, re.id, log, 'REMOVE', humans)) continue;    // strip the opponent's equipment
       var ds = pick(function (ef) { return ef.kind === 'destroyShield'; });
@@ -812,6 +850,8 @@
       if (guardC) { var gr = E.respond(st, q, guardC.id); if (gr && gr.ok) return gr; }
       var pushC = fightEndPushCard(st, q);                                // the WINNER's line — defence first, it is the urgent one
       if (pushC) { var pr2 = E.respond(st, q, pushC.id); if (pr2 && pr2.ok) return pr2; }
+      var upC = upkeepCast(st, q);                                         // the Upkeep go-round is a real place to cast
+      if (upC) { var ur = E.respond(st, q, upC.id); if (ur && ur.ok) return ur; }
       return E.declineResponse(st, q);
     }
     function bestQuick(kind) {
@@ -958,6 +998,37 @@
     if (best) POLICY_STATS.push++;
     return best;
   }
+  /* THE UPKEEP WINDOW IS A REAL PLACE TO CAST — AN EXPERIMENT (epic step 21).
+     Aj: *"since it's a legit priority point. you can put quicks if you want... before everybody's turn"*,
+     and he is right. Asked of the ENGINE at a live Upkeep window: Counter Spell is refused (a tick is not
+     an effect, per his own trigger ruling) and Annoint needs Equipment, but **Leyline is castable and so is
+     Back Stab under a Form**. So "nothing answers the tick" — which is true — is NOT "nothing is worth
+     doing here", and reading the first as the second is what made the AI decline.
+     THIS TESTS ONE VARIABLE: THE TIMING, NOT THE CARD. `playPhase` already casts the ward at `shields <= 1`
+     on the seat's own turn; this casts the SAME card under the SAME condition, one window earlier. Upkeep
+     is strictly better if it is better at all, because the ramp half of Leyline (`reclaim, half`) lands
+     before the turn it pays for rather than during it, while `cantLose` covers the same round either way.
+     Keeping it to one variable is what makes the measurement mean anything. */
+  function upkeepCast(st, q) {
+    var sty = styleOf(q);
+    if (!sty || !sty.eager) return null;                                     // a PERSONA trait, not a tier behaviour
+    if ((st._diff && st._diff[q]) === 'minion') return null;                 // minion never casts effects: eager there would be a CAPABILITY, not a re-timing
+    if (!policyOn(q, 'upkeep')) return null;
+    if (!st.upkeep || st.toPlay || st.fightEnd || st.cleanup) return null;   // the Upkeep go-round only
+    if (!effectsAllowed(st, q)) return null;                                 // analysis: pure-fighter never casts
+    var qp = st.players[q];
+    if (qp.cantLoseRound || qp.shields > 1) return null;                     // playPhase's own ward condition
+    var best = null, bestCost = Infinity;
+    for (var i = 0; i < qp.hand.length; i++) {
+      var c = qp.hand[i], e = E.effectFor(st, q, c);
+      if (!e || !e.impl || !e.quick || !e.cantLose) continue;                // the can't-lose half is the point
+      if (!kindOK(e.kind, q) || !E.canAfford(qp, c)) continue;
+      var cost = E.activationCost(c);
+      if (cost < bestCost) { best = c; bestCost = cost; }
+    }
+    if (best) POLICY_STATS.upkeep++;
+    return best;
+  }
   function shieldGuardWants(st, q) {
     if (!effectsAllowed(st, q)) return false;                // analysis: pure-fighter never guards
     return st.players[q].shields <= 2;                       // save the shield when it matters (Leyline also ramps, rarely wasted)
@@ -1096,7 +1167,7 @@
      silently removed `preFightMove`, `lockoutWorth` and six others, and `test.js` died on the first of
      them. Notes go ABOVE the literal; entries go in it. */
   var API = { THREAT_KIND: THREAT_KIND, BENIGN_KIND: BENIGN_KIND,   // exported so test.js can require every effect kind to be CLASSIFIED
-    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, fightEndGuardCard: fightEndGuardCard, fightEndPushCard: fightEndPushCard, setArmPolicy: setArmPolicy, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
+    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, fightEndGuardCard: fightEndGuardCard, fightEndPushCard: fightEndPushCard, upkeepCast: upkeepCast, setArmPolicy: setArmPolicy, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
     lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;
