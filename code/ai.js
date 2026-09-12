@@ -875,7 +875,22 @@
     if ((st.fightEnd.strikeTargets || []).indexOf(q) < 0) return null;    // not struck this round — nothing to guard
     if (!shieldGuardWants(st, q)) return null;
     var qp = st.players[q];
-    return qp.hand.filter(function (c) { return E.immunityEffFor(st, q, c) && E.canAfford(qp, c); })[0] || null;
+    /* `E.lossAnswerFor`, NOT `E.immunityEffFor` — the predicate used to be "is this immunity", and
+       Sanctuary under HECTOR carries no immunity flag at all (`{quick:true}` on a `kind:'shield'` base),
+       so an AI seat at 0 shields holding the card that saves it was refused and kicked. A human plays
+       that exact line in `fightenduitest`. The engine owns the rule because it is the same two-branch
+       board read `resolveShieldLossObj` makes; one definition, and PASSO inherits the fix for free.
+       AND THE CHEAPEST, NOT `[0]`: the widened predicate makes two candidates an ordinary occurrence,
+       and `hand.filter(...)[0]` is the "first candidate is gambling on the deal" shape CLAUDE.md
+       catalogues — with a real cost here, since it could spend Leyline where a Sanctuary would do. */
+    var best = null, bestCost = Infinity;
+    for (var i = 0; i < qp.hand.length; i++) {
+      var c = qp.hand[i], e = E.lossAnswerFor(st, q, c);
+      if (!e || !E.canAfford(qp, c)) continue;
+      var cost = E.activationCost(c);
+      if (cost < bestCost) { best = c; bestCost = cost; }
+    }
+    return best;
   }
   function shieldGuardWants(st, q) {
     if (!effectsAllowed(st, q)) return false;                // analysis: pure-fighter never guards

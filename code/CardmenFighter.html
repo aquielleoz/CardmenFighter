@@ -3724,6 +3724,39 @@
     if (!e || !e.impl) return null;
     return (e.immune || e.shieldImmune) ? e : null;
   }
+
+  /* CAN THIS CARD ANSWER THE SHIELD LOSS ABOUT TO HIT q? "IS IT IMMUNITY" IS THE WRONG QUESTION, AND
+     ASKING IT LOCKED THE AI OUT OF THE ONE LINE THIS EPIC EXISTS FOR.
+     `immunityEffFor` admits `immune || shieldImmune` and nothing else. **Sanctuary under HECTOR is
+     `{quick:true}` ALONE on a `kind:'shield'` base** — no immunity flag of any kind — so it was refused,
+     and an AI seat at 0 shields holding the exact card that saves it declined and died. `fightenduitest`
+     proves a HUMAN plays that line and survives the Fighter Kick; the AI could not, in any mode, ever.
+     THE ANSWER DEPENDS ON THE SHIELD COUNT, because `resolveShieldLossObj` has two branches and they
+     honour different flags — read it, not this comment, if they ever disagree:
+       - at 0 shields the kick branch tests `cantLoseRound || absorbSaved` and deliberately NOT
+         `shieldSaved`, so a bare `shieldImmune` is spent for NOTHING ("can't save a shield you don't
+         have", its own comment). What works is Leyline's `cantLose`, or gaining a shield to get OFF 0 so
+         the ordinary branch runs instead.
+       - above 0 the ordinary branch tests `cantLoseRound`, then `shieldSaved` (which reads
+         `shieldImmune`), so immunity PREVENTS the loss outright and a shield gain merely absorbs it.
+     Hence the ordering below: a true preventer beats a spare shield, and at 0 a spare shield is the only
+     thing left. It requires `quick` because a window can only be answered with one — the predicate is
+     "a castable answer", not "a card that would be nice to have".
+     THE `shields <= 0` REFUSAL IS UNREACHABLE IN THE SHIPPED CARD SET, AND IS KEPT DELIBERATELY: the only
+     `shieldImmune` source is Apollo's Super patch on Sanctuary, which carries Sanctuary's own shield gain,
+     and Leyline pairs `immune` with `cantLose` — so today every immunity card also answers a kick by some
+     other door and nothing is refused by that line. It encodes the engine's rule rather than the current
+     card list, so a future bare-`shieldImmune` Quick cannot be cast into a kick for nothing. Do not
+     "simplify" it away on the grounds that it never fires; that is the day it starts mattering. */
+  function lossAnswerFor(st, q, card) {
+    var e = effectFor(st, q, card);                        // effectFor, NOT effectOf: Hector GRANTS the quick
+    if (!e || !e.impl || !e.quick) return null;
+    var gainsShield = (e.kind === 'shield' && e.shield > 0);
+    if (e.cantLose) return e;                              // Leyline — the only card that stops a kick outright
+    if (st.players[q].shields <= 0) return gainsShield ? e : null;   // at 0 nothing else reaches the kick branch
+    if (e.immune || e.shieldImmune) return e;              // above 0 immunity prevents the loss
+    return gainsShield ? e : null;                         // or a spare shield absorbs it
+  }
   /* `shieldGuardCard` WAS HERE AND IS DELETED (epic step 19). It filtered the hand through the whitelist
      and returned `[0]` — the ENGINE choosing the player's card for them, and the "first candidate is
      gambling on the deal" shape CLAUDE.md catalogues. The go-round offers every castable Quick and the
@@ -4359,6 +4392,7 @@
        Still one definition: ai.js and the template's prompt defaults both call it rather than restating
        `immune || shieldImmune`, which is the miss v1.31.112 fixed. */
     immunityEffFor: immunityEffFor,
+    lossAnswerFor: lossAnswerFor,
     DECKS: DECKS, DECK_ORDER: DECK_ORDER, BASE_SUIT: BASE_SUIT, buildDeck: buildDeck,
     PARTS_TOTAL: PARTS_TOTAL, PARTS_SUITS: PARTS_SUITS, PARTS_PREFIX: PARTS_PREFIX,
     partsCount: partsCount, partsValid: partsValid, partsKey: partsKey, parseParts: parseParts,
@@ -5266,7 +5300,22 @@
     if ((st.fightEnd.strikeTargets || []).indexOf(q) < 0) return null;    // not struck this round — nothing to guard
     if (!shieldGuardWants(st, q)) return null;
     var qp = st.players[q];
-    return qp.hand.filter(function (c) { return E.immunityEffFor(st, q, c) && E.canAfford(qp, c); })[0] || null;
+    /* `E.lossAnswerFor`, NOT `E.immunityEffFor` — the predicate used to be "is this immunity", and
+       Sanctuary under HECTOR carries no immunity flag at all (`{quick:true}` on a `kind:'shield'` base),
+       so an AI seat at 0 shields holding the card that saves it was refused and kicked. A human plays
+       that exact line in `fightenduitest`. The engine owns the rule because it is the same two-branch
+       board read `resolveShieldLossObj` makes; one definition, and PASSO inherits the fix for free.
+       AND THE CHEAPEST, NOT `[0]`: the widened predicate makes two candidates an ordinary occurrence,
+       and `hand.filter(...)[0]` is the "first candidate is gambling on the deal" shape CLAUDE.md
+       catalogues — with a real cost here, since it could spend Leyline where a Sanctuary would do. */
+    var best = null, bestCost = Infinity;
+    for (var i = 0; i < qp.hand.length; i++) {
+      var c = qp.hand[i], e = E.lossAnswerFor(st, q, c);
+      if (!e || !E.canAfford(qp, c)) continue;
+      var cost = E.activationCost(c);
+      if (cost < bestCost) { best = c; bestCost = cost; }
+    }
+    return best;
   }
   function shieldGuardWants(st, q) {
     if (!effectsAllowed(st, q)) return false;                // analysis: pure-fighter never guards
