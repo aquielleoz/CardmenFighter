@@ -12740,6 +12740,15 @@ window.CardFace = {};
       if(isHost()){
         if(m.t==='join'){
           connected=true;
+          /* REFUSE BEFORE A SEAT IS ALLOCATED (epic step 22). It has to be here rather than at `welcome`,
+             because `hostSeatOf[cid]=nextSeat++` is not undone by returning later — a refused peer would
+             leave a hole that `hostStartRealN` indexes straight through. Same shape as the `full` refusal
+             two lines down, which is why that one is the model. */
+          if(verIncompatible(m.v)){
+            if(noteVersion(m.v)) renderNet();
+            sendTo0(srcChan, {t:'vreject', cid:m.cid||'anon', v:netVersion()});
+            return;
+          }
           var cid=m.cid||'anon', isNew=(hostSeatOf[cid]==null);
           if(isNew){ if(nextSeat>MAX_SEATS-1){ sendTo0(srcChan, {t:'full', cid:cid}); return; } hostSeatOf[cid]=nextSeat++; }   // seats 1..5 (+host = up to 6)
           /* Drop this seat's mirror cache on every join, new or returning: a peer that reconnects has missed
@@ -12820,6 +12829,13 @@ window.CardFace = {};
           if(sseat!=null){ if(MP()) hostApplyMoveN(sseat, m.intent); else hostApplyMove(m.intent); } }
         else if(m.t==='concede'){ onOpponentConcede(srcChan?seatOfChan(srcChan):m.seat); }
       } else {
+        if(m.t==='vreject'){ if(m.cid && m.cid!==myId) return;      // the host refused us: say why and stop
+          if(noteVersion(m.v)) renderNet(); stopJoinRetry(); return; }
+        /* AND THE CLIENT CHECKS FOR ITSELF, which is the case that actually matters: an OLDER host does not
+           know how to refuse, so if only one side has this build it must be the one to stop. Checked BEFORE
+           `connected=true` and before any seat state is adopted. */
+        if(m.t==='welcome' && verIncompatible(m.v)){ if(m.cid && m.cid!==myId) return;
+          if(noteVersion(m.v)) renderNet(); stopJoinRetry(); return; }
         if(m.t==='welcome'){ if(m.cid && m.cid!==myId) return; mySeat=(typeof m.seat==='number'?m.seat:1); connected=true;
           if(typeof m.rules==='string') setRulesFromKey(m.rules);        // the HOST's rules are the game's rules
           if(m.sug){ seatSuggest=m.sug; sugTable=m.sugNames||{}; refreshRulesPanel(); }
@@ -13989,6 +14005,20 @@ window.CardFace = {};
      * a game because of it would be a worse failure than the mismatch. `?ver=` overrides the reported version so
      * the mismatch path is testable; it is inert without `dbg=1`. */
     var verWarn=null;
+    /* THE MINOR NUMBER IS THE COMPATIBILITY LINE (epic step 22; Aj: *"in different versions, the handshake is
+     * refused and both players are recommended to update"*). v1.32.4 and v1.32.5 still play; v1.31 and v1.32
+     * do not — because the SECOND number is what this project's own scheme already means by "the rules moved",
+     * and two people playing different rules while both believe they are fine is the failure the version
+     * handshake exists to prevent.
+     * AN UNPARSEABLE VERSION FALLS BACK TO WARNING, never to refusing. A peer old enough to send something
+     * this cannot read is exactly the peer a hard refusal would strand, and the warning is the behaviour it
+     * already expects. */
+    function verParts(v){ var m=/^v?(\d+)\.(\d+)\.(\d+)/.exec(String(v||'')); return m ? [+m[1], +m[2], +m[3]] : null; }
+    function verIncompatible(theirs){
+      var a=verParts(netVersion()), b=verParts(theirs);
+      if(!a || !b) return false;                               // cannot tell — warn, do not strand them
+      return a[0]!==b[0] || a[1]!==b[1];
+    }
     function netVersion(){
       var m=/[?&]ver=([^&]+)/.exec(location.search);
       return (m && /[?&]dbg=1/.test(location.search)) ? decodeURIComponent(m[1]) : GAME_VERSION;
@@ -13996,14 +14026,23 @@ window.CardFace = {};
     function noteVersion(theirs){
       if(!theirs || theirs===netVersion()) return false;
       if(verWarn) return true;                                  // already reported; do not spam the log
-      verWarn={ mine:netVersion(), theirs:theirs };
-      logMsg('⚠ Build mismatch — you are on <b>'+esc(verWarn.mine)+'</b>, your opponent is on <b>'+
-             esc(verWarn.theirs)+'</b>. Play may behave differently; download the same build to be sure.', 'bad');
+      var hard=verIncompatible(theirs);
+      verWarn={ mine:netVersion(), theirs:theirs, hard:hard };
+      logMsg(hard
+        ? ('⛔ Different versions — you are on <b>'+esc(verWarn.mine)+'</b>, they are on <b>'+esc(verWarn.theirs)+
+           '</b>. The rules changed between these builds, so the game was not started. Both of you should download the same build.')
+        : ('⚠ Build mismatch — you are on <b>'+esc(verWarn.mine)+'</b>, your opponent is on <b>'+
+           esc(verWarn.theirs)+'</b>. Play may behave differently; download the same build to be sure.'), 'bad');
       return true;
     }
     function verWarnHTML(){
-      return verWarn ? '<div class="netmsg err">⚠ Build mismatch — you are on <b>'+esc(verWarn.mine)+
-             '</b>, they are on <b>'+esc(verWarn.theirs)+'</b>. You can still play, but download the same build to be sure.</div>' : '';
+      if(!verWarn) return '';
+      return verWarn.hard
+        ? ('<div class="netmsg err">⛔ Different versions — you are on <b>'+esc(verWarn.mine)+'</b>, they are on <b>'+
+           esc(verWarn.theirs)+'</b>. The rules changed between these builds, so this game cannot start. '+
+           'Both players should download the same build.</div>')
+        : ('<div class="netmsg err">⚠ Build mismatch — you are on <b>'+esc(verWarn.mine)+
+           '</b>, they are on <b>'+esc(verWarn.theirs)+'</b>. You can still play, but download the same build to be sure.</div>');
     }
     /* THE NETBAR MUST NOT CLAIM "no server" WHILE A RELAY IS CARRYING THE HANDSHAKE. It was accurate for every
      * version before this one, which is why leaving it would be a lie rather than a stale string. The game

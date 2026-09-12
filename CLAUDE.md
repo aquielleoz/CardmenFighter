@@ -1117,8 +1117,22 @@ Three more things worth knowing before touching them:
 
 **Netplay carries a BUILD VERSION and warns on a mismatch (v1.31.21).** The client sends `v` with `t:'join'`,
 the host returns its own on `t:'welcome'`, and `noteVersion()` banners + logs a difference on both seats,
-reader-relative ("you are on X, they are on Y"). **It warns, it does not refuse** — a patch-level difference is
-usually harmless and locking two friends out would be the worse failure. `?ver=` overrides the reported version
+reader-relative ("you are on X, they are on Y"). **THE MINOR NUMBER IS THE COMPATIBILITY LINE (epic step 22).**
+v1.32.4 and v1.32.5 still play and still warn; **v1.31 and v1.32 are REFUSED** and both players are told to
+download the same build. The old rule here was *"it warns, it does not refuse — a patch-level difference is
+usually harmless and locking two friends out would be the worse failure"*, and **that reasoning is intact and
+still governs the patch case**; only its scope changed, because the second number is what this project's own
+scheme already means by *the rules moved*, and two people playing different RULES while both believe they are
+fine is the precise failure this handshake exists to prevent. `verIncompatible` is the predicate.
+**AN UNPARSEABLE VERSION FALLS BACK TO WARNING, NEVER TO REFUSING** — a peer old enough to send something the
+regex cannot read is exactly the peer a hard refusal would strand, and a warning is the behaviour it already
+expects.
+**THE HOST REFUSES BEFORE ALLOCATING A SEAT, and that placement is load-bearing**: `hostSeatOf[cid]=nextSeat++`
+is not undone by returning later, so a refusal further down would leave a hole that `hostStartRealN` indexes
+straight through. It is modelled on the `full` refusal two lines below it.
+**AND THE CLIENT CHECKS FOR ITSELF, which is the case that actually matters**: an OLDER host does not know how
+to refuse, so when only one side has this build it must be the one to stop — checked on `t:'welcome'` before
+`connected=true` and before any seat state is adopted. `?ver=` overrides the reported version
 for testing and is dbg-gated. Matched builds must stay **silent**; `nettest_version` asserts that too, because a
 warning that cried wolf would be worse than none. This is the prerequisite for any homebrew rules menu: a peer
 silently ignoring an unknown rule means two people playing different games without knowing.
@@ -1840,7 +1854,7 @@ The 52 netplay suites: `nettest_3p` 7, `priosig` 18, `passoduel` 8, `parkbeat3` 
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 16, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 7, `ghostseat` 6, `trim` 14, `unready` 15, `version` 14.
+`target3` 7, `ghostseat` 6, `trim` 14, `unready` 15, `version` 24.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state
