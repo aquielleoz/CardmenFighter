@@ -495,6 +495,44 @@ shape, too low) rather than shape-stuck.
   - **Run BOTH arms and pool.** Seat 0 carries a consistent ~2.3-point advantage here, which is larger than
     every effect being measured; one arm alone reports it as the result.
 
+### The harness, rebuilt and committed — `code/strengthsim.js` (2026-09-12)
+
+**Built twice before and thrown away twice** (v1.31.78, v1.31.79), which is why the tables above could not
+be re-checked and why every entry in this section had to be taken on trust. It is a file now. Epic step 21
+needs it: a Resolution policy changes AI strength, and nothing else in the repo can see that.
+
+`node strengthsim.js [pairs] [armA] [armB] [deck]`. Every deal is played **twice** — arm A on seat 0, then
+arm A on seat 1, same seed — and pooled, which cancels the seat advantage this section measures at ~2.3
+points. `Math.random` is pinned per game, because the engine and AI reach for it outside the rng `newGame`
+is handed.
+
+**THE CONTROL IS STRUCTURAL, NOT A HABIT.** With identical arms the two halves of a pair are the same
+configuration, so they yield the same winning seat — and since arm A holds seat 0 in one and seat 1 in the
+other, the pooled share is **exactly 50.00%** by construction. Anything else means the pairing is broken.
+It prints CONTROL PASS / CONTROL FAIL rather than a number to interpret, and exits non-zero on failure.
+Verified at three tiers: `knight knight`, `demon demon`, `minion minion` — all exactly 50.00, every pair
+replaying identically.
+
+**CALIBRATION.** A fair control only proves the pairing is even, not that the instrument can SEE anything.
+Against the knight→demon gap recorded above at **+7.63**, this prints **+8.97 points (16.05σ) over 8000
+games**. Same direction, same order, not the same number — expected, since that figure was taken on
+v1.31.79 and the epic has moved twenty steps since. **Re-take it, do not carry it forward** (step 23 says
+the same of every measurement here).
+
+**The tier ladder, which is now 8 seconds to ask rather than a day** — demon vs each tier, 3000 games each:
+
+| opponent | demon's share | points |
+| --- | --- | --- |
+| minion | 100.00% | +50.00 |
+| fighter | 65.70% | +15.70 |
+| knight | 58.87% | +8.87 |
+
+**The 100% against `minion` is not a bug and was checked before being reported as one:** the tier **never
+uses effects at all** (stated in the template beside the tutorial pilot), so it is a pure-fighter arm and
+loses to anything that casts. `fighter vs minion` is 99.94%, so it does win — about once in 1600 games.
+Worth knowing before anyone reads a future arm's number: **a difference this large means the arms are not
+playing the same game**, and that is the shape to be suspicious of.
+
 ## Joining, discovery, and the QR path
 
 *The `feat/qr-scanning` parked branch keeps a short pointer in the BACKLOG, per the rule that a parked branch
