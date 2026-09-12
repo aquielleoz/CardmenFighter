@@ -327,6 +327,13 @@ node mpsim.js 1000 knight     # 3/4/6p free-for-all. NAMED flags: mill= loss= ap
                              # every arm of two studies run the SAME config; see PATCHNOTES 0j.
 node recyclesim.js 400       # how often a game reaches the reshuffle (deck-cycling pressure)
 node personasim.js 150 demon  # AI persona parity — args: gamesPerRotation tier [control]
+node strengthsim.js 4000 demon knight   # IS THIS CHANGE STRONGER? — the ONLY harness here that can ask.
+                             # Every other sim runs the same AI on both seats and is structurally blind to it.
+                             # Args: pairs armA armB [deck]. Each deal is played TWICE (arm A on seat 0, then
+                             # on seat 1) and pooled, which cancels the ~2.3-point seat advantage; Math.random
+                             # is pinned per game. **RUN THE CONTROL FIRST** — identical arms must print
+                             # EXACTLY 50.00 (it is exact by construction, and it exits non-zero if not).
+                             # Built twice before and thrown away twice; see DECISIONS.md#ai-strength.
 node passsim.js 200 6 knight   # strategic-pass study + initiative concentration. `drawplayers` is a NAMED
                              # flag now, valid in any position, and stripped before the positional slots are
                              # read — it used to be argv[7] and a typo silently ran the default. Prints CONFIG.
