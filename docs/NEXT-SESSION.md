@@ -46,48 +46,57 @@ after any session spent elsewhere (CLAUDE.md → "Branches and PRs"; `checkbranc
 - **The boundary prompts DEFAULT OFF.** Only `respond` stops you. Four suites whose subject is a boundary
   window pass **`?prompts=all`**; if a new suite drives one of those windows and sees nothing, that is why.
 
-**⏭ NEXT IS STEP 21, AND IT IS SMALLER THAN THE PLAN SAYS. TWO PRs ARE OPEN AND UNMERGED — MERGE THEM
-FIRST** (2026-09-12): **#216** (docs: step 21's three gates, measured) and **#217** (fix: the AI can cast
-the card this epic exists for). Both are gated green and both target the epic. A branch cut from the epic
-before they land will not have them.
+**⏭ NEXT IS STEP 23 — THE RENAME, AND IT IS THE LAST REAL JOB.** Steps 21 and 22 are done and merged
+(#219, #220). **Measured scope: 254 sites, not the ~344 this plan says** — 144 in `.js`, 45 in the
+template, 65 in docs — across only about **15 distinct symbols** (`st.fightEnd`, `openFightEndWindow`,
+`fightEndGuardCard`, `fightEndResult`, `drainFightEnd`, `fightEndPushCard`, the `'fightend'` prompt-timing
+id, and the two suite filenames). Estimated 2.5–3 hours, most of it verification.
+**DO IT IN SLICES, ONE SYMBOL AT A TIME, each its own commit** — engine, then AI, then template, then
+suites, then docs + v1.32.0. A rename is a deletion wearing a friendlier face and this repo has been bitten
+twice: `guardEffFor` → `immunityEffFor` forgot the suites and died in **0s**, and a deleted name left in an
+export literal killed the whole page while the build printed a happy byte count. **The parse check sees
+neither.** Grep after every symbol, run the gate, then a UI canary, then the sweep — a red run must be
+bisectable to one symbol, not to 254.
+The `'fightend'` id is **persisted in `localStorage`**, so it needs a read-time migration; `sel.mode` and
+`kits` are the precedents.
 
-**WHAT THE DESIGN PASS SETTLED, and it changed the SHAPE of step 21 rather than its answer:**
-- **Two of the five priority points are closed by RULING, not by policy** (Aj, 2026-09-12, in
-  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md)): a triggered ability is **not counterable** (the door
-  is open for a card printed to answer triggers), and **Annoint does not save an Equipment from ticking to
-  zero** ("destroyed or disarmed" — a counter coming off is neither). So at Upkeep nothing castable engages
-  with the stack, and the AI's decline there is a DECISION. Whatever implements it must **assert that
-  condition** rather than merely never cast — it stops being true the day a trigger-answering card exists.
-- **The real design work is Resolution and the Main → Fight transition.** `ai.js` still has **zero**
-  references to `upkeep` or `cleanup` against 26 in the engine, and that is now correct rather than a gap.
-- **⚠ STEP 21'S FIRST COMMIT SHOULD BE A HARNESS, NOT A POLICY.** `DECISIONS.md` states outright that no
-  existing sim can measure AI strength — they all run the same AI on every seat — lists four requirements
-  for the paired head-to-head that can, and **names no file**. It has been rebuilt from scratch at least
-  twice (v1.31.78, v1.31.79) and thrown away each time. The per-seat hooks already exist
-  (`effectPolicy(st, p)`, `kindBlock(kind, p)`), so it is small. Keep it, the way `nettest_mirrordrop.js`
-  is kept. #217 is a strength change nobody could measure, and that is the standing cost of not having it.
-- **All three of step 21's stated gates are now characterised, and all three were quoted as single runs.**
-  The persona noise floor, the browsertest clock (68/53/65s on an untouched build) and the sweep time are
-  each far wider than one run suggests — see [`DECISIONS.md`](DECISIONS.md#ai-strength). Treat "measure it
-  before and after" as a request for a distribution.
-- **`personasim` is NOT reproducible although it reads as seeded** — four identical invocations printed
-  11.7 / 10.0 / 8.3 / 10.0. The engine and AI reach for bare `Math.random` upstream, so a seeded two-arm
-  `personasim` is unavailable until that is fixed.
+**WHAT LANDED (2026-09-12), and the shape of it matters more than the diffs:**
+- **`code/strengthsim.js` — the harness that measures whether a change makes the AI STRONGER** (#218).
+  Nothing else here can: every other sim runs the same AI on both seats. Built twice before and thrown
+  away twice. **Its control is structural** — identical arms pool to exactly 50.00 by construction, so it
+  prints CONTROL PASS/FAIL rather than a number to interpret. Run the control before believing anything.
+- **The AI can cast Sanctuary under Hector at 0 shields** (#217) — it never could, in any mode, while
+  `fightenduitest` proves a human can. `E.lossAnswerFor` replaced "is this immunity", which is the wrong
+  question; the right one depends on the shield count, because `resolveShieldLossObj` has two branches
+  honouring different flags.
+- **The round winner can press its advantage at Resolution** (#219): **+0.82 points at knight, +0.78 at
+  demon**, replicated. Armor Piercing **cannot kill** — `wasBroken` is sampled before the strike loop — so
+  it is gated to a struck target on 2+ shields, where it does anything at all.
+- **The netplay handshake refuses a MINOR version difference** (#220). The patch case is unchanged and
+  now pinned.
 
-**TWO DEFECTS FOUND AND NOT FIXED — both in the UI, both latent until an AI policy casts more often:**
-- **Only the LAST cast in a drain is shown.** `settleWindows` sets `lastResp`/`lastQ` in its loop and
-  fires ONE `setTimeout` afterwards, so if two AI seats both answer in one drain the player sees only the
-  second card flashed; the first is logged and never shown. Harmless today because the AI almost never
-  answers — which step 21 changes on purpose.
-- **The wall-clock cost of an AI answer is SMALLER than this plan claims.** That same structure means the
-  1400ms dwell is once per DRAIN containing a cast, not once per cast, and a decline costs nothing. The
-  plan's "largest wall-clock variable in the whole change, by an order of magnitude" overstates it.
+**MEASURED AND DECLINED — do not rebuild these:**
+- **Holding the guard for the window.** Fired 33 times per 300 duels and was worth +0.13/+0.41. Leyline is
+  `reclaim, half`: holding it delays ramping half the deck, and the timing gain and tempo loss cancel.
+- **Three candidate persona traits** (`exp/ai-upkeep-cast`, parked, pushed, unmerged). Aj's idea — a
+  strength-neutral behaviour is exactly what personas should carry — is sound, and `strengthsim` can now
+  certify neutrality BEFORE shipping. All three fail on **frequency**, not strength: Upkeep cast 0.04/game,
+  chain reorder only 6.2% of turns (and the loop casts both anyway), class favour moves the suit mix 0.1pp.
+  **The consolidated finding:** `grudge`/`focus` work because of a structural accident — in a free-for-all
+  WHO you hit does not change how well you play. The AI's other decisions are rarely that free.
+  **Presentation — emotes, taunts, win lines — is where that idea would pay**, with no strength risk at all.
 
-Then **22** (refuse the netplay handshake across a MINOR version difference) and **23** (close the docs,
-the ~344-site code rename with its `localStorage` migration for the `'fightend'` prompt id, and v1.32.0).
-Read section H of [`FIGHT-END-PLAN.md`](FIGHT-END-PLAN.md) — **and note its step-21 line is mangled**: it
-reads `" v1's step 14. Severity from the board…"`, having lost its opening to a later edit, and the half it
-lost pointed at `aiPreFightLock`, which step 20 deleted. Repair it when step 21 lands.
+**⚠ TWO THINGS NOW WAIT ON AJ AND TWO DEVICES**, not one: step 18's netplay gate, **and** step 22's
+refusal against a genuinely old peer (both sides in the suite run the same build with `?ver=` faking it).
+
+**⚠ `lessontest_quicks` IS FLAKING ABOUT EVERY OTHER SWEEP** — red in sweeps 1 and 4 today, green in 2 and
+3, and **3/3 green when run alone**. It is parallel contention, not the product, but at this rate it makes
+every other sweep result harder to read, which this file calls worse than a red suite. It deserves its own
+fix before the epic merges.
+
+**ALSO FOUND, NOT FIXED: `kind: 'shieldImmune'` is an ORPHANED effect kind** — no card has it, so the
+"Sphere" branch in `playPhase` is dead code. `grep -c "kind: 'shieldImmune'" engine.js` returns 0. The
+fourth instance of the pattern this file catalogues.
 
 **⚠ WHAT IS NOT DONE, and none of it is visible in a green sweep:**
 - **No test for the auto-pass brake, and none for drag-to-activate in Main.** The brake has been wrong
