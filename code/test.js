@@ -2191,5 +2191,54 @@ function cards(ids) { return ids.map(card); }
   ok(AI.fightEndGuardCard(rev, 0).id === 'ley9D', 'and the same card whichever order the hand is in — not `hand.filter(...)[0]`');
 })();
 
+/* THE WINNER'S LINE AT RESOLUTION (epic step 21). Aj's call, and MEASURED at +0.82 points / 2.94 sigma at
+   knight and +0.78 / 2.77 at demon over 32,000 paired games — replicated at two tiers rather than one run.
+   THE CARD CANNOT KILL, AND THE GATE IS THE INTERESTING PART. ♣7 Armor Piercing sets `finishingBlow`,
+   which makes the strike take 2 shields; `resolveShieldLossObj` samples `wasBroken` BEFORE its loop, so a
+   seat that had shields when the strike began is never kicked by the extra strip. That is the card's own
+   "never overkills", and it means the play does something ONLY against a struck target holding 2+. Every
+   assertion below is a both-ways pair, because a policy that never fires passes any one-sided check. */
+(function () {
+  function C(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function rig(targetShields, forms, hand) {
+    var g = E.newGame(null, { numPlayers: 2 });
+    var p0 = g.players[0];
+    p0.forms = forms; p0.hand = hand; p0.finishingBlow = false;
+    p0.energy = []; ['D', 'H', 'C', 'S'].forEach(function (su) { for (var i = 0; i < 8; i++) p0.energy.push(C(3, su, 'e' + su + i)); });
+    g.players[1].shields = targetShields;
+    g.pending = null; g.fightEnd = { strikeTargets: [1], winner: 0 };
+    return g;
+  }
+  var AP   = function () { return C(7, 'C', 'ap'); };        // Armor Piercing — the only onWin card in the game
+  var KING = function () { return C(13, 'S', 'bw'); };       // a Broadway card to pitch
+  var LOW  = function () { return C(4, 'S', 'lo'); };        // not Broadway
+  var HIPPO = function () { return [C(12, 'C', 'hippo')]; };
+
+  ok(E.effectFor(rig(2, HIPPO(), [AP()]), 0, AP()).quick === true, 'Hippolyta really makes Armor Piercing a Quick (the staging is live)');
+  ok(E.effectOf(AP()).quick === false, 'and it is NOT a Quick at base — without the Form there is no window play at all');
+
+  var hit = AI.fightEndPushCard(rig(2, HIPPO(), [AP(), KING()]), 0);
+  ok(hit && hit.id === 'ap7C', 'the round WINNER springs Armor Piercing against a target on 2 shields');
+
+  // "never overkills" — below 2 the extra strip changes nothing, so casting it is strictly wasted
+  ok(AI.fightEndPushCard(rig(1, HIPPO(), [AP(), KING()]), 0) === null, 'but NOT against a target on 1 — it would reach 0 either way ("never overkills")');
+  ok(AI.fightEndPushCard(rig(0, HIPPO(), [AP(), KING()]), 0) === null, 'and NOT against a target on 0 — the ordinary strip already kicks them');
+
+  // the costs are real
+  ok(AI.fightEndPushCard(rig(2, HIPPO(), [AP(), LOW()]), 0) === null, 'no spare Broadway card in hand = no cast: pitchHigh is an additional COST, not flavour');
+  ok(AI.fightEndPushCard(rig(2, [], [AP(), KING()]), 0) === null, 'without Hippolyta it declines — Armor Piercing is not castable in a window at base');
+
+  // only the winner, and only once
+  var notWinner = rig(2, HIPPO(), [AP(), KING()]); notWinner.fightEnd.winner = 1;
+  ok(AI.fightEndPushCard(notWinner, 0) === null, 'a seat that did not win the round has no strike to amplify');
+  var armed = rig(2, HIPPO(), [AP(), KING()]); armed.players[0].finishingBlow = true;
+  ok(AI.fightEndPushCard(armed, 0) === null, 'already armed — a second Armor Piercing adds nothing and is refused');
+
+  // and the tally is real, so "worth nothing" can never be confused with "never ran"
+  AI.resetPolicyStats();
+  AI.fightEndPushCard(rig(2, HIPPO(), [AP(), KING()]), 0);
+  ok(AI.policyStats().push === 1, 'policyStats counts the cast — a policy measuring as worthless and one that never ran are the same number otherwise');
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

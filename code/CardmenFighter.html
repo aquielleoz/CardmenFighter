@@ -4550,6 +4550,21 @@
   function effectsAllowed(st, p) { return !effectPolicy || effectPolicy(st, p); }
   var kindBlock = null;                                // analysis hook: (kind,p)=>bool — block one effect KIND for player p (marginal-value test)
   function setKindBlock(fn) { kindBlock = fn; }
+  /* STEP 21'S POLICIES, SWITCHABLE PER SEAT — the analysis hook that lets `strengthsim` put the new
+     behaviour on ONE side of a head-to-head. Default null = every policy ON, which is the shipped game;
+     an arm turns one OFF to measure it alone. Same shape as `effectPolicy` / `kindBlock` above, and per
+     seat for the same reason: a symmetric sim cannot see a strength change. */
+  var armPolicy = null;
+  function setArmPolicy(fn) { armPolicy = fn; }
+  function policyOn(p, name) { return !armPolicy || !!armPolicy(p, name); }
+  /* AND THEY TALLY THEMSELVES, by name — the `lockoutStats` idiom, and for the reason that note gives:
+     a policy measuring as WORTH NOTHING and a policy that never RAN are the same number, and telling them
+     apart afterwards costs more than counting as you go. A throwaway probe cannot do this: these policies
+     are called as LOCAL functions, so monkey-patching the export intercepts nothing and reports a
+     confident zero — it did, on the first attempt, and the zero was believed for a minute. */
+  var POLICY_STATS = { push: 0 };
+  function policyStats() { return { push: POLICY_STATS.push }; }
+  function resetPolicyStats() { POLICY_STATS.push = 0; }
   function kindOK(kind, p) { return !kindBlock || !kindBlock(kind, p); }
 
   // ---- N-PLAYER TARGETING (Phase 2): which living rival a "choose a rival" effect hits, by difficulty tier ----
@@ -5033,7 +5048,6 @@
       return best;
     }
     // REWORK: does the hand hold a Broadway card (10/J/Q/K/A) to pay a pitch cost, other than exclId?
-    function isBroadway(c) { return c.rank === 1 || c.rank === 10 || c.rank === 11 || c.rank === 12 || c.rank === 13; }
     function broadwayPitchAvail(exclId) { return pl.hand.some(function (c) { return c.id !== exclId && isBroadway(c); }); }   // one definition of Broadway — keepsTheWin needs it too
     if (diff === 'minion') {                                    // barely uses effects — only a desperate shield gain
       while (guard++ < 3) {
@@ -5221,6 +5235,8 @@
       }
       var guardC = fightEndGuardCard(st, q);
       if (guardC) { var gr = E.respond(st, q, guardC.id); if (gr && gr.ok) return gr; }
+      var pushC = fightEndPushCard(st, q);                                // the WINNER's line — defence first, it is the urgent one
+      if (pushC) { var pr2 = E.respond(st, q, pushC.id); if (pr2 && pr2.ok) return pr2; }
       return E.declineResponse(st, q);
     }
     function bestQuick(kind) {
@@ -5315,6 +5331,56 @@
       var cost = E.activationCost(c);
       if (cost < bestCost) { best = c; bestCost = cost; }
     }
+    return best;
+  }
+  /* BROADWAY — hoisted out of `playPhase` (epic step 21) because the winner's line below needs the same
+     test, and a second copy 400 lines away is the `isChopOf` mistake for the fourth time. NOTE it reads
+     `rank`, not `fightValue`, and that is correct: an Ace is stored as rank 1 and VALUED at 14, so this is
+     an identity test ("is this one of 10/J/Q/K/A"), not a comparison. */
+  function isBroadway(c) { return c.rank === 1 || c.rank === 10 || c.rank === 11 || c.rank === 12 || c.rank === 13; }
+
+  /* `holdsGuard` WAS HERE AND IS DELETED — BUILT, MEASURED, DECLINED (epic step 21, 2026-09-12).
+     It stopped knight and Demon Lord spending Leyline/Sanctuary proactively in `playPhase`, so the card
+     would still be in hand when the Resolution window opened. It FIRED OFTEN — 33 withheld casts per 300
+     knight duels — and was worth **+0.13 points at knight (0.48 sigma) and +0.41 at demon (1.48 sigma)**
+     over 32,000 paired games: nothing a player could perceive.
+     WHY, and this is the part worth keeping: Leyline is not only a ward, it is `reclaim, half` — it ramps
+     half the deck into Energy. Holding it for the window delays that ramp, and the timing gain and the
+     tempo loss cancel. The design pass's "the AI holds an answer only 8% of the times it is kicked" was
+     TRUE and measured the wrong thing: how often the card was available, never what holding it costs.
+     Do not rebuild it without a card whose guard has no tempo of its own. See DECISIONS.md#ai-strength. */
+  /* THE WINNER'S LINE AT RESOLUTION (epic step 21, Aj's call) — and it is NOT a kill, which is worth
+     stating because the obvious reading of "an offensive play at Resolution" is one.
+     THE ONLY `onWin` CARD IN THE GAME IS ♣7 ARMOR PIERCING, it is not a Quick at base (Hippolyta grants
+     that), and it costs a Broadway discard on top of its energy. It sets `finishingBlow`, which makes the
+     strike take 2 shields instead of 1 — and `resolveShieldLossObj` samples `wasBroken` BEFORE its loop,
+     so a seat that had shields when the strike began can never be kicked by the extra strip. That is what
+     the card's own "never overkills" means, and it is MEASURED, not read: a target on 2 goes to 0, a
+     target on 1 goes to 0 either way, and a target on 0 was already dead to the ordinary strip.
+     SO THE ONLY BOARD WHERE IT DOES ANYTHING AT ALL is a struck target holding 2 or more shields. On 1 or
+     0 it is strictly wasted, and the gate below says so rather than trusting a caller to know. What it
+     buys is a rival left on 0, where the NEXT special win kicks them. */
+  function fightEndPushCard(st, q) {
+    if (!policyOn(q, 'push')) return null;
+    if (!st.fightEnd || st.pending) return null;                          // not the Resolution go-round
+    if (st.fightEnd.winner !== q) return null;                            // only the seat about to strike
+    if (!effectsAllowed(st, q)) return null;                              // analysis: pure-fighter never casts
+    if (!kindOK('onWin', q)) return null;                                 // analysis: blocked reactive kind
+    var qp = st.players[q];
+    if (qp.finishingBlow) return null;                                    // already armed — a second one adds nothing
+    var targets = st.fightEnd.strikeTargets || [], worth = false;
+    for (var t = 0; t < targets.length; t++) if (st.players[targets[t]].shields >= 2) { worth = true; break; }
+    if (!worth) return null;                                              // "never overkills" — below 2 it changes nothing
+    var best = null, bestCost = Infinity;
+    for (var i = 0; i < qp.hand.length; i++) {
+      var c = qp.hand[i], e = E.effectFor(st, q, c);                      // effectFor: Hippolyta GRANTS the quick
+      if (!e || !e.impl || !e.quick || e.kind !== 'onWin') continue;
+      if (!E.canAfford(qp, c)) continue;
+      if (e.pitchHigh && !qp.hand.some(function (x) { return x.id !== c.id && isBroadway(x); })) continue;   // the extra discard must exist
+      var cost = E.activationCost(c);
+      if (cost < bestCost) { best = c; bestCost = cost; }
+    }
+    if (best) POLICY_STATS.push++;
     return best;
   }
   function shieldGuardWants(st, q) {
@@ -5455,7 +5521,7 @@
      silently removed `preFightMove`, `lockoutWorth` and six others, and `test.js` died on the first of
      them. Notes go ABOVE the literal; entries go in it. */
   var API = { THREAT_KIND: THREAT_KIND, BENIGN_KIND: BENIGN_KIND,   // exported so test.js can require every effect kind to be CLASSIFIED
-    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, fightEndGuardCard: fightEndGuardCard, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
+    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, fightEndGuardCard: fightEndGuardCard, fightEndPushCard: fightEndPushCard, setArmPolicy: setArmPolicy, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
     lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;

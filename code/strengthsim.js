@@ -53,7 +53,22 @@ var ARM_A = (process.argv[3] || 'demon').toLowerCase();
 var ARM_B = (process.argv[4] || 'knight').toLowerCase();
 var DECK  = process.argv[5] || 'full';
 var TIERS = { minion: 1, fighter: 1, knight: 1, demon: 1 };
-if (!TIERS[ARM_A] || !TIERS[ARM_B]) { console.error('arms must be tiers: ' + Object.keys(TIERS).join(' | ')); process.exit(1); }
+/* AN ARM IS `tier` OR `tier:policies` (epic step 21). `knight` alone is the shipped game — every step-21
+   policy on. `knight:none` turns them all off, `knight:hold` / `knight:push` enable exactly one. That is
+   what makes two changes shipped together still ATTRIBUTABLE: measure each against `:none`, then both. */
+var POLICIES = ['push'];
+function parseArm(spec) {
+  var bits = spec.split(':'), tier = bits[0], sel = bits[1];
+  if (!TIERS[tier]) { console.error('arms must be tier[:policies] — tiers: ' + Object.keys(TIERS).join(' | ')); process.exit(1); }
+  var on = {};
+  if (sel === undefined || sel === 'all') POLICIES.forEach(function (k) { on[k] = 1; });
+  else if (sel !== 'none') sel.split(',').forEach(function (k) {
+    if (POLICIES.indexOf(k) < 0) { console.error('unknown policy: ' + k + '  (' + POLICIES.join(', ') + ', all, none)'); process.exit(1); }
+    on[k] = 1;
+  });
+  return { tier: tier, on: on, label: spec };
+}
+var A = parseArm(ARM_A), B = parseArm(ARM_B);
 var deckKey = (DECK === 'full') ? null : DECK;
 if (deckKey && E.DECK_ORDER.indexOf(deckKey) < 0) { console.error('unknown deck: ' + deckKey + '  (' + E.DECK_ORDER.join(', ') + ')'); process.exit(1); }
 var CONTROL = (ARM_A === ARM_B);
@@ -71,7 +86,8 @@ function playGame(seed, armSeat0, armSeat1) {
   var decks = [deckKey, deckKey];
   var g = E.newGame(mulberry32(seed ^ 0x5bf03635), { numPlayers: 2, decks: decks });
   var arms = [armSeat0, armSeat1], guard = 0;
-  while (!g.finished && guard++ < 200000) AI.takeTurn(g, g.turn, arms[g.turn]);
+  AI.setArmPolicy(function (p, name) { return !!arms[p].on[name]; });     // per-seat policy, the whole point
+  while (!g.finished && guard++ < 200000) AI.takeTurn(g, g.turn, arms[g.turn].tier);
   Math.random = realRandom;
   return g.finished ? g.winner : null;
 }
@@ -79,8 +95,8 @@ function playGame(seed, armSeat0, armSeat1) {
 var aWins = 0, decided = 0, unfinished = 0, mismatch = 0;
 for (var i = 0; i < PAIRS; i++) {
   var seed = 1000003 * (i + 1) + 17;
-  var w0 = playGame(seed, ARM_A, ARM_B);                           // arm A on seat 0
-  var w1 = playGame(seed, ARM_B, ARM_A);                           // same deal, arm A on seat 1
+  var w0 = playGame(seed, A, B);                                   // arm A on seat 0
+  var w1 = playGame(seed, B, A);                                   // same deal, arm A on seat 1
   if (w0 == null || w1 == null) { unfinished += (w0 == null ? 1 : 0) + (w1 == null ? 1 : 0); continue; }
   if (CONTROL && w0 !== w1) mismatch++;                            // identical arms MUST replay identically
   if (w0 === 0) aWins++; decided++;                                // A held seat 0 here
