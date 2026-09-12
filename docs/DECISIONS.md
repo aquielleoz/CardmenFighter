@@ -473,11 +473,25 @@ shape, too low) rather than shape-stuck.
     is most of the variance gone.
   - **Prove the instrumented build is byte-identical when idle** — same wins, exactly, with the flag off. The
     first version was not, and the difference hid inside ordinary noise.
-  - **`personasim`'s verdict at 900 games is NOISE, and CLAUDE.md's "2.8 points" reads as a fixed floor when
-    it is one draw from a wide distribution.** Three CONTROL runs — six identical personas, so the true spread
-    is zero — printed **5.6, 1.3 and 4.6**, straddling both the floor and the WIDE threshold. A single run
-    flagged this change WIDE on one build and OK on the other, and both readings were meaningless. **Run it at
-    least three times, or do not quote it.**
+  - **`personasim`'s verdict at 900 games is NOISE, and CLAUDE.md's "2.8 points" read as a fixed floor when
+    it is one draw from a wide distribution. MEASURED PROPERLY 2026-09-12 (epic step 21's gate), and the old
+    figure is wrong in the DANGEROUS direction — it sits below the MINIMUM of twenty runs**, so a spread the
+    harness would have called *"WIDE — retune before shipping"* is the median of pure noise. Control mode,
+    demon, six identical personas, so the true spread is zero and whatever prints is the floor:
+
+    | games/run | runs | min | median | max | mean |
+    | --- | --- | --- | --- | --- | --- |
+    | 900 | 20 | 2.3 | 3.7 | **5.9** | 3.92 |
+    | 3600 | 10 | 0.8 | 1.5 | **2.2** | 1.48 |
+
+    **So: at 900 games nothing under ~6 points is distinguishable from noise; at 3600 the floor is ~2.2.**
+    4x the games tightens it ~2.6x. The three runs recorded above (5.6, 1.3, 4.6) sit inside the 900-game
+    distribution and were never anomalous — one draw each from a range that wide.
+    **AND THE INSTRUMENT IS NOT REPRODUCIBLE ALTHOUGH IT READS AS SEEDED**, which is why this took twenty runs
+    rather than one: `personasim` seeds every game (`mulberry32(1000 * rot + n + 1)`, no `Math.random` in the
+    file at all), yet four runs of the IDENTICAL command line printed 11.7 / 10.0 / 8.3 / 10.0. The leak is
+    upstream, in the engine and AI — which is the same fact the first bullet above requires be fixed, reached
+    from the other end. A seeded two-arm `personasim` is therefore not available without that fix.
   - **Run BOTH arms and pool.** Seat 0 carries a consistent ~2.3-point advantage here, which is larger than
     every effect being measured; one arm alone reports it as the result.
 
