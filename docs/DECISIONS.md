@@ -675,6 +675,20 @@ independently" — that SHIPPED in v1.31.21.*
   all. The rule this produced is in [`CLAUDE.md`](../CLAUDE.md) — *measure the margin, or the next partial fix
   looks complete.*
 
+- **`browsertest`'s WALL CLOCK VARIES ~15s RUN TO RUN ON AN UNTOUCHED BUILD, so a single before/after pair
+  measures nothing (2026-09-12).** Three consecutive runs, nothing changed between them: **68.1 / 53.0 /
+  65.1 seconds** — a 15-second spread on a 62-second mean, 24% of it. Taken while characterising epic step
+  21's gates, because that step's stated check is *"browsertest **timed** before and after"* and the AI's
+  cast rate into the priority windows is the change's largest wall-clock variable (each AI answer dwells
+  1400ms in `settleWindows`, 300ms reduced-motion).
+  **So the gate as written cannot see a change smaller than about 15 seconds**, which at 1400ms an answer is
+  roughly ten extra casts across twelve duels. Run it enough times to separate the arms, or measure the cast
+  RATE directly out of the AI log and leave the clock as corroboration — the rate is the thing the design
+  actually controls, and it has no variance problem.
+  **THIS IS THE THIRD GATE IN A ROW whose documented usage is one run and whose real variance is wide** —
+  `personasim`'s spread (above) and the sweep time (which CLAUDE.md already says never to quote singly) are
+  the other two. Treat "time it before and after" as a request for a distribution.
+
 ## Exported-data facts
 
 - **Old exported logs are v1.0 and merged.** Anything analysed from a multiplayer export before v1.31.5 had
