@@ -46,11 +46,48 @@ after any session spent elsewhere (CLAUDE.md → "Branches and PRs"; `checkbranc
 - **The boundary prompts DEFAULT OFF.** Only `respond` stops you. Four suites whose subject is a boundary
   window pass **`?prompts=all`**; if a new suite drives one of those windows and sees nothing, that is why.
 
-**⏭ NEXT IS STEP 21** — a real AI policy for Resolution, and **the one step earmarked for orchestration**
-(CLAUDE.md's rule: design only, never testing or review). Then **22** (refuse the netplay handshake across
-a MINOR version difference) and **23** (close the docs, the ~344-site code rename with its `localStorage`
-migration for the `'fightend'` prompt id, and v1.32.0). Read section H of
-[`FIGHT-END-PLAN.md`](FIGHT-END-PLAN.md).
+**⏭ NEXT IS STEP 21, AND IT IS SMALLER THAN THE PLAN SAYS. TWO PRs ARE OPEN AND UNMERGED — MERGE THEM
+FIRST** (2026-09-12): **#216** (docs: step 21's three gates, measured) and **#217** (fix: the AI can cast
+the card this epic exists for). Both are gated green and both target the epic. A branch cut from the epic
+before they land will not have them.
+
+**WHAT THE DESIGN PASS SETTLED, and it changed the SHAPE of step 21 rather than its answer:**
+- **Two of the five priority points are closed by RULING, not by policy** (Aj, 2026-09-12, in
+  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md)): a triggered ability is **not counterable** (the door
+  is open for a card printed to answer triggers), and **Annoint does not save an Equipment from ticking to
+  zero** ("destroyed or disarmed" — a counter coming off is neither). So at Upkeep nothing castable engages
+  with the stack, and the AI's decline there is a DECISION. Whatever implements it must **assert that
+  condition** rather than merely never cast — it stops being true the day a trigger-answering card exists.
+- **The real design work is Resolution and the Main → Fight transition.** `ai.js` still has **zero**
+  references to `upkeep` or `cleanup` against 26 in the engine, and that is now correct rather than a gap.
+- **⚠ STEP 21'S FIRST COMMIT SHOULD BE A HARNESS, NOT A POLICY.** `DECISIONS.md` states outright that no
+  existing sim can measure AI strength — they all run the same AI on every seat — lists four requirements
+  for the paired head-to-head that can, and **names no file**. It has been rebuilt from scratch at least
+  twice (v1.31.78, v1.31.79) and thrown away each time. The per-seat hooks already exist
+  (`effectPolicy(st, p)`, `kindBlock(kind, p)`), so it is small. Keep it, the way `nettest_mirrordrop.js`
+  is kept. #217 is a strength change nobody could measure, and that is the standing cost of not having it.
+- **All three of step 21's stated gates are now characterised, and all three were quoted as single runs.**
+  The persona noise floor, the browsertest clock (68/53/65s on an untouched build) and the sweep time are
+  each far wider than one run suggests — see [`DECISIONS.md`](DECISIONS.md#ai-strength). Treat "measure it
+  before and after" as a request for a distribution.
+- **`personasim` is NOT reproducible although it reads as seeded** — four identical invocations printed
+  11.7 / 10.0 / 8.3 / 10.0. The engine and AI reach for bare `Math.random` upstream, so a seeded two-arm
+  `personasim` is unavailable until that is fixed.
+
+**TWO DEFECTS FOUND AND NOT FIXED — both in the UI, both latent until an AI policy casts more often:**
+- **Only the LAST cast in a drain is shown.** `settleWindows` sets `lastResp`/`lastQ` in its loop and
+  fires ONE `setTimeout` afterwards, so if two AI seats both answer in one drain the player sees only the
+  second card flashed; the first is logged and never shown. Harmless today because the AI almost never
+  answers — which step 21 changes on purpose.
+- **The wall-clock cost of an AI answer is SMALLER than this plan claims.** That same structure means the
+  1400ms dwell is once per DRAIN containing a cast, not once per cast, and a decline costs nothing. The
+  plan's "largest wall-clock variable in the whole change, by an order of magnitude" overstates it.
+
+Then **22** (refuse the netplay handshake across a MINOR version difference) and **23** (close the docs,
+the ~344-site code rename with its `localStorage` migration for the `'fightend'` prompt id, and v1.32.0).
+Read section H of [`FIGHT-END-PLAN.md`](FIGHT-END-PLAN.md) — **and note its step-21 line is mangled**: it
+reads `" v1's step 14. Severity from the board…"`, having lost its opening to a later edit, and the half it
+lost pointed at `aiPreFightLock`, which step 20 deleted. Repair it when step 21 lands.
 
 **⚠ WHAT IS NOT DONE, and none of it is visible in a green sweep:**
 - **No test for the auto-pass brake, and none for drag-to-activate in Main.** The brake has been wrong
