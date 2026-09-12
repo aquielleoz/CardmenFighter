@@ -2020,8 +2020,16 @@ The knobs are `grudge` (0..1), `focus` (`weakest`/`leader`/`random`) and `holds`
 **If a persona in a tier out-wins its tier-mates, the tier has stopped meaning anything** — picking an opponent
 would be a hidden difficulty slider. Run `node personasim.js <games> <tier>` after touching a style, and read
 the **spread**, not the ranking. It has a **`control`** mode that seats six *identical* personas: whatever
-spread that prints is the noise floor (**2.8 points at 900 games**), and a real spread means nothing until it
-clears it. All five tiers currently sit at or under it.
+spread that prints is the noise floor, and a real spread means nothing until it clears it. **RUN SIZE DECIDES
+WHETHER IT CAN TELL YOU ANYTHING: at 900 games nothing under ~6 points is distinguishable from noise; 3600
+brings the floor to ~2.2** — the distribution, both run counts and the reason a single run cannot establish
+either are in [`DECISIONS.md#ai-strength`](docs/DECISIONS.md#ai-strength). This line used to restate the floor
+as **2.8 points at 900 games**; that figure was one draw quoted as a constant and sat BELOW the minimum of
+twenty runs, so it would have called a median-noise spread a balance bug. All five tiers were measured at or
+under the old figure and so clear the real one comfortably.
+**AND IT IS NOT REPRODUCIBLE THOUGH IT READS AS SEEDED** — `personasim` seeds every game and contains no
+`Math.random`, yet four identical invocations printed 11.7 / 10.0 / 8.3 / 10.0, because the engine and AI
+reach for it upstream. Never quote one run.
 
 That harness caught a design error worth remembering: a `nice` flag (Axelrod's "never defect first") measured
 **+6 points** because it bundled a personality with a **competence upgrade** — preferentially hitting whoever

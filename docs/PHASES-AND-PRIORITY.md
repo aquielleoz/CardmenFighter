@@ -171,6 +171,31 @@ shield — the ability goes on the stack, the dance runs, and players may add Qu
 So a phase is not "a window, then the outcome". A phase runs **until the stack is empty and everyone has
 passed**, however many times its own outcomes re-fill the stack.
 
+### A TRIGGER GOES ON THE STACK; NOTHING IN THE GAME CAN ANSWER IT YET (Aj, 2026-09-12)
+
+Two rulings, taken together, because each is meaningless without the other. They were prompted by building
+the equipment counter tick — the game's first triggered ability — and finding that **the Upkeep go-round is a
+real priority point whose stack holds only objects nobody can interact with.**
+
+**A TRIGGERED ABILITY IS NOT COUNTERABLE — and the gap is named, not hidden.** `counterTargets` accepts only
+`kind === 'effect'`, so Counter Spell cannot target a tick. That started as an implementation detail and is
+now a ruling: **triggers stay uncounterable by Counter Spell, and the door is open for a card printed to
+answer triggers specifically.** Say it out loud so the next session files it as a design boundary rather than
+a bug — the observable symptom (a Quick the window offers you that cannot legally target the only thing on
+the stack) looks exactly like one.
+
+**ANNOINT DOES NOT SAVE AN EQUIPMENT FROM TICKING TO ZERO.** Its text is *"can't be destroyed or disarmed"*,
+and a counter coming off is **neither** — the tick is the equipment's lifespan running out, not an attack on
+it. `resolveUpkeepTick` decrements and retires without consulting `protectedRound`, and that is correct.
+Annoint answers `removeEquip` (Plead for Peace and its kin) and nothing else.
+
+**THE CONSEQUENCE, WHICH IS THE POINT OF WRITING THIS DOWN:** at Upkeep the only castable Quicks are the
+untargeted ones — **Leyline Ascension** at base, plus whatever a seat's Form has granted — and none of them
+engages with the tick on the stack. So the honest AI policy at Upkeep is a **hard decline**, and that is a
+decision rather than an oversight. **It stops being true the moment a card is printed that answers a trigger,
+or any untargeted Quick worth holding priority for**, so whatever implements the decline must name the
+condition it is asserting rather than simply never casting. *(Epic step 21 owns that policy.)*
+
 ### THE BOUNDARY: AN EMPTY-STACK GO-ROUND NEEDS AN ACTIVE PLAYER, AND RESOLUTION HAS NONE
 
 Aj, 2026-09-08: *"when shields are broken DURING fight end, no one is the active player and the phases and
