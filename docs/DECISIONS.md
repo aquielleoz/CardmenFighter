@@ -533,6 +533,47 @@ loses to anything that casts. `fighter vs minion` is 99.94%, so it does win — 
 Worth knowing before anyone reads a future arm's number: **a difference this large means the arms are not
 playing the same game**, and that is the shape to be suspicious of.
 
+### Epic step 21 — the Resolution policy: one change shipped, one measured and declined (2026-09-12)
+
+Both were Aj's calls, and both were measured with `strengthsim.js` **separately and then together**, because
+shipping two strength changes at once otherwise makes neither attributable — his own stated reservation.
+32,000 paired games per row, `Math.random` pinned, control exact at 50.00 before each.
+
+| policy | knight | demon |
+| --- | --- | --- |
+| hold the guard for the window | +0.13 (0.48σ) | +0.41 (1.48σ) |
+| **the winner's line (shipped)** | **+0.82 (2.94σ)** | **+0.78 (2.77σ)** |
+| both together | +0.98 (3.51σ) | +1.22 (4.35σ) |
+
+**THE WINNER'S LINE SHIPPED.** At Resolution the round winner may cast **♣7 Armor Piercing** — the only
+`onWin` card in the game, a Quick only under Hippolyta, costing a Broadway discard on top of its energy —
+to take a second shield off a struck target. **It cannot kill, and the gate is built on that**: `strips = 2`
+runs a loop whose `wasBroken` is sampled BEFORE it, so a seat holding shields when the strike began is never
+kicked by the extra strip. Measured: a target on 2 → 0, a target on 1 → 0 either way, a target on 0 was
+already dead. That is the card's own *"never overkills"*, and it means the only board where the play does
+anything is **a struck target on 2 or more shields**. `fightEndPushCard` refuses every other. It fires ~10
+times per 300 knight duels. Half the Resolution priority grants go to seats that previously could never use
+them; this is the first play any of them has.
+
+**~~HOLD THE GUARD FOR THE WINDOW~~ — BUILT, MEASURED, DECLINED.** It stopped knight and Demon Lord spending
+Leyline/Sanctuary proactively in `playPhase`, so the card would still be in hand when Resolution opened. It
+**fired often** — 33 withheld casts per 300 knight duels — and was worth nothing a player could perceive.
+Declined on the same basis as the Demon Lord boost refusal above.
+**WHY IT DOES NOT PAY, which is the part worth keeping:** Leyline is not only a ward, it is `reclaim, half`
+— it ramps half the deck into Energy. Holding it for the window delays that ramp, and the timing gain and
+the tempo loss cancel. **The design pass's finding that "the AI holds an answer only 8% of the times it is
+about to be kicked" was TRUE and measured the wrong thing** — how often the card was available, never what
+holding it costs. Do not rebuild this without a guard card that has no tempo of its own.
+
+**A NOTE ON THE PREDICTION, because it was wrong in a useful way.** Holding was expected to be the change
+with reach and the winner's line was recommended for SKIPPING, on the grounds that one narrow card could
+not clear noise. The opposite held at both tiers. Aj overrode the recommendation (*"just better gameplay
+overall"*) and that was the better read: a rare play that always gains beats a frequent one that trades.
+
+**ALSO FOUND AND NOT FIXED: `kind: 'shieldImmune'` IS AN ORPHANED EFFECT KIND** — no card has it, so the
+"Sphere" branch in `playPhase` is dead code. The fourth instance of the pattern CLAUDE.md catalogues.
+`grep -c "kind: 'shieldImmune'" engine.js` returns 0. Left alone rather than bundled into a policy change.
+
 ## Joining, discovery, and the QR path
 
 *The `feat/qr-scanning` parked branch keeps a short pointer in the BACKLOG, per the rule that a parked branch
