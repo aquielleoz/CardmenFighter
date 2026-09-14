@@ -76,22 +76,45 @@ assertions were A/B'd by deleting the migration and rebuilding.
   needs rewriting, never renaming — and dated quotes plus the append-only changelog keep "fight end" on
   purpose.
 
-**⚠ A REACHABLE BUG, FOUND AND MEASURED BY THE 2026-09-14 DESIGN PASS — NOT YET FIXED.** An effect can be
-left on the stack with NOBODY holding priority, and it then resolves a full turn late.
-`openResponseWindow` does not re-enter its `while` loop after `driveShieldStack` drains a shield-loss
-queue, so control falls through every `!st.stack.length` branch and returns with an effect still stacked
-and `respondFor = null, pending = null`. Staged at 3 players: p0 activates Gather Energy (window opens for
-p1), then — `activate` has **no open-window guard** — activates Critical Hit on top; p1 declines, Critical
-Hit resolves and strips a shield, and **Gather Energy is stranded**, picked up only at the next entry into
-`openResponseWindow`. Two defects in one trace: the missing re-entry, and `activate` accepting a cast while
-a window is open. Fixing the loop condition to `while (st.stack.length)` is the winning design's answer.
+**⏭ NEXT: THE STACK-MODEL BUILD. One change, five sides, all of it settled by Aj's rulings of 2026-09-12/14.**
+Designed (both judges picked the same design), scoped, and **not started**. Do it on its own branch with
+nothing else in flight — it touches the wire contract.
 
-**⏭ THE STACK-MODEL CLEANUP IS DESIGNED AND NOT BUILT.** Three rulings from Aj on 2026-09-12/14 — Counter
-Spell targets the SOURCE (a Technique or Equipment), a shield loss is a MOMENT and not an effect, and the
-ownerless go-round RUNS with the round winner as its origin — come to one change: the tick becomes an
-ordinary effect carrying its source, the loss queue moves to its own field, `counterTargets` reads the
-source, and the `kind` discriminator deletes itself. Both judges picked the same design. See
-[`DECISIONS.md`](DECISIONS.md) for the measured inventory and the open questions.
+1. **Transforms push their effect onto the stack** and open a go-round. Today `activate` returns early on
+   `eff.kind === 'transform'`, so a J/Q/K goes straight into the Forms zone and **nobody gets priority** —
+   VERIFIED, not inferred. Aj: *"activating forms and rides puts their effect on the stack."* The code
+   comment states the opposite as intent (*"no counters/response"*), so it is stale intent, not a typo.
+2. **`counterTargets` reads the SOURCE CARD TYPE**, not the stack entry's `kind`. Counter Spell's text is
+   *"Counter target Technique as it is played"* — Technique (and Quick Technique, since **Quick is a
+   modifier and a co-card type**, per Aj). Equipment is NOT in that list at base.
+3. **The Queen of Diamonds boost gets a real field.** *"Counter Spell can also counter an Equipment"* is a
+   patch containing ONLY a `desc`, so it does nothing — while `counterTargets` already lets EVERYONE counter
+   Equipment, giving the Queen's privilege away free. Two bugs cancelling into silence.
+   **`exp/boost-promise-guard` is pushed and RED on exactly this** (test.js 487/1). It goes green when the
+   boost is implemented. Do not tune it to pass.
+4. **The tick becomes an ordinary effect carrying a trigger SOURCE.** It is uncounterable by RESTRICTION —
+   nothing today targets triggered effects — never by its stack type. Aj: *"some triggers put effects onto
+   the stack. it is uncounterable only because we don't have cards that target triggered effects yet."*
+5. **The shield-loss queue moves off `st.stack`.** A shield loss is the MOMENT, not an effect (§4), so
+   `kind:'shieldloss'` on The Stack is a spec violation. After 1-5 the `kind` discriminator deletes itself
+   and The Stack holds only effects, which is what §1 has always said.
+
+**Plus: the ownerless go-round runs EVERY round** (Aj, 2026-09-14: *"every round. it's how phases
+transition"*), origin = the round winner, consistent with Upkeep and Clean-up already opening
+unconditionally.
+
+**MEASURED FACTS THE BUILD SHOULD NOT RE-DERIVE:**
+- A `shieldloss` object is **never observable outside the engine** — 719,068 samples over 120 games at 2-6
+  players, zero sightings. So the violation is structural with no behavioural symptom, which is what makes
+  the move safe AND means no existing test would catch a mistake in it. Use `strengthsim`'s seeded paired
+  run (CONTROL PASS = exactly 50.00) to prove it behaviour-preserving.
+- **Five guards are dead paths** defending against a state the outside world cannot reach, and **`noGuard`
+  is written by one site and read by nobody** — it died with the step-19 whitelist, and a template comment
+  still describes it as live.
+- **`eff.type` has FIVE values, not three** — Technique, Quick Technique, Equipment, **Ride, Form Change**.
+  Two independent readers got this wrong by grepping the BOOSTS literal; an IIFE rewrites ranks 11-13 after
+  that literal is written. **Run `effectOf`, never read the table.**
+- The boost table is otherwise clean: 48 patches change a real field and all 20 distinct fields are consumed.
 
 **⚠ STILL WAITING ON AJ AND TWO DEVICES** — step 18's netplay gate, **and** step 22's version refusal against
 a genuinely old peer (both sides in the suite run the same build with `?ver=` faking the number).
