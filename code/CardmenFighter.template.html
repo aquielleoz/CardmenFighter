@@ -3521,8 +3521,15 @@ __QR__
     if(objs.length<1 && !pendingLoss){ el.style.display='none'; el.innerHTML=''; return; }
     el.style.display='flex';
     var html='';
+    /* A TRIGGERED EFFECT HAS NO CAST CARD, SO IT HAS NO `eff` AND NO `card` (2026-09-14). It is
+       `kind:'effect'` like everything else — that is the point of the model — so this filter now admits it,
+       and `eff.name` threw on every render that had one on the stack. It reached the player as a page error
+       and a wedged board, which is the deletion-shaped failure the parse check cannot see: the filter was
+       correct, the assumption behind it silently stopped being true. Show it by its equipment's name. */
     for(var i=objs.length-1;i>=0;i--){ var o=objs[i], eff=o.eff, who=logName(o.p), isTop=(i===objs.length-1);
-      html+='<div class="stk'+(isTop?' top':'')+(o.countered?' countered':'')+'"><span class="who">'+who+' ▸</span> '+(eff.name||'?')+' · '+cardSym(o.card)+(isTop?' <span class="who">(resolves next)</span>':'')+'</div>';
+      var label = eff ? (eff.name||'?') : (esc(o.name||'Equipment')+' <span class="who">— upkeep counter</span>');
+      var sym = o.card ? (' · '+cardSym(o.card)) : '';
+      html+='<div class="stk'+(isTop?' top':'')+(o.countered?' countered':'')+'"><span class="who">'+who+' ▸</span> '+label+sym+(isTop?' <span class="who">(resolves next)</span>':'')+'</div>';
     }
     if(pendingLoss){
       var lWho=(typeof pendingLoss.winner==='number')?logName(pendingLoss.winner):'The winner';
@@ -5139,6 +5146,26 @@ __QR__
         if(g!==gen) return;
         render();                                                                 // settle the board to the final state
         if(state.respondFor===YOU){ return promptHumanResponse(g); }   // your turn to answer a Quick
+        /* AND A WINDOW HELD BY ANY OTHER SEAT MUST BE DRAINED, NOT STEPPED PAST (fixed 2026-09-14).
+           This branch only ever tested YOU, so a turn that RETURNED with priority still owed to a non-human
+           seat fell through to the `step()` below — which starts the Rival's next turn while the previous
+           window is still open, does nothing, and schedules itself again. The board sits on "Rival is
+           fighting…" with no overlay to click: browsertest's driver reported `{wait:true}` forever and the
+           suite was SIGKILLed at 300s.
+           IT BECAME REACHABLE WHEN TRANSFORMS STARTED PUSHING (the same commit): the last action of a turn
+           can now leave a window, where before a transform resolved inside `activate` and could not.
+           MEASURED: 5 of 339,433 driven rival turns return in that state — about one duel in 24, which is
+           why it is intermittent and why a single A/B run proved nothing.
+           `settleWindows` is the right answer rather than a new park: it drains AI seats, prompts a human
+           if one is owed, and is the funnel every other window already goes through. */
+        if(state.respondFor!=null){ return settleWindows(g, function(){
+          if(g!==gen) return;
+          render();
+          if(state.respondFor===YOU){ return promptHumanResponse(g); }
+          if(state.discardPending && state.discardPending.player===YOU){ return promptHumanDiscard(g); }
+          if(state.finished){ busy=false; return endGame(); }
+          setTimeout(function(){ if(g===gen) step(); }, 480);
+        }); }
         /* DELETED (epic step 4): the Rival's destroyShield threatening YOU mid-turn. It cannot happen —
            every `destroyShield` push carries `noGuard: true`, so `driveShieldStack` never opens a window for
            one, and `test.js`'s "mid-turn guard" case proves it by casting a real Critical Hit at a shielded
