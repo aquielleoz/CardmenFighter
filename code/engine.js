@@ -585,7 +585,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], roundWinResult: null, fightEnd: null, fightEndResult: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], roundWinResult: null, fightEnd: null, resolutionResult: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -629,7 +629,7 @@
     if (st.pendingLossChoice && st.pendingLossChoice.winner === seat) st.pendingLossChoice = null;
     if (aliveCount(st) <= 1) { st.finished = true; st.winner = lastAlive(st); return { ok: true, finished: true, winner: st.winner }; }
     var lead = nextPlayer(st, seat);
-    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.subPhase = 'main'; st.toPlay = null; st.upkeep = null; st.upkeepResult = null; st.cleanup = null; st.cleanupResult = null; st.roundWinResult = null; st.fightEnd = null; st.fightEndResult = null; st._effUsed = false;
+    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.subPhase = 'main'; st.toPlay = null; st.upkeep = null; st.upkeepResult = null; st.cleanup = null; st.cleanupResult = null; st.roundWinResult = null; st.fightEnd = null; st.resolutionResult = null; st._effUsed = false;
     return { ok: true, eliminated: seat, turn: lead };
   }
   function isLocked(st, p) { return !!(st.players[p].lockSkip || st.players[p].lockRound); }   // Back Stab: skip next turn (lockSkip, cleared on pass) or, if boosted, the whole round (lockRound, cleared at round end)
@@ -1477,7 +1477,7 @@
          finish the round inside its own window — the collision P3 flagged. Host-only, so `netview` nulls
          it like the other ceremony state. */
       var feRes = applyRoundLossBody(st, fe.winner, fe.wonWithCombo, fe.strikeTargets, fe.winSize);
-      st.fightEndResult = feRes;
+      st.resolutionResult = feRes;
       return feRes;
     }
     /* CLEAN-UP, checked before Upkeep because it comes first in the round and the two are sequential —
@@ -2687,7 +2687,7 @@
        THE DRAW WAITS FOR IT. Everything above is the round RESET; the Draw Sub-Phase comes after Upkeep,
        so a Quick cast here resolves against the hand you ended the round with and not the one you are
        about to be dealt. `upkeepResult` parks the result the Draw must fill in, for the same reason
-       `fightEndResult` exists: the outcome is produced deep inside whoever answers last, and the netplay
+       `resolutionResult` exists: the outcome is produced deep inside whoever answers last, and the netplay
        host is not on that call chain. */
     st.upkeep = { origin: st.turn };
     st.upkeepResult = result;

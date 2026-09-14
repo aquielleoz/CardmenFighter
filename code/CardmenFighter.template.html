@@ -5248,7 +5248,7 @@ __QR__
      free rather than needing a second copy each.
      WHY THE OUTCOME COMES BACK ON STATE and not as a return value: the sub-phase runs one `declineResponse`
      deep inside the go-round, so its result returns up a chain whose end is whoever answered last — which on
-     a host is a wire callback, not this caller. `st.fightEndResult` is where the engine parks it, and it is
+     a host is a wire callback, not this caller. `st.resolutionResult` is where the engine parks it, and it is
      deliberately NOT `roundWinResult`: `driveShieldStack` reads that one as "this is a round win" (P3). */
   function drainResolution(r, g, then){
     if(!r || !r.fightEnd) return then(r);   // the SILENT case is logged in `announceRoundWin`, the one funnel every path reaches
@@ -5259,7 +5259,7 @@ __QR__
            ' priority→' + (state.respondFor!=null?logName(state.respondFor):'?'));
     settleWindows(g, function(){
       if(g!==gen) return;
-      var fr=state.fightEndResult; state.fightEndResult=null;
+      var fr=state.resolutionResult; state.resolutionResult=null;
       then(fr||r);
     });
   }
@@ -9075,7 +9075,7 @@ __QR__
       if(r && r.fightEnd){
         return hostSettle(g, function(){
           if(g!==gen) return;
-          var fr=hostState.fightEndResult; hostState.fightEndResult=null;
+          var fr=hostState.resolutionResult; hostState.resolutionResult=null;
           if(fr) return hostFinishRound(fr, g);
           hostTakeBack(); render(); broadcastMirror();
           if(hostState.turn!==YOU) awaitRival();
@@ -9319,11 +9319,11 @@ __QR__
          had happened yet. That vacuous pass is why the round assertion is now in that suite.
          The host's own seat is prompted; a remote seat PARKS exactly like every other remote window, with
          `reassertMirror` + the beat + `maybePasso` — the park hygiene v1.31.116 enumerated by kind.
-         `hostState.fightEndResult` is the FINAL outcome, parked by the engine when the sub-phase ran: `r`
+         `hostState.resolutionResult` is the FINAL outcome, parked by the engine when the sub-phase ran: `r`
          is the pending window result this function was handed before the window opened, and narrating from
          it would describe the wrong round. */
       if(hostState.respondFor != null) return hostSettleN(g, function(){ hostSettleRoundThenCeremony(r, g); });   // ONE park per kind — hostSettleN already prompts the host and parks a remote seat
-      if(hostState.fightEndResult){ var fer=hostState.fightEndResult; hostState.fightEndResult=null; return hostRunCeremony(fer, g); }
+      if(hostState.resolutionResult){ var fer=hostState.resolutionResult; hostState.resolutionResult=null; return hostRunCeremony(fer, g); }
       hostRunCeremony(r, g);
     }
     // A round resolved: if the winner must pick whose shield to strip (chosen mode), the host picks locally / a remote

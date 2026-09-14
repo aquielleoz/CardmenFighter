@@ -1302,7 +1302,7 @@ grep that enumerates the kind: `grep -n 'netReact=\|netSettle=\|netDiscard=' cod
 opens the Resolution go-round and returns `{fightEnd:true}` with **no `roundWinner`**, so every UI site that
 tested `r.roundWinner != null` fell straight through — six of them, in both drivers and both transports.
 `drainResolution(r, g, then)` is the single seam: it runs `settleWindows` and then reads the outcome off
-**`st.fightEndResult`**, which the engine parks as it runs the sub-phase. It is deliberately NOT
+**`st.resolutionResult`**, which the engine parks as it runs the sub-phase. It is deliberately NOT
 `roundWinResult` — `driveShieldStack` reads that one as "this is a round win" and would finish the round
 inside its own window. **Any new round-win call site goes through `drainResolution`**, and the tell that one
 was missed is a table that parks with the round number unchanged.

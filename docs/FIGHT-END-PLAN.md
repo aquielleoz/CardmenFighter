@@ -1148,12 +1148,12 @@ not once** — two flakes hid in one green run the last time this surface was to
 > **THE FIX IS ONE SEAM, NOT A PARK PER SITE.** `drainResolution(r, g, then)` calls `settleWindows`, which
 > already dispatches per mode — solo drains AI seats and prompts you, `hostSettle` parks a duel on
 > `netSettle`, `hostSettleN` parks 3-6 players on `netReact` — and then reads the outcome off
-> `st.fightEndResult`. Wired at `finishPassRound`, `finishStep`, `runOpponents`, `hostAfterRivalMove`, both
+> `st.resolutionResult`. Wired at `finishPassRound`, `finishStep`, `runOpponents`, `hostAfterRivalMove`, both
 > netplay `driveN` sites and `hostSettleRoundThenCeremony`, which now DELEGATES to `hostSettleN` instead of
 > re-implementing its park. Routing through the shared settle is what inherits `reassertMirror`, the park
 > beat and `maybePasso` without seven copies.
 >
-> **THREE THINGS THE ATTEMPT PROVED, all of them kept:** `st.fightEndResult` is needed (the outcome returns
+> **THREE THINGS THE ATTEMPT PROVED, all of them kept:** `st.resolutionResult` is needed (the outcome returns
 > up a chain the host is not on) and is deliberately not `roundWinResult` (P3's collision); `takeTurn` must
 > return when the round ends under it; and moving the window earlier exposed two vacuous assertions.
 >

@@ -201,7 +201,7 @@
                             though the discount were always still available. */
       startShields: st.startShields, _effUsed: !!st._effUsed,
       roundWinResult: null,   // ceremony state is host-only; the client renders the settled board
-      fightEndResult: null,   // the same: the parked Fight End outcome is the host'''s ceremony input, and it holds `state`
+      resolutionResult: null,   // the same: the parked Fight End outcome is the host'''s ceremony input, and it holds `state`
       upkeepResult: null,     // …and the parked Draw, for the same reason
       cleanupResult: null,    // …and the parked round-end work
       _mirror: true, _seat: seat
