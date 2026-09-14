@@ -1334,7 +1334,7 @@
     if (eff.kind === 'counter') return counterTargets(st, eff);
     if (eff.kind === 'protect') {
       for (var j = st.stack.length - 1; j >= 0; j--) {                         // an incoming removeEquip is a legal target even with no equipment of your own
-        if (st.stack[j].kind === 'effect' && st.stack[j].eff.kind === 'removeEquip' && pickEquip(st, st.stack[j].p, st.stack[j].opts && st.stack[j].opts.target)) return [1];
+        if (st.stack[j].kind === 'effect' && st.stack[j].eff && st.stack[j].eff.kind === 'removeEquip' && pickEquip(st, st.stack[j].p, st.stack[j].opts && st.stack[j].opts.target)) return [1];   // `.eff &&`: a TRIGGERED effect has no cast card behind it
       }
       return st.players[q].equipment.slice();
     }
@@ -1403,7 +1403,7 @@
        does not, breaking out is the safe failure and spinning here is not. The counter is a backstop, not
        the mechanism. */
     while (reentry++ < 256) {
-    while (st.stack.length && (st.stack[st.stack.length - 1].kind === 'effect' || st.stack[st.stack.length - 1].kind === 'tick')) {
+    while (st.stack.length && st.stack[st.stack.length - 1].kind === 'effect') {   // one kind — a trigger is an effect that carries `trig`
       var top = st.stack[st.stack.length - 1];
       /* THE PASSES BELONG TO THE GO-ROUND, NOT TO THE OBJECT (epic step 5). They used to live on each
          stack object, which only ever worked because at most one object could hold a non-empty set: `respond`
@@ -1592,7 +1592,7 @@
   // at (or your own); everything else runs its body.
   function resolveTopEffect(st) {
     var top = st.stack.pop();
-    if (top.kind === 'tick') return resolveUpkeepTick(st, top);      // a triggered ability, not a cast card — no `eff`, no `card`
+    if (top.trig) return resolveUpkeepTick(st, top);                 // a triggered ability, not a cast card — no `eff`, no `card`
     var pl = st.players[top.p];
     if (top.countered) { pl.shuffle.push(top.card); return { ok: true, effect: top.eff.id, kind: top.eff.kind, countered: true, state: st }; }
     if (top.eff.kind === 'counter') {
@@ -1610,7 +1610,7 @@
     }
     if (top.eff.kind === 'protect') {
       var rem = null;
-      for (var j = st.stack.length - 1; j >= 0; j--) { if (st.stack[j].kind === 'effect' && st.stack[j].eff.kind === 'removeEquip') { rem = st.stack[j]; break; } }
+      for (var j = st.stack.length - 1; j >= 0; j--) { if (st.stack[j].kind === 'effect' && st.stack[j].eff && st.stack[j].eff.kind === 'removeEquip') { rem = st.stack[j]; break; } }   // `.eff &&`: a trigger has none
       var prot = null;
       if (rem) { var t = pickEquip(st, rem.p, rem.opts && rem.opts.target); if (t) prot = t.e; }
       else { prot = pl.equipment.filter(function (e) { return !(top.opts && top.opts.target) || e.id === top.opts.target; })[0]; }
@@ -2780,7 +2780,12 @@
       var eq = st.players[p].equipment || [];
       for (var i = 0; i < eq.length; i++) {
         if (!eq[i].decay || !eq[i].card) continue;
-        st.stack.push({ oid: newOid(st), kind: 'tick', p: p, eqId: eq[i].card.id, name: eq[i].name || 'Equipment' });
+        /* A TRIGGERED ABILITY PUTS AN EFFECT ON THE STACK LIKE ANYTHING ELSE (Aj, 2026-09-14: *"some
+           triggers put effects onto the stack"*). It is `kind:'effect'` with `trig: true` — the SOURCE is
+           what makes it uncounterable, not the stack tag: Counter Spell names card types and a trigger has
+           no cast card behind it. Tagging it a separate kind got the right answer for the wrong reason, and
+           would have flipped silently the day someone modelled a trigger as the effect it is. */
+        st.stack.push({ oid: newOid(st), kind: 'effect', trig: true, p: p, eqId: eq[i].card.id, name: eq[i].name || 'Equipment' });
       }
     }
   }

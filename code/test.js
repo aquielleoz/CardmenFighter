@@ -1611,10 +1611,17 @@ function cards(ids) { return ids.map(card); }
   g6.players[1].equipment = [{ id: 'bow', name: 'Holy Bow', delta: 2, counters: 2, decay: true, card: sc(8, 'H', 'eqb') }];
   E.openResolutionWindow(g6, 2, true, [0], 2);
   var n7 = 0; while (g6.respondFor != null && !g6.upkeep && n7++ < 12) E.declineResponse(g6, g6.respondFor);
-  var ticks = g6.stack.filter(function (o) { return o.kind === 'tick'; });
-  ok(ticks.length === 3 && g6.pending && g6.pending.kind === 'tick',
-     'upkeep tick: each decaying Equipment puts a TRIGGER on the Upkeep stack (' + ticks.length + ' ticks, top is ' +
-     (g6.pending ? g6.pending.kind : 'nothing') + ')');
+  /* A TRIGGER IS AN `effect` CARRYING `trig`, NOT ITS OWN STACK KIND (2026-09-14). It used to be
+     `kind: 'tick'`, which made it uncounterable for the wrong reason — by stack TAG rather than by Counter
+     Spell's card-type restriction. The Stack holds effects and only effects; `trig` says this one had no
+     cast card behind it. Asserting `kind === 'effect'` here is deliberate: it is what stops the separate
+     kind creeping back. */
+  var ticks = g6.stack.filter(function (o) { return o.trig; });
+  ok(ticks.length === 3 && g6.pending && g6.pending.trig && g6.pending.kind === 'effect',
+     'upkeep tick: each decaying Equipment puts a TRIGGERED EFFECT on the Upkeep stack (' + ticks.length + ' triggers, top is ' +
+     (g6.pending ? (g6.pending.kind + (g6.pending.trig ? '/trig' : '')) : 'nothing') + ')');
+  ok(!E.counterTargets(g6, E.effectFor(g6, 0, sc(4, 'D'))).some(function (o) { return o.trig; }),
+     'and Counter Spell cannot name it — a trigger has no cast card as its source, which is the RULE now rather than a side effect of its stack tag');
   /* THE ACTIVE PLAYER'S TRIGGER GOES ON FIRST, so the LAST seat in turn order ends up on top (Aj,
      2026-09-11). That ordering is the whole reason §2 needs no exception here: with the stack built this
      way, "a go-round starts at the controller of the top stack object" already names the right seat.

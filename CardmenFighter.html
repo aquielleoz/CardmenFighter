@@ -2948,7 +2948,7 @@
     if (eff.kind === 'counter') return counterTargets(st, eff);
     if (eff.kind === 'protect') {
       for (var j = st.stack.length - 1; j >= 0; j--) {                         // an incoming removeEquip is a legal target even with no equipment of your own
-        if (st.stack[j].kind === 'effect' && st.stack[j].eff.kind === 'removeEquip' && pickEquip(st, st.stack[j].p, st.stack[j].opts && st.stack[j].opts.target)) return [1];
+        if (st.stack[j].kind === 'effect' && st.stack[j].eff && st.stack[j].eff.kind === 'removeEquip' && pickEquip(st, st.stack[j].p, st.stack[j].opts && st.stack[j].opts.target)) return [1];   // `.eff &&`: a TRIGGERED effect has no cast card behind it
       }
       return st.players[q].equipment.slice();
     }
@@ -3017,7 +3017,7 @@
        does not, breaking out is the safe failure and spinning here is not. The counter is a backstop, not
        the mechanism. */
     while (reentry++ < 256) {
-    while (st.stack.length && (st.stack[st.stack.length - 1].kind === 'effect' || st.stack[st.stack.length - 1].kind === 'tick')) {
+    while (st.stack.length && st.stack[st.stack.length - 1].kind === 'effect') {   // one kind — a trigger is an effect that carries `trig`
       var top = st.stack[st.stack.length - 1];
       /* THE PASSES BELONG TO THE GO-ROUND, NOT TO THE OBJECT (epic step 5). They used to live on each
          stack object, which only ever worked because at most one object could hold a non-empty set: `respond`
@@ -3206,7 +3206,7 @@
   // at (or your own); everything else runs its body.
   function resolveTopEffect(st) {
     var top = st.stack.pop();
-    if (top.kind === 'tick') return resolveUpkeepTick(st, top);      // a triggered ability, not a cast card — no `eff`, no `card`
+    if (top.trig) return resolveUpkeepTick(st, top);                 // a triggered ability, not a cast card — no `eff`, no `card`
     var pl = st.players[top.p];
     if (top.countered) { pl.shuffle.push(top.card); return { ok: true, effect: top.eff.id, kind: top.eff.kind, countered: true, state: st }; }
     if (top.eff.kind === 'counter') {
@@ -3224,7 +3224,7 @@
     }
     if (top.eff.kind === 'protect') {
       var rem = null;
-      for (var j = st.stack.length - 1; j >= 0; j--) { if (st.stack[j].kind === 'effect' && st.stack[j].eff.kind === 'removeEquip') { rem = st.stack[j]; break; } }
+      for (var j = st.stack.length - 1; j >= 0; j--) { if (st.stack[j].kind === 'effect' && st.stack[j].eff && st.stack[j].eff.kind === 'removeEquip') { rem = st.stack[j]; break; } }   // `.eff &&`: a trigger has none
       var prot = null;
       if (rem) { var t = pickEquip(st, rem.p, rem.opts && rem.opts.target); if (t) prot = t.e; }
       else { prot = pl.equipment.filter(function (e) { return !(top.opts && top.opts.target) || e.id === top.opts.target; })[0]; }
@@ -4394,7 +4394,12 @@
       var eq = st.players[p].equipment || [];
       for (var i = 0; i < eq.length; i++) {
         if (!eq[i].decay || !eq[i].card) continue;
-        st.stack.push({ oid: newOid(st), kind: 'tick', p: p, eqId: eq[i].card.id, name: eq[i].name || 'Equipment' });
+        /* A TRIGGERED ABILITY PUTS AN EFFECT ON THE STACK LIKE ANYTHING ELSE (Aj, 2026-09-14: *"some
+           triggers put effects onto the stack"*). It is `kind:'effect'` with `trig: true` — the SOURCE is
+           what makes it uncounterable, not the stack tag: Counter Spell names card types and a trigger has
+           no cast card behind it. Tagging it a separate kind got the right answer for the wrong reason, and
+           would have flipped silently the day someone modelled a trigger as the effect it is. */
+        st.stack.push({ oid: newOid(st), kind: 'effect', trig: true, p: p, eqId: eq[i].card.id, name: eq[i].name || 'Equipment' });
       }
     }
   }
@@ -5739,6 +5744,7 @@ window.CardFace = {};
            THE RULE ABOVE STILL GOVERNS — project, never copy the keys. The remaining fields are the two
            kinds that really do reach a client: an `effect` ({p, card, eff, opts, countered}) and a `tick`. */
         var c = { oid: o.oid, kind: o.kind };
+        if (o.trig) { c.trig = true; c.name = o.name || null; }        // a TRIGGERED effect: the client must not describe it as a cast
         if (typeof o.p === 'number') c.p = rot(o.p);
         if (o.countered != null) c.countered = !!o.countered;
         if (o.card) c.card = card(o.card);
@@ -9803,7 +9809,7 @@ window.CardFace = {};
      empty stack advances the phase. */
   function declineLabel(){
     var pend = state && state.pending;
-    if(pend) return pend.kind === 'tick' ? 'Let the counter come off' : 'Let it resolve';
+    if(pend) return pend.trig ? 'Let the counter come off' : 'Let it resolve';
     if(state && state.upkeep)  return 'Start the round';
     if(state && state.cleanup) return 'End the round';
     if(state && state.resolution) return 'Let the round resolve';
@@ -9822,7 +9828,7 @@ window.CardFace = {};
        `Cannot read properties of undefined (reading 'temp')`. Found by `browsertest`, which is the only
        suite that drives a whole duel through the real page — the engine suite cannot see a render. */
     var pend=state.pending||null, rivalEff=(pend && pend.card && E.effectOf(pend.card))||{};
-    var rivalName=rivalEff.name || (pend && pend.kind==='tick' ? (pend.name||'Equipment') + ' — upkeep counter' : 'a Technique');
+    var rivalName=rivalEff.name || (pend && pend.trig ? (pend.name||'Equipment') + ' — upkeep counter' : 'a Technique');
     /* THE PROMPT-PREFERENCE FILTER (epic step 15). `eligibleQuicks` stays the engine mirror; this narrows
        its output to what YOU asked to be asked about. An empty result falls into the auto-decline below,
        which is a real pass — on a client it goes over the wire — so an unchecked box never leaves a window
@@ -9890,7 +9896,7 @@ window.CardFace = {};
        `YOU` compares directly. A jab win strips nothing, hence the `wonWithCombo` branch. */
     var fe = state.resolution || null;
     var lead;
-    if (pend && pend.kind === 'tick') {
+    if (pend && pend.trig) {
       /* NOBODY CAST A TRIGGER, so it must not borrow the cast sentence — the first cut read "You cast Holy
          Bow — upkeep counter", which is wrong about who did it AND about what it is. A trigger happens TO
          the table; naming its owner and what it is about to do is the honest version. */
@@ -9924,7 +9930,7 @@ window.CardFace = {};
     // when it is not aimed at you, say so plainly rather than leaving you to work it out
     if(aimed!=null && aimed!==YOU) lead+='<p class="respNotYou">It does not target you — countering only helps '+logName(aimed)+'.</p>';
     var incoming=(rivalEff.text && pend && pend.card ? ('<div class="respIncoming"><b>'+rivalName+'</b> ('+cardSym(pend.card)+') — '+rivalEff.text+'</div>')
-                 : (pend && pend.kind==='tick' ? ('<div class="respIncoming"><b>'+esc(pend.name||'Equipment')+'</b> — at the beginning of each round’s upkeep, remove a counter from this equipment.</div>') : ''));
+                 : (pend && pend.trig ? ('<div class="respIncoming"><b>'+esc(pend.name||'Equipment')+'</b> — at the beginning of each round’s upkeep, remove a counter from this equipment.</div>') : ''));
     var html='<h2>Respond?</h2>'+lead+incoming+tableContextHTML()+'<div class="respOpts">';
     /* COMPUTED PER CARD BELOW, NOT ONCE HERE (2026-09-14). What a Counter Spell may name now depends on the
        CASTER's boosted effect — the Queen of Diamonds widens it to Equipment — so a single list computed
@@ -9976,7 +9982,7 @@ window.CardFace = {};
     var qcard=state.players[YOU].hand.filter(function(c){return c.id===quickId;})[0];
     var qeff=qcard?E.effectOf(qcard):null;
     var pendName=((state.pending && state.pending.card && E.effectOf(state.pending.card))||{}).name
-               || (state.pending && state.pending.kind==='tick' ? ((state.pending.name||'Equipment')+'’s upkeep tick') : 'the Technique');
+               || (state.pending && state.pending.trig ? ((state.pending.name||'Equipment')+'’s upkeep tick') : 'the Technique');
     var r=E.respond(state, YOU, quickId, coid?{counterOid:coid}:null);
     if(!r.ok){ setMessage(r.reason); return; }
     hideOverlay();

@@ -5292,7 +5292,7 @@ __QR__
      empty stack advances the phase. */
   function declineLabel(){
     var pend = state && state.pending;
-    if(pend) return pend.kind === 'tick' ? 'Let the counter come off' : 'Let it resolve';
+    if(pend) return pend.trig ? 'Let the counter come off' : 'Let it resolve';
     if(state && state.upkeep)  return 'Start the round';
     if(state && state.cleanup) return 'End the round';
     if(state && state.resolution) return 'Let the round resolve';
@@ -5311,7 +5311,7 @@ __QR__
        `Cannot read properties of undefined (reading 'temp')`. Found by `browsertest`, which is the only
        suite that drives a whole duel through the real page — the engine suite cannot see a render. */
     var pend=state.pending||null, rivalEff=(pend && pend.card && E.effectOf(pend.card))||{};
-    var rivalName=rivalEff.name || (pend && pend.kind==='tick' ? (pend.name||'Equipment') + ' — upkeep counter' : 'a Technique');
+    var rivalName=rivalEff.name || (pend && pend.trig ? (pend.name||'Equipment') + ' — upkeep counter' : 'a Technique');
     /* THE PROMPT-PREFERENCE FILTER (epic step 15). `eligibleQuicks` stays the engine mirror; this narrows
        its output to what YOU asked to be asked about. An empty result falls into the auto-decline below,
        which is a real pass — on a client it goes over the wire — so an unchecked box never leaves a window
@@ -5379,7 +5379,7 @@ __QR__
        `YOU` compares directly. A jab win strips nothing, hence the `wonWithCombo` branch. */
     var fe = state.resolution || null;
     var lead;
-    if (pend && pend.kind === 'tick') {
+    if (pend && pend.trig) {
       /* NOBODY CAST A TRIGGER, so it must not borrow the cast sentence — the first cut read "You cast Holy
          Bow — upkeep counter", which is wrong about who did it AND about what it is. A trigger happens TO
          the table; naming its owner and what it is about to do is the honest version. */
@@ -5413,7 +5413,7 @@ __QR__
     // when it is not aimed at you, say so plainly rather than leaving you to work it out
     if(aimed!=null && aimed!==YOU) lead+='<p class="respNotYou">It does not target you — countering only helps '+logName(aimed)+'.</p>';
     var incoming=(rivalEff.text && pend && pend.card ? ('<div class="respIncoming"><b>'+rivalName+'</b> ('+cardSym(pend.card)+') — '+rivalEff.text+'</div>')
-                 : (pend && pend.kind==='tick' ? ('<div class="respIncoming"><b>'+esc(pend.name||'Equipment')+'</b> — at the beginning of each round’s upkeep, remove a counter from this equipment.</div>') : ''));
+                 : (pend && pend.trig ? ('<div class="respIncoming"><b>'+esc(pend.name||'Equipment')+'</b> — at the beginning of each round’s upkeep, remove a counter from this equipment.</div>') : ''));
     var html='<h2>Respond?</h2>'+lead+incoming+tableContextHTML()+'<div class="respOpts">';
     /* COMPUTED PER CARD BELOW, NOT ONCE HERE (2026-09-14). What a Counter Spell may name now depends on the
        CASTER's boosted effect — the Queen of Diamonds widens it to Equipment — so a single list computed
@@ -5465,7 +5465,7 @@ __QR__
     var qcard=state.players[YOU].hand.filter(function(c){return c.id===quickId;})[0];
     var qeff=qcard?E.effectOf(qcard):null;
     var pendName=((state.pending && state.pending.card && E.effectOf(state.pending.card))||{}).name
-               || (state.pending && state.pending.kind==='tick' ? ((state.pending.name||'Equipment')+'’s upkeep tick') : 'the Technique');
+               || (state.pending && state.pending.trig ? ((state.pending.name||'Equipment')+'’s upkeep tick') : 'the Technique');
     var r=E.respond(state, YOU, quickId, coid?{counterOid:coid}:null);
     if(!r.ok){ setMessage(r.reason); return; }
     hideOverlay();
