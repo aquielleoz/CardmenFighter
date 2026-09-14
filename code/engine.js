@@ -2115,7 +2115,7 @@
      ASKING IT LOCKED THE AI OUT OF THE ONE LINE THIS EPIC EXISTS FOR.
      `immunityEffFor` admits `immune || shieldImmune` and nothing else. **Sanctuary under HECTOR is
      `{quick:true}` ALONE on a `kind:'shield'` base** — no immunity flag of any kind — so it was refused,
-     and an AI seat at 0 shields holding the exact card that saves it declined and died. `resolutionuitest`
+     and an AI seat at 0 shields holding the exact card that saves it declined and died. `resolutiontest_ui`
      proves a HUMAN plays that line and survives the Fighter Kick; the AI could not, in any mode, ever.
      THE ANSWER DEPENDS ON THE SHIELD COUNT, because `resolveShieldLossObj` has two branches and they
      honour different flags — read it, not this comment, if they ever disagree:

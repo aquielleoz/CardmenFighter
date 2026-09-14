@@ -28,7 +28,7 @@
  * scenario is run twice off identical staging, once DECLINING and once CASTING, and the assertion is the
  * DIFFERENCE. A build where the window opens and the cast does nothing passes every one-sided version.
  *
- * Run: node resolutionuitest.js
+ * Run: node resolutiontest_ui.js
  */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
 const { selectAndFight, clickFight, clickPass } = require('./fightclick');

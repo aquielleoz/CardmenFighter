@@ -489,7 +489,7 @@ function cards(ids) { return ids.map(card); }
        the guard window opened inside `driveShieldStack`, below the strike.
        The Fight End go-round opens ABOVE it (§3), so Sanctuary's shield GAIN resolves first,
        `resolveShieldLossObj` reads `wasBroken = opp.shields <= 0` as false, and the kick branch is never
-       entered. It works by TIMING and no new rule — and `resolutionuitest` scenario A plays exactly that
+       entered. It works by TIMING and no new rule — and `resolutiontest_ui` scenario A plays exactly that
        through the real page, both ways: decline and die, cast and live.
        So the card that used to be refused at 0 shields is the card that now SAVES you there. */
     var gk = apollo(); gk.players[0].shields = 0;
@@ -2146,7 +2146,7 @@ function cards(ids) { return ids.map(card); }
 /* THE AI CAN CAST THE CARD THE EPIC EXISTS FOR (fix, 2026-09-12).
    `resolutionGuardCard` filtered the hand through `immunityEffFor` — "is this immunity" — and Sanctuary
    under HECTOR is `{quick:true}` ALONE on a `kind:'shield'` base. So an AI seat at 0 shields, holding the
-   exact card that saves it, declined and took the Fighter Kick. `resolutionuitest` scenario A proves a HUMAN
+   exact card that saves it, declined and took the Fighter Kick. `resolutiontest_ui` scenario A proves a HUMAN
    plays that line and lives; no AI could, in any mode, ever.
    EVERY CLAIM HERE IS A BOTH-WAYS PAIR off identical staging, because "it did not choose the card" and
    "it could not have chosen any card" are the same observation with one card on the table. */

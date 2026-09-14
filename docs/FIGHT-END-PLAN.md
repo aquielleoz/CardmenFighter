@@ -1189,7 +1189,7 @@ not once** — two flakes hid in one green run the last time this surface was to
 > closed by suites alone, and that has not changed.
 >
 > ### ➕ THE PROMPT DEFAULT, DECIDED THE SAME DAY (Aj) — and it is a step 15 revision, not a step 18 one
-> Building `resolutionuitest` surfaced that `promptDefault(..., 'resolution')` still returned
+> Building `resolutiontest_ui` surfaced that `promptDefault(..., 'resolution')` still returned
 > `immunityEffFor(...)`, the whitelist this step deleted, so **both cards the epic exists to fix were
 > auto-declined by default**. Put to Aj as three options; he chose the widest and corrected the framing
 > while doing it: *"it's not really prompt everything. what happens is when priority is passed (not just

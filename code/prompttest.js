@@ -22,6 +22,7 @@
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
 const { clickFight, installPageHelpers } = require('./fightclick');
 const path = require('path');
+const fs = require('fs');
 const URL = 'file://' + path.resolve(__dirname, 'CardmenFighter.html') + '?dbgsolo=1';
 const wait = ms => new Promise(r => setTimeout(r, ms));
 function pollTimedOut(fn) { console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g, ' ').slice(0, 110)); }
@@ -99,7 +100,7 @@ async function freshGame(p) {
      timing prompts; the checkbox is noise reduction, not capability.
      THE "annoying very quick" RISK IS REAL AND IS NOW THE PLAYER'S LEVER rather than ours — which is what
      the checkboxes were built for. The suppression half is asserted further down, both ways, and
-     `resolutionuitest` scenario C proves an unchecked card is RECORDED in the saved log rather than
+     `resolutiontest_ui` scenario C proves an unchecked card is RECORDED in the saved log rather than
      vanishing without trace. */
   ok(D.counterResolution === false && D.counterPrefight === false,
      'default: the other boundaries are quiet too (resolution ' + D.counterResolution + ', prefight ' + D.counterPrefight + ')');
@@ -365,6 +366,23 @@ async function freshGame(p) {
      (withoutPrompt === null ? '' : '  ← still prompted with: ' + withoutPrompt.slice(0, 140)));
   ok(await until(() => p.evaluate(() => { const st = window.__solo.st(); return !!st && st.respondFor == null; })),
      '…and no response window is left owed — the pass really happened');
+
+  /* ---- AND THE MIGRATION IS GUARDED AGAINST A FUTURE SWEEP (epic step 23).
+     The runtime test below catches someone DELETING the migration. It cannot catch the likelier mistake:
+     a blanket `s/fightend/resolution/g` that renames the migration AND this file's own fixture, after which
+     the test stages a preference already under the new key, the dead migration has nothing to do, and it
+     PASSES GREEN. So the guard has to read the SOURCE — the same reason `nettest_narrate` grew a static half,
+     a runtime scan only covers what that run happened to emit.
+     THE OLD ID IS ASSEMBLED, NEVER SPELLED, so that a sweep cannot quietly rewrite the assertion into one
+     that checks for the NEW name and is therefore trivially true. Do not "tidy" it into a literal. */
+  const OLD_ID = 'fight' + 'end';
+  const tplSrc = fs.readFileSync(path.resolve(__dirname, 'CardmenFighter.template.html'), 'utf8');
+  ok(tplSrc.indexOf('migratePromptTimings') >= 0,
+     'the prompt-timing migration is still in the template');
+  ok(tplSrc.indexOf(OLD_ID) >= 0,
+     'and it still names the OLD id — deleting that literal to "finish the rename" orphans every preference a player has ticked, SILENTLY, because an unknown key just falls back to the default');
+  ok((tplSrc.match(new RegExp(OLD_ID, 'g')) || []).length >= 3,
+     'in all three places the migration needs it (the hasOwnProperty test, the copy, and the delete) — a partial sweep is the same bug as a whole one');
 
   /* ---- THE OLD TIMING ID MIGRATES (epic step 23). The prompt-timing id was renamed `fightend` ->
      `resolution`, and it is PERSISTED — so without a migration every preference a player had already

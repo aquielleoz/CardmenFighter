@@ -75,7 +75,7 @@ async function clickFight(page, budgetMs) {
        Waiting 15s for it is how `browsertest` went from 40s to killed-at-300s. Bound it separately: ~3s
        covers a mid-settle repaint, and anything past that is the board telling you this play is illegal. */
     /* A RETRY MUST STOP THE MOMENT THE ACTION TOOK EFFECT, and an open modal is the loudest way it can.
-       `resolutionuitest` caught this: the pass landed, the Resolution window opened OVER the board, the
+       `resolutiontest_ui` caught this: the pass landed, the Resolution window opened OVER the board, the
        button underneath was still enabled — and the retry pressed it again, which is a second action
        nobody asked for. A helper that re-clicks is only safe if it can tell "swallowed" from "worked". */
     const modalUp = () => { const o = document.getElementById('overlay'); return !!(o && o.classList.contains('show')); };
