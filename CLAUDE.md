@@ -1298,7 +1298,7 @@ new window through it inherits `reassertMirror`, the park beat, `maybePasso` and
 for free — the seven-parks-of-nine lesson (v1.31.116) applied before the drift rather than after it. The
 grep that enumerates the kind: `grep -n 'netReact=\|netSettle=\|netDiscard=' code/CardmenFighter.template.html`.
 
-**A ROUND WIN IS NO LONGER A RESULT, IT IS A WINDOW (epic step 18).** `resolveRoundWin` → `enterFightEnd`
+**A ROUND WIN IS NO LONGER A RESULT, IT IS A WINDOW (epic step 18).** `resolveRoundWin` → `enterResolution`
 opens the Resolution go-round and returns `{fightEnd:true}` with **no `roundWinner`**, so every UI site that
 tested `r.roundWinner != null` fell straight through — six of them, in both drivers and both transports.
 `drainResolution(r, g, then)` is the single seam: it runs `settleWindows` and then reads the outcome off

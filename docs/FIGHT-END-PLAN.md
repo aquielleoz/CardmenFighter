@@ -84,7 +84,7 @@ auto-pass for anyone `canAddToStack` refuses. It is expressed as a **sentinel st
 (`{oid, kind:'fightend', origin, winner, targets, source, passed:{}}`), because the all-passed bookkeeping
 lives *on* an object by construction: `declineResponse` writes `top.passed[q]`, `respond` does
 `st.stack.forEach(function (o) { o.passed = {}; })`, and an objectless window has nowhere to record a pass. A
-second, parallel loop would rebuild the thing being deleted. The sentinel is pushed by a new `enterFightEnd`
+second, parallel loop would rebuild the thing being deleted. The sentinel is pushed by a new `enterResolution`
 **above** `applyRoundLoss`'s whole body, so the window opens before the mill, before the jab short-circuit and
 before `wpl.finishingBlow` is read into `strips` — which is what makes the window open every round (jab, apex
 no-strip and chop rounds today reach Fight End with no window of any kind) and what makes a reactive Armor
@@ -158,7 +158,7 @@ Symbols only. A repo gate (`versiontest`) fails any live doc citing `file:NNNN`.
 | engine.js | `respond` | pushes the Quick as a stack object and resets every object's `passed` set | Becomes the single cast path for the Fight End window. Its gate and its `qeff.quick` check are already exactly right; it only has to tolerate the sentinel being `st.pending`. |
 | engine.js | `declineResponse` | records `top.passed[q]` and re-enters the loop | Replaces `shieldGuardPass`. Same tolerance requirement. |
 | engine.js | `pass` | the only entry into round resolution; `st.passes >= aliveCount-1` → `resolveRoundWin` | The moment the doc calls "nobody's turn". Note `st.turn` is **not** advanced first, so it still points at the LAST PASSER — the one clearly wrong choice for the priority origin. |
-| engine.js | `chooseLossTarget` | resumes after the deferred target pick and calls `applyRoundLoss` | The second of two entries into `applyRoundLoss`, which is why `enterFightEnd` is the seam: one edit covers both. |
+| engine.js | `chooseLossTarget` | resumes after the deferred target pick and calls `applyRoundLoss` | The second of two entries into `applyRoundLoss`, which is why `enterResolution` is the seam: one edit covers both. |
 | engine.js | `applyRoundLoss` (mill + jab short-circuit) | runs `LOSER_MILL`, then `if (!wonWithCombo \|\| !strikeTargets.length) return finishRoundWin(st, result);` | Two conflicts with the model in four lines: the window must open on jab / apex-no-strip / chop rounds, and it must open before the mill. Hoisted above the whole body. |
 | engine.js | `applyRoundLoss` (strips / `finishingBlow`) | `var strips = 1; if (wpl.finishingBlow) { strips = 2; wpl.finishingBlow = false; … }`, frozen into each object's `n` | **This, not `guardEffFor`, is the other half of symptom 2.** Delete the whitelist alone and Armor Piercing becomes castable, resolves, logs, and does nothing. |
 | engine.js | `resolveEffect` (`case 'onWin'`) | sets `pl.finishingBlow`, read only by `applyRoundLoss` | Leave the write alone; move the read below the window. |
@@ -254,7 +254,7 @@ Symbols only. A repo gate (`versiontest`) fails any live doc citing `file:NNNN`.
 ### Where the new window goes
 
 **Between 4/5 and 6 — at the top of `applyRoundLoss`, not at the top of `driveShieldStack`.** Concretely: a
-new `enterFightEnd(st, winner, wonWithCombo, strikeTargets, winSize)` becomes the target of both call sites,
+new `enterResolution(st, winner, wonWithCombo, strikeTargets, winSize)` becomes the target of both call sites,
 stashes those four arguments, pushes the sentinel and returns `openResponseWindow(st)`. When the sentinel
 resolves, `resolveTopEffect` calls `applyRoundLossBody(st, ctx)` — today's body, unchanged.
 
@@ -588,7 +588,7 @@ nothing consumed it. **Step 11 must build the empty-stack go-round PARAMETERISED
 needs the same primitive with a different one; hard-code "the winner is active" and step 20 forks the loop.
 Note the eliminated/passed filter lives in the caller, not in `canAddToStack`, so a new walk must repeat it.
 
-**P3 · The Fight End continuation must be parked on STATE.** `enterFightEnd`'s arguments live in a JS frame
+**P3 · The Fight End continuation must be parked on STATE.** `enterResolution`'s arguments live in a JS frame
 the resume path (`respond`/`declineResponse` → `openResponseWindow`) cannot see. **Do not reuse
 `st.roundWinResult`**: `driveShieldStack` reads it as "this is a round win" and would finish the round inside
 its own window. Use a separate field, and **rotate its seat-valued members in `mirrorFor`** like
@@ -625,7 +625,7 @@ be someone else. Hard-blocked on P1.
 is inline; the general window's `respondDecision` has no branch for it.
 
 **WHAT THE CHECK FOUND SOUND**, which matters after seven corrections in nine steps: step 11's go-round
-design matches §3 and `enterFightEnd` is the right hoist point; step 18's mechanical claim — gate
+design matches §3 and `enterResolution` is the right hoist point; step 18's mechanical claim — gate
 `driveShieldStack`'s window branch and the whole old surface goes dark — is **verified true**; step 19's
 DELETE table is substantially right; and all three defects step 20 names are real.
 
@@ -814,7 +814,7 @@ requiring each to be counterable by name; `nettest_counter`; `quicktest`; the Qu
 
 ### C — Fight End itself
 
-**9 · refactor: `enterFightEnd` as a LOOP, not a line. ⚠ PARTLY DONE 2026-09-09 — THE LOOP HAS A
+**9 · refactor: `enterResolution` as a LOOP, not a line. ⚠ PARTLY DONE 2026-09-09 — THE LOOP HAS A
 PREREQUISITE NOBODY KNEW ABOUT.** `finishRoundWin` opens with `st.stack = []`, commented *"shield-loss stack
 is spent by here"* — true of shieldloss objects, and it silently throws away any EFFECT object. Since
 `applyRoundLossBody` ends by calling it (directly, or through `driveShieldStack`), a drain placed after the
@@ -822,7 +822,7 @@ body finds an empty stack **every time**: not inert, **unreachable**. It was wri
 trigger, measured as never running, and **removed rather than shipped** — an unexercised branch is untested
 code, not a safeguard, and this repo has the scar tissue to prove it.
 **What landed is the SEAM**, which has value on its own: `resolveRoundWin` and `chooseLossTarget` called the
-body separately and now both enter through `enterFightEnd`, so the loop has somewhere to live and the two
+body separately and now both enter through `enterResolution`, so the loop has somewhere to live and the two
 paths cannot drift. **Making it reachable is step 11's job** — recorded there as a prerequisite. v1's straight-line seam is the step the trigger rule
 invalidates. One seam for both `resolveRoundWin` and `chooseLossTarget`; `applyRoundLoss`'s body becomes
 `applyRoundLossBody`. **The loop shape is the deliverable**: apply the outcomes, re-enter the dance if the
@@ -1133,7 +1133,7 @@ not once** — two flakes hid in one green run the last time this surface was to
 > ## ✅ BUILT 2026-09-10 — and the wedge was NOT where the attempt said it was.
 >
 > **THE ROOT CAUSE, in one sentence: a round win stopped being a RESULT and became a WINDOW, and six UI
-> sites still tested `r.roundWinner != null`.** `enterFightEnd` returns `{fightEnd:true}` with no
+> sites still tested `r.roundWinner != null`.** `enterResolution` returns `{fightEnd:true}` with no
 > `roundWinner`, so in a duel `hostAfterRivalMove` read a round-winning pass as an ordinary turn handover
 > and parked in `awaitRival`; the client's `{op:'respond'}` then reached `hostApplyMove`, found `netSettle`
 > null and **was dropped in silence.** That is the v1.31.91 bug class exactly — a duel park only the

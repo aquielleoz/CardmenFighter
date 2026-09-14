@@ -2237,14 +2237,14 @@
       }
       else strikeTargets = losers.slice();
     }
-    return enterFightEnd(st, winner, wonWithCombo, strikeTargets, st.pile.combo.size);
+    return enterResolution(st, winner, wonWithCombo, strikeTargets, st.pile.combo.size);
   }
   // Complete a deferred 'chosen' loss pick (from resolveRoundWin's needsLossTarget). `target` is the struck seat.
   function chooseLossTarget(st, target) {
     var pc = st.pendingLossChoice; if (!pc) return { ok: false, reason: 'No loss choice pending.' };
     if (pc.cands.indexOf(target) < 0) target = pc.cands[0];                    // guard: must be one of the candidates
     st.pendingLossChoice = null;
-    return enterFightEnd(st, pc.winner, true, [target], pc.winSize);
+    return enterResolution(st, pc.winner, true, [target], pc.winSize);
   }
   /* FIGHT END IS A LOOP, NOT A LINE (epic step 9) — the single seam both the immediate and the deferred
      (chosen-target) paths enter through, so behaviour cannot drift between them.
@@ -2277,7 +2277,7 @@
      any affordable Quick. `PHASES-AND-PRIORITY.md` §3. Step 12 proved nobody loses an answer:
      EXHAUSTIVELY, every card the old whitelist admitted is a Quick, so `canAddToStack` cannot refuse one.
      WHAT STOPS IT REGRESSING: `fightendtest`'s canary goes red the day a guard-only predicate returns. */
-  function enterFightEnd(st, winner, wonWithCombo, strikeTargets, winSize) {
+  function enterResolution(st, winner, wonWithCombo, strikeTargets, winSize) {
     return openResolutionWindow(st, winner, wonWithCombo, strikeTargets, winSize);
   }
   // Apply the round result: mill the loser(s), strip the struck shield(s), then finish.

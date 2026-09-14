@@ -1017,7 +1017,7 @@
       if (st.respondFor != null && isHuman(humans, st.respondFor)) return log;
       /* DRAINING A WINDOW CAN END THE ROUND, AND AFTER STEP 18 IT ROUTINELY DOES. Before the switch, a
          round-winning play resolved inside `play()` and the turn had already moved by the time anyone
-         called `takeTurn`. Now `enterFightEnd` OPENS the go-round instead, so the outcomes — and the new
+         called `takeTurn`. Now `enterResolution` OPENS the go-round instead, so the outcomes — and the new
          round, and the new turn — land when the last seat passes, which happens right here. Carrying on
          to fight as `p` then throws "Not your turn", because it is now the round winner's.
          `st.finished` is checked too: the drain can end the GAME (simultaneous kicks), and every caller
