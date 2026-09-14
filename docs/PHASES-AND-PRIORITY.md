@@ -216,12 +216,40 @@ polite go-round:
 | | before Resolution (the window) | inside Resolution (after the losses land) |
 | --- | --- | --- |
 | active player | the **round winner** | **nobody** |
-| stack empties | a final go-round runs — winner, then turn order — and the sub-phase begins only when all pass | **no go-round.** The phase simply proceeds |
+| stack empties | a final go-round runs — winner, then turn order — and the sub-phase begins only when all pass | **a go-round runs too**, origin = the **round winner**; the phase proceeds once everyone has passed |
 | stack non-empty | dance, origin = controller of the top | dance, origin = controller of the top |
 
-**An empty stack plus no active player is not a window — it is the phase moving on.** That is the whole
-content of *"the phases and sub-phases just continue to change"*, and it is what stops a trigger resolving
-inside Resolution from opening an endless series of empty go-rounds.
+**⚠ THE RIGHT-HAND CELL SAID "no go-round. The phase simply proceeds" UNTIL 2026-09-14, AND AJ REVERSED IT:**
+*"this is wrong. the correct behavior is: when the stack empties, nobody is active, a go-round runs and the
+phase proceeds after everyone passes priority."* The old line is kept here because anyone who read this file
+before that date is carrying the reversed rule.
+
+**THE ORIGIN IS THE ROUND WINNER** (Aj, 2026-09-14). §2 step 7 offers two clauses — the controller of the top
+object, or the active player on an empty stack — and this case matches **neither**, so the origin had to be
+ruled rather than derived. Three candidates were weighed:
+- **the round winner** — RULED. A fact fixed before the window opened and unchanged for the whole sub-phase.
+- **the initiative holder** — REJECTED, and the reason is a timing trap worth keeping: `st.initiative` is
+  assigned in `finishCleanup`, which runs at the END of the round, *after* this moment. So at the instant of
+  the ownerless go-round it still names the **PREVIOUS** round's winner. It would hand the first word to the
+  wrong seat — invisibly in a duel, and only at 3-6 players where those are different people.
+- **a fixed anchor (seat 0 / turn order)** — REJECTED: no seat privilege, and unexplainable out loud.
+
+**"NOBODY IS ACTIVE" NEEDS NO REPRESENTATION, AND MUST NOT GET A SENTINEL.** `phaseWalk(st, origin)` takes the
+origin as a parameter, so in this engine a go-round's origin has never *been* the active player — it is a
+property of the window. Measured while designing this: `nextPrioHolder(st, undefined)` and `(st, -1)` **throw**
+at `st.players[cand].eliminated`, while `(st, null)` and `(st, 99)` do **not** throw and silently resolve to
+**seat 0**. The two natural sentinels crash and the two that do not quietly name a real seat. Pass the winner.
+
+**TERMINATION IS NOT A WORRY, AND THE OLD RULE'S REASON WAS TOO STRONG.** That cell existed to stop "an endless
+series of empty go-rounds" when a trigger resolves inside the sub-phase. A go-round in which everyone passes
+**ends**; it only runs again if somebody actually casts, and casting is bounded by cards and energy. The fear
+was real and the remedy deleted the window instead of bounding it.
+
+**AND THE FIZZLE NEEDS NO FALLBACK HERE — CONFIRMED FROM THE CODE, 2026-09-14.** `openResolutionWindow` has
+exactly ONE call site, in the round-win path, and it always carries a winner. A fizzled round never reaches
+Resolution at all: `pass` → `finishRoundWin` → the **Clean-up** window. So Clean-up is the boundary that needs
+the fizzle fallback, and it already has it — `roundWinner != null ? roundWinner : st.initiative`. Do not copy
+that formula to Resolution; its second half would be a branch nothing can reach.
 
 Nobody is active again **until the next round, when it becomes the initiative holder** — which is the round
 winner, since winning the round *is* taking the initiative. So the same seat that was active for the window

@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**483**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**486**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -75,6 +75,23 @@ assertions were A/B'd by deleting the migration and rebuilding.
   note), leaving it reading *"`resolution` in a `.js` file is the old name"*. Prose that discusses a rename
   needs rewriting, never renaming — and dated quotes plus the append-only changelog keep "fight end" on
   purpose.
+
+**⚠ A REACHABLE BUG, FOUND AND MEASURED BY THE 2026-09-14 DESIGN PASS — NOT YET FIXED.** An effect can be
+left on the stack with NOBODY holding priority, and it then resolves a full turn late.
+`openResponseWindow` does not re-enter its `while` loop after `driveShieldStack` drains a shield-loss
+queue, so control falls through every `!st.stack.length` branch and returns with an effect still stacked
+and `respondFor = null, pending = null`. Staged at 3 players: p0 activates Gather Energy (window opens for
+p1), then — `activate` has **no open-window guard** — activates Critical Hit on top; p1 declines, Critical
+Hit resolves and strips a shield, and **Gather Energy is stranded**, picked up only at the next entry into
+`openResponseWindow`. Two defects in one trace: the missing re-entry, and `activate` accepting a cast while
+a window is open. Fixing the loop condition to `while (st.stack.length)` is the winning design's answer.
+
+**⏭ THE STACK-MODEL CLEANUP IS DESIGNED AND NOT BUILT.** Three rulings from Aj on 2026-09-12/14 — Counter
+Spell targets the SOURCE (a Technique or Equipment), a shield loss is a MOMENT and not an effect, and the
+ownerless go-round RUNS with the round winner as its origin — come to one change: the tick becomes an
+ordinary effect carrying its source, the loss queue moves to its own field, `counterTargets` reads the
+source, and the `kind` discriminator deletes itself. Both judges picked the same design. See
+[`DECISIONS.md`](DECISIONS.md) for the measured inventory and the open questions.
 
 **⚠ STILL WAITING ON AJ AND TWO DEVICES** — step 18's netplay gate, **and** step 22's version refusal against
 a genuinely old peer (both sides in the suite run the same build with `?ver=` faking the number).
