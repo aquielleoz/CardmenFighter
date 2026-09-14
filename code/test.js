@@ -2341,5 +2341,38 @@ function cards(ids) { return ids.map(card); }
       '  ← CARD-LIST.md publishes this promise to players and nothing keeps it' : ''));
 })();
 
+/* A TRANSFORM GOES ON THE STACK AND GRANTS PRIORITY (2026-09-14). Aj: *"they could be countered...
+   activating forms and rides puts their effect on the stack."* Until this change `activate` applied a J/Q/K
+   immediately and returned — an entire CARD TYPE bypassing the priority system, with the old comment stating
+   it as intent ("no counters/response").
+   NOTHING ASSERTED THE OLD BEHAVIOUR AND NOTHING WOULD HAVE ASSERTED THE NEW ONE. The seeded fingerprint is
+   unchanged across this change, because the AI declines a transform window every time (`transform` is in
+   BENIGN_KIND, so `respondDecision` never answers it) — so AI-vs-AI play is identical and the whole change
+   is invisible to every existing suite. That is exactly the shape that silently reverts later. */
+(function () {
+  function sc2(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function rig() {
+    var g = E.newGame(null, { numPlayers: 3 });
+    var p0 = g.players[0];
+    p0.hand = [sc2(13, 'H', 'k'), sc2(4, 'C', 'x'), sc2(5, 'C', 'y'), sc2(6, 'C', 'z')];
+    p0.energy = []; ['D', 'H', 'C', 'S'].forEach(function (su) { for (var i = 0; i < 14; i++) p0.energy.push(sc2(3, su, 'e' + su + i)); });
+    g.players[1].hand = [sc2(9, 'D', 'ley'), sc2(5, 'C', 'a'), sc2(6, 'C', 'b')];
+    g.players[1].energy = []; ['D', 'H', 'C', 'S'].forEach(function (su) { for (var i = 0; i < 12; i++) g.players[1].energy.push(sc2(3, su, 'f' + su + i)); });
+    g.turn = 0; g.round = 3; g.pile = null; g.lastPlayer = null; g.passes = 0;
+    g.players[0].shields = 1; g.players[1].shields = 1; g.players[2].shields = 1;   // clear the transform gate
+    return g;
+  }
+  var g = rig(), r = E.activate(g, 0, 'k13H');
+  ok(r && r.ok && !!r.pending, 'a transform is CAST, not applied — activate returns a pending window');
+  ok(g.stack.length === 1 && g.stack[0].eff && g.stack[0].eff.kind === 'transform',
+     'its effect is on The Stack like any other activation');
+  ok(g.respondFor != null, 'and a seat holds priority — the card type no longer bypasses the go-round');
+  ok(g.players[0].forms.length === 0, 'the Form has NOT landed yet: it applies on RESOLUTION, not on cast');
+  ok(!E.counterTargets(g, E.effectFor(g, 1, sc2(4, 'D'))).length,
+     'Counter Spell still cannot name it — its text says Technique and this is a Form Change, which is the whole distinction');
+  var n = 0; while (g.respondFor != null && n++ < 12) E.declineResponse(g, g.respondFor);
+  ok(g.players[0].forms.length === 1 && g.stack.length === 0, 'once everyone passes it resolves and the Form lands');
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

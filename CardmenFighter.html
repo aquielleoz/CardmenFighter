@@ -2871,17 +2871,14 @@
     if (pitchCard) { pl.hand = pl.hand.filter(function (c) { return c.id !== pitchCard.id; }); pl.removed.push(pitchCard); }   // Broadway pitch → Discard pile
     if (eff.kind !== 'transform') { st._effUsed = true; }   // this turn's first-effect discount/tax is now spent
 
-    // REWORK transform: J/Q/K go straight to the Forms & Rides Zone (persist, no decay, no counters/response).
-    if (eff.kind === 'transform') {
-      // ONE transform per RANK: a new J/Q/K replaces the existing one of that rank regardless of suit (with
-      // Variant B any-suit boosts, holding two same-rank Forms adds nothing). The retired card banks as Energy.
-      var displaced = pl.forms.filter(function (f) { return f.rank === card.rank; });
-      pl.forms = pl.forms.filter(function (f) { return f.rank !== card.rank; });
-      displaced.forEach(function (f) { if (f.card) pl.energy.push(f.card); });   // retired transform's card banks as Energy
-      pl.forms.push({ rank: card.rank, suit: card.suit, tier: eff.tier, name: eff.name, card: card });
-      if (TRANSFORM_DRAW) drawCards(pl, TRANSFORM_DRAW);   // on-cast draw (A/B: e.g. draw 5)
-      return { ok: true, transformed: true, tier: eff.tier, name: eff.name, isSuper: hasSuper(pl), card: card, displaced: displaced.length };
-    }
+    /* THE TRANSFORM USED TO RETURN HERE, APPLYING ITSELF AND NEVER TOUCHING THE STACK (changed 2026-09-14).
+       The comment said "persist, no decay, no counters/response", and that last clause was the bug: a whole
+       CARD TYPE bypassed priority. Activating a J/Q/K granted NOBODY priority — verified before the change,
+       not inferred. Aj: *"they could be countered... activating forms and rides puts their effect on the
+       stack."* So it falls through to `pushEffect` like every other activation and applies on RESOLUTION.
+       Counter Spell still cannot name it — its text says Technique, and a Ride or Form Change is its own
+       card type — which is exactly the distinction Aj drew: on the stack, and answerable, but not by THAT
+       card until one is printed that names those types. */
 
     // --- push the activated effect onto the stack; the opponent may answer with a Quick before it resolves ---
     var res = pushEffect(st, p, card, eff, opts);
@@ -3383,6 +3380,17 @@
       case 'valueBoost':                                  // Infuse / Imbue / Divine Tactic: charge your next play
         pl.nextPlayBoost = (pl.nextPlayBoost || 0) + (eff.boost || 0);
         spendCard(pl, card); break;
+      case 'transform': {                                 // J/Q/K enter the Forms & Rides Zone — now ON RESOLUTION, after priority
+        /* ONE TRANSFORM PER RANK: a new J/Q/K replaces the existing one of that rank regardless of suit
+           (with Variant B any-suit boosts, holding two same-rank Forms adds nothing). The retired card
+           banks as Energy. Moved here from `activate` so the effect passes through the stack first. */
+        var tDisp = pl.forms.filter(function (f) { return f.rank === card.rank; });
+        pl.forms = pl.forms.filter(function (f) { return f.rank !== card.rank; });
+        tDisp.forEach(function (f) { if (f.card) pl.energy.push(f.card); });
+        pl.forms.push({ rank: card.rank, suit: card.suit, tier: eff.tier, name: eff.name, card: card });
+        if (TRANSFORM_DRAW) drawCards(pl, TRANSFORM_DRAW);
+        return { ok: true, state: st, transformed: true, tier: eff.tier, name: eff.name, isSuper: hasSuper(pl), card: card, displaced: tDisp.length };
+      }
       case 'onWin':                                       // Armor Piercing (renamed from Finishing Blow): your next combo win strips an extra shield
         pl.finishingBlow = true; spendCard(pl, card); break;
       case 'lockout':                                     // Back Stab: the target skips the WHOLE ROUND (no fights, no Techniques)
