@@ -712,6 +712,39 @@ function cards(ids) { return ids.map(card); }
   var cr = E.respond(gr, 2, '4D');   // p2 Counters the Telekinesis
   ok(cr.ok && !gr.discardPending, 'MP response: p2 Counter Spell negates the Technique (no discard happens)');
 
+  /* A LOCKED PLAYER KEEPS PRIORITY (PHASES-AND-PRIORITY.md §5, verified 2026-09-14 rather than assumed).
+     Back Stab denies FIGHTS and TECHNIQUES; it does not remove the seat from the game for a round, and a
+     priority window is neither. Nothing asserted this before — the rule was written down and the code was
+     right by omission, which is the state that quietly becomes wrong the first time someone adds an
+     `isLocked` guard to `canCastQuick` thinking they are tightening something.
+     BOTH WAYS, because "it could cast" means nothing unless the lock is doing its real job in the same
+     breath: the same locked seat must still be refused a FIGHT. */
+  var gl = E.newGame(null, { numPlayers: 3 });
+  gl.players[0].hand = [sc(3, 'D'), sc(5, 'C')]; gl.players[0].energy = [];
+  for (var le = 0; le < 3; le++) gl.players[0].energy.push(sc(4, 'D'));
+  gl.players[1].hand = [sc(5, 'H'), sc(6, 'H'), sc(7, 'H'), sc(8, 'H')];
+  gl.players[2].hand = [sc(4, 'D'), sc(5, 'S')]; gl.players[2].energy = [];
+  for (var le2 = 0; le2 < 4; le2++) gl.players[2].energy.push(sc(4, 'D'));
+  gl.turn = 0; gl.round = 3; gl.pile = null; gl.lastPlayer = null; gl.passes = 0;
+  gl.players[2].lockRound = true;                                  // Back Stab, the whole-round form
+  E.activate(gl, 0, '3D', { target: 1 });
+  ok(gl.respondFor === 2, 'a LOCKED seat is still OFFERED priority (§5: a lock is not removal from the game)');
+  var lkr = E.respond(gl, 2, '4D');
+  ok(lkr && lkr.ok, 'and may actually cast its Quick — the lock denies fights and Techniques, never priority');
+  ok(E.isLocked(gl, 2), 'and it is still locked afterwards — casting did not spend the lock');
+
+  var gf = E.newGame(null, { numPlayers: 3 });                     // the other half: the lock still bites
+  gf.players[2].hand = [sc(5, 'S'), sc(5, 'H')];
+  gf.turn = 2; gf.round = 3; gf.pile = null; gf.lastPlayer = null; gf.passes = 0;
+  var freePlay = E.play(gf, 2, [gf.players[2].hand[0]]);   // play() takes card OBJECTS, not ids
+  ok(freePlay && freePlay.ok, 'control: unlocked, that same seat CAN make the play');
+  var gf2 = E.newGame(null, { numPlayers: 3 });
+  gf2.players[2].hand = [sc(5, 'S'), sc(5, 'H')];
+  gf2.turn = 2; gf2.round = 3; gf2.pile = null; gf2.lastPlayer = null; gf2.passes = 0;
+  gf2.players[2].lockRound = true;
+  var lockedPlay = E.play(gf2, 2, [gf2.players[2].hand[0]]);
+  ok(!(lockedPlay && lockedPlay.ok), 'but LOCKED it is refused the fight — so the lock is doing its job, and the cast above is not a hole in it');
+
   /* PRIORITY IS RE-GRANTED ON AN OBJECT A SEAT ALREADY PASSED, AND ONLY `prioGen` SEPARATES THE TWO GRANTS.
      `respond` clears EVERY object's `passed` set, so once p2's Counter Spell resolves, the Technique beneath
      it is offered to p1 again — same oid, same holder, same everything a mirror carries. A client keyed on the

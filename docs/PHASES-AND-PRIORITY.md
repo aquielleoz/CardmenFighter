@@ -40,8 +40,10 @@ grep that turns up `resolution` in a `.js` file has found the old name, not a mi
   It starts with the active player."* Aj reversed it when shown the case that separates the two readings
   (X casts A, Y answers with quick B, X answers with quick C; C resolves, and the top is now **Y's** B):
   *"in this case, it should be the controller."* The old line is quoted here rather than deleted because it
-  is what the ENGINE still implements, and because anyone who read this file before that date is carrying
-  the reversed rule in their head. **The controller-origin rule is the current one; §2 step 7 is its full
+  is what anyone who read this file before that date is carrying in their head.
+  **THE ENGINE IMPLEMENTS THE CONTROLLER RULE AS OF THE PRIORITY-WINDOWS EPIC** — this note used to say the
+  engine *still* implemented the old one, and that stopped being true without the note noticing.
+  `nextPrioHolder(st, top.p)` starts every go-round at the top object's controller (verified 2026-09-14). **The controller-origin rule is the current one; §2 step 7 is its full
   statement.**
   On an **empty** stack there is no controller, so the origin falls to the active player — and where there is
   no active player either, there is no go-round at all (§3, the boundary rule).
@@ -177,12 +179,21 @@ Two rulings, taken together, because each is meaningless without the other. They
 the equipment counter tick — the game's first triggered ability — and finding that **the Upkeep go-round is a
 real priority point whose stack holds only objects nobody can interact with.**
 
-**A TRIGGERED ABILITY IS NOT COUNTERABLE — and the gap is named, not hidden.** `counterTargets` accepts only
-`kind === 'effect'`, so Counter Spell cannot target a tick. That started as an implementation detail and is
-now a ruling: **triggers stay uncounterable by Counter Spell, and the door is open for a card printed to
-answer triggers specifically.** Say it out loud so the next session files it as a design boundary rather than
-a bug — the observable symptom (a Quick the window offers you that cannot legally target the only thing on
-the stack) looks exactly like one.
+**A TRIGGERED ABILITY IS NOT COUNTERABLE — AND THE REASON IS THE TARGETING RESTRICTION, NOT THE STACK
+ENTRY'S TYPE** (Aj, 2026-09-14, correcting the first version of this entry): *"some triggers put effects onto
+the stack. it is uncounterable only because we don't have cards that target triggered effects yet. counter
+spell does not target effects, it targets techniques and equipments — the card type source of the effect."*
+
+So the model is: **the stack holds effects, and every effect has a SOURCE.** Counter Spell's restriction is on
+that source — a Technique or an Equipment that was cast or activated. A triggered ability's effect has no such
+source, so nothing in today's card set can target it. **The door is open for a card printed to answer
+triggered effects**, and such a card needs no new machinery — only a different targeting restriction.
+
+**⚠ THE CODE GETS THE RIGHT ANSWER FOR THE WRONG REASON TODAY.** `counterTargets` filters `kind === 'effect'`
+and the equipment tick is pushed as `kind: 'tick'`, so a tick is excluded by its stack TYPE rather than by its
+source. That is a latent reversal: **the moment someone models the next trigger the way this file describes —
+as an effect, which is what it is — Counter Spell can target it**, and the ruling flips silently. The fix is
+to make the tick an ordinary effect, carry its SOURCE on the stack entry, and let `counterTargets` read that.
 
 **ANNOINT DOES NOT SAVE AN EQUIPMENT FROM TICKING TO ZERO.** Its text is *"can't be destroyed or disarmed"*,
 and a counter coming off is **neither** — the tick is the equipment's lifespan running out, not an attack on
@@ -380,7 +391,18 @@ priority" is a statement about today's card set, never about the phase.
 
 ## 4. Shield loss is NOT a stack object
 
-**A shield loss just happens.** It is not put on the stack and it is not responded to directly. What protects
+**A shield loss just happens.** It is not put on the stack and it is not responded to directly.
+
+**⚠ AND THE ENGINE VIOLATES THAT TODAY — SETTLED 2026-09-14.** Aj, asked which of the two a shield loss is:
+*"what is shield loss? is it an effect that removes shields? or is it the moment that a shield is lost by
+losing to a special. if its the former, let's change the type to effect. if it's the latter... this is not
+according to the spec."* **It is the latter** — this section's own first line says so — so `st.stack` carrying
+`kind: 'shieldloss'` entries is a spec violation rather than a modelling choice. They are a work QUEUE and
+belong on their own field, leaving The Stack holding **only effects**, which is what §1 has always said.
+**THE EPIC MOVED AWAY FROM THAT GOAL RATHER THAN TOWARD IT**: the stack held two kinds before it
+(`effect`, `shieldloss`) and holds three after, because `tick` joined them. The two corrections — a tick
+becoming an ordinary effect with a trigger source, and the shield-loss queue leaving the stack — are one
+cleanup seen from two sides, and after it the `kind` discriminator can go. What protects
 or amplifies it is the **priority window that runs before the Resolution Sub-Phase** — that is where a
 defender springs an immunity and where a striker adds to the damage.
 
