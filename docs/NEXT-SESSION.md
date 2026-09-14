@@ -76,6 +76,23 @@ assertions were A/B'd by deleting the migration and rebuilding.
   needs rewriting, never renaming — and dated quotes plus the append-only changelog keep "fight end" on
   purpose.
 
+**⚠ A REACHABLE BUG, FOUND AND MEASURED BY THE 2026-09-14 DESIGN PASS — NOT YET FIXED.** An effect can be
+left on the stack with NOBODY holding priority, and it then resolves a full turn late.
+`openResponseWindow` does not re-enter its `while` loop after `driveShieldStack` drains a shield-loss
+queue, so control falls through every `!st.stack.length` branch and returns with an effect still stacked
+and `respondFor = null, pending = null`. Staged at 3 players: p0 activates Gather Energy (window opens for
+p1), then — `activate` has **no open-window guard** — activates Critical Hit on top; p1 declines, Critical
+Hit resolves and strips a shield, and **Gather Energy is stranded**, picked up only at the next entry into
+`openResponseWindow`. Two defects in one trace: the missing re-entry, and `activate` accepting a cast while
+a window is open. Fixing the loop condition to `while (st.stack.length)` is the winning design's answer.
+
+**⏭ THE STACK-MODEL CLEANUP IS DESIGNED AND NOT BUILT.** Three rulings from Aj on 2026-09-12/14 — Counter
+Spell targets the SOURCE (a Technique or Equipment), a shield loss is a MOMENT and not an effect, and the
+ownerless go-round RUNS with the round winner as its origin — come to one change: the tick becomes an
+ordinary effect carrying its source, the loss queue moves to its own field, `counterTargets` reads the
+source, and the `kind` discriminator deletes itself. Both judges picked the same design. See
+[`DECISIONS.md`](DECISIONS.md) for the measured inventory and the open questions.
+
 **⚠ STILL WAITING ON AJ AND TWO DEVICES** — step 18's netplay gate, **and** step 22's version refusal against
 a genuinely old peer (both sides in the suite run the same build with `?ver=` faking the number).
 
