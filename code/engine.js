@@ -1546,7 +1546,7 @@
      §3: *"so that people will know if they want to activate shield protection or no."*
      `origin` is carried separately from `winner` even though they are equal here, because step 20 reuses
      this machinery for the pre-fight window with a different origin, and `winner` is an OUTCOME argument. */
-  function openFightEndWindow(st, winner, wonWithCombo, strikeTargets, winSize) {
+  function openResolutionWindow(st, winner, wonWithCombo, strikeTargets, winSize) {
     st.fightEnd = { origin: winner, winner: winner, wonWithCombo: wonWithCombo, strikeTargets: strikeTargets, winSize: winSize };
     st.prioPassed = {};
     return openResponseWindow(st);
@@ -2278,7 +2278,7 @@
      EXHAUSTIVELY, every card the old whitelist admitted is a Quick, so `canAddToStack` cannot refuse one.
      WHAT STOPS IT REGRESSING: `fightendtest`'s canary goes red the day a guard-only predicate returns. */
   function enterFightEnd(st, winner, wonWithCombo, strikeTargets, winSize) {
-    return openFightEndWindow(st, winner, wonWithCombo, strikeTargets, winSize);
+    return openResolutionWindow(st, winner, wonWithCombo, strikeTargets, winSize);
   }
   // Apply the round result: mill the loser(s), strip the struck shield(s), then finish.
   function applyRoundLossBody(st, winner, wonWithCombo, strikeTargets, winSize) {
@@ -2769,7 +2769,7 @@
     HOSTILE_SINGLE: HOSTILE_SINGLE,
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
     canAddToStack: canAddToStack, canCastQuick: canCastQuick, castRefusal: castRefusal, quickTargets: quickTargets, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
-    openFightEndWindow: openFightEndWindow,   // step 11: built and tested here, made live by step 18
+    openResolutionWindow: openResolutionWindow,   // step 11: built and tested here, made live by step 18
     /* RENAMED FROM `guardEffFor` (epic step 16), and the rename is the point rather than tidying. As
        `guardEffFor` it was the WHITELIST GATE — the answer to "may this card be offered at the shield-guard
        window" — and step 19 deletes that gate along with `shieldGuard`, `shieldGuardPass` and

@@ -2566,7 +2566,7 @@ definition, so it cannot delete them.
   SWEEP.** `Fight Phase` → **Play Phase** (Main · **Fight** · **Resolution**), because the phase you spend
   your turn in is the one you play in. The old `Play Sub-Phase` is the **Fight Sub-Phase** and `Fight End` is
   **Resolution**. Docs and player-facing copy use the new words; the ~344 code sites (`st.fightEnd`,
-  `openFightEndWindow`, `fightendtest.js`, the `'fightend'` prompt-timing id, which needs a `localStorage`
+  `openResolutionWindow`, `fightendtest.js`, the `'fightend'` prompt-timing id, which needs a `localStorage`
   migration) are renamed at **step 23**, deliberately after the behaviour stops moving — this file's own rule
   is that a rename is a deletion wearing a friendlier face, and threading 344 sites through a step that is
   still changing behaviour makes any red run unbisectable. **So `fightEnd` in a `.js` file is the old name,

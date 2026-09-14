@@ -16,7 +16,7 @@
 > `shieldResponsePending` sites, which are dead code and belong to 19) and for the `sharetest` defect the
 > work uncovered in the SHIPPED build, which is filed separately and is not this change.
 > **Step 11 is built** — P1, P2, P3 and the go-round itself, with §3's worked example asserted as a
-> sequence. It is INERT: nothing calls `openFightEndWindow` until step 18. Its one deferred piece (the
+> sequence. It is INERT: nothing calls `openResolutionWindow` until step 18. Its one deferred piece (the
 > `finishRoundWin` restructure) is deferred with a measurement — see the step.
 > **The cliff is behind us**, and the shape of the remaining work changed with it: 17 is a test against a
 > mechanism that already exists, and 18 is the switch — now with 12's superset PROOF standing behind it.
@@ -34,7 +34,7 @@
 >   Step 11's three (**P1/P2/P3**) are now discharged and recorded at the step; **P4-P8 still stand**, and
 >   18, 19 and 20 each carry a ⚠ pointing at theirs.
 > - **The step-11 machinery is what 18 and 20 build on** — `nextPrioHolder(st, origin)` is deliberately
->   origin-parameterised so step 20 passes its own, and `openFightEndWindow` is the only thing that parks
+>   origin-parameterised so step 20 passes its own, and `openResolutionWindow` is the only thing that parks
 >   `st.fightEnd`. Read both before touching either.
 
 > ## ⏳ THIS IS A WORKING PLAN. IT IS MEANT TO DIE.
@@ -871,12 +871,12 @@ together and requiring **both** eliminated; `nettest_kick`; `nettest_elim3`; `ne
 > - **P3** — the continuation is parked on `st.fightEnd` and **rotated, not redacted,** in `mirrorFor`; §3
 >   picks the target before the window so the table can see who is struck. `fightEnd.winSize` had to be
 >   declared PUBLIC in `netview.test.js`, which is the leaf-walker doing its job.
-> - **The go-round** — `openFightEndWindow`. §3's worked example is asserted as a SEQUENCE
+> - **The go-round** — `openResolutionWindow`. §3's worked example is asserted as a SEQUENCE
 >   (`obj:0 obj:1 obj:2 empty:2 empty:0 empty:1`), because every step of it passes individually on walks that
 >   are wrong overall. Three mutants A/B'd; **the first one initially SURVIVED** because the rig staged
 >   `turn === winner`, so nothing could tell the parked origin from `st.turn` — the rig now separates them,
 >   which is the assertion that P2 is a parameter at all.
-> - **INERT:** nothing calls `openFightEndWindow`; step 18 is the switch. Proven, not asserted — the same
+> - **INERT:** nothing calls `openResolutionWindow`; step 18 is the switch. Proven, not asserted — the same
 >   480-game fingerprint is unchanged from the P1 baseline.
 >
 > **⏭ DEFERRED, and it belongs to whichever step introduces a TRIGGER — not to 18.** The restructure below
@@ -885,7 +885,7 @@ together and requiring **both** eliminated; `nettest_kick`; `nettest_elim3`; `ne
 > player casts; two `shieldloss`). So a drain placed there today is unreachable — which is exactly what step
 > 9 built, measured at zero runs, and deleted. Building it again would repeat that mistake with a longer
 > comment. The **seam** step 9 asked for is now real: the go-round runs BEFORE the outcomes, which is §3's
-> order, and `openFightEndWindow` is where a pre-outcome drain would hang.
+> order, and `openResolutionWindow` is where a pre-outcome drain would hang.
 
 **⚠ PREREQUISITE, found doing step 9: `finishRoundWin` DISCARDS THE STACK.** Its first statement is
 `st.stack = []`. Anything an outcome triggers is thrown away before it can resolve, so this step must

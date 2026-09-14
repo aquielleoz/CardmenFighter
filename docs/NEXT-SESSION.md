@@ -48,7 +48,7 @@ after any session spent elsewhere (CLAUDE.md → "Branches and PRs"; `checkbranc
 
 **⏭ NEXT IS STEP 23 — THE RENAME, AND IT IS THE LAST REAL JOB.** Steps 21 and 22 are done and merged
 (#219, #220). **Measured scope: 254 sites, not the ~344 this plan says** — 144 in `.js`, 45 in the
-template, 65 in docs — across only about **15 distinct symbols** (`st.fightEnd`, `openFightEndWindow`,
+template, 65 in docs — across only about **15 distinct symbols** (`st.fightEnd`, `openResolutionWindow`,
 `fightEndGuardCard`, `fightEndResult`, `drainFightEnd`, `fightEndPushCard`, the `'fightend'` prompt-timing
 id, and the two suite filenames). Estimated 2.5–3 hours, most of it verification.
 **DO IT IN SLICES, ONE SYMBOL AT A TIME, each its own commit** — engine, then AI, then template, then

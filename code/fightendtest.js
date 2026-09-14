@@ -85,7 +85,7 @@ function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
   ok(!guards, 'canary: staged — seat 1 holds a Quick that the OLD whitelist would refuse (guards nothing)');
   ok(E.canAddToStack(g, 1) === true, 'canary: …and the engine agrees it can add to the stack');
 
-  E.openFightEndWindow(g, 2, true, [0], 2);
+  E.openResolutionWindow(g, 2, true, [0], 2);
   ok(g.respondFor === 1,
      'WHITELIST CANARY: a seat whose only Quick guards NOTHING is still offered the Fight End window' +
      (g.respondFor === 1 ? '' : '  ← offered ' + g.respondFor + '. The whitelist is back: only guard cards ' +
@@ -118,7 +118,7 @@ function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
   g.lastPlayer = 2;
 
   var round0 = g.round, shields0 = g.players[0].shields;
-  E.openFightEndWindow(g, 2, true, [0], 2);
+  E.openResolutionWindow(g, 2, true, [0], 2);
   ok(g.respondFor === 2, 'end-to-end: the window opens on the winner');
 
   var seen = [], guard = 0;
@@ -148,7 +148,7 @@ function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
   }
   g.pile = { p: 2, combo: { type: 'pair', size: 2, value: 9, cards: [sc(9, 'C', 'x'), sc(9, 'S', 'y')] } };
   g.lastPlayer = 2;
-  E.openFightEndWindow(g, 2, true, [0], 2);
+  E.openResolutionWindow(g, 2, true, [0], 2);
 
   var spins = 0;
   while (g.respondFor != null && spins++ < 64) { var rr = AI.respondDecision(g, g.respondFor); if (!rr) break; }

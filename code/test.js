@@ -1405,7 +1405,7 @@ function cards(ids) { return ids.map(card); }
    is asserted as a SEQUENCE rather than as a set of separate facts: every individual step below passes on
    plausible-but-wrong walks (origin at the active player throughout, or a go-round that never restarts),
    and only the order distinguishes them.
-   NOT LIVE YET: nothing calls `openFightEndWindow` in a real round — step 18 is the switch. It is driven
+   NOT LIVE YET: nothing calls `openResolutionWindow` in a real round — step 18 is the switch. It is driven
    directly here precisely so the surface is tested BEFORE it goes live, which is the whole strangler
    argument; an untested mechanism switched on in one commit is what this plan is shaped to avoid. */
 (function () {
@@ -1447,7 +1447,7 @@ function cards(ids) { return ids.map(card); }
 
   // --- nobody adds anything: the window is winner-first, then turn order, then the sub-phase
   var g = rig();
-  E.openFightEndWindow(g, 2, true, [0], 2);
+  E.openResolutionWindow(g, 2, true, [0], 2);
   ok(g.respondFor === 2 && g.pending === null,
      'fight end: the WINNER is offered first, on an empty stack' +
      (g.respondFor === 2 && g.pending === null ? '' : '  ← offered ' + g.respondFor + ', pending ' + (g.pending ? 'set' : 'null')));
@@ -1468,7 +1468,7 @@ function cards(ids) { return ids.map(card); }
   var g2 = rig();
   g2.players[0].hand = [sc(9, 'D', 'a1'), sc(9, 'D', 'a2')];           // A holds two, so A is not auto-passed after casting one
   for (var e2 = 0; e2 < 20; e2++) g2.players[0].energy.push(sc(4, 'D', 'ex' + e2));
-  E.openFightEndWindow(g2, 2, true, [0], 2);
+  E.openResolutionWindow(g2, 2, true, [0], 2);
   E.declineResponse(g2, 2);                                            // C adds nothing and passes
   var cast = E.respond(g2, 0, 'a19D');                                 // A casts into the EMPTY stack
   ok(cast.ok !== false && g2.stack.length === 1 && g2.pending && g2.respondFor === 0,
@@ -1499,7 +1499,7 @@ function cards(ids) { return ids.map(card); }
   // --- a seat with nothing castable is auto-passed and never appears in the walk
   var g3 = rig();
   g3.players[1].hand = [];                                             // B holds nothing
-  E.openFightEndWindow(g3, 2, true, [0], 2);
+  E.openResolutionWindow(g3, 2, true, [0], 2);
   var o3 = walk(g3);
   var WANT3 = 'fe:2,fe:0,cu:2,cu:0,up:2,up:0';
   ok(o3.join(',') === WANT3,
@@ -1514,7 +1514,7 @@ function cards(ids) { return ids.map(card); }
   var g5 = rig();
   g5.players[2].hand = [sc(9, 'D', 'c1'), sc(9, 'D', 'c2')];           // TWO, so C is not auto-passed after casting one — the same rig shape the worked example uses
   for (var e5 = 0; e5 < 20; e5++) g5.players[2].energy.push(sc(4, 'D', 'ec' + e5));
-  E.openFightEndWindow(g5, 2, true, [0], 2);
+  E.openResolutionWindow(g5, 2, true, [0], 2);
   var n5 = 0; while (g5.respondFor != null && !g5.upkeep && n5++ < 12) E.declineResponse(g5, g5.respondFor);
   ok(!!g5.upkeep && g5.respondFor === 2 && g5.pending === null && g5.round === 4,
      'upkeep: the new round opens its own go-round on an empty stack, at the active player' +
@@ -1533,7 +1533,7 @@ function cards(ids) { return ids.map(card); }
      shieldloss objects BEFORE parking the window is what unblocked it, and this asserts the consequence —
      a Quick cast at Clean-up survives to resolve. */
   var g7 = rig();
-  E.openFightEndWindow(g7, 2, true, [0], 2);
+  E.openResolutionWindow(g7, 2, true, [0], 2);
   var n9 = 0; while (g7.respondFor != null && !g7.cleanup && n9++ < 12) E.declineResponse(g7, g7.respondFor);
   ok(!!g7.cleanup && g7.round === 3,
      'clean-up: the round\'s end opens its own go-round BEFORE the round advances' +
@@ -1560,7 +1560,7 @@ function cards(ids) { return ids.map(card); }
   g6.players[2].equipment = [{ id: 'jav', name: "Hero's Javelin", delta: 1, counters: 3, decay: true, card: sc(6, 'C', 'eqj') }];
   g6.players[0].equipment = [{ id: 'cal', name: 'Caltrops', oppDelta: -2, counters: 1, decay: true, card: sc(7, 'S', 'eqc') }];
   g6.players[1].equipment = [{ id: 'bow', name: 'Holy Bow', delta: 2, counters: 2, decay: true, card: sc(8, 'H', 'eqb') }];
-  E.openFightEndWindow(g6, 2, true, [0], 2);
+  E.openResolutionWindow(g6, 2, true, [0], 2);
   var n7 = 0; while (g6.respondFor != null && !g6.upkeep && n7++ < 12) E.declineResponse(g6, g6.respondFor);
   var ticks = g6.stack.filter(function (o) { return o.kind === 'tick'; });
   ok(ticks.length === 3 && g6.pending && g6.pending.kind === 'tick',
