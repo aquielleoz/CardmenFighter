@@ -1845,7 +1845,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 478, `netview` 65, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 18, `resolutiontest` 16, `resolutionuitest` 23, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 22, `resolutiontest` 16, `resolutionuitest` 23, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2562,15 +2562,23 @@ definition, so it cannot delete them.
 - **`docs/PHASES-AND-PRIORITY.md` — CURRENT TRUTH for turn structure and priority.** Dictated by Aj
   2026-09-08 and the only live statement of the model. **Read it before touching any window, the stack, or
   anything that grants priority.**
-  **THE PHASES WERE RENAMED 2026-09-11 AND THE CODE WAS NOT — THAT SPLIT IS DELIBERATE, NOT A MISSED
-  SWEEP.** `Fight Phase` → **Play Phase** (Main · **Fight** · **Resolution**), because the phase you spend
-  your turn in is the one you play in. The old `Play Sub-Phase` is the **Fight Sub-Phase** and `Fight End` is
-  **Resolution**. Docs and player-facing copy use the new words; the ~344 code sites (`st.resolution`,
-  `openResolutionWindow`, `resolutiontest.js`, the `'resolution'` prompt-timing id, which needs a `localStorage`
-  migration) are renamed at **step 23**, deliberately after the behaviour stops moving — this file's own rule
-  is that a rename is a deletion wearing a friendlier face, and threading 344 sites through a step that is
-  still changing behaviour makes any red run unbisectable. **So `resolution` in a `.js` file is the old name,
-  not a leftover**, and a doc quoting Aj before that date still says "fight end" on purpose.
+  **THE PHASES WERE RENAMED 2026-09-11 AND THE CODE FOLLOWED AT EPIC STEP 23 (2026-09-14). THE SPLIT IS
+  CLOSED.** `Fight Phase` → **Play Phase** (Main · **Fight** · **Resolution**), because the phase you spend
+  your turn in is the one you play in; the old `Play Sub-Phase` is the **Fight Sub-Phase** and `Fight End` is
+  **Resolution**. Code and docs now agree: `st.resolution`, `openResolutionWindow`, `enterResolution`,
+  `resolutionResult`, `drainResolution`, `resolutionGuardCard` / `resolutionPushCard`, `resolutiontest.js` and
+  `resolutionuitest.js`. **If you find `fightEnd` in a `.js` file it is a genuine leftover now, not the
+  deliberate lag it used to be** — that inversion is the whole point of this note.
+  **THE ONE SURVIVING `'fightend'` IS THE `localStorage` MIGRATION** in the template (and its assertion in
+  `prompttest`). The prompt-timing id is persisted, so the migration has to know the OLD name by definition;
+  deleting that literal to "finish the rename" would orphan every preference a player has ticked, silently,
+  because an unknown key just falls back to the default.
+  **THE RENAME WAS DELIBERATELY HELD until the behaviour stopped moving**, and that was right: a rename is a
+  deletion wearing a friendlier face, and threading it through a step still changing behaviour makes a red run
+  unbisectable. It shipped as **one symbol per commit** for the same reason.
+  **DATED QUOTES STILL SAY "fight end" ON PURPOSE** — `PHASES-AND-PRIORITY.md` says so in its own line 15, and
+  `CHANGELOG.md` is append-only history. A blanket prose sweep is WRONG here; the only paragraph a blanket
+  identifier rename damaged was this one, because it was *about* the old names.
 - `docs/BUILD-PLAN-v0.82.md`, `docs/Cardmen-Fighter-Design-v0.70.md`, `docs/STACK-DESIGN-v0.53.md` —
   historical snapshots, not current truth — **and specifically wrong about priority**, which is what
   `PHASES-AND-PRIORITY.md` now owns.
