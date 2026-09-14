@@ -2289,5 +2289,50 @@ function cards(ids) { return ids.map(card); }
   ok(AI.policyStats().push === 1, 'policyStats counts the cast — a policy measuring as worthless and one that never ran are the same number otherwise');
 })();
 
+/* EVERY BOOST DESCRIPTION MUST BE A PROMISE THE CODE KEEPS (2026-09-14).
+   `docs/CARD-LIST.md` is generated from each patch's `desc` string, so the published list prints what a
+   boost SAYS with nothing checking that anything implements it — a set of promises nobody verified. That is
+   how the Queen of Diamonds' *"Counter Spell can also counter an Equipment as it is played"* shipped as a
+   patch containing ONLY a `desc`: `effectFor` skips `desc`, so the boost changed nothing, while the card
+   list advertised it to players.
+   THE CHECK IS DIFFERENTIAL, NOT A READ OF THE TABLE. It compares `effectOf` against `effectFor` with the
+   tier's Form staged and requires at least one real field to move. Reading the BOOSTS literal instead is
+   what made two independent readers miscount `eff.type` on this same day — an IIFE rewrites ranks 11-13
+   after the literal is written, so the source text is not what the lookup returns.
+   `boosted` / `boostTier` are metadata `effectFor` adds, so they are excluded: they are true of a
+   desc-only patch too, which is exactly why the bug was invisible. */
+(function () {
+  function C(r, su) { return { rank: r, suit: su, id: '' + r + su }; }
+  var SUITS = ['D', 'H', 'C', 'S'], META = { boosted: 1, boostTier: 1 };
+  function fieldsOf(e) { var o = {}; for (var k in e) { if (!META[k]) o[k] = JSON.stringify(e[k]); } return o; }
+  var TIERS = [
+    ['queen', function (su) { return [C(12, su)]; }],
+    ['king',  function (su) { return [C(13, su)]; }],
+    ['super', function (su) { return [C(11, su), C(12, su), C(13, su)]; }]
+  ];
+  var g = E.newGame(null, { numPlayers: 2 }), dead = [], live = 0;
+  SUITS.forEach(function (su) {
+    for (var r = 1; r <= 13; r++) {
+      var card = C(r, su), base = E.effectOf(card);
+      if (!base) continue;
+      TIERS.forEach(function (t) {
+        g.players[0].forms = t[1](su);
+        var b = E.effectFor(g, 0, card);
+        if (!b || !b.boosted) return;                       // no patch at this tier
+        var fa = fieldsOf(base), fb = fieldsOf(b), keys = {}, moved = false, k;
+        for (k in fa) keys[k] = 1;
+        for (k in fb) keys[k] = 1;
+        for (k in keys) { if (fa[k] !== fb[k]) moved = true; }
+        if (moved) live++; else dead.push(r + su + ' ' + base.name + ' [' + t[0] + ']');
+      });
+    }
+  });
+  ok(live > 40, 'the boost audit really ran — ' + live + ' patches change a field (a broken probe would report 0 and pass the next assertion vacuously)');
+  ok(dead.length === 0,
+     'every boost patch changes at least one real field' +
+     (dead.length ? ' — DESCRIBED BUT NOT IMPLEMENTED: ' + dead.join(' | ') +
+      '  ← CARD-LIST.md publishes this promise to players and nothing keeps it' : ''));
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);
