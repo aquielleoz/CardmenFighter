@@ -585,7 +585,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], roundWinResult: null, resolution: null, resolutionResult: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], losses: [], roundWinResult: null, resolution: null, resolutionResult: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -1447,17 +1447,23 @@
       last = resolveTopEffect(st);                                      // everyone passed → resolve, then re-loop
       st.prioPassed = {};                                               // a resolution starts a fresh go-round on whatever is now on top
       if (st.finished) return last;
+      /* DRAIN THE LOSS QUEUE *HERE*, NOT AFTER THE LOOP — THIS IS WHAT KEEPS THE MOVE BEHAVIOUR-PRESERVING.
+         While shield losses lived ON The Stack, a `destroyShield` resolving pushed one on top, which made
+         this loop EXIT immediately and drain it before anything underneath could resolve. With the queue on
+         its own field the loop would sail past and resolve the effects beneath FIRST — a real reordering,
+         and exactly the kind a "pure refactor" hides. Draining at the same moment reproduces the old order
+         exactly; the seeded fingerprint is what proves it rather than this comment. */
+      if (st.losses && st.losses.length) { driveShieldStack(st); if (st.finished) return last; }
     }
     /* STANDING DEFECT 2, CLOSED (epic step 19). This read
          `var sres = driveShieldStack(st); if (sres && sres.shieldResponsePending) return sres;`
        — a result captured and then thrown away on every path but one, because the only thing it tested
        was the guard window's own return flag. With that window gone there is nothing to test and nothing
        to discard: drive the queue and fall through. */
-    if (st.stack.length && st.stack[st.stack.length - 1].kind === 'shieldloss') {
-      var wasDeep = st.stack.length;
+    if (st.losses && st.losses.length) {
       driveShieldStack(st);
       if (st.finished) return last;
-      if (st.stack.length < wasDeep) continue;                        // the queue drained — effects may be exposed beneath it
+      continue;                                                       // the queue drained — effects may be exposed beneath it
     }
     break;
     }
@@ -1821,7 +1827,7 @@
         spendCard(pl, card); break;
       case 'destroyShield':                               // Ultima Attack / Critical Hit: the target already got a response window vs this technique (spring Leyline there); the loss itself no longer opens a second guard window
         hostileTargets(st, p, oppIdx, 'damage', eff).forEach(function (t) {
-          st.stack.push({ oid: newOid(st), kind: 'shieldloss', target: t, n: (eff.n || 1), winner: p, source: eff.name, noKick: true, noGuard: true });
+          (st.losses = st.losses || []).push({ oid: newOid(st), target: t, n: (eff.n || 1), winner: p, source: eff.name, noKick: true });
         });
         spendCard(pl, card); break;
       /* NO `counter` / `protect` CASES HERE, AND THAT IS NOT AN OVERSIGHT (v1.31.125). `resolveTopEffect`
@@ -2219,8 +2225,8 @@
   function driveShieldStack(st) {
     var roundWin = !!st.roundWinResult;
     var result = st.roundWinResult || { ok: true, state: st };
-    while (st.stack.length && st.stack[st.stack.length - 1].kind === 'shieldloss') {
-      var top = st.stack[st.stack.length - 1];
+    while (st.losses && st.losses.length) {
+      var top = st.losses[st.losses.length - 1];
       /* THE GUARD WINDOW WAS HERE (removed at step 18; its last remains deleted at step 19). It offered
          ONE seat — the threatened one — a yes/no on ONE whitelisted card, which is the defect the whole
          epic exists to fix: §3 says priority is PASSED AROUND before the sub-phase, it is not a prompt to
@@ -2229,7 +2235,7 @@
          Step 18 kept `facingKick` and `canGuard` as locals "because the delete pass still wants them in
          view" — it does not, and they were unread. This is now what it always should have been: a queue
          that resolves. */
-      st.stack.pop();
+      st.losses.pop();
       resolveShieldLossObj(st, top, result);
     }
     if (roundWin) return finishRoundWin(st, result);
@@ -2335,7 +2341,7 @@
     if (wpl.finishingBlow) { strips = 2; wpl.finishingBlow = false; result.finishingBlow = true; }   // Armor Piercing: one extra
     st.roundWinResult = result;
     strikeTargets.forEach(function (q) {
-      st.stack.push({ oid: newOid(st), kind: 'shieldloss', target: q, n: strips, winner: winner, source: 'fight' });
+      (st.losses = st.losses || []).push({ oid: newOid(st), target: q, n: strips, winner: winner, source: 'fight' });
     });
     return driveShieldStack(st);
   }
@@ -2670,7 +2676,7 @@
      the spent shieldloss objects BEFORE parking the window is what unblocks it — the clear happens once,
      while the stack is genuinely spent, and nothing clears it again afterwards. */
   function finishRoundWin(st, result) {
-    st.stack = []; st.roundWinResult = null;                                // shield-loss stack is spent by here
+    st.stack = []; st.losses = []; st.roundWinResult = null;                // both are spent by here; the queue only survives a game that ended mid-drain
     if (st.finished) return result;
     /* WHO IS ACTIVE AT CLEAN-UP: the seat that just won the round. They are about to take the initiative,
        and a fizzled round (no winner) leaves initiative where it was — the same rule `finishCleanup`

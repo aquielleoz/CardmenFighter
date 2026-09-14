@@ -138,11 +138,16 @@
        by accident. A seat that is not on the mirror cannot be silently misread. */
     function remapStack(s) {
       return (s || []).map(function (o) {
-        var c = { oid: o.oid, kind: o.kind, source: o.source || null };
+        /* `target` / `winner` / `n` / `source` WERE PROJECTED HERE AND ARE GONE (2026-09-14). They were
+           SHIELD-LOSS fields, and shield losses no longer live on The Stack — they are a work queue on
+           `st.losses`, per PHASES-AND-PRIORITY.md §4 ("a shield loss just happens"). They were already
+           unreachable before the move: measured over 719,068 observations across 120 games, a shieldloss
+           object was visible outside the engine ZERO times, because it is created and drained inside one
+           synchronous call. So this projected a state the wire has never carried.
+           THE RULE ABOVE STILL GOVERNS — project, never copy the keys. The remaining fields are the two
+           kinds that really do reach a client: an `effect` ({p, card, eff, opts, countered}) and a `tick`. */
+        var c = { oid: o.oid, kind: o.kind };
         if (typeof o.p === 'number') c.p = rot(o.p);
-        if (typeof o.target === 'number') c.target = rot(o.target);
-        if (typeof o.winner === 'number') c.winner = rot(o.winner);
-        if (typeof o.n === 'number') c.n = o.n;
         if (o.countered != null) c.countered = !!o.countered;
         if (o.card) c.card = card(o.card);
         if (o.eff) c.eff = o.eff;                                  // static EFFECTS data — no seats, no cycles
