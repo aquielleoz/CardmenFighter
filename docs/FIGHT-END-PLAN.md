@@ -81,7 +81,7 @@ the one the model asks, and the predicate that asks the right one already exists
 **Target state.** One priority window per round, run by `openResponseWindow` — the same loop that already
 handles every cast Technique, with real per-object `passed` sets, a global reset on any addition, and
 auto-pass for anyone `canAddToStack` refuses. It is expressed as a **sentinel stack object**
-(`{oid, kind:'fightend', origin, winner, targets, source, passed:{}}`), because the all-passed bookkeeping
+(`{oid, kind:'resolution', origin, winner, targets, source, passed:{}}`), because the all-passed bookkeeping
 lives *on* an object by construction: `declineResponse` writes `top.passed[q]`, `respond` does
 `st.stack.forEach(function (o) { o.passed = {}; })`, and an objectless window has nowhere to record a pass. A
 second, parallel loop would rebuild the thing being deleted. The sentinel is pushed by a new `enterResolution`
@@ -101,7 +101,7 @@ entered. On the wire nothing is invented — the window travels as the existing 
 > (settle the remote-only silent deadlock first, on the existing window, before anything is deleted; ship the
 > UI copy before the switch rather than after). Their graft lists converge, so this plan is the strangler
 > **spine** with risk-first's **ordering** for the first three commits and its UI/phone gates folded in. Where
-> they genuinely disagreed — the sentinel's `kind` — this plan took the fidelity judge's `'fightend'`.
+> they genuinely disagreed — the sentinel's `kind` — this plan took the fidelity judge's `'resolution'`.
 > **⚠ SUPERSEDED: there is no sentinel any more.** Aj's ruling that passes belong to the go-round rather than
 > to an object removed the need for one entirely (sequence v2, step 5), so the judges' disagreement is moot.
 > Kept because the reasoning still records why a `kind:'effect'` sentinel would have been a round-killing bug
@@ -151,7 +151,7 @@ Symbols only. A repo gate (`versiontest`) fails any live doc citing `file:NNNN`.
 | file | symbol | what it does today | note |
 | --- | --- | --- | --- |
 | engine.js | `driveShieldStack` (the drain) | pops each shieldloss object and calls `resolveShieldLossObj`, then `finishRoundWin` | **It halves, it does not disappear** — both callers still need it. Once the window runs once, before the loop, it can never return a pending result, which simplifies every caller and kills `openResponseWindow`'s `shieldResponsePending` branch. |
-| engine.js | `openResponseWindow` (the `while` guard) | `st.stack[st.stack.length-1].kind === 'effect'` | Must admit `'fightend'`. An empty stack falls straight through — which is why the window needs an object at all. |
+| engine.js | `openResponseWindow` (the `while` guard) | `st.stack[st.stack.length-1].kind === 'effect'` | Must admit `'resolution'`. An empty stack falls straight through — which is why the window needs an object at all. |
 | engine.js | `openResponseWindow` (the priority walk) | `for (var k = 1; k < st.numPlayers; k++) { var cand = (top.p + k) % st.numPlayers; … }` | Controller-relative, and `k=1` skips the controller. Take an `origin` **from the object** so existing objects keep byte-identical behaviour: `var from = (typeof top.origin === 'number') ? top.origin : top.p, k0 = (typeof top.origin === 'number') ? 0 : 1;`. **Scope it to the sentinel.** Fixing the general divergence is a separate BACKLOG entry and a strength change. |
 | engine.js | `openResponseWindow` (the shieldloss tail / discarded `sres`) | hands a top-of-stack shieldloss to `driveShieldStack`, then **discards** the non-pending result and returns `last` | So a mid-turn `destroyShield`'s `struck`/`prevented`/`spared` never reaches the caller — the repo's own "read `result.struck`" rule failing on the Technique path. Becomes trivial to fix once `shieldResponsePending` is gone; fix it in the same pass. |
 | engine.js | `resolveTopEffect` | `var top = st.stack.pop(), pl = st.players[top.p];` then dereferences `top.eff`, `top.card` | Needs an early branch for the sentinel that reads none of those and whose resolution is `applyRoundLossBody`. Its `counter` branch scans for the nearest `kind === 'effect'` beneath, so a sentinel is skipped for free — **assert that**, do not inherit it. |
@@ -279,7 +279,7 @@ decision (a), *it opens every round*.
 - **The target is decided before the window, and that is already true.** `st.shieldResponse` is only ever assigned inside `driveShieldStack`, and every path there runs through `applyRoundLoss`, which is reached only after the target set is fixed. The rebuild changes the window's nature, not its position. Two caveats worth putting in front of Aj: on a jab round there is no target for the ordering to be true *of*, and the *strip count* half of "the strike aimed at them" is decided pre-window and frozen — which is symptom 2.
 - **`resolveShieldLossObj`, the prevention ladder and the kick branch** are already the right shape for "a shield loss just happens".
 - **`finishRoundWin`'s flag expiry** already runs after the drain, so a sprung Sanctuary or Leyline survives until after the strips.
-- **`resolveTopEffect`'s counter scan** looks for the nearest `kind === 'effect'`, so a `kind:'fightend'` sentinel cannot be Counter Spelled — which is what §4 requires. Assert it rather than inheriting it.
+- **`resolveTopEffect`'s counter scan** looks for the nearest `kind === 'effect'`, so a `kind:'resolution'` sentinel cannot be Counter Spelled — which is what §4 requires. Assert it rather than inheriting it.
 
 ---
 
@@ -328,7 +328,7 @@ policy is to pass, so a wider window changes what it *could* have done, not what
 
 **Three things do need new code.**
 
-1. **A new kind name is a silent permanent deadlock.** Call the window `'fightend'` or `'priority'` and
+1. **A new kind name is a silent permanent deadlock.** Call the window `'resolution'` or `'priority'` and
    `passoStep` matches nothing, hits the bare `return;`, and the table waits forever — the v1.31.91 wedge
    whose only exit is Concede, a recorded loss. **The park heartbeat cannot save it: a heartbeat re-asserts a
    mirror, it does not answer a window.** RULE: route through `kind:'respond'`, or add the kind to
@@ -658,7 +658,7 @@ that are a work **queue**; step 10 removes them, after which the collection hold
 discriminator can go with them. Anything else in the architecture may use a stack data structure freely — it
 just may not use *this* one, or borrow the name.
 
-**THE SENTINEL IS GONE, AND THAT IS THE BIGGEST STRUCTURAL CHANGE.** v1 proposed a fake `kind:'fightend'`
+**THE SENTINEL IS GONE, AND THAT IS THE BIGGEST STRUCTURAL CHANGE.** v1 proposed a fake `kind:'resolution'`
 stack object whose only job was to hold the pass bookkeeping, because `openResponseWindow` records passes
 **on** the top object (`top.passed[q]`) and an empty-stack window has no object to write on. Aj's settled
 model makes that unnecessary: **the passes belong to the GO-ROUND, not to an object.** A single
@@ -1189,7 +1189,7 @@ not once** — two flakes hid in one green run the last time this surface was to
 > closed by suites alone, and that has not changed.
 >
 > ### ➕ THE PROMPT DEFAULT, DECIDED THE SAME DAY (Aj) — and it is a step 15 revision, not a step 18 one
-> Building `fightenduitest` surfaced that `promptDefault(..., 'fightend')` still returned
+> Building `fightenduitest` surfaced that `promptDefault(..., 'resolution')` still returned
 > `immunityEffFor(...)`, the whitelist this step deleted, so **both cards the epic exists to fix were
 > auto-declined by default**. Put to Aj as three options; he chose the widest and corrected the framing
 > while doing it: *"it's not really prompt everything. what happens is when priority is passed (not just
@@ -1579,7 +1579,7 @@ the round reset**, not a policy. Harmless, and worth knowing before someone "fix
 - **The sentinel's `kind`.** Strangler used `kind:'effect'`; the correctness judge showed that
   `resolveTopEffect`'s counter branch then marks it, and its countered path does `pl.shuffle.push(top.card)`
   with a null card and a `top.p` that is not a seat — a round-killing bug. The fidelity judge's
-  `kind:'fightend'` avoids it by construction. **This plan takes `'fightend'` and asserts the immunity
+  `kind:'resolution'` avoids it by construction. **This plan takes `'resolution'` and asserts the immunity
   anyway** (new assertion 7), because protection by construction that nobody wrote down is the shape the next
   tidy-up removes.
 - **`reorderEnergy`.** The fidelity judge lists "the window now blocks energy reordering every round" as
@@ -1590,7 +1590,7 @@ the round reset**, not a policy. Harmless, and worth knowing before someone "fix
   reading — the existing `st.pending` guard exists for that reason and extending it to this window is correct,
   not a regression.
 - **`THREAT_KIND` completeness.** Two of the three plans claimed `test.js`'s kind-completeness sweep would
-  name an unfiled `fightend` kind. **Verified: it will not** — the sweep enumerates kinds by calling
+  name an unfiled `resolution` kind. **Verified: it will not** — the sweep enumerates kinds by calling
   `effectOf` over the 52-card set, and a synthetic kind on a sentinel is never produced by a card. If the
   window carries a kind the AI branches on, that assertion must be extended **by hand** or the branch ships
   unclassified and unnoticed.

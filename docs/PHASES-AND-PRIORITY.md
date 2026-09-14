@@ -15,7 +15,7 @@ what used to be called Fight End is the **Resolution Sub-Phase**. So: `Fight Pha
 **The dated quotes below are left exactly as spoken and still say "fight end"** — a quote is a record, not
 prose to edit, and rewriting one would make it impossible to tell what was actually said. Read those as
 *Resolution*. **The CODE still spells it the old way** (`st.resolution`, `openResolutionWindow`, `fightendtest`,
-the `'fightend'` prompt-timing id) and is renamed at step 23, with its own `localStorage` migration — so a
+the `'resolution'` prompt-timing id) and is renamed at step 23, with its own `localStorage` migration — so a
 grep that turns up `resolution` in a `.js` file has found the old name, not a missed rename.
 
 ---

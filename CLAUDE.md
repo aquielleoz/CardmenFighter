@@ -1366,7 +1366,7 @@ Measured on v1.31.95, the two halves of the same day:
   player's build, and a subagent has never seen it.
 
 **A DEFAULT DERIVED FROM A PREDICATE OUTLIVES THE PREDICATE (epic step 18; FIXED 2026-09-10).** Step 15's
-`promptDefault(card, eff, 'fightend')` returned `immunityEffFor(...)` — chosen so the prompt defaults would
+`promptDefault(card, eff, 'resolution')` returned `immunityEffFor(...)` — chosen so the prompt defaults would
 reproduce "today's experience" exactly, which was right on the day. Step 18 then DELETED the window that
 predicate described, and the default silently kept describing it: the two cards the whole epic exists to
 fix (Sanctuary under Hector, Armor Piercing under Hippolyta) are both refused by `immunityEffFor`, so both
@@ -2566,7 +2566,7 @@ definition, so it cannot delete them.
   SWEEP.** `Fight Phase` → **Play Phase** (Main · **Fight** · **Resolution**), because the phase you spend
   your turn in is the one you play in. The old `Play Sub-Phase` is the **Fight Sub-Phase** and `Fight End` is
   **Resolution**. Docs and player-facing copy use the new words; the ~344 code sites (`st.resolution`,
-  `openResolutionWindow`, `fightendtest.js`, the `'fightend'` prompt-timing id, which needs a `localStorage`
+  `openResolutionWindow`, `fightendtest.js`, the `'resolution'` prompt-timing id, which needs a `localStorage`
   migration) are renamed at **step 23**, deliberately after the behaviour stops moving — this file's own rule
   is that a rename is a deletion wearing a friendlier face, and threading 344 sites through a step that is
   still changing behaviour makes any red run unbisectable. **So `resolution` in a `.js` file is the old name,

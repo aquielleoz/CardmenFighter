@@ -91,7 +91,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
          both of the cards the epic exists to fix. That is what scenario C below caught. The default is
          now "every legal timing prompts" (Aj, 2026-09-10), so `true` here is a no-op; it stays because a
          suite that silently depends on a default cannot tell you when the default moves. */
-      window.__solo.setPromptPref('H10', 'fightend', !!prompt);
+      window.__solo.setPromptPref('H10', 'resolution', !!prompt);
       window.__solo.render();
       const sanc = you.hand[0];
       return { quick: !!(E.effectFor(st, 0, sanc) || {}).quick,
@@ -179,7 +179,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
       riv.energy = []; riv.forms = [];
       st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = null; st.pile = null; st.preFightHandled = true;
       st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
-      window.__solo.setPromptPref('C7', 'fightend', true);   // see the note in stageKick — the default is the old whitelist
+      window.__solo.setPromptPref('C7', 'resolution', true);   // see the note in stageKick — the default is the old whitelist
       window.__solo.render();
       const ap = you.hand[2];
       return { quick: !!(E.effectFor(st, 0, ap) || {}).quick, afford: E.canAfford(you, ap), rivShields: riv.shields,
@@ -290,8 +290,8 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
       st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = 1; st.preFightHandled = true;
       st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
       st.pile = { p: 1, byPlayer: 1, combo: { type: 'pair', size: 2, value: 9, key: [9], cards: [C(9, 'C', 'x'), C(9, 'S', 'y')] } };
-      window.__solo.setPromptPref('H10', 'fightend', false);   // SILENCED — must not stop me, must still be playable
-      window.__solo.setPromptPref('D9', 'fightend', true);     // this one is what opens the window
+      window.__solo.setPromptPref('H10', 'resolution', false);   // SILENCED — must not stop me, must still be playable
+      window.__solo.setPromptPref('D9', 'resolution', true);     // this one is what opens the window
       window.__solo.render();
       return { eligible: E.eligibleQuicks ? null : null,
                sancQuick: !!(E.effectFor(st, 0, you.hand[0]) || {}).quick,

@@ -6179,6 +6179,24 @@ window.CardFace = {};
      the reader once. Absent key = "use the default", which is also why clearing the store restores today. */
   var PROMPT_KEY='cmf_prompts_v1';
   var promptPrefs={}; try{ promptPrefs=JSON.parse(localStorage.getItem(PROMPT_KEY)||'{}')||{}; }catch(e){ promptPrefs={}; }
+  /* THE SAVED TIMING ID MIGRATES: 'fightend' -> 'resolution' (epic step 23).
+     The prompt-timing id is PERSISTED, so renaming it would orphan every preference a player has already
+     ticked — silently, because an unknown key simply falls back to the default and nothing on screen says
+     a setting was lost. Same shape as `sel.mode` and the `kits` -> `dblPair` migration, and in place rather
+     than a PROMPT_KEY bump, because bumping the key discards the prefs instead of carrying them.
+     THE LITERAL 'fightend' BELOW IS THE LAST ONE IN THE CODEBASE AND IT IS DELIBERATE — it is the OLD name,
+     which a migration must know by definition. Do not "finish the rename" by sweeping it away.
+     Idempotent: the old key is deleted once copied, and an existing new key wins over it. */
+  (function migratePromptTimings(){
+    var moved=false;
+    for(var k in promptPrefs){
+      var row=promptPrefs[k];
+      if(!row || typeof row!=='object' || !Object.prototype.hasOwnProperty.call(row,'fightend')) continue;
+      if(!Object.prototype.hasOwnProperty.call(row,'resolution')) row.resolution=row.fightend;
+      delete row.fightend; moved=true;
+    }
+    if(moved) savePromptPrefs();
+  })();
   function savePromptPrefs(){ try{ localStorage.setItem(PROMPT_KEY, JSON.stringify(promptPrefs)); }catch(e){} }
   /* THE TIMINGS A QUICK CAN BE OFFERED AT. Ordered GENERAL FIRST, not chronologically (Aj, 2026-09-11:
      *"technique should come before the fight check box"*). The old comment claimed "the order they occur
@@ -6193,7 +6211,7 @@ window.CardFace = {};
     { id:'respond',  label:'When a Technique is cast' },
     { id:'upkeep',   label:'At the start of a round' },
     { id:'prefight', label:'Before a fight — yours or a rival\'s' },
-    { id:'fightend', label:'When shields are about to break' },
+    { id:'resolution', label:'When shields are about to break' },
     { id:'cleanup',  label:'At the end of a round' }
   ];
   // Is this timing even legal for this card? A no-row is not the same as an unchecked row.
@@ -6214,7 +6232,7 @@ window.CardFace = {};
      Clean-up are still the two points with no rows, and still for the reason above. */
   /* EVERY LEGAL TIMING PROMPTS BY DEFAULT (Aj, 2026-09-10: *"players can really look at all their cards and
      decide which effects to activate. legal mind you at the timing it's being asked at"*).
-     THIS USED TO RETURN `immunityEffFor(...)` FOR `fightend` — the whitelist step 18 DELETED. It was right
+     THIS USED TO RETURN `immunityEffFor(...)` FOR `resolution` — the whitelist step 18 DELETED. It was right
      when step 15 shipped: the aim was that cards keep pinging exactly where they pinged before the epic,
      and before the epic the Fight End window WAS that whitelist. Step 18 removed the window and the default
      went on describing it, so the two cards the whole epic exists to fix — Sanctuary under Hector, Armor
@@ -6260,7 +6278,7 @@ window.CardFace = {};
        is a fixed sequence of gated steps, so an unscripted modal derails it. MEASURED, not reasoned:
        `lessontest_twos` went red the moment the default flipped, on "the Rival leads 222 + a pair", with
        `lessonlib` reporting three Respond? windows the lesson never asked for.
-       `respond` IS THE ONE THAT SURVIVES, because the Quicks lesson exists to teach it. `fightend` and —
+       `respond` IS THE ONE THAT SURVIVES, because the Quicks lesson exists to teach it. `resolution` and —
        since epic step 20 — `prefight` are both suppressed: no lesson teaches either, and the Main → Play
        transition now opens on every turn where anyone holds a castable Quick, which `lessontest_twos`
        duly stalled on the moment the gate came off (*"lessonlib answered a Respond? window the lesson did
@@ -9078,7 +9096,7 @@ window.CardFace = {};
      it offers EVERY castable Quick rather than the one the engine picked, it offers them to every seat
      holding priority rather than to the victim, and its answer goes on the stack where it can itself be
      countered. Two details worth not losing with it: it read `state`, not `hostState`, which only worked
-     because `hostStartRealN` aliases them; and its prompt-preference auto-pass is now the `fightend`
+     because `hostStartRealN` aliases them; and its prompt-preference auto-pass is now the `resolution`
      branch of `promptHumanResponse`. */
   /* `narrateShieldGuard` WAS HERE AND IS DELETED (epic step 19). It narrated an opponent springing a
      guard and read `fr.guardName`, which only `shieldGuard` ever returned. A priority answer narrates
@@ -9765,7 +9783,7 @@ window.CardFace = {};
        and is nulled in the mirror — a client has to be able to answer this too. */
     var promptTiming = state.upkeep ? 'upkeep'
       : (state.cleanup ? 'cleanup'
-      : (state.resolution ? 'fightend'
+      : (state.resolution ? 'resolution'
       : (pend ? 'respond'
       : (state.subPhase === 'main' ? 'prefight' : 'respond'))));
     var eligible=eligibleQuicks();                       // the engine's own answer — `canAddToStack`, mirrored
@@ -9779,7 +9797,7 @@ window.CardFace = {};
        The TIMING KEY stays `'prefight'` — it is a stored preference id in `localStorage` and travels with the
        rest of the code rename at step 23 — but this is the string a human READS in a saved log, so it is docs
        -side, not code-side, and the docs were renamed today. Same reasoning for `fight-end` → `resolution`. */
-    var tName = promptTiming==='fightend' ? 'resolution'
+    var tName = promptTiming==='resolution' ? 'resolution'
               : promptTiming==='prefight' ? 'main→fight'
               : promptTiming==='upkeep'   ? 'upkeep'
               : promptTiming==='cleanup'  ? 'clean-up'
