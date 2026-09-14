@@ -82,7 +82,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
       you.forms = [C(13, 'H', 'hector')];                    // ♥K Hector → patches Sanctuary to {quick:true} ALONE
       riv.hand = []; riv.energy = [];                        // the Rival can add nothing, so priority reaches you
       st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = 1; st.preFightHandled = true;
-      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.fightEnd = null; st.resolutionResult = null;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
       const cards = [C(9, 'C', 'x'), C(9, 'S', 'y')];
       st.pile = { p: 1, byPlayer: 1, combo: { type: 'pair', size: 2, value: 9, key: [9], cards: cards } };
       /* SET THE PREFERENCE EXPLICITLY RATHER THAN LEANING ON THE DEFAULT, so this suite tests the
@@ -178,7 +178,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
       riv.hand = [C(3, 'H', 'r1')];                          // a lone 3 cannot answer a pair → the AI must pass
       riv.energy = []; riv.forms = [];
       st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = null; st.pile = null; st.preFightHandled = true;
-      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.fightEnd = null; st.resolutionResult = null;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
       window.__solo.setPromptPref('C7', 'fightend', true);   // see the note in stageKick — the default is the old whitelist
       window.__solo.render();
       const ap = you.hand[2];
@@ -288,7 +288,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
       you.forms = [C(13, 'H', 'hector')];
       riv.hand = []; riv.energy = [];
       st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = 1; st.preFightHandled = true;
-      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.fightEnd = null; st.resolutionResult = null;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
       st.pile = { p: 1, byPlayer: 1, combo: { type: 'pair', size: 2, value: 9, key: [9], cards: [C(9, 'C', 'x'), C(9, 'S', 'y')] } };
       window.__solo.setPromptPref('H10', 'fightend', false);   // SILENCED — must not stop me, must still be playable
       window.__solo.setPromptPref('D9', 'fightend', true);     // this one is what opens the window

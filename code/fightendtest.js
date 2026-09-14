@@ -124,7 +124,7 @@ function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
   var seen = [], guard = 0;
   while (g.respondFor != null && guard++ < 20) { seen.push((g.pending ? 'obj' : 'empty') + ':' + g.respondFor); E.declineResponse(g, g.respondFor); }
   ok(guard < 20, 'end-to-end: the window TERMINATES — it did not spin (' + seen.length + ' grants)');
-  ok(g.respondFor === null && g.pending === null && g.stack.length === 0 && !g.fightEnd,
+  ok(g.respondFor === null && g.pending === null && g.stack.length === 0 && !g.resolution,
      'end-to-end: nothing left owed — no window, no object, empty stack, nothing parked');
   ok(g.round === round0 + 1 && g.players[0].shields === shields0 - 1,
      'end-to-end: the outcomes landed exactly once (round ' + round0 + '→' + g.round +

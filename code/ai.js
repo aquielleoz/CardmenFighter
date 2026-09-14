@@ -801,7 +801,7 @@
     if (!eff) {
       /* TWO OBJECTLESS WINDOWS NOW, AND THEY ARE DIFFERENT DECISIONS (epic step 20). Until this step the
          only window with no object was Fight End; the Main → Play transition is the second. `st.toPlay`
-         and `st.fightEnd` say which, and answering one with the other's policy would be silent: both look
+         and `st.resolution` say which, and answering one with the other's policy would be silent: both look
          like "no pending effect" from here. */
       if (st.toPlay) {
         var bs = transitionQuick(st, q);
@@ -887,8 +887,8 @@
      on a round it was never going to lose one to. Restoring that condition is what keeps step 18's claim —
      that it changes no AI behaviour — literally true. A real Fight End policy is step 21, which measures. */
   function resolutionGuardCard(st, q) {
-    if (!st.fightEnd || st.pending) return null;                          // not the Fight End go-round
-    if ((st.fightEnd.strikeTargets || []).indexOf(q) < 0) return null;    // not struck this round — nothing to guard
+    if (!st.resolution || st.pending) return null;                          // not the Fight End go-round
+    if ((st.resolution.strikeTargets || []).indexOf(q) < 0) return null;    // not struck this round — nothing to guard
     if (!shieldGuardWants(st, q)) return null;
     var qp = st.players[q];
     /* `E.lossAnswerFor`, NOT `E.immunityEffFor` — the predicate used to be "is this immunity", and
@@ -937,13 +937,13 @@
      buys is a rival left on 0, where the NEXT special win kicks them. */
   function resolutionPushCard(st, q) {
     if (!policyOn(q, 'push')) return null;
-    if (!st.fightEnd || st.pending) return null;                          // not the Resolution go-round
-    if (st.fightEnd.winner !== q) return null;                            // only the seat about to strike
+    if (!st.resolution || st.pending) return null;                          // not the Resolution go-round
+    if (st.resolution.winner !== q) return null;                            // only the seat about to strike
     if (!effectsAllowed(st, q)) return null;                              // analysis: pure-fighter never casts
     if (!kindOK('onWin', q)) return null;                                 // analysis: blocked reactive kind
     var qp = st.players[q];
     if (qp.finishingBlow) return null;                                    // already armed — a second one adds nothing
-    var targets = st.fightEnd.strikeTargets || [], worth = false;
+    var targets = st.resolution.strikeTargets || [], worth = false;
     for (var t = 0; t < targets.length; t++) if (st.players[targets[t]].shields >= 2) { worth = true; break; }
     if (!worth) return null;                                              // "never overkills" — below 2 it changes nothing
     var best = null, bestCost = Infinity;

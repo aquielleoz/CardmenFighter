@@ -35,7 +35,7 @@
 >   18, 19 and 20 each carry a ⚠ pointing at theirs.
 > - **The step-11 machinery is what 18 and 20 build on** — `nextPrioHolder(st, origin)` is deliberately
 >   origin-parameterised so step 20 passes its own, and `openResolutionWindow` is the only thing that parks
->   `st.fightEnd`. Read both before touching either.
+>   `st.resolution`. Read both before touching either.
 
 > ## ⏳ THIS IS A WORKING PLAN. IT IS MEANT TO DIE.
 >
@@ -868,8 +868,8 @@ together and requiring **both** eliminated; `nettest_kick`; `nettest_elim3`; `ne
 >   over **480 games at 2/3/4/6p** — identical hashes. *(The first run of that A/B reported a DIFFERENCE and
 >   the instrument was at fault: the engine reaches for `Math.random` outside the passed rng, so the probe
 >   was nondeterministic on the same file. Pin `Math.random` too.)*
-> - **P3** — the continuation is parked on `st.fightEnd` and **rotated, not redacted,** in `mirrorFor`; §3
->   picks the target before the window so the table can see who is struck. `fightEnd.winSize` had to be
+> - **P3** — the continuation is parked on `st.resolution` and **rotated, not redacted,** in `mirrorFor`; §3
+>   picks the target before the window so the table can see who is struck. `resolution.winSize` had to be
 >   declared PUBLIC in `netview.test.js`, which is the leaf-walker doing its job.
 > - **The go-round** — `openResolutionWindow`. §3's worked example is asserted as a SEQUENCE
 >   (`obj:0 obj:1 obj:2 empty:2 empty:0 empty:1`), because every step of it passes individually on walks that
@@ -1133,7 +1133,7 @@ not once** — two flakes hid in one green run the last time this surface was to
 > ## ✅ BUILT 2026-09-10 — and the wedge was NOT where the attempt said it was.
 >
 > **THE ROOT CAUSE, in one sentence: a round win stopped being a RESULT and became a WINDOW, and six UI
-> sites still tested `r.roundWinner != null`.** `enterResolution` returns `{fightEnd:true}` with no
+> sites still tested `r.roundWinner != null`.** `enterResolution` returns `{resolution:true}` with no
 > `roundWinner`, so in a duel `hostAfterRivalMove` read a round-winning pass as an ordinary turn handover
 > and parked in `awaitRival`; the client's `{op:'respond'}` then reached `hostApplyMove`, found `netSettle`
 > null and **was dropped in silence.** That is the v1.31.91 bug class exactly — a duel park only the
@@ -1284,7 +1284,7 @@ priority mechanisms**, not one with gaps:
 | --- | --- | --- | --- |
 | response window | `respondFor` / `prioPassed` | `respond` / `declineResponse` | ✅ |
 | **pre-fight** | `preFightQ` / `preFightHandled` | `preFightCast` / `preFightPass` | ❌ **a second model** — one seat, one shot, no go-round |
-| Fight End | `fightEnd` | — | ✅ since step 18 |
+| Fight End | `resolution` | — | ✅ since step 18 |
 
 and **there is no phase structure at all**: `grep -ci phase engine.js` returns 16, every one of them a
 comment. So the pre-fight window is not a narrow version of the dance — it is a **reimplementation of

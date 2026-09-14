@@ -169,7 +169,7 @@ const appliedCount=async p=>(await traceOf(p)).filter(l=>/mirror APPLIED/.test(l
       st.players[0].shields = a.shields;
       st.pile = { byPlayer: 1, mod: 0, combo: { type: 'pair', value: 9, size: 2, key: [9], cards: [C(9,'C','x'), C(9,'S','y')] } };
       st.pending = null; st.respondFor = 0; st.prioGen = a.gen; st.finished = false;
-      st.fightEnd = { origin: 1, winner: 1, wonWithCombo: true, strikeTargets: a.targets, winSize: 2 };
+      st.resolution = { origin: 1, winner: 1, wonWithCombo: true, strikeTargets: a.targets, winSize: 2 };
       return { t:'mirror', seat:1, q:a.q, bs:'x', st:st };
     }, { shields: shields, targets: targets, q: q, gen: 900 + q });
   }

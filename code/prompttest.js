@@ -8,7 +8,7 @@
  * THE TWO CLAIMS THIS SUITE EXISTS FOR, and they pull in opposite directions:
  *   1. EVERY LEGAL TIMING PROMPTS BY DEFAULT (changed 2026-09-10 — this claim used to read "the default
  *      experience is today's", and the assertion carrying it now requires the OPPOSITE; see the long note
- *      at `counterFightEnd` for why, because a reversed assertion with no reason is worse than none).
+ *      at `counterResolution` for why, because a reversed assertion with no reason is worse than none).
  *      Aj: *"players can really look at all their cards and decide which effects to activate. legal mind
  *      you at the timing it's being asked at."* A suite that only proved the checkboxes work would happily
  *      pass on a build that had silenced a card.
@@ -68,13 +68,13 @@ async function freshGame(p) {
     return {
       stored:        JSON.stringify(window.__solo.promptPrefs()),
       counterRespond: q(C(4, 'D'), 'respond'),    // Counter Spell — the classic response timing
-      counterFightEnd: q(C(4, 'D'), 'fightend'),  // …and NOW at Fight End too — see the assertion below
-      leylineFightEnd: q(C(9, 'D'), 'fightend'),  // Leyline guards, so it always spoke here
+      counterResolution: q(C(4, 'D'), 'fightend'),  // …and NOW at Fight End too — see the assertion below
+      leylineResolution: q(C(9, 'D'), 'fightend'),  // Leyline guards, so it always spoke here
       leylineRespond:  q(C(9, 'D'), 'respond'),
       counterPrefight: q(C(4, 'D'), 'prefight'),  // legal since step 20 — see the assertion below
-      legalCounterFightEnd: L(C(4, 'D'), 'fightend'),
+      legalCounterResolution: L(C(4, 'D'), 'fightend'),
       legalCounterPrefight: L(C(4, 'D'), 'prefight'),
-      legalLeylineFightEnd: L(C(9, 'D'), 'fightend'),
+      legalLeylineResolution: L(C(9, 'D'), 'fightend'),
       legalCounterUpkeep:   L(C(4, 'D'), 'upkeep'),
       legalCounterCleanup:  L(C(4, 'D'), 'cleanup'),
     };
@@ -86,7 +86,7 @@ async function freshGame(p) {
      `respond` stops you out of the box — something has just HAPPENED there. The four boundaries fire on a
      schedule, several times a round now that all five points exist, so stopping at each by default is a
      development setting rather than a game. */
-  ok(D.leylineFightEnd === false, 'default: a BOUNDARY does not stop you out of the box — Leyline stays quiet at Resolution');
+  ok(D.leylineResolution === false, 'default: a BOUNDARY does not stop you out of the box — Leyline stays quiet at Resolution');
   /* THE POLICY CHANGED ON 2026-09-10, AND THIS ASSERTION IS WHERE IT IS RECORDED — it used to require the
      OPPOSITE, and reversing it silently would erase the reason.
      WHY IT WAS `false`: step 15's aim was that cards keep pinging exactly where they pinged before the
@@ -101,16 +101,16 @@ async function freshGame(p) {
      the checkboxes were built for. The suppression half is asserted further down, both ways, and
      `fightenduitest` scenario C proves an unchecked card is RECORDED in the saved log rather than
      vanishing without trace. */
-  ok(D.counterFightEnd === false && D.counterPrefight === false,
-     'default: the other boundaries are quiet too (fightend ' + D.counterFightEnd + ', prefight ' + D.counterPrefight + ')');
+  ok(D.counterResolution === false && D.counterPrefight === false,
+     'default: the other boundaries are quiet too (fightend ' + D.counterResolution + ', prefight ' + D.counterPrefight + ')');
   /* AND THE HALF THAT MATTERS MOST: quiet is NOT the same as illegal. Aj confirmed it explicitly — "off"
      must mean the window opens and you pass automatically, never that the card becomes uncastable. With
      the defaults flipped that distinction stops being theoretical for a handful of cards and starts being
      load-bearing for every one of them, so it is asserted directly at all five timings. */
-  ok(D.legalCounterFightEnd && D.legalCounterPrefight && D.legalLeylineFightEnd &&
+  ok(D.legalCounterResolution && D.legalCounterPrefight && D.legalLeylineResolution &&
      D.legalCounterUpkeep && D.legalCounterCleanup,
      'default OFF ≠ ILLEGAL — every timing a Quick is legal at still EXISTS as a row you can tick' +
-     ' (fightend ' + D.legalCounterFightEnd + ', prefight ' + D.legalCounterPrefight +
+     ' (fightend ' + D.legalCounterResolution + ', prefight ' + D.legalCounterPrefight +
      ', upkeep ' + D.legalCounterUpkeep + ', cleanup ' + D.legalCounterCleanup + ')');
   /* THIS REQUIRED `false` UNTIL EPIC STEP 20, AND THE REVERSAL IS THE POINT. `promptLegal` gated the
      pre-fight row to `kind==='lockout'`, so Counter Spell had no such timing — matching an engine that

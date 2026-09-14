@@ -3498,7 +3498,7 @@ __QR__
      it sits in time: every Quick on the stack resolves first, and the loss lands when the sub-phase begins. */
   function renderStack(){
     var el=$('stackView'); var objs=(state.stack||[]).filter(function(o){return o.kind==='effect';});
-    var fe=state.fightEnd||null;
+    var fe=state.resolution||null;
     var pendingLoss = (fe && fe.wonWithCombo && (fe.strikeTargets||[]).length) ? fe : null;
     if(objs.length<1 && !pendingLoss){ el.style.display='none'; el.innerHTML=''; return; }
     el.style.display='flex';
@@ -4600,7 +4600,7 @@ __QR__
   }
   function finishPassRound(r){
     if(r && r.fizzled) return finishRoundNobodyWon(r);
-    if(r && r.fightEnd){ var fg=gen; return drainResolution(r, fg, function(fr){ if(fg===gen) finishPassRound(fr); }); }   // step 18: the window opens first, the outcome lands after
+    if(r && r.resolution){ var fg=gen; return drainResolution(r, fg, function(fr){ if(fg===gen) finishPassRound(fr); }); }   // step 18: the window opens first, the outcome lands after
     if(r.roundWinner!=null){
       var g=gen;
       if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive() && MP() && r.needsLossTarget){ return NET.hostResolveWin(r, g, function(fr){ NET.hostSettleRoundThenCeremony(fr, g); }); }   // netplay: a remote winner picks its target, then the ceremony
@@ -4762,7 +4762,7 @@ __QR__
     /* EVERY ROUND RESOLUTION IS RECORDED HERE, because this is the one funnel all six round-win paths
        reach exactly once. The note started life inside `drainResolution` and could not see the case that
        matters: a round win only RETURNS a go-round when somebody can add to the stack, so when nobody
-       holds a castable Quick the sub-phase just runs and `r.fightEnd` is never set — and `finishPassRound`
+       holds a castable Quick the sub-phase just runs and `r.resolution` is never set — and `finishPassRound`
        does not even call the drain then. MEASURED: a probe played five full rounds and logged NOTHING,
        which is exactly what "quiet" and "broken" both look like, and is the distinction this ledger
        exists to draw. Aj's first real log had the same hole: 2 entries across 10 rounds. */
@@ -5106,7 +5106,7 @@ __QR__
               : AI.takeTurn(state, RIVAL, difficulty, [YOU]);   // [YOU] = suspend if you can answer a Quick
       $('rivalStatus').textContent='';
       var passed=log.filter(function(e){return e.fight==='pass';})[0];
-      if(passed && passed.result && (passed.result.roundWinner!=null || passed.result.fightEnd || passed.result.fizzled)){   // step 18: a round-winning pass now returns the WINDOW; finishStep drains it after the beats
+      if(passed && passed.result && (passed.result.roundWinner!=null || passed.result.resolution || passed.result.fizzled)){   // step 18: a round-winning pass now returns the WINDOW; finishStep drains it after the beats
         var pres=passed.result;
         /* THE DUEL DRIVER'S OWN GUARD BRANCH WAS HERE AND IS DELETED (epic step 19). It was a SECOND
            copy of `shieldGuardAI`'s policy — a hardcoded `rpl.shields<=2` in the template — resolving the
@@ -5238,7 +5238,7 @@ __QR__
   /* ---- THE FIGHT END GO-ROUND, DRAINED (epic step 18) ----
      A round win no longer RETURNS the round result. `resolveRoundWin` -> `enterResolution` opens a priority
      window instead (PHASES-AND-PRIORITY.md §3: priority is passed around BEFORE the sub-phase) and returns
-     `{fightEnd:true}` with no `roundWinner` — so every site that keyed on `r.roundWinner != null` fell
+     `{resolution:true}` with no `roundWinner` — so every site that keyed on `r.roundWinner != null` fell
      straight through. MEASURED as a wedge in `nettest_guard`: the duel host read the round-winning pass as
      an ordinary turn handover, parked in `awaitRival`, and the client's `{op:'respond'}` then found
      `netSettle` null and was dropped in silence — the v1.31.91 shape exactly, in a new place.
@@ -5251,8 +5251,8 @@ __QR__
      a host is a wire callback, not this caller. `st.resolutionResult` is where the engine parks it, and it is
      deliberately NOT `roundWinResult`: `driveShieldStack` reads that one as "this is a round win" (P3). */
   function drainResolution(r, g, then){
-    if(!r || !r.fightEnd) return then(r);   // the SILENT case is logged in `announceRoundWin`, the one funnel every path reaches
-    var fe=state.fightEnd||{};
+    if(!r || !r.resolution) return then(r);   // the SILENT case is logged in `announceRoundWin`, the one funnel every path reaches
+    var fe=state.resolution||{};
     prioNote('  ↳ a GO-ROUND opened before it', 'winner=' + (fe.winner!=null?logName(fe.winner):'?') +
            ' struck=' + ((fe.strikeTargets||[]).map(logName).join('+') || 'nobody') +
            (fe.wonWithCombo ? ' (Special)' : ' (jab — no shield at stake)') +
@@ -5277,7 +5277,7 @@ __QR__
     if(pend) return pend.kind === 'tick' ? 'Let the counter come off' : 'Let it resolve';
     if(state && state.upkeep)  return 'Start the round';
     if(state && state.cleanup) return 'End the round';
-    if(state && state.fightEnd) return 'Let the round resolve';
+    if(state && state.resolution) return 'Let the round resolve';
     if(state && state.subPhase === 'main') return 'Move to the fight';
     return 'Let it resolve';
   }
@@ -5315,7 +5315,7 @@ __QR__
        and is nulled in the mirror — a client has to be able to answer this too. */
     var promptTiming = state.upkeep ? 'upkeep'
       : (state.cleanup ? 'cleanup'
-      : (state.fightEnd ? 'fightend'
+      : (state.resolution ? 'fightend'
       : (pend ? 'respond'
       : (state.subPhase === 'main' ? 'prefight' : 'respond'))));
     var eligible=eligibleQuicks();                       // the engine's own answer — `canAddToStack`, mirrored
@@ -5355,11 +5355,11 @@ __QR__
        v1.31.120 and for the same reason: **name the seat and the play**, because at 3-6 players "Rival" names
        nobody and withholding the striker is withholding the whole decision.
        WHY THE TARGET IS ALREADY KNOWN: §3 has the winner pick before priority is passed — *"so that people
-       will know if they want to activate shield protection or no"* — so `fightEnd.strikeTargets` is populated
+       will know if they want to activate shield protection or no"* — so `resolution.strikeTargets` is populated
        by the time this renders, and the modal can say who is struck rather than asking blind.
-       Seats arrive ROTATED (netview rotates every member of `fightEnd`), so `logName` is correct as-is and
+       Seats arrive ROTATED (netview rotates every member of `resolution`), so `logName` is correct as-is and
        `YOU` compares directly. A jab win strips nothing, hence the `wonWithCombo` branch. */
-    var fe = state.fightEnd || null;
+    var fe = state.resolution || null;
     var lead;
     if (pend && pend.kind === 'tick') {
       /* NOBODY CAST A TRIGGER, so it must not borrow the cast sentence — the first cut read "You cast Holy
@@ -5596,7 +5596,7 @@ __QR__
         var passed=log.filter(function(e){ return e.fight==='pass'; })[0];
         var res=passed && passed.result;
         /* THE ROUND MAY NOT HAVE RESOLVED YET (epic step 18). A round-winning pass now opens the Fight End
-           go-round and returns `{fightEnd:true}` with no `roundWinner`, so this branch has to accept both
+           go-round and returns `{resolution:true}` with no `roundWinner`, so this branch has to accept both
            shapes; `drainResolution` runs the window — prompting YOU when priority reaches this seat, and
            presenting an AI seat's Quick through `settleWindows` — and hands back the real outcome.
            THE LOSS-TARGET PICK STILL COMES FIRST, before the window opens, and that is §3's own ordering:
@@ -5604,7 +5604,7 @@ __QR__
            The two `shieldResponsePending` branches that stood here went with the window they served — this
            step removes `driveShieldStack`'s guard window, so `state.shieldResponse` is never set again. The
            REST of that surface is step 19's delete pass, with its own grep. */
-        if(res && (res.roundWinner!=null || res.fightEnd || res.fizzled)){
+        if(res && (res.roundWinner!=null || res.resolution || res.fizzled)){
           var finishRound=function(fr){
             if(g!==gen) return;
             drainResolution(fr, g, function(fres){
@@ -9072,7 +9072,7 @@ __QR__
          variable `hostApplyMove` re-enters through. A null `fr` cannot happen once the go-round closes
          (the engine parks the outcome as it runs the sub-phase) but is answered with the handover rather
          than a return, because a live table beats a tidy invariant. */
-      if(r && r.fightEnd){
+      if(r && r.resolution){
         return hostSettle(g, function(){
           if(g!==gen) return;
           var fr=hostState.resolutionResult; hostState.resolutionResult=null;
@@ -9260,7 +9260,7 @@ __QR__
           var lr=E.pass(hostState, seat);
           say(seat, 'Back Stab locked {who} out — turn skipped.', 'warn');
           netParked=null;
-          if(lr && (lr.roundWinner!=null || lr.fightEnd || lr.fizzled)) return hostResolveWin(lr, g, function(fr){ hostSettleRoundThenCeremony(fr, g); });
+          if(lr && (lr.roundWinner!=null || lr.resolution || lr.fizzled)) return hostResolveWin(lr, g, function(fr){ hostSettleRoundThenCeremony(fr, g); });
           driveN();
         }, null, seat, 'Next');
       }
@@ -9284,7 +9284,7 @@ __QR__
             else { r=E.pass(hostState, seat); if(r&&r.ok===false&&r.transition==='play'){ return hostSettleN(g, function(){ if(g===gen) hostApplyMoveN(seat, it); }); } if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; } say(seat, '{who} passed.', 'rival'); }
           }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Move rejected.'}); broadcastMirror(); return; }
           netParked=null;
-          if(r && (r.roundWinner!=null || r.fightEnd || r.fizzled)){ return hostResolveWin(r, g, function(fr){ hostSettleRoundThenCeremony(fr, g); }); }   // step 18: a round win may arrive as an OPEN go-round
+          if(r && (r.roundWinner!=null || r.resolution || r.fizzled)){ return hostResolveWin(r, g, function(fr){ hostSettleRoundThenCeremony(fr, g); }); }   // step 18: a round win may arrive as an OPEN go-round
           driveN();
         }, (it.op==='pass' ? function(){ broadcastMirror(); } : null), seat, (it.op==='pass' ? 'Pass' : 'Next'));
       }
@@ -9304,7 +9304,7 @@ __QR__
         } else return;
       }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Move rejected.'}); broadcastMirror(); return; }
       netParked=null;
-      if(r && (r.roundWinner!=null || r.fightEnd || r.fizzled)){ return hostResolveWin(r, g, function(fr){ hostSettleRoundThenCeremony(fr, g); }); }   // step 18: a round win may arrive as an OPEN go-round
+      if(r && (r.roundWinner!=null || r.resolution || r.fizzled)){ return hostResolveWin(r, g, function(fr){ hostSettleRoundThenCeremony(fr, g); }); }   // step 18: a round win may arrive as an OPEN go-round
       driveN();
     }
     // After the strike is decided, resolve the struck seat's guard window (host modal / remote park) then the ceremony.

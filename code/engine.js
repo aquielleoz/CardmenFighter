@@ -585,7 +585,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], roundWinResult: null, fightEnd: null, resolutionResult: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], roundWinResult: null, resolution: null, resolutionResult: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -629,7 +629,7 @@
     if (st.pendingLossChoice && st.pendingLossChoice.winner === seat) st.pendingLossChoice = null;
     if (aliveCount(st) <= 1) { st.finished = true; st.winner = lastAlive(st); return { ok: true, finished: true, winner: st.winner }; }
     var lead = nextPlayer(st, seat);
-    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.subPhase = 'main'; st.toPlay = null; st.upkeep = null; st.upkeepResult = null; st.cleanup = null; st.cleanupResult = null; st.roundWinResult = null; st.fightEnd = null; st.resolutionResult = null; st._effUsed = false;
+    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.subPhase = 'main'; st.toPlay = null; st.upkeep = null; st.upkeepResult = null; st.cleanup = null; st.cleanupResult = null; st.roundWinResult = null; st.resolution = null; st.resolutionResult = null; st._effUsed = false;
     return { ok: true, eliminated: seat, turn: lead };
   }
   function isLocked(st, p) { return !!(st.players[p].lockSkip || st.players[p].lockRound); }   // Back Stab: skip next turn (lockSkip, cleared on pass) or, if boosted, the whole round (lockRound, cleared at round end)
@@ -1442,7 +1442,7 @@
        object, the dance above runs it from ITS controller, and when the stack empties again the go-round
        restarts at the active player — §3's worked example, steps 5-7. `resolveTopEffect` already cleared
        `prioPassed`, so that restart is a fresh round of passes and not a continuation of the old one.
-       INERT UNTIL SOMETHING PARKS `st.fightEnd` — which nothing does yet; step 18 is the switch. */
+       INERT UNTIL SOMETHING PARKS `st.resolution` — which nothing does yet; step 18 is the switch. */
     /* ---- THE MAIN → PLAY TRANSITION (epic step 20) ----
        `PHASES-AND-PRIORITY.md` §3: priority is passed around before the active player may make their
        shedding play. It used to be a SECOND priority model — `preFightQ`/`preFightHandled` with its own
@@ -1460,13 +1460,13 @@
       st.toPlay = null; st.subPhase = 'play';             // everyone passed — the Play Sub-Phase begins
       return { ok: true, state: st, subPhase: 'play' };
     }
-    if (st.fightEnd && !st.stack.length && !st.finished) {
-      var fq = phaseWalk(st, st.fightEnd.origin);
-      if (fq >= 0) return { ok: true, state: st, pending: true, fightEnd: true, respondFor: fq };
+    if (st.resolution && !st.stack.length && !st.finished) {
+      var fq = phaseWalk(st, st.resolution.origin);
+      if (fq >= 0) return { ok: true, state: st, pending: true, resolution: true, respondFor: fq };
       /* Everyone passed on an empty stack, so the sub-phase begins. Unpark FIRST: `applyRoundLossBody` can
          re-enter this function (it pushes shieldloss objects and drives them), and a still-parked
          continuation would open a second go-round for a window that has already closed. */
-      var fe = st.fightEnd; st.fightEnd = null;
+      var fe = st.resolution; st.resolution = null;
       /* PARK THE FINAL RESULT, for the same reason P3 parks the continuation (epic step 18). The outcomes
          run HERE — one `declineResponse` deep inside a go-round — and their result is returned up a call
          chain that ends at whoever answered last. The netplay host is not on that chain: it resumes from a
@@ -1547,7 +1547,7 @@
      `origin` is carried separately from `winner` even though they are equal here, because step 20 reuses
      this machinery for the pre-fight window with a different origin, and `winner` is an OUTCOME argument. */
   function openResolutionWindow(st, winner, wonWithCombo, strikeTargets, winSize) {
-    st.fightEnd = { origin: winner, winner: winner, wonWithCombo: wonWithCombo, strikeTargets: strikeTargets, winSize: winSize };
+    st.resolution = { origin: winner, winner: winner, wonWithCombo: wonWithCombo, strikeTargets: strikeTargets, winSize: winSize };
     st.prioPassed = {};
     return openResponseWindow(st);
   }

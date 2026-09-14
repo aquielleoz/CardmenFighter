@@ -185,7 +185,7 @@
          client that cannot see who is struck cannot make the decision the window exists to offer. Contrast
          `roundWinResult` below, which is redacted because it is ceremony bookkeeping and holds a
          back-reference to the whole state. `winSize` and `wonWithCombo` are scalars and travel as they are. */
-      fightEnd: st.fightEnd ? { origin: rot(st.fightEnd.origin), winner: rot(st.fightEnd.winner), wonWithCombo: !!st.fightEnd.wonWithCombo, strikeTargets: (st.fightEnd.strikeTargets || []).map(rot), winSize: st.fightEnd.winSize || 0 } : null,
+      resolution: st.resolution ? { origin: rot(st.resolution.origin), winner: rot(st.resolution.winner), wonWithCombo: !!st.resolution.wonWithCombo, strikeTargets: (st.resolution.strikeTargets || []).map(rot), winSize: st.resolution.winSize || 0 } : null,
       /* WHO THE TABLE IS WAITING ON while a seat trims to hand size. Seat + COUNT only, never cards — a hand
        * must never travel (see E.takeReveal). Every seat but the local one is auto-trimmed, so this is only
        * ever set for the seat actually picking, and it exists so the OTHER seats can say why play has paused

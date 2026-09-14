@@ -1299,7 +1299,7 @@ for free — the seven-parks-of-nine lesson (v1.31.116) applied before the drift
 grep that enumerates the kind: `grep -n 'netReact=\|netSettle=\|netDiscard=' code/CardmenFighter.template.html`.
 
 **A ROUND WIN IS NO LONGER A RESULT, IT IS A WINDOW (epic step 18).** `resolveRoundWin` → `enterResolution`
-opens the Resolution go-round and returns `{fightEnd:true}` with **no `roundWinner`**, so every UI site that
+opens the Resolution go-round and returns `{resolution:true}` with **no `roundWinner`**, so every UI site that
 tested `r.roundWinner != null` fell straight through — six of them, in both drivers and both transports.
 `drainResolution(r, g, then)` is the single seam: it runs `settleWindows` and then reads the outcome off
 **`st.resolutionResult`**, which the engine parks as it runs the sub-phase. It is deliberately NOT
@@ -1314,7 +1314,7 @@ on screen — the go-round opens far too often for a battle-log line.
 **v1 LOGGED ONLY RESOLUTION AND ONLY WHEN A WINDOW OPENED.** Aj's first real log came back with **2 entries
 across 10 rounds**, which cannot distinguish a quiet game from a broken one — and a probe then played five
 full rounds and logged **nothing at all**, which is what both look like. The cause: a round win only
-RETURNS a go-round when somebody can add to the stack, so `r.fightEnd` is usually unset and
+RETURNS a go-round when somebody can add to the stack, so `r.resolution` is usually unset and
 `finishPassRound` does not even call the drain. The note moved to **`announceRoundWin`**, the one funnel
 all six round-win paths reach exactly once.
 **AND THE ROUND STAMP WAS OFF BY ONE THERE**, because `state.round` has already advanced by the time
@@ -2565,11 +2565,11 @@ definition, so it cannot delete them.
   **THE PHASES WERE RENAMED 2026-09-11 AND THE CODE WAS NOT — THAT SPLIT IS DELIBERATE, NOT A MISSED
   SWEEP.** `Fight Phase` → **Play Phase** (Main · **Fight** · **Resolution**), because the phase you spend
   your turn in is the one you play in. The old `Play Sub-Phase` is the **Fight Sub-Phase** and `Fight End` is
-  **Resolution**. Docs and player-facing copy use the new words; the ~344 code sites (`st.fightEnd`,
+  **Resolution**. Docs and player-facing copy use the new words; the ~344 code sites (`st.resolution`,
   `openResolutionWindow`, `fightendtest.js`, the `'fightend'` prompt-timing id, which needs a `localStorage`
   migration) are renamed at **step 23**, deliberately after the behaviour stops moving — this file's own rule
   is that a rename is a deletion wearing a friendlier face, and threading 344 sites through a step that is
-  still changing behaviour makes any red run unbisectable. **So `fightEnd` in a `.js` file is the old name,
+  still changing behaviour makes any red run unbisectable. **So `resolution` in a `.js` file is the old name,
   not a leftover**, and a doc quoting Aj before that date still says "fight end" on purpose.
 - `docs/BUILD-PLAN-v0.82.md`, `docs/Cardmen-Fighter-Design-v0.70.md`, `docs/STACK-DESIGN-v0.53.md` —
   historical snapshots, not current truth — **and specifically wrong about priority**, which is what

@@ -1440,7 +1440,7 @@ function cards(ids) { return ids.map(card); }
      green-and-blind shape; reading the parked boundary off state makes them discriminate instead. */
   function walk(g, cap) { var seq = [], n = 0;
     while (g.respondFor != null && n++ < (cap || 16)) {
-      seq.push((g.pending ? 'obj' : (g.upkeep ? 'up' : (g.cleanup ? 'cu' : (g.fightEnd ? 'fe' : 'empty')))) + ':' + g.respondFor);
+      seq.push((g.pending ? 'obj' : (g.upkeep ? 'up' : (g.cleanup ? 'cu' : (g.resolution ? 'fe' : 'empty')))) + ':' + g.respondFor);
       E.declineResponse(g, g.respondFor);
     }
     return seq; }
@@ -1457,9 +1457,9 @@ function cards(ids) { return ids.map(card); }
      'fight end: …then turn order on an empty stack, AND THE ROUND\'S REMAINING BOUNDARIES FOLLOW IT IN' +
      ' ORDER — Resolution, Clean-up, then the new round\'s Upkeep (' + order.join(' ') + ')' +
      (order.join(',') === WANT1 ? '' : '  ← expected ' + WANT1.replace(/,/g, ' ')));
-  ok(!g.fightEnd && g.round === 4 && g.players[0].shields === 2,
+  ok(!g.resolution && g.round === 4 && g.players[0].shields === 2,
      'fight end: all passing on an empty stack BEGINS THE SUB-PHASE — the outcomes land' +
-     ' (round ' + g.round + ', A shields ' + g.players[0].shields + ', parked ' + !!g.fightEnd + ')');
+     ' (round ' + g.round + ', A shields ' + g.players[0].shields + ', parked ' + !!g.resolution + ')');
 
   /* --- THE FULL WORKED EXAMPLE. C passes, A casts into the empty stack, and from there the ORDINARY §2
      dance takes over on A's object — starting at A, because a controller holds priority (step 6). When it
@@ -1485,9 +1485,9 @@ function cards(ids) { return ids.map(card); }
      it exists to do. The old assertion expected the strip to land because the rig used Counter Spell as an
      inert stand-in; with targeting part of casting, Leyline is the only base Quick castable on an empty
      stack, so the rig has an effect now and the assertion should say what it is. */
-  ok(!g2.fightEnd && g2.round === 4 && g2.players[0].shields === 3,
+  ok(!g2.resolution && g2.round === 4 && g2.players[0].shields === 3,
      'fight end: …the sub-phase still begins afterwards, and A\'s Leyline SAVED the shield it was cast to save' +
-     ' (round ' + g2.round + ', A shields ' + g2.players[0].shields + ' of 3, parked ' + !!g2.fightEnd + ')');
+     ' (round ' + g2.round + ', A shields ' + g2.players[0].shields + ' of 3, parked ' + !!g2.resolution + ')');
 
   /* --- THE BOUNDARY (§2). Inside the sub-phase nobody is active, so an empty stack must NOT open another
      go-round — that is what stops a trigger resolving at Fight End spinning empty rounds forever. The
@@ -2159,7 +2159,7 @@ function cards(ids) { return ids.map(card); }
     /* energy must cover the COLOURED pips too (`canAfford` -> `costReq`), so an all-one-suit pile
        silently makes every card unaffordable and the whole rig reads as a refusal. */
     p0.energy = []; ['D','H','C','S'].forEach(function (su) { for (var i = 0; i < 8; i++) p0.energy.push(C(3, su, 'e' + su + i)); });
-    g.pending = null; g.fightEnd = { strikeTargets: [0], winner: 1 };
+    g.pending = null; g.resolution = { strikeTargets: [0], winner: 1 };
     return g;
   }
   var SANC = function () { return C(10, 'H', 'sanc'); };          // Sanctuary
@@ -2181,7 +2181,7 @@ function cards(ids) { return ids.map(card); }
 
   // the seat must actually be the one being struck, and must want to guard
   ok(AI.resolutionGuardCard(rig(4, HECTOR(), [SANC()]), 0) === null, 'a seat on 4 shields does not burn Sanctuary — shieldGuardWants still gates it');
-  var notStruck = rig(0, HECTOR(), [SANC()]); notStruck.fightEnd.strikeTargets = [1];
+  var notStruck = rig(0, HECTOR(), [SANC()]); notStruck.resolution.strikeTargets = [1];
   ok(AI.resolutionGuardCard(notStruck, 0) === null, 'a seat NOT struck this round declines — the go-round offers everyone priority');
 
   // the cheapest sufficient answer, not hand order — assert it BOTH ways so hand order cannot be what passed it
@@ -2206,7 +2206,7 @@ function cards(ids) { return ids.map(card); }
     p0.forms = forms; p0.hand = hand; p0.finishingBlow = false;
     p0.energy = []; ['D', 'H', 'C', 'S'].forEach(function (su) { for (var i = 0; i < 8; i++) p0.energy.push(C(3, su, 'e' + su + i)); });
     g.players[1].shields = targetShields;
-    g.pending = null; g.fightEnd = { strikeTargets: [1], winner: 0 };
+    g.pending = null; g.resolution = { strikeTargets: [1], winner: 0 };
     return g;
   }
   var AP   = function () { return C(7, 'C', 'ap'); };        // Armor Piercing — the only onWin card in the game
@@ -2229,7 +2229,7 @@ function cards(ids) { return ids.map(card); }
   ok(AI.resolutionPushCard(rig(2, [], [AP(), KING()]), 0) === null, 'without Hippolyta it declines — Armor Piercing is not castable in a window at base');
 
   // only the winner, and only once
-  var notWinner = rig(2, HIPPO(), [AP(), KING()]); notWinner.fightEnd.winner = 1;
+  var notWinner = rig(2, HIPPO(), [AP(), KING()]); notWinner.resolution.winner = 1;
   ok(AI.resolutionPushCard(notWinner, 0) === null, 'a seat that did not win the round has no strike to amplify');
   var armed = rig(2, HIPPO(), [AP(), KING()]); armed.players[0].finishingBlow = true;
   ok(AI.resolutionPushCard(armed, 0) === null, 'already armed — a second Armor Piercing adds nothing and is refused');
