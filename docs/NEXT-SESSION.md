@@ -76,45 +76,44 @@ assertions were A/B'd by deleting the migration and rebuilding.
   needs rewriting, never renaming — and dated quotes plus the append-only changelog keep "fight end" on
   purpose.
 
-**⏭ NEXT: THE STACK-MODEL BUILD. One change, five sides, all of it settled by Aj's rulings of 2026-09-12/14.**
-Designed (both judges picked the same design), scoped, and **not started**. Do it on its own branch with
-nothing else in flight — it touches the wire contract.
+**⏭ THE EPIC IS CODE-COMPLETE. IT IS HELD OPEN ON PURPOSE, WAITING FOR AJ'S NETPLAY DATA** (2026-09-14).
+Steps 1-23 are done and the stack-model build landed on top (#225). `main` must NOT be merged into yet.
 
-1. **Transforms push their effect onto the stack** and open a go-round. Today `activate` returns early on
-   `eff.kind === 'transform'`, so a J/Q/K goes straight into the Forms zone and **nobody gets priority** —
-   VERIFIED, not inferred. Aj: *"activating forms and rides puts their effect on the stack."* The code
-   comment states the opposite as intent (*"no counters/response"*), so it is stale intent, not a typo.
-2. **`counterTargets` reads the SOURCE CARD TYPE**, not the stack entry's `kind`. Counter Spell's text is
-   *"Counter target Technique as it is played"* — Technique (and Quick Technique, since **Quick is a
-   modifier and a co-card type**, per Aj). Equipment is NOT in that list at base.
-3. **The Queen of Diamonds boost gets a real field.** *"Counter Spell can also counter an Equipment"* is a
-   patch containing ONLY a `desc`, so it does nothing — while `counterTargets` already lets EVERYONE counter
-   Equipment, giving the Queen's privilege away free. Two bugs cancelling into silence.
-   **`exp/boost-promise-guard` is pushed and RED on exactly this** (test.js 487/1). It goes green when the
-   boost is implemented. Do not tune it to pass.
-4. **The tick becomes an ordinary effect carrying a trigger SOURCE.** It is uncounterable by RESTRICTION —
-   nothing today targets triggered effects — never by its stack type. Aj: *"some triggers put effects onto
-   the stack. it is uncounterable only because we don't have cards that target triggered effects yet."*
-5. **The shield-loss queue moves off `st.stack`.** A shield loss is the MOMENT, not an effect (§4), so
-   `kind:'shieldloss'` on The Stack is a spec violation. After 1-5 the `kind` discriminator deletes itself
-   and The Stack holds only effects, which is what §1 has always said.
+**THE VERSION BUMP IS THE WHOLE OF THE REMAINING WORK, AND IT BELONGS IN THE EPIC → `main` PR.**
+`versiontest` asserts the handoff's **"`main` is at vX"** line against README, so bumping any earlier makes
+that line claim something false and the gate correctly reds. Do all of it in one commit:
+README `**Status:** v1.32.0` · a `### v1.32.0` heading in `CHANGELOG.md` · this header's **`Current
+version:`** and **"`main` is at"** lines · CLAUDE.md's own `Current version:`. **Minor**, because the rules
+moved. FIGHT-END-PLAN step 23 says to bump it earlier; that instruction predates the epic rule and is wrong.
 
-**Plus: the ownerless go-round runs EVERY round** (Aj, 2026-09-14: *"every round. it's how phases
-transition"*), origin = the round winner, consistent with Upkeep and Clean-up already opening
-unconditionally.
+**WHAT THE STACK-MODEL BUILD CHANGED (#225), all of it settled by Aj's rulings:**
+- Shield losses left `st.stack` for **`st.losses`** — a loss is the MOMENT, not an effect (§4).
+- **`counterTargets` reads the SOURCE CARD TYPE.** Counter Spell's text is *"Counter target Technique"*;
+  Quick is a modifier and a co-type, so counter-a-counter falls out. Rides and Form Changes are excluded by
+  **not being named**, which is the design — a card that answers them will name those types.
+- **The Queen of Diamonds boost works.** It was a `desc` with no field, while the base card already gave its
+  privilege away free. Two bugs cancelling into silence, with `CARD-LIST.md` publishing the promise.
+- **A trigger is an `effect` carrying `trig`** — uncounterable by RULE, not by stack tag.
+- **Transforms push and grant priority.** A whole card type used to bypass the go-round.
+- **The Stack now holds effects and only effects**, which §1 has always claimed. `kind` is constant
+  `'effect'` and deliberately left in place: it is on the wire, and removing it is churn.
 
-**MEASURED FACTS THE BUILD SHOULD NOT RE-DERIVE:**
-- A `shieldloss` object is **never observable outside the engine** — 719,068 samples over 120 games at 2-6
-  players, zero sightings. So the violation is structural with no behavioural symptom, which is what makes
-  the move safe AND means no existing test would catch a mistake in it. Use `strengthsim`'s seeded paired
-  run (CONTROL PASS = exactly 50.00) to prove it behaviour-preserving.
-- **Five guards are dead paths** defending against a state the outside world cannot reach, and **`noGuard`
-  is written by one site and read by nobody** — it died with the step-19 whitelist, and a template comment
-  still describes it as live.
-- **`eff.type` has FIVE values, not three** — Technique, Quick Technique, Equipment, **Ride, Form Change**.
-  Two independent readers got this wrong by grepping the BOOSTS literal; an IIFE rewrites ranks 11-13 after
-  that literal is written. **Run `effectOf`, never read the table.**
-- The boost table is otherwise clean: 48 patches change a real field and all 20 distinct fields are consumed.
+**⚠ THREE GAPS, NONE BLOCKING, ALL WORTH KNOWING BEFORE THE MERGE:**
+- **Transform windows are UNTESTED IN NETPLAY.** Engine and solo are covered. A rival transform opening a
+  window for a REMOTE seat goes through the host drivers and no suite drives it — and the two defects that
+  shipping piece 5 exposed were both in driver code of exactly that kind. This is the first thing Aj's
+  netplay data should be read against.
+- **"1.21 extra priority windows per game" is a SOLO number.** At 3-6 players more seats can hold a Quick,
+  so the real figure is higher and unmeasured.
+- **`lessontest_quicks` still flakes** under a parallel sweep (green alone).
+
+**⚠ AND TWO GATES STILL NEED AJ AND TWO DEVICES** — step 18's netplay gate, and step 22's version refusal
+against a genuinely OLD peer (both sides in the suite fake the number with `?ver=`).
+
+**READ THE TWO NEW RULES IN CLAUDE.md BEFORE THE NEXT BUILD.** Both are about instruments lying: a seeded
+fingerprint proves the ENGINE and never loads the page (it was byte-identical through four commits while two
+UI defects sat in the build), and a BASELINE HAS TO BE A BUILD YOU DID NOT WRITE (a three-runs-per-arm A/B
+produced six confidently wrong data points and cleared the actual culprit).
 
 **⚠ STILL WAITING ON AJ AND TWO DEVICES** — step 18's netplay gate, **and** step 22's version refusal against
 a genuinely old peer (both sides in the suite run the same build with `?ver=` faking the number).
