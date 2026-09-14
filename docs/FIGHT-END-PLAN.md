@@ -1103,9 +1103,9 @@ whose policy is a **verbatim port** of `shieldGuardAI`'s rule, keeping the `isHu
 `effectsAllowed`/`kindOK` gates. Rename the `immune || shieldImmune` test `immunityEffFor`. *Gate:* `npm
 test`; every sim runs to completion; `analysis.js` in band. *Revertable alone:* yes.
 
-**17 · test: `fightendtest.js`, against the go-round as built (there is no flag — see the preamble).**
+**17 · test: `resolutiontest.js`, against the go-round as built (there is no flag — see the preamble).**
 
-> **✅ BUILT 2026-09-10 — `code/fightendtest.js`, 16 assertions, 40 runs green.**
+> **✅ BUILT 2026-09-10 — `code/resolutiontest.js`, 16 assertions, 40 runs green.**
 > **FOUR OF THE SIX ARE ALREADY ASSERTED IN `test.js` AND ARE CROSS-REFERENCED, NOT COPIED** — the origin at
 > n≥3 (its worked example IS a 3-player table), holding priority, Counter Spell naming its target, and the
 > empty-stack boundary. A second copy is the drift this repo has been bitten by four times (`isChopOf`,
@@ -1177,7 +1177,7 @@ not once** — two flakes hid in one green run the last time this surface was to
 > whitelist window at the same scale — roughly **14x more windows** — and 909 of them offered more than one
 > seat, which the single-seat model could not do at all.
 >
-> **GATE:** `test.js` 437 · `netview.test` 64 · `fightendtest` 16 · full sweep 90/91 at `-j 1` and at
+> **GATE:** `test.js` 437 · `netview.test` 64 · `resolutiontest` 16 · full sweep 90/91 at `-j 1` and at
 > `-j 4`. The one red is **`sharetest`, and it is NOT this change** — it reproduces identically on
 > `epic/priority-windows` AND on `main`, and it is a live shipped defect in the invite-code paste
 > tolerance: `dec`'s extractor class `[A-Za-z0-9+/=,|~._-]` omits **`:`**, so a code containing an IPv6
@@ -1189,7 +1189,7 @@ not once** — two flakes hid in one green run the last time this surface was to
 > closed by suites alone, and that has not changed.
 >
 > ### ➕ THE PROMPT DEFAULT, DECIDED THE SAME DAY (Aj) — and it is a step 15 revision, not a step 18 one
-> Building `fightenduitest` surfaced that `promptDefault(..., 'resolution')` still returned
+> Building `resolutionuitest` surfaced that `promptDefault(..., 'resolution')` still returned
 > `immunityEffFor(...)`, the whitelist this step deleted, so **both cards the epic exists to fix were
 > auto-declined by default**. Put to Aj as three options; he chose the widest and corrected the framing
 > while doing it: *"it's not really prompt everything. what happens is when priority is passed (not just
@@ -1218,7 +1218,7 @@ directly-affected assertions into this commit) and P6 (four `ai.js` gates still 
 FIRST).**
  **Non-negotiable:** the flip
 must also REMOVE `driveShieldStack`'s window in the same commit, or both windows open in one round and no
-red run can say which it was looking at. *Gate:* full sweep at `-j 4` **and** `-j 1`; `fightendtest` ×20; the
+red run can say which it was looking at. *Gate:* full sweep at `-j 4` **and** `-j 1`; `resolutiontest` ×20; the
 idle-park drop probe re-aimed at the live park; `nettest_sync` reporting neither HARNESS GAP nor TIME-CAPPED;
 **one real solo game and one two-device netplay game.** *Revertable alone:* **yes, by reverting the commit** — not by a boolean, because there is not one.
 

@@ -66,7 +66,7 @@ The `'resolution'` id is **persisted in `localStorage`**, so it needs a read-tim
   away twice. **Its control is structural** — identical arms pool to exactly 50.00 by construction, so it
   prints CONTROL PASS/FAIL rather than a number to interpret. Run the control before believing anything.
 - **The AI can cast Sanctuary under Hector at 0 shields** (#217) — it never could, in any mode, while
-  `fightenduitest` proves a human can. `E.lossAnswerFor` replaced "is this immunity", which is the wrong
+  `resolutionuitest` proves a human can. `E.lossAnswerFor` replaced "is this immunity", which is the wrong
   question; the right one depends on the shield count, because `resolveShieldLossObj` has two branches
   honouring different flags.
 - **The round winner can press its advantage at Resolution** (#219): **+0.82 points at knight, +0.78 at

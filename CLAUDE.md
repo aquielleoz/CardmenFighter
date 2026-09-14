@@ -89,15 +89,15 @@ node nettest_passoduel.js                       # PASSO IN A DUEL (epic step 13)
                                                 # (and `netGuard` until epic step 19) and NOTHING answered them, so a dropped duel
                                                 # opponent deadlocked the table (measured: 1 host action,
                                                 # then 41 idle polls). Also asserts Passo DEFENDS (8)
-node fightendtest.js                            # THE RESOLUTION MODEL (epic step 17). Asserts the two things
+node resolutiontest.js                            # THE RESOLUTION MODEL (epic step 17). Asserts the two things
                                                 # nothing else does — SIMULTANEOUS KICKS (both zero-shield
                                                 # seats die to one Special, both credited) and the
                                                 # WHITELIST CANARY (a seat whose only Quick guards NOTHING
                                                 # is still offered the window). The other four of step 17's
                                                 # six live in test.js and are cross-referenced, not copied.
                                                 # Run it 40x, not once (16)
-node fightenduitest.js                          # THE TWO REPORTED BUGS, PLAYED IN THE REAL PAGE (epic step
-                                                # 18). `fightendtest` asserts the model headlessly; this
+node resolutionuitest.js                          # THE TWO REPORTED BUGS, PLAYED IN THE REAL PAGE (epic step
+                                                # 18). `resolutiontest` asserts the model headlessly; this
                                                 # asserts what a PLAYER reported, end to end: Sanctuary
                                                 # under HECTOR surviving the Fighter Kick (the ♥K patch is
                                                 # `{quick:true}` ALONE — Apollo's carries `shieldImmune`
@@ -1415,7 +1415,7 @@ clauses that look alike.**
 away in the NET IIFE. `grep -n 'promptedQuicks('` is the enumeration; this is v1.31.116's "a fix wired in
 by name covered two parks of nine" in a new place.
 **THE ONLY SHAPE THAT CATCHES IT IS TWO QUICKS WITH ONE SILENCED.** With one card, "did not stop me" and
-"cannot play it" are the same observation. `fightenduitest` scenario D stages both and asserts the silenced
+"cannot play it" are the same observation. `resolutionuitest` scenario D stages both and asserts the silenced
 one is still on offer; A/B'd by reverting the one line, which reds exactly that assertion.
 
 **BEFORE TOUCHING `fightValue`, `applyEquip` OR `lockedDelta`, READ
@@ -1839,13 +1839,13 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127 — 2026-09-10, `npm run sweep`, 92 suites and 0 FAIL in 225s ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `fightendtest`, `fightenduitest`, `nettest_passoduel`, `nettest_priosig`) (four lanes; background
+Status as of **v1.31.127 — 2026-09-10, `npm run sweep`, 92 suites and 0 FAIL in 225s ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutionuitest`, `nettest_passoduel`, `nettest_priosig`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 478, `netview` 65, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 18, `fightendtest` 16, `fightenduitest` 23, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 18, `resolutiontest` 16, `resolutionuitest` 23, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2566,7 +2566,7 @@ definition, so it cannot delete them.
   SWEEP.** `Fight Phase` → **Play Phase** (Main · **Fight** · **Resolution**), because the phase you spend
   your turn in is the one you play in. The old `Play Sub-Phase` is the **Fight Sub-Phase** and `Fight End` is
   **Resolution**. Docs and player-facing copy use the new words; the ~344 code sites (`st.resolution`,
-  `openResolutionWindow`, `fightendtest.js`, the `'resolution'` prompt-timing id, which needs a `localStorage`
+  `openResolutionWindow`, `resolutiontest.js`, the `'resolution'` prompt-timing id, which needs a `localStorage`
   migration) are renamed at **step 23**, deliberately after the behaviour stops moving — this file's own rule
   is that a rename is a deletion wearing a friendlier face, and threading 344 sites through a step that is
   still changing behaviour makes any red run unbisectable. **So `resolution` in a `.js` file is the old name,

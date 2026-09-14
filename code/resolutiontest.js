@@ -10,7 +10,7 @@
  * (`isChopOf`, `resolveIds`, `immunityEffFor`). **Read `test.js` for those.** This file asserts the two
  * things nothing anywhere asserts, plus the end-to-end shape no unit test covers.
  *
- * Run: node fightendtest.js          — and run it FORTY TIMES, not once (step 17's own instruction: two
+ * Run: node resolutiontest.js          — and run it FORTY TIMES, not once (step 17's own instruction: two
  * flakes hid in one green run the last time this surface was touched, and `prompttest` was 8/40 today
  * while looking fine on the first go).
  */

@@ -115,7 +115,7 @@ function newOfferSet(st, origin) {
    useful one — **the old window is gone AND the new one is really running** — and keeps the two things
    half A cannot see: that the walk never offers a seat the engine would refuse, and how wide it actually is.
    THE OLD-WINDOW COUNT IS ASSERTED AT ZERO rather than deleted, which makes this the live counterpart of
-   `fightendtest`'s whitelist canary: reinstate the guard window and this goes red naming it.
+   `resolutiontest`'s whitelist canary: reinstate the guard window and this goes red naming it.
    AND THE ZERO IS NOT ALLOWED TO STAND ALONE. "Nothing opened the old window" is also true of a build where
    nothing happens at all, which is the vacuous shape this repo has shipped twice — so the go-round floor
    below is what makes the zero mean something. */

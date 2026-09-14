@@ -99,7 +99,7 @@ async function freshGame(p) {
      timing prompts; the checkbox is noise reduction, not capability.
      THE "annoying very quick" RISK IS REAL AND IS NOW THE PLAYER'S LEVER rather than ours — which is what
      the checkboxes were built for. The suppression half is asserted further down, both ways, and
-     `fightenduitest` scenario C proves an unchecked card is RECORDED in the saved log rather than
+     `resolutionuitest` scenario C proves an unchecked card is RECORDED in the saved log rather than
      vanishing without trace. */
   ok(D.counterResolution === false && D.counterPrefight === false,
      'default: the other boundaries are quiet too (resolution ' + D.counterResolution + ', prefight ' + D.counterPrefight + ')');

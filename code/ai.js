@@ -894,7 +894,7 @@
     /* `E.lossAnswerFor`, NOT `E.immunityEffFor` — the predicate used to be "is this immunity", and
        Sanctuary under HECTOR carries no immunity flag at all (`{quick:true}` on a `kind:'shield'` base),
        so an AI seat at 0 shields holding the card that saves it was refused and kicked. A human plays
-       that exact line in `fightenduitest`. The engine owns the rule because it is the same two-branch
+       that exact line in `resolutionuitest`. The engine owns the rule because it is the same two-branch
        board read `resolveShieldLossObj` makes; one definition, and PASSO inherits the fix for free.
        AND THE CHEAPEST, NOT `[0]`: the widened predicate makes two candidates an ordinary occurrence,
        and `hand.filter(...)[0]` is the "first candidate is gambling on the deal" shape CLAUDE.md

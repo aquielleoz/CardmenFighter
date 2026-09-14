@@ -1,6 +1,6 @@
 /* THE TWO BUGS THE EPIC EXISTS FOR, PLAYED THROUGH THE REAL PAGE — epic/priority-windows, step 18.
  *
- * `fightendtest.js` asserts the MODEL headlessly. This asserts the two things a player actually reported,
+ * `resolutiontest.js` asserts the MODEL headlessly. This asserts the two things a player actually reported,
  * end to end in the built HTML, because neither had ever been played through a UI by anything:
  *
  *   A · SANCTUARY UNDER HECTOR SURVIVES THE FIGHTER KICK. The ♥K patch is `{quick:true}` **alone** — a
@@ -28,7 +28,7 @@
  * scenario is run twice off identical staging, once DECLINING and once CASTING, and the assertion is the
  * DIFFERENCE. A build where the window opens and the cast does nothing passes every one-sided version.
  *
- * Run: node fightenduitest.js
+ * Run: node resolutionuitest.js
  */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
 const { selectAndFight, clickFight, clickPass } = require('./fightclick');
