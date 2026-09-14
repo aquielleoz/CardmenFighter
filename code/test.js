@@ -964,12 +964,28 @@ function cards(ids) { return ids.map(card); }
   ok(g.prioPassed && g.prioPassed[1] === true, 'go-round: the pass is recorded on STATE, not on the object');
   ok(g.stack.every(function (o) { return !o.passed; }), 'go-round: no stack object carries a passed set any more');
 
+  /* THIS USED TO REACH `pushEffect` BY CASTING A SECOND TECHNIQUE WHILE THE WINDOW WAS OPEN, WHICH IS
+     ILLEGAL AND IS NOW REFUSED (2026-09-14). Its own staging showed why: after p0's first cast `respondFor`
+     is 1, so p0 does NOT hold priority — and it cast anyway. §2 says the only addition to a non-empty stack
+     is a Quick by whoever holds priority. The RULE being asserted (step 5: any addition resets the
+     all-passed check) is untouched; only the route to it was wrong. */
   var before = g.respondFor;
-  E.activate(g, 0, 'b3D', { target: 2 });                  // a second cast while a window is open — pushEffect
-  ok(!g.prioPassed[1],
-     'go-round: pushEffect RESETS the all-passed check, so a seat that passed is asked again' +
-     (g.prioPassed[1] ? '  ← p1 stays passed; the board changed under them and they were never re-offered' : '') +
-     ' [was offering ' + before + ']');
+  var illegal = E.activate(g, 0, 'b3D', { target: 2 });
+  ok(illegal && illegal.ok === false, 'a second proactive cast WHILE a window is open is refused — the active player does not hold priority [was offering ' + before + ']');
+  ok(g.prioPassed[1] === true, '…and the refusal changed nothing: p1 is still recorded as passed');
+
+  /* AND `pushEffect`'s RESET IS STILL LOAD-BEARING, reached the way it really runs: with NO window open and
+     a STALE pass left on state from an earlier go-round. Nothing clears `prioPassed` between go-rounds
+     except the paths that start one, so without this reset a seat could carry a pass into a window it has
+     never been offered. */
+  E.declineResponse(g, 2);                                  // drain the open window
+  while (g.respondFor != null) { E.declineResponse(g, g.respondFor); }
+  g.prioPassed = { 1: true, 2: true };                      // stale, from the go-round that just ended
+  var fresh = E.activate(g, 0, 'b3D', { target: 2 });
+  ok(fresh && fresh.ok, 'with no window open the same cast is legal');
+  ok(!g.prioPassed[1] && !g.prioPassed[2],
+     'and pushEffect RESET the stale passes, so the new go-round asks everyone' +
+     ((g.prioPassed[1] || g.prioPassed[2]) ? '  ← a seat carries a pass into a window it was never offered' : ''));
 })();
 
 // ===== NO MID-TURN SHIELD-GUARD WINDOW CAN EXIST (epic step 4) =====

@@ -2812,6 +2812,17 @@
     opts = opts || {};
     if (st.finished) return { ok: false, reason: 'Game over.' };
     if (p !== st.turn) return { ok: false, reason: 'Not your turn.' };
+    /* A PRIORITY WINDOW IS OPEN → THIS IS NOT THE WAY IN (fixed 2026-09-14). `activate` is the PROACTIVE
+       path: active player, Main Sub-Phase, nothing pending. While a go-round runs, the only legal addition
+       is a Quick through `respond`, and priority belongs to a SPECIFIC seat — so the active player casting
+       here is acting WITHOUT priority, straight against PHASES-AND-PRIORITY.md §2. Reachable: staged at 3
+       players, p0 activated a Technique (window opened for p1) and then activated a SECOND one on top while
+       p1 still held priority.
+       A CLIENT-SIDE GATE IS NOT THE GATE. `ai.js`'s `playPhase` already returns on `st.respondFor != null`
+       and the UI does not offer the control, so both callers we ship behave — but a netplay client sends an
+       INTENT that the host applies, so the engine is the only place this can be refused. Same reasoning as
+       `resolveIds` and the host-side emote cooldown. */
+    if (st.respondFor != null) return { ok: false, reason: 'Priority is being passed — answer the window instead.' };
     if (isLocked(st, p)) return { ok: false, reason: 'You are locked out (Back Stab) — you skip this turn.' };
     var pl = st.players[p];
     var card = pl.hand.filter(function (c) { return c.id === cardId; })[0];
@@ -2993,7 +3004,19 @@
   // player with no action). A destroyShield loss underneath is handed to driveShieldStack once the
   // effects clear. Returns a pending result (window open) or the last resolution result.
   function openResponseWindow(st) {
-    var last = { ok: true, state: st };
+    var last = { ok: true, state: st }, reentry = 0;
+    /* THE OUTER LOOP EXISTS BECAUSE A SHIELD-LOSS QUEUE CAN BURY LIVE EFFECTS (fixed 2026-09-14).
+       The inner loop stops the moment the top is a `shieldloss`, the drain below empties the queue — and
+       nothing used to come back here, so anything still on the stack UNDERNEATH was orphaned: the function
+       fell through every `!st.stack.length` boundary branch and returned with an effect stacked and
+       `respondFor = null`. REPRODUCED at 3 players before the fix: p0 activates Gather Energy (window opens
+       for p1), then Critical Hit on top; p1 declines; Critical Hit resolves and strips a shield; and Gather
+       Energy sits there with nobody holding priority, picked up only at the NEXT entry into this function —
+       a full turn late.
+       IT LOOPS ON PROGRESS, NOT ON SHAPE. `driveShieldStack` is trusted to shrink the stack; if it ever
+       does not, breaking out is the safe failure and spinning here is not. The counter is a backstop, not
+       the mechanism. */
+    while (reentry++ < 256) {
     while (st.stack.length && (st.stack[st.stack.length - 1].kind === 'effect' || st.stack[st.stack.length - 1].kind === 'tick')) {
       var top = st.stack[st.stack.length - 1];
       /* THE PASSES BELONG TO THE GO-ROUND, NOT TO THE OBJECT (epic step 5). They used to live on each
@@ -3044,7 +3067,14 @@
        — a result captured and then thrown away on every path but one, because the only thing it tested
        was the guard window's own return flag. With that window gone there is nothing to test and nothing
        to discard: drive the queue and fall through. */
-    if (st.stack.length && st.stack[st.stack.length - 1].kind === 'shieldloss') driveShieldStack(st);
+    if (st.stack.length && st.stack[st.stack.length - 1].kind === 'shieldloss') {
+      var wasDeep = st.stack.length;
+      driveShieldStack(st);
+      if (st.finished) return last;
+      if (st.stack.length < wasDeep) continue;                        // the queue drained — effects may be exposed beneath it
+    }
+    break;
+    }
     /* THE EMPTY-STACK GO-ROUND OF THE FIGHT END WINDOW (epic step 11).
        `PHASES-AND-PRIORITY.md` §3: before the Fight End Sub-Phase, the round WINNER is the active player,
        the loss target is already picked, and priority is passed around on an EMPTY stack — Quicks only —
