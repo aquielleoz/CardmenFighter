@@ -984,7 +984,7 @@
   var SUPER_NAMES = { D: 'Athena Mode', H: 'Apollo Mode', C: 'Ares Mode', S: 'Hermes Mode' };
   var BOOSTS = {
     D: {
-      queen: { 1: { n: 4, desc: 'Gather 1 more — put the top 4 of your deck into Energy.' }, 4: { desc: 'Counter Spell can also counter an Equipment as it is played.' }, 7: { eqMode: 'deckTop', desc: "Forceful Strip puts the target Equipment on TOP of its owner's deck (they must redraw it) instead of into their hand." } },
+      queen: { 1: { n: 4, desc: 'Gather 1 more — put the top 4 of your deck into Energy.' }, 4: { counterEquip: true, desc: 'Counter Spell can also counter an Equipment as it is played.' }, 7: { eqMode: 'deckTop', desc: "Forceful Strip puts the target Equipment on TOP of its owner's deck (they must redraw it) instead of into their hand." } },
       king:  { 5: { boost: 5, desc: 'Boost your next play by 1 more (to +5).' }, 6: { draw: 4, desc: 'Look 1 deeper — top 4, keep 3 (draw 2→3).' }, 10: { phantasmPlus: 1, desc: 'The illusion swells — the copy is conjured at +1 value.' } },
       super: { 7: { ride: true, form: true, eqMode: 'deckTop', desc: "Forceful Strip puts a stripped Equipment on TOP of its owner's deck, and can also return a Ride OR a Form to its owner's hand." }, 9: { kind: 'reclaim', half: true, immune: true, cantLose: true, desc: 'Also recycle — shuffle your Shuffle Pile into your deck and ramp half of it into Energy.' } }
     },
@@ -1331,7 +1331,7 @@
      card-level answers cannot drift — which they did before, since `eligibleQuicks` had its own copy. */
   function quickTargets(st, q, eff) {
     if (!eff) return null;                                                     // not a targeting effect — nothing to check
-    if (eff.kind === 'counter') return counterTargets(st);
+    if (eff.kind === 'counter') return counterTargets(st, eff);
     if (eff.kind === 'protect') {
       for (var j = st.stack.length - 1; j >= 0; j--) {                         // an incoming removeEquip is a legal target even with no equipment of your own
         if (st.stack[j].kind === 'effect' && st.stack[j].eff.kind === 'removeEquip' && pickEquip(st, st.stack[j].p, st.stack[j].opts && st.stack[j].opts.target)) return [1];
@@ -1626,8 +1626,28 @@
      (epic step 8). Everything currently on the stack that is an EFFECT and not already countered. It became
      a real choice the moment step 6 let a player hold priority and stack two Quicks: "the object beneath me"
      stops being unambiguous, which Aj called out himself as the cost of holding priority. */
-  function counterTargets(st) {
-    return (st.stack || []).filter(function (o) { return o.kind === 'effect' && !o.countered; });
+  /* AND IT IS A CARD-TYPE RESTRICTION, NOT A STACK-TYPE ONE (2026-09-14). Counter Spell's own text is
+     "Counter target **Technique** as it is played" — so what it may name is decided by the TYPE OF THE CARD
+     that produced the effect, never by how the stack entry happens to be tagged. Aj: *"counter spell does
+     not target effects, it targets techniques and equipments — the card type source of the effect."*
+     QUICK IS A MODIFIER AND A CO-TYPE (Aj), so a Quick Technique IS a Technique and counter-a-counter
+     falls out rather than being special-cased — which `test.js` has always asserted.
+     THIS USED TO ADMIT EVERY EFFECT, and the bug that hid inside that was a pair: the QUEEN OF DIAMONDS
+     boost reads "Counter Spell can also counter an Equipment as it is played" and its patch contained ONLY
+     a `desc`, so it did nothing — while this filter already let EVERYONE counter Equipment. An
+     unimplemented boost and an over-permissive base, cancelling into something that looked correct.
+     `docs/CARD-LIST.md` has been publishing that promise to players the whole time.
+     RIDES AND FORM CHANGES ARE EXCLUDED BY NOT BEING NAMED, which is the point: they carry `type: 'Ride'`
+     and `'Form Change'`, and the day a card is printed that answers them it will name those types. */
+  var COUNTERABLE = { 'Technique': 1, 'Quick Technique': 1 };
+  function counterTargets(st, eff) {
+    var alsoEquipment = !!(eff && eff.counterEquip);                 // Queen of Diamonds
+    return (st.stack || []).filter(function (o) {
+      if (o.kind !== 'effect' || o.countered) return false;
+      if (o.trig) return false;                                      // a triggered ability has no cast card as its source
+      var t = o.eff && o.eff.type;
+      return !!COUNTERABLE[t] || (alsoEquipment && t === 'Equipment');
+    });
   }
 
   /* THE WINDOW IS `respondFor`; `pending` IS ONLY THE OBJECT IT IS ABOUT (epic step 11, prerequisite P1).
@@ -1658,7 +1678,7 @@
     var cOid = (opts && opts.counterOid) || null;
     if (cOid) {
       if (qeff.kind !== 'counter') return { ok: false, reason: 'That card does not counter anything.' };
-      if (!counterTargets(st).some(function (o) { return o.oid === cOid; })) return { ok: false, reason: 'That is no longer on the stack to counter.' };
+      if (!counterTargets(st, qeff).some(function (o) { return o.oid === cOid; })) return { ok: false, reason: 'That is no longer on the stack to counter.' };
     }
     qp.hand = qp.hand.filter(function (c) { return c.id !== quickCardId; });
     payEnergy(qp, qcard);

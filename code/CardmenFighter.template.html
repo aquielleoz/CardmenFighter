@@ -5415,7 +5415,9 @@ __QR__
     var incoming=(rivalEff.text && pend && pend.card ? ('<div class="respIncoming"><b>'+rivalName+'</b> ('+cardSym(pend.card)+') — '+rivalEff.text+'</div>')
                  : (pend && pend.kind==='tick' ? ('<div class="respIncoming"><b>'+esc(pend.name||'Equipment')+'</b> — at the beginning of each round’s upkeep, remove a counter from this equipment.</div>') : ''));
     var html='<h2>Respond?</h2>'+lead+incoming+tableContextHTML()+'<div class="respOpts">';
-    var ctgts=(E.counterTargets ? E.counterTargets(state) : []);
+    /* COMPUTED PER CARD BELOW, NOT ONCE HERE (2026-09-14). What a Counter Spell may name now depends on the
+       CASTER's boosted effect — the Queen of Diamonds widens it to Equipment — so a single list computed
+       before the loop would show a Queen player the base targets and nobody the widened ones. */
     /* `effectFor`, NOT `effectOf` — the last of CLAUDE.md's three remaining label sites (epic step 14).
        `eligibleQuicks()` already uses `effectFor`, so a Form-granted Quick is correctly OFFERED here and was
        then DESCRIBED with its base effect: the button read "Technique" for a card the game was treating as a
@@ -5427,6 +5429,7 @@ __QR__
          the choice has to be made BEFORE the card goes on the stack, which is why it is a button rather than
          a follow-up prompt. `E.counterTargets` is the same predicate `respond` validates against, so the UI
          cannot offer something the engine will refuse. With one target the wording is unchanged. */
+      var ctgts=(ef.kind==='counter' && E.counterTargets) ? E.counterTargets(state, ef) : [];
       if(ef.kind==='counter' && ctgts.length>1){
         ctgts.forEach(function(o){
           var onm=((o.card && E.effectOf(o.card))||{}).name || 'an effect';
