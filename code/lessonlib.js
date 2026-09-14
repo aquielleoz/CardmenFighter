@@ -52,7 +52,7 @@ async function openLesson(id, viewport){
       for(const [id,label] of PASS){ const el=document.getElementById(id); if(el && el.offsetParent){ el.click(); return label; } }
       return null; });
     /* A FLOOD OF THESE IS A PRODUCT CHANGE, NOT A HARNESS PROBLEM — read it that way before touching the
-       lesson. `promptWanted` in the template SUPPRESSES the `fightend` timing while `tutorialMode` is on,
+       lesson. `promptWanted` in the template SUPPRESSES the `resolution` timing while `tutorialMode` is on,
        precisely because a scripted lesson cannot survive a window at the end of every round: when the
        Fight End default flipped on 2026-09-10 this warning fired three times in `lessontest_twos` and the
        lesson stalled on "the Rival leads 222 + a pair". If that suppression is ever removed, THIS is the

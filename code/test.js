@@ -489,7 +489,7 @@ function cards(ids) { return ids.map(card); }
        the guard window opened inside `driveShieldStack`, below the strike.
        The Fight End go-round opens ABOVE it (§3), so Sanctuary's shield GAIN resolves first,
        `resolveShieldLossObj` reads `wasBroken = opp.shields <= 0` as false, and the kick branch is never
-       entered. It works by TIMING and no new rule — and `fightenduitest` scenario A plays exactly that
+       entered. It works by TIMING and no new rule — and `resolutiontest_ui` scenario A plays exactly that
        through the real page, both ways: decline and die, cast and live.
        So the card that used to be refused at 0 shields is the card that now SAVES you there. */
     var gk = apollo(); gk.players[0].shields = 0;
@@ -711,6 +711,39 @@ function cards(ids) { return ids.map(card); }
   ok(gr.respondFor === 2, 'MP response: priority passes past p1 (no Quick) to p2, who can answer');
   var cr = E.respond(gr, 2, '4D');   // p2 Counters the Telekinesis
   ok(cr.ok && !gr.discardPending, 'MP response: p2 Counter Spell negates the Technique (no discard happens)');
+
+  /* A LOCKED PLAYER KEEPS PRIORITY (PHASES-AND-PRIORITY.md §5, verified 2026-09-14 rather than assumed).
+     Back Stab denies FIGHTS and TECHNIQUES; it does not remove the seat from the game for a round, and a
+     priority window is neither. Nothing asserted this before — the rule was written down and the code was
+     right by omission, which is the state that quietly becomes wrong the first time someone adds an
+     `isLocked` guard to `canCastQuick` thinking they are tightening something.
+     BOTH WAYS, because "it could cast" means nothing unless the lock is doing its real job in the same
+     breath: the same locked seat must still be refused a FIGHT. */
+  var gl = E.newGame(null, { numPlayers: 3 });
+  gl.players[0].hand = [sc(3, 'D'), sc(5, 'C')]; gl.players[0].energy = [];
+  for (var le = 0; le < 3; le++) gl.players[0].energy.push(sc(4, 'D'));
+  gl.players[1].hand = [sc(5, 'H'), sc(6, 'H'), sc(7, 'H'), sc(8, 'H')];
+  gl.players[2].hand = [sc(4, 'D'), sc(5, 'S')]; gl.players[2].energy = [];
+  for (var le2 = 0; le2 < 4; le2++) gl.players[2].energy.push(sc(4, 'D'));
+  gl.turn = 0; gl.round = 3; gl.pile = null; gl.lastPlayer = null; gl.passes = 0;
+  gl.players[2].lockRound = true;                                  // Back Stab, the whole-round form
+  E.activate(gl, 0, '3D', { target: 1 });
+  ok(gl.respondFor === 2, 'a LOCKED seat is still OFFERED priority (§5: a lock is not removal from the game)');
+  var lkr = E.respond(gl, 2, '4D');
+  ok(lkr && lkr.ok, 'and may actually cast its Quick — the lock denies fights and Techniques, never priority');
+  ok(E.isLocked(gl, 2), 'and it is still locked afterwards — casting did not spend the lock');
+
+  var gf = E.newGame(null, { numPlayers: 3 });                     // the other half: the lock still bites
+  gf.players[2].hand = [sc(5, 'S'), sc(5, 'H')];
+  gf.turn = 2; gf.round = 3; gf.pile = null; gf.lastPlayer = null; gf.passes = 0;
+  var freePlay = E.play(gf, 2, [gf.players[2].hand[0]]);   // play() takes card OBJECTS, not ids
+  ok(freePlay && freePlay.ok, 'control: unlocked, that same seat CAN make the play');
+  var gf2 = E.newGame(null, { numPlayers: 3 });
+  gf2.players[2].hand = [sc(5, 'S'), sc(5, 'H')];
+  gf2.turn = 2; gf2.round = 3; gf2.pile = null; gf2.lastPlayer = null; gf2.passes = 0;
+  gf2.players[2].lockRound = true;
+  var lockedPlay = E.play(gf2, 2, [gf2.players[2].hand[0]]);
+  ok(!(lockedPlay && lockedPlay.ok), 'but LOCKED it is refused the fight — so the lock is doing its job, and the cast above is not a hole in it');
 
   /* PRIORITY IS RE-GRANTED ON AN OBJECT A SEAT ALREADY PASSED, AND ONLY `prioGen` SEPARATES THE TWO GRANTS.
      `respond` clears EVERY object's `passed` set, so once p2's Counter Spell resolves, the Technique beneath
@@ -1405,7 +1438,7 @@ function cards(ids) { return ids.map(card); }
    is asserted as a SEQUENCE rather than as a set of separate facts: every individual step below passes on
    plausible-but-wrong walks (origin at the active player throughout, or a go-round that never restarts),
    and only the order distinguishes them.
-   NOT LIVE YET: nothing calls `openFightEndWindow` in a real round — step 18 is the switch. It is driven
+   NOT LIVE YET: nothing calls `openResolutionWindow` in a real round — step 18 is the switch. It is driven
    directly here precisely so the surface is tested BEFORE it goes live, which is the whole strangler
    argument; an untested mechanism switched on in one commit is what this plan is shaped to avoid. */
 (function () {
@@ -1440,14 +1473,14 @@ function cards(ids) { return ids.map(card); }
      green-and-blind shape; reading the parked boundary off state makes them discriminate instead. */
   function walk(g, cap) { var seq = [], n = 0;
     while (g.respondFor != null && n++ < (cap || 16)) {
-      seq.push((g.pending ? 'obj' : (g.upkeep ? 'up' : (g.cleanup ? 'cu' : (g.fightEnd ? 'fe' : 'empty')))) + ':' + g.respondFor);
+      seq.push((g.pending ? 'obj' : (g.upkeep ? 'up' : (g.cleanup ? 'cu' : (g.resolution ? 'fe' : 'empty')))) + ':' + g.respondFor);
       E.declineResponse(g, g.respondFor);
     }
     return seq; }
 
   // --- nobody adds anything: the window is winner-first, then turn order, then the sub-phase
   var g = rig();
-  E.openFightEndWindow(g, 2, true, [0], 2);
+  E.openResolutionWindow(g, 2, true, [0], 2);
   ok(g.respondFor === 2 && g.pending === null,
      'fight end: the WINNER is offered first, on an empty stack' +
      (g.respondFor === 2 && g.pending === null ? '' : '  ← offered ' + g.respondFor + ', pending ' + (g.pending ? 'set' : 'null')));
@@ -1457,9 +1490,9 @@ function cards(ids) { return ids.map(card); }
      'fight end: …then turn order on an empty stack, AND THE ROUND\'S REMAINING BOUNDARIES FOLLOW IT IN' +
      ' ORDER — Resolution, Clean-up, then the new round\'s Upkeep (' + order.join(' ') + ')' +
      (order.join(',') === WANT1 ? '' : '  ← expected ' + WANT1.replace(/,/g, ' ')));
-  ok(!g.fightEnd && g.round === 4 && g.players[0].shields === 2,
+  ok(!g.resolution && g.round === 4 && g.players[0].shields === 2,
      'fight end: all passing on an empty stack BEGINS THE SUB-PHASE — the outcomes land' +
-     ' (round ' + g.round + ', A shields ' + g.players[0].shields + ', parked ' + !!g.fightEnd + ')');
+     ' (round ' + g.round + ', A shields ' + g.players[0].shields + ', parked ' + !!g.resolution + ')');
 
   /* --- THE FULL WORKED EXAMPLE. C passes, A casts into the empty stack, and from there the ORDINARY §2
      dance takes over on A's object — starting at A, because a controller holds priority (step 6). When it
@@ -1468,7 +1501,7 @@ function cards(ids) { return ids.map(card); }
   var g2 = rig();
   g2.players[0].hand = [sc(9, 'D', 'a1'), sc(9, 'D', 'a2')];           // A holds two, so A is not auto-passed after casting one
   for (var e2 = 0; e2 < 20; e2++) g2.players[0].energy.push(sc(4, 'D', 'ex' + e2));
-  E.openFightEndWindow(g2, 2, true, [0], 2);
+  E.openResolutionWindow(g2, 2, true, [0], 2);
   E.declineResponse(g2, 2);                                            // C adds nothing and passes
   var cast = E.respond(g2, 0, 'a19D');                                 // A casts into the EMPTY stack
   ok(cast.ok !== false && g2.stack.length === 1 && g2.pending && g2.respondFor === 0,
@@ -1485,9 +1518,9 @@ function cards(ids) { return ids.map(card); }
      it exists to do. The old assertion expected the strip to land because the rig used Counter Spell as an
      inert stand-in; with targeting part of casting, Leyline is the only base Quick castable on an empty
      stack, so the rig has an effect now and the assertion should say what it is. */
-  ok(!g2.fightEnd && g2.round === 4 && g2.players[0].shields === 3,
+  ok(!g2.resolution && g2.round === 4 && g2.players[0].shields === 3,
      'fight end: …the sub-phase still begins afterwards, and A\'s Leyline SAVED the shield it was cast to save' +
-     ' (round ' + g2.round + ', A shields ' + g2.players[0].shields + ' of 3, parked ' + !!g2.fightEnd + ')');
+     ' (round ' + g2.round + ', A shields ' + g2.players[0].shields + ' of 3, parked ' + !!g2.resolution + ')');
 
   /* --- THE BOUNDARY (§2). Inside the sub-phase nobody is active, so an empty stack must NOT open another
      go-round — that is what stops a trigger resolving at Fight End spinning empty rounds forever. The
@@ -1499,7 +1532,7 @@ function cards(ids) { return ids.map(card); }
   // --- a seat with nothing castable is auto-passed and never appears in the walk
   var g3 = rig();
   g3.players[1].hand = [];                                             // B holds nothing
-  E.openFightEndWindow(g3, 2, true, [0], 2);
+  E.openResolutionWindow(g3, 2, true, [0], 2);
   var o3 = walk(g3);
   var WANT3 = 'fe:2,fe:0,cu:2,cu:0,up:2,up:0';
   ok(o3.join(',') === WANT3,
@@ -1514,7 +1547,7 @@ function cards(ids) { return ids.map(card); }
   var g5 = rig();
   g5.players[2].hand = [sc(9, 'D', 'c1'), sc(9, 'D', 'c2')];           // TWO, so C is not auto-passed after casting one — the same rig shape the worked example uses
   for (var e5 = 0; e5 < 20; e5++) g5.players[2].energy.push(sc(4, 'D', 'ec' + e5));
-  E.openFightEndWindow(g5, 2, true, [0], 2);
+  E.openResolutionWindow(g5, 2, true, [0], 2);
   var n5 = 0; while (g5.respondFor != null && !g5.upkeep && n5++ < 12) E.declineResponse(g5, g5.respondFor);
   ok(!!g5.upkeep && g5.respondFor === 2 && g5.pending === null && g5.round === 4,
      'upkeep: the new round opens its own go-round on an empty stack, at the active player' +
@@ -1533,7 +1566,7 @@ function cards(ids) { return ids.map(card); }
      shieldloss objects BEFORE parking the window is what unblocked it, and this asserts the consequence —
      a Quick cast at Clean-up survives to resolve. */
   var g7 = rig();
-  E.openFightEndWindow(g7, 2, true, [0], 2);
+  E.openResolutionWindow(g7, 2, true, [0], 2);
   var n9 = 0; while (g7.respondFor != null && !g7.cleanup && n9++ < 12) E.declineResponse(g7, g7.respondFor);
   ok(!!g7.cleanup && g7.round === 3,
      'clean-up: the round\'s end opens its own go-round BEFORE the round advances' +
@@ -1560,7 +1593,7 @@ function cards(ids) { return ids.map(card); }
   g6.players[2].equipment = [{ id: 'jav', name: "Hero's Javelin", delta: 1, counters: 3, decay: true, card: sc(6, 'C', 'eqj') }];
   g6.players[0].equipment = [{ id: 'cal', name: 'Caltrops', oppDelta: -2, counters: 1, decay: true, card: sc(7, 'S', 'eqc') }];
   g6.players[1].equipment = [{ id: 'bow', name: 'Holy Bow', delta: 2, counters: 2, decay: true, card: sc(8, 'H', 'eqb') }];
-  E.openFightEndWindow(g6, 2, true, [0], 2);
+  E.openResolutionWindow(g6, 2, true, [0], 2);
   var n7 = 0; while (g6.respondFor != null && !g6.upkeep && n7++ < 12) E.declineResponse(g6, g6.respondFor);
   var ticks = g6.stack.filter(function (o) { return o.kind === 'tick'; });
   ok(ticks.length === 3 && g6.pending && g6.pending.kind === 'tick',
@@ -2144,9 +2177,9 @@ function cards(ids) { return ids.map(card); }
 })();
 
 /* THE AI CAN CAST THE CARD THE EPIC EXISTS FOR (fix, 2026-09-12).
-   `fightEndGuardCard` filtered the hand through `immunityEffFor` — "is this immunity" — and Sanctuary
+   `resolutionGuardCard` filtered the hand through `immunityEffFor` — "is this immunity" — and Sanctuary
    under HECTOR is `{quick:true}` ALONE on a `kind:'shield'` base. So an AI seat at 0 shields, holding the
-   exact card that saves it, declined and took the Fighter Kick. `fightenduitest` scenario A proves a HUMAN
+   exact card that saves it, declined and took the Fighter Kick. `resolutiontest_ui` scenario A proves a HUMAN
    plays that line and lives; no AI could, in any mode, ever.
    EVERY CLAIM HERE IS A BOTH-WAYS PAIR off identical staging, because "it did not choose the card" and
    "it could not have chosen any card" are the same observation with one card on the table. */
@@ -2159,7 +2192,7 @@ function cards(ids) { return ids.map(card); }
     /* energy must cover the COLOURED pips too (`canAfford` -> `costReq`), so an all-one-suit pile
        silently makes every card unaffordable and the whole rig reads as a refusal. */
     p0.energy = []; ['D','H','C','S'].forEach(function (su) { for (var i = 0; i < 8; i++) p0.energy.push(C(3, su, 'e' + su + i)); });
-    g.pending = null; g.fightEnd = { strikeTargets: [0], winner: 1 };
+    g.pending = null; g.resolution = { strikeTargets: [0], winner: 1 };
     return g;
   }
   var SANC = function () { return C(10, 'H', 'sanc'); };          // Sanctuary
@@ -2172,23 +2205,23 @@ function cards(ids) { return ids.map(card); }
   ok(E.effectFor(g, 0, SANC()).quick === true, 'Hector really makes Sanctuary a Quick (the staging is live)');
   ok(E.immunityEffFor(g, 0, SANC()) === null, 'immunityEffFor REFUSES Sanctuary under Hector — the bug, kept as the reason this test exists');
   ok(!!E.lossAnswerFor(g, 0, SANC()), 'lossAnswerFor ACCEPTS it: gaining a shield takes you off 0, so the kick branch never runs');
-  var picked = AI.fightEndGuardCard(g, 0);
+  var picked = AI.resolutionGuardCard(g, 0);
   ok(picked && picked.id === 'sanc10H', 'an AI at 0 shields under Hector now springs Sanctuary instead of dying');
 
   // ...and it is a real refusal, not a rig that accepts anything
-  ok(AI.fightEndGuardCard(rig(0, HECTOR(), [DUD()]), 0) === null, 'a hand with no answer still declines — the rig can say no');
-  ok(AI.fightEndGuardCard(rig(0, [], [SANC()]), 0) === null, 'and WITHOUT the Form it declines: Sanctuary is not a Quick at base, so there is nothing to cast');
+  ok(AI.resolutionGuardCard(rig(0, HECTOR(), [DUD()]), 0) === null, 'a hand with no answer still declines — the rig can say no');
+  ok(AI.resolutionGuardCard(rig(0, [], [SANC()]), 0) === null, 'and WITHOUT the Form it declines: Sanctuary is not a Quick at base, so there is nothing to cast');
 
   // the seat must actually be the one being struck, and must want to guard
-  ok(AI.fightEndGuardCard(rig(4, HECTOR(), [SANC()]), 0) === null, 'a seat on 4 shields does not burn Sanctuary — shieldGuardWants still gates it');
-  var notStruck = rig(0, HECTOR(), [SANC()]); notStruck.fightEnd.strikeTargets = [1];
-  ok(AI.fightEndGuardCard(notStruck, 0) === null, 'a seat NOT struck this round declines — the go-round offers everyone priority');
+  ok(AI.resolutionGuardCard(rig(4, HECTOR(), [SANC()]), 0) === null, 'a seat on 4 shields does not burn Sanctuary — shieldGuardWants still gates it');
+  var notStruck = rig(0, HECTOR(), [SANC()]); notStruck.resolution.strikeTargets = [1];
+  ok(AI.resolutionGuardCard(notStruck, 0) === null, 'a seat NOT struck this round declines — the go-round offers everyone priority');
 
   // the cheapest sufficient answer, not hand order — assert it BOTH ways so hand order cannot be what passed it
   var both = rig(0, HECTOR(), [SANC(), LEY()]);
-  ok(AI.fightEndGuardCard(both, 0).id === 'ley9D', 'with both in hand it takes the CHEAPER Leyline (9) over Sanctuary (10)');
+  ok(AI.resolutionGuardCard(both, 0).id === 'ley9D', 'with both in hand it takes the CHEAPER Leyline (9) over Sanctuary (10)');
   var rev = rig(0, HECTOR(), [LEY(), SANC()]);
-  ok(AI.fightEndGuardCard(rev, 0).id === 'ley9D', 'and the same card whichever order the hand is in — not `hand.filter(...)[0]`');
+  ok(AI.resolutionGuardCard(rev, 0).id === 'ley9D', 'and the same card whichever order the hand is in — not `hand.filter(...)[0]`');
 })();
 
 /* THE WINNER'S LINE AT RESOLUTION (epic step 21). Aj's call, and MEASURED at +0.82 points / 2.94 sigma at
@@ -2206,7 +2239,7 @@ function cards(ids) { return ids.map(card); }
     p0.forms = forms; p0.hand = hand; p0.finishingBlow = false;
     p0.energy = []; ['D', 'H', 'C', 'S'].forEach(function (su) { for (var i = 0; i < 8; i++) p0.energy.push(C(3, su, 'e' + su + i)); });
     g.players[1].shields = targetShields;
-    g.pending = null; g.fightEnd = { strikeTargets: [1], winner: 0 };
+    g.pending = null; g.resolution = { strikeTargets: [1], winner: 0 };
     return g;
   }
   var AP   = function () { return C(7, 'C', 'ap'); };        // Armor Piercing — the only onWin card in the game
@@ -2217,26 +2250,26 @@ function cards(ids) { return ids.map(card); }
   ok(E.effectFor(rig(2, HIPPO(), [AP()]), 0, AP()).quick === true, 'Hippolyta really makes Armor Piercing a Quick (the staging is live)');
   ok(E.effectOf(AP()).quick === false, 'and it is NOT a Quick at base — without the Form there is no window play at all');
 
-  var hit = AI.fightEndPushCard(rig(2, HIPPO(), [AP(), KING()]), 0);
+  var hit = AI.resolutionPushCard(rig(2, HIPPO(), [AP(), KING()]), 0);
   ok(hit && hit.id === 'ap7C', 'the round WINNER springs Armor Piercing against a target on 2 shields');
 
   // "never overkills" — below 2 the extra strip changes nothing, so casting it is strictly wasted
-  ok(AI.fightEndPushCard(rig(1, HIPPO(), [AP(), KING()]), 0) === null, 'but NOT against a target on 1 — it would reach 0 either way ("never overkills")');
-  ok(AI.fightEndPushCard(rig(0, HIPPO(), [AP(), KING()]), 0) === null, 'and NOT against a target on 0 — the ordinary strip already kicks them');
+  ok(AI.resolutionPushCard(rig(1, HIPPO(), [AP(), KING()]), 0) === null, 'but NOT against a target on 1 — it would reach 0 either way ("never overkills")');
+  ok(AI.resolutionPushCard(rig(0, HIPPO(), [AP(), KING()]), 0) === null, 'and NOT against a target on 0 — the ordinary strip already kicks them');
 
   // the costs are real
-  ok(AI.fightEndPushCard(rig(2, HIPPO(), [AP(), LOW()]), 0) === null, 'no spare Broadway card in hand = no cast: pitchHigh is an additional COST, not flavour');
-  ok(AI.fightEndPushCard(rig(2, [], [AP(), KING()]), 0) === null, 'without Hippolyta it declines — Armor Piercing is not castable in a window at base');
+  ok(AI.resolutionPushCard(rig(2, HIPPO(), [AP(), LOW()]), 0) === null, 'no spare Broadway card in hand = no cast: pitchHigh is an additional COST, not flavour');
+  ok(AI.resolutionPushCard(rig(2, [], [AP(), KING()]), 0) === null, 'without Hippolyta it declines — Armor Piercing is not castable in a window at base');
 
   // only the winner, and only once
-  var notWinner = rig(2, HIPPO(), [AP(), KING()]); notWinner.fightEnd.winner = 1;
-  ok(AI.fightEndPushCard(notWinner, 0) === null, 'a seat that did not win the round has no strike to amplify');
+  var notWinner = rig(2, HIPPO(), [AP(), KING()]); notWinner.resolution.winner = 1;
+  ok(AI.resolutionPushCard(notWinner, 0) === null, 'a seat that did not win the round has no strike to amplify');
   var armed = rig(2, HIPPO(), [AP(), KING()]); armed.players[0].finishingBlow = true;
-  ok(AI.fightEndPushCard(armed, 0) === null, 'already armed — a second Armor Piercing adds nothing and is refused');
+  ok(AI.resolutionPushCard(armed, 0) === null, 'already armed — a second Armor Piercing adds nothing and is refused');
 
   // and the tally is real, so "worth nothing" can never be confused with "never ran"
   AI.resetPolicyStats();
-  AI.fightEndPushCard(rig(2, HIPPO(), [AP(), KING()]), 0);
+  AI.resolutionPushCard(rig(2, HIPPO(), [AP(), KING()]), 0);
   ok(AI.policyStats().push === 1, 'policyStats counts the cast — a policy measuring as worthless and one that never ran are the same number otherwise');
 })();
 

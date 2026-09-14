@@ -129,13 +129,13 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   /* THE SAME ROUND, THE NEW WINDOW (epic step 18, P5). This block used to stage the shield-GUARD window and
      assert the mirror was safe with it open. Step 18 removed that window: the identical staging now opens
      the Fight End GO-ROUND — seat 1 is offered priority because it holds an affordable Quick, rather than
-     being prompted about one whitelisted card — so the assertions move onto `fightEnd` and keep their job.
+     being prompted about one whitelisted card — so the assertions move onto `resolution` and keep their job.
      `roundWinResult` is no longer set at this point either: the outcomes have not run yet, because the
      window comes BEFORE the sub-phase (§3). That is the switch working, not a lost assertion — its own
      redaction is still checked in the loop below, which now proves it stays null rather than redacted. */
-  ok(!!st.fightEnd && st.respondFor === 1, 'STAGED: a real round opened the FIGHT END go-round, offering seat 1');
-  ok(st.fightEnd.winner === 0 && st.fightEnd.strikeTargets.join() === '1',
-     '  → and it carries who struck and who is struck, in ABSOLUTE seats (winner ' + st.fightEnd.winner + ', struck ' + st.fightEnd.strikeTargets.join() + ')');
+  ok(!!st.resolution && st.respondFor === 1, 'STAGED: a real round opened the FIGHT END go-round, offering seat 1');
+  ok(st.resolution.winner === 0 && st.resolution.strikeTargets.join() === '1',
+     '  → and it carries who struck and who is struck, in ABSOLUTE seats (winner ' + st.resolution.winner + ', struck ' + st.resolution.strikeTargets.join() + ')');
 
   for (var seat = 0; seat < st.numPlayers; seat++) {
     var m = NV.mirrorFor(st, seat), serialised = null, threw = '';
@@ -150,11 +150,11 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   /* ROTATED, NOT REDACTED — the same rule the window itself carries (step 11, P3). §3 picks the target
      BEFORE the window precisely so a defender can see the strike is aimed at them; a client that cannot
      see who is struck cannot make the decision the window exists to offer. Seat 1 reads itself as 0. */
-  ok(m1.fightEnd && m1.fightEnd.strikeTargets.join() === '0',
+  ok(m1.resolution && m1.resolution.strikeTargets.join() === '0',
      'the struck seat reads ITSELF as 0, like every other seat reference');
-  ok(m1.fightEnd.winner === 1, '  → and the striker is rotated too (absolute 0 → 1 from seat 1)');
+  ok(m1.resolution.winner === 1, '  → and the striker is rotated too (absolute 0 → 1 from seat 1)');
   ok(m1.respondFor === 0, '  → and the seat that owes the answer is rotated to itself');
-  ok(m1.fightEnd.wonWithCombo === true && m1.fightEnd.winSize === 2,
+  ok(m1.resolution.wonWithCombo === true && m1.resolution.winSize === 2,
      '  → while the scalars travel as they are (a Special of size 2)');
   /* THE GENERAL FORM, so a future field cannot reintroduce it quietly: nothing anywhere in a mirror may be
      the host state or a player of it. Checked by identity over the whole tree, not by key name. */
@@ -232,7 +232,7 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   r.preFightQ = 2;
   r.trimPending = { player: 2, need: 1 };
   r.pendingLossChoice = { winner: 2, cands: [2], comboType: 'pair' };
-  r.fightEnd = { origin: 2, winner: 2, wonWithCombo: true, strikeTargets: [2], winSize: 2 };   // every member seat-valued except the two scalars
+  r.resolution = { origin: 2, winner: 2, wonWithCombo: true, strikeTargets: [2], winSize: 2 };   // every member seat-valued except the two scalars
   r.stack = [{ oid: 1, kind: 'effect', p: 2, target: 2, winner: 2, n: 1, card: { rank: 9, suit: 'H', id: 's9H' }, eff: { id: 'x', kind: 'draw' }, opts: { target: 2 } }];
   r.respondFor = 2;
 
@@ -283,7 +283,7 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
      fails this suite by name, and the reviewer answers one question: is it public, or did it forget to rotate? */
   var PUBLIC = {
     'numPlayers': 1, 'round': 1, 'passes': 1, 'startShields': 1, 'prioGen': 1,
-    'fightEnd.winSize': 1,   // the SIZE of the winning play, not a seat — constant for every reader
+    'resolution.winSize': 1,   // the SIZE of the winning play, not a seat — constant for every reader
 
     'pile.mod': 1, 'pile.combo.size': 1,
     'stack.0.n': 1, 'stack.0.oid': 1   // `shieldResponse.obj.n` was here until step 19 deleted the field

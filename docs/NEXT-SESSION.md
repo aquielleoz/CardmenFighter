@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**478**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**483**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -34,7 +34,7 @@ after any session spent elsewhere (CLAUDE.md → "Branches and PRs"; `checkbranc
   Main → Fight transition, Resolution, and Clean-up. `phaseWalk` is the only walk; each boundary is a park
   plus the same five lines. There is no second priority mechanism left anywhere.
 - **The phases were renamed** (docs only): `Fight Phase` → **Play Phase** (Main · **Fight** ·
-  **Resolution**). The ~344 CODE sites keep the old spelling until step 23 — `fightEnd` in a `.js` file is
+  **Resolution**). The ~344 CODE sites keep the old spelling until step 23 — `resolution` in a `.js` file is
   the old name, not a leftover.
 - **`#fightBtn` has two states: `▶ Next` then `⚔️ Fight`.** Next is the phase move; Fight commits the
   cards. Dragging ACTIVATES in Main and PLAYS in the Fight Sub-Phase.
@@ -46,57 +46,44 @@ after any session spent elsewhere (CLAUDE.md → "Branches and PRs"; `checkbranc
 - **The boundary prompts DEFAULT OFF.** Only `respond` stops you. Four suites whose subject is a boundary
   window pass **`?prompts=all`**; if a new suite drives one of those windows and sees nothing, that is why.
 
-**⏭ NEXT IS STEP 23 — THE RENAME, AND IT IS THE LAST REAL JOB.** Steps 21 and 22 are done and merged
-(#219, #220). **Measured scope: 254 sites, not the ~344 this plan says** — 144 in `.js`, 45 in the
-template, 65 in docs — across only about **15 distinct symbols** (`st.fightEnd`, `openFightEndWindow`,
-`fightEndGuardCard`, `fightEndResult`, `drainFightEnd`, `fightEndPushCard`, the `'fightend'` prompt-timing
-id, and the two suite filenames). Estimated 2.5–3 hours, most of it verification.
-**DO IT IN SLICES, ONE SYMBOL AT A TIME, each its own commit** — engine, then AI, then template, then
-suites, then docs + v1.32.0. A rename is a deletion wearing a friendlier face and this repo has been bitten
-twice: `guardEffFor` → `immunityEffFor` forgot the suites and died in **0s**, and a deleted name left in an
-export literal killed the whole page while the build printed a happy byte count. **The parse check sees
-neither.** Grep after every symbol, run the gate, then a UI canary, then the sweep — a red run must be
-bisectable to one symbol, not to 254.
-The `'fightend'` id is **persisted in `localStorage`**, so it needs a read-time migration; `sel.mode` and
-`kits` are the precedents.
+**⏭ THE EPIC IS CODE-COMPLETE. WHAT IS LEFT IS THE MERGE ITSELF.** Steps 1-23 are done; the rename landed
+2026-09-14 as **one symbol per commit** (`openFightEndWindow` → `openResolutionWindow`, `drainFightEnd`,
+`fightEndPushCard`, `fightEndGuardCard`, `enterFightEnd`, `fightEndResult`, `st.fightEnd` → `st.resolution`,
+the `'fightend'` prompt id, and both suite files). Code and docs now agree.
 
-**WHAT LANDED (2026-09-12), and the shape of it matters more than the diffs:**
-- **`code/strengthsim.js` — the harness that measures whether a change makes the AI STRONGER** (#218).
-  Nothing else here can: every other sim runs the same AI on both seats. Built twice before and thrown
-  away twice. **Its control is structural** — identical arms pool to exactly 50.00 by construction, so it
-  prints CONTROL PASS/FAIL rather than a number to interpret. Run the control before believing anything.
-- **The AI can cast Sanctuary under Hector at 0 shields** (#217) — it never could, in any mode, while
-  `fightenduitest` proves a human can. `E.lossAnswerFor` replaced "is this immunity", which is the wrong
-  question; the right one depends on the shield count, because `resolveShieldLossObj` has two branches
-  honouring different flags.
-- **The round winner can press its advantage at Resolution** (#219): **+0.82 points at knight, +0.78 at
-  demon**, replicated. Armor Piercing **cannot kill** — `wasBroken` is sampled before the strike loop — so
-  it is gated to a struck target on 2+ shields, where it does anything at all.
-- **The netplay handshake refuses a MINOR version difference** (#220). The patch case is unchanged and
-  now pinned.
+**⚠ THE VERSION BUMP IS DELIBERATELY NOT DONE, AND THIS IS THE ORDER THAT MATTERS.** `versiontest` asserts
+the handoff's **"`main` is at vX"** line against README, so bumping README to **v1.32.0** while the epic is
+still unmerged would force that line to claim something false and the gate would correctly go red.
+CLAUDE.md's epic rule says the same thing from the other end: *the version is held for the whole epic and
+bumped ONCE at the merge.* **FIGHT-END-PLAN.md's step 23 says to bump it here — that instruction predates
+the epic rule and is wrong.** Do it in the epic → `main` PR, together:
+README `**Status:** v1.32.0` · a `### v1.32.0` heading in `CHANGELOG.md` · this header's **`Current
+version:`** and **"`main` is at"** lines · CLAUDE.md's own `Current version:` line. It is a **minor** bump
+because the rules moved.
 
-**MEASURED AND DECLINED — do not rebuild these:**
-- **Holding the guard for the window.** Fired 33 times per 300 duels and was worth +0.13/+0.41. Leyline is
-  `reclaim, half`: holding it delays ramping half the deck, and the timing gain and tempo loss cancel.
-- **Three candidate persona traits** (`exp/ai-upkeep-cast`, parked, pushed, unmerged). Aj's idea — a
-  strength-neutral behaviour is exactly what personas should carry — is sound, and `strengthsim` can now
-  certify neutrality BEFORE shipping. All three fail on **frequency**, not strength: Upkeep cast 0.04/game,
-  chain reorder only 6.2% of turns (and the loop casts both anyway), class favour moves the suit mix 0.1pp.
-  **The consolidated finding:** `grudge`/`focus` work because of a structural accident — in a free-for-all
-  WHO you hit does not change how well you play. The AI's other decisions are rarely that free.
-  **Presentation — emotes, taunts, win lines — is where that idea would pay**, with no strength risk at all.
+**THE ONE SURVIVING `'fightend'` IS THE `localStorage` MIGRATION** (template, plus its assertion in
+`prompttest`). The prompt-timing id is persisted, so the migration must know the OLD name by definition —
+deleting that literal to "finish the rename" would orphan every preference a player has ticked, silently,
+because an unknown key falls back to the default. `prompttest` is 18 → **22** for it, and the migration
+assertions were A/B'd by deleting the migration and rebuilding.
 
-**⚠ TWO THINGS NOW WAIT ON AJ AND TWO DEVICES**, not one: step 18's netplay gate, **and** step 22's
-refusal against a genuinely old peer (both sides in the suite run the same build with `?ver=` faking it).
+**TWO THINGS THE RENAME NEARLY GOT WRONG, both worth knowing before the next one:**
+- **`sweep.js` carries an explicit ALLOWLIST, not a glob.** Renaming the two suite files without updating it
+  drops them from the sweep **silently** — and the sweep still prints a green N/N. Verified by re-deriving
+  the runner's list: 92, not 90.
+- **A blanket identifier sweep damaged the one paragraph that was ABOUT the old names** (CLAUDE.md's rename
+  note), leaving it reading *"`resolution` in a `.js` file is the old name"*. Prose that discusses a rename
+  needs rewriting, never renaming — and dated quotes plus the append-only changelog keep "fight end" on
+  purpose.
 
-**⚠ `lessontest_quicks` IS FLAKING ABOUT EVERY OTHER SWEEP** — red in sweeps 1 and 4 today, green in 2 and
-3, and **3/3 green when run alone**. It is parallel contention, not the product, but at this rate it makes
-every other sweep result harder to read, which this file calls worse than a red suite. It deserves its own
-fix before the epic merges.
+**⚠ STILL WAITING ON AJ AND TWO DEVICES** — step 18's netplay gate, **and** step 22's version refusal against
+a genuinely old peer (both sides in the suite run the same build with `?ver=` faking the number).
+
+**⚠ `lessontest_quicks` FLAKES ABOUT EVERY OTHER SWEEP** — parallel contention, green 3/3 alone. It deserves
+its own fix; at this rate it makes every other sweep result harder to read.
 
 **ALSO FOUND, NOT FIXED: `kind: 'shieldImmune'` is an ORPHANED effect kind** — no card has it, so the
-"Sphere" branch in `playPhase` is dead code. `grep -c "kind: 'shieldImmune'" engine.js` returns 0. The
-fourth instance of the pattern this file catalogues.
+"Sphere" branch in `playPhase` is dead code. `grep -c "kind: 'shieldImmune'" engine.js` returns 0.
 
 **⚠ WHAT IS NOT DONE, and none of it is visible in a green sweep:**
 - **No test for the auto-pass brake, and none for drag-to-activate in Main.** The brake has been wrong

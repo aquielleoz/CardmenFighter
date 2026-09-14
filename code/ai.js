@@ -801,16 +801,16 @@
     if (!eff) {
       /* TWO OBJECTLESS WINDOWS NOW, AND THEY ARE DIFFERENT DECISIONS (epic step 20). Until this step the
          only window with no object was Fight End; the Main → Play transition is the second. `st.toPlay`
-         and `st.fightEnd` say which, and answering one with the other's policy would be silent: both look
+         and `st.resolution` say which, and answering one with the other's policy would be silent: both look
          like "no pending effect" from here. */
       if (st.toPlay) {
         var bs = transitionQuick(st, q);
         if (bs) { var br = E.respond(st, q, bs.id); if (br && br.ok) return br; }
         return E.declineResponse(st, q);
       }
-      var guardC = fightEndGuardCard(st, q);
+      var guardC = resolutionGuardCard(st, q);
       if (guardC) { var gr = E.respond(st, q, guardC.id); if (gr && gr.ok) return gr; }
-      var pushC = fightEndPushCard(st, q);                                // the WINNER's line — defence first, it is the urgent one
+      var pushC = resolutionPushCard(st, q);                                // the WINNER's line — defence first, it is the urgent one
       if (pushC) { var pr2 = E.respond(st, q, pushC.id); if (pr2 && pr2.ok) return pr2; }
       return E.declineResponse(st, q);
     }
@@ -871,7 +871,7 @@
      Aj ruled must defend rather than always take the hit. A second copy of `shields <= 2` in the template
      would drift the day this policy changes; the same reasoning as `isChopOf` and `immunityEffFor`.
      It answers only "does this seat WANT to guard" — whether a usable card exists is a separate question,
-     answered by `fightEndGuardCard` above (it was `shieldGuardCard`'s until step 19 deleted that). */
+     answered by `resolutionGuardCard` above (it was `shieldGuardCard`'s until step 19 deleted that). */
   /* WHICH CARD SHOULD SEAT q SPRING AT FIGHT END — ONE DEFINITION, TWO ASKERS (epic step 18).
      `respondDecision` asks it for an AI seat; **PASSO** asks it in the template for a dropped player's
      seat. Passo has to get the same answer: Aj's step-13 ruling is that disconnecting must not stop a seat
@@ -886,15 +886,15 @@
      there. The go-round offers priority to EVERYONE, so without this an AI at two shields springs Leyline
      on a round it was never going to lose one to. Restoring that condition is what keeps step 18's claim —
      that it changes no AI behaviour — literally true. A real Fight End policy is step 21, which measures. */
-  function fightEndGuardCard(st, q) {
-    if (!st.fightEnd || st.pending) return null;                          // not the Fight End go-round
-    if ((st.fightEnd.strikeTargets || []).indexOf(q) < 0) return null;    // not struck this round — nothing to guard
+  function resolutionGuardCard(st, q) {
+    if (!st.resolution || st.pending) return null;                          // not the Fight End go-round
+    if ((st.resolution.strikeTargets || []).indexOf(q) < 0) return null;    // not struck this round — nothing to guard
     if (!shieldGuardWants(st, q)) return null;
     var qp = st.players[q];
     /* `E.lossAnswerFor`, NOT `E.immunityEffFor` — the predicate used to be "is this immunity", and
        Sanctuary under HECTOR carries no immunity flag at all (`{quick:true}` on a `kind:'shield'` base),
        so an AI seat at 0 shields holding the card that saves it was refused and kicked. A human plays
-       that exact line in `fightenduitest`. The engine owns the rule because it is the same two-branch
+       that exact line in `resolutiontest_ui`. The engine owns the rule because it is the same two-branch
        board read `resolveShieldLossObj` makes; one definition, and PASSO inherits the fix for free.
        AND THE CHEAPEST, NOT `[0]`: the widened predicate makes two candidates an ordinary occurrence,
        and `hand.filter(...)[0]` is the "first candidate is gambling on the deal" shape CLAUDE.md
@@ -935,15 +935,15 @@
      SO THE ONLY BOARD WHERE IT DOES ANYTHING AT ALL is a struck target holding 2 or more shields. On 1 or
      0 it is strictly wasted, and the gate below says so rather than trusting a caller to know. What it
      buys is a rival left on 0, where the NEXT special win kicks them. */
-  function fightEndPushCard(st, q) {
+  function resolutionPushCard(st, q) {
     if (!policyOn(q, 'push')) return null;
-    if (!st.fightEnd || st.pending) return null;                          // not the Resolution go-round
-    if (st.fightEnd.winner !== q) return null;                            // only the seat about to strike
+    if (!st.resolution || st.pending) return null;                          // not the Resolution go-round
+    if (st.resolution.winner !== q) return null;                            // only the seat about to strike
     if (!effectsAllowed(st, q)) return null;                              // analysis: pure-fighter never casts
     if (!kindOK('onWin', q)) return null;                                 // analysis: blocked reactive kind
     var qp = st.players[q];
     if (qp.finishingBlow) return null;                                    // already armed — a second one adds nothing
-    var targets = st.fightEnd.strikeTargets || [], worth = false;
+    var targets = st.resolution.strikeTargets || [], worth = false;
     for (var t = 0; t < targets.length; t++) if (st.players[targets[t]].shields >= 2) { worth = true; break; }
     if (!worth) return null;                                              // "never overkills" — below 2 it changes nothing
     var best = null, bestCost = Infinity;
@@ -1017,7 +1017,7 @@
       if (st.respondFor != null && isHuman(humans, st.respondFor)) return log;
       /* DRAINING A WINDOW CAN END THE ROUND, AND AFTER STEP 18 IT ROUTINELY DOES. Before the switch, a
          round-winning play resolved inside `play()` and the turn had already moved by the time anyone
-         called `takeTurn`. Now `enterFightEnd` OPENS the go-round instead, so the outcomes — and the new
+         called `takeTurn`. Now `enterResolution` OPENS the go-round instead, so the outcomes — and the new
          round, and the new turn — land when the last seat passes, which happens right here. Carrying on
          to fight as `p` then throws "Not your turn", because it is now the round winner's.
          `st.finished` is checked too: the drain can end the GAME (simultaneous kicks), and every caller
@@ -1096,7 +1096,7 @@
      silently removed `preFightMove`, `lockoutWorth` and six others, and `test.js` died on the first of
      them. Notes go ABOVE the literal; entries go in it. */
   var API = { THREAT_KIND: THREAT_KIND, BENIGN_KIND: BENIGN_KIND,   // exported so test.js can require every effect kind to be CLASSIFIED
-    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, fightEndGuardCard: fightEndGuardCard, fightEndPushCard: fightEndPushCard, setArmPolicy: setArmPolicy, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
+    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, resolutionGuardCard: resolutionGuardCard, resolutionPushCard: resolutionPushCard, setArmPolicy: setArmPolicy, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
     lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;

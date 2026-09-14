@@ -1,6 +1,6 @@
 /* THE TWO BUGS THE EPIC EXISTS FOR, PLAYED THROUGH THE REAL PAGE — epic/priority-windows, step 18.
  *
- * `fightendtest.js` asserts the MODEL headlessly. This asserts the two things a player actually reported,
+ * `resolutiontest.js` asserts the MODEL headlessly. This asserts the two things a player actually reported,
  * end to end in the built HTML, because neither had ever been played through a UI by anything:
  *
  *   A · SANCTUARY UNDER HECTOR SURVIVES THE FIGHTER KICK. The ♥K patch is `{quick:true}` **alone** — a
@@ -28,7 +28,7 @@
  * scenario is run twice off identical staging, once DECLINING and once CASTING, and the assertion is the
  * DIFFERENCE. A build where the window opens and the cast does nothing passes every one-sided version.
  *
- * Run: node fightenduitest.js
+ * Run: node resolutiontest_ui.js
  */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
 const { selectAndFight, clickFight, clickPass } = require('./fightclick');
@@ -82,7 +82,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
       you.forms = [C(13, 'H', 'hector')];                    // ♥K Hector → patches Sanctuary to {quick:true} ALONE
       riv.hand = []; riv.energy = [];                        // the Rival can add nothing, so priority reaches you
       st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = 1; st.preFightHandled = true;
-      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.fightEnd = null; st.fightEndResult = null;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
       const cards = [C(9, 'C', 'x'), C(9, 'S', 'y')];
       st.pile = { p: 1, byPlayer: 1, combo: { type: 'pair', size: 2, value: 9, key: [9], cards: cards } };
       /* SET THE PREFERENCE EXPLICITLY RATHER THAN LEANING ON THE DEFAULT, so this suite tests the
@@ -91,7 +91,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
          both of the cards the epic exists to fix. That is what scenario C below caught. The default is
          now "every legal timing prompts" (Aj, 2026-09-10), so `true` here is a no-op; it stays because a
          suite that silently depends on a default cannot tell you when the default moves. */
-      window.__solo.setPromptPref('H10', 'fightend', !!prompt);
+      window.__solo.setPromptPref('H10', 'resolution', !!prompt);
       window.__solo.render();
       const sanc = you.hand[0];
       return { quick: !!(E.effectFor(st, 0, sanc) || {}).quick,
@@ -178,8 +178,8 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
       riv.hand = [C(3, 'H', 'r1')];                          // a lone 3 cannot answer a pair → the AI must pass
       riv.energy = []; riv.forms = [];
       st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = null; st.pile = null; st.preFightHandled = true;
-      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.fightEnd = null; st.fightEndResult = null;
-      window.__solo.setPromptPref('C7', 'fightend', true);   // see the note in stageKick — the default is the old whitelist
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
+      window.__solo.setPromptPref('C7', 'resolution', true);   // see the note in stageKick — the default is the old whitelist
       window.__solo.render();
       const ap = you.hand[2];
       return { quick: !!(E.effectFor(st, 0, ap) || {}).quick, afford: E.canAfford(you, ap), rivShields: riv.shields,
@@ -288,10 +288,10 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
       you.forms = [C(13, 'H', 'hector')];
       riv.hand = []; riv.energy = [];
       st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = 1; st.preFightHandled = true;
-      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.fightEnd = null; st.fightEndResult = null;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
       st.pile = { p: 1, byPlayer: 1, combo: { type: 'pair', size: 2, value: 9, key: [9], cards: [C(9, 'C', 'x'), C(9, 'S', 'y')] } };
-      window.__solo.setPromptPref('H10', 'fightend', false);   // SILENCED — must not stop me, must still be playable
-      window.__solo.setPromptPref('D9', 'fightend', true);     // this one is what opens the window
+      window.__solo.setPromptPref('H10', 'resolution', false);   // SILENCED — must not stop me, must still be playable
+      window.__solo.setPromptPref('D9', 'resolution', true);     // this one is what opens the window
       window.__solo.render();
       return { eligible: E.eligibleQuicks ? null : null,
                sancQuick: !!(E.effectFor(st, 0, you.hand[0]) || {}).quick,

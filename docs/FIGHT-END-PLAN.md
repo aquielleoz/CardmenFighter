@@ -16,7 +16,7 @@
 > `shieldResponsePending` sites, which are dead code and belong to 19) and for the `sharetest` defect the
 > work uncovered in the SHIPPED build, which is filed separately and is not this change.
 > **Step 11 is built** — P1, P2, P3 and the go-round itself, with §3's worked example asserted as a
-> sequence. It is INERT: nothing calls `openFightEndWindow` until step 18. Its one deferred piece (the
+> sequence. It is INERT: nothing calls `openResolutionWindow` until step 18. Its one deferred piece (the
 > `finishRoundWin` restructure) is deferred with a measurement — see the step.
 > **The cliff is behind us**, and the shape of the remaining work changed with it: 17 is a test against a
 > mechanism that already exists, and 18 is the switch — now with 12's superset PROOF standing behind it.
@@ -34,8 +34,8 @@
 >   Step 11's three (**P1/P2/P3**) are now discharged and recorded at the step; **P4-P8 still stand**, and
 >   18, 19 and 20 each carry a ⚠ pointing at theirs.
 > - **The step-11 machinery is what 18 and 20 build on** — `nextPrioHolder(st, origin)` is deliberately
->   origin-parameterised so step 20 passes its own, and `openFightEndWindow` is the only thing that parks
->   `st.fightEnd`. Read both before touching either.
+>   origin-parameterised so step 20 passes its own, and `openResolutionWindow` is the only thing that parks
+>   `st.resolution`. Read both before touching either.
 
 > ## ⏳ THIS IS A WORKING PLAN. IT IS MEANT TO DIE.
 >
@@ -81,10 +81,10 @@ the one the model asks, and the predicate that asks the right one already exists
 **Target state.** One priority window per round, run by `openResponseWindow` — the same loop that already
 handles every cast Technique, with real per-object `passed` sets, a global reset on any addition, and
 auto-pass for anyone `canAddToStack` refuses. It is expressed as a **sentinel stack object**
-(`{oid, kind:'fightend', origin, winner, targets, source, passed:{}}`), because the all-passed bookkeeping
+(`{oid, kind:'resolution', origin, winner, targets, source, passed:{}}`), because the all-passed bookkeeping
 lives *on* an object by construction: `declineResponse` writes `top.passed[q]`, `respond` does
 `st.stack.forEach(function (o) { o.passed = {}; })`, and an objectless window has nowhere to record a pass. A
-second, parallel loop would rebuild the thing being deleted. The sentinel is pushed by a new `enterFightEnd`
+second, parallel loop would rebuild the thing being deleted. The sentinel is pushed by a new `enterResolution`
 **above** `applyRoundLoss`'s whole body, so the window opens before the mill, before the jab short-circuit and
 before `wpl.finishingBlow` is read into `strips` — which is what makes the window open every round (jab, apex
 no-strip and chop rounds today reach Fight End with no window of any kind) and what makes a reactive Armor
@@ -101,7 +101,7 @@ entered. On the wire nothing is invented — the window travels as the existing 
 > (settle the remote-only silent deadlock first, on the existing window, before anything is deleted; ship the
 > UI copy before the switch rather than after). Their graft lists converge, so this plan is the strangler
 > **spine** with risk-first's **ordering** for the first three commits and its UI/phone gates folded in. Where
-> they genuinely disagreed — the sentinel's `kind` — this plan took the fidelity judge's `'fightend'`.
+> they genuinely disagreed — the sentinel's `kind` — this plan took the fidelity judge's `'resolution'`.
 > **⚠ SUPERSEDED: there is no sentinel any more.** Aj's ruling that passes belong to the go-round rather than
 > to an object removed the need for one entirely (sequence v2, step 5), so the judges' disagreement is moot.
 > Kept because the reasoning still records why a `kind:'effect'` sentinel would have been a round-killing bug
@@ -151,14 +151,14 @@ Symbols only. A repo gate (`versiontest`) fails any live doc citing `file:NNNN`.
 | file | symbol | what it does today | note |
 | --- | --- | --- | --- |
 | engine.js | `driveShieldStack` (the drain) | pops each shieldloss object and calls `resolveShieldLossObj`, then `finishRoundWin` | **It halves, it does not disappear** — both callers still need it. Once the window runs once, before the loop, it can never return a pending result, which simplifies every caller and kills `openResponseWindow`'s `shieldResponsePending` branch. |
-| engine.js | `openResponseWindow` (the `while` guard) | `st.stack[st.stack.length-1].kind === 'effect'` | Must admit `'fightend'`. An empty stack falls straight through — which is why the window needs an object at all. |
+| engine.js | `openResponseWindow` (the `while` guard) | `st.stack[st.stack.length-1].kind === 'effect'` | Must admit `'resolution'`. An empty stack falls straight through — which is why the window needs an object at all. |
 | engine.js | `openResponseWindow` (the priority walk) | `for (var k = 1; k < st.numPlayers; k++) { var cand = (top.p + k) % st.numPlayers; … }` | Controller-relative, and `k=1` skips the controller. Take an `origin` **from the object** so existing objects keep byte-identical behaviour: `var from = (typeof top.origin === 'number') ? top.origin : top.p, k0 = (typeof top.origin === 'number') ? 0 : 1;`. **Scope it to the sentinel.** Fixing the general divergence is a separate BACKLOG entry and a strength change. |
 | engine.js | `openResponseWindow` (the shieldloss tail / discarded `sres`) | hands a top-of-stack shieldloss to `driveShieldStack`, then **discards** the non-pending result and returns `last` | So a mid-turn `destroyShield`'s `struck`/`prevented`/`spared` never reaches the caller — the repo's own "read `result.struck`" rule failing on the Technique path. Becomes trivial to fix once `shieldResponsePending` is gone; fix it in the same pass. |
 | engine.js | `resolveTopEffect` | `var top = st.stack.pop(), pl = st.players[top.p];` then dereferences `top.eff`, `top.card` | Needs an early branch for the sentinel that reads none of those and whose resolution is `applyRoundLossBody`. Its `counter` branch scans for the nearest `kind === 'effect'` beneath, so a sentinel is skipped for free — **assert that**, do not inherit it. |
 | engine.js | `respond` | pushes the Quick as a stack object and resets every object's `passed` set | Becomes the single cast path for the Fight End window. Its gate and its `qeff.quick` check are already exactly right; it only has to tolerate the sentinel being `st.pending`. |
 | engine.js | `declineResponse` | records `top.passed[q]` and re-enters the loop | Replaces `shieldGuardPass`. Same tolerance requirement. |
 | engine.js | `pass` | the only entry into round resolution; `st.passes >= aliveCount-1` → `resolveRoundWin` | The moment the doc calls "nobody's turn". Note `st.turn` is **not** advanced first, so it still points at the LAST PASSER — the one clearly wrong choice for the priority origin. |
-| engine.js | `chooseLossTarget` | resumes after the deferred target pick and calls `applyRoundLoss` | The second of two entries into `applyRoundLoss`, which is why `enterFightEnd` is the seam: one edit covers both. |
+| engine.js | `chooseLossTarget` | resumes after the deferred target pick and calls `applyRoundLoss` | The second of two entries into `applyRoundLoss`, which is why `enterResolution` is the seam: one edit covers both. |
 | engine.js | `applyRoundLoss` (mill + jab short-circuit) | runs `LOSER_MILL`, then `if (!wonWithCombo \|\| !strikeTargets.length) return finishRoundWin(st, result);` | Two conflicts with the model in four lines: the window must open on jab / apex-no-strip / chop rounds, and it must open before the mill. Hoisted above the whole body. |
 | engine.js | `applyRoundLoss` (strips / `finishingBlow`) | `var strips = 1; if (wpl.finishingBlow) { strips = 2; wpl.finishingBlow = false; … }`, frozen into each object's `n` | **This, not `guardEffFor`, is the other half of symptom 2.** Delete the whitelist alone and Armor Piercing becomes castable, resolves, logs, and does nothing. |
 | engine.js | `resolveEffect` (`case 'onWin'`) | sets `pl.finishingBlow`, read only by `applyRoundLoss` | Leave the write alone; move the read below the window. |
@@ -254,7 +254,7 @@ Symbols only. A repo gate (`versiontest`) fails any live doc citing `file:NNNN`.
 ### Where the new window goes
 
 **Between 4/5 and 6 — at the top of `applyRoundLoss`, not at the top of `driveShieldStack`.** Concretely: a
-new `enterFightEnd(st, winner, wonWithCombo, strikeTargets, winSize)` becomes the target of both call sites,
+new `enterResolution(st, winner, wonWithCombo, strikeTargets, winSize)` becomes the target of both call sites,
 stashes those four arguments, pushes the sentinel and returns `openResponseWindow(st)`. When the sentinel
 resolves, `resolveTopEffect` calls `applyRoundLossBody(st, ctx)` — today's body, unchanged.
 
@@ -279,7 +279,7 @@ decision (a), *it opens every round*.
 - **The target is decided before the window, and that is already true.** `st.shieldResponse` is only ever assigned inside `driveShieldStack`, and every path there runs through `applyRoundLoss`, which is reached only after the target set is fixed. The rebuild changes the window's nature, not its position. Two caveats worth putting in front of Aj: on a jab round there is no target for the ordering to be true *of*, and the *strip count* half of "the strike aimed at them" is decided pre-window and frozen — which is symptom 2.
 - **`resolveShieldLossObj`, the prevention ladder and the kick branch** are already the right shape for "a shield loss just happens".
 - **`finishRoundWin`'s flag expiry** already runs after the drain, so a sprung Sanctuary or Leyline survives until after the strips.
-- **`resolveTopEffect`'s counter scan** looks for the nearest `kind === 'effect'`, so a `kind:'fightend'` sentinel cannot be Counter Spelled — which is what §4 requires. Assert it rather than inheriting it.
+- **`resolveTopEffect`'s counter scan** looks for the nearest `kind === 'effect'`, so a `kind:'resolution'` sentinel cannot be Counter Spelled — which is what §4 requires. Assert it rather than inheriting it.
 
 ---
 
@@ -328,7 +328,7 @@ policy is to pass, so a wider window changes what it *could* have done, not what
 
 **Three things do need new code.**
 
-1. **A new kind name is a silent permanent deadlock.** Call the window `'fightend'` or `'priority'` and
+1. **A new kind name is a silent permanent deadlock.** Call the window `'resolution'` or `'priority'` and
    `passoStep` matches nothing, hits the bare `return;`, and the table waits forever — the v1.31.91 wedge
    whose only exit is Concede, a recorded loss. **The park heartbeat cannot save it: a heartbeat re-asserts a
    mirror, it does not answer a window.** RULE: route through `kind:'respond'`, or add the kind to
@@ -588,7 +588,7 @@ nothing consumed it. **Step 11 must build the empty-stack go-round PARAMETERISED
 needs the same primitive with a different one; hard-code "the winner is active" and step 20 forks the loop.
 Note the eliminated/passed filter lives in the caller, not in `canAddToStack`, so a new walk must repeat it.
 
-**P3 · The Fight End continuation must be parked on STATE.** `enterFightEnd`'s arguments live in a JS frame
+**P3 · The Fight End continuation must be parked on STATE.** `enterResolution`'s arguments live in a JS frame
 the resume path (`respond`/`declineResponse` → `openResponseWindow`) cannot see. **Do not reuse
 `st.roundWinResult`**: `driveShieldStack` reads it as "this is a round win" and would finish the round inside
 its own window. Use a separate field, and **rotate its seat-valued members in `mirrorFor`** like
@@ -625,7 +625,7 @@ be someone else. Hard-blocked on P1.
 is inline; the general window's `respondDecision` has no branch for it.
 
 **WHAT THE CHECK FOUND SOUND**, which matters after seven corrections in nine steps: step 11's go-round
-design matches §3 and `enterFightEnd` is the right hoist point; step 18's mechanical claim — gate
+design matches §3 and `enterResolution` is the right hoist point; step 18's mechanical claim — gate
 `driveShieldStack`'s window branch and the whole old surface goes dark — is **verified true**; step 19's
 DELETE table is substantially right; and all three defects step 20 names are real.
 
@@ -658,7 +658,7 @@ that are a work **queue**; step 10 removes them, after which the collection hold
 discriminator can go with them. Anything else in the architecture may use a stack data structure freely — it
 just may not use *this* one, or borrow the name.
 
-**THE SENTINEL IS GONE, AND THAT IS THE BIGGEST STRUCTURAL CHANGE.** v1 proposed a fake `kind:'fightend'`
+**THE SENTINEL IS GONE, AND THAT IS THE BIGGEST STRUCTURAL CHANGE.** v1 proposed a fake `kind:'resolution'`
 stack object whose only job was to hold the pass bookkeeping, because `openResponseWindow` records passes
 **on** the top object (`top.passed[q]`) and an empty-stack window has no object to write on. Aj's settled
 model makes that unnecessary: **the passes belong to the GO-ROUND, not to an object.** A single
@@ -814,7 +814,7 @@ requiring each to be counterable by name; `nettest_counter`; `quicktest`; the Qu
 
 ### C — Fight End itself
 
-**9 · refactor: `enterFightEnd` as a LOOP, not a line. ⚠ PARTLY DONE 2026-09-09 — THE LOOP HAS A
+**9 · refactor: `enterResolution` as a LOOP, not a line. ⚠ PARTLY DONE 2026-09-09 — THE LOOP HAS A
 PREREQUISITE NOBODY KNEW ABOUT.** `finishRoundWin` opens with `st.stack = []`, commented *"shield-loss stack
 is spent by here"* — true of shieldloss objects, and it silently throws away any EFFECT object. Since
 `applyRoundLossBody` ends by calling it (directly, or through `driveShieldStack`), a drain placed after the
@@ -822,7 +822,7 @@ body finds an empty stack **every time**: not inert, **unreachable**. It was wri
 trigger, measured as never running, and **removed rather than shipped** — an unexercised branch is untested
 code, not a safeguard, and this repo has the scar tissue to prove it.
 **What landed is the SEAM**, which has value on its own: `resolveRoundWin` and `chooseLossTarget` called the
-body separately and now both enter through `enterFightEnd`, so the loop has somewhere to live and the two
+body separately and now both enter through `enterResolution`, so the loop has somewhere to live and the two
 paths cannot drift. **Making it reachable is step 11's job** — recorded there as a prerequisite. v1's straight-line seam is the step the trigger rule
 invalidates. One seam for both `resolveRoundWin` and `chooseLossTarget`; `applyRoundLoss`'s body becomes
 `applyRoundLossBody`. **The loop shape is the deliverable**: apply the outcomes, re-enter the dance if the
@@ -868,15 +868,15 @@ together and requiring **both** eliminated; `nettest_kick`; `nettest_elim3`; `ne
 >   over **480 games at 2/3/4/6p** — identical hashes. *(The first run of that A/B reported a DIFFERENCE and
 >   the instrument was at fault: the engine reaches for `Math.random` outside the passed rng, so the probe
 >   was nondeterministic on the same file. Pin `Math.random` too.)*
-> - **P3** — the continuation is parked on `st.fightEnd` and **rotated, not redacted,** in `mirrorFor`; §3
->   picks the target before the window so the table can see who is struck. `fightEnd.winSize` had to be
+> - **P3** — the continuation is parked on `st.resolution` and **rotated, not redacted,** in `mirrorFor`; §3
+>   picks the target before the window so the table can see who is struck. `resolution.winSize` had to be
 >   declared PUBLIC in `netview.test.js`, which is the leaf-walker doing its job.
-> - **The go-round** — `openFightEndWindow`. §3's worked example is asserted as a SEQUENCE
+> - **The go-round** — `openResolutionWindow`. §3's worked example is asserted as a SEQUENCE
 >   (`obj:0 obj:1 obj:2 empty:2 empty:0 empty:1`), because every step of it passes individually on walks that
 >   are wrong overall. Three mutants A/B'd; **the first one initially SURVIVED** because the rig staged
 >   `turn === winner`, so nothing could tell the parked origin from `st.turn` — the rig now separates them,
 >   which is the assertion that P2 is a parameter at all.
-> - **INERT:** nothing calls `openFightEndWindow`; step 18 is the switch. Proven, not asserted — the same
+> - **INERT:** nothing calls `openResolutionWindow`; step 18 is the switch. Proven, not asserted — the same
 >   480-game fingerprint is unchanged from the P1 baseline.
 >
 > **⏭ DEFERRED, and it belongs to whichever step introduces a TRIGGER — not to 18.** The restructure below
@@ -885,7 +885,7 @@ together and requiring **both** eliminated; `nettest_kick`; `nettest_elim3`; `ne
 > player casts; two `shieldloss`). So a drain placed there today is unreachable — which is exactly what step
 > 9 built, measured at zero runs, and deleted. Building it again would repeat that mistake with a longer
 > comment. The **seam** step 9 asked for is now real: the go-round runs BEFORE the outcomes, which is §3's
-> order, and `openFightEndWindow` is where a pre-outcome drain would hang.
+> order, and `openResolutionWindow` is where a pre-outcome drain would hang.
 
 **⚠ PREREQUISITE, found doing step 9: `finishRoundWin` DISCARDS THE STACK.** Its first statement is
 `st.stack = []`. Anything an outcome triggers is thrown away before it can resolve, so this step must
@@ -1103,9 +1103,9 @@ whose policy is a **verbatim port** of `shieldGuardAI`'s rule, keeping the `isHu
 `effectsAllowed`/`kindOK` gates. Rename the `immune || shieldImmune` test `immunityEffFor`. *Gate:* `npm
 test`; every sim runs to completion; `analysis.js` in band. *Revertable alone:* yes.
 
-**17 · test: `fightendtest.js`, against the go-round as built (there is no flag — see the preamble).**
+**17 · test: `resolutiontest.js`, against the go-round as built (there is no flag — see the preamble).**
 
-> **✅ BUILT 2026-09-10 — `code/fightendtest.js`, 16 assertions, 40 runs green.**
+> **✅ BUILT 2026-09-10 — `code/resolutiontest.js`, 16 assertions, 40 runs green.**
 > **FOUR OF THE SIX ARE ALREADY ASSERTED IN `test.js` AND ARE CROSS-REFERENCED, NOT COPIED** — the origin at
 > n≥3 (its worked example IS a 3-player table), holding priority, Counter Spell naming its target, and the
 > empty-stack boundary. A second copy is the drift this repo has been bitten by four times (`isChopOf`,
@@ -1133,7 +1133,7 @@ not once** — two flakes hid in one green run the last time this surface was to
 > ## ✅ BUILT 2026-09-10 — and the wedge was NOT where the attempt said it was.
 >
 > **THE ROOT CAUSE, in one sentence: a round win stopped being a RESULT and became a WINDOW, and six UI
-> sites still tested `r.roundWinner != null`.** `enterFightEnd` returns `{fightEnd:true}` with no
+> sites still tested `r.roundWinner != null`.** `enterResolution` returns `{resolution:true}` with no
 > `roundWinner`, so in a duel `hostAfterRivalMove` read a round-winning pass as an ordinary turn handover
 > and parked in `awaitRival`; the client's `{op:'respond'}` then reached `hostApplyMove`, found `netSettle`
 > null and **was dropped in silence.** That is the v1.31.91 bug class exactly — a duel park only the
@@ -1145,22 +1145,22 @@ not once** — two flakes hid in one green run the last time this surface was to
 > dead code, i.e. step 19's delete pass, not step 18's blocker. Reading the layer that would have to CONSUME
 > the new shape found the bug in one probe; enumerating the sites the old shape used to touch would not have.
 >
-> **THE FIX IS ONE SEAM, NOT A PARK PER SITE.** `drainFightEnd(r, g, then)` calls `settleWindows`, which
+> **THE FIX IS ONE SEAM, NOT A PARK PER SITE.** `drainResolution(r, g, then)` calls `settleWindows`, which
 > already dispatches per mode — solo drains AI seats and prompts you, `hostSettle` parks a duel on
 > `netSettle`, `hostSettleN` parks 3-6 players on `netReact` — and then reads the outcome off
-> `st.fightEndResult`. Wired at `finishPassRound`, `finishStep`, `runOpponents`, `hostAfterRivalMove`, both
+> `st.resolutionResult`. Wired at `finishPassRound`, `finishStep`, `runOpponents`, `hostAfterRivalMove`, both
 > netplay `driveN` sites and `hostSettleRoundThenCeremony`, which now DELEGATES to `hostSettleN` instead of
 > re-implementing its park. Routing through the shared settle is what inherits `reassertMirror`, the park
 > beat and `maybePasso` without seven copies.
 >
-> **THREE THINGS THE ATTEMPT PROVED, all of them kept:** `st.fightEndResult` is needed (the outcome returns
+> **THREE THINGS THE ATTEMPT PROVED, all of them kept:** `st.resolutionResult` is needed (the outcome returns
 > up a chain the host is not on) and is deliberately not `roundWinResult` (P3's collision); `takeTurn` must
 > return when the round ends under it; and moving the window earlier exposed two vacuous assertions.
 >
 > **ONE REAL REGRESSION, FOUND BY A SUITE AND NOT BY READING.** `nettest_passoduel`: Passo answered the
 > go-round with a bare `{op:'decline'}`, so a dropped player's seat stopped defending itself — measured
 > shields 1 → 0 while holding an affordable Leyline, which silently undid Aj's step-13 ruling.
-> `AI.fightEndGuardCard` is now the one definition, self-gated on the window, asked by both
+> `AI.resolutionGuardCard` is now the one definition, self-gated on the window, asked by both
 > `respondDecision` and Passo. **It also repairs something step 16's verbatim port got wrong**: it never
 > asked whether the seat is actually STRUCK, because the old window only ever opened for the threatened
 > seat. Without that clause an AI at two shields burns Leyline on a round it was never going to lose one to
@@ -1177,7 +1177,7 @@ not once** — two flakes hid in one green run the last time this surface was to
 > whitelist window at the same scale — roughly **14x more windows** — and 909 of them offered more than one
 > seat, which the single-seat model could not do at all.
 >
-> **GATE:** `test.js` 437 · `netview.test` 64 · `fightendtest` 16 · full sweep 90/91 at `-j 1` and at
+> **GATE:** `test.js` 437 · `netview.test` 64 · `resolutiontest` 16 · full sweep 90/91 at `-j 1` and at
 > `-j 4`. The one red is **`sharetest`, and it is NOT this change** — it reproduces identically on
 > `epic/priority-windows` AND on `main`, and it is a live shipped defect in the invite-code paste
 > tolerance: `dec`'s extractor class `[A-Za-z0-9+/=,|~._-]` omits **`:`**, so a code containing an IPv6
@@ -1189,7 +1189,7 @@ not once** — two flakes hid in one green run the last time this surface was to
 > closed by suites alone, and that has not changed.
 >
 > ### ➕ THE PROMPT DEFAULT, DECIDED THE SAME DAY (Aj) — and it is a step 15 revision, not a step 18 one
-> Building `fightenduitest` surfaced that `promptDefault(..., 'fightend')` still returned
+> Building `resolutiontest_ui` surfaced that `promptDefault(..., 'resolution')` still returned
 > `immunityEffFor(...)`, the whitelist this step deleted, so **both cards the epic exists to fix were
 > auto-declined by default**. Put to Aj as three options; he chose the widest and corrected the framing
 > while doing it: *"it's not really prompt everything. what happens is when priority is passed (not just
@@ -1218,7 +1218,7 @@ directly-affected assertions into this commit) and P6 (four `ai.js` gates still 
 FIRST).**
  **Non-negotiable:** the flip
 must also REMOVE `driveShieldStack`'s window in the same commit, or both windows open in one round and no
-red run can say which it was looking at. *Gate:* full sweep at `-j 4` **and** `-j 1`; `fightendtest` ×20; the
+red run can say which it was looking at. *Gate:* full sweep at `-j 4` **and** `-j 1`; `resolutiontest` ×20; the
 idle-park drop probe re-aimed at the live park; `nettest_sync` reporting neither HARNESS GAP nor TIME-CAPPED;
 **one real solo game and one two-device netplay game.** *Revertable alone:* **yes, by reverting the commit** — not by a boolean, because there is not one.
 
@@ -1284,7 +1284,7 @@ priority mechanisms**, not one with gaps:
 | --- | --- | --- | --- |
 | response window | `respondFor` / `prioPassed` | `respond` / `declineResponse` | ✅ |
 | **pre-fight** | `preFightQ` / `preFightHandled` | `preFightCast` / `preFightPass` | ❌ **a second model** — one seat, one shot, no go-round |
-| Fight End | `fightEnd` | — | ✅ since step 18 |
+| Fight End | `resolution` | — | ✅ since step 18 |
 
 and **there is no phase structure at all**: `grep -ci phase engine.js` returns 16, every one of them a
 comment. So the pre-fight window is not a narrow version of the dance — it is a **reimplementation of
@@ -1579,7 +1579,7 @@ the round reset**, not a policy. Harmless, and worth knowing before someone "fix
 - **The sentinel's `kind`.** Strangler used `kind:'effect'`; the correctness judge showed that
   `resolveTopEffect`'s counter branch then marks it, and its countered path does `pl.shuffle.push(top.card)`
   with a null card and a `top.p` that is not a seat — a round-killing bug. The fidelity judge's
-  `kind:'fightend'` avoids it by construction. **This plan takes `'fightend'` and asserts the immunity
+  `kind:'resolution'` avoids it by construction. **This plan takes `'resolution'` and asserts the immunity
   anyway** (new assertion 7), because protection by construction that nobody wrote down is the shape the next
   tidy-up removes.
 - **`reorderEnergy`.** The fidelity judge lists "the window now blocks energy reordering every round" as
@@ -1590,7 +1590,7 @@ the round reset**, not a policy. Harmless, and worth knowing before someone "fix
   reading — the existing `st.pending` guard exists for that reason and extending it to this window is correct,
   not a regression.
 - **`THREAT_KIND` completeness.** Two of the three plans claimed `test.js`'s kind-completeness sweep would
-  name an unfiled `fightend` kind. **Verified: it will not** — the sweep enumerates kinds by calling
+  name an unfiled `resolution` kind. **Verified: it will not** — the sweep enumerates kinds by calling
   `effectOf` over the 52-card set, and a synthetic kind on a sentinel is never produced by a card. If the
   window carries a kind the AI branches on, that assertion must be extended **by hand** or the branch ships
   unclassified and unnoticed.

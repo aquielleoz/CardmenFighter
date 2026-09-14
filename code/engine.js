@@ -585,7 +585,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], roundWinResult: null, fightEnd: null, fightEndResult: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], roundWinResult: null, resolution: null, resolutionResult: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -629,7 +629,7 @@
     if (st.pendingLossChoice && st.pendingLossChoice.winner === seat) st.pendingLossChoice = null;
     if (aliveCount(st) <= 1) { st.finished = true; st.winner = lastAlive(st); return { ok: true, finished: true, winner: st.winner }; }
     var lead = nextPlayer(st, seat);
-    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.subPhase = 'main'; st.toPlay = null; st.upkeep = null; st.upkeepResult = null; st.cleanup = null; st.cleanupResult = null; st.roundWinResult = null; st.fightEnd = null; st.fightEndResult = null; st._effUsed = false;
+    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.subPhase = 'main'; st.toPlay = null; st.upkeep = null; st.upkeepResult = null; st.cleanup = null; st.cleanupResult = null; st.roundWinResult = null; st.resolution = null; st.resolutionResult = null; st._effUsed = false;
     return { ok: true, eliminated: seat, turn: lead };
   }
   function isLocked(st, p) { return !!(st.players[p].lockSkip || st.players[p].lockRound); }   // Back Stab: skip next turn (lockSkip, cleared on pass) or, if boosted, the whole round (lockRound, cleared at round end)
@@ -1442,7 +1442,7 @@
        object, the dance above runs it from ITS controller, and when the stack empties again the go-round
        restarts at the active player — §3's worked example, steps 5-7. `resolveTopEffect` already cleared
        `prioPassed`, so that restart is a fresh round of passes and not a continuation of the old one.
-       INERT UNTIL SOMETHING PARKS `st.fightEnd` — which nothing does yet; step 18 is the switch. */
+       INERT UNTIL SOMETHING PARKS `st.resolution` — which nothing does yet; step 18 is the switch. */
     /* ---- THE MAIN → PLAY TRANSITION (epic step 20) ----
        `PHASES-AND-PRIORITY.md` §3: priority is passed around before the active player may make their
        shedding play. It used to be a SECOND priority model — `preFightQ`/`preFightHandled` with its own
@@ -1460,13 +1460,13 @@
       st.toPlay = null; st.subPhase = 'play';             // everyone passed — the Play Sub-Phase begins
       return { ok: true, state: st, subPhase: 'play' };
     }
-    if (st.fightEnd && !st.stack.length && !st.finished) {
-      var fq = phaseWalk(st, st.fightEnd.origin);
-      if (fq >= 0) return { ok: true, state: st, pending: true, fightEnd: true, respondFor: fq };
+    if (st.resolution && !st.stack.length && !st.finished) {
+      var fq = phaseWalk(st, st.resolution.origin);
+      if (fq >= 0) return { ok: true, state: st, pending: true, resolution: true, respondFor: fq };
       /* Everyone passed on an empty stack, so the sub-phase begins. Unpark FIRST: `applyRoundLossBody` can
          re-enter this function (it pushes shieldloss objects and drives them), and a still-parked
          continuation would open a second go-round for a window that has already closed. */
-      var fe = st.fightEnd; st.fightEnd = null;
+      var fe = st.resolution; st.resolution = null;
       /* PARK THE FINAL RESULT, for the same reason P3 parks the continuation (epic step 18). The outcomes
          run HERE — one `declineResponse` deep inside a go-round — and their result is returned up a call
          chain that ends at whoever answered last. The netplay host is not on that chain: it resumes from a
@@ -1477,7 +1477,7 @@
          finish the round inside its own window — the collision P3 flagged. Host-only, so `netview` nulls
          it like the other ceremony state. */
       var feRes = applyRoundLossBody(st, fe.winner, fe.wonWithCombo, fe.strikeTargets, fe.winSize);
-      st.fightEndResult = feRes;
+      st.resolutionResult = feRes;
       return feRes;
     }
     /* CLEAN-UP, checked before Upkeep because it comes first in the round and the two are sequential —
@@ -1546,8 +1546,8 @@
      §3: *"so that people will know if they want to activate shield protection or no."*
      `origin` is carried separately from `winner` even though they are equal here, because step 20 reuses
      this machinery for the pre-fight window with a different origin, and `winner` is an OUTCOME argument. */
-  function openFightEndWindow(st, winner, wonWithCombo, strikeTargets, winSize) {
-    st.fightEnd = { origin: winner, winner: winner, wonWithCombo: wonWithCombo, strikeTargets: strikeTargets, winSize: winSize };
+  function openResolutionWindow(st, winner, wonWithCombo, strikeTargets, winSize) {
+    st.resolution = { origin: winner, winner: winner, wonWithCombo: wonWithCombo, strikeTargets: strikeTargets, winSize: winSize };
     st.prioPassed = {};
     return openResponseWindow(st);
   }
@@ -2115,7 +2115,7 @@
      ASKING IT LOCKED THE AI OUT OF THE ONE LINE THIS EPIC EXISTS FOR.
      `immunityEffFor` admits `immune || shieldImmune` and nothing else. **Sanctuary under HECTOR is
      `{quick:true}` ALONE on a `kind:'shield'` base** — no immunity flag of any kind — so it was refused,
-     and an AI seat at 0 shields holding the exact card that saves it declined and died. `fightenduitest`
+     and an AI seat at 0 shields holding the exact card that saves it declined and died. `resolutiontest_ui`
      proves a HUMAN plays that line and survives the Fighter Kick; the AI could not, in any mode, ever.
      THE ANSWER DEPENDS ON THE SHIELD COUNT, because `resolveShieldLossObj` has two branches and they
      honour different flags — read it, not this comment, if they ever disagree:
@@ -2237,14 +2237,14 @@
       }
       else strikeTargets = losers.slice();
     }
-    return enterFightEnd(st, winner, wonWithCombo, strikeTargets, st.pile.combo.size);
+    return enterResolution(st, winner, wonWithCombo, strikeTargets, st.pile.combo.size);
   }
   // Complete a deferred 'chosen' loss pick (from resolveRoundWin's needsLossTarget). `target` is the struck seat.
   function chooseLossTarget(st, target) {
     var pc = st.pendingLossChoice; if (!pc) return { ok: false, reason: 'No loss choice pending.' };
     if (pc.cands.indexOf(target) < 0) target = pc.cands[0];                    // guard: must be one of the candidates
     st.pendingLossChoice = null;
-    return enterFightEnd(st, pc.winner, true, [target], pc.winSize);
+    return enterResolution(st, pc.winner, true, [target], pc.winSize);
   }
   /* FIGHT END IS A LOOP, NOT A LINE (epic step 9) — the single seam both the immediate and the deferred
      (chosen-target) paths enter through, so behaviour cannot drift between them.
@@ -2276,9 +2276,9 @@
      about one whitelisted card, and becomes a priority pass — every seat, in turn order from the winner,
      any affordable Quick. `PHASES-AND-PRIORITY.md` §3. Step 12 proved nobody loses an answer:
      EXHAUSTIVELY, every card the old whitelist admitted is a Quick, so `canAddToStack` cannot refuse one.
-     WHAT STOPS IT REGRESSING: `fightendtest`'s canary goes red the day a guard-only predicate returns. */
-  function enterFightEnd(st, winner, wonWithCombo, strikeTargets, winSize) {
-    return openFightEndWindow(st, winner, wonWithCombo, strikeTargets, winSize);
+     WHAT STOPS IT REGRESSING: `resolutiontest`'s canary goes red the day a guard-only predicate returns. */
+  function enterResolution(st, winner, wonWithCombo, strikeTargets, winSize) {
+    return openResolutionWindow(st, winner, wonWithCombo, strikeTargets, winSize);
   }
   // Apply the round result: mill the loser(s), strip the struck shield(s), then finish.
   function applyRoundLossBody(st, winner, wonWithCombo, strikeTargets, winSize) {
@@ -2687,7 +2687,7 @@
        THE DRAW WAITS FOR IT. Everything above is the round RESET; the Draw Sub-Phase comes after Upkeep,
        so a Quick cast here resolves against the hand you ended the round with and not the one you are
        about to be dealt. `upkeepResult` parks the result the Draw must fill in, for the same reason
-       `fightEndResult` exists: the outcome is produced deep inside whoever answers last, and the netplay
+       `resolutionResult` exists: the outcome is produced deep inside whoever answers last, and the netplay
        host is not on that call chain. */
     st.upkeep = { origin: st.turn };
     st.upkeepResult = result;
@@ -2769,7 +2769,7 @@
     HOSTILE_SINGLE: HOSTILE_SINGLE,
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
     canAddToStack: canAddToStack, canCastQuick: canCastQuick, castRefusal: castRefusal, quickTargets: quickTargets, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
-    openFightEndWindow: openFightEndWindow,   // step 11: built and tested here, made live by step 18
+    openResolutionWindow: openResolutionWindow,   // step 11: built and tested here, made live by step 18
     /* RENAMED FROM `guardEffFor` (epic step 16), and the rename is the point rather than tidying. As
        `guardEffFor` it was the WHITELIST GATE — the answer to "may this card be offered at the shield-guard
        window" — and step 19 deletes that gate along with `shieldGuard`, `shieldGuardPass` and

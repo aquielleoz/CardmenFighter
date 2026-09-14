@@ -2199,7 +2199,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], roundWinResult: null, fightEnd: null, fightEndResult: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], roundWinResult: null, resolution: null, resolutionResult: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -2243,7 +2243,7 @@
     if (st.pendingLossChoice && st.pendingLossChoice.winner === seat) st.pendingLossChoice = null;
     if (aliveCount(st) <= 1) { st.finished = true; st.winner = lastAlive(st); return { ok: true, finished: true, winner: st.winner }; }
     var lead = nextPlayer(st, seat);
-    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.subPhase = 'main'; st.toPlay = null; st.upkeep = null; st.upkeepResult = null; st.cleanup = null; st.cleanupResult = null; st.roundWinResult = null; st.fightEnd = null; st.fightEndResult = null; st._effUsed = false;
+    st.turn = lead; st.initiative = lead; st.pile = null; st.passes = 0; st.lastPlayer = null; st.subPhase = 'main'; st.toPlay = null; st.upkeep = null; st.upkeepResult = null; st.cleanup = null; st.cleanupResult = null; st.roundWinResult = null; st.resolution = null; st.resolutionResult = null; st._effUsed = false;
     return { ok: true, eliminated: seat, turn: lead };
   }
   function isLocked(st, p) { return !!(st.players[p].lockSkip || st.players[p].lockRound); }   // Back Stab: skip next turn (lockSkip, cleared on pass) or, if boosted, the whole round (lockRound, cleared at round end)
@@ -3056,7 +3056,7 @@
        object, the dance above runs it from ITS controller, and when the stack empties again the go-round
        restarts at the active player — §3's worked example, steps 5-7. `resolveTopEffect` already cleared
        `prioPassed`, so that restart is a fresh round of passes and not a continuation of the old one.
-       INERT UNTIL SOMETHING PARKS `st.fightEnd` — which nothing does yet; step 18 is the switch. */
+       INERT UNTIL SOMETHING PARKS `st.resolution` — which nothing does yet; step 18 is the switch. */
     /* ---- THE MAIN → PLAY TRANSITION (epic step 20) ----
        `PHASES-AND-PRIORITY.md` §3: priority is passed around before the active player may make their
        shedding play. It used to be a SECOND priority model — `preFightQ`/`preFightHandled` with its own
@@ -3074,13 +3074,13 @@
       st.toPlay = null; st.subPhase = 'play';             // everyone passed — the Play Sub-Phase begins
       return { ok: true, state: st, subPhase: 'play' };
     }
-    if (st.fightEnd && !st.stack.length && !st.finished) {
-      var fq = phaseWalk(st, st.fightEnd.origin);
-      if (fq >= 0) return { ok: true, state: st, pending: true, fightEnd: true, respondFor: fq };
+    if (st.resolution && !st.stack.length && !st.finished) {
+      var fq = phaseWalk(st, st.resolution.origin);
+      if (fq >= 0) return { ok: true, state: st, pending: true, resolution: true, respondFor: fq };
       /* Everyone passed on an empty stack, so the sub-phase begins. Unpark FIRST: `applyRoundLossBody` can
          re-enter this function (it pushes shieldloss objects and drives them), and a still-parked
          continuation would open a second go-round for a window that has already closed. */
-      var fe = st.fightEnd; st.fightEnd = null;
+      var fe = st.resolution; st.resolution = null;
       /* PARK THE FINAL RESULT, for the same reason P3 parks the continuation (epic step 18). The outcomes
          run HERE — one `declineResponse` deep inside a go-round — and their result is returned up a call
          chain that ends at whoever answered last. The netplay host is not on that chain: it resumes from a
@@ -3091,7 +3091,7 @@
          finish the round inside its own window — the collision P3 flagged. Host-only, so `netview` nulls
          it like the other ceremony state. */
       var feRes = applyRoundLossBody(st, fe.winner, fe.wonWithCombo, fe.strikeTargets, fe.winSize);
-      st.fightEndResult = feRes;
+      st.resolutionResult = feRes;
       return feRes;
     }
     /* CLEAN-UP, checked before Upkeep because it comes first in the round and the two are sequential —
@@ -3160,8 +3160,8 @@
      §3: *"so that people will know if they want to activate shield protection or no."*
      `origin` is carried separately from `winner` even though they are equal here, because step 20 reuses
      this machinery for the pre-fight window with a different origin, and `winner` is an OUTCOME argument. */
-  function openFightEndWindow(st, winner, wonWithCombo, strikeTargets, winSize) {
-    st.fightEnd = { origin: winner, winner: winner, wonWithCombo: wonWithCombo, strikeTargets: strikeTargets, winSize: winSize };
+  function openResolutionWindow(st, winner, wonWithCombo, strikeTargets, winSize) {
+    st.resolution = { origin: winner, winner: winner, wonWithCombo: wonWithCombo, strikeTargets: strikeTargets, winSize: winSize };
     st.prioPassed = {};
     return openResponseWindow(st);
   }
@@ -3729,7 +3729,7 @@
      ASKING IT LOCKED THE AI OUT OF THE ONE LINE THIS EPIC EXISTS FOR.
      `immunityEffFor` admits `immune || shieldImmune` and nothing else. **Sanctuary under HECTOR is
      `{quick:true}` ALONE on a `kind:'shield'` base** — no immunity flag of any kind — so it was refused,
-     and an AI seat at 0 shields holding the exact card that saves it declined and died. `fightenduitest`
+     and an AI seat at 0 shields holding the exact card that saves it declined and died. `resolutiontest_ui`
      proves a HUMAN plays that line and survives the Fighter Kick; the AI could not, in any mode, ever.
      THE ANSWER DEPENDS ON THE SHIELD COUNT, because `resolveShieldLossObj` has two branches and they
      honour different flags — read it, not this comment, if they ever disagree:
@@ -3851,14 +3851,14 @@
       }
       else strikeTargets = losers.slice();
     }
-    return enterFightEnd(st, winner, wonWithCombo, strikeTargets, st.pile.combo.size);
+    return enterResolution(st, winner, wonWithCombo, strikeTargets, st.pile.combo.size);
   }
   // Complete a deferred 'chosen' loss pick (from resolveRoundWin's needsLossTarget). `target` is the struck seat.
   function chooseLossTarget(st, target) {
     var pc = st.pendingLossChoice; if (!pc) return { ok: false, reason: 'No loss choice pending.' };
     if (pc.cands.indexOf(target) < 0) target = pc.cands[0];                    // guard: must be one of the candidates
     st.pendingLossChoice = null;
-    return enterFightEnd(st, pc.winner, true, [target], pc.winSize);
+    return enterResolution(st, pc.winner, true, [target], pc.winSize);
   }
   /* FIGHT END IS A LOOP, NOT A LINE (epic step 9) — the single seam both the immediate and the deferred
      (chosen-target) paths enter through, so behaviour cannot drift between them.
@@ -3890,9 +3890,9 @@
      about one whitelisted card, and becomes a priority pass — every seat, in turn order from the winner,
      any affordable Quick. `PHASES-AND-PRIORITY.md` §3. Step 12 proved nobody loses an answer:
      EXHAUSTIVELY, every card the old whitelist admitted is a Quick, so `canAddToStack` cannot refuse one.
-     WHAT STOPS IT REGRESSING: `fightendtest`'s canary goes red the day a guard-only predicate returns. */
-  function enterFightEnd(st, winner, wonWithCombo, strikeTargets, winSize) {
-    return openFightEndWindow(st, winner, wonWithCombo, strikeTargets, winSize);
+     WHAT STOPS IT REGRESSING: `resolutiontest`'s canary goes red the day a guard-only predicate returns. */
+  function enterResolution(st, winner, wonWithCombo, strikeTargets, winSize) {
+    return openResolutionWindow(st, winner, wonWithCombo, strikeTargets, winSize);
   }
   // Apply the round result: mill the loser(s), strip the struck shield(s), then finish.
   function applyRoundLossBody(st, winner, wonWithCombo, strikeTargets, winSize) {
@@ -4301,7 +4301,7 @@
        THE DRAW WAITS FOR IT. Everything above is the round RESET; the Draw Sub-Phase comes after Upkeep,
        so a Quick cast here resolves against the hand you ended the round with and not the one you are
        about to be dealt. `upkeepResult` parks the result the Draw must fill in, for the same reason
-       `fightEndResult` exists: the outcome is produced deep inside whoever answers last, and the netplay
+       `resolutionResult` exists: the outcome is produced deep inside whoever answers last, and the netplay
        host is not on that call chain. */
     st.upkeep = { origin: st.turn };
     st.upkeepResult = result;
@@ -4383,7 +4383,7 @@
     HOSTILE_SINGLE: HOSTILE_SINGLE,
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
     canAddToStack: canAddToStack, canCastQuick: canCastQuick, castRefusal: castRefusal, quickTargets: quickTargets, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
-    openFightEndWindow: openFightEndWindow,   // step 11: built and tested here, made live by step 18
+    openResolutionWindow: openResolutionWindow,   // step 11: built and tested here, made live by step 18
     /* RENAMED FROM `guardEffFor` (epic step 16), and the rename is the point rather than tidying. As
        `guardEffFor` it was the WHITELIST GATE — the answer to "may this card be offered at the shield-guard
        window" — and step 19 deletes that gate along with `shieldGuard`, `shieldGuardPass` and
@@ -5226,16 +5226,16 @@
     if (!eff) {
       /* TWO OBJECTLESS WINDOWS NOW, AND THEY ARE DIFFERENT DECISIONS (epic step 20). Until this step the
          only window with no object was Fight End; the Main → Play transition is the second. `st.toPlay`
-         and `st.fightEnd` say which, and answering one with the other's policy would be silent: both look
+         and `st.resolution` say which, and answering one with the other's policy would be silent: both look
          like "no pending effect" from here. */
       if (st.toPlay) {
         var bs = transitionQuick(st, q);
         if (bs) { var br = E.respond(st, q, bs.id); if (br && br.ok) return br; }
         return E.declineResponse(st, q);
       }
-      var guardC = fightEndGuardCard(st, q);
+      var guardC = resolutionGuardCard(st, q);
       if (guardC) { var gr = E.respond(st, q, guardC.id); if (gr && gr.ok) return gr; }
-      var pushC = fightEndPushCard(st, q);                                // the WINNER's line — defence first, it is the urgent one
+      var pushC = resolutionPushCard(st, q);                                // the WINNER's line — defence first, it is the urgent one
       if (pushC) { var pr2 = E.respond(st, q, pushC.id); if (pr2 && pr2.ok) return pr2; }
       return E.declineResponse(st, q);
     }
@@ -5296,7 +5296,7 @@
      Aj ruled must defend rather than always take the hit. A second copy of `shields <= 2` in the template
      would drift the day this policy changes; the same reasoning as `isChopOf` and `immunityEffFor`.
      It answers only "does this seat WANT to guard" — whether a usable card exists is a separate question,
-     answered by `fightEndGuardCard` above (it was `shieldGuardCard`'s until step 19 deleted that). */
+     answered by `resolutionGuardCard` above (it was `shieldGuardCard`'s until step 19 deleted that). */
   /* WHICH CARD SHOULD SEAT q SPRING AT FIGHT END — ONE DEFINITION, TWO ASKERS (epic step 18).
      `respondDecision` asks it for an AI seat; **PASSO** asks it in the template for a dropped player's
      seat. Passo has to get the same answer: Aj's step-13 ruling is that disconnecting must not stop a seat
@@ -5311,15 +5311,15 @@
      there. The go-round offers priority to EVERYONE, so without this an AI at two shields springs Leyline
      on a round it was never going to lose one to. Restoring that condition is what keeps step 18's claim —
      that it changes no AI behaviour — literally true. A real Fight End policy is step 21, which measures. */
-  function fightEndGuardCard(st, q) {
-    if (!st.fightEnd || st.pending) return null;                          // not the Fight End go-round
-    if ((st.fightEnd.strikeTargets || []).indexOf(q) < 0) return null;    // not struck this round — nothing to guard
+  function resolutionGuardCard(st, q) {
+    if (!st.resolution || st.pending) return null;                          // not the Fight End go-round
+    if ((st.resolution.strikeTargets || []).indexOf(q) < 0) return null;    // not struck this round — nothing to guard
     if (!shieldGuardWants(st, q)) return null;
     var qp = st.players[q];
     /* `E.lossAnswerFor`, NOT `E.immunityEffFor` — the predicate used to be "is this immunity", and
        Sanctuary under HECTOR carries no immunity flag at all (`{quick:true}` on a `kind:'shield'` base),
        so an AI seat at 0 shields holding the card that saves it was refused and kicked. A human plays
-       that exact line in `fightenduitest`. The engine owns the rule because it is the same two-branch
+       that exact line in `resolutiontest_ui`. The engine owns the rule because it is the same two-branch
        board read `resolveShieldLossObj` makes; one definition, and PASSO inherits the fix for free.
        AND THE CHEAPEST, NOT `[0]`: the widened predicate makes two candidates an ordinary occurrence,
        and `hand.filter(...)[0]` is the "first candidate is gambling on the deal" shape CLAUDE.md
@@ -5360,15 +5360,15 @@
      SO THE ONLY BOARD WHERE IT DOES ANYTHING AT ALL is a struck target holding 2 or more shields. On 1 or
      0 it is strictly wasted, and the gate below says so rather than trusting a caller to know. What it
      buys is a rival left on 0, where the NEXT special win kicks them. */
-  function fightEndPushCard(st, q) {
+  function resolutionPushCard(st, q) {
     if (!policyOn(q, 'push')) return null;
-    if (!st.fightEnd || st.pending) return null;                          // not the Resolution go-round
-    if (st.fightEnd.winner !== q) return null;                            // only the seat about to strike
+    if (!st.resolution || st.pending) return null;                          // not the Resolution go-round
+    if (st.resolution.winner !== q) return null;                            // only the seat about to strike
     if (!effectsAllowed(st, q)) return null;                              // analysis: pure-fighter never casts
     if (!kindOK('onWin', q)) return null;                                 // analysis: blocked reactive kind
     var qp = st.players[q];
     if (qp.finishingBlow) return null;                                    // already armed — a second one adds nothing
-    var targets = st.fightEnd.strikeTargets || [], worth = false;
+    var targets = st.resolution.strikeTargets || [], worth = false;
     for (var t = 0; t < targets.length; t++) if (st.players[targets[t]].shields >= 2) { worth = true; break; }
     if (!worth) return null;                                              // "never overkills" — below 2 it changes nothing
     var best = null, bestCost = Infinity;
@@ -5442,7 +5442,7 @@
       if (st.respondFor != null && isHuman(humans, st.respondFor)) return log;
       /* DRAINING A WINDOW CAN END THE ROUND, AND AFTER STEP 18 IT ROUTINELY DOES. Before the switch, a
          round-winning play resolved inside `play()` and the turn had already moved by the time anyone
-         called `takeTurn`. Now `enterFightEnd` OPENS the go-round instead, so the outcomes — and the new
+         called `takeTurn`. Now `enterResolution` OPENS the go-round instead, so the outcomes — and the new
          round, and the new turn — land when the last seat passes, which happens right here. Carrying on
          to fight as `p` then throws "Not your turn", because it is now the round winner's.
          `st.finished` is checked too: the drain can end the GAME (simultaneous kicks), and every caller
@@ -5521,7 +5521,7 @@
      silently removed `preFightMove`, `lockoutWorth` and six others, and `test.js` died on the first of
      them. Notes go ABOVE the literal; entries go in it. */
   var API = { THREAT_KIND: THREAT_KIND, BENIGN_KIND: BENIGN_KIND,   // exported so test.js can require every effect kind to be CLASSIFIED
-    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, fightEndGuardCard: fightEndGuardCard, fightEndPushCard: fightEndPushCard, setArmPolicy: setArmPolicy, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
+    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, resolutionGuardCard: resolutionGuardCard, resolutionPushCard: resolutionPushCard, setArmPolicy: setArmPolicy, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
     lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;
@@ -5721,7 +5721,7 @@ window.CardFace = {};
          client that cannot see who is struck cannot make the decision the window exists to offer. Contrast
          `roundWinResult` below, which is redacted because it is ceremony bookkeeping and holds a
          back-reference to the whole state. `winSize` and `wonWithCombo` are scalars and travel as they are. */
-      fightEnd: st.fightEnd ? { origin: rot(st.fightEnd.origin), winner: rot(st.fightEnd.winner), wonWithCombo: !!st.fightEnd.wonWithCombo, strikeTargets: (st.fightEnd.strikeTargets || []).map(rot), winSize: st.fightEnd.winSize || 0 } : null,
+      resolution: st.resolution ? { origin: rot(st.resolution.origin), winner: rot(st.resolution.winner), wonWithCombo: !!st.resolution.wonWithCombo, strikeTargets: (st.resolution.strikeTargets || []).map(rot), winSize: st.resolution.winSize || 0 } : null,
       /* WHO THE TABLE IS WAITING ON while a seat trims to hand size. Seat + COUNT only, never cards — a hand
        * must never travel (see E.takeReveal). Every seat but the local one is auto-trimmed, so this is only
        * ever set for the seat actually picking, and it exists so the OTHER seats can say why play has paused
@@ -5737,7 +5737,7 @@ window.CardFace = {};
                             though the discount were always still available. */
       startShields: st.startShields, _effUsed: !!st._effUsed,
       roundWinResult: null,   // ceremony state is host-only; the client renders the settled board
-      fightEndResult: null,   // the same: the parked Fight End outcome is the host'''s ceremony input, and it holds `state`
+      resolutionResult: null,   // the same: the parked Fight End outcome is the host'''s ceremony input, and it holds `state`
       upkeepResult: null,     // …and the parked Draw, for the same reason
       cleanupResult: null,    // …and the parked round-end work
       _mirror: true, _seat: seat
@@ -6179,6 +6179,24 @@ window.CardFace = {};
      the reader once. Absent key = "use the default", which is also why clearing the store restores today. */
   var PROMPT_KEY='cmf_prompts_v1';
   var promptPrefs={}; try{ promptPrefs=JSON.parse(localStorage.getItem(PROMPT_KEY)||'{}')||{}; }catch(e){ promptPrefs={}; }
+  /* THE SAVED TIMING ID MIGRATES: 'fightend' -> 'resolution' (epic step 23).
+     The prompt-timing id is PERSISTED, so renaming it would orphan every preference a player has already
+     ticked — silently, because an unknown key simply falls back to the default and nothing on screen says
+     a setting was lost. Same shape as `sel.mode` and the `kits` -> `dblPair` migration, and in place rather
+     than a PROMPT_KEY bump, because bumping the key discards the prefs instead of carrying them.
+     THE LITERAL 'fightend' BELOW IS THE LAST ONE IN THE CODEBASE AND IT IS DELIBERATE — it is the OLD name,
+     which a migration must know by definition. Do not "finish the rename" by sweeping it away.
+     Idempotent: the old key is deleted once copied, and an existing new key wins over it. */
+  (function migratePromptTimings(){
+    var moved=false;
+    for(var k in promptPrefs){
+      var row=promptPrefs[k];
+      if(!row || typeof row!=='object' || !Object.prototype.hasOwnProperty.call(row,'fightend')) continue;
+      if(!Object.prototype.hasOwnProperty.call(row,'resolution')) row.resolution=row.fightend;
+      delete row.fightend; moved=true;
+    }
+    if(moved) savePromptPrefs();
+  })();
   function savePromptPrefs(){ try{ localStorage.setItem(PROMPT_KEY, JSON.stringify(promptPrefs)); }catch(e){} }
   /* THE TIMINGS A QUICK CAN BE OFFERED AT. Ordered GENERAL FIRST, not chronologically (Aj, 2026-09-11:
      *"technique should come before the fight check box"*). The old comment claimed "the order they occur
@@ -6193,7 +6211,7 @@ window.CardFace = {};
     { id:'respond',  label:'When a Technique is cast' },
     { id:'upkeep',   label:'At the start of a round' },
     { id:'prefight', label:'Before a fight — yours or a rival\'s' },
-    { id:'fightend', label:'When shields are about to break' },
+    { id:'resolution', label:'When shields are about to break' },
     { id:'cleanup',  label:'At the end of a round' }
   ];
   // Is this timing even legal for this card? A no-row is not the same as an unchecked row.
@@ -6214,7 +6232,7 @@ window.CardFace = {};
      Clean-up are still the two points with no rows, and still for the reason above. */
   /* EVERY LEGAL TIMING PROMPTS BY DEFAULT (Aj, 2026-09-10: *"players can really look at all their cards and
      decide which effects to activate. legal mind you at the timing it's being asked at"*).
-     THIS USED TO RETURN `immunityEffFor(...)` FOR `fightend` — the whitelist step 18 DELETED. It was right
+     THIS USED TO RETURN `immunityEffFor(...)` FOR `resolution` — the whitelist step 18 DELETED. It was right
      when step 15 shipped: the aim was that cards keep pinging exactly where they pinged before the epic,
      and before the epic the Fight End window WAS that whitelist. Step 18 removed the window and the default
      went on describing it, so the two cards the whole epic exists to fix — Sanctuary under Hector, Armor
@@ -6260,7 +6278,7 @@ window.CardFace = {};
        is a fixed sequence of gated steps, so an unscripted modal derails it. MEASURED, not reasoned:
        `lessontest_twos` went red the moment the default flipped, on "the Rival leads 222 + a pair", with
        `lessonlib` reporting three Respond? windows the lesson never asked for.
-       `respond` IS THE ONE THAT SURVIVES, because the Quicks lesson exists to teach it. `fightend` and —
+       `respond` IS THE ONE THAT SURVIVES, because the Quicks lesson exists to teach it. `resolution` and —
        since epic step 20 — `prefight` are both suppressed: no lesson teaches either, and the Main → Play
        transition now opens on every turn where anyone holds a castable Quick, which `lessontest_twos`
        duly stalled on the moment the gate came off (*"lessonlib answered a Respond? window the lesson did
@@ -7948,7 +7966,7 @@ window.CardFace = {};
      it sits in time: every Quick on the stack resolves first, and the loss lands when the sub-phase begins. */
   function renderStack(){
     var el=$('stackView'); var objs=(state.stack||[]).filter(function(o){return o.kind==='effect';});
-    var fe=state.fightEnd||null;
+    var fe=state.resolution||null;
     var pendingLoss = (fe && fe.wonWithCombo && (fe.strikeTargets||[]).length) ? fe : null;
     if(objs.length<1 && !pendingLoss){ el.style.display='none'; el.innerHTML=''; return; }
     el.style.display='flex';
@@ -9050,7 +9068,7 @@ window.CardFace = {};
   }
   function finishPassRound(r){
     if(r && r.fizzled) return finishRoundNobodyWon(r);
-    if(r && r.fightEnd){ var fg=gen; return drainFightEnd(r, fg, function(fr){ if(fg===gen) finishPassRound(fr); }); }   // step 18: the window opens first, the outcome lands after
+    if(r && r.resolution){ var fg=gen; return drainResolution(r, fg, function(fr){ if(fg===gen) finishPassRound(fr); }); }   // step 18: the window opens first, the outcome lands after
     if(r.roundWinner!=null){
       var g=gen;
       if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive() && MP() && r.needsLossTarget){ return NET.hostResolveWin(r, g, function(fr){ NET.hostSettleRoundThenCeremony(fr, g); }); }   // netplay: a remote winner picks its target, then the ceremony
@@ -9078,7 +9096,7 @@ window.CardFace = {};
      it offers EVERY castable Quick rather than the one the engine picked, it offers them to every seat
      holding priority rather than to the victim, and its answer goes on the stack where it can itself be
      countered. Two details worth not losing with it: it read `state`, not `hostState`, which only worked
-     because `hostStartRealN` aliases them; and its prompt-preference auto-pass is now the `fightend`
+     because `hostStartRealN` aliases them; and its prompt-preference auto-pass is now the `resolution`
      branch of `promptHumanResponse`. */
   /* `narrateShieldGuard` WAS HERE AND IS DELETED (epic step 19). It narrated an opponent springing a
      guard and read `fr.guardName`, which only `shieldGuard` ever returned. A priority answer narrates
@@ -9210,9 +9228,9 @@ window.CardFace = {};
     }
     var w=res.roundWinner, who=logName(w), cls=(w===YOU?'you':'rival');
     /* EVERY ROUND RESOLUTION IS RECORDED HERE, because this is the one funnel all six round-win paths
-       reach exactly once. The note started life inside `drainFightEnd` and could not see the case that
+       reach exactly once. The note started life inside `drainResolution` and could not see the case that
        matters: a round win only RETURNS a go-round when somebody can add to the stack, so when nobody
-       holds a castable Quick the sub-phase just runs and `r.fightEnd` is never set — and `finishPassRound`
+       holds a castable Quick the sub-phase just runs and `r.resolution` is never set — and `finishPassRound`
        does not even call the drain then. MEASURED: a probe played five full rounds and logged NOTHING,
        which is exactly what "quiet" and "broken" both look like, and is the distinction this ledger
        exists to draw. Aj's first real log had the same hole: 2 entries across 10 rounds. */
@@ -9556,11 +9574,11 @@ window.CardFace = {};
               : AI.takeTurn(state, RIVAL, difficulty, [YOU]);   // [YOU] = suspend if you can answer a Quick
       $('rivalStatus').textContent='';
       var passed=log.filter(function(e){return e.fight==='pass';})[0];
-      if(passed && passed.result && (passed.result.roundWinner!=null || passed.result.fightEnd || passed.result.fizzled)){   // step 18: a round-winning pass now returns the WINDOW; finishStep drains it after the beats
+      if(passed && passed.result && (passed.result.roundWinner!=null || passed.result.resolution || passed.result.fizzled)){   // step 18: a round-winning pass now returns the WINDOW; finishStep drains it after the beats
         var pres=passed.result;
         /* THE DUEL DRIVER'S OWN GUARD BRANCH WAS HERE AND IS DELETED (epic step 19). It was a SECOND
            copy of `shieldGuardAI`'s policy — a hardcoded `rpl.shields<=2` in the template — resolving the
-           AI's guard window inline. `finishStep`'s `drainFightEnd` runs the go-round instead, and
+           AI's guard window inline. `finishStep`'s `drainResolution` runs the go-round instead, and
            `settleWindows` presents whatever the AI springs with its own flash and dwell. */
         return finishStep(pres, g, log);   // the WHOLE log — finishStep paces it as beats, then resolves
       }
@@ -9686,9 +9704,9 @@ window.CardFace = {};
     render(); done();
   }
   /* ---- THE FIGHT END GO-ROUND, DRAINED (epic step 18) ----
-     A round win no longer RETURNS the round result. `resolveRoundWin` -> `enterFightEnd` opens a priority
+     A round win no longer RETURNS the round result. `resolveRoundWin` -> `enterResolution` opens a priority
      window instead (PHASES-AND-PRIORITY.md §3: priority is passed around BEFORE the sub-phase) and returns
-     `{fightEnd:true}` with no `roundWinner` — so every site that keyed on `r.roundWinner != null` fell
+     `{resolution:true}` with no `roundWinner` — so every site that keyed on `r.roundWinner != null` fell
      straight through. MEASURED as a wedge in `nettest_guard`: the duel host read the round-winning pass as
      an ordinary turn handover, parked in `awaitRival`, and the client's `{op:'respond'}` then found
      `netSettle` null and was dropped in silence — the v1.31.91 shape exactly, in a new place.
@@ -9698,18 +9716,18 @@ window.CardFace = {};
      free rather than needing a second copy each.
      WHY THE OUTCOME COMES BACK ON STATE and not as a return value: the sub-phase runs one `declineResponse`
      deep inside the go-round, so its result returns up a chain whose end is whoever answered last — which on
-     a host is a wire callback, not this caller. `st.fightEndResult` is where the engine parks it, and it is
+     a host is a wire callback, not this caller. `st.resolutionResult` is where the engine parks it, and it is
      deliberately NOT `roundWinResult`: `driveShieldStack` reads that one as "this is a round win" (P3). */
-  function drainFightEnd(r, g, then){
-    if(!r || !r.fightEnd) return then(r);   // the SILENT case is logged in `announceRoundWin`, the one funnel every path reaches
-    var fe=state.fightEnd||{};
+  function drainResolution(r, g, then){
+    if(!r || !r.resolution) return then(r);   // the SILENT case is logged in `announceRoundWin`, the one funnel every path reaches
+    var fe=state.resolution||{};
     prioNote('  ↳ a GO-ROUND opened before it', 'winner=' + (fe.winner!=null?logName(fe.winner):'?') +
            ' struck=' + ((fe.strikeTargets||[]).map(logName).join('+') || 'nobody') +
            (fe.wonWithCombo ? ' (Special)' : ' (jab — no shield at stake)') +
            ' priority→' + (state.respondFor!=null?logName(state.respondFor):'?'));
     settleWindows(g, function(){
       if(g!==gen) return;
-      var fr=state.fightEndResult; state.fightEndResult=null;
+      var fr=state.resolutionResult; state.resolutionResult=null;
       then(fr||r);
     });
   }
@@ -9727,7 +9745,7 @@ window.CardFace = {};
     if(pend) return pend.kind === 'tick' ? 'Let the counter come off' : 'Let it resolve';
     if(state && state.upkeep)  return 'Start the round';
     if(state && state.cleanup) return 'End the round';
-    if(state && state.fightEnd) return 'Let the round resolve';
+    if(state && state.resolution) return 'Let the round resolve';
     if(state && state.subPhase === 'main') return 'Move to the fight';
     return 'Let it resolve';
   }
@@ -9765,7 +9783,7 @@ window.CardFace = {};
        and is nulled in the mirror — a client has to be able to answer this too. */
     var promptTiming = state.upkeep ? 'upkeep'
       : (state.cleanup ? 'cleanup'
-      : (state.fightEnd ? 'fightend'
+      : (state.resolution ? 'resolution'
       : (pend ? 'respond'
       : (state.subPhase === 'main' ? 'prefight' : 'respond'))));
     var eligible=eligibleQuicks();                       // the engine's own answer — `canAddToStack`, mirrored
@@ -9779,7 +9797,7 @@ window.CardFace = {};
        The TIMING KEY stays `'prefight'` — it is a stored preference id in `localStorage` and travels with the
        rest of the code rename at step 23 — but this is the string a human READS in a saved log, so it is docs
        -side, not code-side, and the docs were renamed today. Same reasoning for `fight-end` → `resolution`. */
-    var tName = promptTiming==='fightend' ? 'resolution'
+    var tName = promptTiming==='resolution' ? 'resolution'
               : promptTiming==='prefight' ? 'main→fight'
               : promptTiming==='upkeep'   ? 'upkeep'
               : promptTiming==='cleanup'  ? 'clean-up'
@@ -9805,11 +9823,11 @@ window.CardFace = {};
        v1.31.120 and for the same reason: **name the seat and the play**, because at 3-6 players "Rival" names
        nobody and withholding the striker is withholding the whole decision.
        WHY THE TARGET IS ALREADY KNOWN: §3 has the winner pick before priority is passed — *"so that people
-       will know if they want to activate shield protection or no"* — so `fightEnd.strikeTargets` is populated
+       will know if they want to activate shield protection or no"* — so `resolution.strikeTargets` is populated
        by the time this renders, and the modal can say who is struck rather than asking blind.
-       Seats arrive ROTATED (netview rotates every member of `fightEnd`), so `logName` is correct as-is and
+       Seats arrive ROTATED (netview rotates every member of `resolution`), so `logName` is correct as-is and
        `YOU` compares directly. A jab win strips nothing, hence the `wonWithCombo` branch. */
-    var fe = state.fightEnd || null;
+    var fe = state.resolution || null;
     var lead;
     if (pend && pend.kind === 'tick') {
       /* NOBODY CAST A TRIGGER, so it must not borrow the cast sentence — the first cut read "You cast Holy
@@ -10046,18 +10064,18 @@ window.CardFace = {};
         var passed=log.filter(function(e){ return e.fight==='pass'; })[0];
         var res=passed && passed.result;
         /* THE ROUND MAY NOT HAVE RESOLVED YET (epic step 18). A round-winning pass now opens the Fight End
-           go-round and returns `{fightEnd:true}` with no `roundWinner`, so this branch has to accept both
-           shapes; `drainFightEnd` runs the window — prompting YOU when priority reaches this seat, and
+           go-round and returns `{resolution:true}` with no `roundWinner`, so this branch has to accept both
+           shapes; `drainResolution` runs the window — prompting YOU when priority reaches this seat, and
            presenting an AI seat's Quick through `settleWindows` — and hands back the real outcome.
            THE LOSS-TARGET PICK STILL COMES FIRST, before the window opens, and that is §3's own ordering:
            the table must be able to see who is about to be struck while it can still answer.
            The two `shieldResponsePending` branches that stood here went with the window they served — this
            step removes `driveShieldStack`'s guard window, so `state.shieldResponse` is never set again. The
            REST of that surface is step 19's delete pass, with its own grep. */
-        if(res && (res.roundWinner!=null || res.fightEnd || res.fizzled)){
+        if(res && (res.roundWinner!=null || res.resolution || res.fizzled)){
           var finishRound=function(fr){
             if(g!==gen) return;
-            drainFightEnd(fr, g, function(fres){
+            drainResolution(fr, g, function(fres){
               if(g!==gen) return;
               announceRoundWin(fres);
               if(state.finished){ busy=false; render(); return endGame(); }
@@ -10097,7 +10115,7 @@ window.CardFace = {};
          anyone is asked to answer it; and the ceremony narrates outcomes that do not exist until it
          drains. `settleWindows` presents a Quick sprung here with its own `quickFlash` + dwell, which is
          what the deleted `narrateShieldGuard` call used to do for the one whitelisted guard. */
-      drainFightEnd(res, g, function(fres){
+      drainResolution(res, g, function(fres){
         if(g!==gen) return;
         announceRoundWin(fres);
         if(state.finished){ render(); busy=false; return endGame(); }    // Fighter Kick — terminal, no round card
@@ -12415,15 +12433,15 @@ window.CardFace = {};
            branch below; the switch replaced `driveShieldStack`'s yes/no with the Fight End go-round, which
            arrives here as an ORDINARY respond window — so a bare decline silently undid the ruling, and
            `nettest_passoduel` measured it (shields 1 → 0 holding an affordable Leyline).
-           `fightEndGuardCard` is the AI's own policy, self-gated on the window, so this cannot answer an
+           `resolutionGuardCard` is the AI's own policy, self-gated on the window, so this cannot answer an
            ordinary Counter-a-Counter chain by burning a guard. */
         if(k==='respond'){
-          var pg=AI.fightEndGuardCard(hostState, seat);
+          var pg=AI.resolutionGuardCard(hostState, seat);
           return hostApplyMoveN(seat, pg ? {op:'respond', id:pg.id} : {op:'decline'});
         }
         /* PASSO'S `guard` BRANCH WAS HERE AND IS DELETED (epic step 19) — the window it answered is gone.
            Aj's step-13 ruling (*a dropped player's Leyline still saves their last shield*) is preserved in
-           the `respond` branch above, which asks `AI.fightEndGuardCard` — the same policy, for the window
+           the `respond` branch above, which asks `AI.resolutionGuardCard` — the same policy, for the window
            that actually exists now. */
         if(k==='discard')  return hostApplyMoveN(seat, {op:'discard', ids:[]});           // [] → engine auto-picks (smart; keeps Specials)
         if(k==='loss'){ var t=null; for(var i=0;i<hostState.numPlayers;i++){ if(i!==seat && !hostState.players[i].eliminated){ t=i; break; } } var lr=E.chooseLossTarget(hostState, t); var nr=netReact; netReact=null; return nr.cont(lr); }   // unreachable in practice (Passo never wins a combo); safe fallback
@@ -12449,7 +12467,7 @@ window.CardFace = {};
       if(!MP() && seat===1){
         if(netDiscard) return hostApplyMove({op:'discard', ids:[]});                      // [] → engine auto-picks (keeps Specials)
         if(netSettle){                                                                   // the Fight End go-round reaches a duel here — defend, exactly as the N-player branch above does
-          var dg=AI.fightEndGuardCard(hostState, 1);
+          var dg=AI.resolutionGuardCard(hostState, 1);
           return hostApplyMove(dg ? {op:'respond', id:dg.id} : {op:'decline'});
         }
         if(duelWait && hostState.turn===1){
@@ -13522,10 +13540,10 @@ window.CardFace = {};
          variable `hostApplyMove` re-enters through. A null `fr` cannot happen once the go-round closes
          (the engine parks the outcome as it runs the sub-phase) but is answered with the handover rather
          than a return, because a live table beats a tidy invariant. */
-      if(r && r.fightEnd){
+      if(r && r.resolution){
         return hostSettle(g, function(){
           if(g!==gen) return;
-          var fr=hostState.fightEndResult; hostState.fightEndResult=null;
+          var fr=hostState.resolutionResult; hostState.resolutionResult=null;
           if(fr) return hostFinishRound(fr, g);
           hostTakeBack(); render(); broadcastMirror();
           if(hostState.turn!==YOU) awaitRival();
@@ -13710,7 +13728,7 @@ window.CardFace = {};
           var lr=E.pass(hostState, seat);
           say(seat, 'Back Stab locked {who} out — turn skipped.', 'warn');
           netParked=null;
-          if(lr && (lr.roundWinner!=null || lr.fightEnd || lr.fizzled)) return hostResolveWin(lr, g, function(fr){ hostSettleRoundThenCeremony(fr, g); });
+          if(lr && (lr.roundWinner!=null || lr.resolution || lr.fizzled)) return hostResolveWin(lr, g, function(fr){ hostSettleRoundThenCeremony(fr, g); });
           driveN();
         }, null, seat, 'Next');
       }
@@ -13734,7 +13752,7 @@ window.CardFace = {};
             else { r=E.pass(hostState, seat); if(r&&r.ok===false&&r.transition==='play'){ return hostSettleN(g, function(){ if(g===gen) hostApplyMoveN(seat, it); }); } if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; } say(seat, '{who} passed.', 'rival'); }
           }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Move rejected.'}); broadcastMirror(); return; }
           netParked=null;
-          if(r && (r.roundWinner!=null || r.fightEnd || r.fizzled)){ return hostResolveWin(r, g, function(fr){ hostSettleRoundThenCeremony(fr, g); }); }   // step 18: a round win may arrive as an OPEN go-round
+          if(r && (r.roundWinner!=null || r.resolution || r.fizzled)){ return hostResolveWin(r, g, function(fr){ hostSettleRoundThenCeremony(fr, g); }); }   // step 18: a round win may arrive as an OPEN go-round
           driveN();
         }, (it.op==='pass' ? function(){ broadcastMirror(); } : null), seat, (it.op==='pass' ? 'Pass' : 'Next'));
       }
@@ -13754,7 +13772,7 @@ window.CardFace = {};
         } else return;
       }catch(e){ sendTo(seat,{t:'err',seat:seat,reason:'Move rejected.'}); broadcastMirror(); return; }
       netParked=null;
-      if(r && (r.roundWinner!=null || r.fightEnd || r.fizzled)){ return hostResolveWin(r, g, function(fr){ hostSettleRoundThenCeremony(fr, g); }); }   // step 18: a round win may arrive as an OPEN go-round
+      if(r && (r.roundWinner!=null || r.resolution || r.fizzled)){ return hostResolveWin(r, g, function(fr){ hostSettleRoundThenCeremony(fr, g); }); }   // step 18: a round win may arrive as an OPEN go-round
       driveN();
     }
     // After the strike is decided, resolve the struck seat's guard window (host modal / remote park) then the ceremony.
@@ -13769,11 +13787,11 @@ window.CardFace = {};
          had happened yet. That vacuous pass is why the round assertion is now in that suite.
          The host's own seat is prompted; a remote seat PARKS exactly like every other remote window, with
          `reassertMirror` + the beat + `maybePasso` — the park hygiene v1.31.116 enumerated by kind.
-         `hostState.fightEndResult` is the FINAL outcome, parked by the engine when the sub-phase ran: `r`
+         `hostState.resolutionResult` is the FINAL outcome, parked by the engine when the sub-phase ran: `r`
          is the pending window result this function was handed before the window opened, and narrating from
          it would describe the wrong round. */
       if(hostState.respondFor != null) return hostSettleN(g, function(){ hostSettleRoundThenCeremony(r, g); });   // ONE park per kind — hostSettleN already prompts the host and parks a remote seat
-      if(hostState.fightEndResult){ var fer=hostState.fightEndResult; hostState.fightEndResult=null; return hostRunCeremony(fer, g); }
+      if(hostState.resolutionResult){ var fer=hostState.resolutionResult; hostState.resolutionResult=null; return hostRunCeremony(fer, g); }
       hostRunCeremony(r, g);
     }
     // A round resolved: if the winner must pick whose shield to strip (chosen mode), the host picks locally / a remote

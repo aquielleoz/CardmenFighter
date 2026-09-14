@@ -10,7 +10,7 @@
  * (`isChopOf`, `resolveIds`, `immunityEffFor`). **Read `test.js` for those.** This file asserts the two
  * things nothing anywhere asserts, plus the end-to-end shape no unit test covers.
  *
- * Run: node fightendtest.js          — and run it FORTY TIMES, not once (step 17's own instruction: two
+ * Run: node resolutiontest.js          — and run it FORTY TIMES, not once (step 17's own instruction: two
  * flakes hid in one green run the last time this surface was touched, and `prompttest` was 8/40 today
  * while looking fine on the first go).
  */
@@ -85,7 +85,7 @@ function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
   ok(!guards, 'canary: staged — seat 1 holds a Quick that the OLD whitelist would refuse (guards nothing)');
   ok(E.canAddToStack(g, 1) === true, 'canary: …and the engine agrees it can add to the stack');
 
-  E.openFightEndWindow(g, 2, true, [0], 2);
+  E.openResolutionWindow(g, 2, true, [0], 2);
   ok(g.respondFor === 1,
      'WHITELIST CANARY: a seat whose only Quick guards NOTHING is still offered the Fight End window' +
      (g.respondFor === 1 ? '' : '  ← offered ' + g.respondFor + '. The whitelist is back: only guard cards ' +
@@ -118,13 +118,13 @@ function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
   g.lastPlayer = 2;
 
   var round0 = g.round, shields0 = g.players[0].shields;
-  E.openFightEndWindow(g, 2, true, [0], 2);
+  E.openResolutionWindow(g, 2, true, [0], 2);
   ok(g.respondFor === 2, 'end-to-end: the window opens on the winner');
 
   var seen = [], guard = 0;
   while (g.respondFor != null && guard++ < 20) { seen.push((g.pending ? 'obj' : 'empty') + ':' + g.respondFor); E.declineResponse(g, g.respondFor); }
   ok(guard < 20, 'end-to-end: the window TERMINATES — it did not spin (' + seen.length + ' grants)');
-  ok(g.respondFor === null && g.pending === null && g.stack.length === 0 && !g.fightEnd,
+  ok(g.respondFor === null && g.pending === null && g.stack.length === 0 && !g.resolution,
      'end-to-end: nothing left owed — no window, no object, empty stack, nothing parked');
   ok(g.round === round0 + 1 && g.players[0].shields === shields0 - 1,
      'end-to-end: the outcomes landed exactly once (round ' + round0 + '→' + g.round +
@@ -148,7 +148,7 @@ function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
   }
   g.pile = { p: 2, combo: { type: 'pair', size: 2, value: 9, cards: [sc(9, 'C', 'x'), sc(9, 'S', 'y')] } };
   g.lastPlayer = 2;
-  E.openFightEndWindow(g, 2, true, [0], 2);
+  E.openResolutionWindow(g, 2, true, [0], 2);
 
   var spins = 0;
   while (g.respondFor != null && spins++ < 64) { var rr = AI.respondDecision(g, g.respondFor); if (!rr) break; }

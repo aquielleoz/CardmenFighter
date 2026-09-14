@@ -8,7 +8,7 @@
  * THE TWO CLAIMS THIS SUITE EXISTS FOR, and they pull in opposite directions:
  *   1. EVERY LEGAL TIMING PROMPTS BY DEFAULT (changed 2026-09-10 — this claim used to read "the default
  *      experience is today's", and the assertion carrying it now requires the OPPOSITE; see the long note
- *      at `counterFightEnd` for why, because a reversed assertion with no reason is worse than none).
+ *      at `counterResolution` for why, because a reversed assertion with no reason is worse than none).
  *      Aj: *"players can really look at all their cards and decide which effects to activate. legal mind
  *      you at the timing it's being asked at."* A suite that only proved the checkboxes work would happily
  *      pass on a build that had silenced a card.
@@ -22,6 +22,7 @@
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
 const { clickFight, installPageHelpers } = require('./fightclick');
 const path = require('path');
+const fs = require('fs');
 const URL = 'file://' + path.resolve(__dirname, 'CardmenFighter.html') + '?dbgsolo=1';
 const wait = ms => new Promise(r => setTimeout(r, ms));
 function pollTimedOut(fn) { console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g, ' ').slice(0, 110)); }
@@ -68,13 +69,13 @@ async function freshGame(p) {
     return {
       stored:        JSON.stringify(window.__solo.promptPrefs()),
       counterRespond: q(C(4, 'D'), 'respond'),    // Counter Spell — the classic response timing
-      counterFightEnd: q(C(4, 'D'), 'fightend'),  // …and NOW at Fight End too — see the assertion below
-      leylineFightEnd: q(C(9, 'D'), 'fightend'),  // Leyline guards, so it always spoke here
+      counterResolution: q(C(4, 'D'), 'resolution'),  // …and NOW at Fight End too — see the assertion below
+      leylineResolution: q(C(9, 'D'), 'resolution'),  // Leyline guards, so it always spoke here
       leylineRespond:  q(C(9, 'D'), 'respond'),
       counterPrefight: q(C(4, 'D'), 'prefight'),  // legal since step 20 — see the assertion below
-      legalCounterFightEnd: L(C(4, 'D'), 'fightend'),
+      legalCounterResolution: L(C(4, 'D'), 'resolution'),
       legalCounterPrefight: L(C(4, 'D'), 'prefight'),
-      legalLeylineFightEnd: L(C(9, 'D'), 'fightend'),
+      legalLeylineResolution: L(C(9, 'D'), 'resolution'),
       legalCounterUpkeep:   L(C(4, 'D'), 'upkeep'),
       legalCounterCleanup:  L(C(4, 'D'), 'cleanup'),
     };
@@ -86,7 +87,7 @@ async function freshGame(p) {
      `respond` stops you out of the box — something has just HAPPENED there. The four boundaries fire on a
      schedule, several times a round now that all five points exist, so stopping at each by default is a
      development setting rather than a game. */
-  ok(D.leylineFightEnd === false, 'default: a BOUNDARY does not stop you out of the box — Leyline stays quiet at Resolution');
+  ok(D.leylineResolution === false, 'default: a BOUNDARY does not stop you out of the box — Leyline stays quiet at Resolution');
   /* THE POLICY CHANGED ON 2026-09-10, AND THIS ASSERTION IS WHERE IT IS RECORDED — it used to require the
      OPPOSITE, and reversing it silently would erase the reason.
      WHY IT WAS `false`: step 15's aim was that cards keep pinging exactly where they pinged before the
@@ -99,18 +100,18 @@ async function freshGame(p) {
      timing prompts; the checkbox is noise reduction, not capability.
      THE "annoying very quick" RISK IS REAL AND IS NOW THE PLAYER'S LEVER rather than ours — which is what
      the checkboxes were built for. The suppression half is asserted further down, both ways, and
-     `fightenduitest` scenario C proves an unchecked card is RECORDED in the saved log rather than
+     `resolutiontest_ui` scenario C proves an unchecked card is RECORDED in the saved log rather than
      vanishing without trace. */
-  ok(D.counterFightEnd === false && D.counterPrefight === false,
-     'default: the other boundaries are quiet too (fightend ' + D.counterFightEnd + ', prefight ' + D.counterPrefight + ')');
+  ok(D.counterResolution === false && D.counterPrefight === false,
+     'default: the other boundaries are quiet too (resolution ' + D.counterResolution + ', prefight ' + D.counterPrefight + ')');
   /* AND THE HALF THAT MATTERS MOST: quiet is NOT the same as illegal. Aj confirmed it explicitly — "off"
      must mean the window opens and you pass automatically, never that the card becomes uncastable. With
      the defaults flipped that distinction stops being theoretical for a handful of cards and starts being
      load-bearing for every one of them, so it is asserted directly at all five timings. */
-  ok(D.legalCounterFightEnd && D.legalCounterPrefight && D.legalLeylineFightEnd &&
+  ok(D.legalCounterResolution && D.legalCounterPrefight && D.legalLeylineResolution &&
      D.legalCounterUpkeep && D.legalCounterCleanup,
      'default OFF ≠ ILLEGAL — every timing a Quick is legal at still EXISTS as a row you can tick' +
-     ' (fightend ' + D.legalCounterFightEnd + ', prefight ' + D.legalCounterPrefight +
+     ' (resolution ' + D.legalCounterResolution + ', prefight ' + D.legalCounterPrefight +
      ', upkeep ' + D.legalCounterUpkeep + ', cleanup ' + D.legalCounterCleanup + ')');
   /* THIS REQUIRED `false` UNTIL EPIC STEP 20, AND THE REVERSAL IS THE POINT. `promptLegal` gated the
      pre-fight row to `kind==='lockout'`, so Counter Spell had no such timing — matching an engine that
@@ -150,15 +151,15 @@ async function freshGame(p) {
   await p.evaluate(() => {
     const C = (r, su) => ({ rank: r, suit: su, id: '' + r + su });
     window.__solo.showCard(C(4, 'D'));
-    const box = document.querySelector('.promptPref[data-timing="fightend"]');
+    const box = document.querySelector('.promptPref[data-timing="resolution"]');
     box.checked = true; box.dispatchEvent(new Event('change', { bubbles: true }));
   });
   const afterTick = await p.evaluate(() => ({
     stored: JSON.stringify(window.__solo.promptPrefs()),
-    wanted: window.__solo.promptWanted({ rank: 4, suit: 'D', id: '4D' }, 'fightend'),
+    wanted: window.__solo.promptWanted({ rank: 4, suit: 'D', id: '4D' }, 'resolution'),
   }));
   ok(afterTick.wanted === true, 'ticking Fight End for Counter Spell takes effect');
-  ok(/"fightend":true/.test(afterTick.stored) && !/"respond"/.test(afterTick.stored),
+  ok(/"resolution":true/.test(afterTick.stored) && !/"respond"/.test(afterTick.stored),
      'only the OVERRIDE is stored, not the resolved row (' + afterTick.stored + ')' +
      (/"respond"/.test(afterTick.stored) ? '  ← a later change to the DEFAULTS could never reach this device' : ''));
 
@@ -166,7 +167,7 @@ async function freshGame(p) {
      defaults do not consult state. Re-start a game before anything reads a Fight End default again. */
   await p.reload();
   await until(() => p.evaluate(() => !!window.__solo));
-  ok(await p.evaluate(() => window.__solo.promptWanted({ rank: 4, suit: 'D', id: '4D' }, 'fightend')) === true,
+  ok(await p.evaluate(() => window.__solo.promptWanted({ rank: 4, suit: 'D', id: '4D' }, 'resolution')) === true,
      '…and it survives a reload — the preference is per DEVICE');
   await freshGame(p);
 
@@ -177,7 +178,7 @@ async function freshGame(p) {
      being absent. */
   await p.evaluate(() => {
     window.__solo.setPromptPref('D4', 'respond', false);
-    window.__solo.setPromptPref('D9', 'fightend', false);
+    window.__solo.setPromptPref('D9', 'resolution', false);
   });
   ok(await p.evaluate(() => window.__solo.promptWanted({ rank: 4, suit: 'D', id: '4D' }, 'respond')) === false,
      'Counter Spell’s live timing is switched OFF');
@@ -344,11 +345,11 @@ async function freshGame(p) {
 
   // (a) the CONTROL — with the default preference ON, the window must appear. Without this half, (b) below
   //     passes on a build where the window never opens for any reason at all.
-  /* AND SHUT THE FIGHT END TIMING OFF FOR THIS PAIR. `fightend` was ticked ON for D4 forty lines above, so
+  /* AND SHUT THE FIGHT END TIMING OFF FOR THIS PAIR. `resolution` was ticked ON for D4 forty lines above, so
      with step 18 live the staged round ends into a Fight End window this block is not testing — the drain
      assertion below then reports a window "left owed" that the game legitimately owes. One timing at a
      time is what makes each half of the pair mean one thing. */
-  await p.evaluate(() => { window.__solo.setPromptPref('D4', 'fightend', false); });
+  await p.evaluate(() => { window.__solo.setPromptPref('D4', 'resolution', false); });
   await p.evaluate(() => { window.__solo.setPromptPref('D4', 'respond', true); });
   const withPrompt = await stageCast();
   ok(!!withPrompt && /Counter Spell/.test(withPrompt),
@@ -365,6 +366,50 @@ async function freshGame(p) {
      (withoutPrompt === null ? '' : '  ← still prompted with: ' + withoutPrompt.slice(0, 140)));
   ok(await until(() => p.evaluate(() => { const st = window.__solo.st(); return !!st && st.respondFor == null; })),
      '…and no response window is left owed — the pass really happened');
+
+  /* ---- AND THE MIGRATION IS GUARDED AGAINST A FUTURE SWEEP (epic step 23).
+     The runtime test below catches someone DELETING the migration. It cannot catch the likelier mistake:
+     a blanket `s/fightend/resolution/g` that renames the migration AND this file's own fixture, after which
+     the test stages a preference already under the new key, the dead migration has nothing to do, and it
+     PASSES GREEN. So the guard has to read the SOURCE — the same reason `nettest_narrate` grew a static half,
+     a runtime scan only covers what that run happened to emit.
+     THE OLD ID IS ASSEMBLED, NEVER SPELLED, so that a sweep cannot quietly rewrite the assertion into one
+     that checks for the NEW name and is therefore trivially true. Do not "tidy" it into a literal. */
+  const OLD_ID = 'fight' + 'end';
+  const tplSrc = fs.readFileSync(path.resolve(__dirname, 'CardmenFighter.template.html'), 'utf8');
+  ok(tplSrc.indexOf('migratePromptTimings') >= 0,
+     'the prompt-timing migration is still in the template');
+  ok(tplSrc.indexOf(OLD_ID) >= 0,
+     'and it still names the OLD id — deleting that literal to "finish the rename" orphans every preference a player has ticked, SILENTLY, because an unknown key just falls back to the default');
+  ok((tplSrc.match(new RegExp(OLD_ID, 'g')) || []).length >= 3,
+     'in all three places the migration needs it (the hasOwnProperty test, the copy, and the delete) — a partial sweep is the same bug as a whole one');
+
+  /* ---- THE OLD TIMING ID MIGRATES (epic step 23). The prompt-timing id was renamed `fightend` ->
+     `resolution`, and it is PERSISTED — so without a migration every preference a player had already
+     ticked would be orphaned SILENTLY: an unknown key falls back to the default and nothing on screen
+     says a setting was lost.
+     THE ASSERTION HAS TO DISCRIMINATE, which is why it stages `true` on a timing whose default is FALSE.
+     Staging a saved `false` would pass on a build with no migration at all, because "carried across" and
+     "fell back to the default" are the same observation there.
+     AND THE ROW IS KEYED BY THE EFFECT ID, NOT THE CARD ID — `D4`, suit-first, which is what
+     `promptKeyOf(eff)` returns. Staging `4D` reads as "no preference saved" and the assertion fails
+     against a migration that worked perfectly, which is how this was first written. */
+  await p.evaluate(() => localStorage.setItem('cmf_prompts_v1',
+    JSON.stringify({ 'D4': { fightend: true }, 'D9': { respond: false } })));   // keyed by EFFECT id (suit-first), not card id
+  await p.reload();
+  await until(() => p.evaluate(() => !!window.__solo));
+  const mig = await p.evaluate(() => ({
+    stored: JSON.stringify(window.__solo.promptPrefs()),
+    d4:     window.__solo.promptWanted({ rank: 4, suit: 'D', id: '4D' }, 'resolution'),
+    d9resp: window.__solo.promptWanted({ rank: 9, suit: 'D', id: '9D' }, 'respond'),
+  }));
+  ok(mig.d4 === true,
+     'a preference saved under the OLD `fightend` id still applies at `resolution` — the default there is OFF, so this could only be the migration');
+  ok(!/fightend/.test(mig.stored),
+     'and the old key is deleted, so the migration is idempotent (' + mig.stored + ')');
+  ok(mig.d9resp === false,
+     'a timing that was never renamed is carried through untouched');
+  await freshGame(p);
 
   ok(errs.length === 0, 'no JS errors' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
   console.log('\n' + (fail ? 'FAILED — ' : '') + 'PASS: ' + pass + '  FAIL: ' + fail);

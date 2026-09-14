@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 478 + 65 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 483 + 65 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 478 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 483 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 65, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
@@ -89,15 +89,15 @@ node nettest_passoduel.js                       # PASSO IN A DUEL (epic step 13)
                                                 # (and `netGuard` until epic step 19) and NOTHING answered them, so a dropped duel
                                                 # opponent deadlocked the table (measured: 1 host action,
                                                 # then 41 idle polls). Also asserts Passo DEFENDS (8)
-node fightendtest.js                            # THE RESOLUTION MODEL (epic step 17). Asserts the two things
+node resolutiontest.js                            # THE RESOLUTION MODEL (epic step 17). Asserts the two things
                                                 # nothing else does — SIMULTANEOUS KICKS (both zero-shield
                                                 # seats die to one Special, both credited) and the
                                                 # WHITELIST CANARY (a seat whose only Quick guards NOTHING
                                                 # is still offered the window). The other four of step 17's
                                                 # six live in test.js and are cross-referenced, not copied.
                                                 # Run it 40x, not once (16)
-node fightenduitest.js                          # THE TWO REPORTED BUGS, PLAYED IN THE REAL PAGE (epic step
-                                                # 18). `fightendtest` asserts the model headlessly; this
+node resolutiontest_ui.js                          # THE TWO REPORTED BUGS, PLAYED IN THE REAL PAGE (epic step
+                                                # 18). `resolutiontest` asserts the model headlessly; this
                                                 # asserts what a PLAYER reported, end to end: Sanctuary
                                                 # under HECTOR surviving the Fighter Kick (the ♥K patch is
                                                 # `{quick:true}` ALONE — Apollo's carries `shieldImmune`
@@ -1298,13 +1298,13 @@ new window through it inherits `reassertMirror`, the park beat, `maybePasso` and
 for free — the seven-parks-of-nine lesson (v1.31.116) applied before the drift rather than after it. The
 grep that enumerates the kind: `grep -n 'netReact=\|netSettle=\|netDiscard=' code/CardmenFighter.template.html`.
 
-**A ROUND WIN IS NO LONGER A RESULT, IT IS A WINDOW (epic step 18).** `resolveRoundWin` → `enterFightEnd`
-opens the Resolution go-round and returns `{fightEnd:true}` with **no `roundWinner`**, so every UI site that
+**A ROUND WIN IS NO LONGER A RESULT, IT IS A WINDOW (epic step 18).** `resolveRoundWin` → `enterResolution`
+opens the Resolution go-round and returns `{resolution:true}` with **no `roundWinner`**, so every UI site that
 tested `r.roundWinner != null` fell straight through — six of them, in both drivers and both transports.
-`drainFightEnd(r, g, then)` is the single seam: it runs `settleWindows` and then reads the outcome off
-**`st.fightEndResult`**, which the engine parks as it runs the sub-phase. It is deliberately NOT
+`drainResolution(r, g, then)` is the single seam: it runs `settleWindows` and then reads the outcome off
+**`st.resolutionResult`**, which the engine parks as it runs the sub-phase. It is deliberately NOT
 `roundWinResult` — `driveShieldStack` reads that one as "this is a round win" and would finish the round
-inside its own window. **Any new round-win call site goes through `drainFightEnd`**, and the tell that one
+inside its own window. **Any new round-win call site goes through `drainResolution`**, and the tell that one
 was missed is a table that parks with the round number unchanged.
 
 **THE SAVED LOG CARRIES A PRIORITY LEDGER (`prioNote`, 2026-09-10) — AND ITS FIRST TWO VERSIONS BOTH HAD
@@ -1314,7 +1314,7 @@ on screen — the go-round opens far too often for a battle-log line.
 **v1 LOGGED ONLY RESOLUTION AND ONLY WHEN A WINDOW OPENED.** Aj's first real log came back with **2 entries
 across 10 rounds**, which cannot distinguish a quiet game from a broken one — and a probe then played five
 full rounds and logged **nothing at all**, which is what both look like. The cause: a round win only
-RETURNS a go-round when somebody can add to the stack, so `r.fightEnd` is usually unset and
+RETURNS a go-round when somebody can add to the stack, so `r.resolution` is usually unset and
 `finishPassRound` does not even call the drain. The note moved to **`announceRoundWin`**, the one funnel
 all six round-win paths reach exactly once.
 **AND THE ROUND STAMP WAS OFF BY ONE THERE**, because `state.round` has already advanced by the time
@@ -1366,7 +1366,7 @@ Measured on v1.31.95, the two halves of the same day:
   player's build, and a subagent has never seen it.
 
 **A DEFAULT DERIVED FROM A PREDICATE OUTLIVES THE PREDICATE (epic step 18; FIXED 2026-09-10).** Step 15's
-`promptDefault(card, eff, 'fightend')` returned `immunityEffFor(...)` — chosen so the prompt defaults would
+`promptDefault(card, eff, 'resolution')` returned `immunityEffFor(...)` — chosen so the prompt defaults would
 reproduce "today's experience" exactly, which was right on the day. Step 18 then DELETED the window that
 predicate described, and the default silently kept describing it: the two cards the whole epic exists to
 fix (Sanctuary under Hector, Armor Piercing under Hippolyta) are both refused by `immunityEffFor`, so both
@@ -1415,7 +1415,7 @@ clauses that look alike.**
 away in the NET IIFE. `grep -n 'promptedQuicks('` is the enumeration; this is v1.31.116's "a fix wired in
 by name covered two parks of nine" in a new place.
 **THE ONLY SHAPE THAT CATCHES IT IS TWO QUICKS WITH ONE SILENCED.** With one card, "did not stop me" and
-"cannot play it" are the same observation. `fightenduitest` scenario D stages both and asserts the silenced
+"cannot play it" are the same observation. `resolutiontest_ui` scenario D stages both and asserts the silenced
 one is still on offer; A/B'd by reverting the one line, which reds exactly that assertion.
 
 **BEFORE TOUCHING `fightValue`, `applyEquip` OR `lockedDelta`, READ
@@ -1839,13 +1839,13 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127 — 2026-09-10, `npm run sweep`, 92 suites and 0 FAIL in 225s ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `fightendtest`, `fightenduitest`, `nettest_passoduel`, `nettest_priosig`) (four lanes; background
+Status as of **v1.31.127 — 2026-09-10, `npm run sweep`, 92 suites and 0 FAIL in 225s ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 478, `netview` 65, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
+`test` 483, `netview` 65, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 18, `fightendtest` 16, `fightenduitest` 23, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 23, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2562,15 +2562,23 @@ definition, so it cannot delete them.
 - **`docs/PHASES-AND-PRIORITY.md` — CURRENT TRUTH for turn structure and priority.** Dictated by Aj
   2026-09-08 and the only live statement of the model. **Read it before touching any window, the stack, or
   anything that grants priority.**
-  **THE PHASES WERE RENAMED 2026-09-11 AND THE CODE WAS NOT — THAT SPLIT IS DELIBERATE, NOT A MISSED
-  SWEEP.** `Fight Phase` → **Play Phase** (Main · **Fight** · **Resolution**), because the phase you spend
-  your turn in is the one you play in. The old `Play Sub-Phase` is the **Fight Sub-Phase** and `Fight End` is
-  **Resolution**. Docs and player-facing copy use the new words; the ~344 code sites (`st.fightEnd`,
-  `openFightEndWindow`, `fightendtest.js`, the `'fightend'` prompt-timing id, which needs a `localStorage`
-  migration) are renamed at **step 23**, deliberately after the behaviour stops moving — this file's own rule
-  is that a rename is a deletion wearing a friendlier face, and threading 344 sites through a step that is
-  still changing behaviour makes any red run unbisectable. **So `fightEnd` in a `.js` file is the old name,
-  not a leftover**, and a doc quoting Aj before that date still says "fight end" on purpose.
+  **THE PHASES WERE RENAMED 2026-09-11 AND THE CODE FOLLOWED AT EPIC STEP 23 (2026-09-14). THE SPLIT IS
+  CLOSED.** `Fight Phase` → **Play Phase** (Main · **Fight** · **Resolution**), because the phase you spend
+  your turn in is the one you play in; the old `Play Sub-Phase` is the **Fight Sub-Phase** and `Fight End` is
+  **Resolution**. Code and docs now agree: `st.resolution`, `openResolutionWindow`, `enterResolution`,
+  `resolutionResult`, `drainResolution`, `resolutionGuardCard` / `resolutionPushCard`, `resolutiontest.js` and
+  `resolutiontest_ui.js`. **If you find `fightEnd` in a `.js` file it is a genuine leftover now, not the
+  deliberate lag it used to be** — that inversion is the whole point of this note.
+  **THE ONE SURVIVING `'fightend'` IS THE `localStorage` MIGRATION** in the template (and its assertion in
+  `prompttest`). The prompt-timing id is persisted, so the migration has to know the OLD name by definition;
+  deleting that literal to "finish the rename" would orphan every preference a player has ticked, silently,
+  because an unknown key just falls back to the default.
+  **THE RENAME WAS DELIBERATELY HELD until the behaviour stopped moving**, and that was right: a rename is a
+  deletion wearing a friendlier face, and threading it through a step still changing behaviour makes a red run
+  unbisectable. It shipped as **one symbol per commit** for the same reason.
+  **DATED QUOTES STILL SAY "fight end" ON PURPOSE** — `PHASES-AND-PRIORITY.md` says so in its own line 15, and
+  `CHANGELOG.md` is append-only history. A blanket prose sweep is WRONG here; the only paragraph a blanket
+  identifier rename damaged was this one, because it was *about* the old names.
 - `docs/BUILD-PLAN-v0.82.md`, `docs/Cardmen-Fighter-Design-v0.70.md`, `docs/STACK-DESIGN-v0.53.md` —
   historical snapshots, not current truth — **and specifically wrong about priority**, which is what
   `PHASES-AND-PRIORITY.md` now owns.

@@ -115,7 +115,7 @@ function newOfferSet(st, origin) {
    useful one — **the old window is gone AND the new one is really running** — and keeps the two things
    half A cannot see: that the walk never offers a seat the engine would refuse, and how wide it actually is.
    THE OLD-WINDOW COUNT IS ASSERTED AT ZERO rather than deleted, which makes this the live counterpart of
-   `fightendtest`'s whitelist canary: reinstate the guard window and this goes red naming it.
+   `resolutiontest`'s whitelist canary: reinstate the guard window and this goes red naming it.
    AND THE ZERO IS NOT ALLOWED TO STAND ALONE. "Nothing opened the old window" is also true of a build where
    nothing happens at all, which is the vacuous shape this repo has shipped twice — so the go-round floor
    below is what makes the zero mean something. */
@@ -132,8 +132,8 @@ COUNTS.forEach(function (np) {
       /* THE SAME OBSERVATION POINT AS BEFORE, AND IT SURVIVES FOR THE SAME REASON: a round-winning pass
          leaves the window open and `takeTurn` returns (P6), so the next call is what drains it. The window
          is therefore plainly readable on state between two turns, with no engine patch to measure. */
-      if (st.fightEnd && st.respondFor != null) {
-        var NEW = newOfferSet(st, st.fightEnd.origin);
+      if (st.resolution && st.respondFor != null) {
+        var NEW = newOfferSet(st, st.resolution.origin);
         obs++; obsBy[np]++; offerTotal += NEW.length; offBy[np] += NEW.length;
         if (NEW.length > 1) multi++;
         NEW.forEach(function (s) { if (st.players[s].eliminated || !E.canAddToStack(st, s)) refused.push({ np: np, seat: s, elim: !!st.players[s].eliminated }); });
