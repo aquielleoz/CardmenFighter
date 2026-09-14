@@ -4600,7 +4600,7 @@ __QR__
   }
   function finishPassRound(r){
     if(r && r.fizzled) return finishRoundNobodyWon(r);
-    if(r && r.fightEnd){ var fg=gen; return drainFightEnd(r, fg, function(fr){ if(fg===gen) finishPassRound(fr); }); }   // step 18: the window opens first, the outcome lands after
+    if(r && r.fightEnd){ var fg=gen; return drainResolution(r, fg, function(fr){ if(fg===gen) finishPassRound(fr); }); }   // step 18: the window opens first, the outcome lands after
     if(r.roundWinner!=null){
       var g=gen;
       if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive() && MP() && r.needsLossTarget){ return NET.hostResolveWin(r, g, function(fr){ NET.hostSettleRoundThenCeremony(fr, g); }); }   // netplay: a remote winner picks its target, then the ceremony
@@ -4760,7 +4760,7 @@ __QR__
     }
     var w=res.roundWinner, who=logName(w), cls=(w===YOU?'you':'rival');
     /* EVERY ROUND RESOLUTION IS RECORDED HERE, because this is the one funnel all six round-win paths
-       reach exactly once. The note started life inside `drainFightEnd` and could not see the case that
+       reach exactly once. The note started life inside `drainResolution` and could not see the case that
        matters: a round win only RETURNS a go-round when somebody can add to the stack, so when nobody
        holds a castable Quick the sub-phase just runs and `r.fightEnd` is never set — and `finishPassRound`
        does not even call the drain then. MEASURED: a probe played five full rounds and logged NOTHING,
@@ -5110,7 +5110,7 @@ __QR__
         var pres=passed.result;
         /* THE DUEL DRIVER'S OWN GUARD BRANCH WAS HERE AND IS DELETED (epic step 19). It was a SECOND
            copy of `shieldGuardAI`'s policy — a hardcoded `rpl.shields<=2` in the template — resolving the
-           AI's guard window inline. `finishStep`'s `drainFightEnd` runs the go-round instead, and
+           AI's guard window inline. `finishStep`'s `drainResolution` runs the go-round instead, and
            `settleWindows` presents whatever the AI springs with its own flash and dwell. */
         return finishStep(pres, g, log);   // the WHOLE log — finishStep paces it as beats, then resolves
       }
@@ -5250,7 +5250,7 @@ __QR__
      deep inside the go-round, so its result returns up a chain whose end is whoever answered last — which on
      a host is a wire callback, not this caller. `st.fightEndResult` is where the engine parks it, and it is
      deliberately NOT `roundWinResult`: `driveShieldStack` reads that one as "this is a round win" (P3). */
-  function drainFightEnd(r, g, then){
+  function drainResolution(r, g, then){
     if(!r || !r.fightEnd) return then(r);   // the SILENT case is logged in `announceRoundWin`, the one funnel every path reaches
     var fe=state.fightEnd||{};
     prioNote('  ↳ a GO-ROUND opened before it', 'winner=' + (fe.winner!=null?logName(fe.winner):'?') +
@@ -5597,7 +5597,7 @@ __QR__
         var res=passed && passed.result;
         /* THE ROUND MAY NOT HAVE RESOLVED YET (epic step 18). A round-winning pass now opens the Fight End
            go-round and returns `{fightEnd:true}` with no `roundWinner`, so this branch has to accept both
-           shapes; `drainFightEnd` runs the window — prompting YOU when priority reaches this seat, and
+           shapes; `drainResolution` runs the window — prompting YOU when priority reaches this seat, and
            presenting an AI seat's Quick through `settleWindows` — and hands back the real outcome.
            THE LOSS-TARGET PICK STILL COMES FIRST, before the window opens, and that is §3's own ordering:
            the table must be able to see who is about to be struck while it can still answer.
@@ -5607,7 +5607,7 @@ __QR__
         if(res && (res.roundWinner!=null || res.fightEnd || res.fizzled)){
           var finishRound=function(fr){
             if(g!==gen) return;
-            drainFightEnd(fr, g, function(fres){
+            drainResolution(fr, g, function(fres){
               if(g!==gen) return;
               announceRoundWin(fres);
               if(state.finished){ busy=false; render(); return endGame(); }
@@ -5647,7 +5647,7 @@ __QR__
          anyone is asked to answer it; and the ceremony narrates outcomes that do not exist until it
          drains. `settleWindows` presents a Quick sprung here with its own `quickFlash` + dwell, which is
          what the deleted `narrateShieldGuard` call used to do for the one whitelisted guard. */
-      drainFightEnd(res, g, function(fres){
+      drainResolution(res, g, function(fres){
         if(g!==gen) return;
         announceRoundWin(fres);
         if(state.finished){ render(); busy=false; return endGame(); }    // Fighter Kick — terminal, no round card

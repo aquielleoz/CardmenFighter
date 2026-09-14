@@ -1145,7 +1145,7 @@ not once** — two flakes hid in one green run the last time this surface was to
 > dead code, i.e. step 19's delete pass, not step 18's blocker. Reading the layer that would have to CONSUME
 > the new shape found the bug in one probe; enumerating the sites the old shape used to touch would not have.
 >
-> **THE FIX IS ONE SEAM, NOT A PARK PER SITE.** `drainFightEnd(r, g, then)` calls `settleWindows`, which
+> **THE FIX IS ONE SEAM, NOT A PARK PER SITE.** `drainResolution(r, g, then)` calls `settleWindows`, which
 > already dispatches per mode — solo drains AI seats and prompts you, `hostSettle` parks a duel on
 > `netSettle`, `hostSettleN` parks 3-6 players on `netReact` — and then reads the outcome off
 > `st.fightEndResult`. Wired at `finishPassRound`, `finishStep`, `runOpponents`, `hostAfterRivalMove`, both
