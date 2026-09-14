@@ -2144,7 +2144,7 @@ function cards(ids) { return ids.map(card); }
 })();
 
 /* THE AI CAN CAST THE CARD THE EPIC EXISTS FOR (fix, 2026-09-12).
-   `fightEndGuardCard` filtered the hand through `immunityEffFor` — "is this immunity" — and Sanctuary
+   `resolutionGuardCard` filtered the hand through `immunityEffFor` — "is this immunity" — and Sanctuary
    under HECTOR is `{quick:true}` ALONE on a `kind:'shield'` base. So an AI seat at 0 shields, holding the
    exact card that saves it, declined and took the Fighter Kick. `fightenduitest` scenario A proves a HUMAN
    plays that line and lives; no AI could, in any mode, ever.
@@ -2172,23 +2172,23 @@ function cards(ids) { return ids.map(card); }
   ok(E.effectFor(g, 0, SANC()).quick === true, 'Hector really makes Sanctuary a Quick (the staging is live)');
   ok(E.immunityEffFor(g, 0, SANC()) === null, 'immunityEffFor REFUSES Sanctuary under Hector — the bug, kept as the reason this test exists');
   ok(!!E.lossAnswerFor(g, 0, SANC()), 'lossAnswerFor ACCEPTS it: gaining a shield takes you off 0, so the kick branch never runs');
-  var picked = AI.fightEndGuardCard(g, 0);
+  var picked = AI.resolutionGuardCard(g, 0);
   ok(picked && picked.id === 'sanc10H', 'an AI at 0 shields under Hector now springs Sanctuary instead of dying');
 
   // ...and it is a real refusal, not a rig that accepts anything
-  ok(AI.fightEndGuardCard(rig(0, HECTOR(), [DUD()]), 0) === null, 'a hand with no answer still declines — the rig can say no');
-  ok(AI.fightEndGuardCard(rig(0, [], [SANC()]), 0) === null, 'and WITHOUT the Form it declines: Sanctuary is not a Quick at base, so there is nothing to cast');
+  ok(AI.resolutionGuardCard(rig(0, HECTOR(), [DUD()]), 0) === null, 'a hand with no answer still declines — the rig can say no');
+  ok(AI.resolutionGuardCard(rig(0, [], [SANC()]), 0) === null, 'and WITHOUT the Form it declines: Sanctuary is not a Quick at base, so there is nothing to cast');
 
   // the seat must actually be the one being struck, and must want to guard
-  ok(AI.fightEndGuardCard(rig(4, HECTOR(), [SANC()]), 0) === null, 'a seat on 4 shields does not burn Sanctuary — shieldGuardWants still gates it');
+  ok(AI.resolutionGuardCard(rig(4, HECTOR(), [SANC()]), 0) === null, 'a seat on 4 shields does not burn Sanctuary — shieldGuardWants still gates it');
   var notStruck = rig(0, HECTOR(), [SANC()]); notStruck.fightEnd.strikeTargets = [1];
-  ok(AI.fightEndGuardCard(notStruck, 0) === null, 'a seat NOT struck this round declines — the go-round offers everyone priority');
+  ok(AI.resolutionGuardCard(notStruck, 0) === null, 'a seat NOT struck this round declines — the go-round offers everyone priority');
 
   // the cheapest sufficient answer, not hand order — assert it BOTH ways so hand order cannot be what passed it
   var both = rig(0, HECTOR(), [SANC(), LEY()]);
-  ok(AI.fightEndGuardCard(both, 0).id === 'ley9D', 'with both in hand it takes the CHEAPER Leyline (9) over Sanctuary (10)');
+  ok(AI.resolutionGuardCard(both, 0).id === 'ley9D', 'with both in hand it takes the CHEAPER Leyline (9) over Sanctuary (10)');
   var rev = rig(0, HECTOR(), [LEY(), SANC()]);
-  ok(AI.fightEndGuardCard(rev, 0).id === 'ley9D', 'and the same card whichever order the hand is in — not `hand.filter(...)[0]`');
+  ok(AI.resolutionGuardCard(rev, 0).id === 'ley9D', 'and the same card whichever order the hand is in — not `hand.filter(...)[0]`');
 })();
 
 /* THE WINNER'S LINE AT RESOLUTION (epic step 21). Aj's call, and MEASURED at +0.82 points / 2.94 sigma at

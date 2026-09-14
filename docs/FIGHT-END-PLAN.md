@@ -1160,7 +1160,7 @@ not once** — two flakes hid in one green run the last time this surface was to
 > **ONE REAL REGRESSION, FOUND BY A SUITE AND NOT BY READING.** `nettest_passoduel`: Passo answered the
 > go-round with a bare `{op:'decline'}`, so a dropped player's seat stopped defending itself — measured
 > shields 1 → 0 while holding an affordable Leyline, which silently undid Aj's step-13 ruling.
-> `AI.fightEndGuardCard` is now the one definition, self-gated on the window, asked by both
+> `AI.resolutionGuardCard` is now the one definition, self-gated on the window, asked by both
 > `respondDecision` and Passo. **It also repairs something step 16's verbatim port got wrong**: it never
 > asked whether the seat is actually STRUCK, because the old window only ever opened for the threatened
 > seat. Without that clause an AI at two shields burns Leyline on a round it was never going to lose one to

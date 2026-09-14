@@ -7965,15 +7965,15 @@ __QR__
            branch below; the switch replaced `driveShieldStack`'s yes/no with the Fight End go-round, which
            arrives here as an ORDINARY respond window — so a bare decline silently undid the ruling, and
            `nettest_passoduel` measured it (shields 1 → 0 holding an affordable Leyline).
-           `fightEndGuardCard` is the AI's own policy, self-gated on the window, so this cannot answer an
+           `resolutionGuardCard` is the AI's own policy, self-gated on the window, so this cannot answer an
            ordinary Counter-a-Counter chain by burning a guard. */
         if(k==='respond'){
-          var pg=AI.fightEndGuardCard(hostState, seat);
+          var pg=AI.resolutionGuardCard(hostState, seat);
           return hostApplyMoveN(seat, pg ? {op:'respond', id:pg.id} : {op:'decline'});
         }
         /* PASSO'S `guard` BRANCH WAS HERE AND IS DELETED (epic step 19) — the window it answered is gone.
            Aj's step-13 ruling (*a dropped player's Leyline still saves their last shield*) is preserved in
-           the `respond` branch above, which asks `AI.fightEndGuardCard` — the same policy, for the window
+           the `respond` branch above, which asks `AI.resolutionGuardCard` — the same policy, for the window
            that actually exists now. */
         if(k==='discard')  return hostApplyMoveN(seat, {op:'discard', ids:[]});           // [] → engine auto-picks (smart; keeps Specials)
         if(k==='loss'){ var t=null; for(var i=0;i<hostState.numPlayers;i++){ if(i!==seat && !hostState.players[i].eliminated){ t=i; break; } } var lr=E.chooseLossTarget(hostState, t); var nr=netReact; netReact=null; return nr.cont(lr); }   // unreachable in practice (Passo never wins a combo); safe fallback
@@ -7999,7 +7999,7 @@ __QR__
       if(!MP() && seat===1){
         if(netDiscard) return hostApplyMove({op:'discard', ids:[]});                      // [] → engine auto-picks (keeps Specials)
         if(netSettle){                                                                   // the Fight End go-round reaches a duel here — defend, exactly as the N-player branch above does
-          var dg=AI.fightEndGuardCard(hostState, 1);
+          var dg=AI.resolutionGuardCard(hostState, 1);
           return hostApplyMove(dg ? {op:'respond', id:dg.id} : {op:'decline'});
         }
         if(duelWait && hostState.turn===1){

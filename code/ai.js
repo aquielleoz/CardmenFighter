@@ -808,7 +808,7 @@
         if (bs) { var br = E.respond(st, q, bs.id); if (br && br.ok) return br; }
         return E.declineResponse(st, q);
       }
-      var guardC = fightEndGuardCard(st, q);
+      var guardC = resolutionGuardCard(st, q);
       if (guardC) { var gr = E.respond(st, q, guardC.id); if (gr && gr.ok) return gr; }
       var pushC = resolutionPushCard(st, q);                                // the WINNER's line — defence first, it is the urgent one
       if (pushC) { var pr2 = E.respond(st, q, pushC.id); if (pr2 && pr2.ok) return pr2; }
@@ -871,7 +871,7 @@
      Aj ruled must defend rather than always take the hit. A second copy of `shields <= 2` in the template
      would drift the day this policy changes; the same reasoning as `isChopOf` and `immunityEffFor`.
      It answers only "does this seat WANT to guard" — whether a usable card exists is a separate question,
-     answered by `fightEndGuardCard` above (it was `shieldGuardCard`'s until step 19 deleted that). */
+     answered by `resolutionGuardCard` above (it was `shieldGuardCard`'s until step 19 deleted that). */
   /* WHICH CARD SHOULD SEAT q SPRING AT FIGHT END — ONE DEFINITION, TWO ASKERS (epic step 18).
      `respondDecision` asks it for an AI seat; **PASSO** asks it in the template for a dropped player's
      seat. Passo has to get the same answer: Aj's step-13 ruling is that disconnecting must not stop a seat
@@ -886,7 +886,7 @@
      there. The go-round offers priority to EVERYONE, so without this an AI at two shields springs Leyline
      on a round it was never going to lose one to. Restoring that condition is what keeps step 18's claim —
      that it changes no AI behaviour — literally true. A real Fight End policy is step 21, which measures. */
-  function fightEndGuardCard(st, q) {
+  function resolutionGuardCard(st, q) {
     if (!st.fightEnd || st.pending) return null;                          // not the Fight End go-round
     if ((st.fightEnd.strikeTargets || []).indexOf(q) < 0) return null;    // not struck this round — nothing to guard
     if (!shieldGuardWants(st, q)) return null;
@@ -1096,7 +1096,7 @@
      silently removed `preFightMove`, `lockoutWorth` and six others, and `test.js` died on the first of
      them. Notes go ABOVE the literal; entries go in it. */
   var API = { THREAT_KIND: THREAT_KIND, BENIGN_KIND: BENIGN_KIND,   // exported so test.js can require every effect kind to be CLASSIFIED
-    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, fightEndGuardCard: fightEndGuardCard, resolutionPushCard: resolutionPushCard, setArmPolicy: setArmPolicy, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
+    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, resolutionGuardCard: resolutionGuardCard, resolutionPushCard: resolutionPushCard, setArmPolicy: setArmPolicy, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
     lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;
