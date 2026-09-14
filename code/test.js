@@ -2217,26 +2217,26 @@ function cards(ids) { return ids.map(card); }
   ok(E.effectFor(rig(2, HIPPO(), [AP()]), 0, AP()).quick === true, 'Hippolyta really makes Armor Piercing a Quick (the staging is live)');
   ok(E.effectOf(AP()).quick === false, 'and it is NOT a Quick at base — without the Form there is no window play at all');
 
-  var hit = AI.fightEndPushCard(rig(2, HIPPO(), [AP(), KING()]), 0);
+  var hit = AI.resolutionPushCard(rig(2, HIPPO(), [AP(), KING()]), 0);
   ok(hit && hit.id === 'ap7C', 'the round WINNER springs Armor Piercing against a target on 2 shields');
 
   // "never overkills" — below 2 the extra strip changes nothing, so casting it is strictly wasted
-  ok(AI.fightEndPushCard(rig(1, HIPPO(), [AP(), KING()]), 0) === null, 'but NOT against a target on 1 — it would reach 0 either way ("never overkills")');
-  ok(AI.fightEndPushCard(rig(0, HIPPO(), [AP(), KING()]), 0) === null, 'and NOT against a target on 0 — the ordinary strip already kicks them');
+  ok(AI.resolutionPushCard(rig(1, HIPPO(), [AP(), KING()]), 0) === null, 'but NOT against a target on 1 — it would reach 0 either way ("never overkills")');
+  ok(AI.resolutionPushCard(rig(0, HIPPO(), [AP(), KING()]), 0) === null, 'and NOT against a target on 0 — the ordinary strip already kicks them');
 
   // the costs are real
-  ok(AI.fightEndPushCard(rig(2, HIPPO(), [AP(), LOW()]), 0) === null, 'no spare Broadway card in hand = no cast: pitchHigh is an additional COST, not flavour');
-  ok(AI.fightEndPushCard(rig(2, [], [AP(), KING()]), 0) === null, 'without Hippolyta it declines — Armor Piercing is not castable in a window at base');
+  ok(AI.resolutionPushCard(rig(2, HIPPO(), [AP(), LOW()]), 0) === null, 'no spare Broadway card in hand = no cast: pitchHigh is an additional COST, not flavour');
+  ok(AI.resolutionPushCard(rig(2, [], [AP(), KING()]), 0) === null, 'without Hippolyta it declines — Armor Piercing is not castable in a window at base');
 
   // only the winner, and only once
   var notWinner = rig(2, HIPPO(), [AP(), KING()]); notWinner.fightEnd.winner = 1;
-  ok(AI.fightEndPushCard(notWinner, 0) === null, 'a seat that did not win the round has no strike to amplify');
+  ok(AI.resolutionPushCard(notWinner, 0) === null, 'a seat that did not win the round has no strike to amplify');
   var armed = rig(2, HIPPO(), [AP(), KING()]); armed.players[0].finishingBlow = true;
-  ok(AI.fightEndPushCard(armed, 0) === null, 'already armed — a second Armor Piercing adds nothing and is refused');
+  ok(AI.resolutionPushCard(armed, 0) === null, 'already armed — a second Armor Piercing adds nothing and is refused');
 
   // and the tally is real, so "worth nothing" can never be confused with "never ran"
   AI.resetPolicyStats();
-  AI.fightEndPushCard(rig(2, HIPPO(), [AP(), KING()]), 0);
+  AI.resolutionPushCard(rig(2, HIPPO(), [AP(), KING()]), 0);
   ok(AI.policyStats().push === 1, 'policyStats counts the cast — a policy measuring as worthless and one that never ran are the same number otherwise');
 })();
 

@@ -551,7 +551,7 @@ to take a second shield off a struck target. **It cannot kill, and the gate is b
 runs a loop whose `wasBroken` is sampled BEFORE it, so a seat holding shields when the strike began is never
 kicked by the extra strip. Measured: a target on 2 → 0, a target on 1 → 0 either way, a target on 0 was
 already dead. That is the card's own *"never overkills"*, and it means the only board where the play does
-anything is **a struck target on 2 or more shields**. `fightEndPushCard` refuses every other. It fires ~10
+anything is **a struck target on 2 or more shields**. `resolutionPushCard` refuses every other. It fires ~10
 times per 300 knight duels. Half the Resolution priority grants go to seats that previously could never use
 them; this is the first play any of them has.
 
