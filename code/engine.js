@@ -585,7 +585,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], roundWinResult: null, resolution: null, resolutionResult: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], losses: [], roundWinResult: null, resolution: null, resolutionResult: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -984,7 +984,7 @@
   var SUPER_NAMES = { D: 'Athena Mode', H: 'Apollo Mode', C: 'Ares Mode', S: 'Hermes Mode' };
   var BOOSTS = {
     D: {
-      queen: { 1: { n: 4, desc: 'Gather 1 more — put the top 4 of your deck into Energy.' }, 4: { desc: 'Counter Spell can also counter an Equipment as it is played.' }, 7: { eqMode: 'deckTop', desc: "Forceful Strip puts the target Equipment on TOP of its owner's deck (they must redraw it) instead of into their hand." } },
+      queen: { 1: { n: 4, desc: 'Gather 1 more — put the top 4 of your deck into Energy.' }, 4: { counterEquip: true, desc: 'Counter Spell can also counter an Equipment as it is played.' }, 7: { eqMode: 'deckTop', desc: "Forceful Strip puts the target Equipment on TOP of its owner's deck (they must redraw it) instead of into their hand." } },
       king:  { 5: { boost: 5, desc: 'Boost your next play by 1 more (to +5).' }, 6: { draw: 4, desc: 'Look 1 deeper — top 4, keep 3 (draw 2→3).' }, 10: { phantasmPlus: 1, desc: 'The illusion swells — the copy is conjured at +1 value.' } },
       super: { 7: { ride: true, form: true, eqMode: 'deckTop', desc: "Forceful Strip puts a stripped Equipment on TOP of its owner's deck, and can also return a Ride OR a Form to its owner's hand." }, 9: { kind: 'reclaim', half: true, immune: true, cantLose: true, desc: 'Also recycle — shuffle your Shuffle Pile into your deck and ramp half of it into Energy.' } }
     },
@@ -1257,17 +1257,14 @@
     if (pitchCard) { pl.hand = pl.hand.filter(function (c) { return c.id !== pitchCard.id; }); pl.removed.push(pitchCard); }   // Broadway pitch → Discard pile
     if (eff.kind !== 'transform') { st._effUsed = true; }   // this turn's first-effect discount/tax is now spent
 
-    // REWORK transform: J/Q/K go straight to the Forms & Rides Zone (persist, no decay, no counters/response).
-    if (eff.kind === 'transform') {
-      // ONE transform per RANK: a new J/Q/K replaces the existing one of that rank regardless of suit (with
-      // Variant B any-suit boosts, holding two same-rank Forms adds nothing). The retired card banks as Energy.
-      var displaced = pl.forms.filter(function (f) { return f.rank === card.rank; });
-      pl.forms = pl.forms.filter(function (f) { return f.rank !== card.rank; });
-      displaced.forEach(function (f) { if (f.card) pl.energy.push(f.card); });   // retired transform's card banks as Energy
-      pl.forms.push({ rank: card.rank, suit: card.suit, tier: eff.tier, name: eff.name, card: card });
-      if (TRANSFORM_DRAW) drawCards(pl, TRANSFORM_DRAW);   // on-cast draw (A/B: e.g. draw 5)
-      return { ok: true, transformed: true, tier: eff.tier, name: eff.name, isSuper: hasSuper(pl), card: card, displaced: displaced.length };
-    }
+    /* THE TRANSFORM USED TO RETURN HERE, APPLYING ITSELF AND NEVER TOUCHING THE STACK (changed 2026-09-14).
+       The comment said "persist, no decay, no counters/response", and that last clause was the bug: a whole
+       CARD TYPE bypassed priority. Activating a J/Q/K granted NOBODY priority — verified before the change,
+       not inferred. Aj: *"they could be countered... activating forms and rides puts their effect on the
+       stack."* So it falls through to `pushEffect` like every other activation and applies on RESOLUTION.
+       Counter Spell still cannot name it — its text says Technique, and a Ride or Form Change is its own
+       card type — which is exactly the distinction Aj drew: on the stack, and answerable, but not by THAT
+       card until one is printed that names those types. */
 
     // --- push the activated effect onto the stack; the opponent may answer with a Quick before it resolves ---
     var res = pushEffect(st, p, card, eff, opts);
@@ -1331,10 +1328,10 @@
      card-level answers cannot drift — which they did before, since `eligibleQuicks` had its own copy. */
   function quickTargets(st, q, eff) {
     if (!eff) return null;                                                     // not a targeting effect — nothing to check
-    if (eff.kind === 'counter') return counterTargets(st);
+    if (eff.kind === 'counter') return counterTargets(st, eff);
     if (eff.kind === 'protect') {
       for (var j = st.stack.length - 1; j >= 0; j--) {                         // an incoming removeEquip is a legal target even with no equipment of your own
-        if (st.stack[j].kind === 'effect' && st.stack[j].eff.kind === 'removeEquip' && pickEquip(st, st.stack[j].p, st.stack[j].opts && st.stack[j].opts.target)) return [1];
+        if (st.stack[j].kind === 'effect' && st.stack[j].eff && st.stack[j].eff.kind === 'removeEquip' && pickEquip(st, st.stack[j].p, st.stack[j].opts && st.stack[j].opts.target)) return [1];   // `.eff &&`: a TRIGGERED effect has no cast card behind it
       }
       return st.players[q].equipment.slice();
     }
@@ -1403,7 +1400,7 @@
        does not, breaking out is the safe failure and spinning here is not. The counter is a backstop, not
        the mechanism. */
     while (reentry++ < 256) {
-    while (st.stack.length && (st.stack[st.stack.length - 1].kind === 'effect' || st.stack[st.stack.length - 1].kind === 'tick')) {
+    while (st.stack.length && st.stack[st.stack.length - 1].kind === 'effect') {   // one kind — a trigger is an effect that carries `trig`
       var top = st.stack[st.stack.length - 1];
       /* THE PASSES BELONG TO THE GO-ROUND, NOT TO THE OBJECT (epic step 5). They used to live on each
          stack object, which only ever worked because at most one object could hold a non-empty set: `respond`
@@ -1447,17 +1444,23 @@
       last = resolveTopEffect(st);                                      // everyone passed → resolve, then re-loop
       st.prioPassed = {};                                               // a resolution starts a fresh go-round on whatever is now on top
       if (st.finished) return last;
+      /* DRAIN THE LOSS QUEUE *HERE*, NOT AFTER THE LOOP — THIS IS WHAT KEEPS THE MOVE BEHAVIOUR-PRESERVING.
+         While shield losses lived ON The Stack, a `destroyShield` resolving pushed one on top, which made
+         this loop EXIT immediately and drain it before anything underneath could resolve. With the queue on
+         its own field the loop would sail past and resolve the effects beneath FIRST — a real reordering,
+         and exactly the kind a "pure refactor" hides. Draining at the same moment reproduces the old order
+         exactly; the seeded fingerprint is what proves it rather than this comment. */
+      if (st.losses && st.losses.length) { driveShieldStack(st); if (st.finished) return last; }
     }
     /* STANDING DEFECT 2, CLOSED (epic step 19). This read
          `var sres = driveShieldStack(st); if (sres && sres.shieldResponsePending) return sres;`
        — a result captured and then thrown away on every path but one, because the only thing it tested
        was the guard window's own return flag. With that window gone there is nothing to test and nothing
        to discard: drive the queue and fall through. */
-    if (st.stack.length && st.stack[st.stack.length - 1].kind === 'shieldloss') {
-      var wasDeep = st.stack.length;
+    if (st.losses && st.losses.length) {
       driveShieldStack(st);
       if (st.finished) return last;
-      if (st.stack.length < wasDeep) continue;                        // the queue drained — effects may be exposed beneath it
+      continue;                                                       // the queue drained — effects may be exposed beneath it
     }
     break;
     }
@@ -1586,7 +1589,7 @@
   // at (or your own); everything else runs its body.
   function resolveTopEffect(st) {
     var top = st.stack.pop();
-    if (top.kind === 'tick') return resolveUpkeepTick(st, top);      // a triggered ability, not a cast card — no `eff`, no `card`
+    if (top.trig) return resolveUpkeepTick(st, top);                 // a triggered ability, not a cast card — no `eff`, no `card`
     var pl = st.players[top.p];
     if (top.countered) { pl.shuffle.push(top.card); return { ok: true, effect: top.eff.id, kind: top.eff.kind, countered: true, state: st }; }
     if (top.eff.kind === 'counter') {
@@ -1604,7 +1607,7 @@
     }
     if (top.eff.kind === 'protect') {
       var rem = null;
-      for (var j = st.stack.length - 1; j >= 0; j--) { if (st.stack[j].kind === 'effect' && st.stack[j].eff.kind === 'removeEquip') { rem = st.stack[j]; break; } }
+      for (var j = st.stack.length - 1; j >= 0; j--) { if (st.stack[j].kind === 'effect' && st.stack[j].eff && st.stack[j].eff.kind === 'removeEquip') { rem = st.stack[j]; break; } }   // `.eff &&`: a trigger has none
       var prot = null;
       if (rem) { var t = pickEquip(st, rem.p, rem.opts && rem.opts.target); if (t) prot = t.e; }
       else { prot = pl.equipment.filter(function (e) { return !(top.opts && top.opts.target) || e.id === top.opts.target; })[0]; }
@@ -1620,8 +1623,28 @@
      (epic step 8). Everything currently on the stack that is an EFFECT and not already countered. It became
      a real choice the moment step 6 let a player hold priority and stack two Quicks: "the object beneath me"
      stops being unambiguous, which Aj called out himself as the cost of holding priority. */
-  function counterTargets(st) {
-    return (st.stack || []).filter(function (o) { return o.kind === 'effect' && !o.countered; });
+  /* AND IT IS A CARD-TYPE RESTRICTION, NOT A STACK-TYPE ONE (2026-09-14). Counter Spell's own text is
+     "Counter target **Technique** as it is played" — so what it may name is decided by the TYPE OF THE CARD
+     that produced the effect, never by how the stack entry happens to be tagged. Aj: *"counter spell does
+     not target effects, it targets techniques and equipments — the card type source of the effect."*
+     QUICK IS A MODIFIER AND A CO-TYPE (Aj), so a Quick Technique IS a Technique and counter-a-counter
+     falls out rather than being special-cased — which `test.js` has always asserted.
+     THIS USED TO ADMIT EVERY EFFECT, and the bug that hid inside that was a pair: the QUEEN OF DIAMONDS
+     boost reads "Counter Spell can also counter an Equipment as it is played" and its patch contained ONLY
+     a `desc`, so it did nothing — while this filter already let EVERYONE counter Equipment. An
+     unimplemented boost and an over-permissive base, cancelling into something that looked correct.
+     `docs/CARD-LIST.md` has been publishing that promise to players the whole time.
+     RIDES AND FORM CHANGES ARE EXCLUDED BY NOT BEING NAMED, which is the point: they carry `type: 'Ride'`
+     and `'Form Change'`, and the day a card is printed that answers them it will name those types. */
+  var COUNTERABLE = { 'Technique': 1, 'Quick Technique': 1 };
+  function counterTargets(st, eff) {
+    var alsoEquipment = !!(eff && eff.counterEquip);                 // Queen of Diamonds
+    return (st.stack || []).filter(function (o) {
+      if (o.kind !== 'effect' || o.countered) return false;
+      if (o.trig) return false;                                      // a triggered ability has no cast card as its source
+      var t = o.eff && o.eff.type;
+      return !!COUNTERABLE[t] || (alsoEquipment && t === 'Equipment');
+    });
   }
 
   /* THE WINDOW IS `respondFor`; `pending` IS ONLY THE OBJECT IT IS ABOUT (epic step 11, prerequisite P1).
@@ -1652,7 +1675,7 @@
     var cOid = (opts && opts.counterOid) || null;
     if (cOid) {
       if (qeff.kind !== 'counter') return { ok: false, reason: 'That card does not counter anything.' };
-      if (!counterTargets(st).some(function (o) { return o.oid === cOid; })) return { ok: false, reason: 'That is no longer on the stack to counter.' };
+      if (!counterTargets(st, qeff).some(function (o) { return o.oid === cOid; })) return { ok: false, reason: 'That is no longer on the stack to counter.' };
     }
     qp.hand = qp.hand.filter(function (c) { return c.id !== quickCardId; });
     payEnergy(qp, qcard);
@@ -1743,6 +1766,17 @@
       case 'valueBoost':                                  // Infuse / Imbue / Divine Tactic: charge your next play
         pl.nextPlayBoost = (pl.nextPlayBoost || 0) + (eff.boost || 0);
         spendCard(pl, card); break;
+      case 'transform': {                                 // J/Q/K enter the Forms & Rides Zone — now ON RESOLUTION, after priority
+        /* ONE TRANSFORM PER RANK: a new J/Q/K replaces the existing one of that rank regardless of suit
+           (with Variant B any-suit boosts, holding two same-rank Forms adds nothing). The retired card
+           banks as Energy. Moved here from `activate` so the effect passes through the stack first. */
+        var tDisp = pl.forms.filter(function (f) { return f.rank === card.rank; });
+        pl.forms = pl.forms.filter(function (f) { return f.rank !== card.rank; });
+        tDisp.forEach(function (f) { if (f.card) pl.energy.push(f.card); });
+        pl.forms.push({ rank: card.rank, suit: card.suit, tier: eff.tier, name: eff.name, card: card });
+        if (TRANSFORM_DRAW) drawCards(pl, TRANSFORM_DRAW);
+        return { ok: true, state: st, transformed: true, tier: eff.tier, name: eff.name, isSuper: hasSuper(pl), card: card, displaced: tDisp.length };
+      }
       case 'onWin':                                       // Armor Piercing (renamed from Finishing Blow): your next combo win strips an extra shield
         pl.finishingBlow = true; spendCard(pl, card); break;
       case 'lockout':                                     // Back Stab: the target skips the WHOLE ROUND (no fights, no Techniques)
@@ -1821,7 +1855,7 @@
         spendCard(pl, card); break;
       case 'destroyShield':                               // Ultima Attack / Critical Hit: the target already got a response window vs this technique (spring Leyline there); the loss itself no longer opens a second guard window
         hostileTargets(st, p, oppIdx, 'damage', eff).forEach(function (t) {
-          st.stack.push({ oid: newOid(st), kind: 'shieldloss', target: t, n: (eff.n || 1), winner: p, source: eff.name, noKick: true, noGuard: true });
+          (st.losses = st.losses || []).push({ oid: newOid(st), target: t, n: (eff.n || 1), winner: p, source: eff.name, noKick: true });
         });
         spendCard(pl, card); break;
       /* NO `counter` / `protect` CASES HERE, AND THAT IS NOT AN OVERSIGHT (v1.31.125). `resolveTopEffect`
@@ -2219,8 +2253,8 @@
   function driveShieldStack(st) {
     var roundWin = !!st.roundWinResult;
     var result = st.roundWinResult || { ok: true, state: st };
-    while (st.stack.length && st.stack[st.stack.length - 1].kind === 'shieldloss') {
-      var top = st.stack[st.stack.length - 1];
+    while (st.losses && st.losses.length) {
+      var top = st.losses[st.losses.length - 1];
       /* THE GUARD WINDOW WAS HERE (removed at step 18; its last remains deleted at step 19). It offered
          ONE seat — the threatened one — a yes/no on ONE whitelisted card, which is the defect the whole
          epic exists to fix: §3 says priority is PASSED AROUND before the sub-phase, it is not a prompt to
@@ -2229,7 +2263,7 @@
          Step 18 kept `facingKick` and `canGuard` as locals "because the delete pass still wants them in
          view" — it does not, and they were unread. This is now what it always should have been: a queue
          that resolves. */
-      st.stack.pop();
+      st.losses.pop();
       resolveShieldLossObj(st, top, result);
     }
     if (roundWin) return finishRoundWin(st, result);
@@ -2335,7 +2369,7 @@
     if (wpl.finishingBlow) { strips = 2; wpl.finishingBlow = false; result.finishingBlow = true; }   // Armor Piercing: one extra
     st.roundWinResult = result;
     strikeTargets.forEach(function (q) {
-      st.stack.push({ oid: newOid(st), kind: 'shieldloss', target: q, n: strips, winner: winner, source: 'fight' });
+      (st.losses = st.losses || []).push({ oid: newOid(st), target: q, n: strips, winner: winner, source: 'fight' });
     });
     return driveShieldStack(st);
   }
@@ -2670,7 +2704,7 @@
      the spent shieldloss objects BEFORE parking the window is what unblocks it — the clear happens once,
      while the stack is genuinely spent, and nothing clears it again afterwards. */
   function finishRoundWin(st, result) {
-    st.stack = []; st.roundWinResult = null;                                // shield-loss stack is spent by here
+    st.stack = []; st.losses = []; st.roundWinResult = null;                // both are spent by here; the queue only survives a game that ended mid-drain
     if (st.finished) return result;
     /* WHO IS ACTIVE AT CLEAN-UP: the seat that just won the round. They are about to take the initiative,
        and a fizzled round (no winner) leaves initiative where it was — the same rule `finishCleanup`
@@ -2754,7 +2788,12 @@
       var eq = st.players[p].equipment || [];
       for (var i = 0; i < eq.length; i++) {
         if (!eq[i].decay || !eq[i].card) continue;
-        st.stack.push({ oid: newOid(st), kind: 'tick', p: p, eqId: eq[i].card.id, name: eq[i].name || 'Equipment' });
+        /* A TRIGGERED ABILITY PUTS AN EFFECT ON THE STACK LIKE ANYTHING ELSE (Aj, 2026-09-14: *"some
+           triggers put effects onto the stack"*). It is `kind:'effect'` with `trig: true` — the SOURCE is
+           what makes it uncounterable, not the stack tag: Counter Spell names card types and a trigger has
+           no cast card behind it. Tagging it a separate kind got the right answer for the wrong reason, and
+           would have flipped silently the day someone modelled a trigger as the effect it is. */
+        st.stack.push({ oid: newOid(st), kind: 'effect', trig: true, p: p, eqId: eq[i].card.id, name: eq[i].name || 'Equipment' });
       }
     }
   }

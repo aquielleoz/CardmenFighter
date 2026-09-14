@@ -1611,10 +1611,17 @@ function cards(ids) { return ids.map(card); }
   g6.players[1].equipment = [{ id: 'bow', name: 'Holy Bow', delta: 2, counters: 2, decay: true, card: sc(8, 'H', 'eqb') }];
   E.openResolutionWindow(g6, 2, true, [0], 2);
   var n7 = 0; while (g6.respondFor != null && !g6.upkeep && n7++ < 12) E.declineResponse(g6, g6.respondFor);
-  var ticks = g6.stack.filter(function (o) { return o.kind === 'tick'; });
-  ok(ticks.length === 3 && g6.pending && g6.pending.kind === 'tick',
-     'upkeep tick: each decaying Equipment puts a TRIGGER on the Upkeep stack (' + ticks.length + ' ticks, top is ' +
-     (g6.pending ? g6.pending.kind : 'nothing') + ')');
+  /* A TRIGGER IS AN `effect` CARRYING `trig`, NOT ITS OWN STACK KIND (2026-09-14). It used to be
+     `kind: 'tick'`, which made it uncounterable for the wrong reason — by stack TAG rather than by Counter
+     Spell's card-type restriction. The Stack holds effects and only effects; `trig` says this one had no
+     cast card behind it. Asserting `kind === 'effect'` here is deliberate: it is what stops the separate
+     kind creeping back. */
+  var ticks = g6.stack.filter(function (o) { return o.trig; });
+  ok(ticks.length === 3 && g6.pending && g6.pending.trig && g6.pending.kind === 'effect',
+     'upkeep tick: each decaying Equipment puts a TRIGGERED EFFECT on the Upkeep stack (' + ticks.length + ' triggers, top is ' +
+     (g6.pending ? (g6.pending.kind + (g6.pending.trig ? '/trig' : '')) : 'nothing') + ')');
+  ok(!E.counterTargets(g6, E.effectFor(g6, 0, sc(4, 'D'))).some(function (o) { return o.trig; }),
+     'and Counter Spell cannot name it — a trigger has no cast card as its source, which is the RULE now rather than a side effect of its stack tag');
   /* THE ACTIVE PLAYER'S TRIGGER GOES ON FIRST, so the LAST seat in turn order ends up on top (Aj,
      2026-09-11). That ordering is the whole reason §2 needs no exception here: with the stack built this
      way, "a go-round starts at the controller of the top stack object" already names the right seat.
@@ -2287,6 +2294,84 @@ function cards(ids) { return ids.map(card); }
   AI.resetPolicyStats();
   AI.resolutionPushCard(rig(2, HIPPO(), [AP(), KING()]), 0);
   ok(AI.policyStats().push === 1, 'policyStats counts the cast — a policy measuring as worthless and one that never ran are the same number otherwise');
+})();
+
+/* EVERY BOOST DESCRIPTION MUST BE A PROMISE THE CODE KEEPS (2026-09-14).
+   `docs/CARD-LIST.md` is generated from each patch's `desc` string, so the published list prints what a
+   boost SAYS with nothing checking that anything implements it — a set of promises nobody verified. That is
+   how the Queen of Diamonds' *"Counter Spell can also counter an Equipment as it is played"* shipped as a
+   patch containing ONLY a `desc`: `effectFor` skips `desc`, so the boost changed nothing, while the card
+   list advertised it to players.
+   THE CHECK IS DIFFERENTIAL, NOT A READ OF THE TABLE. It compares `effectOf` against `effectFor` with the
+   tier's Form staged and requires at least one real field to move. Reading the BOOSTS literal instead is
+   what made two independent readers miscount `eff.type` on this same day — an IIFE rewrites ranks 11-13
+   after the literal is written, so the source text is not what the lookup returns.
+   `boosted` / `boostTier` are metadata `effectFor` adds, so they are excluded: they are true of a
+   desc-only patch too, which is exactly why the bug was invisible. */
+(function () {
+  function C(r, su) { return { rank: r, suit: su, id: '' + r + su }; }
+  var SUITS = ['D', 'H', 'C', 'S'], META = { boosted: 1, boostTier: 1 };
+  function fieldsOf(e) { var o = {}; for (var k in e) { if (!META[k]) o[k] = JSON.stringify(e[k]); } return o; }
+  var TIERS = [
+    ['queen', function (su) { return [C(12, su)]; }],
+    ['king',  function (su) { return [C(13, su)]; }],
+    ['super', function (su) { return [C(11, su), C(12, su), C(13, su)]; }]
+  ];
+  var g = E.newGame(null, { numPlayers: 2 }), dead = [], live = 0;
+  SUITS.forEach(function (su) {
+    for (var r = 1; r <= 13; r++) {
+      var card = C(r, su), base = E.effectOf(card);
+      if (!base) continue;
+      TIERS.forEach(function (t) {
+        g.players[0].forms = t[1](su);
+        var b = E.effectFor(g, 0, card);
+        if (!b || !b.boosted) return;                       // no patch at this tier
+        var fa = fieldsOf(base), fb = fieldsOf(b), keys = {}, moved = false, k;
+        for (k in fa) keys[k] = 1;
+        for (k in fb) keys[k] = 1;
+        for (k in keys) { if (fa[k] !== fb[k]) moved = true; }
+        if (moved) live++; else dead.push(r + su + ' ' + base.name + ' [' + t[0] + ']');
+      });
+    }
+  });
+  ok(live > 40, 'the boost audit really ran — ' + live + ' patches change a field (a broken probe would report 0 and pass the next assertion vacuously)');
+  ok(dead.length === 0,
+     'every boost patch changes at least one real field' +
+     (dead.length ? ' — DESCRIBED BUT NOT IMPLEMENTED: ' + dead.join(' | ') +
+      '  ← CARD-LIST.md publishes this promise to players and nothing keeps it' : ''));
+})();
+
+/* A TRANSFORM GOES ON THE STACK AND GRANTS PRIORITY (2026-09-14). Aj: *"they could be countered...
+   activating forms and rides puts their effect on the stack."* Until this change `activate` applied a J/Q/K
+   immediately and returned — an entire CARD TYPE bypassing the priority system, with the old comment stating
+   it as intent ("no counters/response").
+   NOTHING ASSERTED THE OLD BEHAVIOUR AND NOTHING WOULD HAVE ASSERTED THE NEW ONE. The seeded fingerprint is
+   unchanged across this change, because the AI declines a transform window every time (`transform` is in
+   BENIGN_KIND, so `respondDecision` never answers it) — so AI-vs-AI play is identical and the whole change
+   is invisible to every existing suite. That is exactly the shape that silently reverts later. */
+(function () {
+  function sc2(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function rig() {
+    var g = E.newGame(null, { numPlayers: 3 });
+    var p0 = g.players[0];
+    p0.hand = [sc2(13, 'H', 'k'), sc2(4, 'C', 'x'), sc2(5, 'C', 'y'), sc2(6, 'C', 'z')];
+    p0.energy = []; ['D', 'H', 'C', 'S'].forEach(function (su) { for (var i = 0; i < 14; i++) p0.energy.push(sc2(3, su, 'e' + su + i)); });
+    g.players[1].hand = [sc2(9, 'D', 'ley'), sc2(5, 'C', 'a'), sc2(6, 'C', 'b')];
+    g.players[1].energy = []; ['D', 'H', 'C', 'S'].forEach(function (su) { for (var i = 0; i < 12; i++) g.players[1].energy.push(sc2(3, su, 'f' + su + i)); });
+    g.turn = 0; g.round = 3; g.pile = null; g.lastPlayer = null; g.passes = 0;
+    g.players[0].shields = 1; g.players[1].shields = 1; g.players[2].shields = 1;   // clear the transform gate
+    return g;
+  }
+  var g = rig(), r = E.activate(g, 0, 'k13H');
+  ok(r && r.ok && !!r.pending, 'a transform is CAST, not applied — activate returns a pending window');
+  ok(g.stack.length === 1 && g.stack[0].eff && g.stack[0].eff.kind === 'transform',
+     'its effect is on The Stack like any other activation');
+  ok(g.respondFor != null, 'and a seat holds priority — the card type no longer bypasses the go-round');
+  ok(g.players[0].forms.length === 0, 'the Form has NOT landed yet: it applies on RESOLUTION, not on cast');
+  ok(!E.counterTargets(g, E.effectFor(g, 1, sc2(4, 'D'))).length,
+     'Counter Spell still cannot name it — its text says Technique and this is a Form Change, which is the whole distinction');
+  var n = 0; while (g.respondFor != null && n++ < 12) E.declineResponse(g, g.respondFor);
+  ok(g.players[0].forms.length === 1 && g.stack.length === 0, 'once everyone passes it resolves and the Form lands');
 })();
 
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);

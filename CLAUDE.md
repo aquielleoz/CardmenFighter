@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 486 + 65 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 495 + 65 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 486 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 495 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 65, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
@@ -1467,6 +1467,33 @@ done what it claimed. **Make the real suite self-diagnosing instead** — a `nex
 click, and a `why()` that prints the refusal state, found all three bugs in one run each. And any probe that
 patches a file must assert its anchor count, exactly like every other edit here.
 
+**A SEEDED FINGERPRINT PROVES THE ENGINE, NOT THE GAME — AND IT GAVE ME FOUR COMMITS OF FALSE CONFIDENCE
+(2026-09-14).** The stack-model build ran a 240-game seeded fingerprint (rng AND `Math.random` pinned,
+hashing winner/round/shields/hand/energy/elimination) after every piece, and it was byte-identical through
+all of them. It was also blind to the two real defects, because **it drives `engine.js`/`ai.js` in Node and
+never loads the page** — both bugs lived in the UI: the rival driver stepping past a window it did not own,
+and `renderStack` throwing on a stack entry with no `eff`. **"Byte-identical fingerprint" and "nothing
+broke" are different claims**, and treating them as one is the `boost.style.display` incident in a new
+instrument (`test.js` stayed 333/0 while every render threw).
+**THE ACTIONABLE HALF: when a change alters what the UI MUST HANDLE, the fingerprint's silence is not
+evidence — run `browsertest` BETWEEN pieces, not only at the end.** It is the only suite that plays twelve
+complete duels through the real page, it takes ~70s, and it is what caught both. Four commits deep is a
+worse place to learn this than one.
+
+**AND A BASELINE HAS TO BE A BUILD YOU DID NOT WRITE (2026-09-14).** Chasing that hang, every A/B against my
+own partial work agreed with me. The worst was a careful-looking **three-runs-per-arm** A/B that hung 3/3 in
+BOTH arms and "cleared" the suspect commit: arm A's three hung runs each left the machine loaded, and a 200s
+cap then turned arm B's slow-but-fine runs into fake hangs — **six confidently wrong data points**. Its other
+flaw was structural: the "without" arm still contained the four earlier pieces, so it compared my build
+against my build. Against the MERGED EPIC it was unambiguous in two runs — 2/2 pass at ~70s versus 2/2 hang
+past 400s — and a per-commit bisect then named the culprit in minutes.
+**So: pick the baseline from merged history, run the arms CLEAN (kill stray browsers between runs, and never
+let one arm's wreckage into the next), and size the cap off a measured passing run rather than a guess.**
+This sharpens the existing "A/B the actual builds" note above, which says to do one and not against what.
+**The tell that an intermittent failure is being measured badly: the rate moves when nothing in the code
+did.** Here the same commit read 3/3 hang, then 0/1, then 2/2 hang. The mechanism, once found headlessly,
+was **5 of 339,433 driven rival turns — about one duel in 24**, which no single run could ever have settled.
+
 **IF AN A/B RETURNS IDENTICAL NUMBERS, CHECK THAT THE BUILD ACTUALLY WROTE.** On 2026-08-30 a comment repair
 orphaned its tail onto its own line; `build.js` refused to write (correctly), and the suites kept running the
 PREVIOUS build for several measurements — including an A/B whose two arms returned the same number, which is
@@ -1843,7 +1870,7 @@ Status as of **v1.31.127 — 2026-09-10, `npm run sweep`, 92 suites and 0 FAIL i
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 486, `netview` 65, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
+`test` 495, `netview` 65, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
 `versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 23, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
