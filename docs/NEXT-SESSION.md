@@ -599,12 +599,29 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   screenshot of round 6 shows the struck seat on **1 of 4 shields**. Losses narrated before round 6 are
   r2, r2-again and r3 = three. A narration-only duplicate would leave 2. The kick then lands in r7 off
   exactly the four strips, so the arithmetic closes on the duplicate being genuine.
-  **NO MECHANISM YET — DO NOT GUESS ONE FROM THIS ENTRY.** What is known: the second resolution has no
-  plays before it, the round counter did not advance between them, and the disconnect in that game is at
-  r6, far from this. Where to start is the round-win funnel and `drainResolution`'s single seam — a round
-  win is a WINDOW now, so a path that both drains it and then resolves again would produce exactly this.
-  `nettest_roundstall` and `nettest_clientwin` are the two suites in that area and both pass, so whatever
-  this is, it is not the shape either of them stages.
+  **AJ'S OWN TWO DETAILS ARE THE LEAD, AND THEY NAME ONE FUNCTION** (*"i lost twice to the same play…
+  not sure why it never cleared.. but also there was no beginning of round"*). The pile never cleared and
+  the round never began — and **`finishCleanup` is the single function that does BOTH**: `st.round += 1`
+  and `st.pile = null` are two lines apart in it, along with the initiative hand-off and the round-long
+  expiry. Every symptom in this entry is "`finishCleanup` did not run", and a pile still on the table with
+  the same winner still standing re-resolves to the same result. **Start there, not at the narration.**
+  **IT IS REACHED FROM EXACTLY ONE PLACE, WHICH MAKES IT CHECKABLE:** `finishRoundWin` sets
+  `st.cleanup` + `st.cleanupResult` and opens the Clean-up go-round; the drain in `openResponseWindow`
+  then unparks and calls `finishCleanup(st, cr)` — **but only `if (cr)`**. A path that reaches the
+  Clean-up branch with `st.cleanupResult` already null closes the window and silently does none of the
+  round end. That is the shape to hunt.
+  **THE ENGINE'S RE-ENTRY GUARDS LOOK RIGHT, so suspect the netplay layer first.** The Resolution branch
+  unparks `st.resolution` *before* running `applyRoundLossBody`, with a comment saying precisely why ("a
+  still-parked continuation would open a second go-round for a window that has already closed"), and the
+  Clean-up branch is built to the same shape. This game was a DUEL, so the relevant seam is
+  `drainResolution` and `hostSettle`'s park family — and CLAUDE.md's stated tell for a missed
+  `drainResolution` call site is *"a table that parks with the round number unchanged"*, which is
+  literally what was observed.
+  **RULED OUT ALREADY, so nobody re-checks them:** the transition re-apply is braked on BOTH handlers —
+  the duel by a `stackMark` compare around `hostSettle`, the N-player by `moveToPlayThen`'s third
+  argument with `seat` passed as the actor (checked 2026-09-15, after first mis-reading the N-player one
+  as unbraked). `nettest_roundstall` and `nettest_clientwin` both pass, so it is not the shape either
+  stages.
 
 - **ALL SEVEN EMOTES RENDER "You says…" TO THE PERSON WHO SENT THEM (2026-09-15).** `EMOTES` carries a
   present-tense third-person verb in every row — `says hi!`, `says nice play!`, `says yes!`, `says no!`,
