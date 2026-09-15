@@ -6381,11 +6381,35 @@ window.CardFace = {};
      notification's clothes — so a card you had silenced could not be played even in a window you were
      stopped for by something else. Every caller now renders the ENGINE's eligibility and uses this only to
      decide whether to interrupt: an empty result is an auto-pass, a non-empty one opens the window with
-     everything legal in it. THREE CALLERS, enumerated rather than remembered (`grep promptedQuicks(`):
-     `promptHumanResponse`, `promptHumanPreFight`, and `promptHostPreFight` — that third one is the netplay
-     host's own seat and is exactly the site a two-of-three fix would have missed, which is v1.31.116's
-     lesson about fixing a property of a KIND. */
-  function promptedQuicks(list, timing){ return (list||[]).filter(function(c){ return promptWanted(c, timing); }); }
+     everything legal in it. ONE CALLER TODAY — `promptHumanResponse` — and the enumeration is still the
+     habit, not the number: this comment named THREE until 2026-09-15, two of which (`promptHumanPreFight`,
+     `promptHostPreFight`) epic step 20 deleted when the pre-fight window became the Main → Fight
+     transition. A list of call sites is a copied fact and rots exactly like a line number, so `grep
+     promptedQuicks(` rather than trusting this sentence. */
+  /* A PREFERENCE MAY NOT COST YOU A SHIELD YOU COULD HAVE SAVED (Aj, from a real duel, 2026-09-15:
+     *"a player can have that unchecked but when their shields are threatened, the prompt should still fire
+     off for leyline"*). Nobody decided this: the pre-epic build had a dedicated shield-guard window that
+     ALWAYS opened, step 18 replaced it with the general Resolution go-round, and `promptDefault` later
+     narrowed to `respond`-only — so the guarantee died between two separately-correct changes. That is the
+     `immunityEffFor` story one step further on (CLAUDE.md, "a default derived from a predicate outlives the
+     predicate"), and the tell is the same: the log said `[resolution] AUTO-PASSED — PROMPT OFF  you could
+     have cast: Leyline Ascension`, one line above a lost shield.
+     IT OVERRIDES THE CHECKBOX, NEVER THE RULES. `eligibleQuicks()` still decides what may be cast; this
+     only decides whether you are stopped, so it stays on the right side of the 2026-09-10 rule that a
+     notification preference must not decide what is legal.
+     IT LIVES HERE AND NOT IN `promptWanted`, WHICH IS THE WHOLE TRAP: `promptWanted` also renders the card
+     reader's checkboxes, so an override there would draw the box TICKED whenever a shield happened to be at
+     risk and write that back as a preference on the next click. The stop decision and the displayed
+     preference are different questions — the same split this filter already exists to keep.
+     A LESSON IS STILL NEVER DERAILED. `promptWanted` suppresses every non-`respond` timing in
+     `tutorialMode`; the override has to repeat that or a scripted step dies on a modal it did not write. */
+  function shieldSaveOverride(card, timing){
+    if(timing!=='resolution' || !state || !state.resolution) return false;
+    if(typeof tutorialMode!=='undefined' && tutorialMode) return false;            // a scripted lesson writes its own windows
+    if((state.resolution.strikeTargets||[]).indexOf(YOU)<0) return false;          // not aimed at you — nothing to save
+    return !!(E.lossAnswerFor && E.lossAnswerFor(state, YOU, card));               // the ENGINE decides what answers a loss, not a whitelist here
+  }
+  function promptedQuicks(list, timing){ return (list||[]).filter(function(c){ return promptWanted(c, timing) || shieldSaveOverride(c, timing); }); }
 
   var pick=null;               // active selection: {kind:'discard'|'top', cardId, need, chosen:{}}
   var formsOpen=null;          // which Forms & Rides zone is expanded to full cards — a seat key like 'p0'/'p2', or null (collapsed to chips)
@@ -9905,7 +9929,11 @@ window.CardFace = {};
               : promptTiming==='cleanup'  ? 'clean-up'
               : 'respond';
     var onWhat = pend ? ('  vs ' + rivalName) : '';
-    if(quicks.length) prioNote('['+tName+'] window SHOWN to you' + onWhat, 'offering: ' + feNames(eligible) + (eligible.length>quicks.length ? '  (stopped by: ' + feNames(quicks) + ')' : ''));
+    /* NAME THE OVERRIDE WHEN IT IS WHAT STOPPED YOU. Otherwise a saved log shows a window opening at a
+       timing whose box is unticked, and the next reader has to rediscover `shieldSaveOverride` to explain
+       it — the same "a diagnostic that cannot explain itself" cost the prompt ledger already paid once. */
+    var saved=quicks.filter(function(c){ return !promptWanted(c, promptTiming) && shieldSaveOverride(c, promptTiming); });
+    if(quicks.length) prioNote('['+tName+'] window SHOWN to you' + onWhat + (saved.length ? '  — SHIELD AT RISK, prompt forced' : ''), 'offering: ' + feNames(eligible) + (eligible.length>quicks.length ? '  (stopped by: ' + feNames(quicks) + ')' : '') + (saved.length ? '  (forced by: ' + feNames(saved) + ')' : ''));
     else if(eligible.length) prioNote('['+tName+'] AUTO-PASSED for you — PROMPT OFF' + onWhat, 'you could have cast: ' + feNames(eligible) + '  (card reader → “Ask me to respond…”)');
     else prioNote('['+tName+'] auto-passed for you' + onWhat, 'nothing castable in hand');
     if(!quicks.length){ if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'decline'}); busy=true; render(); return; } E.declineResponse(state, YOU); return cont(); }   // nothing to answer with — auto-pass

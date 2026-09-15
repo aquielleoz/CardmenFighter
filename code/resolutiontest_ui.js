@@ -236,27 +236,82 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
        `B · CONTROL: declining the same board strips ONE (4 → ${dec}), so the 2 above is the cast and not the staging`);
     await p.close(); }
 
-  // ------------------------------------------------- C · THE SILENT AUTO-PASS IS NO LONGER SILENT
-  /* THE BUG THAT HID FOR MONTHS WAS AN ABSENCE OF EVIDENCE. `promptHumanResponse` auto-declines when its
-     offer list comes back empty, and it did that whether you held nothing or held the answer and were not
-     asked — identical silence, completely different faults. A saved log could not tell them apart, which
-     is why "sanctuary did not prompt use" took a code read to diagnose rather than a log.
-     This is the same lethal board as A with the prompt switched OFF: no modal, you die, and the ledger
-     says so IN WORDS, naming the card you could have cast. That line is what a log has to carry for the
-     next report of this shape to be answerable from the file alone. */
+  // ------------------------------------------------- C · A PREFERENCE MAY NOT COST YOU A SHIELD
+  /* THIS CLAIM INVERTED ON 2026-09-15, AND THE OLD ONE IS WORTH KEEPING IN VIEW. It read *"with the prompt
+     OFF the window is auto-passed and the kick lands — no modal at all"*, and it was correct about the
+     build it was written for. Aj then met it in a real duel — Leyline in hand, `resolution` unticked, a
+     shield gone, and the saved log reading `[resolution] AUTO-PASSED — PROMPT OFF  you could have cast:
+     Leyline Ascension` one line above the loss. His ruling: *"a player can have that unchecked but when
+     their shields are threatened, the prompt should still fire off for leyline"*.
+     NOBODY HAD DECIDED THE OLD BEHAVIOUR EITHER, which is the part worth remembering. The pre-epic build
+     opened its shield guard unconditionally; step 18 replaced it with the general Resolution go-round; and
+     `promptDefault` later narrowed to `respond`-only. The guarantee died between three separately-correct
+     changes, and this suite dutifully encoded the wreckage as the expectation.
+     `shieldSaveOverride` IS THE CONDITION: you are in `strikeTargets`, and the ENGINE's `lossAnswerFor`
+     says this card answers the loss. It overrides the checkbox, never `eligibleQuicks` — a notification
+     preference still may not decide what is legal.
+     THE LEDGER ASSERTION SURVIVES IN THE OPPOSITE DIRECTION. It used to prove a silent auto-pass could be
+     READ in a saved log; it now proves a FORCED prompt can be. C2 keeps the auto-pass half honest. */
   { const p = await b.newPage(); p.on('pageerror', e => errs.push('C: ' + e.message));
     await p.goto(URL);
-    if (!await freshGame(p)) ok(false, 'C · a board for the suppressed prompt');
+    if (!await freshGame(p)) ok(false, 'C · a board for the overridden prompt');
     await stageKick(p, false);
     await clearTransition(p);
     await clickPass(p);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
-    const died = await until(() => p.evaluate(() => !!window.__solo.st().finished));
-    ok(died, 'C · with the prompt OFF the window is auto-passed and the kick lands — no modal at all');
+    /* POLL FOR THE RESPONSE WINDOW, NOT FOR "A MODAL". Caught by the A/B that reverted the override: on the
+       unfixed build the kick lands and the END SCREEN is a modal too, so a bare `modalText` check went
+       GREEN on exactly the build this scenario exists to fail — it took the next assertion, reading
+       `[New Duel]` off the buttons, to notice. `#respDecline` is the response window's own control and
+       the end screen has none. */
+    const up = await until(() => p.evaluate(() => !!document.getElementById('respDecline')));
+    ok(up, 'C · THE OVERRIDE FIRES — `resolution` is unticked for Sanctuary and the window opens regardless, because this shield is about to break' +
+       (up ? '' : '  ← no Respond? window; the kick landed unanswered'));
+    const offered = await quickBtns(p);
+    ok(offered.some(t => /Sanctuary/i.test(t)),
+       'C · …and the card that forced it is the one on offer' +
+       (offered.length ? '  [' + offered.join(' | ').slice(0, 80) + ']' : '  ← no Quick buttons at all'));
     const led = await p.evaluate(() => window.__solo.prioLog());
-    const line = led.filter(l => /PROMPT OFF/.test(l))[0];
+    const line = led.filter(l => /SHIELD AT RISK/.test(l))[0];
     ok(!!line && /Sanctuary/.test(line),
-       'C · …and the ledger names the card you were never asked about — the evidence that did not exist before' +
-       (line ? '  [' + line.slice(0, 110) + ']' : '  ← no PROMPT OFF line; a saved log still cannot tell this from "held nothing"'));
+       'C · …and the ledger says the prompt was FORCED rather than wanted, naming the card' +
+       (line ? '  [' + line.slice(0, 110) + ']' : '  ← no SHIELD AT RISK line; a log cannot tell a forced prompt from a ticked box'));
+    /* THE BOARD WAS REALLY LETHAL — the same control A carries. Without it, "a window opened" is equally
+       true of a staging where nothing was ever at stake. */
+    await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d) d.click(); });
+    const died = await until(() => p.evaluate(() => !!window.__solo.st().finished));
+    ok(died, 'C · CONTROL: declining the forced window still ends the game — the shield really was on the line');
+    await p.close(); }
+
+  // ------------------------------------------------- C2 · AND THE OVERRIDE IS NARROW
+  /* AN OVERRIDE THAT QUIETLY BECAME "ALWAYS PROMPT AT RESOLUTION" WOULD PASS C AND BE WORTHLESS. This is
+     the opposite board by construction: `stagePierce` has you WIN the round, so you are not in
+     `strikeTargets`, and Armor Piercing strips a rival rather than guarding you, so `lossAnswerFor`
+     refuses it too — both halves of the condition false at once.
+     Same timing, same unticked box, opposite outcome. That pairing is the only shape that distinguishes
+     "the override is gated" from "the override is on", and it re-homes the assertion C used to carry: a
+     SUPPRESSED prompt is still legible in a saved log. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C2: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C2 · a board where the shield at risk is not yours');
+    await stagePierce(p);
+    await p.evaluate(() => { window.__solo.setPromptPref('C7', 'resolution', false); });
+    await leadAces(p);
+    const done = await until(() => p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; }));
+    ok(done, 'C2 · the round resolved with no modal to answer — the winner is not a strike target, so nothing forced a prompt');
+    const led = await p.evaluate(() => window.__solo.prioLog());
+    /* THE TIMING IS PART OF THE CLAIM. The first cut of this matched any `PROMPT OFF` line and picked up
+       the `[main→fight]` one, which is a different window suppressed for a different reason — it would
+       stay green on a build where the Resolution go-round never opened at all, and the whole point here
+       is that it DID open and chose not to stop us. */
+    const off = led.filter(l => /\[resolution\]/.test(l) && /PROMPT OFF/.test(l) && /Armor Piercing/.test(l))[0];
+    ok(!!off,
+       'C2 · …and the ledger records the suppressed prompt AT RESOLUTION by name — the evidence C used to carry' +
+       (off ? '  [' + off.slice(0, 110) + ']'
+            : '  ← no [resolution] PROMPT OFF line naming Armor Piercing  {' + led.filter(l => /resolution/.test(l)).join(' // ').slice(0, 160) + '}'));
+    const forced = led.filter(l => /SHIELD AT RISK/.test(l))[0];
+    ok(!forced,
+       'C2 · …and NOTHING was forced on this board — the override really is gated on being struck' +
+       (forced ? '  ← REPRODUCED: it fired for a seat that was never a strike target  [' + forced.slice(0, 90) + ']' : ''));
     await p.close(); }
 
   // ------------------------------------------------- D · AN UNCHECKED CARD IS STILL CASTABLE
