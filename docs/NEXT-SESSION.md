@@ -528,6 +528,37 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   **AND THE SUITES ENCODE TODAY'S DEFAULT** — `prompttest` asserts "the DEFAULTS are today's experience",
   so flipping it is a product change AND a suite change, in one commit.
 
+- **THE JOINER'S NETBAR SAYS "no server" WHEN THE RELAY DID CARRY ITS HANDSHAKE (found 2026-09-15).**
+  `srvTag()` is `relay.room ? 'relay for the handshake only' : 'no server'`, and **only the host ever sets
+  `relay.room`** — `relayJoinByCode` claims a slot, posts its answer, and never touches it. So a player who
+  joined by typing a four-character room code reads **"no server"** on the one control built so that bar
+  *cannot* lie about whether a server saw their IP. It did: the relay carried their SDP, and an SDP holds
+  addresses. That is the privacy claim the tag exists to make honestly, made wrongly.
+  **THE HOST'S HALF IS CORRECT, WHICH IS WHY THIS SURVIVED** — `relayDropRoom` clears `relay.room`, so the
+  host's tag flips back to "no server" exactly when it should. Only the joining seat is wrong, and only a
+  joiner can see it.
+  **THE FIX IS A JOINER-SIDE FLAG, NOT A REUSE OF `relay.room`** — the joiner has no room to drop and must
+  not start polling one; it needs to remember only that the relay introduced it, and clear that on Leave
+  with everything else. Assert BOTH seats' tags: a one-sided test passes on today's build.
+
+- **"Connection lost (disconnected)" NAMES NO LAYER THE PLAYER CAN ACT ON — IT HAS SENT US AT THE RELAY
+  TWICE (2026-09-15).** `startSignaling`'s `oniceconnectionstatechange` writes
+  `setLobbyErr('Connection lost ('+st+').')` for a lobby-time `failed`/`disconnected`. Both times the cause
+  was **office wifi client isolation**, and both times the first suspicion was the Cloudflare relay — which
+  was healthy on each occasion (`relaytest` against the live deployment, 20/20, plus a 200 on the liveness
+  route).
+  **THE MESSAGE IS ACCURATE AND USELESS.** By the time it fires the handshake has already SUCCEEDED — the
+  netbar reads "Joining (Player 2)", which is only reachable once the offer was claimed and the answer
+  posted — so what failed is the direct peer link. The string names the symptom and not one thing to try.
+  **WHAT IT SHOULD SAY IS THE DIAGNOSIS WE REACH EVERY TIME:** the two devices could not reach each other
+  directly, and office or guest wifi commonly blocks exactly that. There is no TURN server **by design**
+  (cost — the same constraint behind polling over D1), so a direct route has to exist and the message
+  should say so rather than leaving the player to deduce it.
+  **DISTINGUISH IT FROM A SIGNALLING FAILURE IN THE COPY, not only in the code.** `sig.err`'s writers
+  ("Cannot reach the relay", "No room with that code") describe the relay's failures and already read
+  correctly. This one is the transport's, and phrasing them alike is what makes the relay the first
+  suspect — twice now, for the person who built it.
+
 ### Tooling
 
 - **`lessontest_forms` blew a THIRTY-SECOND poll once under `-j 4` — and 30s is not slowness, it is a dead end**
