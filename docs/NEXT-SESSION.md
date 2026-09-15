@@ -209,6 +209,23 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   deterministic defect reached on a race, not as slowness — and do not raise a poll budget to "fix" it.
   Running rate on `feat/phase-boundaries`: **2 red in 13 solo**.
 
+- **`nettest_passoduel` FLAKES AT ROUGHLY 1 IN 8, SOLO — MEASURED AND A/B'd 2026-09-15.** It hung a lane
+  in one `-j 4` sweep (killed at 300s), and the first instinct was the Resolution shield override that had
+  just merged: that change can open a window where none opened before, this suite installs `netwindows`
+  via `startDuel`, and each unscripted window costs ~6s of grace — a real mechanism for pushing a suite
+  past its budget.
+  **IT IS NOT THAT.** A/B'd against merged history rather than against my own work, in a throwaway
+  worktree rebuilt from `9e41d94` with browsers killed between runs: **1 red in 8 WITHOUT the fix, 1 red
+  in 7 WITH it.** The baseline also emits `netwindows: auto-passed 1 unscripted window(s) — host:1`, so
+  unscripted windows in this suite predate the change entirely. Pre-existing, and now recorded.
+  **THE SIGNATURE DIFFERS BETWEEN A SWEEP AND A SOLO RUN** — in the sweep it HUNG to the 300s cap; solo it
+  came back `PASS: 6  FAIL: 2`. Capture a failing solo run's assertions before theorising, because those
+  two may not be the same fault.
+  **TWO CONSECUTIVE SWEEPS WERE 91/92 WITH DIFFERENT SUITES RED** (this one, and `lessontest_rides` on its
+  documented "the J is spotlit" poll — 5/5 green solo), at **261s and 434s** against a ~240s band. That
+  spread is the machine, and this file's own rule applies: the tell that an intermittent is being measured
+  badly is the rate moving when the code did not. Do not read a single 91/92 as a regression.
+
 - **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
   sweep during epic step 14; not reproduced since). The two failures were `lessonlib`'s shared `finish()`:
   *the completion modal is actually on screen* and *…and the lesson is marked done*. **Everything before
@@ -564,6 +581,79 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   timing id in `localStorage`; `PROMPT_TIMINGS` is explicitly "a list the reader renders from", so the
   labels are presentation. Changing `cleanup`'s *id* would orphan saved preferences the way `fightend` did
   and would need the same migration — rename the labels, leave the keys alone.
+
+- **ROUND 2 RESOLVED TWICE IN A REAL DUEL, AND IT COST A SECOND SHIELD (2026-09-15, unexplained).** From
+  Aj's saved logs of one game, BOTH seats, narrated identically:
+  ```
+  Round 2 begins. Each player draws 2.
+  Aj played a Special - Trio (A♦, A♦, A♠).
+  Aj won with a Trio - You lost a shield.
+  Round 2 begins. Each player draws 2.          ← again, and no play between
+  Aj won with a Trio - You lost a shield.       ← again
+  Round 3 begins. Each player draws 2.
+  ```
+  **THE LEDGER AGREES**: two `r2  FIGHT END — round resolved  winner=Aj struck=You` entries, with a full
+  extra `MAIN → FIGHT` cycle between them still stamped `r2`, and every other round appearing exactly
+  once. `announceRoundWin` is documented as "the one funnel all six round-win paths reach exactly once".
+  **AND IT WAS REAL DAMAGE, NOT A DOUBLED LOG LINE** — which is the part that makes this worth chasing. A
+  screenshot of round 6 shows the struck seat on **1 of 4 shields**. Losses narrated before round 6 are
+  r2, r2-again and r3 = three. A narration-only duplicate would leave 2. The kick then lands in r7 off
+  exactly the four strips, so the arithmetic closes on the duplicate being genuine.
+  **AJ'S OWN TWO DETAILS ARE THE LEAD, AND THEY NAME ONE FUNCTION** (*"i lost twice to the same play…
+  not sure why it never cleared.. but also there was no beginning of round"*). The pile never cleared and
+  the round never began — and **`finishCleanup` is the single function that does BOTH**: `st.round += 1`
+  and `st.pile = null` are two lines apart in it, along with the initiative hand-off and the round-long
+  expiry. Every symptom in this entry is "`finishCleanup` did not run", and a pile still on the table with
+  the same winner still standing re-resolves to the same result. **Start there, not at the narration.**
+  **IT IS REACHED FROM EXACTLY ONE PLACE, WHICH MAKES IT CHECKABLE:** `finishRoundWin` sets
+  `st.cleanup` + `st.cleanupResult` and opens the Clean-up go-round; the drain in `openResponseWindow`
+  then unparks and calls `finishCleanup(st, cr)` — **but only `if (cr)`**. A path that reaches the
+  Clean-up branch with `st.cleanupResult` already null closes the window and silently does none of the
+  round end. That is the shape to hunt.
+  **THE ENGINE'S RE-ENTRY GUARDS LOOK RIGHT, so suspect the netplay layer first.** The Resolution branch
+  unparks `st.resolution` *before* running `applyRoundLossBody`, with a comment saying precisely why ("a
+  still-parked continuation would open a second go-round for a window that has already closed"), and the
+  Clean-up branch is built to the same shape. This game was a DUEL, so the relevant seam is
+  `drainResolution` and `hostSettle`'s park family — and CLAUDE.md's stated tell for a missed
+  `drainResolution` call site is *"a table that parks with the round number unchanged"*, which is
+  literally what was observed.
+  **RULED OUT ALREADY, so nobody re-checks them:** the transition re-apply is braked on BOTH handlers —
+  the duel by a `stackMark` compare around `hostSettle`, the N-player by `moveToPlayThen`'s third
+  argument with `seat` passed as the actor (checked 2026-09-15, after first mis-reading the N-player one
+  as unbraked). `nettest_roundstall` and `nettest_clientwin` both pass, so it is not the shape either
+  stages.
+
+- **ALL SEVEN EMOTES RENDER "You says…" TO THE PERSON WHO SENT THEM (2026-09-15).** `EMOTES` carries a
+  present-tense third-person verb in every row — `says hi!`, `says nice play!`, `says yes!`, `says no!`,
+  `needs a second…`, `says good game!`, `wants a rematch!` — and `say()` renders `{who}` as **"You"** for
+  the actor. Aj's own saved log carries the proof: **`You wants a rematch!`**, against the other seat's
+  correct `Aj wants a rematch!` for the same event.
+  **THIS IS THE DOCUMENTED CLASS, NOT A NEW ONE** — CLAUDE.md's rule is that no present-tense verb is safe
+  anywhere in a broadcast template, because no placeholder's number is known when the template is written.
+  **PAST TENSE IS THE USUAL FIX AND IT READS BADLY HERE** ("You said hi!" for a live emote), so this wants
+  the v1.31.101 move instead: recast so there is no agreement in either direction. `{who}: Hi!` or
+  `👋 Hi! — {who}` both work and neither conjugates. That is a copy decision, so it is Aj's.
+  **AND THE SCAN MISSES ALL SEVEN.** `nettest_narrate`'s `BAD` list holds `You is/was/has/moves/plays/
+  passes/wins/leads/loses` and none of `says`, `needs`, `wants`. Add the three, but note the real lesson:
+  the list is an enumeration of verbs that have already shipped, so it will always trail. The STATIC half
+  reads the template source — teaching it to flag a `says:` row whose value starts with a bare verb would
+  cover the whole table at once, including the next row somebody adds.
+
+- **A CLIENT IS NEVER TOLD THAT ANOTHER SEAT IS DECIDING — THE BOARD JUST GOES DEAD (Aj, 2026-09-15:
+  *"when a player is thinking through a prompt… nothing happens in the other player's screen? so it's
+  just… why can't i play? what up?"*).** The HOST is told: the NET IIFE sets `rivalStatus` to
+  `'<seat> may respond…'`, `'… is discarding…'`, `'… is playing…'` and `'… is choosing a target…'` at each
+  of its parks. Nothing does the equivalent for a seat reading a MIRROR, so a client waiting on the host's
+  open prompt sees an inert board and no reason for it.
+  **THE DATA IS ALREADY THERE, WHICH IS WHAT MAKES THIS CHEAP.** `netview` mirrors `respondFor`, rotated
+  into the reader's frame. The notice that would carry it already exists too — `render()`'s `waitOn` block
+  names the blocking seat via `logName` and dims the play area with `showTrimWait` — it just only consults
+  `trimPending` and `discardPending`.
+  **IT IS THE v1.31.69 CLEAN-UP PICK, EXACTLY.** That entry's words were *"until v1.31.69 the others just
+  saw a gap"*, and the fix was to put the blocking seat on the mirror so every screen could name it. The
+  response window has had its half of that on the mirror the whole time and never got the other half.
+  **From the outside an inert board is indistinguishable from a hang** — this file already says so about
+  enabled-but-dead controls, and names it a plausible source of "netplay lagged" reports.
 
 - **THE RTC HOST'S START BUTTON IGNORES READY ENTIRELY — A GAME CAN BEGIN WITH AN UNCONFIRMED SEAT
   (reported in live play, 2026-09-15).** The two host lobbies disagree about what Start means:
