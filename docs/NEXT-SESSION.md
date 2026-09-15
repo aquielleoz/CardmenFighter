@@ -513,20 +513,122 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   only on desktop or only on a phone proves nothing about the other.
 
 - **BEFORE SHIP, THE PROMPT CHECKBOXES DEFAULT TO *UNCHECKED*** (Aj, 2026-09-11: *"the checkboxes will be
-  unchecked by default when we finally ship"*). `promptDefault` currently `return true` — every legal
-  timing stops you — and that is a DEVELOPMENT setting, not the shipping experience: it exists so the epic's
-  new windows are visible while they are being built and playtested. Shipping flips it, and the player opts
-  IN per card, per timing, in the card reader.
-  **THIS IS WHY A FOURTH AND FIFTH PRIORITY POINT ARE AFFORDABLE.** Upkeep and Clean-up (still owed by step
-  20) would each add a stop on every round at today's default, which is the main argument against them;
-  defaulted off, they cost nothing a player did not ask for. Decide the default BEFORE measuring how the
-  windows feel, or the measurement is of the dev setting.
+  unchecked by default when we finally ship"*). The player opts IN per card, per timing, in the card reader.
+  **⚠ THIS ENTRY DESCRIBED A BUILD THAT NO LONGER EXISTS, AND THE GAP COST A REAL SHIELD (2026-09-15).** It
+  read *"`promptDefault` currently `return true` — every legal timing stops you — and that is a DEVELOPMENT
+  setting"*. It is `PROMPT_ALL || timing === 'respond'`: **the flip already half-happened**, every boundary
+  timing now defaults OFF, and `?prompts=all` is what restores the dev setting. So the decision this entry
+  was holding open had quietly been taken — and taking it is what removed the Resolution prompt that used
+  to save a shield, found by Aj in a live duel and fixed by `shieldSaveOverride` the same day.
+  **THE LESSON IS THE ONE THIS REPO KEEPS PAYING FOR:** a BACKLOG entry that quotes an implementation is a
+  copied fact, and it rots exactly like a line number. Name the symbol and what it should DO; let the
+  reader grep for what it currently does.
+  **WHAT IS ACTUALLY LEFT:** decide whether `respond` stays on at ship or joins the rest at off.
+  **THIS IS WHY A FOURTH AND FIFTH PRIORITY POINT ARE AFFORDABLE.** Upkeep and Clean-up — **built
+  2026-09-11; this line said "still owed by step 20" until 2026-09-15** — would each add a stop on every
+  round at a prompt-everything default, which was the main argument against them; defaulted off, they cost
+  nothing a player did not ask for. Decide the default BEFORE measuring how the windows feel, or the
+  measurement is of the dev setting.
   **THE HALF TO GET RIGHT IS WHAT "OFF" MEANS, AND IT IS ALREADY WRITTEN DOWN**: unchecked must mean *the
   window still opens and you pass automatically* — never *the card becomes uncastable*. That distinction
   cost a real bug once (a notification preference deciding legality) and the reader's own footnote states
   it; a flipped default makes it load-bearing for every card instead of a few.
   **AND THE SUITES ENCODE TODAY'S DEFAULT** — `prompttest` asserts "the DEFAULTS are today's experience",
   so flipping it is a product change AND a suite change, in one commit.
+
+- **TWO PROMPT-TIMING ROWS ARE MISLABELLED, AND A SIXTH ROW IS MISSING (Aj, from live play, 2026-09-15).**
+  `PROMPT_TIMINGS` has five rows and the engine has five matching windows; the *names* on two of them
+  describe something other than when they fire.
+  | id | label today | when it actually fires | should read |
+  | --- | --- | --- | --- |
+  | `respond` | When a Technique is cast | a cast in the Main Sub-Phase | ✓ |
+  | `upkeep` | At the start of a round | Upkeep | ✓ |
+  | `prefight` | Before a fight — yours or a rival's | the Main → Fight transition | ✓ |
+  | `resolution` | *When shields are about to break* | **before** the Resolution Sub-Phase | **Before resolution** |
+  | `cleanup` | *At the end of a round* | the **beginning** of Clean-up | **Before clean-up** |
+  So `cleanup` is "before clean-up" wearing "end of a round"'s name, and `resolution` is named for one
+  consequence of the window rather than for the boundary it sits on — which is what made a missing shield
+  prompt read as a missing *feature* rather than a preference the player had never knowingly set.
+  **THE SIXTH IS THE END OF CLEAN-UP, and it follows from the general rule rather than being an addition**
+  (Aj: *"priority always is passed around when phases and sub-phases change… you'll notice that my
+  parenthesis all referenced the end of something"*). `PHASES-AND-PRIORITY.md` §3 enumerates five points;
+  the rule it states is broader than its own list, and the end of the Clean-up Phase — before the next
+  Beginning Phase — is the one the list omits. **§3's enumeration grows to six when this lands**; it is
+  deliberately unchanged for now, so the spec does not describe an unbuilt window.
+  **IT IS ADJACENT TO UPKEEP AND THAT IS ACCEPTED, NOT OVERLOOKED.** Aj: *"some of these can get tiring
+  especially having the before clean up and end of round when you have nothing to do. but that is really
+  how the cookie crumbles. people will be thankful they can uncheck it."* The two are genuinely different
+  moments — the round boundary sits between them, so a card cast at the end of Clean-up resolves BEFORE the
+  draw and one cast at Upkeep resolves after.
+  **THE IDS ARE STORED PREFERENCES, SO A RELABEL IS FREE AND A RE-KEY IS NOT.** `promptPrefs` is keyed by
+  timing id in `localStorage`; `PROMPT_TIMINGS` is explicitly "a list the reader renders from", so the
+  labels are presentation. Changing `cleanup`'s *id* would orphan saved preferences the way `fightend` did
+  and would need the same migration — rename the labels, leave the keys alone.
+
+- **THE RTC HOST'S START BUTTON IGNORES READY ENTIRELY — A GAME CAN BEGIN WITH AN UNCONFIRMED SEAT
+  (reported in live play, 2026-09-15).** The two host lobbies disagree about what Start means:
+  `renderLobby` (BroadcastChannel) gates on **`readyCount()`** — has CONFIRMED — while `renderHostRtcLobby`
+  gates on **`joinedCount()` / `nextSeat-1`** — has A SEAT — on the button *and* in the click handler.
+  `renderNet` sends every RTC host to the second one unconditionally, so **the only lobby a real internet
+  host ever reaches is the one that never checks readiness.**
+  **READINESS IS DROPPED WITHOUT DROPPING THE SEAT, DELIBERATELY, IN TWO PLACES** — `hostUnready`
+  (`delete seatRuleGen[seat]`, `nextSeat` untouched) and `hostRulesChanged` (`rulesGen++`, which invalidates
+  every stamp). Either one takes `readyCount()` to 0 while `joinedCount()` stays 1. The BC lobby greys Start
+  out; the RTC lobby stays live and fires. **Ready is consent** — `hostBackToLobby`'s own comment says
+  nobody is dealt in "without confirming" — and this starts a game without it.
+  **ONLY THE GATE CHANGES.** `hostStartRealN` must keep indexing `nextSeat-1`: a readiness-based INDEX
+  renumbers the table and mis-assigns decks, which is exactly why it reads seat topology rather than
+  readiness and says so in place. Changing the indexing loop would be a regression, not a deeper fix.
+  **THE ASSERTION ALREADY EXISTS, ONE RENDERER OVER.** `nettest_unready` asserts *"after un-readying, the
+  host can NO LONGER start"* — but it runs on `?net=host`, i.e. BroadcastChannel, where the gate is already
+  right. None of the eight `rtchost` suites assert it. This is the documented two-invite-renderers trap with
+  the **test** applied to one only, so the fix is not finished until an RTC suite carries that assertion.
+
+- **THE HOST'S "🔔 Ping the table" IS INVISIBLE TO THE CLIENT — IT PAINTS BEHIND THE LOBBY (reported in live
+  play, 2026-09-15).** The client's handler is `SFX.play('ping'); setMessage(…)`, and `setMessage` writes
+  `#message`, which lives **inside the board**. `#netroot` is `position:fixed; inset:0` at `--zNetroot`, so
+  in the lobby it covers the viewport and the ping's only visible output lands behind it. The client gets a
+  beep and nothing to read — reported as *"the client didn't receive any prompts to ready"*.
+  **THE HOST GETS POSITIVE FEEDBACK, WHICH IS WHY IT SHIPPED.** `lobbyPingMsg` *is* inside netroot, so the
+  host reads "🔔 Pinged your table." and concludes it worked. Only the receiving seat can see the failure,
+  and only while the lobby is up.
+  **`hostPing`'s OWN COMMENT NAMES THE WINDOW IT BREAKS IN:** *"it works BEFORE the game starts, which is
+  exactly when it is needed"* — which is precisely when its feedback is invisible. Same family as the
+  `.overlay`-behind-`#netroot` bug, and the same consequence for testing it: **no DOM assertion can see a
+  stacking bug**, so this needs a visibility check, not a presence one.
+  **THE FIX RENDERS INTO THE LOBBY**, and must cover BOTH client lobby branches — readied and not — since
+  the nudge is aimed at the seat that has *not* pressed Ready yet.
+
+- **THE JOINER'S NETBAR SAYS "no server" WHEN THE RELAY DID CARRY ITS HANDSHAKE (found 2026-09-15).**
+  `srvTag()` is `relay.room ? 'relay for the handshake only' : 'no server'`, and **only the host ever sets
+  `relay.room`** — `relayJoinByCode` claims a slot, posts its answer, and never touches it. So a player who
+  joined by typing a four-character room code reads **"no server"** on the one control built so that bar
+  *cannot* lie about whether a server saw their IP. It did: the relay carried their SDP, and an SDP holds
+  addresses. That is the privacy claim the tag exists to make honestly, made wrongly.
+  **THE HOST'S HALF IS CORRECT, WHICH IS WHY THIS SURVIVED** — `relayDropRoom` clears `relay.room`, so the
+  host's tag flips back to "no server" exactly when it should. Only the joining seat is wrong, and only a
+  joiner can see it.
+  **THE FIX IS A JOINER-SIDE FLAG, NOT A REUSE OF `relay.room`** — the joiner has no room to drop and must
+  not start polling one; it needs to remember only that the relay introduced it, and clear that on Leave
+  with everything else. Assert BOTH seats' tags: a one-sided test passes on today's build.
+
+- **"Connection lost (disconnected)" NAMES NO LAYER THE PLAYER CAN ACT ON — IT HAS SENT US AT THE RELAY
+  TWICE (2026-09-15).** `startSignaling`'s `oniceconnectionstatechange` writes
+  `setLobbyErr('Connection lost ('+st+').')` for a lobby-time `failed`/`disconnected`. Both times the cause
+  was **office wifi client isolation**, and both times the first suspicion was the Cloudflare relay — which
+  was healthy on each occasion (`relaytest` against the live deployment, 20/20, plus a 200 on the liveness
+  route).
+  **THE MESSAGE IS ACCURATE AND USELESS.** By the time it fires the handshake has already SUCCEEDED — the
+  netbar reads "Joining (Player 2)", which is only reachable once the offer was claimed and the answer
+  posted — so what failed is the direct peer link. The string names the symptom and not one thing to try.
+  **WHAT IT SHOULD SAY IS THE DIAGNOSIS WE REACH EVERY TIME:** the two devices could not reach each other
+  directly, and office or guest wifi commonly blocks exactly that. There is no TURN server **by design**
+  (cost — the same constraint behind polling over D1), so a direct route has to exist and the message
+  should say so rather than leaving the player to deduce it.
+  **DISTINGUISH IT FROM A SIGNALLING FAILURE IN THE COPY, not only in the code.** `sig.err`'s writers
+  ("Cannot reach the relay", "No room with that code") describe the relay's failures and already read
+  correctly. This one is the transport's, and phrasing them alike is what makes the relay the first
+  suspect — twice now, for the person who built it.
 
 ### Tooling
 
