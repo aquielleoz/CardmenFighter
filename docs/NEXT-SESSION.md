@@ -513,20 +513,57 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   only on desktop or only on a phone proves nothing about the other.
 
 - **BEFORE SHIP, THE PROMPT CHECKBOXES DEFAULT TO *UNCHECKED*** (Aj, 2026-09-11: *"the checkboxes will be
-  unchecked by default when we finally ship"*). `promptDefault` currently `return true` — every legal
-  timing stops you — and that is a DEVELOPMENT setting, not the shipping experience: it exists so the epic's
-  new windows are visible while they are being built and playtested. Shipping flips it, and the player opts
-  IN per card, per timing, in the card reader.
-  **THIS IS WHY A FOURTH AND FIFTH PRIORITY POINT ARE AFFORDABLE.** Upkeep and Clean-up (still owed by step
-  20) would each add a stop on every round at today's default, which is the main argument against them;
-  defaulted off, they cost nothing a player did not ask for. Decide the default BEFORE measuring how the
-  windows feel, or the measurement is of the dev setting.
+  unchecked by default when we finally ship"*). The player opts IN per card, per timing, in the card reader.
+  **⚠ THIS ENTRY DESCRIBED A BUILD THAT NO LONGER EXISTS, AND THE GAP COST A REAL SHIELD (2026-09-15).** It
+  read *"`promptDefault` currently `return true` — every legal timing stops you — and that is a DEVELOPMENT
+  setting"*. It is `PROMPT_ALL || timing === 'respond'`: **the flip already half-happened**, every boundary
+  timing now defaults OFF, and `?prompts=all` is what restores the dev setting. So the decision this entry
+  was holding open had quietly been taken — and taking it is what removed the Resolution prompt that used
+  to save a shield, found by Aj in a live duel and fixed by `shieldSaveOverride` the same day.
+  **THE LESSON IS THE ONE THIS REPO KEEPS PAYING FOR:** a BACKLOG entry that quotes an implementation is a
+  copied fact, and it rots exactly like a line number. Name the symbol and what it should DO; let the
+  reader grep for what it currently does.
+  **WHAT IS ACTUALLY LEFT:** decide whether `respond` stays on at ship or joins the rest at off.
+  **THIS IS WHY A FOURTH AND FIFTH PRIORITY POINT ARE AFFORDABLE.** Upkeep and Clean-up — **built
+  2026-09-11; this line said "still owed by step 20" until 2026-09-15** — would each add a stop on every
+  round at a prompt-everything default, which was the main argument against them; defaulted off, they cost
+  nothing a player did not ask for. Decide the default BEFORE measuring how the windows feel, or the
+  measurement is of the dev setting.
   **THE HALF TO GET RIGHT IS WHAT "OFF" MEANS, AND IT IS ALREADY WRITTEN DOWN**: unchecked must mean *the
   window still opens and you pass automatically* — never *the card becomes uncastable*. That distinction
   cost a real bug once (a notification preference deciding legality) and the reader's own footnote states
   it; a flipped default makes it load-bearing for every card instead of a few.
   **AND THE SUITES ENCODE TODAY'S DEFAULT** — `prompttest` asserts "the DEFAULTS are today's experience",
   so flipping it is a product change AND a suite change, in one commit.
+
+- **TWO PROMPT-TIMING ROWS ARE MISLABELLED, AND A SIXTH ROW IS MISSING (Aj, from live play, 2026-09-15).**
+  `PROMPT_TIMINGS` has five rows and the engine has five matching windows; the *names* on two of them
+  describe something other than when they fire.
+  | id | label today | when it actually fires | should read |
+  | --- | --- | --- | --- |
+  | `respond` | When a Technique is cast | a cast in the Main Sub-Phase | ✓ |
+  | `upkeep` | At the start of a round | Upkeep | ✓ |
+  | `prefight` | Before a fight — yours or a rival's | the Main → Fight transition | ✓ |
+  | `resolution` | *When shields are about to break* | **before** the Resolution Sub-Phase | **Before resolution** |
+  | `cleanup` | *At the end of a round* | the **beginning** of Clean-up | **Before clean-up** |
+  So `cleanup` is "before clean-up" wearing "end of a round"'s name, and `resolution` is named for one
+  consequence of the window rather than for the boundary it sits on — which is what made a missing shield
+  prompt read as a missing *feature* rather than a preference the player had never knowingly set.
+  **THE SIXTH IS THE END OF CLEAN-UP, and it follows from the general rule rather than being an addition**
+  (Aj: *"priority always is passed around when phases and sub-phases change… you'll notice that my
+  parenthesis all referenced the end of something"*). `PHASES-AND-PRIORITY.md` §3 enumerates five points;
+  the rule it states is broader than its own list, and the end of the Clean-up Phase — before the next
+  Beginning Phase — is the one the list omits. **§3's enumeration grows to six when this lands**; it is
+  deliberately unchanged for now, so the spec does not describe an unbuilt window.
+  **IT IS ADJACENT TO UPKEEP AND THAT IS ACCEPTED, NOT OVERLOOKED.** Aj: *"some of these can get tiring
+  especially having the before clean up and end of round when you have nothing to do. but that is really
+  how the cookie crumbles. people will be thankful they can uncheck it."* The two are genuinely different
+  moments — the round boundary sits between them, so a card cast at the end of Clean-up resolves BEFORE the
+  draw and one cast at Upkeep resolves after.
+  **THE IDS ARE STORED PREFERENCES, SO A RELABEL IS FREE AND A RE-KEY IS NOT.** `promptPrefs` is keyed by
+  timing id in `localStorage`; `PROMPT_TIMINGS` is explicitly "a list the reader renders from", so the
+  labels are presentation. Changing `cleanup`'s *id* would orphan saved preferences the way `fightend` did
+  and would need the same migration — rename the labels, leave the keys alone.
 
 - **THE RTC HOST'S START BUTTON IGNORES READY ENTIRELY — A GAME CAN BEGIN WITH AN UNCONFIRMED SEAT
   (reported in live play, 2026-09-15).** The two host lobbies disagree about what Start means:
