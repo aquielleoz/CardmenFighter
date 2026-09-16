@@ -2374,5 +2374,61 @@ function cards(ids) { return ids.map(card); }
   ok(g.players[0].forms.length === 1 && g.stack.length === 0, 'once everyone passes it resolves and the Form lands');
 })();
 
+/* AN ACTIVATION IS A MAIN SUB-PHASE MOVE, AND THE ENGINE NEVER SAID SO (Aj, from a real duel, 2026-09-15:
+   *"i activated a card in the fight sub phase... that's not legal"*). `PHASES-AND-PRIORITY.md` §3 gives the
+   Fight Sub-Phase one sentence — *"The active player plays a fight card or passes"* — and `activate` checked
+   turn, priority and lock while its own comment claimed "active player, Main Sub-Phase, nothing pending".
+   THE WINDOW GUARD MUST NOT BE WHAT REFUSES, or this block tests the wrong line. `moveToPlay` opens a
+   go-round whenever anybody can add to the stack, and `st.respondFor != null` is checked FIRST — so the
+   no-Quick rig exists to reach the sub-phase gate, and the assertion below states that it did. */
+(function () {
+  function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function fill(pl, tag) { pl.energy = []; ['D', 'H', 'C', 'S'].forEach(function (su) { for (var i = 0; i < 14; i++) pl.energy.push(sc(3, su, tag + su + i)); }); }
+  function rig(armRival) {
+    var g = E.newGame(null, { numPlayers: 2 });
+    g.players[0].hand = [sc(3, 'S', 'h2h'), sc(5, 'C', 'a'), sc(6, 'C', 'b')];
+    fill(g.players[0], 'e');
+    g.players[1].hand = armRival ? [sc(9, 'D', 'ley')] : [];          // Leyline: the only UNTARGETED base Quick
+    if (armRival) fill(g.players[1], 'f'); else g.players[1].energy = [];
+    g.turn = 0; g.round = 3; g.pile = null; g.lastPlayer = null; g.passes = 0;
+    return g;
+  }
+  var a = rig(false);
+  ok(a.subPhase === 'main', 'a fresh turn begins in the Main Sub-Phase');
+  var ra = E.activate(a, 0, 'h2h3S');
+  ok(ra && ra.ok, 'CONTROL: that activation IS legal there — so the refusal below is a phase rule, not a broken rig');
+
+  var b = rig(false);
+  E.moveToPlay(b);
+  ok(b.subPhase === 'play' && b.respondFor == null,
+     'the transition reaches the Fight Sub-Phase with NO window open — so the sub-phase gate is the only thing that can refuse');
+  var rb = E.activate(b, 0, 'h2h3S');
+  ok(rb && rb.ok === false && /Fight Sub-Phase/.test(rb.reason || ''),
+     'THE FIX: the identical activation is refused in the Fight Sub-Phase' + (rb && rb.ok === false ? '' : '  ← REPRODUCED: it was accepted'));
+  ok(b.players[0].hand.filter(function (c) { return c.id === 'h2h3S'; }).length === 1 && b.stack.length === 0,
+     '…and it cost nothing — the card is still in hand and nothing reached the stack');
+
+  /* THE OTHER HALF, or the gate is indistinguishable from "nothing may happen after the transition".
+     AND THE SUB-PHASE DOES NOT TURN OVER AT `moveToPlay` — it turns over when the go-round CLOSES, which
+     is the spec's own order and was worth finding out rather than assuming: the first cut of this block
+     asserted `subPhase === 'play' && respondFor === 1` together and they are mutually exclusive by
+     construction. So a Quick answering the TRANSITION is cast while still in Main and the new gate is
+     nowhere near it; the gate engages only once the Fight Sub-Phase has actually begun. */
+  var c = rig(true);
+  E.moveToPlay(c);
+  ok(c.respondFor === 1 && c.subPhase === 'main',
+     'the transition opens a go-round for the rival — and the board is STILL in Main until that window closes');
+  /* IT RESOLVES ON THE WAY OUT, so do not assert it is still ON the stack — with no second Quick at the
+     table nobody can add, the go-round closes inside the call and `stack` is empty again by the return.
+     The durable claim is that the cast was ACCEPTED and the card is spent. */
+  var rc = E.respond(c, 1, 'ley9D');
+  ok(rc && rc.ok !== false && !c.players[1].hand.filter(function (x) { return x.id === 'ley9D'; }).length,
+     'a Quick casts into it normally and is spent — `respond` is untouched, so this gates the PROACTIVE path only');
+  var n = 0; while (c.respondFor != null && n++ < 12) E.declineResponse(c, c.respondFor);
+  ok(c.subPhase === 'play', '…and only once everyone passes does the Fight Sub-Phase actually begin');
+  ok((E.activate(c, 0, 'h2h3S') || {}).ok === false,
+     '…at which point the proactive activation is refused — the gate engages exactly at the phase boundary');
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

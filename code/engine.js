@@ -1209,6 +1209,27 @@
        INTENT that the host applies, so the engine is the only place this can be refused. Same reasoning as
        `resolveIds` and the host-side emote cooldown. */
     if (st.respondFor != null) return { ok: false, reason: 'Priority is being passed — answer the window instead.' };
+    /* AND THE SUB-PHASE IS THE OTHER HALF OF "PROACTIVE" (Aj, from a real duel, 2026-09-15: *"i activated a
+       card in the fight sub phase... that's not legal"*). `PHASES-AND-PRIORITY.md` §3 is one sentence about
+       it — *"Fight Sub-Phase. The active player plays a fight card or passes. Playing or passing ends the
+       turn."* — so an activation there is not a late option, it is a move the phase does not contain.
+       THE COMMENT ABOVE ALREADY CLAIMED THIS GATE ("active player, Main Sub-Phase, nothing pending") and
+       only two thirds of it existed in code. A constraint stated in prose beside the checks that enforce
+       its siblings reads as enforced, which is why this survived every review of this function.
+       ⚠ IT MOVES THE AI, AND I PREDICTED IT WOULD NOT. The reasoning was that `takeTurn` runs `playPhase`
+       before `E.moveToPlay`, so no AI activation could ever see `subPhase === 'play'`. A seeded 240-game
+       fingerprint says otherwise — `a4585d14…` before, `e9eca528…` after — because `playPhase` has exactly
+       ONE caller and it is reached TWICE: `takeTurn` re-enters at its `respondFor` branch to resume a
+       SUSPENDED turn, and a turn suspended after the transition resumes with the sub-phase already 'play'.
+       So the AI was making this same illegal move, measured at **2 activations in 240 games**, and the
+       fingerprint moving is the defect being fixed rather than a regression.
+       NOTHING BREAKS ON THE REFUSAL because `act` was already built for it — *"false if the engine refused
+       it … so the AI simply moves on"* — so the AI loses only a move it was never entitled to.
+       THE LESSON IS THE RECORDED ONE: do not call a gate inert without running a fingerprint. Reading the
+       happy path told me where `playPhase` is called and not how many times it is reached.
+       `respond` IS UNTOUCHED: casting a Quick into an open window is the Fight Sub-Phase's legal addition
+       and goes through its own verb, which is why the refusal names Fight rather than "wait". */
+    if (st.subPhase === 'play') return { ok: false, reason: 'The Fight Sub-Phase has begun — play a card or pass.' };
     if (isLocked(st, p)) return { ok: false, reason: 'You are locked out (Back Stab) — you skip this turn.' };
     var pl = st.players[p];
     var card = pl.hand.filter(function (c) { return c.id === cardId; })[0];
