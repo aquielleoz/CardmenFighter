@@ -136,6 +136,19 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
      `every status tag comes from the closed set [${TAGS.length} allowed: ${TAGS.join(' / ')}]`+
      (badTag.length?`  ← INVENTED: ${[...new Set(badTag)].join(', ')} — a tag nobody agreed to forks the vocabulary; use one of the six, or add yours to TAGS here AND to the legend in NEXT-SESSION.md in the same commit`:''));
 
+  /* ---- EVERY BACKLOG ENTRY HAS A UNIQUE `[id: slug]` (2026-09-16). The ids are what `checkbranch.js`'s
+   * pre-push backlog gate cites, so a missing one makes an entry uncitable and a DUPLICATE makes a `closes`
+   * claim ambiguous — it would pass while the wrong entry stayed open, which is the exact failure the gate
+   * exists to catch, wearing the gate's own clothes. Checked here rather than in the hook because a hook
+   * only runs for whoever enabled it, and because this is a property of the DOC. */
+  const idLines=afterBacklog.match(/`\[id: [a-z0-9-]+\]`/g)||[];
+  const idSlugs=idLines.map(x=>x.slice(6,-2));
+  const dupIds=[...new Set(idSlugs.filter((v,i)=>idSlugs.indexOf(v)!==i))];
+  ok(idSlugs.length===entryLines.length && dupIds.length===0,
+     `every BACKLOG entry has a unique [id: slug] [${idSlugs.length} id(s) for ${entryLines.length} entries]`+
+     (idSlugs.length!==entryLines.length?`  ← COUNT MISMATCH: an entry with no id cannot be cited by a "Backlog: closes <id>" trailer`:'')+
+     (dupIds.length?`  ← DUPLICATE: ${dupIds.join(', ')} — a "closes" claim against a duplicated id passes while the other entry stays open`:''));
+
   /* ---- NO `file:NNNN` CITATIONS IN THE LIVE DOCS (2026-09-08). A staleness sweep found **8 of 20** line
    * references already pointing at the wrong line, and most had drifted THAT DAY — every comment block added
    * and every dead function deleted shifts everything below it. A line number claims a precision it cannot

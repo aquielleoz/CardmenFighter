@@ -2550,6 +2550,28 @@ definition, so it cannot delete them.
 - **WHICH DOC A THING GOES IN is a rule, not a preference — see the routing table under Conventions.** The
   short form: BACKLOG = someone should do it · `DECISIONS.md` = nobody should redo it · this file = work
   differently · changelog = what shipped.
+- **AND A PR MUST DECLARE WHAT IT DID TO THE BACKLOG — `checkbranch.js`, at pre-push (2026-09-16, Aj:
+  *"we should probably add a gate during pr to check the backlog if the related entry hasn't been
+  cleared/moved to the correct tracking document"*).** Every entry carries a stable **`[id: slug]`** on its
+  own last line, and the commits being pushed must carry a `Backlog:` trailer: `none` / `closes <id>` /
+  `updates <id>` / `files <id>`. A **`closes`** claim is verified — the entry must have been PRESENT at the
+  base commit and GONE at the pushed one, so neither "the fix shipped and the entry stayed" nor a mistyped
+  slug reads as a close. `versiontest` asserts the ids are unique and one per entry, because a duplicate
+  would let a `closes` pass while the other entry stayed open.
+  **THIS IS THE RATCHET ASYMMETRY, GENERALISED**, and the same argument applies: closing an entry is a happy
+  act done inside the code, where the doc is nowhere in the author's view. The day it landed, a cull pass
+  found an entry describing a bug fixed EARLIER THAT DAY and another whose five findings the epic had closed
+  one at a time with nobody touching the doc.
+  **SAY WHAT IT CANNOT DO. Nothing can tell whether `Backlog: none` is true**, so silent omission still gets
+  through; what the gate buys is that the question is asked once per PR, in the history, and that a claim
+  once made is checked. Do not describe it as airtight.
+  **AND IT WAS GREEN AND BLIND ON ITS FIRST RUN, FOR A ONE-WORD REASON:** `pushRefs()` reads **fd 0**, stdin
+  is a STREAM, and this is its SECOND caller — the integration gate had already drained it, so the backlog
+  gate iterated an empty list and passed every negative case. It is memoised now. **Any new gate added to
+  this file must reuse `pushRefs()` and must be A/B'd by reintroducing the failure**, not read.
+  **THE PROBE THAT FOUND IT ALSO DESTROYED IT TWICE**: `git reset --hard` between cases wiped the
+  uncommitted fix under test, so three directions "passed" against the broken file. **Commit the fix before
+  testing it**, and treat a harness that resets the tree as part of the experiment.
 - **EVERY BACKLOG ENTRY CARRIES ONE STATUS TAG, AND `versiontest` ASSERTS BOTH HALVES (2026-09-16).** Six
   tags, closed set, defined in a legend at the top of the BACKLOG: `needs a repro` · `root cause found` ·
   `ready to build` · `needs a decision` · `needs a measurement` · `parked`. They answer *what does this need
