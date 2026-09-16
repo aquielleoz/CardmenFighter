@@ -908,16 +908,28 @@ re-read its tag.
   netplay behaviour unverifiable without two devices, and a mis-fire spends the player's cards.
   `[id: netplay-client-still-pays]`
 
-- `needs a repro`       · **THREE RTC SUITES ARE RED ON THE EPIC, AND IT IS NOT TODAY'S WORK (measured 2026-09-16).**
-  `nettest_rtc3` (8/2, `maxRound=1`, clients never act), `nettest_sync` (a real divergence: client sees 6
-  cards, host holds 5) and `nettest_lobbyback_rtc` (dealing never completes). **A/B'd against the epic with
-  the day's changes stashed: all three fail there too** — `rtc3` identically, and the other two *worse*
-  (sync 7/5 → 11/1, lobbyback 10/16 → 18/8 with the changes in).
-  **ALL THREE ARE THE REAL-WebRTC SUITES**, and they were measured on a machine that had been running
-  probes and `kill -9`ing chromium all session, so environment is a live hypothesis — CLAUDE.md's own rule
-  is to check for stray processes before suspecting the code. **Re-run them first on a quiet machine**; if
-  they stay red, `nettest_sync`'s divergence is the one to chase, because that suite exists to catch
-  exactly the host/client fork it is now reporting.
+- `needs a repro`       · **THREE RTC SUITES WERE RED ON A LOADED MACHINE AND GREEN ON A QUIET ONE — THE
+  ENVIRONMENT IS NOW THE LEADING EXPLANATION, AND `nettest_sync` IS STILL UNSETTLED (2026-09-16, both ends
+  measured the same day).**
+  **The morning, mid-playtest:** `nettest_rtc3` 8/2 with `maxRound=1` and clients never acting,
+  `nettest_sync` a real divergence (client sees 6 cards, host holds 5), `nettest_lobbyback_rtc` dealing
+  never completing. A/B'd against the epic with the day's changes stashed, **all three failed there too**,
+  two of them *worse* on the baseline — so never the day's work.
+  **The evening, machine quiet** (no stray chromium, no stray sweep, load 4.2 of 16 — checked before
+  starting): a full `npm run sweep` went **92/92 green in 223s** and all three came back clean —
+  `lobbyback_rtc` 26/0, `rtc3` 10/0 at `maxRound=3`, `sync` 12/0 reaching round 11 on its ACTION cap rather
+  than the 120s wall clock, so it ran deep rather than being time-capped.
+  **THIS ENTRY'S OWN INSTRUCTION WAS "re-run them first on a quiet machine", AND THAT IS WHAT THIS IS.** The
+  morning run followed a session of probes and `kill -9`ing chromium; the tell CLAUDE.md already names is
+  *the rate moving when nothing in the code did*, and it moved.
+  **DO NOT CLOSE IT ON ONE GREEN RUN, and the reason is specific to one suite.** `nettest_sync` is
+  documented as intermittent at roughly **1-3 runs in 8**, so a single pass is exactly what that bug looks
+  like most of the time — this is strong evidence for the other 91 suites and weak evidence for that one.
+  `rtc3` and `lobbyback_rtc` are the stronger half: their morning failures were deterministic-looking
+  (`maxRound=1`, dealing never completing) and both are clean now.
+  **What would actually settle it:** run `nettest_sync` 8-10 times solo on a quiet machine and count. If it
+  never diverges, close this; if it does, its divergence is the one to chase, because that suite exists to
+  catch exactly the host/client fork it reported.
   `[id: three-rtc-suites-red]`
 
 - `needs a decision`    · **THE NARROWEST PHONES STILL HAVE 34px TOUCH TARGETS, AND THE ACTION ROW IS WHY (measured 2026-09-16,
