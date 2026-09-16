@@ -230,6 +230,7 @@ re-read its tag.
   flake wanders; this lands in ONE specific wrong state every time it lands wrong. Treat it as a
   deterministic defect reached on a race, not as slowness — and do not raise a poll budget to "fix" it.
   Running rate on `feat/phase-boundaries`: **2 red in 13 solo**.
+  `[id: lessontest-quicks-flaky]`
 
 - `needs a repro`       · **`nettest_passoduel` FLAKES AT ROUGHLY 1 IN 8, SOLO — MEASURED AND A/B'd 2026-09-15.** It hung a lane
   in one `-j 4` sweep (killed at 300s), and the first instinct was the Resolution shield override that had
@@ -247,6 +248,7 @@ re-read its tag.
   documented "the J is spotlit" poll — 5/5 green solo), at **261s and 434s** against a ~240s band. That
   spread is the machine, and this file's own rule applies: the tell that an intermittent is being measured
   badly is the rate moving when the code did not. Do not read a single 91/92 as a regression.
+  `[id: nettest-passoduel-flaky]`
 
 - `needs a repro`       · **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
   sweep during epic step 14; not reproduced since). The two failures were `lessonlib`'s shared `finish()`:
@@ -267,6 +269,7 @@ re-read its tag.
   `lessontest_twos` entry above already argues for: make the last step self-diagnosing — have `next()` say
   when it did not click, and have `finish()` print the step it was on when the modal failed to appear. One
   red run would then name both the suite and the step.
+  `[id: lesson-suite-lost-name]`
 
 - `needs a repro`       · **`lessontest_twos` FAILED ONCE UNDER LOAD, AND THE SIGNATURE POINTS AT THE PREP, NOT THE POLL** (seen once
   in a `-j 4` sweep, 2026-09-07; 3/3 solo and 86/86 on an immediate re-sweep, so it is rare). Do not file this
@@ -281,6 +284,7 @@ re-read its tag.
   at its full budget, so the budget is not the constraint): have the Rival-leads step assert WHAT it led and say
   so, the way `why()` prints the refusal state. A prep that reports what it actually did would have named this
   in one run.
+  `[id: lessontest-twos-prep]`
 
 #### Rules, priority and the stack
 
@@ -325,6 +329,7 @@ re-read its tag.
     (every Technique goes to the Discard; ♦ is not singled out), and it lands on the class that already
     scales hardest with player count. The three options are written up on `epic/priority-windows` in
     `FIGHT-END-PLAN.md` → *Where a mid-cast card goes*.
+  `[id: re-check-setrecycletech-discard]`
 
 - `ready to build`      · **★ PRIORITY: THREE OF THE FIVE DIVERGENCES ARE CLOSED; THESE ARE WHAT IS LEFT**
   (culled 2026-09-16 — the entry described five, and the epic closed three of them. Read the epic's copy of
@@ -344,6 +349,7 @@ re-read its tag.
   - **A Back-Stab-locked player may cast Techniques.** Aj, 2026-09-08: they **keep priority** — equipment
     are neither a fight nor a Technique, and activated equipment is coming — but Back Stab's text denies
     fights and **Techniques**, and `respond()` accepts one today (`respond`, engine.js).
+  `[id: priority-three-five-divergences]`
 
 - `ready to build`      · **A SHIELD-LOSS TECHNIQUE CAN BE CAST AT A RIVAL WITH NO SHIELDS, AND SILENTLY DOES NOTHING.** Critical Hit
   ♠9 and Ultima Attack ♣10 both read *"Target Rival loses 1 shield."* Against a rival on 0 the ⚡ is fully lit,
@@ -353,12 +359,14 @@ re-read its tag.
   wording"* (Aj, 2026-09-08). The Fighter Kick is a FIGHT outcome — a Special win against a rival already at 0
   — and the card text never claims otherwise. A Technique can take you to 0 and never past it.
   `activateBlock` is the home: it already carries fizzle guardrails for `counter` and `protect`.
+  `[id: shield-loss-technique-cast]`
 
 - `root cause found`    · **THE ENGINE AND THE UI DISAGREE ABOUT WHO MAY RESPOND.** `canAddToStack` (engine.js) admits any
   affordable Quick; the UI's `eligibleQuicks` is narrower, so the engine opens a window the screen then
   auto-declines — e.g. an Annoint holder against a non-removal. Solo it is invisible; **on a netplay client it
   costs a visible round trip**, the board going busy waiting on a decline the player never chose. One predicate,
   two definitions — the `resolveIds` lesson.
+  `[id: engine-ui-respond-disagree]`
 
 - `ready to build`      · **TWO AI HEURISTICS MISS QUICKS THEY HOLD.**
   - `respondDecision`'s threat list (`respondDecision`'s `THREAT_KIND`, ai.js) is four kinds — `destroyShield`, `removeEquip`, `discardOpp`,
@@ -367,19 +375,23 @@ re-read its tag.
     **Derive "threat" rather than adding a fifth item**, or the next hostile kind repeats it.
   - Its reactive immunity filter tests only `e.immune` (`respondDecision`'s reactive-immunity branch, ai.js) and never `e.shieldImmune`, so an AI in
     Apollo Mode holding Sanctuary takes the hit — the `effectFor`-family shape again, third instance.
+  `[id: ai-heuristics-miss-quicks]`
 
 - `needs a decision`    · **ARMOR PIERCING IS "+1 TO YOUR NEXT FIGHT WIN", NOT "+1 TO A SHIELD LOSS YOU CAUSE"** (`resolveEffect`'s `onWin` case, engine.js). Arm
   it, then cast Ultima Attack or Critical Hit, and the +1 does not apply — the flag survives to your next fight
   win instead. The card text agrees with the code; the design intended the other reading. Also `extraShield: 1`
   is declared and never read, so a second cast cannot stack and a Form patch raising it would do nothing.
+  `[id: armor-piercing-timing]`
 
 - `ready to build`      · **COUNTER SPELL DOES NOT TARGET** (`resolveTopEffect`, engine.js) — it always counters the object immediately beneath it.
   Indistinguishable from the design in a duel with a 2-deep stack; at 3-6p a 3-deep stack is reachable (A casts,
   B answers with a non-counter Quick, C counters) and C's Counter Spell hits the wrong object.
+  `[id: counter-spell-target]`
 
 - `root cause found`    · **THE PRIORITY UI SHOWS NO STACK.** The prompt names only the top object, and the stack view that would fix
   it sits behind an opaque overlay (`stackViewHTML` vs `.overlay`, template). In a Counter-a-Counter chain the player being asked for
   priority cannot see what they are responding to.
+  `[id: priority-ui-no-stack]`
 
 - `ready to build`      · **★ THE BROADWAY PITCH CHOOSES ITSELF, FOR BOTH SIDES** (Aj, 2026-09-07, from real play: *"oh no it did not
   let me pick which broadway card.... this is a bug for sure.. and probably more of a problem in multiplayer
@@ -404,6 +416,7 @@ re-read its tag.
     step if it moves at all.
   **Both need `opts.pitch` BACK in the engine**, which is the thing that was deleted — and each of them is the
   exercise it lacked.
+  `[id: broadway-pitch-chooses-itself]`
 
 - `needs a repro`       · **ROUND 2 RESOLVED TWICE IN A REAL DUEL, AND IT COST A SECOND SHIELD (2026-09-15, unexplained).** From
   Aj's saved logs of one game, BOTH seats, narrated identically:
@@ -481,6 +494,7 @@ re-read its tag.
   **AND SOLO IS NOW MEASURED CLEAN, which sharpens the netplay reading:** 0 duplicate resolutions across 12
   full duels in the real page, both declining and casting into every window. Whatever drives the second
   resolution is not reachable by the solo driver.
+  `[id: round-2-resolved-twice]`
 
 - `ready to build`      · **THE CLEAN-UP → BEGINNING ORDERING IS FIXED; IT IS THE TEST THAT IS STILL OWED (2026-09-16).** Aj
   called the mis-ordering a bug rather than a latent one and was right — it was shipped code with the
@@ -496,6 +510,7 @@ re-read its tag.
   **THE DAY A CARD TRIGGERS OFF A CLEAN-UP EVENT, WRITE THE ORDERING TEST FIRST** — that is the same day
   the old code would have started being wrong, and `E.cleanupOrder()` already names the events
   (`roundAdvance → initiative → pileClear → expire → equipReset → temps → stampRound`) for it to hang off.
+  `[id: clean-up-beginning-ordering]`
 
 #### Netplay
 
@@ -506,10 +521,12 @@ re-read its tag.
   at the table and withholding the one fact you need. **Aj's fix is broader than the string:** default names
   become **Rival + a number** for *everyone*, host and human seats included, so an un-renamed seat is still
   identifiable. Names stay dynamic.
+  `[id: rival-hardcoded-priority-modals]`
 
 - `root cause found`    · **A 2-PLAYER NETPLAY PRE-FIGHT WINDOW IS SET ON THE CLIENT AND ABANDONED BY THE HOST** (the duel `t:'move'` handler, template) — the
   duel move handler has no op for it. Needs a client holding a Form-granted lockout Quick, so it is narrow, but
   the audit rates it a permanent hang.
+  `[id: duel-prefight-abandoned]`
 
 - `root cause found`    · **★ THE MIRROR-CONTRACT AUDIT'S THREE UNFIXED FINDINGS.** v1.31.114/.115 took the two live bugs and
   v1.31.116 the park heartbeat; these are what the judge left standing. Each is a mirror or transport fault, so
@@ -531,6 +548,7 @@ re-read its tag.
     result** — without which a client cannot name who lost a shield and falls back to *"a rival lost a
     shield"*. That last one is the v1.29.6 lesson (never infer the loser — read `result.struck`) reappearing
     as a redaction gap rather than a UI one.
+  `[id: mirror-contract-findings]`
 
 - `root cause found`    · **A CLIENT COULD ACT WHILE ANOTHER SEAT HAD A MODAL UP (Aj, 2026-09-16: *"we really need that guard when
   somebody has a modal up. other player could activate stuff while the other players were busy with a
@@ -544,6 +562,7 @@ re-read its tag.
   **DO NOT BLANKET-GUARD ON `trimPending`** — a clean-up pick is CONFIRMED WITH FIGHT (`nettest_trim`), so
   a guard that blocks Fight during a trim deadlocks the pick. `doFight` currently reaches `confirmPick()`
   via the `pick` branch, which is what keeps them apart today.
+  `[id: client-act-another-seat]`
 
 - `ready to build`      · **ALL SEVEN EMOTES RENDER "You says…" TO THE PERSON WHO SENT THEM (2026-09-15).** `EMOTES` carries a
   present-tense third-person verb in every row — `says hi!`, `says nice play!`, `says yes!`, `says no!`,
@@ -560,6 +579,7 @@ re-read its tag.
   the list is an enumeration of verbs that have already shipped, so it will always trail. The STATIC half
   reads the template source — teaching it to flag a `says:` row whose value starts with a bare verb would
   cover the whole table at once, including the next row somebody adds.
+  `[id: all-seven-emotes-render]`
 
 - `ready to build`      · **A CLIENT IS NEVER TOLD THAT ANOTHER SEAT IS DECIDING — THE BOARD JUST GOES DEAD (Aj, 2026-09-15:
   *"when a player is thinking through a prompt… nothing happens in the other player's screen? so it's
@@ -576,6 +596,7 @@ re-read its tag.
   response window has had its half of that on the mirror the whole time and never got the other half.
   **From the outside an inert board is indistinguishable from a hang** — this file already says so about
   enabled-but-dead controls, and names it a plausible source of "netplay lagged" reports.
+  `[id: client-never-told-another]`
 
 - `ready to build`      · **THE RTC HOST'S START BUTTON IGNORES READY ENTIRELY — A GAME CAN BEGIN WITH AN UNCONFIRMED SEAT
   (reported in live play, 2026-09-15).** The two host lobbies disagree about what Start means:
@@ -595,6 +616,7 @@ re-read its tag.
   host can NO LONGER start"* — but it runs on `?net=host`, i.e. BroadcastChannel, where the gate is already
   right. None of the eight `rtchost` suites assert it. This is the documented two-invite-renderers trap with
   the **test** applied to one only, so the fix is not finished until an RTC suite carries that assertion.
+  `[id: rtc-start-ignores-ready]`
 
 - `root cause found`    · **THE HOST'S "🔔 Ping the table" IS INVISIBLE TO THE CLIENT — IT PAINTS BEHIND THE LOBBY (reported in live
   play, 2026-09-15).** The client's handler is `SFX.play('ping'); setMessage(…)`, and `setMessage` writes
@@ -610,6 +632,7 @@ re-read its tag.
   stacking bug**, so this needs a visibility check, not a presence one.
   **THE FIX RENDERS INTO THE LOBBY**, and must cover BOTH client lobby branches — readied and not — since
   the nudge is aimed at the seat that has *not* pressed Ready yet.
+  `[id: ping-invisible-to-client]`
 
 - `ready to build`      · **THE JOINER'S NETBAR SAYS "no server" WHEN THE RELAY DID CARRY ITS HANDSHAKE (found 2026-09-15).**
   `srvTag()` is `relay.room ? 'relay for the handshake only' : 'no server'`, and **only the host ever sets
@@ -623,6 +646,7 @@ re-read its tag.
   **THE FIX IS A JOINER-SIDE FLAG, NOT A REUSE OF `relay.room`** — the joiner has no room to drop and must
   not start polling one; it needs to remember only that the relay introduced it, and clear that on Leave
   with everything else. Assert BOTH seats' tags: a one-sided test passes on today's build.
+  `[id: joiner-netbar-no-server]`
 
 - `ready to build`      · **"Connection lost (disconnected)" NAMES NO LAYER THE PLAYER CAN ACT ON — IT HAS SENT US AT THE RELAY
   TWICE (2026-09-15).** `startSignaling`'s `oniceconnectionstatechange` writes
@@ -641,6 +665,7 @@ re-read its tag.
   ("Cannot reach the relay", "No room with that code") describe the relay's failures and already read
   correctly. This one is the transport's, and phrasing them alike is what makes the relay the first
   suspect — twice now, for the person who built it.
+  `[id: connection-lost-no-layer]`
 
 - `needs a repro`       · **THE CLIENT'S ANIMATIONS ARE STILL WRONG, AND "SHANKED" IS ALL WE HAVE (Aj, 2026-09-16: *"animations
   are still shanked in the client"*).** Reported twice now without a specific frame, so **the first job is
@@ -649,6 +674,7 @@ re-read its tag.
   `buildOppBeats` is the single funnel both drivers use and a bespoke path silently misses whatever it
   gains (the tutorial's 51ms cast), and a CLIENT does not run `startGame`, so anything reset only there is
   never reset on a client (`resetBoardMemory` is the shared one). Check both before inventing a number.
+  `[id: client-animations-shanked]`
 
 - `root cause found`    · **NOTHING ANIMATES WHEN YOU PRESS FIGHT — ROOT CAUSE FOUND, NOT YET FIXED (Aj, 2026-09-16: *"i expected
   the cards to fly into the play area"*).** `animatePileEntrance` has two branches: a **true FLIP** from
@@ -673,6 +699,7 @@ re-read its tag.
   **RULED OUT — do not re-chase it:** step 20's two-state Fight is NOT the cause. `doFight` calls
   `playCards` only once `subPhase === 'play'`, so the local path never sees the `transition:'play'`
   refusal and `flipFrom` survives on a solo board.
+  `[id: nothing-animates-press-fight]`
 
 #### Phone and layout
 
@@ -691,6 +718,7 @@ re-read its tag.
   against 63px of overflow, so trimming card size cannot close it. The candidates are a zone that expands as an
   OVERLAY instead of a layout change, or expanding one zone at a time at these sizes only — and note Aj
   explicitly asked for both zones open at once, so the second needs his say-so.
+  `[id: expanding-zone-pushes-board]`
 
 - `ready to build`      · **THE SETUP DIALOG SHOULD BE THREE COLUMNS IN LANDSCAPE** (Aj, 2026-09-07, with a screenshot of New Duel):
   *"can we do this in 3 columns for landscape? player count, name, your deck; opponent strength and decks;
@@ -702,6 +730,7 @@ re-read its tag.
   resets `#modal`'s class list so a wide dialog cannot leak into the next one). Do the same here rather than
   widening `.modal`. Note the rules panel's columns are keyed to WIDTH (1040px/1400px); this one wants short
   and wide, so the query is the landscape band, not a width breakpoint.
+  `[id: setup-dialog-three-columns]`
 
 - `root cause found`    · **THE DROP HINT OVERFLOWS THE BOARD AND LEAVES A HORIZONTAL SCROLLBAR BEHIND** (Aj, 2026-09-11, two
   screenshots: the refusal text running off both edges of the play area, then the whole page shifted with a
@@ -721,6 +750,7 @@ re-read its tag.
   a hidden hint occupies nothing. The second one alone kills the scrollbar.
   **Verify by MEASURING `document.documentElement.scrollWidth` against `clientWidth` after a drag ends**,
   not by looking: the element is invisible at that point, so the only evidence is the geometry.
+  `[id: drop-hint-overflows-board]`
 
 - `root cause found`    · **CLICKING A FORM/RIDE CHIP OPENS THE READER AND CAN NEVER EXPAND THE ZONE** (Aj, 2026-09-11, playing the
   build: *"clicking the jack does not expand it. it directly goes to the card viewer"*). The collapsed
@@ -740,6 +770,7 @@ re-read its tag.
   already calls `showCard`), or drop the expand outside landscape entirely and make the title honest.
   **Verify by LAYOUT, not by clicking once** — `shortLandscape()` splits the behaviour, so a fix checked
   only on desktop or only on a phone proves nothing about the other.
+  `[id: clicking-form-ride-chip]`
 
 #### Tutorials and prompts
 
@@ -766,6 +797,7 @@ re-read its tag.
   it; a flipped default makes it load-bearing for every card instead of a few.
   **AND THE SUITES ENCODE TODAY'S DEFAULT** — `prompttest` asserts "the DEFAULTS are today's experience",
   so flipping it is a product change AND a suite change, in one commit.
+  `[id: prompt-checkboxes-default]`
 
 - `ready to build`      · **TWO PROMPT-TIMING ROWS ARE MISLABELLED, AND A SIXTH ROW IS MISSING (Aj, from live play, 2026-09-15).**
   `PROMPT_TIMINGS` has five rows and the engine has five matching windows; the *names* on two of them
@@ -805,6 +837,7 @@ re-read its tag.
   timing id in `localStorage`; `PROMPT_TIMINGS` is explicitly "a list the reader renders from", so the
   labels are presentation. Changing `cleanup`'s *id* would orphan saved preferences the way `fightend` did
   and would need the same migration — rename the labels, leave the keys alone.
+  `[id: two-prompt-timing-rows]`
 
 - `ready to build`      · **THE TUTORIALS STILL DO NOT TEACH THE BOUNDARY WINDOWS (the rest of #6, after 2026-09-16).** The
   two-state Fight and the Main-only activation rule are taught now, and all eleven suites are green. What
@@ -820,6 +853,7 @@ re-read its tag.
   **ADDING A STEP RENUMBERS ITS SUITE'S ASSERTIONS, MEASURED:** `lessontest_howto` asserts `atStep(2)`
   through `atStep(10)`, and inserting one step scored **7 pass / 17 fail**. Fold new teaching into an
   existing step where you can; budget the suite edit where you cannot.
+  `[id: tutorials-still-teach-boundary]`
 
 ### Tooling
 
@@ -839,6 +873,7 @@ re-read its tag.
   to advance) versus **it is on the right step and the `.tut-spot` selector matched nothing** (a rig or
   spotlight-selector problem). Right now a red run cannot tell you which, which is the whole reason this entry
   exists rather than a fix. Make the suite self-diagnosing; do not write a bespoke probe.
+  `[id: lessontest-forms-poll]`
 
 - `needs a repro`       · **`landscapetest`'s ↓ New log assertion is INTERMITTENT — 2 failures in 26 runs (2026-09-04), and it has a
   fixed wait in it.** Seen only while building v1.31.104: **0/6 on v1.31.103, 2/10 on an intermediate build,
@@ -856,6 +891,7 @@ re-read its tag.
   re-read `scrollTop` at the same instant**, rather than sleeping — the rule this file already carries.
   Note the staging injects fake `.le` divs straight into `#log` to create the overflow; confirm a re-render does
   not wipe them before assuming the scroll position is the whole story.
+  `[id: landscapetest-newlog-flaky]`
 
 ### Features
 
@@ -870,6 +906,7 @@ re-read its tag.
   ACROSS a host round-trip and send it when the mirror arrives showing `subPhase === 'play'` — and hold it
   if the board moved, which is `stopIfActed` over the wire with no local `stackMark` to read. That is
   netplay behaviour unverifiable without two devices, and a mis-fire spends the player's cards.
+  `[id: netplay-client-still-pays]`
 
 - `needs a repro`       · **THREE RTC SUITES ARE RED ON THE EPIC, AND IT IS NOT TODAY'S WORK (measured 2026-09-16).**
   `nettest_rtc3` (8/2, `maxRound=1`, clients never act), `nettest_sync` (a real divergence: client sees 6
@@ -881,6 +918,7 @@ re-read its tag.
   is to check for stray processes before suspecting the code. **Re-run them first on a quiet machine**; if
   they stay red, `nettest_sync`'s divergence is the one to chase, because that suite exists to catch
   exactly the host/client fork it is now reporting.
+  `[id: three-rtc-suites-red]`
 
 - `needs a decision`    · **THE NARROWEST PHONES STILL HAVE 34px TOUCH TARGETS, AND THE ACTION ROW IS WHY (measured 2026-09-16,
   while fixing the rest).** Everything from 360px up now gets 44px-tall icon buttons and a widened 🔍/⚡
@@ -895,6 +933,7 @@ re-read its tag.
   **DO NOT JUST COLLAPSE IT TO ⇅.** v1.31.104's note is explicit that Sort keeps words *because it is the
   state it reports*, and a glyph cannot say "Straights". A rotating one-word label, or moving Sort out of
   the action row entirely, are the two shapes worth costing — both are design calls, not tuning.
+  `[id: narrowest-phones-still-34px]`
 
 - `ready to build`      · **THE RESPOND WINDOW OFFERS DUPLICATE BUTTONS FOR INTERCHANGEABLE COPIES** (Aj, 2026-09-11, screenshot).
   Holding TWO Counter Spells against two legal targets renders **four** buttons, of which two pairs are the
@@ -906,6 +945,7 @@ re-read its tag.
   Small, no design decision in it, and independent of the redesign below. Note the same loop feeds the
   non-counter branch, so a player holding two Leylines gets two identical buttons there too — unverified,
   but it follows from the same line.
+  `[id: respond-window-offers-duplicate]`
 
 - `needs a decision`    · **★ A STACK VISUALISER, AND IT BELONGS WITH THE ENTRY BELOW** (Aj, 2026-09-11: *"not elegant but it works
   haha i think we need to overhaul this with a stack visualizer in the future"*). The priority window
@@ -915,6 +955,7 @@ re-read its tag.
   **Same move as the entry below**: stop narrating the board in a modal when the board can be shown. Do the
   two together — a visualiser plus in-hand highlighting IS the replacement for the modal, and shipping one
   without the other leaves the prose half in place.
+  `[id: stack-visualiser]`
 
 - `needs a decision`    · **★ REPLACE THE PER-CARD PRIORITY MODAL WITH "PAUSE AND HIGHLIGHT THE CASTABLE QUICKS IN HAND"** (Aj,
   2026-09-10, and **explicitly postponed until the epic is done**: *"can we redesign? instead of having a
@@ -933,6 +974,7 @@ re-read its tag.
   `promptHostPreFight`, all three of which epic step 20 is still rewriting; landing a new
   presentation under them would make both changes harder to reason about and impossible to revert
   separately.
+  `[id: priority-modal-redesign]`
 
 - `ready to build`      · **OPEN THE BATTLE LOG AS AN OVERLAY, like the 🔍 View card reader** (Aj, 2026-08-31: *"i think for the logs,
   we can open it like how we do the view card? but slightly transparent?"* — agreed at the time and, like the 2s
@@ -946,6 +988,7 @@ re-read its tag.
   Two things to get right, both already recorded as traps: the overlay must outrank `#netroot` — use the
   `--zNetroot`-derived family, never a bare z-index — and **DOM presence is not visibility**, so assert it with
   `elementFromPoint`, not by reading `textContent`.
+  `[id: open-battle-log-overlay]`
 
 - `ready to build`      · **THE FAMILY-SHAPE PROGRAMME IS ESSENTIALLY COMPLETE. One cheap piece is left.** (Rewritten 2026-08-31: the
   original entry listed eleven sub-items and **ten had shipped**, including all four it called "still missing
@@ -962,6 +1005,7 @@ re-read its tag.
   measure with `mpsim`/`rulesim` expecting **options, not tempo** — eight rules in a row have left pacing
   untouched. Also check the wide panel still fits at 1512×945; there is no slack left.
   Why FLUSH will never be one of them is in [`DECISIONS.md`](DECISIONS.md#balance).
+  `[id: family-shapes-last-piece]`
 
 - `parked`              · **Rogue "slash": an on-demand card that LOWERS the current pile's value** (Aj, 2026-08-25 — filed for when
   Rogue needs a boost in balancing; nothing built). Distinct from Caltrops, which is a standing `oppDelta`
@@ -972,6 +1016,7 @@ re-read its tag.
   **The measured support is settled: [`DECISIONS.md#value-stuck`](DECISIONS.md#value-stuck)** — read it there,
   including the correction to an earlier claim about Rogue. Do not re-derive it, and do not copy its numbers
   back here. **What is open is only the card:** cost, whether it is a Quick, and how much it slashes.
+  `[id: rogue-slash-demand-card]`
 
 - `parked`              · **A count-up "charge" CLASS** (Aj, 2026-08-25 — his current lean; nothing built). Full analysis in
   **[`docs/COUNT-UP-DESIGN.md`](COUNT-UP-DESIGN.md)**, which came out of his brother asking why the game has
@@ -987,6 +1032,7 @@ re-read its tag.
     (the v1.31.0 fix, mirrored).
   - The one objection that *did* survive: the **leader-snowball is worse under coins**, because a win advances
     only the winner where a shield hit damages everyone, and initiative is already 1.8x concentrated.
+  `[id: count-up-class]`
 
 - `parked`              · **A SHIELD GAIN AS A GUARD IS PARKED on `exp/shield-gain-guard`** (2026-09-10). `exp/` and not `parked/`:
   the table reserves `parked/` for work that is **built, green** and deliberately unmerged, and this is an
@@ -1010,6 +1056,7 @@ re-read its tag.
   Quick?) rather than a window question. **Unverified; check at 19, do not assume.**
   Reproduce the failure by applying the patch on `epic/priority-windows` and running `node shadowtest.js`
   (the suite does not exist on `main`, so running it on this branch proves nothing).
+  `[id: shield-gain-guard-parked]`
 
 - `parked`              · **QR SCANNING IS BUILT, GREEN, AND PARKED on `feat/qr-scanning`** (PR #29, closed 2026-08-25, 21/0).
   **Why it is not merged:** scanning needs an origin that can be granted camera access, and a file opened from
@@ -1018,6 +1065,7 @@ re-read its tag.
   **What would revive it:** a decision to host the file. The blocker is no longer technical.
   Full reasoning, the origin experiment, and everything else considered for making joining easier are in
   [`DECISIONS.md`](DECISIONS.md#joining-discovery-and-the-qr-path).
+  `[id: qr-scanning-built-green]`
 
 ### Balance and design
 
@@ -1036,6 +1084,7 @@ re-read its tag.
   and every cycle is lossy because spent Techniques go to `removed` and never refill the Shuffle Pile. So a
   length fix and a cycling measurement want the same harness and the same runs — see the `setRecycleTech`
   entry above for the full trace, including the untested ♦-dominance lead.
+  `[id: game-length-scales-player]`
 
 - `parked`              · **The "outbid" pass model for the AI** (Aj — parked 2026-08-24, may come back). The AI currently picks the
   *lowest safe single* to contest a jab, and never asks *"will this card even survive five opponents?"* Aj's
@@ -1048,11 +1097,13 @@ re-read its tag.
     takes a tier argument for exactly this.
   - Implement as a third `setStratPassMode('outbid')` beside `'hand'` and `'combo'` so all three stay
     comparable in one harness.
+  `[id: outbid-pass-model-ai]`
 
 - `parked`              · **A gacha-style storyline** (Aj, idea — parked, ahead of netplay AI in the queue, not designed). Nothing
   specified yet. Worth noting that **v1.30.0 just built the substrate for it by accident**: a roster of 32
   named characters, grouped into five tiers, each with a distinct play style and a name that already flows
   through the whole naming funnel. A collection/progression layer has something to collect now.
+  `[id: gacha-style-storyline]`
 
 - `parked`              · **Suit ≠ class — future direction** (Aj, design intent, not yet built): the current 1:1 map (♦ Wizard,
   ♥ Cleric, ♣ Fighter, ♠ Rogue) is temporary. There will stay **only 4 suits**, but eventually **more than one
@@ -1060,6 +1111,8 @@ re-read its tag.
   own card set** (it does NOT reuse the pure Fighter or pure Rogue cards). This is also the natural home for a
   real **draw engine**, which is what would make the reorderable energy pile matter in more than the ~39% of
   games that currently reach a reshuffle (`node recyclesim.js`).
+  `[id: suit-not-class]`
 
 - `parked`              · **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
+  `[id: ai-energy-pile-order]`
