@@ -1885,7 +1885,7 @@ The 52 netplay suites: `nettest_3p` 7, `priosig` 18, `passoduel` 8, `parkbeat3` 
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 16, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 7, `ghostseat` 6, `trim` 14, `unready` 15, `version` 24.
+`target3` 7, `ghostseat` 6, `trim` 14, `unready` 15, `version` 24, `ridewedge` 9.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state
@@ -2024,6 +2024,24 @@ an intended play across a host round-trip and dropping it if the board moved, wh
 **The one thing a suite genuinely cannot judge is how something LOOKS** (Aj's *"animations are still
 shanked"*), and even there the branch taken is assertable: a FLIP starts at `opacity:1` and scale ≈ 1, a
 slide at `opacity:0` and `scale(.62)`.
+
+**THE TRANSFORM/RIDE BRANCH IS A SEPARATE PATH, AND FORGETTING IT HAS NOW COST SIX BUGS (2026-09-16).** A
+transform does not go through `pick`, does not go through the ordinary effect tail, and needed its own client
+guard when those were swept. The sixth: its settle continuation was a bare `render()` while every other effect
+goes through `NET.hostAfterOwnCast` → `hostRivalWindows` → **`hostTakeBack()`**, the only thing that clears
+`busy`. So a netplay HOST that called a Ride on its own turn and had the window declined simply stopped —
+its board reading *"your turn"* with *"Hold on — the board is still resolving"*, while the client sat
+correctly on *"Rival is fighting…"* receiving the park beat's unchanging mirror every 1.8s. **That is why it
+looked like a live connection rather than a hang**, and it is the v1.31.20 `busy` signature in a new place.
+**THE STALE COMMENT IS THE TELL.** That branch said *"persists, no response window"* — true when written,
+false since the stack model landed, and load-bearing because it explained away the missing call. When you
+change what happens after a cast, change it in the transform branch too; `nettest_actloop` covers a host
+**Technique** and stayed green through all of this.
+**AND THE REPRO IS WHAT MADE THE FIX FIVE MINUTES.** `nettest_ridewedge` — 8/1 before, 9/0 after, on one
+build. Two staging facts it paid for, each of which makes it pass VACUOUSLY if lost: the **transform gate**
+(3/3 shields = two lost table-wide = `numPlayers × 1`, or the Ride is silently refused), and the client's
+Quick must be **untargeted** — the first attempt staged Counter Spell, which targets an effect on the stack,
+so `canCastQuick` refused it, NO window opened, and the liveness assertion passed while proving nothing.
 
 **A CLIENT-SIDE GATE IS NOT THE GATE.** `sendEmote`'s 1.2s cooldown is a courtesy; `hostEmote`'s per-seat one
 is the real check, because a client controls its own clock. Driving the UI only ever exercises the courtesy

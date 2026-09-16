@@ -9265,7 +9265,24 @@ window.CardFace = {};
       if(typeof TUT!=='undefined' && TUT.note) TUT.note('activate', eff);   // Rides lesson: the transform step gates here (eff.kind==='transform')
       flashArt(card, 'You');                    // center-stage art pop only — a Form's full text is read by hovering it in the Forms & Rides zone, not shoved into the description box
       if(typeof NET!=='undefined' && NET.sendFx) NET.sendFx(YOU, card);   // ...and to the other seats, who have no driver of their own to show it
-      settleWindows(gen, function(){ if(state.finished){ render(); return endGame(); } render(); });
+      /* A TRANSFORM OPENS A WINDOW LIKE ANY OTHER CAST, AND THIS BRANCH FORGOT TO HAND CONTROL BACK
+         (2026-09-16). The comment above still said "persists, no response window" — true once, false since
+         the stack model landed — and because of it this branch settled with a bare `render()` while EVERY
+         other effect below goes through `NET.hostAfterOwnCast`, which is what reaches `hostTakeBack()` and
+         clears `busy`. So a netplay HOST that called a Ride on its own turn, had the window declined by the
+         client, and then simply stopped: its own board read "your turn" with "Hold on — the board is still
+         resolving" forever, while the client sat correctly on "Rival is fighting…" receiving the park
+         beat's unchanging mirror every 1.8s — which is why it looked like a live connection rather than a
+         hang. Aj hit it in a real duel and saved BOTH ends; `ridewedge-probe.js` reproduces it.
+         THE SHAPE, AND IT IS THE SIXTH TIME: "the transform/Ride branch" is already on this repo's list of
+         sites that each needed their own client guard added separately, because a transform does not go
+         through `pick` and does not go through the ordinary effect tail. When you change what happens after
+         a cast, change it HERE TOO — `nettest_actloop` covers a host Technique and stayed green throughout. */
+      settleWindows(gen, function(){
+        if(state.finished){ render(); return endGame(); }
+        if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive()){ return NET.hostAfterOwnCast(gen); }
+        render();
+      });
       return;
     }
     var pitchNote=r.pitched?(' <span class="subtle">(pitched '+cardSym(r.pitched)+')</span>'):'';
