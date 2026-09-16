@@ -2009,6 +2009,22 @@ the answer ON the stack, so `pending` was always set and the transition never go
 shape as the simultaneous-kicks rule ("was this player already broken?" must be sampled for every target
 before any strip lands). If a line describes an event, sample its inputs before the event.
 
+**"NEEDS TWO DEVICES" IS ALMOST ALWAYS FALSE, AND IT WAS CLAIMED TWICE IN ONE DAY (2026-09-16).** Once for
+the client's missing FLIP animation and once for the client's two-press Fight — Aj answered the first with
+*"haven't i supplied you enough logs from 2 devices?"* and was right both times. **It is the phrase that
+gets reached for when the real reason is that the work is fiddly**, and it is expensive because it reads as
+a hard blocker: it parks work that is merely awkward.
+**The refutation is a grep, not an argument.** Twenty-odd `nettest_*` suites drive a real CLIENT page against
+a real host, headlessly — `nettest_clientwin` and `nettest_sync` both press Fight on one. The two-press entry
+even refuted itself in writing, noting that mislabelling the button took `nettest_clientwin` to 6/4, which
+IS a suite seeing the behaviour, two sentences before calling it unverifiable.
+**So before writing that a netplay behaviour cannot be tested, grep `nettest_*.js` for a suite that already
+drives the seat in question**, and say what is actually hard instead — for the two-press case it is holding
+an intended play across a host round-trip and dropping it if the board moved, which is real, and testable.
+**The one thing a suite genuinely cannot judge is how something LOOKS** (Aj's *"animations are still
+shanked"*), and even there the branch taken is assertable: a FLIP starts at `opacity:1` and scale ≈ 1, a
+slide at `opacity:0` and `scale(.62)`.
+
 **A CLIENT-SIDE GATE IS NOT THE GATE.** `sendEmote`'s 1.2s cooldown is a courtesy; `hostEmote`'s per-seat one
 is the real check, because a client controls its own clock. Driving the UI only ever exercises the courtesy
 copy, so the host's check went untested until `__cmf.clientSend` let a suite bypass the client gate the same way

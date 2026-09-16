@@ -934,8 +934,16 @@ re-read its tag.
   and waited for cards that were never going to leave the hand.
   **WHY IT IS FILED RATHER THAN DONE:** collapsing it means the client must remember the play it intended
   ACROSS a host round-trip and send it when the mirror arrives showing `subPhase === 'play'` — and hold it
-  if the board moved, which is `stopIfActed` over the wire with no local `stackMark` to read. That is
-  netplay behaviour unverifiable without two devices, and a mis-fire spends the player's cards.
+  if the board moved, which is `stopIfActed` over the wire with no local `stackMark` to read. A mis-fire
+  spends the player's cards, so it wants care.
+  **⚠ THIS ENTRY ORIGINALLY SAID "unverifiable without two devices" AND THAT WAS FALSE — CORRECTED
+  2026-09-16, the same day it was written, after Aj hit the two presses in live play.** It is refuted by
+  this very entry two sentences up: mislabelling the button **broke `nettest_clientwin` (6/4)**, which is a
+  headless suite seeing exactly this behaviour. `nettest_clientwin` and `nettest_sync` both already drive a
+  CLIENT pressing Fight, so a suite can assert the whole thing: stage a client in Main holding a legal
+  Special, press ONCE, require the cards to leave its hand AND the host to accept the play — plus the
+  negative, that a board change between the press and the mirror DROPS the held play rather than firing it.
+  The general rule this produced is in `CLAUDE.md` — do not restate it here.
   `[id: netplay-client-still-pays]`
 
 - `needs a decision`    · **THE NARROWEST PHONES STILL HAVE 34px TOUCH TARGETS, AND THE ACTION ROW IS WHY (measured 2026-09-16,
