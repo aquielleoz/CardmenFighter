@@ -538,10 +538,25 @@ re-read its tag.
   **WHAT IS NOT YET KNOWN, and must not be guessed:** which continuation `done` the host's own activation
   passes into `hostSettle`, and why it never reaches `hostTakeBack`. Do not patch `busy=false` somewhere
   plausible — that is the fix that hides the next one.
-  **THE REPRO TO BUILD FIRST:** a duel where the HOST activates on its own turn while the client owes the
-  window — stage the host holding a Ride, let the client play into it, have the client decline, then assert
-  the host's board goes live (`busy` false, Fight enabled on a selection). `nettest_actloop` is the nearest
-  shape (play must keep moving AFTER a Technique, both seats) and does not cover a host-side activation.
+  **THE REPRO IS STARTED AND DOES NOT FIRE YET — `code/ridewedge-probe.js` (2026-09-16).** Named as a probe
+  rather than `nettest_*` on purpose: `sweep.js` auto-discovers that prefix, so shipping a known-red suite
+  under it would be a suppression. Rename it when it reproduces AND the bug is fixed.
+  **What the first run settled**, which narrows the work rather than repeating it:
+  - the host **can** call a Ride on its own turn over netplay (activates via the icon), so the transform-gate
+    staging is correct — **3/3 shields = two lost table-wide**, which is exactly `numPlayers × 1` for a Jack.
+    At a fresh 4/4 the Ride is simply refused and a suite would report "no wedge" having activated nothing;
+  - with the client holding **Counter Spell (4♦)** *no window opened on the client at all*, so there was
+    nothing to decline — and the host did **not** wedge. That is consistent with the diagnosis, not against
+    it: no window means no resume, and it proves the liveness assertion can pass **vacuously**;
+  - so the missing ingredient is the CLIENT'S ELIGIBILITY, and the reported game names it: that client held
+    **Armor Piercing under Hippolyta Form**, a FORM-GRANTED Quick — the `effectFor`-not-`effectOf` path — and
+    its ledger reads `[respond] window SHOWN to you vs Giant Owl offering: Armor Piercing`. **Stage that
+    exact shape next**, not a plain Counter Spell.
+  **`nettest_actloop` LEG 1 ALREADY COVERS A HOST ACTIVATION AND IS GREEN — which is why this needs its own
+  suite.** That leg activates a **Technique** (Gather Energy, A♦); the report is a **Ride**, and the transform
+  branch is a separate path: CLAUDE.md lists "the transform/Ride branch" among the five sites that each
+  needed their own client guard, and `keepsTheWin` is wired into `pick()` AND the transform branch because
+  transform does not go through `pick`. The covered path and the reported path only look alike.
   **AND A SEPARATE, SMALLER FINDING FROM THE SAME READ:** the duel's `if(!netSettle) return;` is **silent**,
   while its N-player twin traces (`react IGNORED  op=… but netReact=null`). A duel can therefore drop a
   client intent leaving no evidence at all — which is why this investigation had to rule that path out from
