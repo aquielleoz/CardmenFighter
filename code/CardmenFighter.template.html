@@ -4580,6 +4580,24 @@ __QR__
     return resp;
   }
 
+  /* A PROACTIVE ACTION MAY NOT START WHILE A GO-ROUND IS OPEN (Aj, from two real duels, 2026-09-15/16:
+     *"we really need that guard when somebody has a modal up. other player could activate stuff while the
+     other players were busy with a modal"* — and the round that resolved twice turned out to be the same
+     hole from the other end).
+     `activate` HAS REFUSED ON THIS EXACT CONDITION SINCE 2026-09-14 and Fight/Pass never learned it, so the
+     three entry points disagreed about whether an open window stops you. The five flags they did check —
+     `peeking||busy||pick||targeting||targetPick` — are all LOCAL UI state and none of them can see that a
+     seat owes an answer.
+     HOW IT COST A GAME. `doPass` → `moveToPlayThen` calls `E.moveToPlay` DIRECTLY, which is what skips the
+     "not yet" refusal `E.pass` would have given. Press Pass; the transition auto-advances, so that path
+     `return proceed()`s WITHOUT setting `busy`; `E.pass` then opens the Resolution go-round and
+     `finishPassRound` hands it to the async `drainResolution`. Control returns to the event loop with
+     `busy === false` and a window open — so a second Pass sails in, drains the SAME window a second time
+     and passes again. Aj's ledger shows it exactly: two `MAIN → FIGHT [Pass]` entries, two clean-ups, two
+     `FIGHT END`s, and a Fighter Kick off a pile that had already been resolved.
+     IT IS A UI GUARD AND THAT IS NOT A CONTRADICTION of "a client-side gate is not the gate": a netplay
+     CLIENT's pass goes through `E.pass`, which refuses with `transition:'play'` and is re-applied under a
+     brake. The hole is the LOCAL funnel that reaches past the engine, so this is where it closes. */
   function doFight(){
     if(peeking||busy||pick||targeting||targetPick) return;
     if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
@@ -5326,8 +5344,32 @@ __QR__
            ' struck=' + ((fe.strikeTargets||[]).map(logName).join('+') || 'nobody') +
            (fe.wonWithCombo ? ' (Special)' : ' (jab — no shield at stake)') +
            ' priority→' + (state.respondFor!=null?logName(state.respondFor):'?'));
+    /* LOCK THE BOARD WHILE THIS DRAINS — THE ROUND RESOLVED TWICE WITHOUT IT (Aj, two real duels, and the
+       second one killed him: *"pc player lost to the same play not clearing again"*).
+       `settleWindows` is ASYNC and this was the one hand-off to it that did not set `busy` first —
+       `moveToPlayThen` sets `busy=true; render();` two lines before its own identical call. So a Pass whose
+       transition AUTO-ADVANCED (`return proceed()`, the path that never touches `busy`) reached `E.pass`,
+       opened the Resolution go-round, handed it here, and returned to the event loop with the board still
+       LIVE. A second Pass then re-entered `moveToPlayThen`, drained the SAME window a second time and
+       passed again: Aj's ledger carries two `MAIN → FIGHT [Pass]`, two clean-ups, two `FIGHT END`s and a
+       Fighter Kick off a pile that had already been resolved.
+       ⚠ THIS IS HARDENING, NOT A DEMONSTRATED FIX FOR THAT BUG — say so rather than claiming the kill.
+       The asymmetry is real and worth closing on its own, but the reported double-resolution has NOT been
+       reproduced solo: staged both ways in the real page (window open at the transition, and Aj's exact
+       shape where it auto-advances), two synchronous clicks resolve the round exactly ONCE on the
+       UNFIXED build, because click 1 runs far enough to set `busy` before click 2 lands. Both of Aj's
+       logs are NETPLAY and log(1) is the HOST, whose trace carries two client `decline` intents 70ms
+       apart mid-drain — so the re-entry arrives over the wire, and a netplay repro is what is still owed.
+       THE FIRST ATTEMPT WAS TOO BLUNT AND `browsertest` CAUGHT IT IN ONE RUN. Refusing Fight/Pass outright
+       while `respondFor != null` looks like the same idea and is not: `moveToPlayThen`'s settle is what
+       DRAINS the window on some paths, so blocking the entry removed the drain and the board stalled
+       forever — a 70s suite ran past 400s. Lock the board for the duration; do not forbid the action.
+       `busy=false` BEFORE `then`, mirroring `moveToPlayThen`'s callback, because what follows is the
+       ceremony and it manages `busy` itself. */
+    busy=true; render();
     settleWindows(g, function(){
       if(g!==gen) return;
+      busy=false;
       var fr=state.resolutionResult; state.resolutionResult=null;
       then(fr||r);
     });

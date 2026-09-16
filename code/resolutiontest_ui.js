@@ -363,6 +363,78 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
        (offered.some(t => /Sanctuary/i.test(t)) ? '' : '  ← unchecking made it unplayable; the offer list is being filtered by the prompt preference again  [' + offered.join(' | ').slice(0, 80) + ']'));
     await p.close(); }
 
+  // ------------------------------------------------- E · ONE PASS RESOLVES ONE ROUND
+  /* THE ROUND RESOLVED TWICE IN TWO REAL DUELS, AND THE SECOND ONE KILLED A PLAYER (Aj, 2026-09-15/16:
+     *"i lost twice to the same play... not sure why it never cleared.. but also there was no beginning of
+     round"*, then *"pc player lost to the same play not clearing again"*). His ledger carries the shape:
+     two `MAIN → FIGHT [Pass]`, two clean-ups, two `FIGHT END`s, and a Fighter Kick off a pile that had
+     already been resolved once.
+     THE HOLE WAS AN UNGUARDED ASYNC HAND-OFF. `drainResolution` calls `settleWindows` — async — and was the
+     one such call that did not set `busy` first. A Pass whose transition AUTO-ADVANCED takes
+     `moveToPlayThen`'s `return proceed()` path, which never touches `busy` either, so control reached the
+     event loop with the board LIVE and a go-round open. A second Pass re-entered and drained the same
+     window again.
+     ⚠ THIS BLOCK DOES NOT REPRODUCE THAT BUG, AND SAYING SO IS THE POINT. A/B'd against the build without
+     the `busy` lock and it passes there too — staged both ways (window open at the transition, and Aj's
+     exact `auto-advanced` shape), two synchronous clicks resolve the round exactly ONCE either way,
+     because click 1 runs far enough to set `busy` before click 2 lands. Both of his logs are NETPLAY and
+     the doubling host's trace carries two client `decline` intents 70ms apart mid-drain, so the re-entry
+     comes over the WIRE. A netplay repro is still owed; see the BACKLOG.
+     WHAT IT IS WORTH KEEPING FOR is the invariant in its own name — ONE PASS RESOLVES ONE ROUND, asserted
+     on shields and on the ledger — which is cheap, is the player-visible statement of the defect, and
+     would catch the solo-reachable version of this shape the day somebody introduces it.
+     TWO CLICKS IN ONE TASK, not two polled presses: a helper that waits for the board settles the very
+     gap this is aiming at. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('E: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'E · a board for the double pass');
+    const st0 = await p.evaluate(() => {
+      const st = window.__solo.st();
+      const C = (r, s, t) => ({ rank: r, suit: s, id: (t || '') + r + s });
+      const you = st.players[0], riv = st.players[1];
+      you.shields = 2; riv.shields = 4;                       // 2, so "lost one" and "lost two" are different numbers
+      /* THE QUICK GOES TO THE RIVAL, AND THAT IS THE WHOLE STAGING TRICK. The window has to OPEN — with no
+         `r.resolution` the drain returns synchronously and there is no gap to race — but it must open for
+         a seat the AI answers, not for a human. Giving the struck player a Leyline does the opposite: it
+         IS a loss answer, so `shieldSaveOverride` forces a modal and the drain parks on it forever. The
+         first cut of this block did exactly that and resolved nothing. */
+      you.hand = [C(5, 'C', 'x'), C(6, 'C', 'y')]; you.energy = [];   // nothing castable → no prompt, forced or otherwise
+      riv.hand = [C(9, 'D', 'ley')];
+      riv.energy = []; for (let i = 0; i < 13; i++) riv.energy.push(C(3, 'D', 'f' + i));
+      st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = 1;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
+      st.pile = { p: 1, byPlayer: 1, combo: { type: 'pair', size: 2, value: 9, key: [9], cards: [C(9, 'C', 'a'), C(9, 'S', 'b')] } };
+      window.__solo.render();
+      return { shields: you.shields, round: st.round };
+    });
+    ok(st0.shields === 2 && st0.round === 3, `E · staged — you hold 2 shields in round ${st0.round}, and the rival's pair stands`);
+
+    await clearTransition(p);
+    /* BOTH CLICKS IN ONE `evaluate`, so the second lands inside the first's async chain. Polling helpers
+       (`clickPass`) are useless here by construction — they wait for exactly the state this bug leaves
+       behind, and would therefore never reproduce it. */
+    await p.evaluate(() => { const b = document.getElementById('passBtn'); b.click(); b.click(); });
+    await until(() => p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; }));
+
+    const out = await p.evaluate(() => {
+      const st = window.__solo.st();
+      const led = window.__solo.prioLog();
+      return { shields: st.players[0].shields, round: st.round, finished: !!st.finished,
+               ends: led.filter(l => /FIGHT END/.test(l) && /^r3\b/.test(l)).length,
+               passes: led.filter(l => /MAIN → FIGHT/.test(l) && /\[Pass\]/.test(l) && /^r3\b/.test(l)).length };
+    });
+    ok(out.ends === 1,
+       `E · ROUND 3 RESOLVED EXACTLY ONCE (${out.ends} FIGHT END entries)` +
+       (out.ends === 1 ? '' : '  ← REPRODUCED: the same pile resolved ' + out.ends + ' times off one round'));
+    ok(out.passes === 1,
+       `E · …and only one Pass reached the transition (${out.passes})` +
+       (out.passes === 1 ? '' : '  ← the second click got past the guard and re-entered moveToPlayThen'));
+    ok(out.shields === 1,
+       `E · …so you lost exactly ONE shield, 2 → ${out.shields}` +
+       (out.shields === 1 ? '' : '  ← REPRODUCED: one pile took two shields'));
+    ok(!out.finished, 'E · …and the duel is still alive — this is the shape that landed a Fighter Kick in a real game');
+    await p.close(); }
+
   ok(errs.length === 0, 'no JS errors' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
   console.log('\n' + (fail ? 'FAILED — ' : '') + 'PASS: ' + pass + '  FAIL: ' + fail);
   await b.close(); process.exit(fail ? 1 : 0);
