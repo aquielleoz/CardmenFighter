@@ -878,12 +878,19 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Features
 
-- **THE ICON BUTTONS ARE TOO CLOSE TOGETHER ON A PHONE (Aj, 2026-09-16: *"i'm afraid i'll click the
-  activate button when trying to view a card haha"*).** The two neighbours are 🔍 View and ⚡ Activate, and
-  the pairing is the worst available: one is idempotent and the other SPENDS A CARD. `viewtest` exists
-  because `#viewCardBtn` is phone-only (`max-width:720px and max-height:800px`), so that suite is where a
-  hit-target assertion belongs — and it should be a MEASURED gap or hit-box, not a visual tweak, since
-  this is the same class as the landscape work where a screenshot and a number disagreed.
+- **THE NARROWEST PHONES STILL HAVE 34px TOUCH TARGETS, AND THE ACTION ROW IS WHY (measured 2026-09-16,
+  while fixing the rest).** Everything from 360px up now gets 44px-tall icon buttons and a widened 🔍/⚡
+  channel; **at ≤340px nothing changed**, because the row cannot afford it on either axis — the `@media
+  (max-width:480px)` block already records it as **2px over budget at 327px**, and `landscapetest`'s
+  ratchet on the known expand overflow at 327×660 went **63px → 73px** the moment 44px targets were
+  applied there. That ratchet is what caught it, on the first run.
+  **SO THE LEVER IS NOT THE BUTTONS, IT IS `sortBtn`.** It is the widest item in the row by a distance
+  (86-106px against 30-44px) because it keeps a WORD — the sort state it reports — while every other
+  button collapsed to a glyph. The `max-width:480px` block already shaves its padding twice for exactly
+  this reason. Freeing ~40px there is what would buy the floor phones the same targets.
+  **DO NOT JUST COLLAPSE IT TO ⇅.** v1.31.104's note is explicit that Sort keeps words *because it is the
+  state it reports*, and a glyph cannot say "Straights". A rotating one-word label, or moving Sort out of
+  the action row entirely, are the two shapes worth costing — both are design calls, not tuning.
 
 - **THE RESPOND WINDOW OFFERS DUPLICATE BUTTONS FOR INTERCHANGEABLE COPIES** (Aj, 2026-09-11, screenshot).
   Holding TWO Counter Spells against two legal targets renders **four** buttons, of which two pairs are the
