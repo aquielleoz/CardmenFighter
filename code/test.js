@@ -2557,5 +2557,35 @@ function cards(ids) { return ids.map(card); }
   ok((g.cleanupQueue || []).length === 0, 'and the queue drained completely — nothing is left half-run');
 })();
 
+/* THE BEGINNING PHASE OWES ITS TICKS, IT IS NOT HANDED THEM (Aj, 2026-09-16, calling the mis-ordering a
+   bug rather than a latent one — correctly: it was shipped code with the wrong order in it).
+   `finishCleanup` used to run its events and then `pushUpkeepTicks` in the same breath, so a trigger a
+   CLEAN-UP event had stacked ended up UNDERNEATH the ticks, and The Stack being LIFO the next round's
+   Upkeep resolved before the previous round's Clean-up had finished. The ticks are owed via
+   `st.upkeepTicks` now and paid by the Upkeep branch, which is reached only once the stack is EMPTY —
+   i.e. once Clean-up is genuinely over.
+   ⚠ WHAT THIS BLOCK CAN AND CANNOT PROVE, stated rather than implied. It CANNOT prove the ordering,
+   because nothing in the game can yet put a trigger on the stack during Clean-up — the engine has exactly
+   one trigger site and it is the tick itself — so the two orders are observationally identical today and
+   the seeded fingerprint is unchanged. What it DOES guard is the refactor: deferring the push must still
+   deliver the ticks, exactly once, and must not leave the debt outstanding. The ordering becomes testable
+   the day a card triggers off a clean-up event, which is the same day it would have started being wrong. */
+(function () {
+  function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  var g = E.newGame(null, { numPlayers: 2 });
+  g.players[0].hand = [sc(7, 'D', 'a'), sc(7, 'H', 'b')];
+  g.players[1].hand = [sc(4, 'S', 'd')];
+  g.turn = 0; g.round = 3; g.pile = null; g.lastPlayer = null; g.passes = 0;
+  g.players[0].equipment.push({ id: 'eqA', name: 'Ticker', counters: 3, decay: true, card: sc(8, 'D', 'eqc') });
+  ok(g.upkeepTicks === false, 'no tick debt is outstanding mid-round');
+  var before = g.players[0].equipment[0].counters;
+  E.play(g, 0, [g.players[0].hand[0], g.players[0].hand[1]]);
+  E.pass(g, 1);
+  ok(g.round === 4, 'the round turned over');
+  ok(g.players[0].equipment[0] && g.players[0].equipment[0].counters === before - 1,
+     'the upkeep tick STILL lands after being deferred — ' + before + ' → ' + (g.players[0].equipment[0] || {}).counters);
+  ok(g.upkeepTicks === false, '…and the debt is paid exactly once, not left outstanding for the next round');
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);
