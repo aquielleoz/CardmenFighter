@@ -842,14 +842,6 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Features
 
-- **GREY OUT THE CARDS YOU CANNOT AFFORD IN THE MAIN SUB-PHASE (Aj, 2026-09-16).** *"no need to make them
-  undraggable. the reddening of the play area will tell them they don't have enough energy anyway."* So
-  this is a READABILITY change and explicitly not a new refusal — the affordance stays live and the engine
-  stays the authority. Read affordability with **`E.canAfford`** plus **`E.effectiveCost`**, never
-  `activationCost` alone: the Owl discounts and the Ram taxes the first effect of a turn, so a flat cost
-  greys the wrong cards under a Ride. Scope is the Main Sub-Phase, matching where activation is now legal
-  at all (#230).
-
 - **THE ICON BUTTONS ARE TOO CLOSE TOGETHER ON A PHONE (Aj, 2026-09-16: *"i'm afraid i'll click the
   activate button when trying to view a card haha"*).** The two neighbours are 🔍 View and ⚡ Activate, and
   the pairing is the worst available: one is idempotent and the other SPENDS A CARD. `viewtest` exists
