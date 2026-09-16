@@ -214,10 +214,28 @@ async function installPageHelpers(page, budgetMs) {
     window.__pressFight = async function () {
       const a = el('fightBtn');
       if (!a || a.disabled) return false;
-      if (a.textContent === 'Fight') { a.click(); return true; }   // already in the Fight Sub-Phase — that click IS the play
+      const modalUp = () => { const o = el('overlay'); return !!(o && o.classList.contains('show')); };
+      /* `Fight` IS NO LONGER ALWAYS A SYNCHRONOUS PLAY (2026-09-16). One press now fights from the MAIN
+         Sub-Phase too — it opens the Main → Fight go-round and plays when that auto-advances, and HOLDS
+         the play if somebody acts. So the old `a.click(); return true;` would report a play that had not
+         happened yet and might never happen, which breaks this helper's one promise: *"returns true only
+         if the ACTION really happened — a transition is not a play."*
+         WATCH THE CARDS LEAVE THE HAND, not the button. The selected ids are the precise evidence: a hand
+         COUNT can be restored by the round draw, and the button label settles back to `Fight` either way.
+         With nothing selected the press is only a crossing, so the old immediate return is still right. */
+      if (a.textContent === 'Fight') {
+        const selIds = [].slice.call(document.querySelectorAll('#hand .card.sel')).map(e => e.dataset.id).filter(Boolean);
+        a.click();
+        if (!selIds.length) return true;                          // a bare crossing — nothing was going to be played
+        for (let i = 0, lim = Math.ceil(budget / 50); i < lim; i++) {
+          if (modalUp()) return false;                            // held by somebody's answer — no play happened
+          if (selIds.every(id => !document.querySelector('#hand .card[data-id="' + id + '"]'))) return true;
+          await nap();
+        }
+        return false;
+      }
       if (a.textContent !== 'Next') { a.click(); return true; }  // Confirm — the action, with nothing to wait for
       a.click();
-      const modalUp = () => { const o = el('overlay'); return !!(o && o.classList.contains('show')); };
       let idle = 0, clicks = 0, deadPlay = 0;
       for (let i = 0, lim = Math.ceil(budget / 50); i < lim; i++) {
         if (modalUp()) return false;                      // a window opened on our press — no play happened yet                             // 15s ceiling: a remote seat's window parks the host for ~6s

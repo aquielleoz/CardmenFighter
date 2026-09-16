@@ -20,13 +20,20 @@ const { openLesson } = require('./lessonlib');
      ASSERT THE DERIVATION, NOT THE SENTENCE: read the label off the live button and require the step text
      to name it. A hardcoded "the text says Next" would pass on a build where the button went back to
      one-state and the lesson became wrong again. */
-  const jab = { label: await p.evaluate(()=>document.getElementById('fightBtn').textContent.trim()),
-                text : (await step()).text };
+  /* READ THE LABEL WITH A CARD SELECTED, which is the moment the instruction is about. `#fightBtn` is
+     two-state and its label follows the selection — `Next` with nothing chosen (a bare crossing), `Fight`
+     once you have cards to throw — so reading it on an empty selection would test the wrong half and, as
+     of one press fighting from Main, would demand the step say "Next" when the player will press "Fight". */
+  const jab = await (async () => {
+    await p.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c) c.click(); });
+    const label = await p.evaluate(()=>document.getElementById('fightBtn').textContent.trim());
+    const text = (await step()).text;
+    await p.evaluate(()=>{ document.querySelectorAll('#hand .card.sel').forEach(c=>c.click()); });   // put the selection back — a probe that clicks must click back
+    return { label, text };
+  })();
   ok(jab.text.indexOf(jab.label)>=0,
-     `the jab step names the button the player can actually see ("${jab.label}")` +
+     `with a card selected the jab step names the button the player will actually press ("${jab.label}")` +
      (jab.text.indexOf(jab.label)>=0 ? '' : `  ← the step says press something else; text: "${jab.text.slice(0,90)}"`));
-  ok(/Fight/.test(jab.text),
-     '…and it names the SECOND press too, so the player is not left on the transition');
 
   ok(await playAny(false)!==null,'a legal jab was available and played');
   ok(await L.atStep(4),'leading a jab advanced to step 4');

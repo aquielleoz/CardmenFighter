@@ -875,6 +875,29 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Features
 
+- **A NETPLAY CLIENT STILL PAYS TWO PRESSES TO FIGHT (2026-09-16).** One press now fights from the Main
+  Sub-Phase on every LOCAL seat — solo, local multiplayer, and the netplay host's own seat — but `doFight`
+  returns early for a client, which sends `toFight`, waits for the mirror, and presses again.
+  **THE LABEL IS HONEST ABOUT IT**, and that is load-bearing rather than cosmetic: the button reads `Next`
+  on a client in Main and `Fight` everywhere else, because `__pressFight` reads the label to decide what a
+  press means. Making it say `Fight` on a client broke `nettest_clientwin` (6/4) — the helper clicked once
+  and waited for cards that were never going to leave the hand.
+  **WHY IT IS FILED RATHER THAN DONE:** collapsing it means the client must remember the play it intended
+  ACROSS a host round-trip and send it when the mirror arrives showing `subPhase === 'play'` — and hold it
+  if the board moved, which is `stopIfActed` over the wire with no local `stackMark` to read. That is
+  netplay behaviour unverifiable without two devices, and a mis-fire spends the player's cards.
+
+- **THREE RTC SUITES ARE RED ON THE EPIC, AND IT IS NOT TODAY'S WORK (measured 2026-09-16).**
+  `nettest_rtc3` (8/2, `maxRound=1`, clients never act), `nettest_sync` (a real divergence: client sees 6
+  cards, host holds 5) and `nettest_lobbyback_rtc` (dealing never completes). **A/B'd against the epic with
+  the day's changes stashed: all three fail there too** — `rtc3` identically, and the other two *worse*
+  (sync 7/5 → 11/1, lobbyback 10/16 → 18/8 with the changes in).
+  **ALL THREE ARE THE REAL-WebRTC SUITES**, and they were measured on a machine that had been running
+  probes and `kill -9`ing chromium all session, so environment is a live hypothesis — CLAUDE.md's own rule
+  is to check for stray processes before suspecting the code. **Re-run them first on a quiet machine**; if
+  they stay red, `nettest_sync`'s divergence is the one to chase, because that suite exists to catch
+  exactly the host/client fork it is now reporting.
+
 - **THE NARROWEST PHONES STILL HAVE 34px TOUCH TARGETS, AND THE ACTION ROW IS WHY (measured 2026-09-16,
   while fixing the rest).** Everything from 360px up now gets 44px-tall icon buttons and a widened 🔍/⚡
   channel; **at ≤340px nothing changed**, because the row cannot afford it on either axis — the `@media
