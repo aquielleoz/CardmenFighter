@@ -514,6 +514,40 @@ re-read its tag.
 
 #### Netplay
 
+- `needs a repro`       · **A DUEL HOST WEDGES AFTER ITS OWN ACTIVATION'S WINDOW IS DECLINED — `busy` LEFT
+  SET, BOTH LOGS CAPTURED (Aj, 2026-09-16: *"uh-oh something caused a hangup... this game's gone"*).** The
+  best-evidenced netplay bug on this list: both ends of the SAME game were saved, and they agree.
+  **THE STATE AT THE HANG, from the two screenshots.** HOST: *"your turn"* and *"Hold on — the board is still
+  resolving."* — a live turn with `busy` stuck, which is the v1.31.20 signature exactly. CLIENT: *"Rival's
+  turn… / Rival is fighting…"*, which is CORRECT — it is faithfully rendering a host that never hands back.
+  **WHAT HAPPENED, round 8 of a duel.** The client played a Special Pair (5♣,5♣). The host, now on its own
+  turn, **called a Ride — Giant Owl** (an activation on the host's own Main sub-phase), which pushed to the
+  stack and opened a window the CLIENT owed. The client declined. The host applied it and never came back.
+  **THE DECLINE WAS APPLIED — so this is NOT the wrong-park-family bug**, and ruling that out is the useful
+  half. `hostApplyMove`'s duel arm opens with `if(!netSettle) return;`, so a lost park drops the intent in
+  silence; but the host's battle log carries *"Rival 2 let it resolve."*, which is `say()` from INSIDE that
+  arm. `netSettle` was live, the branch ran, and it ended in `hostSettle(ns.g, ns.done)`. **The fault is
+  downstream of the resume, in the continuation.**
+  **`hostTakeBack()` IS THE ONLY THING THAT CLEARS `busy`, AND IT TRACES** — so its absence is evidence, not
+  inference. The host trace's last line is `move IN from seat 1 op=decline q=330` and then nothing: no
+  `hostTakeBack`, no `awaitRival`. Meanwhile the client keeps receiving mirrors on a metronome — 1208.24,
+  1210.04, 1211.84 … 1231.64 — **exactly 1.8s apart, which is `startParkBeat`**, re-asserting an unchanging
+  board forever. The beat is working as designed and is what makes the wedge look like a live connection.
+  **THE TWO CLOCKS ARE OFFSET BY ~10.4s**, established from three matched events (client `clientSend play`
+  1178.10 = host `op=play` 1188.50; decline 1211.87 = 1222.27), so the logs can be read against each other.
+  **WHAT IS NOT YET KNOWN, and must not be guessed:** which continuation `done` the host's own activation
+  passes into `hostSettle`, and why it never reaches `hostTakeBack`. Do not patch `busy=false` somewhere
+  plausible — that is the fix that hides the next one.
+  **THE REPRO TO BUILD FIRST:** a duel where the HOST activates on its own turn while the client owes the
+  window — stage the host holding a Ride, let the client play into it, have the client decline, then assert
+  the host's board goes live (`busy` false, Fight enabled on a selection). `nettest_actloop` is the nearest
+  shape (play must keep moving AFTER a Technique, both seats) and does not cover a host-side activation.
+  **AND A SEPARATE, SMALLER FINDING FROM THE SAME READ:** the duel's `if(!netSettle) return;` is **silent**,
+  while its N-player twin traces (`react IGNORED  op=… but netReact=null`). A duel can therefore drop a
+  client intent leaving no evidence at all — which is why this investigation had to rule that path out from
+  a `say()` line rather than from the trace. Give it the same trace.
+  `[id: duel-activate-wedge]`
+
 - `ready to build`      · **"RIVAL" IS HARDCODED IN THE PRIORITY MODALS, WRONG AT 3-6 PLAYERS.** *(The modal half is moot: the
   string was fixed in v1.31.120 and `openShieldGuardModal` itself was deleted at epic step 19. **The naming
   half below is still open and is the part Aj asked for.**)* It said
