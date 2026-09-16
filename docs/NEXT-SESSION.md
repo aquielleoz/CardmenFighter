@@ -895,6 +895,36 @@ re-read its tag.
 
 ### Features
 
+- `ready to build`      · **THE MAIN SUB-PHASE IS DEAD ON MOST EARLY TURNS, AND THE HINT STILL OFFERS IT**
+  (Aj, 2026-09-16, from a round-1 screenshot: *"kings and jacks aren't activateable yet at this point in the
+  game... maybe we can skip main phase when nothing is activateable too?"*). Both halves agreed; filed as
+  quality of life rather than built.
+  **THE OBSERVATION IS CORRECT AND HAS TWO INDEPENDENT CAUSES.** `TRANSFORM_GATE` defaults to `'table'`, so a
+  tier opens only once *total shields lost across the table* reaches `numPlayers × lvl` — at round 1 that is
+  `0 >= 2`, and the Jack and King tiers are both shut. On top of that the seat in the screenshot held **0
+  energy**, so nothing else was affordable either. Neither is a bug; together they make the sub-phase inert.
+  **TWO CHANGES, AND THEY ARE VERY DIFFERENT SIZES — the first is worth doing on its own.**
+  1. **Tell the truth in the hint.** It currently reads *"Main sub-phase — drag a card to use it, or Next to
+     move on"* at a moment when nothing can be used. No phase change, no priority risk.
+  2. **Auto-advance through Main** when the seat on turn cannot activate anything. Needs a real predicate —
+     "can this seat act at all" — which does not exist today; only per-card `canAfford` / gate checks do.
+  **⚠ AUTO-ADVANCE, NEVER SKIP — Aj confirmed he meant auto-advance, and the distinction is recorded for
+  whoever BUILDS it rather than as a correction of the ask.** The Main → Fight boundary is `st.toPlay`,
+  a phase window, and [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) passes priority at every phase and
+  sub-phase change. Skipping the sub-phase DELETES the window; auto-advancing leaves it open and merely stops
+  asking. **The engine already has this exact pattern and it is the precedent to copy**: an empty
+  `eligibleQuicks()` auto-declines for the player — the window still opens, you are simply not stopped by it.
+  **AND THE CONDITION IS TABLE-WIDE, NOT THE LOCAL SEAT.** "I cannot activate anything" is not "nobody can":
+  at 3-6 players another seat may hold an affordable Technique while your hand is dead, and deciding a window
+  from one seat's position is precisely what `noopDestroy` did — it suppressed priority for everyone from a
+  single target, and deleting it MOVED A 480-GAME FINGERPRINT (9 games in 480, some with a different winner).
+  A local-seat check here would reintroduce that class of bug in a new place.
+  **DO NOT SELL THIS AS SAVING CLICKS — IT DOES NOT.** One-press Fight from Main landed the same day: select
+  cards, press Fight once, and it crosses Main → Fight *and* plays. So Main already costs zero extra presses
+  when you have a play. What it costs is a hint that offers an action the board cannot perform, which is why
+  change 1 carries most of the value for almost none of the risk.
+  `[id: dead-main-subphase]`
+
 - `ready to build`      · **A NETPLAY CLIENT STILL PAYS TWO PRESSES TO FIGHT (2026-09-16).** One press now fights from the Main
   Sub-Phase on every LOCAL seat — solo, local multiplayer, and the netplay host's own seat — but `doFight`
   returns early for a client, which sends `toFight`, waits for the mirror, and presses again.
