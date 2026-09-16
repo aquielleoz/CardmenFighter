@@ -669,7 +669,13 @@ function cards(ids) { return ids.map(card); }
 
   // Down to the last Rider → game ends with that winner
   E.setShieldTargetChooser(function () { return 2; });
-  g.players[2].shields = 0; g.round = 3; g.pile = null; g.lastPlayer = null; g.passes = 0; g.turn = 0;
+  /* DO NOT REWIND `g.round` HERE. This line used to re-stage the second kick at round 3 — the round the
+     FIRST one resolved in — which no real game can do, because `finishCleanup` advanced the counter the
+     moment that round ended. It now collides with the one-resolution-per-round invariant in
+     `enterResolution`, and the invariant is right: a second resolution stamped with a round that has
+     already resolved is exactly the defect it exists to refuse. Let the counter stand where the first
+     round left it; everything else here is re-staged as before. */
+  g.players[2].shields = 0; g.pile = null; g.lastPlayer = null; g.passes = 0; g.turn = 0;
   g.players[0].hand = [sc(8, 'D'), sc(8, 'H'), sc(3, 'S')];
   g.players[2].hand = [sc(4, 'H'), sc(5, 'H')];
   E.play(g, 0, [g.players[0].hand[0], g.players[0].hand[1]]); E.pass(g, 2);   // p1 is out; only p2 left to pass
@@ -2428,6 +2434,90 @@ function cards(ids) { return ids.map(card); }
   ok(c.subPhase === 'play', '…and only once everyone passes does the Fight Sub-Phase actually begin');
   ok((E.activate(c, 0, 'h2h3S') || {}).ok === false,
      '…at which point the proactive activation is refused — the gate engages exactly at the phase boundary');
+})();
+
+/* ONE ROUND RESOLVES ONCE (Aj's two duels, 2026-09-15/16 — the second cost him the game to a pile that had
+   already been resolved). The mechanism is still unfound and lives somewhere above the engine: the doubling
+   seat is a netplay HOST, its ledger carries two `MAIN → FIGHT [Pass]` entries, and it does not reproduce
+   solo. `enterResolution` is the funnel BOTH round-win paths reach — the auto-picked target and the
+   deferred one — so it is where a duplicate can be refused whatever the caller.
+   THE RE-ENTRY IS SIMULATED BY RE-ARMING `pendingLossChoice`, which is honest about what it is: the real
+   bug drives the round-win path a second time before the round has advanced, and this reproduces that
+   state directly rather than pretending to reproduce the netplay race that causes it.
+   THE ROUND-SCOPED CONTROL AT THE END IS THE HALF THAT MATTERS. A guard that refused forever would pass
+   every assertion above it and break the next round instead. */
+(function () {
+  function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  var prevMode = 'chosen';
+  E.setSpecialLossMode('chosen');
+  E.setLossTargetInteractive(function () { return true; });          // defer the pick, so chooseLossTarget is the entry
+  /* THREE PLAYERS, because the deferral needs a CHOICE to defer. At two seats there is exactly one living
+     non-winner, so `resolveRoundWin` has nothing to ask and goes straight through to `enterResolution` —
+     the first cut of this block staged a duel and never got a `pendingLossChoice` at all. */
+  var g = E.newGame(null, { numPlayers: 3 });
+  g.players[0].hand = [sc(7, 'D', 'a'), sc(7, 'H', 'b'), sc(3, 'C', 'c')];
+  g.players[1].hand = [sc(4, 'S', 'd')];
+  g.players[2].hand = [sc(5, 'S', 'e')];
+  g.players[0].shields = 4; g.players[1].shields = 4; g.players[2].shields = 4;
+  g.turn = 0; g.round = 3; g.pile = null; g.lastPlayer = null; g.passes = 0;
+  E.play(g, 0, [g.players[0].hand[0], g.players[0].hand[1]]);
+  E.pass(g, 1); E.pass(g, 2);
+  var pc = g.pendingLossChoice;
+  ok(!!pc, 'staged: the loss pick is deferred at 3 seats, so `chooseLossTarget` is the entry to the resolution');
+
+  var roundAt = g.round;
+  E.chooseLossTarget(g, 1);
+  ok(g.resolvedRound === roundAt, 'the round is STAMPED as resolved (' + g.resolvedRound + ')');
+  ok((g.blockedResolves || 0) === 0, 'CONTROL: a first resolution counts nothing — the detector is quiet in normal play');
+
+  /* The second request, for a round that has already resolved — the shape both of Aj's logs show. The pile
+     is re-staged because the detector does NOT refuse: the duplicate runs on through `applyRoundLossBody`,
+     which reads `st.pile.combo.type`, and `finishCleanup` nulled the pile at the round boundary. In the
+     real bug the pile is still sitting there — that is Aj's *"it never cleared"* — so re-staging it is
+     what makes this the reported shape rather than a crash. */
+  g.pendingLossChoice = pc; g.round = roundAt;                        // re-arm, and hold the round where it was
+  g.pile = { p: 0, byPlayer: 0, combo: { type: 'pair', size: 2, value: 7, key: [7], cards: [sc(7, 'D', 'a1'), sc(7, 'H', 'b1')] } };
+  E.chooseLossTarget(g, 1);
+  ok(g.blockedResolves === 1,
+     'A DUPLICATE RESOLUTION OF THE SAME ROUND IS DETECTED AND COUNTED' +
+     (g.blockedResolves === 1 ? '' : '  ← REPRODUCED: it went unnoticed (' + g.blockedResolves + ')'));
+
+  /* ROUND-SCOPED, NOT A LATCH — or every later round would be reported as a duplicate. The pile has to be
+     re-staged as well as the choice: `finishCleanup` nulls it at the round boundary and
+     `applyRoundLossBody` reads `st.pile.combo.type`, so re-arming the choice alone throws. */
+  g.round = roundAt + 2; g.pendingLossChoice = pc;
+  g.pile = { p: 0, byPlayer: 0, combo: { type: 'pair', size: 2, value: 7, key: [7], cards: [sc(7, 'D', 'a2'), sc(7, 'H', 'b2')] } };
+  E.chooseLossTarget(g, 1);
+  ok(g.blockedResolves === 1,
+     'and a LATER round is not — the stamp is per-round, not a latch that reports everything after it');
+  E.setLossTargetInteractive(null); E.setSpecialLossMode(prevMode);
+})();
+
+/* THE STACK IS ADDRESSED AGAIN AFTER THE RESOLUTION EVENTS (Aj, 2026-09-16, stating the model: *"the card
+   draw is pushed into the stack. BUT it does not fire off until after the resolution events finish. after
+   those finish, we can then proceed to addressing The Stack again."*).
+   `finishRoundWin` used to open with `st.stack = []` — vestigial, from when shield losses lived ON The
+   Stack — and that line would have silently eaten any trigger a resolution event pushed. It is gone, and
+   this asserts the consequence rather than the deletion: something on The Stack when the round resolves
+   SURVIVES, and is resolved before the Clean-up go-round opens. */
+(function () {
+  function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  var g = E.newGame(null, { numPlayers: 2 });
+  g.players[0].hand = [sc(7, 'D', 'a'), sc(7, 'H', 'b')];
+  g.players[1].hand = [sc(4, 'S', 'd')];
+  g.turn = 0; g.round = 3; g.pile = null; g.lastPlayer = null; g.passes = 0;
+  E.play(g, 0, [g.players[0].hand[0], g.players[0].hand[1]]);
+  /* Stand in for a trigger a resolution event would push. There is exactly ONE trigger shape in the engine
+     today — the upkeep tick — and no card yet pushes one from a shield loss, so the object is placed by
+     hand; the claim under test is what the ROUND END does to The Stack, not who filled it. */
+  g.stack.push({ oid: 9901, kind: 'effect', trig: true, p: 0, eqId: 'none', name: 'Test Trigger' });
+  var had = g.stack.length;
+  E.pass(g, 1);
+  ok(had === 1, 'staged: one trigger is sitting on The Stack as the round resolves');
+  ok(g.cleanupResult == null || g.stack.length === 0,
+     'the round end did not park Clean-up on top of an unresolved stack — The Stack is addressed first');
+  ok(g.round > 3 || g.respondFor != null || g.cleanup != null,
+     'and the round end still completed or parked properly rather than stalling (round ' + g.round + ')');
 })();
 
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);

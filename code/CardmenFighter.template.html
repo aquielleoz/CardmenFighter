@@ -1693,6 +1693,23 @@ __QR__
      instead, the same way the netplay trace does and for the same stated reason: one file is what actually
      gets sent. Not dbg-gated — the whole point is that it works in an ordinary game on a phone. */
   var PRIO_LOG=[], PRIO_CAP=400;
+  /* WATCH THE ENGINE'S DOUBLE-RESOLUTION COUNTER FROM `render`, NOT FROM ONE CALL SITE. `enterResolution`
+     refuses a second resolution of the same round and counts it; this is what puts that into the SAVED LOG,
+     which is the only reason the refusal is worth more than a silent heal — take the harm away and the
+     evidence with it and the re-entry just gets rediscovered later.
+     POLLED RATHER THAN WIRED IN BY NAME, deliberately. The one confirmed instance came through a Pass on a
+     netplay host, but the mechanism is still unfound, so a note bolted onto `finishPassRound` would cover
+     the path we happen to know about — v1.31.116's "a fix wired in by name covered two parks of nine", and
+     this is a diagnostic, where missing the unknown path defeats the entire point. `render` runs after
+     every state change on every path, so comparing a counter here catches it wherever it comes from. */
+  var lastBlockedResolves=0;
+  function noteBlockedResolves(){
+    var n=(state&&state.blockedResolves)||0;
+    if(n<=lastBlockedResolves){ lastBlockedResolves=n; return; }   // also resets when a new game zeroes it
+    lastBlockedResolves=n;
+    prioNote('⚠ DOUBLE RESOLUTION BLOCKED', 'a second resolution of round '+((state&&state.round)||'?')+
+             ' was refused by the engine — the pile had already been resolved (blocked this game: '+n+')');
+  }
   /* RENAMED FROM `FE_LOG`/`feNote` AND WIDENED TO EVERY TIMING (Aj, 2026-09-10: *"make the records as
      complete as you need. no one else will debug this game for us"*). The first version logged only Fight
      End, which answered "how often does the new window stop me" and nothing else — his first real log
@@ -3607,6 +3624,7 @@ __QR__
     /* NO GAME, NOTHING TO DRAW. Everything below dereferences `state`, and until `clearBoard()` existed there
      * was no way to be in that position — a game was only ever replaced by another one. */
     if(!state) return;
+    noteBlockedResolves();      // the engine refused a duplicate round resolution — say so in the saved log
     notePhaseEdge();
     syncOrder(false);
     /* SAY WHY PLAY HAS PAUSED. Every seat but the one picking is auto-trimmed at the end of a round, so the

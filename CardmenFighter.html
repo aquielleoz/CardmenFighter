@@ -2208,7 +2208,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], losses: [], roundWinResult: null, resolution: null, resolutionResult: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], losses: [], roundWinResult: null, resolution: null, resolutionResult: null, resolvedRound: null, blockedResolves: 0, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -3985,7 +3985,27 @@
      any affordable Quick. `PHASES-AND-PRIORITY.md` §3. Step 12 proved nobody loses an answer:
      EXHAUSTIVELY, every card the old whitelist admitted is a Quick, so `canAddToStack` cannot refuse one.
      WHAT STOPS IT REGRESSING: `resolutiontest`'s canary goes red the day a guard-only predicate returns. */
+  /* ONE ROUND SHOULD RESOLVE ONCE — DETECTED HERE, NOT YET REFUSED (Aj's two duels, 2026-09-15/16; the
+     second lost him the game to a pile that had already resolved, and ate the Sanctuary he had correctly
+     cast to survive it).
+     THIS IS A DETECTOR, AND THE DISTINCTION IS DELIBERATE. `enterResolution` is the funnel BOTH round-win
+     paths reach — `resolveRoundWin` when the loss target is auto-picked, `chooseLossTarget` when it was
+     deferred, and they are mutually exclusive for a round — so a second entry inside one round has no
+     legitimate reading and this is the one place that can see it whatever the caller.
+     WHY IT DOES NOT REFUSE (YET). A refusing version was written and pulled the same day: `browsertest`
+     hung twice with it in, and while the hangs could NOT be pinned on it — a counting build then measured
+     **0 duplicates across 12 solo duels**, so the condition never fired at all, and the machine had stray
+     browsers from a probe both times — "cannot be attributed" is not "is safe". Refusing changes what the
+     caller gets back at the exact moment a round ends, so it ships when there is a repro to prove it
+     against. See the BACKLOG entry.
+     DETECTION IS WORTH SHIPPING ON ITS OWN, because the failure this hunts has been silent twice: a
+     duplicate resolved, the shield went, and nothing anywhere said a second resolution had happened.
+     `blockedResolves` counts it and `noteBlockedResolves` writes it into the SAVED LOG, so the third
+     occurrence arrives already diagnosed instead of as another mystery.
+     `finishCleanup` ADVANCES `st.round`, which retires the stamp with no cleanup of its own. */
   function enterResolution(st, winner, wonWithCombo, strikeTargets, winSize) {
+    if (st.resolvedRound === st.round) st.blockedResolves = (st.blockedResolves || 0) + 1;
+    st.resolvedRound = st.round;
     return openResolutionWindow(st, winner, wonWithCombo, strikeTargets, winSize);
   }
   // Apply the round result: mill the loser(s), strip the struck shield(s), then finish.
@@ -4347,8 +4367,27 @@
      a round-boundary window unbuildable: a Quick cast into clean-up would be silently discarded. Clearing
      the spent shieldloss objects BEFORE parking the window is what unblocks it — the clear happens once,
      while the stack is genuinely spent, and nothing clears it again afterwards. */
+  /* THE RESOLUTION EVENTS ARE OVER; THE STACK IS ADDRESSED AGAIN BEFORE CLEAN-UP (Aj, 2026-09-16, stating
+     the model in full). *"the card draw is pushed into the stack. BUT it does not fire off until after the
+     resolution events finish. after those finish, we can then proceed to addressing The Stack again. and
+     when that empties, there's still one more round of priority dancing as phases change from resolution
+     sub phase to clean up phase."*
+     SO THE `st.stack = []` THAT USED TO OPEN THIS FUNCTION IS DELETED. It was vestigial: it cleared the
+     spent SHIELDLOSS objects back when those lived on The Stack, and they have lived in `st.losses` since
+     the stack-model cleanup. Left in place it is worse than dead code — it is the line that would silently
+     eat a trigger a resolution event had just pushed, which is precisely the ordering being built here.
+     THE ORDER NOW FALLS OUT OF `openResponseWindow` RATHER THAN BEING RESTATED: its drain resolves The
+     Stack first, and its Clean-up branch is guarded by `!st.stack.length`, so triggers from the resolution
+     events resolve — with priority passed on each, as they are ordinary stack objects — and only then does
+     the Resolution → Clean-up go-round open. One definition of the order, not two.
+     THE HOLD IS STRUCTURAL, in `driveShieldStack`: that loop pops `st.losses` and touches nothing else, so
+     a trigger pushed mid-drain cannot resolve until the queue is empty. That is Aj's *"they can be a queue
+     or a stack as long as they happen without interruption from The Stack"*, and it is a property of the
+     loop rather than a check — which is why the suite asserts the ORDER rather than trusting this comment.
+     `st.losses` IS STILL CLEARED, and for its own reason: a game that ends mid-drain leaves the queue
+     populated, and the round boundary must not carry it into the next round. */
   function finishRoundWin(st, result) {
-    st.stack = []; st.losses = []; st.roundWinResult = null;                // both are spent by here; the queue only survives a game that ended mid-drain
+    st.losses = []; st.roundWinResult = null;
     if (st.finished) return result;
     /* WHO IS ACTIVE AT CLEAN-UP: the seat that just won the round. They are about to take the initiative,
        and a fizzled round (no winner) leaves initiative where it was — the same rule `finishCleanup`
@@ -6239,6 +6278,23 @@ window.CardFace = {};
      instead, the same way the netplay trace does and for the same stated reason: one file is what actually
      gets sent. Not dbg-gated — the whole point is that it works in an ordinary game on a phone. */
   var PRIO_LOG=[], PRIO_CAP=400;
+  /* WATCH THE ENGINE'S DOUBLE-RESOLUTION COUNTER FROM `render`, NOT FROM ONE CALL SITE. `enterResolution`
+     refuses a second resolution of the same round and counts it; this is what puts that into the SAVED LOG,
+     which is the only reason the refusal is worth more than a silent heal — take the harm away and the
+     evidence with it and the re-entry just gets rediscovered later.
+     POLLED RATHER THAN WIRED IN BY NAME, deliberately. The one confirmed instance came through a Pass on a
+     netplay host, but the mechanism is still unfound, so a note bolted onto `finishPassRound` would cover
+     the path we happen to know about — v1.31.116's "a fix wired in by name covered two parks of nine", and
+     this is a diagnostic, where missing the unknown path defeats the entire point. `render` runs after
+     every state change on every path, so comparing a counter here catches it wherever it comes from. */
+  var lastBlockedResolves=0;
+  function noteBlockedResolves(){
+    var n=(state&&state.blockedResolves)||0;
+    if(n<=lastBlockedResolves){ lastBlockedResolves=n; return; }   // also resets when a new game zeroes it
+    lastBlockedResolves=n;
+    prioNote('⚠ DOUBLE RESOLUTION BLOCKED', 'a second resolution of round '+((state&&state.round)||'?')+
+             ' was refused by the engine — the pile had already been resolved (blocked this game: '+n+')');
+  }
   /* RENAMED FROM `FE_LOG`/`feNote` AND WIDENED TO EVERY TIMING (Aj, 2026-09-10: *"make the records as
      complete as you need. no one else will debug this game for us"*). The first version logged only Fight
      End, which answered "how often does the new window stop me" and nothing else — his first real log
@@ -8153,6 +8209,7 @@ window.CardFace = {};
     /* NO GAME, NOTHING TO DRAW. Everything below dereferences `state`, and until `clearBoard()` existed there
      * was no way to be in that position — a game was only ever replaced by another one. */
     if(!state) return;
+    noteBlockedResolves();      // the engine refused a duplicate round resolution — say so in the saved log
     notePhaseEdge();
     syncOrder(false);
     /* SAY WHY PLAY HAS PAUSED. Every seat but the one picking is auto-trimmed at the end of a round, so the
