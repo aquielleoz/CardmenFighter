@@ -466,7 +466,20 @@
   .chip{font:inherit; font-size:12px; font-weight:700; color:var(--txt); background:rgba(90,200,250,.14); border:1px solid rgba(90,200,250,.4); border-radius:16px; padding:5px 11px; cursor:pointer;}
   .chip:disabled{opacity:.35; cursor:default;}
 
-  #handWrap{flex:0 0 auto; border-top:1px solid var(--line); background:rgba(0,0,0,.24); padding:8px 8px 10px;}
+  #handWrap{flex:0 0 auto; border-top:1px solid var(--line); background:rgba(0,0,0,.24); padding:8px 8px 10px;
+            transition:background-color .35s ease, border-top-color .35s ease;}
+  /* THE HAND SAYS WHICH SUB-PHASE THE TABLE IS IN (Aj, 2026-09-16), AND IT IS A RULE, NOT DECORATION:
+     *"the color change is big.. because once we're in fight SP, no one can activate effects"*. So this is
+     the same fact as the greyed ⚡ and the *"The fight has begun — effects are a Main-half move"* refusal,
+     said a third way — the one you can read without looking at a button.
+     BLUER FOR MAIN, REDDER FOR FIGHT, BOTH ON THE VIOLET SPECTRUM (Aj's call, and the right one): the base
+     palette is violet, so a cool/warm shift inside it reads as a state change rather than as a new colour
+     arriving. Cool = still setting up, warm = committed and effects are closed.
+     TRANSLUCENT, so they layer over `--bg` instead of replacing it, and the border-top warms with them
+     because a wash alone is easy to miss on a small screen. */
+  #handWrap.spMain { background:rgba(52,66,168,.22); }
+  #handWrap.spFight{ background:rgba(168,44,86,.26); border-top-color:rgba(255,130,150,.45); }
+  @media (prefers-reduced-motion:reduce){ #handWrap{transition:none;} }
   #handMeta{display:flex; justify-content:space-between; align-items:center; margin:0 4px 6px; font-size:12.5px; gap:8px; flex-wrap:wrap;}
   #handMeta .you{font-weight:800; color:var(--gold);}
   #handMeta .metaRight{display:flex; align-items:center; gap:10px;}
@@ -1230,8 +1243,19 @@
      that button's own gate is `max-width:720px`. Reuse the branch that already means "this is a phone" rather
      than inventing a second number for it. */
   @media (max-width:720px){
-    #actions{gap:5px;}
-    #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #passBtn, #actions #fightBtn{font-size:0; padding:9px 10px;}
+    /* TOUCH TARGETS, MEASURED (Aj, 2026-09-16: *"the icon buttons are kinda too close in the mobile
+       version... i'm afraid i'll click the activate button when trying to view a card haha"*).
+       WHAT IT WAS: 30-43px wide and 34-37px tall with 3-5px between them, measured at 390×780 and 360×740.
+       Under Apple's 44px floor and Material's 48px on both axes, with the gap smaller than a fingertip's
+       error. `min-width`/`min-height` DECLARE the target instead of arriving at one by tuning padding,
+       which is what let it drift under the floor unnoticed.
+       AND ⚡ GETS ITS OWN MOAT. The pair Aj named is the worst one available — 🔍 View is idempotent and
+       ⚡ Activate SPENDS A CARD — so the boundary between a harmless mis-tap and a destructive one is
+       widened past the uniform gap. This is about consequence, not symmetry: the other neighbours are all
+       cheap to hit by accident. Nothing is reordered; muscle memory is worth more than tidiness. */
+    #actions{gap:9px;}
+    #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #passBtn, #actions #fightBtn{font-size:0; padding:9px 8px; min-height:44px;}
+    #actions #ctxBtn{margin-left:6px;}
     #actions #viewCardBtn::before, #actions #clearBtn::before, #actions #ctxBtn::before, #actions #passBtn::before, #actions #fightBtn::before{
       content:attr(data-icon); font-size:17px; line-height:1;}
     /* Sort collapses too, but to WORDS — it is the state it reports, so it keeps it and sheds only the `Sort:`
@@ -1250,7 +1274,7 @@
     /* 3px, not 4. 320x568 — iPhone 5/5s/SE-1st in PORTRAIT, a real device — landed exactly on the limit at 4px:
        284px needed into 284px of line, so it wrapped. The icons are distinct pills; the gap is the cheapest px
        here and 5 of them is the difference between one row and two. */
-    #actions{gap:3px;}
+    #actions{gap:6px;}   /* was 3px — a 3px channel between 44px targets is smaller than a fingertip error; 6 rather than the 9 above because narrow phones cannot afford more */
     /* ID SELECTORS, NOT `#actions button`. The rules above set the padding per id, and an id beats a type
        selector whatever the source order — so the `#actions button{padding:8px 8px}` this block used to carry
        was INERT for the five icon buttons and applied to nothing but the emote bar. Measured: Clear was 34px at
@@ -1263,6 +1287,26 @@
     #actions #viewCardBtn::before, #actions #clearBtn::before, #actions #ctxBtn::before,
     #actions #passBtn::before, #actions #fightBtn::before{font-size:16px;}
     #actions #sortBtn::before{font-size:11.5px;}
+  }
+  /* THE ⚡ MOAT IS A LUXURY THE NARROWEST PHONES CANNOT BUY (measured 2026-09-16). The block above already
+     records this row as **2px over budget at 327px**, and the numbers agree: at 320 the wider gap plus the
+     moat cost ~21px the row does not have, and it WRAPS — measured one row before, two after. The floor
+     phones therefore keep exactly the spacing they had.
+     WHAT THEY DO KEEP IS `min-height:44px`, because it costs ZERO width. That is the half of this fix that
+     is free, and it is not a small half: the targets go from 34px tall to 44 at every width.
+     THE WRAP WAS ALSO NEARLY MISSED, which is the method note worth keeping. The first probe bucketed
+     buttons into "rows" by their `top`, and `sortBtn` is 37px tall against the others' 44 — so they centre
+     differently on the SAME line and it reported 2 and 3 rows everywhere, including on configurations that
+     were fine. **A wrap is a `left` that goes BACKWARDS**; measure that, not vertical position. Two
+     iterations were spent shrinking padding to fix a wrap that was not happening. */
+  @media (max-width:340px){
+    #actions{gap:3px;}
+    #actions #ctxBtn{margin-left:0;}
+    /* AND NOT EVEN THE FREE HALF, because at this width it is not free. `landscapetest` carries a RATCHET on
+       the known expand overflow at 327x660 and the 44px targets grew it **63px → 73px** — caught on the
+       first run, which is the ratchet working exactly as its own comment promises. These phones have no
+       room on either axis, so they keep the spacing and the target size they already had. */
+    #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #passBtn, #actions #fightBtn{min-height:0;}
   }
   /* really tight (short) phones + landscape: the inline description strip eats scarce vertical space, so drop it and
      offer a "🔍 View card" button that opens the full-screen reader instead (the whole page becomes the description box). */
@@ -8249,6 +8293,11 @@ window.CardFace = {};
      * was no way to be in that position — a game was only ever replaced by another one. */
     if(!state) return;
     noteBlockedResolves();      // the engine refused a duplicate round resolution — say so in the saved log
+    /* PAINT THE SUB-PHASE ON THE HAND. Read from `state.subPhase`, not from whose turn it is: the rule it
+       reports — no effects once the fight has begun — is the TABLE's, not yours, which is Aj's whole point
+       for wanting the colour. A seat waiting its turn still needs to know the window has closed. */
+    var hw=$('handWrap');
+    if(hw){ var inFightSP=(state.subPhase==='play'); hw.classList.toggle('spFight', inFightSP); hw.classList.toggle('spMain', !inFightSP); }
     notePhaseEdge();
     syncOrder(false);
     /* SAY WHY PLAY HAS PAUSED. Every seat but the one picking is auto-trimmed at the end of a round, so the
@@ -8381,6 +8430,13 @@ window.CardFace = {};
   // activatableCard(card) is already true. This decides whether the shown button is GREYED OUT.
   function activateBlock(card){
     var eff=E.effectOf(card);
+    /* THE SUB-PHASE REFUSAL HAS TO BE HERE TOO, OR THE UI OFFERS WHAT THE ENGINE REFUSES (2026-09-16).
+       `activate` gained a `subPhase === 'play'` gate when Aj reported activating in the Fight Sub-Phase;
+       this predicate — the one that greys the ⚡ control and writes the hint — did not, so the Fight
+       Sub-Phase still read *"Fight with it, or Activate its effect"* for something that could no longer be
+       activated. One rule, two spellings, which is the trap this repo keeps paying for; the fix is to
+       state it in both rather than to let the engine be the only one that knows. */
+    if(state.subPhase==='play') return 'The fight has begun — effects are a Main-half move.';
     if(E.isLocked(state, YOU)) return 'Locked out this round (Back Stab).';
     if(eff.kind==='transform' && E.transformGateStatus){                       // REWORK: transform is gated by shields lost
       var gs=E.transformGateStatus(state, YOU, eff.tier);
@@ -8952,10 +9008,23 @@ window.CardFace = {};
          has no slack — the first draft spelled out all three controls and five `landscapetest` assertions
          went red at 800x360 and 932x430, including the 327x660 ratchet (63px -> 78px). The controls are on
          screen and labelled; the hint only has to say which sub-phase you are in and what Fight does. */
-      hint.textContent='Main sub-phase — drag a card to use it, or Next to move on.'+
-                       ((state.players[YOU].nextPlayBoost||0)?(' ⚡+'+state.players[YOU].nextPlayBoost+' charged'):'');
-      hint.className='';
-      return;
+      /* AND IT ONLY SAYS THAT WHILE NOTHING IS CHOSEN (Aj, 2026-09-16: *"the hint for if a play would beat
+         the currently played cards on the board is not there anymore"*). This branch used to return
+         unconditionally, so the Main Sub-Phase never reached the selection analysis below and a player
+         picking cards was told the sub-phase they were in instead of whether their play WORKS. You found
+         out by pressing Next — which is late, and is the other half of why Fight now fights from here.
+         FALL THROUGH RATHER THAN RESTATE. The analysis below already spells out every case — not a legal
+         combination, jabs only in round 1, doesn't beat the pile, and the activate offer — and a second
+         copy of "doesn't beat the X" in this branch is the duplicate-definition trap this file keeps
+         paying for. Everything it re-assigns on the way (the Fight label, `pass.disabled`, the ctx button)
+         it re-assigns to the same values, and the label it lands on — `Fight` — is now the true one,
+         because one press from here really does fight. */
+      if(selectedCards().length) { /* fall through to the shared verdict below */ } else {
+        hint.textContent='Main sub-phase — drag a card to use it, or Next to move on.'+
+                         ((state.players[YOU].nextPlayBoost||0)?(' ⚡+'+state.players[YOU].nextPlayBoost+' charged'):'');
+        hint.className='';
+        return;
+      }
     }
     /* THE SECOND STATE OF ONE BUTTON, AND THE LABELS ARE `Next` THEN `Fight` (Aj, 2026-09-11: *"the fight
        button to move to the fight sub phase is throwing me off. Let's use Next and then Fight instead of
@@ -8965,6 +9034,13 @@ window.CardFace = {};
        Next is what takes you INTO the Fight Sub-Phase.
        `#fightBtn` keeps its id: 50 suites and five lessons address it, and only the label moves. */
     setActionLabel(fight,'Fight');
+    /* …EXCEPT ON A NETPLAY CLIENT, WHERE ONE PRESS STILL ONLY CROSSES OVER. The Main branch now falls
+       through to here so a client gets the selection verdict too — that part is worth having on every
+       seat — but the LABEL has to describe what this seat's press actually does, and a client's press
+       sends `toFight` and waits for a mirror. Caught by `nettest_clientwin` (6/4): `__pressFight` reads
+       the label, saw `Fight`, clicked once and then waited for cards that were never going to leave the
+       hand. A label that promises the wrong action is worse than the extra press it was hiding. */
+    if(isNetClient() && state.subPhase!=='play') setActionLabel(fight,'Next');
     var leading=!state.pile; pass.disabled=leading;
     var charged=state.players[YOU].nextPlayBoost||0;
     var chargeTag=(charged?' ⚡+'+charged+' charged':'')+(state.players[YOU].finishingBlow?' 🛡‍💥 Armor Piercing armed (next win strips +1)':'');
@@ -9294,6 +9370,13 @@ window.CardFace = {};
        `toFight` says what the press means. `subPhase` is PUBLIC in the mirror (netview), so the client can
        read which of the two it is holding. */
     if(isNetClient()){
+      /* ⚠ A CLIENT STILL PAYS TWO PRESSES, AND THE HOST NO LONGER DOES (2026-09-16). One press fights from
+         Main on every LOCAL seat now; this branch returns before that, so a netplay client sends `toFight`,
+         waits for the mirror, and presses again. Deliberate, not missed: collapsing it means the client
+         must remember the play it intended ACROSS a host round-trip and send it when the mirror arrives
+         showing `subPhase === 'play'` — plus hold it if the board moved, which is `stopIfActed` over the
+         wire with no `stackMark` to read locally. That is netplay behaviour I cannot verify without two
+         devices, and the seat that would eat a mis-fire is the player's. Filed; see the BACKLOG. */
       if(state.subPhase !== 'play'){ NET.clientSend({op:'toFight'}); busy=true; render(); return; }
       sendClientPlay(selectedCards()); return;   // must short-circuit HERE too — below is host/rival pre-fight logic a client must never run
     }
@@ -9311,7 +9394,27 @@ window.CardFace = {};
      In the Fight Sub-Phase it plays what is selected, exactly as it always did, under the label `Play`. */
   function doFightBody(g){
     if(state.subPhase === 'play') return playCards(selectedCards());
-    moveToPlayThen(g, function(){ if(g===gen) render(); }, null, null, 'Next');   // arrived in the Fight Sub-Phase — the player plays next
+    /* ONE PRESS FIGHTS, THE SAME WAY ONE PRESS PASSES (Aj, 2026-09-16: *"adding a fight button back in main
+       phase and what it does is it basically functions like the next button (so it prompts the other
+       players for priority) and then if there's none it just fights with the selected cards"*).
+       THIS IS HIS OWN 2026-09-11 RULE, APPLIED TO THE OTHER BUTTON. `doPass` already auto-passes out of
+       Main and holds only if the board changed under you — *"having decided to do nothing, you should not
+       be made to confirm it at each priority point you were going to decline anyway"*. Deciding to FIGHT
+       is the same decision, and Fight was the one button still charging two presses for it.
+       THE RULES ARE UNTOUCHED: `moveToPlayThen` still opens the Main → Fight go-round and still passes
+       priority. On the 19 turns in 20 where nobody can add, it auto-advances and the play lands on the
+       press you already made; when somebody really acts, `stopIfActed` holds the play and hands the board
+       back so you can look at what changed — identical to Pass, down to the `stackMark` test.
+       AND IT KILLS A REPORTED BUG ON THE WAY: the dead first press is what Aj saw as *"no animations when
+       pressing fight"*. There were none because nothing had been played yet.
+       AN EMPTY SELECTION STILL JUST CROSSES OVER, which is what the `Next` label is for — moving to the
+       Fight Sub-Phase without committing is a legitimate thing to want. */
+    var selNow=selectedCards();
+    if(!selNow.length) return moveToPlayThen(g, function(){ if(g===gen) render(); }, null, null, 'Next');
+    moveToPlayThen(g, function(){ if(g===gen) playCards(selectedCards()); }, function(){
+      setMessage('Someone answered — your play is on hold. Press <b>Fight</b> again to go through with it.');
+      render();
+    }, null, 'Fight');
   }
   function doPass(){
     if(peeking||busy||pick||targeting||targetPick) return;
@@ -10856,12 +10959,25 @@ window.CardFace = {};
     return [
       { text:"Welcome! You’re a <b>Cardman</b>. This guided duel runs in <b>Basics</b> mode — no transforms, just the core loop. Your goal: strip the Rival’s <b>2 shields</b>, then land the finisher.", btn:"Let’s go ▸" },
       { text:"First, the most important thing — <b>which cards are strong</b>. The ladder runs <b>3 → 10</b>, then your two trumps: the <b>A</b>, and at the very top the <b>2 — the apex, which beats everything</b>. So your <b>2 is your best card</b> and your <b>Ace is second</b>. To win a fight you must play <b>strictly higher</b> — <b>equal values tie, and a tie doesn’t win</b>.", hi:'#specialsRefBtn', btn:"Got it ▸" },
-      { text:"<b>Round 1 is jabs only.</b> A jab is a single card. Tap a card to select it, then press <b>Fight</b> to lead. <span class=\"rNote\">(Lead a middling card — save that 2!)</span>", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
+      /* THE TURN HAS TWO HALVES AND THE BUTTON SAYS SO (epic step 20; taught here 2026-09-16). Pressing
+         Fight in the Main Sub-Phase plays NOTHING — it moves you to the Fight Sub-Phase, and the button
+         relabels itself `Next` → `Fight` to say which press you are on. Measured: select a card in Main
+         and the button reads **Next**; one press leaves the card in hand and flips the label to **Fight**;
+         the second press plays it.
+         EVERY LESSON STILL SAID "press Fight" AT A MOMENT THE BUTTON READS "Next", which is the exact
+         shape of a dead end for a beginner — told to press a button that is not on screen. The suites
+         never caught it because their helper (`__pressFight`) drives both presses by design, so this is
+         the *"assert what the lesson CLAIMS, not that the panel rendered"* rule in its newest clothes.
+         ⚠ IT IS TAUGHT INSIDE AN EXISTING STEP, NOT A NEW ONE, AND THAT IS NOT A STYLE CHOICE.
+         `lessontest_howto` asserts step NUMBERS — `atStep(2)` through `atStep(10)` — so inserting a step
+         renumbers every assertion below it: measured, **7 pass / 17 fail** on the first attempt. Anyone
+         adding a step to any lesson pays that; check the suite before reaching for one. */
+      { text:"<b>Round 1 is jabs only.</b> A jab is a single card. Tap a card to select it, then press <b>Fight</b> to lead. <span class=\"rNote\">(Lead a middling card — save that 2! With nothing selected that button reads <b>Next</b> — it only moves you on.)</span>", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
       { text:"You led a <b>jab</b>. <b>Every card you play banks into your ⚡ energy</b> — win or lose. But a jab only <b>takes the round</b>; it never breaks a shield. Jabs are your <b>safe</b> way to bank energy.", hi:'#youNrgSuits', btn:"Got it ▸" },
       { text:"To <b>break shields</b> you need a <b>Special</b>, and those unlock from <b>Round 2</b>. The simplest is a <b>pair</b> — two cards of the <b>same number</b>. Select two and <b>Fight</b>.", hi:['#hand','#fightBtn'], prep:tutEnsurePair, requireSpecial:true, gate:function(t,d){ return t==='play' && d && d.size>1; }, wait:"Play a pair…" },
       { text:"That’s a <b>Special</b>! Winning it made the Rival <b>lose a shield</b> 🛡. <b>Only Specials break shields</b> — that’s the whole game plan.", hi:'#rivalShields', btn:"Next ▸" },
       { text:"Strip <b>both</b> shields and your next Special win lands the <b>Fighter Kick</b> 🦵 — the finisher that ends the duel. That’s your win condition.", hi:'#rivalShields', btn:"Next ▸" },
-      { text:"Energy is fuel, not just a counter. First <b>read the card</b> — then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to spend energy and fire its <b>effect</b>.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
+      { text:"Energy is fuel, not just a counter. Effects are a <b>Main</b>-half move — once you press <b>Next</b> the fight has begun and it is too late. First <b>read the card</b> — then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to spend energy and fire its <b>effect</b>.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
       { text:"Quick tour of your <b>zones</b>: your <b>hand</b> (the cards you hold), your <b>🂠 deck</b> (draw 2 each round), your <b>⚡ energy</b> (cards you’ve fought), and your <b>♻ shuffle pile</b> (spent energy). Spend energy → it goes to the shuffle pile; when your deck empties, the shuffle pile becomes your new deck. Keep the cycle turning and you won’t run dry.", hi:['#youNrgSuits','#handMeta .stat.deck','#youShuf'], btn:"Next ▸" },
       { text:"That’s the loop: <b>fight</b> → bank <b>energy</b> → spend it on <b>effects</b> → win <b>Specials</b> to break shields → land the <b>Kick</b>. You won’t always win an exchange — when you can’t, <b>pass</b> and still bank energy (that’s the <b>Initiative</b> lesson). Need a refresher on card ranks or Specials? Tap <b>🃏 Specials list</b> above your hand any time. Now play this out and land the Kick! 🥊", btn:"Finish" }
     ];
@@ -10890,7 +11006,7 @@ window.CardFace = {};
       { text:"Every card you <b>fight</b> — win or lose — banks into your ⚡ <b>energy pile</b>. Energy is the fuel for card <b>effects</b>. <span class=\"rNote\">(In a real duel you start at <b>0</b> and build it by fighting — we’ve pre-stocked some here just to demo.)</span>", hi:'#youNrgSuits', btn:"Got it ▸" },
       { text:"Leading a <b>jab</b> is the <b>safe</b> way to stock energy: a jab risks no shield, and even a losing jab refuels you. Lead a jab now.", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
       { text:"See the ⚡ box pulse with a <b>+N</b>? That card just banked. Now let’s <b>spend</b> some.", hi:'#youNrgSuits', btn:"Next ▸" },
-      { text:"Each card carries its own <b>effect</b>. <b>Read it</b>, then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to pay energy and fire it.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
+      { text:"Each card carries its own <b>effect</b>. Spend it in the <b>Main</b> half, before you press <b>Next</b> — once the fight starts you may only play or pass. <b>Read it</b>, then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to pay energy and fire it.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
       { text:"One more source: when you <b>lose</b> a round, the catch-up <b>moves cards straight from your 🂠 deck into energy</b> (you’ll see a <b>−N</b> there). So even losing fuels you.", hi:['#handMeta .stat.deck'], btn:"Next ▸" },
       { text:"Spent energy moves to your <b>♻ shuffle pile</b>; when your <b>🂠 deck</b> empties, the shuffle pile becomes your new deck. So <b>fight and spend</b> — never spending can starve your deck. That’s the energy cycle!", hi:['#handMeta .stat.deck'], btn:"Finish" }
     ];

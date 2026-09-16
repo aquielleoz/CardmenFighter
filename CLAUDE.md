@@ -52,7 +52,7 @@ node landscapetest.js                           # landscape / short-viewport lay
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energyorder.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node lessontest_quicks.js               # the "Quicks" lesson — the interactive Counter Spell demo, full UI (21)
-node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated (24)
+node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated (25)
 node lessontest_zones.js                # the "Zones of Play" spotlight tour — every selector must LIGHT (21)
 node lessontest_initiative.js           # the "Initiative" lesson — asserts you genuinely cannot beat the lead (17)
 node lessontest_specials.js             # the "Specials" lesson — jab, then a real pair, then the shield (19)
@@ -1876,7 +1876,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 520, `netview` 65, `mptest` 93, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 33, `lessontest_quicks` 21, `lessontest_howto` 24,
+`versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 33, `lessontest_quicks` 21, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).

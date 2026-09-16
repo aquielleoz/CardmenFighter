@@ -12,6 +12,29 @@ const { openLesson } = require('./lessonlib');
   await next(); ok(await L.atStep(3),'step 3 is the gated jab step');
   ok(!(await step()).hasNext,'…gated on a real play, no Next');
 
+  /* THE STEP NAMES THE BUTTON THAT IS ACTUALLY ON SCREEN (2026-09-16). Epic step 20 made Fight two-state —
+     the first press only crosses Main → Fight and plays nothing, and the button relabels `Next` → `Fight`
+     to say which press you are on — but every lesson still read "press Fight" at a moment the button reads
+     **Next**. Telling a beginner to press a button that is not there is the dead-end shape this file exists
+     to catch, and no suite could see it because `playAny`/`__pressFight` drive both presses by design.
+     ASSERT THE DERIVATION, NOT THE SENTENCE: read the label off the live button and require the step text
+     to name it. A hardcoded "the text says Next" would pass on a build where the button went back to
+     one-state and the lesson became wrong again. */
+  /* READ THE LABEL WITH A CARD SELECTED, which is the moment the instruction is about. `#fightBtn` is
+     two-state and its label follows the selection — `Next` with nothing chosen (a bare crossing), `Fight`
+     once you have cards to throw — so reading it on an empty selection would test the wrong half and, as
+     of one press fighting from Main, would demand the step say "Next" when the player will press "Fight". */
+  const jab = await (async () => {
+    await p.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c) c.click(); });
+    const label = await p.evaluate(()=>document.getElementById('fightBtn').textContent.trim());
+    const text = (await step()).text;
+    await p.evaluate(()=>{ document.querySelectorAll('#hand .card.sel').forEach(c=>c.click()); });   // put the selection back — a probe that clicks must click back
+    return { label, text };
+  })();
+  ok(jab.text.indexOf(jab.label)>=0,
+     `with a card selected the jab step names the button the player will actually press ("${jab.label}")` +
+     (jab.text.indexOf(jab.label)>=0 ? '' : `  ← the step says press something else; text: "${jab.text.slice(0,90)}"`));
+
   ok(await playAny(false)!==null,'a legal jab was available and played');
   ok(await L.atStep(4),'leading a jab advanced to step 4');
   await next(); ok(await L.atStep(5),'step 5 is the gated Special step');
