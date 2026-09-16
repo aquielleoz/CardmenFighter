@@ -175,9 +175,31 @@ said "open work only". Two shipped design specs were deleted outright, since the
 full. **Ranked now: correctness first, then things a playtester meets immediately, then features and balance.**
 A struck-through entry does not belong here — if it shipped, move it to [`CHANGELOG.md`](CHANGELOG.md).*
 
+**EVERY ENTRY CARRIES ONE STATUS TAG, FROM A CLOSED SET, AND `versiontest` ASSERTS IT (2026-09-16).** The tag
+answers one question — *what does this need NEXT?* — and it exists because free prose could only be read
+carefully, while a fixed vocabulary can be CHECKED. The trigger was a real confusion the same day: an entry
+whose root cause was found and written down was summarised back to Aj as needing two devices, from memory,
+because the answer sat on line 19 of a 24-line entry. **The tag is not a summary of the entry** — it is the
+one fact you would otherwise reconstruct by reading all of it, put where re-reading costs nothing.
+
+| tag | means |
+| --- | --- |
+| `needs a repro` | we cannot reliably make it happen yet — the next move is to see it, not to fix it |
+| `root cause found` | diagnosed and written down; what is left is building the fix |
+| `ready to build` | understood, scoped, and nothing is blocking it |
+| `needs a decision` | blocked on Aj — a design call, not a technical one |
+| `needs a measurement` | the next step is a number, not a change |
+| `parked` | deliberately not being done now; the entry says what would revive it |
+
+**A tag is a CLAIM and it goes stale like any other.** `root cause found` on an entry whose diagnosis was
+never written into the body is the failure this exists to prevent, wearing a tag. When you touch an entry,
+re-read its tag.
+
 ### Correctness
 
-- **`lessontest_quicks` IS RED ~25% OF THE TIME AT `-j 4`, AND ~1 IN 9 SERIALLY — MEASURED 2026-09-10/11.**
+#### Flaky suites
+
+- `needs a repro`       · **`lessontest_quicks` IS RED ~25% OF THE TIME AT `-j 4`, AND ~1 IN 9 SERIALLY — MEASURED 2026-09-10/11.**
   Eleven runs across one day, on three different builds: **2 red in 8 at four lanes, 0 red in 3 at `-j 1`.**
   One of the reds was on `epic/priority-windows` before any of that day's prompt work, so it **predates**
   the Resolution changes and is not caused by them.
@@ -209,7 +231,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   deterministic defect reached on a race, not as slowness — and do not raise a poll budget to "fix" it.
   Running rate on `feat/phase-boundaries`: **2 red in 13 solo**.
 
-- **`nettest_passoduel` FLAKES AT ROUGHLY 1 IN 8, SOLO — MEASURED AND A/B'd 2026-09-15.** It hung a lane
+- `needs a repro`       · **`nettest_passoduel` FLAKES AT ROUGHLY 1 IN 8, SOLO — MEASURED AND A/B'd 2026-09-15.** It hung a lane
   in one `-j 4` sweep (killed at 300s), and the first instinct was the Resolution shield override that had
   just merged: that change can open a window where none opened before, this suite installs `netwindows`
   via `startDuel`, and each unscripted window costs ~6s of grace — a real mechanism for pushing a suite
@@ -226,7 +248,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   spread is the machine, and this file's own rule applies: the tell that an intermittent is being measured
   badly is the rate moving when the code did not. Do not read a single 91/92 as a regression.
 
-- **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
+- `needs a repro`       · **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
   sweep during epic step 14; not reproduced since). The two failures were `lessonlib`'s shared `finish()`:
   *the completion modal is actually on screen* and *…and the lesson is marked done*. **Everything before
   them passed**, so the lesson ran its steps and then did not reach the completion modal — which points at
@@ -246,7 +268,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   when it did not click, and have `finish()` print the step it was on when the modal failed to appear. One
   red run would then name both the suite and the step.
 
-- **`lessontest_twos` FAILED ONCE UNDER LOAD, AND THE SIGNATURE POINTS AT THE PREP, NOT THE POLL** (seen once
+- `needs a repro`       · **`lessontest_twos` FAILED ONCE UNDER LOAD, AND THE SIGNATURE POINTS AT THE PREP, NOT THE POLL** (seen once
   in a `-j 4` sweep, 2026-09-07; 3/3 solo and 86/86 on an immediate re-sweep, so it is rare). Do not file this
   as "flaky" and re-tune a budget — this repo's record is that an intermittent has been a REAL dependency every
   single time, and the captured hint names one:
@@ -260,7 +282,9 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   so, the way `why()` prints the refusal state. A prep that reports what it actually did would have named this
   in one run.
 
-- **RE-CHECK `setRecycleTech`, AND THE DISCARD PILE NOBODY CAN SEE** (Aj, 2026-09-08, on finding out
+#### Rules, priority and the stack
+
+- `needs a measurement` · **RE-CHECK `setRecycleTech`, AND THE DISCARD PILE NOBODY CAN SEE** (Aj, 2026-09-08, on finding out
   decks thin: *"so were decks actually getting thinner without me noticing? huh?"*). They are, and the
   "without noticing" half is structural rather than careless.
   - **What thins.** `spendCard` is `(RECYCLE_TECH ? pl.shuffle : pl.removed).push(card)` and **`RECYCLE_TECH`
@@ -302,7 +326,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
     scales hardest with player count. The three options are written up on `epic/priority-windows` in
     `FIGHT-END-PLAN.md` → *Where a mid-cast card goes*.
 
-- **★ THE RESOLUTION WINDOW IS A SHIELD-GUARD, NOT A PRIORITY WINDOW.** *(replaces the old "should a shield
+- `root cause found`    · **★ THE RESOLUTION WINDOW IS A SHIELD-GUARD, NOT A PRIORITY WINDOW.** *(replaces the old "should a shield
   GAIN qualify" entry, which was misfiled as a rules question — Aj answered it and it is a build.)*
   [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) §3: **before** the Resolution Sub-Phase priority is passed
   around, every player's Quicks are available, and it is nobody's turn so the window is Quicks-only. The code
@@ -326,7 +350,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   - **⚡ ANSWERED AND SCHEDULED on `epic/priority-windows`.** All five findings, plus four more the design pass
     found. Do not start from this entry.
 
-- **★ PRIORITY IS OFFERED TO THE WRONG PLAYERS, IN THE WRONG ORDER.** **⚡ Scheduled on
+- `root cause found`    · **★ PRIORITY IS OFFERED TO THE WRONG PLAYERS, IN THE WRONG ORDER.** **⚡ Scheduled on
   `epic/priority-windows`, and the model below CHANGED on 2026-09-08 — read the epic's copy of
   [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md), not this summary.** Aj reversed the origin rule:
   priority now starts with the **CONTROLLER of the top stack object**, and with the active player only when
@@ -354,7 +378,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
     neither a fight nor a Technique, and activated equipment is coming — but Back Stab's text denies fights and
     **Techniques**, and `respond()` accepts one today (`respond`, engine.js).
 
-- **A SHIELD-LOSS TECHNIQUE CAN BE CAST AT A RIVAL WITH NO SHIELDS, AND SILENTLY DOES NOTHING.** Critical Hit
+- `ready to build`      · **A SHIELD-LOSS TECHNIQUE CAN BE CAST AT A RIVAL WITH NO SHIELDS, AND SILENTLY DOES NOTHING.** Critical Hit
   ♠9 and Ultima Attack ♣10 both read *"Target Rival loses 1 shield."* Against a rival on 0 the ⚡ is fully lit,
   you pay the energy **and** the Broadway pitch, and nothing happens.
   **The fix is to refuse the cast, NOT to make it kick.** `noKick` on `destroyShield` is correct and the audit
@@ -362,21 +386,14 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   wording"* (Aj, 2026-09-08). The Fighter Kick is a FIGHT outcome — a Special win against a rival already at 0
   — and the card text never claims otherwise. A Technique can take you to 0 and never past it.
   `activateBlock` is the home: it already carries fizzle guardrails for `counter` and `protect`.
-- **THE ENGINE AND THE UI DISAGREE ABOUT WHO MAY RESPOND.** `canAddToStack` (engine.js) admits any
+
+- `root cause found`    · **THE ENGINE AND THE UI DISAGREE ABOUT WHO MAY RESPOND.** `canAddToStack` (engine.js) admits any
   affordable Quick; the UI's `eligibleQuicks` is narrower, so the engine opens a window the screen then
   auto-declines — e.g. an Annoint holder against a non-removal. Solo it is invisible; **on a netplay client it
   costs a visible round trip**, the board going busy waiting on a decline the player never chose. One predicate,
   two definitions — the `resolveIds` lesson.
 
-- **"RIVAL" IS HARDCODED IN THE PRIORITY MODALS, WRONG AT 3-6 PLAYERS.** *(The modal half is moot: the
-  string was fixed in v1.31.120 and `openShieldGuardModal` itself was deleted at epic step 19. **The naming
-  half below is still open and is the part Aj asked for.**)* It said
-  *"Rival's Special is about to strip one of your shields"* — naming a player who is not
-  at the table and withholding the one fact you need. **Aj's fix is broader than the string:** default names
-  become **Rival + a number** for *everyone*, host and human seats included, so an un-renamed seat is still
-  identifiable. Names stay dynamic.
-
-- **TWO AI HEURISTICS MISS QUICKS THEY HOLD.**
+- `ready to build`      · **TWO AI HEURISTICS MISS QUICKS THEY HOLD.**
   - `respondDecision`'s threat list (`respondDecision`'s `THREAT_KIND`, ai.js) is four kinds — `destroyShield`, `removeEquip`, `discardOpp`,
     `energyDenyOpp` — and **`lockout` is not among them**, so the AI declines Back Stab while holding Counter
     Spell and then sits out the round. Losing your whole turn is the one hostile effect it does not rate.
@@ -384,72 +401,20 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   - Its reactive immunity filter tests only `e.immune` (`respondDecision`'s reactive-immunity branch, ai.js) and never `e.shieldImmune`, so an AI in
     Apollo Mode holding Sanctuary takes the hit — the `effectFor`-family shape again, third instance.
 
-- **A 2-PLAYER NETPLAY PRE-FIGHT WINDOW IS SET ON THE CLIENT AND ABANDONED BY THE HOST** (the duel `t:'move'` handler, template) — the
-  duel move handler has no op for it. Needs a client holding a Form-granted lockout Quick, so it is narrow, but
-  the audit rates it a permanent hang.
-
-- **ARMOR PIERCING IS "+1 TO YOUR NEXT FIGHT WIN", NOT "+1 TO A SHIELD LOSS YOU CAUSE"** (`resolveEffect`'s `onWin` case, engine.js). Arm
+- `needs a decision`    · **ARMOR PIERCING IS "+1 TO YOUR NEXT FIGHT WIN", NOT "+1 TO A SHIELD LOSS YOU CAUSE"** (`resolveEffect`'s `onWin` case, engine.js). Arm
   it, then cast Ultima Attack or Critical Hit, and the +1 does not apply — the flag survives to your next fight
   win instead. The card text agrees with the code; the design intended the other reading. Also `extraShield: 1`
   is declared and never read, so a second cast cannot stack and a Form patch raising it would do nothing.
 
-- **COUNTER SPELL DOES NOT TARGET** (`resolveTopEffect`, engine.js) — it always counters the object immediately beneath it.
+- `ready to build`      · **COUNTER SPELL DOES NOT TARGET** (`resolveTopEffect`, engine.js) — it always counters the object immediately beneath it.
   Indistinguishable from the design in a duel with a 2-deep stack; at 3-6p a 3-deep stack is reachable (A casts,
   B answers with a non-counter Quick, C counters) and C's Counter Spell hits the wrong object.
 
-- **THE PRIORITY UI SHOWS NO STACK.** The prompt names only the top object, and the stack view that would fix
+- `root cause found`    · **THE PRIORITY UI SHOWS NO STACK.** The prompt names only the top object, and the stack view that would fix
   it sits behind an opaque overlay (`stackViewHTML` vs `.overlay`, template). In a Counter-a-Counter chain the player being asked for
   priority cannot see what they are responding to.
 
-- **★ THE MIRROR-CONTRACT AUDIT'S THREE UNFIXED FINDINGS.** v1.31.114/.115 took the two live bugs and
-  v1.31.116 the park heartbeat; these are what the judge left standing. Each is a mirror or transport fault, so
-  each is silent on BroadcastChannel and only bites over RTC or at 3–6 players — the same shape as both bugs
-  that did ship.
-  - **`send()` stringifies OUTSIDE its `try` (template `:7177`).** So a body that will not serialise throws out
-    of `send` rather than being caught, and the caller dies with it. The caller that matters is `endGame`: a
-    fault there aborts the end screen for everyone. Move the `JSON.stringify` inside, and trace the failure the
-    way `broadcastMirror` now does — the loud-failure half of v1.31.115, applied to the other sender.
-  - **A ROTATION-DIFFERENTIAL TEST.** Every mirror bug found so far was a field that was copied when it should
-    have been projected, or projected when it should have been rotated, and `netview.test.js` can only assert
-    the fields someone thought to name. The test that generalises: build `mirrorFor(st, s)` for **every** seat
-    of one non-trivial state and require every seat-valued field to differ by exactly the rotation — a field
-    that is identical across seats is either public or a bug, and the list of public ones is short and
-    reviewable. That inverts the burden from "did we remember this key" to "why is this key not rotating".
-  - **THREE FIELDS ARE MISSING FROM THE MIRROR ENTIRELY**, and the third is user-visible at every table of 3+:
-    `_effUsed` (so a client cannot tell whether the first-effect discount is still available), `startShields`
-    (so a client cannot render the shield track against its start), and **`struck`/`spared` on the round
-    result** — without which a client cannot name who lost a shield and falls back to *"a rival lost a
-    shield"*. That last one is the v1.29.6 lesson (never infer the loser — read `result.struck`) reappearing
-    as a redaction gap rather than a UI one.
-
-- **★ EXPANDING A ZONE PUSHES THE BOARD PAST ITS HEIGHT ON THE TIGHTEST PHONES** (measured 2026-09-07)
-  `[ratchet: phone-zone-expand-overflow]`
-  v1.31.111 made both panel zones expandable; at **327x660 opening a seat's Forms and equipment adds 75px to
-  that panel and pushes `#board` 63px past its height** (393x852 goes 10px over; 360x800, 390x780 and 412x915
-  stay at 0). Above the 340px floor the stated contract is everything-on-one-screen, so a board that scrolls
-  because a user opened an inspector is a contract break, not a nicety.
-  **It also makes a measurement unstable, which is how it was found:** once the board overflows, where the
-  pile sits relative to the other panel depends on the scroll, so `landscapetest`'s coverage read 0% on ten
-  consecutive standalone runs and 33% on about one suite run in five — reported as `youFormZone over card2`.
-  The suite now asserts the OVERFLOW instead, which is deterministic, and ratchets it at both sizes; the
-  coverage line is deliberately not asserted there until this is fixed.
-  **Do not reach for smaller mini-cards** — the arithmetic says the growth is 33px (Forms) + 42px (equipment)
-  against 63px of overflow, so trimming card size cannot close it. The candidates are a zone that expands as an
-  OVERLAY instead of a layout change, or expanding one zone at a time at these sizes only — and note Aj
-  explicitly asked for both zones open at once, so the second needs his say-so.
-
-- **THE SETUP DIALOG SHOULD BE THREE COLUMNS IN LANDSCAPE** (Aj, 2026-09-07, with a screenshot of New Duel):
-  *"can we do this in 3 columns for landscape? player count, name, your deck; opponent strength and decks;
-  buttons"*. It is one tall column of five label/control rows plus the roll strip, which is exactly the shape
-  that does not fit a short viewport — `landscapetest` already has to assert the dialog *scrolls* to reach its
-  last control at 568x320. His grouping is the natural one: your setup, their setup, actions.
-  **Precedent to copy, not invent:** the Custom rules panel is the one dialog that already goes multi-column
-  (`.modal` is shared by every dialog, so the width lives on a class on that panel alone, and `showModal`
-  resets `#modal`'s class list so a wide dialog cannot leak into the next one). Do the same here rather than
-  widening `.modal`. Note the rules panel's columns are keyed to WIDTH (1040px/1400px); this one wants short
-  and wide, so the query is the landscape band, not a width breakpoint.
-
-- **★ THE BROADWAY PITCH CHOOSES ITSELF, FOR BOTH SIDES** (Aj, 2026-09-07, from real play: *"oh no it did not
+- `ready to build`      · **★ THE BROADWAY PITCH CHOOSES ITSELF, FOR BOTH SIDES** (Aj, 2026-09-07, from real play: *"oh no it did not
   let me pick which broadway card.... this is a bug for sure.. and probably more of a problem in multiplayer
   clients"*, then *"the ai should absolutely smart pitch as well... especially for the ones who are smarter"*).
   `pitchHigh` (Critical Hit / Ultima Attack / Armor Piercing) discards a 10/J/Q/K/A as an additional cost, and
@@ -473,126 +438,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   **Both need `opts.pitch` BACK in the engine**, which is the thing that was deleted — and each of them is the
   exercise it lacked.
 
-- **★ THE TUTORIALS TEACH A BUTTON THAT NO LONGER EXISTS, AND EVERY SUITE IS GREEN ABOUT IT** (Aj,
-  2026-09-11: *"we'll have to recheck the tutorials after this epic lands too"* — and it is worse than a
-  recheck). Epic step 20 relabelled `#fightBtn` to **`Next`** in the Main Sub-Phase, and the lesson copy
-  still says *"press **Fight** to lead"* and *"Select two and **Fight**"* (`LESSONS`, the How-to-Play and
-  Basics steps; `hi:['#hand','#fightBtn']` still spotlights the right control). A learner reads the step,
-  looks for a button called Fight, and the board shows Next — on the FIRST lesson, at the first thing the
-  game ever asks them to do.
-  **NO SUITE CAN SEE THIS, and the reason is structural rather than an oversight**: every lesson suite
-  drives the button through `fightclick.js`, which addresses it by ID and reads the LABEL only to decide
-  which press it is. Asserting the step TEXT against the live label is the missing check — exactly the
-  shape CLAUDE.md already names for lessons ("assert what the lesson CLAIMS, not that the panel
-  rendered"), and the same class as the apex-2 reminder text being DERIVED rather than hardcoded.
-  **Scope it properly before editing strings.** The step text is one part; also worth a pass are the
-  rules intro (*"then Fight — lead a card or beat the one on the table"*, which is still TRUE of the Fight
-  Sub-Phase and probably fine), anything that teaches drag-to-play (a drag in the Main Sub-Phase now
-  ACTIVATES), and the Quicks lesson's Respond? flow, which sits on the window step 20 rebuilt. The
-  tutorials were written against a one-sub-phase board and this epic gave the game three.
-
-- **THE DROP HINT OVERFLOWS THE BOARD AND LEAVES A HORIZONTAL SCROLLBAR BEHIND** (Aj, 2026-09-11, two
-  screenshots: the refusal text running off both edges of the play area, then the whole page shifted with a
-  scrollbar). **A REGRESSION FROM THE SAME DAY, AND MINE** — Aj asked for the activation refusal to be
-  visible *while dragging* rather than only after the release, which was right, so `highlightTarget` now
-  feeds `ctxActionFor(...).reason` into `#dropHint`. That pill was built for four fixed short strings and
-  is `position:absolute; white-space:nowrap` with **no `max-width`**, so a full engine sentence
-  ("Needs a Broadway card (10, J, Q, K, or A) in hand to discard as an extra cost") is laid out on one line
-  centred on `#table` and hangs off both sides.
-  **THE SCROLLBAR IS THE SECOND HALF AND IT IS THE WORSE ONE: the pill is hidden by OPACITY, not
-  `display`.** `#dropHint.show{opacity:1}` and `clearZone()` only strips the class — the long `textContent`
-  stays in the layout at full nowrap width **for the rest of the game**, so one drag over an unaffordable
-  card widens the document permanently and every later frame is scrolled sideways. That is why the second
-  screenshot shows a broken board with no drag in progress.
-  **Two small fixes, and they are independent** — cap and wrap the pill (`max-width:min(88%,420px)`,
-  `white-space:normal`, centred) so a long reason is readable, AND clear `textContent` in `clearZone()` so
-  a hidden hint occupies nothing. The second one alone kills the scrollbar.
-  **Verify by MEASURING `document.documentElement.scrollWidth` against `clientWidth` after a drag ends**,
-  not by looking: the element is invisible at that point, so the only evidence is the geometry.
-
-- **CLICKING A FORM/RIDE CHIP OPENS THE READER AND CAN NEVER EXPAND THE ZONE** (Aj, 2026-09-11, playing the
-  build: *"clicking the jack does not expand it. it directly goes to the card viewer"*). The collapsed
-  Forms & Rides strip carries a click handler that sets `formsOpen` — but only outside the short-landscape
-  band — while EVERY CHIP inside it carries its own handler that calls `readCard` and `stopPropagation()`.
-  The chips fill the strip, so the only surface left for the expand is the sliver of padding around them,
-  and with one Form in the zone there is effectively none.
-  **THE STRIP ITSELF PROMISES THE THING IT CANNOT DO**: its `title` is set to *"Tap to expand"* in exactly
-  the layouts where the chip swallows the click, and *"Tap a card to read it"* in the landscape band where
-  refusing to expand is deliberate (v1.31.111 — `#table` is 87px at 800x360 and two expanded zones need
-  112px, so expanding there could only re-create the overlap that version removed).
-  **This is a collision between two correct decisions, not a stray line.** The per-chip read path was added
-  FOR the landscape band, where it is the only way to read a Form; `stopPropagation` was added so a chip
-  would not also toggle the strip "in the layouts that do expand" — and the two together mean those layouts
-  can no longer be expanded at all. Whoever picks this up should decide what the chip means per layout
-  rather than delete either half: plausibly, tap-to-expand and a separate affordance to read (the hover
-  already calls `showCard`), or drop the expand outside landscape entirely and make the title honest.
-  **Verify by LAYOUT, not by clicking once** — `shortLandscape()` splits the behaviour, so a fix checked
-  only on desktop or only on a phone proves nothing about the other.
-
-- **BEFORE SHIP, THE PROMPT CHECKBOXES DEFAULT TO *UNCHECKED*** (Aj, 2026-09-11: *"the checkboxes will be
-  unchecked by default when we finally ship"*). The player opts IN per card, per timing, in the card reader.
-  **⚠ THIS ENTRY DESCRIBED A BUILD THAT NO LONGER EXISTS, AND THE GAP COST A REAL SHIELD (2026-09-15).** It
-  read *"`promptDefault` currently `return true` — every legal timing stops you — and that is a DEVELOPMENT
-  setting"*. It is `PROMPT_ALL || timing === 'respond'`: **the flip already half-happened**, every boundary
-  timing now defaults OFF, and `?prompts=all` is what restores the dev setting. So the decision this entry
-  was holding open had quietly been taken — and taking it is what removed the Resolution prompt that used
-  to save a shield, found by Aj in a live duel and fixed by `shieldSaveOverride` the same day.
-  **THE LESSON IS THE ONE THIS REPO KEEPS PAYING FOR:** a BACKLOG entry that quotes an implementation is a
-  copied fact, and it rots exactly like a line number. Name the symbol and what it should DO; let the
-  reader grep for what it currently does.
-  **WHAT IS ACTUALLY LEFT:** decide whether `respond` stays on at ship or joins the rest at off.
-  **THIS IS WHY A FOURTH AND FIFTH PRIORITY POINT ARE AFFORDABLE.** Upkeep and Clean-up — **built
-  2026-09-11; this line said "still owed by step 20" until 2026-09-15** — would each add a stop on every
-  round at a prompt-everything default, which was the main argument against them; defaulted off, they cost
-  nothing a player did not ask for. Decide the default BEFORE measuring how the windows feel, or the
-  measurement is of the dev setting.
-  **THE HALF TO GET RIGHT IS WHAT "OFF" MEANS, AND IT IS ALREADY WRITTEN DOWN**: unchecked must mean *the
-  window still opens and you pass automatically* — never *the card becomes uncastable*. That distinction
-  cost a real bug once (a notification preference deciding legality) and the reader's own footnote states
-  it; a flipped default makes it load-bearing for every card instead of a few.
-  **AND THE SUITES ENCODE TODAY'S DEFAULT** — `prompttest` asserts "the DEFAULTS are today's experience",
-  so flipping it is a product change AND a suite change, in one commit.
-
-- **TWO PROMPT-TIMING ROWS ARE MISLABELLED, AND A SIXTH ROW IS MISSING (Aj, from live play, 2026-09-15).**
-  `PROMPT_TIMINGS` has five rows and the engine has five matching windows; the *names* on two of them
-  describe something other than when they fire.
-  | id | label today | when it actually fires | should read |
-  | --- | --- | --- | --- |
-  | `respond` | When a Technique is cast | a cast in the Main Sub-Phase | ✓ |
-  | `upkeep` | At the start of a round | Upkeep | ✓ |
-  | `prefight` | Before a fight — yours or a rival's | the Main → Fight transition | ✓ |
-  | `resolution` | *When shields are about to break* | **before** the Resolution Sub-Phase | **Before resolution** |
-  | `cleanup` | *At the end of a round* | the **beginning** of Clean-up | **Before clean-up** |
-  So `cleanup` is "before clean-up" wearing "end of a round"'s name, and `resolution` is named for one
-  consequence of the window rather than for the boundary it sits on — which is what made a missing shield
-  prompt read as a missing *feature* rather than a preference the player had never knowingly set.
-  **THE SIXTH IS THE END OF CLEAN-UP, and it follows from the general rule rather than being an addition**
-  (Aj: *"priority always is passed around when phases and sub-phases change… you'll notice that my
-  parenthesis all referenced the end of something"*). `PHASES-AND-PRIORITY.md` §3 enumerates five points;
-  the rule it states is broader than its own list, and the end of the Clean-up Phase — before the next
-  Beginning Phase — is the one the list omits. **§3's enumeration grows to six when this lands**; it is
-  deliberately unchanged for now, so the spec does not describe an unbuilt window.
-  **IT IS ITS OWN WINDOW, NOT THE UPKEEP ONE (Aj, 2026-09-16, asked and answered).** The engine opens
-  exactly FOUR phase windows — `st.toPlay` (Main → Fight), `st.resolution` (before Resolution),
-  `st.cleanup` (the **beginning** of Clean-up, opened in `finishRoundWin` before `runCleanupEvents`) and
-  `st.upkeep` (the Beginning Phase) — so this is a fifth, and it sits between the last two. The order it
-  lands in: clean-up dance -> clean-up events -> The Stack drains -> **END-OF-CLEAN-UP DANCE** -> the
-  round boundary -> Beginning Phase -> the Upkeep ticks are pushed -> upkeep dance. **So the ticks move
-  again**: `finishCleanup` already owes them rather than pushing them (`st.upkeepTicks`, fixed the same
-  day), and that debt must now be paid AFTER the new window rather than at the first `openResponseWindow`
-  with an empty stack — otherwise the new dance answers a stack that already holds the next round's
-  triggers, which is the exact mis-ordering that fix removed.
-  **IT IS ADJACENT TO UPKEEP AND THAT IS ACCEPTED, NOT OVERLOOKED.** Aj: *"some of these can get tiring
-  especially having the before clean up and end of round when you have nothing to do. but that is really
-  how the cookie crumbles. people will be thankful they can uncheck it."* The two are genuinely different
-  moments — the round boundary sits between them, so a card cast at the end of Clean-up resolves BEFORE the
-  draw and one cast at Upkeep resolves after.
-  **THE IDS ARE STORED PREFERENCES, SO A RELABEL IS FREE AND A RE-KEY IS NOT.** `promptPrefs` is keyed by
-  timing id in `localStorage`; `PROMPT_TIMINGS` is explicitly "a list the reader renders from", so the
-  labels are presentation. Changing `cleanup`'s *id* would orphan saved preferences the way `fightend` did
-  and would need the same migration — rename the labels, leave the keys alone.
-
-- **ROUND 2 RESOLVED TWICE IN A REAL DUEL, AND IT COST A SECOND SHIELD (2026-09-15, unexplained).** From
+- `needs a repro`       · **ROUND 2 RESOLVED TWICE IN A REAL DUEL, AND IT COST A SECOND SHIELD (2026-09-15, unexplained).** From
   Aj's saved logs of one game, BOTH seats, narrated identically:
   ```
   Round 2 begins. Each player draws 2.
@@ -669,7 +515,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   full duels in the real page, both declining and casting into every window. Whatever drives the second
   resolution is not reachable by the solo driver.
 
-- **THE CLEAN-UP → BEGINNING ORDERING IS FIXED; IT IS THE TEST THAT IS STILL OWED (2026-09-16).** Aj
+- `ready to build`      · **THE CLEAN-UP → BEGINNING ORDERING IS FIXED; IT IS THE TEST THAT IS STILL OWED (2026-09-16).** Aj
   called the mis-ordering a bug rather than a latent one and was right — it was shipped code with the
   wrong order in it. `finishCleanup` ran its events and then `pushUpkeepTicks` in the same breath, so a
   trigger a clean-up event had stacked sat UNDERNEATH the ticks and, The Stack being LIFO, the next
@@ -684,7 +530,42 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   the old code would have started being wrong, and `E.cleanupOrder()` already names the events
   (`roundAdvance → initiative → pileClear → expire → equipReset → temps → stampRound`) for it to hang off.
 
-- **A CLIENT COULD ACT WHILE ANOTHER SEAT HAD A MODAL UP (Aj, 2026-09-16: *"we really need that guard when
+#### Netplay
+
+- `ready to build`      · **"RIVAL" IS HARDCODED IN THE PRIORITY MODALS, WRONG AT 3-6 PLAYERS.** *(The modal half is moot: the
+  string was fixed in v1.31.120 and `openShieldGuardModal` itself was deleted at epic step 19. **The naming
+  half below is still open and is the part Aj asked for.**)* It said
+  *"Rival's Special is about to strip one of your shields"* — naming a player who is not
+  at the table and withholding the one fact you need. **Aj's fix is broader than the string:** default names
+  become **Rival + a number** for *everyone*, host and human seats included, so an un-renamed seat is still
+  identifiable. Names stay dynamic.
+
+- `root cause found`    · **A 2-PLAYER NETPLAY PRE-FIGHT WINDOW IS SET ON THE CLIENT AND ABANDONED BY THE HOST** (the duel `t:'move'` handler, template) — the
+  duel move handler has no op for it. Needs a client holding a Form-granted lockout Quick, so it is narrow, but
+  the audit rates it a permanent hang.
+
+- `root cause found`    · **★ THE MIRROR-CONTRACT AUDIT'S THREE UNFIXED FINDINGS.** v1.31.114/.115 took the two live bugs and
+  v1.31.116 the park heartbeat; these are what the judge left standing. Each is a mirror or transport fault, so
+  each is silent on BroadcastChannel and only bites over RTC or at 3–6 players — the same shape as both bugs
+  that did ship.
+  - **`send()` stringifies OUTSIDE its `try` (template `:7177`).** So a body that will not serialise throws out
+    of `send` rather than being caught, and the caller dies with it. The caller that matters is `endGame`: a
+    fault there aborts the end screen for everyone. Move the `JSON.stringify` inside, and trace the failure the
+    way `broadcastMirror` now does — the loud-failure half of v1.31.115, applied to the other sender.
+  - **A ROTATION-DIFFERENTIAL TEST.** Every mirror bug found so far was a field that was copied when it should
+    have been projected, or projected when it should have been rotated, and `netview.test.js` can only assert
+    the fields someone thought to name. The test that generalises: build `mirrorFor(st, s)` for **every** seat
+    of one non-trivial state and require every seat-valued field to differ by exactly the rotation — a field
+    that is identical across seats is either public or a bug, and the list of public ones is short and
+    reviewable. That inverts the burden from "did we remember this key" to "why is this key not rotating".
+  - **THREE FIELDS ARE MISSING FROM THE MIRROR ENTIRELY**, and the third is user-visible at every table of 3+:
+    `_effUsed` (so a client cannot tell whether the first-effect discount is still available), `startShields`
+    (so a client cannot render the shield track against its start), and **`struck`/`spared` on the round
+    result** — without which a client cannot name who lost a shield and falls back to *"a rival lost a
+    shield"*. That last one is the v1.29.6 lesson (never infer the loser — read `result.struck`) reappearing
+    as a redaction gap rather than a UI one.
+
+- `root cause found`    · **A CLIENT COULD ACT WHILE ANOTHER SEAT HAD A MODAL UP (Aj, 2026-09-16: *"we really need that guard when
   somebody has a modal up. other player could activate stuff while the other players were busy with a
   modal"*).** Partly closed and partly unidentified, so both halves are written down.
   **WHAT IS ALREADY GUARDED:** `activate` refuses on `st.respondFor != null` (since 2026-09-14) and now on
@@ -697,7 +578,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   a guard that blocks Fight during a trim deadlocks the pick. `doFight` currently reaches `confirmPick()`
   via the `pick` branch, which is what keeps them apart today.
 
-- **ALL SEVEN EMOTES RENDER "You says…" TO THE PERSON WHO SENT THEM (2026-09-15).** `EMOTES` carries a
+- `ready to build`      · **ALL SEVEN EMOTES RENDER "You says…" TO THE PERSON WHO SENT THEM (2026-09-15).** `EMOTES` carries a
   present-tense third-person verb in every row — `says hi!`, `says nice play!`, `says yes!`, `says no!`,
   `needs a second…`, `says good game!`, `wants a rematch!` — and `say()` renders `{who}` as **"You"** for
   the actor. Aj's own saved log carries the proof: **`You wants a rematch!`**, against the other seat's
@@ -713,7 +594,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   reads the template source — teaching it to flag a `says:` row whose value starts with a bare verb would
   cover the whole table at once, including the next row somebody adds.
 
-- **A CLIENT IS NEVER TOLD THAT ANOTHER SEAT IS DECIDING — THE BOARD JUST GOES DEAD (Aj, 2026-09-15:
+- `ready to build`      · **A CLIENT IS NEVER TOLD THAT ANOTHER SEAT IS DECIDING — THE BOARD JUST GOES DEAD (Aj, 2026-09-15:
   *"when a player is thinking through a prompt… nothing happens in the other player's screen? so it's
   just… why can't i play? what up?"*).** The HOST is told: the NET IIFE sets `rivalStatus` to
   `'<seat> may respond…'`, `'… is discarding…'`, `'… is playing…'` and `'… is choosing a target…'` at each
@@ -729,7 +610,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   **From the outside an inert board is indistinguishable from a hang** — this file already says so about
   enabled-but-dead controls, and names it a plausible source of "netplay lagged" reports.
 
-- **THE RTC HOST'S START BUTTON IGNORES READY ENTIRELY — A GAME CAN BEGIN WITH AN UNCONFIRMED SEAT
+- `ready to build`      · **THE RTC HOST'S START BUTTON IGNORES READY ENTIRELY — A GAME CAN BEGIN WITH AN UNCONFIRMED SEAT
   (reported in live play, 2026-09-15).** The two host lobbies disagree about what Start means:
   `renderLobby` (BroadcastChannel) gates on **`readyCount()`** — has CONFIRMED — while `renderHostRtcLobby`
   gates on **`joinedCount()` / `nextSeat-1`** — has A SEAT — on the button *and* in the click handler.
@@ -748,7 +629,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   right. None of the eight `rtchost` suites assert it. This is the documented two-invite-renderers trap with
   the **test** applied to one only, so the fix is not finished until an RTC suite carries that assertion.
 
-- **THE HOST'S "🔔 Ping the table" IS INVISIBLE TO THE CLIENT — IT PAINTS BEHIND THE LOBBY (reported in live
+- `root cause found`    · **THE HOST'S "🔔 Ping the table" IS INVISIBLE TO THE CLIENT — IT PAINTS BEHIND THE LOBBY (reported in live
   play, 2026-09-15).** The client's handler is `SFX.play('ping'); setMessage(…)`, and `setMessage` writes
   `#message`, which lives **inside the board**. `#netroot` is `position:fixed; inset:0` at `--zNetroot`, so
   in the lobby it covers the viewport and the ping's only visible output lands behind it. The client gets a
@@ -763,7 +644,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   **THE FIX RENDERS INTO THE LOBBY**, and must cover BOTH client lobby branches — readied and not — since
   the nudge is aimed at the seat that has *not* pressed Ready yet.
 
-- **THE JOINER'S NETBAR SAYS "no server" WHEN THE RELAY DID CARRY ITS HANDSHAKE (found 2026-09-15).**
+- `ready to build`      · **THE JOINER'S NETBAR SAYS "no server" WHEN THE RELAY DID CARRY ITS HANDSHAKE (found 2026-09-15).**
   `srvTag()` is `relay.room ? 'relay for the handshake only' : 'no server'`, and **only the host ever sets
   `relay.room`** — `relayJoinByCode` claims a slot, posts its answer, and never touches it. So a player who
   joined by typing a four-character room code reads **"no server"** on the one control built so that bar
@@ -776,7 +657,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   not start polling one; it needs to remember only that the relay introduced it, and clear that on Leave
   with everything else. Assert BOTH seats' tags: a one-sided test passes on today's build.
 
-- **"Connection lost (disconnected)" NAMES NO LAYER THE PLAYER CAN ACT ON — IT HAS SENT US AT THE RELAY
+- `ready to build`      · **"Connection lost (disconnected)" NAMES NO LAYER THE PLAYER CAN ACT ON — IT HAS SENT US AT THE RELAY
   TWICE (2026-09-15).** `startSignaling`'s `oniceconnectionstatechange` writes
   `setLobbyErr('Connection lost ('+st+').')` for a lobby-time `failed`/`disconnected`. Both times the cause
   was **office wifi client isolation**, and both times the first suspicion was the Cloudflare relay — which
@@ -794,7 +675,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   correctly. This one is the transport's, and phrasing them alike is what makes the relay the first
   suspect — twice now, for the person who built it.
 
-- **THE CLIENT'S ANIMATIONS ARE STILL WRONG, AND "SHANKED" IS ALL WE HAVE (Aj, 2026-09-16: *"animations
+- `needs a repro`       · **THE CLIENT'S ANIMATIONS ARE STILL WRONG, AND "SHANKED" IS ALL WE HAVE (Aj, 2026-09-16: *"animations
   are still shanked in the client"*).** Reported twice now without a specific frame, so **the first job is
   to make the report precise** — which beat, which seat, reduced-motion or not — rather than to start
   changing dwells. Two things already known that a vague animation report usually turns out to be:
@@ -802,7 +683,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   gains (the tutorial's 51ms cast), and a CLIENT does not run `startGame`, so anything reset only there is
   never reset on a client (`resetBoardMemory` is the shared one). Check both before inventing a number.
 
-- **NOTHING ANIMATES WHEN YOU PRESS FIGHT — ROOT CAUSE FOUND, NOT YET FIXED (Aj, 2026-09-16: *"i expected
+- `root cause found`    · **NOTHING ANIMATES WHEN YOU PRESS FIGHT — ROOT CAUSE FOUND, NOT YET FIXED (Aj, 2026-09-16: *"i expected
   the cards to fly into the play area"*).** `animatePileEntrance` has two branches: a **true FLIP** from
   the card's own slot in your hand when `flipFrom` holds its rect, and otherwise a generic slide in from a
   seat's side. `flipFrom` is captured in exactly one place — `playCards` — and **a netplay client returns
@@ -826,7 +707,157 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   `playCards` only once `subPhase === 'play'`, so the local path never sees the `transition:'play'`
   refusal and `flipFrom` survives on a solo board.
 
-- **THE TUTORIALS STILL DO NOT TEACH THE BOUNDARY WINDOWS (the rest of #6, after 2026-09-16).** The
+#### Phone and layout
+
+- `root cause found`    · **★ EXPANDING A ZONE PUSHES THE BOARD PAST ITS HEIGHT ON THE TIGHTEST PHONES** (measured 2026-09-07)
+  `[ratchet: phone-zone-expand-overflow]`
+  v1.31.111 made both panel zones expandable; at **327x660 opening a seat's Forms and equipment adds 75px to
+  that panel and pushes `#board` 63px past its height** (393x852 goes 10px over; 360x800, 390x780 and 412x915
+  stay at 0). Above the 340px floor the stated contract is everything-on-one-screen, so a board that scrolls
+  because a user opened an inspector is a contract break, not a nicety.
+  **It also makes a measurement unstable, which is how it was found:** once the board overflows, where the
+  pile sits relative to the other panel depends on the scroll, so `landscapetest`'s coverage read 0% on ten
+  consecutive standalone runs and 33% on about one suite run in five — reported as `youFormZone over card2`.
+  The suite now asserts the OVERFLOW instead, which is deterministic, and ratchets it at both sizes; the
+  coverage line is deliberately not asserted there until this is fixed.
+  **Do not reach for smaller mini-cards** — the arithmetic says the growth is 33px (Forms) + 42px (equipment)
+  against 63px of overflow, so trimming card size cannot close it. The candidates are a zone that expands as an
+  OVERLAY instead of a layout change, or expanding one zone at a time at these sizes only — and note Aj
+  explicitly asked for both zones open at once, so the second needs his say-so.
+
+- `ready to build`      · **THE SETUP DIALOG SHOULD BE THREE COLUMNS IN LANDSCAPE** (Aj, 2026-09-07, with a screenshot of New Duel):
+  *"can we do this in 3 columns for landscape? player count, name, your deck; opponent strength and decks;
+  buttons"*. It is one tall column of five label/control rows plus the roll strip, which is exactly the shape
+  that does not fit a short viewport — `landscapetest` already has to assert the dialog *scrolls* to reach its
+  last control at 568x320. His grouping is the natural one: your setup, their setup, actions.
+  **Precedent to copy, not invent:** the Custom rules panel is the one dialog that already goes multi-column
+  (`.modal` is shared by every dialog, so the width lives on a class on that panel alone, and `showModal`
+  resets `#modal`'s class list so a wide dialog cannot leak into the next one). Do the same here rather than
+  widening `.modal`. Note the rules panel's columns are keyed to WIDTH (1040px/1400px); this one wants short
+  and wide, so the query is the landscape band, not a width breakpoint.
+
+- `root cause found`    · **THE DROP HINT OVERFLOWS THE BOARD AND LEAVES A HORIZONTAL SCROLLBAR BEHIND** (Aj, 2026-09-11, two
+  screenshots: the refusal text running off both edges of the play area, then the whole page shifted with a
+  scrollbar). **A REGRESSION FROM THE SAME DAY, AND MINE** — Aj asked for the activation refusal to be
+  visible *while dragging* rather than only after the release, which was right, so `highlightTarget` now
+  feeds `ctxActionFor(...).reason` into `#dropHint`. That pill was built for four fixed short strings and
+  is `position:absolute; white-space:nowrap` with **no `max-width`**, so a full engine sentence
+  ("Needs a Broadway card (10, J, Q, K, or A) in hand to discard as an extra cost") is laid out on one line
+  centred on `#table` and hangs off both sides.
+  **THE SCROLLBAR IS THE SECOND HALF AND IT IS THE WORSE ONE: the pill is hidden by OPACITY, not
+  `display`.** `#dropHint.show{opacity:1}` and `clearZone()` only strips the class — the long `textContent`
+  stays in the layout at full nowrap width **for the rest of the game**, so one drag over an unaffordable
+  card widens the document permanently and every later frame is scrolled sideways. That is why the second
+  screenshot shows a broken board with no drag in progress.
+  **Two small fixes, and they are independent** — cap and wrap the pill (`max-width:min(88%,420px)`,
+  `white-space:normal`, centred) so a long reason is readable, AND clear `textContent` in `clearZone()` so
+  a hidden hint occupies nothing. The second one alone kills the scrollbar.
+  **Verify by MEASURING `document.documentElement.scrollWidth` against `clientWidth` after a drag ends**,
+  not by looking: the element is invisible at that point, so the only evidence is the geometry.
+
+- `root cause found`    · **CLICKING A FORM/RIDE CHIP OPENS THE READER AND CAN NEVER EXPAND THE ZONE** (Aj, 2026-09-11, playing the
+  build: *"clicking the jack does not expand it. it directly goes to the card viewer"*). The collapsed
+  Forms & Rides strip carries a click handler that sets `formsOpen` — but only outside the short-landscape
+  band — while EVERY CHIP inside it carries its own handler that calls `readCard` and `stopPropagation()`.
+  The chips fill the strip, so the only surface left for the expand is the sliver of padding around them,
+  and with one Form in the zone there is effectively none.
+  **THE STRIP ITSELF PROMISES THE THING IT CANNOT DO**: its `title` is set to *"Tap to expand"* in exactly
+  the layouts where the chip swallows the click, and *"Tap a card to read it"* in the landscape band where
+  refusing to expand is deliberate (v1.31.111 — `#table` is 87px at 800x360 and two expanded zones need
+  112px, so expanding there could only re-create the overlap that version removed).
+  **This is a collision between two correct decisions, not a stray line.** The per-chip read path was added
+  FOR the landscape band, where it is the only way to read a Form; `stopPropagation` was added so a chip
+  would not also toggle the strip "in the layouts that do expand" — and the two together mean those layouts
+  can no longer be expanded at all. Whoever picks this up should decide what the chip means per layout
+  rather than delete either half: plausibly, tap-to-expand and a separate affordance to read (the hover
+  already calls `showCard`), or drop the expand outside landscape entirely and make the title honest.
+  **Verify by LAYOUT, not by clicking once** — `shortLandscape()` splits the behaviour, so a fix checked
+  only on desktop or only on a phone proves nothing about the other.
+
+#### Tutorials and prompts
+
+- `ready to build`      · **★ THE TUTORIALS TEACH A BUTTON THAT NO LONGER EXISTS, AND EVERY SUITE IS GREEN ABOUT IT** (Aj,
+  2026-09-11: *"we'll have to recheck the tutorials after this epic lands too"* — and it is worse than a
+  recheck). Epic step 20 relabelled `#fightBtn` to **`Next`** in the Main Sub-Phase, and the lesson copy
+  still says *"press **Fight** to lead"* and *"Select two and **Fight**"* (`LESSONS`, the How-to-Play and
+  Basics steps; `hi:['#hand','#fightBtn']` still spotlights the right control). A learner reads the step,
+  looks for a button called Fight, and the board shows Next — on the FIRST lesson, at the first thing the
+  game ever asks them to do.
+  **NO SUITE CAN SEE THIS, and the reason is structural rather than an oversight**: every lesson suite
+  drives the button through `fightclick.js`, which addresses it by ID and reads the LABEL only to decide
+  which press it is. Asserting the step TEXT against the live label is the missing check — exactly the
+  shape CLAUDE.md already names for lessons ("assert what the lesson CLAIMS, not that the panel
+  rendered"), and the same class as the apex-2 reminder text being DERIVED rather than hardcoded.
+  **Scope it properly before editing strings.** The step text is one part; also worth a pass are the
+  rules intro (*"then Fight — lead a card or beat the one on the table"*, which is still TRUE of the Fight
+  Sub-Phase and probably fine), anything that teaches drag-to-play (a drag in the Main Sub-Phase now
+  ACTIVATES), and the Quicks lesson's Respond? flow, which sits on the window step 20 rebuilt. The
+  tutorials were written against a one-sub-phase board and this epic gave the game three.
+
+- `needs a decision`    · **BEFORE SHIP, THE PROMPT CHECKBOXES DEFAULT TO *UNCHECKED*** (Aj, 2026-09-11: *"the checkboxes will be
+  unchecked by default when we finally ship"*). The player opts IN per card, per timing, in the card reader.
+  **⚠ THIS ENTRY DESCRIBED A BUILD THAT NO LONGER EXISTS, AND THE GAP COST A REAL SHIELD (2026-09-15).** It
+  read *"`promptDefault` currently `return true` — every legal timing stops you — and that is a DEVELOPMENT
+  setting"*. It is `PROMPT_ALL || timing === 'respond'`: **the flip already half-happened**, every boundary
+  timing now defaults OFF, and `?prompts=all` is what restores the dev setting. So the decision this entry
+  was holding open had quietly been taken — and taking it is what removed the Resolution prompt that used
+  to save a shield, found by Aj in a live duel and fixed by `shieldSaveOverride` the same day.
+  **THE LESSON IS THE ONE THIS REPO KEEPS PAYING FOR:** a BACKLOG entry that quotes an implementation is a
+  copied fact, and it rots exactly like a line number. Name the symbol and what it should DO; let the
+  reader grep for what it currently does.
+  **WHAT IS ACTUALLY LEFT:** decide whether `respond` stays on at ship or joins the rest at off.
+  **THIS IS WHY A FOURTH AND FIFTH PRIORITY POINT ARE AFFORDABLE.** Upkeep and Clean-up — **built
+  2026-09-11; this line said "still owed by step 20" until 2026-09-15** — would each add a stop on every
+  round at a prompt-everything default, which was the main argument against them; defaulted off, they cost
+  nothing a player did not ask for. Decide the default BEFORE measuring how the windows feel, or the
+  measurement is of the dev setting.
+  **THE HALF TO GET RIGHT IS WHAT "OFF" MEANS, AND IT IS ALREADY WRITTEN DOWN**: unchecked must mean *the
+  window still opens and you pass automatically* — never *the card becomes uncastable*. That distinction
+  cost a real bug once (a notification preference deciding legality) and the reader's own footnote states
+  it; a flipped default makes it load-bearing for every card instead of a few.
+  **AND THE SUITES ENCODE TODAY'S DEFAULT** — `prompttest` asserts "the DEFAULTS are today's experience",
+  so flipping it is a product change AND a suite change, in one commit.
+
+- `ready to build`      · **TWO PROMPT-TIMING ROWS ARE MISLABELLED, AND A SIXTH ROW IS MISSING (Aj, from live play, 2026-09-15).**
+  `PROMPT_TIMINGS` has five rows and the engine has five matching windows; the *names* on two of them
+  describe something other than when they fire.
+  | id | label today | when it actually fires | should read |
+  | --- | --- | --- | --- |
+  | `respond` | When a Technique is cast | a cast in the Main Sub-Phase | ✓ |
+  | `upkeep` | At the start of a round | Upkeep | ✓ |
+  | `prefight` | Before a fight — yours or a rival's | the Main → Fight transition | ✓ |
+  | `resolution` | *When shields are about to break* | **before** the Resolution Sub-Phase | **Before resolution** |
+  | `cleanup` | *At the end of a round* | the **beginning** of Clean-up | **Before clean-up** |
+  So `cleanup` is "before clean-up" wearing "end of a round"'s name, and `resolution` is named for one
+  consequence of the window rather than for the boundary it sits on — which is what made a missing shield
+  prompt read as a missing *feature* rather than a preference the player had never knowingly set.
+  **THE SIXTH IS THE END OF CLEAN-UP, and it follows from the general rule rather than being an addition**
+  (Aj: *"priority always is passed around when phases and sub-phases change… you'll notice that my
+  parenthesis all referenced the end of something"*). `PHASES-AND-PRIORITY.md` §3 enumerates five points;
+  the rule it states is broader than its own list, and the end of the Clean-up Phase — before the next
+  Beginning Phase — is the one the list omits. **§3's enumeration grows to six when this lands**; it is
+  deliberately unchanged for now, so the spec does not describe an unbuilt window.
+  **IT IS ITS OWN WINDOW, NOT THE UPKEEP ONE (Aj, 2026-09-16, asked and answered).** The engine opens
+  exactly FOUR phase windows — `st.toPlay` (Main → Fight), `st.resolution` (before Resolution),
+  `st.cleanup` (the **beginning** of Clean-up, opened in `finishRoundWin` before `runCleanupEvents`) and
+  `st.upkeep` (the Beginning Phase) — so this is a fifth, and it sits between the last two. The order it
+  lands in: clean-up dance -> clean-up events -> The Stack drains -> **END-OF-CLEAN-UP DANCE** -> the
+  round boundary -> Beginning Phase -> the Upkeep ticks are pushed -> upkeep dance. **So the ticks move
+  again**: `finishCleanup` already owes them rather than pushing them (`st.upkeepTicks`, fixed the same
+  day), and that debt must now be paid AFTER the new window rather than at the first `openResponseWindow`
+  with an empty stack — otherwise the new dance answers a stack that already holds the next round's
+  triggers, which is the exact mis-ordering that fix removed.
+  **IT IS ADJACENT TO UPKEEP AND THAT IS ACCEPTED, NOT OVERLOOKED.** Aj: *"some of these can get tiring
+  especially having the before clean up and end of round when you have nothing to do. but that is really
+  how the cookie crumbles. people will be thankful they can uncheck it."* The two are genuinely different
+  moments — the round boundary sits between them, so a card cast at the end of Clean-up resolves BEFORE the
+  draw and one cast at Upkeep resolves after.
+  **THE IDS ARE STORED PREFERENCES, SO A RELABEL IS FREE AND A RE-KEY IS NOT.** `promptPrefs` is keyed by
+  timing id in `localStorage`; `PROMPT_TIMINGS` is explicitly "a list the reader renders from", so the
+  labels are presentation. Changing `cleanup`'s *id* would orphan saved preferences the way `fightend` did
+  and would need the same migration — rename the labels, leave the keys alone.
+
+- `ready to build`      · **THE TUTORIALS STILL DO NOT TEACH THE BOUNDARY WINDOWS (the rest of #6, after 2026-09-16).** The
   two-state Fight and the Main-only activation rule are taught now, and all eleven suites are green. What
   is still missing is the model itself: **priority is passed at every phase and sub-phase change**, and no
   lesson says so. A player learns to press Next and Fight without learning WHY there is a crossing.
@@ -843,7 +874,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Tooling
 
-- **`lessontest_forms` blew a THIRTY-SECOND poll once under `-j 4` — and 30s is not slowness, it is a dead end**
+- `needs a repro`       · **`lessontest_forms` blew a THIRTY-SECOND poll once under `-j 4` — and 30s is not slowness, it is a dead end**
   (2026-09-07). `⏱ poll TIMED OUT after 30000ms: the Q is spotlit`, in a sweep. **Not reproducible on demand
   and not attributable:** 3/3 alone, **4/4 in parallel on that build AND 4/4 in parallel on `main`**, and the
   change it appeared under does not touch the lesson path (lessons launch by clicking a `.lessonRow`; the dice
@@ -860,7 +891,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   spotlight-selector problem). Right now a red run cannot tell you which, which is the whole reason this entry
   exists rather than a fix. Make the suite self-diagnosing; do not write a bespoke probe.
 
-- **`landscapetest`'s ↓ New log assertion is INTERMITTENT — 2 failures in 26 runs (2026-09-04), and it has a
+- `needs a repro`       · **`landscapetest`'s ↓ New log assertion is INTERMITTENT — 2 failures in 26 runs (2026-09-04), and it has a
   fixed wait in it.** Seen only while building v1.31.104: **0/6 on v1.31.103, 2/10 on an intermediate build,
   0/10 on the shipped one**, so it is rare and NOT attributable to the icon row. Deliberately left unfixed:
   there is no reproduction on the current build to verify a fix against, and changing a suite on a hunch is how
@@ -879,7 +910,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Features
 
-- **A NETPLAY CLIENT STILL PAYS TWO PRESSES TO FIGHT (2026-09-16).** One press now fights from the Main
+- `ready to build`      · **A NETPLAY CLIENT STILL PAYS TWO PRESSES TO FIGHT (2026-09-16).** One press now fights from the Main
   Sub-Phase on every LOCAL seat — solo, local multiplayer, and the netplay host's own seat — but `doFight`
   returns early for a client, which sends `toFight`, waits for the mirror, and presses again.
   **THE LABEL IS HONEST ABOUT IT**, and that is load-bearing rather than cosmetic: the button reads `Next`
@@ -891,7 +922,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   if the board moved, which is `stopIfActed` over the wire with no local `stackMark` to read. That is
   netplay behaviour unverifiable without two devices, and a mis-fire spends the player's cards.
 
-- **THREE RTC SUITES ARE RED ON THE EPIC, AND IT IS NOT TODAY'S WORK (measured 2026-09-16).**
+- `needs a repro`       · **THREE RTC SUITES ARE RED ON THE EPIC, AND IT IS NOT TODAY'S WORK (measured 2026-09-16).**
   `nettest_rtc3` (8/2, `maxRound=1`, clients never act), `nettest_sync` (a real divergence: client sees 6
   cards, host holds 5) and `nettest_lobbyback_rtc` (dealing never completes). **A/B'd against the epic with
   the day's changes stashed: all three fail there too** — `rtc3` identically, and the other two *worse*
@@ -902,7 +933,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   they stay red, `nettest_sync`'s divergence is the one to chase, because that suite exists to catch
   exactly the host/client fork it is now reporting.
 
-- **THE NARROWEST PHONES STILL HAVE 34px TOUCH TARGETS, AND THE ACTION ROW IS WHY (measured 2026-09-16,
+- `needs a decision`    · **THE NARROWEST PHONES STILL HAVE 34px TOUCH TARGETS, AND THE ACTION ROW IS WHY (measured 2026-09-16,
   while fixing the rest).** Everything from 360px up now gets 44px-tall icon buttons and a widened 🔍/⚡
   channel; **at ≤340px nothing changed**, because the row cannot afford it on either axis — the `@media
   (max-width:480px)` block already records it as **2px over budget at 327px**, and `landscapetest`'s
@@ -916,7 +947,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   state it reports*, and a glyph cannot say "Straights". A rotating one-word label, or moving Sort out of
   the action row entirely, are the two shapes worth costing — both are design calls, not tuning.
 
-- **THE RESPOND WINDOW OFFERS DUPLICATE BUTTONS FOR INTERCHANGEABLE COPIES** (Aj, 2026-09-11, screenshot).
+- `ready to build`      · **THE RESPOND WINDOW OFFERS DUPLICATE BUTTONS FOR INTERCHANGEABLE COPIES** (Aj, 2026-09-11, screenshot).
   Holding TWO Counter Spells against two legal targets renders **four** buttons, of which two pairs are the
   same play — which physical copy leaves your hand changes nothing. The loop in `promptHumanResponse` is
   `eligible.forEach(card) × ctgts.forEach(target)`, i.e. one button per card INSTANCE.
@@ -927,7 +958,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   non-counter branch, so a player holding two Leylines gets two identical buttons there too — unverified,
   but it follows from the same line.
 
-- **★ A STACK VISUALISER, AND IT BELONGS WITH THE ENTRY BELOW** (Aj, 2026-09-11: *"not elegant but it works
+- `needs a decision`    · **★ A STACK VISUALISER, AND IT BELONGS WITH THE ENTRY BELOW** (Aj, 2026-09-11: *"not elegant but it works
   haha i think we need to overhaul this with a stack visualizer in the future"*). The priority window
   currently DESCRIBES the stack in prose on a button — *"counter Holy Bow (Adell)"* — when the stack is the
   one piece of state a player most needs to see laid out, and the epic makes it deeper than it has ever
@@ -936,7 +967,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   two together — a visualiser plus in-hand highlighting IS the replacement for the modal, and shipping one
   without the other leaves the prose half in place.
 
-- **★ REPLACE THE PER-CARD PRIORITY MODAL WITH "PAUSE AND HIGHLIGHT THE CASTABLE QUICKS IN HAND"** (Aj,
+- `needs a decision`    · **★ REPLACE THE PER-CARD PRIORITY MODAL WITH "PAUSE AND HIGHLIGHT THE CASTABLE QUICKS IN HAND"** (Aj,
   2026-09-10, and **explicitly postponed until the epic is done**: *"can we redesign? instead of having a
   modal for each card... can we just like pause the game and highlight the castable quicks? change of
   design i know so we could just postpone this to another feat when the epic is done"*).
@@ -954,7 +985,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   presentation under them would make both changes harder to reason about and impossible to revert
   separately.
 
-- **OPEN THE BATTLE LOG AS AN OVERLAY, like the 🔍 View card reader** (Aj, 2026-08-31: *"i think for the logs,
+- `ready to build`      · **OPEN THE BATTLE LOG AS AN OVERLAY, like the 🔍 View card reader** (Aj, 2026-08-31: *"i think for the logs,
   we can open it like how we do the view card? but slightly transparent?"* — agreed at the time and, like the 2s
   tutorial, **never filed; caught 2026-09-01 when he asked what else was missing**).
   **This is NOT the scrolling bug.** v1.31.59 stopped a long log evicting the hand, which fixed the symptom he
@@ -967,7 +998,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   `--zNetroot`-derived family, never a bare z-index — and **DOM presence is not visibility**, so assert it with
   `elementFromPoint`, not by reading `textContent`.
 
-- **THE FAMILY-SHAPE PROGRAMME IS ESSENTIALLY COMPLETE. One cheap piece is left.** (Rewritten 2026-08-31: the
+- `ready to build`      · **THE FAMILY-SHAPE PROGRAMME IS ESSENTIALLY COMPLETE. One cheap piece is left.** (Rewritten 2026-08-31: the
   original entry listed eleven sub-items and **ten had shipped**, including all four it called "still missing
   and NOT yet wanted" — trio+single, four+two, airplane and variable-length straights all landed in v1.31.39.
   Kits v1.31.24-26, Quadro v1.31.29, the chop v1.31.33, chop-strips v1.31.38, tooltips v1.31.35, bulk actions
@@ -982,7 +1013,8 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   measure with `mpsim`/`rulesim` expecting **options, not tempo** — eight rules in a row have left pacing
   untouched. Also check the wide panel still fits at 1512×945; there is no slack left.
   Why FLUSH will never be one of them is in [`DECISIONS.md`](DECISIONS.md#balance).
-- **Rogue "slash": an on-demand card that LOWERS the current pile's value** (Aj, 2026-08-25 — filed for when
+
+- `parked`              · **Rogue "slash": an on-demand card that LOWERS the current pile's value** (Aj, 2026-08-25 — filed for when
   Rogue needs a boost in balancing; nothing built). Distinct from Caltrops, which is a standing `oppDelta`
   debuff on opponents' cards. Aj's example: the pile is a boosted pair of 4s at effective 6 and you hold a pair
   of 5s; a "slash 2" drops the pile to 4 and your 5s become legal. **The engine already has the hook** —
@@ -992,7 +1024,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   including the correction to an earlier claim about Rogue. Do not re-derive it, and do not copy its numbers
   back here. **What is open is only the card:** cost, whether it is a Quick, and how much it slashes.
 
-- **A count-up "charge" CLASS** (Aj, 2026-08-25 — his current lean; nothing built). Full analysis in
+- `parked`              · **A count-up "charge" CLASS** (Aj, 2026-08-25 — his current lean; nothing built). Full analysis in
   **[`docs/COUNT-UP-DESIGN.md`](COUNT-UP-DESIGN.md)**, which came out of his brother asking why the game has
   shields at all and proposing "Kick Coins" — a count-up replacing them wholesale. Aj's landing point: not a
   rules overhaul, **one class whose schtick is counting up**.
@@ -1006,7 +1038,8 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
     (the v1.31.0 fix, mirrored).
   - The one objection that *did* survive: the **leader-snowball is worse under coins**, because a win advances
     only the winner where a shield hit damages everyone, and initiative is already 1.8x concentrated.
-- **A SHIELD GAIN AS A GUARD IS PARKED on `exp/shield-gain-guard`** (2026-09-10). `exp/` and not `parked/`:
+
+- `parked`              · **A SHIELD GAIN AS A GUARD IS PARKED on `exp/shield-gain-guard`** (2026-09-10). `exp/` and not `parked/`:
   the table reserves `parked/` for work that is **built, green** and deliberately unmerged, and this is an
   unreviewed stash that has never been run — and it may well be reverted, which is what `exp/` is for. Widens `guardEffFor`
   to admit a card that GAINS a shield, so Hector's Sanctuary — a Quick by the Form, but granting no
@@ -1029,7 +1062,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   Reproduce the failure by applying the patch on `epic/priority-windows` and running `node shadowtest.js`
   (the suite does not exist on `main`, so running it on this branch proves nothing).
 
-- **QR SCANNING IS BUILT, GREEN, AND PARKED on `feat/qr-scanning`** (PR #29, closed 2026-08-25, 21/0).
+- `parked`              · **QR SCANNING IS BUILT, GREEN, AND PARKED on `feat/qr-scanning`** (PR #29, closed 2026-08-25, 21/0).
   **Why it is not merged:** scanning needs an origin that can be granted camera access, and a file opened from
   Android's Downloads is `content://` — an opaque origin — so Chrome rejects `getUserMedia` without ever
   prompting. **MEASURED AND SETTLED 2026-08-28:** the same file over **https is GRANTED** with a live preview.
@@ -1039,7 +1072,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Balance and design
 
-- **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
+- `needs a measurement` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
   corners.** Median **11 (2p) → 15 → 22 → 33 (6p)** live; the engine's own defaults hold it flat at ~10. The
   measurement, and why you must NOT simply flip to `all`+`universal`, are settled in
   [`DECISIONS.md`](DECISIONS.md#game-length).
@@ -1055,7 +1088,7 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   length fix and a cycling measurement want the same harness and the same runs — see the `setRecycleTech`
   entry above for the full trace, including the untested ♦-dominance lead.
 
-- **The "outbid" pass model for the AI** (Aj — parked 2026-08-24, may come back). The AI currently picks the
+- `parked`              · **The "outbid" pass model for the AI** (Aj — parked 2026-08-24, may come back). The AI currently picks the
   *lowest safe single* to contest a jab, and never asks *"will this card even survive five opponents?"* Aj's
   reason #3 for passing was exactly that: middling values get outbid, so spending them is waste. Unlike the
   shipped hand-size heuristic (measured inert in multiplayer, see the note below) this signal **gets stronger
@@ -1066,16 +1099,18 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
     takes a tier argument for exactly this.
   - Implement as a third `setStratPassMode('outbid')` beside `'hand'` and `'combo'` so all three stay
     comparable in one harness.
-- **A gacha-style storyline** (Aj, idea — parked, ahead of netplay AI in the queue, not designed). Nothing
+
+- `parked`              · **A gacha-style storyline** (Aj, idea — parked, ahead of netplay AI in the queue, not designed). Nothing
   specified yet. Worth noting that **v1.30.0 just built the substrate for it by accident**: a roster of 32
   named characters, grouped into five tiers, each with a distinct play style and a name that already flows
   through the whole naming funnel. A collection/progression layer has something to collect now.
 
-- **Suit ≠ class — future direction** (Aj, design intent, not yet built): the current 1:1 map (♦ Wizard,
+- `parked`              · **Suit ≠ class — future direction** (Aj, design intent, not yet built): the current 1:1 map (♦ Wizard,
   ♥ Cleric, ♣ Fighter, ♠ Rogue) is temporary. There will stay **only 4 suits**, but eventually **more than one
   class per suit**, and **hybrid classes** — e.g. an **assassin** that is *both* Fighter and Rogue, with **its
   own card set** (it does NOT reuse the pure Fighter or pure Rogue cards). This is also the natural home for a
   real **draw engine**, which is what would make the reorderable energy pile matter in more than the ~39% of
   games that currently reach a reshuffle (`node recyclesim.js`).
-- **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
+
+- `parked`              · **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.

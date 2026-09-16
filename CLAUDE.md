@@ -1876,7 +1876,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 524, `netview` 65, `mptest` 93, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 33, `lessontest_quicks` 21, `lessontest_howto` 25,
+`versiontest` 32, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 33, `lessontest_quicks` 21, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2550,6 +2550,21 @@ definition, so it cannot delete them.
 - **WHICH DOC A THING GOES IN is a rule, not a preference — see the routing table under Conventions.** The
   short form: BACKLOG = someone should do it · `DECISIONS.md` = nobody should redo it · this file = work
   differently · changelog = what shipped.
+- **EVERY BACKLOG ENTRY CARRIES ONE STATUS TAG, AND `versiontest` ASSERTS BOTH HALVES (2026-09-16).** Six
+  tags, closed set, defined in a legend at the top of the BACKLOG: `needs a repro` · `root cause found` ·
+  `ready to build` · `needs a decision` · `needs a measurement` · `parked`. They answer *what does this need
+  NEXT*, which is the one fact a reader reconstructs by reading a whole entry — and at 55 entries and ~900
+  lines, that reconstruction is what stops happening. **The trigger was a live confusion**: an entry whose
+  root cause was found and written down got relayed to Aj as "needs two devices", from memory, because the
+  answer was on line 19 of 24. The prose was not ambiguous; it simply was not re-read.
+  **SO THE POINT IS NOT PRECISION, IT IS THAT A CLOSED SET IS CHECKABLE** — free prose can only be read
+  carefully, and this file's own rule is that the only duplication which survives here is the ASSERTED kind.
+  Both directions are gated: an untagged entry is invisible to whoever is planning, and an invented tag forks
+  the vocabulary the way `feature/` and `feat/` did. **Adding a seventh tag means editing `TAGS` in
+  `versiontest.js` AND the legend, in one commit** — the same by-agreement-never-by-surprise rule the branch
+  prefixes carry.
+  **A TAG IS A CLAIM AND ROTS LIKE ANY OTHER.** `root cause found` on an entry whose diagnosis was never
+  written into the body is this exact failure wearing a tag; re-read the tag whenever you touch the entry.
 - `docs/NEXT-SESSION.md` — **start here**: build/test header, START HERE, and the RANKED backlog (open work
   only). 6,061 lines → 293 when the changelog was split out on 2026-09-07.
 - `docs/CHANGELOG.md` — what shipped and why, newest first. Append-only history; nobody actions it, which is
