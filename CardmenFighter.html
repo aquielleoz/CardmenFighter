@@ -8199,7 +8199,12 @@ window.CardFace = {};
     $('roundTag').textContent='Round '+state.round;
     if(!state.finished){ if(state.turn===YOU && prevTurn!==YOU && prevTurn!==null) SFX.play('turnStart'); prevTurn=state.turn; }   // gentle chime when control returns to you
     var pileEl=$('pile');
-    var sig=state.pile ? (state.pile.byPlayer+'|'+state.pile.combo.cards.map(function(c){return c.id;}).join(',')) : '';
+    /* THE EMPTY SIGNATURE CARRIES THE TURN, or the new hint below can never repaint (2026-09-16). This
+       block rebuilds only when the pile CHANGES, which was right while the empty state said one fixed
+       thing — but the hint now names whose lead it is, and an empty pile whose TURN moved is exactly the
+       transition it has to show. Caught by a probe reading the line in both states and getting the same
+       answer twice, which is what a stale signature looks like from outside. */
+    var sig=state.pile ? (state.pile.byPlayer+'|'+state.pile.combo.cards.map(function(c){return c.id;}).join(',')) : ('empty|'+state.turn);
     if(sig!==pileSig){                          // only rebuild + animate when the pile actually changes
       var prevData=lastPileData, prevOwner=lastPileOwner;
       var oldRectById={};                       // capture the outgoing pile's on-screen positions
@@ -8209,7 +8214,17 @@ window.CardFace = {};
       if(state.pile){
         state.pile.combo.cards.forEach(function(c){ var pc=cardEl(c,'sm'); pc.addEventListener('mouseenter', function(){ showCard(c); }); pileEl.appendChild(pc); });
       } else {
-        pileEl.innerHTML='<span class="empty">Fight is open — lead a card</span>';
+        /* AN EMPTY PILE IS NOT AN INVITATION TO EVERYONE (Aj, from live play, 2026-09-16: *"it says fight
+           is open - lead a card even when it's the other player's turn to lead"*). The old line keyed off
+           `state.pile` alone, so the one moment it is guaranteed to render — the start of a round, before
+           anybody has led — showed every seat an instruction only ONE of them can follow.
+           NAME THE SEAT THROUGH `logName`, like every other label in the game, so a duel opponent reads as
+           "Rival" and a netplay client reads its rotated mirror correctly with no rotation logic here.
+           "to lead" RATHER THAN "leads", because a placeholder's number is not known when the string is
+           written — the rule the narration templates keep relearning. This one is rendered locally rather
+           than broadcast, so it is not strictly bound by it; matching the house habit costs nothing and
+           stops the next reader wondering whether it was an oversight. */
+        pileEl.innerHTML='<span class="empty">Fight is open — '+(state.turn===YOU ? 'lead a card' : esc(logName(state.turn))+' to lead')+'</span>';
       }
       if(state.pile && pileSig!==null) SFX.play(state.pile.combo.size>1?'special':'jab');   // a new play hit the table (either side); skip the very first paint (pileSig starts null)
       lastPileData=state.pile ? state.pile.combo.cards.map(function(c){return {id:c.id,rank:c.rank,suit:c.suit};}) : [];
