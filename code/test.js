@@ -2520,5 +2520,42 @@ function cards(ids) { return ids.map(card); }
      'and the round end still completed or parked properly rather than stalling (round ' + g.round + ')');
 })();
 
+/* THE CLEAN-UP PHASE HAS ITS OWN EVENTS, AND THEY ARE NOW A QUEUE (Aj, 2026-09-16: *"clean up phase also
+   has it's own Clean up events like Resolution does. Like the end of round effects clear here. The pile
+   gets cleared here. It can be queued or stacked, but again not The Stack."*).
+   THIS ASSERTS THE EVENTS, WHICH NOTHING DID BEFORE. They used to be seven statements inline in
+   `finishCleanup` and the round boundary was only ever tested through its side effects, one at a time and
+   incidentally. Naming them is the change — a trigger cannot hang off a paragraph — so the set is
+   asserted as a set, and then each one is asserted to have actually happened. */
+(function () {
+  function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  var order = E.cleanupOrder();
+  ok(order.indexOf('pileClear') >= 0 && order.indexOf('expire') >= 0,
+     'the two events Aj named are in the enumeration — pileClear and expire (' + order.join(' → ') + ')');
+  ok(order.indexOf('roundAdvance') < order.indexOf('stampRound'),
+     'the round advances BEFORE the result is stamped with it, or `newRound` reports the old round');
+
+  var g = E.newGame(null, { numPlayers: 2 });
+  g.players[0].hand = [sc(7, 'D', 'a'), sc(7, 'H', 'b')];
+  g.players[1].hand = [sc(4, 'S', 'd')];
+  g.turn = 0; g.round = 3; g.pile = null; g.lastPlayer = null; g.passes = 0;
+  /* Stage one instance of each thing a clean-up event is supposed to end, so "it cleared" is a real
+     transition and not a field that was already falsy. */
+  g.players[0].nextPlayBoost = 5; g.players[1].shieldImmune = true; g.players[1].lockRound = true;
+  g.players[0].equipment.push({ id: 'eq1', name: 'Test Equip', counters: 2, usedThisRound: true, card: sc(8, 'D', 'eqc') });
+  g.players[0].hand.push(sc(5, 'C', 'ghost'));
+  g.players[0].hand[g.players[0].hand.length - 1].temp = true;      // a Counterfeit illusion, due to fade
+  E.play(g, 0, [g.players[0].hand[0], g.players[0].hand[1]]);
+  E.pass(g, 1);
+
+  ok(g.round === 4, 'roundAdvance ran — the round moved 3 → ' + g.round);
+  ok(g.pile === null && g.passes === 0 && g.lastPlayer === null, 'pileClear ran — the pile is gone and the pass count is reset');
+  ok(g.players[0].nextPlayBoost === 0 && g.players[1].shieldImmune === false && g.players[1].lockRound === false,
+     'expire ran — the pre-fight boost, the immunity and the whole-round lock all ended with the round');
+  ok(g.players[0].equipment[0].usedThisRound === false, 'equipReset ran — equipment may be used again next round');
+  ok(!g.players[0].hand.some(function (c) { return c.temp; }), 'temps ran — the illusion card faded');
+  ok((g.cleanupQueue || []).length === 0, 'and the queue drained completely — nothing is left half-run');
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

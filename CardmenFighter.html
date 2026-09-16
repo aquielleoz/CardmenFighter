@@ -4398,28 +4398,63 @@
     return result;
   }
   /* Everything the round end does, deferred until the Clean-up go-round closes. */
-  function finishCleanup(st, result) {
-    var winner = result.roundWinner;
-    st.round += 1;
+  /* THE CLEAN-UP EVENTS ARE A QUEUE, NOT A PARAGRAPH (Aj, 2026-09-16: *"clean up phase also has it's own
+     Clean up events like Resolution does. Like the end of round effects clear here. The pile gets cleared
+     here. It can be queued or stacked, but again not The Stack."*).
+     WHAT CHANGED IS THE SHAPE, NOT THE WORK. Every event below is the same statement that used to sit
+     inline in `finishCleanup`, in the same order — the point is that they are now NAMED and ENUMERABLE, so
+     a card can eventually trigger off "the pile was cleared" or "round-long effects expired" the way the
+     model says it should. Straight-line prose has nothing to attach a trigger to.
+     THE ORDER IS LOAD-BEARING AND IS PROVEN, NOT ASSERTED: the round must advance before `newRound` is
+     stamped, and initiative must be handed over before the pile is dropped (the fizzle branch reads
+     `st.initiative`, and `resolveRoundWin` has already set `st.subPhase`). The seeded fingerprint is what
+     proves the extraction preserved it — a reordering here is exactly the kind a "pure refactor" hides.
+     NOT THE STACK, AND UNINTERRUPTED — the same discipline as `driveShieldStack`: `runCleanupEvents` is a
+     plain drain with no priority check in it, so anything a clean-up event pushes onto The Stack has to
+     wait for the whole queue. That is Aj's rule, and here it is structural rather than enforced.
+     ⚠ THE SECOND HALF IS NOT BUILT: *"after those finish, we can then proceed to addressing The Stack
+     again"* — a trigger pushed by a clean-up event would currently sit UNDER the Upkeep ticks that
+     `finishCleanup` pushes next, and so resolve after them rather than before the Beginning Phase. No card
+     can push one yet, so nothing is wrong today; the BACKLOG carries it. */
+  var CLEANUP_EVENTS = {
+    roundAdvance: function (st) { st.round += 1; },
     /* A FIZZLED ROUND HAS NO WINNER, so it cannot hand out initiative — see `pass`. Everything else a round
        end does still has to happen, and the locks clearing is the whole point: that is what unsticks the
        table. Initiative simply stays where it was, moving on only if that seat has since been eliminated. */
-    if (winner == null) {
-      if (!st.players[st.initiative] || st.players[st.initiative].eliminated) st.initiative = nextPlayer(st, st.initiative);
-      st.turn = st.initiative;
-    } else { st.initiative = winner; st.turn = winner; }
-    st.lastPlayer = null; st.pile = null; st.passes = 0; st._effUsed = false;
-    st.players.forEach(function (pl) { pl.preventShield = false; pl.nextPlayBoost = 0; pl.shieldImmune = false; pl.cantLoseRound = false; pl.finishingBlow = false; pl.lockRound = false; }); // GUARD, pre-fight boost, immunity, can't-lose, Finishing Blow, and a whole-round lock all last only their round
+    initiative: function (st, result) {
+      var winner = result.roundWinner;
+      if (winner == null) {
+        if (!st.players[st.initiative] || st.players[st.initiative].eliminated) st.initiative = nextPlayer(st, st.initiative);
+        st.turn = st.initiative;
+      } else { st.initiative = winner; st.turn = winner; }
+    },
+    pileClear: function (st) { st.lastPlayer = null; st.pile = null; st.passes = 0; st._effUsed = false; },
+    expire: function (st) { st.players.forEach(function (pl) { pl.preventShield = false; pl.nextPlayBoost = 0; pl.shieldImmune = false; pl.cantLoseRound = false; pl.finishingBlow = false; pl.lockRound = false; }); }, // GUARD, pre-fight boost, immunity, can't-lose, Finishing Blow, and a whole-round lock all last only their round
     /* THE ONCE-PER-ROUND RESET IS NOT A TRIGGER — it is bookkeeping nobody can respond to, so it stays
        immediate. The DECAY moved out: it is now a triggered ability that goes on the Upkeep stack, which
-       is what `pushUpkeepTicks` does once the round reset below is complete. */
-    st.players.forEach(function (pl) { pl.equipment.forEach(function (e) { e.usedThisRound = false; }); });
-    st.players.forEach(function (pl) {                               // Counterfeit copies are illusions: any temp card still around fades at round's end
-      var real = function (c) { return !c.temp; };
-      pl.hand = pl.hand.filter(real); pl.energy = pl.energy.filter(real);
-      pl.deck = pl.deck.filter(real); pl.shuffle = pl.shuffle.filter(real); pl.removed = pl.removed.filter(real);
-    });
-    result.newRound = st.round;
+       is what `pushUpkeepTicks` does once the round reset is complete. */
+    equipReset: function (st) { st.players.forEach(function (pl) { pl.equipment.forEach(function (e) { e.usedThisRound = false; }); }); },
+    temps: function (st) {                                           // Counterfeit copies are illusions: any temp card still around fades at round's end
+      st.players.forEach(function (pl) {
+        var real = function (c) { return !c.temp; };
+        pl.hand = pl.hand.filter(real); pl.energy = pl.energy.filter(real);
+        pl.deck = pl.deck.filter(real); pl.shuffle = pl.shuffle.filter(real); pl.removed = pl.removed.filter(real);
+      });
+    },
+    stampRound: function (st, result) { result.newRound = st.round; }
+  };
+  var CLEANUP_ORDER = ['roundAdvance', 'initiative', 'pileClear', 'expire', 'equipReset', 'temps', 'stampRound'];
+  function cleanupEventsFor(st, result) { return CLEANUP_ORDER.slice(); }
+  function runCleanupEvents(st, result) {
+    st.cleanupQueue = cleanupEventsFor(st, result);
+    while (st.cleanupQueue.length) {
+      var name = st.cleanupQueue.shift();                            // FIFO: clean-up is a sequence, not a LIFO stack
+      var fn = CLEANUP_EVENTS[name];
+      if (fn) fn(st, result);
+    }
+  }
+  function finishCleanup(st, result) {
+    runCleanupEvents(st, result);
     /* THE BEGINNING PHASE — UPKEEP IS A REAL PRIORITY POINT (epic step 20; Aj ruled it 2026-09-11 against
        the alternative of a hook that can never fire). `PHASES-AND-PRIORITY.md` §3:
          "**Upkeep Sub-Phase.** Triggered abilities that say *"at the beginning of your upkeep"* are put on
@@ -4531,6 +4566,10 @@
        `immune || shieldImmune`, which is the miss v1.31.112 fixed. */
     immunityEffFor: immunityEffFor,
     lossAnswerFor: lossAnswerFor,
+    /* The Clean-up events, in the order they run. Exported because NAMING them is the point of the queue —
+       a trigger that wants to fire on "the pile was cleared" needs something to name, and a test needs to
+       be able to see the set rather than infer it from side effects. */
+    cleanupOrder: function () { return CLEANUP_ORDER.slice(); },
     DECKS: DECKS, DECK_ORDER: DECK_ORDER, BASE_SUIT: BASE_SUIT, buildDeck: buildDeck,
     PARTS_TOTAL: PARTS_TOTAL, PARTS_SUITS: PARTS_SUITS, PARTS_PREFIX: PARTS_PREFIX,
     partsCount: partsCount, partsValid: partsValid, partsKey: partsKey, parseParts: parseParts,

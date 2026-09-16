@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**512**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**520**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -658,6 +658,27 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   **AND SOLO IS NOW MEASURED CLEAN, which sharpens the netplay reading:** 0 duplicate resolutions across 12
   full duels in the real page, both declining and casting into every window. Whatever drives the second
   resolution is not reachable by the solo driver.
+
+- **A CLEAN-UP TRIGGER WOULD RESOLVE ONE PHASE TOO LATE (the unbuilt half of Aj's 2026-09-16 model).** He
+  stated the order in full: *"after those finish, we can then proceed to addressing The Stack again. and
+  when that empties, there's still one more round of priority dancing as phases change."* The Resolution
+  side of that landed; the Clean-up side did not.
+  **THE GAP IS EXACTLY ONE HOP.** `finishCleanup` drains its event queue and then, in the same breath,
+  sets `st.upkeep`, calls `pushUpkeepTicks` and opens the window — so anything a clean-up event pushed
+  onto The Stack sits UNDERNEATH the Upkeep ticks and, The Stack being LIFO, resolves *after* them. Per
+  the model it should resolve BEFORE the Beginning Phase begins at all.
+  **NOTHING IS WRONG TODAY and that is the only reason this is filed rather than fixed:** no clean-up
+  event pushes a trigger, and the engine has exactly ONE trigger site in total (the upkeep tick). The
+  defect is unreachable until the first card triggers off a clean-up event — at which point it is a
+  silent mis-ordering, not an error.
+  **THE SHAPE OF THE FIX is the one the Resolution side already uses**: park a continuation the way
+  `st.upkeep`/`upkeepResult` and `st.cleanup`/`cleanupResult` do, let `openResponseWindow` drain The Stack,
+  and only then push the ticks and open Upkeep. Do NOT inline a second drain — the whole reason the
+  Resolution ordering came out clean is that `openResponseWindow` already owns "resolve The Stack, then
+  the phase branch", and restating it is how the two definitions drift.
+  **AND THE EVENTS ARE NAMED NOW, WHICH IS WHAT MAKES THE TRIGGER BUILDABLE AT ALL:** `E.cleanupOrder()`
+  returns `roundAdvance → initiative → pileClear → expire → equipReset → temps → stampRound`, so a card
+  reading *"whenever the pile is cleared…"* has something to name.
 
 - **A CLIENT COULD ACT WHILE ANOTHER SEAT HAD A MODAL UP (Aj, 2026-09-16: *"we really need that guard when
   somebody has a modal up. other player could activate stuff while the other players were busy with a
