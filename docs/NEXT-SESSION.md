@@ -572,6 +572,16 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   the rule it states is broader than its own list, and the end of the Clean-up Phase — before the next
   Beginning Phase — is the one the list omits. **§3's enumeration grows to six when this lands**; it is
   deliberately unchanged for now, so the spec does not describe an unbuilt window.
+  **IT IS ITS OWN WINDOW, NOT THE UPKEEP ONE (Aj, 2026-09-16, asked and answered).** The engine opens
+  exactly FOUR phase windows — `st.toPlay` (Main → Fight), `st.resolution` (before Resolution),
+  `st.cleanup` (the **beginning** of Clean-up, opened in `finishRoundWin` before `runCleanupEvents`) and
+  `st.upkeep` (the Beginning Phase) — so this is a fifth, and it sits between the last two. The order it
+  lands in: clean-up dance -> clean-up events -> The Stack drains -> **END-OF-CLEAN-UP DANCE** -> the
+  round boundary -> Beginning Phase -> the Upkeep ticks are pushed -> upkeep dance. **So the ticks move
+  again**: `finishCleanup` already owes them rather than pushing them (`st.upkeepTicks`, fixed the same
+  day), and that debt must now be paid AFTER the new window rather than at the first `openResponseWindow`
+  with an empty stack — otherwise the new dance answers a stack that already holds the next round's
+  triggers, which is the exact mis-ordering that fix removed.
   **IT IS ADJACENT TO UPKEEP AND THAT IS ACCEPTED, NOT OVERLOOKED.** Aj: *"some of these can get tiring
   especially having the before clean up and end of round when you have nothing to do. but that is really
   how the cookie crumbles. people will be thankful they can uncheck it."* The two are genuinely different
