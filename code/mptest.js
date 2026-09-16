@@ -383,6 +383,29 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   ok((await nm(1))===perse[0] && (await nm(2))===perse[1], 'logName() resolves each seat to its persona, so all narration inherits it');
   ok((await nm(0))==='You', '…while you still read as "You" in your own frame');
 
+  /* ---- AN EMPTY PILE NAMES WHOSE LEAD IT IS (Aj, from live play, 2026-09-16) ---- */
+  /* *"it says fight is open - lead a card even when it's the other player's turn to lead"*. The hint keyed
+     off `state.pile` alone, so the one moment it is guaranteed to show — the start of a round, before
+     anybody has led — gave every seat an instruction only ONE of them could follow. It belongs in this
+     file because it is presentation AND naming: it goes through `logName`, so it inherits the persona and
+     the reader-relative frame for free, which is the pair the block above asserts.
+     BOTH DIRECTIONS AND THEN BACK, because the pile renderer rebuilds only when its SIGNATURE changes and
+     the empty signature did not carry the turn — so the first cut of the fix rendered the right words once
+     and then never repainted. A one-way check passes on exactly that build. */
+  const pileTxt=()=>p.evaluate(()=>document.getElementById('pile').textContent.replace(/\s+/g,' ').trim());
+  const setTurn=t=>p.evaluate(x=>{const st=window.__solo.st();st.pile=null;st.turn=x;window.__solo.render();},t);
+  await setTurn(0);
+  const mine=await pileTxt();
+  ok(/lead a card/.test(mine), 'an empty pile on YOUR turn still invites you to lead: "'+mine+'"');
+  await setTurn(1);
+  const theirs=await pileTxt();
+  ok(!/lead a card/.test(theirs) && theirs.indexOf(perse[0])>=0,
+     '…and on a RIVAL\'s turn it names them instead of inviting you: "'+theirs+'"'+
+     (/lead a card/.test(theirs)?'  ← REPRODUCED: every seat is told to lead':''));
+  await setTurn(0);
+  ok(/lead a card/.test(await pileTxt()),
+     '…and it repaints when the turn comes back — the empty signature tracks the turn, not just the cards');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

@@ -657,13 +657,6 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   a guard that blocks Fight during a trim deadlocks the pick. `doFight` currently reaches `confirmPick()`
   via the `pick` branch, which is what keeps them apart today.
 
-- **"Fight is open — lead a card" SHOWS ON THE WRONG SEAT'S TURN (Aj, 2026-09-16).** Reported from live
-  play: the hint invites a lead when it is the OTHER player's turn to lead. Not yet located; the hint is
-  built in `updateActions`, which is also the function that learned about `busy` in v1.31.74 after
-  rendering Fight and Pass enabled for 2014ms while every click was dropped. **Same family — a control or
-  a line of copy describing a state the board is not in** — so check it against `state.turn` and the
-  sub-phase rather than against local flags.
-
 - **ALL SEVEN EMOTES RENDER "You says…" TO THE PERSON WHO SENT THEM (2026-09-15).** `EMOTES` carries a
   present-tense third-person verb in every row — `says hi!`, `says nice play!`, `says yes!`, `says no!`,
   `needs a second…`, `says good game!`, `wants a rematch!` — and `say()` renders `{who}` as **"You"** for
@@ -769,11 +762,29 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   gains (the tutorial's 51ms cast), and a CLIENT does not run `startGame`, so anything reset only there is
   never reset on a client (`resetBoardMemory` is the shared one). Check both before inventing a number.
 
-- **NOTHING ANIMATES WHEN YOU PRESS FIGHT (Aj, 2026-09-16: *"i expected the cards to fly into the play
-  area"*).** Distinct from the entry above and much more concrete: this is the LOCAL seat's own play, and
-  it is the moment the player is most certain something should move. Worth checking against epic step 20,
-  which made Fight a two-state button — the first press only moves Main → Fight and plays nothing, so an
-  animation wired to "Fight was pressed" now fires on a press that legitimately has no cards to fly.
+- **NOTHING ANIMATES WHEN YOU PRESS FIGHT — ROOT CAUSE FOUND, NOT YET FIXED (Aj, 2026-09-16: *"i expected
+  the cards to fly into the play area"*).** `animatePileEntrance` has two branches: a **true FLIP** from
+  the card's own slot in your hand when `flipFrom` holds its rect, and otherwise a generic slide in from a
+  seat's side. `flipFrom` is captured in exactly one place — `playCards` — and **a netplay client returns
+  three lines above it**:
+  ```js
+  if(isNetClient()){ sendClientPlay(cards); return; }   // ← returns here
+  …
+  flipFrom={};                                          // ← never reached on a client
+  ```
+  So on a client your OWN play has no capture, comes back through the host's mirror, and takes the slide.
+  **THIS IS ALMOST CERTAINLY THE "shanked animations" ENTRY ABOVE AS WELL** — same root, stated twice from
+  different angles: a client's plays arrive as mirrors and lose the local context the animation needs.
+  Treat them as one investigation.
+  **THE FIX IS NOT A ONE-LINER, which is why it is filed rather than done.** Capturing `flipFrom` before
+  `sendClientPlay` is the easy half; the hard half is that it must survive a network round-trip and be
+  CLEARED if the host refuses the play, or a stale capture mis-animates the next pile. `flipFrom` is
+  consumed by the next `animatePileEntrance` and nulled — so a refused play currently leaves it set.
+  **AND CHECK `reduceMotion()` FIRST when reproducing**: it returns before any of this and disables the
+  entrance outright, so a phone with Reduce Motion on looks identical to the bug.
+  **RULED OUT — do not re-chase it:** step 20's two-state Fight is NOT the cause. `doFight` calls
+  `playCards` only once `subPhase === 'play'`, so the local path never sees the `transition:'play'`
+  refusal and `flipFrom` survives on a solo board.
 
 - **THE ELEVEN TUTORIALS TEACH A GAME THE EPIC HAS CHANGED (Aj, 2026-09-16: *"we should fix the tutorials
   for the epic for sure (especially after #5)"*).** They are the last place still describing the pre-epic
