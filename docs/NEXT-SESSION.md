@@ -622,6 +622,47 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   argument with `seat` passed as the actor (checked 2026-09-15, after first mis-reading the N-player one
   as unbraked). `nettest_roundstall` and `nettest_clientwin` both pass, so it is not the shape either
   stages.
+  **⚠ IT HAPPENED AGAIN ON 2026-09-16 AND THIS TIME IT KILLED A PLAYER.** Round 12, same signature — the
+  banner twice, no play between, the pile still standing — and the duplicate landed the **FIGHTER KICK**.
+  The player had cast **Sanctuary** that round and it worked: the shield he gained is the one the first
+  resolution took. The duplicate then killed him at 0. So this does not merely cost a shield; it decides
+  games, and it ate a correct defensive play.
+  **THE LEDGER NAMES THE MECHANISM NOW, which the first instance could not.** Round 12 carries **two
+  `MAIN → FIGHT [Pass]` entries** — `auto-advanced`, then `go-round opened` — two `[clean-up]`s and two
+  `FIGHT END`s. That line is written synchronously inside `moveToPlayThen`, so it cannot be a log-ordering
+  artefact: **the Pass ran twice.**
+  **IT IS NETPLAY-ONLY, AND THAT IS MEASURED RATHER THAN ASSUMED.** The doubling seat is the **HOST**, and
+  its trace ends `move IN from seat 1 op=decline q=637` / `op=decline q=640` **70ms apart**, then
+  `endGame`. Two attempts to reproduce it solo in the real page both FAILED — staged with the transition
+  opening a window, and with Aj's exact `auto-advanced` shape — because two synchronous clicks resolve the
+  round exactly once even on the unfixed build: click 1 runs far enough to set `busy` first. **So the
+  re-entry arrives over the WIRE, and a netplay repro is the next step**, not another solo probe.
+  **ONE ASYMMETRY WAS CLOSED ON THE WAY AND IT IS NOT THE FIX** (PR #230): `drainResolution` was the one
+  `settleWindows` hand-off that did not set `busy` first. Real, worth closing, and explicitly NOT shown to
+  cure this. Do not read that commit as having fixed this entry.
+  **AND ONE FIX SHAPE IS ALREADY RULED OUT, MEASURED:** refusing Fight/Pass while `respondFor != null`
+  stalls the board permanently, because `moveToPlayThen`'s settle is what DRAINS the window on some paths.
+  `browsertest` went from 70s to past 400s. Lock the board, never forbid the action.
+
+- **A CLIENT COULD ACT WHILE ANOTHER SEAT HAD A MODAL UP (Aj, 2026-09-16: *"we really need that guard when
+  somebody has a modal up. other player could activate stuff while the other players were busy with a
+  modal"*).** Partly closed and partly unidentified, so both halves are written down.
+  **WHAT IS ALREADY GUARDED:** `activate` refuses on `st.respondFor != null` (since 2026-09-14) and now on
+  `st.subPhase === 'play'` too (#230), and both are ENGINE checks, so a netplay client's intent is refused
+  on the host as well as locally.
+  **WHAT IS NOT:** a modal that is NOT a priority window leaves `respondFor` null — a forced discard
+  (`discardPending`), a clean-up pick (`trimPending`), a target picker. On those, a seat whose turn it is
+  can still act. Which of them Aj hit is unknown; he was asked and the session moved on.
+  **DO NOT BLANKET-GUARD ON `trimPending`** — a clean-up pick is CONFIRMED WITH FIGHT (`nettest_trim`), so
+  a guard that blocks Fight during a trim deadlocks the pick. `doFight` currently reaches `confirmPick()`
+  via the `pick` branch, which is what keeps them apart today.
+
+- **"Fight is open — lead a card" SHOWS ON THE WRONG SEAT'S TURN (Aj, 2026-09-16).** Reported from live
+  play: the hint invites a lead when it is the OTHER player's turn to lead. Not yet located; the hint is
+  built in `updateActions`, which is also the function that learned about `busy` in v1.31.74 after
+  rendering Fight and Pass enabled for 2014ms while every click was dropped. **Same family — a control or
+  a line of copy describing a state the board is not in** — so check it against `state.turn` and the
+  sub-phase rather than against local flags.
 
 - **ALL SEVEN EMOTES RENDER "You says…" TO THE PERSON WHO SENT THEM (2026-09-15).** `EMOTES` carries a
   present-tense third-person verb in every row — `says hi!`, `says nice play!`, `says yes!`, `says no!`,
@@ -720,6 +761,38 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   correctly. This one is the transport's, and phrasing them alike is what makes the relay the first
   suspect — twice now, for the person who built it.
 
+- **THE CLIENT'S ANIMATIONS ARE STILL WRONG, AND "SHANKED" IS ALL WE HAVE (Aj, 2026-09-16: *"animations
+  are still shanked in the client"*).** Reported twice now without a specific frame, so **the first job is
+  to make the report precise** — which beat, which seat, reduced-motion or not — rather than to start
+  changing dwells. Two things already known that a vague animation report usually turns out to be:
+  `buildOppBeats` is the single funnel both drivers use and a bespoke path silently misses whatever it
+  gains (the tutorial's 51ms cast), and a CLIENT does not run `startGame`, so anything reset only there is
+  never reset on a client (`resetBoardMemory` is the shared one). Check both before inventing a number.
+
+- **NOTHING ANIMATES WHEN YOU PRESS FIGHT (Aj, 2026-09-16: *"i expected the cards to fly into the play
+  area"*).** Distinct from the entry above and much more concrete: this is the LOCAL seat's own play, and
+  it is the moment the player is most certain something should move. Worth checking against epic step 20,
+  which made Fight a two-state button — the first press only moves Main → Fight and plays nothing, so an
+  animation wired to "Fight was pressed" now fires on a press that legitimately has no cards to fly.
+
+- **THE ELEVEN TUTORIALS TEACH A GAME THE EPIC HAS CHANGED (Aj, 2026-09-16: *"we should fix the tutorials
+  for the epic for sure (especially after #5)"*).** They are the last place still describing the pre-epic
+  rules, and the *especially* is exact: **#230 made an activation illegal in the Fight Sub-Phase**, so any
+  lesson that activates after moving to Fight now dead-ends on a refusal the step cannot satisfy — the
+  documented worst failure mode here, because a gated step with no legal way forward has no error, no log
+  line and no way to finish.
+  **THE SUITES ARE THE INVENTORY, AND THEY ALREADY PASS, WHICH IS THE WARNING.** All eleven have a suite
+  and the sweep is green, so nothing mechanical will tell you which lessons are now teaching the wrong
+  model. Read each lesson's TEXT against `PHASES-AND-PRIORITY.md` — sub-phase names (Fight Phase → Play
+  Phase, Fight End → Resolution), when you may activate, and the fact that priority is passed at every
+  boundary — and only then look at the rigs.
+  **THE PRIORITY POINTS ARE SUPPRESSED IN LESSONS ON PURPOSE** (`promptWanted` returns false for every
+  non-`respond` timing in `tutorialMode`), so a lesson that wants to TEACH a boundary window is the line
+  it has to argue with. That is a deliberate decision, not an oversight — see the comment there before
+  changing it.
+  **AND `shieldSaveOverride` REPEATS THAT SUPPRESSION** for the same reason; anything new that forces a
+  prompt must too, or it derails a scripted step.
+
 ### Tooling
 
 - **`lessontest_forms` blew a THIRTY-SECOND poll once under `-j 4` — and 30s is not slowness, it is a dead end**
@@ -757,6 +830,21 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   not wipe them before assuming the scroll position is the whole story.
 
 ### Features
+
+- **GREY OUT THE CARDS YOU CANNOT AFFORD IN THE MAIN SUB-PHASE (Aj, 2026-09-16).** *"no need to make them
+  undraggable. the reddening of the play area will tell them they don't have enough energy anyway."* So
+  this is a READABILITY change and explicitly not a new refusal — the affordance stays live and the engine
+  stays the authority. Read affordability with **`E.canAfford`** plus **`E.effectiveCost`**, never
+  `activationCost` alone: the Owl discounts and the Ram taxes the first effect of a turn, so a flat cost
+  greys the wrong cards under a Ride. Scope is the Main Sub-Phase, matching where activation is now legal
+  at all (#230).
+
+- **THE ICON BUTTONS ARE TOO CLOSE TOGETHER ON A PHONE (Aj, 2026-09-16: *"i'm afraid i'll click the
+  activate button when trying to view a card haha"*).** The two neighbours are 🔍 View and ⚡ Activate, and
+  the pairing is the worst available: one is idempotent and the other SPENDS A CARD. `viewtest` exists
+  because `#viewCardBtn` is phone-only (`max-width:720px and max-height:800px`), so that suite is where a
+  hit-target assertion belongs — and it should be a MEASURED gap or hit-box, not a visual tweak, since
+  this is the same class as the landscape work where a screenshot and a number disagreed.
 
 - **THE RESPOND WINDOW OFFERS DUPLICATE BUTTONS FOR INTERCHANGEABLE COPIES** (Aj, 2026-09-11, screenshot).
   Holding TWO Counter Spells against two legal targets renders **four** buttons, of which two pairs are the
