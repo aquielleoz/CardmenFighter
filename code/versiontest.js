@@ -116,6 +116,26 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
      `every BACKLOG ratchet entry still has a live ratchet [${docRatchets.size} entry(ies): ${[...docRatchets.keys()].join(', ')||'none'}]`+
      (orphanDoc.length?`  ← THE FIX LANDED: ${orphanDoc.join(', ')} — no suite ratchets this any more, so the entry's measurements are STALE. Close it or rewrite it against what the suite measures today`:''));
 
+  /* ---- EVERY BACKLOG ENTRY CARRIES ONE STATUS TAG, FROM A CLOSED SET (2026-09-16). The doc is 55 entries
+   * and ~900 lines, and the one fact a reader needs first — what does this need NEXT — was buried in prose:
+   * an entry whose root cause was found and written down got summarised as "needs two devices", from memory,
+   * because the answer sat on line 19 of 24. Prose can only be read carefully; a closed vocabulary can be
+   * CHECKED, and this file's own history says the only duplication that survives here is the asserted kind.
+   * THE GATE IS THE POINT. A vocabulary nobody enforces is a style note, and this repo has watched a style
+   * note lose to a busy afternoon (the `perf/` prefix, the four merges that skipped their PR). Both
+   * directions fail: an untagged entry is invisible to whoever is planning, and an INVENTED tag quietly
+   * forks the vocabulary, which is how `feat/` and `feature/` came to coexist. */
+  const TAGS=['needs a repro','root cause found','ready to build','needs a decision','needs a measurement','parked'];
+  const entryLines=afterBacklog.split('\n').filter(l=>/^- /.test(l));
+  const untagged=entryLines.filter(l=>!/^- `[^`]+`\s+· /.test(l));
+  const badTag=entryLines.map(l=>(l.match(/^- `([^`]+)`\s+· /)||[])[1]).filter(t=>t&&TAGS.indexOf(t)<0);
+  ok(entryLines.length>0 && untagged.length===0,
+     `every BACKLOG entry carries a status tag [${entryLines.length} entry(ies) checked]`+
+     (untagged.length?`  ← UNTAGGED: ${untagged.map(l=>l.slice(0,60)).join(' | ')} — prefix it with one of: ${TAGS.join(' / ')}`:''));
+  ok(badTag.length===0,
+     `every status tag comes from the closed set [${TAGS.length} allowed: ${TAGS.join(' / ')}]`+
+     (badTag.length?`  ← INVENTED: ${[...new Set(badTag)].join(', ')} — a tag nobody agreed to forks the vocabulary; use one of the six, or add yours to TAGS here AND to the legend in NEXT-SESSION.md in the same commit`:''));
+
   /* ---- NO `file:NNNN` CITATIONS IN THE LIVE DOCS (2026-09-08). A staleness sweep found **8 of 20** line
    * references already pointing at the wrong line, and most had drifted THAT DAY — every comment block added
    * and every dead function deleted shifts everything below it. A line number claims a precision it cannot
