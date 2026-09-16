@@ -112,6 +112,38 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
   ok(deskTap.open===false, '  → so the same tap does NOT throw the overlay up — it fills the panel, as before');
   await p.setViewportSize({width:390, height:780}); await p.waitForTimeout(200);
 
+  /* ---- THE 🔍 AND ⚡ ARE ONE MIS-TAP APART (Aj, 2026-09-16) ----
+     *"the icon buttons are kinda too close in the mobile version... i'm afraid i'll click the activate
+     button when trying to view a card haha"*. Measured before the fix at 390×780: 35-43px wide, **37px
+     tall**, **5px** between them — under Apple's 44px floor and Material's 48px, with a channel narrower
+     than a fingertip's error. This suite owns it because `#viewCardBtn` is phone-only and this is the
+     phone viewport.
+     ASSERT THE HIT BOX AND THE CHANNEL, NOT THE LOOK. A screenshot cannot tell 37px from 44px, and the
+     whole reason this shipped under the floor is that it was arrived at by tuning padding rather than by
+     declaring a target.
+     AND ASSERT IT DOES NOT WRAP, because every one of these costs width. A WRAP IS A `left` THAT GOES
+     BACKWARDS — the first probe for this bucketed buttons by their `top` and reported phantom wraps
+     everywhere, because `sortBtn` is 37px tall against the others' 44 and centres differently on the
+     SAME line. Two iterations were spent shrinking padding to fix a wrap that was not happening. */
+  const bar = await p.evaluate(()=>{
+    const el=id=>document.getElementById(id);
+    const box=id=>{const e=el(id); return e&&e.offsetParent?e.getBoundingClientRect():null;};
+    const v=box('viewCardBtn'), c=box('ctxBtn'), cl=box('clearBtn');
+    const kids=[].slice.call(document.getElementById('actions').children).filter(e=>e.offsetParent&&e.id!=='hint');
+    const ls=kids.map(e=>e.getBoundingClientRect().left);
+    let wrapped=false; for(let i=1;i<ls.length;i++) if(ls[i]<ls[i-1]) wrapped=true;
+    return { vh:v&&Math.round(v.height), ch:c&&Math.round(c.height), wrapped,
+             moat: (v&&c)?Math.round((c.left-(v.left+v.width))*10)/10 : null,
+             plain:(cl&&v)?Math.round((v.left-(cl.left+cl.width))*10)/10 : null };
+  });
+  ok(bar.vh>=44 && bar.ch>=44,
+     `the 🔍 and ⚡ are at least 44px tall — the platform touch-target floor (🔍 ${bar.vh}px, ⚡ ${bar.ch}px)`);
+  ok(bar.moat!=null && bar.moat>=8,
+     `and the channel between them is ${bar.moat}px, up from the 5px that prompted this`);
+  ok(bar.moat>bar.plain,
+     `…and WIDER than an ordinary neighbour gap (${bar.moat}px vs ${bar.plain}px) — 🔍 is idempotent and ⚡ SPENDS A CARD, so the boundary that matters is the expensive one`);
+  ok(!bar.wrapped, 'and the action row still fits on ONE line — every pixel of this came out of a row already measured 2px over at 327px');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

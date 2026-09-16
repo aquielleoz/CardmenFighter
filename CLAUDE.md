@@ -47,7 +47,7 @@ node nettest_log.js                             # netplay public battle log, bot
 node nettest_names.js                           # netplay player names, both directions (8)
 node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
-node viewtest.js                                # 🔍 View card reader gating on tight screens (10)
+node viewtest.js                                # 🔍 View card reader gating on tight screens + the phone touch targets (25)
 node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (96)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
 node lessontest_energyorder.js                       # the "Energy Order" tutorial lesson, full UI (14)
@@ -1874,7 +1874,7 @@ Status as of **v1.31.127 — 2026-09-10, `npm run sweep`, 92 suites and 0 FAIL i
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 520, `netview` 65, `mptest` 93, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
+`test` 520, `netview` 65, `mptest` 93, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
 `versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 33, `lessontest_quicks` 21, `lessontest_howto` 24,
 `lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,

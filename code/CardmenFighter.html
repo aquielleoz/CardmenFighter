@@ -1230,8 +1230,19 @@
      that button's own gate is `max-width:720px`. Reuse the branch that already means "this is a phone" rather
      than inventing a second number for it. */
   @media (max-width:720px){
-    #actions{gap:5px;}
-    #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #passBtn, #actions #fightBtn{font-size:0; padding:9px 10px;}
+    /* TOUCH TARGETS, MEASURED (Aj, 2026-09-16: *"the icon buttons are kinda too close in the mobile
+       version... i'm afraid i'll click the activate button when trying to view a card haha"*).
+       WHAT IT WAS: 30-43px wide and 34-37px tall with 3-5px between them, measured at 390×780 and 360×740.
+       Under Apple's 44px floor and Material's 48px on both axes, with the gap smaller than a fingertip's
+       error. `min-width`/`min-height` DECLARE the target instead of arriving at one by tuning padding,
+       which is what let it drift under the floor unnoticed.
+       AND ⚡ GETS ITS OWN MOAT. The pair Aj named is the worst one available — 🔍 View is idempotent and
+       ⚡ Activate SPENDS A CARD — so the boundary between a harmless mis-tap and a destructive one is
+       widened past the uniform gap. This is about consequence, not symmetry: the other neighbours are all
+       cheap to hit by accident. Nothing is reordered; muscle memory is worth more than tidiness. */
+    #actions{gap:9px;}
+    #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #passBtn, #actions #fightBtn{font-size:0; padding:9px 8px; min-height:44px;}
+    #actions #ctxBtn{margin-left:6px;}
     #actions #viewCardBtn::before, #actions #clearBtn::before, #actions #ctxBtn::before, #actions #passBtn::before, #actions #fightBtn::before{
       content:attr(data-icon); font-size:17px; line-height:1;}
     /* Sort collapses too, but to WORDS — it is the state it reports, so it keeps it and sheds only the `Sort:`
@@ -1250,7 +1261,7 @@
     /* 3px, not 4. 320x568 — iPhone 5/5s/SE-1st in PORTRAIT, a real device — landed exactly on the limit at 4px:
        284px needed into 284px of line, so it wrapped. The icons are distinct pills; the gap is the cheapest px
        here and 5 of them is the difference between one row and two. */
-    #actions{gap:3px;}
+    #actions{gap:6px;}   /* was 3px — a 3px channel between 44px targets is smaller than a fingertip error; 6 rather than the 9 above because narrow phones cannot afford more */
     /* ID SELECTORS, NOT `#actions button`. The rules above set the padding per id, and an id beats a type
        selector whatever the source order — so the `#actions button{padding:8px 8px}` this block used to carry
        was INERT for the five icon buttons and applied to nothing but the emote bar. Measured: Clear was 34px at
@@ -1263,6 +1274,26 @@
     #actions #viewCardBtn::before, #actions #clearBtn::before, #actions #ctxBtn::before,
     #actions #passBtn::before, #actions #fightBtn::before{font-size:16px;}
     #actions #sortBtn::before{font-size:11.5px;}
+  }
+  /* THE ⚡ MOAT IS A LUXURY THE NARROWEST PHONES CANNOT BUY (measured 2026-09-16). The block above already
+     records this row as **2px over budget at 327px**, and the numbers agree: at 320 the wider gap plus the
+     moat cost ~21px the row does not have, and it WRAPS — measured one row before, two after. The floor
+     phones therefore keep exactly the spacing they had.
+     WHAT THEY DO KEEP IS `min-height:44px`, because it costs ZERO width. That is the half of this fix that
+     is free, and it is not a small half: the targets go from 34px tall to 44 at every width.
+     THE WRAP WAS ALSO NEARLY MISSED, which is the method note worth keeping. The first probe bucketed
+     buttons into "rows" by their `top`, and `sortBtn` is 37px tall against the others' 44 — so they centre
+     differently on the SAME line and it reported 2 and 3 rows everywhere, including on configurations that
+     were fine. **A wrap is a `left` that goes BACKWARDS**; measure that, not vertical position. Two
+     iterations were spent shrinking padding to fix a wrap that was not happening. */
+  @media (max-width:340px){
+    #actions{gap:3px;}
+    #actions #ctxBtn{margin-left:0;}
+    /* AND NOT EVEN THE FREE HALF, because at this width it is not free. `landscapetest` carries a RATCHET on
+       the known expand overflow at 327x660 and the 44px targets grew it **63px → 73px** — caught on the
+       first run, which is the ratchet working exactly as its own comment promises. These phones have no
+       room on either axis, so they keep the spacing and the target size they already had. */
+    #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #passBtn, #actions #fightBtn{min-height:0;}
   }
   /* really tight (short) phones + landscape: the inline description strip eats scarce vertical space, so drop it and
      offer a "🔍 View card" button that opens the full-screen reader instead (the whole page becomes the description box). */
