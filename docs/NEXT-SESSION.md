@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**524**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**529**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -199,6 +199,39 @@ re-read its tag.
 
 #### Flaky suites
 
+- `needs a repro`       · **`nettest_guard` FAILS 1-4 RUNS IN 8 *SOLO*, AND IT IS WORSE ON THE BASELINE —
+  A/B'd 2026-09-16.** The failing assertion is **`control passed to the client to answer the combo`**;
+  captured by running the arm that fails half the time and keeping the WHOLE output, after two earlier
+  attempts grepped for the summary line and threw the assertion away.
+  **THE A/B, in a throwaway worktree off `origin/epic/priority-windows`, own port, same machine:**
+
+  | build | red |
+  | --- | --- |
+  | epic baseline | **4 / 8** |
+  | end-of-clean-up branch, before the `clickFight` fix | 1 / 8 |
+  | …after it | **0 / 10** |
+
+  So it is **pre-existing**, and the change under suspicion when it surfaced makes it no worse. Baseline
+  4/8 against 1/18 on the branch is a real difference (Fisher ≈ 0.02) — but **do not credit the
+  `clickFight` fix for it**: 1/8 against 0/10 does not separate, so which part of the branch moved it is
+  unproven, and it has NOT been shown fixed.
+  **A REAL DEFECT WAS FOUND AND FIXED HERE AND IT IS NOT THE CAUSE.** `clickFight`'s `Fight` press was
+  fire-and-forget: it clicked once and returned `'played'` without verifying anything, while `busy`
+  swallows a Fight click exactly as silently as the `Next` click the same function guards carefully. That
+  made every swallowed press surface seven seconds later at whatever assertion waited on the turn, which
+  is why this suite kept blaming the transport. It now watches the selected cards leave the hand. Keep the
+  two claims apart: the contract violation is closed, the flake is not.
+  **HOW IT SURFACED, which is the part worth copying:** two consecutive full sweeps came back 92/93 with
+  DIFFERENT suites red — `resolutiontest` (a real staleness, fixed) and then this one. This file's own rule
+  says that spread is the machine and a single 92/93 is not a regression; the A/B is what turned the guess
+  into a number, and it took four minutes.
+  **EVERY RUN AUTO-PASSES EXACTLY ONE UNSCRIPTED WINDOW** (`netwindows[join]: auto-passed a Respond? window
+  the suite does not script`), green runs and red alike — so the window COUNT is not what varies, and the
+  "a new boundary costs another 6s of grace" theory does not explain it. Start at the assertion instead:
+  control not reaching the client is the `hostTakeBack`/park family, which is where the duel Ride wedge
+  lived.
+  `[id: nettest-guard-flaky]`
+
 - `needs a repro`       · **`lessontest_quicks` IS RED ~25% OF THE TIME AT `-j 4`, AND ~1 IN 9 SERIALLY — MEASURED 2026-09-10/11.**
   Eleven runs across one day, on three different builds: **2 red in 8 at four lanes, 0 red in 3 at `-j 1`.**
   One of the reds was on `epic/priority-windows` before any of that day's prompt work, so it **predates**
@@ -287,6 +320,47 @@ re-read its tag.
   `[id: lessontest-twos-prep]`
 
 #### Rules, priority and the stack
+
+- `ready to build`      · **THE BEGINNING PHASE NEEDS AN "UNTAP" QUEUE, AND `roundAdvance` + `equipReset`
+  BELONG IN IT (Aj, 2026-09-16, deciding it: *"ah it's untapping in mtg. that's gotta be up there in the
+  beginning phase too. let's build that queue there... i almost forgot about seed pouch. this is before the
+  upkeep timing"*).** Was filed as an open question about `roundAdvance` alone; Aj answered it and widened it.
+  **THE MODEL, mirroring MTG's three steps:**
+  ```
+  Beginning Phase
+    ├─ "untap" events   ← NEW queue: roundAdvance, stampRound, equipReset …   NO PRIORITY
+    ├─ Upkeep           ← the decay triggers are pushed, then the dance
+    └─ Draw
+  ```
+  **`equipReset` IS THE UNTAP STEP, and Seed Pouch is why it is real rather than cosmetic.** It clears
+  `usedThisRound`, which is the only thing standing between an equipment ability and "once ever" —
+  `useEquipment` refuses on `usedThisRound` and Seed Pouch (`ability:'draw'`) is the game's only user today.
+  Making a once-per-round ability usable again is untapping; it has no business happening while the PREVIOUS
+  round is torn down.
+  **NO PRIORITY IN THE QUEUE — confirmed** (Aj: *"yes no priority"*). MTG's untap step grants none, and the
+  upkeep dance stays the first priority point of the phase. Structurally the same as `runCleanupEvents`: a
+  plain drain with no priority check in it.
+  **THE ARGUMENT THAT SETTLED `roundAdvance`, from walking the phases:** `CLEANUP_ORDER` is `roundAdvance,
+  initiative, pileClear, expire, equipReset, temps, stampRound` — and **six of the seven END the round**.
+  `roundAdvance` is the only member that STARTS the next one, sitting first in a list of teardown.
+  **MEASURED consequence of leaving it:** a round that began as 1 reads **2** during the end-of-clean-up
+  window, so a Quick cast at the end of round 1 is stamped round 2 in the ledger — the off-by-one this repo
+  already calls harmful.
+  **TWO DEPENDENCY CHAINS, AND ONLY ONE MOVES.** The engine already documents them: *"the round must advance
+  before `newRound` is stamped, and initiative must be handed over before the pile is dropped (the fizzle
+  branch reads `st.initiative`)"*.
+  - **`roundAdvance` → `stampRound` MOVE AS A PAIR, in that order.** `result.newRound` is read BOTH ways:
+    the round card renders `'Round '+res.newRound` (the new one) and **two sites do `res.newRound - 1`** to
+    recover the round that just ended. Keeping the pair adjacent leaves the stamped VALUE unchanged, so both
+    readings survive; moving `roundAdvance` alone would stamp the old number and double-subtract at those
+    two sites. Aj, on being shown this: *"i thought it was logging for the previous round"* — half right, and
+    that is exactly why the pair cannot be split.
+  - **`initiative` STAYS in clean-up — confirmed** (Aj: *"yes, that is correct"*). It is decided by the round
+    that just ended, and `pileClear` must follow it because the fizzle branch reads `st.initiative`.
+  **WHAT TO WATCH:** the queue must run AFTER the end-of-clean-up window closes and BEFORE `st.upkeep` opens
+  and the owed ticks are pushed — the slot the `endCleanup` branch already occupies. And name the events, the
+  way `CLEANUP_EVENTS` is named, so a future card can trigger off them.
+  `[id: beginning-untap-queue]`
 
 - `needs a measurement` · **RE-CHECK `setRecycleTech`, AND THE DISCARD PILE NOBODY CAN SEE** (Aj, 2026-09-08, on finding out
   decks thin: *"so were decks actually getting thinner without me noticing? huh?"*). They are, and the
@@ -798,46 +872,6 @@ re-read its tag.
   **AND THE SUITES ENCODE TODAY'S DEFAULT** — `prompttest` asserts "the DEFAULTS are today's experience",
   so flipping it is a product change AND a suite change, in one commit.
   `[id: prompt-checkboxes-default]`
-
-- `ready to build`      · **TWO PROMPT-TIMING ROWS ARE MISLABELLED, AND A SIXTH ROW IS MISSING (Aj, from live play, 2026-09-15).**
-  `PROMPT_TIMINGS` has five rows and the engine has five matching windows; the *names* on two of them
-  describe something other than when they fire.
-  | id | label today | when it actually fires | should read |
-  | --- | --- | --- | --- |
-  | `respond` | When a Technique is cast | a cast in the Main Sub-Phase | ✓ |
-  | `upkeep` | At the start of a round | Upkeep | ✓ |
-  | `prefight` | Before a fight — yours or a rival's | the Main → Fight transition | ✓ |
-  | `resolution` | *When shields are about to break* | **before** the Resolution Sub-Phase | **Before resolution** |
-  | `cleanup` | *At the end of a round* | the **beginning** of Clean-up | **Before clean-up** |
-  So `cleanup` is "before clean-up" wearing "end of a round"'s name, and `resolution` is named for one
-  consequence of the window rather than for the boundary it sits on — which is what made a missing shield
-  prompt read as a missing *feature* rather than a preference the player had never knowingly set.
-  **THE SIXTH IS THE END OF CLEAN-UP, and it follows from the general rule rather than being an addition**
-  (Aj: *"priority always is passed around when phases and sub-phases change… you'll notice that my
-  parenthesis all referenced the end of something"*). `PHASES-AND-PRIORITY.md` §3 enumerates five points;
-  the rule it states is broader than its own list, and the end of the Clean-up Phase — before the next
-  Beginning Phase — is the one the list omits. **§3's enumeration grows to six when this lands**; it is
-  deliberately unchanged for now, so the spec does not describe an unbuilt window.
-  **IT IS ITS OWN WINDOW, NOT THE UPKEEP ONE (Aj, 2026-09-16, asked and answered).** The engine opens
-  exactly FOUR phase windows — `st.toPlay` (Main → Fight), `st.resolution` (before Resolution),
-  `st.cleanup` (the **beginning** of Clean-up, opened in `finishRoundWin` before `runCleanupEvents`) and
-  `st.upkeep` (the Beginning Phase) — so this is a fifth, and it sits between the last two. The order it
-  lands in: clean-up dance -> clean-up events -> The Stack drains -> **END-OF-CLEAN-UP DANCE** -> the
-  round boundary -> Beginning Phase -> the Upkeep ticks are pushed -> upkeep dance. **So the ticks move
-  again**: `finishCleanup` already owes them rather than pushing them (`st.upkeepTicks`, fixed the same
-  day), and that debt must now be paid AFTER the new window rather than at the first `openResponseWindow`
-  with an empty stack — otherwise the new dance answers a stack that already holds the next round's
-  triggers, which is the exact mis-ordering that fix removed.
-  **IT IS ADJACENT TO UPKEEP AND THAT IS ACCEPTED, NOT OVERLOOKED.** Aj: *"some of these can get tiring
-  especially having the before clean up and end of round when you have nothing to do. but that is really
-  how the cookie crumbles. people will be thankful they can uncheck it."* The two are genuinely different
-  moments — the round boundary sits between them, so a card cast at the end of Clean-up resolves BEFORE the
-  draw and one cast at Upkeep resolves after.
-  **THE IDS ARE STORED PREFERENCES, SO A RELABEL IS FREE AND A RE-KEY IS NOT.** `promptPrefs` is keyed by
-  timing id in `localStorage`; `PROMPT_TIMINGS` is explicitly "a list the reader renders from", so the
-  labels are presentation. Changing `cleanup`'s *id* would orphan saved preferences the way `fightend` did
-  and would need the same migration — rename the labels, leave the keys alone.
-  `[id: two-prompt-timing-rows]`
 
 - `ready to build`      · **THE TUTORIALS STILL DO NOT TEACH THE BOUNDARY WINDOWS (the rest of #6, after 2026-09-16).** The
   two-state Fight and the Main-only activation rule are taught now, and all eleven suites are green. What

@@ -417,6 +417,42 @@ priority" is a statement about today's card set, never about the phase.
 - Every player discards down to hand size, to the Energy Pile.
 - Round-long effects expire.
 
+**AND THERE IS A SECOND DANCE AT THE *END* OF CLEAN-UP — BUILT 2026-09-16, and it is the sixth timing.**
+The paragraph above already ruled **both** round boundaries real priority points; only the first was in the
+engine, so the round boundary was being crossed without a dance. Aj, reading the fix for the clean-up →
+beginning ordering: *"wasn't there a priority dance at the end of clean up?"* — there was in the model and
+not in the code. It is `st.endCleanup`, it grants priority **unconditionally** like its twin, and its origin
+is the seat that has just taken the initiative.
+
+**IT IS ITS OWN WINDOW AND NOT THE UPKEEP ONE**, though they are adjacent, because the round boundary sits
+between them: a Quick cast here resolves **before the Draw**, one cast at Upkeep resolves after. Aj accepted
+the adjacency deliberately — *"some of these can get tiring especially having the before clean up and end of
+round when you have nothing to do. but that is really how the cookie crumbles. people will be thankful they
+can uncheck it."*
+
+**THE ORDER, AND THE TICKS ARE WHAT PROVE IT:**
+
+```
+clean-up dance (origin = round winner) → clean-up events → The Stack is worked through
+  → END-OF-CLEAN-UP DANCE → Beginning Phase → the upkeep ticks are pushed → upkeep dance
+```
+
+The Beginning Phase does not exist while this window is open, so **no tick may be on the stack and no
+counter may have moved** — asserted directly in `test.js`. `finishCleanup` *owes* the ticks (`upkeepTicks`)
+and the Upkeep branch is the only thing that pays the debt; paying it any earlier puts the next round's
+triggers on a stack this dance is still answering.
+
+> **"The Stack is worked through" is not a drain** (Aj, 2026-09-16: *"it doesn't just drain... a window
+> opens. players can activate effects here because priority is passed"*). It is §2 steps 5-8: a dance per
+> object, any addition resets the all-passed check, the top resolves, and priority goes to the controller of
+> the new top. The stack can grow while it is being worked through.
+
+⚠ **`st.round` HAS ALREADY ADVANCED BY THE TIME THIS WINDOW OPENS**, because `roundAdvance` is a clean-up
+event — measured: a round that started as 1 reads **2** here. So a Quick cast at the end of round 1 is
+stamped round 2 in the priority ledger. Aj spotted it (*"roundAdvance? doesn't that happen in the beginning
+phase?"*); it is **pre-existing** rather than introduced by this window, and it is filed rather than fixed
+here because `initiative`, `stampRound` and the round banner all sit downstream of that event.
+
 ## 4. Shield loss is NOT a stack object
 
 **A shield loss just happens.** It is not put on the stack and it is not responded to directly.

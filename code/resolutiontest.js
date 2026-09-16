@@ -150,9 +150,26 @@ function sc(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
   g.lastPlayer = 2;
   E.openResolutionWindow(g, 2, true, [0], 2);
 
-  var spins = 0;
-  while (g.respondFor != null && spins++ < 64) { var rr = AI.respondDecision(g, g.respondFor); if (!rr) break; }
-  ok(spins < 12, 'AI: the Fight End window drains without spinning (' + spins + ' iterations)');
+  /* "NO SPINNING" IS A PROPERTY, NOT A NUMBER — rewritten 2026-09-16 when the sixth boundary landed.
+     This was `spins < 12`, sized for three boundaries (3 x 3 seats = 9, with headroom). The end-of-clean-up
+     window made it four, the drain legitimately took 12, and the suite went red for the one reason it was
+     never meant to catch: the MODEL grew. Bumping the cap to 15 would have bought exactly one more boundary
+     before the same red, and would still pass a build that granted one seat priority twice at a boundary
+     while skipping another — the actual failure "spinning" names.
+     So assert the SHAPE: every boundary reached grants every living seat priority EXACTLY ONCE. A spin
+     shows up as a label appearing more than `numPlayers` times, and a skipped seat as fewer — both of which
+     a cap is blind to. The 64 is a hang guard now rather than the assertion. */
+  var spins = 0, visits = {};
+  while (g.respondFor != null && spins++ < 64) {
+    var bnd = g.upkeep ? 'up' : (g.endCleanup ? 'ec' : (g.cleanup ? 'cu' : (g.resolution ? 'fe' : (g.pending ? 'obj' : 'empty'))));
+    visits[bnd] = (visits[bnd] || 0) + 1;
+    var rr = AI.respondDecision(g, g.respondFor); if (!rr) break;
+  }
+  var bounds = Object.keys(visits), evenly = bounds.every(function (k) { return visits[k] === g.numPlayers; });
+  ok(spins < 64 && bounds.length > 0 && evenly,
+     'AI: the Resolution drain visits each boundary once per seat, and does not spin (' +
+     bounds.map(function (k) { return k + ':' + visits[k]; }).join(' ') + ' over ' + spins + ' iterations)' +
+     (evenly ? '' : '  ← a count above ' + g.numPlayers + ' is a seat granted priority twice at one boundary; below it, a seat skipped'));
   ok(g.respondFor === null, 'AI: …and ends with no window owed');
   ok(g.round === 4, 'AI: …and the sub-phase ran, so the round advanced');
 })();

@@ -585,7 +585,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], losses: [], roundWinResult: null, resolution: null, resolutionResult: null, resolvedRound: null, blockedResolves: 0, upkeepTicks: false, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], losses: [], roundWinResult: null, resolution: null, resolutionResult: null, resolvedRound: null, blockedResolves: 0, upkeepTicks: false, endCleanup: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -1543,7 +1543,31 @@
       var cr = st.cleanupResult; st.cleanupResult = null;        // unpark BEFORE the outcomes — see the Resolution branch
       if (cr) return finishCleanup(st, cr);
     }
-    /* UPKEEP, the fourth boundary, and the same five lines as the other three — `phaseWalk` is still the only
+    /* THE END OF CLEAN-UP — THE SIXTH TIMING, AND THE ONE THE LIST OMITTED (Aj, 2026-09-16: *"wasn't there
+       a priority dance at the end of clean up?"* — there was in the model, and not in the code).
+       `PHASES-AND-PRIORITY.md` §3 already ruled BOTH round boundaries real priority points: "clean-up
+       grants priority unconditionally, starting at the **round winner** — the seat about to take the
+       initiative". The engine built the one at the BEGINNING of clean-up (`st.cleanup`, opened in
+       `finishRoundWin`) and nothing at the end, so the round boundary was crossed without a dance.
+       WHY IT IS ITS OWN WINDOW AND NOT THE UPKEEP ONE (Aj, asked and answered the same day): they are
+       different moments with the round boundary between them, so a card cast here resolves BEFORE the draw
+       and one cast at Upkeep resolves after. Adjacent, and deliberately both — *"some of these can get
+       tiring... but that is really how the cookie crumbles. people will be thankful they can uncheck it."*
+       THE ORIGIN IS `st.turn`, which by now is the NEW initiative holder: `runCleanupEvents` has already
+       run `roundAdvance` and `initiative`. That is the same seat §3 names — the round winner — reached by
+       letting the clean-up events do their job rather than by remembering the winner separately.
+       AND IT IS WHY THE TICKS ARE OWED. `finishCleanup` parks the debt and the UPKEEP branch below pays
+       it; this window sits in between, so the Beginning Phase does not exist yet while it is open. Paying
+       the debt any earlier would put the next round's triggers on a stack this dance is still answering —
+       the exact mis-ordering the `upkeepTicks` change removed. */
+    if (st.endCleanup && !st.stack.length && !st.finished) {
+      var ecq = phaseWalk(st, st.endCleanup.origin);
+      if (ecq >= 0) return { ok: true, state: st, pending: true, endCleanup: true, respondFor: ecq };
+      st.endCleanup = null;
+      st.upkeep = { origin: st.turn };                  // everyone passed — only NOW does the Beginning Phase open
+      return openResponseWindow(st);
+    }
+    /* UPKEEP, the fifth boundary, and the same five lines as the other four — `phaseWalk` is still the only
        walk. It is checked LAST because it is the only one parked from inside `finishRoundWin`, which the
        Resolution branch above can reach: unparking that one first keeps the two from ever being live
        together. */
@@ -2866,7 +2890,7 @@
        about to be dealt. `upkeepResult` parks the result the Draw must fill in, for the same reason
        `resolutionResult` exists: the outcome is produced deep inside whoever answers last, and the netplay
        host is not on that call chain. */
-    st.upkeep = { origin: st.turn };
+    st.endCleanup = { origin: st.turn };              // the sixth timing — the Beginning Phase is opened by its branch, not here
     st.upkeepResult = result;
     /* OWED, NOT PUSHED — see the `upkeepTicks` branch in `openResponseWindow`. Pushing the ticks here put
        them ON TOP of anything a clean-up event had just stacked, so the Beginning Phase resolved before

@@ -184,6 +184,7 @@
          only on what is parked. Its RESULT is host bookkeeping and is nulled like the other two. */
       upkeep: st.upkeep ? { origin: rot(st.upkeep.origin) } : null,
       cleanup: st.cleanup ? { origin: rot(st.cleanup.origin) } : null,   // the fifth priority point, same reasoning as `upkeep`
+      endCleanup: st.endCleanup ? { origin: rot(st.endCleanup.origin) } : null,   // the SIXTH — the end of Clean-up, and a client must see it or it labels the window `cleanup` and reads the wrong preference row
       pendingLossChoice: st.pendingLossChoice ? { winner: rot(st.pendingLossChoice.winner), cands: (st.pendingLossChoice.cands || []).map(rot), comboType: st.pendingLossChoice.comboType } : null,   // winner picks whose shield to strip
       /* THE FIGHT END WINDOW IS ROTATED, NOT REDACTED (epic step 11, P3). Every member is seat-valued and
          every one of them is PUBLIC on purpose: `PHASES-AND-PRIORITY.md` §3 picks the loss target BEFORE the

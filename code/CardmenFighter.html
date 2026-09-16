@@ -2252,7 +2252,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], losses: [], roundWinResult: null, resolution: null, resolutionResult: null, resolvedRound: null, blockedResolves: 0, upkeepTicks: false, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], losses: [], roundWinResult: null, resolution: null, resolutionResult: null, resolvedRound: null, blockedResolves: 0, upkeepTicks: false, endCleanup: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -3210,7 +3210,31 @@
       var cr = st.cleanupResult; st.cleanupResult = null;        // unpark BEFORE the outcomes — see the Resolution branch
       if (cr) return finishCleanup(st, cr);
     }
-    /* UPKEEP, the fourth boundary, and the same five lines as the other three — `phaseWalk` is still the only
+    /* THE END OF CLEAN-UP — THE SIXTH TIMING, AND THE ONE THE LIST OMITTED (Aj, 2026-09-16: *"wasn't there
+       a priority dance at the end of clean up?"* — there was in the model, and not in the code).
+       `PHASES-AND-PRIORITY.md` §3 already ruled BOTH round boundaries real priority points: "clean-up
+       grants priority unconditionally, starting at the **round winner** — the seat about to take the
+       initiative". The engine built the one at the BEGINNING of clean-up (`st.cleanup`, opened in
+       `finishRoundWin`) and nothing at the end, so the round boundary was crossed without a dance.
+       WHY IT IS ITS OWN WINDOW AND NOT THE UPKEEP ONE (Aj, asked and answered the same day): they are
+       different moments with the round boundary between them, so a card cast here resolves BEFORE the draw
+       and one cast at Upkeep resolves after. Adjacent, and deliberately both — *"some of these can get
+       tiring... but that is really how the cookie crumbles. people will be thankful they can uncheck it."*
+       THE ORIGIN IS `st.turn`, which by now is the NEW initiative holder: `runCleanupEvents` has already
+       run `roundAdvance` and `initiative`. That is the same seat §3 names — the round winner — reached by
+       letting the clean-up events do their job rather than by remembering the winner separately.
+       AND IT IS WHY THE TICKS ARE OWED. `finishCleanup` parks the debt and the UPKEEP branch below pays
+       it; this window sits in between, so the Beginning Phase does not exist yet while it is open. Paying
+       the debt any earlier would put the next round's triggers on a stack this dance is still answering —
+       the exact mis-ordering the `upkeepTicks` change removed. */
+    if (st.endCleanup && !st.stack.length && !st.finished) {
+      var ecq = phaseWalk(st, st.endCleanup.origin);
+      if (ecq >= 0) return { ok: true, state: st, pending: true, endCleanup: true, respondFor: ecq };
+      st.endCleanup = null;
+      st.upkeep = { origin: st.turn };                  // everyone passed — only NOW does the Beginning Phase open
+      return openResponseWindow(st);
+    }
+    /* UPKEEP, the fifth boundary, and the same five lines as the other four — `phaseWalk` is still the only
        walk. It is checked LAST because it is the only one parked from inside `finishRoundWin`, which the
        Resolution branch above can reach: unparking that one first keeps the two from ever being live
        together. */
@@ -4533,7 +4557,7 @@
        about to be dealt. `upkeepResult` parks the result the Draw must fill in, for the same reason
        `resolutionResult` exists: the outcome is produced deep inside whoever answers last, and the netplay
        host is not on that call chain. */
-    st.upkeep = { origin: st.turn };
+    st.endCleanup = { origin: st.turn };              // the sixth timing — the Beginning Phase is opened by its branch, not here
     st.upkeepResult = result;
     /* OWED, NOT PUSHED — see the `upkeepTicks` branch in `openResponseWindow`. Pushing the ticks here put
        them ON TOP of anything a clean-up event had just stacked, so the Beginning Phase resolved before
@@ -5962,6 +5986,7 @@ window.CardFace = {};
          only on what is parked. Its RESULT is host bookkeeping and is nulled like the other two. */
       upkeep: st.upkeep ? { origin: rot(st.upkeep.origin) } : null,
       cleanup: st.cleanup ? { origin: rot(st.cleanup.origin) } : null,   // the fifth priority point, same reasoning as `upkeep`
+      endCleanup: st.endCleanup ? { origin: rot(st.endCleanup.origin) } : null,   // the SIXTH — the end of Clean-up, and a client must see it or it labels the window `cleanup` and reads the wrong preference row
       pendingLossChoice: st.pendingLossChoice ? { winner: rot(st.pendingLossChoice.winner), cands: (st.pendingLossChoice.cands || []).map(rot), comboType: st.pendingLossChoice.comboType } : null,   // winner picks whose shield to strip
       /* THE FIGHT END WINDOW IS ROTATED, NOT REDACTED (epic step 11, P3). Every member is seat-valued and
          every one of them is PUBLIC on purpose: `PHASES-AND-PRIORITY.md` §3 picks the loss target BEFORE the
@@ -6472,12 +6497,27 @@ window.CardFace = {};
      "were written from the windows that happened to exist in the code", and Upkeep and Clean-up each add
      one. Keep it a list the reader renders from, not a closed literal anything else branches on: the store
      is keyed by `id`, so order here is presentation only and reordering costs nothing. */
+  /* SIX TIMINGS, AND TWO OF THE OLD LABELS DESCRIBED SOMETHING OTHER THAN WHEN THEY FIRE (2026-09-16).
+     `resolution` was named for one CONSEQUENCE of its window ("when shields are about to break") rather
+     than the boundary it sits on, which is what made a missing shield prompt read as a missing FEATURE
+     rather than a preference nobody had knowingly set. And `cleanup` said "at the end of a round" while
+     firing at the BEGINNING of Clean-up — a name that was simply taken by the timing below it.
+     THE SIXTH IS THE END OF CLEAN-UP, built the same day: `PHASES-AND-PRIORITY.md` §3 already ruled BOTH
+     round boundaries real priority points, and only the first was in the engine. It is adjacent to Upkeep
+     and that is accepted rather than overlooked (Aj: *"some of these can get tiring especially having the
+     before clean up and end of round when you have nothing to do. but that is really how the cookie
+     crumbles. people will be thankful they can uncheck it."*) — they are different moments, because the
+     round boundary sits between them: a card cast here resolves BEFORE the draw, one cast at Upkeep after.
+     THE IDS ARE STORED PREFERENCES, SO A RELABEL IS FREE AND A RE-KEY IS NOT. `promptPrefs` is keyed by
+     timing id in `localStorage`; these labels are presentation. Renaming `cleanup`'s ID would orphan every
+     preference a player has ticked, silently, the way `fightend` would have. Labels move, keys never. */
   var PROMPT_TIMINGS=[
     { id:'respond',  label:'When a Technique is cast' },
     { id:'upkeep',   label:'At the start of a round' },
     { id:'prefight', label:'Before a fight — yours or a rival\'s' },
-    { id:'resolution', label:'When shields are about to break' },
-    { id:'cleanup',  label:'At the end of a round' }
+    { id:'resolution', label:'Before resolution' },
+    { id:'cleanup',  label:'Before clean-up' },
+    { id:'endcleanup', label:'At the end of a round' }
   ];
   // Is this timing even legal for this card? A no-row is not the same as an unchecked row.
   function promptLegal(card, eff, timing){
@@ -10251,10 +10291,11 @@ window.CardFace = {};
        `prefight` still keys on `subPhase` rather than on `toPlay`, because `toPlay` is host bookkeeping
        and is nulled in the mirror — a client has to be able to answer this too. */
     var promptTiming = state.upkeep ? 'upkeep'
+      : (state.endCleanup ? 'endcleanup'
       : (state.cleanup ? 'cleanup'
       : (state.resolution ? 'resolution'
       : (pend ? 'respond'
-      : (state.subPhase === 'main' ? 'prefight' : 'respond'))));
+      : (state.subPhase === 'main' ? 'prefight' : 'respond')))));
     var eligible=eligibleQuicks();                       // the engine's own answer — `canAddToStack`, mirrored
     var quicks=promptedQuicks(eligible, promptTiming);   // the STOP decision only; the buttons below use `eligible`
     /* THE THREE OUTCOMES, AND TWO OF THEM ARE INVISIBLE ON SCREEN. "You held nothing" and "you held
@@ -10270,6 +10311,7 @@ window.CardFace = {};
               : promptTiming==='prefight' ? 'main→fight'
               : promptTiming==='upkeep'   ? 'upkeep'
               : promptTiming==='cleanup'  ? 'clean-up'
+              : promptTiming==='endcleanup' ? 'end of clean-up'
               : 'respond';
     var onWhat = pend ? ('  vs ' + rivalName) : '';
     /* NAME THE OVERRIDE WHEN IT IS WHAT STOPPED YOU. Otherwise a saved log shows a window opening at a
