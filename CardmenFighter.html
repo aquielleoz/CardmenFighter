@@ -1230,8 +1230,19 @@
      that button's own gate is `max-width:720px`. Reuse the branch that already means "this is a phone" rather
      than inventing a second number for it. */
   @media (max-width:720px){
-    #actions{gap:5px;}
-    #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #passBtn, #actions #fightBtn{font-size:0; padding:9px 10px;}
+    /* TOUCH TARGETS, MEASURED (Aj, 2026-09-16: *"the icon buttons are kinda too close in the mobile
+       version... i'm afraid i'll click the activate button when trying to view a card haha"*).
+       WHAT IT WAS: 30-43px wide and 34-37px tall with 3-5px between them, measured at 390×780 and 360×740.
+       Under Apple's 44px floor and Material's 48px on both axes, with the gap smaller than a fingertip's
+       error. `min-width`/`min-height` DECLARE the target instead of arriving at one by tuning padding,
+       which is what let it drift under the floor unnoticed.
+       AND ⚡ GETS ITS OWN MOAT. The pair Aj named is the worst one available — 🔍 View is idempotent and
+       ⚡ Activate SPENDS A CARD — so the boundary between a harmless mis-tap and a destructive one is
+       widened past the uniform gap. This is about consequence, not symmetry: the other neighbours are all
+       cheap to hit by accident. Nothing is reordered; muscle memory is worth more than tidiness. */
+    #actions{gap:9px;}
+    #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #passBtn, #actions #fightBtn{font-size:0; padding:9px 8px; min-height:44px;}
+    #actions #ctxBtn{margin-left:6px;}
     #actions #viewCardBtn::before, #actions #clearBtn::before, #actions #ctxBtn::before, #actions #passBtn::before, #actions #fightBtn::before{
       content:attr(data-icon); font-size:17px; line-height:1;}
     /* Sort collapses too, but to WORDS — it is the state it reports, so it keeps it and sheds only the `Sort:`
@@ -1250,7 +1261,7 @@
     /* 3px, not 4. 320x568 — iPhone 5/5s/SE-1st in PORTRAIT, a real device — landed exactly on the limit at 4px:
        284px needed into 284px of line, so it wrapped. The icons are distinct pills; the gap is the cheapest px
        here and 5 of them is the difference between one row and two. */
-    #actions{gap:3px;}
+    #actions{gap:6px;}   /* was 3px — a 3px channel between 44px targets is smaller than a fingertip error; 6 rather than the 9 above because narrow phones cannot afford more */
     /* ID SELECTORS, NOT `#actions button`. The rules above set the padding per id, and an id beats a type
        selector whatever the source order — so the `#actions button{padding:8px 8px}` this block used to carry
        was INERT for the five icon buttons and applied to nothing but the emote bar. Measured: Clear was 34px at
@@ -1263,6 +1274,26 @@
     #actions #viewCardBtn::before, #actions #clearBtn::before, #actions #ctxBtn::before,
     #actions #passBtn::before, #actions #fightBtn::before{font-size:16px;}
     #actions #sortBtn::before{font-size:11.5px;}
+  }
+  /* THE ⚡ MOAT IS A LUXURY THE NARROWEST PHONES CANNOT BUY (measured 2026-09-16). The block above already
+     records this row as **2px over budget at 327px**, and the numbers agree: at 320 the wider gap plus the
+     moat cost ~21px the row does not have, and it WRAPS — measured one row before, two after. The floor
+     phones therefore keep exactly the spacing they had.
+     WHAT THEY DO KEEP IS `min-height:44px`, because it costs ZERO width. That is the half of this fix that
+     is free, and it is not a small half: the targets go from 34px tall to 44 at every width.
+     THE WRAP WAS ALSO NEARLY MISSED, which is the method note worth keeping. The first probe bucketed
+     buttons into "rows" by their `top`, and `sortBtn` is 37px tall against the others' 44 — so they centre
+     differently on the SAME line and it reported 2 and 3 rows everywhere, including on configurations that
+     were fine. **A wrap is a `left` that goes BACKWARDS**; measure that, not vertical position. Two
+     iterations were spent shrinking padding to fix a wrap that was not happening. */
+  @media (max-width:340px){
+    #actions{gap:3px;}
+    #actions #ctxBtn{margin-left:0;}
+    /* AND NOT EVEN THE FREE HALF, because at this width it is not free. `landscapetest` carries a RATCHET on
+       the known expand overflow at 327x660 and the 44px targets grew it **63px → 73px** — caught on the
+       first run, which is the ratchet working exactly as its own comment promises. These phones have no
+       room on either axis, so they keep the spacing and the target size they already had. */
+    #actions #viewCardBtn, #actions #clearBtn, #actions #ctxBtn, #actions #passBtn, #actions #fightBtn{min-height:0;}
   }
   /* really tight (short) phones + landscape: the inline description strip eats scarce vertical space, so drop it and
      offer a "🔍 View card" button that opens the full-screen reader instead (the whole page becomes the description box). */
@@ -10856,12 +10887,25 @@ window.CardFace = {};
     return [
       { text:"Welcome! You’re a <b>Cardman</b>. This guided duel runs in <b>Basics</b> mode — no transforms, just the core loop. Your goal: strip the Rival’s <b>2 shields</b>, then land the finisher.", btn:"Let’s go ▸" },
       { text:"First, the most important thing — <b>which cards are strong</b>. The ladder runs <b>3 → 10</b>, then your two trumps: the <b>A</b>, and at the very top the <b>2 — the apex, which beats everything</b>. So your <b>2 is your best card</b> and your <b>Ace is second</b>. To win a fight you must play <b>strictly higher</b> — <b>equal values tie, and a tie doesn’t win</b>.", hi:'#specialsRefBtn', btn:"Got it ▸" },
-      { text:"<b>Round 1 is jabs only.</b> A jab is a single card. Tap a card to select it, then press <b>Fight</b> to lead. <span class=\"rNote\">(Lead a middling card — save that 2!)</span>", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
+      /* THE TURN HAS TWO HALVES AND THE BUTTON SAYS SO (epic step 20; taught here 2026-09-16). Pressing
+         Fight in the Main Sub-Phase plays NOTHING — it moves you to the Fight Sub-Phase, and the button
+         relabels itself `Next` → `Fight` to say which press you are on. Measured: select a card in Main
+         and the button reads **Next**; one press leaves the card in hand and flips the label to **Fight**;
+         the second press plays it.
+         EVERY LESSON STILL SAID "press Fight" AT A MOMENT THE BUTTON READS "Next", which is the exact
+         shape of a dead end for a beginner — told to press a button that is not on screen. The suites
+         never caught it because their helper (`__pressFight`) drives both presses by design, so this is
+         the *"assert what the lesson CLAIMS, not that the panel rendered"* rule in its newest clothes.
+         ⚠ IT IS TAUGHT INSIDE AN EXISTING STEP, NOT A NEW ONE, AND THAT IS NOT A STYLE CHOICE.
+         `lessontest_howto` asserts step NUMBERS — `atStep(2)` through `atStep(10)` — so inserting a step
+         renumbers every assertion below it: measured, **7 pass / 17 fail** on the first attempt. Anyone
+         adding a step to any lesson pays that; check the suite before reaching for one. */
+      { text:"<b>Round 1 is jabs only.</b> A jab is a single card. Your turn has <b>two halves</b>: tap a card, press <b>Next</b> to cross out of the <b>Main</b> half — that plays nothing, it just says you are done setting up — then press <b>Fight</b> to lead. <span class=\"rNote\">(Lead a middling card — save that 2!)</span>", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
       { text:"You led a <b>jab</b>. <b>Every card you play banks into your ⚡ energy</b> — win or lose. But a jab only <b>takes the round</b>; it never breaks a shield. Jabs are your <b>safe</b> way to bank energy.", hi:'#youNrgSuits', btn:"Got it ▸" },
-      { text:"To <b>break shields</b> you need a <b>Special</b>, and those unlock from <b>Round 2</b>. The simplest is a <b>pair</b> — two cards of the <b>same number</b>. Select two and <b>Fight</b>.", hi:['#hand','#fightBtn'], prep:tutEnsurePair, requireSpecial:true, gate:function(t,d){ return t==='play' && d && d.size>1; }, wait:"Play a pair…" },
+      { text:"To <b>break shields</b> you need a <b>Special</b>, and those unlock from <b>Round 2</b>. The simplest is a <b>pair</b> — two cards of the <b>same number</b>. Select two, then <b>Next</b> and <b>Fight</b>.", hi:['#hand','#fightBtn'], prep:tutEnsurePair, requireSpecial:true, gate:function(t,d){ return t==='play' && d && d.size>1; }, wait:"Play a pair…" },
       { text:"That’s a <b>Special</b>! Winning it made the Rival <b>lose a shield</b> 🛡. <b>Only Specials break shields</b> — that’s the whole game plan.", hi:'#rivalShields', btn:"Next ▸" },
       { text:"Strip <b>both</b> shields and your next Special win lands the <b>Fighter Kick</b> 🦵 — the finisher that ends the duel. That’s your win condition.", hi:'#rivalShields', btn:"Next ▸" },
-      { text:"Energy is fuel, not just a counter. First <b>read the card</b> — then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to spend energy and fire its <b>effect</b>.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
+      { text:"Energy is fuel, not just a counter. Effects are a <b>Main</b>-half move — once you press <b>Next</b> the fight has begun and it is too late. First <b>read the card</b> — then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to spend energy and fire its <b>effect</b>.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
       { text:"Quick tour of your <b>zones</b>: your <b>hand</b> (the cards you hold), your <b>🂠 deck</b> (draw 2 each round), your <b>⚡ energy</b> (cards you’ve fought), and your <b>♻ shuffle pile</b> (spent energy). Spend energy → it goes to the shuffle pile; when your deck empties, the shuffle pile becomes your new deck. Keep the cycle turning and you won’t run dry.", hi:['#youNrgSuits','#handMeta .stat.deck','#youShuf'], btn:"Next ▸" },
       { text:"That’s the loop: <b>fight</b> → bank <b>energy</b> → spend it on <b>effects</b> → win <b>Specials</b> to break shields → land the <b>Kick</b>. You won’t always win an exchange — when you can’t, <b>pass</b> and still bank energy (that’s the <b>Initiative</b> lesson). Need a refresher on card ranks or Specials? Tap <b>🃏 Specials list</b> above your hand any time. Now play this out and land the Kick! 🥊", btn:"Finish" }
     ];
@@ -10878,8 +10922,8 @@ window.CardFace = {};
   function lessonSpecialsSteps(){
     return [
       { text:"<b>Specials</b> are combos — and they’re the <b>only</b> way to break a shield. A jab (single card) just takes the round; a <b>Special</b> that wins <b>strips a shield</b>.", btn:"Show me ▸" },
-      { text:"<b>Round 1 is jabs only</b>, so lead any single card with <b>Fight</b> to get things going.", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
-      { text:"From <b>Round 2</b>, Specials unlock. The simplest is a <b>pair</b> — two cards of the same number. Select two matching cards and <b>Fight</b>.", hi:['#hand','#fightBtn'], prep:tutEnsurePair, requireSpecial:true, gate:function(t,d){ return t==='play' && d && d.size>1; }, wait:"Play a pair…" },
+      { text:"<b>Round 1 is jabs only</b>, so lead any single card to get things going — select it, press <b>Next</b> to cross into the fight, then <b>Fight</b>.", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
+      { text:"From <b>Round 2</b>, Specials unlock. The simplest is a <b>pair</b> — two cards of the same number. Select two matching cards, then <b>Next</b> and <b>Fight</b>.", hi:['#hand','#fightBtn'], prep:tutEnsurePair, requireSpecial:true, gate:function(t,d){ return t==='play' && d && d.size>1; }, wait:"Play a pair…" },
       { text:"Shield broken! 🛡 Bigger Specials exist too: <b>trio</b> (three of a number), <b>straight</b> (five in a row, any suits), and <b>full house</b> (a trio + a pair). Suit never matters — a run of one suit is just a straight.", hi:'#rivalShields', btn:"How do they rank? ▸" },
       { text:"Two helpers for spotting combos: the <b>Sort</b> button cycles <b>Singles → Pairs → Straights</b> to line your hand up, and <b>💡 Hints</b> (top bar) dims cards you can’t play right now and dashes a group that can <b>break</b> to beat the pile. Try tapping <b>Sort</b>.", hi:'#sortBtn', btn:"Next ▸" },
       { text:"Same shape beats same shape by <b>value</b> (ties don’t win); a bigger shape beats a smaller one. Keep the <b>Specials cheat sheet</b> handy — tap it any time from the board.", hi:'#specialsRefBtn', btn:"Finish" }
@@ -10888,9 +10932,9 @@ window.CardFace = {};
   function lessonEnergySteps(){
     return [
       { text:"Every card you <b>fight</b> — win or lose — banks into your ⚡ <b>energy pile</b>. Energy is the fuel for card <b>effects</b>. <span class=\"rNote\">(In a real duel you start at <b>0</b> and build it by fighting — we’ve pre-stocked some here just to demo.)</span>", hi:'#youNrgSuits', btn:"Got it ▸" },
-      { text:"Leading a <b>jab</b> is the <b>safe</b> way to stock energy: a jab risks no shield, and even a losing jab refuels you. Lead a jab now.", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
+      { text:"Leading a <b>jab</b> is the <b>safe</b> way to stock energy: a jab risks no shield, and even a losing jab refuels you. Lead a jab now — select it, <b>Next</b>, then <b>Fight</b>.", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
       { text:"See the ⚡ box pulse with a <b>+N</b>? That card just banked. Now let’s <b>spend</b> some.", hi:'#youNrgSuits', btn:"Next ▸" },
-      { text:"Each card carries its own <b>effect</b>. <b>Read it</b>, then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to pay energy and fire it.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
+      { text:"Each card carries its own <b>effect</b>. Spend it in the <b>Main</b> half, before you press <b>Next</b> — once the fight starts you may only play or pass. <b>Read it</b>, then select the <b>glowing card</b> and tap <b>⚡ Activate</b> to pay energy and fire it.", hi:function(){ return [ tutEffId?('#hand .card[data-id="'+tutEffId+'"]'):'#hand', '#ctxBtn', '#cardActivate' ]; }, prep:tutEnsureEffect, stage:true, gate:function(t,d){ return t==='activate'; }, wait:"Activate an effect…" },
       { text:"One more source: when you <b>lose</b> a round, the catch-up <b>moves cards straight from your 🂠 deck into energy</b> (you’ll see a <b>−N</b> there). So even losing fuels you.", hi:['#handMeta .stat.deck'], btn:"Next ▸" },
       { text:"Spent energy moves to your <b>♻ shuffle pile</b>; when your <b>🂠 deck</b> empties, the shuffle pile becomes your new deck. So <b>fight and spend</b> — never spending can starve your deck. That’s the energy cycle!", hi:['#handMeta .stat.deck'], btn:"Finish" }
     ];

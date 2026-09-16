@@ -822,23 +822,20 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   `playCards` only once `subPhase === 'play'`, so the local path never sees the `transition:'play'`
   refusal and `flipFrom` survives on a solo board.
 
-- **THE ELEVEN TUTORIALS TEACH A GAME THE EPIC HAS CHANGED (Aj, 2026-09-16: *"we should fix the tutorials
-  for the epic for sure (especially after #5)"*).** They are the last place still describing the pre-epic
-  rules, and the *especially* is exact: **#230 made an activation illegal in the Fight Sub-Phase**, so any
-  lesson that activates after moving to Fight now dead-ends on a refusal the step cannot satisfy — the
-  documented worst failure mode here, because a gated step with no legal way forward has no error, no log
-  line and no way to finish.
-  **THE SUITES ARE THE INVENTORY, AND THEY ALREADY PASS, WHICH IS THE WARNING.** All eleven have a suite
-  and the sweep is green, so nothing mechanical will tell you which lessons are now teaching the wrong
-  model. Read each lesson's TEXT against `PHASES-AND-PRIORITY.md` — sub-phase names (Fight Phase → Play
-  Phase, Fight End → Resolution), when you may activate, and the fact that priority is passed at every
-  boundary — and only then look at the rigs.
-  **THE PRIORITY POINTS ARE SUPPRESSED IN LESSONS ON PURPOSE** (`promptWanted` returns false for every
-  non-`respond` timing in `tutorialMode`), so a lesson that wants to TEACH a boundary window is the line
-  it has to argue with. That is a deliberate decision, not an oversight — see the comment there before
-  changing it.
-  **AND `shieldSaveOverride` REPEATS THAT SUPPRESSION** for the same reason; anything new that forces a
-  prompt must too, or it derails a scripted step.
+- **THE TUTORIALS STILL DO NOT TEACH THE BOUNDARY WINDOWS (the rest of #6, after 2026-09-16).** The
+  two-state Fight and the Main-only activation rule are taught now, and all eleven suites are green. What
+  is still missing is the model itself: **priority is passed at every phase and sub-phase change**, and no
+  lesson says so. A player learns to press Next and Fight without learning WHY there is a crossing.
+  **THE LINE THAT HAS TO BE ARGUED WITH IS `promptWanted`**, which returns false for every non-`respond`
+  timing while `tutorialMode` is on. That is deliberate — an unscripted modal derails a gated step, and
+  `lessontest_twos` went red the day the default flipped — so a lesson that wants to TEACH a boundary
+  window has to opt itself back in rather than have the suppression removed. `shieldSaveOverride` repeats
+  the same suppression for the same reason; anything new that forces a prompt must too.
+  **THE QUICKS LESSON IS THE ONLY ONE THAT TEACHES RESPONDING**, so it is the natural home — it already
+  survives a real Counter Spell window, which is the hard part.
+  **ADDING A STEP RENUMBERS ITS SUITE'S ASSERTIONS, MEASURED:** `lessontest_howto` asserts `atStep(2)`
+  through `atStep(10)`, and inserting one step scored **7 pass / 17 fail**. Fold new teaching into an
+  existing step where you can; budget the suite edit where you cannot.
 
 ### Tooling
 

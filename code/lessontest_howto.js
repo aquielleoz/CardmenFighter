@@ -12,6 +12,22 @@ const { openLesson } = require('./lessonlib');
   await next(); ok(await L.atStep(3),'step 3 is the gated jab step');
   ok(!(await step()).hasNext,'…gated on a real play, no Next');
 
+  /* THE STEP NAMES THE BUTTON THAT IS ACTUALLY ON SCREEN (2026-09-16). Epic step 20 made Fight two-state —
+     the first press only crosses Main → Fight and plays nothing, and the button relabels `Next` → `Fight`
+     to say which press you are on — but every lesson still read "press Fight" at a moment the button reads
+     **Next**. Telling a beginner to press a button that is not there is the dead-end shape this file exists
+     to catch, and no suite could see it because `playAny`/`__pressFight` drive both presses by design.
+     ASSERT THE DERIVATION, NOT THE SENTENCE: read the label off the live button and require the step text
+     to name it. A hardcoded "the text says Next" would pass on a build where the button went back to
+     one-state and the lesson became wrong again. */
+  const jab = { label: await p.evaluate(()=>document.getElementById('fightBtn').textContent.trim()),
+                text : (await step()).text };
+  ok(jab.text.indexOf(jab.label)>=0,
+     `the jab step names the button the player can actually see ("${jab.label}")` +
+     (jab.text.indexOf(jab.label)>=0 ? '' : `  ← the step says press something else; text: "${jab.text.slice(0,90)}"`));
+  ok(/Fight/.test(jab.text),
+     '…and it names the SECOND press too, so the player is not left on the transition');
+
   ok(await playAny(false)!==null,'a legal jab was available and played');
   ok(await L.atStep(4),'leading a jab advanced to step 4');
   await next(); ok(await L.atStep(5),'step 5 is the gated Special step');
