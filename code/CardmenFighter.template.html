@@ -1827,12 +1827,27 @@ __QR__
      "were written from the windows that happened to exist in the code", and Upkeep and Clean-up each add
      one. Keep it a list the reader renders from, not a closed literal anything else branches on: the store
      is keyed by `id`, so order here is presentation only and reordering costs nothing. */
+  /* SIX TIMINGS, AND TWO OF THE OLD LABELS DESCRIBED SOMETHING OTHER THAN WHEN THEY FIRE (2026-09-16).
+     `resolution` was named for one CONSEQUENCE of its window ("when shields are about to break") rather
+     than the boundary it sits on, which is what made a missing shield prompt read as a missing FEATURE
+     rather than a preference nobody had knowingly set. And `cleanup` said "at the end of a round" while
+     firing at the BEGINNING of Clean-up — a name that was simply taken by the timing below it.
+     THE SIXTH IS THE END OF CLEAN-UP, built the same day: `PHASES-AND-PRIORITY.md` §3 already ruled BOTH
+     round boundaries real priority points, and only the first was in the engine. It is adjacent to Upkeep
+     and that is accepted rather than overlooked (Aj: *"some of these can get tiring especially having the
+     before clean up and end of round when you have nothing to do. but that is really how the cookie
+     crumbles. people will be thankful they can uncheck it."*) — they are different moments, because the
+     round boundary sits between them: a card cast here resolves BEFORE the draw, one cast at Upkeep after.
+     THE IDS ARE STORED PREFERENCES, SO A RELABEL IS FREE AND A RE-KEY IS NOT. `promptPrefs` is keyed by
+     timing id in `localStorage`; these labels are presentation. Renaming `cleanup`'s ID would orphan every
+     preference a player has ticked, silently, the way `fightend` would have. Labels move, keys never. */
   var PROMPT_TIMINGS=[
     { id:'respond',  label:'When a Technique is cast' },
     { id:'upkeep',   label:'At the start of a round' },
     { id:'prefight', label:'Before a fight — yours or a rival\'s' },
-    { id:'resolution', label:'When shields are about to break' },
-    { id:'cleanup',  label:'At the end of a round' }
+    { id:'resolution', label:'Before resolution' },
+    { id:'cleanup',  label:'Before clean-up' },
+    { id:'endcleanup', label:'At the end of a round' }
   ];
   // Is this timing even legal for this card? A no-row is not the same as an unchecked row.
   function promptLegal(card, eff, timing){
@@ -5606,10 +5621,11 @@ __QR__
        `prefight` still keys on `subPhase` rather than on `toPlay`, because `toPlay` is host bookkeeping
        and is nulled in the mirror — a client has to be able to answer this too. */
     var promptTiming = state.upkeep ? 'upkeep'
+      : (state.endCleanup ? 'endcleanup'
       : (state.cleanup ? 'cleanup'
       : (state.resolution ? 'resolution'
       : (pend ? 'respond'
-      : (state.subPhase === 'main' ? 'prefight' : 'respond'))));
+      : (state.subPhase === 'main' ? 'prefight' : 'respond')))));
     var eligible=eligibleQuicks();                       // the engine's own answer — `canAddToStack`, mirrored
     var quicks=promptedQuicks(eligible, promptTiming);   // the STOP decision only; the buttons below use `eligible`
     /* THE THREE OUTCOMES, AND TWO OF THEM ARE INVISIBLE ON SCREEN. "You held nothing" and "you held
@@ -5625,6 +5641,7 @@ __QR__
               : promptTiming==='prefight' ? 'main→fight'
               : promptTiming==='upkeep'   ? 'upkeep'
               : promptTiming==='cleanup'  ? 'clean-up'
+              : promptTiming==='endcleanup' ? 'end of clean-up'
               : 'respond';
     var onWhat = pend ? ('  vs ' + rivalName) : '';
     /* NAME THE OVERRIDE WHEN IT IS WHAT STOPPED YOU. Otherwise a saved log shows a window opening at a

@@ -1495,7 +1495,11 @@ function cards(ids) { return ids.map(card); }
      green-and-blind shape; reading the parked boundary off state makes them discriminate instead. */
   function walk(g, cap) { var seq = [], n = 0;
     while (g.respondFor != null && n++ < (cap || 16)) {
-      seq.push((g.pending ? 'obj' : (g.upkeep ? 'up' : (g.cleanup ? 'cu' : (g.resolution ? 'fe' : 'empty')))) + ':' + g.respondFor);
+      /* THE SIXTH BOUNDARY IS `ec` — the END of Clean-up (2026-09-16), inserted into the PHASE chain only.
+         `g` is the STATE, so `pending` stays FIRST: a phase branch requires an empty stack, which is exactly
+         when `pending` is null, while an object dance sets BOTH `pending` and its phase marker and must read
+         `obj`. Moving `pending` last to make room for `ec` duly turned `obj:0,obj:1,obj:2` into `fe:*`. */
+      seq.push((g.pending ? 'obj' : (g.upkeep ? 'up' : (g.endCleanup ? 'ec' : (g.cleanup ? 'cu' : (g.resolution ? 'fe' : 'empty'))))) + ':' + g.respondFor);
       E.declineResponse(g, g.respondFor);
     }
     return seq; }
@@ -1507,7 +1511,7 @@ function cards(ids) { return ids.map(card); }
      'fight end: the WINNER is offered first, on an empty stack' +
      (g.respondFor === 2 && g.pending === null ? '' : '  ← offered ' + g.respondFor + ', pending ' + (g.pending ? 'set' : 'null')));
   var order = walk(g);
-  var WANT1 = 'fe:2,fe:0,fe:1,cu:2,cu:0,cu:1,up:2,up:0,up:1';
+  var WANT1 = 'fe:2,fe:0,fe:1,cu:2,cu:0,cu:1,ec:2,ec:0,ec:1,up:2,up:0,up:1';
   ok(order.join(',') === WANT1,
      'fight end: …then turn order on an empty stack, AND THE ROUND\'S REMAINING BOUNDARIES FOLLOW IT IN' +
      ' ORDER — Resolution, Clean-up, then the new round\'s Upkeep (' + order.join(' ') + ')' +
@@ -1530,7 +1534,7 @@ function cards(ids) { return ids.map(card); }
      'fight end: a Quick cast into the empty window becomes an ordinary object, held by its caster' +
      (cast.ok === false ? '  ← refused: ' + cast.reason : ''));
   var rest = walk(g2);
-  var WANT2 = 'obj:0,obj:1,obj:2,fe:2,fe:0,fe:1,cu:2,cu:0,cu:1,up:2,up:0,up:1';
+  var WANT2 = 'obj:0,obj:1,obj:2,fe:2,fe:0,fe:1,cu:2,cu:0,cu:1,ec:2,ec:0,ec:1,up:2,up:0,up:1';
   ok(rest.join(',') === WANT2,
      'fight end: THE WORKED EXAMPLE — dance on the object from its controller, then the go-round RESTARTS' +
      ' AT THE ACTIVE PLAYER, then Upkeep opens the next round (' + rest.join(' ') + ')' +
@@ -1556,7 +1560,7 @@ function cards(ids) { return ids.map(card); }
   g3.players[1].hand = [];                                             // B holds nothing
   E.openResolutionWindow(g3, 2, true, [0], 2);
   var o3 = walk(g3);
-  var WANT3 = 'fe:2,fe:0,cu:2,cu:0,up:2,up:0';
+  var WANT3 = 'fe:2,fe:0,cu:2,cu:0,ec:2,ec:0,up:2,up:0';
   ok(o3.join(',') === WANT3,
      'fight end: a seat holding no castable Quick is auto-passed, not prompted — at EVERY boundary' +
      ' (' + o3.join(' ') + ')' +
@@ -1609,6 +1613,31 @@ function cards(ids) { return ids.map(card); }
      runs from the ACTIVE PLAYER, and only then does the counter come off. Before this it was a direct
      state change inside the round reset, so a seat given priority at Upkeep was looking at a board where
      its Equipment had already retired. */
+  /* ---- THE END-OF-CLEAN-UP WINDOW IS *BEFORE* THE BEGINNING PHASE, AND THE TICKS PROVE IT (2026-09-16).
+     The sixth timing, and the ordering is the whole reason it is its own window rather than the Upkeep one:
+     a Quick cast here resolves against the board you ENDED the round with. So while `endCleanup` is open the
+     Beginning Phase must not exist yet — no tick may be on the stack, and no counter may have moved.
+     THIS IS THE ASSERTION THAT WOULD CATCH THE REGRESSION. Paying the tick debt one branch too early is
+     invisible to the boundary-sequence tests above (the dance still happens, in the right place) and shows
+     up only as the next round's triggers sitting on a stack this window is still answering — which is the
+     mis-ordering `upkeepTicks` was introduced to remove, reintroduced from the other side. */
+  var gEC = rig();
+  gEC.players[2].equipment = [{ id: 'jav', name: "Hero's Javelin", delta: 1, counters: 3, decay: true, card: sc(6, 'C', 'eqj') }];
+  E.openResolutionWindow(gEC, 2, true, [0], 2);
+  var nEC = 0; while (gEC.respondFor != null && !gEC.endCleanup && nEC++ < 12) E.declineResponse(gEC, gEC.respondFor);
+  ok(!!gEC.endCleanup, 'end of clean-up: the sixth window really opens, between Clean-up and the Beginning Phase');
+  ok(gEC.endCleanup && gEC.endCleanup.origin === gEC.turn,
+     'end of clean-up: …and it starts at the seat that just took the initiative (origin ' +
+     (gEC.endCleanup ? gEC.endCleanup.origin : '?') + ', turn ' + gEC.turn + ')');
+  ok(gEC.stack.filter(function (o) { return o.trig; }).length === 0 && !gEC.upkeep,
+     'end of clean-up: the ticks are still OWED while it is open — the Beginning Phase does not exist yet (' +
+     gEC.stack.filter(function (o) { return o.trig; }).length + ' trigger(s) on the stack, upkeep ' + (gEC.upkeep ? 'OPEN' : 'not open') + ')');
+  ok(gEC.players[2].equipment[0].counters === 3,
+     'end of clean-up: …and no counter has come off yet (' + gEC.players[2].equipment[0].counters + ' of 3)');
+  var nEC2 = 0; while (gEC.respondFor != null && !gEC.upkeep && nEC2++ < 12) E.declineResponse(gEC, gEC.respondFor);
+  ok(!!gEC.upkeep && gEC.stack.filter(function (o) { return o.trig; }).length === 1,
+     'end of clean-up: …and only once everyone passes does Upkeep open and the tick get pushed');
+
   var g6 = rig();
   /* ALL THREE SEATS HOLD ONE, so the ORDER is observable. The winner is seat 2, so 2 is the active player
      at Upkeep and turn order from there is 2 → 0 → 1. */

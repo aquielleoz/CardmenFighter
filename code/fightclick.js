@@ -47,6 +47,11 @@ async function clickFight(page, budgetMs) {
     const first = btn();
     if (!first || first.disabled) return 'no-button';
     const label = first.textContent;
+    const modalUp0 = function () { const o = document.getElementById('overlay'); return !!(o && o.classList.contains('show')); };
+    /* REMEMBER WHAT WE ARE PLAYING, so a swallowed `Fight` can be told from a played one (2026-09-16) —
+       the cards leaving the hand is the only evidence that distinguishes them. */
+    const sel = [].slice.call(document.querySelectorAll('#hand .card.sel')).map(function (c) { return c.dataset.id; });
+    const stillHeld = function () { return sel.some(function (id) { return !!document.querySelector('#hand .card[data-id="' + id + '"]'); }); };
     first.click();
     /* ONLY A `Fight` PRESS HAS ANYTHING TO WAIT FOR. `Play` and `Confirm` ARE the action, so polling after
        them is not merely wasted — it is WRONG, and `phantasmtest` is what proved it: the illusion really
@@ -54,6 +59,29 @@ async function clickFight(page, budgetMs) {
        never going to change, and the suite read a board one turn too late. The earlier claim that a
        Confirm site was safe "because the second click cannot fire" was true about the CLICK and blind to
        the DELAY. Return the moment the action is done. */
+    /* A `Fight` PRESS WAS FIRE-AND-FORGET, AND THAT IS WHERE `nettest_guard`'S FLAKE LIVED (2026-09-16).
+       `busy` swallows a Fight click exactly as silently as a Next one — the comment below says so for
+       `Next`, and this branch was written as though it could not happen. A swallowed press returned
+       `'played'`, the caller believed it, and the failure surfaced SEVEN SECONDS LATER at whatever
+       assertion waited on the turn: `control passed to the client to answer the combo`, which is why it
+       read as a transport fault. Measured on the epic before this fix: 4 red in 8 SOLO.
+       VERIFY THE ACTION, DO NOT TRUST THE CLICK. The cards leaving the hand is the effect; a modal opening
+       over the board is one too. Re-click ONLY while the cards are still in hand AND the button is still an
+       enabled `Fight` — the "can it tell swallowed from worked" test this file already demands of the
+       `Next` retry, because a blind re-click is a second play nobody asked for.
+       A press with NOTHING selected keeps the old behaviour: there is no card to watch leave. */
+    if (label === 'Fight' && sel.length) {
+      const capF = Date.now() + Math.min(budget, 4000);
+      let tries = 0;
+      while (Date.now() < capF) {
+        if (modalUp0()) return 'played';
+        if (!stillHeld()) return 'played';
+        const g2 = btn();
+        if (g2 && !g2.disabled && g2.textContent === 'Fight' && ++tries <= 8) g2.click();
+        await new Promise(r => setTimeout(r, 60));
+      }
+      return stillHeld() ? 'no-move' : 'played';
+    }
     if (label !== 'Next') return label === 'Fight' ? 'played' : 'confirmed';
     /* AND IT RE-CLICKS, BECAUSE `busy` SWALLOWS A CLICK SILENTLY AND LEAVES THE BUTTON LOOKING LIVE.
        `doFight` returns on `busy` with no message while `updateActions` may not have repainted yet, so the

@@ -137,12 +137,19 @@ async function freshGame(p) {
       note: /never changes the rules/.test(quick),
     };
   });
-  /* FOUR SINCE UPKEEP BECAME A REAL PRIORITY POINT (epic step 20, Aj 2026-09-11). The count is asserted
-     rather than the labels because the COUNT is what silently drifts when a boundary is added or removed —
-     a row nobody rendered would leave this green if it only checked that some rows exist. */
-  ok(R.quickHasHead && R.quickRows === 5,
-     'the reader offers the legal timings for a Quick (' + R.quickRows + ' rows: respond + upkeep + main→fight + resolution + clean-up)' +
-     (R.quickRows === 5 ? '' : '  ← want 5; a non-lockout Quick had two before step 20, and the model has five priority points'));
+  /* SIX SINCE THE END OF CLEAN-UP WAS BUILT (2026-09-16); four when Upkeep became a real priority point
+     (epic step 20). The count is asserted rather than the labels because the COUNT is what silently drifts
+     when a boundary is added or removed — a row nobody rendered would leave this green if it only checked
+     that some rows exist.
+     AND IT DULY WENT RED THE DAY THE SIXTH LANDED, which is the suite working: `PROMPT_TIMINGS` grew a row
+     and two others were RELABELLED (`resolution` was named for a consequence — "when shields are about to
+     break" — and `cleanup` said "at the end of a round" while firing at the BEGINNING of clean-up, which is
+     the name the sixth timing actually needed). The IDS were left alone on purpose: they are stored
+     preferences in `localStorage`, so a relabel is free and a re-key would orphan every box a player has
+     ticked. If this count changes again, check that a row was ADDED rather than an id renamed. */
+  ok(R.quickHasHead && R.quickRows === 6,
+     'the reader offers the legal timings for a Quick (' + R.quickRows + ' rows: respond + upkeep + main→fight + resolution + clean-up + end of clean-up)' +
+     (R.quickRows === 6 ? '' : '  ← want 6; the model has six priority points since the end-of-clean-up window was built'));
   ok(!R.plainHasBlock, 'a non-Quick gets no block at all — a timing it can never be cast at is not a choice');
   ok(R.note, 'the reader says out loud that unchecked never changes the rules — it is a notification layer');
 
