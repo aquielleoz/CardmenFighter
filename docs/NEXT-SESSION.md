@@ -326,57 +326,24 @@ re-read its tag.
     scales hardest with player count. The three options are written up on `epic/priority-windows` in
     `FIGHT-END-PLAN.md` → *Where a mid-cast card goes*.
 
-- `root cause found`    · **★ THE RESOLUTION WINDOW IS A SHIELD-GUARD, NOT A PRIORITY WINDOW.** *(replaces the old "should a shield
-  GAIN qualify" entry, which was misfiled as a rules question — Aj answered it and it is a build.)*
-  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) §3: **before** the Resolution Sub-Phase priority is passed
-  around, every player's Quicks are available, and it is nobody's turn so the window is Quicks-only. The code
-  offers a fixed *Guard with X / Take the hit* dialog to the **threatened seat only**, admitting only
-  `immune || shieldImmune` (`guardEffFor`, engine.js). Five confirmed findings, one cause:
-  - ✅ **CLOSED at epic step 19** — only **one** guard card was ever offered, the engine picking it, so holding
-    Leyline *and* an Apollo-Sanctuary meant hand order chose for you. `shieldGuardCard` is deleted; the
-    go-round offers every castable Quick;
-  - the winner gets no window at all, so Armor Piercing can never be added reactively even under Hippolyta,
-    which the old design named explicitly (`resolveRoundWin`, engine.js);
-  - a shield GAIN never qualifies, which is Aj's original Sanctuary report;
-  - the stack view is filtered to effect objects, so the thing you are being asked about is invisible
-    (`stackViewHTML`, template);
-  - **note the model: a shield loss is NOT a stack object** (Aj, 2026-09-08) — *"it just happens; it's the
-    priority windows around that that prevent/increase shield loss."* So the fix is the WINDOW, not putting
-    the loss on the stack. Old `STACK-DESIGN` §3 said the opposite and the code half-implements it.
-    **The code's `kind:'shieldloss'` objects are a QUEUE wearing a stack's clothes** — `applyRoundLoss` pushes
-    one per struck target and `driveShieldStack` drains them in order — and Aj's 2026-09-08 ruling that every
-    loss in a round lands **simultaneously** removes the only thing that ordering was for. After the rebuild
-    the pending losses are plain data on state and the stack holds real objects only.
-  - **⚡ ANSWERED AND SCHEDULED on `epic/priority-windows`.** All five findings, plus four more the design pass
-    found. Do not start from this entry.
-
-- `root cause found`    · **★ PRIORITY IS OFFERED TO THE WRONG PLAYERS, IN THE WRONG ORDER.** **⚡ Scheduled on
-  `epic/priority-windows`, and the model below CHANGED on 2026-09-08 — read the epic's copy of
-  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md), not this summary.** Aj reversed the origin rule:
-  priority now starts with the **CONTROLLER of the top stack object**, and with the active player only when
-  the stack is empty. This entry previously said the opposite (*"priority starts with the active player"*),
-  which was correct when it was written and is quoted here only so the reversal is visible. The rest of the
-  entry stands: the code diverges from the model in the ways below, and the fix now lands in the epic's
-  step 6 rather than on its own.
-  - `openResponseWindow` walks from `(top.p + k)`, i.e. from the **controller**, with `k` starting at **1**.
-    That is TWO divergences, and they hide for different reasons (`openResponseWindow`, engine.js):
-    **the skip** — `k=1` means the controller never gets priority back on their own object, so the active
-    player cannot add to something they just cast. Present at **every** player count; invisible only because
-    they usually have nothing more to add, and the code never offers, so nobody learns they could have.
-    **the starting point** — walking from the controller instead of the active player. **The modulus hides
-    this, not the player count in any interesting sense:** at n=2, `(controller+1) % 2` is always the other
-    player, so when a non-active player responds, "next after the controller" *is* the active player by
-    arithmetic and the order cannot be wrong. From **n=3** they come apart as soon as the controller is not the
-    active player — A casts, B answers, and the code offers **C → A** where the model says **A → B → C**.
-  - The **pre-fight window is offered to one seat only** and gives up rather than passing it on, so at 3-6p a
-    human in seat 3+ can never spring it (`preFightHolder`, engine.js).
-  - **`pushEffect` adds to the stack without resetting `passed`**, and `activate()` has no open-window guard —
-    unreachable through the solo UI, reachable on a netplay host (`pushEffect`, engine.js).
-  - ✅ **CLOSED at epic step 19** — **`noopDestroy` suppressed priority for EVERYONE**, computed from one
-    target while the effect can resolve against many. Deleted from `openResponseWindow`.
-  - **A Back-Stab-locked player may cast Techniques.** Aj, 2026-09-08: they **keep priority** — equipment are
-    neither a fight nor a Technique, and activated equipment is coming — but Back Stab's text denies fights and
-    **Techniques**, and `respond()` accepts one today (`respond`, engine.js).
+- `ready to build`      · **★ PRIORITY: THREE OF THE FIVE DIVERGENCES ARE CLOSED; THESE ARE WHAT IS LEFT**
+  (culled 2026-09-16 — the entry described five, and the epic closed three of them. Read the epic's copy of
+  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) for the model, never a summary.)
+  **CLOSED, each verified in the code rather than assumed:** the `k = 1` skip (now `k = 0`, epic step 6, so
+  a player can add to something they just cast — which is what holding priority means); the "walks from the
+  controller instead of the active player" divergence, which **dissolved rather than being fixed** when Aj
+  reversed the origin rule on 2026-09-08 — *a filed bug can stop being a bug because the RULE moved, and
+  nothing in the code changed to make it so*; and `noopDestroy` suppressing priority for everyone (deleted
+  at step 19).
+  **STILL OPEN:**
+  - The **pre-fight window is offered to one seat only** and gives up rather than passing it on, so at 3-6p
+    a human in seat 3+ can never spring it (`preFightHolder`, engine.js).
+  - **`activate()` has no open-window guard** — unreachable through the solo UI, reachable on a netplay
+    host. Note the OTHER half of this bullet shipped: `pushEffect` resets `passed` now, so a seat that had
+    passed on the object underneath is asked again when the board changes under them.
+  - **A Back-Stab-locked player may cast Techniques.** Aj, 2026-09-08: they **keep priority** — equipment
+    are neither a fight nor a Technique, and activated equipment is coming — but Back Stab's text denies
+    fights and **Techniques**, and `respond()` accepts one today (`respond`, engine.js).
 
 - `ready to build`      · **A SHIELD-LOSS TECHNIQUE CAN BE CAST AT A RIVAL WITH NO SHIELDS, AND SILENTLY DOES NOTHING.** Critical Hit
   ♠9 and Ultima Attack ♣10 both read *"Target Rival loses 1 shield."* Against a rival on 0 the ⚡ is fully lit,
@@ -775,24 +742,6 @@ re-read its tag.
   only on desktop or only on a phone proves nothing about the other.
 
 #### Tutorials and prompts
-
-- `ready to build`      · **★ THE TUTORIALS TEACH A BUTTON THAT NO LONGER EXISTS, AND EVERY SUITE IS GREEN ABOUT IT** (Aj,
-  2026-09-11: *"we'll have to recheck the tutorials after this epic lands too"* — and it is worse than a
-  recheck). Epic step 20 relabelled `#fightBtn` to **`Next`** in the Main Sub-Phase, and the lesson copy
-  still says *"press **Fight** to lead"* and *"Select two and **Fight**"* (`LESSONS`, the How-to-Play and
-  Basics steps; `hi:['#hand','#fightBtn']` still spotlights the right control). A learner reads the step,
-  looks for a button called Fight, and the board shows Next — on the FIRST lesson, at the first thing the
-  game ever asks them to do.
-  **NO SUITE CAN SEE THIS, and the reason is structural rather than an oversight**: every lesson suite
-  drives the button through `fightclick.js`, which addresses it by ID and reads the LABEL only to decide
-  which press it is. Asserting the step TEXT against the live label is the missing check — exactly the
-  shape CLAUDE.md already names for lessons ("assert what the lesson CLAIMS, not that the panel
-  rendered"), and the same class as the apex-2 reminder text being DERIVED rather than hardcoded.
-  **Scope it properly before editing strings.** The step text is one part; also worth a pass are the
-  rules intro (*"then Fight — lead a card or beat the one on the table"*, which is still TRUE of the Fight
-  Sub-Phase and probably fine), anything that teaches drag-to-play (a drag in the Main Sub-Phase now
-  ACTIVATES), and the Quicks lesson's Respond? flow, which sits on the window step 20 rebuilt. The
-  tutorials were written against a one-sub-phase board and this epic gave the game three.
 
 - `needs a decision`    · **BEFORE SHIP, THE PROMPT CHECKBOXES DEFAULT TO *UNCHECKED*** (Aj, 2026-09-11: *"the checkboxes will be
   unchecked by default when we finally ship"*). The player opts IN per card, per timing, in the card reader.
