@@ -2527,6 +2527,22 @@ paste`. If a PR wants two bumps it is two PRs.
 **invalid** (arms run in blocks at different times, on a machine under external load). A PR that admits an open
 question is cheap; a merge that buries one is not.
 
+**A STACKED PR DIES WHEN ITS BASE BRANCH IS DELETED — MERGE THE STACK FROM THE TOP DOWN (2026-09-16).**
+Stacking is legitimate here and will keep happening: a docs change lands, and the next change builds on the
+ids or headings it introduced, so basing the child on the parent BRANCH rather than on the epic is what keeps
+its diff readable. The trap is the merge order. `gh pr merge --delete-branch` on the parent removes the
+child's base, and **GitHub CLOSES the child rather than retargeting it** — then refuses to reopen it or to
+change its base, because *"Cannot change the base branch of a closed pull request"*. The work is not lost (the
+branch and its commits survive), but the PR is unrecoverable and has to be raised again from scratch, which
+costs the review thread.
+**So: retarget the child BEFORE merging the parent** — `gh pr edit <child> --base epic/...` — or merge the
+stack top-down. Measured the hard way on #241/#242: #242 was closed by #241's merge and reopened as **#243**
+with the identical commit.
+**AND THE RECOVERY IS A COMMENT, NOT A FORCE-PUSH.** The closed PR keeps its description and discussion, so
+the repair is a cross-reference on it naming the successor and the merge commit; anything else rewrites a
+record that is still accurate. A future reader's problem is not that the work vanished, it is that a closed
+PR with no link reads as abandoned.
+
 **Merge with `gh pr merge --merge --delete-branch`,** then prune locally:
 
 ```bash
