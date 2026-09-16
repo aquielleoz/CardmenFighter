@@ -1946,9 +1946,24 @@ prediction was a DEADLOCK; it never happened — two divergences, zero stalls. S
 recorded fork. An earlier version of this same fix was withdrawn on 2026-08-31 precisely because the experiment
 of the day could not validate it either way; write the prediction down first.
 
-**`nettest_sync` PASSED this sweep, and that is not evidence it is fixed** — the host/client fork it hunts is
+**`nettest_sync` PASSED this sweep, and that is not evidence it is fixed** — the host/client fork it hunts was
 intermittent at roughly 1-3 runs in 8, so one green run is exactly what the bug looks like most of the time. A
 single clean sweep is evidence for the OTHER 60 suites and says nothing about this one.
+**THE RATE NO LONGER HOLDS ON A QUIET MACHINE — MEASURED 23/23 GREEN (2026-09-16), and the arithmetic is the
+point of the entry rather than the streak.** Ten runs was not enough and saying so is the useful half: at a
+1-in-8 rate, ten clean runs happen **26%** of the time, so the obvious round number licenses nothing. The
+threshold is `0.875^n < 0.05`, i.e. **n = 23** — at which point 23 straight passes carry a 4.6% chance under
+the old rate, and it is rejected. Every run went deep (rounds 10-13, all stopping on the ACTION cap, none
+time-capped), so these are not shallow passes.
+**WHAT THAT DOES AND DOES NOT LICENSE, because the two get conflated.** It says the RATE has changed on this
+machine. It does NOT say the fork is fixed: nobody found a mechanism, nothing was changed to address it, and
+the suites that were red the same morning were red because the machine had spent a session being
+`kill -9`'d — so "quiet machine" may be the whole variable. **Re-measure rather than trusting this number if
+the suite ever goes red again**, and do not quote it as a fix.
+**AND THE GENERAL RULE: PICK THE RUN COUNT FROM THE RATE YOU ARE TRYING TO REJECT, BEFORE RUNNING.** This file
+already carries the mirror of it — a probabilistic assertion is settled by counting, and `nettest_starter`'s
+six coin flips were called "a real test rather than a hopeful one" by a comment that had done the arithmetic
+wrong. Ten here would have been the same mistake in the other direction.
 **RUN THE WHOLE NETPLAY SWEEP AFTER A UI CHANGE, NOT THE SUITES THAT LOOK RELEVANT.** v1.31.57 gave `#newBtn` a
 third state and left `nettest_elim3` red for five versions, because that suite asserts an ELIMINATED seat's
 header text and nothing about the change suggested it. The sweep takes a few minutes; a suite that is red and
