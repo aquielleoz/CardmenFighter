@@ -674,6 +674,15 @@
   .cvPromptRow input{ margin:0; flex:0 0 auto; }
   .cvPromptsNote{ font-size:10px; opacity:.55; font-style:italic; margin-top:4px; }
   #hand .card.boosted{filter:drop-shadow(0 0 6px rgba(150,140,240,.95));}   /* REWORK: a Form is empowering this card */
+  /* CANNOT PAY FOR ITS EFFECT — a READING, not a refusal: the card is still a perfectly good fight card and
+     stays fully interactive.
+     OPACITY ONLY, AND DELIBERATELY NOT `filter`. Greying with `filter:grayscale()` reads better on its own
+     and would CLOBBER the two rules around it — `.boosted`'s drop-shadow and `.transformReady`'s pulse are
+     both `filter`, and this selector outranks them. "A Form is lifting this card", "you can transform it
+     right now" and "you cannot pay for it" are three independent facts and the player needs all three at
+     once, so this dims along an axis nothing else uses.
+     `:not(.sel)` so a card you have deliberately picked up never looks dead inside your own selection. */
+  #hand .card.nomana:not(.sel){ opacity:.5; }
   #hand .card.transformReady{ animation:transformPulse 1.4s ease-in-out infinite; }   /* REWORK: a J/Q/K you can transform right now */
   @keyframes transformPulse{ 0%,100%{ filter:drop-shadow(0 0 4px rgba(255,196,60,.75)); } 50%{ filter:drop-shadow(0 0 10px rgba(255,196,60,1)); } }
   #hand .card.transformReady.boosted{ animation:transformPulseBoost 1.4s ease-in-out infinite; }   /* both at once */
@@ -8421,6 +8430,25 @@ window.CardFace = {};
     var ef=E.effectFor(state, YOU, c);
     if(ef && ef.boosted) el.classList.add('boosted');
   }
+  /* GREY WHAT YOU CANNOT PAY FOR (Aj, 2026-09-16: *"would be nice to grey out the cards you don't have
+     mana to cast in the main phase. no need to make them undraggable. the reddening of the play area will
+     tell them they don't have enough energy anyway."*).
+     READABILITY ONLY, AND THAT IS THE DESIGN. The card stays selectable, draggable and perfectly playable
+     AS A FIGHT CARD — energy buys the EFFECT, never the card — so this must never become a refusal. The
+     engine stays the authority; `activateReason` already says why, in words, when you try.
+     THE RIDE DELTA IS NOT OPTIONAL. `canAfford(pl, card)` on its own reads the printed cost, and the Giant
+     Owl discounts your first effect each turn while the Giant Ram taxes it, so a flat cost greys the wrong
+     cards under a Ride. Same two-line idiom `activateReason` uses, for the same reason.
+     MAIN SUB-PHASE ONLY, matching where an activation is legal at all (#230). In the Fight Sub-Phase every
+     card would grey, which would say nothing about energy and everything about the phase — and a signal
+     that fires on every card is not a signal. Same for a turn that is not yours. */
+  function markAfford(el, c){
+    if(!state || !E.effectFor || state.subPhase==='play' || state.turn!==YOU) return;
+    var ef=E.effectFor(state, YOU, c);
+    if(!ef || !ef.impl) return;                                          // no activated effect at all (the apex 2) — nothing to pay for
+    var cd=E.rideCostDelta ? E.rideCostDelta(state, YOU, c) : 0;
+    if(!E.canAfford(state.players[YOU], c, cd)) el.classList.add('nomana');
+  }
   // REWORK: gold pulse on a J/Q/K in hand when it can be transformed RIGHT NOW
   // (its tier isn't already in your zone, and the table-shield threshold is met).
   function markTransform(el, c){
@@ -8442,7 +8470,7 @@ window.CardFace = {};
     if(pick){                                          // pick mode: flat individual cards, no grouping/drag
       var eligible=(pick.from&&pick.from.length)?function(id){ return pick.from.indexOf(id)>=0; }:function(){ return true; };
       orderedHand().forEach(function(c){
-        var el=cardEl(c,'', YOU); markBoost(el, c); markTransform(el, c);   // YOUR hand: judge Quick against YOUR zone
+        var el=cardEl(c,'', YOU); markBoost(el, c); markTransform(el, c); markAfford(el, c);   // YOUR hand: judge Quick against YOUR zone
         var pickOk=eligible(c.id);
         if(!pickOk) el.classList.add('notpick');                              // dig restriction: only the looked cards are selectable
         if(pick.chosen[c.id]) el.classList.add('picked');
@@ -8474,7 +8502,7 @@ window.CardFace = {};
       var cardrow=document.createElement('div'); cardrow.className='cardrow';
       g.cards.forEach(function(c,idx){
         if(kind==='fullhouse' && idx===3){ var gap=document.createElement('span'); gap.className='fhgap'; cardrow.appendChild(gap); }
-        var el=cardEl(c,'', YOU); markBoost(el, c); markTransform(el, c);   // YOUR hand: judge Quick against YOUR zone
+        var el=cardEl(c,'', YOU); markBoost(el, c); markTransform(el, c); markAfford(el, c);   // YOUR hand: judge Quick against YOUR zone
         if(g.cards.length===1 && pendingEnter[c.id] && canEnter){ el.classList.add('enter'); el.style.animationDelay=(enterDelayBase+enterIdx*55)+'ms'; enterIdx++; }
         cardrow.appendChild(el);
       });

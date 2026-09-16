@@ -406,6 +406,35 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   ok(/lead a card/.test(await pileTxt()),
      '…and it repaints when the turn comes back — the empty signature tracks the turn, not just the cards');
 
+  /* ---- A CARD YOU CANNOT PAY FOR IS GREYED, AND ONLY WHERE THAT MEANS SOMETHING (Aj, 2026-09-16) ---- */
+  /* *"would be nice to grey out the cards you don't have mana to cast in the main phase."* `markAfford` is
+     a sibling of `markBoost`/`markTransform` and, like them, had nowhere to be tested — so it lands here,
+     with the other presentation checks.
+     THE CHEAP CARD IS THE DISCRIMINATOR. "The expensive one greyed" is also true of a build that greys
+     EVERYTHING, so every reading below is a pair: at four pips the cost-9 card must dim and the cost-3
+     card must not. */
+  const hand=n=>p.evaluate(x=>{
+    const st=window.__solo.st(), C=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s}), you=st.players[0];
+    you.hand=[C(3,'S','h2h'), C(9,'D','ley'), C(2,'C','apex')];        // cost 3, cost 9, and the apex (no activated effect at all)
+    you.energy=[]; for(let i=0;i<x;i++){ you.energy.push(C(3,'D','e'+i)); you.energy.push(C(3,'S','s'+i)); }
+    st.turn=0; st.subPhase='main'; st.pile=null; window.__solo.render();
+    const g=id=>{const el=document.querySelector('#hand .card[data-id="'+id+'"]');return el?el.classList.contains('nomana'):null;};
+    return {cheap:g('h2h3S'), dear:g('ley9D'), apex:g('apex2C')};
+  },n);
+  const rich=await hand(12), poor=await hand(4), broke=await hand(0);
+  ok(rich.cheap===false && rich.dear===false, 'with energy to spare nothing is greyed');
+  ok(poor.dear===true && poor.cheap===false,
+     'at four pips the cost-9 card greys and the cost-3 card does NOT — it is reading the cost, not blanket-dimming'+
+     (poor.dear===true && poor.cheap===false?'':'  ← dear='+poor.dear+' cheap='+poor.cheap));
+  ok(broke.cheap===true && broke.dear===true, 'with no energy both effect cards grey');
+  ok(rich.apex===false && broke.apex===false,
+     'the apex 2 NEVER greys at any energy — it has no activated effect, so there is nothing to be unable to afford');
+  const inFight=await p.evaluate(()=>{const st=window.__solo.st();st.subPhase='play';window.__solo.render();
+    return [].slice.call(document.querySelectorAll('#hand .card')).filter(el=>el.classList.contains('nomana')).length;});
+  ok(inFight===0,
+     'and NOTHING greys in the Fight Sub-Phase — an activation is illegal there anyway, so dimming the whole hand would say nothing about energy'+
+     (inFight===0?'':'  ← '+inFight+' cards greyed'));
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
