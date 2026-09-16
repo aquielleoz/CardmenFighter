@@ -22,22 +22,22 @@
  *     resume from, so the wedge cannot occur. The client is staged holding a Quick and the window is asserted
  *     on the CLIENT's own board before the decline.
  *
- * ⚠ STATUS 2026-09-16: THIS DOES NOT REPRODUCE THE WEDGE YET, and it is named `ridewedge-probe.js` rather
- * than `nettest_*` ON PURPOSE — `sweep.js` auto-discovers `nettest_*`, so shipping it under that name would
- * put a known-red suite into the sweep, which is a suppression and this repo bans those. Rename it when it
- * reproduces AND the bug is fixed.
- * WHAT IT ESTABLISHED, which is the useful part:
- *   - the host CAN call a Ride on its own turn over netplay (activates via the icon control) — so the
- *     transform gate staging (3/3 shields = 2 lost table-wide) is right and that half is not the blocker;
- *   - with the client holding COUNTER SPELL (4♦), **no response window opened on the client at all**, so
- *     there was nothing to decline — and the host then did NOT wedge. That is consistent with the diagnosis
- *     rather than against it: the wedge lives in the resume-from-a-declined-window path, so no window means
- *     no wedge, and this run proves the assertion can pass VACUOUSLY.
- *   - therefore the missing ingredient is the CLIENT'S ELIGIBILITY. In the reported game the client held
- *     **Armor Piercing under Hippolyta Form** — a FORM-GRANTED Quick, which is the `effectFor`-not-`effectOf`
- *     path — and its ledger reads `[respond] window SHOWN to you vs Giant Owl offering: Armor Piercing`.
- *     Stage that exact shape next: client in Hippolyta with Armor Piercing, not a plain Counter Spell.
- * Run: node ridewedge-probe.js */
+ * IT REPRODUCED, AND THE FIX IS IN THE SAME COMMIT. Before: 8 pass / 1 fail, with the captured state matching
+ * Aj's two screenshots exactly — host `turn=0 pending=false fightDisabled=true`, hint "Hold on — the board is
+ * still resolving", message "You called your Ride — Giant Owl enters"; client "Rival is fighting…". After: 9/0.
+ * `pending:false` is the decisive half — the stack was EMPTY and no window was open, so nothing was left to
+ * resolve and the host had simply never cleared `busy`.
+ * THE CAUSE: the `transform` branch of the activation path settled with a bare `render()`, while every other
+ * effect goes through `NET.hostAfterOwnCast` → `hostRivalWindows` → `hostTakeBack()`. Its comment still read
+ * "persists, no response window" — true once, false since the stack model.
+ * TWO STAGING FACTS THIS SUITE PAID FOR, both of which make it pass VACUOUSLY if lost:
+ *   - THE TRANSFORM GATE. 3/3 shields = two lost table-wide = `numPlayers × 1`, which is what opens the Jack
+ *     tier. At a fresh 4/4 the Ride is refused and the run reports "no wedge" having activated nothing.
+ *   - THE CLIENT'S QUICK MUST BE UNTARGETED. The first version staged Counter Spell (4♦) and NO window opened,
+ *     because Counter Spell targets an effect on the stack and `canCastQuick` refuses a cast with no legal
+ *     target. Armor Piercing (♣7 under Hippolyta ♣Q) is `onWin` and targets nothing — which is exactly why the
+ *     reported game's client was offered it. Its `pitchHigh` also needs a Broadway card in hand.
+ * Run: node nettest_ridewedge.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const { enterFight } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
@@ -91,7 +91,7 @@ const declineOn=p=>p.evaluate(()=>{ var b=document.getElementById('respDecline')
 const windowOpenOn=p=>p.evaluate(()=>{ var b=document.getElementById('respDecline'); return !!(b && b.offsetParent!==null); });
 
 (async()=>{
-  await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node '+path.basename(__filename)))); srv.listen(PORT,r); });
+  await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node '+'nettest_ridewedge.js'))); srv.listen(PORT,r); });
   const b=await chromium.launch(LAUNCH);
   const ctx=await b.newContext({viewport:{width:1100,height:820}}); const errs=[];
   const host=await ctx.newPage(); host.on('pageerror',e=>errs.push('host: '+e.message));
@@ -104,19 +104,33 @@ const windowOpenOn=p=>p.evaluate(()=>{ var b=document.getElementById('respDeclin
 
   /* 3/3 shields = TWO lost table-wide, which is exactly `numPlayers × 1` and opens the Jack (Ride) tier.
    * The client holds Counter Spell (4♦) so the window it is offered is real rather than an auto-pass. */
-  const energy=()=>[D(2,'D','e'),D(3,'D','e'),D(4,'C','e'),D(5,'H','e'),D(6,'S','e'),D(7,'D','e')];
-  const stage=()=>host.evaluate(a=>window.__cmf.force(a.hh,a.rh,a.he,a.re,a.hs,a.rs),{
-    hh:[D(11,'D'),D(9,'C'),D(6,'S')],   // J♦ = Giant Owl, the Ride the real game wedged on
-    rh:[D(4,'D'),D(10,'C'),D(8,'H')],   // 4♦ = Counter Spell, so the client's window is genuinely castable
-    he:energy(), re:energy(), hs:3, rs:3
+  /* THE CLIENT'S QUICK IS **ARMOR PIERCING (♣7) UNDER HIPPOLYTA (♣Q)**, copied from `resolutiontest_ui`'s
+     `stagePierce`, and the first version of this probe got it wrong in an instructive way. It staged COUNTER
+     SPELL (4♦) and no window opened at all — because Counter Spell **targets an effect on the stack**, and
+     `canCastQuick` refuses a cast with no legal target, so it was never castable against a transform. Armor
+     Piercing is `onWin` and targets nothing, which is why the reported game's client was offered it.
+     The pitch card is load-bearing too: Armor Piercing carries `pitchHigh`, so the hand needs a Broadway
+     card (10/J/Q/K/A) or the cast is refused for a reason that looks like "no window opened". */
+  const energy=n=>{ const e=[]; for(let i=0;i<13;i++) e.push(D(3,n,'e'+i)); return e; };
+  const stage=()=>host.evaluate(a=>window.__cmf.forceAll(a.hands,a.energies,a.shields,a.opts),{
+    hands:[[D(11,'D'),D(9,'C'),D(6,'S')],                      // host: J♦ = Giant Owl, the Ride that wedged
+           [D(7,'C','ap'),D(10,'D','pitch'),D(8,'H')]],        // client: ♣7 Armor Piercing + a Broadway pitch
+    energies:[energy('D'), energy('C')],
+    shields:[3,3],                                             // two lost table-wide = numPlayers × 1 → Jack tier open
+    opts:{ forms:{ 1:[{rank:12,suit:'C',tier:'queen',name:'Hippolyta'}] } }   // Hippolyta makes ♣7 a Quick
   });
 
   let staged=false;
   for(let i=0;i<8 && !staged;i++){
     await stage();
-    staged=await until(async()=>await host.evaluate(()=>!!document.querySelector('#hand .card[data-id="11D"]')), 12);
+    staged=await until(async()=>await host.evaluate(()=>!!document.querySelector('#hand .card[data-id="11D"]')), 12)
+        && await until(async()=>await join.evaluate(()=>!!document.querySelector('#hand .card[data-id="ap7C"]')), 12);
   }
-  ok(staged, 'staged: the HOST really holds Giant Owl (J♦), asserted on its own board');
+  /* ASSERT THE STAGING ON BOTH BOARDS, not from force() returning true — a client that does not actually
+     hold the Quick produces "no window opened", which reads as the bug being absent. */
+  ok(staged, 'staged: host holds Giant Owl (J♦) and the CLIENT holds Armor Piercing (♣7), both asserted on their own boards');
+  const elig=await join.evaluate(()=>{ const c=window.__cmf; return c&&c.handOf?c.handOf(0).length:-1; });
+  ok(elig>0, `the client's hand reached it (${elig} cards)`);
   ok(await until(async()=>await turnOf(host)===0, 60), "it is the host's turn");
 
   let how=null;

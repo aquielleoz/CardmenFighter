@@ -514,55 +514,6 @@ re-read its tag.
 
 #### Netplay
 
-- `needs a repro`       · **A DUEL HOST WEDGES AFTER ITS OWN ACTIVATION'S WINDOW IS DECLINED — `busy` LEFT
-  SET, BOTH LOGS CAPTURED (Aj, 2026-09-16: *"uh-oh something caused a hangup... this game's gone"*).** The
-  best-evidenced netplay bug on this list: both ends of the SAME game were saved, and they agree.
-  **THE STATE AT THE HANG, from the two screenshots.** HOST: *"your turn"* and *"Hold on — the board is still
-  resolving."* — a live turn with `busy` stuck, which is the v1.31.20 signature exactly. CLIENT: *"Rival's
-  turn… / Rival is fighting…"*, which is CORRECT — it is faithfully rendering a host that never hands back.
-  **WHAT HAPPENED, round 8 of a duel.** The client played a Special Pair (5♣,5♣). The host, now on its own
-  turn, **called a Ride — Giant Owl** (an activation on the host's own Main sub-phase), which pushed to the
-  stack and opened a window the CLIENT owed. The client declined. The host applied it and never came back.
-  **THE DECLINE WAS APPLIED — so this is NOT the wrong-park-family bug**, and ruling that out is the useful
-  half. `hostApplyMove`'s duel arm opens with `if(!netSettle) return;`, so a lost park drops the intent in
-  silence; but the host's battle log carries *"Rival 2 let it resolve."*, which is `say()` from INSIDE that
-  arm. `netSettle` was live, the branch ran, and it ended in `hostSettle(ns.g, ns.done)`. **The fault is
-  downstream of the resume, in the continuation.**
-  **`hostTakeBack()` IS THE ONLY THING THAT CLEARS `busy`, AND IT TRACES** — so its absence is evidence, not
-  inference. The host trace's last line is `move IN from seat 1 op=decline q=330` and then nothing: no
-  `hostTakeBack`, no `awaitRival`. Meanwhile the client keeps receiving mirrors on a metronome — 1208.24,
-  1210.04, 1211.84 … 1231.64 — **exactly 1.8s apart, which is `startParkBeat`**, re-asserting an unchanging
-  board forever. The beat is working as designed and is what makes the wedge look like a live connection.
-  **THE TWO CLOCKS ARE OFFSET BY ~10.4s**, established from three matched events (client `clientSend play`
-  1178.10 = host `op=play` 1188.50; decline 1211.87 = 1222.27), so the logs can be read against each other.
-  **WHAT IS NOT YET KNOWN, and must not be guessed:** which continuation `done` the host's own activation
-  passes into `hostSettle`, and why it never reaches `hostTakeBack`. Do not patch `busy=false` somewhere
-  plausible — that is the fix that hides the next one.
-  **THE REPRO IS STARTED AND DOES NOT FIRE YET — `code/ridewedge-probe.js` (2026-09-16).** Named as a probe
-  rather than `nettest_*` on purpose: `sweep.js` auto-discovers that prefix, so shipping a known-red suite
-  under it would be a suppression. Rename it when it reproduces AND the bug is fixed.
-  **What the first run settled**, which narrows the work rather than repeating it:
-  - the host **can** call a Ride on its own turn over netplay (activates via the icon), so the transform-gate
-    staging is correct — **3/3 shields = two lost table-wide**, which is exactly `numPlayers × 1` for a Jack.
-    At a fresh 4/4 the Ride is simply refused and a suite would report "no wedge" having activated nothing;
-  - with the client holding **Counter Spell (4♦)** *no window opened on the client at all*, so there was
-    nothing to decline — and the host did **not** wedge. That is consistent with the diagnosis, not against
-    it: no window means no resume, and it proves the liveness assertion can pass **vacuously**;
-  - so the missing ingredient is the CLIENT'S ELIGIBILITY, and the reported game names it: that client held
-    **Armor Piercing under Hippolyta Form**, a FORM-GRANTED Quick — the `effectFor`-not-`effectOf` path — and
-    its ledger reads `[respond] window SHOWN to you vs Giant Owl offering: Armor Piercing`. **Stage that
-    exact shape next**, not a plain Counter Spell.
-  **`nettest_actloop` LEG 1 ALREADY COVERS A HOST ACTIVATION AND IS GREEN — which is why this needs its own
-  suite.** That leg activates a **Technique** (Gather Energy, A♦); the report is a **Ride**, and the transform
-  branch is a separate path: CLAUDE.md lists "the transform/Ride branch" among the five sites that each
-  needed their own client guard, and `keepsTheWin` is wired into `pick()` AND the transform branch because
-  transform does not go through `pick`. The covered path and the reported path only look alike.
-  **AND A SEPARATE, SMALLER FINDING FROM THE SAME READ:** the duel's `if(!netSettle) return;` is **silent**,
-  while its N-player twin traces (`react IGNORED  op=… but netReact=null`). A duel can therefore drop a
-  client intent leaving no evidence at all — which is why this investigation had to rule that path out from
-  a `say()` line rather than from the trace. Give it the same trace.
-  `[id: duel-activate-wedge]`
-
 - `ready to build`      · **"RIVAL" IS HARDCODED IN THE PRIORITY MODALS, WRONG AT 3-6 PLAYERS.** *(The modal half is moot: the
   string was fixed in v1.31.120 and `openShieldGuardModal` itself was deleted at epic step 19. **The naming
   half below is still open and is the part Aj asked for.**)* It said
