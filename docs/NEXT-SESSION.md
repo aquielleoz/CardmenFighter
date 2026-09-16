@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**504**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**512**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -643,6 +643,21 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   **AND ONE FIX SHAPE IS ALREADY RULED OUT, MEASURED:** refusing Fight/Pass while `respondFor != null`
   stalls the board permanently, because `moveToPlayThen`'s settle is what DRAINS the window on some paths.
   `browsertest` went from 70s to past 400s. Lock the board, never forbid the action.
+  **A DETECTOR IS NOW LIVE, SO THE THIRD OCCURRENCE ARRIVES DIAGNOSED.** `enterResolution` is the funnel
+  both round-win paths reach, and it counts a second entry inside one round (`blockedResolves`);
+  `noteBlockedResolves` writes **`⚠ DOUBLE RESOLUTION BLOCKED`** into the saved log. The first two
+  occurrences were silent — the shield went and nothing said a round had resolved twice — so the next log
+  Aj sends will either carry that line or rule the duplicate out entirely. **Check for it first.**
+  **IT DETECTS AND DOES NOT REFUSE, AND THAT IS A HELD DECISION, NOT AN OVERSIGHT.** A refusing version was
+  written and pulled the same day: `browsertest` hung twice with it in. The hangs could NOT be pinned on
+  it — a counting build then measured **0 duplicates across 12 solo duels**, so the condition never fired
+  at all, and both hangs followed probe runs that had left stray browsers on the machine — but "cannot be
+  attributed" is not "is safe", and refusing changes what the caller receives at the exact moment a round
+  ends. **Ship the refusal when there is a repro to prove it against**; the one-line change is
+  `if (st.resolvedRound === st.round) return { ok:true, state:st, alreadyResolved:true }`.
+  **AND SOLO IS NOW MEASURED CLEAN, which sharpens the netplay reading:** 0 duplicate resolutions across 12
+  full duels in the real page, both declining and casting into every window. Whatever drives the second
+  resolution is not reachable by the solo driver.
 
 - **A CLIENT COULD ACT WHILE ANOTHER SEAT HAD A MODAL UP (Aj, 2026-09-16: *"we really need that guard when
   somebody has a modal up. other player could activate stuff while the other players were busy with a
