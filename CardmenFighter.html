@@ -2252,7 +2252,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], losses: [], roundWinResult: null, resolution: null, resolutionResult: null, resolvedRound: null, blockedResolves: 0, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], losses: [], roundWinResult: null, resolution: null, resolutionResult: null, resolvedRound: null, blockedResolves: 0, upkeepTicks: false, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -3215,6 +3215,24 @@
        Resolution branch above can reach: unparking that one first keeps the two from ever being live
        together. */
     if (st.upkeep && !st.stack.length && !st.finished) {
+      /* THE BEGINNING PHASE STARTS HERE, NOT AT THE END OF CLEAN-UP (Aj, 2026-09-16 — he called this a bug
+         and he is right; it was filed as "unreachable" and that is not the same thing).
+         `finishCleanup` used to run its events and then `pushUpkeepTicks` in the same breath, so a trigger
+         a CLEAN-UP event had put on the stack ended up UNDERNEATH the ticks — and The Stack is LIFO, so the
+         next round's upkeep resolved before the previous round's clean-up finished. Aj's order is explicit:
+         *"after those finish, we can then proceed to addressing The Stack again. and when that empties,
+         there's still one more round of priority dancing as phases change."*
+         THE TICKS ARE NOW OWED RATHER THAN PUSHED, and this branch is the only place that pays the debt —
+         it is reached exactly when the stack is EMPTY, which is the definition of "clean-up is over". So
+         the clean-up triggers resolve first, with priority, and only then does the Beginning Phase exist.
+         RE-ENTER RATHER THAN DRAIN INLINE: pushing makes the stack non-empty again, and `openResponseWindow`
+         already owns "resolve The Stack, then the phase branch". `upkeepTicks` is cleared BEFORE the push,
+         so the re-entry cannot push a second time. */
+      if (st.upkeepTicks) {
+        st.upkeepTicks = false;
+        pushUpkeepTicks(st);
+        if (st.stack.length) return openResponseWindow(st);
+      }
       var uq = phaseWalk(st, st.upkeep.origin);
       if (uq >= 0) return { ok: true, state: st, pending: true, upkeep: true, respondFor: uq };
       st.upkeep = null;
@@ -4517,7 +4535,10 @@
        host is not on that call chain. */
     st.upkeep = { origin: st.turn };
     st.upkeepResult = result;
-    pushUpkeepTicks(st);
+    /* OWED, NOT PUSHED — see the `upkeepTicks` branch in `openResponseWindow`. Pushing the ticks here put
+       them ON TOP of anything a clean-up event had just stacked, so the Beginning Phase resolved before
+       the Clean-up Phase had finished. */
+    st.upkeepTicks = true;
     openResponseWindow(st);
     return result;
   }
