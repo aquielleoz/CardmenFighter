@@ -574,6 +574,34 @@ overall"*) and that was the better read: a rare play that always gains beats a f
 "Sphere" branch in `playPhase` is dead code. The fourth instance of the pattern CLAUDE.md catalogues.
 `grep -c "kind: 'shieldImmune'" engine.js` returns 0. Left alone rather than bundled into a policy change.
 
+### Three candidate persona traits, all measured unusable — and the reason is always FREQUENCY (2026-09-12) <a id="persona-traits"></a>
+
+*Filed 2026-09-17 from `exp/ai-upkeep-cast`, where it had lived only in a commit message. The branch is
+kept, not merged; see the mechanism note at the end for why.*
+
+Aj's idea, and it is a good one: a behaviour measured as strength-**neutral** is exactly what you can hand
+to some personas and not others, because [personas vary STYLE not STRENGTH](#ai-strength) — and until
+`strengthsim` existed nobody could prove a trait was neutral *before* shipping it. Three candidates were
+built and measured. None is usable, and not one of them failed on strength:
+
+| candidate | why it fails |
+| --- | --- |
+| **cast at Upkeep** | **0.04 casts/game** with every seat eager, flat at 2/3/4/6 players — more rounds do not help, because the single Leyline in the deck is the constraint. Strength +0.10 pts / 0.37σ at knight: neutral, and invisible. |
+| **reorder the chain** | only **6.2%** of turns have more than one proactive cast, and the loop casts both anyway — it changes the sequence, not the outcome. Transform is ALREADY the first act of the turn **835 times in 928**. |
+| **favour a class** | moves the played-suit mix **24.8% → 24.9%**. The 36.5% of turns with plays identical in type/size/value was the WRONG tie: the AI ranks singles by `keepValue`, which also weighs effects and Quicks, so ties in its own ordering are far rarer than ties in raw value. |
+
+**THE CONSOLIDATED FINDING, which is the part worth not re-deriving:** `grudge` and `focus` work because of
+a structural accident — in a free-for-all, *who* you hit does not change how well you play, so the choice is
+genuinely free. The AI's other decisions mostly are not free: it has a reason for nearly every one, and
+where it does not, the choice does not reach anything a player can see. **Neutral-and-visible axes inside
+the PLAY logic look scarce.** Presentation — emotes, taunts, what a persona says on a win — is where that
+idea would pay, with zero strength risk by construction.
+
+**THE BRANCH IS KEPT BECAUSE THE MECHANISM IS REUSABLE**, not because the traits are: the `eager`/`rush`/
+`favour` knobs, `strengthsim` arming persona styles per seat, and the **minion capability-guard** — a trait
+may only RE-TIME a behaviour its tier already has, never add one, which is the `nice` flag's +6-point
+mistake in miniature. `npm test` was 478/0 + 65/0 on that branch.
+
 ## Joining, discovery, and the QR path
 
 *The `feat/qr-scanning` parked branch keeps a short pointer in the BACKLOG, per the rule that a parked branch
