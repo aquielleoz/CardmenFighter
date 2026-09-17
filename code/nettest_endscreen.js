@@ -140,7 +140,11 @@ const click=(p,id)=>p.evaluate(id=>{ const b=document.getElementById(id); if(b &
   /* THE ASK MUST REACH THE HOST — and it did not, on every build before this one: `hostApplyMove*` return on
    * `hostState.finished` BEFORE their emote line, so a client's 🔄 from its end screen was dropped silently. Read
    * the count FIRST and require it to go 0 → 1, so a line already present cannot pass this. */
-  const asks=async p=>(await liveLog(p)).filter(l=>/wants a rematch/.test(l)).length;
+  /* THE EMOTE LINE CARRIES NO VERB SINCE 2026-09-17 — it reads "{who}: Rematch?" rather than
+     "{who} wants a rematch!", because a present-tense verb rendered "You wants a rematch!" to the sender.
+     The `rematchAsk` BANNER below still says "wants a rematch" and is a different string: that one is
+     written about a named other player and never about "You", so it has no agreement problem. */
+  const asks=async p=>(await liveLog(p)).filter(l=>/Rematch\?/.test(l)).length;
   ok((await asks(host))===0, 'no rematch line on the host yet (so the next assertion cannot pass vacuously)');
   ok(await click(join,'againBtn'), 'the client asks for a rematch');
   ok(await until(async()=>(await asks(host))===1, 60), 'the host\'s log gains the ask — the emote is HEARD from behind a finished game'+

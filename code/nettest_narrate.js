@@ -43,7 +43,8 @@ async function until(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retu
  * AND THE SCAN NEEDS BOTH DIRECTIONS. Every entry above tests the "You" side only, so a template written the
  * other way round ("{who} were locked out") renders correctly for the reader and wrongly for everyone ELSE —
  * "Rival were locked out" — and no assertion here would have said a word. */
-const BAD = [/\bYou is\b/, /\bYou was\b/, /\bYou has\b/, /\bYou moves\b/, /\bYou plays\b/, /\bYou passes\b/,
+const BAD = [/\bYou says\b/, /\bYou needs\b/, /\bYou wants\b/,   // the seven EMOTES, every one of which shipped this way (2026-09-17)
+             /\bYou is\b/, /\bYou was\b/, /\bYou has\b/, /\bYou moves\b/, /\bYou plays\b/, /\bYou passes\b/,
              /\bYou wins\b/, /\bYou leads\b/, /\bYou lose[s]\b/, /\bYou’s\b/, /\bYou's\b/,
              /\bYou were locked out\b.*\bthey\b/, /\bYou are locked\b/,
              /\bRival were\b/, /\bRival are\b/, /\bRival have\b/, /\bRival move\b/, /\bRival play\b/];
@@ -58,6 +59,18 @@ const badLines = lines => lines.filter(l => BAD.some(rx => rx.test(l)));
  * past too (was/were). Recast so the effect is the subject: `Back Stab locked {who} out`. */
 const fs2=require('fs');
 const TPL=fs2.readFileSync(path.resolve(__dirname,'CardmenFighter.template.html'),'utf8');
+
+/* ---- THE EMOTE TABLE, CHECKED AS A TABLE (2026-09-17). Adding `You says|needs|wants` to BAD above is
+ * necessary and is NOT the fix: that list is an enumeration of verbs that have already shipped, so it
+ * always trails by exactly one row. All seven emotes were wrong at once — `says hi!`, `needs a second…`,
+ * `wants a rematch!` — and the blacklist caught none of them for a month.
+ * THE STRUCTURAL RULE INSTEAD: an emote line is interpolated after `{who}`, so it must not begin with a
+ * VERB. It cannot conjugate if it does not start with a lowercase word at all, and every legitimate line
+ * is a greeting or an exclamation that starts capitalised or with punctuation. This covers the next row
+ * somebody adds, which a blacklist cannot. */
+const EMOTE_ROWS = (TPL.match(/\{ *key:'[a-z]+',[^}]*line:'[^']*'[^}]*\}/g) || []);
+const emoteLines = EMOTE_ROWS.map(r => (r.match(/line:'([^']*)'/) || [])[1]).filter(Boolean);
+const lowerStart = emoteLines.filter(l => /^[a-z]/.test(l));
 const COPULA=/['"`]\s*\{(?:who|foe)\}\s+(is|was|are|were|has|have|does|goes)\b|\{(?:who|foe)\}\s+(is|was|are|were|has|have|does|goes)\b[^'"`\n]*['"`]\s*,\s*['"]/;
 function copulaTemplates(){
   return TPL.split('\n').map((l,i)=>({n:i+1,l})).filter(r =>
@@ -75,6 +88,13 @@ function copulaTemplates(){
   await host.goto(url('host')); await join.goto(url('join'));
   await until(()=>join.evaluate(()=>!!document.getElementById('lobbyGo')));
   await startDuel(host, join);
+  /* THE EMOTE TABLE IS CHECKED BEFORE A SINGLE MOVE — it is static, so it needs no game, and asserting
+     the ROW COUNT alongside keeps it from passing vacuously if the regex ever stops matching the table. */
+  ok(emoteLines.length >= 7 && lowerStart.length === 0,
+     'every emote line is verb-free — it is interpolated after {who} and cannot conjugate (' +
+     emoteLines.length + ' rows: ' + emoteLines.join(' · ') + ')' +
+     (lowerStart.length ? '  ← STARTS WITH A VERB: ' + lowerStart.join(', ') + " — that renders as \"You wants a rematch!\" to the sender" : '') +
+     (emoteLines.length < 7 ? '  ← only ' + emoteLines.length + ' rows matched; the EMOTES regex has gone stale and this assertion is vacuous' : ''));
   ok(await until(async()=>(await snap(host)).hand>0), 'duel started');
 
   /* A HOST TRANSFORM is the event this suite exists for: Aj's two logs (2026-08-29) diverged on exactly this
