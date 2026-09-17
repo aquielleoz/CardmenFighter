@@ -466,11 +466,26 @@ triggers on a stack this dance is still answering.
 > object, any addition resets the all-passed check, the top resolves, and priority goes to the controller of
 > the new top. The stack can grow while it is being worked through.
 
-⚠ **`st.round` HAS ALREADY ADVANCED BY THE TIME THIS WINDOW OPENS**, because `roundAdvance` is a clean-up
-event — measured: a round that started as 1 reads **2** here. So a Quick cast at the end of round 1 is
-stamped round 2 in the priority ledger. Aj spotted it (*"roundAdvance? doesn't that happen in the beginning
-phase?"*); it is **pre-existing** rather than introduced by this window, and it is filed rather than fixed
-here because `initiative`, `stampRound` and the round banner all sit downstream of that event.
+✅ **`st.round` IS THE ROUND THAT IS ENDING WHILE THIS WINDOW IS OPEN — and it was not, until the untap
+queue landed (2026-09-17).** A Quick cast here belongs to the round it is ending, and the priority ledger
+stamps it that way.
+
+| | before the untap move | now |
+| --- | --- | --- |
+| during the end-of-Clean-up window | **2** ✗ | **1** ✓ |
+| during Upkeep | 2 | 2 ✓ |
+
+**It was fixed as a SIDE EFFECT, not on purpose.** `roundAdvance` was a clean-up event, so it ran *before*
+this window and a cast at the end of round 1 was stamped round 2 — the off-by-one this repo already calls
+harmful. Moving it into the Beginning Phase, for the entirely separate reason that it starts a round rather
+than ending one, put it after the window and corrected the stamp for free. Aj found the misfiling by asking
+*"roundAdvance? doesn't that happen in the beginning phase?"*; the stamp was never the argument for moving
+it, and is the better evidence that the move was right.
+
+⚠ **THIS PARAGRAPH SAID THE OPPOSITE FOR ABOUT AN HOUR**, and that is worth leaving here: the warning was
+written accurately on 2026-09-16, and the untap queue made it false the next morning. Nothing mechanical
+catches that — `versiontest` gates names, counts and the doc chain, never a CLAIM. `test.js` now asserts
+the table above, so this is a second copy that is ASSERTED rather than written.
 
 ## 4. Shield loss is NOT a stack object
 
