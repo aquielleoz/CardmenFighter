@@ -5104,6 +5104,22 @@ __QR__
     // The per-round draw SCALES with the table (= numPlayers since v1.31.3), so ask the engine.
     // E.DRAW_PER_ROUND is the DUEL value and would announce "draws 2" at a six-player table drawing 6.
     var per=(E.drawCountFor&&state)?E.drawCountFor(state):((E.DRAW_PER_ROUND!=null)?E.DRAW_PER_ROUND:2);
+    /* ---- THE ROUND-BOUNDARY DETECTOR (2026-09-17). A round CANNOT begin with a pile still on the table:
+       `pileClear` is a clean-up event and runs long before this line. If it is set here, the boundary did
+       not complete — which is exactly what Aj saw (*"the last play did not clear… i could not press Next
+       because of the pair of 2s in the play area"*), with the banner printing the SAME round twice.
+       IT IS A DETECTOR BECAUSE IT WOULD NOT REPRODUCE. Five hypotheses were measured and killed: the
+       untap move (40 games to round 37, 0 stuck), `pileClear` generally (1366 boundaries, 0 stale), the
+       hand-limit trim (the Rival never reaches the cap), a falsy `cleanupResult` (0 in 1366), and a falsy
+       return breaking `settleWindows` (`last` is initialised truthy). Twelve real duels and the 2s lesson
+       do not trip this line. So the next occurrence has to explain itself instead.
+       IT GOES IN THE SAVED LOG, not the console: a battle log is what actually gets sent, and this repo has
+       already learned that a diagnostic nobody can post is no diagnostic. Same shape as the double-
+       resolution detector. */
+    if(state && state.pile) prioNote('⚠ ROUND BEGAN WITH A STALE PILE — the clean-up boundary did not complete',
+      'round '+rn+' · pile '+((state.pile.combo&&state.pile.combo.type)||'?')+' · turn '+state.turn, rn);
+    if(window.__lastRoundBanner===rn) prioNote('⚠ ROUND BANNER REPEATED — the round did not advance', 'round '+rn+' announced twice', rn);
+    window.__lastRoundBanner=rn;
     say(null, '<b>Round '+rn+'</b> begins. Each player draws '+per+'.', 'round');
     if(res.draws && res.draws[YOU]===0) logMsg('Draw fizzled — your deck &amp; shuffle pile are empty. Spend energy on effects to recycle cards back into your deck.', 'warn');
   }
