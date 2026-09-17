@@ -419,7 +419,15 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     you.energy=[]; for(let i=0;i<x;i++){ you.energy.push(C(3,'D','e'+i)); you.energy.push(C(3,'S','s'+i)); }
     st.turn=0; st.subPhase='main'; st.pile=null; window.__solo.render();
     const g=id=>{const el=document.querySelector('#hand .card[data-id="'+id+'"]');return el?el.classList.contains('nomana'):null;};
-    return {cheap:g('h2h3S'), dear:g('ley9D'), apex:g('apex2C')};
+    /* AND WHAT THE CLASS MEANS, not merely that it is set (2026-09-17). Asserting `.nomana` was true the
+       whole time the signal was WRONG: it used to dim the entire card, which reads as "you cannot play
+       this" — and an unaffordable card is still perfectly legal to FIGHT with, which is what the How-to
+       lesson asks you to do two steps later. A class assertion cannot see that; computed opacity can. */
+    const dim=id=>{const el=document.querySelector('#hand .card[data-id="'+id+'"]'); if(!el) return null;
+      const row=el.querySelector('.efrow'); if(!row) return {card:+getComputedStyle(el).opacity, row:null, grey:null};
+      const cs=getComputedStyle(row);
+      return { card:+getComputedStyle(el).opacity, row:+cs.opacity, grey:/grayscale/.test(cs.filter||'') };};
+    return {cheap:g('h2h3S'), dear:g('ley9D'), apex:g('apex2C'), dearDim:dim('ley9D'), richDim:dim('h2h3S')};
   },n);
   const rich=await hand(12), poor=await hand(4), broke=await hand(0);
   ok(rich.cheap===false && rich.dear===false, 'with energy to spare nothing is greyed');
@@ -427,6 +435,22 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
      'at four pips the cost-9 card greys and the cost-3 card does NOT — it is reading the cost, not blanket-dimming'+
      (poor.dear===true && poor.cheap===false?'':'  ← dear='+poor.dear+' cheap='+poor.cheap));
   ok(broke.cheap===true && broke.dear===true, 'with no energy both effect cards grey');
+  /* WHERE the dimming lands, which is the half the class cannot report. Until 2026-09-17 the whole CARD
+     went to .5 — "you cannot play this" — about a card that is perfectly legal to FIGHT with. */
+  ok(broke.dearDim && broke.dearDim.card===1 && broke.dearDim.grey===true,
+     'and the dimming is on the EFFECT ROW, not the card — an unaffordable effect must not say "unplayable card" (card '+
+     (broke.dearDim?broke.dearDim.card:'?')+', effect row grey='+(broke.dearDim?broke.dearDim.grey:'?')+')');
+  /* AND IT MUST STILL BE THERE. The first cut used `opacity:.25`, which over the card art erases the chip
+     outright — "this card has no effect", which is a DIFFERENT false statement and a worse one, because a
+     player who reads it stops looking. The floor is what makes `grayscale` the signal rather than a fade
+     with extra steps; the ceiling is what stops a build from simply not dimming. */
+  ok(broke.dearDim && broke.dearDim.row>0.4 && broke.dearDim.row<1,
+     '…and the row is GREYED, never hidden — an erased chip reads as "no effect at all" (opacity '+
+     (broke.dearDim?broke.dearDim.row:'?')+', wanted 0.4 < x < 1)');
+  /* The both-ways pair: the affordable card's chip keeps its colour, or the rule is dimming everything. */
+  ok(rich.richDim && rich.richDim.grey===false && rich.richDim.row===1,
+     '…and an AFFORDABLE effect keeps its colour — grey means unaffordable, not "is an effect" (grey='+
+     (rich.richDim?rich.richDim.grey:'?')+', opacity '+(rich.richDim?rich.richDim.row:'?')+')');
   ok(rich.apex===false && broke.apex===false,
      'the apex 2 NEVER greys at any energy — it has no activated effect, so there is nothing to be unable to afford');
   const inFight=await p.evaluate(()=>{const st=window.__solo.st();st.subPhase='play';window.__solo.render();
@@ -434,6 +458,40 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   ok(inFight===0,
      'and NOTHING greys in the Fight Sub-Phase — an activation is illegal there anyway, so dimming the whole hand would say nothing about energy'+
      (inFight===0?'':'  ← '+inFight+' cards greyed'));
+
+  /* ---- THE SIGNAL MUST HAVE SOMEWHERE TO LAND, FOR EVERY CARD THAT CAN CARRY IT ----
+     Moving the dim onto `.efrow` bought a narrower claim and a new way to fail SILENTLY: a card with no
+     effect row shows nothing at all, and looks exactly like a card you can afford. It was already true of
+     one card when the move landed — Leyline Ascension's kind is `ward` and `EFF_ICON_SVG` had no `ward`,
+     so `effIcon` returned '' (the stale branch still tested `reclaim && immune`, Leyline's OLD kind).
+     SO ASSERT THE SET, NOT THE CARD. Every card in the deck goes into hand at zero energy; whatever
+     `markAfford` greys must have a row. A per-card assertion would have to be remembered for each new
+     effect kind, and this is the repo's documented orphaned-kind trap — `grep -c "kind: 'x'"` finds a kind
+     nothing reads, and nothing at all finds a kind nothing DRAWS.
+     NOTE the twelve J/Q/K are correctly absent from the greyed set rather than exempted by hand:
+     `TRANSFORM_COST` is 0 and `rideCostDelta` returns 0 for ranks 11-13, so a transform is always
+     affordable. That is measured here, not assumed — if transforms ever cost energy, this assertion goes
+     red naming them, which is the right moment to decide what a Ride's glyph should be. */
+  const every=await p.evaluate(()=>{
+    const st=window.__solo.st(), you=st.players[0], E=window.CardmenEngine;
+    const suits=['D','H','C','S'], all=[];
+    suits.forEach(s=>{ for(let r=2;r<=14;r++) all.push({rank:r,suit:s,id:'all'+r+s}); });
+    you.hand=all; you.energy=[]; st.turn=0; st.subPhase='main'; st.pile=null; window.__solo.render();
+    const cards=[].slice.call(document.querySelectorAll('#hand .card'));
+    const grey=cards.filter(el=>el.classList.contains('nomana'));
+    return {
+      total: cards.length,
+      greyed: grey.length,
+      rowless: grey.filter(el=>!el.querySelector('.efrow')).map(el=>el.dataset.id),
+      /* and the negative half: a card with an implemented effect that is NOT greyed at zero energy is a
+         card whose effect is free, so naming them makes the exemption legible instead of invisible. */
+      freeEffects: cards.filter(el=>!el.classList.contains('nomana') && el.querySelector('.efrow')).map(el=>el.dataset.id).length
+    };
+  });
+  ok(every.greyed>0 && every.rowless.length===0,
+     'EVERY card the affordance signal greys carries an effect row to show it — '+every.greyed+' of '+every.total+
+     ' greyed at zero energy, 0 with nowhere to land'+
+     (every.rowless.length?'  ← REPRODUCED: '+every.rowless.join(', ')+' grey SILENTLY (no .efrow, so the player sees a normal card)':''));
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
