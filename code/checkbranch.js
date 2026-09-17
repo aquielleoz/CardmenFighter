@@ -106,8 +106,16 @@ pushRefs().forEach(function (line) {
   var msgs;
   try { msgs = execSync('git log --format=%B ' + base + '..' + lsha).toString(); } catch (e) { return; }
   if (!msgs.trim()) return;
-  var m = msgs.match(/^Backlog:[ \t]*(none|closes|updates|files)([ \t]+([a-z0-9-]+))?[ \t]*$/mi);
-  if (!m) {
+  /* EVERY TRAILER, NOT THE FIRST ONE (2026-09-17). This was `msgs.match(...)` with no `/g`, which returns
+   * the FIRST match across all the commits being pushed — so a PR closing six entries could declare six
+   * and have exactly one verified, and the other five were free to be typos or to name entries still
+   * sitting in the doc. The gate reporting success at precisely its own job, for the second time: the
+   * first was the `pushRefs()` stdin drain, and the shape is the same both times — a check that runs, says
+   * nothing, and is read as a pass.
+   * FOUND BY NEEDING IT. A cluster PR closed six entries and there was no way to say so; the limit was not
+   * visible from reading the gate, only from trying to use it. */
+  var all = msgs.match(/^Backlog:[ \t]*(none|closes|updates|files)([ \t]+([a-z0-9-]+))?[ \t]*$/gmi) || [];
+  if (!all.length) {
     console.error('✗ branch "' + branch + '": no `Backlog:` trailer on any commit being pushed.');
     console.error('  Every PR states what it did to the backlog — the entry does not close itself, and a fix');
     console.error('  that ships while its entry stays open is how a doc starts lying. One of:');
@@ -118,10 +126,13 @@ pushRefs().forEach(function (line) {
     console.error('  Ids are the `[id: slug]` line at the end of each BACKLOG entry:  grep "\\[id: " docs/NEXT-SESSION.md');
     process.exit(1);
   }
+  var doc = backlogAt(lsha); if (doc === null) return;
+  var before = backlogAt(base);
+  all.forEach(function (line) {
+  var m = line.match(/^Backlog:[ \t]*(none|closes|updates|files)([ \t]+([a-z0-9-]+))?[ \t]*$/i);
   var verb = m[1].toLowerCase(), slug = m[3] || '';
   if (verb === 'none') return;
   if (!slug) { console.error('✗ `Backlog: ' + verb + '` needs an id — e.g. `Backlog: ' + verb + ' drop-hint-overflows-board`'); process.exit(1); }
-  var doc = backlogAt(lsha); if (doc === null) return;
   var present = doc.indexOf('[id: ' + slug + ']') >= 0;
   if (verb === 'closes') {
     if (present) {
@@ -135,7 +146,6 @@ pushRefs().forEach(function (line) {
      * real entry stayed open — the gate reporting success at precisely its own job. Found by testing the
      * thing rather than reading it, which is this repo's standing result. So a close must show the entry was
      * THERE BEFORE and is gone NOW. */
-    var before = backlogAt(base);
     if (before !== null && before.indexOf('[id: ' + slug + ']') < 0) {
       console.error('✗ `Backlog: closes ' + slug + '` — no entry with that id existed before this push either.');
       console.error('  That is a typo, not a close: the gate cannot tell "I deleted it" from "it never existed".');
@@ -148,6 +158,7 @@ pushRefs().forEach(function (line) {
     console.error('  Check the slug:  grep "\\[id: " docs/NEXT-SESSION.md');
     process.exit(1);
   }
+  });
 });
 
 if (branch === 'main' || branch === 'HEAD') process.exit(0);

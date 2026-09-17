@@ -1242,6 +1242,25 @@
     if (eff.kind === 'counterfeit' && (!st.pile || st.pile.byPlayer === p)) return { ok: false, reason: "Counterfeit needs the Rival's current play to copy — cast it while facing an attack." };
     if (eff.kind === 'removeEquip' && removeTargets(st, p, eff).length === 0) return { ok: false, reason: 'No Equipment or zone card on the board to target.' };
     if (eff.kind === 'transform' && !transformGateOK(st, p, eff.tier)) return { ok: false, reason: 'Transformation requirements not met yet (shield threshold).' };
+    /* A SHIELD-LOSS TECHNIQUE WITH NOTHING TO TAKE — THE ENGINE'S HALF (2026-09-17). `activateBlock` in the
+       template has refused this since v1.31.120 and the engine never did, so the guard was a courtesy:
+       measured here, Critical Hit against a rival on 0 shields returned `ok:true` and cost **energy 12 → 3
+       and hand 4 → 2** — the card AND its Broadway pitch — for no effect at all.
+       A CLIENT-SIDE GATE IS NOT THE GATE, which this file says of `resolveIds` and the emote cooldown and
+       says again here: a netplay client sends an intent and the HOST applies it, so a check that lives only
+       in the page is reachable over the wire by anything that is not our page.
+       REFUSING IS THE FIX; MAKING IT KILL IS NOT (Aj, 2026-09-08: *"no shield loss technique is a kick.
+       none can be turned into kicks... check the wording please"*). The Fighter Kick is a FIGHT outcome —
+       a Special win against a seat already at 0 — and `noKick` on `destroyShield` is correct. A Technique
+       can take you to 0 and never past it.
+       THE TARGET IS NOT RESOLVED YET at this point, so this asks the weaker question — does ANY living
+       rival hold a shield — deliberately: refusing a cast that has a legal target somewhere would be worse
+       than allowing one aimed at a spent rival, and `chooseLossTarget` still picks among those who do. */
+    if (eff.kind === 'destroyShield') {
+      var anyShield = false;
+      for (var si = 0; si < st.numPlayers; si++) { if (si !== p && !st.players[si].eliminated && st.players[si].shields > 0) { anyShield = true; break; } }
+      if (!anyShield) return { ok: false, reason: 'No rival has a shield to destroy.' };
+    }
     var costDelta = (eff.kind === 'transform') ? 0 : rideCostDelta(st, p, card);   // Owl/Ram: first proactive effect of the turn
     if (!canAfford(pl, card, costDelta)) return { ok: false, reason: 'Not enough Fighter Energy of the right suit (need ' + costHint(card, costDelta) + ').' };
 
@@ -1309,8 +1328,14 @@
        passed" (unreachable through the solo UI, reachable on a netplay host, where `activate` has no
        open-window guard). So this line is a real behaviour change and the one part of step 5 that is not
        inert: a seat that had passed on the object underneath is now asked again, which is what the model
-       says should happen when the board changes under them. The other half of that entry — the missing
-       open-window guard on `activate` — is still open. */
+       says should happen when the board changes under them.
+       ⚠ THE LAST SENTENCE HERE READ *"The other half of that entry — the missing open-window guard on
+       `activate` — is still open"* UNTIL 2026-09-17, and it had been false since 2026-09-14: the guard is
+       the `st.respondFor != null` refusal at the top of `activate`, with a comment of its own explaining
+       it. Two comments about one fix, written days apart, and only the one beside the code was updated.
+       **A cross-reference to another function's state goes stale the moment that function is fixed** —
+       which is the whole argument for pointing at the symbol and letting the reader look, rather than
+       reporting its condition from here. */
     st.prioPassed = {};
     return openResponseWindow(st);
   }
@@ -1373,6 +1398,24 @@
      derived — never the other way round. */
   function castRefusal(st, q, card) {
     var qp = st.players[q], e = card && effectFor(st, q, card);                // effectFor: a Form can make a card Quick
+    /* A LOCKED PLAYER IS SKIPPED, AND SKIPPED MEANS SKIPPED (Aj, 2026-09-17, re-reading the card:
+       *"it forces an autopass, that player won't be able to act at all. that probably overturns any
+       decisions we made before"*). Back Stab reads **"Target Rival skips the whole round — no fights, no
+       Techniques"** — `skips` is the verb and the clause after the dash ELABORATES it; it is not a carve-out
+       listing two things you may not do while the rest stay open.
+       ⚠ THIS OVERTURNS `PHASES-AND-PRIORITY.md` §5 AS DICTATED 2026-09-08, which reasoned from the clause
+       instead of the verb — *"Equipment are neither fights nor Techniques, so a locked player may still
+       activate equipment… they are not without options"* — and §5 has been rewritten to say so. Keeping
+       both readings was not an option: `activate` implemented the card and `respond` implemented nothing,
+       so the game already disagreed with itself.
+       IT GOES IN THE PREDICATE, NOT IN `respond`, AND THAT IS THE WHOLE POINT. `canCastQuick` is `some()`-ed
+       by `canAddToStack`, which `nextPrioHolder` uses to decide whom to offer a window to — so one line
+       makes a locked seat AUTO-PASS rather than be handed a window it must manually decline, which is what
+       "forces an autopass" means mechanically. Putting it in `respond` alone would refuse the cast and still
+       stop the table to ask.
+       MEASURED BEFORE IT WAS WRITTEN: a locked seat cast Leyline into an open window — energy 12 → 3, hand
+       2 → 1, stack depth 2. `activate` has refused since the lock existed; only this path was open. */
+    if (isLocked(st, q)) return 'You are locked out (Back Stab) — you skip this round.';
     if (!e || !e.impl) return 'That card has no effect to cast.';
     if (!e.quick) return 'That is not a Quick.';
     if (!canAfford(qp, card)) return 'Not enough Fighter Energy (need ' + costHint(card) + ').';

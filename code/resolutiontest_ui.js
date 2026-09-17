@@ -363,6 +363,90 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
        (offered.some(t => /Sanctuary/i.test(t)) ? '' : '  ← unchecking made it unplayable; the offer list is being filtered by the prompt preference again  [' + offered.join(' | ').slice(0, 80) + ']'));
     await p.close(); }
 
+  // ------------------------------------------------- F · THE WINDOW SHOWS THE WHOLE STACK
+  /* THE BOARD'S STACK VIEW IS BEHIND THE MODAL, so the one moment a player most needs to read the stack —
+     being asked for priority — was the one moment it was covered. `#stackView` renders into the board and
+     `.overlay` sits above it; the modal named only the TOP object, via `respIncoming`.
+     ONE OBJECT CANNOT TEST THIS. At depth 1 `respIncoming` already names the only thing there, so a
+     one-deep assertion passes on the old build — which is why this scenario pays to reach depth 2 through
+     the real flow rather than staging `st.stack` directly. Since epic step 6 you keep priority after your
+     own cast, so two casts into your own window is the honest way there, and it is exactly the shape the
+     entry described: a chain where "the object beneath me" has stopped being unambiguous.
+     THREE QUICKS, because the third is what keeps the window open at depth 2 — with two the stack reaches
+     depth 2 and the window closes before anyone could read it. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('F: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'F · a board for the stack-depth case');
+    await p.evaluate(() => {
+      const st = window.__solo.st();
+      const C = (r, s, t) => ({ rank: r, suit: s, id: (t || '') + r + s });
+      const you = st.players[0], riv = st.players[1];
+      you.shields = 2; riv.shields = 4;
+      you.hand = [C(9, 'D', 'ley'), C(10, 'H', 'sanc'), C(4, 'D', 'cs')];   // Leyline · Sanctuary (Quick via Hector) · Counter Spell
+      you.energy = [];
+      for (let i = 0; i < 14; i++) you.energy.push(C(3, 'H', 'eh' + i));
+      for (let i = 0; i < 14; i++) you.energy.push(C(3, 'D', 'ed' + i));
+      you.forms = [C(13, 'H', 'hector')];
+      riv.hand = []; riv.energy = [];
+      st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = 1; st.preFightHandled = true;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
+      st.pile = { p: 1, byPlayer: 1, combo: { type: 'pair', size: 2, value: 9, key: [9], cards: [C(9, 'C', 'x'), C(9, 'S', 'y')] } };
+      window.__solo.render();
+    });
+    await clearTransition(p);
+    await clickPass(p);
+    ok(await until(async () => !!(await modalText(p))), 'F · the resolution window opens');
+    /* Click by NAME, not by index — the offer list is ordered by hand order and a reorder would silently
+       cast the wrong card while every assertion below still passed. */
+    const castByName = async (re) => p.evaluate((src) => {
+      const b = [].slice.call(document.querySelectorAll('.respQuick')).filter(x => new RegExp(src, 'i').test(x.textContent))[0];
+      if (b) { b.click(); return true; } return false;
+    }, re);
+    /* A RED RUN HERE MUST EXPLAIN ITSELF. The first draft asserted "depth >= 2" and reported only that it
+       was not, which is indistinguishable between "the click missed", "the cast was refused" and "the
+       object resolved before the next window opened" — three different bugs. `snap` is sampled after every
+       step and printed by whichever assertion fails. */
+    const snap = async (tag) => p.evaluate((t) => { const st = window.__solo.st();
+      return t + '{depth ' + (st.stack || []).filter(o => o.kind === 'effect').length + ' respondFor ' + st.respondFor + ' hand ' + st.players[0].hand.length + '}';
+    }, tag);
+    const trail = [await snap('open') + ' offers[' + (await quickBtns(p)).map(t => t.split(' ')[0]).join('|') + ']'];
+    ok(await castByName('Leyline'), 'F · cast Leyline into your own window (step 6: you keep priority)');
+    await until(async () => (await p.evaluate(() => (window.__solo.st().stack || []).filter(o => o.kind === 'effect').length)) >= 1);
+    await until(async () => !!(await modalText(p)));
+    trail.push(await snap('+ley') + ' offers[' + (await quickBtns(p)).map(t => t.split(' ')[0]).join('|') + ']');
+    ok(await castByName('Counter'),
+       'F · …the window re-opens and you answer your own Leyline with Counter Spell');
+    const deep = await until(async () => (await p.evaluate(() => (window.__solo.st().stack || []).filter(o => o.kind === 'effect').length)) >= 2);
+    trail.push(await snap('+sanc'));
+    ok(deep, 'F · …so the stack is now 2 deep — "the object beneath me" is no longer unambiguous  ' + trail.join(' → '));
+    ok(await until(async () => !!(await modalText(p))), 'F · …and the window re-opens a third time, with Counter Spell still to answer with');
+    /* READ THE STACK ROW, NOT THE MODAL. The first version tested the whole `modalText` for both card
+       names and PASSED VACUOUSLY: every card still in hand is printed on its own offer button, so
+       "Sanctuary" was in the text because it was on offer, not because it was on the stack. The same
+       mistake `nettest_priosig` records one file over — it matched /Rival/ against the whole modal and a
+       mutant survived inside `tableContextHTML`. Scope the read to the element under test. */
+    const stackRow = await p.evaluate(() => { const r = document.querySelector('#modal .ctxStack');
+      return r ? (r.textContent || '').replace(/\s+/g, ' ').trim() : null; });
+    ok(stackRow !== null,
+       'F · THE WINDOW SHOWS THE STACK — the board\'s #stackView is behind the overlay, so this is the only copy the player can read' +
+       (stackRow !== null ? '' : '  ← REPRODUCED: no stack row in the window; only the top object is named, via respIncoming'));
+    ok(!!stackRow && /Leyline/i.test(stackRow) && /Counter Spell/i.test(stackRow),
+       'F · …and the ROW itself names BOTH objects, top and bottom: "' + (stackRow || '(absent)') + '"');
+    /* AND IT READS AS ENGLISH TO THE PERSON IT NAMES. Putting the stack in the modal is what exposed this:
+       the pending-loss line took its number from the TARGET COUNT, so one target named "You" produced
+       **"You loses a shield"** — the agreement bug this repo has shipped four times, in a RENDERER rather
+       than a `say()` template, which is why `nettest_narrate`'s static scan cannot see it (that scan reads
+       `say(` call sites). Asserted here because this is the suite that put the line on screen. */
+    ok(!!stackRow && !/You (loses|is|has|moves)\b/.test(stackRow),
+       'F · …and the pending-loss line agrees with the reader it names — no "You loses a shield"' +
+       (/You loses/.test(stackRow || '') ? '  ← REPRODUCED: ' + stackRow : ''));
+    /* AND IT IS ABSENT WHEN THE STACK IS EMPTY, or the row is decoration rather than information — the
+       Main → Fight and end-of-round go-rounds both run on an empty stack, and an empty labelled box there
+       reads as something lost. The first window in this very scenario was one: depth 0. */
+    ok(/depth 0 /.test(trail[0]) && trail[0].indexOf('offers[') > 0,
+       'F · …and the FIRST window of this scenario ran on an empty stack — ' + trail[0]);
+    await p.close(); }
+
   // ------------------------------------------------- E · ONE PASS RESOLVES ONE ROUND
   /* THE ROUND RESOLVED TWICE IN TWO REAL DUELS, AND THE SECOND ONE KILLED A PLAYER (Aj, 2026-09-15/16:
      *"i lost twice to the same play... not sure why it never cleared.. but also there was no beginning of
