@@ -2666,6 +2666,29 @@ done
 That `--merged` filter is also the safety rail: an open PR's branch and a `parked/` branch are unmerged by
 definition, so it cannot delete them.
 
+**BUT `--merged` IS A TIP TEST, NOT A CONTENT TEST, AND IT CALLS MERGED WORK UNMERGED (2026-09-17).**
+`exp/boost-promise-guard` shows as unmerged and **its guard has been live in `test.js` the whole time** —
+there are two commits with that subject, `5f4d612` (an ancestor of the epic) and the branch tip `f01ad6a`,
+a rebased duplicate that was never merged. The branch ref survived, nothing reachable from it is new, and
+`--merged` reports exactly what it should: that *tip* is not an ancestor. **The ref is litter; the work is
+not missing.**
+**THE COST OF READING IT AS MISSING WAS NEARLY A DUPLICATE TEST.** Asked to file two undocumented `exp/`
+branches, I re-added a 52-line assertion block that was already in the file 300 lines above — caught only
+because a mutation run printed the SAME failure twice, and the count came out 541 instead of the 543 two
+copies should have produced. Two identical assertion messages is the tell.
+**SO THE CHECK IS THE CONTENT, NOT THE REF** — the same rule this file already gives for stale BACKLOG
+entries, in a new place. Before treating an unmerged branch as unfiled work:
+
+```bash
+git log --oneline -1 -S '<a distinctive string from the branch>' -- <path>   # is it already in history?
+git diff --stat <integration-branch> origin/<branch>                          # does it add anything at all?
+```
+
+A branch that is thousands of deletions behind and whose unique commit duplicates a merged one is a ref to
+delete, not a finding to file. **`exp/ai-upkeep-cast` is the other case and the greps prove it:** no
+`eager`/`rush`/`favour` anywhere in the live tree, one commit ahead, no `-S` hit — genuinely unfiled, and
+now recorded at [`DECISIONS.md#persona-traits`](docs/DECISIONS.md#persona-traits).
+
 ## Docs map
 
 - **WHICH DOC A THING GOES IN is a rule, not a preference — see the routing table under Conventions.** The
