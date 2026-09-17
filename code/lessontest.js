@@ -29,8 +29,53 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
   await next(); await p.waitForTimeout(700);
   s=await step();
   ok(await p.evaluate(()=>!!document.querySelector('.deckBuild')),'step 2 opened the deck builder');
-  ok(await p.evaluate(()=>{const t=document.getElementById('tutPanel').getBoundingClientRect();
-     return t.width>0 && getComputedStyle(document.getElementById('tutPanel')).zIndex==='80';}),'coach panel sits above the modal (z-index 80)');
+  /* ⚠ THIS ASSERTED `zIndex === '80'` AND CALLED IT "sits above the modal" (fixed 2026-09-17, Aj: *"phew
+     can't exit out of the custom deck tutorial"*). It pinned a NUMBER where the claim is a RELATIONSHIP,
+     and the number stopped meaning what it meant: `#tutPanel` is 80, and `.overlay` was **30** when this
+     line was written — genuinely above. v1.31.36 raised the overlay to 100000 to get dialogs over
+     `#netroot`, which buried the coach panel and every control on it, and this assertion stayed green
+     because 80 is still 80.
+     THAT IS THE INCIDENT CLAUDE.md ALREADY RECORDS — *"when you raise a z-index, hit-test every layer
+     positioned relative to it, not just the one that prompted the change"* — and the coach panel is the
+     layer that was missed. It also breaks the companion rule the same file gives: **no DOM assertion can
+     see a stacking bug**, so where visibility is what matters, hit-test it.
+     SO HIT-TEST IT. `elementFromPoint` at the panel's own centre answers the question a player asks — can
+     I click this — which a computed z-index cannot. */
+  const panelHit = await p.evaluate(()=>{
+    const t=document.getElementById('tutPanel'); if(!t) return {there:false};
+    const r=t.getBoundingClientRect(); if(!(r.width>0)) return {there:true, sized:false};
+    const hit=document.elementFromPoint(r.left+r.width/2, r.top+r.height/2);
+    const skip=document.getElementById('tutSkipBtn');
+    const sr=skip?skip.getBoundingClientRect():null;
+    const skipHit=sr?document.elementFromPoint(sr.left+sr.width/2, sr.top+sr.height/2):null;
+    return { there:true, sized:true,
+             reachable: !!(hit && t.contains(hit)),
+             skipReachable: !!(skip && skipHit && (skip===skipHit || skip.contains(skipHit))),
+             covering: hit ? (hit.id||hit.className||hit.tagName) : null,
+             panelZ:getComputedStyle(t).zIndex,
+             overlayZ:getComputedStyle(document.getElementById('overlay')).zIndex };
+  });
+  /* RATCHET:tut-panel-buried-by-modal — A KNOWN FAILURE, PINNED IN THE BROKEN DIRECTION ON PURPOSE.
+     The coach panel is UNDER the builder and `Skip ✕` is unclickable, so the lesson cannot be left: the
+     builder's Cancel cannot leave it either, because `tutOpenDeckBuilder`'s continuation re-opens the
+     modal 120ms later whenever `TUT.isActive()`. With both gone the only exits are finishing the deck or
+     reloading the page — which is what Aj hit, 2026-09-17: *"phew can't exit out of the custom deck
+     tutorial"*. Deferred to `main` by his call (*"we can fix this on main later"*); the entry is
+     `[ratchet: tut-panel-buried-by-modal]` and `versiontest` asserts this tag and that entry exist
+     together.
+     IT FAILS BOTH WAYS, which is what makes it a ratchet rather than a suppression. It fails if `Skip`
+     becomes reachable — i.e. THE FIX LANDED, and then these two lines get replaced by the positive
+     assertions above them and the BACKLOG entry gets closed. It also fails if the hit-test stops finding
+     the overlay, which would mean something else moved underneath.
+     DO NOT "fix" this by raising `#tutPanel` alone: the z-index family derives from `--zNetroot`, and the
+     peek panels sit at +2/+3, so the fix has to hit-test peek as well. That coupling is exactly why this
+     is its own change and not a bolt-on. */
+  ok(!panelHit.reachable && panelHit.covering === 'overlay',
+     `RATCHET: the coach panel is BURIED by the builder (panel z ${panelHit.panelZ} vs overlay ${panelHit.overlayZ}, the point hits "${panelHit.covering}")` +
+     (panelHit.reachable ? '  ← THE FIX LANDED — flip this to `ok(panelHit.reachable, …)` and close [id: tut-panel-buried-by-modal]' : ''));
+  ok(!panelHit.skipReachable,
+     'RATCHET: …so "Skip ✕" cannot be clicked and the lesson cannot be LEFT — only finished or reloaded' +
+     (panelHit.skipReachable ? '  ← THE FIX LANDED — flip this one too, and delete the ratchet tag' : ''));
   await next(); await p.waitForTimeout(500);
   s=await step();
   ok(/Cleric/.test(s.text) && !s.hasNext,'step 3 is a GATED step asking for 2 Cleric parts');
