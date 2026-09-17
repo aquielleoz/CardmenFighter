@@ -764,25 +764,6 @@ re-read its tag.
   absent. Third suite-versus-reality gap found by playing the tutorials today.
   `[id: twos-lesson-pilot-leads-nothing]`
 
-- `needs a decision`    · **GREYING UNAFFORDABLE CARDS NOW READS AS "UNPLAYABLE", AND THE TUTORIAL WALKS
-  STRAIGHT INTO IT (Aj, 2026-09-17, from the How-to lesson: *"5 is greyed out here... but the tutorial wants
-  me to select a pair. but greying out the uncastable cards was a bad move"*).**
-  **IT WAS CORRECT WHEN BUILT, AND A LATER CHANGE MADE IT WRONG** — the same shape as the stale spec
-  paragraph and the `roundAdvance` misfiling. `markAfford` landed in `132034e`, when the Main Sub-Phase was
-  purely where you ACTIVATE, so dimming a card you cannot pay for said one unambiguous thing. Then
-  `afe7c6f` made one press fight from Main, so Main became where you also SELECT CARDS TO FIGHT — and a
-  dimmed card started claiming something false about a use that needs no energy at all.
-  **THE SIGNAL IS ATTACHED TO THE WRONG THING, which is why "just remove it" is not obviously right.** Aj's
-  original ask still stands (*"grey out the cards you don't have mana to cast in the main phase"*) and the
-  information is useful; what is wrong is that dimming the whole CARD reads as "unavailable" when it only
-  ever meant "unavailable to activate". The likely fix is to move the dimming onto the effect/energy
-  affordance rather than the card face. Removing it outright is the other option and is Aj's to pick.
-  **NO SUITE CAN SEE THIS.** `mptest` asserts that unaffordable cards get `.nomana` — true, and silent about
-  whether that is the right signal. A test that asserts a class cannot assert a meaning; only playing it
-  found this.
-  **EPIC WORK, NOT MAIN** — `markAfford` does not exist on `main` (0 hits), so both halves of the collision
-  are epic-only and it cannot reach a player until the epic does.
-  `[id: greying-reads-as-unplayable]`
 - `needs a decision`    · **BEFORE SHIP, THE PROMPT CHECKBOXES DEFAULT TO *UNCHECKED*** (Aj, 2026-09-11: *"the checkboxes will be
   unchecked by default when we finally ship"*). The player opts IN per card, per timing, in the card reader.
   **⚠ THIS ENTRY DESCRIBED A BUILD THAT NO LONGER EXISTS, AND THE GAP COST A REAL SHIELD (2026-09-15).** It

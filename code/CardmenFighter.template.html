@@ -695,7 +695,26 @@
      right now" and "you cannot pay for it" are three independent facts and the player needs all three at
      once, so this dims along an axis nothing else uses.
      `:not(.sel)` so a card you have deliberately picked up never looks dead inside your own selection. */
-  #hand .card.nomana:not(.sel){ opacity:.5; }
+  /* THE SIGNAL SITS ON THE EFFECT ROW, NOT THE CARD (2026-09-17). Dimming the whole card said
+     "unavailable" when it only ever meant "you cannot pay for its EFFECT" — and in the Main Sub-Phase a
+     card has two uses, activate (needs energy) and select-to-fight (needs nothing). It was right when it
+     shipped, because Main was then purely the activation half; one-press Fight made Main a fighting phase
+     too and the dimming silently started lying. Aj found it in the How-to lesson, where the step says
+     "select two cards of the same number" and the two 5s were greyed out: *"greying out the uncastable
+     cards was a bad move"*.
+     SO THE CARD STAYS FULLY LEGIBLE and only its effect glyphs fade. The claim narrows to exactly what is
+     true: this effect is unaffordable. Opacity only — `filter` here would compose with `.boosted` and
+     `.transformReady`, which is why the card-level rule avoided it too. */
+  /* GREYED, NOT HIDDEN — and the first cut at this got it wrong. At `opacity:.25` over the card art the
+     chip simply DISAPPEARS, which reads as "this card has no effect" — a different false statement from
+     the one being fixed, and arguably a worse one, because the player stops looking for the effect at all.
+     `grayscale` is what says SWITCHED OFF: the chip keeps its size, its position and its silhouette, and
+     only its colour — the green plus, the blue shield, the red bar — drains out. The fade is gentle and
+     only there to seat it behind the live chips.
+     `filter` IS SAFE HERE and is not safe one level up: the card-level rule had to avoid it because
+     `.boosted` and `.transformReady` are both card `filter`s and this selector outranks them. On the ROW
+     it composes with nothing. */
+  #hand .card.nomana:not(.sel) .efrow{ filter:grayscale(1) brightness(.85); opacity:.65; }
   #hand .card.transformReady{ animation:transformPulse 1.4s ease-in-out infinite; }   /* REWORK: a J/Q/K you can transform right now */
   @keyframes transformPulse{ 0%,100%{ filter:drop-shadow(0 0 4px rgba(255,196,60,.75)); } 50%{ filter:drop-shadow(0 0 10px rgba(255,196,60,1)); } }
   #hand .card.transformReady.boosted{ animation:transformPulseBoost 1.4s ease-in-out infinite; }   /* both at once */
@@ -2632,7 +2651,7 @@ __QR__
       counter:'<circle cx="12" cy="12" r="9" fill="none" stroke="#c8402f" stroke-width="2.6"/><line x1="5.6" y1="18.4" x2="18.4" y2="5.6" stroke="#c8402f" stroke-width="2.6" stroke-linecap="round"/>',
       counterfeit: copy, phantasm: copy,
       reclaim: recycle,
-      leyline: recycle+'<g transform="translate(10.6,10.4) scale(.62)">'+shieldBlue+'</g>',
+      ward: shieldBlue+'<g stroke="#fff" stroke-width="1.8" stroke-linecap="round"><path d="M7.6 10.4l2.2 2.2 4-4.6"/></g>',   // Leyline Ascension: you cannot lose this round — a TICKED blue shield, so it is not Holy Shroud's plain one
       lockout:'<rect x="5.5" y="10" width="13" height="10.5" rx="2.2" fill="#c8402f" stroke="#3a0f0a" stroke-width="1"/><path d="M8 10V7.6a4 4 0 0 1 8 0V10" fill="none" stroke="#e6e6df" stroke-width="2.2"/>',
       protect: gear('#f2c94c'), equipWard: gear('#f2c94c'),
       equipUp: gear('#33b24a'), equipDown: gear('#33b24a')+DN,
@@ -2642,8 +2661,15 @@ __QR__
   function effIcon(card){
     var eff=E.effectOf(card); if(!eff || !eff.impl) return '';
     var keys, k=eff.kind;
-    if(k==='reclaim' && eff.immune) keys=['reclaim','shieldImmune'];       // Leyline = reclaim + immunity (two chips)
-    else if(k==='onWin') keys=['destroyShield'];                           // Armor Piercing just reads as a Shield−
+    /* ONE KIND WITH NO ICON IS ONE CARD WITH NO GLYPH, AND IT WENT UNNOTICED FOR AS LONG AS THE GLYPH WAS
+       DECORATION (2026-09-17). This branch used to read `k==='reclaim' && eff.immune` — Leyline when its
+       kind WAS `reclaim` — and the card is `ward` now, so it fell to `keys=['ward']`, which the map had no
+       entry for, so `effIcon` returned '' and the 9♦ carried nothing. A dead `leyline:` key sat in the map
+       the whole time. It matters as of today because the AFFORDANCE SIGNAL now lands on `.efrow`: a card
+       with no row cannot show it, so a missing icon stopped being cosmetic and became a silent signal loss.
+       `markAfford` can only fire on a card with an implemented effect, so the gate is exactly that set —
+       and `mptest` asserts every one of them has a row rather than trusting this list. */
+    if(k==='onWin') keys=['destroyShield'];                                // Armor Piercing just reads as a Shield−
     else if(k==='equip'){                                                  // by what the equipment DOES:
       keys = eff.absorb ? ['shieldImmune']                                 // Holy Shroud = shield protection
            : eff.delta ? ['equipUp','valueBoost']                          // Holy Bow / Hero's Sword = gear (equip) + sword+ (raises you)

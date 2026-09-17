@@ -71,12 +71,12 @@ node exporttest.js                              # the playtest export at 3 playe
 node phantasmtest.js                            # Phantasmal Illusion: all three routes + the bare-copy
                                                 # refusal, in the real page (12)
 node nettest_reveal.js                          # the hand read over netplay, incl. who must NOT see it (10)
-node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (93)
+node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (97)
 node qrtest.js                                  # the QR encoder, every symbol decoded back by a real decoder,
                                                 # plus the geometry a camera actually needs (19)
 node qrref.js                                   # the same encoder diffed module-for-module against macOS
                                                 # CoreImage — darwin only, CORROBORATES rather than gates (26)
-node versiontest.js                             # the build stamp: README -> build -> both screens (10)
+node versiontest.js                             # the build stamp: README -> build -> both screens, the doc chain + the backlog tags (33)
 node sharetest.js                               # the share sheet + the tolerant paste (14)
 node nettest_roundstall.js                      # the host must get the board back after winning a round (9)
 node nettest_actloop.js                         # play must keep moving AFTER a Technique, both seats (22)
@@ -1874,9 +1874,9 @@ Status as of **v1.31.127 — 2026-09-17, `npm run sweep`, 94 suites and 0 FAIL i
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 535, `netview` 65, `mptest` 93, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
+`test` 535, `netview` 65, `mptest` 97, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 32, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 33, `lessontest_quicks` 21, `lessontest_howto` 25,
+`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 33, `lessontest_quicks` 21, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2313,6 +2313,34 @@ When deleting one, note that `cardName()` reads the EFFECTS entry independently 
 a whole UI picker flow, and the `phantasmPlus` boost hook all keyed to `kind:'phantasm'` — which no card had,
 for eighteen versions. `grep -c "kind: 'phantasm'" engine.js` returning 0 is the check that finds this class of
 bug; the code looks alive in all three layers.
+
+**AND THE MIRROR OF IT — A KIND NOTHING *DRAWS* — WHICH NO GREP IN THIS FILE COULD FIND (2026-09-17).** Every
+check above asks whether a kind is *reachable*; none asks whether a reachable kind is *rendered*. `effIcon`
+maps `eff.kind` into `EFF_ICON_SVG` and returns `''` when the lookup misses, so **Leyline Ascension carried no
+effect glyph at all** — its kind became `ward` while `effIcon` still branched on `reclaim && eff.immune`,
+Leyline's OLD kind, and a dead `leyline:` key sat in the map the whole time. Silent in both directions: the
+missing branch threw nothing and the orphaned key read as live art.
+**IT WAS COSMETIC UNTIL IT WAS NOT.** The affordance dim moved onto `.efrow` the same day, and a card with no
+row cannot show it — so a missing icon stopped being a missing decoration and became a **signal that renders
+as nothing**, indistinguishable from "you can afford this". A gap can be harmless for versions and then be
+load-bearing the moment something else lands on it.
+**THE FIX IS AN ASSERTION OVER THE SET, NOT A CARD.** `mptest` puts all 52 cards in hand at zero energy and
+requires every card `markAfford` greys to have a row — so the next effect kind cannot lose the signal quietly,
+and it names the card when it does. A per-card assertion would have to be remembered; this one cannot be.
+**AND THE ARITHMETIC IT MADE VISIBLE:** 32 of 52 grey, not 44. The twelve J/Q/K are absent because
+`TRANSFORM_COST` is **0** and `rideCostDelta` returns 0 for ranks 11-13 — **a transform is always affordable**,
+which is easy to get wrong from `engine.js`'s own stale comment on that line (*"transforms are a flat 10"*).
+If transforms ever cost energy, that assertion goes red naming them, which is the right moment to decide what
+a Ride's glyph should be.
+
+**A HEADING IS A LINE, AND `indexOf` CANNOT TELL ONE FROM A MENTION (2026-09-17).** `versiontest` gated the
+changelog with `chlog.indexOf('### '+want) >= 0`, and it was **green on a corrupted file**: the v1.31.127 entry
+had been inserted *inside the intro paragraph*, spliced at the literal `` `### vX.Y.Z — short title` `` the
+intro uses as its own example — so the real heading was prose on line 7, the EXAMPLE became the document's
+first `###`, and the substring search found the mention and called it an entry. Anchored to the start of a
+line now (`/^### v1\.31\.127\b/m`), which is what "heading" means in Markdown and what every reader keys off.
+**The shape to distrust: a gate that searches for formatting with a substring.** The same insertion would be
+invisible to any `grep -c`; only `grep -n '^### '` shows it. Verified by re-burying the heading — one red.
 
 **Card text speaks to a TABLE, not a duel.** Four texts understated their own effect because the code loops
 every opponent while the text named one — `equipDelta` (Caltrops, Spiked Armor), `rideCostDelta` (Giant Ram),

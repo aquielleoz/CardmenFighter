@@ -4,7 +4,18 @@
 all was this. Nothing else moved: the build/test header, `## BACKLOG` and START HERE stay in
 [`NEXT-SESSION.md`](NEXT-SESSION.md), which is still the file to read first.
 
-**What belongs here: the record of what shipped and why — history, newest first, one `### v1.31.127 — an invite code with an IPv6 candidate could not be pasted
+**What belongs here: the record of what shipped and why — history, newest first, one `### vX.Y.Z — short title`
+section per version.** It is append-only and it is the one place allowed to be a dated snapshot, because nobody
+acts on it. That is also why it is the wrong home for anything else, and all three mistakes have happened:
+- **open work** written here is invisible — a changelog is history and nobody actions it → `NEXT-SESSION.md`'s
+  `## BACKLOG`
+- **a settled analysis** written here gets re-run, because the BACKLOG is where people look → `DECISIONS.md`
+- **a rule** written here is never read again → `CLAUDE.md`
+
+`versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
+version with no entry is a red suite rather than a silent gap.
+
+### v1.31.127 — an invite code with an IPv6 candidate could not be pasted
 
 **A code pasted inside a sentence was silently truncated at the first colon.** `dec`'s tolerant extractor —
 the one that digs a code out of *"here you go: C1~o~…"* — matched
@@ -25,17 +36,6 @@ in the next two on an untouched build.
 `sharetest` now appends an IPv6 candidate to a real captured code rather than waiting for the network to
 provide one, so the case is deterministic on every machine. Verified both ways: reinstating the old
 character class turns two assertions red.
-
-### vX.Y.Z — short title`
-section per version.** It is append-only and it is the one place allowed to be a dated snapshot, because nobody
-acts on it. That is also why it is the wrong home for anything else, and all three mistakes have happened:
-- **open work** written here is invisible — a changelog is history and nobody actions it → `NEXT-SESSION.md`'s
-  `## BACKLOG`
-- **a settled analysis** written here gets re-run, because the BACKLOG is where people look → `DECISIONS.md`
-- **a rule** written here is never read again → `CLAUDE.md`
-
-`versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
-version with no entry is a red suite rather than a silent gap.
 
 ### v1.31.126 — a staleness sweep of every live doc, and the one axis that was rotten
 
