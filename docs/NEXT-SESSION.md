@@ -514,15 +514,6 @@ re-read its tag.
 
 #### Netplay
 
-- `ready to build`      · **"RIVAL" IS HARDCODED IN THE PRIORITY MODALS, WRONG AT 3-6 PLAYERS.** *(The modal half is moot: the
-  string was fixed in v1.31.120 and `openShieldGuardModal` itself was deleted at epic step 19. **The naming
-  half below is still open and is the part Aj asked for.**)* It said
-  *"Rival's Special is about to strip one of your shields"* — naming a player who is not
-  at the table and withholding the one fact you need. **Aj's fix is broader than the string:** default names
-  become **Rival + a number** for *everyone*, host and human seats included, so an un-renamed seat is still
-  identifiable. Names stay dynamic.
-  `[id: rival-hardcoded-priority-modals]`
-
 - `root cause found`    · **A 2-PLAYER NETPLAY PRE-FIGHT WINDOW IS SET ON THE CLIENT AND ABANDONED BY THE HOST** (the duel `t:'move'` handler, template) — the
   duel move handler has no op for it. Needs a client holding a Form-granted lockout Quick, so it is narrow, but
   the audit rates it a permanent hang.
@@ -564,60 +555,6 @@ re-read its tag.
   via the `pick` branch, which is what keeps them apart today.
   `[id: client-act-another-seat]`
 
-- `ready to build`      · **ALL SEVEN EMOTES RENDER "You says…" TO THE PERSON WHO SENT THEM (2026-09-15).** `EMOTES` carries a
-  present-tense third-person verb in every row — `says hi!`, `says nice play!`, `says yes!`, `says no!`,
-  `needs a second…`, `says good game!`, `wants a rematch!` — and `say()` renders `{who}` as **"You"** for
-  the actor. Aj's own saved log carries the proof: **`You wants a rematch!`**, against the other seat's
-  correct `Aj wants a rematch!` for the same event.
-  **THIS IS THE DOCUMENTED CLASS, NOT A NEW ONE** — CLAUDE.md's rule is that no present-tense verb is safe
-  anywhere in a broadcast template, because no placeholder's number is known when the template is written.
-  **PAST TENSE IS THE USUAL FIX AND IT READS BADLY HERE** ("You said hi!" for a live emote), so this wants
-  the v1.31.101 move instead: recast so there is no agreement in either direction. `{who}: Hi!` or
-  `👋 Hi! — {who}` both work and neither conjugates. That is a copy decision, so it is Aj's.
-  **AND THE SCAN MISSES ALL SEVEN.** `nettest_narrate`'s `BAD` list holds `You is/was/has/moves/plays/
-  passes/wins/leads/loses` and none of `says`, `needs`, `wants`. Add the three, but note the real lesson:
-  the list is an enumeration of verbs that have already shipped, so it will always trail. The STATIC half
-  reads the template source — teaching it to flag a `says:` row whose value starts with a bare verb would
-  cover the whole table at once, including the next row somebody adds.
-  `[id: all-seven-emotes-render]`
-
-- `ready to build`      · **A CLIENT IS NEVER TOLD THAT ANOTHER SEAT IS DECIDING — THE BOARD JUST GOES DEAD (Aj, 2026-09-15:
-  *"when a player is thinking through a prompt… nothing happens in the other player's screen? so it's
-  just… why can't i play? what up?"*).** The HOST is told: the NET IIFE sets `rivalStatus` to
-  `'<seat> may respond…'`, `'… is discarding…'`, `'… is playing…'` and `'… is choosing a target…'` at each
-  of its parks. Nothing does the equivalent for a seat reading a MIRROR, so a client waiting on the host's
-  open prompt sees an inert board and no reason for it.
-  **THE DATA IS ALREADY THERE, WHICH IS WHAT MAKES THIS CHEAP.** `netview` mirrors `respondFor`, rotated
-  into the reader's frame. The notice that would carry it already exists too — `render()`'s `waitOn` block
-  names the blocking seat via `logName` and dims the play area with `showTrimWait` — it just only consults
-  `trimPending` and `discardPending`.
-  **IT IS THE v1.31.69 CLEAN-UP PICK, EXACTLY.** That entry's words were *"until v1.31.69 the others just
-  saw a gap"*, and the fix was to put the blocking seat on the mirror so every screen could name it. The
-  response window has had its half of that on the mirror the whole time and never got the other half.
-  **From the outside an inert board is indistinguishable from a hang** — this file already says so about
-  enabled-but-dead controls, and names it a plausible source of "netplay lagged" reports.
-  `[id: client-never-told-another]`
-
-- `ready to build`      · **THE RTC HOST'S START BUTTON IGNORES READY ENTIRELY — A GAME CAN BEGIN WITH AN UNCONFIRMED SEAT
-  (reported in live play, 2026-09-15).** The two host lobbies disagree about what Start means:
-  `renderLobby` (BroadcastChannel) gates on **`readyCount()`** — has CONFIRMED — while `renderHostRtcLobby`
-  gates on **`joinedCount()` / `nextSeat-1`** — has A SEAT — on the button *and* in the click handler.
-  `renderNet` sends every RTC host to the second one unconditionally, so **the only lobby a real internet
-  host ever reaches is the one that never checks readiness.**
-  **READINESS IS DROPPED WITHOUT DROPPING THE SEAT, DELIBERATELY, IN TWO PLACES** — `hostUnready`
-  (`delete seatRuleGen[seat]`, `nextSeat` untouched) and `hostRulesChanged` (`rulesGen++`, which invalidates
-  every stamp). Either one takes `readyCount()` to 0 while `joinedCount()` stays 1. The BC lobby greys Start
-  out; the RTC lobby stays live and fires. **Ready is consent** — `hostBackToLobby`'s own comment says
-  nobody is dealt in "without confirming" — and this starts a game without it.
-  **ONLY THE GATE CHANGES.** `hostStartRealN` must keep indexing `nextSeat-1`: a readiness-based INDEX
-  renumbers the table and mis-assigns decks, which is exactly why it reads seat topology rather than
-  readiness and says so in place. Changing the indexing loop would be a regression, not a deeper fix.
-  **THE ASSERTION ALREADY EXISTS, ONE RENDERER OVER.** `nettest_unready` asserts *"after un-readying, the
-  host can NO LONGER start"* — but it runs on `?net=host`, i.e. BroadcastChannel, where the gate is already
-  right. None of the eight `rtchost` suites assert it. This is the documented two-invite-renderers trap with
-  the **test** applied to one only, so the fix is not finished until an RTC suite carries that assertion.
-  `[id: rtc-start-ignores-ready]`
-
 - `root cause found`    · **THE HOST'S "🔔 Ping the table" IS INVISIBLE TO THE CLIENT — IT PAINTS BEHIND THE LOBBY (reported in live
   play, 2026-09-15).** The client's handler is `SFX.play('ping'); setMessage(…)`, and `setMessage` writes
   `#message`, which lives **inside the board**. `#netroot` is `position:fixed; inset:0` at `--zNetroot`, so
@@ -633,39 +570,6 @@ re-read its tag.
   **THE FIX RENDERS INTO THE LOBBY**, and must cover BOTH client lobby branches — readied and not — since
   the nudge is aimed at the seat that has *not* pressed Ready yet.
   `[id: ping-invisible-to-client]`
-
-- `ready to build`      · **THE JOINER'S NETBAR SAYS "no server" WHEN THE RELAY DID CARRY ITS HANDSHAKE (found 2026-09-15).**
-  `srvTag()` is `relay.room ? 'relay for the handshake only' : 'no server'`, and **only the host ever sets
-  `relay.room`** — `relayJoinByCode` claims a slot, posts its answer, and never touches it. So a player who
-  joined by typing a four-character room code reads **"no server"** on the one control built so that bar
-  *cannot* lie about whether a server saw their IP. It did: the relay carried their SDP, and an SDP holds
-  addresses. That is the privacy claim the tag exists to make honestly, made wrongly.
-  **THE HOST'S HALF IS CORRECT, WHICH IS WHY THIS SURVIVED** — `relayDropRoom` clears `relay.room`, so the
-  host's tag flips back to "no server" exactly when it should. Only the joining seat is wrong, and only a
-  joiner can see it.
-  **THE FIX IS A JOINER-SIDE FLAG, NOT A REUSE OF `relay.room`** — the joiner has no room to drop and must
-  not start polling one; it needs to remember only that the relay introduced it, and clear that on Leave
-  with everything else. Assert BOTH seats' tags: a one-sided test passes on today's build.
-  `[id: joiner-netbar-no-server]`
-
-- `ready to build`      · **"Connection lost (disconnected)" NAMES NO LAYER THE PLAYER CAN ACT ON — IT HAS SENT US AT THE RELAY
-  TWICE (2026-09-15).** `startSignaling`'s `oniceconnectionstatechange` writes
-  `setLobbyErr('Connection lost ('+st+').')` for a lobby-time `failed`/`disconnected`. Both times the cause
-  was **office wifi client isolation**, and both times the first suspicion was the Cloudflare relay — which
-  was healthy on each occasion (`relaytest` against the live deployment, 20/20, plus a 200 on the liveness
-  route).
-  **THE MESSAGE IS ACCURATE AND USELESS.** By the time it fires the handshake has already SUCCEEDED — the
-  netbar reads "Joining (Player 2)", which is only reachable once the offer was claimed and the answer
-  posted — so what failed is the direct peer link. The string names the symptom and not one thing to try.
-  **WHAT IT SHOULD SAY IS THE DIAGNOSIS WE REACH EVERY TIME:** the two devices could not reach each other
-  directly, and office or guest wifi commonly blocks exactly that. There is no TURN server **by design**
-  (cost — the same constraint behind polling over D1), so a direct route has to exist and the message
-  should say so rather than leaving the player to deduce it.
-  **DISTINGUISH IT FROM A SIGNALLING FAILURE IN THE COPY, not only in the code.** `sig.err`'s writers
-  ("Cannot reach the relay", "No room with that code") describe the relay's failures and already read
-  correctly. This one is the transport's, and phrasing them alike is what makes the relay the first
-  suspect — twice now, for the person who built it.
-  `[id: connection-lost-no-layer]`
 
 - `needs a repro`       · **THE CLIENT'S ANIMATIONS ARE STILL WRONG, AND "SHANKED" IS ALL WE HAVE (Aj, 2026-09-16: *"animations
   are still shanked in the client"*).** Reported twice now without a specific frame, so **the first job is

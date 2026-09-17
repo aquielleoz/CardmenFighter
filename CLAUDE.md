@@ -1885,7 +1885,7 @@ The 52 netplay suites: `nettest_3p` 7, `priosig` 18, `passoduel` 8, `parkbeat3` 
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 16, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 7, `ghostseat` 6, `trim` 14, `unready` 15, `version` 24, `ridewedge` 9.
+`target3` 7, `ghostseat` 6, `trim` 14, `unready` 15, `version` 24, `ridewedge` 9, `rtcready` 9, `narrate` 12.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state

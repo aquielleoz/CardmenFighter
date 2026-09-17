@@ -7064,7 +7064,7 @@ window.CardFace = {};
     var yw=$('youWho');
     if(yw) yw.textContent = myName ? (myName+' (You)') : 'You';
     var rw=$('rivalWho');
-    if(rw && !MP()) rw.textContent = nameOf(RIVAL) || 'Rival';
+    if(rw && !MP()) rw.textContent = nameOf(RIVAL) || defaultName(RIVAL);   // `defaultName`, not 'Rival': the log calls this seat "Rival 2" and a strip that disagrees with the log is two names for one player
   }
   function openNameEditor(){
     var cur=myName;
@@ -7224,14 +7224,25 @@ window.CardFace = {};
    * grace and players otherwise sit wondering whether the other side is still there.
    * `Rematch?` is an EXPRESSION for now: the opponent answers with Yes!/No!, which the set already covers.
    * A real one-tap rematch needs a restart handshake over the live connection — filed separately. */
+  /* THE LINE CARRIES NO VERB, AND THAT IS THE WHOLE FIX (Aj, 2026-09-17). Every row used to hold a
+     present-tense third-person verb — `says hi!`, `needs a second…`, `wants a rematch!` — and `say()`
+     renders `{who}` as **"You"** for the actor, so the sender read **"You wants a rematch!"** while the
+     other seat correctly read "Aj wants a rematch!". Aj's own saved log carries both halves of that.
+     PAST TENSE IS THIS REPO'S USUAL FIX AND IT READS BADLY HERE — "You said hi!" for a live emote — so
+     this takes the v1.31.101 move instead: recast so there is no agreement in EITHER direction. `{who}:`
+     plus the words has no verb to conjugate, is correct for sender and reader alike, and makes the next
+     row anybody adds safe by construction rather than by review.
+     THE FIELD IS `line`, NOT `says`, BECAUSE IT NO LONGER SAYS ANYTHING — a field called `says` holding
+     "Hi!" is the kind of name that invites the next person to put a verb back in it. One consumer, checked
+     by grep across the template and every suite before renaming. */
   var EMOTES=[
-    { key:'hi',      icon:'👋', label:'Hi!',       says:'says hi!',            sfx:'emHi' },
-    { key:'nice',    icon:'👏', label:'Nice!',     says:'says nice play!',     sfx:'emNice' },
-    { key:'yes',     icon:'👍', label:'Yes!',      says:'says yes!',           sfx:'emYes' },
-    { key:'no',      icon:'👎', label:'No!',       says:'says no!',            sfx:'emNo' },
-    { key:'wait',    icon:'⏳', label:'One sec',   says:'needs a second…',     sfx:'emWait' },
-    { key:'gg',      icon:'🤝', label:'GG',        says:'says good game!',     sfx:'emGG' },
-    { key:'rematch', icon:'🔄', label:'Rematch?',  says:'wants a rematch!',    sfx:'emRematch' }
+    { key:'hi',      icon:'👋', label:'Hi!',       line:'Hi!',          sfx:'emHi' },
+    { key:'nice',    icon:'👏', label:'Nice!',     line:'Nice play!',   sfx:'emNice' },
+    { key:'yes',     icon:'👍', label:'Yes!',      line:'Yes!',         sfx:'emYes' },
+    { key:'no',      icon:'👎', label:'No!',       line:'No!',          sfx:'emNo' },
+    { key:'wait',    icon:'⏳', label:'One sec',   line:'One sec…',     sfx:'emWait' },
+    { key:'gg',      icon:'🤝', label:'GG',        line:'Good game!',   sfx:'emGG' },
+    { key:'rematch', icon:'🔄', label:'Rematch?',  line:'Rematch?',     sfx:'emRematch' }
   ];
   function emoteOf(key){ for(var i=0;i<EMOTES.length;i++) if(EMOTES[i].key===key) return EMOTES[i]; return null; }
   var $=function(id){return document.getElementById(id);};
@@ -7598,8 +7609,16 @@ window.CardFace = {};
   // so it's a green "good" tile when it's yours and a red one when it's the Rival's.
   function equipInfo(e, mine, seat){
     var d=e.delta||0, od=e.oppDelta||0;
-    var owner = mine ? 'Your' : "Rival's";     // the equip's owner, named from your seat
-    var foe   = mine ? "Rival's" : 'Your';     // the owner's opponent, from your seat
+    /* NAME THE SEAT, DO NOT SAY "Rival's" (2026-09-17). `equipInfo` already TAKES `seat` and never used it
+       for the label, so at 3-6 players every opponent's equipment read "Rival's highest +2" — the one fact
+       you need, withheld, and indistinguishable between three rivals. In a duel it also disagreed with the
+       log, which says "Rival 2" for the same player via `defaultName`.
+       `logName` is the funnel for exactly this and is reader-relative, so a renamed seat reads as its name
+       and an un-renamed one as "Rival N". The possessive is built here rather than in `logName` because
+       "You" needs "Your", not "You's" — the apostrophe trap this repo has already shipped once. */
+    var poss = function(q){ return (q===YOU) ? 'Your' : (logName(q)+'’s'); };
+    var owner = (seat!=null) ? poss(seat) : (mine ? 'Your' : "Rival’s");     // the equip's owner, named from your seat
+    var foe   = mine ? "Rival’s" : 'Your';     // the owner's opponent, from your seat
     var eff='';
     if(d>0)                         eff=owner+' highest +'+d+' each fight';
     else if(od<0)                   eff=foe+' highest '+od+' each fight';
@@ -8179,7 +8198,7 @@ window.CardFace = {};
    * uses. The bubble reuses #stopfx, the centre-stage flash box the QUICK cue already shares. */
   function showEmote(seat, key){
     var em=emoteOf(key); if(!em) return;
-    say(seat, '{who} '+em.says, 'emote');     // host: this also BROADCASTS the line, so clients must not re-log
+    say(seat, '{who}: '+em.line, 'emote');   // host: this also BROADCASTS the line, so clients must not re-log
     emoteFx(seat, key);
   }
   /* Bubble + sound only. A client uses THIS, never showEmote: the host's say() already sent it the log line,
@@ -8402,14 +8421,31 @@ window.CardFace = {};
      * every seat but the local one, so on a host that is every client. But a FORCED discard from a card effect
      * DOES prompt a remote seat, and until now the other clients had no notice for that at all — the host set
      * its own `rivalStatus` and nothing reached anyone else. One notice covers both. */
+    /* AND A SEAT DECIDING IN A PRIORITY WINDOW BLOCKS EVERYONE THE SAME WAY (Aj, 2026-09-15: *"when a
+     * player is thinking through a prompt… nothing happens in the other player's screen? so it's just…
+     * why can't i play? what up?"*). The HOST has always been told — the NET IIFE sets `rivalStatus` at
+     * each of its parks — and nothing did the equivalent for a seat reading a MIRROR, so a client waiting
+     * on someone else's open prompt saw an inert board and no reason for it. From the outside that is
+     * indistinguishable from a hang, which this file already names as a plausible source of "netplay
+     * lagged" reports.
+     * THE DATA WAS ALREADY ON THE WIRE — `netview` mirrors `respondFor`, rotated into the reader's frame —
+     * and the notice already existed. Only this condition was missing. It is the v1.31.69 clean-up pick
+     * exactly: *"until v1.31.69 the others just saw a gap"*, fixed by putting the blocking seat on the
+     * mirror so every screen could name it. The response window had its half the whole time.
+     * CHECKED LAST of the three, because a discard is the more specific state: a seat that owes a discard
+     * may also hold priority, and "is discarding…" is the more useful of the two sentences. */
     var waitOn = (state && state.trimPending && state.trimPending.player!==YOU) ? state.trimPending.player
                : (state && state.discardPending && state.discardPending.player!=null
-                  && state.discardPending.player!==YOU) ? state.discardPending.player : null;
+                  && state.discardPending.player!==YOU) ? state.discardPending.player
+               : (state && state.respondFor!=null && state.respondFor!==YOU && !state.finished) ? state.respondFor : null;
     if(waitOn!==null){
       /* `logName`, not `seatName`: names are READER-RELATIVE here as everywhere else — a duel opponent reads as
        * "Rival", not "P2". Every other label in the game goes through this funnel for the same reason. */
+      var deciding = !(state.trimPending && state.trimPending.player!==YOU)
+                  && !(state.discardPending && state.discardPending.player!=null && state.discardPending.player!==YOU);
       var forced = !(state.trimPending && state.trimPending.player!==YOU);
-      var txt = logName(waitOn)+(forced ? ' is discarding…' : ' is discarding to hand size…');
+      var txt = deciding ? (logName(waitOn)+' is deciding…')
+                         : (logName(waitOn)+(forced ? ' is discarding…' : ' is discarding to hand size…'));
       var tp=$('rivalStatus'); if(tp) tp.textContent=txt;
       /* AND ON THE STAGE, dimmed — Aj: "maybe we can dim the play area too (might as well put the announcement
        * there)". `#roundfx` IS the play-area announcement layer, so this shares it rather than inventing a
@@ -8418,7 +8454,7 @@ window.CardFace = {};
       showTrimWait(txt);
     } else {
       var tp2=$('rivalStatus');
-      if(tp2 && /is discarding/.test(tp2.textContent||'')) tp2.textContent='';   // only clear OUR message
+      if(tp2 && /is discarding|is deciding/.test(tp2.textContent||'')) tp2.textContent='';   // only clear OUR messages
       clearTrimWait();
     }
     var you=state.players[YOU];
@@ -13200,7 +13236,17 @@ window.CardFace = {};
           if(!pc) return; var st=pc.iceConnectionState;
           if(/failed|disconnected/.test(st)){
             if(started){ clientSelfDown=true; renderDisconBar(); }                              // mid-game: show "reconnecting to host…"
-            else { setLobbyErr('Connection lost ('+st+').'); }
+            /* NAME THE LAYER, AND NAME THE USUAL CAUSE (2026-09-17). This said "Connection lost
+               (disconnected)" — accurate and useless. By the time it fires the HANDSHAKE HAS ALREADY
+               SUCCEEDED (the netbar reads "Joining (Player 2)", only reachable once the offer was claimed
+               and the answer posted), so what failed is the direct peer link and nothing else. Phrased
+               like `sig.err`'s relay messages, it made the relay the first suspect TWICE — both times the
+               cause was office wifi client isolation and both times the relay was healthy (`relaytest`
+               20/20 against the live deployment). Naming the layer is what stops the third time.
+               THERE IS NO TURN SERVER BY DESIGN — the same cost constraint behind polling over D1 — so a
+               direct route between the two devices has to exist, and the message says so rather than
+               leaving the player to deduce it. The raw ICE state stays, parenthesised, for bug reports. */
+            else { setLobbyErr('The two devices could not reach each other directly — the invite went through fine, but the direct link did not. Office and guest wifi often block this; try a phone hotspot or another network. ('+st+')'); }
           } else if(/connected|completed/.test(st)){
             if(started && clientSelfDown){ clientSelfDown=false; renderDisconBar(); }            // link restored
           }
@@ -13293,10 +13339,16 @@ window.CardFace = {};
     function relayStopPoll(){ if(relay.poll){ clearInterval(relay.poll); relay.poll=null; } }
     /* Deleting the room is a courtesy, not a requirement — rooms expire on their own. But an SDP holds IP
      * addresses, so not leaving one lying around for ten minutes is the decent default. */
+    /* ONLY THE HOST MAY DELETE THE ROOM — the joiner records it but does not own it (2026-09-17).
+       `relay.room` became a JOINER's field too, so that `srvTag()` stops telling a room-code joiner
+       "no server" when the relay demonstrably carried their SDP. That one-line change makes this function
+       dangerous by default: it is called from `leaveOnline()`, so a joiner closing the tab would have sent
+       `DELETE /r/<code>` and torn down the HOST's room — stranding every other seat, from the politest
+       possible action. The local clear is unconditional; the DELETE is the host's alone. */
     function relayDropRoom(){
       relayStopPoll();
       var code=relay.room; relay.room=null; relay.since=-1;
-      if(code && relayBase) relayFetch('DELETE','/r/'+code).then(function(){}, function(){});
+      if(code && relayBase && isHost()) relayFetch('DELETE','/r/'+code).then(function(){}, function(){});
     }
     /* JOINER: claim a slot, answer it, hand the answer back. One exchange, and the player typed four characters. */
     function relayJoinByCode(raw){
@@ -13308,6 +13360,14 @@ window.CardFace = {};
         if(r.status===204){ sig.err='That room has no invite waiting — ask them to reopen it.'; sig.step='join-need'; renderNet(); return; }
         if(r.status!==200 || !r.body || !r.body.offer){ sig.err='No room with that code — check the four characters.'; sig.step='join-need'; renderNet(); return; }
         var slot=r.body.slot;
+        /* THE JOINER MUST RECORD THE ROOM TOO, OR THE NETBAR LIES ABOUT ITS OWN PRIVACY (2026-09-17).
+           `srvTag()` reads `relay.room` and only the HOST ever set it, so a player who joined by typing a
+           four-character code read **"no server"** — on the one control built precisely so that bar cannot
+           be wrong about whether a server saw their IP. It had: the relay carried their SDP, and an SDP
+           holds addresses. That is the privacy claim the tag exists to make honestly, made wrongly.
+           Set on the CLAIM rather than on the answer, because by the time the answer posts the relay has
+           already handled the offer — the disclosure happens at the claim, so that is where it is true. */
+        relay.room=code;
         /* joinAcceptOffer already does the WebRTC half; the continuation posts the answer so the host's poll
          * finds it. Reusing it means a relay join and a pasted invite cannot diverge. */
         joinAcceptOffer(r.body.offer, function(answer){
@@ -14964,7 +15024,16 @@ window.CardFace = {};
           (full?'<p class="nethint">Table full (6).</p>':'<button id="inviteBtn" class="netbtn alt">＋ Invite '+(joinedCount()>0?'another ':'a ')+'player</button>');
       }
       var _dead=deadSeats();
-      body+='<button id="lobbyGo" class="netbtn go"'+((joinedCount()>0 && !_dead.length)?'':' disabled')+'>Start '+(total>2?('('+total+' Riders)'):'Duel')+' ▶</button>'+
+      /* GATE ON READINESS, NOT ON HAVING A SEAT (2026-09-17). The two host lobbies disagreed: `renderLobby`
+         (BroadcastChannel) gates on `readyCount()` — has CONFIRMED — while this one gated on
+         `joinedCount()` — has A SEAT. `renderNet` sends every RTC host here unconditionally, so **the only
+         lobby a real internet host ever reaches was the one that never checked readiness**, and a game
+         could be dealt to a seat that had not consented. Readiness is dropped WITHOUT dropping the seat in
+         two places on purpose — `hostUnready` and `hostRulesChanged` — so `readyCount()` goes to 0 while
+         `joinedCount()` stays 1, and this button stayed live and fired.
+         ONLY THE GATE MOVES. `hostStartRealN` still indexes `nextSeat-1`, because a readiness-based INDEX
+         renumbers the table and mis-assigns decks; it reads seat topology deliberately and says so. */
+      body+='<button id="lobbyGo" class="netbtn go"'+((readyCount()>0 && !_dead.length)?'':' disabled')+'>Start '+(total>2?('('+total+' Riders)'):'Duel')+' ▶</button>'+
         (_dead.length ? '<p class="nethint err">⚠ '+_dead.map(function(q){ return seatName(q)||('P'+(q+1)); }).join(', ')+
            ' left before the game started — Start is held until they come back or you reopen the lobby.</p>' : '')+
         '<p class="nethint">Invite each player, then Start (2–6). Picks stay hidden — no counter-picking.</p>'+
@@ -14993,7 +15062,7 @@ window.CardFace = {};
       var lr2=$('lobbyRules'); if(lr2) lr2.addEventListener('click', function(){
         showRules({ back:function(){ hideOverlay(); hostRulesChanged(); } });     // this renderer is host-only
       });
-      var start=$('lobbyGo'); if(start) start.addEventListener('click', function(){ myDeck=($('deckSel')||{}).value||myDeck; if(nextSeat-1>=1) hostStartRealN(myDeck); });
+      var start=$('lobbyGo'); if(start) start.addEventListener('click', function(){ myDeck=($('deckSel')||{}).value||myDeck; if(readyCount()>=1 && nextSeat-1>=1) hostStartRealN(myDeck); });   // the HANDLER checks too: a disabled button is not a gate (a stale repaint, or a seat un-readying between paint and click)
     }
     function renderNet(){
       var root=$('netroot'); if(!root) return;

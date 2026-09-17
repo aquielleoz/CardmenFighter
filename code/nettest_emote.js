@@ -58,9 +58,13 @@ async function waitLog(p,re,t=80){ for(let i=0;i<t;i++){ if((await log(p)).some(
 
   // ---- HOST -> CLIENT
   ok(await emote(host,'hi'), 'host taps Hi!');
-  ok(await waitLog(host,/^You says hi!|^You say/i), 'the host reads its own emote as "You"');
-  ok(await waitLog(join,/Koya says hi!/), 'the CLIENT sees it attributed to the host by NAME');
-  const dupe=(await log(join)).filter(l=>/says hi!/.test(l)).length;
+  /* THESE FIVE ASSERTED THE BUG (2026-09-17). The expected string WAS `You says hi!` — the exact
+     third-person-verb-with-"You" shape `nettest_narrate` exists to forbid, written down here as correct.
+     A suite can pin a defect as firmly as it pins a feature; when the grammar rule and a suite disagree,
+     the rule wins. Emote lines carry no verb now, so there is nothing to conjugate. */
+  ok(await waitLog(host,/^You: Hi!/), 'the host reads its own emote as "You"');
+  ok(await waitLog(join,/Koya: Hi!/), 'the CLIENT sees it attributed to the host by NAME');
+  const dupe=(await log(join)).filter(l=>/Hi!/.test(l)).length;
   ok(dupe===1, 'and exactly ONCE on the client — the host\'s say() broadcast is not re-logged locally ('+dupe+')');
 
   // ---- CLIENT -> HOST, and specifically while it is NOT the client's turn
@@ -68,8 +72,8 @@ async function waitLog(p,re,t=80){ for(let i=0;i<t;i++){ if((await log(p)).some(
   ok(t!==0, 'it is NOT the client\'s turn (turn '+t+' in its own frame) — emotes must work anyway');
   await wait(1300);                                     // clear the 1.2s cooldown
   ok(await emote(join,'nice'), 'client taps Nice! out of turn');
-  ok(await waitLog(host,/Aj says nice play!/), 'the HOST sees the client\'s emote by NAME, off-turn');
-  ok(await waitLog(join,/^You says nice play!|^You say/i), 'and the client reads its own as "You"');
+  ok(await waitLog(host,/Aj: Nice play!/), 'the HOST sees the client\'s emote by NAME, off-turn');
+  ok(await waitLog(join,/^You: Nice play!/), 'and the client reads its own as "You"');
 
   /* ---- the cooldown. THIS USED TO BE VACUOUS: it fired the burst immediately after the emote above, still
    * inside that 1.2s window, so the client's own gate dropped all three and `added<=1` passed on added=0 —
