@@ -1870,7 +1870,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127 — 2026-09-17, `npm run sweep`, 94 suites and 0 FAIL in 227s ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`) (four lanes; background
+Status as of **v1.31.127 — 2026-09-18, `npm run sweep`, 95 suites and 0 FAIL ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -1885,7 +1885,7 @@ The 52 netplay suites: `nettest_3p` 7, `priosig` 19, `passoduel` 8, `parkbeat3` 
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 16, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 7, `ghostseat` 6, `trim` 14, `unready` 15, `version` 24, `ridewedge` 9, `rtcready` 9, `narrate` 12.
+`target3` 7, `ghostseat` 6, `trim` 14, `unready` 15, `version` 24, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state
@@ -2054,6 +2054,29 @@ build. Two staging facts it paid for, each of which makes it pass VACUOUSLY if l
 (3/3 shields = two lost table-wide = `numPlayers × 1`, or the Ride is silently refused), and the client's
 Quick must be **untargeted** — the first attempt staged Counter Spell, which targets an effect on the stack,
 so `canCastQuick` refused it, NO window opened, and the liveness assertion passed while proving nothing.
+**AND THE SEVENTH CAME TWO DAYS LATER, IN THE NEXT DOOR ALONG (2026-09-18).** The fix above ends with *"when
+you change what happens after a cast, change it HERE TOO"* — and `doRemove` was not changed, because it is
+neither the transform branch nor the ordinary tail but a **THIRD copy of the same five lines**. It dropped
+the one that matters: `NET.hostAfterOwnCast(gen)`, the hop that reaches `hostTakeBack()`. So a netplay HOST
+that cast a **targeted** Technique on its own turn and had the client **ANSWER** it simply stopped — Aj's
+real duel, Sabotage (♠5) at the client's Holy Bow, answered with Annoint (♥5).
+**IT WAS DIAGNOSABLE ONLY BECAUSE HE SAVED BOTH ENDS.** The host's trace ENDS at `move IN from seat 1
+op=respond` — no `hostTakeBack`, no `awaitRival` — while the client received ~160s of mirrors at exactly
+**1.8s**, which is `startParkBeat()`. Both seats looked connected the whole time, which is this failure's
+signature and why it reads as lag. The **ROUND BOUNDARY** trace shipped that morning earned itself here:
+r9 → r10 complete, both queues reaching `exit`, which RULED OUT the stale-pile family instead of leaving it
+merely unsuspected.
+**ENUMERATE BY `grep -n 'settleWindows('`, WHICH IS THE WHOLE KIND ON ONE SCREEN.** Three of the call sites
+are cast continuations and each owes the hop (transform, ordinary tail, `doRemove`); the rest are not and
+should not have it — the rival driver continues into `step()`, and two others clear `busy` themselves. Doing
+that enumeration is what turns "fix the instance" into "fix the kind", and it is the lesson this file already
+carries from the seven-parks-of-nine.
+**`nettest_quickwedge` IS THE REPRO AND IT IS THE DECLINE-vs-RESPOND TWIN OF `nettest_ridewedge`.** That one
+DECLINES and is green; this one ANSWERS, which is a different continuation. 10/1 before the fix, 11/0 after,
+with the captured host state matching Aj's screenshot to the word: `turn=0`, *"Hold on — the board is still
+resolving."*, *"You played Sabotage."* Its third staging fact is new: **the client must OWN Equipment**, or
+`quickTargets`' `protect` branch has no legal target, the cast is refused, and the run reports "no window"
+having cast nothing.
 
 **`prompts=all` BUYS YOUR SUITE EXTRA WINDOWS, AND EACH ONE COSTS ~6s OF `netwindows` GRACE (2026-09-17).**
 `nettest_guard` was red **1-4 runs in 8** for weeks at `control passed to the client to answer the combo`,
