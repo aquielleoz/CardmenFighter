@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**529**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**533**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -320,47 +320,6 @@ re-read its tag.
   `[id: lessontest-twos-prep]`
 
 #### Rules, priority and the stack
-
-- `ready to build`      · **THE BEGINNING PHASE NEEDS AN "UNTAP" QUEUE, AND `roundAdvance` + `equipReset`
-  BELONG IN IT (Aj, 2026-09-16, deciding it: *"ah it's untapping in mtg. that's gotta be up there in the
-  beginning phase too. let's build that queue there... i almost forgot about seed pouch. this is before the
-  upkeep timing"*).** Was filed as an open question about `roundAdvance` alone; Aj answered it and widened it.
-  **THE MODEL, mirroring MTG's three steps:**
-  ```
-  Beginning Phase
-    ├─ "untap" events   ← NEW queue: roundAdvance, stampRound, equipReset …   NO PRIORITY
-    ├─ Upkeep           ← the decay triggers are pushed, then the dance
-    └─ Draw
-  ```
-  **`equipReset` IS THE UNTAP STEP, and Seed Pouch is why it is real rather than cosmetic.** It clears
-  `usedThisRound`, which is the only thing standing between an equipment ability and "once ever" —
-  `useEquipment` refuses on `usedThisRound` and Seed Pouch (`ability:'draw'`) is the game's only user today.
-  Making a once-per-round ability usable again is untapping; it has no business happening while the PREVIOUS
-  round is torn down.
-  **NO PRIORITY IN THE QUEUE — confirmed** (Aj: *"yes no priority"*). MTG's untap step grants none, and the
-  upkeep dance stays the first priority point of the phase. Structurally the same as `runCleanupEvents`: a
-  plain drain with no priority check in it.
-  **THE ARGUMENT THAT SETTLED `roundAdvance`, from walking the phases:** `CLEANUP_ORDER` is `roundAdvance,
-  initiative, pileClear, expire, equipReset, temps, stampRound` — and **six of the seven END the round**.
-  `roundAdvance` is the only member that STARTS the next one, sitting first in a list of teardown.
-  **MEASURED consequence of leaving it:** a round that began as 1 reads **2** during the end-of-clean-up
-  window, so a Quick cast at the end of round 1 is stamped round 2 in the ledger — the off-by-one this repo
-  already calls harmful.
-  **TWO DEPENDENCY CHAINS, AND ONLY ONE MOVES.** The engine already documents them: *"the round must advance
-  before `newRound` is stamped, and initiative must be handed over before the pile is dropped (the fizzle
-  branch reads `st.initiative`)"*.
-  - **`roundAdvance` → `stampRound` MOVE AS A PAIR, in that order.** `result.newRound` is read BOTH ways:
-    the round card renders `'Round '+res.newRound` (the new one) and **two sites do `res.newRound - 1`** to
-    recover the round that just ended. Keeping the pair adjacent leaves the stamped VALUE unchanged, so both
-    readings survive; moving `roundAdvance` alone would stamp the old number and double-subtract at those
-    two sites. Aj, on being shown this: *"i thought it was logging for the previous round"* — half right, and
-    that is exactly why the pair cannot be split.
-  - **`initiative` STAYS in clean-up — confirmed** (Aj: *"yes, that is correct"*). It is decided by the round
-    that just ended, and `pileClear` must follow it because the fizzle branch reads `st.initiative`.
-  **WHAT TO WATCH:** the queue must run AFTER the end-of-clean-up window closes and BEFORE `st.upkeep` opens
-  and the owed ticks are pushed — the slot the `endCleanup` branch already occupies. And name the events, the
-  way `CLEANUP_EVENTS` is named, so a future card can trigger off them.
-  `[id: beginning-untap-queue]`
 
 - `needs a measurement` · **RE-CHECK `setRecycleTech`, AND THE DISCARD PILE NOBODY CAN SEE** (Aj, 2026-09-08, on finding out
   decks thin: *"so were decks actually getting thinner without me noticing? huh?"*). They are, and the
