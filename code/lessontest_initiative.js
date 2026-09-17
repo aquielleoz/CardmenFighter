@@ -7,7 +7,7 @@ const { openLesson } = require('./lessonlib');
 (async()=>{
   const L=await openLesson('initiative');
   const { p, ok, until, step, at, next, passTurn } = L;
-  ok((await at()||{}).n===5,'5 steps');
+  ok((await at()||{}).n===7,'7 steps');   // 5 until 2026-09-17, when the lesson stopped ending on a promise
 
   ok(await until(()=>{ const s=window.__solo.st(); return !!s.pile && s.turn===0; },'the Rival leads and it is your turn'),
     'the rig really made the Rival lead — there is a pile and the turn is yours');
@@ -52,6 +52,30 @@ const { openLesson } = require('./lessonlib');
   ok(shrank,'…and the catch-up really moved cards off your deck, as step 4 claims');
 
   await next(); ok(await L.atStep(5),'step 5 is reachable');
+
+  /* THE LESSON USED TO END HERE, ON A PROMISE (2026-09-17). Five steps, three of them spent making you PASS
+   * and lose the lead on purpose, and then "when you do win a round, initiative swings to you" — the losing
+   * half of its own subject, described rather than played. Aj: "before the tutorial for initiative ends, we
+   * should let the player take the initiative".
+   * THE RIG MAKES WINNING IMPOSSIBLE BY DESIGN (you hold 3-5, the Rival 6-8), so the payoff is provisioned
+   * at the step: `tutArmInitiativeWin` hands over the 2 and strips the Rival to cards that cannot answer a
+   * single. A gated step the board can refuse is a dead end, and this one gates on an OUTCOME. */
+  /* WAIT FOR THE CARD, DO NOT TRUST THE SPOTLIGHT'S TIMING. The framework DEFERS a gated step's prep until
+   * the player's turn, so `hi`/`only` — both keyed on the id the prep sets — resolve to nothing on the
+   * first paint and `playSpot` reports "no spotlit cards in hand". Poll for the 2 to actually arrive, then
+   * play it by id. Same lesson as every other rig here: assert the card is THERE before driving it. */
+  ok(await until(()=>window.__solo.st().players[0].hand.some(c=>c.rank===2),'the step hands you a 2'),
+     'the payoff step really provisions the 2 — the rig makes winning impossible without it');
+  const twoId = await p.evaluate(()=>(window.__solo.st().players[0].hand.filter(c=>c.rank===2)[0]||{}).id);
+  const won = await L.playIds([twoId]);
+  ok(won===null || won===undefined, 'the 2 the step hands you is playable'+(won?' — '+won:''));
+  ok(await until(()=>{ const s=window.__solo.st(); return s.initiative===0; },'the initiative swings to you'),
+     'winning the round really DOES hand you the initiative — the claim the lesson used to only make in prose');
+  ok(await L.atStep(6),'…and that is what advances the lesson, not a Next button');
+
+  await p.evaluate(()=>{ const b=document.getElementById('sortBtn'); if(b) b.click(); });
+  ok(await L.atStep(7),'tapping Sort advances to the closing step — the shape is a choice you make');
+
   await next();
   await L.finish('initiative');
   await L.done();

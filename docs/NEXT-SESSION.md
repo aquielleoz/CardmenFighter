@@ -209,6 +209,25 @@ re-read its tag.
 
 #### Flaky suites
 
+- `needs a measurement` · **`lessontest_twos` BLEW ITS FULL-HOUSE POLL UNDER `-j 4` — AND THE SWEEP GETTING
+  BIGGER IS THE LIKELIEST CAUSE (2026-09-17).** `PASS: 24  FAIL: 5`, opening on
+  *"you beat it with your own full house — card 5C#t6 has no group (retried for 30000ms)"*. **6/6 green
+  solo** immediately afterwards, so it is contention, not the lesson.
+  **THE TELL IS THE WALL CLOCK, NOT THE ASSERTION: 112s in the sweep against ~20s alone.** The retry spent
+  its entire 30s budget and the card never rendered — a starved lane, not a broken rig.
+  **THIS IS THE POLL CLAUDE.md ALREADY NAMES AS THE THIN ONE.** v1.31.99 instrumented every wait in the
+  lesson harness and found exactly one outlier: *"the full-house wait took 4676ms of 14000 — a 3.0x margin,
+  the only poll under 4x"*. It was raised to the standard 30s and has now blown that too.
+  **WHAT CHANGED IS THE DENOMINATOR.** The sweep was 86 suites on `main` and is **94** on the epic — six
+  added by the epic plus `nettest_ridewedge` and `nettest_rtcready` — so every lane gets less machine than
+  when that margin was measured. **Re-measure the margin before raising anything**: `LESSONPOLL=1` prints
+  every wait, and this repo's rule is to raise a budget because you measured it, never on principle.
+  **AND CONSIDER THE OTHER LEVER.** A budget raise makes a starved run slower rather than red, which is the
+  stated goal — but if several suites are near their margins the honest fix is lane count or suite cost,
+  not thirteen individual budgets. `sweep.js` schedules longest-first; `lessontest_twos` at 112s would have
+  been near the head of that queue.
+  `[id: lessontest-twos-poll-under-load]`
+
 - `needs a repro`       · **`lessontest_quicks` IS RED ~25% OF THE TIME AT `-j 4`, AND ~1 IN 9 SERIALLY — MEASURED 2026-09-10/11.**
   Eleven runs across one day, on three different builds: **2 red in 8 at four lanes, 0 red in 3 at `-j 1`.**
   One of the reds was on `epic/priority-windows` before any of that day's prompt work, so it **predates**
@@ -1062,65 +1081,6 @@ re-read its tag.
 *Work that is NOT epic work — it touches the shipped game rather than the priority model, and could ship on
 its own. Kept separate so it does not get tangled in `epic/priority-windows`, and so whoever picks it up
 knows to check whether the epic has already moved the same lines.*
-
-- `ready to build`      · **THE PLAYER IS A "CARDMEN FIGHTER", NOT A "CARDMAN" — SAY THE WHOLE THING** (Aj,
-  2026-09-17, from the tutorial's first screen: *"I want it to say the complete thing. `You're a Cardmen
-  Fighter.`"*). It is the first sentence a new player reads, and it currently half-names the game.
-  **TWO SITES, both player-facing, and a fix to one looks untouched rather than broken:**
-  - the **tutorial's opening step**: *"Welcome! You're a **Cardman**. This guided duel runs in Basics mode…"*
-  - the **rules intro** (`rIntro`): *"You're a Cardman. Each turn you Activate card effects, then Fight…"*
-  **Grep `You’re a` — note the CURLY apostrophe (U+2019), not `'`.** A straight-quote grep finds neither
-  line, which is how a two-site copy change becomes a one-site one.
-  **`lessontest_howto` asserts step text against the live button label but not this sentence**, so nothing
-  fails if only one is changed. If both are edited, re-run it anyway — the How-to lesson gates on step
-  numbers and its first step is the one being reworded.
-  `[id: cardmen-fighter-full-name]`
-
-- `ready to build`      · **THE SPECIALS LESSON NEVER LETS YOU PLAY A SPECIAL — IT ONLY TALKS ABOUT ONE**
-  (Aj, 2026-09-17, playing it: *"the specials tutorial never lets the player play a special. only talks
-  about it. let's let the game proceed a bit more until they break a shield with it."*). Six steps, and the
-  last one is a rules summary — *"same shape beats same shape by value… keep the Specials cheat sheet
-  handy"* — then **Finish**, with the player never having broken a shield.
-  **IT IS THE SAME FAULT AS THE INITIATIVE LESSON BELOW, and the pair of them is the finding.** Both end on
-  a DESCRIPTION of their own subject instead of the event: Specials explains what breaks a shield without
-  breaking one, Initiative explains that winning takes the lead after three steps of deliberately passing.
-  Every other Basics lesson gates on a real play. **Check the rest of the set for the same shape before
-  fixing these two individually** — the tutorials were written against a board that has since changed twice.
-  **THE FIX IS TO RUN THE DUEL ON**, not to add prose: let the round resolve so the Special actually strips
-  a shield, and gate the final step on that. `lessontest_specials` already asserts a real pair is played
-  ("jab, then a real pair, then the shield"), so extending it to the shield break is in the suite's grain.
-  **SCOPE NOTE:** this lands in the same area as the reorder decided below (`specials · twos · initiative`),
-  so do them together — both renumber and both touch `lessontest_specials`.
-  `[id: specials-lesson-no-payoff]`
-
-- `needs a decision`    · **THE INITIATIVE LESSON SHOULD END WITH THE PLAYER ACTUALLY TAKING THE INITIATIVE,
-  AND THEN TEACH THAT THE SHAPE IS A CHOICE (Aj, 2026-09-17).** *"before the tutorial for initiative ends,
-  we should let the player take the initiative and then another step to emphasize that they can choose the
-  shape to play. maybe have them click on the sort to see pairs, and straights."*
-  **TODAY IT ENDS ON A PROMISE.** Step 5 of 5 says *"when you do win a round, initiative swings to you —
-  you'll lead the next one"* and then finishes. The lesson has just spent three steps making the player
-  PASS and lose the lead on purpose, so it ends on the losing half of its own subject. Letting them win a
-  round and take the lead makes the payoff real instead of described — the same reason the other lessons
-  gate on a real play rather than a Next.
-  **AND IT FORCES A REORDER, WHICH IS THE PART THAT NEEDS YOUR CALL** (Aj: *"because it mentions specials,
-  i think initiative should come after the specials tutorial"*). The proposed shape step names pairs and
-  straights, and **Specials is the lesson that teaches those** — so Initiative would depend on a lesson
-  that currently comes AFTER it. Note this dependency does not exist yet: the five Initiative steps mention
-  Specials nowhere, checked. It is created BY the new step.
-  ⚠ **THE OBVIOUS SWAP COLLIDES WITH A DELIBERATE ADJACENCY.** Basics is `1 howto · 2 zones · 3 initiative ·
-  4 specials · 5 twos`, and CLAUDE.md records that **The 2 sits at #5 specifically because it is right after
-  Specials** — *"where five-card plays first appear, so its second rule starts mattering there"*. Moving
-  Initiative to #4 puts it BETWEEN Specials and The 2 and breaks that. Three options, all yours:
-  `specials · initiative · twos` (breaks the adjacency), `specials · twos · initiative` (keeps it, and
-  Initiative closes Basics), or leave the order and drop the shape step.
-  ✅ **DECIDED (Aj, 2026-09-17): `specials · twos · initiative`** — the adjacency is kept and Initiative
-  closes Basics. That ordering is better than the one the question assumed: Initiative is the lesson about
-  the tug-of-war over the lead, so ending Basics on it leaves the player with the thing the whole duel is
-  organised around, rather than with a rules footnote.
-  **Renumbering is mechanical** — nothing asserts a lesson `num`. But `lessontest_initiative` asserts step
-  COUNT and content, so adding two steps is a suite change in the same commit, and its existing claim
-  (*"you genuinely cannot beat the lead"*) must keep holding for the earlier steps.
-  `[id: initiative-lesson-payoff]`
 
 ### Balance and design
 
