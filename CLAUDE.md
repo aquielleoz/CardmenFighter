@@ -2043,6 +2043,22 @@ build. Two staging facts it paid for, each of which makes it pass VACUOUSLY if l
 Quick must be **untargeted** — the first attempt staged Counter Spell, which targets an effect on the stack,
 so `canCastQuick` refused it, NO window opened, and the liveness assertion passed while proving nothing.
 
+**`prompts=all` BUYS YOUR SUITE EXTRA WINDOWS, AND EACH ONE COSTS ~6s OF `netwindows` GRACE (2026-09-17).**
+`nettest_guard` was red **1-4 runs in 8** for weeks at `control passed to the client to answer the combo`,
+and three investigations read it as a transport fault. It was a **poll budget**: that suite runs
+`prompts=all` because its subject IS a boundary window, which makes the client eligible for windows it does
+not script, and `netwindows` answers each only after its grace — deliberately, so a suite that means to
+drive a window is not robbed of it. One unscripted window therefore ate most of a 7.2s budget before the
+handover could even happen. Raised to 30s: **6 red in 24 → 0 in 24**.
+**SO: A SUITE THAT SETS `prompts=all` MUST BUDGET FOR AT LEAST ONE GRACE DELAY IT DID NOT ASK FOR** — and
+the `⚠ netwindows: auto-passed N unscripted window(s)` line at the end of a run is the count. It prints on
+GREEN runs too, which is the tell nobody was reading.
+**AND THE DIAGNOSIS IS THE REUSABLE PART, NOT THE NUMBER.** What settled it in ONE red run, after weeks of
+guessing, was making the assertion dump state instead of a boolean: both boards, and **whether the played
+cards had left the host's hand**. That single question halves this class — still held means the press never
+landed, gone means the play landed and the HANDOVER is what is lost. The dump stays in the suite; three
+earlier investigations built throwaway probes and this repo has already paid for that habit once.
+
 **A CLIENT-SIDE GATE IS NOT THE GATE.** `sendEmote`'s 1.2s cooldown is a courtesy; `hostEmote`'s per-seat one
 is the real check, because a client controls its own clock. Driving the UI only ever exercises the courtesy
 copy, so the host's check went untested until `__cmf.clientSend` let a suite bypass the client gate the same way

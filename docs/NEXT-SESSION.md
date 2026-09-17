@@ -199,39 +199,6 @@ re-read its tag.
 
 #### Flaky suites
 
-- `needs a repro`       · **`nettest_guard` FAILS 1-4 RUNS IN 8 *SOLO*, AND IT IS WORSE ON THE BASELINE —
-  A/B'd 2026-09-16.** The failing assertion is **`control passed to the client to answer the combo`**;
-  captured by running the arm that fails half the time and keeping the WHOLE output, after two earlier
-  attempts grepped for the summary line and threw the assertion away.
-  **THE A/B, in a throwaway worktree off `origin/epic/priority-windows`, own port, same machine:**
-
-  | build | red |
-  | --- | --- |
-  | epic baseline | **4 / 8** |
-  | end-of-clean-up branch, before the `clickFight` fix | 1 / 8 |
-  | …after it | **0 / 10** |
-
-  So it is **pre-existing**, and the change under suspicion when it surfaced makes it no worse. Baseline
-  4/8 against 1/18 on the branch is a real difference (Fisher ≈ 0.02) — but **do not credit the
-  `clickFight` fix for it**: 1/8 against 0/10 does not separate, so which part of the branch moved it is
-  unproven, and it has NOT been shown fixed.
-  **A REAL DEFECT WAS FOUND AND FIXED HERE AND IT IS NOT THE CAUSE.** `clickFight`'s `Fight` press was
-  fire-and-forget: it clicked once and returned `'played'` without verifying anything, while `busy`
-  swallows a Fight click exactly as silently as the `Next` click the same function guards carefully. That
-  made every swallowed press surface seven seconds later at whatever assertion waited on the turn, which
-  is why this suite kept blaming the transport. It now watches the selected cards leave the hand. Keep the
-  two claims apart: the contract violation is closed, the flake is not.
-  **HOW IT SURFACED, which is the part worth copying:** two consecutive full sweeps came back 92/93 with
-  DIFFERENT suites red — `resolutiontest` (a real staleness, fixed) and then this one. This file's own rule
-  says that spread is the machine and a single 92/93 is not a regression; the A/B is what turned the guess
-  into a number, and it took four minutes.
-  **EVERY RUN AUTO-PASSES EXACTLY ONE UNSCRIPTED WINDOW** (`netwindows[join]: auto-passed a Respond? window
-  the suite does not script`), green runs and red alike — so the window COUNT is not what varies, and the
-  "a new boundary costs another 6s of grace" theory does not explain it. Start at the assertion instead:
-  control not reaching the client is the `hostTakeBack`/park family, which is where the duel Ride wedge
-  lived.
-  `[id: nettest-guard-flaky]`
-
 - `needs a repro`       · **`lessontest_quicks` IS RED ~25% OF THE TIME AT `-j 4`, AND ~1 IN 9 SERIALLY — MEASURED 2026-09-10/11.**
   Eleven runs across one day, on three different builds: **2 red in 8 at four lanes, 0 red in 3 at `-j 1`.**
   One of the reds was on `epic/priority-windows` before any of that day's prompt work, so it **predates**
@@ -807,6 +774,58 @@ re-read its tag.
 
 #### Tutorials and prompts
 
+- `root cause found`    · **THE "THE 2" LESSON STALLS BECAUSE ITS PILOT LEADS NOTHING — AND THE STALE PILE
+  IS THE CONSEQUENCE, NOT THE CAUSE (Aj, 2026-09-17, with a saved log).** *"the rival never plays their full
+  house of 2s"* · *"the last play did not clear... i could not click Next because of the pair of 2s in the
+  play area."*
+  **THE MECHANISM — `tutPilotTwos`'s leading branch:**
+  ```js
+  if(!cur){                     // LEADING — only ever happens in round 3
+    var t3=twos(3), pr=pairOf(2);
+    if(t3.length===3 && pr && play(t3.concat(pr))) return log;
+  }                             // falls through, returns an empty log, plays NOTHING
+  ```
+  It needs **three 2s AND a non-2 pair** and guarantees neither. Miss either and the Rival does nothing, so
+  the round never resolves and the previous round's pile stays on the table — which the ENGINE still holds,
+  not just the UI, which is why the board refuses the player's full house with *"Special Full House —
+  doesn't beat the Special Pair."* Step 7 meanwhile insists *"They lead a full house built on three 2s…
+  Beat it."* No way out.
+  **THE COMMENT DIRECTLY ABOVE IT RECORDS THE SAME BUG, FIXED ONCE:** *"This scanned 3..13 and so could not
+  see a pair of Aces… it then had no full house to lead and **passed forever**."* That fix widened the rank
+  scan; the hole that remains is having no qualifying pair at all, and the failure is identical.
+  **THE ENGINE IS EXONERATED, MEASURED — do not re-chase it.** The untap queue had just moved `roundAdvance`
+  and was the obvious suspect: **40 solo Basics games, deepest round 37, ZERO stuck rounds**, and **1378
+  round boundaries with ZERO stale piles**. `browsertest` independently reached round 28. `pileClear` and
+  `roundAdvance` both work; this is the lesson pilot.
+  **⚠ AN EARLIER VERSION OF THIS ENTRY BLAMED TURN ORDER AND WAS WRONG.** I read the pile as the Rival
+  ANSWERING in-round, and concluded the step assumed the Rival leads. Aj: *"nope, they didn't play anything.
+  that was the play from the previous round."* The distinction matters — "the Rival followed with a pair"
+  is a script-expectation bug, "the Rival played nothing and the board never cleared" is a stall. **Read a
+  stale pile as evidence that a turn never happened, not as evidence of what was played.**
+  **`lessontest_twos` IS 29/0 GREEN THROUGH ALL OF IT**, because it plays what each step spotlights and so
+  never reaches a hand the pilot cannot lead from. The suite needs a deal where the Rival's non-2 pair is
+  absent. Third suite-versus-reality gap found by playing the tutorials today.
+  `[id: twos-lesson-pilot-leads-nothing]`
+
+- `needs a decision`    · **GREYING UNAFFORDABLE CARDS NOW READS AS "UNPLAYABLE", AND THE TUTORIAL WALKS
+  STRAIGHT INTO IT (Aj, 2026-09-17, from the How-to lesson: *"5 is greyed out here... but the tutorial wants
+  me to select a pair. but greying out the uncastable cards was a bad move"*).**
+  **IT WAS CORRECT WHEN BUILT, AND A LATER CHANGE MADE IT WRONG** — the same shape as the stale spec
+  paragraph and the `roundAdvance` misfiling. `markAfford` landed in `132034e`, when the Main Sub-Phase was
+  purely where you ACTIVATE, so dimming a card you cannot pay for said one unambiguous thing. Then
+  `afe7c6f` made one press fight from Main, so Main became where you also SELECT CARDS TO FIGHT — and a
+  dimmed card started claiming something false about a use that needs no energy at all.
+  **THE SIGNAL IS ATTACHED TO THE WRONG THING, which is why "just remove it" is not obviously right.** Aj's
+  original ask still stands (*"grey out the cards you don't have mana to cast in the main phase"*) and the
+  information is useful; what is wrong is that dimming the whole CARD reads as "unavailable" when it only
+  ever meant "unavailable to activate". The likely fix is to move the dimming onto the effect/energy
+  affordance rather than the card face. Removing it outright is the other option and is Aj's to pick.
+  **NO SUITE CAN SEE THIS.** `mptest` asserts that unaffordable cards get `.nomana` — true, and silent about
+  whether that is the right signal. A test that asserts a class cannot assert a meaning; only playing it
+  found this.
+  **EPIC WORK, NOT MAIN** — `markAfford` does not exist on `main` (0 hits), so both halves of the collision
+  are epic-only and it cannot reach a player until the epic does.
+  `[id: greying-reads-as-unplayable]`
 - `needs a decision`    · **BEFORE SHIP, THE PROMPT CHECKBOXES DEFAULT TO *UNCHECKED*** (Aj, 2026-09-11: *"the checkboxes will be
   unchecked by default when we finally ship"*). The player opts IN per card, per timing, in the card reader.
   **⚠ THIS ENTRY DESCRIBED A BUILD THAT NO LONGER EXISTS, AND THE GAP COST A REAL SHIELD (2026-09-15).** It
@@ -866,6 +885,20 @@ re-read its tag.
   to advance) versus **it is on the right step and the `.tut-spot` selector matched nothing** (a rig or
   spotlight-selector problem). Right now a red run cannot tell you which, which is the whole reason this entry
   exists rather than a fix. Make the suite self-diagnosing; do not write a bespoke probe.
+  **IT RECURRED 2026-09-17, AND A HUMAN SIGHTING IN A DIFFERENT LESSON IS NOW THE BETTER LEAD.** One full
+  sweep went 92/93 on this suite — both spotlight assertions, *"the Q is spotlit"* and *"…and the spotlit
+  card really is the Q"*. The SAME MORNING, Aj hit the same symptom by hand in **How to Play step 8**:
+  *"lots of un greyed cards here and no cards are glowing"* — a step that GATES on activating, telling the
+  player to select a glowing card that is not there. Two different lessons, one mechanism (`tut-spot` never
+  applied), and one of them reproducible by a person rather than 1-in-many in a sweep.
+  **CHASE THE HUMAN ONE.** `lessontest_howto` asserts a card is spotlit at step 8 and is GREEN, so the suite
+  and the real game disagree — which is worth more than another rate measurement. Start at `tutPickEffect`
+  → `tutEnsureEffect` → `tutEffId`: it returns null when nothing passes `tutEffOK`, and `render()` wipes
+  `.tut-spot` every paint (`reapply` re-adds it), so either half failing looks identical on screen.
+  **A/B'd AND IT PROVED NOTHING, which is worth recording so nobody repeats it.** `clickFight` gained a
+  verification step in #251 and `lessonlib` calls it, so it was a fair suspect — but **12 runs per arm at 4
+  concurrent reproduced ZERO failures in EITHER arm**. That neither implicates nor clears the change; it
+  only re-measures how rare this is. Do not read 0-vs-0 as exoneration.
   `[id: lessontest-forms-poll]`
 
 - `needs a repro`       · **`landscapetest`'s ↓ New log assertion is INTERMITTENT — 2 failures in 26 runs (2026-09-04), and it has a
@@ -1085,6 +1118,71 @@ re-read its tag.
   Full reasoning, the origin experiment, and everything else considered for making joining easier are in
   [`DECISIONS.md`](DECISIONS.md#joining-discovery-and-the-qr-path).
   `[id: qr-scanning-built-green]`
+
+### For main
+
+*Work that is NOT epic work — it touches the shipped game rather than the priority model, and could ship on
+its own. Kept separate so it does not get tangled in `epic/priority-windows`, and so whoever picks it up
+knows to check whether the epic has already moved the same lines.*
+
+- `ready to build`      · **THE PLAYER IS A "CARDMEN FIGHTER", NOT A "CARDMAN" — SAY THE WHOLE THING** (Aj,
+  2026-09-17, from the tutorial's first screen: *"I want it to say the complete thing. `You're a Cardmen
+  Fighter.`"*). It is the first sentence a new player reads, and it currently half-names the game.
+  **TWO SITES, both player-facing, and a fix to one looks untouched rather than broken:**
+  - the **tutorial's opening step**: *"Welcome! You're a **Cardman**. This guided duel runs in Basics mode…"*
+  - the **rules intro** (`rIntro`): *"You're a Cardman. Each turn you Activate card effects, then Fight…"*
+  **Grep `You’re a` — note the CURLY apostrophe (U+2019), not `'`.** A straight-quote grep finds neither
+  line, which is how a two-site copy change becomes a one-site one.
+  **`lessontest_howto` asserts step text against the live button label but not this sentence**, so nothing
+  fails if only one is changed. If both are edited, re-run it anyway — the How-to lesson gates on step
+  numbers and its first step is the one being reworded.
+  `[id: cardmen-fighter-full-name]`
+
+- `ready to build`      · **THE SPECIALS LESSON NEVER LETS YOU PLAY A SPECIAL — IT ONLY TALKS ABOUT ONE**
+  (Aj, 2026-09-17, playing it: *"the specials tutorial never lets the player play a special. only talks
+  about it. let's let the game proceed a bit more until they break a shield with it."*). Six steps, and the
+  last one is a rules summary — *"same shape beats same shape by value… keep the Specials cheat sheet
+  handy"* — then **Finish**, with the player never having broken a shield.
+  **IT IS THE SAME FAULT AS THE INITIATIVE LESSON BELOW, and the pair of them is the finding.** Both end on
+  a DESCRIPTION of their own subject instead of the event: Specials explains what breaks a shield without
+  breaking one, Initiative explains that winning takes the lead after three steps of deliberately passing.
+  Every other Basics lesson gates on a real play. **Check the rest of the set for the same shape before
+  fixing these two individually** — the tutorials were written against a board that has since changed twice.
+  **THE FIX IS TO RUN THE DUEL ON**, not to add prose: let the round resolve so the Special actually strips
+  a shield, and gate the final step on that. `lessontest_specials` already asserts a real pair is played
+  ("jab, then a real pair, then the shield"), so extending it to the shield break is in the suite's grain.
+  **SCOPE NOTE:** this lands in the same area as the reorder decided below (`specials · twos · initiative`),
+  so do them together — both renumber and both touch `lessontest_specials`.
+  `[id: specials-lesson-no-payoff]`
+
+- `needs a decision`    · **THE INITIATIVE LESSON SHOULD END WITH THE PLAYER ACTUALLY TAKING THE INITIATIVE,
+  AND THEN TEACH THAT THE SHAPE IS A CHOICE (Aj, 2026-09-17).** *"before the tutorial for initiative ends,
+  we should let the player take the initiative and then another step to emphasize that they can choose the
+  shape to play. maybe have them click on the sort to see pairs, and straights."*
+  **TODAY IT ENDS ON A PROMISE.** Step 5 of 5 says *"when you do win a round, initiative swings to you —
+  you'll lead the next one"* and then finishes. The lesson has just spent three steps making the player
+  PASS and lose the lead on purpose, so it ends on the losing half of its own subject. Letting them win a
+  round and take the lead makes the payoff real instead of described — the same reason the other lessons
+  gate on a real play rather than a Next.
+  **AND IT FORCES A REORDER, WHICH IS THE PART THAT NEEDS YOUR CALL** (Aj: *"because it mentions specials,
+  i think initiative should come after the specials tutorial"*). The proposed shape step names pairs and
+  straights, and **Specials is the lesson that teaches those** — so Initiative would depend on a lesson
+  that currently comes AFTER it. Note this dependency does not exist yet: the five Initiative steps mention
+  Specials nowhere, checked. It is created BY the new step.
+  ⚠ **THE OBVIOUS SWAP COLLIDES WITH A DELIBERATE ADJACENCY.** Basics is `1 howto · 2 zones · 3 initiative ·
+  4 specials · 5 twos`, and CLAUDE.md records that **The 2 sits at #5 specifically because it is right after
+  Specials** — *"where five-card plays first appear, so its second rule starts mattering there"*. Moving
+  Initiative to #4 puts it BETWEEN Specials and The 2 and breaks that. Three options, all yours:
+  `specials · initiative · twos` (breaks the adjacency), `specials · twos · initiative` (keeps it, and
+  Initiative closes Basics), or leave the order and drop the shape step.
+  ✅ **DECIDED (Aj, 2026-09-17): `specials · twos · initiative`** — the adjacency is kept and Initiative
+  closes Basics. That ordering is better than the one the question assumed: Initiative is the lesson about
+  the tug-of-war over the lead, so ending Basics on it leaves the player with the thing the whole duel is
+  organised around, rather than with a rules footnote.
+  **Renumbering is mechanical** — nothing asserts a lesson `num`. But `lessontest_initiative` asserts step
+  COUNT and content, so adding two steps is a suite change in the same commit, and its existing claim
+  (*"you genuinely cannot beat the lead"*) must keep holding for the earlier steps.
+  `[id: initiative-lesson-payoff]`
 
 ### Balance and design
 
