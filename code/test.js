@@ -2689,5 +2689,38 @@ function cards(ids) { return ids.map(card); }
   ok(g.upkeepTicks === false, '…and the debt is paid exactly once, not left outstanding for the next round');
 })();
 
+/* THE ROUND-BOUNDARY TRACE MUST ACTUALLY RECORD THE BOUNDARY (2026-09-17).
+   It exists because the stale-pile detector in the template fires at the ROUND BANNER and therefore cannot
+   see a boundary that never completes — Aj is the only instrument that reproduces that bug, so the trace's
+   whole job is to make one of his games worth more than a screenshot. An instrument nobody verifies is the
+   thing this repo has been burned by most, so it gets pinned here.
+   THE THIRD ASSERTION IS THE ONE THAT MATTERS. "No warnings" is also true of a trace whose pile column is
+   permanently blank, and "some entries" is also true of a trace that records nothing useful — so the live
+   check is that the pile is really observed CHANGING across `pileClear`, non-empty before and `—` after.
+   Verified by mutation: removing `st.pile = null` from `pileClear` fires 50 warnings in one game. */
+(function () {
+  var AI = require('./ai.js');
+  E.resetBoundaryTrace();
+  var g = E.newGame(null, { starter: 0 }), guard = 0;
+  while (!g.finished && guard++ < 400) AI.takeTurn(g, g.turn);
+  var t = E.boundaryTrace();
+  ok(t.length > 20, 'the boundary trace really ran — ' + t.length + ' entries over ' + g.round + ' rounds (a dead ring would report 0 and pass the rest vacuously)');
+  var cleanIn = 0, cleanOut = 0, begIn = 0, begOut = 0, cleared = 0, warned = 0, prevPile = null;
+  t.forEach(function (l) {
+    if (/CLEANUP enter/.test(l)) { cleanIn++; prevPile = /pile=—/.test(l) ? null : 'set'; }
+    if (/CLEANUP · pileClear/.test(l)) { if (prevPile === 'set' && /pile=—/.test(l)) cleared++; }
+    if (/CLEANUP exit/.test(l)) cleanOut++;
+    if (/BEGIN enter/.test(l)) begIn++;
+    if (/BEGIN exit/.test(l)) begOut++;
+    if (l.indexOf('⚠') >= 0) warned++;
+  });
+  ok(cleanIn > 0 && cleanIn === cleanOut && begIn === begOut && begIn > 0,
+     'every boundary it recorded is COMPLETE — ' + cleanIn + ' clean-ups in/' + cleanOut + ' out, ' + begIn + ' begins in/' + begOut + ' out' +
+     (cleanIn === cleanOut && begIn === begOut ? ' (a truncated block is the finding, so the counts must match on a healthy game)' : '  ← one of them died mid-boundary'));
+  ok(cleared > 0,
+     'and the pile is observed CHANGING across pileClear — non-empty before, "—" after, ' + cleared + ' times (this is what stops the other two passing on a blank column)');
+  ok(warned === 0, 'no "CLEANUP LEFT A PILE" on a healthy game' + (warned ? '  ← ' + warned + ' fired' : ''));
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);
