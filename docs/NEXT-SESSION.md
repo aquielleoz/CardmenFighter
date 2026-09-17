@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**535**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**539**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -360,67 +360,11 @@ re-read its tag.
     `FIGHT-END-PLAN.md` → *Where a mid-cast card goes*.
   `[id: re-check-setrecycletech-discard]`
 
-- `ready to build`      · **★ PRIORITY: THREE OF THE FIVE DIVERGENCES ARE CLOSED; THESE ARE WHAT IS LEFT**
-  (culled 2026-09-16 — the entry described five, and the epic closed three of them. Read the epic's copy of
-  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) for the model, never a summary.)
-  **CLOSED, each verified in the code rather than assumed:** the `k = 1` skip (now `k = 0`, epic step 6, so
-  a player can add to something they just cast — which is what holding priority means); the "walks from the
-  controller instead of the active player" divergence, which **dissolved rather than being fixed** when Aj
-  reversed the origin rule on 2026-09-08 — *a filed bug can stop being a bug because the RULE moved, and
-  nothing in the code changed to make it so*; and `noopDestroy` suppressing priority for everyone (deleted
-  at step 19).
-  **STILL OPEN:**
-  - The **pre-fight window is offered to one seat only** and gives up rather than passing it on, so at 3-6p
-    a human in seat 3+ can never spring it (`preFightHolder`, engine.js).
-  - **`activate()` has no open-window guard** — unreachable through the solo UI, reachable on a netplay
-    host. Note the OTHER half of this bullet shipped: `pushEffect` resets `passed` now, so a seat that had
-    passed on the object underneath is asked again when the board changes under them.
-  - **A Back-Stab-locked player may cast Techniques.** Aj, 2026-09-08: they **keep priority** — equipment
-    are neither a fight nor a Technique, and activated equipment is coming — but Back Stab's text denies
-    fights and **Techniques**, and `respond()` accepts one today (`respond`, engine.js).
-  `[id: priority-three-five-divergences]`
-
-- `ready to build`      · **A SHIELD-LOSS TECHNIQUE CAN BE CAST AT A RIVAL WITH NO SHIELDS, AND SILENTLY DOES NOTHING.** Critical Hit
-  ♠9 and Ultima Attack ♣10 both read *"Target Rival loses 1 shield."* Against a rival on 0 the ⚡ is fully lit,
-  you pay the energy **and** the Broadway pitch, and nothing happens.
-  **The fix is to refuse the cast, NOT to make it kick.** `noKick` on `destroyShield` is correct and the audit
-  classified it correctly: *"no shield loss technique is a kick. none can be turned into kicks — check the
-  wording"* (Aj, 2026-09-08). The Fighter Kick is a FIGHT outcome — a Special win against a rival already at 0
-  — and the card text never claims otherwise. A Technique can take you to 0 and never past it.
-  `activateBlock` is the home: it already carries fizzle guardrails for `counter` and `protect`.
-  `[id: shield-loss-technique-cast]`
-
-- `root cause found`    · **THE ENGINE AND THE UI DISAGREE ABOUT WHO MAY RESPOND.** `canAddToStack` (engine.js) admits any
-  affordable Quick; the UI's `eligibleQuicks` is narrower, so the engine opens a window the screen then
-  auto-declines — e.g. an Annoint holder against a non-removal. Solo it is invisible; **on a netplay client it
-  costs a visible round trip**, the board going busy waiting on a decline the player never chose. One predicate,
-  two definitions — the `resolveIds` lesson.
-  `[id: engine-ui-respond-disagree]`
-
-- `ready to build`      · **TWO AI HEURISTICS MISS QUICKS THEY HOLD.**
-  - `respondDecision`'s threat list (`respondDecision`'s `THREAT_KIND`, ai.js) is four kinds — `destroyShield`, `removeEquip`, `discardOpp`,
-    `energyDenyOpp` — and **`lockout` is not among them**, so the AI declines Back Stab while holding Counter
-    Spell and then sits out the round. Losing your whole turn is the one hostile effect it does not rate.
-    **Derive "threat" rather than adding a fifth item**, or the next hostile kind repeats it.
-  - Its reactive immunity filter tests only `e.immune` (`respondDecision`'s reactive-immunity branch, ai.js) and never `e.shieldImmune`, so an AI in
-    Apollo Mode holding Sanctuary takes the hit — the `effectFor`-family shape again, third instance.
-  `[id: ai-heuristics-miss-quicks]`
-
 - `needs a decision`    · **ARMOR PIERCING IS "+1 TO YOUR NEXT FIGHT WIN", NOT "+1 TO A SHIELD LOSS YOU CAUSE"** (`resolveEffect`'s `onWin` case, engine.js). Arm
   it, then cast Ultima Attack or Critical Hit, and the +1 does not apply — the flag survives to your next fight
   win instead. The card text agrees with the code; the design intended the other reading. Also `extraShield: 1`
   is declared and never read, so a second cast cannot stack and a Form patch raising it would do nothing.
   `[id: armor-piercing-timing]`
-
-- `ready to build`      · **COUNTER SPELL DOES NOT TARGET** (`resolveTopEffect`, engine.js) — it always counters the object immediately beneath it.
-  Indistinguishable from the design in a duel with a 2-deep stack; at 3-6p a 3-deep stack is reachable (A casts,
-  B answers with a non-counter Quick, C counters) and C's Counter Spell hits the wrong object.
-  `[id: counter-spell-target]`
-
-- `root cause found`    · **THE PRIORITY UI SHOWS NO STACK.** The prompt names only the top object, and the stack view that would fix
-  it sits behind an opaque overlay (`stackViewHTML` vs `.overlay`, template). In a Counter-a-Counter chain the player being asked for
-  priority cannot see what they are responding to.
-  `[id: priority-ui-no-stack]`
 
 - `ready to build`      · **★ THE BROADWAY PITCH CHOOSES ITSELF, FOR BOTH SIDES** (Aj, 2026-09-07, from real play: *"oh no it did not
   let me pick which broadway card.... this is a bug for sure.. and probably more of a problem in multiplayer

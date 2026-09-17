@@ -520,12 +520,49 @@ capable of setting up a kick. Some cards prevent loss even at zero shields.
 
 ## 5. Locked players (Back Stab)
 
-A locked player **keeps priority**. Back Stab denies them **fights and Techniques** — it does not remove them
-from the game for a round.
+**A locked player is skipped, and skipped means skipped: they cannot act at all.** They are auto-passed —
+never handed a priority window they could only decline. They are not eliminated: they still hold their cards,
+still draw, still take the end-of-round trim, and the lock ends when the card says it does.
 
-**Equipment are neither fights nor Techniques**, so a locked player may still activate equipment (and there
-will likely be more activated equipment in future). They must pass when *trying to fight*; they are not
-without options.
+The card is the authority, and it reads:
+
+> **Target Rival skips the whole round — no fights, no Techniques.**
+> *(the Quick form, under Perseus or Hermes: "Target Rival skips their next turn — no fights, no Techniques
+> (an effect already in progress still resolves)".)*
+
+**`skips` is the verb; the clause after the dash elaborates it.** It is not a list of two exceptions carved
+out of an otherwise normal turn. An object already on the stack when the lock lands still resolves — that is
+what the Quick form's parenthesis says — but the locked player adds nothing further.
+
+### ⚠ This section said the opposite until 2026-09-17, and the reversal is the point
+
+As dictated on 2026-09-08 it read:
+
+> *A locked player **keeps priority**. Back Stab denies them **fights and Techniques** — it does not remove
+> them from the game for a round.*
+> ***Equipment are neither fights nor Techniques**, so a locked player may still activate equipment (and
+> there will likely be more activated equipment in future). They must pass when trying to fight; they are
+> not without options.*
+
+Aj, 2026-09-17, re-reading the card: *"it forces an autopass, that player won't be able to act at all. that
+probably overturns any decisions we made before."*
+
+The old reading reasoned from the **clause** and the new one reads the **verb**. Both are defensible from the
+sentence alone; only one is defensible from the word *skips*, and the card is the authority over this file.
+
+**The code had implemented neither reading consistently, which is the part worth keeping.** `activate`
+refused a locked player *everything* — equipment included, against the old §5 — while `respond` refused them
+*nothing*, so a locked seat could cast a Quick Technique into any window. Measured 2026-09-17 before the
+change: energy 12 → 3, hand 2 → 1, stack depth 2. So the game already disagreed with itself, and whichever
+reading won, one of the two had to move.
+
+**The rule lives in `castRefusal`, not in `respond`.** `canCastQuick` is `some()`-ed by `canAddToStack`,
+which `nextPrioHolder` consults to decide whom to offer a window to — so one check both refuses the cast over
+the wire *and* makes the seat auto-pass, which is what "forces an autopass" means mechanically. A check in
+`respond` alone would refuse the cast and still stop the table to ask.
+
+**What is not affected:** the end-of-round trim and any forced discard. Those are not actions the locked
+player chooses to take, and nothing about being skipped exempts you from the hand limit.
 
 ---
 

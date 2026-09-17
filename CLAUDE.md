@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 535 + 65 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 539 + 65 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 535 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 539 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 65, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
@@ -113,7 +113,7 @@ node resolutiontest_ui.js                          # THE TWO REPORTED BUGS, PLAY
                                                 # are the SHIELD OVERRIDE pair (2026-09-15): unticking
                                                 # `resolution` may not cost you a shield you hold the answer
                                                 # to, so C forces the window and C2 — same timing, same
-                                                # unticked box, but you WIN the round — must not (28)
+                                                # unticked box, but you WIN the round — must not. F adds the STACK IN THE WINDOW (42)
 node prompttest.js                              # PROMPT PREFERENCES (epic step 15): per-card, per-timing
                                                 # checkboxes in the card reader. Asserts the DEFAULTS are
                                                 # today's experience, that only OVERRIDES are stored, and —
@@ -1874,13 +1874,13 @@ Status as of **v1.31.127 — 2026-09-17, `npm run sweep`, 94 suites and 0 FAIL i
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 535, `netview` 65, `mptest` 97, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
+`test` 539, `netview` 65, `mptest` 97, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 33, `lessontest_quicks` 21, `lessontest_howto` 25,
+`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 42, `lessontest_quicks` 21, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 52 netplay suites: `nettest_3p` 7, `priosig` 18, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
+The 52 netplay suites: `nettest_3p` 7, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 16, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
@@ -2708,6 +2708,30 @@ definition, so it cannot delete them.
   prefixes carry.
   **A TAG IS A CLAIM AND ROTS LIKE ANY OTHER.** `root cause found` on an entry whose diagnosis was never
   written into the body is this exact failure wearing a tag; re-read the tag whenever you touch the entry.
+  **⚠ AND THE WHOLE BACKLOG BEHIND AN EPIC IS STALE UNTIL PROVEN OTHERWISE — MEASURED AT FOUR IN SIX
+  (2026-09-17).** Aj picked "the priority cluster", six entries, every one `ready to build` or `root cause
+  found`. Opening the code on each **before writing anything**: the pre-fight-window bullet named
+  `preFightHolder`, which epic step 20 had DELETED; the `activate` open-window guard had shipped
+  2026-09-14; `counter-spell-target` was built at step 8 (`counterTargets` + `respond` validating
+  `counterOid` + `resolveTopEffect` honouring it); `engine-ui-respond-disagree` closed when
+  `eligibleQuicks` started calling `E.canCastQuick`; and `ai-heuristics-miss-quicks` closed on both halves
+  — `lockout` is in `THREAT_KIND` and the immunity branch calls `E.immunityEffFor`. **One and a half of six
+  survived contact with the code.**
+  **THE MECHANISM IS STRUCTURAL, NOT CARELESSNESS, WHICH IS WHY THE GATE CANNOT CATCH IT.** An epic ships
+  20+ steps against a backlog written before it started, and a step closes entries it never read — step 20
+  deleted an entire parallel implementation and with it three filed bugs. The `Backlog:` trailer gate only
+  sees a PR that KNOWS about an entry; it is blind to a PR that happens to fix one.
+  **SO: GREP FOR EVERY SYMBOL AN ENTRY NAMES BEFORE BUDGETING THE WORK.** `grep -n preFightHolder
+  engine.js` answered one of these in three seconds — the symbol was gone from the code and present only
+  in the comment explaining its deletion. A symbol that no longer exists is the cheapest possible proof
+  that an entry has moved on, and a stale entry is worse than none, because it is specific enough to plan
+  against. This is the recorded "a filed measurement ages exactly as fast as the thing it measured", in the
+  place it costs the most: scheduling.
+  **AND VERIFY A CLOSURE, DO NOT ASSUME ONE EITHER.** Of the six, `shield-loss-technique-cast` LOOKED
+  closed — `activateBlock` carries the guard and the entry names `activateBlock` as its home — and the
+  ENGINE had none: measured, `E.activate` returned `ok:true` and spent energy 12 → 3 and hand 4 → 2 against
+  a rival on 0 shields. "A client-side gate is not the gate" is the rule that catches this one, and the
+  check is to run the engine rather than to read the template.
 - `docs/NEXT-SESSION.md` — **start here**: build/test header, START HERE, and the RANKED backlog (open work
   only). 6,061 lines → 293 when the changelog was split out on 2026-09-07.
 - `docs/CHANGELOG.md` — what shipped and why, newest first. Append-only history; nobody actions it, which is

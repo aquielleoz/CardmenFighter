@@ -295,6 +295,20 @@ function cards(ids) { return ids.map(card); }
     g5.turn = 0; g5.round = 3; g5.pile = null; g5.lastPlayer = null; g5.passes = 0;
     var r5 = E.activate(g5, 0, '9S');
     ok(!r5.ok && /Broadway/.test(r5.reason), 'Critical Hit is blocked with no Broadway card to pitch');
+    /* AND BLOCKED WITH NOTHING TO DESTROY (2026-09-17). The template's `activateBlock` has refused this
+       since v1.31.120 and the ENGINE never did — so the guard was a courtesy, and a netplay client sends
+       an intent the host applies. Measured on the unfixed engine: `ok:true`, energy 12 → 3 and hand 4 → 2,
+       spending the card AND its Broadway pitch against a rival who had no shield to lose.
+       THE SPEND IS ITS OWN ASSERTION, separate from the refusal, because those fail independently: a guard
+       placed after `payEnergy` refuses and still charges you, which is the shape `respond` had. */
+    var g6 = E.newGame(null, { starter: 0 }); var m6 = g6.players[0], f6 = g6.players[1];
+    m6.hand = [sc(9, 'S'), sc(13, 'S'), sc(4, 'H')]; energy(m6, 9, 'S');
+    g6.turn = 0; g6.round = 3; g6.pile = null; g6.lastPlayer = null; g6.passes = 0; f6.shields = 0;
+    var e6 = m6.energy.length, h6 = m6.hand.length, r6 = E.activate(g6, 0, '9S');
+    ok(!r6.ok && /shield to destroy/.test(r6.reason || ''),
+       'Critical Hit is refused when NO rival holds a shield — a Technique can take you to 0 and never past it: "' + (r6.reason || 'ACCEPTED') + '"');
+    ok(m6.energy.length === e6 && m6.hand.length === h6,
+       '…and nothing is spent on that refusal — energy ' + e6 + '→' + m6.energy.length + ', hand ' + h6 + '→' + m6.hand.length + ' (the card AND the Broadway pitch survive)');
   })();
   // ---- Phase 4a: Form/Super boosts via effectFor ----
   (function () {
@@ -718,13 +732,19 @@ function cards(ids) { return ids.map(card); }
   var cr = E.respond(gr, 2, '4D');   // p2 Counters the Telekinesis
   ok(cr.ok && !gr.discardPending, 'MP response: p2 Counter Spell negates the Technique (no discard happens)');
 
-  /* A LOCKED PLAYER KEEPS PRIORITY (PHASES-AND-PRIORITY.md §5, verified 2026-09-14 rather than assumed).
-     Back Stab denies FIGHTS and TECHNIQUES; it does not remove the seat from the game for a round, and a
-     priority window is neither. Nothing asserted this before — the rule was written down and the code was
-     right by omission, which is the state that quietly becomes wrong the first time someone adds an
-     `isLocked` guard to `canCastQuick` thinking they are tightening something.
-     BOTH WAYS, because "it could cast" means nothing unless the lock is doing its real job in the same
-     breath: the same locked seat must still be refused a FIGHT. */
+  /* ⚠ THIS BLOCK ASSERTED THE OPPOSITE UNTIL 2026-09-17, AND IT WAS NOT WRONG WHEN WRITTEN — the RULE
+     moved. It read *"a LOCKED seat is still OFFERED priority (§5: a lock is not removal from the game)"*
+     and *"and may actually cast its Quick — the lock denies fights and Techniques, never priority"*,
+     faithfully encoding `PHASES-AND-PRIORITY.md` §5 as dictated on 2026-09-08. Aj re-read the card on
+     2026-09-17: *"it forces an autopass, that player won't be able to act at all. that probably overturns
+     any decisions we made before."* Back Stab says **"Target Rival skips the whole round — no fights, no
+     Techniques"** — `skips` is the verb, and the clause after the dash elaborates it rather than carving
+     two exceptions out of an otherwise normal turn. §5 was rewritten to match the card.
+     SO THIS IS THE THIRD KIND OF RED RUN, and it is worth naming because the first two are already in
+     CLAUDE.md: not a regression, and not a suite that pinned a defect, but a suite that pinned a rule
+     which has since been overturned by its own source. The remedy is the same either way — the RULE wins,
+     the suite changes, and the comment says what it used to claim so the next reader does not "restore" it.
+     BOTH WAYS, because a refusal means nothing unless the same board grants the window without the lock. */
   var gl = E.newGame(null, { numPlayers: 3 });
   gl.players[0].hand = [sc(3, 'D'), sc(5, 'C')]; gl.players[0].energy = [];
   for (var le = 0; le < 3; le++) gl.players[0].energy.push(sc(4, 'D'));
@@ -734,10 +754,25 @@ function cards(ids) { return ids.map(card); }
   gl.turn = 0; gl.round = 3; gl.pile = null; gl.lastPlayer = null; gl.passes = 0;
   gl.players[2].lockRound = true;                                  // Back Stab, the whole-round form
   E.activate(gl, 0, '3D', { target: 1 });
-  ok(gl.respondFor === 2, 'a LOCKED seat is still OFFERED priority (§5: a lock is not removal from the game)');
+  ok(gl.respondFor !== 2, 'a LOCKED seat is AUTO-PASSED, never handed a window it could only decline — "skips" is the verb (respondFor=' + gl.respondFor + ')');
   var lkr = E.respond(gl, 2, '4D');
-  ok(lkr && lkr.ok, 'and may actually cast its Quick — the lock denies fights and Techniques, never priority');
-  ok(E.isLocked(gl, 2), 'and it is still locked afterwards — casting did not spend the lock');
+  ok(lkr && !lkr.ok, 'and the cast is refused over the wire too, not merely hidden from the UI: "' + (lkr && lkr.reason) + '"');
+  ok(gl.players[2].hand.some(function (c) { return c.id === '4D'; }) && gl.players[2].energy.length === 4,
+     '…and NOTHING was spent on the refusal — card still in hand, ' + gl.players[2].energy.length + '⚡ untouched');
+  ok(E.isLocked(gl, 2), 'and it is still locked afterwards — the refusal did not spend the lock');
+  /* THE CONTROL, and it is the assertion that makes the three above mean anything: the SAME board with the
+     lock lifted must offer the window and take the cast. Without it, "refused" is also true of a build
+     where `canCastQuick` returns false for everyone. */
+  var gu = E.newGame(null, { numPlayers: 3 });
+  gu.players[0].hand = [sc(3, 'D'), sc(5, 'C')]; gu.players[0].energy = [];
+  for (var ue = 0; ue < 3; ue++) gu.players[0].energy.push(sc(4, 'D'));
+  gu.players[1].hand = [sc(5, 'H'), sc(6, 'H'), sc(7, 'H'), sc(8, 'H')];
+  gu.players[2].hand = [sc(4, 'D'), sc(5, 'S')]; gu.players[2].energy = [];
+  for (var ue2 = 0; ue2 < 4; ue2++) gu.players[2].energy.push(sc(4, 'D'));
+  gu.turn = 0; gu.round = 3; gu.pile = null; gu.lastPlayer = null; gu.passes = 0;
+  E.activate(gu, 0, '3D', { target: 1 });
+  ok(gu.respondFor === 2 && E.respond(gu, 2, '4D').ok,
+     'CONTROL: the same board UNLOCKED is offered priority and casts — so the refusal is the lock, not a dead predicate');
 
   var gf = E.newGame(null, { numPlayers: 3 });                     // the other half: the lock still bites
   gf.players[2].hand = [sc(5, 'S'), sc(5, 'H')];

@@ -228,14 +228,14 @@
   @media (min-width:1200px){ #pile{ width:100%; box-sizing:border-box; max-width:calc(100% - 260px); margin-inline:auto; } }
   #pile .empty{opacity:.4; font-style:italic; font-size:13px;}
   #stackView{display:none; flex-direction:column; gap:3px; align-items:center; margin:3px 0;}
-  #stackView .stk{font-size:11px; padding:2px 9px; border-radius:8px; border:1px solid var(--line); background:rgba(255,255,255,.05); opacity:.9;}
-  #stackView .stk.top{border-color:var(--gold); box-shadow:0 0 8px rgba(232,195,122,.4);}
-  #stackView .stk.countered{text-decoration:line-through; opacity:.5;}
+  .stk{font-size:11px; padding:2px 9px; border-radius:8px; border:1px solid var(--line); background:rgba(255,255,255,.05); opacity:.9;}
+  .stk.top{border-color:var(--gold); box-shadow:0 0 8px rgba(232,195,122,.4);}
+  .stk.countered{text-decoration:line-through; opacity:.5;}
   /* The pending Fight End loss is not a stack OBJECT (PHASES-AND-PRIORITY §4) and must not read as one —
      dashed rather than solid, and it never takes .top, because nothing resolves it: it lands when the
      sub-phase begins. Colour comes from the existing danger token so it stays theme-correct in both modes. */
-  #stackView .stk.pendingLoss{border-style:dashed; border-color:var(--bad,#c9564f); background:rgba(201,86,79,.10); opacity:1;}
-  #stackView .stk .who{opacity:.6;}
+  .stk.pendingLoss{border-style:dashed; border-color:var(--bad,#c9564f); background:rgba(201,86,79,.10); opacity:1;}
+  .stk .who{opacity:.6;}
   #message{font-size:13.5px; text-align:center; min-height:20px; padding:0 8px; max-width:520px;}
   #message b{color:var(--gold);}
   #roundTag{position:absolute; top:6px; left:12px; font-size:11px; font-weight:800; letter-spacing:.4px; opacity:.6;}
@@ -975,6 +975,10 @@
   .modal .ctxBox{margin-top:10px; padding:8px 11px; background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:10px; font-size:12.5px; display:flex; flex-direction:column; gap:6px;}
   .modal .ctxRow{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
   .modal .ctxRow .ctxLbl{opacity:.5; font-weight:800; text-transform:uppercase; letter-spacing:.4px; font-size:10px; min-width:74px;}
+  /* The stack row is the one that can hold several lines, so it tops its label rather than centring it and
+     stacks its own rows — the board's `#stackView` is a column too, and `.stk` carries the same look here. */
+  .modal .ctxRow.ctxStack{align-items:flex-start;}
+  .modal .ctxRow.ctxStack > span:last-child{display:flex; flex-direction:column; gap:3px; align-items:flex-start;}
   .modal .ctxCard{display:inline-block; padding:0 5px; margin:0 1px; border-radius:5px; background:#fbfbf7; color:#1c1c1c; font-weight:800; font-size:12px; line-height:1.6;}
   .modal .ctxCard.red{color:#c62828;}
   .modal .peekBtn{margin-top:8px; background:transparent; color:var(--txt); border:1px solid var(--line); opacity:.85; font-weight:700;}
@@ -2928,6 +2932,25 @@
     if (eff.kind === 'counterfeit' && (!st.pile || st.pile.byPlayer === p)) return { ok: false, reason: "Counterfeit needs the Rival's current play to copy — cast it while facing an attack." };
     if (eff.kind === 'removeEquip' && removeTargets(st, p, eff).length === 0) return { ok: false, reason: 'No Equipment or zone card on the board to target.' };
     if (eff.kind === 'transform' && !transformGateOK(st, p, eff.tier)) return { ok: false, reason: 'Transformation requirements not met yet (shield threshold).' };
+    /* A SHIELD-LOSS TECHNIQUE WITH NOTHING TO TAKE — THE ENGINE'S HALF (2026-09-17). `activateBlock` in the
+       template has refused this since v1.31.120 and the engine never did, so the guard was a courtesy:
+       measured here, Critical Hit against a rival on 0 shields returned `ok:true` and cost **energy 12 → 3
+       and hand 4 → 2** — the card AND its Broadway pitch — for no effect at all.
+       A CLIENT-SIDE GATE IS NOT THE GATE, which this file says of `resolveIds` and the emote cooldown and
+       says again here: a netplay client sends an intent and the HOST applies it, so a check that lives only
+       in the page is reachable over the wire by anything that is not our page.
+       REFUSING IS THE FIX; MAKING IT KILL IS NOT (Aj, 2026-09-08: *"no shield loss technique is a kick.
+       none can be turned into kicks... check the wording please"*). The Fighter Kick is a FIGHT outcome —
+       a Special win against a seat already at 0 — and `noKick` on `destroyShield` is correct. A Technique
+       can take you to 0 and never past it.
+       THE TARGET IS NOT RESOLVED YET at this point, so this asks the weaker question — does ANY living
+       rival hold a shield — deliberately: refusing a cast that has a legal target somewhere would be worse
+       than allowing one aimed at a spent rival, and `chooseLossTarget` still picks among those who do. */
+    if (eff.kind === 'destroyShield') {
+      var anyShield = false;
+      for (var si = 0; si < st.numPlayers; si++) { if (si !== p && !st.players[si].eliminated && st.players[si].shields > 0) { anyShield = true; break; } }
+      if (!anyShield) return { ok: false, reason: 'No rival has a shield to destroy.' };
+    }
     var costDelta = (eff.kind === 'transform') ? 0 : rideCostDelta(st, p, card);   // Owl/Ram: first proactive effect of the turn
     if (!canAfford(pl, card, costDelta)) return { ok: false, reason: 'Not enough Fighter Energy of the right suit (need ' + costHint(card, costDelta) + ').' };
 
@@ -2995,8 +3018,14 @@
        passed" (unreachable through the solo UI, reachable on a netplay host, where `activate` has no
        open-window guard). So this line is a real behaviour change and the one part of step 5 that is not
        inert: a seat that had passed on the object underneath is now asked again, which is what the model
-       says should happen when the board changes under them. The other half of that entry — the missing
-       open-window guard on `activate` — is still open. */
+       says should happen when the board changes under them.
+       ⚠ THE LAST SENTENCE HERE READ *"The other half of that entry — the missing open-window guard on
+       `activate` — is still open"* UNTIL 2026-09-17, and it had been false since 2026-09-14: the guard is
+       the `st.respondFor != null` refusal at the top of `activate`, with a comment of its own explaining
+       it. Two comments about one fix, written days apart, and only the one beside the code was updated.
+       **A cross-reference to another function's state goes stale the moment that function is fixed** —
+       which is the whole argument for pointing at the symbol and letting the reader look, rather than
+       reporting its condition from here. */
     st.prioPassed = {};
     return openResponseWindow(st);
   }
@@ -3059,6 +3088,24 @@
      derived — never the other way round. */
   function castRefusal(st, q, card) {
     var qp = st.players[q], e = card && effectFor(st, q, card);                // effectFor: a Form can make a card Quick
+    /* A LOCKED PLAYER IS SKIPPED, AND SKIPPED MEANS SKIPPED (Aj, 2026-09-17, re-reading the card:
+       *"it forces an autopass, that player won't be able to act at all. that probably overturns any
+       decisions we made before"*). Back Stab reads **"Target Rival skips the whole round — no fights, no
+       Techniques"** — `skips` is the verb and the clause after the dash ELABORATES it; it is not a carve-out
+       listing two things you may not do while the rest stay open.
+       ⚠ THIS OVERTURNS `PHASES-AND-PRIORITY.md` §5 AS DICTATED 2026-09-08, which reasoned from the clause
+       instead of the verb — *"Equipment are neither fights nor Techniques, so a locked player may still
+       activate equipment… they are not without options"* — and §5 has been rewritten to say so. Keeping
+       both readings was not an option: `activate` implemented the card and `respond` implemented nothing,
+       so the game already disagreed with itself.
+       IT GOES IN THE PREDICATE, NOT IN `respond`, AND THAT IS THE WHOLE POINT. `canCastQuick` is `some()`-ed
+       by `canAddToStack`, which `nextPrioHolder` uses to decide whom to offer a window to — so one line
+       makes a locked seat AUTO-PASS rather than be handed a window it must manually decline, which is what
+       "forces an autopass" means mechanically. Putting it in `respond` alone would refuse the cast and still
+       stop the table to ask.
+       MEASURED BEFORE IT WAS WRITTEN: a locked seat cast Leyline into an open window — energy 12 → 3, hand
+       2 → 1, stack depth 2. `activate` has refused since the lock existed; only this path was open. */
+    if (isLocked(st, q)) return 'You are locked out (Back Stab) — you skip this round.';
     if (!e || !e.impl) return 'That card has no effect to cast.';
     if (!e.quick) return 'That is not a Quick.';
     if (!canAfford(qp, card)) return 'Not enough Fighter Energy (need ' + costHint(card) + ').';
@@ -8370,12 +8417,19 @@ window.CardFace = {};
      stack object). So a player casting into the window saw an empty panel and no statement of the thing
      they were being asked about. It is rendered as a distinct row BELOW the objects, because that is where
      it sits in time: every Quick on the stack resolves first, and the loss lands when the sub-phase begins. */
-  function renderStack(){
-    var el=$('stackView'); var objs=(state.stack||[]).filter(function(o){return o.kind==='effect';});
+  /* THE ROWS ARE THEIR OWN FUNCTION SO THE BOARD AND THE RESPOND MODAL CANNOT DRIFT (2026-09-17). The
+     board's `#stackView` sits UNDER `.overlay`, so the one moment a player most needs to read the stack —
+     being asked for priority — is the one moment it is covered. The modal named only the top object, which
+     is fine at two deep and wrong at three: since epic step 6 a player can hold priority and stack two
+     Quicks, and Counter Spell's per-target buttons already assume the player can tell those objects apart.
+     Returning a STRING rather than exporting a second renderer is what keeps this one definition; the CSS
+     moved off `#stackView .stk` onto a plain `.stk` for the same reason — a copy of these five rules under
+     a second id is the drift, not the fix. */
+  function stackRowsHTML(){
+    var objs=(state.stack||[]).filter(function(o){return o.kind==='effect';});
     var fe=state.resolution||null;
     var pendingLoss = (fe && fe.wonWithCombo && (fe.strikeTargets||[]).length) ? fe : null;
-    if(objs.length<1 && !pendingLoss){ el.style.display='none'; el.innerHTML=''; return; }
-    el.style.display='flex';
+    if(objs.length<1 && !pendingLoss) return '';
     var html='';
     /* A TRIGGERED EFFECT HAS NO CAST CARD, SO IT HAS NO `eff` AND NO `card` (2026-09-14). It is
        `kind:'effect'` like everything else — that is the point of the model — so this filter now admits it,
@@ -8391,9 +8445,21 @@ window.CardFace = {};
       var lWho=(typeof pendingLoss.winner==='number')?logName(pendingLoss.winner):'The winner';
       var lType=(state.pile && state.pile.combo && TYPE[state.pile.combo.type]) || 'Special';
       var lHit=(pendingLoss.strikeTargets||[]).map(function(sq){ return logName(sq); }).join(', ');
-      html+='<div class="stk pendingLoss"><span class="who">'+lWho+'’s '+lType+' ▸</span> 🛡 '+lHit+' '+((pendingLoss.strikeTargets||[]).length>1?'lose':'loses')+' a shield <span class="who">(when the stack clears)</span></div>';
+      /* "You loses a shield" — the copula/agreement bug this repo has shipped four times, here in a
+         RENDERER rather than a `say()` template, which is why `nettest_narrate`'s static scan could never
+         see it: that scan reads `say(` call sites. The number was taken from the TARGET COUNT alone, so a
+         single target named "You" got the third-person verb. This string is local to the reader's own
+         frame — it is never broadcast — so agreeing with the reader is safe here in a way it never is in a
+         broadcast template; `announceRoundWin` one screen down already does exactly this. */
+      var lVerb=((pendingLoss.strikeTargets||[]).length>1 || (pendingLoss.strikeTargets||[]).indexOf(YOU)>=0) ? 'lose' : 'loses';
+      html+='<div class="stk pendingLoss"><span class="who">'+lWho+'’s '+lType+' ▸</span> 🛡 '+lHit+' '+lVerb+' a shield <span class="who">(when the stack clears)</span></div>';
     }
-    el.innerHTML=html;
+    return html;
+  }
+  function renderStack(){
+    var el=$('stackView'), html=stackRowsHTML();
+    if(!html){ el.style.display='none'; el.innerHTML=''; return; }
+    el.style.display='flex'; el.innerHTML=html;
   }
   // Active-modifier readout on your hand: what's changing YOUR plays right now and from where. Value (Giant Boar,
   // equipment ±, a charged play) and cost (Giant Owl / Giant Ram) are shown as separate chips, netted and with
@@ -10998,6 +11064,12 @@ window.CardFace = {};
     var order=['D','H','C','S'], bits=[];
     order.forEach(function(s){ var n=you.energy.filter(function(c){return c.suit===s;}).length; if(n) bits.push('<span class="ctxCard'+(s==='D'||s==='H'?' red':'')+'">'+n+SUIT_SYMBOL[s]+'</span>'); });
     rows+='<div class="ctxRow"><span class="ctxLbl">Your energy</span><span><b>'+you.energy.length+'</b>⚡ '+bits.join('')+'</span></div>';
+    /* THE STACK, because this box is shown in the Respond modal and the board's copy is behind it. Newest
+       first, same rows, one definition — see `stackRowsHTML`. Omitted entirely when the stack is empty,
+       which is the Main → Fight and end-of-round go-rounds: an empty box labelled "On the stack" would
+       read as information lost rather than as nothing being there. */
+    var stk=stackRowsHTML();
+    if(stk) rows+='<div class="ctxRow ctxStack"><span class="ctxLbl">On the stack</span><span>'+stk+'</span></div>';
     return '<div class="ctxBox">'+rows+'</div>';
   }
   function hideOverlay(){
