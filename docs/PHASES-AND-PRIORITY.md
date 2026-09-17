@@ -260,6 +260,25 @@ sub-phase where nobody is, and that is exactly where a shield-loss trigger fires
 
 ### Beginning Phase
 
+**Three steps, and they are MTG's** (Aj, 2026-09-16, naming it: *"ah it's untapping in mtg. that's gotta be
+up there in the beginning phase too. let's build that queue there... this is before the upkeep timing"*):
+**Untap → Upkeep → Draw.**
+
+- **Untap Sub-Phase.** A queue of events with **no priority at all** — the only part of the game that is
+  closed to it, exactly as MTG's untap step is, and the upkeep dance below remains the phase's first
+  priority point. `BEGIN_ORDER` = `roundAdvance` → `equipReset` → `stampRound`.
+  **`equipReset` IS THE UNTAP.** It clears `usedThisRound`, which is the only thing standing between an
+  equipment's activated ability and "once ever" — Seed Pouch is the lone user today. It lived in Clean-up
+  until 2026-09-16, which meant a once-per-round ability came back *while the previous round was still
+  being torn down*, before a window a player may legally cast into.
+  **`roundAdvance` AND `stampRound` MOVED WITH IT, AND MUST STAY ADJACENT IN THAT ORDER.**
+  `result.newRound` is read two ways — the round card renders it, and two sites compute `newRound - 1` to
+  recover the round that just ended — so the stamped VALUE must not move. Splitting the pair stamps the old
+  number and makes those two double-subtract.
+  **`initiative` STAYS IN CLEAN-UP** (Aj: *"yes, that is correct"*): it is decided by the round that just
+  ended, and `pileClear` must follow it because the fizzle branch reads `st.initiative`.
+  > The tell that found all this was a list: `CLEANUP_ORDER` had seven members and **six of them END the
+  > round**. `roundAdvance` was the only one that starts the next, sitting first in a pile of teardown.
 - **Upkeep Sub-Phase.** Triggered abilities that say *"at the beginning of your upkeep"* are put on the stack
   here, then the **priority dance** runs. **Equipment counters tick down here** — at the beginning of the
   ROUND, not at clean-up.

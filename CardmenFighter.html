@@ -2252,7 +2252,7 @@
   function newGame(rng, opts) {
     opts = opts || {};
     var np = Math.max(2, Math.min(6, opts.numPlayers || 2));       // N-player: 2–6 (default duel)
-    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], losses: [], roundWinResult: null, resolution: null, resolutionResult: null, resolvedRound: null, blockedResolves: 0, upkeepTicks: false, endCleanup: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
+    var st = { numPlayers: np, players: [], round: 1, turn: 0, initiative: 0, pile: null, passes: 0, lastPlayer: null, finished: false, winner: null, log: [], pending: null, respondFor: null, prioGen: 0, prioPassed: {}, discardPending: null, stack: [], losses: [], roundWinResult: null, resolution: null, resolutionResult: null, resolvedRound: null, blockedResolves: 0, upkeepTicks: false, endCleanup: null, beginQueue: null, subPhase: 'main', toPlay: null, upkeep: null, upkeepResult: null, cleanup: null, cleanupResult: null, basics: !!opts.basics };
     var deckKeys = opts.decks || [];               // per-player archetype deck keys; falsy = the full 40-card set
     var startShields = (opts.shields != null) ? Math.max(1, opts.shields | 0) : startShieldsFor(np);   // tutorials shorten this (e.g. 2) so the shields→Fighter Kick arc is reachable in a quick guided duel
     st.startShields = startShields;
@@ -3231,6 +3231,10 @@
       var ecq = phaseWalk(st, st.endCleanup.origin);
       if (ecq >= 0) return { ok: true, state: st, pending: true, endCleanup: true, respondFor: ecq };
       st.endCleanup = null;
+      /* THE BEGINNING PHASE OPENS HERE, AND ITS UNTAP QUEUE RUNS FIRST — before the Upkeep window and
+         before the owed ticks are pushed. No priority in the queue, so nothing can respond between the
+         round advancing and the upkeep dance; that dance is still the phase's first priority point. */
+      runBeginEvents(st, st.upkeepResult);
       st.upkeep = { origin: st.turn };                  // everyone passed — only NOW does the Beginning Phase open
       return openResponseWindow(st);
     }
@@ -4503,7 +4507,6 @@
      `finishCleanup` pushes next, and so resolve after them rather than before the Beginning Phase. No card
      can push one yet, so nothing is wrong today; the BACKLOG carries it. */
   var CLEANUP_EVENTS = {
-    roundAdvance: function (st) { st.round += 1; },
     /* A FIZZLED ROUND HAS NO WINNER, so it cannot hand out initiative — see `pass`. Everything else a round
        end does still has to happen, and the locks clearing is the whole point: that is what unsticks the
        table. Initiative simply stays where it was, moving on only if that seat has since been eliminated. */
@@ -4519,7 +4522,6 @@
     /* THE ONCE-PER-ROUND RESET IS NOT A TRIGGER — it is bookkeeping nobody can respond to, so it stays
        immediate. The DECAY moved out: it is now a triggered ability that goes on the Upkeep stack, which
        is what `pushUpkeepTicks` does once the round reset is complete. */
-    equipReset: function (st) { st.players.forEach(function (pl) { pl.equipment.forEach(function (e) { e.usedThisRound = false; }); }); },
     temps: function (st) {                                           // Counterfeit copies are illusions: any temp card still around fades at round's end
       st.players.forEach(function (pl) {
         var real = function (c) { return !c.temp; };
@@ -4527,9 +4529,38 @@
         pl.deck = pl.deck.filter(real); pl.shuffle = pl.shuffle.filter(real); pl.removed = pl.removed.filter(real);
       });
     },
-    stampRound: function (st, result) { result.newRound = st.round; }
   };
-  var CLEANUP_ORDER = ['roundAdvance', 'initiative', 'pileClear', 'expire', 'equipReset', 'temps', 'stampRound'];
+  var CLEANUP_ORDER = ['initiative', 'pileClear', 'expire', 'temps'];
+  /* THE BEGINNING PHASE'S "UNTAP" QUEUE (Aj, 2026-09-16: *"ah it's untapping in mtg. that's gotta be up
+     there in the beginning phase too. let's build that queue there... this is before the upkeep timing"*).
+     MTG's three steps, and we now have all three: UNTAP (this queue, no priority) → UPKEEP (the decay
+     triggers, then the dance) → DRAW.
+     WHY THESE THREE MOVED OUT OF CLEAN-UP. `CLEANUP_ORDER` had seven members and **six of them END the
+     round** — hand the initiative over, drop the pile, expire the round-long flags, fade the Counterfeit
+     illusions. `roundAdvance` was the only one that STARTS the next, sitting first in a list of teardown,
+     and `equipReset` is the untap step itself: it clears `usedThisRound`, which is the only thing standing
+     between an equipment ability and "once ever" (Seed Pouch is the game's lone user today). Aj spotted
+     both from the phase walk-through, not from the code.
+     `roundAdvance` AND `stampRound` TRAVEL TOGETHER, IN THAT ORDER, AND SPLITTING THEM IS THE TRAP.
+     `result.newRound` is read BOTH ways: the round card renders it directly, and TWO sites compute
+     `res.newRound - 1` to recover the round that just ended. Keeping the pair adjacent leaves the stamped
+     VALUE identical, so both readings survive untouched; moving the advance alone would stamp the old
+     number and make those two sites double-subtract.
+     `initiative` STAYS IN CLEAN-UP — it is decided by the round that just ended (Aj: *"yes, that is
+     correct"*), and `pileClear` must follow it because the fizzle branch reads `st.initiative`.
+     NO PRIORITY IN HERE — confirmed (Aj: *"yes no priority"*), matching MTG's untap step. Structurally the
+     same as `runCleanupEvents`: a plain drain with no priority check, so the upkeep dance remains the
+     phase's first priority point. */
+  var BEGIN_EVENTS = {
+    roundAdvance: function (st) { st.round += 1; },
+    equipReset: function (st) { st.players.forEach(function (pl) { pl.equipment.forEach(function (e) { e.usedThisRound = false; }); }); },
+    stampRound: function (st, result) { if (result) result.newRound = st.round; }
+  };
+  var BEGIN_ORDER = ['roundAdvance', 'equipReset', 'stampRound'];
+  function runBeginEvents(st, result) {
+    st.beginQueue = BEGIN_ORDER.slice();
+    while (st.beginQueue.length) { var nm = st.beginQueue.shift(); var fn = BEGIN_EVENTS[nm]; if (fn) fn(st, result); }
+  }
   function cleanupEventsFor(st, result) { return CLEANUP_ORDER.slice(); }
   function runCleanupEvents(st, result) {
     st.cleanupQueue = cleanupEventsFor(st, result);
@@ -4659,6 +4690,7 @@
        a trigger that wants to fire on "the pile was cleared" needs something to name, and a test needs to
        be able to see the set rather than infer it from side effects. */
     cleanupOrder: function () { return CLEANUP_ORDER.slice(); },
+    beginOrder: function () { return BEGIN_ORDER.slice(); },
     DECKS: DECKS, DECK_ORDER: DECK_ORDER, BASE_SUIT: BASE_SUIT, buildDeck: buildDeck,
     PARTS_TOTAL: PARTS_TOTAL, PARTS_SUITS: PARTS_SUITS, PARTS_PREFIX: PARTS_PREFIX,
     partsCount: partsCount, partsValid: partsValid, partsKey: partsKey, parseParts: parseParts,

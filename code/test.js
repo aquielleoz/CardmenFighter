@@ -1622,7 +1622,9 @@ function cards(ids) { return ids.map(card); }
      up only as the next round's triggers sitting on a stack this window is still answering — which is the
      mis-ordering `upkeepTicks` was introduced to remove, reintroduced from the other side. */
   var gEC = rig();
-  gEC.players[2].equipment = [{ id: 'jav', name: "Hero's Javelin", delta: 1, counters: 3, decay: true, card: sc(6, 'C', 'eqj') }];
+  /* `usedThisRound: true` IS LOAD-BEARING STAGING — a lock that was never set cannot be observed to
+     survive the window, and both untap assertions below would pass on a build that never resets at all. */
+  gEC.players[2].equipment = [{ id: 'jav', name: "Hero's Javelin", delta: 1, counters: 3, decay: true, usedThisRound: true, ability: 'draw', card: sc(6, 'C', 'eqj') }];
   E.openResolutionWindow(gEC, 2, true, [0], 2);
   var nEC = 0; while (gEC.respondFor != null && !gEC.endCleanup && nEC++ < 12) E.declineResponse(gEC, gEC.respondFor);
   ok(!!gEC.endCleanup, 'end of clean-up: the sixth window really opens, between Clean-up and the Beginning Phase');
@@ -1634,9 +1636,19 @@ function cards(ids) { return ids.map(card); }
      gEC.stack.filter(function (o) { return o.trig; }).length + ' trigger(s) on the stack, upkeep ' + (gEC.upkeep ? 'OPEN' : 'not open') + ')');
   ok(gEC.players[2].equipment[0].counters === 3,
      'end of clean-up: …and no counter has come off yet (' + gEC.players[2].equipment[0].counters + ' of 3)');
+  /* UNTAP HAS NOT HAPPENED EITHER, AND THAT IS THE POINT OF MOVING IT (2026-09-16). `equipReset` was a
+     CLEAN-UP event, so a once-per-round ability came back while the previous round was still being torn
+     down — before the end-of-clean-up window a player may cast into. It is an untap-step event now, so
+     across this window the lock must still be ON, and only the Beginning Phase releases it.
+     ASSERTED IN BOTH DIRECTIONS: still locked while the window is open, released once it closes. Either
+     half alone passes on a build that never locks or never releases. */
+  ok(gEC.players[2].equipment[0].usedThisRound === true,
+     'end of clean-up: …and the equipment is STILL locked — untap is a Beginning Phase event, not teardown');
   var nEC2 = 0; while (gEC.respondFor != null && !gEC.upkeep && nEC2++ < 12) E.declineResponse(gEC, gEC.respondFor);
   ok(!!gEC.upkeep && gEC.stack.filter(function (o) { return o.trig; }).length === 1,
      'end of clean-up: …and only once everyone passes does Upkeep open and the tick get pushed');
+  ok(gEC.players[2].equipment[0].usedThisRound === false,
+     '…and the untap queue has run by then, releasing the once-per-round lock');
 
   var g6 = rig();
   /* ALL THREE SEATS HOLD ONE, so the ORDER is observable. The winner is seat 2, so 2 is the active player
@@ -2561,8 +2573,21 @@ function cards(ids) { return ids.map(card); }
   var order = E.cleanupOrder();
   ok(order.indexOf('pileClear') >= 0 && order.indexOf('expire') >= 0,
      'the two events Aj named are in the enumeration — pileClear and expire (' + order.join(' → ') + ')');
-  ok(order.indexOf('roundAdvance') < order.indexOf('stampRound'),
-     'the round advances BEFORE the result is stamped with it, or `newRound` reports the old round');
+  /* THE PAIR MOVED TO THE BEGINNING PHASE (2026-09-16), AND THE INVARIANT FOLLOWED IT RATHER THAN DYING.
+     `roundAdvance` and `stampRound` are untap-queue events now — six of clean-up's seven members END the
+     round and those two START the next — so this reads `beginOrder()`. The ordering claim is unchanged and
+     is the reason they had to travel TOGETHER: `result.newRound` is rendered directly by the round card AND
+     recovered as `newRound - 1` by two sites wanting the round that just ended, so the stamped VALUE must
+     not move. Splitting them stamps the old number and makes those two double-subtract.
+     ASSERTED IN BOTH QUEUES, because "it is in the right order" and "it is in the right PHASE" are different
+     claims and only the second one catches a move back. */
+  var bo = E.beginOrder();
+  ok(bo.indexOf('roundAdvance') >= 0 && bo.indexOf('roundAdvance') < bo.indexOf('stampRound'),
+     'the round advances BEFORE the result is stamped with it, or `newRound` reports the old round (' + bo.join(' → ') + ')');
+  ok(order.indexOf('roundAdvance') < 0 && order.indexOf('stampRound') < 0 && order.indexOf('equipReset') < 0,
+     '…and the three Beginning Phase events are NO LONGER clean-up events — untap is not teardown (clean-up: ' + order.join(' → ') + ')');
+  ok(bo.indexOf('equipReset') >= 0,
+     'equipReset is the UNTAP step — it clears `usedThisRound`, which is all that stops a once-per-round ability being once-ever');
 
   var g = E.newGame(null, { numPlayers: 2 });
   g.players[0].hand = [sc(7, 'D', 'a'), sc(7, 'H', 'b')];
