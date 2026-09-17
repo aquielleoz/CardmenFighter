@@ -785,26 +785,6 @@ re-read its tag.
   change 1 carries most of the value for almost none of the risk.
   `[id: dead-main-subphase]`
 
-- `ready to build`      · **A NETPLAY CLIENT STILL PAYS TWO PRESSES TO FIGHT (2026-09-16).** One press now fights from the Main
-  Sub-Phase on every LOCAL seat — solo, local multiplayer, and the netplay host's own seat — but `doFight`
-  returns early for a client, which sends `toFight`, waits for the mirror, and presses again.
-  **THE LABEL IS HONEST ABOUT IT**, and that is load-bearing rather than cosmetic: the button reads `Next`
-  on a client in Main and `Fight` everywhere else, because `__pressFight` reads the label to decide what a
-  press means. Making it say `Fight` on a client broke `nettest_clientwin` (6/4) — the helper clicked once
-  and waited for cards that were never going to leave the hand.
-  **WHY IT IS FILED RATHER THAN DONE:** collapsing it means the client must remember the play it intended
-  ACROSS a host round-trip and send it when the mirror arrives showing `subPhase === 'play'` — and hold it
-  if the board moved, which is `stopIfActed` over the wire with no local `stackMark` to read. A mis-fire
-  spends the player's cards, so it wants care.
-  **⚠ THIS ENTRY ORIGINALLY SAID "unverifiable without two devices" AND THAT WAS FALSE — CORRECTED
-  2026-09-16, the same day it was written, after Aj hit the two presses in live play.** It is refuted by
-  this very entry two sentences up: mislabelling the button **broke `nettest_clientwin` (6/4)**, which is a
-  headless suite seeing exactly this behaviour. `nettest_clientwin` and `nettest_sync` both already drive a
-  CLIENT pressing Fight, so a suite can assert the whole thing: stage a client in Main holding a legal
-  Special, press ONCE, require the cards to leave its hand AND the host to accept the play — plus the
-  negative, that a board change between the press and the mirror DROPS the held play rather than firing it.
-  The general rule this produced is in `CLAUDE.md` — do not restate it here.
-  `[id: netplay-client-still-pays]`
 
 - `needs a decision`    · **THE NARROWEST PHONES STILL HAVE 34px TOUCH TARGETS, AND THE ACTION ROW IS WHY (measured 2026-09-16,
   while fixing the rest).** Everything from 360px up now gets 44px-tall icon buttons and a widened 🔍/⚡
@@ -966,6 +946,79 @@ names — `pitchHigh`, `send`/`_effUsed`/`startShields`, `formsOpen` — rather 
 of six entries in the priority cluster turned out to have been closed by the epic without anyone
 noticing (2026-09-17). Check the same way before picking one up: an epic step closes entries it
 never read.*
+
+- `root cause found`    · **★ A DUEL HANGS AFTER THE CLIENT ANSWERS THE HOST'S TARGETED TECHNIQUE — HOST PARKS FOREVER**
+  (Aj, 2026-09-18, live online duel, BOTH saved logs attached to the report: *"the game hung up after the
+  quick response… stuck in priority windows is my guess"*). He is right, and the logs narrow it to one
+  window. **This is a HANG, the worst class, and it is reproducible by construction.**
+  **WHAT THE TWO LOGS PROVE, and this is measurement rather than reading:**
+  - the host RECEIVED it — `869.70s  move IN from seat 1 op=respond q=280`, and that is the **last line of
+    the host's trace**: no `hostTakeBack`, no `awaitRival`, nothing;
+  - the host APPLIED it — the client's hand goes **5 → 4** on the very next mirror, so `E.respond` ran and
+    the Annoint left its hand;
+  - the host then PARKED FOREVER — ~160s of mirrors at exactly **1.8s**, which is `startParkBeat()`, until
+    Aj gave up. The client applied every one: `round=10 turn=1 myHand=4`, unchanging.
+  - **the boundary is INNOCENT** — the new `--- ROUND BOUNDARY ---` section shows r9 → r10 complete, both
+    queues reaching `exit`. (The trace shipped that morning and earned itself the same day.)
+  - the stack was **Sabotage** (host, `removeEquip`, *targeted*) with **Annoint** (client, `protect`) on
+    top. So a `protect` resolving over a `removeEquip`, answered from the wire.
+  **SO THE WEDGE IS AFTER THE RESPOND WAS APPLIED, inside the settle continuation.**
+  **TWO STORIES RULED OUT — do not re-chase them.** `doRemove` (the `removeEquip` path) DOES reach
+  `settleWindows`, and `settleWindows` DOES route to `NET.hostSettle` for a host. The obvious reading —
+  that the targeted cast forgot to park, the `nettest_ridewedge` shape from 2026-09-16 — does not hold.
+  Likewise `if(!netSettle) return;` in the duel's respond arm is NOT the culprit here: the intent was
+  applied, so `netSettle` was set.
+  **ONE UNEXPLAINED ASYMMETRY, flagged rather than over-read:** the host's priority ledger has **no r10
+  entries at all** while the client's has two (`[main→fight] AUTO-PASSED for you — PROMPT OFF` and
+  `[respond] window SHOWN to you vs Sabotage`). Most likely innocent — `prioNote` logs windows SHOWN to the
+  local player and the host was never shown one — but that is unverified, and if it is not the explanation
+  it is a second finding.
+  **THE REPRO IS THE NEXT STEP AND IT IS DETERMINISTIC.** A duel: host casts Sabotage at a client's
+  Equipment, client answers with Annoint, require the host's board to come back live. Model it on
+  `nettest_ridewedge`, which went 8/1 → 9/0 on one build and is the same family — a host's own cast, a
+  remote answer, a continuation that never returns. Two staging facts that suite paid for apply here too:
+  the client's Quick must have a LEGAL TARGET (Annoint does, once the removal is on the stack) or no window
+  opens and the suite passes vacuously.
+  `[id: duel-hangs-after-client-quick]`
+
+- `needs a repro`       · **A THRESHOLD BEAT (ROAR) CAN LAND A ROUND LATE ON A CLIENT, AND OVERDRIVE DID NOT** (Aj,
+  2026-09-18, live online duel: *"the roar is late for the client. overdrive seemed to have fired at the
+  same time for both… don't know why roar was a round late. i'm sensing a pattern here"*). Filed for `main`.
+  **THE HYPOTHESIS, AND IT IS NOT MEASURED YET.** `checkThresholds()` fires off the SHIELD RENDER DIFF —
+  `renderShields` compares `prevShields[player]` against `n` — so on a client it runs when the mirror
+  carrying the loss is APPLIED, not when the host resolved it. The client deliberately HOLDS the deal
+  mirror (`isRoundDeal`) so the Round-N banner and the card fly-in land together. If the threshold-crossing
+  loss and the new deal arrive in the SAME mirror, the beat is deferred with it and shows a round late;
+  if that loss rode its own mirror, the beat is on time. That would explain both halves of one report,
+  which is what makes it worth writing down rather than guessing again.
+  **IT IS THE SAME FAMILY AS A BUG ALREADY FIXED HERE, which is the pattern Aj sensed.** `isRoundDeal`'s
+  own comment records it: a broken shield returning to hand also brings an unheld id, *"holding it stopped
+  the shatter rendering, so `checkThresholds` never queued and the ROAR/OVERDRIVE beat never played"* —
+  hence the empty-pile clause. That fixed one held-mirror case; this is a candidate second.
+  **WHAT WOULD SETTLE IT:** capture the client's mirror sequence across a threshold crossing and ask
+  whether the shield drop and the deal share a mirror. `__cmf` already exposes the trace.
+  **AND THE SUITE GAP IS ORDERING.** `nettest_ceremony` asserts the beat APPEARS and that the round later
+  advances, but its waits are generous and it crosses one threshold — "late by a round" is inside what it
+  would accept today. It needs the beat pinned BEFORE the round number moves, not merely before the poll
+  gives up.
+  `[id: threshold-beat-late-on-client]`
+
+- `needs a decision`    · **AN ANSWERED QUICK HAS NO ANIMATION** (Aj, 2026-09-18, from a side-by-side of both seats:
+  *"there still are no animations for the answered quicks… maybe it's because we use modals instead of
+  prompt the user's hand"*). Filed for `main`. Both logs agreed — *"answered at instant speed with
+  Annoint"* on both screens — so this is presentation, not a sync fault.
+  **HIS DIAGNOSIS IS THE SAME ONE ALREADY FILED AS A REDESIGN.** A cast made from a MODAL has no card in
+  the hand to fly from: `buildOppBeats` pairs `revealEffect` with `revealDwell` for a card played from a
+  zone the viewer can see, and a Quick chosen off a button in an overlay never passes through that path.
+  That is exactly the premise of **[id: priority-modal-redesign]** — *"instead of having a modal for each
+  card… can we just pause the game and highlight the castable quicks?"* — which is postponed until the
+  epic is done and which this strengthens: the modal is not only a second presentation of a hand you are
+  already looking at, it is the reason the play it produces cannot be animated.
+  **SO IT MAY NOT WANT ITS OWN FIX.** Decide it WITH the redesign: pausing and highlighting the hand puts
+  the card back on the board, and the existing reveal beats then apply for free. Bolting an animation onto
+  the modal path would be a third presentation to keep in step — the mistake CLAUDE.md records about
+  inventing a layout rather than restoring the one the compact form was compacted FROM.
+  `[id: answered-quick-no-animation]`
 
 - `root cause found`    · **THE CUSTOM DECKS LESSON CANNOT BE LEFT ONCE THE BUILDER OPENS** (Aj, 2026-09-17,
   playing it: *"phew can't exit out of the custom deck tutorial"*). Deferred to `main` by his call —

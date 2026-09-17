@@ -4526,7 +4526,11 @@ __QR__
        sends `toFight` and waits for a mirror. Caught by `nettest_clientwin` (6/4): `__pressFight` reads
        the label, saw `Fight`, clicked once and then waited for cards that were never going to leave the
        hand. A label that promises the wrong action is worse than the extra press it was hiding. */
-    if(isNetClient() && state.subPhase!=='play') setActionLabel(fight,'Next');
+    /* …AND WITH A SELECTION IT REALLY IS `Fight` NOW (2026-09-18). `doFight`'s client branch sends the
+       PLAY when cards are chosen — the host transitions and re-applies it — so one press fights, exactly
+       as it does on the host's own seat. The label tracks the same condition, because the 6/4 above was
+       not "the label said Fight", it was the label saying Fight while the branch still sent `toFight`. */
+    if(isNetClient() && state.subPhase!=='play' && !selectedCards().length) setActionLabel(fight,'Next');
     var leading=!state.pile; pass.disabled=leading;
     var charged=state.players[YOU].nextPlayBoost||0;
     var chargeTag=(charged?' ⚡+'+charged+' charged':'')+(state.players[YOU].finishingBlow?' 🛡‍💥 Armor Piercing armed (next win strips +1)':'');
@@ -4880,7 +4884,26 @@ __QR__
          showing `subPhase === 'play'` — plus hold it if the board moved, which is `stopIfActed` over the
          wire with no `stackMark` to read locally. That is netplay behaviour I cannot verify without two
          devices, and the seat that would eat a mis-fire is the player's. Filed; see the BACKLOG. */
-      if(state.subPhase !== 'play'){ NET.clientSend({op:'toFight'}); busy=true; render(); return; }
+      /* ONE PRESS FOR A CLIENT TOO, WHEN IT HAS ACTUALLY CHOSEN SOMETHING (Aj, 2026-09-18, with a
+         screenshot of each seat in the same position: *"it's already live right now that the host has a
+         fight button in main SP… what i'm reporting is that the client doesn't have that button"*).
+         THE BLOCKER THIS ENTRY CLAIMED DOES NOT EXIST, AND THAT IS THE WHOLE FIX. It said the client
+         *"must remember the play it intended ACROSS a host round-trip"* — it does not: the HOST remembers
+         it. `hostApplyMove`'s transition branch re-applies the very intent object the client already sent
+         (`E.play` → `ok:false, transition:'play'` → `hostSettle` → `hostApplyMove(it)`), and its own
+         comment says why re-applying a PLAY unconditionally is right: *"the client named its cards and
+         they are still its cards."* That machinery landed at epic step 20 for the `nettest_guard` wedge,
+         two days before this was filed as hard, and nobody connected them — the same two-changes-nobody-
+         joined shape as the prompt default outliving its predicate.
+         SO THE SELECTION IS THE WHOLE CONDITION. With cards chosen, `{op:'play', ids}` is a complete
+         statement of intent and the host finishes it; with nothing chosen it is not, which is what the
+         `ids:[]` objection above is really about — the engine's transition check sits ABOVE its `No cards.`
+         check, so an empty play transitions and then reports an error for a move that worked. `toFight`
+         stays for exactly that case, and it is what `Next` means.
+         AND THE LABEL HAS TO MOVE WITH IT (see `updateActions`): the 6/4 that `nettest_clientwin` once
+         scored was the label saying `Fight` while this branch still sent `toFight` — a promise the code
+         did not keep. Conditioning both on the same selection makes the promise true. */
+      if(state.subPhase !== 'play' && !selectedCards().length){ NET.clientSend({op:'toFight'}); busy=true; render(); return; }
       sendClientPlay(selectedCards()); return;   // must short-circuit HERE too — below is host/rival pre-fight logic a client must never run
     }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
