@@ -793,6 +793,30 @@ re-read its tag.
   **THE COMMENT DIRECTLY ABOVE IT RECORDS THE SAME BUG, FIXED ONCE:** *"This scanned 3..13 and so could not
   see a pair of Aces… it then had no full house to lead and **passed forever**."* That fix widened the rank
   scan; the hole that remains is having no qualifying pair at all, and the failure is identical.
+  **FIVE HYPOTHESES MEASURED AND KILLED 2026-09-17 — the value here is what NOT to re-chase:**
+
+  | hypothesis | how it died |
+  | --- | --- |
+  | the untap move broke `roundAdvance` | 40 Basics games to round 37, **0 stuck** |
+  | `pileClear` broken generally | **1366-1378 round boundaries, 0 stale piles** |
+  | the hand-limit trim eats the Rival's pair | it plays as it draws — `8→7→9→7→9`, never reaches the cap of 10 |
+  | clean-up skipped for a falsy `cleanupResult` | engine detector, **0 hits in 1366 boundaries** |
+  | a falsy return breaking `settleWindows`' loop | `last` is initialised `{ok:true}` and never reassigned |
+
+  **AND ONE THAT LOOKS DAMNING AND IS NOT.** `promptHumanResponse`'s default continuation is `resumeRival`,
+  not `settleWindows`, and three call sites take that default — which reads exactly like the tutorial wedge
+  CLAUDE.md records. All three sit INSIDE the rival driver's own loop, which re-checks `respondFor` each
+  step, so the default is self-draining there. **Do not "fix" it without a failing case.**
+  **THE DETECTOR IS LIVE — ASK FOR A SAVED LOG.** A round cannot legitimately begin with a pile on the
+  table, so the round-begin path now writes **⚠ ROUND BEGAN WITH A STALE PILE** and **⚠ ROUND BANNER
+  REPEATED** into the priority ledger, which rides in the downloaded battle log. The next occurrence will
+  say which fired and at which round. ⚠ **It has not been SEEN to fire**: four bespoke probes were written
+  chasing this and all four were wrong, `prioNote`'s arity was checked by reading, and 12 duels plus the 2s
+  lesson do not trip it — so a silent ledger is weak evidence, not absence.
+  **AND THE PILOT IS DOWNSTREAM OF ALL OF IT.** With a stale pile present, `tutPilotTwos` sees `cur` set
+  where the script expects null, matches no branch (`size===2` but `cards[0].rank` is 2, not the Ace it
+  tests for) and passes. **Fixing the pilot to cope would paper over the boundary failure** — which is why
+  it was not done when the fix was asked for.
   **THE ENGINE IS EXONERATED, MEASURED — do not re-chase it.** The untap queue had just moved `roundAdvance`
   and was the obvious suspect: **40 solo Basics games, deepest round 37, ZERO stuck rounds**, and **1378
   round boundaries with ZERO stale piles**. `browsertest` independently reached round 28. `pileClear` and
