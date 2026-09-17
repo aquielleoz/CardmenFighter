@@ -49,7 +49,7 @@ node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens + the phone touch targets (25)
 node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (96)
-node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
+node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (20)
 node lessontest_energyorder.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node lessontest_quicks.js               # the "Quicks" lesson — the interactive Counter Spell demo, full UI (21)
 node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated (25)
@@ -1875,7 +1875,7 @@ it. **The "run serially, never two at once" rule this line used to carry died wi
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 539, `netview` 65, `mptest` 97, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
-`piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
+`piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 20, `lessontest_energyorder` 14,
 `versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 42, `lessontest_quicks` 21, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
