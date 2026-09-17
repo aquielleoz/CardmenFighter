@@ -199,7 +199,19 @@ const appliedCount=async p=>(await traceOf(p)).filter(l=>/mirror APPLIED/.test(l
   /* THE STACK VIEW SHOWS THE PENDING LOSS. The go-round runs on an EMPTY stack, so before this the panel
      was blank during the one window where something is at stake. */
   const sv = await stackText();
-  ok(/loses a shield/i.test(sv), 'fight end copy: the stack view shows the pending loss' + (/loses a shield/i.test(sv)?'':'  ← stackView read: "'+sv.slice(0,120)+'"'));
+  /* ⚠ THIS ASSERTED `/loses a shield/` UNTIL 2026-09-17 AND SO PINNED A GRAMMAR BUG. The verb was taken
+     from the TARGET COUNT alone, so a single target named "You" read **"You loses a shield"** — the
+     agreement failure this repo has shipped four times, here in a RENDERER rather than a `say()` template,
+     which is why `nettest_narrate`'s static scan never saw it (that scan reads `say(` call sites). Fixing
+     the product turned this line red, which is the tell CLAUDE.md already names: a suite going red BECAUSE
+     you fixed something. The rule wins; the suite changes.
+     ASSERT THE CLAIM AND THE AGREEMENT, not the spelling of one verb. The client reading this IS the
+     struck seat, so the correct rendering is second person — and the negative is what stops the old
+     wording creeping back while the positive stays satisfiable for a reader who is NOT the target. */
+  ok(/\ba shield\b/i.test(sv), 'fight end copy: the stack view shows the pending loss' + (/\ba shield\b/i.test(sv)?'':'  ← stackView read: "'+sv.slice(0,120)+'"'));
+  ok(/You lose a shield/.test(sv) && !/You loses/.test(sv),
+     'fight end copy: …and it agrees with the reader it names — this client IS the struck seat, so "You lose"' +
+     (/You loses/.test(sv) ? '  ← REPRODUCED: "' + sv.slice(0, 120) + '"' : ''));
 
   /* AT ZERO SHIELDS IT IS THE KICK, and saying "a shield" there would understate the only decision that
      can end the game. Same window, one field different. */
