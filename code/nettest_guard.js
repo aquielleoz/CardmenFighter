@@ -22,7 +22,19 @@ const passC=async p=>{ await p.evaluate(()=>{ var c=document.getElementById('cle
  * was still mid-round-trip — the v1.31.9 waitTurnEnds bug, in the general case. A red run must explain
  * itself, so name the condition that never came true. */
 function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,100)); }
-async function waitFor(fn){ for(let i=0;i<60;i++){ if(await fn()) return true; await wait(120); } pollTimedOut(fn); return false; }
+/* 30s, AND THE NUMBER IS MEASURED RATHER THAN CHOSEN (2026-09-17). This was 60 x 120ms = 7.2s and went red
+   1-4 runs in 8 at "control passed to the client", which three investigations read as a transport fault. The
+   self-diagnosing dump settled it: the play HAD landed (pile 5, hand empty of the straight), the client's
+   board WAS live and on turn — the handover simply arrived after the budget.
+   WHY IT ARRIVES LATE, and it is structural rather than slowness: this suite runs with `prompts=all`,
+   because its subject IS a boundary window. That makes the client eligible for windows the suite does not
+   script, and `netwindows` answers each one only after its ~6s GRACE — by design, so that suites which mean
+   to drive a window are not robbed of it. One unscripted window therefore eats most of a 7.2s budget before
+   the turn can even be handed over; the trace shows the gap plainly (`4.49s … 9.43s move IN op=decline`).
+   A POLL BUDGET IS A HANG GUARD, NOT A RACE — it returns the instant the condition holds, so a generous
+   ceiling costs a passing run nothing, and 30s is the figure `lessonlib` already standardised on for the
+   same reason. Raised because it was measured, never on principle. */
+async function waitFor(fn){ for(let i=0;i<250;i++){ if(await fn()) return true; await wait(120); } pollTimedOut(fn); return false; }
 (async()=>{
   await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>'))); srv.listen(PORT,r); });
   const b=await chromium.launch(LAUNCH);
@@ -48,9 +60,36 @@ async function waitFor(fn){ for(let i=0;i<60;i++){ if(await fn()) return true; a
   const shBefore=await shieldsOf(join);
   ok(shBefore!=null,'read client shields before the combo ('+shBefore+')');
 
-  await leadCombo(host,['3C','4C','5C','6C','7C']);   // host leads a straight (combos legal in round 2)
+  /* SELF-DIAGNOSING, BECAUSE THIS ASSERTION HAS BEEN RED 1-4 RUNS IN 8 AND NEVER SAID WHY (2026-09-17).
+     Every previous investigation saw only "a turn did not arrive in 7.2s" and guessed — at the transport,
+     at the harness, at a new priority window. The one question that halves the problem is whether the
+     straight ever LEFT THE HOST'S HAND: still held means the press never landed, on the pile means the
+     play landed and the HANDOVER is lost, which is the park / `hostTakeBack` family. So capture both
+     boards and the host's netplay trace, which is the instrument that cracked the Ride wedge. */
+  const played = await leadCombo(host,['3C','4C','5C','6C','7C']);   // host leads a straight (combos legal in round 2)
   const cliTurn=await waitFor(async()=>await turnOf(join)===0);
-  ok(cliTurn,'control passed to the client to answer the combo');
+  let why='';
+  if(!cliTurn){
+    const snap=p=>p.evaluate(()=>({
+      turn:(window.__cmf?window.__cmf.turn():null), pending:(window.__cmf?window.__cmf.pending():null),
+      hand:(window.__cmf&&window.__cmf.hand?window.__cmf.hand().length:-1),
+      pile:document.querySelectorAll('#pile .card').length,
+      subPhase:(window.__cmf&&window.__cmf.subPhase?window.__cmf.subPhase():'?'),
+      rivalStatus:((document.getElementById('rivalStatus')||{}).textContent||'').trim(),
+      hint:((document.getElementById('hint')||{}).textContent||'').trim().slice(0,70),
+      fight:(function(f){ return f?(f.textContent.trim()+(f.disabled?'/disabled':'/enabled')):'none'; })(document.getElementById('fightBtn')),
+      modal:!!(document.getElementById('overlay')||{}).classList && document.getElementById('overlay').classList.contains('show')
+    }));
+    const hs=await snap(host), js=await snap(join);
+    const stillHeld=await host.evaluate(()=>['3C','4C','5C','6C','7C'].filter(function(id){ return !!document.querySelector('#hand .card[data-id="'+id+'"]'); }));
+    const tr=await host.evaluate(()=>{ try{ const t=window.__cmf.trace(); return (Array.isArray(t)?t:String(t).split('\n')).slice(-8).join(' | '); }catch(e){ return 'no trace'; }});
+    why = '\n      clickFight returned: '+played+
+          '\n      straight STILL IN HOST HAND: ['+stillHeld.join(',')+']  '+(stillHeld.length? '← the press never landed' : '← the play landed; the HANDOVER is lost')+
+          '\n      host: '+JSON.stringify(hs)+
+          '\n      join: '+JSON.stringify(js)+
+          '\n      host trace (last 8): '+tr;
+  }
+  ok(cliTurn,'control passed to the client to answer the combo'+why);
   await passC(join);                                   // client can't beat it → passes → host wins WITH a combo → shield threatened
 
   /* THE WINDOW CHANGED UNDER THIS SUITE (epic step 18, P5). It used to be the shield-GUARD modal — a yes/no
