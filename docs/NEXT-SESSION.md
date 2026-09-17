@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**539**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**543**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -626,6 +626,22 @@ re-read its tag.
   say which fired and at which round. ⚠ **It has not been SEEN to fire**: four bespoke probes were written
   chasing this and all four were wrong, `prioNote`'s arity was checked by reading, and 12 duels plus the 2s
   lesson do not trip it — so a silent ledger is weak evidence, not absence.
+  **AND THAT DETECTOR CANNOT SEE THE REPORTED FAILURE, WHICH IS WHY A SECOND ONE SHIPPED 2026-09-17.** It
+  fires at the ROUND BANNER, so it can only speak when a round BEGINS — and if the boundary never
+  completes, no banner is drawn and it has nothing to fire on. "Nothing happened" and "the code never ran"
+  are the same absence, which is the rule this repo wrote down for `prioNote` and then rebuilt the hole
+  under. Aj named it: *"it all waits on me because you never seem to encounter the pile not clearing."*
+  **READ `--- ROUND BOUNDARY ---` IN THE SAVED LOG FIRST.** `bnote` (engine.js) records the boundary
+  itself, every time, including the quiet ones. A healthy boundary is
+  `CLEANUP enter → initiative → pileClear → expire → temps → exit` then
+  `BEGIN enter → roundAdvance → equipReset → stampRound → exit`, each line carrying `pile=`, `turn=` and
+  `stack=`. **A SHORT BLOCK IS THE FINDING** — the missing tail names the step it stopped on — and the
+  engine reads its own trace for the one case it can judge, writing **⚠ CLEANUP LEFT A PILE** when a pile
+  survives `pileClear`.
+  It is a module-level ring with a pickup accessor (`E.boundaryTrace()`), NOT on `st`, so it never travels
+  in a mirror. Instrument verified by mutation — removing `st.pile = null` from `pileClear` fires 50
+  warnings in one game — and `logtest` asserts the section reaches the downloaded file with real rows,
+  which is the half that can silently not work (`downloadLog` reads it inside a `try{}catch{}`).
   **AND THE PILOT IS DOWNSTREAM OF ALL OF IT.** With a stale pile present, `tutPilotTwos` sees `cur` set
   where the script expects null, matches no branch (`size===2` but `cards[0].rank` is 2, not the Ace it
   tests for) and passes. **Fixing the pilot to cope would paper over the boundary failure** — which is why

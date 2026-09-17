@@ -3298,6 +3298,16 @@ __QR__
     /* THE PRIORITY LEDGER GOES IN TOO — see `prioNote`. Appended after the trace because a netplay report
        wants both and one file is what actually gets sent. */
     try{ if(PRIO_LOG.length) text += '\n\n--- PRIORITY WINDOWS ('+PRIO_LOG.length+' entries; oldest first) ---\n' + PRIO_LOG.join('\n'); }catch(e){}
+    /* THE ROUND BOUNDARY GOES IN TOO (2026-09-17), and it is the section to read first for a stale pile.
+       The banner detector above can only speak when a round BEGINS; this records the boundary itself, so a
+       boundary that never finishes shows up as a TRUNCATED block rather than as silence. A healthy one is
+       six lines ending `CLEANUP exit` and six more ending `BEGIN exit`; anything shorter names the step it
+       died on, and `⚠ CLEANUP LEFT A PILE` is the engine reading its own trace. */
+    try{ var bt=(E.boundaryTrace?E.boundaryTrace():[]);
+      if(bt.length) text += '\n\n--- ROUND BOUNDARY ('+bt.length+' entries; oldest first) ---\n'+
+        'A complete boundary is  CLEANUP enter → initiative → pileClear → expire → temps → exit  then\n'+
+        'BEGIN enter → roundAdvance → equipReset → stampRound → exit.  A SHORT block is the finding:\n'+
+        'the missing tail names the step it stopped on.\n' + bt.join('\n'); }catch(e){}
     var blob=new Blob([text],{type:'text/plain'}), url=URL.createObjectURL(blob);
     var a=document.createElement('a'); a.href=url; a.download='cardmen-battle-log.txt'; document.body.appendChild(a); a.click();
     document.body.removeChild(a); setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);

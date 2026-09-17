@@ -125,6 +125,39 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(liveLines.length>0 && saved.indexOf(liveLines[liveLines.length-1])>=0,
      `  → it really carries the battle log (${liveLines.length} lines on screen; looked for "${(liveLines[liveLines.length-1]||'').slice(0,44)}")`);
 
+  /* AND IT CARRIES THE ROUND BOUNDARY (2026-09-17) — the section added so a stale pile can be diagnosed
+     from a saved log instead of from Aj happening to see it. The engine records it; this is the half that
+     gets it into the file, and it is exactly the half that can silently not work — `E.boundaryTrace` is
+     read inside a `try{}catch(e){}` in `downloadLog`, so a scope or naming slip produces a file that looks
+     completely normal and is missing the thing it was built for. That is the `downloadLog` bug's own shape
+     (fifteen versions of `[object PointerEvent]`, header right, nothing wrong on the surface).
+     ASSERT A REAL ROW, not just the heading: a heading with an empty body is what a broken accessor gives
+     you, and it would read as "no boundaries happened" rather than as a fault. */
+  /* IT IS OMITTED WHEN THE TRACE IS EMPTY, WHICH IS CORRECT AND IS WHY THIS NEEDS A ROUND FIRST. The first
+     draft asserted the section straight after `goFirstBtn` and went red — rightly: round 1 had not ended,
+     so no boundary existed and there was nothing to print. A labelled empty section would read as "no
+     boundaries happened" rather than as a fault, so the omission stays; the SUITE is what had to change.
+     Driven through the engine rather than the buttons: this suite is about the saved FILE, and a round is
+     staging here, not the subject. */
+  await p.evaluate(()=>{ const E=window.CardmenEngine, A=window.CardmenAI, st=window.__solo.st();
+    let guard=0; const r0=st.round;
+    while(st.round===r0 && guard++<40 && !st.finished) A.takeTurn(st, st.turn);
+    window.__solo.render();
+  });
+  const saved2 = await p.evaluate(()=>{
+    var cap=null, B=window.Blob;
+    window.Blob=function(parts,opts){ cap=String((parts&&parts[0])||''); return new B(parts,opts); };
+    try{ document.getElementById('saveLogBtn').click(); } finally { window.Blob=B; }
+    return cap;
+  });
+  ok(/--- ROUND BOUNDARY \(\d+ entries/.test(saved2||''),
+     '  → after a round turns over, the ROUND BOUNDARY section is in the file'+(/ROUND BOUNDARY/.test(saved2||'')?'':'  ← missing: E.boundaryTrace() threw or returned empty inside downloadLog'));
+  const bline=(saved2||'').split('\n').filter(l=>/CLEANUP · pileClear/.test(l))[0]||'';
+  ok(/pile=/.test(bline) && /^r\d+ /.test(bline),
+     `  → …with real rows, not an empty heading ["${bline.slice(0,72)}"]`);
+  ok(/CLEANUP exit/.test(saved2||'') && /BEGIN exit/.test(saved2||''),
+     '  → …and the boundary in it is COMPLETE — both queues reach their exit line, which is what makes a SHORT block the finding');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
