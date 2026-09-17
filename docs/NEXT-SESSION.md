@@ -947,40 +947,6 @@ of six entries in the priority cluster turned out to have been closed by the epi
 noticing (2026-09-17). Check the same way before picking one up: an epic step closes entries it
 never read.*
 
-- `root cause found`    · **★ A DUEL HANGS AFTER THE CLIENT ANSWERS THE HOST'S TARGETED TECHNIQUE — HOST PARKS FOREVER**
-  (Aj, 2026-09-18, live online duel, BOTH saved logs attached to the report: *"the game hung up after the
-  quick response… stuck in priority windows is my guess"*). He is right, and the logs narrow it to one
-  window. **This is a HANG, the worst class, and it is reproducible by construction.**
-  **WHAT THE TWO LOGS PROVE, and this is measurement rather than reading:**
-  - the host RECEIVED it — `869.70s  move IN from seat 1 op=respond q=280`, and that is the **last line of
-    the host's trace**: no `hostTakeBack`, no `awaitRival`, nothing;
-  - the host APPLIED it — the client's hand goes **5 → 4** on the very next mirror, so `E.respond` ran and
-    the Annoint left its hand;
-  - the host then PARKED FOREVER — ~160s of mirrors at exactly **1.8s**, which is `startParkBeat()`, until
-    Aj gave up. The client applied every one: `round=10 turn=1 myHand=4`, unchanging.
-  - **the boundary is INNOCENT** — the new `--- ROUND BOUNDARY ---` section shows r9 → r10 complete, both
-    queues reaching `exit`. (The trace shipped that morning and earned itself the same day.)
-  - the stack was **Sabotage** (host, `removeEquip`, *targeted*) with **Annoint** (client, `protect`) on
-    top. So a `protect` resolving over a `removeEquip`, answered from the wire.
-  **SO THE WEDGE IS AFTER THE RESPOND WAS APPLIED, inside the settle continuation.**
-  **TWO STORIES RULED OUT — do not re-chase them.** `doRemove` (the `removeEquip` path) DOES reach
-  `settleWindows`, and `settleWindows` DOES route to `NET.hostSettle` for a host. The obvious reading —
-  that the targeted cast forgot to park, the `nettest_ridewedge` shape from 2026-09-16 — does not hold.
-  Likewise `if(!netSettle) return;` in the duel's respond arm is NOT the culprit here: the intent was
-  applied, so `netSettle` was set.
-  **ONE UNEXPLAINED ASYMMETRY, flagged rather than over-read:** the host's priority ledger has **no r10
-  entries at all** while the client's has two (`[main→fight] AUTO-PASSED for you — PROMPT OFF` and
-  `[respond] window SHOWN to you vs Sabotage`). Most likely innocent — `prioNote` logs windows SHOWN to the
-  local player and the host was never shown one — but that is unverified, and if it is not the explanation
-  it is a second finding.
-  **THE REPRO IS THE NEXT STEP AND IT IS DETERMINISTIC.** A duel: host casts Sabotage at a client's
-  Equipment, client answers with Annoint, require the host's board to come back live. Model it on
-  `nettest_ridewedge`, which went 8/1 → 9/0 on one build and is the same family — a host's own cast, a
-  remote answer, a continuation that never returns. Two staging facts that suite paid for apply here too:
-  the client's Quick must have a LEGAL TARGET (Annoint does, once the removal is on the stack) or no window
-  opens and the suite passes vacuously.
-  `[id: duel-hangs-after-client-quick]`
-
 - `needs a repro`       · **A THRESHOLD BEAT (ROAR) CAN LAND A ROUND LATE ON A CLIENT, AND OVERDRIVE DID NOT** (Aj,
   2026-09-18, live online duel: *"the roar is late for the client. overdrive seemed to have fired at the
   same time for both… don't know why roar was a round late. i'm sensing a pattern here"*). Filed for `main`.

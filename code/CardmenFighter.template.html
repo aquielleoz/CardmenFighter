@@ -4824,9 +4824,27 @@ __QR__
     say(YOU, '{who} played '+effPhrase(card)+'.', 'you');
     bumpEffect(YOU, eff);
     revealEffect(card, 'You');
+    /* THE HOST MUST TAKE CONTROL BACK, AND THIS CONTINUATION FORGOT TO — SEVENTH INSTANCE (2026-09-18).
+       `doRemove` is the `removeEquip` tail, a near-copy of the ordinary effect tail thirty lines up, and it
+       dropped exactly one line: the `NET.hostAfterOwnCast(gen)` hop that reaches `hostTakeBack()` — the only
+       thing that clears `busy`. So a netplay HOST that cast a TARGETED Technique on its own turn and had the
+       client ANSWER it simply stopped.
+       AJ HIT IT IN A REAL DUEL AND SAVED BOTH ENDS (2026-09-18), which is the only reason it was findable:
+       Sabotage (♠5) at the client's Holy Bow, answered with Annoint (♥5). The host's trace ENDS at
+       `move IN from seat 1 op=respond` — no `hostTakeBack`, no `awaitRival` — while the client received
+       ~160s of mirrors at exactly 1.8s, which is `startParkBeat()`. Both seats looked connected the whole
+       time. `nettest_quickwedge` reproduces it: 10/1 before, and the captured host state matched his
+       screenshot to the word — `turn=0`, *"Hold on — the board is still resolving."*, *"You played
+       Sabotage."*
+       IT IS THE RIDE WEDGE OF TWO DAYS AGO, IN THE NEXT DOOR ALONG. That fix's own comment says *"when you
+       change what happens after a cast, change it HERE TOO"* — and `doRemove` was not changed, because it
+       is not the transform branch and not the ordinary tail but a THIRD copy of the same five lines. The
+       lesson this repo keeps paying for is the one about enumerating the KIND: `grep -n 'settleWindows(gen'`
+       lists every cast continuation in one screen, and each one owes this hop. */
     settleWindows(gen, function(){
       if(state.finished){ render(); return endGame(); }
       showRevealIfAny();
+      if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive()){ return NET.hostAfterOwnCast(gen); }
       render();
     });
   }
