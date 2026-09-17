@@ -68,19 +68,29 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   await clickFight(p);   // two-state button (epic step 20) — see fightclick.js
 
   // poll for the Respond? window — the whole point is that it OPENS
-  let modal=null;
+  /* ⚠ NEVER TRUNCATE THE THING YOU ASSERT ON. This captured `.slice(0,260)` and then tested the SLICE for
+     "Sanctuary" — so whether it passed depended on how much text happened to sit above the offer buttons,
+     which is the rival's card text and therefore the DEAL. It was a latent coin flip that nobody had
+     tipped; adding the stack row to `tableContextHTML` on 2026-09-17 spent ~70 of those characters and
+     turned it into a sweep failure that would not reproduce alone. Exactly the deal-dependence this repo
+     has now paid for in four suites (`nettest_log`, `nettest_full`, `nettest_names`, `exporttest`).
+     THE SLICE IS FOR THE MESSAGE, NEVER FOR THE TEST — and the sharper read is the BUTTONS, since "is
+     Sanctuary on offer" is a question about the offer list and not about the prose around it. Both are
+     kept: the buttons carry the claim, the text is what a red run prints. */
+  let modal=null, offers=[];
   for(let i=0;i<160;i++){
     modal = await p.evaluate(()=>{
       const m=document.getElementById('modal');
       if(!m || !m.offsetParent) return null;
       const t=(m.textContent||'');
-      return /Respond|answer|Quick/i.test(t) ? t.replace(/\s+/g,' ').slice(0,260) : null;
+      return /Respond|answer|Quick/i.test(t) ? t.replace(/\s+/g,' ') : null;
     });
-    if(modal) break;
+    if(modal){ offers = await p.evaluate(()=>[].slice.call(document.querySelectorAll('.respQuick')).map(b=>b.textContent.replace(/\s+/g,' '))); break; }
     await wait(60);
   }
   ok(!!modal, 'the Respond? window OPENS while you hold a Form-made Quick'+(modal?'':' — it auto-declined instead'));
-  ok(!!modal && /Sanctuary/i.test(modal), `  → and it offers Sanctuary by name ["${(modal||'').slice(0,90)}"]`);
+  ok(offers.some(t=>/Sanctuary/i.test(t)),
+     `  → and it offers Sanctuary by name — ${offers.length} button(s): [${offers.map(t=>t.split(' ')[0]).join('|')}]`);
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
