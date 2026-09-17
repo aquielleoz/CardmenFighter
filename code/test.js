@@ -1622,6 +1622,7 @@ function cards(ids) { return ids.map(card); }
      up only as the next round's triggers sitting on a stack this window is still answering — which is the
      mis-ordering `upkeepTicks` was introduced to remove, reintroduced from the other side. */
   var gEC = rig();
+  var rEnding = gEC.round;            // DERIVED, not hardcoded: `rig()` does not start at round 1
   /* `usedThisRound: true` IS LOAD-BEARING STAGING — a lock that was never set cannot be observed to
      survive the window, and both untap assertions below would pass on a build that never resets at all. */
   gEC.players[2].equipment = [{ id: 'jav', name: "Hero's Javelin", delta: 1, counters: 3, decay: true, usedThisRound: true, ability: 'draw', card: sc(6, 'C', 'eqj') }];
@@ -1644,11 +1645,23 @@ function cards(ids) { return ids.map(card); }
      half alone passes on a build that never locks or never releases. */
   ok(gEC.players[2].equipment[0].usedThisRound === true,
      'end of clean-up: …and the equipment is STILL locked — untap is a Beginning Phase event, not teardown');
+  /* THE LEDGER STAMP, which the untap move corrected as a SIDE EFFECT (2026-09-17). `roundAdvance` used to
+     be a clean-up event, so it ran BEFORE this window and a Quick cast at the end of round 1 was recorded
+     as round 2 — "a diagnostic that is off by one sends the next reader to the wrong round". Moving it into
+     the Beginning Phase, for the unrelated reason that it STARTS a round, put it after the window.
+     ASSERTED BECAUSE A SPEC PARAGRAPH CANNOT BE: the doc carried the opposite claim, accurately, for about
+     an hour — and nothing gates a claim. Both halves, because "it is the old round here" and "it is the new
+     one at Upkeep" fail differently: the first catches the advance creeping back into clean-up, the second
+     catches it never happening at all. */
+  ok(gEC.round === rEnding,
+     'end of clean-up: the round is the one ENDING (' + gEC.round + ' of ' + rEnding + ') — a Quick cast here is stamped to the round it ends');
   var nEC2 = 0; while (gEC.respondFor != null && !gEC.upkeep && nEC2++ < 12) E.declineResponse(gEC, gEC.respondFor);
   ok(!!gEC.upkeep && gEC.stack.filter(function (o) { return o.trig; }).length === 1,
      'end of clean-up: …and only once everyone passes does Upkeep open and the tick get pushed');
   ok(gEC.players[2].equipment[0].usedThisRound === false,
      '…and the untap queue has run by then, releasing the once-per-round lock');
+  ok(gEC.round === rEnding + 1,
+     '…and only at Upkeep is it the NEW round (' + gEC.round + ' = ' + rEnding + ' + 1) — roundAdvance is an untap-step event now');
 
   var g6 = rig();
   /* ALL THREE SEATS HOLD ONE, so the ORDER is observable. The winner is seat 2, so 2 is the active player
