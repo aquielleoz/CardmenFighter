@@ -24,18 +24,28 @@ live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(
 
 `main` is at **v1.31.127**, untouched. All the work below is on **`epic/priority-windows`**.
 
-**⚡ STEPS 1-20 ARE DONE AND MERGED INTO THE EPIC (2026-09-11).** Step 20 was the big one and it landed in
-two PRs — #213 (the interaction half) and #214 (the two round boundaries). **The epic sweeps 92/92.**
+**⚡ THE PRIORITY MODEL IS COMPLETE AND SPECIFIED (2026-09-17).** Steps 1-23 are done and merged; the two
+boundaries that were still missing — the **end of Clean-up** and the Beginning Phase's **untap queue** —
+landed on the 16th and 17th. **The epic sweeps 94/94 in ~227s.**
 Sub-branches PR **into** the epic, the version is held until it merges, and `main` is merged **into** it
 after any session spent elsewhere (CLAUDE.md → "Branches and PRs"; `checkbranch.js` enforces both).
 
 **THE GAME CHANGED SHAPE, so read this before touching anything:**
-- **All FIVE priority points in the model now exist** — Upkeep, each cast in the Main Sub-Phase, the
-  Main → Fight transition, Resolution, and Clean-up. `phaseWalk` is the only walk; each boundary is a park
-  plus the same five lines. There is no second priority mechanism left anywhere.
-- **The phases were renamed** (docs only): `Fight Phase` → **Play Phase** (Main · **Fight** ·
-  **Resolution**). The ~344 CODE sites keep the old spelling until step 23 — `resolution` in a `.js` file is
-  the old name, not a leftover.
+- **All SIX priority points in the model now exist** — Upkeep, each cast in the Main Sub-Phase, the
+  Main → Fight transition, Resolution, the **beginning** of Clean-up and the **end** of it. `phaseWalk` is
+  the only walk; each boundary is a park plus the same five lines. There is no second priority mechanism
+  left anywhere. *(This said FIVE until 2026-09-17 — the end-of-Clean-up dance was in
+  [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) §3 from the start and simply was not built.)*
+- **The Beginning Phase is MTG's three steps**: Untap → Upkeep → Draw. The untap queue (`BEGIN_ORDER` =
+  `roundAdvance` → `equipReset` → `stampRound`) is the one part of the game deliberately closed to
+  priority. `equipReset` IS the untap — it clears `usedThisRound` — and it used to run during Clean-up,
+  bringing once-per-round abilities back while the previous round was still being torn down.
+- **The phases were renamed AND THE CODE FOLLOWED** — `Fight Phase` → **Play Phase** (Main · **Fight** ·
+  **Resolution**). Step 23 closed the split on 2026-09-14, so **`fightEnd` in a `.js` file is a genuine
+  leftover now**, not the deliberate lag it used to be. *(This paragraph said the opposite until
+  2026-09-17 and would have sent a reader the wrong way; CLAUDE.md's docs map has carried the correction
+  since the day it landed.)* The one surviving `'fightend'` is the `localStorage` prompt-timing migration,
+  which must know the old key by definition.
 - **`#fightBtn` has two states: `▶ Next` then `⚔️ Fight`.** Next is the phase move; Fight commits the
   cards. Dragging ACTIVATES in Main and PLAYS in the Fight Sub-Phase.
 - **Pass is an auto-pass with a brake** — one press carries you through, and stops if anyone ELSE acts in
