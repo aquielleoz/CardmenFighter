@@ -9767,6 +9767,11 @@ window.CardFace = {};
        does not even call the drain then. MEASURED: a probe played five full rounds and logged NOTHING,
        which is exactly what "quiet" and "broken" both look like, and is the distinction this ledger
        exists to draw. Aj's first real log had the same hole: 2 entries across 10 rounds. */
+    /* A LESSON MAY GATE ON WINNING A ROUND (2026-09-17). `announceRoundWin` is the one funnel all six
+       round-win paths reach exactly once — the same reason the ledger's round line lives here — so a step
+       that wants "you took the round" hooks it here and nowhere else. `roundWinner===YOU` only: taking the
+       initiative is the player's own event, and a rival's win must not satisfy a step that says you won. */
+    if(typeof TUT!=='undefined' && TUT.note && res && res.roundWinner===YOU) TUT.note('roundwin', { combo:res.comboType });
     prioNote('FIGHT END — round resolved', 'winner=' + who +
              ' struck=' + ((res.struck || []).map(logName).join('+') || 'nobody') +
              (res.kick ? '  ⟵ FIGHTER KICK' : ''),
@@ -9797,6 +9802,13 @@ window.CardFace = {};
     else if(res.shieldStripped){
       setMessage('<b>'+foe+'</b> '+lostVerb+' a shield.');
       sayOnce(w, '{who} won with a <b>'+spec+'</b> - {foe} lost a shield.', cls, struck);
+      /* A LESSON MAY GATE ON THE SHIELD ACTUALLY BREAKING (2026-09-17). The Specials lesson gated its
+         payoff on `play` — the instant the pair leaves your hand — and then announced "Shield broken! 🛡"
+         before the Rival had even answered. If the pair LOST, it said so anyway. The note fires where the
+         strip really happens, so a step can wait for the event instead of for the intention.
+         `w===YOU` only: a lesson's payoff is always the player's own, and a rival's strip must not
+         satisfy a step that says YOU broke it. */
+      if(typeof TUT!=='undefined' && TUT.note && w===YOU) TUT.note('shield', { struck:struck });
     }
     else if(res.wonWithCombo){
       // A Special won but nothing was stripped (no valid target, or every strike was blanked). Saying
@@ -10782,6 +10794,10 @@ window.CardFace = {};
      * players — which is exactly when you want to. Aj: "i always wondered why i could not sort my hand while
      * the other players where taking their turns". Peeking still refuses, because peek is inspect-only. */
     var target=SORT_NEXT[sortState]||'singles';
+    /* A LESSON MAY GATE ON SORTING (2026-09-17) — the Initiative lesson asks the player to cycle Sort and
+       SEE their pairs and straights, which is the whole "you choose the shape" beat. The note carries the
+       mode being switched TO, so a step can require Pairs or Straights specifically rather than any tap. */
+    if(typeof TUT!=='undefined' && TUT.note) TUT.note('sort', { mode:target });
     var hand=state.players[YOU].hand.slice();
     var groups = target==='pairs' ? sortIntoPairs(hand) : target==='straights' ? sortIntoStraights(hand) : E.sortHand(hand).map(function(c){ return [c]; });
     applySortLayout(groups);
@@ -11085,6 +11101,46 @@ window.CardFace = {};
     st.turn=st.initiative=0;
   }
   function tutHasPair(hand){ var seen={}; for(var i=0;i<hand.length;i++){ if(seen[hand[i].rank]) return true; seen[hand[i].rank]=true; } return false; }
+  /* THE RIVAL MUST NOT BE ABLE TO ANSWER THE PAIR (2026-09-17). The Specials lesson now waits for the
+     shield to REALLY break rather than for the pair to leave your hand, and a gated step that the board
+     can refuse is a dead end — this file's own rule, learned when "Let it resolve" could never satisfy a
+     step gated on `d.countered`. So the payoff is guaranteed at the prep rather than hoped for: strip the
+     Rival to singles of DISTINCT ranks, which cannot form a pair and so cannot beat one.
+     Its hand is left the same SIZE, because the hand-count is visible on screen and a seat that suddenly
+     holds two cards reads as a bug to the player being taught. */
+  /* LET THE PLAYER ACTUALLY TAKE THE INITIATIVE (Aj, 2026-09-17: *"before the tutorial for initiative
+     ends, we should let the player take the initiative"*). The lesson spends three steps making you PASS
+     and lose the lead on purpose, then ENDED on a promise — *"when you do win a round, initiative swings
+     to you"* — so it closed on the losing half of its own subject.
+     ITS RIG DELIBERATELY MAKES YOU UNABLE TO WIN (you get 3-5, the Rival 6-8), which is the whole earlier
+     beat, so the payoff has to be provisioned or the step is a dead end the board itself enforces. Hand
+     over a 2 — the apex, unbeatable by value — and strip the Rival to cards that cannot answer a single.
+     The hand SIZES are left alone: they are on screen, and a seat that suddenly holds fewer cards reads
+     as a bug to the person being taught. */
+  function tutArmInitiativeWin(){
+    var me=state.players[YOU], foe=state.players[RIVAL]; if(!me||!foe) return;
+    var two=me.hand.filter(function(c){ return c.rank===2; })[0];
+    if(!two){ two=me.deck.filter(function(c){ return c.rank===2; })[0];
+      if(two){ me.deck=me.deck.filter(function(c){ return c!==two; }); me.hand.push(two); } }
+    if(two) tutInitWinId=two.id;
+    var lo=foe.hand.concat(foe.deck).filter(function(c){ return c.rank>=3 && c.rank<=5; });
+    if(lo.length>=foe.hand.length){                      // only re-hand the Rival if we can fill it honestly
+      var keep=lo.slice(0, foe.hand.length);
+      foe.deck=foe.deck.concat(foe.hand).filter(function(c){ return keep.indexOf(c)<0; });
+      foe.hand=keep;
+    }
+    syncOrder(false); render();
+  }
+  var tutInitWinId=null;
+  function tutNeuterRivalPair(){
+    var foe=state.players[RIVAL]; if(!foe) return;
+    var want=foe.hand.length, seen={}, keep=[];
+    foe.hand.concat(foe.deck).forEach(function(c){ if(keep.length<want && !seen[c.rank]){ seen[c.rank]=1; keep.push(c); } });
+    if(keep.length<want) return;                       // could not build a distinct-rank hand — leave it alone rather than half-rig it
+    foe.deck=foe.deck.concat(foe.hand.filter(function(c){ return keep.indexOf(c)<0; })).filter(function(c){ return keep.indexOf(c)<0; });
+    foe.hand=keep;
+    render();
+  }
   function tutEnsurePair(){
     var me=state.players[YOU]; if(tutHasPair(me.hand)) return;
     var all=me.hand.concat(me.deck), byRank={};
@@ -11121,7 +11177,7 @@ window.CardFace = {};
   // except Initiative, which rigs the RIVAL to lead so the "pass to bank energy" beat is real.
   function lessonHowToSteps(){
     return [
-      { text:"Welcome! You’re a <b>Cardman</b>. This guided duel runs in <b>Basics</b> mode — no transforms, just the core loop. Your goal: strip the Rival’s <b>2 shields</b>, then land the finisher.", btn:"Let’s go ▸" },
+      { text:"Welcome! You’re a <b>Cardmen Fighter</b>. This guided duel runs in <b>Basics</b> mode — no transforms, just the core loop. Your goal: strip the Rival’s <b>2 shields</b>, then land the finisher.", btn:"Let’s go ▸" },
       { text:"First, the most important thing — <b>which cards are strong</b>. The ladder runs <b>3 → 10</b>, then your two trumps: the <b>A</b>, and at the very top the <b>2 — the apex, which beats everything</b>. So your <b>2 is your best card</b> and your <b>Ace is second</b>. To win a fight you must play <b>strictly higher</b> — <b>equal values tie, and a tie doesn’t win</b>.", hi:'#specialsRefBtn', btn:"Got it ▸" },
       /* THE TURN HAS TWO HALVES AND THE BUTTON SAYS SO (epic step 20; taught here 2026-09-16). Pressing
          Fight in the Main Sub-Phase plays NOTHING — it moves you to the Fight Sub-Phase, and the button
@@ -11152,7 +11208,9 @@ window.CardFace = {};
       { text:"Right now the <b>Rival</b> has the initiative — see the turn tag — so they led first. Your cards are all low, so you can’t beat their lead. That’s okay.", hi:'#turnTag', btn:"So what do I do? ▸" },
       { text:"You don’t have to win every exchange. <b>Pass</b> to step aside: you give up the initiative, but you still <b>bank energy equal to the winning play</b>. Losing a jab keeps you fueled and costs you no shield. Press <b>Pass</b>.", hi:'#passBtn', gate:function(t,d){ return t==='pass'; }, wait:"Press Pass…" },
       { text:"See the ⚡ pulse — and the <b>−N off your 🂠 deck</b>? Losing a round <b>moves cards from your own deck into your energy</b> as catch-up. Don’t fear losing jabs: it costs no shield and keeps your tank full for a <b>Special</b> when it counts.", hi:'#youNrgSuits', btn:"Nice ▸" },
-      { text:"And when you <b>do</b> win a round, initiative swings to <b>you</b> — you’ll lead the next one. That tug-of-war over the lead is the heart of the duel. That’s initiative!", btn:"Finish" }
+      { text:"And when you <b>do</b> win a round, initiative swings to <b>you</b> — you’ll lead the next one. That tug-of-war over the lead is the heart of the duel.<br><br>So take it. You have been handed <b>the 2</b> — the highest card there is. <b>Fight</b> with it and win the round.", prep:tutArmInitiativeWin, only:function(){ return tutInitWinId?[tutInitWinId]:null; }, hi:function(){ return [ tutInitWinId?('#hand .card[data-id="'+tutInitWinId+'"]'):'#hand', '#fightBtn' ]; }, gate:function(t){ return t==='roundwin'; }, wait:"Win the round…" },
+      { text:"<b>The lead is yours.</b> And leading is a real choice — you pick the <b>shape</b> everyone else has to answer.<br><br>Tap <b>Sort</b> to cycle <b>Singles → Pairs → Straights</b> and see what your hand can actually make.", hi:'#sortBtn', gate:function(t){ return t==='sort'; }, wait:"Tap Sort…" },
+      { text:"That is initiative: not just who goes first, but <b>who sets the shape</b>. Win a round and the choice is yours; lose it and you answer theirs.", hi:'#hand', btn:"Finish" }
     ];
   }
   function lessonSpecialsSteps(){
@@ -11160,6 +11218,7 @@ window.CardFace = {};
       { text:"<b>Specials</b> are combos — and they’re the <b>only</b> way to break a shield. A jab (single card) just takes the round; a <b>Special</b> that wins <b>strips a shield</b>.", btn:"Show me ▸" },
       { text:"<b>Round 1 is jabs only</b>, so lead any single card with <b>Fight</b> to get things going.", hi:['#hand','#fightBtn'], gate:function(t,d){ return t==='play' && d && d.size===1; }, wait:"Lead a jab…" },
       { text:"From <b>Round 2</b>, Specials unlock. The simplest is a <b>pair</b> — two cards of the same number. Select two matching cards and <b>Fight</b>.", hi:['#hand','#fightBtn'], prep:tutEnsurePair, requireSpecial:true, gate:function(t,d){ return t==='play' && d && d.size>1; }, wait:"Play a pair…" },
+      { text:"Now let the round finish. Your pair has to <b>win</b> the round for the shield to break \u2014 playing a Special is not the same as landing one.", hi:'#pile', prep:tutNeuterRivalPair, gate:function(t){ return t==='shield'; }, wait:"Win the round\u2026" },
       { text:"Shield broken! 🛡 Bigger Specials exist too: <b>trio</b> (three of a number), <b>straight</b> (five in a row, any suits), and <b>full house</b> (a trio + a pair). Suit never matters — a run of one suit is just a straight.", hi:'#rivalShields', btn:"How do they rank? ▸" },
       { text:"Two helpers for spotting combos: the <b>Sort</b> button cycles <b>Singles → Pairs → Straights</b> to line your hand up, and <b>💡 Hints</b> (top bar) dims cards you can’t play right now and dashes a group that can <b>break</b> to beat the pile. Try tapping <b>Sort</b>.", hi:'#sortBtn', btn:"Next ▸" },
       { text:"Same shape beats same shape by <b>value</b> (ties don’t win); a bigger shape beats a smaller one. Keep the <b>Specials cheat sheet</b> handy — tap it any time from the board.", hi:'#specialsRefBtn', btn:"Finish" }
@@ -11549,14 +11608,14 @@ window.CardFace = {};
   var LESSONS=[
     { id:'howto',      num:1 , section:'Basics',   title:'How to Play',        blurb:'A full guided duel — the whole loop, start to finish.',          ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonHowToSteps },
     { id:'zones',      num:2 , section:'Basics',   title:'Zones of Play',      blurb:'Deck, hand, play area, energy pile, shuffle pile.',               ready:true,  basics:true,             rig:tutRigZones,     steps:lessonZonesSteps },
-    { id:'initiative', num:3 , section:'Basics',   title:'Initiative',         blurb:'Who leads — and why giving up the lead isn’t so bad.',           ready:true,  basics:true,  shields:2, rig:tutRigInitiative, steps:lessonInitiativeSteps },
-    { id:'specials',   num:4 , section:'Basics',   title:'Specials',           blurb:'The combos that break shields — pairs, trios, straights, houses.', ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonSpecialsSteps },
+    { id:'specials',   num:3 , section:'Basics',   title:'Specials',           blurb:'The combos that break shields — pairs, trios, straights, houses.', ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonSpecialsSteps },
+    { id:'twos',       num:4 , section:'Basics',   title:'The 2',              pilot:tutPilotTwos,              blurb:'The apex trump \u2014 and why it becomes your lowest card.',      ready:true,  basics:true,             rig:tutRigTwos,      steps:lessonTwosSteps },
     /* BASICS, straight after `specials` (Aj, 2026-09-01: *"oh the 2 is a basic tutorial probably after
      * specials"*). That is where a player first makes five-card plays, which is the exact moment the 2's second
      * rule starts to matter — it was parked at the end only because inserting here renumbers the lessons below.
      * Runs in BASICS MODE: `basics` gates transforms only, and `NO_FULL_HOUSE` is an unrelated homebrew rule,
      * so the full house this lesson turns on is unaffected. */
-    { id:'twos',       num:5 , section:'Basics',   title:'The 2',              pilot:tutPilotTwos,              blurb:'The apex trump \u2014 and why it becomes your lowest card.',      ready:true,  basics:true,             rig:tutRigTwos,      steps:lessonTwosSteps },
+    { id:'initiative', num:5 , section:'Basics',   title:'Initiative',         blurb:'Who leads — and why giving up the lead isn’t so bad.',           ready:true,  basics:true,  shields:2, rig:tutRigInitiative, steps:lessonInitiativeSteps },
     { id:'energy',     num:6 , section:'Basics',   title:'Energy & Effects',   blurb:'Bank energy, spend it on card effects, keep your deck alive.',    ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonEnergySteps },
     { id:'quicks',     num:7 , section:'Advanced', title:'Quicks',             blurb:'Cards you can play in response — even on the Rival’s turn.',      ready:true,  basics:false,            rig:tutRigQuicks,    steps:lessonQuicksSteps },
     { id:'rides',      num:8 , section:'Advanced', title:'Rides',              blurb:'The J — a persistent companion that helps you out.',              ready:true,  basics:false,            rig:tutRigRides,     steps:lessonRidesSteps },
@@ -12147,7 +12206,7 @@ window.CardFace = {};
     var inBasics = gameBasics || (state && state.basics);
     var modePill = inBasics ? '<span class="modePill">BASICS MODE</span>' : '';
     showModal('<h2>How to play'+modePill+'</h2><div class="rules">'+
-      '<p class="rIntro">You’re a Cardman. Each turn you <b>Activate</b> card effects, then <b>Fight</b> — lead a card or beat the one on the table. Win <b>Specials</b> to strip your Rival’s shields; land the finisher and the duel is yours.</p>'+
+      '<p class="rIntro">You’re a Cardmen Fighter. Each turn you <b>Activate</b> card effects, then <b>Fight</b> — lead a card or beat the one on the table. Win <b>Specials</b> to strip your Rival’s shields; land the finisher and the duel is yours.</p>'+
 
       '<h3>The basics</h3><ul>'+
       '<li><b>Goal:</b> strip your Rival’s <b>4 shields</b>. Once they’re at 0, your next <b>Special</b> win is the <b>Fighter Kick</b> — game over, you win.</li>'+
