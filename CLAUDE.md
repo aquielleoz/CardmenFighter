@@ -1870,7 +1870,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127 — 2026-09-10, `npm run sweep`, 92 suites and 0 FAIL in 225s ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`) (four lanes; background
+Status as of **v1.31.127 — 2026-09-17, `npm run sweep`, 94 suites and 0 FAIL in 227s ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -1977,6 +1977,18 @@ line — which looks like a crash rather than a failure, and misled me twice whi
 moved to the FRONT (`FAILED — `) so the loud signal survives while `PASS: n  FAIL: m` stays intact and greppable.
 59 files, one line each, including `relay/relaytest.js` which spelled it with spaces. **When you add a suite,
 copy the summary line from an existing one — do not re-invent it.**
+
+**A SUITE CAN ALSO PIN THE DEFECT — AS FIRMLY AS IT PINS A FEATURE (2026-09-17).** `nettest_emote`'s
+expected output was literally `/^You says hi!/`: the exact "You" + third-person-verb shape that
+`nettest_narrate` exists to forbid, written down in another suite as CORRECT. It was green for as long as
+the bug lived, and fixing the bug turned it red — so the suite argued for the defect at the only moment
+anyone would have questioned it.
+**THE TELL IS A SUITE GOING RED *BECAUSE* YOU FIXED SOMETHING**, and the rule is: when a documented rule
+and a suite disagree, THE RULE WINS — change the suite and say in its comment that it asserted the bug, or
+the next person reads the red as a regression and reverts a correct fix. The same shape appeared twice more
+the same day: `resolutiontest`'s anti-spin cap was sized for three phase boundaries and went red when the
+MODEL grew, and `nettest_endscreen` filtered the log for wording a copy fix had removed. **None of the
+three was a product regression; all three looked exactly like one.**
 
 **A SUITE CAN BE GREEN AND BLIND. Three shapes of it, all found in one 2026-08-27 sweep and all fixed:**
 - **A vacuous assertion.** `nettest_emote` had `ok(await waitLog(...) || true, 'duel started')` — literally
