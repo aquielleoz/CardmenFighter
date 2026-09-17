@@ -366,31 +366,6 @@ re-read its tag.
   is declared and never read, so a second cast cannot stack and a Form patch raising it would do nothing.
   `[id: armor-piercing-timing]`
 
-- `ready to build`      · **★ THE BROADWAY PITCH CHOOSES ITSELF, FOR BOTH SIDES** (Aj, 2026-09-07, from real play: *"oh no it did not
-  let me pick which broadway card.... this is a bug for sure.. and probably more of a problem in multiplayer
-  clients"*, then *"the ai should absolutely smart pitch as well... especially for the ones who are smarter"*).
-  `pitchHigh` (Critical Hit / Ultima Attack / Armor Piercing) discards a 10/J/Q/K/A as an additional cost, and
-  the ENGINE picks it — the **lowest** Broadway card, with no say from anybody. Aj cast Critical Hit and it
-  silently pitched his 10♣.
-  **THIS IS NOT THE `opts.pitch` DECISION CLAUDE.md ALREADY RECORDS, and the difference is the whole entry.**
-  That removal was about the AI naming its own pitch and the reasoning was *"the engine's default already takes
-  the lowest card, so no test could separate them, and ours could pitch a higher one"* — i.e. an ARBITRARY choice
-  that measured no better than the default, correctly deleted as unexercised code. Neither half below is
-  arbitrary, and both are separable by a test that stages the lowest Broadway card as load-bearing (in a straight)
-  and a higher one as spare, then asserts WHICH card left.
-  - **The human picker.** Keeping a 10 for a straight and pitching the Ace is a real decision and the player
-    never gets it. Route it through **`discardPending`** — the existing, documented window for an interactive
-    discard, which already works on a remote seat, which is what Aj means about multiplayer clients. Note
-    `discardPending` has exactly two sites today (CLAUDE.md); this would be a third.
-  - **The AI's smart pitch, tier-gated.** Same shape as **`keepsTheWin`**, and it can reuse its method directly:
-    `legalFightPlays` on a hypothetical hand answers "is this Broadway card load-bearing?" — which is precisely
-    what the lowest-card default cannot see. Gate on `isTop(diff)` the way the Demon Lord's `keepsTheWin` is, so
-    it reads as a tier behaviour rather than a global strength bump; `personasim`/`analysis` measure the tier
-    step if it moves at all.
-  **Both need `opts.pitch` BACK in the engine**, which is the thing that was deleted — and each of them is the
-  exercise it lacked.
-  `[id: broadway-pitch-chooses-itself]`
-
 - `needs a repro`       · **ROUND 2 RESOLVED TWICE IN A REAL DUEL, AND IT COST A SECOND SHIELD (2026-09-15, unexplained).** From
   Aj's saved logs of one game, BOTH seats, narrated identically:
   ```
@@ -492,28 +467,6 @@ re-read its tag.
   the audit rates it a permanent hang.
   `[id: duel-prefight-abandoned]`
 
-- `root cause found`    · **★ THE MIRROR-CONTRACT AUDIT'S THREE UNFIXED FINDINGS.** v1.31.114/.115 took the two live bugs and
-  v1.31.116 the park heartbeat; these are what the judge left standing. Each is a mirror or transport fault, so
-  each is silent on BroadcastChannel and only bites over RTC or at 3–6 players — the same shape as both bugs
-  that did ship.
-  - **`send()` stringifies OUTSIDE its `try` (template `:7177`).** So a body that will not serialise throws out
-    of `send` rather than being caught, and the caller dies with it. The caller that matters is `endGame`: a
-    fault there aborts the end screen for everyone. Move the `JSON.stringify` inside, and trace the failure the
-    way `broadcastMirror` now does — the loud-failure half of v1.31.115, applied to the other sender.
-  - **A ROTATION-DIFFERENTIAL TEST.** Every mirror bug found so far was a field that was copied when it should
-    have been projected, or projected when it should have been rotated, and `netview.test.js` can only assert
-    the fields someone thought to name. The test that generalises: build `mirrorFor(st, s)` for **every** seat
-    of one non-trivial state and require every seat-valued field to differ by exactly the rotation — a field
-    that is identical across seats is either public or a bug, and the list of public ones is short and
-    reviewable. That inverts the burden from "did we remember this key" to "why is this key not rotating".
-  - **THREE FIELDS ARE MISSING FROM THE MIRROR ENTIRELY**, and the third is user-visible at every table of 3+:
-    `_effUsed` (so a client cannot tell whether the first-effect discount is still available), `startShields`
-    (so a client cannot render the shield track against its start), and **`struck`/`spared` on the round
-    result** — without which a client cannot name who lost a shield and falls back to *"a rival lost a
-    shield"*. That last one is the v1.29.6 lesson (never infer the loser — read `result.struck`) reappearing
-    as a redaction gap rather than a UI one.
-  `[id: mirror-contract-findings]`
-
 - `root cause found`    · **A CLIENT COULD ACT WHILE ANOTHER SEAT HAD A MODAL UP (Aj, 2026-09-16: *"we really need that guard when
   somebody has a modal up. other player could activate stuff while the other players were busy with a
   modal"*).** Partly closed and partly unidentified, so both halves are written down.
@@ -579,23 +532,6 @@ re-read its tag.
   `[id: nothing-animates-press-fight]`
 
 #### Phone and layout
-
-- `root cause found`    · **★ EXPANDING A ZONE PUSHES THE BOARD PAST ITS HEIGHT ON THE TIGHTEST PHONES** (measured 2026-09-07)
-  `[ratchet: phone-zone-expand-overflow]`
-  v1.31.111 made both panel zones expandable; at **327x660 opening a seat's Forms and equipment adds 75px to
-  that panel and pushes `#board` 63px past its height** (393x852 goes 10px over; 360x800, 390x780 and 412x915
-  stay at 0). Above the 340px floor the stated contract is everything-on-one-screen, so a board that scrolls
-  because a user opened an inspector is a contract break, not a nicety.
-  **It also makes a measurement unstable, which is how it was found:** once the board overflows, where the
-  pile sits relative to the other panel depends on the scroll, so `landscapetest`'s coverage read 0% on ten
-  consecutive standalone runs and 33% on about one suite run in five — reported as `youFormZone over card2`.
-  The suite now asserts the OVERFLOW instead, which is deterministic, and ratchets it at both sizes; the
-  coverage line is deliberately not asserted there until this is fixed.
-  **Do not reach for smaller mini-cards** — the arithmetic says the growth is 33px (Forms) + 42px (equipment)
-  against 63px of overflow, so trimming card size cannot close it. The candidates are a zone that expands as an
-  OVERLAY instead of a layout change, or expanding one zone at a time at these sizes only — and note Aj
-  explicitly asked for both zones open at once, so the second needs his say-so.
-  `[id: expanding-zone-pushes-board]`
 
 - `ready to build`      · **THE SETUP DIALOG SHOULD BE THREE COLUMNS IN LANDSCAPE** (Aj, 2026-09-07, with a screenshot of New Duel):
   *"can we do this in 3 columns for landscape? player count, name, your deck; opponent strength and decks;
@@ -1006,6 +942,78 @@ re-read its tag.
 *Work that is NOT epic work — it touches the shipped game rather than the priority model, and could ship on
 its own. Kept separate so it does not get tangled in `epic/priority-windows`, and so whoever picks it up
 knows to check whether the epic has already moved the same lines.*
+
+### Correctness
+
+*Defects in the shipped game. Each was verified present on `main` by grepping the symbols its entry
+names — `pitchHigh`, `send`/`_effUsed`/`startShields`, `formsOpen` — rather than assumed, after four
+of six entries in the priority cluster turned out to have been closed by the epic without anyone
+noticing (2026-09-17). Check the same way before picking one up: an epic step closes entries it
+never read.*
+
+- `ready to build`      · **★ THE BROADWAY PITCH CHOOSES ITSELF, FOR BOTH SIDES** (Aj, 2026-09-07, from real play: *"oh no it did not
+  let me pick which broadway card.... this is a bug for sure.. and probably more of a problem in multiplayer
+  clients"*, then *"the ai should absolutely smart pitch as well... especially for the ones who are smarter"*).
+  `pitchHigh` (Critical Hit / Ultima Attack / Armor Piercing) discards a 10/J/Q/K/A as an additional cost, and
+  the ENGINE picks it — the **lowest** Broadway card, with no say from anybody. Aj cast Critical Hit and it
+  silently pitched his 10♣.
+  **THIS IS NOT THE `opts.pitch` DECISION CLAUDE.md ALREADY RECORDS, and the difference is the whole entry.**
+  That removal was about the AI naming its own pitch and the reasoning was *"the engine's default already takes
+  the lowest card, so no test could separate them, and ours could pitch a higher one"* — i.e. an ARBITRARY choice
+  that measured no better than the default, correctly deleted as unexercised code. Neither half below is
+  arbitrary, and both are separable by a test that stages the lowest Broadway card as load-bearing (in a straight)
+  and a higher one as spare, then asserts WHICH card left.
+  - **The human picker.** Keeping a 10 for a straight and pitching the Ace is a real decision and the player
+    never gets it. Route it through **`discardPending`** — the existing, documented window for an interactive
+    discard, which already works on a remote seat, which is what Aj means about multiplayer clients. Note
+    `discardPending` has exactly two sites today (CLAUDE.md); this would be a third.
+  - **The AI's smart pitch, tier-gated.** Same shape as **`keepsTheWin`**, and it can reuse its method directly:
+    `legalFightPlays` on a hypothetical hand answers "is this Broadway card load-bearing?" — which is precisely
+    what the lowest-card default cannot see. Gate on `isTop(diff)` the way the Demon Lord's `keepsTheWin` is, so
+    it reads as a tier behaviour rather than a global strength bump; `personasim`/`analysis` measure the tier
+    step if it moves at all.
+  **Both need `opts.pitch` BACK in the engine**, which is the thing that was deleted — and each of them is the
+  exercise it lacked.
+  `[id: broadway-pitch-chooses-itself]`
+
+- `root cause found`    · **★ THE MIRROR-CONTRACT AUDIT'S THREE UNFIXED FINDINGS.** v1.31.114/.115 took the two live bugs and
+  v1.31.116 the park heartbeat; these are what the judge left standing. Each is a mirror or transport fault, so
+  each is silent on BroadcastChannel and only bites over RTC or at 3–6 players — the same shape as both bugs
+  that did ship.
+  - **`send()` stringifies OUTSIDE its `try` (template `:7177`).** So a body that will not serialise throws out
+    of `send` rather than being caught, and the caller dies with it. The caller that matters is `endGame`: a
+    fault there aborts the end screen for everyone. Move the `JSON.stringify` inside, and trace the failure the
+    way `broadcastMirror` now does — the loud-failure half of v1.31.115, applied to the other sender.
+  - **A ROTATION-DIFFERENTIAL TEST.** Every mirror bug found so far was a field that was copied when it should
+    have been projected, or projected when it should have been rotated, and `netview.test.js` can only assert
+    the fields someone thought to name. The test that generalises: build `mirrorFor(st, s)` for **every** seat
+    of one non-trivial state and require every seat-valued field to differ by exactly the rotation — a field
+    that is identical across seats is either public or a bug, and the list of public ones is short and
+    reviewable. That inverts the burden from "did we remember this key" to "why is this key not rotating".
+  - **THREE FIELDS ARE MISSING FROM THE MIRROR ENTIRELY**, and the third is user-visible at every table of 3+:
+    `_effUsed` (so a client cannot tell whether the first-effect discount is still available), `startShields`
+    (so a client cannot render the shield track against its start), and **`struck`/`spared` on the round
+    result** — without which a client cannot name who lost a shield and falls back to *"a rival lost a
+    shield"*. That last one is the v1.29.6 lesson (never infer the loser — read `result.struck`) reappearing
+    as a redaction gap rather than a UI one.
+  `[id: mirror-contract-findings]`
+
+- `root cause found`    · **★ EXPANDING A ZONE PUSHES THE BOARD PAST ITS HEIGHT ON THE TIGHTEST PHONES** (measured 2026-09-07)
+  `[ratchet: phone-zone-expand-overflow]`
+  v1.31.111 made both panel zones expandable; at **327x660 opening a seat's Forms and equipment adds 75px to
+  that panel and pushes `#board` 63px past its height** (393x852 goes 10px over; 360x800, 390x780 and 412x915
+  stay at 0). Above the 340px floor the stated contract is everything-on-one-screen, so a board that scrolls
+  because a user opened an inspector is a contract break, not a nicety.
+  **It also makes a measurement unstable, which is how it was found:** once the board overflows, where the
+  pile sits relative to the other panel depends on the scroll, so `landscapetest`'s coverage read 0% on ten
+  consecutive standalone runs and 33% on about one suite run in five — reported as `youFormZone over card2`.
+  The suite now asserts the OVERFLOW instead, which is deterministic, and ratchets it at both sizes; the
+  coverage line is deliberately not asserted there until this is fixed.
+  **Do not reach for smaller mini-cards** — the arithmetic says the growth is 33px (Forms) + 42px (equipment)
+  against 63px of overflow, so trimming card size cannot close it. The candidates are a zone that expands as an
+  OVERLAY instead of a layout change, or expanding one zone at a time at these sizes only — and note Aj
+  explicitly asked for both zones open at once, so the second needs his say-so.
+  `[id: expanding-zone-pushes-board]`
 
 ### Balance and design
 
