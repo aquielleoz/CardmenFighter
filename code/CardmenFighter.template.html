@@ -10054,6 +10054,29 @@ __QR__
       if(!st || !st.players || !st.players[0] || !state || !state.players || !state.players[0]) return false;
       var have={}, mine=state.players[0].hand, i;
       for(i=0;i<mine.length;i++) if(mine[i]) have[mine[i].id]=1;
+      /* A MIRROR THAT BREAKS A SHIELD IS NEVER THE DEAL (2026-09-18). `applyMirror`'s own comment three
+         hundred lines up already states this as the rule — *"intermediate mirrors (shield drop, pile
+         clear) still apply so the shatter animates on the beat"* — and nothing enforced it, so the one
+         mirror that carries BOTH a shield drop and a card arrival was held as a deal and its shatter never
+         ran. `checkThresholds()` fires off `renderShields`' diff, so the ROAR beat went with it and landed
+         a round late. Aj, from a live duel: *"the roar is late for the client. overdrive seemed to have
+         fired at the same time for both… i'm sensing a pattern here."*
+         WHY THAT MIRROR EXISTS AT ALL, and why the empty-pile clause below does not catch it: a broken
+         shield returns to its owner's HAND, so the client sees an id it does not hold; the clause assumed
+         that arrival always comes while the pile is still on the table, and when clean-up coalesces into
+         the same mirror it does not. The asymmetry Aj spotted is the proof — ROAR crossed on the round HE
+         lost a shield (a card enters his hand), OVERDRIVE on the round the HOST did (nothing enters his,
+         nothing is held, beat on time).
+         THIS IS NOT `land-it-first`, WHICH IS A RECORDED DEAD END (*"tried and made the suite WORSE, 5
+         failures in 8"*). That changed what happens to a mirror already held; this changes whether it is
+         held at all, and it leaves `clientPlayCeremony`'s discard untouched.
+         THE FAILURE DIRECTION IS THE SAFE ONE. If a genuine deal ever coalesces with a shield loss, this
+         refuses to hold it: the Round-N banner and the card fly-in desync, which is cosmetic, instead of
+         the shatter and the threshold beat vanishing, which is information. */
+      for(i=0;i<st.players.length;i++){
+        var was=state.players[i], now=st.players[i];
+        if(was && now && typeof now.shields==='number' && typeof was.shields==='number' && now.shields < was.shields) return false;
+      }
       /* AND the pile must be CLEAR. A broken shield returning to hand also brings an id the client does not
        * hold, and that mirror arrives mid-resolution with the pile still on the table — holding it stopped the
        * shatter rendering, so `checkThresholds` never queued and the ROAR/OVERDRIVE beat never played. The

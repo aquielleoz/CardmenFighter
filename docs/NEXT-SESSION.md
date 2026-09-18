@@ -947,38 +947,24 @@ of six entries in the priority cluster turned out to have been closed by the epi
 noticing (2026-09-17). Check the same way before picking one up: an epic step closes entries it
 never read.*
 
-- `root cause found`    · **★ A HELD MIRROR IS DISCARDED, AND THE LATE ROAR IS HOW IT BECAME VISIBLE** (Aj, 2026-09-18:
-  *"the roar is late for the client. overdrive seemed to have fired at the same time for both… i'm sensing
-  a pattern here"*). Filed for `main`. **REPRODUCED DETERMINISTICALLY — 3 runs, 3 reproductions.**
+- `needs a repro`       · **THE THRESHOLD BEAT (ROAR) STILL LANDS A ROUND LATE ON A CLIENT — CAUSE UNKNOWN** (Aj,
+  2026-09-18: *"the roar is late for the client… i'm sensing a pattern here"*). Filed for `main`.
+  **REPRODUCED DETERMINISTICALLY** — `nettest_ceremony` stages the case (the CLIENT loses a shield crossing
+  the ROAR line) and the beat shows in **round 3 when the shield broke in round 2**, every run.
   `[ratchet: threshold-beat-late-on-client]`
-  **THE SYMPTOM:** `nettest_ceremony` stages the exact case — the CLIENT loses a shield and it crosses the
-  ROAR line — and the beat lands in **round 3 when the shield broke in round 2**. The suite was GREEN
-  before because it asserted only that the beat APPEARS: `waitFor(threshUp)` then `waitFor(roundOf>=3)`,
-  and a beat a round late satisfies both, in that order, every time. *"It happened"* and *"it happened
-  when it should"* are different claims; only the second is the feature.
-  **THE CAUSE IS NOT EITHER OF THE TWO THINGS I FILED FIRST**, and the client's own trace refuted both —
-  worth keeping, because both were plausible and both were wrong. Not *"the loss shares a mirror with the
-  deal"*; not *"a broken shield returning to hand looks like a deal to `isRoundDeal`"*. The hold reads
-  **`(ceremony active)`**, a different path entirely, and is followed by:
-  `mirror HELD -> DISCARDED  a new ceremony arrived first; the client loses that round's deal`
-  **WHICH IS A BIGGER BUG WEARING A COSMETIC ONE.** That discard is `clientPlayCeremony`'s, and its own
-  comment already calls it *"THE LEADING CANDIDATE FOR THE `nettest_sync` FORK, and this is the only place
-  it can happen"* — the client short that round's deal **permanently**, because `broadcastMirror` dedupes
-  by content and never re-asserts what was thrown away. It had only ever been suspected and traced *"so
-  the next occurrence names itself"*. It just did, on demand.
-  **DO NOT REACH FOR THE OBVIOUS FIX WITHOUT MEASURING: IT HAS ALREADY BEEN TRIED AND IT MADE THINGS
-  WORSE.** Same comment: *"NOT changed to land-it-first: that was tried and made the suite WORSE (5
-  failures in 8)."* So applying the held mirror before starting the new ceremony is a known dead end, and
-  the value of this entry is that the next attempt can now be measured against a deterministic case
-  instead of against an intermittent one.
-  **WHY AJ SAW AN ASYMMETRY, which is what made him suspect a pattern:** ROAR crossed on the round HE lost
-  a shield (r6 — a ceremony on his own seat), OVERDRIVE on the round the HOST did (r8). Only one of them
-  sits behind the ceremony hold.
-  **A NARROWER FIX WORTH CONSIDERING FIRST**, and unmeasured: the beat is late because `checkThresholds()`
-  fires off `renderShields`' diff, so it cannot run while the mirror carrying the lower shield count is
-  held. Flushing the SHIELD STATE from a held mirror — without applying the rest — would fix the beat
-  without touching the discard. That is a different change from land-it-first and may not carry its
-  regression, but it is a guess until someone runs it against the ratchet.
+  **THREE HYPOTHESES, ALL THREE WRONG, AND THAT IS THE USEFUL PART OF THIS ENTRY.** (1) *"the loss shares a
+  mirror with the deal"* — refuted by the trace. (2) *"a broken shield returning to hand looks like a deal
+  to `isRoundDeal`"* — that one was REAL and was fixed (see the changelog), and **the beat did not move**.
+  (3) *"the ceremony hold defers the shatter, and `checkThresholds` with it"* — refuted by the same fix:
+  the mirror is no longer held and the beat is still late.
+  **SO THE HOLD WAS NEVER WHAT DEFERRED IT.** `checkThresholds()` fires off `renderShields`' diff, so the
+  question that remains is why the client's shield count reaches the renderer a round later than the beat
+  should play — and it is NOT because the mirror carrying it was withheld. Start there; do not re-propose
+  any of the three above.
+  **WHAT THE SUITE GIVES THE NEXT ATTEMPT:** a deterministic case and a suite-side poll that pairs the beat
+  with the round tag in one read. An earlier in-page `setInterval` watcher STOPPED after 38 ticks while the
+  beat was up, reporting `null` and reading as the product failing — an instrument that can stop silently
+  is worse than none.
   `[id: threshold-beat-late-on-client]`
 
 - `needs a decision`    · **AN ANSWERED QUICK HAS NO ANIMATION** (Aj, 2026-09-18, from a side-by-side of both seats:

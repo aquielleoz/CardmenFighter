@@ -47,12 +47,6 @@ async function waitFor(fn,tries=70,ms=120){ for(let i=0;i<tries;i++){ if(await f
      "IT HAPPENED" AND "IT HAPPENED WHEN IT SHOULD" ARE DIFFERENT CLAIMS, and only the second is the
      feature. The watcher stamps the round AT THE MOMENT the beat first shows, so the assertion can compare
      it against the round the shield actually broke instead of against the clock. */
-  await join.evaluate(()=>{ window.__threshAtRound=null;
-    setInterval(function(){ if(window.__threshAtRound!=null) return;
-      var fx=document.getElementById('thresholdfx');
-      if(fx && /show/.test(fx.className) && /ROAR|OVERDRIVE|REDLINE/.test(fx.textContent||''))
-        window.__threshAtRound=parseInt(((document.getElementById('roundTag')||{}).textContent||'').replace(/\D/g,''))||0;
-    }, 40); });
   await join.evaluate(()=>{ window.__sawRoundBanner=false; setInterval(function(){ var e=document.querySelector('#roundfx .rfRound'); if(e && /Round/.test(e.textContent||'')) window.__sawRoundBanner=true; }, 40); });
   ok(await waitFor(async()=>(await turnOf(host))===0 && (await host.evaluate(()=>document.querySelectorAll('#hand .card').length))===6),'duel started');
 
@@ -105,16 +99,43 @@ async function waitFor(fn,tries=70,ms=120){ for(let i=0;i<tries;i++){ if(await f
      (5 failures in 8)"*. A second guess at it at the end of a long session is exactly the move this file
      warns about. The ratchet fails BOTH ways: the day the beat lands in round 2, this line goes red saying
      the fix landed, and the entry `[id: threshold-beat-late-on-client]` gets closed with it. */
-  const atRound=await join.evaluate(()=>window.__threshAtRound);
+  /* POLLED FROM THE SUITE, NOT BY AN IN-PAGE `setInterval` — the first version used one and it stopped
+     after 38 ticks while the beat was demonstrably up (`threshUp` true, hits 0), so it reported `null` and
+     read as the product failing. An instrument that can stop silently is worse than none; this pairs the
+     two reads in one `evaluate`, so the round it returns is the round that was on screen WITH the beat. */
+  const atRound = await (async () => {
+    for (let i=0;i<200;i++){
+      const r = await join.evaluate(()=>{ var fx=document.getElementById('thresholdfx');
+        if(!(fx && /show/.test(fx.className) && /ROAR|OVERDRIVE|REDLINE/.test(fx.textContent||''))) return null;
+        return parseInt(((document.getElementById('roundTag')||{}).textContent||'').replace(/\D/g,''))||0; });
+      if(r!=null) return r;
+      await wait(40);
+    }
+    return null;
+  })();
   const heldTrace=await join.evaluate(()=>{ const t=(window.__cmf&&window.__cmf.trace)?window.__cmf.trace():[];
     return t.filter(l=>/HELD/.test(l)).slice(-4); });
+  /* RATCHET:threshold-beat-late-on-client — STILL BROKEN, AND NOT FOR THE REASON I GAVE TWICE.
+     The `isRoundDeal` shield clause below fixed the DISCARD and did NOT move this: the beat still lands in
+     round 3 when the shield broke in round 2. So the hold was never what deferred it — measured, after two
+     confident hypotheses that both said otherwise. The remaining cause is unidentified and the entry says
+     so rather than offering a third guess.
+     FAILS BOTH WAYS: the day it lands in round 2, this line goes red telling the next reader the fix
+     arrived, and `[id: threshold-beat-late-on-client]` closes with it. */
   ok(atRound===3,
-     `RATCHET: the threshold beat lands a round LATE — shield broke in round 2, beat shown in round ${atRound}`+
-     (atRound===2?'  ← THE FIX LANDED: flip this to `ok(atRound===2, …)` and close [id: threshold-beat-late-on-client]':''));
-  ok(heldTrace.some(l=>/DISCARDED/.test(l)),
-     'RATCHET: …and a HELD MIRROR IS DISCARDED in the same sequence — the `nettest_sync` fork\'s leading candidate, now deterministic'+
-     (heldTrace.some(l=>/DISCARDED/.test(l))?'':'  ← no discard this run; if that is now reliable, the fork candidate may be gone — re-measure before deleting this')+
-     '\n      ' + heldTrace.join('\n      '));
+     `RATCHET: the threshold beat still lands a round LATE — shield broke in round 2, beat shown in round ${atRound}`+
+     (atRound===2?'  ← THE FIX LANDED: flip to `ok(atRound===2, …)` and close [id: threshold-beat-late-on-client]':''));
+  /* AND THE DISCARD IS GONE WITH IT, WHICH IS THE HALF THAT MATTERS BEYOND THE BEAT. The mirror that used
+     to be held here is the one `clientPlayCeremony` then threw away — *"the client loses that round's
+     deal"*, permanently, because `broadcastMirror` dedupes by content and never re-asserts it. That
+     discard is the recorded LEADING CANDIDATE for the `nettest_sync` fork; not holding the mirror in the
+     first place removes the only chance to discard it in this sequence.
+     ASSERTED, NOT ASSUMED: this exact sequence produced a `DISCARDED` line on every run before the fix
+     (3 of 3) and none after. If it ever returns, the beat assertion above may still pass while the deal
+     is silently lost — which is why this is its own line. */
+  ok(!heldTrace.some(l=>/DISCARDED/.test(l)),
+     'and no held mirror was DISCARDED — the `nettest_sync` fork\'s leading candidate does not fire here any more'+
+     (heldTrace.some(l=>/DISCARDED/.test(l))?'  ← REPRODUCED: the client just lost that round\'s deal permanently\n      '+heldTrace.join('\n      '):''));
   ok(await waitFor(async()=>await shieldsOf(join) === cliShieldsBefore-1, 60, 150),'client shield actually dropped ('+cliShieldsBefore+' → '+(cliShieldsBefore-1)+')');
   // after the beats, the client should get the "Round N" card banner (caught by the in-page watcher)
   ok(await waitFor(async()=>await roundOf(join)>=3, 60, 150),'client advanced to the next round');
