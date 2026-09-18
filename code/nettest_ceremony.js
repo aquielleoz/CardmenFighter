@@ -63,68 +63,35 @@ async function waitFor(fn,tries=70,ms=120){ for(let i=0;i<tries;i++){ if(await f
   await host.evaluate((a)=>window.__cmf.force(a.hh,a.rh,a.he,a.re,a.hs,a.rs),{hh:[D(3,'C'),D(4,'C'),D(5,'C'),D(6,'C'),D(7,'C')],rh:[D(9,'H'),D(2,'S'),D(3,'H')],he:hostE,re:cliE,hs:3,rs:4});
   await wait(400);
   const cliShieldsBefore=await shieldsOf(join);
+  /* SAMPLE THE TRANSITION, because three hypotheses about WHY the beat is late have now been refuted by
+     reading and one by a fix that did not move it. What is missing is the ORDER of three things on the
+     client: its shield count dropping (which is what `animateShields` diffs and `checkThresholds` reads),
+     the ceremony banner, and the beat. This records all three on one clock. */
+  const sample=pg=>pg.evaluate(()=>{ var fx=document.getElementById('thresholdfx');
+      return { t:Date.now(), sh:(window.__cmf?window.__cmf.shields():null),
+               rd:parseInt(((document.getElementById('roundTag')||{}).textContent||'').replace(/\D/g,''))||0,
+               beat:!!(fx && /show/.test(fx.className) && /ROAR|OVERDRIVE|REDLINE/.test(fx.textContent||'')) }; });
+  /* BOTH SEATS ON ONE CLOCK. Aj's report is RELATIVE — *"the roar is late for the client. overdrive seemed
+     to have fired at the same time for both"* — so an absolute "which round tag" reading can agree with
+     the product and still miss what he saw. Film the host too and compare the moments. */
+  const hostFilm=[]; const filmingHost=(async()=>{ for(let i=0;i<260;i++){ hostFilm.push(await sample(host)); await wait(50); } })();
+  const film=[]; const filming=(async()=>{ for(let i=0;i<260;i++){
+    film.push(await join.evaluate(()=>{ var fx=document.getElementById('thresholdfx');
+      return { t:Date.now(), sh:(window.__cmf?window.__cmf.shields():null),
+               rd:parseInt(((document.getElementById('roundTag')||{}).textContent||'').replace(/\D/g,''))||0,
+               cer:!!(document.getElementById('roundfx')||{}).className.match(/show/),
+               beat:!!(fx && /show/.test(fx.className) && /ROAR|OVERDRIVE|REDLINE/.test(fx.textContent||'')) }; }));
+    await wait(50); } })();
   await leadCombo(host,['3C','4C','5C','6C','7C']);
   await waitFor(async()=>await turnOf(join)===0);
   await passC(join);
 
+
   ok(await waitFor(async()=>await bannerUp(join)),'client shows the #roundfx ceremony banner (pre-draw beats)');
   ok(await waitFor(async()=>/lost a shield|won the round|won with/i.test(await logText(join))),'client logs the round result (announceRoundWin ran)');
   ok(await waitFor(async()=>await threshUp(join), 70, 120),'client shows the threshold unlock beat (ROAR/OVERDRIVE/REDLINE)');
-  /* …IN THE ROUND THE SHIELD ACTUALLY BROKE. The loss happens in round 2, so the beat belongs to round 2.
-     `checkThresholds()` fires off `renderShields`' diff, which on a client runs when the MIRROR lands — and
-     a broken shield returning to the client's own hand brings a card the client does not hold, which is
-     what `isRoundDeal` keys on. Its empty-pile clause was added for exactly that mirror, on the assumption
-     the return always arrives with the pile still on the table; if it arrives after `pileClear`, the clause
-     does not catch it, the mirror is HELD, and the shatter — and the beat with it — defers to the next
-     round's reveal.
-     WHY THIS IS THE ASYMMETRY AJ SAW: ROAR crossed when HE lost the shield (a card enters his hand),
-     OVERDRIVE when the host did (nothing enters his hand, nothing is held, beat on time). */
-  /* RATCHET:threshold-beat-late-on-client — PINNED IN THE BROKEN DIRECTION, and deliberately not fixed here.
-     THE BEAT LANDS IN ROUND 3 WHEN THE SHIELD BROKE IN ROUND 2. Reproduced deterministically, which is the
-     thing Aj's report needed and which this suite could not do before: it asserted only that the beat
-     APPEARS, and a beat a round late satisfies that in the same order every time.
-     AND THE CAUSE IS NOT WHAT I FILED — TWICE. The first guess was "the loss shares a mirror with the
-     deal"; the second was "a broken shield returning to hand looks like a deal to `isRoundDeal`". The
-     client's own trace refutes both: the hold reads **"(ceremony active)"**, a different hold path
-     entirely, and it is followed by
-       `mirror HELD -> DISCARDED  a new ceremony arrived first; the client loses that round's deal`
-     which is `clientPlayCeremony` throwing a held mirror away.
-     THAT DISCARD IS ALREADY ON THE BOOKS AS SOMETHING BIGGER. Its own comment calls it *"THE LEADING
-     CANDIDATE FOR THE `nettest_sync` FORK, and this is the only place it can happen"*, with the client
-     short that round's deal PERMANENTLY, because `broadcastMirror` dedupes by content and never re-asserts
-     what was thrown away. So the late ROAR is a visible symptom of a known invisible bug — which is the
-     most useful thing a cosmetic report has done here.
-     WHY THIS IS A RATCHET AND NOT A FIX: the obvious repair is recorded as already having been tried and
-     having made things WORSE — *"NOT changed to land-it-first: that was tried and made the suite WORSE
-     (5 failures in 8)"*. A second guess at it at the end of a long session is exactly the move this file
-     warns about. The ratchet fails BOTH ways: the day the beat lands in round 2, this line goes red saying
-     the fix landed, and the entry `[id: threshold-beat-late-on-client]` gets closed with it. */
-  /* POLLED FROM THE SUITE, NOT BY AN IN-PAGE `setInterval` — the first version used one and it stopped
-     after 38 ticks while the beat was demonstrably up (`threshUp` true, hits 0), so it reported `null` and
-     read as the product failing. An instrument that can stop silently is worse than none; this pairs the
-     two reads in one `evaluate`, so the round it returns is the round that was on screen WITH the beat. */
-  const atRound = await (async () => {
-    for (let i=0;i<200;i++){
-      const r = await join.evaluate(()=>{ var fx=document.getElementById('thresholdfx');
-        if(!(fx && /show/.test(fx.className) && /ROAR|OVERDRIVE|REDLINE/.test(fx.textContent||''))) return null;
-        return parseInt(((document.getElementById('roundTag')||{}).textContent||'').replace(/\D/g,''))||0; });
-      if(r!=null) return r;
-      await wait(40);
-    }
-    return null;
-  })();
   const heldTrace=await join.evaluate(()=>{ const t=(window.__cmf&&window.__cmf.trace)?window.__cmf.trace():[];
     return t.filter(l=>/HELD/.test(l)).slice(-4); });
-  /* RATCHET:threshold-beat-late-on-client — STILL BROKEN, AND NOT FOR THE REASON I GAVE TWICE.
-     The `isRoundDeal` shield clause below fixed the DISCARD and did NOT move this: the beat still lands in
-     round 3 when the shield broke in round 2. So the hold was never what deferred it — measured, after two
-     confident hypotheses that both said otherwise. The remaining cause is unidentified and the entry says
-     so rather than offering a third guess.
-     FAILS BOTH WAYS: the day it lands in round 2, this line goes red telling the next reader the fix
-     arrived, and `[id: threshold-beat-late-on-client]` closes with it. */
-  ok(atRound===3,
-     `RATCHET: the threshold beat still lands a round LATE — shield broke in round 2, beat shown in round ${atRound}`+
-     (atRound===2?'  ← THE FIX LANDED: flip to `ok(atRound===2, …)` and close [id: threshold-beat-late-on-client]':''));
   /* AND THE DISCARD IS GONE WITH IT, WHICH IS THE HALF THAT MATTERS BEYOND THE BEAT. The mirror that used
      to be held here is the one `clientPlayCeremony` then threw away — *"the client loses that round's
      deal"*, permanently, because `broadcastMirror` dedupes by content and never re-asserts it. That
@@ -140,6 +107,37 @@ async function waitFor(fn,tries=70,ms=120){ for(let i=0;i<tries;i++){ if(await f
   // after the beats, the client should get the "Round N" card banner (caught by the in-page watcher)
   ok(await waitFor(async()=>await roundOf(join)>=3, 60, 150),'client advanced to the next round');
   ok(await waitFor(async()=>await join.evaluate(()=>!!window.__sawRoundBanner), 40, 120),'client showed the "Round N" card banner');
+  await filming; await filmingHost;
+  /* THE CLAIM IS RELATIVE, AND MY FIRST VERSION OF IT WAS NOT (2026-09-18). Aj's report is *"the roar is
+     late **for the client**. overdrive seemed to have fired **at the same time for both**"* — a comparison
+     between two screens. I first asserted an ABSOLUTE thing instead: which round TAG was showing when the
+     beat played. That reads 3 on BOTH seats, because the round counter advances at resolution
+     (`roundAdvance` is a BEGIN event) — normal semantics, identical either side, and nothing to do with
+     the bug. It would have ratcheted a non-defect forever.
+     MEASURED A/B ON ONE BUILD SEQUENCE, which is what settled it:
+        without `isRoundDeal`'s shield clause → client beat **0.52s** after the host
+        with it                               → **0.00s**, four runs of four
+     So the lateness is the held mirror, and the fix closes it. The threshold is 250ms because the observed
+     split is 520ms vs 0ms and there is no third value — wide enough that a loaded sweep does not trip it,
+     far below the defect it is guarding against. */
+  const gap = (()=>{ const hb=hostFilm.filter(f=>f.beat)[0], cb=film.filter(f=>f.beat)[0];
+    return (hb&&cb) ? (cb.t-hb.t) : null; })();
+  ok(gap!=null && gap<250,
+     `the beat reaches BOTH seats together — client ${gap==null?'never showed it':gap+'ms after the host'} (defect measured at 520ms)`+
+     (gap!=null&&gap<250?'':'  ← REGRESSED: the client is waiting on a held mirror again — see `isRoundDeal`\'s shield clause'));
+  { const hb=hostFilm.filter(f=>f.beat)[0], cb=film.filter(f=>f.beat)[0];
+    const hd=hostFilm.find(f=>f.sh!==hostFilm[0].sh), cd=film.find(f=>f.sh!==film[0].sh);
+    console.log('   ↳ BOTH SEATS — when did each show the beat, and at what round tag?');
+    console.log(`      HOST   shields ${hostFilm[0].sh}→${hd?hd.sh:'?'} at round ${hd?hd.rd:'?'};  BEAT at round ${hb?hb.rd:'never'}`);
+    console.log(`      CLIENT shields ${film[0].sh}→${cd?cd.sh:'?'} at round ${cd?cd.rd:'?'};  BEAT at round ${cb?cb.rd:'never'}`);
+    if(hb&&cb) console.log(`      beat gap: client is ${((cb.t-hb.t)/1000).toFixed(2)}s after the host`); }
+  {/* print the transition once, compressed to state CHANGES — a 260-row dump is unreadable and a changes-only
+      view is what makes an ordering visible at a glance. */
+   const t0=film[0]?film[0].t:0; let prev=null; const rows=[];
+   film.forEach(f=>{ const k=f.sh+'|'+f.rd+'|'+f.cer+'|'+f.beat; if(k!==prev){ prev=k;
+     rows.push(`      +${String(f.t-t0).padStart(5)}ms  shields=${f.sh}  round=${f.rd}  ceremony=${f.cer?'Y':'n'}  BEAT=${f.beat?'Y':'n'}`); } });
+   console.log('   ↳ client transition (state changes only):\n'+rows.join('\n')); }
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
 
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
