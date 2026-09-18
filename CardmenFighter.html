@@ -8425,7 +8425,18 @@ window.CardFace = {};
     if(mpCount>2) logMsg('New game — <b>'+mpCount+' Riders</b>, last one standing. You play <b>'+deckLabel(seatDecks[0])+'</b>'+(oppRoll()?' against '+oppRoll():'')+'. Round 1, jabs only.', 'system');
     else if(_on) logMsg('Online duel — you play <b>'+deckLabel(youDeck)+'</b> vs <b>'+(nameOf(1)||'Rival')+'</b> on <b>'+deckLabel(rivalDeck)+'</b>. Each draws '+E.START_HAND+' and holds '+(state.startShields||4)+' shields.', 'system');
     else logMsg('New duel — you play <b>'+deckLabel(youDeck)+'</b> vs <b>'+(nameOf(1)||'Rival')+'</b> (<b>'+DIFF_NAME[difficulty]+'</b>) on <b>'+deckLabel(rivalDeck)+'</b>. Each draws '+E.START_HAND+' and holds '+(state.startShields||4)+' shields.', 'system');
-    logMsg('<b>'+(youLead?'You':seatName(state.turn))+'</b> '+(youLead?'have':'has')+' the initiative — <b>Round 1</b>, jabs only.', 'round');
+    /* PUBLIC, BECAUSE A CLIENT NEVER SAW WHO OPENS (Aj, 2026-09-18: *"i didn't see round 1 jabs only for
+       the client"*). This was `logMsg`, which is HOST-LOCAL — the twentieth site of the v1.31.58 bug, and
+       found by diffing his two saved logs from one game: 76 lines against 75, identical play-by-play, and
+       the whole difference in the opening block. The client writes its own shorter opener in the `t:'setup'`
+       handler and that line has no initiative sentence at all, so nobody on that seat was ever told.
+       RECAST TO PAST TENSE, because the old text could not simply become a `say`. It branched on `youLead`
+       for the verb — `have` vs `has` — which is the sender baking its own perspective into a string the
+       reader has to re-use: `{who} has` renders as **"You has the initiative"** for the person it names.
+       Past tense removes agreement in both directions, which is this file's standing rule, and `won` is
+       also more accurate than `has` for round 1 — the opener is decided by the die roll narrated directly
+       above it. */
+    say(state.turn, '🎯 {who} won the initiative — Round 1, jabs only.', 'round');
     hideOverlay(); showCard(null);
     setMessage((youLead?'You have':(MP()?seatName(state.turn):'Rival')+' has')+' the initiative — '+(youLead?'lead the fight':'they lead the fight')+'. Only <b>Jabs</b> are allowed in Round 1.');
     prevTurn=state.turn;                 // seed so the opening turn doesn't chime — the game-start jingle covers it
@@ -13982,6 +13993,19 @@ window.CardFace = {};
        * deals in the callback; `startGame` closes the dice modal itself via `hideOverlay`. */
       if(seq.length) send({t:'dice', seq:seq, starter:netStarter, n:n});
       showOpenerRoll(seq, netStarter, n, function(){
+      /* THE NAMES GO FIRST, OR EVERY OPENING LINE IS WRITTEN IN DEFAULTS (2026-09-18). `seatNames[0]` and
+         the `t:'setup'` that carries the table's names used to be set BELOW both narrations, so a client
+         rendered the opener with `defaultName` and then switched to real names one line later. Aj's saved
+         log shows it: **"🎲 Rival 2 rolled 5…"** followed by **"Goats played a Jab"** — the same player,
+         two names, three lines apart. Reproduced in `nettest_names`, which prints the client's log.
+         IT IS SAFE TO HOIST because nothing here depends on `startGame`: `seatDecks`, `youDeck` and
+         `mpCount` are all set before this callback runs — `startGame` itself reads them at its own opening
+         line — and `rulesKey()` reads `RULES`. What must stay below is `hostState=state`, since `state` is
+         what `startGame` creates.
+         IT ALSO PUTS THE CLIENT'S LOG IN THE HOST'S ORDER: setup → initiative → dice, instead of dice →
+         setup, which is how Aj found it. */
+      seatNames[0]=myName;
+      send({t:'setup', decks:seatDecks.slice(0), hostDeck:youDeck, clientDeck:seatDecks[1], names:seatNames.slice(0, mpCount), rules:rulesKey()});
       startGame(netStarter);
       /* SAID AFTER the deal, so `state` exists for `logName`, and through `say` so each seat reads it in its own
        * frame. Both names travel as SEATS, never as text — the rule whose breach produced "You is out!". */
@@ -13991,9 +14015,8 @@ window.CardFace = {};
         else say(netStarter, '🎲 {who} rolled highest ('+hiRoll+') — {who} will lead round 1.', 'round');
       }
       for(var s2=1;s2<n;s2++) seatCtrl[s2]='remote';    // every opponent seat is a remote human (override resetControllers' 'ai')
-      hostState=state;
-      seatNames[0]=myName;
-      send({t:'setup', decks:seatDecks.slice(0), hostDeck:youDeck, clientDeck:seatDecks[1], names:seatNames.slice(0, mpCount), rules:rulesKey()});   // clients read decks[mySeat] for their own label
+      hostState=state;                                  // `state` is what startGame creates, so this one stays below it
+      // (`seatNames[0]` + `t:'setup'` moved ABOVE `startGame` — see the note there: names before narration)eir own label
       broadcastMirror();
       });
     }

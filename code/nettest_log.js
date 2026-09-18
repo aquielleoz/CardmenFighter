@@ -84,7 +84,19 @@ async function waitTurn(p,seat){ for(let i=0;i<200;i++){ if((await turnOf(p))===
   const jl=await log(join);
   ok(jl.length>=3,'the client has a real log, '+jl.length+' lines');
   ok(jl.some(l=>/^Online duel/.test(l)),'…opening with its own duel line, written in its own frame');
-  ok(!jl.some(l=>/vs Rival Full Set|initiative/.test(l)),'…and never the host-framed opening line');
+  /* ⚠ THIS ASSERTED `…|initiative/` AND SO PINNED THE ABSENCE AJ REPORTED (2026-09-18: *"i didn't see
+     round 1 jabs only for the client"*). The intent is sound and is kept: the client must never receive
+     the HOST-FRAMED opener, which is written in the host's own perspective. But `initiative` was standing
+     in for that, and it was standing in badly — the initiative line is PUBLIC now and reader-relative, so
+     the client should have one, in its own frame. Asserting its absence would have kept the bug forever.
+     Fifth suite found this session asserting something that was not true. */
+  ok(!jl.some(l=>/vs Rival Full Set/.test(l)),'…and never the HOST-FRAMED opening line (written in the host\'s perspective)');
+  /* AND THE OTHER HALF, WHICH IS THE BUG ITSELF: the client is told who opens. Reader-relative, so this
+     seat reads either "You won the initiative" or the opponent by name — never the host's wording. */
+  const initLine=jl.filter(l=>/won the initiative/.test(l))[0]||'';
+  ok(!!initLine, 'the CLIENT is told who won the initiative — it never was before'+(initLine?'':'  ← REPRODUCED: no initiative line reached this seat'));
+  ok(!/You (has|have) the initiative/.test(initLine),
+     `…in its own frame and grammatical either way ["${initLine.slice(0,64)}"]`);
   ok(!jl.some(l=>/\{who\}/.test(l)),'no unresolved {who} placeholder leaked into any line');
   /* MEASUREMENT, NOT A FIX (v1.31.98). The BACKLOG carried an UNVERIFIED lead: "the netplay battle log does not
    * scroll". `#log` is `overflow-y:auto` with no netplay override, so a broken `min-height:0` chain would be a
