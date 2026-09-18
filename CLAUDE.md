@@ -744,6 +744,25 @@ wrongly for everyone else.
 `You has`, `You moves`, `You’s`. None of those has a legitimate reading, all of them have shipped, and the scan
 catches the next one without anyone re-reading every template.
 
+**THE `logMsg` SWEEP IS FINISHED, AND THE ANSWER IS 24 SITES / 2 GAPS (audited 2026-09-18).** The v1.31.58
+entry above says nineteen sites had the wrong one; a twentieth turned up the same day this audit ran, so
+"finished" deserved a number rather than a feeling. Every `logMsg(` call site triaged against this file's
+own question — *can this happen while netplay is live, and does another seat need to see it?*
+**CLEARED, and worth recording so nobody re-audits them:** `rivalMayRespond`'s two lines and
+`tutCastRivalTech` hardcode "Rival" but are AI/tutorial paths a netplay host never reaches (a host's rival
+is a human and routes through `NET.hostSettle`); the three opener lines and the client's own are
+deliberately per-frame; the `t:'say'` renderer is correct by definition; concede is framed locally on each
+side; the lobby/disconnect/Passo family DOES reach other clients, via `t:'peer'` + `renderDisconBar`, as a
+deliberately generic banner rather than a named line; two are debug hooks.
+**THE TWO REAL ONES ARE FILED** — `[id: client-never-told-draw-fizzled]` and
+`[id: discard-line-hardcodes-rival]`. The first is the sharp one and shows the shape to look for: `say` and
+`logMsg` **one line apart in the same function**, so the neutral half of a message travels and the per-seat
+half does not.
+**AND THE METHOD GENERALISES: DIFF TWO SAVED LOGS OF ONE GAME.** Normalise so "You" on each side resolves
+to the same player, then `difflib` them. Aj's pair came out 76 lines against 75 with the play-by-play
+IDENTICAL and every difference in the opening block — which located three defects in seconds and bounded
+the search. A static grep tells you which sites COULD diverge; the diff tells you which ones DID.
+
 **EVERY WAY TO PERFORM AN ACTION NEEDS THE CLIENT GUARD, AND THE GUARD BELONGS AT THE FUNNEL (v1.31.56).**
 `doFight` carried an `isClientActive()` branch that sends an intent; the **drag-to-play release called
 `playCards()` directly** and `playCards` had none, so a dragged play on a client ran the local engine and never

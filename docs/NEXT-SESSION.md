@@ -990,6 +990,33 @@ never read.*
   action that cannot satisfy a gated step should be DISABLED with a visible note, not silently undone.
   `[id: tut-panel-buried-by-modal]`
 
+- `ready to build`      · **A CLIENT IS NEVER TOLD ITS OWN DRAW FIZZLED** (found 2026-09-18 by the `logMsg` audit Aj
+  asked for after *"i didn't see round 1 jabs only for the client"*). Filed for `main`.
+  **TWO ADJACENT LINES IN ONE FUNCTION, ONE PUBLIC AND ONE NOT** — `logRoundDraw`:
+  `say(null, 'Round N begins. Each player draws X.')` then
+  `if(res.draws[YOU]===0) logMsg('Draw fizzled — your deck & shuffle pile are empty. Spend energy on effects
+  to recycle cards back into your deck.')`. The first reaches every seat; the second is host-local.
+  **AND IT IS WORSE THAN A MISSING BROADCAST, because `logRoundDraw` runs on the HOST and in SOLO only** —
+  `resolveRoundCeremony` is its only caller and a client replays through `clientPlayCeremony` instead. So
+  the line does not merely fail to travel: a client whose deck AND shuffle pile are both empty is never
+  told, in any game, and never gets the advice about recycling. That is a losing condition with actionable
+  guidance attached, which makes it the most consequential of the 24 sites audited.
+  **THE FIX NEEDS A COPY DECISION, WHICH IS WHY THIS IS FILED RATHER THAN DONE.** A deck-out is public (the
+  🂠 count is on screen for everyone), so a neutral past-tense `say` per fizzling seat would inform the
+  table — but the second half of the sentence is ADVICE and only useful to the seat it names. The existing
+  comment already credits the wording to Aj (*"One neutral line for everyone (Aj's wording)"*), so the
+  split between what is broadcast and what stays local is his call, not a refactor.
+  `[id: client-never-told-draw-fizzled]`
+
+- `ready to build`      · **`handleDiscardAfterAction` HARDCODES "Rival" AND IS HOST-LOCAL** (same audit). Filed for `main`.
+  `logMsg('<b>Rival</b> discarded N cards.')` — two documented smells in one line. CLAUDE.md states
+  *"Announcements name seats via `logName(seat)`; there is no hardcoded 'Rival' left in them"*, and there
+  is: at 3-6 players it names nobody in particular, and being `logMsg` it never leaves the host.
+  **LOW SEVERITY, MEASURED.** It sits in `activate`, which returns early for a client (`isClientActive` →
+  `clientSend`), so only a HOST reaches it; the seat that actually discarded sees its own hand shrink via
+  the mirror. What is lost is the narration for everyone else, and the wrong name at a full table.
+  `[id: discard-line-hardcodes-rival]`
+
 - `ready to build`      · **★ THE BROADWAY PITCH CHOOSES ITSELF, FOR BOTH SIDES** (Aj, 2026-09-07, from real play: *"oh no it did not
   let me pick which broadway card.... this is a bug for sure.. and probably more of a problem in multiplayer
   clients"*, then *"the ai should absolutely smart pitch as well... especially for the ones who are smarter"*).
