@@ -947,25 +947,6 @@ of six entries in the priority cluster turned out to have been closed by the epi
 noticing (2026-09-17). Check the same way before picking one up: an epic step closes entries it
 never read.*
 
-- `needs a repro`       · **THE THRESHOLD BEAT (ROAR) STILL LANDS A ROUND LATE ON A CLIENT — CAUSE UNKNOWN** (Aj,
-  2026-09-18: *"the roar is late for the client… i'm sensing a pattern here"*). Filed for `main`.
-  **REPRODUCED DETERMINISTICALLY** — `nettest_ceremony` stages the case (the CLIENT loses a shield crossing
-  the ROAR line) and the beat shows in **round 3 when the shield broke in round 2**, every run.
-  `[ratchet: threshold-beat-late-on-client]`
-  **THREE HYPOTHESES, ALL THREE WRONG, AND THAT IS THE USEFUL PART OF THIS ENTRY.** (1) *"the loss shares a
-  mirror with the deal"* — refuted by the trace. (2) *"a broken shield returning to hand looks like a deal
-  to `isRoundDeal`"* — that one was REAL and was fixed (see the changelog), and **the beat did not move**.
-  (3) *"the ceremony hold defers the shatter, and `checkThresholds` with it"* — refuted by the same fix:
-  the mirror is no longer held and the beat is still late.
-  **SO THE HOLD WAS NEVER WHAT DEFERRED IT.** `checkThresholds()` fires off `renderShields`' diff, so the
-  question that remains is why the client's shield count reaches the renderer a round later than the beat
-  should play — and it is NOT because the mirror carrying it was withheld. Start there; do not re-propose
-  any of the three above.
-  **WHAT THE SUITE GIVES THE NEXT ATTEMPT:** a deterministic case and a suite-side poll that pairs the beat
-  with the round tag in one read. An earlier in-page `setInterval` watcher STOPPED after 38 ticks while the
-  beat was up, reporting `null` and reading as the product failing — an instrument that can stop silently
-  is worse than none.
-  `[id: threshold-beat-late-on-client]`
 
 - `needs a decision`    · **AN ANSWERED QUICK HAS NO ANIMATION** (Aj, 2026-09-18, from a side-by-side of both seats:
   *"there still are no animations for the answered quicks… maybe it's because we use modals instead of
