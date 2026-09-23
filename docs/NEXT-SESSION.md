@@ -462,27 +462,6 @@ re-read its tag.
 
 #### Netplay
 
-- `root cause found`    · **AN AUTO-PASS IS NARRATED PUBLICLY AS A DELIBERATE CHOICE — "{who} let it resolve."
-  (Aj's duel, 2026-09-23).** His battle log shows him letting a Technique resolve **seven times** in rounds
-  6-7. He chose **once**. The other six were the prompt-preference auto-pass firing, which he never saw —
-  and the opponent's log says the same thing, because the host is the one narrating.
-  **THE CHAIN, all three links confirmed in code:** the auto-pass sends `NET.clientSend({op:'decline'})`
-  (template, the `!quicks.length` branch of `promptHumanResponse`); that is the **identical intent** a
-  deliberate decline sends (`humanDeclines`); and the host answers every incoming decline with
-  `say(seat, '{who} let it resolve.', 'dim')`. The host cannot tell them apart because nothing on the wire
-  distinguishes them.
-  **THE TELL IN THE TRACE IS THE CLOCK: five declines 0.2s apart.** A human clicking seven modals does not
-  produce that spacing; the ledger's six `AUTO-PASSED — PROMPT OFF` lines account for them exactly.
-  **SOLO DOES NOT DO THIS**, which is both the proof and the fix: the same branch's local path is
-  `E.declineResponse(state, YOU); return cont();` with no `say` at all. An auto-pass is silent offline and
-  narrated online, and the difference is only that the netplay one routes through the generic decline
-  handler. Parity says silence.
-  **IT IS ALSO AN INFORMATION LEAK, mildly:** "Aj let it resolve" tells the opponent something about your
-  notification settings that a silent auto-pass does not.
-  Shape of the fix: mark the intent (`{op:'decline', auto:true}`) and have the host stay silent, matching
-  solo. A suite can assert the count — seven declines in the log against one real choice is the repro.
-  `[id: autopass-narrated-as-a-choice]`
-
 - `ready to build`      · **A CLIENT NEVER RECORDS ITS OWN ACTIONS IN THE PRIORITY LEDGER (2026-09-23).**
   `humanDeclines` returns at the `isClientActive()` branch — which sends the intent — **before** the
   `prioNote('  → you DECLINED')` line below it. Same shape in the cast path. So a client's saved ledger

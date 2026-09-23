@@ -5854,7 +5854,7 @@ __QR__
     if(quicks.length) prioNote('['+tName+'] window SHOWN to you' + onWhat + (saved.length ? '  — SHIELD AT RISK, prompt forced' : ''), 'offering: ' + feNames(eligible) + (eligible.length>quicks.length ? '  (stopped by: ' + feNames(quicks) + ')' : '') + (saved.length ? '  (forced by: ' + feNames(saved) + ')' : ''));
     else if(eligible.length) prioNote('['+tName+'] AUTO-PASSED for you — PROMPT OFF' + onWhat, 'you could have cast: ' + feNames(eligible) + '  (card reader → “Ask me to respond…”)');
     else prioNote('['+tName+'] auto-passed for you' + onWhat, 'nothing castable in hand');
-    if(!quicks.length){ if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'decline'}); busy=true; render(); return; } E.declineResponse(state, YOU); return cont(); }   // nothing to answer with — auto-pass
+    if(!quicks.length){ if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'decline', auto:true}); busy=true; render(); return; } E.declineResponse(state, YOU); return cont(); }   // nothing to answer with — auto-pass, and `auto` is what stops the host narrating it as a choice
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     /* WHO cast it and WHO it is aimed at were both missing — Aj: "who or what is being targetted? why should I
      * counter it? this lacks some vital information." In a free-for-all that decides the whole choice: a
@@ -8554,7 +8554,7 @@ __QR__
            ordinary Counter-a-Counter chain by burning a guard. */
         if(k==='respond'){
           var pg=AI.resolutionGuardCard(hostState, seat);
-          return hostApplyMoveN(seat, pg ? {op:'respond', id:pg.id} : {op:'decline'});
+          return hostApplyMoveN(seat, pg ? {op:'respond', id:pg.id} : {op:'decline', auto:true});   // Passo answers FOR a dropped seat — never narrate it as their choice
         }
         /* PASSO'S `guard` BRANCH WAS HERE AND IS DELETED (epic step 19) — the window it answered is gone.
            Aj's step-13 ruling (*a dropped player's Leyline still saves their last shield*) is preserved in
@@ -8585,7 +8585,7 @@ __QR__
         if(netDiscard) return hostApplyMove({op:'discard', ids:[]});                      // [] → engine auto-picks (keeps Specials)
         if(netSettle){                                                                   // the Fight End go-round reaches a duel here — defend, exactly as the N-player branch above does
           var dg=AI.resolutionGuardCard(hostState, 1);
-          return hostApplyMove(dg ? {op:'respond', id:dg.id} : {op:'decline'});
+          return hostApplyMove(dg ? {op:'respond', id:dg.id} : {op:'decline', auto:true});   // same as the N-player branch above
         }
         if(duelWait && hostState.turn===1){
           if(hostState.pile) return hostApplyMove({op:'pass'});
@@ -9499,7 +9499,7 @@ __QR__
         if(!netSettle) return;                                  // no open window — stale/duplicate reply, ignore
         try{
           if(it.op==='respond'){ var qc=(hostState.players[1].hand.filter(function(c){return c.id===it.id;})[0]), qe=qc?E.effectOf(qc):null; r=E.respond(hostState, 1, it.id, it.coid?{counterOid:it.coid}:null); if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal response.'}); broadcastMirror(); return; } if(qe && qe.kind==='counter') say(1, '{who} countered with '+qe.name+'!', 'rival'); else say(1, '{who} answered at instant speed'+(qe?(' with '+qe.name):'')+'.', 'rival'); }
-          else { E.declineResponse(hostState, 1); say(1, '{who} let it resolve.', 'dim'); }
+          else { E.declineResponse(hostState, 1); if(!it.auto) say(1, '{who} let it resolve.', 'dim'); }   // an auto-pass is not a choice — see the N-player twin
         }catch(e){ send({t:'err', reason:'Response rejected.'}); broadcastMirror(); return; }
         var ns=netSettle; netSettle=null; return hostSettle(ns.g, ns.done);
       }
@@ -9856,7 +9856,14 @@ __QR__
         }
         try{
           if(it.op==='respond'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=respond but the open window is '+netReact.kind); return; } var qc=resolveIds(seat,[it.id])[0], qe=qc?E.effectOf(qc):null; var rr=E.respond(hostState, seat, it.id, it.coid?{counterOid:it.coid}:null); if(rr&&rr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:rr.reason||'Illegal response.'}); broadcastMirror(); return; } say(seat, '{who} '+((qe&&qe.kind==='counter')?('countered with '+qe.name+'!'):('answered'+(qe?(' with '+qe.name):'')+' at instant speed.')), 'rival'); }
-          else if(it.op==='decline'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=decline but the open window is '+netReact.kind); return; } E.declineResponse(hostState, seat); say(seat, '{who} let it resolve.', 'dim'); }
+          else if(it.op==='decline'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=decline but the open window is '+netReact.kind); return; } E.declineResponse(hostState, seat);
+            /* AN AUTO-PASS IS NOT A CHOICE (2026-09-23). A client whose prompt for this timing is off answers
+               with the SAME `{op:'decline'}` a player clicking "Let it resolve" sends, so the host narrated
+               both — Aj's log showed him declining seven times in two rounds having chosen once, and his
+               opponent read the same seven. Passo's answer for a DROPPED seat came through here too, naming
+               a player who was not connected. SOLO was already silent on this branch; `auto` restores parity.
+               It is narration only: the decline is applied either way, which the suite asserts. */
+            if(!it.auto) say(seat, '{who} let it resolve.', 'dim'); }
           /* THE `guard` AND `guardPass` ARMS WERE HERE AND ARE DELETED (epic step 19), and deleting the
              first one silently fixes a v1.31.58-class bug: it narrated with `logMsg`, which is HOST-LOCAL,
              so a remote seat springing a guard was never seen by anyone else — while the sibling `respond`

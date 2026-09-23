@@ -71,6 +71,15 @@ node exporttest.js                              # the playtest export at 3 playe
 node phantasmtest.js                            # Phantasmal Illusion: all three routes + the bare-copy
                                                 # refusal, in the real page (12)
 node nettest_reveal.js                          # the hand read over netplay, incl. who must NOT see it (10)
+node nettest_autopass.js                        # AN AUTO-PASS IS NOT A CHOICE (17). A client whose prompt
+                                                # for a timing is off answers with the SAME `{op:'decline'}`
+                                                # a player clicking "Let it resolve" sends, so the host
+                                                # narrated both. Three legs: a real decline STILL narrates,
+                                                # an `auto` one is silent AND STILL APPLIES (silent and
+                                                # ignored look identical in a log), and a SOURCE SCAN,
+                                                # because a duel drives `hostApplyMove` and never reaches
+                                                # `hostApplyMoveN` — the first A/B passed 15/0 with the
+                                                # N-player guard deleted
 node nettest_clientdeal.js                      # THE CLIENT'S OPENING HAND ARRIVES DEALT, NOT SORTED (10).
                                                 # The engine keeps every hand sorted, and the only thing that
                                                 # ever made one LOOK dealt is `syncOrder(true)` — called from
@@ -1899,7 +1908,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127 — 2026-09-23, `npm run sweep`, 96 suites ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`) (four lanes; background
+Status as of **v1.31.127 — 2026-09-23, `npm run sweep`, 97 suites ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -1909,7 +1918,7 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 53 netplay suites: `nettest_3p` 7, `clientdeal` 10, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 11, `clientwin` 10, `concede3` 8,
+The 54 netplay suites: `nettest_3p` 7, `clientdeal` 10, `autopass` 17, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 11, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
@@ -2056,6 +2065,30 @@ mutation-tested: removing any one kills exactly one assertion.
 **AND `resolutiontest_ui` C2 HAS NOW INVERTED TWICE**, both times because nobody had decided the behaviour
 and the suite encoded whatever fell out. That is the "a suite can pin the defect" rule below in its most
 expensive form: the second inversion was a feature request, and the first was a bug.
+
+**AN AUTO-PASS IS NOT A CHOICE, AND THE WIRE COULD NOT TELL THEM APART (2026-09-23).** A client whose
+prompt for a timing is off answers the window with `{op:'decline'}` — the **identical intent** a player
+clicking "Let it resolve" sends — so the host narrated both with `say(seat, '{who} let it resolve.')`.
+Aj's log showed him declining **seven times in two rounds having chosen once**, and his opponent read the
+same seven. **The tell was the CLOCK, not the wording: five declines 0.2s apart** in the netplay trace,
+which is not a human clicking modals; the ledger's six `AUTO-PASSED — PROMPT OFF` lines accounted for them
+exactly. `{op:'decline', auto:true}` is the distinction, and the host stays silent for it.
+**SOLO WAS ALREADY RIGHT, WHICH IS BOTH THE DIAGNOSIS AND THE FIX.** The same branch's local path is
+`E.declineResponse(state, YOU); return cont();` with no `say` at all — so an auto-pass was silent offline
+and narrated online, and the only reason was that the netplay one routed through the generic decline
+handler. **When a netplay behaviour looks wrong, check what solo does on the same branch**: a divergence
+there is a bug in the netplay path roughly every time, and it names the correct behaviour for free.
+**PASSO WAS THE SAME BUG WITH A WORSE VICTIM** — its auto-answer for a DROPPED seat came through the same
+handler, so the table read "Rival 2 let it resolve." about a player who was not connected. Both Passo
+sites now send `auto`. **Enumerate by `grep -n "op:'decline'"`: four senders, two handlers.**
+**AND "SILENT" MUST NOT BECOME "IGNORED", which is the easy way to get this wrong** — dropping the decline
+suppresses the line too, and the two are indistinguishable in a log and opposite in a game. The suite
+asserts the window CLOSES on the auto path before it asserts the silence.
+**THE STATIC LEG EXISTS BECAUSE THE FIRST A/B PASSED ON A HALF-BROKEN BUILD.** A duel drives
+`hostApplyMove` and never reaches `hostApplyMoveN`, so deleting the N-player guard left the suite 15/0 —
+the two-handler-families trap, now four times over. A source scan covers both and any future one. It
+discriminates on the ACTOR: `say(YOU, …)` is exempt, because a seat narrating its own click knows it
+chose, while a host narrating for another seat cannot and must be told.
 
 **A SUITE CAN ALSO PIN THE DEFECT — AS FIRMLY AS IT PINS A FEATURE (2026-09-17).** `nettest_emote`'s
 expected output was literally `/^You says hi!/`: the exact "You" + third-person-verb shape that
