@@ -462,6 +462,52 @@ re-read its tag.
 
 #### Netplay
 
+- `root cause found`    · **AN AUTO-PASS IS NARRATED PUBLICLY AS A DELIBERATE CHOICE — "{who} let it resolve."
+  (Aj's duel, 2026-09-23).** His battle log shows him letting a Technique resolve **seven times** in rounds
+  6-7. He chose **once**. The other six were the prompt-preference auto-pass firing, which he never saw —
+  and the opponent's log says the same thing, because the host is the one narrating.
+  **THE CHAIN, all three links confirmed in code:** the auto-pass sends `NET.clientSend({op:'decline'})`
+  (template, the `!quicks.length` branch of `promptHumanResponse`); that is the **identical intent** a
+  deliberate decline sends (`humanDeclines`); and the host answers every incoming decline with
+  `say(seat, '{who} let it resolve.', 'dim')`. The host cannot tell them apart because nothing on the wire
+  distinguishes them.
+  **THE TELL IN THE TRACE IS THE CLOCK: five declines 0.2s apart.** A human clicking seven modals does not
+  produce that spacing; the ledger's six `AUTO-PASSED — PROMPT OFF` lines account for them exactly.
+  **SOLO DOES NOT DO THIS**, which is both the proof and the fix: the same branch's local path is
+  `E.declineResponse(state, YOU); return cont();` with no `say` at all. An auto-pass is silent offline and
+  narrated online, and the difference is only that the netplay one routes through the generic decline
+  handler. Parity says silence.
+  **IT IS ALSO AN INFORMATION LEAK, mildly:** "Aj let it resolve" tells the opponent something about your
+  notification settings that a silent auto-pass does not.
+  Shape of the fix: mark the intent (`{op:'decline', auto:true}`) and have the host stay silent, matching
+  solo. A suite can assert the count — seven declines in the log against one real choice is the repro.
+  `[id: autopass-narrated-as-a-choice]`
+
+- `ready to build`      · **A CLIENT NEVER RECORDS ITS OWN ACTIONS IN THE PRIORITY LEDGER (2026-09-23).**
+  `humanDeclines` returns at the `isClientActive()` branch — which sends the intent — **before** the
+  `prioNote('  → you DECLINED')` line below it. Same shape in the cast path. So a client's saved ledger
+  shows what it was OFFERED and what was AUTO-PASSED, and never what the player actually did.
+  **MEASURED on Aj's pair of logs:** his client ledger has 15 entries, one `window SHOWN`, six
+  `AUTO-PASSED`, and **zero** `→ you DECLINED` — against seven declines in the battle log beside it.
+  The ledger exists so a reader can reconstruct a game; on the seat that is usually the one reporting the
+  bug, it currently cannot. Cheap: move the `prioNote` above the early return, or note it on the send.
+  `[id: client-ledger-omits-own-actions]`
+
+- `needs a decision`    · **A CLIENT'S PRIORITY LEDGER HAS NO PHASE-TRANSITION ENTRIES AT ALL (2026-09-23).**
+  Aj's host log carries ten `MAIN → FIGHT … auto-advanced — nobody could add to the stack (origin=You)`
+  lines; his client log carries **zero**. Both carry their eight `FIGHT END` lines, so it is not that the
+  ledger is dead on a client — it is that the phase walk is recorded where it happens, on the host, and
+  nothing tells the other seats.
+  **THE DECISION, and it is why this is not `ready to build`:** a mirror is a full snapshot and the walk is
+  host-side authority, so carrying it would mean broadcasting ledger lines — a new message kind, or a field
+  on the mirror, for a diagnostic nobody sees on screen. That may not be worth it. The cheaper answer is to
+  say so in the saved log: a client's ledger could carry one line stating that phase transitions are
+  recorded on the host's copy, so a reader stops looking for them.
+  **WHY IT MATTERS AT ALL:** this repo's own rule is that a diagnostic must explain itself, and the client
+  is the seat that most often reports the hang. A reader diffing two saved logs — the method that has now
+  found several defects — currently finds a 10-vs-0 gap that is expected and looks alarming.
+  `[id: client-ledger-no-phase-walk]`
+
 - `root cause found`    · **A 2-PLAYER NETPLAY PRE-FIGHT WINDOW IS SET ON THE CLIENT AND ABANDONED BY THE HOST** (the duel `t:'move'` handler, template) — the
   duel move handler has no op for it. Needs a client holding a Form-granted lockout Quick, so it is narrow, but
   the audit rates it a permanent hang.
