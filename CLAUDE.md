@@ -71,6 +71,13 @@ node exporttest.js                              # the playtest export at 3 playe
 node phantasmtest.js                            # Phantasmal Illusion: all three routes + the bare-copy
                                                 # refusal, in the real page (12)
 node nettest_reveal.js                          # the hand read over netplay, incl. who must NOT see it (10)
+node nettest_clientdeal.js                      # THE CLIENT'S OPENING HAND ARRIVES DEALT, NOT SORTED (10).
+                                                # The engine keeps every hand sorted, and the only thing that
+                                                # ever made one LOOK dealt is `syncOrder(true)` — called from
+                                                # `startGame`, which A CLIENT NEVER RUNS. Asserts the MECHANISM
+                                                # (`handPresetN`), never the order: a fair shuffle reproduces
+                                                # the engine's order 1 time in 720, so an order assertion is a
+                                                # mystery red waiting to happen
 node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (97)
 node qrtest.js                                  # the QR encoder, every symbol decoded back by a real decoder,
                                                 # plus the geometry a camera actually needs (19)
@@ -1889,7 +1896,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127 — 2026-09-18, `npm run sweep`, 95 suites and 0 FAIL ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`) (four lanes; background
+Status as of **v1.31.127 — 2026-09-23, `npm run sweep`, 96 suites ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -1899,7 +1906,7 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 52 netplay suites: `nettest_3p` 7, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 11, `clientwin` 10, `concede3` 8,
+The 53 netplay suites: `nettest_3p` 7, `clientdeal` 10, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 11, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
@@ -1996,6 +2003,25 @@ line — which looks like a crash rather than a failure, and misled me twice whi
 moved to the FRONT (`FAILED — `) so the loud signal survives while `PASS: n  FAIL: m` stays intact and greppable.
 59 files, one line each, including `relay/relaytest.js` which spelled it with spaces. **When you add a suite,
 copy the summary line from an existing one — do not re-invent it.**
+
+**EVERYTHING RESET ONLY IN `startGame` IS NEVER RESET ON A CLIENT — THAT IS THREE TIMES NOW (2026-09-23).**
+`resetBoardMemory` is the documented one and its comment already says why. `handOrder`, `layout` and
+`sortState` were in the same position and nobody noticed, because their failure is silent: the ENGINE keeps
+every hand sorted (`sortHand` at the deal and at every draw), so the only thing that ever made a dealt hand
+LOOK dealt was `syncOrder(true)` from `startGame`. A client therefore read its hand in ascending order from
+round 1, every game, and never reset its arrangement between games at all. Aj found it playing the client
+seat: *"the client view's cards come pre-sorted in singles"*.
+**THE STRUCTURAL READ IS HIS AND IT IS THE POINT**: *"both comments stem from the client and host seeming to
+have different UI/UX experiences."* Two reports, one fault. `resetHandPresentation()` now owns the per-game
+hand presentation and BOTH seats call it.
+**THE ENUMERATION, which is cheap and was never done:** `startGame` is one statement wide — read what it
+assigns and ask of each name whether anything else ever resets it. Anything that does not appear in
+`clearBoard`, `resetBoardMemory` or the client's `t:'setup'` is in this class.
+**AND THE MECHANISM IS WHAT YOU ASSERT, NOT THE SHUFFLE.** `nettest_clientdeal` reads a counter the reset
+bumps. Its first version read a trace line written BESIDE the call, stayed green with the fix deleted, and
+was caught only by A/B'ing it — so the counter is bumped INSIDE `resetHandPresentation`, where removing any
+call site is observable. An order assertion was rejected outright: a fair shuffle reproduces the engine's
+order once in 720.
 
 **A SUITE CAN ALSO PIN THE DEFECT — AS FIRMLY AS IT PINS A FEATURE (2026-09-17).** `nettest_emote`'s
 expected output was literally `/^You says hi!/`: the exact "You" + third-person-verb shape that

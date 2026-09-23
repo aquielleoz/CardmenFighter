@@ -6585,6 +6585,8 @@ window.CardFace = {};
   var enterDelayBase=0;              // ms offset added to drawn-card deal-in, so a round's new cards arrive on the "Round N" beat
   var ROUND_BEAT=750, ROUND_HOLD=1350;   // ceremony timing (ms): each pre-card beat, and the Round-N card hold
   var handOrder=[];            // UI display order of card ids (Sort reorders this)
+  var dealShuffle=false;       // one-shot: the next fresh cards are an OPENING DEAL — scramble them (see resetHandPresentation)
+  var handPresetN=0;           // how many times resetHandPresentation has run — the MECHANISM nettest_clientdeal asserts
   var layout=[], gidSeq=0, drag=null, tapTimer=null, tapPendingGid=null, justDragged=false;   // hand shown as draggable groups (combos)
   var sortState='unsorted';   // current hand arrangement; the Sort button label reflects THIS. Reverts to 'unsorted' when a fresh card is drawn.
   var SORT_NEXT={ unsorted:'singles', singles:'pairs', pairs:'straights', straights:'singles' };   // click cycles among the three sorts
@@ -8404,11 +8406,11 @@ window.CardFace = {};
       ? { numPlayers:mpCount, starter:starter, decks: seatDecks.slice(0,mpCount).map(function(d){ return (d==='full'||!d)?null:d; }), basics:gameBasics }
       : { decks:[ youDeck==='full'?null:youDeck, rivalDeck==='full'?null:rivalDeck ], starter:starter, basics:gameBasics };
     if(tutorialMode) ngOpts.shields=tutShields;   // shorter HP so a guided lesson can reach the Fighter Kick
-    gen++; state=E.newGame(null, ngOpts); if(tutorialMode){ (currentLesson&&currentLesson.rig?currentLesson.rig:tutRig)(state); } selected={}; fullLog=[]; PRIO_LOG=[]; pick=null; targeting=null; targetPick=null; busy=false; handOrder=[]; layout=[]; gidSeq=0; drag=null; pileSig=null; flipFrom=null; pendingEnter={}; equipFx={}; formsOpen=null; equipOpen=null;
+    gen++; state=E.newGame(null, ngOpts); if(tutorialMode){ (currentLesson&&currentLesson.rig?currentLesson.rig:tutRig)(state); } selected={}; fullLog=[]; PRIO_LOG=[]; pick=null; targeting=null; targetPick=null; busy=false; resetHandPresentation(); drag=null; pileSig=null; flipFrom=null; pendingEnter={}; equipFx={}; formsOpen=null; equipOpen=null;
     resetControllers(state.numPlayers);   // seat 0 = local human, every opponent = AI (netplay will override specific seats to 'remote')
     if(E.setLossTargetInteractive) E.setLossTargetInteractive(function(st, w){ return isHumanSeat(w); });   // a human winner (local or remote) picks whose shield to strip in 'chosen' mode
     if(mpCount>2){ state._diff={}; for(var _s=0;_s<state.numPlayers;_s++) if(_s!==YOU) state._diff[_s]=diffOf(_s); }   // per-seat AI tier for the round-win chooser
-    lastPileData=[]; lastPileOwner=null; pendingKick=false; resetBoardMemory(); resetStats(); sortState='unsorted'; updateSortLabel();   // resetBoardMemory: the fx layers + render-diff caches, shared with clearBoard (v1.31.95)
+    lastPileData=[]; lastPileOwner=null; pendingKick=false; resetBoardMemory(); resetStats();   // resetBoardMemory: the fx layers + render-diff caches, shared with clearBoard (v1.31.95); the Sort label rides resetHandPresentation
     $('log').innerHTML=''; $('beaten').innerHTML='';
     $('rivalDeckName').textContent=deckLabel(rivalDeck); $('youDeckName').textContent=deckLabel(youDeck);
     var modeTag=gameBasics?' · <b class="basicsTag">BASICS</b>':'';
@@ -8450,8 +8452,22 @@ window.CardFace = {};
   }
   function setMessage(html){ $('message').innerHTML=html; }
 
+  /* A NEW GAME'S HAND PRESENTATION: display order, grouping, selection, the Sort label, and the one-shot
+     opening scramble. IT IS SHARED BECAUSE A NETPLAY CLIENT NEVER RUNS `startGame` — the same rule
+     `resetBoardMemory` carries, and the same way it was broken: everything reset only in `startGame` is
+     never reset on a client, for the whole session. Symptom (2026-09-23, Aj playing the client seat):
+     "the client view's cards come pre-sorted in singles". The ENGINE keeps every hand sorted — `sortHand`
+     at the deal (`engine.js` ~597) and again at every draw — so an unscrambled hand reaches the screen in
+     ascending order, and only the host's `syncOrder(true)` ever made a dealt hand look dealt. */
+  function resetHandPresentation(){
+    handOrder=[]; layout=[]; gidSeq=0; selected={}; dealShuffle=true; handPresetN++;
+    sortState='unsorted'; updateSortLabel();
+  }
   /* keep the UI hand order stable; new draws append at the end (Sort tidies) */
   function syncOrder(shuffleInit){
+    /* A client learns a game began at `t:'setup'`, which arrives BEFORE the first mirror — so there is no
+       hand to order yet and the scramble has to be deferred to the first sync that actually sees cards. */
+    if(dealShuffle){ shuffleInit=true; dealShuffle=false; }
     var ids=state.players[YOU].hand.map(function(c){return c.id;});
     handOrder=handOrder.filter(function(id){return ids.indexOf(id)>=0;});
     var fresh=ids.filter(function(id){return handOrder.indexOf(id)<0;});
@@ -13803,6 +13819,10 @@ window.CardFace = {};
            * lobby, where Ready still works for the next game. */
           if(!mySeat){ trace('setup IGNORED', 'not seated'); return; }
           lobbyHold=false; lobbyBack=false; lobbyNote='';        // the game the lobby return was waiting for has begun
+          /* THIS IS THE CLIENT'S `startGame`, and it is the only place a client learns a new game began.
+             Without it the hand arrives in the engine's own SORTED order and nothing is ever reset between
+             games on this seat — handOrder, layout and the Sort label all lived in `startGame` alone. */
+          resetHandPresentation();
           if(m.names && m.names.length){                        // rotate absolute -> local so seatName/logName need no rotation
             var nn=m.names.length, loc=[];
             for(var ai=0; ai<nn; ai++) loc[((((ai-mySeat)%nn)+nn)%nn)] = m.names[ai]||'';
@@ -15406,7 +15426,7 @@ window.CardFace = {};
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, shieldsOf:function(seat){ return (state&&state.players[seat])?state.players[seat].shields:null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); },
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, shieldsOf:function(seat){ return (state&&state.players[seat])?state.players[seat].shields:null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, handPresetN:function(){ return handPresetN; }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); },
     /* THE LIVE TALLY. The finished record only exists at game end, and no 3-player suite both has a client ACT
      * and plays to a finish — so without this seam the N-player half of the remote-seat tally (v1.31.96) could
      * only be covered by a whole new suite. Read on the HOST, whose stats are the ones every seat adopts. */

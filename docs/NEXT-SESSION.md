@@ -1038,8 +1038,14 @@ never read.*
     what the lowest-card default cannot see. Gate on `isTop(diff)` the way the Demon Lord's `keepsTheWin` is, so
     it reads as a tier behaviour rather than a global strength bump; `personasim`/`analysis` measure the tier
     step if it moves at all.
-  **Both need `opts.pitch` BACK in the engine**, which is the thing that was deleted — and each of them is the
-  exercise it lacked.
+  **THE ENGINE HOOK IS STILL THERE — corrected 2026-09-23, this entry used to say it needed putting BACK.**
+  `opts.pitch` is live at `engine.js` ~1274 (`if (opts.pitch) pitchCard = pitchCands.filter(...)`), with a
+  fallback to the lowest when the named card is not a legal pitch. What was deleted was the AI's CALLER, not
+  the hook — `ai.js` ~591 says so in as many words. So neither option needs an engine change: the human
+  picker needs a UI that passes a card id, the smart pitch needs `chooseMove` to pass one, and each of them
+  is the exercise the hook has lacked since the caller went.
+  **Re-confirmed against the code the same day** (Aj hit it again, this time losing a 10 out of a full house):
+  the engine still auto-takes the lowest Broadway card and nothing in the UI names one.
   `[id: broadway-pitch-chooses-itself]`
 
 - `root cause found`    · **★ THE MIRROR-CONTRACT AUDIT'S THREE UNFIXED FINDINGS.** v1.31.114/.115 took the two live bugs and
