@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 543 + 65 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 557 + 65 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 543 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 557 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 65, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
@@ -117,10 +117,13 @@ node resolutiontest_ui.js                          # THE TWO REPORTED BUGS, PLAY
                                                 # asserts the Resolution LEDGER, and that a SILENCED card is
                                                 # still castable — the two-Quick shape is the only one that
                                                 # can tell "did not stop me" from "cannot play it". C and C2
-                                                # are the SHIELD OVERRIDE pair (2026-09-15): unticking
-                                                # `resolution` may not cost you a shield you hold the answer
-                                                # to, so C forces the window and C2 — same timing, same
-                                                # unticked box, but you WIN the round — must not. F adds the STACK IN THE WINDOW (42)
+                                                # are the STAKE trio: a notification preference may not
+                                                # decide a shield event. C is the defensive half
+                                                # (2026-09-15); C2 INVERTED 2026-09-23 and now forces for
+                                                # the STRIKER too (Armor Piercing under Hippolyta); C3
+                                                # keeps the narrowness claim C2 used to carry — the same
+                                                # board with the strip already banked forces nothing.
+                                                # F adds the STACK IN THE WINDOW (46)
 node prompttest.js                              # PROMPT PREFERENCES (epic step 15): per-card, per-timing
                                                 # checkboxes in the card reader. Asserts the DEFAULTS are
                                                 # today's experience, that only OVERRIDES are stored, and —
@@ -1900,9 +1903,9 @@ Status as of **v1.31.127 — 2026-09-23, `npm run sweep`, 96 suites ON THE EPIC*
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 543, `netview` 65, `mptest` 97, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
+`test` 557, `netview` 65, `mptest` 97, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 20, `lessontest_energyorder` 14,
-`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 24, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 42, `lessontest_quicks` 21, `lessontest_howto` 25,
+`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 24, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 46, `lessontest_quicks` 21, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2022,6 +2025,37 @@ bumps. Its first version read a trace line written BESIDE the call, stayed green
 was caught only by A/B'ing it — so the counter is bumped INSIDE `resetHandPresentation`, where removing any
 call site is observable. An order assertion was rejected outright: a fair shuffle reproduces the engine's
 order once in 720.
+
+**A NOTIFICATION PREFERENCE MAY NOT DECIDE A SHIELD EVENT — AND "WHAT `main` DID" IS THE WRONG CONDITION
+FOR RESTORING ONE (2026-09-23).** The 2026-09-15 override was defensive only: you are a strike target and
+`lossAnswerFor` says your card answers the loss. Aj widened it twice in one sitting — *"i want you to see
+past sanctuary … when it sees that i won a fight, and will now break a shield … the game would still
+prompt you to use the armor piercing"*, then *"for all the other quicks, they had their preferred timings
+back in main right? those will still fire off with or without the notices checked"*. **The rule is the
+EVENT, not the direction**, and `E.stakeFor(st, q, card, timing)` is the condition: strike target with an
+answer · the WINNER holding a strike modifier · Back Stab at `prefight` · a `destroyShield` aimed at you at
+`respond`, which is the only window that card ever gets.
+**⚠ THE OBVIOUS IMPLEMENTATION IS THE ONE THIS REPO ALREADY GOT WRONG.** "Force whatever the old build
+forced" means `immunityEffFor`, and that predicate **REFUSES Sanctuary-under-Hector and
+Armor-Piercing-under-Hippolyta — the two cards the epic exists to fix.** Step 15 keyed a default off it and
+made the headline fix invisible until a box was ticked; keying the FORCE off it would have reproduced that
+exactly, for the same reason, against the same two cards. The question is whether the card has a live
+stake, never what a previous build happened to whitelist.
+**A CARD WITH A STAKE IT CANNOT ACT ON IS NOT FORCED, and that falls out of `effectFor` (Aj asked directly:
+*"some of them might not be able to act, not until they get boosted to their quick forms first, right?"*).**
+`stakeFor` opens with `effectFor`, NOT `effectOf`, and returns null unless the result is `quick` — so Armor
+Piercing with no Queen in the zone is a plain Technique, uncastable in any window, and stopping you for it
+would be a modal offering nothing. The Form is what creates the stake, which is the same `effectOf`/
+`effectFor` trap this file already catalogues, in a new place.
+**THE ENGINE OWNS IT**, like `lossAnswerFor` before it: a client sends a card id over the wire, so a
+UI-side rule is unenforceable. The template keeps only the closed set of timings and the tutorial guard.
+**WRITING THE TESTS FOUND AN ORDERING BUG THE CODE READ PAST.** The first cut tested `st.resolution` before
+the `prefight` branch, so a lingering resolution object would have shadowed it — a branch that reads as
+live and never fires. It dispatches on `timing` first now. Every branch has a NEGATIVE and all of them are
+mutation-tested: removing any one kills exactly one assertion.
+**AND `resolutiontest_ui` C2 HAS NOW INVERTED TWICE**, both times because nobody had decided the behaviour
+and the suite encoded whatever fell out. That is the "a suite can pin the defect" rule below in its most
+expensive form: the second inversion was a feature request, and the first was a bug.
 
 **A SUITE CAN ALSO PIN THE DEFECT — AS FIRMLY AS IT PINS A FEATURE (2026-09-17).** `nettest_emote`'s
 expected output was literally `/^You says hi!/`: the exact "You" + third-person-verb shape that

@@ -282,36 +282,70 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     ok(died, 'C · CONTROL: declining the forced window still ends the game — the shield really was on the line');
     await p.close(); }
 
-  // ------------------------------------------------- C2 · AND THE OVERRIDE IS NARROW
-  /* AN OVERRIDE THAT QUIETLY BECAME "ALWAYS PROMPT AT RESOLUTION" WOULD PASS C AND BE WORTHLESS. This is
-     the opposite board by construction: `stagePierce` has you WIN the round, so you are not in
-     `strikeTargets`, and Armor Piercing strips a rival rather than guarding you, so `lossAnswerFor`
-     refuses it too — both halves of the condition false at once.
-     Same timing, same unticked box, opposite outcome. That pairing is the only shape that distinguishes
-     "the override is gated" from "the override is on", and it re-homes the assertion C used to carry: a
-     SUPPRESSED prompt is still legible in a saved log. */
+  // ------------------------------------------------- C2 · THE STRIKER IS FORCED TOO
+  /* THIS CLAIM INVERTED ON 2026-09-23, THE SECOND TIME THIS SCENARIO HAS TURNED OVER, and the reason is
+     the same both times: nobody had decided the behaviour, so the suite encoded whatever fell out.
+     C2 used to assert the override was DEFENSIVE ONLY — you win the round, you hold Armor Piercing, the
+     box is unticked, and nothing stops you. Aj overturned the premise:
+       *"i want you to see past sanctuary … when it sees that i won a fight, and will now break a shield,
+       at the priority window before resolution, the game would still prompt you to use the armor
+       piercing - provided it was quicked with the queen form"*
+     and then widened it again — *"for all the other quicks, they had their preferred timings back in
+     main right? those will still fire off with or without the notices checked"*. THE RULE IS THE EVENT,
+     NOT THE DIRECTION: a shield is about to break and you hold a Quick that changes what happens.
+     ⚠ THE OBVIOUS IMPLEMENTATION IS THE ONE THAT ALREADY FAILED. "Force whatever `main` forced" means
+     `immunityEffFor`, and that predicate REFUSES Sanctuary-under-Hector and Armor-Piercing-under-
+     Hippolyta — the two cards the epic exists to fix. Step 15 keyed a default off it and made the
+     headline fix invisible; `E.stakeFor` asks whether the card has a live stake instead.
+     C3 BELOW KEEPS THE NARROWNESS HALF C2 USED TO CARRY. */
   { const p = await b.newPage(); p.on('pageerror', e => errs.push('C2: ' + e.message));
     await p.goto(URL);
-    if (!await freshGame(p)) ok(false, 'C2 · a board where the shield at risk is not yours');
+    if (!await freshGame(p)) ok(false, 'C2 · a board where the shield about to break is the RIVAL\'s');
     await stagePierce(p);
     await p.evaluate(() => { window.__solo.setPromptPref('C7', 'resolution', false); });
     await leadAces(p);
-    const done = await until(() => p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; }));
-    ok(done, 'C2 · the round resolved with no modal to answer — the winner is not a strike target, so nothing forced a prompt');
+    const up = await until(() => p.evaluate(() => !!document.getElementById('respDecline')));
+    ok(up, 'C2 · THE OVERRIDE FIRES FOR THE STRIKER — `resolution` is unticked and the window opens anyway, because a shield is about to break and Armor Piercing changes it' +
+       (up ? '' : '  ← no Respond? window; the strike landed at 1 and the preference decided it'));
+    const offered = await quickBtns(p);
+    ok(offered.some(t => /Armor Piercing/i.test(t)),
+       'C2 · …offering the card that forced it' + (offered.length ? '  [' + offered.join(' | ').slice(0, 80) + ']' : '  ← no Quick buttons at all'));
     const led = await p.evaluate(() => window.__solo.prioLog());
-    /* THE TIMING IS PART OF THE CLAIM. The first cut of this matched any `PROMPT OFF` line and picked up
-       the `[main→fight]` one, which is a different window suppressed for a different reason — it would
-       stay green on a build where the Resolution go-round never opened at all, and the whole point here
-       is that it DID open and chose not to stop us. */
+    const line = led.filter(l => /SHIELD AT RISK/.test(l) && /\[resolution\]/.test(l))[0];
+    ok(!!line && /Armor Piercing/.test(line),
+       'C2 · …and the ledger says FORCED at resolution, naming it' +
+       (line ? '  [' + line.slice(0, 110) + ']' : '  ← no [resolution] SHIELD AT RISK line'));
+    await p.close(); }
+
+  // ------------------------------------------------- C3 · AND IT IS STILL NARROW
+  /* AN OVERRIDE THAT QUIETLY BECAME "ALWAYS PROMPT AT RESOLUTION" WOULD PASS C AND C2 AND BE WORTHLESS.
+     This is the same winning board with the extra strip ALREADY BANKED, so casting Armor Piercing would
+     add nothing — `applyRoundLossBody` consumes `finishingBlow` and it does not stack. Both halves of
+     the condition are false while every other fact about the board is identical, which is the only shape
+     that separates "the override is gated" from "the override is on".
+     It also re-homes the assertion C2 used to carry: a SUPPRESSED prompt stays legible in a saved log. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C3: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C3 · a board where the extra strip is already banked');
+    await stagePierce(p);
+    const banked = await p.evaluate(() => {
+      window.__solo.setPromptPref('C7', 'resolution', false);
+      const st = window.__solo.st(); st.players[0].finishingBlow = true; return !!st.players[0].finishingBlow;
+    });
+    ok(banked, 'C3 · staged — the extra strip is already banked, so the card has nothing left to change');
+    await leadAces(p);
+    const done = await until(() => p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; }));
+    ok(done, 'C3 · the round resolved with no modal to answer — nothing forced a prompt');
+    const led = await p.evaluate(() => window.__solo.prioLog());
     const off = led.filter(l => /\[resolution\]/.test(l) && /PROMPT OFF/.test(l) && /Armor Piercing/.test(l))[0];
     ok(!!off,
-       'C2 · …and the ledger records the suppressed prompt AT RESOLUTION by name — the evidence C used to carry' +
+       'C3 · …and the ledger records the suppressed prompt AT RESOLUTION by name' +
        (off ? '  [' + off.slice(0, 110) + ']'
-            : '  ← no [resolution] PROMPT OFF line naming Armor Piercing  {' + led.filter(l => /resolution/.test(l)).join(' // ').slice(0, 160) + '}'));
+            : '  ← no [resolution] PROMPT OFF line  {' + led.filter(l => /resolution/.test(l)).join(' // ').slice(0, 160) + '}'));
     const forced = led.filter(l => /SHIELD AT RISK/.test(l))[0];
     ok(!forced,
-       'C2 · …and NOTHING was forced on this board — the override really is gated on being struck' +
-       (forced ? '  ← REPRODUCED: it fired for a seat that was never a strike target  [' + forced.slice(0, 90) + ']' : ''));
+       'C3 · …and NOTHING was forced — the override really is gated on the card still mattering' +
+       (forced ? '  ← REPRODUCED: it fired with the strip already banked  [' + forced.slice(0, 90) + ']' : ''));
     await p.close(); }
 
   // ------------------------------------------------- D · AN UNCHECKED CARD IS STILL CASTABLE
