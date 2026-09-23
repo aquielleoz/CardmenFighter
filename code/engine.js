@@ -2317,6 +2317,64 @@
     if (e.immune || e.shieldImmune) return e;              // above 0 immunity prevents the loss
     return gainsShield ? e : null;                         // or a spare shield absorbs it
   }
+
+  /* DOES THIS CARD HAVE A LIVE STAKE IN WHAT IS HAPPENING RIGHT NOW, for seat q? The UI forces a prompt when it does,
+     whatever the player's notification preferences say. `lossAnswerFor` answers only "does this SAVE my
+     shield", and Aj widened the rule on 2026-09-23: *"i want you to see past sanctuary … when it sees
+     that i won a fight, and will now break a shield … even when all notices are unchecked … the game
+     would still prompt you to use the armor piercing"*. THE RULE IS THE EVENT, NOT THE DIRECTION: a
+     shield is about to break and you hold a Quick that changes what happens.
+     THREE DIRECTIONS. The first shipped 2026-09-15; the other two are the widening:
+       - you are a strike target and the card ANSWERS the loss                    -> lossAnswerFor
+       - you are the WINNER and the card changes the strike you are about to land -> Armor Piercing
+       - a destroyShield on the stack is aimed at you, and that is its ONLY window
+     THE THIRD IS THE LATENT ONE. `resolveEffectBody`'s destroyShield case says outright that "the loss
+     itself no longer opens a second guard window", so the response window against the Technique is the
+     whole defence — and it survives today only because `respond` happens to be the one timing that
+     defaults on. Untick it and Ultima Attack takes your last shield with Sanctuary in your hand.
+     IT RETURNS THE EFFECT, NEVER A BOOLEAN, so a caller can name the card that forced the window. The
+     ledger prints that name, and "a diagnostic that cannot explain itself" has cost this repo before.
+     KEYED OFF EFFECT FIELDS, NEVER A CARD NAME — `kind==='onWin'` + `extraShield`, the same pair
+     `applyRoundLossBody` reads as `strips = 2`. A whitelist here is the mistake step 18 deleted. */
+  function stakeFor(st, q, card, timing) {
+    var e = effectFor(st, q, card);                        // effectFor, NOT effectOf: a Form GRANTS the quick
+    if (!e || !e.impl || !e.quick) return null;
+    /* DISPATCH ON THE TIMING FIRST. An earlier cut tested `st.resolution` before the prefight branch, so a
+       lingering resolution object would have shadowed it — the branch would read as live and never fire.
+       Writing the tests is what found it; each timing now answers for itself. */
+    if (timing === 'prefight') {
+      /* BACK STAB'S OWN MOMENT. The pre-fight window was a Back Stab special case in `main` and is now
+         just the Main -> Fight point of the unified walk, so a seat holding one is exactly as entitled to
+         be stopped there as a Counter Spell is when something is cast. */
+      return (e.kind === 'lockout') ? e : null;
+    }
+    if (timing === 'resolution') {
+      var res = st.resolution;
+      if (!res) return null;
+      if ((res.strikeTargets || []).indexOf(q) >= 0) return lossAnswerFor(st, q, card);   // the shield is yours
+      /* THE STRIKER'S HALF. `finishingBlow` is what Armor Piercing sets and `applyRoundLossBody` reads as
+         `strips = 2`; already banked means the cast would add nothing, so there is nothing to stop you
+         for. Keyed off the EFFECT's own fields, never a card name. */
+      if (res.winner === q && res.wonWithCombo && (res.strikeTargets || []).length &&
+          e.kind === 'onWin' && (e.extraShield || 0) > 0 &&
+          st.players[q] && !st.players[q].finishingBlow) return e;
+      return null;
+    }
+    if (timing === 'respond') {
+      /* A destroyShield's response window is its ONLY one — `resolveEffectBody`'s own comment says the
+         loss "no longer opens a second guard window". It survives today only because `respond` is the
+         timing that defaults on; untick it and Ultima Attack takes your last shield with the answer in
+         your hand. Latent, not live, and one box away. */
+      var top = st.pending;
+      if (top && top.eff && top.eff.kind === 'destroyShield' && top.p !== q) {
+        var aimed = hostileTargets(st, top.p, effectTarget(st, top.p, top.opts), 'damage', top.eff);
+        if (aimed.indexOf(q) >= 0) return lossAnswerFor(st, q, card);
+      }
+      return null;
+    }
+    return null;
+  }
+
   /* `shieldGuardCard` WAS HERE AND IS DELETED (epic step 19). It filtered the hand through the whitelist
      and returned `[0]` — the ENGINE choosing the player's card for them, and the "first candidate is
      gambling on the deal" shape CLAUDE.md catalogues. The go-round offers every castable Quick and the
@@ -3106,6 +3164,7 @@
        `immune || shieldImmune`, which is the miss v1.31.112 fixed. */
     immunityEffFor: immunityEffFor,
     lossAnswerFor: lossAnswerFor,
+    stakeFor: stakeFor,
     /* The Clean-up events, in the order they run. Exported because NAMING them is the point of the queue —
        a trigger that wants to fire on "the pile was cleared" needs something to name, and a test needs to
        be able to see the set rather than infer it from side effects. */

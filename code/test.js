@@ -2328,6 +2328,79 @@ function cards(ids) { return ids.map(card); }
 
   // ...and it is a real refusal, not a rig that accepts anything
   ok(AI.resolutionGuardCard(rig(0, HECTOR(), [DUD()]), 0) === null, 'a hand with no answer still declines — the rig can say no');
+
+  /* `stakeFor` — THE FORCE CONDITION, WIDENED 2026-09-23. A notification preference may not decide the
+     outcome of a shield event, and Aj widened that from "save my shield" to the event itself:
+     *"i want you to see past sanctuary … when it sees that i won a fight, and will now break a shield,
+     at the priority window before resolution, the game would still prompt you to use the armor piercing
+     - provided it was quicked with the queen form"*, then *"for all the other quicks, they had their
+     preferred timings back in main right? those will still fire off with or without the notices
+     checked"*.
+     ⚠ THE OBVIOUS IMPLEMENTATION IS THE ONE THAT ALREADY FAILED ONCE. "Force whatever `main` forced"
+     means `immunityEffFor`, and that predicate REFUSES Sanctuary-under-Hector and Armor-Piercing-under-
+     Hippolyta — the two cards the epic exists to fix. Step 15 keyed a default off it and made the
+     headline fix invisible until a box was ticked. The question is whether the card has a LIVE STAKE.
+     ASSERTED IN THE ENGINE, not only in the page: a client sends a card id over the wire, so a UI-only
+     rule is unenforceable. `resolutiontest_ui` C/C2/C3 drive the same directions through the real page.
+     EVERY BRANCH CARRIES A NEGATIVE — an override with no negative cannot be told from "always on". */
+  var HIPPO  = function () { return [C(12, 'C', 'hippo')]; };     // the club Queen — makes Armor Piercing a Quick
+  var AP     = function () { return C(7, 'C', 'ap'); };           // Armor Piercing — onWin, extraShield 1
+  var BSTAB  = function () { return C(10, 'S', 'bs'); };          // Back Stab — lockout; a Quick under any King
+  var AKING  = function () { return [C(13, 'S', 'king')]; };
+  function nrg(pl) { pl.energy = []; ['D','H','C','S'].forEach(function (su) { for (var i = 0; i < 8; i++) pl.energy.push(C(3, su, 'z' + su + i)); }); }
+  function striker(forms, hand) {                                  // YOU won; a shield is about to break on seat 1
+    var g = E.newGame(); var p0 = g.players[0];
+    p0.forms = forms; p0.hand = hand.slice(); nrg(p0);
+    g.pending = null; g.resolution = { winner: 0, wonWithCombo: true, strikeTargets: [1] };
+    return g;
+  }
+  function onStack(forms, hand, card) {                            // `card` is on the stack, cast by seat 1
+    var g = E.newGame(); var p0 = g.players[0];
+    p0.forms = forms; p0.hand = hand.slice(); nrg(p0);
+    g.resolution = null;
+    g.pending = { p: 1, card: card, eff: E.effectOf(card), opts: {} };
+    return g;
+  }
+  // 1 · DEFENSIVE — the half that shipped 2026-09-15, restated here so the widening cannot drop it
+  ok(!!E.stakeFor(rig(0, HECTOR(), [SANC()]), 0, SANC(), 'resolution'),
+     'stakeFor · DEFENSIVE: a strike target holding the answer is stopped, whatever the checkbox says');
+  ok(E.stakeFor(rig(0, HECTOR(), [DUD()]), 0, DUD(), 'resolution') === null,
+     'stakeFor · …and a hand with no answer is not — the condition can say no');
+  // 2 · THE STRIKER — Aj's example 2
+  ok(E.effectFor(striker(HIPPO(), [AP()]), 0, AP()).quick === true,
+     'stakeFor · staging is live: Hippolyta really makes Armor Piercing a Quick');
+  ok(!!E.stakeFor(striker(HIPPO(), [AP()]), 0, AP(), 'resolution'),
+     'stakeFor · STRIKER: the winner about to break a shield is stopped for Armor Piercing');
+  /* A STAKE YOU CANNOT ACT ON IS NOT A STAKE (Aj, 2026-09-23: *"some of them might not be able to act,
+     not until they get boosted to their quick forms first, right?"*). Armor Piercing with NO Queen in the
+     zone is a plain Technique — uncastable in any window — so stopping the player for it would be a modal
+     offering nothing. This is `effectFor` vs `effectOf` doing the work, and it is asserted BOTH ways
+     against the same card, which is the only shape that shows the Form is what creates the stake. */
+  ok(E.effectFor(striker([], [AP()]), 0, AP()).quick !== true,
+     'stakeFor · staging is live: with no Queen in the zone Armor Piercing is NOT a Quick');
+  ok(E.stakeFor(striker([], [AP()]), 0, AP(), 'resolution') === null,
+     'stakeFor · …so the same card on the same board forces nothing until the Form makes it castable');
+  var banked = striker(HIPPO(), [AP()]); banked.players[0].finishingBlow = true;
+  ok(E.stakeFor(banked, 0, AP(), 'resolution') === null,
+     'stakeFor · …but NOT once the extra strip is banked — the cast would change nothing');
+  ok(E.stakeFor(striker(HECTOR(), [SANC()]), 0, SANC(), 'resolution') === null,
+     'stakeFor · …nor for a Quick with no bearing on the strike (Sanctuary while WINNING)');
+  // 3 · BACK STAB AT ITS OWN MOMENT — the window `main` had for it
+  ok(E.effectFor(striker(AKING(), [BSTAB()]), 0, BSTAB()).quick === true,
+     'stakeFor · staging is live: a King really makes Back Stab a Quick');
+  ok(!!E.stakeFor(striker(AKING(), [BSTAB()]), 0, BSTAB(), 'prefight'),
+     'stakeFor · PREFIGHT: Back Stab is stopped at the moment the pre-fight window existed for');
+  ok(E.stakeFor(striker(AKING(), [BSTAB()]), 0, BSTAB(), 'resolution') === null,
+     'stakeFor · …and not at a moment it has no stake in — the timing is part of the claim');
+  // 4 · A destroyShield's respond window is the ONLY one it gets
+  var ULT = function () { return C(10, 'C', 'ult'); };             // Ultima Attack
+  ok(!!E.stakeFor(onStack(HECTOR(), [SANC()], ULT()), 0, SANC(), 'respond'),
+     'stakeFor · DESTROYSHIELD: aimed at you, so an unticked `respond` cannot cost you the shield silently');
+  ok(E.stakeFor(onStack(HECTOR(), [SANC()], C(4, 'H', 'drw')), 0, SANC(), 'respond') === null,
+     'stakeFor · …and an ordinary Technique on the stack forces nothing — `respond` is not "always prompt"');
+  // 5 · AN UNKNOWN TIMING FORCES NOTHING, so adding a row to the card reader cannot silently force it
+  ok(E.stakeFor(rig(0, HECTOR(), [SANC()]), 0, SANC(), 'cleanup') === null,
+     'stakeFor · a timing with no stated stake forces nothing');
   ok(AI.resolutionGuardCard(rig(0, [], [SANC()]), 0) === null, 'and WITHOUT the Form it declines: Sanctuary is not a Quick at base, so there is nothing to cast');
 
   // the seat must actually be the one being struck, and must want to guard
