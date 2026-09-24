@@ -71,7 +71,7 @@ node exporttest.js                              # the playtest export at 3 playe
 node phantasmtest.js                            # Phantasmal Illusion: all three routes + the bare-copy
                                                 # refusal, in the real page (12)
 node nettest_reveal.js                          # the hand read over netplay, incl. who must NOT see it (10)
-node nettest_autopass.js                        # AN AUTO-PASS IS NOT A CHOICE (17). A client whose prompt
+node nettest_autopass.js                        # AN AUTO-PASS IS NOT A CHOICE (24). A client whose prompt
                                                 # for a timing is off answers with the SAME `{op:'decline'}`
                                                 # a player clicking "Let it resolve" sends, so the host
                                                 # narrated both. Three legs: a real decline STILL narrates,
@@ -79,7 +79,9 @@ node nettest_autopass.js                        # AN AUTO-PASS IS NOT A CHOICE (
                                                 # ignored look identical in a log), and a SOURCE SCAN,
                                                 # because a duel drives `hostApplyMove` and never reaches
                                                 # `hostApplyMoveN` — the first A/B passed 15/0 with the
-                                                # N-player guard deleted
+                                                # N-player guard deleted. LEG 2b drives the REAL
+                                                # `#respDecline` button, because the early return it covers
+                                                # is in the UI path that `clientSend` jumps over
 node nettest_clientdeal.js                      # THE CLIENT'S OPENING HAND ARRIVES DEALT, NOT SORTED (10).
                                                 # The engine keeps every hand sorted, and the only thing that
                                                 # ever made one LOOK dealt is `syncOrder(true)` — called from
@@ -1918,7 +1920,7 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 54 netplay suites: `nettest_3p` 7, `clientdeal` 10, `autopass` 17, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 11, `clientwin` 10, `concede3` 8,
+The 54 netplay suites: `nettest_3p` 7, `clientdeal` 10, `autopass` 24, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 11, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
@@ -2016,7 +2018,7 @@ moved to the FRONT (`FAILED — `) so the loud signal survives while `PASS: n  F
 59 files, one line each, including `relay/relaytest.js` which spelled it with spaces. **When you add a suite,
 copy the summary line from an existing one — do not re-invent it.**
 
-**EVERYTHING RESET ONLY IN `startGame` IS NEVER RESET ON A CLIENT — THAT IS THREE TIMES NOW (2026-09-23).**
+**EVERYTHING RESET ONLY IN `startGame` IS NEVER RESET ON A CLIENT — THAT IS FOUR TIMES NOW (2026-09-24).**
 `resetBoardMemory` is the documented one and its comment already says why. `handOrder`, `layout` and
 `sortState` were in the same position and nobody noticed, because their failure is silent: the ENGINE keeps
 every hand sorted (`sortHand` at the deal and at every draw), so the only thing that ever made a dealt hand
@@ -2029,6 +2031,11 @@ hand presentation and BOTH seats call it.
 **THE ENUMERATION, which is cheap and was never done:** `startGame` is one statement wide — read what it
 assigns and ask of each name whether anything else ever resets it. Anything that does not appear in
 `clearBoard`, `resetBoardMemory` or the client's `t:'setup'` is in this class.
+**DOING THAT ENUMERATION IMMEDIATELY FOUND THE FOURTH: `PRIO_LOG`.** `stashLog()` clears `fullLog` at the
+lobby return and leaves the priority ledger, and `startGame` is the only other place it is touched — so a
+client's ledger ACCUMULATED across every game of a session (capped at 400) while the host's reset cleanly.
+It is now cleared at `t:'setup'` beside `resetHandPresentation()`. **The tell for this whole family is a
+per-game variable whose only assignment outside its use is on `startGame`'s one long line.**
 **AND THE MECHANISM IS WHAT YOU ASSERT, NOT THE SHUFFLE.** `nettest_clientdeal` reads a counter the reset
 bumps. Its first version read a trace line written BESIDE the call, stayed green with the fix deleted, and
 was caught only by A/B'ing it — so the counter is bumped INSIDE `resetHandPresentation`, where removing any
@@ -2618,7 +2625,10 @@ not a class problem but a rules problem. The lever belongs at the rules level �
   persona** (a Forms zone is labelled `<name>’s Forms & Rides`, so the name sets the zone's width); and
   **`__cmf.clientSend(msg)` sends a raw client intent**, which is the only way to test a HOST-side authority
   check — a client's own gate is a courtesy, and going through the UI exercises that copy instead of the one
-  that matters.
+  that matters. **`__cmf.prioLog()` reads that seat's priority ledger** (the `__solo.prioLog` twin, for the
+  netplay suites) — and note the pair is not interchangeable: `clientSend` JUMPS OVER the client's UI path,
+  so anything being fixed inside `humanResponds`/`humanDeclines` needs the real button, which is why
+  `nettest_autopass` drives both ways.
 - **THE DECK PICKER HAS THREE DEFAULTS, NOT ONE** (v1.31.28). The setup dialog reads `DEFAULT_SEL`, the netplay
   lobby has its own `myDeck`, and `boot()` supplies the `?net=` path's — that third one is what every shared
   invite and every test suite goes through, and it silently made the Full Set the online default for months

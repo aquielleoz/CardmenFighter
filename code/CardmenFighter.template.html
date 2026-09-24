@@ -5952,12 +5952,28 @@ __QR__
     });
     $('respDecline').addEventListener('click', function(){ humanDeclines(g, cont); });
   }
+  /* A CLIENT'S OWN ACTIONS BELONG IN ITS OWN LEDGER (2026-09-23). `humanResponds` and `humanDeclines` both
+     sent the intent and RETURNED above their `prioNote`, so a client's saved ledger recorded what it was
+     OFFERED and what was AUTO-PASSED and never what the player DID. Measured on Aj's log: 15 entries, one
+     `window SHOWN`, six `AUTO-PASSED`, and ZERO `→ you` lines — against seven declines in the battle log
+     beside it. The seat that most often reports a hang was the one whose record was incomplete.
+     IT SAYS "sent" BECAUSE THAT IS WHAT A CLIENT KNOWS. The host re-validates every intent and can refuse
+     one (a stale board stamp, an illegal move), so the `t:'refused'` handler writes the matching line and
+     the two read as a pair. Claiming the cast landed would be the ledger lying, which is the one thing it
+     cannot do and stay worth reading.
+     ONE DEFINITION OF THE LABEL, used by both branches, because two copies of "name this card" 20 lines
+     apart is how the client and local lines drift into describing the same act differently. */
+  function quickLabelFor(id){
+    var c=(state && state.players[YOU] ? state.players[YOU].hand.filter(function(x){ return x.id===id; })[0] : null);
+    var e=c ? ((E.effectFor && E.effectFor(state, YOU, c)) || E.effectOf(c)) : null;   // effectFor: a Form can rename what you are casting
+    return (e && e.name) ? e.name : id;
+  }
   function humanResponds(g, quickId, cont, coid){
     cont = cont || function(){ resumeRival(g); };
     /* THE CHOSEN TARGET TRAVELS AS AN OID, and the host re-validates it against its OWN stack — same rule as
        `resolveIds` and `phantasmSolveFor`: a client sends its CHOICE, never its solution. An oid is the
        host's own identifier for the object, so unlike a stack INDEX it cannot be rotated or stale-shifted. */
-    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'respond', id:quickId, coid:coid||null}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ prioNote('  → you CAST ' + quickLabelFor(quickId) + ' — sent to the host'); hideOverlay(); NET.clientSend({op:'respond', id:quickId, coid:coid||null}); busy=true; render(); return; }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     if(g!==gen){ hideOverlay(); return; }
     var qcard=state.players[YOU].hand.filter(function(c){return c.id===quickId;})[0];
@@ -5977,7 +5993,7 @@ __QR__
   }
   function humanDeclines(g, cont){
     cont = cont || function(){ resumeRival(g); };
-    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ hideOverlay(); NET.clientSend({op:'decline'}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ prioNote('  → you DECLINED — sent to the host'); hideOverlay(); NET.clientSend({op:'decline'}); busy=true; render(); return; }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     if(g!==gen){ hideOverlay(); return; }
     hideOverlay();
@@ -9045,6 +9061,10 @@ __QR__
              Without it the hand arrives in the engine's own SORTED order and nothing is ever reset between
              games on this seat — handOrder, layout and the Sort label all lived in `startGame` alone. */
           resetHandPresentation();
+          /* AND THE LEDGER IS PER-GAME. `PRIO_LOG` is cleared in `startGame` and nowhere else — `stashLog`
+             clears `fullLog` at the lobby return and leaves this — so on a client it accumulated across
+             every game of the session while the host's reset cleanly. Fourth member of the same family. */
+          PRIO_LOG=[];
           if(m.names && m.names.length){                        // rotate absolute -> local so seatName/logName need no rotation
             var nn=m.names.length, loc=[];
             for(var ai=0; ai<nn; ai++) loc[((((ai-mySeat)%nn)+nn)%nn)] = m.names[ai]||'';
@@ -9068,7 +9088,9 @@ __QR__
           applyMirror(m.st); }
         else if(m.t==='ceremony' && m.seat===mySeat){ clientPlayCeremony(m.res); }
         else if(m.t==='refused'){                             // the host threw a play away — say so, or it reads as a dropped click
-          busy=false; selected={}; setMessage('⚠ '+(m.why||'That play could not be made — have another look.')); render(); }
+          /* THE LEDGER GETS IT TOO, or a client's record shows "you CAST X — sent" with nothing after it
+             and the next reader cannot tell a landed cast from a discarded one. */
+          busy=false; selected={}; prioNote('  ⚠ the host REFUSED that', m.why||'no reason given'); setMessage('⚠ '+(m.why||'That play could not be made — have another look.')); render(); }
         else if(m.t==='ping'){ SFX.play('ping'); setMessage('🔔 The host is ready — pinged you.'); }
         else if(m.t==='fx'){                                  // includes our OWN cast, echoed back by the host
           var fn=(state&&state.numPlayers)||2;                 // `seat` is ABSOLUTE — rotate into our frame
@@ -10655,7 +10677,7 @@ __QR__
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, shieldsOf:function(seat){ return (state&&state.players[seat])?state.players[seat].shields:null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, handPresetN:function(){ return handPresetN; }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); },
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, shieldsOf:function(seat){ return (state&&state.players[seat])?state.players[seat].shields:null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, handPresetN:function(){ return handPresetN; }, prioLog:function(){ return PRIO_LOG.slice(); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); },
     /* THE LIVE TALLY. The finished record only exists at game end, and no 3-player suite both has a client ACT
      * and plays to a finish — so without this seam the N-player half of the remote-seat tally (v1.31.96) could
      * only be covered by a whole new suite. Read on the HOST, whose stats are the ones every seat adopts. */
