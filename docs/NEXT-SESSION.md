@@ -209,44 +209,28 @@ re-read its tag.
 
 #### Flaky suites
 
-- `needs a measurement` · **`lessontest_twos` BLEW ITS FULL-HOUSE POLL UNDER `-j 4` — AND THE SWEEP GETTING
-  BIGGER IS THE LIKELIEST CAUSE (2026-09-17).** `PASS: 24  FAIL: 5`, opening on
-  *"you beat it with your own full house — card 5C#t6 has no group (retried for 30000ms)"*. **6/6 green
-  solo** immediately afterwards, so it is contention, not the lesson.
-  **THE TELL IS THE WALL CLOCK, NOT THE ASSERTION: 112s in the sweep against ~20s alone.** The retry spent
-  its entire 30s budget and the card never rendered — a starved lane, not a broken rig.
-  **THIS IS THE POLL CLAUDE.md ALREADY NAMES AS THE THIN ONE.** v1.31.99 instrumented every wait in the
-  lesson harness and found exactly one outlier: *"the full-house wait took 4676ms of 14000 — a 3.0x margin,
-  the only poll under 4x"*. It was raised to the standard 30s and has now blown that too.
-  **WHAT CHANGED IS THE DENOMINATOR.** The sweep was 86 suites on `main` and is **94** on the epic — six
-  added by the epic plus `nettest_ridewedge` and `nettest_rtcready` — so every lane gets less machine than
-  when that margin was measured. **Re-measure the margin before raising anything**: `LESSONPOLL=1` prints
-  every wait, and this repo's rule is to raise a budget because you measured it, never on principle.
-  **AND CONSIDER THE OTHER LEVER.** A budget raise makes a starved run slower rather than red, which is the
-  stated goal — but if several suites are near their margins the honest fix is lane count or suite cost,
-  not thirteen individual budgets. `sweep.js` schedules longest-first; `lessontest_twos` at 112s would have
-  been near the head of that queue.
-  **⚠ `lessontest_forms` JOINED IT ON 2026-09-24, WHICH MOVES THIS FROM "one suite" TO "the lane is too
-  thin" (the second half of this entry, now with evidence).** `PASS: 13  FAIL: 2` on *"the Q is spotlit for
-  you to activate"* in a `-j 4` sweep; **3/3 green solo** straight afterwards, on a branch whose only change
-  was the playtest record's log source — nothing a tutorial can reach.
-  **THE DENOMINATOR KEPT GROWING WHILE NOBODY RE-MEASURED:** 86 suites on `main`, 94 when this entry was
-  written, **98 now**. Every suite added takes machine from every lane, so the suites nearest their margin
-  go red first and it looks like a different bug each time.
-  **⚠ THIRD OCCURRENCE, SAME DAY, AND THE DENOMINATOR IS NOW 99 (2026-09-24 evening).** `lessontest_twos`
-  again at **`PASS: 24  FAIL: 5`**, opening on *"has no group (retried for 30000ms)"*, **112s** in the
-  sweep against **29/0 twice solo** immediately after. That is byte-identical to the signature filed
-  above, from a different build, which is as close to a controlled repeat as this gets.
-  **AND THE CAUSE IS PARTLY US.** Five suites were added in one session (`nettest_clientdeal`,
-  `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, plus assertions elsewhere), taking the
-  sweep 94 → 99. Every suite added takes machine from every lane. **Writing more tests is making the
-  harness less able to report on them**, which is the tension to resolve rather than absorb.
-  **THIS IS ARGUABLY EPIC-BLOCKING NOW.** CLAUDE.md: *"an unreliable sweep is worth less than a red one,
-  because it makes every other result unreadable."* Merging the epic to main rests on a green sweep
-  meaning something, and right now roughly one run in two has a red that nobody should act on.
-  **SO THE LEVER IS LANE COUNT OR SUITE COST, NOT A THIRD BUDGET RAISE.** `LESSONPOLL=1` prints every wait;
-  measure the margins across the lesson family in one `-j 4` run before touching anything, because raising
-  budgets one suite at a time is how this reached three suites without anyone seeing the shape.
+- `needs a repro`       · **`lessontest_twos` DEAD-ENDS ON AN UNSCRIPTED CLEAN-UP PICK — CAUSE FOUND
+  2026-09-24, TRIGGER STILL OPEN.** Filed three times as a poll-budget flake under `-j 4`
+  (`PASS: 24  FAIL: 5`, opening on *"you beat it with your own full house — card 5C#t6 has no group
+  (retried for 30000ms)"*, 112s in the sweep against 22s solo). **It was never the poll budget.**
+  **THE MECHANISM, MEASURED.** `card <id> has no group` means the board is in PICK MODE: `renderHand`'s
+  first branch renders bare cards into `#hand` with no `.group` wrapper and is the only writer that does.
+  A pick never clears itself, so the retry burns its whole 30s against a board that cannot move. And **the
+  lesson sits at 10 of 10 cards at that step — exactly the cap, zero headroom** — so one card left unspent
+  by a slipped beat takes the hand to 11 and opens the clean-up trim. The full rule is in CLAUDE.md.
+  **WHAT SHIPPED:** `lessonlib.pickMode()` names the state, `answerWindow()` escapes it loudly,
+  `lessontest_twos` asserts the rig's own `[10/10]` promise, `nettest_trim` asserts the DOM contract, and
+  `lessontest_pickescape` forces the condition so neither guard is untested code. The sweep also surfaces
+  warnings from GREEN suites now, so the `⚠` escape line cannot pass unnoticed.
+  **WHAT IS STILL OPEN — AND IT IS THE ONLY THING LEFT HERE: WHICH BEAT SLIPS.** Every earlier assertion in
+  the suite passed on all three red runs, so the unspent card is not one an assertion covers. The next red
+  run will print the hand size (`[11/10]`) and name the pick, which bounds the search to one round
+  boundary; until then there is nothing to fix, only something to catch.
+  **DO NOT RAISE A POLL BUDGET FOR THIS.** Three occurrences were read as contention because the suite was
+  22s solo and 112s loaded; the 112s is the retry burning down, not the machine. The lane-count theory this
+  entry used to carry is **withdrawn** — a stable wrong state for thirty seconds is a mode, not a race.
+  **`lessontest_forms` (2026-09-24, *"the Q is spotlit for you to activate"*, 13/2, 3/3 solo) is a
+  DIFFERENT signature** and is not explained by this; it needs its own repro rather than being folded in.
   `[id: lessontest-twos-poll-under-load]`
 
 - `needs a repro`       · **`lessontest_quicks` IS RED ~25% OF THE TIME AT `-j 4`, AND ~1 IN 9 SERIALLY — MEASURED 2026-09-10/11.**
@@ -280,6 +264,22 @@ re-read its tag.
   flake wanders; this lands in ONE specific wrong state every time it lands wrong. Treat it as a
   deterministic defect reached on a race, not as slowness — and do not raise a poll budget to "fix" it.
   Running rate on `feat/phase-boundaries`: **2 red in 13 solo**.
+  **⚠ THE POLL BUDGET IS EXONERATED — MEASURED 2026-09-24, AND THE OBVIOUS FIX WAS WRONG.** This suite
+  hand-rolls its own polls (it is not a `lessonlib` client), so its budgets sat at **6000ms against the
+  family's 30000** and the Respond? wait at **9000ms** — which looks exactly like the v1.31.84 raise having
+  missed a file, and I raised it on that reasoning before measuring. The measurement refutes it: the window
+  opens at **2695ms solo, 2709ms with four copies of this suite running, and 2743ms against mptest +
+  browsertest + landscapetest together**. Contention does not stretch this wait, because what it waits for
+  is `revealDwell` — 2650ms of MANDATORY WALL-CLOCK dwell, which CPU load does not slow down. 9000ms is a
+  3.3x margin that HOLDS under the heaviest load available, so the raise was reverted.
+  **THE 39s IS NOT STARVATION EITHER**: it is four poll budgets (9+6+6+6) burning down after the first
+  failure, so the slow wall clock is a CONSEQUENCE of the red, not evidence for a cause.
+  **SO WHEN THIS FAILS THE WINDOW GENUINELY NEVER OPENS**, which is what this entry already said, and the
+  search is narrowed to `tutCastRivalTech` with the timing explanation removed rather than left open.
+  **AND THE ONE LINE THAT WOULD SETTLE IT WAS BEING DROPPED:** the suite prints `WHY: step=… turn=…
+  pending=… counterSpell=…` on exactly this assertion — whether the Rival holds Counter Spell, whether it
+  had the energy — and `sweep.js`'s failure filter did not match `WHY:`, so three sweeps reported this
+  failure with the diagnostic removed. Fixed; the next red carries it.
   `[id: lessontest-quicks-flaky]`
 
 - `needs a repro`       · **`nettest_passoduel` FLAKES AT ROUGHLY 1 IN 8, SOLO — MEASURED AND A/B'd 2026-09-15.** It hung a lane
@@ -1203,6 +1203,13 @@ never read.*
   `[id: mirror-contract-findings]`
 
 - `root cause found`    · **★ EXPANDING A ZONE PUSHES THE BOARD PAST ITS HEIGHT ON THE TIGHTEST PHONES** (measured 2026-09-07)
+  **⚠ ITS REPORTED NUMBER IS NOT STABLE — 30px IN ONE SWEEP, 60px IN THE NEXT, SAME BUILD (2026-09-24).**
+  Surfaced by the sweep's new warnings section, which prints a green suite's own `⚠` lines. That is the
+  moving-geometry tell CLAUDE.md already names — *"bimodal or wide-swinging geometry on a build nobody
+  touched… do not pad the cap to cover it, find what is moving"* — and the known culprits there are the
+  RANDOM PERSONA (a Forms zone is labelled `<name>’s Forms & Rides`, so the name sets the zone's width) and
+  the deal, both of which `landscapetest` already pins elsewhere via `__solo.setName` and a fixed hand. Pin
+  them for THIS case before trusting either figure; the ratchet's cap should be sized off a pinned number.
   `[ratchet: phone-zone-expand-overflow]`
   v1.31.111 made both panel zones expandable; at **327x660 opening a seat's Forms and equipment adds 75px to
   that panel and pushes `#board` 63px past its height** (393x852 goes 10px over; 360x800, 390x780 and 412x915
