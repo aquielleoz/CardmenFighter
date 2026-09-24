@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**557**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**565**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -381,11 +381,18 @@ re-read its tag.
     `FIGHT-END-PLAN.md` → *Where a mid-cast card goes*.
   `[id: re-check-setrecycletech-discard]`
 
-- `needs a decision`    · **ARMOR PIERCING IS "+1 TO YOUR NEXT FIGHT WIN", NOT "+1 TO A SHIELD LOSS YOU CAUSE"** (`resolveEffect`'s `onWin` case, engine.js). Arm
-  it, then cast Ultima Attack or Critical Hit, and the +1 does not apply — the flag survives to your next fight
-  win instead. The card text agrees with the code; the design intended the other reading. Also `extraShield: 1`
-  is declared and never read, so a second cast cannot stack and a Form patch raising it would do nothing.
-  `[id: armor-piercing-timing]`
+- `needs a measurement` · **SHOULD THE AI STACK ARMOR PIERCING? It refuses, and that refusal is now a
+  POLICY rather than a fact (2026-09-24).** `resolutionPushCard`'s `if (qp.finishingBlow) return null` was
+  literally true when `finishingBlow` was a boolean against `strips = 2` — a second cast added nothing. It
+  STACKS now, so against a target holding 3+ shields a second cast really would take a third shield.
+  **The AI still declines, deliberately**: that is another Broadway discard plus energy for one shield, and
+  changing it is a balance change. **`strengthsim` is the only harness that can answer it** — every other
+  sim runs the same AI on both seats and is structurally blind to "is this stronger?"
+  (`DECISIONS.md#ai-strength`). Run the control first; identical arms must print exactly 50.00.
+  **The gate would also need widening, not just deleting**: `worth` currently asks for a struck target on
+  2+ shields, which is right for the FIRST cast; a second needs `shields >= 2 + current` or it is wasted by
+  the same "never overkills" rule the first one respects.
+  `[id: ai-stack-armor-piercing]`
 
 - `needs a repro`       · **ROUND 2 RESOLVED TWICE IN A REAL DUEL, AND IT COST A SECOND SHIELD (2026-09-15, unexplained).** From
   Aj's saved logs of one game, BOTH seats, narrated identically:

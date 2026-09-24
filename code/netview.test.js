@@ -290,7 +290,7 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   };
   function pub(p) {
     if (PUBLIC[p]) return true;
-    return /(^|\.)(shields|energyCount|handCount|deckCount|shuffleCount|removedCount|kicksLanded|counters|counter|rank|size|value|tier|mod|need|count|protectedRound|_effUsed|nextPlayBoost)$/.test(p)
+    return /(^|\.)(shields|energyCount|handCount|deckCount|shuffleCount|removedCount|kicksLanded|counters|counter|rank|size|value|tier|mod|need|count|protectedRound|_effUsed|nextPlayBoost|finishingBlow)$/.test(p)
         || /^players\.\d+\.(hand|deck|shuffle|removed|energy|forms|equipment)\./.test(p)
         || /(^|\.)key\.\d+$/.test(p);
   }

@@ -2464,6 +2464,95 @@ function cards(ids) { return ids.map(card); }
   ok(AI.policyStats().push === 1, 'policyStats counts the cast — a policy measuring as worthless and one that never ran are the same number otherwise');
 })();
 
+/* ARMOR PIERCING'S AMOUNT IS DATA, AND ITS SCOPE IS THE WHOLE STRIKE (2026-09-24, Aj's call on
+   `[id: armor-piercing-timing]`).
+   TWO THINGS WERE DECIDED AND ONE WAS DECLINED. Declined: widening the +1 to a shield loss you cause with
+   Ultima Attack / Critical Hit. The card text, the v0.70 design table and the code all say "the next FIGHT
+   you win", three sources agreeing, and the epic had just tuned this card in its narrow form (+0.82 sigma).
+   So `destroyShield` still does NOT consume `finishingBlow` and that is deliberate, not an oversight.
+   Decided (1): `extraShield: 1` was declared and DEAD — `finishingBlow` was a boolean read against a
+   literal `strips = 2`, so a second cast added nothing and a Form patch raising it would have done nothing.
+   No `BOOSTS` patch sets it (measured, 0), so it was latent rather than live: the orphaned-data shape this
+   repo keeps paying for. It is a COUNT now.
+   Decided (2): the code applies `strips` to EVERY entry in `strikeTargets` and the text said "the Rival you
+   strike", singular. Aj kept the behaviour — *"every seat struck, this will increase shield loss for
+   everyone when we do lossAll yes"* — so the TEXT was the thing that was wrong. Fifth instance of the
+   documented class (Caltrops, Spiked Armor, Giant Ram, Giant Swan).
+   THE SHIPPED CONFIGURATION IS UNCHANGED BY ALL OF THIS — armed once still strips exactly 2 — which is what
+   makes it data hygiene rather than a balance change, and A1 is the assertion that says so. */
+(function () {
+  function C(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  /* A fight win that strikes, with the striker's flag staged directly: this is about what the DAMAGE path
+     reads, not about casting, so staging the flag is the subject rather than a shortcut. */
+  function fightWin(flag, targetShields, players) {
+    var n = players || 2;
+    var g = E.newGame(null, { numPlayers: n, starter: 0 });
+    g.round = 3;                                                    // past jabs-only
+    g.players[0].finishingBlow = flag;
+    for (var i = 1; i < n; i++) { g.players[i].shields = targetShields; g.players[i].hand = [C(3, 'DHS'[i % 3], 'l' + i)]; }
+    g.players[0].hand = [C(9, 'C', 'a'), C(9, 'D', 'b'), C(3, 'C', 'z')];
+    g.turn = 0;
+    var r = E.play(g, 0, [g.players[0].hand[0], g.players[0].hand[1]]);
+    if (!r.ok) return { err: 'play refused: ' + (r.reason || '?') };
+    for (var q = 1; q < n; q++) E.pass(g, q);
+    var guard = 0; while (g.pending && guard++ < 50) E.declineResponse(g, g.respondFor);
+    return g;
+  }
+  var lost = function (g, seat, from) { return from - g.players[seat].shields; };
+
+  // A1 — THE SHIPPED CONFIGURATION IS UNMOVED. Armed once = 2, exactly as before this change.
+  var a1 = fightWin(1, 6);
+  ok(!a1.err && lost(a1, 1, 6) === 2, 'AP: armed once still strips exactly 2 — the shipped number did not move' + (a1.err ? ' (' + a1.err + ')' : ' [' + lost(a1, 1, 6) + ']'));
+  var a0 = fightWin(0, 6);
+  ok(!a0.err && lost(a0, 1, 6) === 1, 'AP: unarmed strips 1 — the control, without which "2" proves nothing');
+
+  /* A2 — THE DATA IS LIVE. Two casts stack, and a larger amount follows through. Asserting only the
+     stack would pass on `strips = 1 + (flag?1:0)`; asserting a THIRD value is what pins it to the data. */
+  var a2 = fightWin(2, 6);
+  ok(!a2.err && lost(a2, 1, 6) === 3, 'AP: two casts stack to 3 — `extraShield` is read, not a literal 2 [' + (a2.err || lost(a2, 1, 6)) + ']');
+  var a3 = fightWin(3, 6);
+  ok(!a3.err && lost(a3, 1, 6) === 4, 'AP: an amount of 3 strips 4 — a Form patch raising `extraShield` would now do something [' + (a3.err || lost(a3, 1, 6)) + ']');
+
+  /* A3 — A BOOLEAN STILL MEANS +1. `Number(true)` is 1, and the unary + in `resolveRoundWin` is there so a
+     mirror from an older peer, or any saved state, degrades to the old behaviour instead of NaN. */
+  var a4 = fightWin(true, 6);
+  ok(!a4.err && lost(a4, 1, 6) === 2, 'AP: a legacy boolean flag still means +1 rather than NaN [' + (a4.err || lost(a4, 1, 6)) + ']');
+
+  /* A4 — "NEVER OVERKILLS" HOLDS AT ANY SIZE, which is the safety claim that let the amount grow at all.
+     `resolveShieldLossObj` samples `wasBroken` ONCE before its loop, so a seat holding shields when the
+     strike began is never kicked however large the count is. Staged at 1 shield against +5. */
+  var a5 = fightWin(5, 1);
+  ok(!a5.err && a5.players[1].shields === 0 && !a5.finished && !a5.players[1].eliminated,
+    'AP: 1 shield against an amount of 5 goes to 0 and is NOT kicked — never overkills at any size' +
+    (a5.err ? ' (' + a5.err + ')' : ' [shields ' + a5.players[1].shields + ', finished ' + !!a5.finished + ']'));
+
+  /* A5 — THE SCOPE THE CARD TEXT NOW CLAIMS. Under `lossAll` every struck seat takes the extra, which is
+     the behaviour Aj kept and the reason the singular text was corrected. Asserting ONE seat would pass on
+     a build that struck only the chosen target, so both are read and required to agree. */
+  E.setSpecialLossMode('all');
+  var a6 = fightWin(1, 6, 3);
+  E.setSpecialLossMode('chosen');
+  ok(!a6.err && lost(a6, 1, 6) === 2 && lost(a6, 2, 6) === 2,
+    'AP: under lossAll EVERY struck seat takes the extra — what "each Rival you strike" now says' +
+    (a6.err ? ' (' + a6.err + ')' : ' [' + lost(a6, 1, 6) + ', ' + lost(a6, 2, 6) + ']'));
+
+  /* A6 — AND THE DECLINED HALF, PINNED SO NOBODY "FIXES" IT BY ACCIDENT. Armed, then a shield loss caused
+     by a Technique: the +1 must NOT apply, and the flag must SURVIVE to the next fight win. Measured
+     2026-09-24 before the decision; this is the assertion that keeps the decision from drifting. */
+  var g2 = E.newGame(null, { numPlayers: 2, starter: 0 });
+  g2.round = 3; g2.players[0].finishingBlow = 1; g2.players[1].shields = 4;
+  var ua = C(10, 'C', 'u');
+  g2.players[0].hand = [ua, C(13, 'C', 'bw'), C(3, 'C', 's1'), C(4, 'C', 's2')];
+  g2.players[0].energy = []; for (var ei = 0; ei < 14; ei++) g2.players[0].energy.push(C(4, 'C', 'e' + ei));
+  g2.turn = 0;
+  var ur = E.activate(g2, 0, ua.id, { target: 1 });
+  var gg = 0; while (g2.pending && gg++ < 50) E.declineResponse(g2, g2.respondFor);
+  ok(ur.ok && g2.players[1].shields === 3 && g2.players[0].finishingBlow === 1,
+    'AP: a Technique-caused loss does NOT consume the arm — DECLINED on purpose, text and design agree' +
+    (ur.ok ? ' [shields ' + g2.players[1].shields + ', flag ' + g2.players[0].finishingBlow + ']' : ' (activate refused: ' + ur.reason + ')'));
+})();
+
+
 /* EVERY BOOST DESCRIPTION MUST BE A PROMISE THE CODE KEEPS (2026-09-14).
    `docs/CARD-LIST.md` is generated from each patch's `desc` string, so the published list prints what a
    boost SAYS with nothing checking that anything implements it — a set of promises nobody verified. That is

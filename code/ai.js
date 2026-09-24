@@ -927,8 +927,10 @@
   /* THE WINNER'S LINE AT RESOLUTION (epic step 21, Aj's call) — and it is NOT a kill, which is worth
      stating because the obvious reading of "an offensive play at Resolution" is one.
      THE ONLY `onWin` CARD IN THE GAME IS ♣7 ARMOR PIERCING, it is not a Quick at base (Hippolyta grants
-     that), and it costs a Broadway discard on top of its energy. It sets `finishingBlow`, which makes the
-     strike take 2 shields instead of 1 — and `resolveShieldLossObj` samples `wasBroken` BEFORE its loop,
+     that), and it costs a Broadway discard on top of its energy. It sets `finishingBlow`, which since
+     2026-09-24 is a COUNT read from the card's own `extraShield` rather than a boolean against a literal —
+     so the strike takes `1 + extraShield` shields, which is 2 for every card in the game today and would
+     follow a Form patch if one ever raised it — and `resolveShieldLossObj` samples `wasBroken` BEFORE its loop,
      so a seat that had shields when the strike began can never be kicked by the extra strip. That is what
      the card's own "never overkills" means, and it is MEASURED, not read: a target on 2 goes to 0, a
      target on 1 goes to 0 either way, and a target on 0 was already dead to the ordinary strip.
@@ -942,7 +944,12 @@
     if (!effectsAllowed(st, q)) return null;                              // analysis: pure-fighter never casts
     if (!kindOK('onWin', q)) return null;                                 // analysis: blocked reactive kind
     var qp = st.players[q];
-    if (qp.finishingBlow) return null;                                    // already armed — a second one adds nothing
+    /* A SECOND CAST IS A POLICY REFUSAL NOW, NOT A STATEMENT OF FACT. It used to be literally true that
+       "a second one adds nothing" — `finishingBlow` was a boolean against `strips = 2`. It stacks since
+       2026-09-24, so a second cast on a target holding 3+ shields really would take a third; the AI still
+       declines because that is another Broadway discard plus energy for one shield, and changing the
+       policy is a balance change that needs `strengthsim`, not a comment edit. Filed. */
+    if (qp.finishingBlow) return null;                                    // already armed — declining a stack, deliberately
     var targets = st.resolution.strikeTargets || [], worth = false;
     for (var t = 0; t < targets.length; t++) if (st.players[targets[t]].shields >= 2) { worth = true; break; }
     if (!worth) return null;                                              // "never overkills" — below 2 it changes nothing

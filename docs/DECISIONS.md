@@ -545,6 +545,28 @@ shipping two strength changes at once otherwise makes neither attributable — h
 | **the winner's line (shipped)** | **+0.82 (2.94σ)** | **+0.78 (2.77σ)** |
 | both together | +0.98 (3.51σ) | +1.22 (4.35σ) |
 
+**~~WIDEN ARMOR PIERCING TO ANY SHIELD LOSS YOU CAUSE~~ — DECLINED 2026-09-24, and the entry that proposed
+it was partly wrong.** `[id: armor-piercing-timing]` read: *"ARMOR PIERCING IS '+1 TO YOUR NEXT FIGHT WIN',
+NOT '+1 TO A SHIELD LOSS YOU CAUSE' … the card text agrees with the code; the design intended the other
+reading."* Measured in the engine before deciding: armed then winning a fight strips **2**; armed then
+casting Ultima Attack strips **1** and the arm **survives** to your next fight win. So the behaviour claim
+was exact.
+**THE DESIGN CLAIM WAS NOT.** `Cardmen-Fighter-Design-v0.70.md`'s own card table reads *"The next fight you
+win this round…"* — identical to the card text and to the code. Three sources agree, and no written record
+of the other reading was found. **Declined on that plus timing**: the epic had just shipped and tuned the
+reactive Resolution cast at +0.82σ, and widening the card would have invalidated a measurement taken days
+earlier on a card that had already had its buff. `destroyShield` therefore still does not consume
+`finishingBlow`, and `test.js` pins it (*"a Technique-caused loss does NOT consume the arm — DECLINED on
+purpose"*), A/B'd by making it consume — one red.
+**WHAT DID SHIP FROM THAT ENTRY IS DATA HYGIENE, NOT BALANCE.** `extraShield: 1` was declared and dead:
+`finishingBlow` was a boolean read against a literal `strips = 2`, so a second cast added nothing and a
+Form patch raising it would have done nothing. It is a count now, read from the card. **The shipped
+configuration is unmoved — armed once still strips exactly 2** — which is the assertion that makes this
+safe to call hygiene, and "never overkills" holds at any size because `resolveShieldLossObj` samples
+`wasBroken` once before its loop (checked at +5 against 1 shield: 0 shields, not eliminated).
+**THE AI'S REFUSAL TO STACK SURVIVED AS A POLICY** and is filed as `[id: ai-stack-armor-piercing]`, because
+it is a `strengthsim` question and not a comment edit.
+
 **THE WINNER'S LINE SHIPPED.** At Resolution the round winner may cast **♣7 Armor Piercing** — the only
 `onWin` card in the game, a Quick only under Hippolyta, costing a Broadway discard on top of its energy —
 to take a second shield off a struck target. **It cannot kill, and the gate is built on that**: `strips = 2`

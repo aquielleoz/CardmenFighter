@@ -88,7 +88,7 @@
         // round-long flags a client renders as badges (all public)
         shieldImmune: !!pl.shieldImmune,
         cantLoseRound: !!pl.cantLoseRound,
-        finishingBlow: !!pl.finishingBlow
+        finishingBlow: (+pl.finishingBlow || 0)   // a COUNT since 2026-09-24; a client renders the real amount rather than a hardcoded +1
       };
       // HIDDEN INFO BOUNDARY: only your own seat's actual hand cards travel. Everyone else = count only.
       if (mine) o.hand = cards(pl.hand);

@@ -4784,7 +4784,10 @@ __QR__
     if(isNetClient() && state.subPhase!=='play' && !selectedCards().length) setActionLabel(fight,'Next');
     var leading=!state.pile; pass.disabled=leading;
     var charged=state.players[YOU].nextPlayBoost||0;
-    var chargeTag=(charged?' ⚡+'+charged+' charged':'')+(state.players[YOU].finishingBlow?' 🛡‍💥 Armor Piercing armed (next win strips +1)':'');
+    /* THE AMOUNT IS DATA, NOT A LITERAL (2026-09-24). `finishingBlow` is a COUNT now — it reads the
+       card's `extraShield` and two casts stack — so a hardcoded "+1" would understate a banked pair. */
+    function apArmed(){ return +((state.players[YOU]||{}).finishingBlow) || 0; }
+    var chargeTag=(charged?' ⚡+'+charged+' charged':'')+(apArmed()?' 🛡‍💥 Armor Piercing armed (next win strips +'+apArmed()+')':'');
     var sel=selectedCards();
     // ONE context-aware button: Activate by default, Phantasm for the Phantasmal card
     var ctx=ctxAction();
