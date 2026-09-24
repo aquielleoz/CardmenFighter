@@ -71,7 +71,12 @@ const TIMES_FILE = path.join(__dirname, '.sweep-times.json');   // not `here` �
 function readTimes() { try { return JSON.parse(fs.readFileSync(TIMES_FILE, 'utf8')); } catch (e) { return {}; } }
 function writeTimes(prev, runs) {
   const out = Object.assign({}, prev);
-  runs.forEach(r => { const s = +r.secs; if (s > 0 && !r.failed) out[r.file] = Math.min(out[r.file] || Infinity, s); });   // a failed suite's time is not its cost
+  /* `>= 0`, not `> 0`, and an explicit null test rather than `||`: `secs` is toFixed(0), so the sub-second
+     suites (`netview.test.js` and `test.js` are 0.44s TOGETHER) record as "0" — which a truthiness guard
+     drops, leaving them permanently unmeasured and permanently sorted to the head of the queue. A failed
+     suite's time is not its cost, so those are skipped. */
+  runs.forEach(r => { const s = +r.secs; if (!(s >= 0) || r.failed) return;
+    out[r.file] = (out[r.file] == null) ? s : Math.min(out[r.file], s); });
   try { fs.writeFileSync(TIMES_FILE, JSON.stringify(out, null, 1) + '\n'); } catch (e) {}
 }
 
@@ -81,7 +86,7 @@ const all = fs.readdirSync(here)
   .filter(f => /^(nettest_|lessontest)/.test(f) || ['test.js','netview.test.js','mptest.js','rulestest.js','landscapetest.js','decktest.js','viewtest.js','piletest.js','revealtest.js','phantasmtest.js','exporttest.js','versiontest.js','sharetest.js','qrtest.js','peektest.js','logtest.js','motiontest.js','phonetest.js','oppbeatstest.js','counterfeittest.js','quicktest.js','shadowtest.js','prompttest.js','resolutiontest.js','resolutiontest_ui.js','browsertest.js'].includes(f))
   .filter(f => !['nettest_lobby.js','nettest.js','lessonlib.js','fightclick.js'].includes(f));   // helpers, and the BroadcastChannel probe that is not a suite
 const TIMES = readTimes();
-const cost = f => (f in TIMES) ? TIMES[f] : Infinity;                           // unmeasured sorts first — see above
+const cost = f => (f in TIMES) ? TIMES[f] : 1e9;   // unmeasured sorts first. A FINITE sentinel, not Infinity: on a fresh clone every suite is unmeasured, and `Infinity - Infinity` is NaN — a comparator returning NaN is unspecified behaviour, so the no-data fallback would rest on V8 happening to treat it as 0
 const suites = all.concat(['../relay/relaytest.js'])
   .filter(f => !(fast && FAST_SKIP.includes(f)))
   .sort((a, b) => cost(b) - cost(a));                                           // longest first, by measurement
