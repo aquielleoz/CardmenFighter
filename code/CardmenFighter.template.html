@@ -7128,8 +7128,32 @@ __QR__
      * need to read before deciding whether to counter. */
     revealEffect(tech, 'Rival');
     logMsg('<b>Rival</b> casts <b>'+name+'</b>.', 'rival');
+    /* WHO HOLDS PRIORITY THE INSTANT AFTER THE CAST — the one fact that explains this lesson's flake, and
+       it was unobservable. Since epic step 6 the go-round starts at the CONTROLLER, so a Rival cast can
+       leave `respondFor` on the RIVAL; the branch below used to abandon the window in exactly that case.
+       In the ledger rather than the battle log: it is a per-cast internal, and the log is the player's. */
+    prioNote('  ↳ tutorial: Rival cast ' + name,
+             'priority→' + (state.respondFor != null ? logName(state.respondFor) : 'nobody') +
+             ' pending=' + !!state.pending);
     render();
-    if(state.respondFor===YOU){
+    /* ⚠ DO NOT RE-ADD `if(state.respondFor===YOU)` HERE. It was the gate, and its `else` branch —
+       `state.turn=savedTurn; render();` — ABANDONED AN OPEN WINDOW: the cast had landed, `pending` was
+       set, and nothing would ever drain it, so the lesson handed back a board that could not act. That is
+       `lessontest_quicks`' whole filed flake (`PASS: 10  FAIL: 11`, ~25% at `-j 4`), and the captured
+       state names it exactly — `pending=true respondFor=1 turn=0 counterSpell=held cost4`.
+       WHY THE GATE WENT WRONG: epic step 6 made the go-round start at the CONTROLLER, and the controller
+       of a cast the RIVAL just made is the Rival. So `respondFor` is transiently 1, not YOU, and the
+       `else` fired. It was correct when written and stopped being correct three steps later — nothing
+       connected them, which is the "a default derived from a predicate outlives the predicate" shape.
+       `settleWindows` is the house form and already does all of it: drain every AI seat ahead of you,
+       then `promptHumanResponse(g, function(){ settleWindows(g, done); })` when priority arrives. The
+       comment below describes the same defect in the OTHER branch, fixed in v1.31.73 — this is its twin,
+       and the reason to route through the settle rather than re-check a seat by hand.
+       THE FLAG AND THE MESSAGE ARE SET FIRST because the modal now opens from INSIDE `settleWindows`:
+       `tutAwaitCounter` is read by `updateActions` when that modal renders, so arming it afterwards would
+       be too late. It is cleared on respond and on decline, so there is no path that leaves it stale that
+       did not already exist. */
+    {
       tutAwaitCounter=true;
       setMessage('The Rival cast <b>'+name+'</b> — spring <b>Counter Spell</b>!');
       /* SETTLE THE CHAIN, THEN hand the turn back. This used to jump straight to `state.turn=YOU`, skipping
@@ -7142,9 +7166,9 @@ __QR__
        * because revealDwell honours it. */
       return setTimeout(function(){
         if(g!==gen) return;
-        promptHumanResponse(g, function(){ settleWindows(g, function(){ if(gen===g){ state.turn=YOU; render(); } }); });
+        settleWindows(g, function(){ if(gen===g){ state.turn=YOU; render(); } });
       }, revealDwell(tech));
-    } else { state.turn=savedTurn; render(); }
+    }
   }
   // Energy-order lesson (Advanced): seed a readable energy pile, then teach the queue through the ⚡ viewer.
   // Like the Custom Decks lesson, its subject is a screen — the coach panel (z-index 80) sits over the modal (30).

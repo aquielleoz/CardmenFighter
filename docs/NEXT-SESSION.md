@@ -209,6 +209,21 @@ re-read its tag.
 
 #### Flaky suites
 
+- `needs a measurement` · **`exporttest` IS TIME-CAPPING IN THE SWEEP — GREEN, BUT TESTING LESS THAN IT
+  MEANS TO (2026-09-24).** Surfaced by the sweep's new warnings section, which prints a passing suite's own
+  `⚠` lines: *"driver stopped on the 90s WALL CLOCK — the board stopped advancing"*, **twice in one run**,
+  ending `PASS: 17  FAIL: 0  (TIME-CAPPED)`. It only showed on the slower of the day's sweeps (295s against
+  ~230s), which is exactly when a wall-clock budget bites.
+  **THIS IS THE `nettest_sync` SHAPE, ALREADY DOCUMENTED IN CLAUDE.md** — *"a wall-clock-bounded suite tests
+  less when the sweep is parallel, and stays green while doing it"* — so the suite is reporting correctly
+  and the question is whether 90s is still the right number. **Measure before raising it**, and ask what the
+  driver is waiting FOR first: a wait on work stretches under load, a wait on a timer does not, and this
+  repo spent a day getting that backwards on `lessontest_quicks`.
+  **AND CHECK THE SECOND MESSAGE**: *"the board stopped advancing"* is not the same claim as "it ran out of
+  time" — a driver that stops advancing may be parked on something, which would make the cap a symptom.
+  `exporttest` already had the v1.31.85 unproductive-iteration fix for a related problem.
+  `[id: exporttest-time-capped]`
+
 - `needs a repro`       · **`lessontest_twos` DEAD-ENDS ON AN UNSCRIPTED CLEAN-UP PICK — CAUSE FOUND
   2026-09-24, TRIGGER STILL OPEN.** Filed three times as a poll-budget flake under `-j 4`
   (`PASS: 24  FAIL: 5`, opening on *"you beat it with your own full house — card 5C#t6 has no group
@@ -232,55 +247,6 @@ re-read its tag.
   **`lessontest_forms` (2026-09-24, *"the Q is spotlit for you to activate"*, 13/2, 3/3 solo) is a
   DIFFERENT signature** and is not explained by this; it needs its own repro rather than being folded in.
   `[id: lessontest-twos-poll-under-load]`
-
-- `needs a repro`       · **`lessontest_quicks` IS RED ~25% OF THE TIME AT `-j 4`, AND ~1 IN 9 SERIALLY — MEASURED 2026-09-10/11.**
-  Eleven runs across one day, on three different builds: **2 red in 8 at four lanes, 0 red in 3 at `-j 1`.**
-  One of the reds was on `epic/priority-windows` before any of that day's prompt work, so it **predates**
-  the Resolution changes and is not caused by them.
-  **THE SHAPE IS IDENTICAL EVERY TIME — `PASS: 10  FAIL: 11`** — and it starts at one poll:
-  `⏱ poll TIMED OUT: the Respond? window opens`, after which every assertion that depends on that window
-  falls with it, ending in `lessonlib`'s two `finish()` failures. So there is ONE thing to find: why
-  `tutCastRivalTech`'s window does not open under load. The suite's own notes are the place to start —
-  that lesson has a documented history of the Rival's cast failing on energy (`tutCastRivalTech` used to
-  take `[0]` and give up) and of the lone 4♦ Counter Spell hiding behind a shield (`tutPullShield`).
-  **NOT the same failure as the entry below**, whose signature is the two completion assertions with
-  everything before them PASSING — that one points at a last `next()`, this one at a mid-lesson stall.
-  They may still share a cause; do not assume either way.
-  **IT DOES REPRODUCE SERIALLY — "never serially" above is now known to be false** (2026-09-11). Measured
-  solo on `feat/phase-boundaries`: **1 red in 9**, byte-identical signature (`PASS: 10  FAIL: 11`, opening
-  on the same poll). The epic baseline `dfc0808` was **0 red in 6** solo in a throwaway worktree, which at
-  these sample sizes is the SAME rate — so this neither establishes a regression from epic step 20 nor
-  clears one. The useful half is that the earlier "0 red in 3 at `-j 1`" was simply too small a sample to
-  say what it said.
-  **AND THERE IS A CONCRETE SIGNATURE NOW, which is the thing this entry was asking for.** The suite's own
-  `WHY` line on a red run reads `turn=0 pending=true respondFor=1`: at round-1 start, with the Rival's
-  Technique on the stack, the response window is open for **seat 1 — the caster's own seat** — instead of
-  for you. `openResponseWindow` deliberately SKIPS the controller (that is what "holding priority" means,
-  and its comment says so), so a go-round that lands back on the caster is the anomaly to chase. Start
-  there rather than at the energy/shield rigs the entry suggests above; those explain a cast that never
-  happens, and this is a cast that happened and offered priority to the wrong seat.
-  **AND THE SECOND CAPTURE IS BYTE-IDENTICAL TO THE FIRST**, which changes what kind of bug this is: two
-  independent reds, hours apart, both `turn=0 pending=true respondFor=1` with the same hand. A timing
-  flake wanders; this lands in ONE specific wrong state every time it lands wrong. Treat it as a
-  deterministic defect reached on a race, not as slowness — and do not raise a poll budget to "fix" it.
-  Running rate on `feat/phase-boundaries`: **2 red in 13 solo**.
-  **⚠ THE POLL BUDGET IS EXONERATED — MEASURED 2026-09-24, AND THE OBVIOUS FIX WAS WRONG.** This suite
-  hand-rolls its own polls (it is not a `lessonlib` client), so its budgets sat at **6000ms against the
-  family's 30000** and the Respond? wait at **9000ms** — which looks exactly like the v1.31.84 raise having
-  missed a file, and I raised it on that reasoning before measuring. The measurement refutes it: the window
-  opens at **2695ms solo, 2709ms with four copies of this suite running, and 2743ms against mptest +
-  browsertest + landscapetest together**. Contention does not stretch this wait, because what it waits for
-  is `revealDwell` — 2650ms of MANDATORY WALL-CLOCK dwell, which CPU load does not slow down. 9000ms is a
-  3.3x margin that HOLDS under the heaviest load available, so the raise was reverted.
-  **THE 39s IS NOT STARVATION EITHER**: it is four poll budgets (9+6+6+6) burning down after the first
-  failure, so the slow wall clock is a CONSEQUENCE of the red, not evidence for a cause.
-  **SO WHEN THIS FAILS THE WINDOW GENUINELY NEVER OPENS**, which is what this entry already said, and the
-  search is narrowed to `tutCastRivalTech` with the timing explanation removed rather than left open.
-  **AND THE ONE LINE THAT WOULD SETTLE IT WAS BEING DROPPED:** the suite prints `WHY: step=… turn=…
-  pending=… counterSpell=…` on exactly this assertion — whether the Rival holds Counter Spell, whether it
-  had the energy — and `sweep.js`'s failure filter did not match `WHY:`, so three sweeps reported this
-  failure with the diagnostic removed. Fixed; the next red carries it.
-  `[id: lessontest-quicks-flaky]`
 
 - `needs a repro`       · **`nettest_passoduel` FLAKES AT ROUGHLY 1 IN 8, SOLO — MEASURED AND A/B'd 2026-09-15.** It hung a lane
   in one `-j 4` sweep (killed at 300s), and the first instinct was the Resolution shield override that had
