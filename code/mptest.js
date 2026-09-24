@@ -493,6 +493,44 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
      ' greyed at zero energy, 0 with nowhere to land'+
      (every.rowless.length?'  ← REPRODUCED: '+every.rowless.join(', ')+' grey SILENTLY (no .efrow, so the player sees a normal card)':''));
 
+  /* ---- THE FIGHT VERDICT IS NOT PRE-EMPTED BY AN EFFECT (Aj, 2026-09-24) ----
+     *"in the fight phase it should tell me if the selection can beat the current play or not"*. The
+     verdict already existed as the LAST branch of `updateActions`' chain, and two branches above it
+     swallowed it whenever the selected card happened to carry an effect: he had a King chosen against a
+     Pair and was told *"Odysseus Form — The fight has begun — effects are a Main-half move."*, a reason he
+     could not do the thing he was not trying to do.
+     THE PAIR IS THE POINT. A plain card answered correctly all along, so asserting the King alone proves
+     nothing about the ordering — the two must be staged on ONE board and required to AGREE, which is what
+     catches a chain that special-cases effect cards again. Nothing asserted this hint before today, which
+     is how a fix from 2026-09-16 came to be silently swallowed. */
+  const verdicts = await p.evaluate(()=>{
+    const st=window.__solo.st(), E=window.CardmenEngine, mk=(r,s,i)=>({rank:r,suit:s,id:i});
+    const you=st.players[0];
+    /* THE CONTROL MUST BE GENUINELY EFFECT-FREE, and almost nothing is: the first cut used a ♠7, which is
+       CALTROPS, so BOTH cards were swallowed on the broken build and the contrast proved nothing. The
+       apex 2 is the one card with no activated effect (`effectOf` returns null for rank 2 by design), so
+       it is the only honest control — and a lone 2 is still just a Jab against a Pair. */
+    you.hand=[mk(13,'D','vk'),mk(2,'D','vp')];                      // a King (carries a transform) and the apex 2 (no effect at all)
+    you.energy=[]; for(let i=0;i<6;i++) you.energy.push(mk(3,'D','ve'+i));
+    st.pile={p:1, byPlayer:1, combo:E.detectCombo([mk(9,'C','vx'),mk(9,'S','vy')])};   // a Pair neither can beat
+    st.round=4; st.turn=0; st.subPhase='play'; st.passes=0; st.lastPlayer=1;
+    window.__solo.render();
+    const read=id=>{                                                 // the click target is the .group — see peektest
+      const clr=document.getElementById('clearBtn'); if(clr && !clr.disabled) clr.click();
+      const c=document.querySelector('#hand .card[data-id="'+id+'"]'), g=c && c.closest('.group');
+      if(g) g.click();
+      return ((document.getElementById('hint')||{}).textContent||'').trim();
+    };
+    return { king:read('vk'), plain:read('vp') };
+  });
+  ok(/doesn’t beat|doesn't beat/.test(verdicts.plain),
+     `a plain card says whether it beats the pile  ["${verdicts.plain.slice(0,56)}"]`);
+  ok(/doesn’t beat|doesn't beat/.test(verdicts.king),
+     `and so does an EFFECT card — the verdict is not swallowed by its effect  ["${verdicts.king.slice(0,56)}"]` +
+     (/doesn’t beat|doesn't beat/.test(verdicts.king) ? '' : '  ← REPRODUCED: told about the effect instead of the fight'));
+  ok(verdicts.king.replace(/^[^—]*—/,'') === verdicts.plain.replace(/^[^—]*—/,''),
+     '…and both give the SAME reason — the chain does not special-case a card that happens to carry one');
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

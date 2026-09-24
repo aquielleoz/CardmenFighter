@@ -986,6 +986,38 @@ knows to check whether the epic has already moved the same lines.*
 
 ### Correctness
 
+- `root cause found`    · **AT 3-6 PLAYERS THE SHIELD DIFF SKIPS EVERY SEAT PAST THE SECOND — SO `shieldsLost`
+  IS WRONG AND THE TRANSFORM THRESHOLD ANNOUNCES LATE (Aj, 2026-09-24, from a 3-player game: *"i saw roar
+  when the 5th shield broke... it should have been when the 3rd shield broke"*).**
+  **ONE CAUSE, TWO SYMPTOMS, AND THE SECOND IS THE WORSE ONE.** `animateShields` owns a per-seat render
+  diff, and hanging off it are BOTH the `shieldsLost` tally and `checkThresholds()`. In `render()` it is
+  called for `YOU` always and for `RIVAL` **only in the duel branch** — at 3+ players `renderOpponents()`
+  draws opponent shields as a raw HTML string with no diff at all.
+  **SEAT 1 IS COUNTED BY ACCIDENT, WHICH IS WHY THIS LOOKS LIKE "OPPONENTS ARE BROKEN" AND IS NOT.**
+  `revealShields()` in the round ceremony calls `animateShields($('rivalShields'), …)` UNCONDITIONALLY,
+  even though that panel is `display:none` in a free-for-all. So seats 0 and 1 are tallied and **seats 2-5
+  never are**.
+  **MEASURED ON HIS EXPORT, and the record contradicts itself:** seat 2 recorded `shieldsLost: 0` with
+  `finalShields: 0` from a start of 4, while the same record's log shows four losses for that seat.
+  Seat 0 = 4 ✓, seat 1 = 2 ✓, seat 2 = 0 against 4.
+  **SO EVERY FREE-FOR-ALL RECORD EVER EXPORTED UNDERCOUNTS DAMAGE**, and that field feeds
+  [`CARD-STATS.md`](CARD-STATS.md) and the [`PLAYER-PROFILE.md`](PLAYER-PROFILE.md) ingestion log — which
+  makes this a data-integrity bug, not a presentation one. The ROAR lag is the symptom that got noticed.
+  **THE THRESHOLD HALF, for the record:** `checkThresholds()` re-reads `E.transformGateStatus` on any
+  rendered shield DROP, so the table total is only re-examined when seat 0 or 1 bleeds. In his game the
+  Ride gate opened on break #3 (a seat-2 loss, round 4) and the ceremony waited until break #5 was his own
+  (round 7). The GATE was correct throughout — he confirms they could already transform — only the
+  announcement lagged.
+  **THE FIX IS NOT "CALL `animateShields` FOR EVERY SEAT"** without deciding what the opponent strip should
+  animate: it rebuilds from a string and has no slots to shatter. The tally and the threshold check are
+  seat-agnostic BOOKKEEPING that happen to live inside an animation — v1.31.98 already hoisted the tally
+  above the motion guard for exactly this reason (*"counting it from the RENDER DIFF rather than at an
+  action site is what makes it seat-agnostic"*). The honest move is to lift both out of `animateShields`
+  into a diff that runs for every seat, and leave the animation where it is.
+  **AND A SUITE MUST ASSERT IT AT 3+ PLAYERS**: `exporttest` already drives a 3-player game and reads the
+  record, so the contradiction above (a seat on 0 shields with 0 lost) is assertable there directly.
+  `[id: shield-diff-skips-seats-past-the-second]`
+
 - `ready to build`      · **THE STRAIGHTS SORT BUILDS THE LOWEST STRAIGHT, NOT THE BEST ONE (Aj,
   2026-09-24: *"i think it should sort by the higher straight"*).** `sortIntoStraights` walks the distinct
   values ASCENDING and claims the first five-in-a-row it finds, so with two overlapping runs available it
