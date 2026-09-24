@@ -71,6 +71,14 @@ node exporttest.js                              # the playtest export at 3 playe
 node phantasmtest.js                            # Phantasmal Illusion: all three routes + the bare-copy
                                                 # refusal, in the real page (12)
 node nettest_reveal.js                          # the hand read over netplay, incl. who must NOT see it (10)
+node nettest_rename.js                          # A MID-GAME RENAME MUST REACH THE TABLE (17). The editor
+                                                # committed four LOCAL calls and sent nothing, so a name
+                                                # travelled exactly twice — a client's `t:'join'` and the
+                                                # host's `t:'setup'`, both before the game existed. Asserts
+                                                # through the BATTLE LOG ("Zed played …"), never a name
+                                                # table, plus the announcement's grammar in BOTH frames and
+                                                # a host-side cooldown that ESCALATES. `__cmf.renameBase`
+                                                # shrinks the 20s base so the doubling is testable
 node nettest_autopass.js                        # AN AUTO-PASS IS NOT A CHOICE (24). A client whose prompt
                                                 # for a timing is off answers with the SAME `{op:'decline'}`
                                                 # a player clicking "Let it resolve" sends, so the host
@@ -1910,17 +1918,17 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127 — 2026-09-23, `npm run sweep`, 97 suites ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`) (four lanes; background
+Status as of **v1.31.127 — 2026-09-23, `npm run sweep`, 98 suites ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 557, `netview` 65, `mptest` 97, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 20, `lessontest_energyorder` 14,
-`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 24, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 61, `lessontest_quicks` 21, `lessontest_howto` 25,
+`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 24, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_quicks` 21, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 54 netplay suites: `nettest_3p` 7, `clientdeal` 10, `autopass` 24, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 11, `clientwin` 10, `concede3` 8,
+The 55 netplay suites: `nettest_3p` 7, `clientdeal` 10, `autopass` 24, `rename` 17, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 11, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
@@ -2139,6 +2147,38 @@ every paint, so three rounds of CSS width tuning were done against a control tha
 Measuring the INNER widths found it in one probe; re-reading the function three times did not. The log
 toggle's handler had the identical line waiting for the same accident. `resolutiontest_ui` C6 now asserts
 the label survives a render.
+
+**A NAME REACHED THE TABLE EXACTLY TWICE, BOTH BEFORE THE GAME EXISTED (2026-09-24).** Aj: *"renaming
+yourself in netplay doesn't tell the host"*. `openNameEditor`'s commit was four local calls and nothing on
+the wire, so a name travelled only on a client's `t:'join'` and the host's `t:'setup'`, and a mid-game
+rename was invisible to everyone but the player. **The shape to look for is a committing function whose
+whole body is local calls**, in a feature whose state other seats hold a copy of.
+**`t:'names'` IS ITS OWN MESSAGE AND MUST STAY ONE.** Re-sending `t:'setup'` is the obvious shortcut and is
+now actively wrong: `setup` also runs `resetHandPresentation()`, so it would scramble the hand mid-game.
+A message that has grown side effects is not a broadcast primitive any more.
+**ANNOUNCE BEFORE ADOPTING THE NEW TABLE**, or `{who}` renders as the name being announced — *"Zed picked
+a new name — Zed."*, measured on the first cut. Said first, `{who}` is the OLD name, which is what connects
+the two for a reader, and the ordering carries to the other seats because `say` broadcasts ahead of
+`t:'names'` and both transports deliver in order.
+**THE COOLDOWN ESCALATES AND IS THE HOST'S** (20s doubling to a 4-minute ceiling, per game, reset in
+`hostStartRealN`); a client controls its own clock, so its gate is a courtesy. **A REFUSAL IS PRIVATE** —
+announcing one hands a flooder the attention they were refused. **AND AN ESCALATING COOLDOWN NEEDS A
+TUNABLE BASE OR IT IS UNTESTED CODE**: at 20s the doubling needs a 40-second suite, so `__cmf.renameBase`
+shrinks the BASE only. A flat cooldown passes every assertion except the one that waits past one window.
+
+**AUTO MUST NOT STOP YOU FOR YOUR OWN CAST, AND IT DID SO ON EVERY TECHNIQUE (2026-09-24).** Aj, from a
+real game: *"on auto, you should not have a stake to counter your own spells … this is entirely
+appropriate in ON, but not in Auto"*. **Being ABLE to is correct and unchanged** — `nextPrioHolder` starts
+the go-round at the CONTROLLER by design (epic step 6, `PHASES-AND-PRIORITY.md` §2), which is what holding
+priority means — so ON still offers it. Only the INTERRUPTION was wrong, in the mode whose whole promise is
+"stop me when I have a stake", and you cannot have a stake in answering yourself. `stakeFor` already
+agreed: its `respond` branch requires `top.p !== q`.
+**IT FIRED ON EVERY CAST, NOT OCCASIONALLY**, because the caster is always first in the walk — so the cost
+was a modal on every Technique a player played, which is the sort of thing a sim never sees and one game
+finds immediately.
+**AND THE COMMENT FOUR LINES ABOVE THAT WALK SAID "prompt its NON-controller"** — a leftover from before
+step 6 that contradicted both the code and the rule, i.e. a stale line explaining away the exact behaviour
+you are staring at. Corrected in the same commit.
 
 **A SUITE CAN ALSO PIN THE DEFECT — AS FIRMLY AS IT PINS A FEATURE (2026-09-17).** `nettest_emote`'s
 expected output was literally `/^You says hi!/`: the exact "You" + third-person-verb shape that

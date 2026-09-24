@@ -3211,8 +3211,11 @@
     }
     return -1;
   }
-  // Priority loop (1v1): while an effect sits on top of the stack, prompt its NON-controller if they
-  // can add a Quick; otherwise resolve the top and re-grant priority (active-first, auto-passing a
+  // Priority loop (1v1): while an effect sits on top of the stack, priority goes to its CONTROLLER first
+  // and then round the table — see the step-6 note inside, which is the rule; this comment said
+  // "prompt its NON-controller" until 2026-09-24, a leftover from before that change and exactly the kind
+  // of stale line that explains away the code you are staring at.
+  // Otherwise resolve the top and re-grant priority (active-first, auto-passing a
   // player with no action). A destroyShield loss underneath is handed to driveShieldStack once the
   // effects clear. Returns a pending result (window open) or the last resolution result.
   function openResponseWindow(st) {
@@ -6914,6 +6917,17 @@ window.CardFace = {};
        the player set in a duel must not derail it. */
     if(PROMPT_MODE==='off') return false;
     if(PROMPT_MODE==='on') return true;
+    /* AUTO DOES NOT STOP YOU FOR YOUR OWN CAST (Aj, 2026-09-24, from a real game where the Respond? modal
+       offered him Counter Spell against his own Infuse with Magic: *"on auto, you should not have a stake
+       to counter your own spells … this is entirely appropriate in ON, but not in Auto"*).
+       BEING ABLE TO IS CORRECT AND STAYS — `nextPrioHolder` starts the go-round AT THE CONTROLLER by
+       design (epic step 6, `PHASES-AND-PRIORITY.md` §2), which is what "holding priority" means. What is
+       wrong is only the INTERRUPTION, and this is the mode whose entire promise is "stop me when I have a
+       stake". You cannot have a stake in answering yourself, which `stakeFor` already agrees with: its
+       `respond` branch requires `top.p !== q` and so would never force this window.
+       AND IT FIRED ON EVERY CAST, not occasionally: the caster is always first in the walk, so in AUTO
+       every single Technique you played stopped you to ask whether you wanted to counter it. */
+    if(timing==='respond' && state && state.pending && state.pending.p===YOU) return false;
     var k=promptKeyOf(eff), row=k?promptPrefs[k]:null;
     if(row && typeof row[timing]==='boolean') return row[timing];
     return promptDefault(card, eff, timing);
@@ -7373,11 +7387,24 @@ window.CardFace = {};
       '<div class="nameEdit"><input id="nameInput" type="text" maxlength="14" placeholder="You" autocomplete="off" spellcheck="false"></div>'+
       '<div class="nameBtns"><button id="nameSave">Save</button><button id="nameClear" class="ghostBtn">Clear</button></div>');
     var inp=$('nameInput'); inp.value=cur; inp.focus(); inp.select();
-    function commit(v){ saveMyName(v); paintWhoLabels(); hideOverlay(); render(); }
+    /* AND TELL THE TABLE (2026-09-24). Aj: *"renaming yourself in netplay doesn't tell the host"*. This
+       committed four local calls and nothing on the wire, so a name reached the other seats exactly twice,
+       both before the game existed — a client's `t:'join'` and the host's `t:'setup'` — and a mid-game
+       rename was invisible to everyone but you, with no way to tell. */
+    function commit(v){ saveMyName(v); paintWhoLabels(); hideOverlay(); render(); announceRename(); }
     $('nameSave').addEventListener('click', function(){ commit(inp.value); });
     $('nameClear').addEventListener('click', function(){ commit(''); });
     inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); commit(inp.value); } });
     overlayDismiss=hideOverlay;
+  }
+  /* ONE FUNNEL FOR BOTH ROLES. A host renames its own seat directly; a client sends an intent and the HOST
+     decides — it re-sanitises (the name is untrusted), owns the cooldown (a client controls its own clock,
+     so its gate is a courtesy) and owns the announcement, because the host is the authority on the shared
+     history. Solo does nothing: there is no table to tell. */
+  function announceRename(){
+    if(typeof NET==='undefined') return;
+    if(NET.isClientActive && NET.isClientActive()) return NET.clientSend({op:'rename', name:myName});
+    if(NET.hostLive && NET.hostLive()) return NET.hostRename(0, myName);
   }
   function diffOf(i){ return seatDiffs[i] || difficulty; }
   /* Draw a persona per AI seat: a name (so it appears everywhere the naming funnel already reaches — strips,
@@ -14012,6 +14039,10 @@ window.CardFace = {};
            * three times over, independently, while designing the return. `hostEmote` keeps its own `started`
            * gate and per-seat cooldown, so the lobby itself stays quiet. */
           if(sseat!=null && m.intent && m.intent.op==='emote'){ hostEmote(sseat, m.intent.key); return; }
+          /* A RENAME IS DISPATCHED HERE for `emote`'s reason: the drivers return on `!hostState` (the whole
+             lobby) and on `hostState.finished` (the end screen), and a player is as entitled to rename at
+             either as mid-game. It is board-independent, so it never touches a turn gate. */
+          if(sseat!=null && m.intent && m.intent.op==='rename'){ hostRename(sseat, m.intent.name); return; }
           if(sseat!=null){ if(MP()) hostApplyMoveN(sseat, m.intent); else hostApplyMove(m.intent); } }
         else if(m.t==='concede'){ onOpponentConcede(srcChan?seatOfChan(srcChan):m.seat); }
       } else {
@@ -14111,6 +14142,14 @@ window.CardFace = {};
           var en=(state&&state.numPlayers)||2;                 // `seat` is ABSOLUTE — rotate into our frame
           emoteFx(((((m.seat-mySeat)%en)+en)%en), m.key);
         }
+        /* THE NEW NAME TABLE. Rotated absolute -> local like `t:'setup'`'s copy, because a client's frame
+           puts itself at 0 — the one piece of this most likely to be wrong, and the reason `nettest_names`
+           asserts naming from both ends. It is its OWN message and not a re-sent `setup`: `setup` now also
+           runs `resetHandPresentation()`, so reusing it would scramble the player's hand mid-game. */
+        else if(m.t==='names' && m.names && m.names.length){
+          var rn=m.names.length, rloc=[];
+          for(var ri=0; ri<rn; ri++) rloc[((((ri-mySeat)%rn)+rn)%rn)] = m.names[ri]||'';
+          setSeatNames(rloc); paintWhoLabels(); render(); }
         else if(m.t==='lobby'){ clientBackToLobby(); }         // the host reopened the lobby after a game (v1.31.95)
         else if(m.t==='record'){                              // adopt the host's complete playtest record
           /* `yourSeat` stays the HOST's — the record is stored verbatim so every seat keeps the identical
@@ -14204,6 +14243,7 @@ window.CardFace = {};
        * addresses and leaving one lying around for ten minutes is not a decent default. */
       try{ relayDropRoom(); }catch(e){}
       lobbyBack=false; lobbyNote='';                       // the lobby return, if this game follows one, is over
+      _rnAt={}; _rnN={};                                   // the rename cooldown escalates PER GAME, so game two starts everyone free again
       /* applyRules() rather than hardcoding the defaults here: this line used to force 'chosen'/'targeted' on
        * every online game, which would have silently overridden the custom-rules menu — and inconsistently,
        * since it never touched shields or draw. The host's rules are the game's rules. */
@@ -14788,6 +14828,42 @@ window.CardFace = {};
      * your turn is most of the point — so this is handled before every op that checks whose turn it is. The
      * host re-checks the cooldown per seat, because a client controls its own clock. */
     var _emAt={};
+    /* RENAME, HOST-SIDE. Modelled on `hostEmote` and for its reasons: the real check lives here because a
+       client controls its own clock, and the broadcast is the host's because the log is shared history.
+       THE COOLDOWN ESCALATES (Aj: *"a cooldown that gets longer and longer the more times you rename
+       yourself in a single game"*) — 20s doubling to a 4-minute ceiling, counted PER GAME, so the first
+       change is free and a habit gets expensive. `_rnN` is cleared with the seat tables at a new game.
+       A REFUSED RENAME IS SILENT ON THE TABLE and reported only to the asker: announcing a refusal would
+       hand a flooder the attention they were refused. */
+    var _rnAt={}, _rnN={};
+    /* THE BASE IS A VARIABLE ONLY SO A SUITE CAN SHRINK IT — dbg-gated through `__cmf`, inert without the
+       flag, the same shape as `setGraceMs`. Escalation cannot be tested at 20s without a 40-second suite,
+       and a cooldown nobody exercises is untested code. */
+    var RENAME_BASE=20000;
+    function renameCoolMs(n){ return Math.min(RENAME_BASE * Math.pow(2, Math.max(0, n-1)), 240000); }
+    function hostRename(seat, raw){
+      if(!isHost() || !started) return false;
+      var name=cleanName(raw||'');
+      if(name === (seatNames[seat]||'')) return false;                 // nothing changed — never announce a no-op
+      var now=Date.now(), n=(_rnN[seat]||0);
+      if(n>0 && now-(_rnAt[seat]||0) < renameCoolMs(n)){
+        if(seat!==0) sendTo(seat, {t:'err', reason:'Renaming again so soon — wait a moment.'});
+        return false;
+      }
+      _rnAt[seat]=now; _rnN[seat]=n+1;
+      /* ANNOUNCE **BEFORE** ADOPTING THE TABLE, or `{who}` renders as the name being announced and the line
+         reads "Zed picked a new name — Zed." Measured on the first cut. Saying it first makes `{who}` the
+         OLD name, which is what a reader needs to connect the two — and the ordering carries to the other
+         seats for free, because `say` broadcasts ahead of `t:'names'` and both transports deliver in order.
+         NO VERB THAT AGREES, AND NO SENDER-WRITTEN POSSESSIVE: `{who}` is "You" for the actor and a name
+         for everyone else, so "{who} is now X" ships "You is now X" — the failure this repo has shipped as
+         "You is out!" and "You was locked out". A past-tense regular verb has no agreement either way. */
+      say(seat, '✎ {who} picked a new name — <b>'+esc(name)+'</b>.', 'system');
+      var names=seatNames.slice(); names[seat]=name; setSeatNames(names);
+      send({t:'names', names:seatNames.slice(0, (hostState&&hostState.numPlayers)||2)});
+      paintWhoLabels(); render();
+      return true;
+    }
     function hostEmote(seat, key){
       if(!isHost() || !started || !emoteOf(key)) return;
       var now=Date.now(); if(now-(_emAt[seat]||0) < 1200) return; _emAt[seat]=now;
@@ -15199,7 +15275,7 @@ window.CardFace = {};
      * of which change the board, so no mirror ever answers them. The rematch ask from a FINISHED game is the case
      * that made it visible: the banner sat under the end screen and showed plainly during Review. The same trio
      * the stamp check already exempts (v1.31.57), for the same reason. */
-    function clientSend(it){ trace('clientSend', ((it&&it.op)||'?')+' bs='+(lastBS!=null?lastBS:'-')); if(!(it && (it.op==='emote' || it.op==='suggest' || it.op==='unready'))) syncArm(it&&it.op); send({t:'move', seat:mySeat, intent:it, q:lastSeq, bs:lastBS}); }
+    function clientSend(it){ trace('clientSend', ((it&&it.op)||'?')+' bs='+(lastBS!=null?lastBS:'-')); if(!(it && (it.op==='emote' || it.op==='suggest' || it.op==='unready' || it.op==='rename'))) syncArm(it&&it.op); send({t:'move', seat:mySeat, intent:it, q:lastSeq, bs:lastBS}); }
     var iConceded=false;
     function concede(){ iConceded=true; send({t:'concede', seat:mySeat}); }   // notify the host we forfeited; ignore further mirrors (stay on our end screen)
     function onOpponentConcede(seat){
@@ -15654,7 +15730,7 @@ window.CardFace = {};
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); }, backToLobby:hostBackToLobby, dbgInject:function(m){ onMsg(m); }, lastLog:function(){ return lobbyLogStash.slice(); } };
+    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostRename:hostRename, setRenameBase:function(ms){ RENAME_BASE=ms; }, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); }, backToLobby:hostBackToLobby, dbgInject:function(m){ onMsg(m); }, lastLog:function(){ return lobbyLogStash.slice(); } };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:var(--zNetroot);background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the
@@ -15688,7 +15764,7 @@ window.CardFace = {};
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, shieldsOf:function(seat){ return (state&&state.players[seat])?state.players[seat].shields:null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, handPresetN:function(){ return handPresetN; }, prioLog:function(){ return PRIO_LOG.slice(); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); },
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, shieldsOf:function(seat){ return (state&&state.players[seat])?state.players[seat].shields:null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, renameBase:function(ms){ return NET.setRenameBase(ms); }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, handPresetN:function(){ return handPresetN; }, prioLog:function(){ return PRIO_LOG.slice(); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); },
     /* THE LIVE TALLY. The finished record only exists at game end, and no 3-player suite both has a client ACT
      * and plays to a finish — so without this seam the N-player half of the remote-seat tally (v1.31.96) could
      * only be covered by a whole new suite. Read on the HOST, whose stats are the ones every seat adopts. */

@@ -476,6 +476,88 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     await p.evaluate(() => { window.__solo.setPromptMode('auto'); });
     await p.close(); }
 
+  // ------------------------------------------------- C8 · AUTO DOES NOT STOP YOU FOR YOUR OWN CAST
+  /* Aj met this in a real game: the Respond? modal offered him Counter Spell against his own Infuse with
+     Magic. *"on auto, you should not have a stake to counter your own spells … this is entirely
+     appropriate in ON, but not in Auto"*.
+     BEING ABLE TO IS THE RULE AND IS NOT WHAT CHANGED. `nextPrioHolder` starts the go-round at the
+     CONTROLLER by design (epic step 6), which is what holding priority means — so ON must still offer it.
+     Only the INTERRUPTION was wrong, in the mode whose promise is "stop me when I have a stake".
+     IT IS A BOTH-WAYS PAIR ON ONE BOARD, because "no modal appeared" is equally true of a staging where
+     nothing was ever castable. The ON half proves the very same cast still opens a window. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C8: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C8 · a board to cast on');
+    const staged = await p.evaluate(() => {
+      const st = window.__solo.st();
+      const C = (r, s, t) => ({ rank: r, suit: s, id: (t || '') + r + s });
+      const you = st.players[0], riv = st.players[1];
+      you.shields = 3; riv.shields = 3;
+      you.hand = [C(5, 'D', 'infuse'), C(4, 'D', 'ctr'), C(9, 'C', 'x')];   // ♦5 to cast, ♦4 Counter Spell to answer with
+      you.energy = []; for (let i = 0; i < 13; i++) you.energy.push(C(3, 'D', 'e' + i));
+      you.forms = []; riv.hand = []; riv.energy = [];                        // the Rival can add nothing, so priority is ours alone
+      st.round = 3; st.turn = 0; st.passes = 0; st.pile = null; st.lastPlayer = null; st.preFightHandled = true;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null;
+      window.__solo.setPromptMode('auto');
+      window.__solo.render();
+      return window.__solo.promptMode();
+    });
+    ok(staged === 'auto', 'C8 · staged — AUTO, holding a Technique to cast and a Counter Spell to answer with');
+    const cast = () => p.evaluate(() => {
+      const clr = document.getElementById('clearBtn'); if (clr && !clr.disabled) clr.click();
+      const c = document.querySelector('#hand .card[data-id="infuse5D"]'); if (!c) return 'gone';
+      c.click();
+      const ca = document.getElementById('cardActivate'), cx = document.getElementById('ctxBtn');
+      if (ca && ca.offsetParent !== null && !ca.disabled && !/off/.test(ca.className)) { ca.click(); return 'icon'; }
+      if (cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
+      return 'not offerable';
+    });
+    let how = null;
+    await until(async () => { how = await cast(); return how === 'icon' || how === 'ctx'; }, 40);
+    ok(how === 'icon' || how === 'ctx', `C8 · you cast it (via ${how})`);
+    await wait(1200);
+    const stopped = await p.evaluate(() => !!document.getElementById('respDecline'));
+    ok(!stopped, 'C8 · AUTO did NOT stop you to answer your own cast' +
+       (stopped ? '  ← REPRODUCED: a modal on every Technique you play, asking whether to counter yourself' : ''));
+    await p.close(); }
+
+  // ------------------------------------------------- C8b · …AND ON STILL DOES
+  /* THE HALF THAT KEEPS C8 HONEST. Without it, deleting the window entirely — or staging a board where
+     nothing could ever be cast in response — passes C8 perfectly. Same board, same cast, mode ON. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C8b: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C8b · the same board on ON');
+    await p.evaluate(() => {
+      const st = window.__solo.st();
+      const C = (r, s, t) => ({ rank: r, suit: s, id: (t || '') + r + s });
+      const you = st.players[0], riv = st.players[1];
+      you.shields = 3; riv.shields = 3;
+      you.hand = [C(5, 'D', 'infuse'), C(4, 'D', 'ctr'), C(9, 'C', 'x')];
+      you.energy = []; for (let i = 0; i < 13; i++) you.energy.push(C(3, 'D', 'e' + i));
+      you.forms = []; riv.hand = []; riv.energy = [];
+      st.round = 3; st.turn = 0; st.passes = 0; st.pile = null; st.lastPlayer = null; st.preFightHandled = true;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null;
+      window.__solo.setPromptMode('on');
+      window.__solo.render();
+    });
+    let how2 = null;
+    const cast2 = () => p.evaluate(() => {
+      const clr = document.getElementById('clearBtn'); if (clr && !clr.disabled) clr.click();
+      const c = document.querySelector('#hand .card[data-id="infuse5D"]'); if (!c) return 'gone';
+      c.click();
+      const ca = document.getElementById('cardActivate'), cx = document.getElementById('ctxBtn');
+      if (ca && ca.offsetParent !== null && !ca.disabled && !/off/.test(ca.className)) { ca.click(); return 'icon'; }
+      if (cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
+      return 'not offerable';
+    });
+    await until(async () => { how2 = await cast2(); return how2 === 'icon' || how2 === 'ctx'; }, 40);
+    ok(how2 === 'icon' || how2 === 'ctx', `C8b · the same cast, on ON (via ${how2})`);
+    const up = await until(() => p.evaluate(() => !!document.getElementById('respDecline')), 40);
+    ok(up, 'C8b · ON DOES stop you — holding priority over your own cast is the rule, and ON is where it shows' +
+       (up ? '' : '  ← C8 would be passing because the window is gone, not because AUTO is quiet'));
+    await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d) d.click(); window.__solo.setPromptMode('auto'); });
+    await p.close(); }
+
   // ------------------------------------------------- D · AN UNCHECKED CARD IS STILL CASTABLE
   /* THE HALF AJ ASKED FOR, and the one no suite covered: *"players can really look at all their cards and
      decide which effects to activate."* One filter was answering two questions — should this window stop

@@ -1446,8 +1446,11 @@
     }
     return -1;
   }
-  // Priority loop (1v1): while an effect sits on top of the stack, prompt its NON-controller if they
-  // can add a Quick; otherwise resolve the top and re-grant priority (active-first, auto-passing a
+  // Priority loop (1v1): while an effect sits on top of the stack, priority goes to its CONTROLLER first
+  // and then round the table — see the step-6 note inside, which is the rule; this comment said
+  // "prompt its NON-controller" until 2026-09-24, a leftover from before that change and exactly the kind
+  // of stale line that explains away the code you are staring at.
+  // Otherwise resolve the top and re-grant priority (active-first, auto-passing a
   // player with no action). A destroyShield loss underneath is handed to driveShieldStack once the
   // effects clear. Returns a pending result (window open) or the last resolution result.
   function openResponseWindow(st) {
