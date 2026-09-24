@@ -1018,6 +1018,39 @@ knows to check whether the epic has already moved the same lines.*
   record, so the contradiction above (a seat on 0 shields with 0 lost) is assertable there directly.
   `[id: shield-diff-skips-seats-past-the-second]`
 
+- `root cause found`    · **THE ROUND-BOUNDARY DETECTOR FIRED, AND IT DISPROVES ITS OWN MESSAGE — THE
+  CEREMONY RE-RAN, THE BOUNDARY DID NOT FAIL (Aj's 3-player log, 2026-09-24).** The 2026-09-17 detector was
+  built precisely because this would not reproduce — five hypotheses measured and killed, with the note
+  *"the next occurrence has to explain itself instead."* This is that occurrence, and it does.
+  **WHAT THE SAVED LOG CARRIES:**
+  ```
+  r7  ⚠ ROUND BEGAN WITH A STALE PILE — the clean-up boundary did not complete  round 7 · pile pair · turn 1
+  r7  ⚠ ROUND BANNER REPEATED — the round did not advance  round 7 announced twice
+  ```
+  and in the battle log, *"Round 7 begins. Each player draws 3."* appears **twice** — the second time
+  immediately after *"Vyers won with a Pair — You lost a shield"*, which is the play that ENDED round 7.
+  There is no "Round 8 begins" line at all.
+  **THE DETECTOR'S OWN WORDING IS WRONG AND SHOULD BE CORRECTED.** The ROUND BOUNDARY trace shows r7's
+  clean-up completing in full — `CLEANUP enter → initiative → pileClear → expire → temps → exit` — then
+  `r8 BEGIN · roundAdvance`. The boundary did complete. `⚠ CLEANUP LEFT A PILE` never fired either.
+  **AND THE ENGINE IS NOT DOUBLE-RESOLVING:** `⚠ DOUBLE RESOLUTION BLOCKED` has **zero** occurrences in the
+  file, and `roundAdvance` appears exactly once per round. The engine resolved once and advanced once.
+  **SO IT IS THE UI CEREMONY RE-ENTERING WITH A STALE `res`.** `logRoundDraw` has ONE call site, inside the
+  nested `playPreBeats → flushThreshold → endOfRoundTrimThen` chain, immediately after
+  `E.roundDraw(state, res)`. Its round number is `res.newRound || state.round`. The detector pins the
+  second banner to `turn 1` + `pile pair`, which is byte-for-byte `r7 CLEANUP enter` in the trace — i.e.
+  BEFORE `pileClear`, `initiative` and `roundAdvance`. At that instant `state.round` is still 7 and the
+  pile is still up, which is both warnings at once.
+  **WHERE TO LOOK:** that callback chain is guarded by `g!==gen` at every level, so a second entry means
+  either a second ceremony was started for one resolution or one closure was invoked twice. The `gen`
+  guard cannot see a re-entry within the same generation. Start by counting entries to
+  `resolveRoundCeremony` per resolved round — the engine side is already exonerated, so the instrument
+  belongs on the UI side.
+  **DO NOT RE-KILL THE FIVE DEAD HYPOTHESES.** The comment above the detector lists them (the untap move,
+  `pileClear` generally, the hand-limit trim, a falsy `cleanupResult`, a falsy return breaking
+  `settleWindows`); the trace now independently rules the whole clean-up path out as well.
+  `[id: round-ceremony-reruns-with-stale-res]`
+
 - `needs a decision`    · **THE FIGHTER KICK FLASH DOES NOT FIRE ON A KILL, ONLY AT THE END OF THE GAME
   (Aj, 2026-09-24: *"a fighter kick should flash for each kill... but maybe we can upgrade the final
   fighter kick animations"*, and *"the kick flash can actually be after the epic"*).**
