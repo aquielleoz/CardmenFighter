@@ -2336,7 +2336,7 @@
     return { ok: true, discarded: chosen, over: over };
   }
 
-  function newPlayer() { return { hand: [], deck: [], energy: [], shuffle: [], equipment: [], removed: [], forms: [], shields: START_SHIELDS, preventShield: false, pendingTop: false, nextPlayBoost: 0, shieldImmune: false, cantLoseRound: false, finishingBlow: false, lockSkip: false, lockRound: false, eliminated: false, kicksLanded: 0, lastAttacker: null }; }
+  function newPlayer() { return { hand: [], deck: [], energy: [], shuffle: [], equipment: [], removed: [], forms: [], shields: START_SHIELDS, preventShield: false, pendingTop: false, nextPlayBoost: 0, shieldImmune: false, cantLoseRound: false, finishingBlow: 0, lockSkip: false, lockRound: false, eliminated: false, kicksLanded: 0, lastAttacker: null }; }
   // REWORK: Super Mode is live while the Forms & Rides Zone holds a Ride (J/11) + a Queen (12) + a King (13) — any suits.
   // Super is now a SAME-SUIT unlock: a suit's Super is on when both its Q and its K sit in the zone. "hasSuper"
   // (used for the UI Super badge / transform return flag) means at least one suit has reached that Q+K pair.
@@ -2683,7 +2683,7 @@
       4: { kind: 'removeEquip', mode: 'energy', name: 'Disarm', type: 'Technique', impl: true, text: "Disarm target Equipment: move it to its owner's Energy Pile and its effects stop." },
       5: { kind: 'equip', delta: 1, counters: 5, name: "Hero's Sword", type: 'Equipment', impl: true, text: 'While equipped, your highest card each fight has its value increased by 1.' },
       6: { kind: 'discardOpp', n: 2, name: 'Discombobulate', type: 'Technique', impl: true, text: 'Target Rival discards 2 cards.' },
-      7: { kind: 'onWin', extraShield: 1, quick: true, name: 'Armor Piercing', type: 'Quick Technique', impl: true, text: 'The next fight you win this round, the Rival you strike loses 1 additional shield (never overkills).' },
+      7: { kind: 'onWin', extraShield: 1, quick: true, name: 'Armor Piercing', type: 'Quick Technique', impl: true, text: 'The next fight you win this round, each Rival you strike loses 1 additional shield (never overkills).' },
       8: { kind: 'reclaim', draw: 1, name: 'Instant Recovery', type: 'Technique', impl: true, text: 'Shuffle your Shuffle Pile into your deck, then draw 1 card.' },
       9: { kind: 'equip', oppDelta: -1, counters: 5, name: 'Spiked Armor', type: 'Equipment', impl: true, text: "While equipped, EVERY Rival's highest card each fight has its value reduced by 1." },
       10: { kind: 'destroyShield', n: 1, name: 'Ultima Attack', type: 'Technique', impl: true, text: 'Target Rival loses 1 shield.' }
@@ -2728,7 +2728,7 @@
     C: {  // Fighter: Hero's Sword renamed Hero's Javelin; Discombobulate→Superior Training (a dig); Armor Piercing loses Quick (moved to Hippolyta); Instant Recovery draw 2 (v1.13 restored the over-nerf to 1); Spiked Armor −1→−2
       5: { kind: 'draw', draw: 4, discard: 2, name: 'Superior Training', type: 'Technique', impl: true, text: 'Look at the top 4 cards of your deck. Put 2 into your Energy Pile and draw the other 2.' },
       6: { kind: 'equip', delta: 1, counters: 3, name: "Hero's Javelin", type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, your highest card each fight has its value increased by 1." },
-      7: { kind: 'onWin', extraShield: 1, pitchHigh: true, name: 'Armor Piercing', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). The next fight you win this round, the Rival you strike loses 1 additional shield (never overkills).' },
+      7: { kind: 'onWin', extraShield: 1, pitchHigh: true, name: 'Armor Piercing', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). The next fight you win this round, each Rival you strike loses 1 additional shield (never overkills).' },
       8: { kind: 'reclaim', draw: 2, name: 'Instant Recovery', type: 'Technique', impl: true, text: 'Shuffle your Shuffle Pile into your deck, then draw 2 cards.' },
       9: { kind: 'equip', oppDelta: -2, counters: 3, name: 'Spiked Armor', type: 'Equipment', impl: true, text: "Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, EVERY Rival's highest card each fight has its value reduced by 2." },
       10: { kind: 'destroyShield', n: 1, pitchHigh: true, name: 'Ultima Attack', type: 'Technique', impl: true, text: 'Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield.' }
@@ -3656,7 +3656,12 @@
         return { ok: true, state: st, transformed: true, tier: eff.tier, name: eff.name, isSuper: hasSuper(pl), card: card, displaced: tDisp.length };
       }
       case 'onWin':                                       // Armor Piercing (renamed from Finishing Blow): your next combo win strips an extra shield
-        pl.finishingBlow = true; spendCard(pl, card); break;
+        /* A COUNT, NOT A BOOLEAN, AND IT READS `extraShield` (2026-09-24). It was `= true` against a
+           `strips = 2` literal, so the declared `extraShield: 1` was dead in the damage path: a second cast
+           added nothing and a Form patch raising it would have done nothing at all. No `BOOSTS` patch sets
+           it today — measured, 0 — so this was latent rather than live, which is exactly the orphaned-data
+           shape this repo keeps paying for. `+=` because two casts are two Broadway pitches. */
+        pl.finishingBlow = (+pl.finishingBlow || 0) + (eff.extraShield || 1); spendCard(pl, card); break;
       case 'lockout':                                     // Back Stab: the target skips the WHOLE ROUND (no fights, no Techniques)
         hostileTargets(st, p, oppIdx, 'lockout', eff).forEach(function (t) {
           st.players[t].lockSkip = true;
@@ -4322,7 +4327,12 @@
     if (!wonWithCombo || !strikeTargets.length) return finishRoundWin(st, result);   // jab win (or no valid target): nobody loses a shield
     var wpl = st.players[winner];
     var strips = 1;
-    if (wpl.finishingBlow) { strips = 2; wpl.finishingBlow = false; result.finishingBlow = true; }   // Armor Piercing: one extra
+    /* `+wpl.finishingBlow` — a NUMBER since 2026-09-24, and the unary + is deliberate: `Number(true)` is 1,
+       so a boolean from an older peer's mirror or a saved state still means "+1" instead of NaN. "Never
+       overkills" is unaffected at any size, because `resolveShieldLossObj` samples `wasBroken` ONCE before
+       its loop — a seat holding shields when the strike began is never kicked however large `n` is. */
+    var apExtra = +wpl.finishingBlow || 0;
+    if (apExtra) { strips = 1 + apExtra; wpl.finishingBlow = 0; result.finishingBlow = apExtra; }   // Armor Piercing
     st.roundWinResult = result;
     strikeTargets.forEach(function (q) {
       (st.losses = st.losses || []).push({ oid: newOid(st), target: q, n: strips, winner: winner, source: 'fight' });
@@ -4720,7 +4730,7 @@
       } else { st.initiative = winner; st.turn = winner; }
     },
     pileClear: function (st) { st.lastPlayer = null; st.pile = null; st.passes = 0; st._effUsed = false; },
-    expire: function (st) { st.players.forEach(function (pl) { pl.preventShield = false; pl.nextPlayBoost = 0; pl.shieldImmune = false; pl.cantLoseRound = false; pl.finishingBlow = false; pl.lockRound = false; }); }, // GUARD, pre-fight boost, immunity, can't-lose, Finishing Blow, and a whole-round lock all last only their round
+    expire: function (st) { st.players.forEach(function (pl) { pl.preventShield = false; pl.nextPlayBoost = 0; pl.shieldImmune = false; pl.cantLoseRound = false; pl.finishingBlow = 0; pl.lockRound = false; }); }, // GUARD, pre-fight boost, immunity, can't-lose, Finishing Blow, and a whole-round lock all last only their round
     /* THE ONCE-PER-ROUND RESET IS NOT A TRIGGER — it is bookkeeping nobody can respond to, so it stays
        immediate. The DECAY moved out: it is now a triggered ability that goes on the Upkeep stack, which
        is what `pushUpkeepTicks` does once the round reset is complete. */
@@ -5898,8 +5908,10 @@
   /* THE WINNER'S LINE AT RESOLUTION (epic step 21, Aj's call) — and it is NOT a kill, which is worth
      stating because the obvious reading of "an offensive play at Resolution" is one.
      THE ONLY `onWin` CARD IN THE GAME IS ♣7 ARMOR PIERCING, it is not a Quick at base (Hippolyta grants
-     that), and it costs a Broadway discard on top of its energy. It sets `finishingBlow`, which makes the
-     strike take 2 shields instead of 1 — and `resolveShieldLossObj` samples `wasBroken` BEFORE its loop,
+     that), and it costs a Broadway discard on top of its energy. It sets `finishingBlow`, which since
+     2026-09-24 is a COUNT read from the card's own `extraShield` rather than a boolean against a literal —
+     so the strike takes `1 + extraShield` shields, which is 2 for every card in the game today and would
+     follow a Form patch if one ever raised it — and `resolveShieldLossObj` samples `wasBroken` BEFORE its loop,
      so a seat that had shields when the strike began can never be kicked by the extra strip. That is what
      the card's own "never overkills" means, and it is MEASURED, not read: a target on 2 goes to 0, a
      target on 1 goes to 0 either way, and a target on 0 was already dead to the ordinary strip.
@@ -5913,7 +5925,12 @@
     if (!effectsAllowed(st, q)) return null;                              // analysis: pure-fighter never casts
     if (!kindOK('onWin', q)) return null;                                 // analysis: blocked reactive kind
     var qp = st.players[q];
-    if (qp.finishingBlow) return null;                                    // already armed — a second one adds nothing
+    /* A SECOND CAST IS A POLICY REFUSAL NOW, NOT A STATEMENT OF FACT. It used to be literally true that
+       "a second one adds nothing" — `finishingBlow` was a boolean against `strips = 2`. It stacks since
+       2026-09-24, so a second cast on a target holding 3+ shields really would take a third; the AI still
+       declines because that is another Broadway discard plus energy for one shield, and changing the
+       policy is a balance change that needs `strengthsim`, not a comment edit. Filed. */
+    if (qp.finishingBlow) return null;                                    // already armed — declining a stack, deliberately
     var targets = st.resolution.strikeTargets || [], worth = false;
     for (var t = 0; t < targets.length; t++) if (st.players[targets[t]].shields >= 2) { worth = true; break; }
     if (!worth) return null;                                              // "never overkills" — below 2 it changes nothing
@@ -6170,7 +6187,7 @@ window.CardFace = {};
         // round-long flags a client renders as badges (all public)
         shieldImmune: !!pl.shieldImmune,
         cantLoseRound: !!pl.cantLoseRound,
-        finishingBlow: !!pl.finishingBlow
+        finishingBlow: (+pl.finishingBlow || 0)   // a COUNT since 2026-09-24; a client renders the real amount rather than a hardcoded +1
       };
       // HIDDEN INFO BOUNDARY: only your own seat's actual hand cards travel. Everyone else = count only.
       if (mine) o.hand = cards(pl.hand);
@@ -9636,7 +9653,10 @@ window.CardFace = {};
     if(isNetClient() && state.subPhase!=='play' && !selectedCards().length) setActionLabel(fight,'Next');
     var leading=!state.pile; pass.disabled=leading;
     var charged=state.players[YOU].nextPlayBoost||0;
-    var chargeTag=(charged?' ⚡+'+charged+' charged':'')+(state.players[YOU].finishingBlow?' 🛡‍💥 Armor Piercing armed (next win strips +1)':'');
+    /* THE AMOUNT IS DATA, NOT A LITERAL (2026-09-24). `finishingBlow` is a COUNT now — it reads the
+       card's `extraShield` and two casts stack — so a hardcoded "+1" would understate a banked pair. */
+    function apArmed(){ return +((state.players[YOU]||{}).finishingBlow) || 0; }
+    var chargeTag=(charged?' ⚡+'+charged+' charged':'')+(apArmed()?' 🛡‍💥 Armor Piercing armed (next win strips +'+apArmed()+')':'');
     var sel=selectedCards();
     // ONE context-aware button: Activate by default, Phantasm for the Phantasmal card
     var ctx=ctxAction();

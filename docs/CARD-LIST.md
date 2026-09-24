@@ -17,7 +17,7 @@ Transform unlocks are gated by total table shields lost — **ROAR** (J, 2 lost)
 | 4 | Disarm | 4 | Disarm target Equipment: move it to its owner's Energy Pile and its effects stop. |
 | 5 | Superior Training | 5 | Look at the top 4 cards of your deck. Put 2 into your Energy Pile and draw the other 2. |
 | 6 | Hero's Javelin | 6 | Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, your highest card each fight has its value increased by 1. |
-| 7 | Armor Piercing | 7 | Additional cost: discard a Broadway card (10, J, Q, K, or A). The next fight you win this round, the Rival you strike loses 1 additional shield (never overkills). |
+| 7 | Armor Piercing | 7 | Additional cost: discard a Broadway card (10, J, Q, K, or A). The next fight you win this round, each Rival you strike loses 1 additional shield (never overkills). |
 | 8 | Instant Recovery | 8 | Shuffle your Shuffle Pile into your deck, then draw 2 cards. |
 | 9 | Spiked Armor | 9 | Equipment — lasts 3 rounds. At the beginning of each round's upkeep, remove a counter from this equipment; at 0 it retires to your Energy. While equipped, EVERY Rival's highest card each fight has its value reduced by 2. |
 | 10 | Ultima Attack | 10 | Additional cost: discard a Broadway card (10, J, Q, K, or A). Target Rival loses 1 shield. |
