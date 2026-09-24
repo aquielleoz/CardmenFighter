@@ -993,7 +993,15 @@ knows to check whether the epic has already moved the same lines.*
   and in the battle log, *"Round 7 begins. Each player draws 3."* appears **twice** — the second time
   immediately after *"Vyers won with a Pair — You lost a shield"*, which is the play that ENDED round 7.
   There is no "Round 8 begins" line at all.
-  **THE DETECTOR'S OWN WORDING IS WRONG AND SHOULD BE CORRECTED.** The ROUND BOUNDARY trace shows r7's
+  **✅ BOTH OF THIS ENTRY'S ACTION ITEMS SHIPPED 2026-09-24 — what is left is the CAUSE, not the work.**
+  The wording was corrected (`⚠ ROUND BANNER FIRED WITH A PILE STILL ON THE TABLE`, which states the
+  observation instead of a hypothesis), and BOTH re-entry guards are in: `⚠ CLEAN-UP CONTINUATION FIRED
+  TWICE — blocked` on the queue's `done()`, and `⚠ ROUND CEREMONY RE-ENTERED for a result it already
+  played` via `res.__ceremonyRan`. So a recurrence is now BLOCKED and names the stale caller — the round
+  the closure was queued for against the round the board is on. **Nobody has found what makes the ceremony
+  re-enter**; the guards buy the next occurrence explaining itself, which is what the 2026-09-17 detector
+  bought for the boundary. Leave the entry open for the cause and do not redo the guards.
+  **THE DETECTOR'S OWN WORDING WAS WRONG AND HAS BEEN CORRECTED.** The ROUND BOUNDARY trace shows r7's
   clean-up completing in full — `CLEANUP enter → initiative → pileClear → expire → temps → exit` — then
   `r8 BEGIN · roundAdvance`. The boundary did complete. `⚠ CLEANUP LEFT A PILE` never fired either.
   **AND THE ENGINE IS NOT DOUBLE-RESOLVING:** `⚠ DOUBLE RESOLUTION BLOCKED` has **zero** occurrences in the
