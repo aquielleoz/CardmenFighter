@@ -602,6 +602,26 @@ re-read its tag.
 
 #### Tutorials and prompts
 
+- `ready to build`      · **RETIRE THE PER-CARD PROMPT CHECKBOXES NOW THAT THE TRI-STATE EXISTS (Aj,
+  2026-09-24: *"once we have this, we can also remove the checkboxes on the individual cards (this is just
+  better for most users)"*).** `PROMPT_MODE` (ON · AUTO · OFF) plus `stakeFor` covers what the six per-card
+  rows covered, with one control instead of six per card.
+  **SEQUENCED AFTER THE TOGGLE SHIPS, DELIBERATELY.** "Once we have this" is the load-bearing half: play a
+  couple of games on the mode first and confirm it genuinely replaces the rows, because deleting them is
+  not cheap to undo and the intermediate state costs nothing.
+  **IT IS A BIGGER DELETION THAN IT LOOKS**, and this repo's parse check cannot see a deletion — so it
+  needs the full grep sweep, a UI canary before the sweep, and `grep -n 'name:name'` on the export
+  literals. What goes: `promptPrefs`, `PROMPT_KEY` / the stored `cmf_prompts_v1`, `setPromptPref`,
+  `promptKeyOf`, `promptLegal`, the card reader's `.cvPrompts` rows, and the ledger's
+  *"(card reader → …)"* pointer, which becomes a lie the moment the reader has no rows.
+  **AND IT TAKES A SUITE WITH IT: `prompttest` (25) is entirely about those checkboxes**, and
+  `resolutiontest_ui`'s C, C2, C3, C5 and D all stage through `setPromptPref` — they need rewiring to
+  `setPromptMode`, not deleting, since their subjects (the stake override, its narrowness, the mode ends)
+  outlive the rows.
+  **ONE REAL GAIN BEYOND SIMPLICITY:** scenario D exists only to prove an unchecked card is still
+  CASTABLE — a bug class that stops existing when there is nothing to uncheck.
+  `[id: retire-per-card-prompt-rows]`
+
 - `root cause found`    · **THE "THE 2" LESSON STALLS BECAUSE ITS PILOT LEADS NOTHING — AND THE STALE PILE
   IS THE CONSEQUENCE, NOT THE CAUSE (Aj, 2026-09-17, with a saved log).** *"the rival never plays their full
   house of 2s"* · *"the last play did not clear... i could not click Next because of the pair of 2s in the
