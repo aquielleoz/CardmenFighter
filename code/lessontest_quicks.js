@@ -33,7 +33,15 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
       +' | msg="'+((document.getElementById('message')||{}).textContent||'').slice(0,80)+'"';});
   /* poll, never a fixed wait before an assertion — and SAY SO when it gives up, or a later assertion fails on a
    * board still mid-transition and the report blames the wrong thing. */
-  const until=async(fn,src,ms=6000,arg)=>{const t0=Date.now();while(Date.now()-t0<ms){if(await p.evaluate(fn,arg))return true;await p.waitForTimeout(100);}console.log('⏱ poll TIMED OUT: '+src);return false;};
+  /* 6000 IS LEFT ALONE, DELIBERATELY. It is five times below `lessonlib`'s 30000 and that looks like the
+     v1.31.84 raise having missed this file — but no wait here has ever come within half of it (the line
+     below prints when one does, and none has), and the measurement above shows this suite's timing does
+     not move under contention. Raise it when a margin line says to, not because the number looks small. */
+  const until=async(fn,src,ms=6000,arg)=>{const t0=Date.now();
+    while(Date.now()-t0<ms){ if(await p.evaluate(fn,arg)){ const el=Date.now()-t0;
+      if(el>ms*0.5) console.log('   ⏱ '+el+'ms of '+ms+'ms  ← OVER HALF THE BUDGET: '+src);
+      return true; } await p.waitForTimeout(100); }
+    console.log('⏱ poll TIMED OUT after '+ms+'ms: '+src); return false;};
 
   await p.goto(URL); await p.waitForTimeout(700);
   await p.evaluate(()=>document.getElementById('newBtn').click()); await p.waitForTimeout(350);
@@ -68,9 +76,22 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
    * early it passes on a build with no dwell at all, and it also passes on a build where the modal never opens.
    * So sample continuously and record (a) whether the cast was on screen BEFORE the modal and (b) how long the
    * modal took, then check that against `revealDwell`'s own two values. */
+  /* REPORT THE MARGIN, NOT JUST THE VERDICT — the rule v1.31.99 applied to `lessonlib`, which this file
+     never got because it is not a lessonlib client and hand-rolls its own polls.
+     ⚠ AND THE MARGIN EXONERATES THE BUDGET, WHICH IS THE POINT OF MEASURING IT. This suite is filed red
+     ~25% of the time at `-j 4` opening on this exact wait, so a raise looks obvious. Measured 2026-09-24
+     it is not: the window opens at **2695ms solo, 2709ms with four copies of this suite running, and
+     2743ms against mptest + browsertest + landscapetest together**. Contention does not stretch it,
+     because what it waits for is `revealDwell` — 2650ms of MANDATORY WALL-CLOCK dwell, which CPU load
+     does not slow down. 9000ms is a 3.3x margin that HOLDS under the heaviest load available.
+     So when this poll times out the window genuinely never opened, and the cause is upstream in
+     `tutCastRivalTech` — see the backlog. Raising it would only make a real failure take longer to report.
+     The 39s this suite shows in a failing sweep is not starvation either: it is four poll budgets
+     (9+6+6+6) burning down after the first failure. */
+  const T_OPEN_MS=9000;                       // measured, not assumed — see above before changing it
   let sawFlash=false, sawReader=false, tOpen=0;
   { const t0=Date.now();
-    while(Date.now()-t0<9000){
+    while(Date.now()-t0<T_OPEN_MS){
       const v=await p.evaluate(()=>({flash:!!document.querySelector('#artFlash.show'),
                                      reader:!document.querySelector('#cardView .cvEmpty') && (document.getElementById('cardView')||{}).textContent!=='' ,
                                      modal:!!document.querySelector('.respQuick')}));
@@ -79,7 +100,8 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
       if(v.reader) sawReader=true;
       await p.waitForTimeout(50);
     }
-    if(!tOpen) console.log('⏱ poll TIMED OUT: the Respond? window opens');
+    if(!tOpen) console.log('⏱ poll TIMED OUT after '+T_OPEN_MS+'ms: the Respond? window opens');
+    else console.log('   ⏱ '+tOpen+'ms of '+T_OPEN_MS+'ms'+(tOpen>T_OPEN_MS*0.5?'  ← OVER HALF THE BUDGET':'')+': the Respond? window opens');
   }
   const opened=tOpen>0;
   if(!opened) console.log('   WHY: '+await why());

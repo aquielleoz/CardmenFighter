@@ -137,15 +137,25 @@ async function lane(i) { while (next < suites.length) { const f = suites[next++]
    * at 14.1s; `netwindows` prints how many unscripted windows it auto-passed; `nettest_sync` says when it
    * stopped on the WALL CLOCK having tested less. All of them only ever printed into a buffer that was
    * discarded unless the suite went red. */
+  /* A PASSING ASSERTION IS NOT A WARNING, even when its text contains one. Six of the first nine hits here
+   * were `✓` lines from suites asserting that the GAME shows a ⚠ banner — "⚠ This game is full",
+   * "⚠ Build mismatch" — which is the product working. Filtering those out took the section from 9 suites
+   * to 3, and a section nobody reads is the same failure as no section at all. */
   const warned = results.filter(r => !r.failed).map(r => ({ file: r.file,
-    lines: r.out.split('\n').filter(l => /OVER HALF THE BUDGET|TIME-CAPPED|WALL CLOCK|poll TIMED OUT|⚠/.test(l)) })).filter(r => r.lines.length);
+    lines: r.out.split('\n').filter(l => !/^\s*✓/.test(l) && /OVER HALF THE BUDGET|TIME-CAPPED|WALL CLOCK|poll TIMED OUT|⚠/.test(l)) })).filter(r => r.lines.length);
   if (warned.length) {
     console.log('\n──── warnings (these suites PASSED) ────');
     warned.forEach(r => { console.log(`\n=== ${r.file}`); console.log(r.lines.slice(0, 6).map(l => l.trim()).join('\n')); });
   }
   if (bad.length) {
     console.log('\n──── failures ────');
-    bad.forEach(r => { console.log(`\n=== ${r.file} (exit ${r.code})`); console.log(r.out.split('\n').filter(l => /^✗|FAILED|TIMED OUT|ERROR|⚠|⏱/.test(l)).slice(0, 16).join('\n')); });   // ⚠ and ⏱ too: suites print their OWN diagnosis, and cropping it is how a failure arrives unexplained
+    /* `WHY:` AND `←` TOO, AND THE COST OF LEAVING THEM OUT WAS MEASURED (2026-09-24). `lessontest_quicks`
+     * prints `   WHY: step=… turn=… pending=… counterSpell=…` on exactly the assertion it fails, which is
+     * the line that says whether the Rival's cast happened at all — and this filter dropped it, so three
+     * sweeps reported the failure with the one fact needed to diagnose it removed. Several suites append
+     * their evidence after a `←` for the same reason. Cropping a suite's OWN diagnosis is how a failure
+     * arrives unexplained; the suite had already done the work. */
+    bad.forEach(r => { console.log(`\n=== ${r.file} (exit ${r.code})`); console.log(r.out.split('\n').filter(l => /^✗|FAILED|TIMED OUT|ERROR|WHY:|←|⚠|⏱/.test(l)).slice(0, 20).join('\n')); });
   }
   console.log(`\n${bad.length ? 'FAILED — ' : ''}${suites.length - bad.length}/${suites.length} suites green in ${wall}s`);
   process.exit(bad.length ? 1 : 0);

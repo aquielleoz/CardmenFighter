@@ -1829,6 +1829,33 @@ on any progress) so a slow machine takes more of them rather than doing less. Th
 (`nettest_full`) applied to a suite that predated it — **grep for a bare `for(let i=0;i<N;i++)` driving a
 board before adding another.**
 
+**A POLL WAITING ON A WALL-CLOCK DWELL HAS A LOAD-INDEPENDENT MARGIN, AND I RAISED ONE BEFORE CHECKING
+(2026-09-24).** `lessontest_quicks` hand-rolls its own polls — it is not a `lessonlib` client — so its
+budgets sat at **6000ms against the family's 30000**, with the Respond? wait at **9000ms**. That is exactly
+what the v1.31.84 raise having missed a file looks like, the suite is filed red ~25% of the time at `-j 4`
+opening on that very wait, and I raised it on that reasoning and wrote a confident comment about a 4x load
+slowdown. **Then I measured it: 2695ms solo · 2709ms with four copies of the suite running · 2743ms against
+mptest + browsertest + landscapetest together.** Contention does not move it, because what it waits for is
+`revealDwell` — **2650ms of MANDATORY WALL-CLOCK dwell**, and CPU load does not slow a timer down. Reverted.
+**THE REUSABLE DISTINCTION: ask what a poll is waiting FOR before sizing it.** A wait on WORK (a render, a
+solve, a page load) stretches with load and needs headroom for the slowest plausible machine; a wait on a
+TIMER does not stretch at all, so its margin is whatever it is on any machine and a raise buys nothing but
+a slower report when the thing genuinely never happens. The two look identical in a suite listing.
+**AND A FAILING SUITE'S WALL CLOCK IS A CONSEQUENCE, NOT EVIDENCE.** The 39s that made this read as
+starvation (against ~10s green) is four poll budgets — 9+6+6+6 — burning down after the FIRST assertion
+failed. Reading the elapsed time as a cause inverts it: the suite is slow *because* it went red.
+**THE GENERAL FORM IS ALREADY IN THIS FILE — "raise a budget because you measured it, never on principle" —
+and the failure mode was that the number LOOKED wrong** (5x below its family) which felt like measurement.
+A number being out of line with its neighbours is a reason to measure, never a measurement.
+
+**AND THE SWEEP WAS DROPPING THE ONE LINE THAT WOULD HAVE SETTLED IT.** `lessontest_quicks` prints
+`   WHY: step=… turn=… pending=… counterSpell=…` on exactly the assertion it fails — whether the Rival even
+holds Counter Spell, whether it had the energy — and `sweep.js`'s failure filter matched
+`^✗|FAILED|TIMED OUT|ERROR|⚠|⏱` and **not `WHY:`**, so three sweeps reported that failure with its own
+diagnosis stripped out. `WHY:` and `←` are in the filter now. **When a suite already does the work, the
+runner's job is not to crop it** — this is the third instance of that one mistake (the summary line, the
+green suites' warnings, and now this).
+
 **AND MEASURE THE MARGIN, OR THE NEXT PARTIAL FIX LOOKS COMPLETE (v1.31.99).** v1.31.84 raised the lesson polls
 to 30s and left TWO explicit overrides behind, which is what left an intermittent tail. Instrumenting every wait
 found exactly one outlier: `atStep` returns in **0-4ms** of 12000 and the Rival's answers in ~1.07s of 30000

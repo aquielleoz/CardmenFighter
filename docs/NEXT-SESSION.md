@@ -264,6 +264,22 @@ re-read its tag.
   flake wanders; this lands in ONE specific wrong state every time it lands wrong. Treat it as a
   deterministic defect reached on a race, not as slowness — and do not raise a poll budget to "fix" it.
   Running rate on `feat/phase-boundaries`: **2 red in 13 solo**.
+  **⚠ THE POLL BUDGET IS EXONERATED — MEASURED 2026-09-24, AND THE OBVIOUS FIX WAS WRONG.** This suite
+  hand-rolls its own polls (it is not a `lessonlib` client), so its budgets sat at **6000ms against the
+  family's 30000** and the Respond? wait at **9000ms** — which looks exactly like the v1.31.84 raise having
+  missed a file, and I raised it on that reasoning before measuring. The measurement refutes it: the window
+  opens at **2695ms solo, 2709ms with four copies of this suite running, and 2743ms against mptest +
+  browsertest + landscapetest together**. Contention does not stretch this wait, because what it waits for
+  is `revealDwell` — 2650ms of MANDATORY WALL-CLOCK dwell, which CPU load does not slow down. 9000ms is a
+  3.3x margin that HOLDS under the heaviest load available, so the raise was reverted.
+  **THE 39s IS NOT STARVATION EITHER**: it is four poll budgets (9+6+6+6) burning down after the first
+  failure, so the slow wall clock is a CONSEQUENCE of the red, not evidence for a cause.
+  **SO WHEN THIS FAILS THE WINDOW GENUINELY NEVER OPENS**, which is what this entry already said, and the
+  search is narrowed to `tutCastRivalTech` with the timing explanation removed rather than left open.
+  **AND THE ONE LINE THAT WOULD SETTLE IT WAS BEING DROPPED:** the suite prints `WHY: step=… turn=…
+  pending=… counterSpell=…` on exactly this assertion — whether the Rival holds Counter Spell, whether it
+  had the energy — and `sweep.js`'s failure filter did not match `WHY:`, so three sweeps reported this
+  failure with the diagnostic removed. Fixed; the next red carries it.
   `[id: lessontest-quicks-flaky]`
 
 - `needs a repro`       · **`nettest_passoduel` FLAKES AT ROUGHLY 1 IN 8, SOLO — MEASURED AND A/B'd 2026-09-15.** It hung a lane
