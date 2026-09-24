@@ -462,16 +462,6 @@ re-read its tag.
 
 #### Netplay
 
-- `ready to build`      · **A CLIENT NEVER RECORDS ITS OWN ACTIONS IN THE PRIORITY LEDGER (2026-09-23).**
-  `humanDeclines` returns at the `isClientActive()` branch — which sends the intent — **before** the
-  `prioNote('  → you DECLINED')` line below it. Same shape in the cast path. So a client's saved ledger
-  shows what it was OFFERED and what was AUTO-PASSED, and never what the player actually did.
-  **MEASURED on Aj's pair of logs:** his client ledger has 15 entries, one `window SHOWN`, six
-  `AUTO-PASSED`, and **zero** `→ you DECLINED` — against seven declines in the battle log beside it.
-  The ledger exists so a reader can reconstruct a game; on the seat that is usually the one reporting the
-  bug, it currently cannot. Cheap: move the `prioNote` above the early return, or note it on the send.
-  `[id: client-ledger-omits-own-actions]`
-
 - `needs a decision`    · **A CLIENT'S PRIORITY LEDGER HAS NO PHASE-TRANSITION ENTRIES AT ALL (2026-09-23).**
   Aj's host log carries ten `MAIN → FIGHT … auto-advanced — nobody could add to the stack (origin=You)`
   lines; his client log carries **zero**. Both carry their eight `FIGHT END` lines, so it is not that the

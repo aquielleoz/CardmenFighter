@@ -72,11 +72,11 @@ const hostPending = p => p.evaluate(()=>!!window.__cmf.pending());
      steps, and the client must OWN Equipment or `quickTargets`' protect branch has no legal target, the
      cast is refused, and the run reports "no window" having cast nothing. */
   const stage=()=>host.evaluate(a=>window.__cmf.forceAll(a.hands,a.energies,a.shields,a.opts),{
-    hands:[[D(5,'S','sab'),D(5,'S','sab2'),D(9,'C'),D(6,'S')],   // BOTH ♠5 — Sabotage is the SPADE 5; a ♣5 is a different card entirely, and staging one made leg 2 fail to arm
+    hands:[[D(5,'S','sab'),D(5,'S','sab2'),D(5,'S','sab3'),D(9,'C'),D(6,'S')],   // BOTH ♠5 — Sabotage is the SPADE 5; a ♣5 is a different card entirely, and staging one made leg 2 fail to arm
            [D(5,'H','ann'),D(10,'D'),D(8,'C')]],
     energies:[energy('S'), energy('H')],
     shields:[3,3],
-    opts:{ equip:{ 1:[{ id:'bow', name:'Holy Bow', delta:2, counters:3 },{ id:'bow2', name:'Holy Bow', delta:2, counters:3 }] } }
+    opts:{ equip:{ 1:[{ id:'bow', name:'Holy Bow', delta:2, counters:3 },{ id:'bow2', name:'Holy Bow', delta:2, counters:3 },{ id:'bow3', name:'Holy Bow', delta:2, counters:3 }] } }
   });
   let staged=false;
   for(let i=0;i<8 && !staged;i++){
@@ -130,6 +130,35 @@ const hostPending = p => p.evaluate(()=>!!window.__cmf.pending());
      'LEG 2 · …and the host does NOT narrate it as a choice — Aj chose once and his log said seven'+
      (!pendBefore ? '  ← VACUOUS: no window was ever open, so this proved nothing'
       : after2===before2 ? '' : `  ← REPRODUCED: ${after2-before2} "let it resolve" line(s) for a window the player never saw`));
+
+  /* ---------- LEG 2b · THE CLIENT RECORDS ITS OWN ACTION ----------
+     `humanDeclines` sent the intent and RETURNED above its `prioNote`, so a client's ledger held what it
+     was offered and never what it did — Aj's log: 15 entries, zero `→ you` lines, seven declines in the
+     battle log beside it. This drives the REAL `#respDecline` button rather than `__cmf.clientSend`,
+     because the early return being fixed is in the UI path and clientSend jumps over it — the two legs
+     above deliberately bypass it and so cannot see this at all. */
+  ok(await until(async()=>!(await hostPending(host)), 80), 'the auto-pass window closed before leg 2b stages');
+  ok(await until(async()=>await host.evaluate(()=>window.__cmf.turn())===0, 120), 'control is back with the host');
+  /* RE-STAGE. Two casts and two go-rounds have consumed the opening hand by now, so the third Sabotage is
+     simply not there — the first cut of this leg timed out arming it and then satisfied its "window
+     opened" poll from leg 2's STALE client modal, which is the same vacuum this suite has already fallen
+     into twice. Re-stage, and read the window off the host. */
+  let staged2=false;
+  for(let i=0;i<8 && !staged2;i++){
+    await stage();
+    staged2=await until(async()=>await host.evaluate(()=>!!document.querySelector('#hand .card[data-id="sab35S"]')), 12);
+  }
+  ok(staged2, 'leg 2b re-staged: a third Sabotage is back in the host\'s hand');
+  await until(async()=>{ how=await armCast(host,'sab35S'); return how==='icon'||how==='ctx'; }, 60);
+  ok(how==='icon'||how==='ctx', 'the host casts a THIRD Sabotage');
+  ok(await until(async()=>await tapTarget(host), 40), '…and taps the last Equipment');
+  ok(await until(async()=>await hostPending(host), 60), 'the window is open on the host — read there, so a stale client modal cannot fake it');
+  const ledBefore = (await join.evaluate(()=>window.__cmf.prioLog())).length;
+  await join.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d) d.click(); });
+  const grew = await until(async()=>(await join.evaluate(()=>window.__cmf.prioLog())).some(l=>/→ you DECLINED/.test(l)), 60);
+  const led = await join.evaluate(()=>window.__cmf.prioLog());
+  ok(grew, `LEG 2b · the CLIENT's own ledger records its decline (${ledBefore} → ${led.length} entries)`+
+     (grew?'  ['+(led.filter(l=>/→ you/.test(l))[0]||'').slice(0,60)+']':'  ← REPRODUCED: the client logs what it was offered and never what it did'));
 
   /* ---------- LEG 3 · THE STATIC HALF, BECAUSE A DUEL DRIVES ONLY ONE OF THE TWO HANDLERS ----------
      `hostApplyMove` (duel) and `hostApplyMoveN` (3-6 players) are separate paths — the trap this repo has
