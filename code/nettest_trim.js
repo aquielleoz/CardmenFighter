@@ -61,6 +61,19 @@ async function until(fn,t=120,ms=120){ for(let i=0;i<t;i++){ if(await fn()) retu
   const picking = await until(async()=>/hand limit|Discard/i.test((await snap(host)).msg), 100);
   ok(picking, 'the host reaches its clean-up pick' + (picking?'':'  (staging problem, not the feature)'));
 
+  /* THE DOM CONTRACT THAT `lessonlib.pickMode()` RESTS ON, asserted where a real pick actually exists.
+     `renderHand`'s pick branch appends BARE cards to `#hand` ("flat individual cards, no grouping/drag") and
+     is the only writer that does, so `#hand > .card` is the one reliable tell for pick mode. Eleven lesson
+     suites now use that to tell "the board is sitting on an unscripted clean-up" apart from a render bug —
+     for three investigations they could not, because every helper reaching for `.closest('.group')` reported
+     `card <id> has no group` instead. If the pick branch ever starts wrapping cards, that diagnosis silently
+     reverts to the misleading message; no lesson suite can catch it, because none of them reaches a pick.
+     This is the only suite in the repo that does. */
+  const bare = await host.evaluate(()=>({ loose:document.querySelectorAll('#hand > .card').length,
+                                          grouped:document.querySelectorAll('#hand .group').length }));
+  ok(bare.loose>0 && bare.grouped===0,
+     `  → and the hand renders as bare ungrouped cards, which is how lessonlib names pick mode  [${bare.loose} loose, ${bare.grouped} grouped]`);
+
   /* THE ASSERTION. Play is stopped on the host's pick; the client must be told why rather than shown a gap. */
   const told = await until(async()=>/discarding to hand size/i.test((await snap(join)).status), 80);
   const js = await snap(join);

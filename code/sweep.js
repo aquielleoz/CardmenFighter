@@ -13,12 +13,16 @@
  *                              # day of coding.
  *   node sweep.js -j 1         # the old serial behaviour, for when a parallel run looks suspicious
  *
- * LONGEST FIRST — kept on theory, NOT on measurement, and the distinction is deliberate. The floor for N lanes
- * is max(total_work / N, longest_single_suite), and bad ordering strands a slow suite in the tail; standard LPT
- * scheduling, one line, and it cannot make things worse. But A/B'd against the WORST case (shortest first),
- * interleaved, it measured as **indistinguishable**: longest 235s/142s vs shortest 168s/157s — a 26s gap
- * between arms against a 93s spread WITHIN one arm. This machine's desktop load swamps it.
- * So: do not quote a number for this, and do not remove it expecting a slowdown either. */
+ * LONGEST FIRST, and since 2026-09-24 the lengths are MEASURED rather than declared (see COST below). The
+ * floor for N lanes is max(total_work / N, longest_single_suite), and bad ordering strands a slow suite in
+ * the tail; standard LPT scheduling, one line, and it cannot make things worse.
+ * DO NOT EXPECT A WALL-CLOCK WIN FROM IT. A/B'd against the WORST case (shortest first), interleaved, it
+ * measured as **indistinguishable**: longest 235s/142s vs shortest 168s/157s — a 26s gap between arms
+ * against a 93s spread WITHIN one arm. This machine's desktop load swamps it. Note that A/B ran on the
+ * half-inverted hand-written list, so it compared "roughly sorted" against "reverse sorted" rather than
+ * anything clean — which weakens it further. The reason to get the order right is not the total: it is that
+ * the head of the queue is the most contended window in the sweep, and what lands there matters to the
+ * suites with the thinnest margins. */
 const { spawn } = require('child_process');
 const path = require('path'), fs = require('fs');
 
@@ -33,19 +37,54 @@ const fast = args.includes('--fast');
  * the child spawns chromium, and a killed parent cannot clean those up. */
 const TIMEOUT_MS = (parseInt(args[args.indexOf('--timeout') + 1], 10) || 300) * 1000;
 
-/* The six slowest, measured. `--fast` skips them: they are layout / smoke / multiplayer-parity / export, they
- * change rarely, and they are 51% of the wall clock. NEVER put a netplay suite in here — all 44 together are
- * 196s, and nettest_elim3 once sat red for five versions because a change "did not look related". */
-const SLOW = ['landscapetest.js', 'browsertest.js', 'mptest.js', 'exporttest.js', 'rulestest.js', 'lessontest_twos.js'];
+/* TWO LISTS, BECAUSE `SLOW` WAS ANSWERING TWO DIFFERENT QUESTIONS AND ONLY ONE OF THEM ROTS.
+ * It drove BOTH the longest-first schedule ("what costs the most?" — a MEASUREMENT) and `--fast` ("what is
+ * stable enough to skip while iterating?" — a JUDGEMENT). Measured 2026-09-24, the six it named were:
+ * mptest 63s, browsertest 59s, landscapetest 44s, lessontest_twos 22s, exporttest 15s, **rulestest 11s** —
+ * while `nettest_passoduel` 44s, `prompttest` 43s, `nettest_sync` 28s and `resolutiontest_ui` 24s were not in
+ * it at all. So the scheduler was putting an 11s suite at the head of the queue and leaving a 44s one to
+ * readdir order: longest-first was inverted for half its entries.
+ * CONFLATING THEM MADE EVERY NEW HEAVY SUITE A BAD CHOICE — add it and `--fast` skips the code you are
+ * actively changing, leave it out and the scheduler mis-orders. The epic added three of the seven slowest
+ * suites and none could be added for exactly that reason. */
+
+/* `--fast` SKIPS THESE: layout / smoke / multiplayer-parity / export / rules — they change rarely, so the
+ * iteration loop can do without them. A full sweep still gates a PR. This is a judgement call and stays
+ * hand-maintained. NEVER put a netplay suite in here — all 44 together are 196s, and nettest_elim3 once sat
+ * red for five versions because a change "did not look related" — and never put a suite here because it is
+ * SLOW: that is what the cost file below is for. */
+const FAST_SKIP = ['landscapetest.js', 'browsertest.js', 'mptest.js', 'exporttest.js', 'rulestest.js'];
+
+/* SCHEDULING COST IS MEASURED AND NEVER DECLARED. A hand-written cost list is the exact shape this repo has
+ * watched rot over and over — CLAUDE.md: "if a number genuinely must appear twice, make the second copy
+ * ASSERTED, not written". So every run records what each suite took and the next run schedules by it; a list
+ * that maintains itself cannot go stale, and a new suite needs no bookkeeping.
+ * THE MINIMUM, NOT THE LAST TIME, and that is the part that matters. A time measured under contention is
+ * inflated, and scheduling longest-first puts a suite into the MOST contended window — so recording the last
+ * time creates a feedback loop where a suite is slow because it is scheduled early and scheduled early
+ * because it is slow. `lessontest_twos` is the live example: it was recorded at 112s under load, which is
+ * three times its real 22s, and it has been starting alongside the three heaviest suites in the repo ever
+ * since. The minimum across runs converges on the uncontended cost and breaks the loop.
+ * UNMEASURED GOES FIRST: a suite with no record might be the longest, and stranding a long one in the tail is
+ * the single thing longest-first exists to prevent. It costs one badly-ordered run, once. */
+const TIMES_FILE = path.join(here, '.sweep-times.json');
+function readTimes() { try { return JSON.parse(fs.readFileSync(TIMES_FILE, 'utf8')); } catch (e) { return {}; } }
+function writeTimes(prev, runs) {
+  const out = Object.assign({}, prev);
+  runs.forEach(r => { const s = +r.secs; if (s > 0 && !r.failed) out[r.file] = Math.min(out[r.file] || Infinity, s); });   // a failed suite's time is not its cost
+  try { fs.writeFileSync(TIMES_FILE, JSON.stringify(out, null, 1) + '\n'); } catch (e) {}
+}
 
 const here = __dirname;
 const all = fs.readdirSync(here)
   .filter(f => /\.js$/.test(f))
   .filter(f => /^(nettest_|lessontest)/.test(f) || ['test.js','netview.test.js','mptest.js','rulestest.js','landscapetest.js','decktest.js','viewtest.js','piletest.js','revealtest.js','phantasmtest.js','exporttest.js','versiontest.js','sharetest.js','qrtest.js','peektest.js','logtest.js','motiontest.js','phonetest.js','oppbeatstest.js','counterfeittest.js','quicktest.js','shadowtest.js','prompttest.js','resolutiontest.js','resolutiontest_ui.js','browsertest.js'].includes(f))
   .filter(f => !['nettest_lobby.js','nettest.js','lessonlib.js','fightclick.js'].includes(f));   // helpers, and the BroadcastChannel probe that is not a suite
+const TIMES = readTimes();
+const cost = f => (f in TIMES) ? TIMES[f] : Infinity;                           // unmeasured sorts first — see above
 const suites = all.concat(['../relay/relaytest.js'])
-  .filter(f => !(fast && SLOW.includes(f)))
-  .sort((a, b) => (SLOW.includes(b) ? 1 : 0) - (SLOW.includes(a) ? 1 : 0));      // longest first
+  .filter(f => !(fast && FAST_SKIP.includes(f)))
+  .sort((a, b) => cost(b) - cost(a));                                           // longest first, by measurement
 
 const t0 = Date.now();
 const results = [];
@@ -81,10 +120,24 @@ function runOne(file, lane) {
 async function lane(i) { while (next < suites.length) { const f = suites[next++]; await runOne(f, i); } }
 
 (async () => {
-  console.log(`sweep: ${suites.length} suites, ${jobs} at a time${fast ? '  (--fast: six slow stable suites skipped)' : ''}\n`);
+  console.log(`sweep: ${suites.length} suites, ${jobs} at a time${fast ? `  (--fast: ${FAST_SKIP.length} slow stable suites skipped)` : ''}\n`);
   await Promise.all(Array.from({ length: jobs }, (_, i) => lane(i)));
   const bad = results.filter(r => r.failed);
   const wall = ((Date.now() - t0) / 1000).toFixed(0);
+  writeTimes(TIMES, results);
+  /* A GREEN SUITE'S OWN WARNINGS WERE BEING THROWN AWAY, which is the same mistake as cropping the summary
+   * line, one step earlier: a suite that PASSED while telling you it nearly did not is invisible. Every one
+   * of these lines exists because somebody was bitten by the thing it reports — `lessonlib` prints
+   * "OVER HALF THE BUDGET" precisely so a poll returning at 13.4s of 14s is visible before the day it returns
+   * at 14.1s; `netwindows` prints how many unscripted windows it auto-passed; `nettest_sync` says when it
+   * stopped on the WALL CLOCK having tested less. All of them only ever printed into a buffer that was
+   * discarded unless the suite went red. */
+  const warned = results.filter(r => !r.failed).map(r => ({ file: r.file,
+    lines: r.out.split('\n').filter(l => /OVER HALF THE BUDGET|TIME-CAPPED|WALL CLOCK|poll TIMED OUT|⚠/.test(l)) })).filter(r => r.lines.length);
+  if (warned.length) {
+    console.log('\n──── warnings (these suites PASSED) ────');
+    warned.forEach(r => { console.log(`\n=== ${r.file}`); console.log(r.lines.slice(0, 6).map(l => l.trim()).join('\n')); });
+  }
   if (bad.length) {
     console.log('\n──── failures ────');
     bad.forEach(r => { console.log(`\n=== ${r.file} (exit ${r.code})`); console.log(r.out.split('\n').filter(l => /^✗|FAILED|TIMED OUT|ERROR|⚠|⏱/.test(l)).slice(0, 16).join('\n')); });   // ⚠ and ⏱ too: suites print their OWN diagnosis, and cropping it is how a failure arrives unexplained

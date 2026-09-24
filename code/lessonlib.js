@@ -46,9 +46,32 @@ async function openLesson(id, viewport){
      own window (the Quicks lesson counters a real Technique) always gets there first. */
   const answerWindow=async()=>{
     const hit=await p.evaluate(()=>{
+      /* A CLEAN-UP PICK IS NOT A MODAL, so the overlay test below cannot see it — it is an inline board
+         state, and it NEVER clears itself. Every helper here then retries its whole 30s budget against a
+         board that will not move and fails with `card <id> has no group`, three steps after the beat that
+         actually slipped. Measured on "The 2": that lesson sits at **10 of 10 cards** at its last step, so
+         one card left unspent takes it to 11 and opens this.
+         PREFER A CARD THE STEP IS NOT ASKING FOR. The pick takes any card, and pitching a spotlit one makes
+         the next instruction unsatisfiable — a worse dead end than the one being escaped. A pick is
+         confirmed with FIGHT (`fightBtn` is wired `pick ? confirmPick() : doFight()`), so click cards until
+         it enables, exactly as `nettest_trim` does. */
+      const loose=[].slice.call(document.querySelectorAll('#hand > .card'));
+      if(loose.length){
+        /* SELECT `need` CARDS, THEN CONFIRM — do not confirm on the first frame the button goes live. The
+           first cut clicked one card, found FIGHT enabled and pressed it; the pick took that single card,
+           was still over the cap, and immediately re-opened for the rest, so the board never left pick mode
+           (measured: 13 cards, "Discard 3", escaped with 12 still up). */
+        const st=(window.__solo&&window.__solo.st())||{};
+        const need=Math.max(1, ((st.trimPending&&st.trimPending.need) || (st.discardPending&&st.discardPending.count) || 1));
+        const order=loose.filter(c=>!c.classList.contains('tut-spot')).concat(loose.filter(c=>c.classList.contains('tut-spot')));
+        for(let i=0;i<need && i<order.length;i++) order[i].click();
+        const f=document.getElementById('fightBtn');
+        if(f && !f.disabled){ f.click(); return 'clean-up pick ('+need+')'; }
+        return 'clean-up pick — could not confirm '+need+' of '+order.length;
+      }
       const ov=document.getElementById('overlay');
       if(!ov || !ov.classList.contains('show')) return null;
-      const PASS=[['respDecline','Respond?'],['pfDecline','pre-fight'],['sgNo','shield guard']];
+      const PASS=[['respDecline','Respond? window'],['pfDecline','pre-fight window'],['sgNo','shield guard window']];   // each label carries its own noun: a pick is not a window
       for(const [id,label] of PASS){ const el=document.getElementById(id); if(el && el.offsetParent){ el.click(); return label; } }
       return null; });
     /* A FLOOD OF THESE IS A PRODUCT CHANGE, NOT A HARNESS PROBLEM — read it that way before touching the
@@ -57,7 +80,7 @@ async function openLesson(id, viewport){
        Fight End default flipped on 2026-09-10 this warning fired three times in `lessontest_twos` and the
        lesson stalled on "the Rival leads 222 + a pair". If that suppression is ever removed, THIS is the
        line that will tell you why the lessons went red — the failing assertion will name a full house. */
-    if(hit) console.log('   ⚠ lessonlib answered a '+hit+' window the lesson did not script');
+    if(hit) console.log('   ⚠ lessonlib answered a '+hit+' the lesson did not script');
     return hit; };
   const step=()=>p.evaluate(()=>{ const t=document.getElementById('tutPanel');
     return { n:(t&&t.querySelector('.tutStep')||{}).textContent||'', text:(t&&t.querySelector('.tutText')||{}).textContent||'',
@@ -131,6 +154,23 @@ async function openLesson(id, viewport){
    * pick / targeting), while `#passBtn` is NOT disabled in those states — so one click on an enabled-looking
    * button can do nothing at all. A single click plus an assertion reads as "Pass is broken". Returns the ms it
    * took, or null if it never landed. */
+  /* IS THE BOARD IN PICK MODE? `renderHand`'s FIRST branch renders bare cards straight into `#hand` with no
+   * `.group` wrapper — "pick mode: flat individual cards, no grouping/drag" — and it is the only writer that
+   * does, so a `#hand > .card` direct child IS pick mode and nothing else is.
+   * WHY THIS HELPER EXISTS: every helper below reaches for `.closest('.group')`, so in pick mode they all
+   * report `card <id> has no group` — for EVERY id, because none of them has one. That message reads as a
+   * layout or render bug and sent three investigations at the DOM; the board was simply sitting on a
+   * clean-up the lesson never scripted. It also never clears itself, which is why those runs spent their
+   * whole 30s budget retrying and then failed with a message describing none of it.
+   * Returns null when the hand is grouped normally, so callers can use it as a fallback diagnosis. */
+  const pickMode=()=>p.evaluate(()=>{
+    if(!document.querySelector('#hand > .card')) return null;
+    const s=(window.__solo&&window.__solo.st())||{}, me=(s.players||[])[0]||{};
+    const kind=s.trimPending?'clean-up over the hand limit':s.discardPending?'a forced discard':'unknown';
+    return 'the board is in PICK MODE ('+kind+'), which the lesson did not script — hand '+
+      ((me.hand||[]).length)+'/'+((window.CardmenEngine||{}).MAX_HAND)+', round '+s.round+', msg "'+
+      (((document.getElementById('message')||{}).textContent)||'').trim().slice(0,70)+'"';
+  });
   /* Play an EXACT set of cards by id, retrying. Every helper here has needed the retry for the same reason —
    * `toggle` and `doFight` return silently while `busy` is set — and since v1.31.74 the board says so out loud
    * ("Hold on — the board is still resolving."), which is what identified this one. Returns null on success. */
@@ -146,6 +186,7 @@ async function openLesson(id, viewport){
       if(last===null && await clickFight(p) !== 'played')            // epic step 20: only `played` means cards really went down
         last=await p.evaluate(()=>'the play did not land — hint: '+((document.getElementById('hint')||{}).textContent||''));
       if(last===null) return null;
+      if(/has no group/.test(last)) last=(await pickMode())||last;   // name the board state, not the symptom
       await answerWindow();
       await p.waitForTimeout(200);
     }
@@ -179,7 +220,9 @@ async function openLesson(id, viewport){
    * single attempt right after an opponent's answer reports "activate control not offered" and reads as a
    * product bug. Every helper in this file has needed this; the one that lacked it was the one that broke. */
   const activateSpot=async(ms=30000)=>{ const t0=Date.now(); let last='never attempted';
-    while(Date.now()-t0<ms){ last=await activateSpotOnce(); if(last===null) return null; await answerWindow(); await p.waitForTimeout(200); }
+    while(Date.now()-t0<ms){ last=await activateSpotOnce(); if(last===null) return null;
+      if(/has no group/.test(last)) last=(await pickMode())||last;   // same trap as playIds — see pickMode
+      await answerWindow(); await p.waitForTimeout(200); }
     return last+' (retried for '+ms+'ms)'; };
   const activateSpotOnce=async()=>{ await deselect();
     return p.evaluate(()=>{ const c=document.querySelector('#hand .card.tut-spot') || document.querySelector('#hand .group.tut-spot .card') || document.querySelector('#hand .card.transformReady');
@@ -196,7 +239,7 @@ async function openLesson(id, viewport){
   if(listed) await p.evaluate(i=>document.querySelector('.lessonRow[data-lesson="'+i+'"]').click(), id);
   ok(await until(()=>/ \/ /.test((document.querySelector('.tutStep')||{}).textContent||''),'the lesson starts'),'the lesson starts');
 
-  return { b, p, ok, until, step, at, atStep, next, st, deselect, playAny, playPair, playIds, playSpot, passTurn, activateSpot, errs,
+  return { b, p, ok, until, step, at, atStep, next, st, deselect, playAny, playPair, playIds, playSpot, passTurn, activateSpot, pickMode, answerWindow, errs,
     /* Finish: the completion modal must be VISIBLE, not merely present in the DOM — asserted the naive way
      * (`/Lesson complete/.test(document.body.textContent)`) this passes on a lesson stuck mid-way. */
     async finish(lessonId){
