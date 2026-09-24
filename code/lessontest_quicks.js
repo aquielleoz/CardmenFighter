@@ -84,14 +84,29 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
      2743ms against mptest + browsertest + landscapetest together**. Contention does not stretch it,
      because what it waits for is `revealDwell` — 2650ms of MANDATORY WALL-CLOCK dwell, which CPU load
      does not slow down. 9000ms is a 3.3x margin that HOLDS under the heaviest load available.
-     So when this poll times out the window genuinely never opened, and the cause is upstream in
-     `tutCastRivalTech` — see the backlog. Raising it would only make a real failure take longer to report.
+     AND WHEN IT DID TIME OUT THE WINDOW HAD OPENED AFTER ALL — corrected 2026-09-24, and this comment
+     said the opposite for a day. `tutCastRivalTech` gated its prompt on `state.respondFor===YOU` and its
+     `else` branch ABANDONED the window; since epic step 6 the go-round starts at the CONTROLLER, which
+     for a Rival cast is the Rival, so `respondFor` is transiently 1 and the gate fell through. Measured
+     on the pre-fix build: `priority=Rival 2` in 2 of 8 runs, and in BOTH the modal never appeared at all
+     (12s, ending `respondFor:1 pending:true` — the sweep's captured state exactly). Raising the budget
+     would only have made a real failure take longer to report.
      The 39s this suite shows in a failing sweep is not starvation either: it is four poll budgets
      (9+6+6+6) burning down after the first failure. */
   const T_OPEN_MS=9000;                       // measured, not assumed — see above before changing it
   let sawFlash=false, sawReader=false, tOpen=0;
+  /* FORCE THE HARD PATH, because it is a 1-in-4 coin flip otherwise. The Rival holding priority after
+     its own cast is the natural condition (measured at 2 of 8), and it is the one that used to hang — so
+     a suite that only meets it a quarter of the time would let the regression back in three runs of four.
+     Pushing priority to the Rival DURING the reveal dwell is legitimate staging, not a derailment: it is
+     the same state the engine reaches by itself, and the fixed build must drain it and prompt anyway.
+     `__solo.st()` hands back `state` by reference, which is what makes this need no new hook, and the
+     ~2650ms of `revealDwell` is a wide window to land the write in. */
+  let forced=false;
   { const t0=Date.now();
     while(Date.now()-t0<T_OPEN_MS){
+      if(!forced){ forced = await p.evaluate(()=>{ const st=window.__solo.st();
+        if(!st.pending || st.respondFor==null) return false; st.respondFor = 1; return true; }); }
       const v=await p.evaluate(()=>({flash:!!document.querySelector('#artFlash.show'),
                                      reader:!document.querySelector('#cardView .cvEmpty') && (document.getElementById('cardView')||{}).textContent!=='' ,
                                      modal:!!document.querySelector('.respQuick')}));
@@ -103,6 +118,8 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
     if(!tOpen) console.log('⏱ poll TIMED OUT after '+T_OPEN_MS+'ms: the Respond? window opens');
     else console.log('   ⏱ '+tOpen+'ms of '+T_OPEN_MS+'ms'+(tOpen>T_OPEN_MS*0.5?'  ← OVER HALF THE BUDGET':'')+': the Respond? window opens');
   }
+  ok(forced, 'STAGING: priority was pushed to the Rival during the dwell — the condition that used to hang' +
+     (forced ? '' : '  ← never landed, so the hard path was NOT exercised and a pass here proves nothing'));
   const opened=tOpen>0;
   if(!opened) console.log('   WHY: '+await why());
   ok(opened,'the Rival cast a Technique and the Respond? window opened');

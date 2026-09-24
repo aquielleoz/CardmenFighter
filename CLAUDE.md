@@ -1431,6 +1431,41 @@ Measured on v1.31.95, the two halves of the same day:
   **Report a severity you measured, or report the finding without one.** "This is live" is a claim about the
   player's build, and a subagent has never seen it.
 
+**A HAND-ROLLED PRIORITY CHECK OUTLIVES THE RULE IT ENCODED — SECOND INSTANCE, AND IT WAS THE
+`lessontest_quicks` FLAKE ALL ALONG (2026-09-24).** `tutCastRivalTech` casts as the RIVAL and then tested
+`if(state.respondFor===YOU)`, with an `else` that did `state.turn=savedTurn; render();`. **Epic step 6 made
+the go-round start at the CONTROLLER**, so after a Rival cast priority is transiently the RIVAL's, the gate
+falls through, and the `else` **abandons an open window** — `pending` set, nobody who will ever drain it.
+It was correct when written and stopped being correct three steps later, with nothing connecting them: the
+same shape as `promptDefault` deriving from `immunityEffFor` below.
+**THE MEASUREMENT IS THE ENTRY'S WHOLE VALUE, because the filed diagnosis was the opposite.** The entry
+said to hunt *"why `tutCastRivalTech`'s window does not open under load"*. It opens. Logging the priority
+holder at the cast and correlating it with whether the modal ever appeared:
+
+| priority after the cast | modal appears | end state |
+| --- | --- | --- |
+| `You` (6 of 8) | yes, ~2.6s | `respondFor:0` |
+| `Rival 2` (2 of 8) | **never** | `respondFor:1 pending:true` |
+
+**2 of 8 is 25%, the filed rate, and `pending=true respondFor=1` is the sweep's captured failure state
+byte for byte.** Not load: these were solo runs. The "under load" framing came from small samples, and the
+suite survived 26 solo runs beforehand because the natural condition is a coin flip the harness usually
+wins.
+**THE FIX IS `settleWindows`, WHICH ALREADY DID ALL OF IT** — drain every AI seat ahead of you, then
+`promptHumanResponse(g, function(){ settleWindows(g, done); })` when priority arrives. A hand-rolled
+"is it my window yet" check in front of it is the bug; this is the same *"the fix is never a new park — it
+is to call the settle that already owns the mode"* rule, one layer up.
+**AND FORCE THE CONDITION IN THE SUITE, OR IT IS A 1-IN-4 COIN FLIP.** `lessontest_quicks` now pushes
+priority to the Rival during the reveal dwell every run (`__solo.st()` is by reference; `revealDwell` is a
+~2650ms window to land the write) and ASSERTS the staging landed, because staging that silently misses
+makes the run pass having exercised nothing. A/B'd: **4/4 red on the pre-fix build (16/6 every time),
+4/4 green after.** Note the forced red is 16/6 rather than the natural 10/11 — same root cause, caught one
+beat earlier.
+**THE COMMENT IN THAT SUITE ASSERTED THE WRONG CAUSE FOR A DAY** (*"when this poll times out the window
+genuinely never opened"*) — written the same morning, from a correct measurement of the poll margin and an
+incorrect inference about what the timeout meant. Corrected in place. A measurement that exonerates one
+cause does not identify another.
+
 **A DEFAULT DERIVED FROM A PREDICATE OUTLIVES THE PREDICATE (epic step 18; FIXED 2026-09-10).** Step 15's
 `promptDefault(card, eff, 'resolution')` returned `immunityEffFor(...)` — chosen so the prompt defaults would
 reproduce "today's experience" exactly, which was right on the day. Step 18 then DELETED the window that
@@ -2023,7 +2058,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 565, `netview` 65, `mptest` 100, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 17, `lessontest` 20, `lessontest_energyorder` 14,
-`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_quicks` 21, `lessontest_howto` 25,
+`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_quicks` 22, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 31, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
