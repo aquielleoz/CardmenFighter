@@ -7001,7 +7001,9 @@ window.CardFace = {};
   var lastPileData=[];         // [{id,rank,suit}] of the pile as last rendered (for the beaten-sweep)
   var lastPileOwner=null;      // who owned that pile
   var pendingKick=false;       // set when a round resolved as a Fighter Kick, consumed by endGame
-  var prevShields={};          // last-rendered shield count per player (to detect damage)
+  var prevShields={};          // last-rendered shield count per player — the ANIMATION's diff (shatter/pop)
+  var prevShieldsAll={};       // …and the BOOKKEEPING's, for EVERY seat. Deliberately a second tracker: see noteShieldChanges
+  var thresholdOwed=false;     // a shield dropped while the ceremony held the shatter — check the tier once it clears
   var prevNrg={};              // last-rendered energy count per player (to signal the pile growing)
   var prevNrgSuit={}, prevShufSuit={}, prevDeckN={}, prevHandN={};   // per-suit energy + per-suit shuffle + deck + hand counts, to reconstruct the real energy movements (cost spent / gained / milled) for the pulse display
   var prevTurn=null;      // last-rendered turn seat — a chime fires when control returns to the local human
@@ -7742,7 +7744,9 @@ window.CardFace = {};
      * Counting it from the RENDER DIFF rather than at an action site is what makes it seat-agnostic — it is
      * the one stat the v1.31.96 remote-seat bug did not touch, precisely because it never asks who acted — so
      * it is hoisted above the motion guard, not moved to an action site. */
-    if(prev!=null && n<prev){ var slS=statOf(player); if(slS) slS.shieldsLost += (prev-n); }
+    /* THE TALLY AND THE THRESHOLD CHECK LEFT THIS FUNCTION (2026-09-24) — see `noteShieldChanges`. They
+       were here because a render diff is seat-agnostic, which was right; what was wrong is that THIS diff
+       only ever runs for two seats. */
     if(prev!=null && !reduceMotion()){
       if(n<prev){                                              // took damage
         for(var i=n;i<prev && i<slots.length;i++) shatterShield(slots[i]);
@@ -7755,8 +7759,56 @@ window.CardFace = {};
       }
     }
     if(prev!=null){ if(n<prev) SFX.play('shieldBreak'); else if(n>prev) SFX.play('shieldHeal'); }   // sound fires regardless of motion prefs
-    if(prev!=null && n<prev) checkThresholds();               // REWORK: the table just bled — did a transform tier unlock? (fires even under reduced-motion)
     prevShields[player]=n;
+  }
+  /* EVERY SEAT'S SHIELDS ARE BOOKKEPT, NOT JUST THE TWO THAT ANIMATE (2026-09-24). The `shieldsLost` tally
+     and `checkThresholds()` both hung off `animateShields`' render diff — seat-agnostic by design, and
+     v1.31.98 had already hoisted the tally above the motion guard for exactly that reason. But
+     `animateShields` is called for `YOU` always and for `RIVAL` only in the DUEL branch: at 3-6 players
+     `renderOpponents()` draws opponent shields as a raw HTML string with no diff at all. So seats 2-5 were
+     never tallied and never re-checked the threshold.
+     MEASURED ON AJ'S EXPORT: a 3-player record with seat 2 on `shieldsLost: 0` and `finalShields: 0` from
+     a start of four, while the same record's log shows four losses for that seat. Every free-for-all game
+     ever exported undercounts damage, and that field feeds CARD-STATS and the PLAYER-PROFILE.
+     SEAT 1 WAS COUNTED BY ACCIDENT, which is why this looked like "opponents are broken" and is not:
+     `revealShields()` calls `animateShields($('rivalShields'), …)` unconditionally, even though that panel
+     is `display:none` in a free-for-all. Seats 0 and 1 were fine; 2-5 never were.
+     IT IS A SECOND TRACKER ON PURPOSE. Sharing `prevShields` would have this walk consume the change the
+     animation is waiting to draw, and the shatter would stop firing — a fix that silently breaks the thing
+     it was extracted from. The two diffs answer different questions and keep their own memory.
+     AND THE THRESHOLD FIRES ONCE PER EVENT, not once per bleeding seat: `checkThresholds` reads the whole
+     table's total, so calling it per seat would be the same answer several times. */
+  function noteShieldChanges(){
+    if(!state || !state.players) return;
+    /* ⚠ `holdShields` GATES THIS TOO, and dropping that gate is a REGRESSION I shipped and measured
+       (2026-09-24). The old tally lived inside `animateShields`, which `render()` skips while
+       `holdShields` is set — so during a round ceremony BOTH the tally and the threshold check were
+       deferred until `revealShields()` let the shatter through. Firing them unconditionally queues
+       `pendingThreshold` earlier, which displaces the ceremony's beats: `nettest_ceremony` went 11/0 →
+       10/1 with *"the beat reaches BOTH seats together — client 260ms after the host"*, reproducible 2/2
+       and clean on the epic without this change.
+       ONLY THE THRESHOLD IS GATED, NOT THE TALLY, and the split is the point. Queuing
+       `pendingThreshold` inserts a BEAT into a ceremony, so its moment matters and must not move. A
+       counter has no timing at all — v1.31.98 hoisted the tally above the motion guard for precisely
+       that reason, after reduced-motion players exported every game with `shieldsLost: 0`. Gating both
+       (the first repair here) duly fixed the ceremony and broke the tally in `exporttest`, which is the
+       same class of error one layer down.
+       AND A SKIPPED CHECK MUST BE OWED, NOT DROPPED — the third mistake in this one function, each
+       measured. This walk writes `prevShieldsAll` every time, so a tally taken during `holdShields`
+       CONSUMES the drop; simply skipping the threshold then leaves nothing for it to see when the hold
+       clears, and it never fires at all (`nettest_ceremony` 9/2, worse than the 10/1 it was meant to
+       repair). `thresholdOwed` carries the debt across the hold.
+       SO THE EXTRACTION CHANGES THE REACH, NOT THE MOMENT: every seat is counted now, and WHEN the
+       threshold is checked is exactly what it always was. */
+    var bled=false;
+    for(var i=0;i<state.numPlayers;i++){
+      var pl=state.players[i]; if(!pl) continue;
+      var n=pl.shields, prev=(i in prevShieldsAll)?prevShieldsAll[i]:null;
+      if(prev!=null && n<prev){ var st=statOf(i); if(st) st.shieldsLost += (prev-n); bled=true; }
+      prevShieldsAll[i]=n;
+    }
+    if(bled) thresholdOwed=true;                                        // the table bled — a check is now owed
+    if(thresholdOwed && !holdShields){ thresholdOwed=false; checkThresholds(); }   // …paid once the ceremony lets the shatter through
   }
   function suitCountsOf(cards){ var m={C:0,D:0,H:0,S:0}; for(var i=0;i<cards.length;i++){ var s=cards[i].suit; if(s in m) m[s]++; } return m; }
   function suitBitsHTML(map){ return E.SUITS.filter(function(s){ return map[s]; }).map(function(s){ return '<span class="pS">'+(map[s]>0?'+':'−')+Math.abs(map[s])+SUIT_SYMBOL[s]+'</span>'; }).join(''); }
@@ -8862,6 +8914,9 @@ window.CardFace = {};
       if(tp2 && /is discarding|is deciding/.test(tp2.textContent||'')) tp2.textContent='';   // only clear OUR messages
       clearTrimWait();
     }
+    /* BEFORE the seat panels, and NOT gated on `holdShields`: that flag defers the SHATTER, which is
+       presentation. The tally and the threshold are bookkeeping and must land when the state changes. */
+    noteShieldChanges();
     var you=state.players[YOU];
     if(!holdShields){ animateShields($('youShields'), you.shields, YOU); }
     paintWhoLabels();
@@ -11373,7 +11428,7 @@ window.CardFace = {};
    * played as the next game's first beat on the host too. `#roundfx`/`#stopfx` keep their inner element; the others
    * are emptied, as startGame always did. */
   function resetBoardMemory(){
-    prevShields={}; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; prevTurn=null; inCeremony=false; announcedThresh={}; pendingThreshold=null; holdShields=false;
+    prevShields={}; prevShieldsAll={}; thresholdOwed=false; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; prevTurn=null; inCeremony=false; announcedThresh={}; pendingThreshold=null; holdShields=false;
     lastSubPhase=null;   // the Fight announcement is an EDGE — a new game inheriting the old one's sub-phase either fires a phantom beat or swallows the first real one
     ['kick','stagefx','thresholdfx','roundfx','stopfx'].forEach(function(id){ var e=$(id); if(e){ e.className=''; if(id!=='roundfx' && id!=='stopfx') e.innerHTML=''; } });
     var af=$('artFlash'); if(af) af.classList.remove('show','you');
