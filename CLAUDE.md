@@ -63,6 +63,11 @@ node lessontest_twos.js                 # the "The 2" lesson AND the apex card t
                                         # DERIVED from the live rules, not a hardcoded string (29)
 #   The 2 lesson runs on a DELIBERATELY ILLEGAL deck (the Rival needs six 2s) and a per-lesson `pilot` rather
 #   than the AI; each gated step names the cards it accepts, so ignoring the instructions cannot dead-end it.
+node lessontest_pickescape.js           # THE CLEAN-UP PICK and the harness's escape from it (11). `card <id>
+#                                       # has no group` is NOT a DOM bug — it is PICK MODE, whose branch in
+#                                       # `renderHand` appends bare cards with no `.group`. Forces the
+#                                       # condition (no lesson reaches it on a good day) so `pickMode()` and
+#                                       # `answerWindow()`'s pick escape are not untested code
 #   lessonlib.js is a shared HELPER for the seven above, not a suite — don't run it directly
 node piletest.js                                # energy/shuffle pile viewers + promote (30)
 node revealtest.js                              # Outbalance's hand read: the modal, and that it never
@@ -408,7 +413,7 @@ node peektest.js             # PEEK AT THE TABLE, the review mode (31). Peek SHO
                              # __solo.peek() — the REAL enterPeek, because showModal's peek branch keys off the
                              # `peeking` VARIABLE, so staging the classes alone tests nothing. And the hand's
                              # click target is the .group; `.group .card{pointer-events:none}` is by design.
-node nettest_trim.js         # the table is told who it is waiting on during a clean-up pick (11). The HOST is
+node nettest_trim.js         # the table is told who it is waiting on during a clean-up pick (15). The HOST is
                              # staged over the cap because every OTHER seat is auto-trimmed, so the host's own
                              # pick is the only one that stops play. A pick is confirmed with FIGHT.
 node nettest_unready.js      # a client can take its Ready back (12). Waits PAST the 350ms join retry before
@@ -1776,6 +1781,35 @@ forever is not worth 1s. Do not re-propose it without timing the suites first.
 geometry stops moving" poll; the first version watched `#hand`'s box and returned while the CARDS were still
 growing into it, so two negative cases measured a 60px card against a 66px floor and failed.
 
+**THE SWEEP'S SCHEDULING COST IS MEASURED, NOT DECLARED — AND THE LIST THAT DECLARED IT HAD SILENTLY
+INVERTED (2026-09-24).** `SLOW` drove BOTH the longest-first schedule and `--fast`, which are two different
+questions: *what costs the most* is a MEASUREMENT and rots, *what is stable enough to skip while iterating*
+is a JUDGEMENT and does not. Measured, the six it named were mptest 63s, browsertest 59s, landscapetest 44s,
+lessontest_twos 22s, exporttest 15s and **rulestest 11s**, while `nettest_passoduel` 44s, `prompttest` 43s,
+`nettest_sync` 28s and `resolutiontest_ui` 24s were not in it at all — so an 11s suite sat at the head of the
+queue and a 44s one was left to readdir order.
+**CONFLATING THEM MADE EVERY NEW HEAVY SUITE A BAD CHOICE**: add it and `--fast` skips the code you are
+actively changing, leave it out and the scheduler mis-orders. That is why the epic added three of the seven
+slowest suites and none of them could go in. Now `FAST_SKIP` is hand-maintained and the cost is a file every
+run writes and the next run reads (`code/.sweep-times.json`, gitignored — a tracked one would dirty the tree
+and break the PR checklist's clean-tree step).
+**THE MINIMUM ACROSS RUNS, NEVER THE LAST TIME, and that is the whole trick.** Longest-first puts a suite
+into the MOST contended window, so recording the last time is a feedback loop: a suite is slow because it is
+scheduled early and scheduled early because it is slow. `lessontest_twos` is the worked example — recorded at
+**112s under load against a real 22s**, it has been starting alongside the three heaviest suites in the repo
+ever since, which is precisely where a thin margin dies.
+**DO NOT EXPECT A WALL-CLOCK WIN.** The existing A/B found longest-vs-shortest indistinguishable on this
+machine — though note it ran on the half-inverted list, so it compared "roughly sorted" against "reverse
+sorted". The reason to get the order right is *what lands in the head of the queue*, not the total.
+
+**A GREEN SUITE'S OWN WARNINGS WERE BEING THROWN AWAY (2026-09-24).** `sweep.js` printed a suite's evidence
+only when it FAILED, so every line a passing suite wrote to explain itself went into a discarded buffer:
+`lessonlib`'s `← OVER HALF THE BUDGET` (which exists exactly so a poll returning at 13.4s of 14s is visible
+before the day it returns at 14.1s), `netwindows`' auto-passed count — *"it prints on GREEN runs too, which
+is the tell nobody was reading"*, already written in this file — and `nettest_sync`'s WALL CLOCK notice. This
+is the cropped-summary-line mistake one step earlier, and the same rule applies: **a runner that discards the
+evidence makes the warning invisible.** There is a `warnings (these suites PASSED)` section now.
+
 **~~Run them one at a time~~ — USE `node sweep.js`, WHICH RUNS THEM 4 AT A TIME (v1.31.82).** Every suite now
 takes `PORT` from the environment (default unchanged, so running one by hand is exactly as before) and the
 runner hands each job its own. **The old rule was load-bearing, not caution: FIVE port groups actually
@@ -1803,6 +1837,35 @@ day that suite failed it ran **5x slow**. `until` now warns on any wait past hal
 `LESSONPOLL=1` prints them all. **A poll returning at 13.4s of 14s is a green run one slow machine away from
 red, and nothing said so.** Raise a budget because you measured it, never on principle — the six other
 sub-default budgets in the harness all return under 5% and were deliberately left alone.
+
+**`card <id> has no group` IS NOT A DOM BUG — IT IS PICK MODE, AND IT COST THREE INVESTIGATIONS
+(2026-09-24).** `renderHand`'s FIRST branch renders bare cards straight into `#hand` with no `.group`
+wrapper — *"pick mode: flat individual cards, no grouping/drag"* — and `grep "hand.appendChild"` proves it
+is the only writer that does. So every `lessonlib` helper reaching for `.closest('.group')` reports that
+message, for EVERY id, whenever a pick is up; and a pick is an inline board state that **never clears
+itself**, so the retry spends its whole 30s budget against a board that cannot move and then fails with a
+message describing a render bug that is not there.
+**IT WAS FILED THREE TIMES AS A POLL-BUDGET FLAKE** (`[id: lessontest-twos-poll-under-load]`), and the poll
+budget really did expire — as a SYMPTOM. The tell that separates the two: pure slowness makes a suite
+slower and then it succeeds; **a stable wrong state for thirty seconds is a mode, not a race.**
+**WHAT OPENS IT: "The 2" SITS AT 10 OF 10 CARDS AT ITS LAST STEP — exactly the cap, zero headroom.** The rig
+deals ten and the lesson spends all ten, so the four round draws are pure surplus and ONE card left unspent
+takes the hand to 11 and fires the clean-up trim. That is why it only bites under load, and why it always
+surfaces three steps after the beat that actually slipped. **Do not "fix" it by dealing fewer cards** —
+every one of the ten is played. `lessontest_twos` now asserts the rig's own promise (`[10/10]`) at that
+step, which is one number instead of a symptom.
+**THREE GUARDS, AND TWO OF THEM WOULD OTHERWISE BE UNTESTED CODE** because no lesson reaches a pick on a
+good day: `lessonlib.pickMode()` names the state (hand size, round, and the board's own "Clean-up — over the
+hand limit" message), `answerWindow()` escapes it — taking `need` cards in ONE go and preferring
+**non-spotlit** ones, since pitching the card the next step asks for swaps one dead end for another — and
+`lessontest_pickescape` forces the condition so both are exercised. **`nettest_trim` asserts the DOM
+contract they rest on**, because it is the only suite in the repo that reaches a real pick through ordinary
+play; if the pick branch ever starts wrapping cards, no lesson suite could catch the diagnosis silently
+reverting.
+**THE ESCAPE MUST SELECT `need` CARDS BEFORE CONFIRMING.** The first cut clicked one card, saw FIGHT go
+live and pressed it — the pick took that single card, was still over the cap and re-opened, so the board
+never left pick mode (measured: 13 cards, "Discard 3", escaped with 12 still up). FIGHT is the confirm
+(`fightBtn` is wired `pick ? confirmPick() : doFight()`), which `nettest_trim` already documents.
 
 **A POLL BUDGET SIZED FOR A QUIET MACHINE GOES RED WHEN THE SWEEP IS PARALLEL (v1.31.84).** The lesson suites
 polled with **9s**; under `-j 4` `lessontest_rides` blew it once on "the J is spotlit", and a tutorial paces
@@ -1927,7 +1990,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127 — 2026-09-23, `npm run sweep`, 99 suites ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`) (four lanes; background
+Status as of **v1.31.127 — 2026-09-24, `npm run sweep`, 100 suites ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, `lessontest_pickescape`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -1935,14 +1998,14 @@ which is what a number nobody can verify looks like). Counts verified:
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 17, `lessontest` 20, `lessontest_energyorder` 14,
 `versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_quicks` 21, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
-`lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
+`lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 31, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
 The 56 netplay suites: `nettest_3p` 7, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 11, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 7, `ghostseat` 6, `trim` 14, `unready` 15, `version` 24, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12.
+`target3` 7, `ghostseat` 6, `trim` 15, `unready` 15, `version` 24, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state

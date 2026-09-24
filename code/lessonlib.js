@@ -35,7 +35,13 @@ async function openLesson(id, viewport){
       const el=Date.now()-t0;
       if(POLLLOG || el>ms*0.5) console.log('   ⏱ '+el+'ms of '+ms+'ms'+(el>ms*0.5?'  ← OVER HALF THE BUDGET':'')+': '+src);
       return true; } await p.waitForTimeout(80); }
-    console.log('⏱ poll TIMED OUT after '+ms+'ms: '+src); return false; };
+    /* SAY WHETHER THE BOARD WAS IN PICK MODE. A pick blocks everything — no window opens, no play lands —
+       and it never clears itself, so ANY poll in this file can die against it. Without this the timeout
+       names only what it was waiting for, which is how `lessontest_twos` was misfiled three times as a poll
+       budget; `lessontest_quicks` fails on "the Respond? window opens" and a covered board would look the
+       same. `pickMode` is declared below and this only runs later, so the const is initialised by then. */
+    const pk=await pickMode().catch(()=>null);
+    console.log('⏱ poll TIMED OUT after '+ms+'ms: '+src+(pk?'\n   ← '+pk:'')); return false; };
   /* ANSWER A PRIORITY WINDOW THE BOARD PUTS UP, so a covered board is not mistaken for a broken lesson
      (epic step 3). Every helper below polls the board; a modal covers it, so each would retry to timeout and
      report the LESSON broken when the truth is that the harness never learned this window. Today no lesson

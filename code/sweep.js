@@ -8,9 +8,9 @@
  *
  *   node sweep.js              # everything, 4 at a time
  *   node sweep.js -j 6         # more lanes
- *   node sweep.js --fast       # skip the six slow STABLE suites (layout/smoke/parity/export) — the iteration
- *                              # loop. A full sweep still gates a PR, and Aj's rule is one complete sweep per
- *                              # day of coding.
+ *   node sweep.js --fast       # skip the slow STABLE suites in FAST_SKIP (layout/smoke/parity/export/rules)
+ *                              # — the iteration loop. A full sweep still gates a PR, and Aj's rule is
+ *                              # one complete sweep per day of coding.
  *   node sweep.js -j 1         # the old serial behaviour, for when a parallel run looks suspicious
  *
  * LONGEST FIRST, and since 2026-09-24 the lengths are MEASURED rather than declared (see COST below). The
@@ -67,7 +67,7 @@ const FAST_SKIP = ['landscapetest.js', 'browsertest.js', 'mptest.js', 'exporttes
  * since. The minimum across runs converges on the uncontended cost and breaks the loop.
  * UNMEASURED GOES FIRST: a suite with no record might be the longest, and stranding a long one in the tail is
  * the single thing longest-first exists to prevent. It costs one badly-ordered run, once. */
-const TIMES_FILE = path.join(here, '.sweep-times.json');
+const TIMES_FILE = path.join(__dirname, '.sweep-times.json');   // not `here` — that const is declared below, and this file loads top-down
 function readTimes() { try { return JSON.parse(fs.readFileSync(TIMES_FILE, 'utf8')); } catch (e) { return {}; } }
 function writeTimes(prev, runs) {
   const out = Object.assign({}, prev);
