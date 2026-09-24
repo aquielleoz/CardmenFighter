@@ -1203,6 +1203,13 @@ never read.*
   `[id: mirror-contract-findings]`
 
 - `root cause found`    · **★ EXPANDING A ZONE PUSHES THE BOARD PAST ITS HEIGHT ON THE TIGHTEST PHONES** (measured 2026-09-07)
+  **⚠ ITS REPORTED NUMBER IS NOT STABLE — 30px IN ONE SWEEP, 60px IN THE NEXT, SAME BUILD (2026-09-24).**
+  Surfaced by the sweep's new warnings section, which prints a green suite's own `⚠` lines. That is the
+  moving-geometry tell CLAUDE.md already names — *"bimodal or wide-swinging geometry on a build nobody
+  touched… do not pad the cap to cover it, find what is moving"* — and the known culprits there are the
+  RANDOM PERSONA (a Forms zone is labelled `<name>’s Forms & Rides`, so the name sets the zone's width) and
+  the deal, both of which `landscapetest` already pins elsewhere via `__solo.setName` and a fixed hand. Pin
+  them for THIS case before trusting either figure; the ratchet's cap should be sized off a pinned number.
   `[ratchet: phone-zone-expand-overflow]`
   v1.31.111 made both panel zones expandable; at **327x660 opening a seat's Forms and equipment adds 75px to
   that panel and pushes `#board` 63px past its height** (393x852 goes 10px over; 360x800, 390x780 and 412x915
