@@ -1924,7 +1924,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 557, `netview` 65, `mptest` 100, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 20, `lessontest_energyorder` 14,
-`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 27, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_quicks` 21, `lessontest_howto` 25,
+`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_quicks` 21, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2218,6 +2218,34 @@ is pinned to one row in the landscape bands, so there is no room to say both.
 complaint in the Main Sub-Phase) came to be silently swallowed later. `mptest` now stages an effect card
 and a plain card on ONE board and requires them to AGREE — asserting the King alone would prove nothing,
 because the plain card was never broken.
+
+**A DETECTOR THAT NAMES A CAUSE IT HAS NOT ESTABLISHED IS WORSE THAN ONE THAT DESCRIBES WHAT IT SAW
+(2026-09-24).** The 2026-09-17 round-boundary detector printed *"the clean-up boundary did not complete"*
+— a HYPOTHESIS, written into the output as fact. Aj's 3-player log then fired it and disproved it in the
+same file: the ROUND BOUNDARY trace shows that clean-up running every step, `⚠ CLEANUP LEFT A PILE` never
+fired, and `⚠ DOUBLE RESOLUTION BLOCKED` has zero occurrences, so the engine resolved once and advanced
+once. Anyone reading that message would have gone back down the path five hypotheses already died on.
+**IT NOW STATES THE OBSERVATION** — `⚠ ROUND BANNER FIRED WITH A PILE STILL ON THE TABLE` — and the two
+new guards name causes, because they sit on the call they block and can prove it.
+**THE DETECTOR EARNED ITS KEEP ANYWAY, AND THAT IS THE LESSON TO KEEP.** It was built *because the bug
+would not reproduce*, with the note that the next occurrence has to explain itself. It did: one game
+turned "the boundary is broken somewhere" into "the clean-up path is exonerated and the UI ceremony
+re-ran". **When five hypotheses are dead, stop guessing and build the thing that will describe the sixth
+occurrence.**
+**A GUARD MUST BLOCK *AND* REPORT.** `nextTrim` reached `cb()` from two resume paths (`pick.resume`,
+`hostParkTrim`) with no once-guard, so a stale resume re-enters a PREVIOUS round's closure and re-runs its
+tail with the OLD `res` — which is exactly a banner printing last round's number while the board is on
+this round's pile and turn. Blocking it silently would convert a reproducible bug into a mystery; the note
+carries the round the closure was QUEUED for against the round the board is on, which is the pair that
+identifies the stale caller.
+**AND THE SEAT COUNT IS THE DISCRIMINATOR NOBODY CHECKED.** Every one of the five killed hypotheses was
+measured in a DUEL — the detector's own comment says twelve duels never trip it — and the occurrence that
+finally explained itself was a 3-player game. **When a bug resists measurement, check whether the whole
+measuring surface shares a configuration.**
+**THE GUARDS ARE SOURCE-SCANNED, NOT EXERCISED, AND THE SUITE SAYS SO.** Firing a stale resume needs a
+closure no hook reaches, so `logtest` asserts the guards are present and that the queue routes through
+`done()` rather than `cb()` — the exact regression a later edit would make. A/B'd by restoring `cb()`:
+one red. Same shape and same honesty as `nettest_autopass` leg 3.
 
 **A SUITE CAN ALSO PIN THE DEFECT — AS FIRMLY AS IT PINS A FEATURE (2026-09-17).** `nettest_emote`'s
 expected output was literally `/^You says hi!/`: the exact "You" + third-person-verb shape that

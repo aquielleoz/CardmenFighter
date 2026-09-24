@@ -10327,7 +10327,13 @@ window.CardFace = {};
        IT GOES IN THE SAVED LOG, not the console: a battle log is what actually gets sent, and this repo has
        already learned that a diagnostic nobody can post is no diagnostic. Same shape as the double-
        resolution detector. */
-    if(state && state.pile) prioNote('⚠ ROUND BEGAN WITH A STALE PILE — the clean-up boundary did not complete',
+    /* ⚠ THE WORDING WAS WRONG AND IS CORRECTED (2026-09-24). It claimed *"the clean-up boundary did not
+       complete"*, and Aj's 3-player log disproves that: the ROUND BOUNDARY trace shows r7's clean-up
+       running every step, `⚠ CLEANUP LEFT A PILE` never fired, and `⚠ DOUBLE RESOLUTION BLOCKED` has zero
+       occurrences — the engine resolved once and advanced once. A detector that names a cause it has not
+       established sends the next reader down the path five hypotheses already died on. It states what it
+       OBSERVES now; the two guards above name causes, because they can. */
+    if(state && state.pile) prioNote('⚠ ROUND BANNER FIRED WITH A PILE STILL ON THE TABLE',
       'round '+rn+' · pile '+((state.pile.combo&&state.pile.combo.type)||'?')+' · turn '+state.turn, rn);
     if(window.__lastRoundBanner===rn) prioNote('⚠ ROUND BANNER REPEATED — the round did not advance', 'round '+rn+' announced twice', rn);
     window.__lastRoundBanner=rn;
@@ -10495,7 +10501,28 @@ window.CardFace = {};
      * it. The LOCAL seat is queued LAST, which keeps solo behaviour exactly as it was.
      * Sequential rather than simultaneous because that is what the window machinery supports — and because a
      * disconnected seat is covered for free: Passo answers a `discard` window with `ids:[]`. */
-    var g=gen, queue=[];
+    /* ⚠ THE CONTINUATION FIRES ONCE (2026-09-24). `nextTrim` reaches `cb()` from TWO resume paths —
+       `pick.resume` for the local picker and `hostParkTrim` for a remote seat — and neither was
+       idempotent, so a stale resume re-enters a PREVIOUS round's closure, finds its queue empty and runs
+       that round's tail again: `E.roundDraw(state, res)` and `logRoundDraw(res)` with the OLD `res`.
+       THAT PREDICTS AJ'S LOG EXACTLY (2026-09-24, 3 players): `res.newRound` was still 7 so the banner
+       printed "Round 7" twice, and it fired while round 7's own clean-up was only starting, so the pile
+       and turn were still round 7's — which is the second warning, from the same single cause.
+       IT BLOCKS AND REPORTS, never just blocks. A silent guard turns a reproducible bug into a mystery,
+       and this one has already cost five dead hypotheses; the note carries the round the closure was
+       QUEUED for against the round the board is on now, which is the pair that identifies the stale
+       caller. Same shape as `⚠ DOUBLE RESOLUTION BLOCKED`. */
+    var g=gen, queue=[], fired=false, queuedRound=(state&&state.round);
+    function done(){
+      if(fired){
+        prioNote('⚠ CLEAN-UP CONTINUATION FIRED TWICE — blocked',
+          'queued for round '+queuedRound+', board is on round '+((state&&state.round)||'?')+
+          ' · pile '+((state&&state.pile&&state.pile.combo&&state.pile.combo.type)||'—')+
+          ' · turn '+((state&&state.turn)!=null?state.turn:'?'));
+        return;
+      }
+      fired=true; return cb();
+    }
     for(var ci=0; ci<state.numPlayers; ci++){
       if(ci===YOU || state.players[ci].eliminated) continue;
       if(state.players[ci].hand.length - E.MAX_HAND > 0) queue.push(ci);
@@ -10503,7 +10530,7 @@ window.CardFace = {};
     if(state.players[YOU].hand.length - E.MAX_HAND > 0) queue.push(YOU);   // local seat last: solo order unchanged
     function nextTrim(){
       if(g!==gen) return;
-      if(!queue.length){ state.trimPending=null; render(); return cb(); }
+      if(!queue.length){ state.trimPending=null; render(); return done(); }
       var seat=queue.shift(), over=state.players[seat].hand.length - E.MAX_HAND;
       if(over<=0) return nextTrim();                                        // it may have changed while we waited
       if(seat===YOU){
@@ -10528,6 +10555,17 @@ window.CardFace = {};
   }
   // Orchestrate a resolved round: pre-draw beats → end-of-round trim → draw → Round card → continuation.
   function resolveRoundCeremony(res, g, continuation){
+    /* ⚠ AND THE CEREMONY ITSELF IS ENTERED ONCE PER RESULT. The guard above catches a stale resume inside
+       the trim queue; this catches the other shape — the same `res` orchestrated twice — which would look
+       identical in the log and has a different cause. Marking the RESULT rather than counting rounds is
+       what separates them: a second ceremony for a NEW result is ordinary play. */
+    if(res && res.__ceremonyRan){
+      prioNote('⚠ ROUND CEREMONY RE-ENTERED for a result it already played',
+        'result newRound='+(res.newRound||'?')+' · board is on round '+((state&&state.round)||'?')+
+        ' · pile '+((state&&state.pile&&state.pile.combo&&state.pile.combo.type)||'—'));
+      return;
+    }
+    if(res) res.__ceremonyRan=true;
     inCeremony=true;                                            // suppress the render-diff deck-mill float here; the catch-up mill fires its own explicit −N
     holdShields = !reduceMotion() && !!res.shieldStripped;      // defer the shatter to its beat
     render();                                                   // settle board; no fresh cards yet (draw deferred)

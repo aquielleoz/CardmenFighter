@@ -6,7 +6,7 @@
  * appears at all.
  * The two states are different information and both are asserted: scrolled away (navigate) vs scrolled away
  * WITH new entries behind you (notify). Run: node logtest.js */
-const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path'); const fs=require('fs');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
@@ -186,6 +186,26 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(rec.first && rec.last,
      'including both ENDS of it — the early game is exactly what the trim threw away' +
      (rec.first ? '' : '  ← the oldest lines are gone, which is the bug'));
+
+  /* ---- THE CEREMONY RE-ENTRY GUARDS EXIST AND ARE WIRED (2026-09-24) ----
+     These are DETECTORS for a bug that has resisted five measured hypotheses, and their whole value is
+     being there on the day it recurs. A detector that was quietly unwired would be worse than none — it
+     would read as "the bug did not happen".
+     A SOURCE SCAN, AND ITS LIMIT STATED PLAINLY: it proves the guards are present and that the trim queue
+     routes through `done()` rather than calling `cb()` directly, which is the exact regression a later
+     edit would make. It does NOT exercise them — firing a stale resume needs a closure no hook reaches.
+     Same shape and same honesty as `nettest_autopass` leg 3, which exists because a duel can only drive
+     one of two handlers. */
+  const src = fs.readFileSync(path.join(__dirname,'CardmenFighter.template.html'),'utf8');
+  ok(/CLEAN-UP CONTINUATION FIRED TWICE/.test(src),
+     'the clean-up continuation guard is present');
+  ok(/ROUND CEREMONY RE-ENTERED/.test(src),
+     'the ceremony re-entry guard is present');
+  ok(/if\(!queue\.length\)\{[^}]*return done\(\);/.test(src),
+     'the trim queue routes its continuation through the guard, not straight to `cb()`' +
+     (/if\(!queue\.length\)\{[^}]*return cb\(\);/.test(src) ? '  ← REPRODUCED: it calls cb() directly again' : ''));
+  ok(!/the clean-up boundary did not complete/.test(src),
+     'and the stale-pile detector no longer asserts a cause the trace disproved');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
