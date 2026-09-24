@@ -2253,6 +2253,11 @@ definition, so it cannot delete them.
 - `docs/RIDES-AND-FORMS.md` — design of the J/Q/K layer. `docs/MULTIPLAYER-DESIGN.md` — netplay design.
 - `docs/COUNT-UP-DESIGN.md` — the count-up / "Kick Coin" branch: why shields are load-bearing (catch-up,
   the transform gate, the targeting signal), and Aj's narrower lean toward a count-up **class**. Open.
+- `docs/CLASSES-DESIGN.md` — the **second set of classes** (one per suit, Norse-named, each built on a number the
+  first set never reads) with the suit wheel — KEEP / TAKE / BREAK / GROW — that makes two classes per suit
+  coherent, and the tarot fold-in. **A design draft (2026-09-24), nothing built.** Read it before proposing a
+  new class or moving a mechanic between suits; its §3 records a premise a probe killed, and its numbers come
+  from `code/classprobe.js` / `code/transformprobe.js`, which re-run in seconds.
 - `docs/RELAY-DESIGN.md` — the **signalling relay**: why polling over D1 rather than WebSockets over Durable
   Objects, the mailbox-of-slots model, the cost arithmetic, and the privacy change it forces.
 - `docs/ORIGIN-EXPERIMENT.md` — the **origin probe** (`code/origin-probe.html` + `code/serve.js`): does an

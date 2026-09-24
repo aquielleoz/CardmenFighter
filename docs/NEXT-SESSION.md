@@ -369,6 +369,9 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   **The measured support is settled: [`DECISIONS.md#value-stuck`](DECISIONS.md#value-stuck)** — read it there,
   including the correction to an earlier claim about Rogue. Do not re-derive it, and do not copy its numbers
   back here. **What is open is only the card:** cost, whether it is a Quick, and how much it slashes.
+  **A candidate card is drafted** — Undercut (♠3: the current play fights at −2 until it is beaten; not a Quick at
+  base, the Super buys that) as the Trickster's slot in [`docs/CLASSES-DESIGN.md`](CLASSES-DESIGN.md), 2026-09-24.
+  Nothing built.
 
 - **A count-up "charge" CLASS** (Aj, 2026-08-25 — his current lean; nothing built). Full analysis in
   **[`docs/COUNT-UP-DESIGN.md`](COUNT-UP-DESIGN.md)**, which came out of his brother asking why the game has
@@ -384,6 +387,9 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
     (the v1.31.0 fix, mirrored).
   - The one objection that *did* survive: the **leader-snowball is worse under coins**, because a win advances
     only the winner where a shield hit damages everyone, and initiative is already 1.8x concentrated.
+  - **Drafted as the ♦ Alchemist** — the energy-pile version (Charged = 10 or more banked as you cast), no new
+    zone — in [`docs/CLASSES-DESIGN.md`](CLASSES-DESIGN.md), 2026-09-24, with the deck-out clock that keeps a
+    hoarder honest measured there. Nothing built.
 - **QR SCANNING IS BUILT, GREEN, AND PARKED on `feat/qr-scanning`** (PR #29, closed 2026-08-25, 21/0).
   **Why it is not merged:** scanning needs an origin that can be granted camera access, and a file opened from
   Android's Downloads is `content://` — an opaque origin — so Chrome rejects `getUserMedia` without ever
@@ -432,5 +438,8 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   own card set** (it does NOT reuse the pure Fighter or pure Rogue cards). This is also the natural home for a
   real **draw engine**, which is what would make the reorderable energy pile matter in more than the ~39% of
   games that currently reach a reshuffle (`node recyclesim.js`).
+  **A second set of four classes is drafted** in [`docs/CLASSES-DESIGN.md`](CLASSES-DESIGN.md) (2026-09-24): one per
+  suit, Norse-named, with the suit wheel that makes two classes per suit coherent and the rules decisions it
+  forces (Forms key by class, same-colour mixes). The assassin hybrid stays a fifth design. Nothing built.
 - **AI use of energy-pile order** — parked (Aj floated Demon Lord only). The Rival still spends FIFO, so the
   public reorder log lines are a human-only tell on purpose. See `ENERGY-REORDER-DESIGN.md`.
