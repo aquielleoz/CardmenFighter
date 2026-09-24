@@ -138,6 +138,33 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
      DRIVEN PAST THE CAP ON PURPOSE. At 80 lines exactly the two sources agree, so a shorter game cannot
      tell them apart — the assertion has to push the history beyond the trim and then look for the START
      of it, which is the part that was being thrown away. */
+  /* ---- EVERY SEAT'S DAMAGE IS COUNTED, NOT JUST THE FIRST TWO (2026-09-24) ----
+     The `shieldsLost` tally hung off `animateShields`' render diff, which runs for `YOU` always and for
+     `RIVAL` only in the DUEL branch — at 3+ players `renderOpponents()` draws opponent shields as a raw
+     HTML string with no diff at all. Seats 2-5 were never tallied. Measured on Aj's export: a 3-player
+     record with seat 2 on `shieldsLost: 0` and `finalShields: 0` from a start of four.
+     STAGED, NOT PLAYED. The first cut read the tally after the driver's own game and the board came out
+     4/4/4 — nobody had been hit, so the assertion passed having observed nothing, and only its control
+     caught that. Moving the shields by hand makes the claim exact and independent of how far the driver
+     got before its 90s cap.
+     SEAT 2 IS THE SUBJECT AND SEAT 0 IS THE CONTROL. Seats 0 and 1 were always counted — seat 1 by
+     accident, via a `revealShields()` call on a panel that is `display:none` here — so "some seat is
+     counted" would have passed on the broken build. The pair is what isolates the fix. */
+  const dmg = await p.evaluate(()=>{
+    const st=window.__solo.st();
+    window.__solo.render();                                    // baseline every seat's tracker
+    const before=(window.__solo.stats().seats||[]).map(s=>s.shieldsLost);
+    st.players[2].shields = Math.max(1, st.players[2].shields-2);   // a seat PAST the second bleeds…
+    st.players[0].shields = Math.max(1, st.players[0].shields-1);   // …and the local seat, which always worked
+    window.__solo.render();
+    const after=(window.__solo.stats().seats||[]).map(s=>s.shieldsLost);
+    return { d0:after[0]-before[0], d2:after[2]-before[2] };
+  });
+  ok(dmg.d0===1, `the local seat's damage is counted (+${dmg.d0}) — it always was, and is the control here`);
+  ok(dmg.d2===2,
+     `and SEAT 2's is too (+${dmg.d2}) — the seat no render diff ever reached` +
+     (dmg.d2===2 ? '' : '  ← REPRODUCED: every free-for-all record undercounts damage past the second seat'));
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   /* THE SUMMARY CARRIES THE CAP, because `sweep.js` prints only this line for a PASSING suite — a
      warning anywhere else is invisible in a sweep, which is precisely where a shallower run needs to be

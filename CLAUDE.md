@@ -67,7 +67,7 @@ node lessontest_twos.js                 # the "The 2" lesson AND the apex card t
 node piletest.js                                # energy/shuffle pile viewers + promote (30)
 node revealtest.js                              # Outbalance's hand read: the modal, and that it never
                                                 # reaches `state` (12)
-node exporttest.js                              # the playtest export at 3 players — per-seat stats (14)
+node exporttest.js                              # the playtest export at 3 players — per-seat stats (17)
 node phantasmtest.js                            # Phantasmal Illusion: all three routes + the bare-copy
                                                 # refusal, in the real page (12)
 node nettest_reveal.js                          # the hand read over netplay, incl. who must NOT see it (10)
@@ -1923,7 +1923,7 @@ it. **The "run serially, never two at once" rule this line used to carry died wi
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 557, `netview` 65, `mptest` 100, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
-`piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 20, `lessontest_energyorder` 14,
+`piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 17, `lessontest` 20, `lessontest_energyorder` 14,
 `versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_quicks` 21, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
@@ -2246,6 +2246,53 @@ measuring surface shares a configuration.**
 closure no hook reaches, so `logtest` asserts the guards are present and that the queue routes through
 `done()` rather than `cb()` — the exact regression a later edit would make. A/B'd by restoring `cb()`:
 one red. Same shape and same honesty as `nettest_autopass` leg 3.
+
+**BOOKKEEPING THAT LIVES INSIDE AN ANIMATION ONLY REACHES THE SEATS THAT ANIMATE (2026-09-24).** The
+`shieldsLost` tally and `checkThresholds()` both hung off `animateShields`' render diff — seat-agnostic by
+design, and v1.31.98 had already hoisted the tally above the motion guard for exactly that reason. But
+`animateShields` is called for `YOU` always and for `RIVAL` **only in the duel branch**: at 3-6 players
+`renderOpponents()` draws opponent shields as a raw HTML string with no diff at all. **Seats 2-5 were
+never tallied and never re-checked the threshold**, so every free-for-all record ever exported undercounts
+damage — and that field feeds `CARD-STATS.md` and the `PLAYER-PROFILE.md` ingestion log.
+**IT WAS FOUND BY A RECORD CONTRADICTING ITSELF**, not by reading code: Aj's export had a seat on
+`shieldsLost: 0` with `finalShields: 0` from a start of four. **A self-contradicting record is the
+cheapest possible assertion** — it needs no knowledge of how the game went, so it cannot rot with the
+rules, and `exporttest` now carries that shape.
+**SEAT 1 WAS COUNTED BY ACCIDENT, WHICH IS WHY THIS READS AS "OPPONENTS ARE BROKEN" AND IS NOT.**
+`revealShields()` calls `animateShields($('rivalShields'), …)` unconditionally, even though that panel is
+`display:none` in a free-for-all. Seats 0 and 1 were fine; 2-5 never were — so an assertion that "some
+opponent is counted" passes on the broken build. **The suite stages seat 2 as the subject and seat 0 as
+the control**, and the A/B restores the OLD REACH rather than deleting the fix: the control passes, the
+subject fails. Deleting the whole walk reds both and proves far less.
+**THE SECOND TRACKER IS NOT DUPLICATION.** `noteShieldChanges` keeps its own `prevShieldsAll` because
+sharing `prevShields` would have the bookkeeping walk consume the change the animation is waiting to draw
+— the shatter would simply stop firing, a fix that silently breaks the thing it was extracted from. Two
+diffs answering different questions keep their own memory.
+**⚠ EXTRACTING BOOKKEEPING FROM AN ANIMATION CHANGES ITS TIMING, AND THAT TOOK THREE TRIES — ALL THREE
+CAUGHT BY SUITES, NONE BY READING.** Worth the space, because the third is the subtle one:
+1. **Fired unconditionally** → `checkThresholds` queues `pendingThreshold`, which inserts a BEAT into the
+   round ceremony, so it displaced the client's. `nettest_ceremony` 11/0 → 10/1 (*"the beat reaches BOTH
+   seats together — client 260ms after the host"*), reproducible 2/2 and clean on the epic — i.e. a
+   regression of the held-mirror fix from that same morning.
+2. **Gated the whole walk on `holdShields`** → ceremony repaired, tally now skipped during a ceremony,
+   `exporttest` red. The same class of error one layer down.
+3. **Gated only the threshold** → **9/2, worse than the bug being fixed.** The walk writes
+   `prevShieldsAll` every time, so a tally taken during the hold CONSUMES the drop; skipping the
+   threshold then leaves nothing to detect when the hold clears, and it never fires at all.
+**A SKIPPED CHECK MUST BE OWED, NOT SKIPPED.** `thresholdOwed` carries the debt across the hold. The rule
+generalises past this function: **when one consumer of a diff is deferred and another is not, the diff's
+memory must not advance until both have read it** — or defer the read and keep the debt.
+**AND IT IS THE "SECOND TRACKER" TRAP REPEATED INSIDE THE FIX FOR IT.** `prevShieldsAll` exists precisely
+so the bookkeeping walk cannot eat the change the animation is waiting to draw; step 3 then did exactly
+that to a second consumer WITHIN the new function. Writing the rule down did not stop me applying it one
+scope too shallowly.
+**THE A/B AGAINST THE MERGED EPIC IS WHAT MADE EACH STEP HONEST.** Without it the first red reads as
+flakiness — the suite has a documented intermittency — and the regression ships on top of a same-day fix.
+
+**AND THE STAGED PROBE BEAT THE PLAYED ONE.** The first cut read the tally after `exporttest`'s own game
+and the board came out 4/4/4 — nobody had been hit, so the assertion passed having observed nothing, and
+only its control caught it. Moving the shields by hand made the claim exact and independent of how far a
+90s-capped driver happens to get.
 
 **A SUITE CAN ALSO PIN THE DEFECT — AS FIRMLY AS IT PINS A FEATURE (2026-09-17).** `nettest_emote`'s
 expected output was literally `/^You says hi!/`: the exact "You" + third-person-verb shape that
