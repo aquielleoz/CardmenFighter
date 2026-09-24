@@ -1924,7 +1924,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 557, `netview` 65, `mptest` 97, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 20, `lessontest_energyorder` 14,
-`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 24, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_quicks` 21, `lessontest_howto` 25,
+`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 27, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_quicks` 21, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2179,6 +2179,27 @@ finds immediately.
 **AND THE COMMENT FOUR LINES ABOVE THAT WALK SAID "prompt its NON-controller"** — a leftover from before
 step 6 that contradicted both the code and the rule, i.e. a stale line explaining away the exact behaviour
 you are staring at. Corrected in the same commit.
+
+**THE PLAYTEST RECORD KEPT THE LAST 80 LINES, NOT THE GAME (2026-09-24).** `recordGame` built its `log`
+from `$('log').children` — the RENDERED panel — and `logMsg` trims that view to 80 entries, so every game
+longer than that silently lost its EARLY rounds while `fullLog`, the uncapped history the ⤓ Save button
+already uses, sat beside it. **MEASURED ON A REAL EXPORT: 7 of 19 games sat exactly at 80**, including a
+15-round 3-player game whose log began mid-round-8.
+**IT IS THE `downloadLog` POINTEREVENT BUG IN A SECOND PLACE** — the artefact that exists to collect the
+evidence was the thing destroying it — and worse here, because a battle log is saved by someone who has
+just noticed something, while a record is read months later by someone who cannot go back and get it
+again. **Never build a record from the DOM when the state it renders is still in hand**: a view is allowed
+to be lossy, which is exactly what makes it the wrong source.
+**AND UNCAPPING A STORED RECORD MEANS FACING THE QUOTA**, which was failing silently too:
+`catch(e){ memGames.push(rec); }` dropped to memory-only on a full store, and memory dies on reload — so
+the fix would have traded a truncated history for a missing one. It sheds the oldest games and retries
+before giving up; a rolling window is the design, losing the newest game is not.
+**THE ASSERTION HAS TO DRIVE PAST THE CAP**, because at or under 80 the two sources agree and a short game
+cannot tell them apart. It lives in `logtest`, not `exporttest`: the trim is a LOG behaviour, and
+`exporttest` drives a full 3-player game against a 90s cap, which made the probe's state depend on how far
+that got — two runs, two different wrong numbers, before it moved.
+**⚠ `__solo.log(text)` APPENDS; `__cmf.log()` READS.** One key, opposite jobs across the two debug hooks,
+which cost a wrong probe here. Check which hook you are on before reaching for it.
 
 **A SUITE CAN ALSO PIN THE DEFECT — AS FIRMLY AS IT PINS A FEATURE (2026-09-17).** `nettest_emote`'s
 expected output was literally `/^You says hi!/`: the exact "You" + third-person-verb shape that

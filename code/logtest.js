@@ -158,6 +158,35 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(/CLEANUP exit/.test(saved2||'') && /BEGIN exit/.test(saved2||''),
      '  → …and the boundary in it is COMPLETE — both queues reach their exit line, which is what makes a SHORT block the finding');
 
+  /* ---- THE PLAYTEST RECORD KEEPS THE WHOLE LOG, NOT THE RENDERED 80 (2026-09-24) ----
+     `logMsg` trims the PANEL to 80 entries, which is right — it is a view. The game record was built from
+     `$('log').children`, i.e. that same trimmed view, so every game longer than 80 lines silently lost its
+     EARLY rounds while `fullLog`, the uncapped history ⤓ Save already uses, sat beside it.
+     MEASURED ON AJ'S REAL EXPORT before the fix: 7 of 19 games sat exactly at 80, including a 15-round
+     3-player game whose log began mid-round-8. The same shape as the `downloadLog` PointerEvent bug — the
+     artefact that exists to collect evidence was the thing destroying it — and worse here, because a
+     battle log is saved by someone who just noticed something, while a record is read months later by
+     someone who cannot go back and get it again.
+     IT LIVES IN THIS SUITE, NOT `exporttest`, because that one drives a full 3-player game against a 90s
+     cap and the probe's state depended on how far it got; the trim is a LOG behaviour and this file owns
+     the log. Driven PAST 80 on purpose: at or under the cap the two sources agree, so a shorter game
+     cannot tell them apart.
+     ⚠ `__solo.log(text)` APPENDS; `__cmf.log()` READS. The two debug hooks use one key for opposite jobs. */
+  const rec = await p.evaluate(()=>{
+    for(let i=0;i<140;i++) window.__solo.log('probe line '+i);
+    const st=window.__solo.st(); if(st && !st.finished){ st.finished=true; st.winner=0; }
+    window.__solo.record();
+    const g=window.__solo.games(), r=g[g.length-1]||{}, lg=r.log||[];
+    return { dom:document.querySelectorAll('#log .le').length, stored:lg.length,
+             first:lg.some(l=>/probe line 0\b/.test(l)), last:lg.some(l=>/probe line 139\b/.test(l)) };
+  });
+  ok(rec.dom<=80, `the PANEL is still trimmed to 80 (${rec.dom}) — capping the view is correct`);
+  ok(rec.stored>80, `but the RECORD keeps the whole history (${rec.stored} lines)` +
+     (rec.stored>80 ? '' : '  ← REPRODUCED: the record is built from the trimmed DOM'));
+  ok(rec.first && rec.last,
+     'including both ENDS of it — the early game is exactly what the trim threw away' +
+     (rec.first ? '' : '  ← the oldest lines are gone, which is the bug'));
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

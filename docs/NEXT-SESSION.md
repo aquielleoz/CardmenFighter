@@ -226,6 +226,16 @@ re-read its tag.
   stated goal — but if several suites are near their margins the honest fix is lane count or suite cost,
   not thirteen individual budgets. `sweep.js` schedules longest-first; `lessontest_twos` at 112s would have
   been near the head of that queue.
+  **⚠ `lessontest_forms` JOINED IT ON 2026-09-24, WHICH MOVES THIS FROM "one suite" TO "the lane is too
+  thin" (the second half of this entry, now with evidence).** `PASS: 13  FAIL: 2` on *"the Q is spotlit for
+  you to activate"* in a `-j 4` sweep; **3/3 green solo** straight afterwards, on a branch whose only change
+  was the playtest record's log source — nothing a tutorial can reach.
+  **THE DENOMINATOR KEPT GROWING WHILE NOBODY RE-MEASURED:** 86 suites on `main`, 94 when this entry was
+  written, **98 now**. Every suite added takes machine from every lane, so the suites nearest their margin
+  go red first and it looks like a different bug each time.
+  **SO THE LEVER IS LANE COUNT OR SUITE COST, NOT A THIRD BUDGET RAISE.** `LESSONPOLL=1` prints every wait;
+  measure the margins across the lesson family in one `-j 4` run before touching anything, because raising
+  budgets one suite at a time is how this reached three suites without anyone seeing the shape.
   `[id: lessontest-twos-poll-under-load]`
 
 - `needs a repro`       · **`lessontest_quicks` IS RED ~25% OF THE TIME AT `-j 4`, AND ~1 IN 9 SERIALLY — MEASURED 2026-09-10/11.**
