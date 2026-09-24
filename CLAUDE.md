@@ -71,6 +71,15 @@ node exporttest.js                              # the playtest export at 3 playe
 node phantasmtest.js                            # Phantasmal Illusion: all three routes + the bare-copy
                                                 # refusal, in the real page (12)
 node nettest_reveal.js                          # the hand read over netplay, incl. who must NOT see it (10)
+node nettest_prefightduel.js                    # THE PRE-FIGHT WINDOW IN A **DUEL** (8). `nettest_prefight`
+                                                # is 3-PLAYER ONLY and says so in its first line, so the duel
+                                                # path had no suite — which is the only reason a filed
+                                                # `root cause found` HANG could sit open for eight days with
+                                                # nobody able to say whether it was still real. It is not:
+                                                # step 20 folded the pre-fight window into Main → Fight,
+                                                # which routes through `settleWindows` and so parks in the
+                                                # right family. A/B'd by deleting the duel resume — the
+                                                # filed symptom reproduces exactly
 node nettest_rename.js                          # A MID-GAME RENAME MUST REACH THE TABLE (17). The editor
                                                 # committed four LOCAL calls and sent nothing, so a name
                                                 # travelled exactly twice — a client's `t:'join'` and the
@@ -1918,7 +1927,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127 — 2026-09-23, `npm run sweep`, 98 suites ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`) (four lanes; background
+Status as of **v1.31.127 — 2026-09-23, `npm run sweep`, 99 suites ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -1928,7 +1937,7 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 55 netplay suites: `nettest_3p` 7, `clientdeal` 10, `autopass` 24, `rename` 17, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 11, `clientwin` 10, `concede3` 8,
+The 56 netplay suites: `nettest_3p` 7, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 11, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
@@ -2293,6 +2302,26 @@ flakiness — the suite has a documented intermittency — and the regression sh
 and the board came out 4/4/4 — nobody had been hit, so the assertion passed having observed nothing, and
 only its control caught it. Moving the shields by hand made the claim exact and independent of how far a
 90s-capped driver happens to get.
+
+**A `root cause found` HANG SAT OPEN FOR EIGHT DAYS BECAUSE NOTHING COULD TEST IT (2026-09-24).**
+`[id: duel-prefight-abandoned]` described a 2-player pre-fight window abandoned by the host, rated a
+permanent hang. Two greps closed it: **no `prefight` op exists on the wire at all** — step 20 folded that
+window into the Main → Fight transition, which routes through `settleWindows` and therefore parks in the
+right family — and `nettest_prefight` **is 3-player only, and says so in its own first line**. The duel
+path had no suite, so nobody could say whether the bug was still real, and a scary entry stayed scary.
+**BEFORE BUILDING AGAINST AN ENTRY, CHECK WHETHER ITS TEST SURFACE EXISTS.** This file already says to
+grep every symbol an entry names; the twin question is which configuration the suites actually cover. The
+five dead round-boundary hypotheses were all measured in duels; this hang was filed for duels and tested
+only at three players. **A whole mode missing from the harness is the shape both of those share.**
+**CLOSE IT WITH A REPRO, NOT WITH REASONING.** The suite is kept even though it is green, and it is
+A/B'd by deleting the duel resume (`var ns=netSettle; … return hostSettle(ns.g, ns.done)`), which
+reproduces the filed symptom word for word: *"Rival 2 is deciding…"* on a host whose hint reads *"Hold on
+— the board is still resolving."* A green suite that cannot fail is not evidence that a hang is gone.
+**AND "THE HOST'S BOARD IS DEAD" IS NOT A HANG WHEN THE HOST JUST FOUGHT.** The first cut asserted
+`boardUsable(host)`, copied from `nettest_ridewedge` — but there the host cast on its OWN turn and must
+resume it, whereas a host that FOUGHT correctly hands the turn over and shows "Waiting for opponent…".
+It nearly reported a wedge that was correct play. The liveness question is **does the table move**: drive
+the other seat's turn and require control to come back.
 
 **A SUITE CAN ALSO PIN THE DEFECT — AS FIRMLY AS IT PINS A FEATURE (2026-09-17).** `nettest_emote`'s
 expected output was literally `/^You says hi!/`: the exact "You" + third-person-verb shape that

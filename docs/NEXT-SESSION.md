@@ -233,6 +233,17 @@ re-read its tag.
   **THE DENOMINATOR KEPT GROWING WHILE NOBODY RE-MEASURED:** 86 suites on `main`, 94 when this entry was
   written, **98 now**. Every suite added takes machine from every lane, so the suites nearest their margin
   go red first and it looks like a different bug each time.
+  **⚠ THIRD OCCURRENCE, SAME DAY, AND THE DENOMINATOR IS NOW 99 (2026-09-24 evening).** `lessontest_twos`
+  again at **`PASS: 24  FAIL: 5`**, opening on *"has no group (retried for 30000ms)"*, **112s** in the
+  sweep against **29/0 twice solo** immediately after. That is byte-identical to the signature filed
+  above, from a different build, which is as close to a controlled repeat as this gets.
+  **AND THE CAUSE IS PARTLY US.** Five suites were added in one session (`nettest_clientdeal`,
+  `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, plus assertions elsewhere), taking the
+  sweep 94 → 99. Every suite added takes machine from every lane. **Writing more tests is making the
+  harness less able to report on them**, which is the tension to resolve rather than absorb.
+  **THIS IS ARGUABLY EPIC-BLOCKING NOW.** CLAUDE.md: *"an unreliable sweep is worth less than a red one,
+  because it makes every other result unreadable."* Merging the epic to main rests on a green sweep
+  meaning something, and right now roughly one run in two has a red that nobody should act on.
   **SO THE LEVER IS LANE COUNT OR SUITE COST, NOT A THIRD BUDGET RAISE.** `LESSONPOLL=1` prints every wait;
   measure the margins across the lesson family in one `-j 4` run before touching anything, because raising
   budgets one suite at a time is how this reached three suites without anyone seeing the shape.
@@ -486,11 +497,6 @@ re-read its tag.
   is the seat that most often reports the hang. A reader diffing two saved logs — the method that has now
   found several defects — currently finds a 10-vs-0 gap that is expected and looks alarming.
   `[id: client-ledger-no-phase-walk]`
-
-- `root cause found`    · **A 2-PLAYER NETPLAY PRE-FIGHT WINDOW IS SET ON THE CLIENT AND ABANDONED BY THE HOST** (the duel `t:'move'` handler, template) — the
-  duel move handler has no op for it. Needs a client holding a Form-granted lockout Quick, so it is narrow, but
-  the audit rates it a permanent hang.
-  `[id: duel-prefight-abandoned]`
 
 - `root cause found`    · **A CLIENT COULD ACT WHILE ANOTHER SEAT HAD A MODAL UP (Aj, 2026-09-16: *"we really need that guard when
   somebody has a modal up. other player could activate stuff while the other players were busy with a
