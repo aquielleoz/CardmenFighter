@@ -4764,10 +4764,25 @@ __QR__
     var tutSpecialGate=(typeof TUT!=='undefined' && TUT.needSpecial && TUT.needSpecial() && combo.size<2);   // tutorial: the "make a Special" step won't accept a single-card jab
     if(tutSpecialGate){ hint.textContent='For this lesson, make a Special — pick two cards of the same number.'; hint.className='bad'; fight.disabled=true; }
     else if(legal){ hint.textContent=kindLabel(combo.type)+chargeTag+(actCard&&!actBlock?' — Fight with it, or Activate its effect.':' — fight!'); hint.className='good'; fight.disabled=false; }
-    else if(actCard && !actBlock){ hint.textContent=E.effectOf(actCard).name+' — Activate its effect.'; hint.className='good'; }
-    else if(actCard && actBlock){ hint.textContent=E.effectOf(actCard).name+' — '+actBlock; hint.className='bad'; }
-    else if(state.round<2 && combo.size>1){ hint.textContent='Round 1 is jabs only.'; hint.className='bad'; }
-    else { hint.textContent=kindLabel(combo.type)+' — doesn’t beat the '+kindLabel(state.pile.combo.type)+'.'; hint.className='bad'; }
+    /* THE FIGHT VERDICT IS NEVER PRE-EMPTED BY AN EFFECT (Aj, 2026-09-24: *"in the fight phase it should
+       tell me if the selection can beat the current play or not"*). It already existed — as the LAST
+       branch of this chain — and two branches above it swallowed it whenever the selected card happened
+       to carry an effect. He had a King chosen against a Pair and was told *"Odysseus Form — The fight
+       has begun — effects are a Main-half move."*: a reason he could not do the thing he was not trying
+       to do, instead of whether the thing he WAS trying to do would work. A plain 7♠ answered correctly;
+       the King did not, so the bug tracked the card rather than the situation.
+       THE ORDER IS THE FIX. Whether the play beats the pile is the question the selection asks, so it
+       leads; the effect is an ALTERNATIVE and is appended only when it is actually available. A blocked
+       effect adds nothing here — `cardAct.title` already carries that reason, and the ⚡ is visibly grey.
+       KEPT TO ONE LINE ON PURPOSE: `#hint` is pinned to a single row in the landscape bands and there is
+       no vertical slack there, which is why the blocked-effect reason is dropped rather than appended. */
+    else {
+      var why = (state.round<2 && combo.size>1) ? 'Round 1 is jabs only.'
+              : state.pile ? kindLabel(combo.type)+' — doesn’t beat the '+kindLabel(state.pile.combo.type)+'.'
+              : kindLabel(combo.type)+' — not a legal lead.';
+      hint.textContent = why + ((actCard && !actBlock) ? ' ⚡ Activate instead?' : '');
+      hint.className='bad';
+    }
   }
 
   /* ---- selection (pick) mode for DISCARD4 / DRAW2TOP1 ---- */

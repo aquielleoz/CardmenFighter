@@ -97,7 +97,7 @@ node nettest_clientdeal.js                      # THE CLIENT'S OPENING HAND ARRI
                                                 # (`handPresetN`), never the order: a fair shuffle reproduces
                                                 # the engine's order 1 time in 720, so an order assertion is a
                                                 # mystery red waiting to happen
-node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (97)
+node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (100)
 node qrtest.js                                  # the QR encoder, every symbol decoded back by a real decoder,
                                                 # plus the geometry a camera actually needs (19)
 node qrref.js                                   # the same encoder diffed module-for-module against macOS
@@ -1922,7 +1922,7 @@ Status as of **v1.31.127 — 2026-09-23, `npm run sweep`, 98 suites ON THE EPIC*
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 557, `netview` 65, `mptest` 97, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
+`test` 557, `netview` 65, `mptest` 100, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 20, `lessontest_energyorder` 14,
 `versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 27, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_quicks` 21, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
@@ -2200,6 +2200,24 @@ cannot tell them apart. It lives in `logtest`, not `exporttest`: the trim is a L
 that got — two runs, two different wrong numbers, before it moved.
 **⚠ `__solo.log(text)` APPENDS; `__cmf.log()` READS.** One key, opposite jobs across the two debug hooks,
 which cost a wrong probe here. Check which hook you are on before reaching for it.
+
+**A VERDICT AT THE END OF AN `else if` CHAIN IS A VERDICT THAT CAN BE SWALLOWED (2026-09-24).**
+`updateActions` ends with the answer to the question a selection actually asks — *does this beat the
+pile?* — and two branches above it returned first whenever the chosen card happened to carry an effect.
+Aj had a King selected against a Pair and was told *"Odysseus Form — The fight has begun — effects are a
+Main-half move."*: the reason he could not do the thing he was not trying to do.
+**THE TELL IS THAT THE BUG TRACKED THE CARD, NOT THE SITUATION.** A plain 7 answered correctly on the same
+board, which is why it reads as "sometimes the hint is missing" rather than as an ordering bug. **When a
+report says a message is missing, check what ELSE could have claimed that slot** before looking for the
+message itself — it existed here and had never been deleted.
+**ORDER BY WHAT THE PLAYER IS DOING.** The fight verdict leads because selecting cards is a question about
+fighting; the effect is an ALTERNATIVE and is appended only when it is actually available. A BLOCKED
+effect adds nothing — `cardAct.title` already carries that reason and the ⚡ is visibly grey — and `#hint`
+is pinned to one row in the landscape bands, so there is no room to say both.
+**NOTHING ASSERTED THIS HINT BEFORE TODAY**, which is how the 2026-09-16 fall-through (added for the same
+complaint in the Main Sub-Phase) came to be silently swallowed later. `mptest` now stages an effect card
+and a plain card on ONE board and requires them to AGREE — asserting the King alone would prove nothing,
+because the plain card was never broken.
 
 **A SUITE CAN ALSO PIN THE DEFECT — AS FIRMLY AS IT PINS A FEATURE (2026-09-17).** `nettest_emote`'s
 expected output was literally `/^You says hi!/`: the exact "You" + third-person-verb shape that
