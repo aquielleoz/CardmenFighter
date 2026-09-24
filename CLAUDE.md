@@ -1764,6 +1764,27 @@ Three of those were found and killed on 2026-09-07/08 (a landscape overlap, the 
 `effectOf` "still open" list), and none of them would have been caught by any mechanical scan. The only
 defence that has worked is the one already in this file: **make the second copy ASSERTED, not written.**
 
+**THE SWEEP RE-RUN, 2026-09-24 — AND THE 2026-09-08 CONCLUSION HELD EXACTLY.** Fifty backlog entries,
+every backticked identifier in each one checked against `code/*.js` + the template: **one hit, and it was
+`getUserMedia`** — a browser API named in the parked camera entry, not our code. So the mechanical axes
+(names, counts, citations) are still clean, which is what being gated does, and **every real finding was
+again a CLAIM**.
+**THE CHEAP TEST IS PER-ENTRY, NOT PER-DOC, AND IT IS ~20 LINES OF PYTHON**: split the BACKLOG on its
+`[id: …]` lines, pull the backticked identifiers out of each entry, and grep them. It runs in a second and
+it is the only part of a docs sweep that needs no judgement. Keep it for the next one.
+**WHAT IT CANNOT SEE is the half that rots**: an entry whose symbols all still exist while its *action* has
+already shipped. Today's example — `round-ceremony-reruns-with-stale-res` named a wording fix and two
+guards, **all three of which landed that same morning**, and the entry still read as if they were owed.
+Nothing mechanical could catch that; the tell is an entry that names a specific remedy, so **re-read the
+remedy, not just the symptoms.**
+**AND VERIFY THE SURVIVORS TOO, which is where the confidence comes from.** Three entries were spot-checked
+and all three are STILL LIVE, quoted code byte-identical: `twos-lesson-pilot-leads-nothing` (its pilot's
+leading branch still needs three 2s AND a non-2 pair and still falls through silently — thirty green
+`lessontest_twos` runs mean the rig happens to supply both, not that a guard exists),
+`discard-line-hardcodes-rival`, and `respond-window-offers-duplicate` — that last one nearly misread as
+fixed because a `uniq` dedupe does exist two thousand lines away, in **Counterfeit's picker**, not the
+respond window. **A dedupe somewhere is not a dedupe here**; read which function it is in.
+
 **A RECORDED MEASUREMENT IS ONLY TRUE OF THE BUILD IT WAS TAKEN ON — RE-MEASURE BEFORE BUILDING AGAINST ONE.**
 Every number in the zones-into-panels entry was wrong by the time anyone acted on it, three versions of layout
 work later, and re-measuring first also killed that entry's own "cheaper alternative" and found a viewport
