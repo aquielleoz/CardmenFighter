@@ -1916,7 +1916,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 557, `netview` 65, `mptest` 97, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 20, `lessontest_energyorder` 14,
-`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 24, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 46, `lessontest_quicks` 21, `lessontest_howto` 25,
+`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 24, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 61, `lessontest_quicks` 21, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2096,6 +2096,49 @@ asserts the window CLOSES on the auto path before it asserts the silence.
 the two-handler-families trap, now four times over. A source scan covers both and any future one. It
 discriminates on the ACTOR: `say(YOU, …)` is exempt, because a seat narrating its own click knows it
 chose, while a host narrating for another seat cannot and must be told.
+
+**NOTIFICATIONS ARE ONE TRI-STATE: ON · AUTO · OFF (2026-09-24).** Aj brought the model back from Master
+Duel — *"ON turns all the notifs on; AUTO only notifies the player when they have stakes; OFF turns all the
+notifs off even when effects will have stakes"* — and the middle state was already built: AUTO is
+`stakeFor` plus the per-card rows. `PROMPT_MODE` GATES those rows rather than replacing them, so the mode
+is a strict superset: ON ignores an untick, OFF ignores a tick, AUTO is what shipped before it.
+**OFF DELIBERATELY OVERRIDES `stakeFor`, INVERTING THE GUARANTEE FROM THE DAY BEFORE**, and the difference
+is the ACT, not the outcome: that rule protects against a buried per-card default costing you a shield you
+never knowingly declined; a visible, global, one-tap mode is the player saying *"I know, do not stop me"*.
+**THE LEDGER NAMES THE MODE**, and that is the condition that makes OFF defensible rather than a hole —
+silent is fine, unexplainable is not. `resolutiontest_ui` C4 keeps that assertion specifically.
+**AND A SUPPRESSED *STAKE* ALSO GETS A VISIBLE BATTLE-LOG LINE** (Aj: *"can we add to the logs for when a
+stake was auto passed because the notifs were off?"*) — the ledger is download-only by design, so without
+it a player never learns in-game what their own setting just did. **Only a stake, never every auto-pass:**
+dropping that filter put **5 lines on a board with nothing at risk**, measured, which would flood the log
+of the one mode chosen for quiet. It is `logMsg`, never `say` — your setting is not the other seat's
+business — and it names the card and the stake but **claims no outcome**, because the window is skipped
+before the loss resolves and a stake is not always a loss (Armor Piercing's is a shield you are about to
+TAKE). C7 is the negative and asserts the LEDGER still records what the battle log stays quiet about.
+**EVERY MODE SCENARIO IS A TWIN OF AN EXISTING ONE ON IDENTICAL STAGING** — C4 against C, C5 against C3 —
+because "no window opened" is equally true of a build where nothing ever opens one. A tri-state tested
+only in its own new scenarios proves nothing about the two states that were already there.
+**`?prompts=all` MAPS ONTO `on`** instead of remaining a second mechanism; four suites set it, and a flag
+meaning something a player cannot express is the drift `promptDefault` already suffered once.
+
+**A BOARD CONTROL IS JUDGED BY WHAT IT READS AS, AND NO MEASUREMENT ANSWERS THAT (2026-09-24).** Placing
+one button cost more turns than the whole feature, and every wrong step measured clean: `stretch` made it
+286px the moment the log expanded; `center` parked it mid-column so it read as part of the panel above;
+sizing it per-state gave it two sizes so it changed shape when the log opened; and lifting the log's caret
+out of its header left **three things in the rail of which only two were clickable** — Aj: *"why does it
+look like there's three buttons then? a bell, an arrow and a log thing that i can't even click?"*, and
+then *"if you are not sure about something, ask"*. **Ask which lane before building one**; a screenshot
+shows you the mistake but only the person can say which shape they meant.
+**THE RESOLUTION IS THE RULE WORTH KEEPING: IF IT LOOKS LIKE A CONTROL IT MUST BE ONE.** The collapsed log
+rail is a tall rounded strip with a label, so the whole strip now expands the log, and the separate button
+is gone. Only while COLLAPSED — expanded, it is a reading surface and a click must not close what you are
+reading, which the suite asserts both ways.
+**AND `textContent` ON AN ELEMENT WITH CHILDREN IS A DELETION WEARING AN ASSIGNMENT'S CLOTHES.** A leftover
+`b.textContent = …` from the button's first stub survived its own rewrite and wiped the `<span>` label on
+every paint, so three rounds of CSS width tuning were done against a control that was not the control.
+Measuring the INNER widths found it in one probe; re-reading the function three times did not. The log
+toggle's handler had the identical line waiting for the same accident. `resolutiontest_ui` C6 now asserts
+the label survives a render.
 
 **A SUITE CAN ALSO PIN THE DEFECT — AS FIRMLY AS IT PINS A FEATURE (2026-09-17).** `nettest_emote`'s
 expected output was literally `/^You says hi!/`: the exact "You" + third-person-verb shape that

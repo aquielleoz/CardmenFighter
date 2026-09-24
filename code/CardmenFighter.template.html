@@ -205,7 +205,13 @@
   #board{flex:1 1 auto; min-height:0; display:grid; gap:10px;
     grid-template-columns:auto minmax(0,1fr) clamp(240px,28vw,380px);
     grid-template-rows:minmax(0,1fr) auto;}
-  #board > #logWrap{grid-column:1; grid-row:1;}
+  /* THE LEFT COLUMN HOLDS THE LOG **AND** THE BUTTON RAIL, and the buttons are a SIBLING of the log rather
+     than a child of it (Aj, 2026-09-24: *"woah... don't put the bell in the log"*). They were inside
+     `#logWrap` first because it was already a flex column and needed no grid work — and that is exactly
+     wrong: expand the panel and a game-wide notification setting sits inside the battle log, which says it
+     belongs to the log. The wrapper costs two selectors and states the relationship correctly. */
+  #board > #leftCol{grid-column:1; grid-row:1; display:flex; flex-direction:column; min-height:0;}
+  #leftCol > #logWrap{flex:1 1 auto; min-height:0;}
   #board > #table{grid-column:2; grid-row:1;}
   #board > #side{grid-column:3; grid-row:1;}
   #board > #handWrap{grid-column:1 / span 3; grid-row:2;}
@@ -424,11 +430,64 @@
   #logToggle{font:inherit; font-size:12px; line-height:1; padding:3px 8px; border-radius:7px; border:1px solid var(--line); background:transparent; color:var(--txt); opacity:.75; cursor:pointer;}
   #logToggle:hover{opacity:1; background:rgba(255,255,255,.06);}
   #logHead .logBtns{display:flex; gap:6px; align-items:center;}
-  #logWrap.collapsed{width:40px;}
+  /* THE NOTIFICATION MODE LIVES IN THE LEFT RAIL, and it is there because the rail is empty (2026-09-24).
+     Measured before placing it: collapsed, `#logWrap` is 40px wide and stretches the WHOLE play-area row —
+     560px on desktop, 322 on a phone, 146 in landscape — for a head that is about 30px. Everything below
+     it is unused. `#logWrap` is already `display:flex; flex-direction:column`, so a footer child needs no
+     grid surgery and cannot overlap anything by construction; `#table`'s own left rail was the other
+     candidate and is where the Form zones live.
+     `margin-top:auto` puts it at the BOTTOM on desktop (Aj: *"the lower left side in desktop"*) and the
+     phone branch adds a matching bottom margin to CENTRE it (*"the center left side in mobile"*).
+     IT MUST FIT 40px COLLAPSED, which is why the label is its own 9px line under the bell rather than
+     beside it — the head already writes "LOG" vertically at this width for the same reason. */
+  /* THE LEFT RAIL'S BUTTON CLUSTER (Aj, 2026-09-24: *"what if we also gave battle log a button? so there
+     would be 2 buttons there"*, and the panel stays — no overlay). The log's ▸ moved out of `#logHead` and
+     down here beside the notification mode, so the two controls read as a pair instead of one being buried
+     in a header. `#logToggle` keeps its id: `logtest` and `nettest_log` both drive it by that name, and a
+     rename is a deletion wearing a friendlier face. The CLUSTER owns the placement — bottom on desktop,
+     centred on a phone — so adding a third button later needs no new positioning. */
+  /* flex-start, not center and not stretch. STRETCH made both buttons 286px wide the moment the panel
+     opened; CENTER then parked them mid-column, which reads as belonging to the panel above rather than to
+     the rail. Left-aligned they stay put as the column goes 40px -> ~300px, so opening the log does not
+     appear to move the controls. */
+  #railBtns{margin-top:auto; flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-start; gap:6px; padding:0 2px 8px;}
+  /* ONE SIZE, AND THE COLLAPSED RAIL SETS IT (Aj: *"why does the button have 2 sizes? can we just make the
+     bigger size the size for both?"*). The first cut let the column size the bell — 28px squeezed into the
+     40px collapsed rail, 38px once the panel opened — so a control changed size when you opened the log,
+     the same "the controls moved" problem the left alignment had just fixed.
+     A FIXED 36px SQUARE is the largest that fits the 40px rail (2px padding each side), so it is the size
+     in BOTH states. Both buttons share it and read as a pair rather than a stray caret beside a control. */
+  #railBtns > button{box-sizing:border-box; width:36px; height:36px; flex:0 0 auto;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+    font:inherit; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--txt);
+    cursor:pointer; opacity:.75; padding:0;}
+  #railBtns > button:hover{opacity:1; background:rgba(255,255,255,.06); border-color:var(--gold);}
+  /* THE TWO BUTTONS ARE ONE COMPONENT: icon over a small caps label, same box, same type scale. The log's
+     control was a bare ▸ caret lifted out of the panel header, and at that size beside a labelled bell it
+     read as leftover chrome rather than a control — Aj: *"why is the log expand button outside of the
+     log?"*. It is outside because it is the LOG'S BUTTON now, not the header's caret, and labelling it is
+     what says so. Open/closed is carried by the title and by the panel itself, exactly as the bell carries
+     its state, so nothing has to mutate the icon. */
+  #railBtns > button{font-size:14px;}
+  #railBtns > button > span{font-size:7.5px; font-weight:800; letter-spacing:0; opacity:.85;}
+  /* THE COLLAPSED RAIL IS 40px WIDE AND THAT IS THE DEFAULT STATE, so it sizes the controls — not the
+     ~300px expanded panel. Measured: at the expanded size the mode button came out 51px and was clipped by
+     `#logWrap{overflow:hidden}` with `elementFromPoint` still returning it, i.e. half a control that
+     answered a hit test. The label stays visible rather than being hidden to fit, because ON and AUTO are
+     not distinguishable by colour alone and this button's whole job is saying which of three it is. */
+  #promptMode[data-mode="off"]{opacity:.5;}
+  #promptMode[data-mode="on"]{border-color:var(--gold); color:var(--gold); opacity:1;}
+  #logWrap.collapsed{width:40px; cursor:pointer;}
+  #logWrap.collapsed:hover{border-color:var(--gold);}
   #logWrap.collapsed #log{display:none;}
   #logWrap.collapsed #logHead{flex-direction:column-reverse; align-items:center; gap:10px; padding:10px 4px;}
   #logWrap.collapsed #logHead > span:first-child{writing-mode:vertical-rl; transform:rotate(180deg); font-size:10px; letter-spacing:1.5px; opacity:.55; white-space:nowrap;}
   #logWrap.collapsed #saveLogBtn{display:none;}
+  /* ⚠ `min-height:0` WAS ADDED HERE AND REVERTED THE SAME HOUR (2026-09-24). It let the log yield space to
+     the rail buttons, which is what it was for — and it yields ALL of it: measured at 844x390 the log's own
+     content box went to **0px**, so the panel rendered as a frame with nothing in it. Aj, immediately:
+     *"battle log is getting shanked"*. The real cause of the squeeze was the collapsed head's wrapped
+     "Battle Log" label eating 130px of a 146px rail, which is fixed where it belongs, in the label rule. */
   #log{flex:1 1 auto; overflow-y:auto; padding:0 10px 8px; font-size:12px; line-height:1.4;}
   #log .le{padding:3px 0; border-top:1px solid rgba(255,255,255,.05);}
   #log .le:first-child{border-top:none;}
@@ -1131,6 +1190,18 @@
   #emoteBar .emoteBtn{font:inherit; font-size:13px; font-weight:700; padding:7px 9px; border-radius:10px; border:1px solid var(--line); background:var(--panel); color:var(--txt); cursor:pointer; display:flex; align-items:center; gap:5px;}
   #emoteBar .emoteBtn:hover{border-color:var(--gold);}
   @media (max-width:720px), (max-height:520px){ #emoteBar .emoteBtn span{display:none;} #emoteBar .emoteBtn{font-size:16px; padding:7px 8px;} }
+  /* THE COLLAPSED RAIL'S LABEL IS "LOG" ON A PHONE **AND ON ANY SHORT VIEWPORT** (widened 2026-09-24).
+     It lived in the `max-width:720px` branch alone, so a landscape phone — 844 wide, which misses that
+     gate entirely, the trap this stylesheet already documents — kept the full "Battle Log" wrapped inside
+     a 40px column. MEASURED at 844x390: `#logHead` was **130px of a 146px rail**, i.e. the label alone
+     consumed the whole left rail before anything else asked for room, and the mode button laid out past
+     the bottom of an `overflow:hidden` panel where `elementFromPoint` returned the panel instead of the
+     button — clipped and unclickable while every box measurement looked sane.
+     The condition pair is copied from `#emoteBar` directly above, which needs the same two cases. */
+  @media (max-width:720px), (max-height:520px){
+    #logWrap.collapsed #logHead > span:first-child{font-size:0;}
+    #logWrap.collapsed #logHead > span:first-child::before{content:'LOG'; font-size:10px; letter-spacing:1.5px;}
+  }
   /* Center-stage interrupt flash — the QUICK cue lives here (it began as the STOPPER cue, which the rework retired) */
   #stopfx{ position:absolute; inset:0; z-index:8; display:none; align-items:center; justify-content:center; pointer-events:none; }
   #stopfx.show{ display:flex; }
@@ -1203,14 +1274,12 @@
        it, so opening the log made the game unplayable. The landscape band below already carried this fix and
        named the cause in its comment; both portrait blocks were simply never updated. */
     #board{grid-template-columns:auto minmax(0,1fr); grid-template-rows:minmax(0,1fr) auto auto;}
-    #board > #logWrap{grid-column:1; grid-row:1;}          /* just the play-area row — never runs alongside the hand/description */
+    #board > #leftCol{grid-column:1; grid-row:1;}          /* just the play-area row — never runs alongside the hand/description */
     #board > #table{grid-column:2; grid-row:1;}
     #board > #handWrap{grid-column:1 / span 2; grid-row:2;}   /* full width */
     #board > #side{grid-column:1 / span 2; grid-row:3;}       /* full width */
     #logWrap:not(.collapsed){width:clamp(160px,42vw,230px);}  /* expanding only narrows the play area now, not the hand/description */
-    /* collapsed rail is short on phones — a vertical "Battle Log" clips to "…LE LOG", so shorten it to "LOG" here */
-    #logWrap.collapsed #logHead > span:first-child{font-size:0;}
-    #logWrap.collapsed #logHead > span:first-child::before{content:'LOG'; font-size:10px; letter-spacing:1.5px;}
+    #railBtns{margin-top:auto; margin-bottom:auto;}   /* CENTRED on a phone, per Aj's placement — desktop keeps the cluster at the foot */
     #table{min-height:96px; padding:4px 0;}
     /* THE EQUIPMENT IS A CHIP ON A PHONE (v1.31.110), not a three-line card. Measured before changing anything:
        an `.eq` is name / effect / counter stacked, **59px tall**, against a form zone's 37-49px — and four of
@@ -1524,6 +1593,7 @@
     #actions{margin-top:3px;}
     #actions button{padding:4px 7px; font-size:11.5px;}
     #pileLabel{font-size:10px; min-height:11px;}
+    #promptMode{font-size:12px; padding:4px 3px; margin-bottom:5px;}   /* the rail is ~146px here — see the min-height note */
     #pile{min-height:40px;}
     #table{gap:3px;}
   }
@@ -1628,10 +1698,15 @@
     <span class="stat" id="rivalStatus" style="margin-left:auto;color:var(--gold);"></span>
   </div>
   <div id="board">
+    <div id="leftCol">
     <aside id="logWrap" class="collapsed">
       <div id="logHead"><span>Battle Log</span><span class="logBtns"><button id="logNewBtn" title="Jump to the newest entry">↓ New</button><button id="saveLogBtn" title="Download the battle log as a text file">⤓ Save</button><button id="logToggle" title="Expand the log">▸</button></span></div>
       <div id="log"></div>
     </aside>
+      <div id="railBtns">
+        <button type="button" id="promptMode" title="Notifications">🔔<span>AUTO</span></button>
+      </div>
+    </div>
     <div id="table">
       <div id="dropHint"></div>
       <div id="rivalEquipZone" class="equipZone rival"></div>
@@ -1928,7 +2003,40 @@ __QR__
      NOT a second default — it restores the previous one for a test run, and a build without the flag in
      its URL behaves exactly as a player's does. */
   var PROMPT_ALL = /[?&]prompts=all/.test(location.search);
-  function promptDefault(card, eff, timing){ return PROMPT_ALL || timing === 'respond'; }
+  /* THE NOTIFICATION MODE — ON · AUTO · OFF (Aj, 2026-09-24, from Master Duel: *"ON turns all the notifs
+     on; AUTO only notifies the player when they have stakes; OFF turns all the notifs off even when
+     effects will have stakes"*). We had already built AUTO — it is `stakeFor` plus the per-card rows — so
+     this adds the two ends and one control to cycle them.
+     IT GATES THE PER-CARD ROWS RATHER THAN REPLACING THEM, so the mode is a strict superset of what
+     existed: ON ignores an untick, OFF ignores a tick, AUTO is exactly today.
+     ⚠ OFF DELIBERATELY OVERRIDES `stakeFor`, WHICH INVERTS THE 2026-09-23 GUARANTEE — and the distinction
+     is the whole justification. That rule protects against a BURIED PER-CARD DEFAULT costing you a shield
+     you never knowingly declined. A visible, global, one-tap mode is the player saying *"I know, do not
+     stop me"*, which is a different act; Master Duel draws the same line. Aj chose this explicitly.
+     THE LEDGER STILL RECORDS EVERY AUTO-PASS AND NAMES THE MODE, so a saved log explains a prompt that
+     never fired instead of leaving the next reader to rediscover a setting. That is the condition that
+     makes OFF defensible at all: silent is fine, unexplainable is not.
+     `?prompts=all` MAPS ONTO `on` rather than staying a second mechanism — four suites set it, and a flag
+     that means something the player cannot express is exactly the drift `promptDefault` already suffered. */
+  var PROMPT_MODE_KEY='cmf_promptmode_v1', PROMPT_MODES=['on','auto','off'];
+  var PROMPT_MODE=(function(){ try{ var v=localStorage.getItem(PROMPT_MODE_KEY); return PROMPT_MODES.indexOf(v)>=0?v:'auto'; }catch(e){ return 'auto'; } })();
+  if(PROMPT_ALL) PROMPT_MODE='on';
+  function updatePromptModeBtn(){ var b=$('promptMode'); if(!b) return;
+    var lab=b.querySelector('span'); if(lab) lab.textContent = PROMPT_MODE.toUpperCase();
+    b.firstChild.nodeValue = (PROMPT_MODE==='off' ? '🔕' : '🔔');
+    b.setAttribute('data-mode', PROMPT_MODE);
+    /* ⚠ A `b.textContent = …` LIVED HERE AND WIPED THE <span> ON EVERY RENDER (caught 2026-09-24 by
+       measuring, not by reading). It was the first stub of this function and survived the rewrite two
+       lines above it, so the button rendered ONE flat text node instead of icon-over-label — and three
+       rounds of CSS width tuning were done against a control that was not the control. `textContent`
+       on an element with children is a deletion wearing an assignment's clothes. */
+    b.title = PROMPT_MODE==='on' ? 'Notifications: ON — every legal timing stops you'
+            : PROMPT_MODE==='auto' ? 'Notifications: AUTO — only when a card of yours has a stake'
+            : 'Notifications: OFF — nothing stops you, stakes included';
+  }
+  function setPromptMode(m){ if(PROMPT_MODES.indexOf(m)<0) return; PROMPT_MODE=m; try{ localStorage.setItem(PROMPT_MODE_KEY, m); }catch(e){} updatePromptModeBtn(); }
+  function cyclePromptMode(){ setPromptMode(PROMPT_MODES[(PROMPT_MODES.indexOf(PROMPT_MODE)+1)%PROMPT_MODES.length]); }
+  function promptDefault(card, eff, timing){ return PROMPT_MODE === 'on' || timing === 'respond'; }
   function promptKeyOf(eff){ return eff && eff.id ? eff.id : null; }
   function promptWanted(card, timing){
     var eff=(state&&E.effectFor)?E.effectFor(state, YOU, card):E.effectOf(card);
@@ -1951,6 +2059,12 @@ __QR__
        pair" with the play never landing. `respond` is still the one that survives, because the Quicks
        lesson exists to teach it. Adding a timing without adding it here is how a lesson breaks. */
     if(timing!=='respond' && typeof tutorialMode!=='undefined' && tutorialMode) return false;
+    /* THE MODE GATES THE ROWS. ON is checked BEFORE the per-card override on purpose — "all the notifs on"
+       has to mean that, or a card silenced months ago would still be silent in the mode whose whole point
+       is that nothing is. The tutorial guard stays ABOVE both: a lesson is a scripted sequence and a mode
+       the player set in a duel must not derail it. */
+    if(PROMPT_MODE==='off') return false;
+    if(PROMPT_MODE==='on') return true;
     var k=promptKeyOf(eff), row=k?promptPrefs[k]:null;
     if(row && typeof row[timing]==='boolean') return row[timing];
     return promptDefault(card, eff, timing);
@@ -2002,6 +2116,8 @@ __QR__
      a UI-only rule is unenforceable anyway. */
   function shieldSaveOverride(card, timing){
     if(!state || !E.stakeFor) return false;
+    if(PROMPT_MODE==='off') return false;   // the one place a player may knowingly decline a stake — see the mode note
+
     if(typeof tutorialMode!=='undefined' && tutorialMode) return false;            // a scripted lesson writes its own windows
     if(timing!=='resolution' && timing!=='respond' && timing!=='prefight') return false;   // the engine answers for each; this is just the closed set
     return !!E.stakeFor(state, YOU, card, timing);
@@ -5852,8 +5968,33 @@ __QR__
        it — the same "a diagnostic that cannot explain itself" cost the prompt ledger already paid once. */
     var saved=quicks.filter(function(c){ return !promptWanted(c, promptTiming) && shieldSaveOverride(c, promptTiming); });
     if(quicks.length) prioNote('['+tName+'] window SHOWN to you' + onWhat + (saved.length ? '  — SHIELD AT RISK, prompt forced' : ''), 'offering: ' + feNames(eligible) + (eligible.length>quicks.length ? '  (stopped by: ' + feNames(quicks) + ')' : '') + (saved.length ? '  (forced by: ' + feNames(saved) + ')' : ''));
-    else if(eligible.length) prioNote('['+tName+'] AUTO-PASSED for you — PROMPT OFF' + onWhat, 'you could have cast: ' + feNames(eligible) + '  (card reader → “Ask me to respond…”)');
+    /* NAME THE MODE, because "PROMPT OFF" alone sends the next reader to the card reader for a row that is
+       not what silenced them. In `off` the global toggle did it and no checkbox will explain it — and OFF
+       can suppress a STAKE, which is the one auto-pass a reader must never have to guess at. */
+    else if(eligible.length) prioNote('['+tName+'] AUTO-PASSED for you — '+(PROMPT_MODE==='off'?'NOTIFICATIONS OFF':'PROMPT OFF') + onWhat,
+      'you could have cast: ' + feNames(eligible) +
+      (PROMPT_MODE==='off' ? '  (the board toggle is set to OFF — stakes included)' : '  (card reader → “Ask me to respond…”)'));
     else prioNote('['+tName+'] auto-passed for you' + onWhat, 'nothing castable in hand');
+    /* A SUPPRESSED **STAKE** GETS A VISIBLE LINE, and only that (Aj, 2026-09-24: *"can we add to the logs
+       for when a stake was auto passed because the notifs were off?"*). The ledger records every
+       auto-pass and is DOWNLOAD-ONLY on purpose — the go-round opens far too often for a battle-log line
+       — but a stake skipped is rare, consequential, and the one case where the player should not have to
+       save a file to find out what their own setting just did.
+       OFF-ONLY BY CONSTRUCTION, WHICH IS WHAT LETS IT NAME THE CAUSE WITHOUT HEDGING: a per-card untick
+       cannot reach here, because `stakeFor` overrides it and the window opens. Only the global OFF
+       suppresses a stake, so "notifications are off" is the whole truth.
+       `E.stakeFor` DIRECTLY, NOT `shieldSaveOverride` — that one returns false in `off`, which is the very
+       state being reported, so asking it would always answer no.
+       `logMsg`, NEVER `say`: this is about YOUR setting, and broadcasting it tells the other seat
+       something about how you are playing that a silent auto-pass does not. It is the same leak that
+       decided the auto-pass narration earlier today.
+       IT CLAIMS NO OUTCOME. The window is skipped BEFORE the loss resolves, and a stake is not always a
+       loss — Armor Piercing's is a shield you were about to take — so it names the card and the stake,
+       never the result. */
+    if(PROMPT_MODE==='off' && eligible.length && E.stakeFor){
+      var staked=eligible.filter(function(c){ return !!E.stakeFor(state, YOU, c, promptTiming); });
+      if(staked.length) logMsg('🔕 Notifications are off — you passed on <b>'+esc(feNames(staked))+'</b> with a shield at stake.', 'dim');
+    }
     if(!quicks.length){ if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ NET.clientSend({op:'decline', auto:true}); busy=true; render(); return; } E.declineResponse(state, YOU); return cont(); }   // nothing to answer with — auto-pass, and `auto` is what stops the host narrating it as a choice
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     /* WHO cast it and WHO it is aimed at were both missing — Aj: "who or what is being targetted? why should I
@@ -7730,8 +7871,24 @@ __QR__
   $('saveLogBtn').addEventListener('click', function(){ downloadLog(); });
   $('logToggle').addEventListener('click', function(){
     var collapsed=$('logWrap').classList.toggle('collapsed');
+    /* `firstChild.nodeValue`, NEVER `textContent`. This line read `this.textContent='▸'` and would have
+       deleted the <span> label the moment the button grew one — which is exactly what the notification
+       button's own renderer did, silently, for three rounds of CSS tuning on the same afternoon.
+       `textContent` on an element with children is a deletion wearing an assignment's clothes. */
     this.textContent=collapsed?'▸':'▾'; this.title=collapsed?'Expand the log':'Collapse the log';
     if(!collapsed) requestAnimationFrame(scrollLogToBottom);     // expanding shows the newest entry, not the top
+  });
+  /* THE COLLAPSED PANEL IS THE BUTTON (Aj, 2026-09-24). The rail LOOKS like a control when collapsed —
+     a tall rounded strip with a label — so it has to BE one; a separate 📜 button beside it made three
+     things in the rail of which only two were clickable: *"why does it look like there's three buttons
+     then? a bell, an arrow and a log thing that i can't even click?"*.
+     Only while COLLAPSED: expanded, the strip is a reading surface and clicking it must not close what you
+     are reading. A click on a real control inside it is left alone, so ⤓ Save and the caret still work. */
+  $('logWrap').addEventListener('click', function(ev){
+    if(!this.classList.contains('collapsed')) return;
+    var t=ev.target;
+    while(t && t!==this){ if(t.tagName==='BUTTON') return; t=t.parentNode; }   // no `closest`: the house style is ES5
+    $('logToggle').click();
   });
   $('logNewBtn').addEventListener('click', scrollLogToBottom);
   $('log').addEventListener('scroll', function(){ setLogNewBtn(!logAtBottom()); });   // away from the newest = offer the way back, news or not
@@ -7741,6 +7898,11 @@ __QR__
   $('youWho').addEventListener('click', function(){ if(!peeking) openNameEditor(); });   // your name, editable from the board   // energy piles are open information — view only
   $('clearBtn').addEventListener('click', function(){ if(targeting){ targeting=null; setMessage('Cancelled — no energy spent.'); } else if(targetPick){ targetPick=null; setMessage('Cancelled — no energy spent.'); } else if(pick){ pick.chosen={}; } else { selected={}; breakAllGroups(); } render(); });
   $('sortBtn').addEventListener('click', flipSort);
+  /* A wrapped handler, never the bare function: `cyclePromptMode` takes no arguments today, but this file
+     has already shipped fifteen versions of a saved battle log reading "[object PointerEvent]" because a
+     default parameter met addEventListener. */
+  $('promptMode').addEventListener('click', function(){ cyclePromptMode(); });
+  updatePromptModeBtn();
   $('hand').addEventListener('mouseleave', showRestCard);   // hovering out reverts the panel to the selected card (or empty)
   $('newBtn').addEventListener('click', requestNewDuel);
   $('helpBtn').addEventListener('click', function(){ showHelp(!(state && !state.finished)); });   // mid-duel: close/dismiss resumes the duel; pre-game or finished: back to New Duel setup
@@ -10717,7 +10879,7 @@ __QR__
      rows, because the suite's load-bearing assertion is that only overrides are stored. Duplicate-key check
      run on this literal before adding — CLAUDE.md's `__cmf` trap applies here too. */
   if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
-    promptWanted:promptWanted, setPromptPref:setPromptPref, promptPrefs:function(){ return promptPrefs; }, showCard:showCard,
+    promptWanted:promptWanted, setPromptPref:setPromptPref, setPromptMode:setPromptMode, promptMode:function(){ return PROMPT_MODE; }, promptPrefs:function(){ return promptPrefs; }, showCard:showCard,
     /* LEGAL IS NOT THE SAME QUESTION AS WANTED, and since the boundary defaults went off they give
        different answers — which is the invariant worth being able to assert: an unchecked timing still
        EXISTS (the window opens, you pass automatically); it does not make the card uncastable. Wraps

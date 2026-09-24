@@ -348,6 +348,134 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
        (forced ? '  ← REPRODUCED: it fired with the strip already banked  [' + forced.slice(0, 90) + ']' : ''));
     await p.close(); }
 
+  // ------------------------------------------------- C4 · OFF SUPPRESSES A FORCED PROMPT
+  /* THE ONE PLACE A PLAYER MAY KNOWINGLY DECLINE A STAKE (Aj, 2026-09-24, from Master Duel: *"OFF turns
+     all the notifs off even when effects will have stakes"*). It deliberately inverts the guarantee C
+     asserts, and the justification is the DIFFERENCE IN ACT: C protects against a buried per-card default
+     costing you a shield you never knowingly declined; this is a visible, global, one-tap mode saying
+     "I know, do not stop me".
+     IT IS THE EXACT TWIN OF C — same `stageKick`, same unticked card, same lethal board — so the pair
+     isolates the mode and nothing else. Without C above it, a green run here would be equally true of a
+     build where no window ever opens. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C4: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C4 · a board for the suppressed prompt');
+    await stageKick(p, false);
+    await p.evaluate(() => { window.__solo.setPromptMode('off'); });
+    ok(await p.evaluate(() => window.__solo.promptMode()) === 'off', 'C4 · staged — notifications are OFF');
+    await clearTransition(p);
+    await clickPass(p);
+    /* POLL FOR THE GAME ENDING, NOT FOR "NO MODAL". A negative asserted after a fixed wait is the shape
+       this repo has been burned by: it passes on a build where the board never got as far as the window. */
+    const died = await until(() => p.evaluate(() => !!window.__solo.st().finished));
+    ok(died, 'C4 · the kick LANDED — OFF let the shield break with the answer in hand' +
+       (died ? '' : '  ← the game did not end; the board may never have reached resolution'));
+    const up = await p.evaluate(() => !!document.getElementById('respDecline'));
+    ok(!up, 'C4 · …and no window ever opened, though C proves this very board forces one on AUTO' +
+       (up ? '  ← REPRODUCED: OFF did not reach `shieldSaveOverride`' : ''));
+    /* THE CONDITION THAT MAKES OFF DEFENSIBLE AT ALL. Silent is fine; unexplainable is not — a saved log
+       has to say the toggle did this, or the next reader hunts a card-reader checkbox that is not the
+       cause. This is the assertion to keep if any of C4's others are ever dropped. */
+    const led = await p.evaluate(() => window.__solo.prioLog());
+    const line = led.filter(l => /NOTIFICATIONS OFF/.test(l))[0];
+    ok(!!line && /Sanctuary/.test(line),
+       'C4 · …and the ledger NAMES THE MODE and the card it cost you' +
+       (line ? '  [' + line.slice(0, 110) + ']' : '  ← no NOTIFICATIONS OFF line; a log cannot explain a prompt that never fired'));
+    /* AND THE VISIBLE LOG SAYS IT TOO (Aj, 2026-09-24). The ledger is download-only by design, so without
+       this a player never learns in-game what their own setting just did. Asserted on the RENDERED log,
+       not on `fullLog`, because the entry has to actually reach the panel a player reads. */
+    const shown = await p.evaluate(() => [].map.call(document.querySelectorAll('#log .le'), e => e.textContent.trim())
+                                            .filter(t => /Notifications are off/i.test(t))[0] || '');
+    ok(!!shown && /Sanctuary/.test(shown),
+       'C4 · …and the BATTLE LOG says a stake was skipped, naming the card' +
+       (shown ? '  ["' + shown.slice(0, 80) + '"]' : '  ← nothing visible; only a saved file would explain the lost shield'));
+    /* IT MUST NOT CLAIM AN OUTCOME. The window is skipped before the loss resolves, and a stake is not
+       always a loss — Armor Piercing's is a shield you are about to TAKE — so a "you lost" phrasing would
+       be wrong in a case this very suite stages two scenarios below. */
+    ok(!/lost|lose/i.test(shown), 'C4 · …and claims no outcome it has not seen yet' + (/lost|lose/i.test(shown) ? '  ← ' + shown.slice(0, 70) : ''));
+    await p.close(); }
+
+  // ------------------------------------------------- C5 · ON OVERRIDES A CARD YOU SILENCED
+  /* THE OTHER END. ON means "all the notifs on", so it has to beat a per-card untick — otherwise a card
+     silenced months ago stays silent in the mode whose whole point is that nothing is.
+     THE STAGING IS C3's — you WIN the round holding a Quick with no stake in the strike — precisely
+     because `stakeFor` refuses it there. So the window cannot be forced, the checkbox is off, and ON is
+     the only thing left that could open it. C3 is the AUTO half of the pair. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C5: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C5 · a board where nothing forces a prompt');
+    await stagePierce(p);
+    const staged = await p.evaluate(() => {
+      window.__solo.setPromptPref('C7', 'resolution', false);
+      window.__solo.setPromptMode('on');
+      return window.__solo.promptMode();
+    });
+    ok(staged === 'on', 'C5 · staged — Armor Piercing is unticked at `resolution` and notifications are ON');
+    await leadAces(p);
+    const up = await until(() => p.evaluate(() => !!document.getElementById('respDecline')));
+    ok(up, 'C5 · the window opens ANYWAY — ON beats the per-card untick' +
+       (up ? '' : '  ← REPRODUCED: an untick survived the mode whose point is that nothing is silenced'));
+    await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d) d.click(); });
+    await p.close(); }
+
+  // ------------------------------------------------- C6 · THE CONTROL CYCLES AND REMEMBERS
+  /* THE MODEL IS WORTH NOTHING IF THE BUTTON CANNOT REACH IT, and a preference that forgets itself is a
+     preference nobody sets twice. Asserted through the REAL control rather than `setPromptMode`, which is
+     the same reason `nettest_autopass` leg 2b clicks `#respDecline` instead of sending the intent. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C6: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C6 · a board for the control');
+    const seen = await p.evaluate(() => {
+      const btn = document.getElementById('promptMode'), out = [window.__solo.promptMode()];
+      for (let i = 0; i < 3; i++) { btn.click(); out.push(window.__solo.promptMode()); }
+      return { cycle: out, label: btn.querySelector('span') ? btn.querySelector('span').textContent : '(no label)' };
+    });
+    ok(seen.cycle.join('>') === 'auto>off>on>auto',
+       `C6 · the button cycles auto → off → on → auto  [${seen.cycle.join(' > ')}]`);
+    /* THE LABEL IS ITS OWN ASSERTION because the renderer wiped it once already: a leftover
+       `b.textContent = …` from the first stub deleted the <span> on every paint, and the button rendered
+       one flat text node for three rounds of CSS work before anyone measured it. */
+    ok(seen.label === 'AUTO', `C6 · …and the label survives the render  [${seen.label}]`);
+    await p.evaluate(() => { document.getElementById('promptMode').click(); });   // -> off
+    await p.reload(); await wait(600);
+    ok(await p.evaluate(() => window.__solo.promptMode()) === 'off', 'C6 · …and the choice survives a reload');
+    await p.evaluate(() => { window.__solo.setPromptMode('auto'); });             // leave the store as we found it
+    await p.close(); }
+
+  // ------------------------------------------------- C7 · AND OFF STAYS QUIET WHEN NOTHING IS AT STAKE
+  /* THE NEGATIVE THAT PROTECTS THE POINT OF OFF. The visible line C4 asserts is written on a SUPPRESSED
+     STAKE; fired on every auto-pass instead it would flood the log of the one mode a player chose for
+     quiet, and each message would be about a window where nothing was ever at risk.
+     SAME BOARD AS C3 — you win, the extra strip is already banked, so `stakeFor` refuses — with the mode
+     set to OFF. The ledger must still record the auto-pass (a diagnostic never goes quiet); the battle
+     log must not. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C7: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C7 · a board where nothing is at stake');
+    await stagePierce(p);
+    const ready = await p.evaluate(() => {
+      window.__solo.setPromptMode('off');
+      const st = window.__solo.st(); st.players[0].finishingBlow = true;
+      return window.__solo.promptMode() === 'off' && !!st.players[0].finishingBlow;
+    });
+    ok(ready, 'C7 · staged — notifications OFF and the extra strip already banked, so the card changes nothing');
+    await leadAces(p);
+    const done = await until(() => p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; }));
+    ok(done, 'C7 · the round resolved');
+    const shown = await p.evaluate(() => [].map.call(document.querySelectorAll('#log .le'), e => e.textContent.trim())
+                                            .filter(t => /Notifications are off/i.test(t)));
+    ok(shown.length === 0,
+       'C7 · …and the battle log stayed SILENT — the line is for a suppressed stake, not for every auto-pass' +
+       (shown.length ? `  ← ${shown.length} line(s) on a board with nothing at risk: "${shown[0].slice(0, 70)}"` : ''));
+    /* THE DIAGNOSTIC DOES NOT GO QUIET WITH IT. Without this, a build that simply stopped recording
+       auto-passes would pass the assertion above, and the ledger is what makes OFF defensible. */
+    const led = await p.evaluate(() => window.__solo.prioLog());
+    const noted = led.filter(l => /\[resolution\]/.test(l) && /AUTO-PASSED/.test(l))[0];
+    ok(!!noted, 'C7 · …while the LEDGER still records the auto-pass' +
+       (noted ? '  [' + noted.slice(0, 100) + ']' : '  ← the ledger went quiet too; silence is not the same as nothing happened'));
+    await p.evaluate(() => { window.__solo.setPromptMode('auto'); });
+    await p.close(); }
+
   // ------------------------------------------------- D · AN UNCHECKED CARD IS STILL CASTABLE
   /* THE HALF AJ ASKED FOR, and the one no suite covered: *"players can really look at all their cards and
      decide which effects to activate."* One filter was answering two questions — should this window stop
