@@ -209,6 +209,21 @@ re-read its tag.
 
 #### Flaky suites
 
+- `needs a measurement` · **`exporttest` IS TIME-CAPPING IN THE SWEEP — GREEN, BUT TESTING LESS THAN IT
+  MEANS TO (2026-09-24).** Surfaced by the sweep's new warnings section, which prints a passing suite's own
+  `⚠` lines: *"driver stopped on the 90s WALL CLOCK — the board stopped advancing"*, **twice in one run**,
+  ending `PASS: 17  FAIL: 0  (TIME-CAPPED)`. It only showed on the slower of the day's sweeps (295s against
+  ~230s), which is exactly when a wall-clock budget bites.
+  **THIS IS THE `nettest_sync` SHAPE, ALREADY DOCUMENTED IN CLAUDE.md** — *"a wall-clock-bounded suite tests
+  less when the sweep is parallel, and stays green while doing it"* — so the suite is reporting correctly
+  and the question is whether 90s is still the right number. **Measure before raising it**, and ask what the
+  driver is waiting FOR first: a wait on work stretches under load, a wait on a timer does not, and this
+  repo spent a day getting that backwards on `lessontest_quicks`.
+  **AND CHECK THE SECOND MESSAGE**: *"the board stopped advancing"* is not the same claim as "it ran out of
+  time" — a driver that stops advancing may be parked on something, which would make the cap a symptom.
+  `exporttest` already had the v1.31.85 unproductive-iteration fix for a related problem.
+  `[id: exporttest-time-capped]`
+
 - `needs a repro`       · **`lessontest_twos` DEAD-ENDS ON AN UNSCRIPTED CLEAN-UP PICK — CAUSE FOUND
   2026-09-24, TRIGGER STILL OPEN.** Filed three times as a poll-budget flake under `-j 4`
   (`PASS: 24  FAIL: 5`, opening on *"you beat it with your own full house — card 5C#t6 has no group
