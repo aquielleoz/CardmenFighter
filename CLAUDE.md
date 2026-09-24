@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 557 + 65 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 565 + 65 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 557 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 565 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 65, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
@@ -2021,7 +2021,7 @@ Status as of **v1.31.127 — 2026-09-24, `npm run sweep`, 100 suites ON THE EPIC
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 557, `netview` 65, `mptest` 100, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
+`test` 565, `netview` 65, `mptest` 100, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 17, `lessontest` 20, `lessontest_energyorder` 14,
 `versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_quicks` 21, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
@@ -2800,10 +2800,17 @@ line now (`/^### v1\.31\.127\b/m`), which is what "heading" means in Markdown an
 **The shape to distrust: a gate that searches for formatting with a substring.** The same insertion would be
 invisible to any `grep -c`; only `grep -n '^### '` shows it. Verified by re-burying the heading — one red.
 
-**Card text speaks to a TABLE, not a duel.** Four texts understated their own effect because the code loops
-every opponent while the text named one — `equipDelta` (Caltrops, Spiked Armor), `rideCostDelta` (Giant Ram),
-`swanValue` (Giant Swan). The house pattern for a genuinely single-target card is **"Target Rival"**. After any
-text edit run `node gen-cardlist.js`.
+**Card text speaks to a TABLE, not a duel.** FIVE texts have now understated their own effect because the
+code loops every opponent while the text named one — `equipDelta` (Caltrops, Spiked Armor), `rideCostDelta`
+(Giant Ram), `swanValue` (Giant Swan), and **Armor Piercing** (2026-09-24). The house pattern for a genuinely
+single-target card is **"Target Rival"**. After any text edit run `node gen-cardlist.js`.
+**THE FIFTH ONE IS THE INSTRUCTIVE ONE, because the fix could have gone either way and the code was right.**
+`resolveRoundWin` applies `strips` to EVERY entry in `strikeTargets`, so under the `lossAll` custom rule one
+Armor Piercing took two shields off each struck seat while the card said *"the Rival you strike"*, singular.
+I offered to narrow the code to match the text; Aj kept the behaviour — *"every seat struck, this will
+increase shield loss for everyone when we do lossAll yes"* — so the TEXT was the thing that was wrong.
+**Ask which half is wrong before assuming it is the code**: a singular text over a looping implementation is
+this class, and in four of five cases the loop was the intent.
 
 **A revealed hand must never touch `st`.** Pandora's Outbalance lets the caster look at the target's hand
 (v1.31.4). Anything on state travels in netplay snapshots — including back to the player whose hand it is — so
