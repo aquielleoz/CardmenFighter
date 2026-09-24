@@ -130,6 +130,14 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
      'and that merge is now HONEST — it sums the opponents instead of reporting zeros');
   ok(rec && rec.seats.every(x=>typeof x.seat==='number' && 'finalShields' in x), 'each seat entry carries its own seat number and final shields');
 
+  /* THE LOG IS THE WHOLE GAME, NOT THE LAST 80 LINES (2026-09-24). The record was built from
+     `$('log').children` — the RENDERED panel — and `logMsg` trims that to 80 entries, so any game longer
+     than that silently lost its EARLY rounds while `fullLog`, the uncapped history ⤓ Save already uses,
+     sat right beside it. Measured on Aj's real export: 7 of 19 games sat exactly at 80, including a
+     15-round 3-player game whose log began mid-round-8.
+     DRIVEN PAST THE CAP ON PURPOSE. At 80 lines exactly the two sources agree, so a shorter game cannot
+     tell them apart — the assertion has to push the history beyond the trim and then look for the START
+     of it, which is the part that was being thrown away. */
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   /* THE SUMMARY CARRIES THE CAP, because `sweep.js` prints only this line for a PASSING suite — a
      warning anywhere else is invisible in a sweep, which is precisely where a shallower run needs to be

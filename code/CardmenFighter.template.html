@@ -3062,9 +3062,26 @@ __QR__
       winner:(state.winner===YOU?'you':'rival'), winnerSeat:(state.winner!=null?state.winner:null),
       end:(lastEndType||'deckout'), rounds:state.round, durationMs:Date.now()-gameStartTs,
       seats:seats, you:seats[YOU], rival:(np===2?seats[1]:merged), rivalIsMerged:(np>2),
-      log:Array.prototype.map.call($('log').children, function(el){return el.textContent;}) };
-    try{ var a=getGames(); a.push(rec); if(a.length>300) a=a.slice(a.length-300); localStorage.setItem(LOG_KEY, JSON.stringify(a)); memGames=a; }
-    catch(e){ memGames.push(rec); }
+      /* `fullLog`, NOT THE DOM (2026-09-24). This read `$('log').children` — the RENDERED panel — and
+         `logMsg` trims that to 80 entries (`while(l.children.length>80) l.removeChild(l.firstChild)`), so
+         every record longer than 80 lines silently lost its EARLY game while `fullLog`, the uncapped
+         history the ⤓ Save button already uses, sat right beside it. Measured on Aj's export: 7 of 19
+         games sat exactly at 80, including a 15-round 3-player game whose log began mid-round-8.
+         The same shape as the `downloadLog` PointerEvent bug — the artefact that exists to collect the
+         evidence was the thing destroying it — and it matters more here, because a battle log is saved by
+         a player who noticed something while a playtest record is read months later by someone who cannot
+         go back and get it again. */
+      log:fullLog.slice() };
+    /* AND A FULL STORE MUST NOT FAIL SILENTLY. `catch(e){ memGames.push(rec) }` dropped to memory-only on a
+       quota error, which is lost on the next reload — so the fix above (bigger records) would have traded
+       a truncated history for a missing one. Shed the oldest games and try again before giving up; they
+       are the least interesting and the store is a rolling window by design. */
+    var a=getGames(); a.push(rec); if(a.length>300) a=a.slice(a.length-300);
+    for(var keep=a.length; keep>0; keep=Math.floor(keep/2)){
+      try{ localStorage.setItem(LOG_KEY, JSON.stringify(a.slice(a.length-keep))); memGames=a.slice(a.length-keep); return rec; }
+      catch(e){ if(keep===1) break; }
+    }
+    try{ memGames=a; }catch(e){}
     return rec;
   }
   function exportGames(){

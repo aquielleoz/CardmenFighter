@@ -226,6 +226,16 @@ re-read its tag.
   stated goal — but if several suites are near their margins the honest fix is lane count or suite cost,
   not thirteen individual budgets. `sweep.js` schedules longest-first; `lessontest_twos` at 112s would have
   been near the head of that queue.
+  **⚠ `lessontest_forms` JOINED IT ON 2026-09-24, WHICH MOVES THIS FROM "one suite" TO "the lane is too
+  thin" (the second half of this entry, now with evidence).** `PASS: 13  FAIL: 2` on *"the Q is spotlit for
+  you to activate"* in a `-j 4` sweep; **3/3 green solo** straight afterwards, on a branch whose only change
+  was the playtest record's log source — nothing a tutorial can reach.
+  **THE DENOMINATOR KEPT GROWING WHILE NOBODY RE-MEASURED:** 86 suites on `main`, 94 when this entry was
+  written, **98 now**. Every suite added takes machine from every lane, so the suites nearest their margin
+  go red first and it looks like a different bug each time.
+  **SO THE LEVER IS LANE COUNT OR SUITE COST, NOT A THIRD BUDGET RAISE.** `LESSONPOLL=1` prints every wait;
+  measure the margins across the lesson family in one `-j 4` run before touching anything, because raising
+  budgets one suite at a time is how this reached three suites without anyone seeing the shape.
   `[id: lessontest-twos-poll-under-load]`
 
 - `needs a repro`       · **`lessontest_quicks` IS RED ~25% OF THE TIME AT `-j 4`, AND ~1 IN 9 SERIALLY — MEASURED 2026-09-10/11.**
@@ -975,6 +985,28 @@ its own. Kept separate so it does not get tangled in `epic/priority-windows`, an
 knows to check whether the epic has already moved the same lines.*
 
 ### Correctness
+
+- `ready to build`      · **THE STRAIGHTS SORT BUILDS THE LOWEST STRAIGHT, NOT THE BEST ONE (Aj,
+  2026-09-24: *"i think it should sort by the higher straight"*).** `sortIntoStraights` walks the distinct
+  values ASCENDING and claims the first five-in-a-row it finds, so with two overlapping runs available it
+  always takes the lower and spends a card the better one needed.
+  **REPRODUCED ON HIS HAND, not reasoned:** `4♦ · 6♠7♠8♠9♠ · 10♦10♠10♠ · J♠ · 2♦2♠` sorts to a
+  **6-7-8-9-10** with the **J♠ left as a single** — while **7-8-9-10-J** was available and is strictly
+  higher. The 6 becomes the spare instead of being spent, which is the whole of the fix: same five slots,
+  a better play.
+  **WHY IT MATTERS MORE THAN IT LOOKS:** `beats()` compares within a type and size, so a straight is only
+  as good as its top card. The sort exists to show you your best plays, and here it actively hides one.
+  **THE FIX IS THE LOOP DIRECTION** — take the HIGHEST run first, then repeat on what is left — but check
+  two things before calling it done:
+  - **the 2.** `fv` ranks the apex at 15 and `seqTwos` (`off` / `low` / `high`) decides whether it chains
+    at all and at which end, so "highest run" is rule-dependent and the greedy walk must read the live
+    rule rather than the raw value. `sortIntoPairs` has no equivalent hazard; this one does.
+  - **greedy is not always optimal.** Taking the highest run first can leave a worse remainder than taking
+    a lower one would — with 5-6-7-8-9-10 a single run either way, but overlapping runs plus pairs can
+    diverge. Aj's rule is the simple one and is what to build; if a hand is found where it loses, that is
+    a second entry, not a reason to delay this.
+  **AFTER THE EPIC** (Aj, same message: *"the sorting can wait until after the epic tho"*).
+  `[id: straight-sort-picks-the-lowest]`
 
 *Defects in the shipped game. Each was verified present on `main` by grepping the symbols its entry
 names — `pitchHigh`, `send`/`_effUsed`/`startShields`, `formsOpen` — rather than assumed, after four
