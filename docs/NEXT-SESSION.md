@@ -1018,6 +1018,32 @@ knows to check whether the epic has already moved the same lines.*
   record, so the contradiction above (a seat on 0 shields with 0 lost) is assertable there directly.
   `[id: shield-diff-skips-seats-past-the-second]`
 
+- `needs a decision`    · **THE FIGHTER KICK FLASH DOES NOT FIRE ON A KILL, ONLY AT THE END OF THE GAME
+  (Aj, 2026-09-24: *"a fighter kick should flash for each kill... but maybe we can upgrade the final
+  fighter kick animations"*, and *"the kick flash can actually be after the epic"*).**
+  **`playFinisher` HAS EXACTLY ONE CALLER — `endGame`.** `announceRoundWin` sets `pendingKick=true` on any
+  `res.kick`, which at 3-6 players is EVERY elimination (CLAUDE.md: *"`kick` IS NOT `finished`"*), and the
+  flag is consumed only when the game ends. So a kill that does not end the game gets the wording — the
+  board message and the log line — and no flash at all.
+  **AND THE DEFERRAL IS A SECOND, LIVE BUG.** Nothing clears `pendingKick` between the kill and the end
+  (`clearBoard`/`startGame` are the only resets, and both are new-game paths), so a free-for-all that ends
+  by DECK-OUT or CONCEDE after an earlier elimination still plays the full FIGHTER KICK flourish, credited
+  to an event several rounds earlier. Fixing the first half removes this one by construction: once the
+  flash fires at the kill, the flag stops being a queue.
+  **THE WIN/LOSE WORDING IS WRONG MID-GAME.** `playFinisher` writes `YOU WIN` / `YOU LOSE` under the words
+  and colours the flash `win`/`lose` — true for the game-ender, false for a kill that leaves two players
+  standing. A mid-game flash wants the VICTIM named instead.
+  **SHAPE OF THE BUILD:** parametrise into `playKick({final, youWin, sub}, done)` with `playFinisher` as a
+  thin wrapper, so the two occasions cannot drift; fire it from the kick branch when `!state.finished`,
+  and set `pendingKick` only when `finished` so the ender still lands with the end screen. A shorter hold
+  for the mid-game one (~1.0s against 1.65s) so a live game is not stalled.
+  **WHY `needs a decision` AND NOT `ready to build`:** the correctness half above is decided, but *"upgrade
+  the final fighter kick animations"* is a visual call nothing can judge from a test — how much bigger,
+  longer, louder. Build the correctness half, screenshot both states, and let Aj size the finale from the
+  picture. That sequencing is the one this repo learned the expensive way on the notification toggle: a
+  measurement says a control is clean, only the person says it reads right.
+  `[id: kick-flash-only-at-game-end]`
+
 - `ready to build`      · **THE STRAIGHTS SORT BUILDS THE LOWEST STRAIGHT, NOT THE BEST ONE (Aj,
   2026-09-24: *"i think it should sort by the higher straight"*).** `sortIntoStraights` walks the distinct
   values ASCENDING and claims the first five-in-a-row it finds, so with two overlapping runs available it
