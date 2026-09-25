@@ -1209,6 +1209,23 @@
        INTENT that the host applies, so the engine is the only place this can be refused. Same reasoning as
        `resolveIds` and the host-side emote cooldown. */
     if (st.respondFor != null) return { ok: false, reason: 'Priority is being passed — answer the window instead.' };
+    /* A MODAL THAT IS NOT A PRIORITY WINDOW STILL STOPS THE TABLE (Aj, 2026-09-16: *"other player could
+       activate stuff while the other players were busy with a modal"*). `respondFor` covers the priority
+       windows; a FORCED DISCARD does not touch it, so `discardPending` left the seat on turn free to keep
+       playing while its target sat in a picker — MEASURED: Telekinesis at seat 1, `respondFor` null, and
+       seat 0 then played a pair with two discards still owed.
+       THE HARM IS THAT THE TRAPPED SEAT CANNOT ANSWER. A play opens a priority window, and a seat stuck in
+       a discard modal cannot take it — so the guard is about participation, not tidiness.
+       IT IS AN ENGINE CHECK because a client sends an intent over the wire; a UI lock is a courtesy.
+       AND IT DOES NOT DEADLOCK THE PICK, which is the trap the backlog entry warns about one door along:
+       that warning is for a UI guard on FIGHT (`doFight` reaches `confirmPick()` via the `pick` branch),
+       whereas a pick is confirmed through `resolveDiscard` and never re-enters `play`/`activate`.
+       `trimPending` is deliberately NOT here — it does not exist in this file; it is a template construct
+       for the round-end queue, and the UI already locks the other seats on it. */
+    if (st.discardPending) return { ok: false, reason: st.discardPending.player === p
+      ? 'Choose your discards first.'
+      : 'A player is still discarding — the table is waiting on them.' };
+
     /* AND THE SUB-PHASE IS THE OTHER HALF OF "PROACTIVE" (Aj, from a real duel, 2026-09-15: *"i activated a
        card in the fight sub phase... that's not legal"*). `PHASES-AND-PRIORITY.md` §3 is one sentence about
        it — *"Fight Sub-Phase. The active player plays a fight card or passes. Playing or passing ends the
@@ -2125,6 +2142,23 @@
   function play(st, p, cards) {
     if (st.finished) return { ok: false, reason: 'Game over.' };
     if (p !== st.turn) return { ok: false, reason: 'Not your turn.' };
+    /* A MODAL THAT IS NOT A PRIORITY WINDOW STILL STOPS THE TABLE (Aj, 2026-09-16: *"other player could
+       activate stuff while the other players were busy with a modal"*). `respondFor` covers the priority
+       windows; a FORCED DISCARD does not touch it, so `discardPending` left the seat on turn free to keep
+       playing while its target sat in a picker — MEASURED: Telekinesis at seat 1, `respondFor` null, and
+       seat 0 then played a pair with two discards still owed.
+       THE HARM IS THAT THE TRAPPED SEAT CANNOT ANSWER. A play opens a priority window, and a seat stuck in
+       a discard modal cannot take it — so the guard is about participation, not tidiness.
+       IT IS AN ENGINE CHECK because a client sends an intent over the wire; a UI lock is a courtesy.
+       AND IT DOES NOT DEADLOCK THE PICK, which is the trap the backlog entry warns about one door along:
+       that warning is for a UI guard on FIGHT (`doFight` reaches `confirmPick()` via the `pick` branch),
+       whereas a pick is confirmed through `resolveDiscard` and never re-enters `play`/`activate`.
+       `trimPending` is deliberately NOT here — it does not exist in this file; it is a template construct
+       for the round-end queue, and the UI already locks the other seats on it. */
+    if (st.discardPending) return { ok: false, reason: st.discardPending.player === p
+      ? 'Choose your discards first.'
+      : 'A player is still discarding — the table is waiting on them.' };
+
     if (isLocked(st, p)) return { ok: false, reason: 'You are locked out (Back Stab) — you skip this turn.' };
     /* THE TRANSITION IS A RULES STEP, SO THE ENGINE ENFORCES IT (epic step 20). A shedding play belongs to
        the Play Sub-Phase, and priority is passed before you get there. `moveToPlay` AUTO-ADVANCES when
@@ -2171,6 +2205,23 @@
   function pass(st, p) {
     if (st.finished) return { ok: false, reason: 'Game over.' };
     if (p !== st.turn) return { ok: false, reason: 'Not your turn.' };
+    /* A MODAL THAT IS NOT A PRIORITY WINDOW STILL STOPS THE TABLE (Aj, 2026-09-16: *"other player could
+       activate stuff while the other players were busy with a modal"*). `respondFor` covers the priority
+       windows; a FORCED DISCARD does not touch it, so `discardPending` left the seat on turn free to keep
+       playing while its target sat in a picker — MEASURED: Telekinesis at seat 1, `respondFor` null, and
+       seat 0 then played a pair with two discards still owed.
+       THE HARM IS THAT THE TRAPPED SEAT CANNOT ANSWER. A play opens a priority window, and a seat stuck in
+       a discard modal cannot take it — so the guard is about participation, not tidiness.
+       IT IS AN ENGINE CHECK because a client sends an intent over the wire; a UI lock is a courtesy.
+       AND IT DOES NOT DEADLOCK THE PICK, which is the trap the backlog entry warns about one door along:
+       that warning is for a UI guard on FIGHT (`doFight` reaches `confirmPick()` via the `pick` branch),
+       whereas a pick is confirmed through `resolveDiscard` and never re-enters `play`/`activate`.
+       `trimPending` is deliberately NOT here — it does not exist in this file; it is a template construct
+       for the round-end queue, and the UI already locks the other seats on it. */
+    if (st.discardPending) return { ok: false, reason: st.discardPending.player === p
+      ? 'Choose your discards first.'
+      : 'A player is still discarding — the table is waiting on them.' };
+
     /* PASSING IS A PLAY-SUB-PHASE ACTION TOO, so it transitions exactly as a play does — see `play`. The
        LOCKED case below is deliberately left above this: a locked player can neither play nor activate, so
        there is nothing for anyone to respond to and no window to open. */

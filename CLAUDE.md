@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 565 + 65 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 576 + 65 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 565 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 576 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 65, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
@@ -1234,6 +1234,37 @@ sets the turn to the round WINNER and `roundDraw` runs AFTER the end-of-round tr
 won held a live board while the host was still picking — able to play into a round whose cards had not been
 dealt. `trimPending` (seat + count, on state, whitelisted by `netview`) is what locks them and what names the
 seat on the other screens.
+**A MODAL THAT IS NOT A PRIORITY WINDOW STILL STOPS THE TABLE, AND `respondFor` DOES NOT COVER IT
+(2026-09-25).** Aj, 2026-09-16: *"other player could activate stuff while the other players were busy with a
+modal"*. `activate` already refused on `st.respondFor != null` and on `st.subPhase === 'play'` — both
+priority states — but a FORCED DISCARD touches neither, so the seat on turn kept playing while its target
+sat trapped in a picker. **Measured: Telekinesis at seat 1, `respondFor` null, turn 0, and seat 0 then
+played a pair with two discards still owed.** `play` / `pass` / `activate` all refuse on `st.discardPending`
+now.
+**THE HARM IS PARTICIPATION, NOT TIDINESS** — a play opens a priority window, and a seat stuck in a discard
+modal cannot take it. That is what makes it a correctness bug rather than a manners one.
+**THE UI HAD BEEN ANNOUNCING A RULE THE ENGINE DID NOT ENFORCE.** `render()`'s `waitOn` already dimmed the
+play area and set *"<name> is discarding…"*, and `updateActions` knew about none of it — so Fight and Pass
+rendered ENABLED into what is now a refusal. **A status line is not a gate and neither is a dim**; the
+controls are disabled with the reason, which is the v1.31.74 `busy` remedy in a new place.
+**THE BACKLOG'S DEADLOCK WARNING WAS FOR A *UI* GUARD, AND READING IT AS A BAN ON GUARDING AT ALL WOULD
+HAVE PARKED THIS.** The entry says a clean-up pick is confirmed with FIGHT, so blocking Fight deadlocks the
+pick — true of `doFight`, which reaches `confirmPick()` via the `pick` branch. **`confirmPick` routes to
+`E.resolveDiscard` and never re-enters `play`/`activate`**, so an ENGINE guard cannot deadlock it, and the
+engine is where a gate belongs anyway because a client sends an intent over the wire. The suite asserts the
+EXIT (resolve, then the same play is legal) precisely so a future guard with no way out is caught.
+**AND THE OTHER TWO MODALS THE ENTRY NAMED ARE OUT OF SCOPE, BY GREP RATHER THAN BY ARGUMENT:**
+`targetPick` is **UI-only** (0 references in `engine.js`/`netview.js`) so it is the acting seat's own
+in-progress choice and blocks nobody, and **`trimPending` does not exist in the engine at all** — it is a
+template construct for the round-end queue, which is why that warning was written and why the UI already
+locks the other seats on it.
+**IT CHANGES NO AI GAME, AND THAT IS MEASURED: 740 seeded games at 2/3/6 players, byte-identical
+fingerprints in both arms** (rng AND `Math.random` pinned; the instrument run against itself first). `ai.js`
+resolves a pending discard at the top of its loop and suspends only for a human, so the guard is reachable
+only by a human or a netplay client — which is the population that reported it. **Run the fingerprint before
+believing an engine guard is inert**, and note what it does NOT prove: it drives `engine.js`/`ai.js` in Node
+and never loads the page, so the UI half needed `browsertest` separately.
+
 **EVERY INTERACTIVE DISCARD GOES THROUGH `discardPending` — there are exactly TWO sites** (the owner banking
 looked cards, `engine.js` ~1447; and `discardOpp` — Telekinesis, Outbalance, Discombobulate, ~1513). The
 round-end trim is the separate `trimPending`. So one notice reading either covers the whole game; enumerate
@@ -2086,7 +2117,7 @@ Status as of **v1.31.127 — 2026-09-24, `npm run sweep`, 100 suites ON THE EPIC
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 565, `netview` 65, `mptest` 100, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
+`test` 576, `netview` 65, `mptest` 100, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 17, `lessontest` 20, `lessontest_energyorder` 14,
 `versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_quicks` 22, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,

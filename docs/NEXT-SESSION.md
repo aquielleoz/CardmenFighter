@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**565**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**576**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -493,20 +493,6 @@ re-read its tag.
   is the seat that most often reports the hang. A reader diffing two saved logs — the method that has now
   found several defects — currently finds a 10-vs-0 gap that is expected and looks alarming.
   `[id: client-ledger-no-phase-walk]`
-
-- `root cause found`    · **A CLIENT COULD ACT WHILE ANOTHER SEAT HAD A MODAL UP (Aj, 2026-09-16: *"we really need that guard when
-  somebody has a modal up. other player could activate stuff while the other players were busy with a
-  modal"*).** Partly closed and partly unidentified, so both halves are written down.
-  **WHAT IS ALREADY GUARDED:** `activate` refuses on `st.respondFor != null` (since 2026-09-14) and now on
-  `st.subPhase === 'play'` too (#230), and both are ENGINE checks, so a netplay client's intent is refused
-  on the host as well as locally.
-  **WHAT IS NOT:** a modal that is NOT a priority window leaves `respondFor` null — a forced discard
-  (`discardPending`), a clean-up pick (`trimPending`), a target picker. On those, a seat whose turn it is
-  can still act. Which of them Aj hit is unknown; he was asked and the session moved on.
-  **DO NOT BLANKET-GUARD ON `trimPending`** — a clean-up pick is CONFIRMED WITH FIGHT (`nettest_trim`), so
-  a guard that blocks Fight during a trim deadlocks the pick. `doFight` currently reaches `confirmPick()`
-  via the `pick` branch, which is what keeps them apart today.
-  `[id: client-act-another-seat]`
 
 - `root cause found`    · **THE HOST'S "🔔 Ping the table" IS INVISIBLE TO THE CLIENT — IT PAINTS BEHIND THE LOBBY (reported in live
   play, 2026-09-15).** The client's handler is `SFX.play('ping'); setMessage(…)`, and `setMessage` writes
