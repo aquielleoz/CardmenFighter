@@ -2046,6 +2046,27 @@ __QR__
   function cyclePromptMode(){ setPromptMode(PROMPT_MODES[(PROMPT_MODES.indexOf(PROMPT_MODE)+1)%PROMPT_MODES.length]); }
   function promptDefault(card, eff, timing){ return PROMPT_MODE === 'on' || timing === 'respond'; }
   function promptKeyOf(eff){ return eff && eff.id ? eff.id : null; }
+  /* A LESSON MAY OPT INTO A BOUNDARY WINDOW — BY NAME, NEVER WHOLESALE (2026-09-25). Every non-`respond`
+     timing is suppressed in `tutorialMode` (see the two notes in `promptWanted`), and that stays the
+     default: those windows open EVERY round, a lesson is a fixed sequence of gated steps, and a modal it
+     did not script derails it — measured twice, both times as `lessontest_twos` going red.
+     THE OPT-IN IS A LIST OF TIMINGS, NOT A BOOLEAN, and that is the whole safety argument. `windows:true`
+     would hand a lesson every boundary the game has, including the two (`upkeep`, `cleanup`) that open on
+     every round and that no lesson teaches — i.e. it would re-create the exact breakage this gate exists
+     to prevent, with the lesson author believing they had asked for one window. A lesson names what it
+     teaches; everything it did not name stays shut.
+     `respond` IS GRANDFATHERED and needs no entry: it is the timing that defaults on for every player, the
+     Quicks lesson has taught it since before this gate existed, and four lessons rely on it implicitly.
+     ONE DEFINITION, TWO CALLERS — `promptWanted` (may this window stop me?) and `shieldSaveOverride` (may
+     a stake FORCE one?). They were separate literals until today and would have drifted the moment a
+     lesson opted in, because a forced window a lesson did not script is the same derailment by another
+     route. */
+  function lessonAllowsWindow(timing){
+    if(typeof tutorialMode==='undefined' || !tutorialMode) return true;   // not a lesson — the player's own prefs decide
+    if(timing==='respond') return true;
+    var w=(typeof currentLesson!=='undefined' && currentLesson) ? currentLesson.windows : null;
+    return !!(w && w.indexOf(timing)>=0);
+  }
   function promptWanted(card, timing){
     var eff=(state&&E.effectFor)?E.effectFor(state, YOU, card):E.effectOf(card);
     if(!promptLegal(card, eff, timing)) return false;
@@ -2066,7 +2087,7 @@ __QR__
        which makes them the worst offenders yet: `lessontest_twos` went red on "the Rival leads 222 + a
        pair" with the play never landing. `respond` is still the one that survives, because the Quicks
        lesson exists to teach it. Adding a timing without adding it here is how a lesson breaks. */
-    if(timing!=='respond' && typeof tutorialMode!=='undefined' && tutorialMode) return false;
+    if(!lessonAllowsWindow(timing)) return false;                                  // the lesson names its windows; see lessonAllowsWindow
     /* THE MODE GATES THE ROWS. ON is checked BEFORE the per-card override on purpose — "all the notifs on"
        has to mean that, or a card silenced months ago would still be silent in the mode whose whole point
        is that nothing is. The tutorial guard stays ABOVE both: a lesson is a scripted sequence and a mode
@@ -2137,7 +2158,7 @@ __QR__
     if(!state || !E.stakeFor) return false;
     if(PROMPT_MODE==='off') return false;   // the one place a player may knowingly decline a stake — see the mode note
 
-    if(typeof tutorialMode!=='undefined' && tutorialMode) return false;            // a scripted lesson writes its own windows
+    if(!lessonAllowsWindow(timing)) return false;                                  // a scripted lesson writes its own windows — unless it asked for this one
     if(timing!=='resolution' && timing!=='respond' && timing!=='prefight') return false;   // the engine answers for each; this is just the closed set
     return !!E.stakeFor(state, YOU, card, timing);
   }
@@ -7154,6 +7175,7 @@ __QR__
    * beat it and pass — the lesson's claim is then literally true rather than staged. Infuse is also the card
    * from Aj's own logged game, lost to Kings because it was counterspelled. */
   var tutPhAce=null, tutPhPair=null, tutPhCounter=null, tutPhLey=null;
+  var tutPhInfuse=null;      // ♦️5 Infuse with Magic — the Rival cast you counter (the pilot fires it; see tutPilotPhases)
   function tutRigPhases(st){
     var me=st.players[0], foe=st.players[1];
     /* EVERY CARD EITHER SIDE HOLDS IS LISTED HERE — Aj: *"please make it so that there is an exact sequence
@@ -7165,7 +7187,7 @@ __QR__
                 tutCard(4,'D','pC'),                                 // ⏩ Counter Spell  — answers a CAST
                 tutCard(9,'D','pL'),                                 // ⏩ Leyline Ascension — answers a LOSS
                 tutCard(6,'D','pS') ];                               // a spare, so a draw never empties the hand
-    tutPhAce='1D#pA'; tutPhPair=['3D#p1','3D#p2']; tutPhCounter='4D#pC'; tutPhLey='9D#pL';
+    tutPhAce='1D#pA'; tutPhPair=['3D#p1','3D#p2']; tutPhCounter='4D#pC'; tutPhLey='9D#pL'; tutPhInfuse='5D#rI';
     me.deck = tutDropDupes(me.deck, me.hand);
     /* 14 ♦ ENERGY, STAGED NOT EARNED. Counter Spell costs 4 and Leyline 9 — thirteen between them, and a
      * round of fighting banks one card. Without this the finale is simply unaffordable. */
@@ -7179,15 +7201,46 @@ __QR__
     foe.energy=[]; for(var e=0;e<14;e++) foe.energy.push(tutCard(4,'D','re'+e));
     st.turn = st.initiative = 0;                                     // YOU lead — the lesson opens on your turn
   }
-  /* THE PILOT decides only the Rival's FIGHT, never its cast. The cast runs through `tutCastRivalTech` as a
-   * step's `prep`, because that is what OPENS the response window — and the window is the lesson. Note the
-   * twos pilot deliberately does boost-then-play atomically to SKIP that window; copying it here would have
-   * removed the thing being taught. */
+  /* THE PILOT CASTS AS WELL AS FIGHTS, AND THAT IS THE WHOLE REASON THIS LESSON WORKS (2026-09-25).
+   * It was written the way the Quicks lesson does it — the cast as a step's `prep`, through
+   * `tutCastRivalTech` — and that is a shape only Quicks can afford, because Quicks NEVER LETS THE RIVAL
+   * TAKE A REAL TURN (its rig comment: *"nothing auto-fires — the lesson triggers the cast on cue"*). Here
+   * the Rival does take one, so a `prep` fires when the STEP IS SHOWN, which is after that whole turn has
+   * run and the round has already turned over: the cast landed in ROUND 2, and `tutCastRivalTech`'s
+   * `savedTurn` restore then wrote the Rival's turn back onto a round YOU had won. Measured, and it is the
+   * exact signature the twos pilot already has a comment about — `round 2 opening with turn 1, init 0`.
+   * A `prep` CANNOT be made to work here: it is display-time, and the window has to open turn-time.
+   * AND THE TUTORIAL RIVAL WILL NEVER CAST IT ON ITS OWN (Aj: *"maybe it's because the tut ai is
+   * passive?"* — correct). A lesson runs at `minion` unless it names a `diff`, and `runRival`'s own note
+   * says minion *"never uses effects at all"*. Raising the tier is the wrong lever twice over: a tier
+   * cannot promise WHICH card or WHEN, which is the reason pilots exist.
+   * `E.activate` OPENS THE WINDOW AND SUSPENDS, which is precisely what the twos pilot goes out of its way
+   * to AVOID by boosting and playing atomically. Here the window IS the lesson, so we want the suspend:
+   * the driver presents the cast with `buildOppBeats` like any other rival effect and then hands you
+   * `promptHumanResponse` — no bespoke presentation, no hand-rolled priority check, nothing this file has
+   * had to fix twice already. */
   function tutPilotPhases(st, p){
     var log=[], pl=st.players[p], cur=st.pile ? st.pile.combo : null;
     function play(cards){ var r=E.play(st, p, cards); if(r && r.ok!==false){ log.push({ fight:'play', combo:r.combo }); return true; } return false; }
     function rank(n,k){ return pl.hand.filter(function(c){ return c.rank===n; }).slice(0,k||1); }
     if(cur){
+      /* THE BOOST FIRST, AND ONLY WHILE THE CARD IS STILL IN HAND — that is the re-entry guard, and it is
+         the card itself rather than a flag. `E.activate` removes it, so the pilot call that resumes after
+         you answer cannot find it and falls straight through to the King. Reading `nextPlayBoost` instead
+         would be WRONG in the case that matters: a COUNTERED boost never sets it, so the pilot would cast
+         again and the lesson would loop. */
+      var inf = (cur.size===1) ? pl.hand.filter(function(c){ return c.id===tutPhInfuse; })[0] : null;
+      if(inf){
+        var ra=E.activate(st, p, inf.id);
+        if(ra && ra.ok!==false){
+          log.push({ play:'BOOST', card:{ rank:inf.rank, suit:inf.suit, id:inf.id } });   // the AI's own log shape — buildOppBeats reveals it and dwells
+          /* ARM THE DEAD-END GUARD THE SAME WAY THE CAST HELPER DOES. `tutAwaitCounter` is what disables
+             "Let it resolve" in a window the lesson needs countered, and `updateActions` reads it as the
+             modal renders — so it has to be set BEFORE we return into the driver, never after. */
+          if(ra.pending && st.respondFor===YOU) tutAwaitCounter=true;
+          if(ra.pending) return log;                                                       // your window is open; the King waits for your answer
+        }
+      }
       /* Round 1 is a single: the King only beats the Ace while the boost is banked, so `E.play` itself is
          the arbiter — countered, this refuses and we fall through to the pass. No round test needed. */
       if(cur.size===1 && play(rank(13,1))) return log;
@@ -7499,7 +7552,7 @@ __QR__
         only:function(){ return tutPhAce?[tutPhAce]:null; }, hi:function(){ return tutPhAce?('#hand .card[data-id="'+tutPhAce+'"]'):'#hand'; },
         gate:function(t){ return t==='play'; }, wait:"Lead the Ace…" },
       { text:"Their turn — and they’re casting <b>Infuse with Magic</b> to push their King past your Ace.<br><br><b>Their play opens a window for you.</b> That’s what priority means: nobody acts unpaused. Spring <b>Counter Spell</b>.",
-        prep:tutCastRivalTech, hi:'#hand', gate:function(t,d){ return t==='respond' && d && d.countered; }, wait:"Counter the Technique…" },
+        hi:'#hand', gate:function(t,d){ return t==='respond' && d && d.countered; }, wait:"Counter the Technique…" },
       /* ⚠ NARRATION, NOT A GATE, AND THE FIRST CUT GOT THIS WRONG. Gating on `roundwin` hangs: countering
          resolves the whole round — the Rival passes, you win, the round turns over — BEFORE this step is
          ever shown, so the event has already fired and the gate can never be satisfied. Measured: the
@@ -7534,7 +7587,7 @@ __QR__
   var LESSONS=[
     { id:'howto',      num:1 , section:'Basics',   title:'How to Play',        blurb:'A full guided duel — the whole loop, start to finish.',          ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonHowToSteps },
     { id:'zones',      num:2 , section:'Basics',   title:'Zones of Play',      blurb:'Deck, hand, play area, energy pile, shuffle pile.',               ready:true,  basics:true,             rig:tutRigZones,     steps:lessonZonesSteps },
-    { id:'phases',     num:3 , section:'Basics',   title:'Phases',             pilot:tutPilotPhases,            blurb:'The four phases, the windows between them \u2014 and the two Quicks that answer them.', ready:true,  basics:true,  shields:2, rig:tutRigPhases,    steps:lessonPhasesSteps },
+    { id:'phases',     num:3 , section:'Basics',   title:'Phases',             pilot:tutPilotPhases,            blurb:'The four phases, the windows between them \u2014 and the two Quicks that answer them.', ready:true,  basics:true,  shields:2, windows:['resolution'], rig:tutRigPhases,    steps:lessonPhasesSteps },
     { id:'specials',   num:4 , section:'Basics',   title:'Specials',           blurb:'The combos that break shields — pairs, trios, straights, houses.', ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonSpecialsSteps },
     { id:'twos',       num:5 , section:'Basics',   title:'The 2',              pilot:tutPilotTwos,              blurb:'The apex trump \u2014 and why it becomes your lowest card.',      ready:true,  basics:true,             rig:tutRigTwos,      steps:lessonTwosSteps },
     /* BASICS, straight after `specials` (Aj, 2026-09-01: *"oh the 2 is a basic tutorial probably after
