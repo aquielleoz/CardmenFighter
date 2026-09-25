@@ -591,6 +591,29 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     ok(false, 'could not start a 3-player game for the phase-strip check');
   }
 
+  /* ============ THE SAVED LOG'S HEADER DESCRIBES THE TABLE IT WAS PLAYED ON (2026-09-25) ============
+     From Aj's real 3-player log: *"You: Warlock (Wiz+Rog)   vs   Rival: Sage (Wiz+Cle)"* / *"Reached Round
+     18 — Rival won"*, sitting directly above the game's own line naming Rozalin and Flonne. One opponent
+     where there were two, and the duel default "Rival" standing in for the seat that actually won.
+     A SELF-CONTRADICTING FILE IS THE CHEAPEST ASSERTION THERE IS — the same shape `exporttest` uses for a
+     seat on `shieldsLost: 0` with `finalShields: 0`. It needs no knowledge of how the game went, so it
+     cannot rot with the rules: whoever the header names must be who the game names. */
+  {
+    const h = await p.evaluate(()=>window.__solo.logHeadText());
+    const names = await p.evaluate(()=>[1,2].map(i=>window.__solo.logName(i)));
+    ok(names.every(n=>h.indexOf(n)>=0),
+       'the saved header names EVERY opponent, not just one  ['+h.split('\n')[1]+']');
+    ok(!/vs\s+Rival:/.test(h),
+       '…and does not fall back to the duel default "Rival:" at a 3-player table');
+    /* THE WINNER LINE, STAGED — the driver above does not always reach an end, and "the header is right
+       about the winner" is exactly the half that was wrong. `__solo.st()` is by reference. */
+    const won = await p.evaluate(()=>{ const s=window.__solo.st(); s.finished=true; s.winner=2;
+      return window.__solo.logHeadText(); });
+    ok(won.indexOf(names[1]+' won')>=0,
+       'and the winner line NAMES the winner rather than saying "Rival won"  ['+won.split('\n')[2]+']');
+    await p.evaluate(()=>{ const s=window.__solo.st(); s.finished=false; s.winner=null; });
+  }
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

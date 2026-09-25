@@ -71,6 +71,23 @@ const { clickFight } = require('./fightclick');
      your Ace; countering is what makes the next step's claim ("they cannot beat it") literally true. */
   const got = await until(()=>!!document.querySelector('.respQuick'), 'the Respond? window opens', 20000);
   ok(got, 'the Rival cast a Technique and the Respond? window opened');
+  /* ⚠ HIT-TEST, BECAUSE NO DOM ASSERTION CAN SEE A STACKING BUG. `#tutPanel` was `z-index:80`, chosen
+     when `.overlay` was 30; the overlay became `--zNetroot + 1` and the coach panel spent every version
+     since UNDER the backdrop of the dialog it was explaining — present, populated, and unreadable. Aj:
+     *"the tutorial is behind the dim so new players are just 'what's going on?'"*. Every DOM check in
+     this file passed throughout, which is exactly the `nettest_rules` lesson in a new place. */
+  /* ⚠ `offsetParent` IS NULL FOR A `position:fixed` ELEMENT, and this file's own visibility idiom uses
+     it — correctly for `#respDecline`, whose nearest positioned ancestor is the fixed overlay, and WRONGLY
+     for `#tutPanel`, which is fixed itself. The first cut of this assertion went red on a build where the
+     stacking was already right (`zTut 100004` over `zOv 100000`, and `elementFromPoint` returning the
+     panel). Measure a fixed element with its RECT. */
+  ok(await p.evaluate(()=>{ const t=document.getElementById('tutPanel');
+       if(!t) return false;
+       const r=t.getBoundingClientRect();
+       if(r.height<10 || getComputedStyle(t).display==='none') return false;
+       const hit=document.elementFromPoint(Math.round(r.left+r.width/2), Math.round(r.top+12));
+       return !!(hit && t.contains(hit)); }),
+     'THE COACH PANEL IS ON TOP OF THE MODAL — hit-tested, not merely present in the DOM');
   /* SAMPLE THE RESTING STRIP WHERE IT IS UNAMBIGUOUS — the Rival holds the turn here, and no boundary is
      open, so this is the one moment in the lesson that MUST be idle. It used to be caught incidentally
      somewhere else, and the deal-hold fix moved that moment under a phase tint; an incidental sample is a
