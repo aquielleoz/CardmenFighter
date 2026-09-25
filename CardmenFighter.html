@@ -9181,31 +9181,7 @@ window.CardFace = {};
        the lesson. A state nothing can reach is a bug, and an assertion that notices one must be believed
        rather than explained. */
     syncOrder(false);
-    var hw=$('handWrap');
-    if(hw){
-      /* ⚠ THE DEAL IS AN ANIMATION, NOT AN INSTANT, AND THE TINT HAS TO LAST AS LONG AS IT DOES.
-         `pendingEnter` is CONSUMED by `renderHand` on the very render that draws the fly-in, so keyed on
-         it alone the Beginning tint lived for exactly one frame — the cards were still visibly arriving
-         while the strip had already moved on. Aj: *"can we let the phases breathe a bit? when the cards
-         are still flying in"*. `dealHoldUntil` is stamped where the animation is scheduled, from the same
-         delay arithmetic, so the two cannot drift; a timer re-renders once it lapses. */
-      var dealingIn = !state.pile && (Object.keys(pendingEnter||{}).length>0 || Date.now() < dealHoldUntil);
-      /* ⚠ A ROUND-LEVEL PHASE OUTRANKS "NOT YOUR TURN", AND THAT ORDER IS MEASURED RATHER THAN CHOSEN.
-         Beginning, Resolution and Clean-up belong to the TABLE, not to a seat — and `state.turn` during
-         them is the round WINNER's, measured as `turn:1` through both boundaries of a round seat 0 won. So
-         testing the turn first paints violet over every boundary and the ramp loses three of its six
-         colours, including the two a player most needs to notice.
-         VIOLET IS THEREFORE THE OPPONENT'S MAIN/FIGHT — the stretch where the board is genuinely theirs,
-         which is what "in between your own turns" means.
-         `upkeep` joins `dealingIn` for blue because the Beginning Phase IS Untap/Upkeep/Draw; `dealingIn`
-         alone caught only the deal, so the phase's own priority point rendered as something else. */
-      var ph = (state.cleanup || uiPhase==='cleanup') ? 'spCleanup'
-             : (state.resolution || uiPhase==='resolve') ? 'spResolve'
-             : (state.upkeep || dealingIn) ? 'spBegin'
-             : (state.turn !== YOU) ? 'spIdle'
-             : (state.subPhase==='play') ? 'spFight' : 'spMain';
-      ['spIdle','spBegin','spMain','spFight','spResolve','spCleanup'].forEach(function(c){ hw.classList.toggle(c, c===ph); });
-    }
+    paintPhaseStrip();
     notePhaseEdge();
     /* SAY WHY PLAY HAS PAUSED. Every seat but the one picking is auto-trimmed at the end of a round, so the
      * only seat that stops the table is the one holding an interactive hand-limit pick — and until v1.31.69 the
@@ -11022,6 +10998,41 @@ window.CardFace = {};
     if(typeof TUT!=='undefined' && TUT.holdFor && TUT.holdFor(phase, function(){ if(g===gen) run(); })) return;
     run();
   }
+  /* THE STRIP'S CLASS, WITHOUT A RENDER (2026-09-25). Extracted because the Clean-up beat needs to
+     REPAINT and must not re-render: a full `render()` there runs the shield diff, which queues
+     `pendingThreshold`, which inserts a beat into the round ceremony and displaces the client's —
+     `nettest_ceremony` 11/0 → 10/1, *"the beat reaches BOTH seats together — client 829ms after the
+     host"*. That is the same regression CLAUDE.md already records from `checkThresholds` firing
+     unconditionally, reached from a new direction, and A/B'd here: removing just this one call restores
+     11/0 on an otherwise identical build.
+     `render()` still calls it, so the two cannot drift. */
+  function paintPhaseStrip(){
+    var hw=$('handWrap');
+    if(hw){
+    /* ⚠ THE DEAL IS AN ANIMATION, NOT AN INSTANT, AND THE TINT HAS TO LAST AS LONG AS IT DOES.
+       `pendingEnter` is CONSUMED by `renderHand` on the very render that draws the fly-in, so keyed on
+       it alone the Beginning tint lived for exactly one frame — the cards were still visibly arriving
+       while the strip had already moved on. Aj: *"can we let the phases breathe a bit? when the cards
+       are still flying in"*. `dealHoldUntil` is stamped where the animation is scheduled, from the same
+       delay arithmetic, so the two cannot drift; a timer re-renders once it lapses. */
+    var dealingIn = !state.pile && (Object.keys(pendingEnter||{}).length>0 || Date.now() < dealHoldUntil);
+    /* ⚠ A ROUND-LEVEL PHASE OUTRANKS "NOT YOUR TURN", AND THAT ORDER IS MEASURED RATHER THAN CHOSEN.
+       Beginning, Resolution and Clean-up belong to the TABLE, not to a seat — and `state.turn` during
+       them is the round WINNER's, measured as `turn:1` through both boundaries of a round seat 0 won. So
+       testing the turn first paints violet over every boundary and the ramp loses three of its six
+       colours, including the two a player most needs to notice.
+       VIOLET IS THEREFORE THE OPPONENT'S MAIN/FIGHT — the stretch where the board is genuinely theirs,
+       which is what "in between your own turns" means.
+       `upkeep` joins `dealingIn` for blue because the Beginning Phase IS Untap/Upkeep/Draw; `dealingIn`
+       alone caught only the deal, so the phase's own priority point rendered as something else. */
+    var ph = (state.cleanup || uiPhase==='cleanup') ? 'spCleanup'
+           : (state.resolution || uiPhase==='resolve') ? 'spResolve'
+           : (state.upkeep || dealingIn) ? 'spBegin'
+           : (state.turn !== YOU) ? 'spIdle'
+           : (state.subPhase==='play') ? 'spFight' : 'spMain';
+    ['spIdle','spBegin','spMain','spFight','spResolve','spCleanup'].forEach(function(c){ hw.classList.toggle(c, c===ph); });
+  }
+  }
   function resolveRoundCeremony(res, g, continuation){
     /* ⚠ AND THE CEREMONY ITSELF IS ENTERED ONCE PER RESULT. The guard above catches a stale resume inside
        the trim queue; this catches the other shape — the same `res` orchestrated twice — which would look
@@ -11048,7 +11059,7 @@ window.CardFace = {};
          entirely, which is the same "a state nothing can reach" bug `spBegin` had.
          The dwell is what makes the colour honest rather than theoretical, and it is skipped under reduced
          motion like every other beat here. */
-      uiPhase='cleanup'; render();
+      uiPhase='cleanup'; paintPhaseStrip();   // ← repaint ONLY — a render here displaces the client's beat; see paintPhaseStrip
       ceremonyBeat('cleanup', g, function(){
       setTimeout(function(){
       if(g!==gen) return;
