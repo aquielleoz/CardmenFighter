@@ -6891,8 +6891,15 @@ window.CardFace = {};
      exists — *"yes, those are legal"*. The row is live, and the old reasoning is kept here only because
      the same argument still applies to CLEAN-UP until that boundary is built.
      ✅ **THE PRE-FIGHT ROW WAS GATED TO `lockout` AND STEP 20 UNGATED IT** — the model says verbatim
-     *"Every player's Quicks are available here"*, and it is now true of the code as well. Upkeep and
-     Clean-up are still the two points with no rows, and still for the reason above. */
+     *"Every player's Quicks are available here"*, and it is now true of the code as well.
+     ⚠ **AND THE LAST LINE OF THIS BLOCK WAS STALE, WHICH COST A WRONG ANSWER (2026-09-25).** It read
+     *"Upkeep and Clean-up are still the two points with no rows"* — false on both counts: `PROMPT_TIMINGS`
+     carries `upkeep` and `cleanup` rows, and the ENGINE opens a real priority window at each
+     (`st.upkeep` / `st.cleanup`, both drained through `phaseWalk`). ALL FIVE POINTS ARE BUILT AND ALL FIVE
+     HAVE ROWS. The reason the stale line survived is worth more than the correction: the engine never
+     spells those timings as strings — it returns `{ upkeep:true }` / `{ cleanup:true }` and
+     `promptHumanResponse` derives the NAME — so `grep "'cleanup'" engine.js` comes back empty and reads
+     exactly like a boundary that was never built. Read the layer that would have to DO the thing. */
   /* EVERY LEGAL TIMING PROMPTS BY DEFAULT (Aj, 2026-09-10: *"players can really look at all their cards and
      decide which effects to activate. legal mind you at the timing it's being asked at"*).
      THIS USED TO RETURN `immunityEffFor(...)` FOR `resolution` — the whitelist step 18 DELETED. It was right
@@ -11264,8 +11271,17 @@ window.CardFace = {};
     else { setMessage('You answered with <b>'+qeff.name+'</b>.'); say(YOU, '{who} answered with '+qeff.name+' at instant speed.', 'you'); }
     bumpEffect(YOU, qeff);
     prioNote('  → you CAST ' + (qeff && qeff.name ? qeff.name : quickId) + (qeff && qeff.kind==='counter' ? ('  (countering ' + pendName + ')') : ''));
+    /* CLEARED AND NOTED *BEFORE* `cont()`, FOR THE REASON `tutCastRivalTech` ALREADY GIVES FOR SETTING IT
+       (2026-09-25). `cont()` runs the settle, and the settle is what OPENS THE NEXT WINDOW — priority goes
+       round again on whatever is left of the stack. With the clear below it, that modal rendered while
+       `tutAwaitCounter` was still true: "Let it resolve" came up DISABLED, carrying the stale note *"This
+       lesson needs this one countered"* about a Technique that had just been countered. A dead button with
+       no live alternative is the dead end this file has a rule against, and it is unreachable outside a
+       lesson only because nothing else sets the flag.
+       ADVANCING THE STEP FIRST IS ALSO THE RIGHT ORDER: the step that opens with that window is the one
+       whose `only` list `updateActions` should be reading. */
+    if(typeof TUT!=='undefined' && TUT.note){ tutAwaitCounter=false; TUT.note('respond', { countered: !!(qeff && qeff.kind==='counter') }); }   // the Phases lesson gates here
     render(); cont();
-    if(typeof TUT!=='undefined' && TUT.note){ tutAwaitCounter=false; TUT.note('respond', { countered: !!(qeff && qeff.kind==='counter') }); }   // Quicks lesson gates here
   }
   function humanDeclines(g, cont){
     cont = cont || function(){ resumeRival(g); };
@@ -11276,6 +11292,12 @@ window.CardFace = {};
     prioNote('  → you DECLINED');
     E.declineResponse(state, YOU);
     say(YOU, '{who} let it resolve.', 'dim');
+    /* A LESSON MAY GATE ON A DECLINE, AND UNTIL TODAY NOTHING TOLD IT ONE HAPPENED. `humanResponds` has
+       fired `respond` since the Quicks lesson existed; its twin never did, so a step teaching that a
+       window is a CHOICE — including the choice to pass — had no event to wait for. Fired BEFORE the
+       re-cast retry below, which is the older `tutAwaitCounter` path and only runs when the lesson still
+       needs something countered. */
+    if(typeof TUT!=='undefined' && TUT.note) TUT.note('decline', { card:null });
     render(); cont();
     if(tutAwaitCounter && typeof TUT!=='undefined' && TUT.isActive && TUT.isActive()){ tutAwaitCounter=false; setMessage('That one resolved — let’s try again. Counter the next one!'); setTimeout(function(){ if(gen===g) tutCastRivalTech(); }, 700); }   // lesson: don't brick if they let it resolve
   }
@@ -12473,6 +12495,16 @@ window.CardFace = {};
         gate:function(t){ return t==='play'; }, wait:"Lead the Ace…" },
       { text:"Their turn — and they’re casting <b>Infuse with Magic</b> to push their King past your Ace.<br><br><b>Their play opens a window for you.</b> That’s what priority means: nobody acts unpaused. Spring <b>Counter Spell</b>.",
         hi:'#hand', gate:function(t,d){ return t==='respond' && d && d.countered; }, wait:"Counter the Technique…" },
+      /* THE GO-ROUND COMES BACK, AND THE LESSON TEACHES IT RATHER THAN HIDING IT. Your Counter Spell
+         resolving does not close the window — priority passes round again on what is left of the stack, which
+         is the fizzled Technique. Measured: `respondFor:0  pending:5D#rI`, a second modal, sitting open
+         forever because nothing in the lesson answered it and the narration step behind it could not be
+         clicked through. Suppressing it was the alternative and it is the wrong one twice over: it is
+         CORRECT behaviour, and it is this lesson's own subject.
+         `only:[]` DELIBERATELY — the board behind the modal must refuse Fight and Pass, because neither can
+         satisfy a gate that wants the window answered. */
+      { text:"Notice the window <b>came back to you</b>. Priority keeps going round after every resolution until <b>everyone</b> passes — that is what stops someone sneaking the last word.<br><br>Their Technique is already countered, so there is nothing worth answering. <b>Let it resolve.</b>",
+        only:function(){ return []; }, hi:'#respDecline', gate:function(t){ return t==='decline'; }, wait:"Let it resolve…" },
       /* ⚠ NARRATION, NOT A GATE, AND THE FIRST CUT GOT THIS WRONG. Gating on `roundwin` hangs: countering
          resolves the whole round — the Rival passes, you win, the round turns over — BEFORE this step is
          ever shown, so the event has already fired and the gate can never be satisfied. Measured: the
@@ -12487,7 +12519,17 @@ window.CardFace = {};
         only:function(){ return tutPhPair; },
         hi:function(){ return tutPhPair ? tutPhPair.map(function(id){ return '#hand .card[data-id="'+id+'"]'; }).join(',') : '#hand'; },
         gate:function(t){ return t==='play'; }, wait:"Press Fight, then lead the pair…" },
-      { text:"Their pair of <b>8s</b> tops your <b>3s</b> — and a <b>Special</b> losing costs you a <b>shield</b>.<br><br>But <b>Resolution opens a window too</b>, and a <b>different</b> Quick answers this one. Spring <b>Leyline Ascension</b>: <i>you can’t lose this round.</i>",
+      /* YOU HAVE TO PASS BEFORE RESOLUTION EXISTS — the beat this lesson was missing, and it made the
+         finale unreachable. The Rival beating your pair does not end the round: the round ends when
+         everyone passes, and only THEN does Resolution open the window Leyline answers. The old single
+         step said *"spring Leyline"* over a board where nothing was open and no shield was at risk, so a
+         player would sit on it with no legal move the step would accept.
+         IT IS ALSO THE HONEST TEACHING ORDER: you discover you cannot answer, you concede the round, and
+         the window is what is left. `only:[]` because Fight cannot satisfy this — there is no play that
+         beats a pair of 8s in this hand, and an enabled button that cannot advance the step is a dead end. */
+      { text:"Nothing in your hand beats a pair of <b>8s</b> — so <b>pass</b>. Passing is how a round <i>ends</i>: once nobody wants the lead, the fight resolves.",
+        only:function(){ return []; }, hi:'#passBtn', gate:function(t){ return t==='pass'; }, wait:"Pass the round…" },
+      { text:"You lost the fight, and a <b>Special</b> losing costs you a <b>shield</b>.<br><br>But <b>Resolution opens a window too</b> — orange — and a <b>different</b> Quick answers this one. Spring <b>Leyline Ascension</b>: <i>you can’t lose this round.</i>",
         hi:'#hand', gate:function(t){ return t==='respond' || t==='shield'; }, wait:"Spring Leyline Ascension…" },
       { text:"Shield saved. Two Quicks, <b>two different windows</b> — Counter Spell answered a <b>cast</b>, Leyline answered a <b>loss</b>.<br><br>Windows can stop you often, so the <b>🔔 button</b> sets how often: <b>ON</b> every legal window · <b>AUTO</b> only when something’s at stake · <b>OFF</b> never — it passes for you and notes it in the log.",
         hi:'#promptMode', btn:"Finish" }
