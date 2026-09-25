@@ -11304,6 +11304,11 @@ window.CardFace = {};
   function moveToPlayThen(g, proceed, stopIfActed, actor, via){
     var me=(actor==null?YOU:actor), mark=stackMark(state, me);
     E.moveToPlay(state);
+    /* THE TRANSITION IS A TAUGHT BEAT AND HAD NO EVENT (2026-09-25). `TUT.note` carried play/pass/activate/
+       respond and nothing for Main → Fight, so a lesson could not gate on *"press Fight and watch nothing
+       get played"* — which is the single thing players most misread about that button, and which the phases
+       lesson teaches twice. Local seat only: a remote seat's transition is not this player's lesson. */
+    if(typeof TUT!=='undefined' && TUT.note && me===YOU) TUT.note('transition', { via:via||null });
     /* THE TRANSITION GOES IN THE LEDGER, INCLUDING WHEN IT DOES NOTHING (2026-09-11). Aj's 10-round log
        carried thirteen entries and not one of them mentioned the Main → Fight go-round, so the file could
        not tell "no seat could ever act at a transition" from "step 20's new priority point is not being
@@ -12052,6 +12057,71 @@ window.CardFace = {};
     foe.energy=[]; for(var e=0;e<12;e++) foe.energy.push({rank:4,suit:'CDHS'[e%4],id:'tqE'+e});   // plenty for any Technique
     st.turn=st.initiative=0;   // your turn; nothing auto-fires — the lesson triggers the cast on cue
   }
+  /* ── THE PHASES LESSON (Basics #3) ──────────────────────────────────────────────────────────────────
+   * Aj, 2026-09-25, designing the arc: *"for the first part, we just need the player to notice the phases
+   * and sub-phases as they come… the opponent activates a technique - maybe a boost… and then they can
+   * activate counterspell… round 2 begins and the player is encouraged to play the special they have on
+   * hand (it's a small one because we want the opponent to beat it)… we'll teach the player to use leyline
+   * ascension to save their shields."*
+   * IT ABSORBS THE QUICKS LESSON, and that is the point rather than a saving: a Quick is only meaningful as
+   * a thing you cast INTO a window, and the windows are the phases. Both base ♦ Quicks appear, answering
+   * DIFFERENT windows — Counter Spell a cast, Leyline a shield loss — which is the fact that makes "priority
+   * window" a real idea instead of a word.
+   * ⚠ ROUND 1 IS JABS-ONLY (an engine rule), which is why the counter happens over a SINGLE and the pair
+   * waits for round 2. Designing it the other way round is the obvious mistake.
+   * THE ARITHMETIC IS EXACT AND LOAD-BEARING: you lead A♦ (14); the Rival holds K♦ (13), which only beats it
+   * with ♦5 Infuse with Magic (+4 → 17). Counter the Infuse and the King is 13 against 14, so they cannot
+   * beat it and pass — the lesson's claim is then literally true rather than staged. Infuse is also the card
+   * from Aj's own logged game, lost to Kings because it was counterspelled. */
+  var tutPhAce=null, tutPhPair=null, tutPhCounter=null, tutPhLey=null;
+  function tutRigPhases(st){
+    var me=st.players[0], foe=st.players[1];
+    /* EVERY CARD EITHER SIDE HOLDS IS LISTED HERE — Aj: *"please make it so that there is an exact sequence
+     * to the cards that will be used in the tutorial so that the starting hand is not random."* Fabricated
+     * with `tutCard` for the same reason the twos lesson does: a class deck is four COPIES of one suit, so
+     * duplicate rank+suit with distinct ids is ordinary, and art/EFFECTS are keyed by rank+suit. */
+    me.hand = [ tutCard(1,'D','pA'),                                 // round 1: the Ace you lead
+                tutCard(3,'D','p1'), tutCard(3,'D','p2'),            // round 2: the small pair they will beat
+                tutCard(4,'D','pC'),                                 // ⏩ Counter Spell  — answers a CAST
+                tutCard(9,'D','pL'),                                 // ⏩ Leyline Ascension — answers a LOSS
+                tutCard(6,'D','pS') ];                               // a spare, so a draw never empties the hand
+    tutPhAce='1D#pA'; tutPhPair=['3D#p1','3D#p2']; tutPhCounter='4D#pC'; tutPhLey='9D#pL';
+    me.deck = tutDropDupes(me.deck, me.hand);
+    /* 14 ♦ ENERGY, STAGED NOT EARNED. Counter Spell costs 4 and Leyline 9 — thirteen between them, and a
+     * round of fighting banks one card. Without this the finale is simply unaffordable. */
+    me.energy=[]; for(var i=0;i<14;i++) me.energy.push(tutCard(4,'D','pe'+i));
+
+    foe.hand = [ tutCard(13,'D','rK'),                               // round 1: the King, 13 against your 14
+                 tutCard(5,'D','rI'),                                // ♦5 Infuse with Magic (+4) — the cast you counter
+                 tutCard(8,'D','r1'), tutCard(8,'D','r2'),           // round 2: the pair that takes your shield
+                 tutCard(7,'D','rS'), tutCard(2,'D','rT') ];
+    foe.deck = tutDropDupes(foe.deck, foe.hand);
+    foe.energy=[]; for(var e=0;e<14;e++) foe.energy.push(tutCard(4,'D','re'+e));
+    st.turn = st.initiative = 0;                                     // YOU lead — the lesson opens on your turn
+  }
+  /* THE PILOT decides only the Rival's FIGHT, never its cast. The cast runs through `tutCastRivalTech` as a
+   * step's `prep`, because that is what OPENS the response window — and the window is the lesson. Note the
+   * twos pilot deliberately does boost-then-play atomically to SKIP that window; copying it here would have
+   * removed the thing being taught. */
+  function tutPilotPhases(st, p){
+    var log=[], pl=st.players[p], cur=st.pile ? st.pile.combo : null;
+    function play(cards){ var r=E.play(st, p, cards); if(r && r.ok!==false){ log.push({ fight:'play', combo:r.combo }); return true; } return false; }
+    function rank(n,k){ return pl.hand.filter(function(c){ return c.rank===n; }).slice(0,k||1); }
+    if(cur){
+      /* Round 1 is a single: the King only beats the Ace while the boost is banked, so `E.play` itself is
+         the arbiter — countered, this refuses and we fall through to the pass. No round test needed. */
+      if(cur.size===1 && play(rank(13,1))) return log;
+      if(cur.size===2 && play(rank(8,2))) return log;
+    }
+    /* ⚠ ONLY LOG A PASS THAT ACTUALLY HAPPENED. The first cut pushed `{fight:'pass'}` whatever `E.pass`
+       returned, so a REFUSED pass — "Not your turn", which this pilot gets whenever the driver polls it off
+       turn — was reported to the driver as a real action. Measured: "Rival 2 passed." twice in one round,
+       and round 2 opening with `turn 1, init 0` when the log said "You won the round of Jabs" — the round
+       winner holding initiative but not the turn. An empty log is the honest answer to "I could not act". */
+    var r=E.pass(st, p);
+    if(r && r.ok!==false) log.push({ fight:'pass', result:r });
+    return log;
+  }
   function tutPrepQuick(){
     var me=state.players[YOU];
     function isCounter(c){ var e=E.effectOf(c); return e && e.impl && e.quick && e.name==='Counter Spell'; }
@@ -12333,6 +12403,44 @@ window.CardFace = {};
     me.shuffle=me.shuffle||[]; var s1=me.deck.length?me.deck.shift():null; if(s1) me.shuffle.push(s1); var s2=me.deck.length?me.deck.shift():null; if(s2) me.shuffle.push(s2);
     st.turn=st.initiative=0;
   }
+  /* THE PHASES LESSON'S SCRIPT. Eleven steps over TWO rounds, six of them gated — the arc is Aj's
+   * (2026-09-25) and the ordering is forced by an engine rule: round 1 is JABS ONLY, so the counter happens
+   * over a single and the pair waits for round 2.
+   * WHAT EACH ROUND IS FOR: round 1 teaches the phases by walking them; round 2 teaches that the SAME
+   * structure holds when you have nothing to activate, and pays it off with the second Quick. */
+  function lessonPhasesSteps(){
+    var hw='#handWrap';
+    return [
+      { text:"Every round runs the same four phases: <b>Beginning → Play → Resolution → Clean-up</b>. You don’t have to memorise them — <b>your hand changes colour</b> for each one. Watch the strip behind your cards.", hi:hw, btn:"Start the round ▸" },
+      { text:"<b>Blue</b> — you’re in the <b>Main sub-phase</b>, the first half of the Play Phase. Here you may use <b>effects</b>, but you can’t fight yet.", hi:hw, btn:"Next ▸" },
+      { text:"Press <b>Fight</b> and watch closely: <b>nothing gets played</b>. That button is a <b>doorway</b> — it only moves you from Main into the <b>Fight sub-phase</b>. The colour turns red.",
+        hi:'#fightBtn', gate:function(t){ return t==='transition'; }, wait:"Press Fight to step through…" },
+      { text:"<b>Red</b> — the <b>Fight sub-phase</b>. <i>Now</i> cards go down. Lead your <b>Ace</b>.",
+        only:function(){ return tutPhAce?[tutPhAce]:null; }, hi:function(){ return tutPhAce?('#hand .card[data-id="'+tutPhAce+'"]'):'#hand'; },
+        gate:function(t){ return t==='play'; }, wait:"Lead the Ace…" },
+      { text:"Their turn — and they’re casting <b>Infuse with Magic</b> to push their King past your Ace.<br><br><b>Their play opens a window for you.</b> That’s what priority means: nobody acts unpaused. Spring <b>Counter Spell</b>.",
+        prep:tutCastRivalTech, hi:'#hand', gate:function(t,d){ return t==='respond' && d && d.countered; }, wait:"Counter the Technique…" },
+      /* ⚠ NARRATION, NOT A GATE, AND THE FIRST CUT GOT THIS WRONG. Gating on `roundwin` hangs: countering
+         resolves the whole round — the Rival passes, you win, the round turns over — BEFORE this step is
+         ever shown, so the event has already fired and the gate can never be satisfied. Measured: the
+         probe stopped here with `round:2` already on the board. Anything that happens as a CONSEQUENCE of
+         the previous step's gate must be narrated, never gated. */
+      { text:"🌀 <b>Countered.</b> Without the boost their King is a <b>13</b> against your <b>14</b> — they can’t beat it, so they <b>pass</b>. The round is yours, and so is the <b>initiative</b>.", hi:hw, btn:"Next ▸" },
+      /* AND THE THREE COLOURS ARE DESCRIBED IN THE PAST TENSE for the same reason: Resolution, Clean-up and
+         the next Beginning all went by while the round turned over. Promising a pause we cannot deliver
+         would be worse than naming them honestly — the player sees them again every round from here. */
+      { text:"Three colours just went by. <b>Orange</b> was <b>Resolution</b> — where the round’s outcome lands and shields break. <b>Yellow</b> was <b>Clean-up</b>, closing it out. Then <b>green</b>: a new <b>Beginning Phase</b> dealing your cards in. Watch for them each round.", hi:hw, btn:"Next ▸" },
+      { text:"This time there’s nothing worth activating — and that’s fine. <b>Fight still takes you out of Main.</b> Press it, then lead your <b>pair of 3s</b>.",
+        only:function(){ return tutPhPair; },
+        hi:function(){ return tutPhPair ? tutPhPair.map(function(id){ return '#hand .card[data-id="'+id+'"]'; }).join(',') : '#hand'; },
+        gate:function(t){ return t==='play'; }, wait:"Press Fight, then lead the pair…" },
+      { text:"Their pair of <b>8s</b> tops your <b>3s</b> — and a <b>Special</b> losing costs you a <b>shield</b>.<br><br>But <b>Resolution opens a window too</b>, and a <b>different</b> Quick answers this one. Spring <b>Leyline Ascension</b>: <i>you can’t lose this round.</i>",
+        hi:'#hand', gate:function(t){ return t==='respond' || t==='shield'; }, wait:"Spring Leyline Ascension…" },
+      { text:"Shield saved. Two Quicks, <b>two different windows</b> — Counter Spell answered a <b>cast</b>, Leyline answered a <b>loss</b>.<br><br>Windows can stop you often, so the <b>🔔 button</b> sets how often: <b>ON</b> every legal window · <b>AUTO</b> only when something’s at stake · <b>OFF</b> never — it passes for you and notes it in the log.",
+        hi:'#promptMode', btn:"Finish" }
+    ];
+  }
+
   function lessonZonesSteps(){
     return [
       { text:"A quick tour of the <b>five zones</b>. First, your <b>Hand</b> — the cards you’re holding, ready to fight or activate.", hi:'#hand', btn:"Next ▸" },
@@ -12346,16 +12454,21 @@ window.CardFace = {};
   var LESSONS=[
     { id:'howto',      num:1 , section:'Basics',   title:'How to Play',        blurb:'A full guided duel — the whole loop, start to finish.',          ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonHowToSteps },
     { id:'zones',      num:2 , section:'Basics',   title:'Zones of Play',      blurb:'Deck, hand, play area, energy pile, shuffle pile.',               ready:true,  basics:true,             rig:tutRigZones,     steps:lessonZonesSteps },
-    { id:'specials',   num:3 , section:'Basics',   title:'Specials',           blurb:'The combos that break shields — pairs, trios, straights, houses.', ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonSpecialsSteps },
-    { id:'twos',       num:4 , section:'Basics',   title:'The 2',              pilot:tutPilotTwos,              blurb:'The apex trump \u2014 and why it becomes your lowest card.',      ready:true,  basics:true,             rig:tutRigTwos,      steps:lessonTwosSteps },
+    { id:'phases',     num:3 , section:'Basics',   title:'Phases',             pilot:tutPilotPhases,            blurb:'The four phases, the windows between them \u2014 and the two Quicks that answer them.', ready:true,  basics:true,  shields:2, rig:tutRigPhases,    steps:lessonPhasesSteps },
+    { id:'specials',   num:4 , section:'Basics',   title:'Specials',           blurb:'The combos that break shields — pairs, trios, straights, houses.', ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonSpecialsSteps },
+    { id:'twos',       num:5 , section:'Basics',   title:'The 2',              pilot:tutPilotTwos,              blurb:'The apex trump \u2014 and why it becomes your lowest card.',      ready:true,  basics:true,             rig:tutRigTwos,      steps:lessonTwosSteps },
     /* BASICS, straight after `specials` (Aj, 2026-09-01: *"oh the 2 is a basic tutorial probably after
      * specials"*). That is where a player first makes five-card plays, which is the exact moment the 2's second
      * rule starts to matter — it was parked at the end only because inserting here renumbers the lessons below.
      * Runs in BASICS MODE: `basics` gates transforms only, and `NO_FULL_HOUSE` is an unrelated homebrew rule,
      * so the full house this lesson turns on is unaffected. */
-    { id:'initiative', num:5 , section:'Basics',   title:'Initiative',         blurb:'Who leads — and why giving up the lead isn’t so bad.',           ready:true,  basics:true,  shields:2, rig:tutRigInitiative, steps:lessonInitiativeSteps },
-    { id:'energy',     num:6 , section:'Basics',   title:'Energy & Effects',   blurb:'Bank energy, spend it on card effects, keep your deck alive.',    ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonEnergySteps },
-    { id:'quicks',     num:7 , section:'Advanced', title:'Quicks',             blurb:'Cards you can play in response — even on the Rival’s turn.',      ready:true,  basics:false,            rig:tutRigQuicks,    steps:lessonQuicksSteps },
+    { id:'initiative', num:6 , section:'Basics',   title:'Initiative',         blurb:'Who leads — and why giving up the lead isn’t so bad.',           ready:true,  basics:true,  shields:2, rig:tutRigInitiative, steps:lessonInitiativeSteps },
+    { id:'energy',     num:7 , section:'Basics',   title:'Energy & Effects',   blurb:'Bank energy, spend it on card effects, keep your deck alive.',    ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonEnergySteps },
+    /* ⚠ `quicks` IS NOT MISSING — IT WAS ABSORBED INTO `phases` (2026-09-25, Aj: *"we'll have to move
+     * quicks to basics and maybe even integrate it"*). A Quick is only meaningful as a thing you cast INTO
+     * a window, and the windows are the phases; teaching them apart is what left a Basics player with no
+     * on-ramp to either. Its assertions were ported into `lessontest_phases` rather than dropped.
+     * Do not re-add it as a separate lesson without deciding what `phases` then stops teaching. */
     { id:'rides',      num:8 , section:'Advanced', title:'Rides',              blurb:'The J — a persistent companion that helps you out.',              ready:true,  basics:false,            rig:tutRigRides,     steps:lessonRidesSteps },
     { id:'forms',      num:9 , section:'Advanced', title:'Form Changes',       blurb:'The Q &amp; K — transformations that upgrade your cards’ effects.', ready:true,  basics:false,            rig:tutRigForms,     steps:lessonFormsSteps },
     { id:'decks',      num:10, section:'Advanced', title:'Custom Decks',      blurb:'Build your own 52-card deck out of class parts.',              ready:true,  basics:false,            rig:tutRig,          steps:lessonDecksSteps },
