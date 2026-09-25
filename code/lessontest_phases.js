@@ -50,6 +50,28 @@ const { clickFight } = require('./fightclick');
   await next(); ok(await atStep(2), 'step 2 names the blue Main sub-phase');
   await next(); ok(await atStep(3), 'step 3 asks you to press Fight');
 
+  /* THE STEP LOCKS ACTIONS (Aj, 2026-09-25: *"i should not be able to click outside of the tutorial's
+     intent here as it will break the tutorial"*, then *"lock actions, leave reading"*). Staging a card on
+     THIS step is what made its own claim false — `doFight` is only a doorway on an empty selection, so
+     with a card up it transitioned AND played, and Aj "skipped through the fight phase".
+     ⚠ ANY PROBE THAT CLICKS MUST CLICK BACK, or the leftover selection stages a fight and every later
+     assertion reads a board the suite broke itself. */
+  const actState = await p.evaluate(()=>{
+    const g=document.querySelector('#hand .group'); if(!g) return 'no card';
+    g.click();
+    const a=document.getElementById('cardActivate');
+    const out = !a ? 'absent' : ((a.disabled || a.classList.contains('off')) ? 'refused' : 'LIVE');
+    const c=document.getElementById('clearBtn'); if(c && !c.disabled) c.click();
+    [].forEach.call(document.querySelectorAll('#hand .card.sel'), el=>el.click());
+    return out;
+  });
+  ok(actState==='refused' || actState==='absent',
+     'THE DOORWAY STEP REFUSES AN ACTIVATION — you cannot act outside the step\'s intent  ['+actState+']');
+  /* AND READING STAYS FREE — the half Aj asked for by name: *"especially allow the peeks, it helps people
+     see the color changes"*. A lock that also locked the reader would teach nothing. */
+  ok(await p.evaluate(()=>{ const s=document.getElementById('sortBtn'); return !!s && !s.disabled; }),
+     '…while Sort stays live, because reading and organising are not acting');
+
   /* THE DOORWAY — the lesson's headline claim, and the one players most misread. Count the hand BEFORE and
      AFTER: the whole point is that Fight moves you a sub-phase and plays NOTHING. */
   const handBefore = (await st()).players[0].hand.length;

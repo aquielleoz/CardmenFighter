@@ -1087,30 +1087,19 @@ never read.*
   inventing a layout rather than restoring the one the compact form was compacted FROM.
   `[id: answered-quick-no-animation]`
 
-- `root cause found`    · **THE CUSTOM DECKS LESSON CANNOT BE LEFT ONCE THE BUILDER OPENS** (Aj, 2026-09-17,
-  playing it: *"phew can't exit out of the custom deck tutorial"*). Deferred to `main` by his call —
-  *"we can fix this on main later"* — and it is main work: all four markers are on `main`.
-  `[ratchet: tut-panel-buried-by-modal]`
-  **TWO EXITS, BOTH SHUT, AND NEITHER ON ITS OWN WOULD TRAP YOU.**
-  - **Cancel cannot leave.** `tutOpenDeckBuilder`'s continuation re-opens the modal 120ms later whenever
-    `TUT.isActive()`, deliberately — its comment says *"on a cancel it would otherwise strand the step"*.
-    So Cancel is a live button that can only flicker.
-  - **`Skip ✕` cannot be reached.** `#tutPanel` is `z-index:80`; `.overlay` is `--zOverlay`, which resolves
-    to **100000**. Hit-tested at the panel's centre: the point hits `overlay`.
-  Together the only ways out are finishing the deck or reloading the page.
-  **IT WAS CORRECT WHEN BUILT AND A LATER CHANGE BROKE IT** — the same shape as the greying and the stale
-  §5. `.overlay` was **30** when the coach panel was placed at 80, so the panel genuinely sat above it;
-  **v1.31.36 raised the overlay to 100000** to get dialogs over `#netroot` and buried the panel with it.
-  That is the incident CLAUDE.md already records — *"when you raise a z-index, hit-test every layer
-  positioned relative to it"* — and the coach panel is the layer that was missed.
-  **AND `lessontest` SAID THE OPPOSITE WHILE GREEN.** It asserted `zIndex === '80'` and labelled it
-  *"coach panel sits above the modal"*: a NUMBER standing in for a RELATIONSHIP, so it kept passing when
-  the other side of the comparison moved. It is a hit-test now, ratcheted in the broken direction.
-  **THE FIX IS NOT "RAISE `#tutPanel`".** The z-index family derives from `--zNetroot` and the peek panels
-  sit at +2/+3, so whatever the coach panel gets has to be hit-tested against peek as well — that coupling
-  is why this is its own change. The Cancel half is separate and is CLAUDE.md's documented pattern: an
-  action that cannot satisfy a gated step should be DISABLED with a visible note, not silently undone.
-  `[id: tut-panel-buried-by-modal]`
+- `ready to build`      · **THE DECK BUILDER'S CANCEL IS A LIVE BUTTON THAT CAN ONLY FLICKER.**
+  `tutOpenDeckBuilder`'s continuation re-opens the modal 120ms later whenever `TUT.isActive()`,
+  deliberately — its comment says *"on a cancel it would otherwise strand the step"*. So pressing Cancel
+  during the Custom Decks lesson closes the builder and then watches it come straight back.
+  **THIS IS THE RESIDUE OF `tut-panel-buried-by-modal`, WHICH IS CLOSED (2026-09-25).** That entry was a
+  TRAP — two exits shut at once, so the lesson could only be finished or reloaded. `Skip ✕` is reachable
+  now (`--zTut`, hit-tested in `lessontest`), so the lesson can be left and nobody is stuck. What is left
+  is a manners bug, not a trap, which is why it is its own entry rather than a reopened one.
+  **THE REMEDY IS THIS REPO'S OWN DOCUMENTED PATTERN** and not a new idea: an action that cannot satisfy
+  a gated step should be DISABLED with a visible note, never silently undone — exactly what was done for
+  "Let it resolve" in the Quicks lesson. Disable Cancel while the step needs the builder, say why, and
+  delete the re-open.
+  `[id: decks-cancel-flickers]`
 
 - `ready to build`      · **A CLIENT IS NEVER TOLD ITS OWN DRAW FIZZLED** (found 2026-09-18 by the `logMsg` audit Aj
   asked for after *"i didn't see round 1 jabs only for the client"*). Filed for `main`.

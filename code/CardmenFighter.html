@@ -9346,6 +9346,14 @@ window.CardFace = {};
   // Why the effect can't be activated right now (a short reason), or null if it can. Assumes
   // activatableCard(card) is already true. This decides whether the shown button is GREYED OUT.
   function activateBlock(card){
+    /* ⚠ THE LESSON LOCK LIVES HERE AS WELL AS IN `ctxActionFor`, AND THAT IS NOT DUPLICATION — they are
+       the two halves this function's own comment below is about. `ctxActionFor` is the ACTION path (the
+       drag release calls its `.run()`); this is the DISPLAY path that greys the ⚡ and writes the reason.
+       Guarding only the action left the button looking live, which is the v1.31.74 enabled-but-inert bug:
+       from the outside, a control that does nothing is indistinguishable from a hang. Measured — the
+       suite read `LIVE` with the action already refused. */
+    if(typeof TUT!=='undefined' && TUT.acceptsActivate && !TUT.acceptsActivate())
+      return (TUT.onlyHint && TUT.onlyHint()) || 'Not this step — follow the step above.';
     var eff=E.effectOf(card);
     /* THE SUB-PHASE REFUSAL HAS TO BE HERE TOO, OR THE UI OFFERS WHAT THE ENGINE REFUSES (2026-09-16).
        `activate` gained a `subPhase === 'play'` gate when Aj reported activating in the Fight Sub-Phase;
@@ -9733,6 +9741,17 @@ window.CardFace = {};
   }
   function canHumanPlay(cards){
     if(state.turn!==YOU || state.finished || busy || pick || targeting || targetPick || E.isLocked(state, YOU)) return false;
+    /* ⚠ AND A DRAG OBEYS THE LESSON'S CARD LIST TOO. `only` was enforced in `updateActions`, which is the
+       FIGHT BUTTON's path — a drag-to-play never passes through it, so a lesson could be broken by
+       dragging what it had just refused to let you press Fight with. Same shape as the v1.31.56 client
+       guard, where clicking Fight was covered and dragging was not; the answer is the same one, put the
+       check in the funnel both paths share. This also greys the drop zone, so the refusal is visible
+       before the release rather than a card that silently will not go down. */
+    var need=(typeof TUT!=='undefined' && TUT.needCards) ? TUT.needCards() : null;
+    if(need){
+      var got=cards.map(function(c){ return c.id; }).sort().join(',');
+      if(got !== need.slice().sort().join(',')) return false;
+    }
     return !!fightLegal(cards);
   }
   // Shared by the Fight button and drag-to-play.
@@ -9797,6 +9816,16 @@ window.CardFace = {};
      drag, instead of after you let go. */
   function ctxAction(){ return ctxActionFor(selectedCards()); }
   function ctxActionFor(sel){
+    /* ⚠ A GATED LESSON STEP LOCKS ACTIONS, AND THIS IS THE FUNNEL THEY ALL COME THROUGH — the ⚡ button
+       reads its result for both enabled-ness and the reason, and the Main Sub-Phase drag release calls
+       `.run()` on it. Guarding here rather than at the button is the rule this file already carries from
+       `playCards`: a new entry point is covered for free.
+       READING STAYS FREE, which is Aj's line: *"lock actions, leave reading. especially allow the peeks,
+       it helps people see the color changes"*. Sort, Clear, the card reader and Peek are untouched —
+       none of them changes the game. */
+    if(typeof TUT!=='undefined' && TUT.acceptsActivate && !TUT.acceptsActivate())
+      return {mode:'activate', label:'⚡ Activate', ok:false, run:null,
+              reason:(TUT.onlyHint && TUT.onlyHint()) || 'Not this step — follow the step above.'};
     // a staged target waits on an explicit confirm — the button IS the confirm
     if(targetPick && targetPick.chosen!=null)
       return {mode:'activate', label:'⚡ Activate', ok:true, reason:'', gold:true, run:function(){ confirmTargetPick(); }};
@@ -12067,8 +12096,32 @@ window.CardFace = {};
     function needCards(){ var st=steps[i]; if(!active||!st||!st.only) return null;
       try{ var r=st.only(); return Object.prototype.toString.call(r)==='[object Array]' ? r : null; }catch(e){ return null; } }
     function onlyHint(){ var st=steps[i]; return (active && st && st.onlyHint) ? st.onlyHint : null; }
+    /* DOES THE CURRENT STEP ACCEPT AN ACTIVATION? ASK ITS OWN GATE (Aj, 2026-09-25: *"lock actions, leave
+       reading"*). A gate is a pure predicate of (type, data), so probing it with `'activate'` answers the
+       question without a new per-step flag to remember — `t==='activate'` says yes, `t==='play'` and
+       `t==='decline'` say no. A TOUR step (no gate) locks nothing: it already holds the board.
+       WHY DERIVE RATHER THAN DECLARE: every step would have to carry the flag, and the one that forgot it
+       would be the one that breaks — the same reason `keepsTheWin` reads `effectFor` itself instead of
+       trusting its caller. Wrapped, because a gate written for one event may not expect another's data. */
+    /* DOES THE CURRENT STEP WANT AN ACTIVATION? READ ITS SPOTLIGHT (Aj, 2026-09-25: *"lock actions, leave
+       reading"*). Every step in the game that expects one points `hi` at `#cardActivate` — energy, decks,
+       rides, forms, the twos boost — because it has to tell the player which control to press. So the
+       spotlight already carries the answer and no step needs a new flag it could forget.
+       ⚠ TWO CHEAPER IDEAS FAILED FIRST, and both broke real lessons. Probing the gate with
+       `gate('activate', {})` cannot tell "wrong event TYPE" from "wrong event DATA": the rides and forms
+       gates read `d.kind === 'transform'`, so they return a clean `false` for an empty probe and the very
+       steps whose job is to be activated through were locked (`rides` 10/5, `forms` 10/5). Treating a
+       THROW as consent did not help either, because those gates do not throw — they just answer no.
+       A TOUR STEP LOCKS NOTHING: it has no gate and already holds the board. */
+    function acceptsActivate(){
+      var st=steps[i]; if(!active || !st || !st.gate) return true;
+      var h=st.hi; if(typeof h==='function'){ try{ h=h(); }catch(e){ return true; } }
+      if(!h) return false;
+      var flat=(Object.prototype.toString.call(h)==='[object Array]') ? h.join(',') : String(h);
+      return flat.indexOf('#cardActivate')>=0 || flat.indexOf('#ctxBtn')>=0;
+    }
     function blocking(){ return active && !!steps[i] && !steps[i].gate; }   // a READ step (no action gate): hold the board until they press the button, so they can't play ahead of the lesson
-    return { start:start, note:note, stop:stop, skip:skip, reapply:reapply, needSpecial:needSpecial, needCards:needCards, onlyHint:onlyHint, blocking:blocking, isActive:function(){return active;} };
+    return { start:start, note:note, stop:stop, skip:skip, reapply:reapply, needSpecial:needSpecial, needCards:needCards, onlyHint:onlyHint, acceptsActivate:acceptsActivate, blocking:blocking, isActive:function(){return active;} };
   })();
 
   // Rig a controlled opening so each lesson reliably works: a couple of strong jabs, a pair, a cheap effect
