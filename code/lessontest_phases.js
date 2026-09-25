@@ -137,43 +137,36 @@ const { clickFight } = require('./fightclick');
   await trace('at step 6');
   console.log('   LOG: ' + (await p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'),e=>e.textContent.trim())
     .filter(t=>/won|round|pass|played|Countered/i.test(t)).slice(-6).join('  ||  '))));
-  /* THE TWO PHASE PAUSES — the whole point of naming `resolution` and `cleanup` in the lesson's `windows`.
-     Each is a REAL priority window the engine opens at that boundary, and each is declined, so the lesson's
-     claim ("a window opens at every boundary, and passing is a legitimate answer") is exercised rather than
-     asserted. They sit in ROUND 1 deliberately: a window needs a castable Quick, and the 9♦ is still in
-     hand here — by round 2 it is spent and neither boundary would stop for anything.
-     AND THE ROUND CANNOT TURN OVER UNTIL BOTH ARE ANSWERED, which is why the "round 2 has begun" poll now
-     lives below them rather than beside the counter. */
-  /* THE TWO PHASE PAUSES — the point of naming `resolution` and `cleanup` in the lesson's `windows`.
-     WAIT FOR EACH BOUNDARY, DO NOT SAMPLE IT: the Rival is still finishing its turn when the step opens, so
-     both flags are null for a moment. An earlier cut tested immediately, declined nothing, and concluded
-     round 1 had no Resolution window — it has one.
-     AND DECLINE UNTIL THE PHASE ENDS, because each boundary's go-round comes back; "declined once" and
-     "finished" are different events, which is exactly what the steps' own gates say. */
-  const drainPhase = async(flag, label)=>{
-    const began = await until(f=>!!window.__solo.st()[f], label+' to begin', 25000, flag);
-    if(!began) return { began:false, cleared:0, cls:[] };
-    await note(); const c = await cls();
-    let cleared = 0;
-    for(let i=0;i<6 && await p.evaluate(f=>!!window.__solo.st()[f], flag); i++) if(await declineWindow(20000)) cleared++;
-    return { began:true, cleared, cls:c };
-  };
-
+  /* THE TWO PHASE PAUSES ARE CEREMONY HOLDS NOW, NOT FORCED WINDOWS (Aj, 2026-09-25). The lesson used to
+     name `resolution`/`cleanup` in `windows`, which forces a real priority window — so the player was
+     asked to DECLINE something on a round they had just won: *"i was still prompted for the leyline on a
+     round i won … it's crude"*. Now the ceremony simply parks on the beat, the strip holds that phase's
+     colour, and Next releases it.
+     ASSERT THE COLOUR WHILE IT IS HELD, which is the only thing that proves the hold happened: a step
+     that merely rendered would show whatever phase the board had raced on to. */
+  /* ⚠ WAIT FOR THE HOLD TO ENGAGE BEFORE CLICKING NEXT. The step opens while the Rival is still
+     finishing its turn, so the ceremony has not reached the beat yet — sampling now reads `spIdle`, and
+     worse, releasing now means the hold is never taken at all: when the ceremony finally asks, the
+     lesson has already moved to the NEXT step and `hold:'resolve'` no longer matches, so it sails
+     through the phase it meant to pause on. Both halves measured.
+     THE STRIP IS THE SIGNAL and it is also the claim, so polling it and asserting it are the same act. */
   await next(); ok(await atStep(7), 'step 7 is the ORANGE pause — Resolution');
-  const res = await drainPhase('resolution', 'Resolution');
-  ok(res.began, 'RESOLUTION REALLY IS A BOUNDARY — the engine opens the phase and holds there');
-  ok(res.cls.indexOf('spResolve')>=0, 'AND THE HAND IS ORANGE WHILE IT WAITS  ['+res.cls.join(',')+']');
-  ok(res.cleared>=1, '…and it stopped for you — '+res.cleared+' window(s) declined before the phase ended');
-  ok(await atStep(8), 'finishing Resolution advanced the lesson to step 8 — the yellow pause');
+  const heldRes = await until(()=>/spResolve/.test((document.getElementById('handWrap')||{}).className||''),
+                              'the ceremony to park in Resolution', 25000);
+  await note();
+  ok(heldRes, 'THE CEREMONY IS PARKED IN RESOLUTION — the strip is orange while you read  ['+(await cls()).join(',')+']');
+  ok(await p.evaluate(()=>{ const d=document.getElementById('respDecline'); return !d || !d.offsetParent; }),
+     '…and NO window was forced open to get the pause — nothing to decline on a round you won');
 
-  const cln = await drainPhase('cleanup', 'Clean-up');
-  ok(cln.began, 'CLEAN-UP REALLY IS A BOUNDARY TOO');
-  ok(cln.cls.indexOf('spCleanup')>=0, 'AND THE HAND IS YELLOW WHILE IT WAITS  ['+cln.cls.join(',')+']');
-  ok(cln.cleared>=1, '…and it stopped for you — '+cln.cleared+' window(s) declined before the phase ended');
-  ok(await atStep(9), 'finishing Clean-up advanced the lesson to step 9 — the pair');
+  await next(); ok(await atStep(8), 'releasing it advanced to step 8 — the yellow pause');
+  const heldCln = await until(()=>/spCleanup/.test((document.getElementById('handWrap')||{}).className||''),
+                              'the ceremony to park in Clean-up', 25000);
+  await note();
+  ok(heldCln, 'THE CEREMONY IS PARKED IN CLEAN-UP — the strip is yellow while you read  ['+(await cls()).join(',')+']');
+
+  await next(); ok(await atStep(9), 'releasing it advanced to step 9 — the pair');
   ok(await until(()=>window.__solo.st().round>=2, 'the round resolves in your favour', 20000),
      '…and only THEN does round 2 begin  [round '+((await st()).round)+']');
-  await note();          // the round-2 deal: the Beginning tint, now held for the whole fly-in
   await trace('at step 9');
   await note();
 

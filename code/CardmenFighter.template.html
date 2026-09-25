@@ -2237,7 +2237,17 @@ __QR__
     if(!state || !E.stakeFor) return false;
     if(PROMPT_MODE==='off') return false;   // the one place a player may knowingly decline a stake — see the mode note
 
-    if(!lessonAllowsWindow(timing)) return false;                                  // a scripted lesson writes its own windows — unless it asked for this one
+    /* ⚠ NO LESSON GATE HERE, AND THAT IS THE POINT (2026-09-25). This used to refuse inside a tutorial
+       unless the lesson had NAMED the timing, which made a lesson block its own Leyline step the moment
+       the two phase PAUSES stopped needing `windows` — measured: the window never opened, the shield was
+       lost for real, and `9♦` sat in hand.
+       A STAKE IS NOT AN UNSCRIPTED WINDOW. The tutorial guard exists to stop a modal a lesson did not
+       write from derailing a scripted sequence; a shield of yours about to break, with the answer in
+       hand, is a real game event and the rule above says a preference may not cost you that. Being
+       mid-lesson is a weaker claim than a preference, not a stronger one.
+       AND IT IS SELF-LIMITING, which is why it does not reopen the noise problem: `stakeFor` only fires
+       where something is genuinely at risk, so a round you WON stays quiet — which is exactly the
+       complaint that started this (*"i was still prompted for the leyline on a round i won"*). */
     if(timing!=='resolution' && timing!=='respond' && timing!=='prefight' && timing!=='cleanup') return false;   // the engine answers for each; this is just the closed set
     /* ⚠ `cleanup` JOINED THE SET WITH Hand-to-Hand Mastery's stake (2026-09-25). A stake the closed set
        does not list is DEAD CODE that reads as live — `stakeFor` answers, nothing asks. Add the timing
@@ -6032,6 +6042,13 @@ __QR__
     nextTrim();
   }
   // Orchestrate a resolved round: pre-draw beats → end-of-round trim → draw → Round card → continuation.
+  /* PARK A CEREMONY BEAT IF A LESSON WANTS TO TALK ABOUT IT, else run straight on. One definition, used
+     at both beats, so the two cannot drift — and a wrapper rather than a split, because the ceremony's
+     nesting is load-bearing and carving it into new functions is how its tail got orphaned once. */
+  function ceremonyBeat(phase, g, run){
+    if(typeof TUT!=='undefined' && TUT.holdFor && TUT.holdFor(phase, function(){ if(g===gen) run(); })) return;
+    run();
+  }
   function resolveRoundCeremony(res, g, continuation){
     /* ⚠ AND THE CEREMONY ITSELF IS ENTERED ONCE PER RESULT. The guard above catches a stale resume inside
        the trim queue; this catches the other shape — the same `res` orchestrated twice — which would look
@@ -6048,6 +6065,7 @@ __QR__
     holdShields = !reduceMotion() && !!res.shieldStripped;      // defer the shatter to its beat
     uiPhase='resolve';                                          // ← the shatter and the banner ARE Resolution, from the player's side
     render();                                                   // settle board; no fresh cards yet (draw deferred)
+    ceremonyBeat('resolve', g, function(){
     playPreBeats(res, function(){
       if(g!==gen) return;
       /* ← …and the hand-limit trim is Clean-up. IT NEEDS A BEAT OF ITS OWN, because unlike Resolution it
@@ -6058,6 +6076,7 @@ __QR__
          The dwell is what makes the colour honest rather than theoretical, and it is skipped under reduced
          motion like every other beat here. */
       uiPhase='cleanup'; render();
+      ceremonyBeat('cleanup', g, function(){
       setTimeout(function(){
       if(g!==gen) return;
       flushThreshold(function(){                                // a transform tier that just unlocked gets its OWN beat here
@@ -6074,6 +6093,8 @@ __QR__
       });
       });
       }, reduceMotion()?0:420);                                 // the Clean-up beat — see the note above
+      });
+    });
     });
   }
 
@@ -7088,10 +7109,28 @@ __QR__
     }
     function spotNow(){ var st=steps[i]; if(!st) return; var hi=(typeof st.hi==='function')?st.hi():st.hi; applySpot(hi); }
     function reapply(){ if(active) spotNow(); }        // render() rebuilds the hand DOM and wipes .tut-spot — re-add it each paint
-    function next(){ clearSpots(); i++; if(i>=steps.length){ finish(); return; } show(); }
+    /* A STEP MAY HOLD A CEREMONY BEAT (Aj, 2026-09-25: *"do the ceremony beat instead of forcing
+       windows"*). The lesson used to pause at Resolution and Clean-up by naming those timings in
+       `windows`, which FORCES a real priority window open — so the player was asked to decline a window
+       on a round they had just WON, holding a Leyline with nothing at stake. Aj: *"i was still prompted
+       for the leyline on a round i won … it's crude"*. He is right: a pause is a presentation problem,
+       and forcing a rules event to get one is the wrong instrument.
+       `hold:'resolve' | 'cleanup'` instead. The ceremony asks before moving on, a matching step parks it,
+       the strip stays that phase's colour while the player reads, and their Next releases it. No window
+       opens, nothing is declined, and a lesson can pause on a beat that has no priority at all.
+       THE RELEASE RUNS BEFORE THE STEP CHANGES, which is what lets the Clean-up hold find its own step
+       already current when the ceremony gets there. */
+    var holdCb=null;
+    function holdFor(phase, cb){
+      var st=steps[i];
+      if(!active || !st || st.hold !== phase) return false;
+      holdCb = cb; return true;
+    }
+    function releaseHold(){ var cb=holdCb; holdCb=null; if(cb) try{ cb(); }catch(e){} }
+    function next(){ releaseHold(); clearSpots(); i++; if(i>=steps.length){ finish(); return; } show(); }
     function note(type, data){ if(!active) return; var st=steps[i]; if(!st||!st.gate) return; try{ if(st.gate(type, data)) next(); }catch(e){} }
     function start(list){ steps=list||[]; i=0; active=true; var p=panel(); if(p){ p.style.left=''; p.style.top=''; p.style.transform=''; p.style.bottom=''; p.style.right=''; } show(); }
-    function stop(){ active=false; tutorialMode=false; tutPromptRestore(); clearSpots(); var p=panel(); if(p) p.classList.remove('show'); }
+    function stop(){ releaseHold(); active=false; tutorialMode=false; tutPromptRestore(); clearSpots(); var p=panel(); if(p) p.classList.remove('show'); }
     function skip(){ stop(); setMessage('Tutorial dismissed — play on! You can restart it from New Duel.'); }
     function finish(){
       stop();
@@ -7148,7 +7187,7 @@ __QR__
       return flat.indexOf('#cardActivate')>=0 || flat.indexOf('#ctxBtn')>=0;
     }
     function blocking(){ return active && !!steps[i] && !steps[i].gate; }   // a READ step (no action gate): hold the board until they press the button, so they can't play ahead of the lesson
-    return { start:start, note:note, stop:stop, skip:skip, reapply:reapply, needSpecial:needSpecial, needCards:needCards, onlyHint:onlyHint, acceptsActivate:acceptsActivate, blocking:blocking, isActive:function(){return active;} };
+    return { start:start, note:note, stop:stop, skip:skip, reapply:reapply, needSpecial:needSpecial, needCards:needCards, onlyHint:onlyHint, acceptsActivate:acceptsActivate, holdFor:holdFor, blocking:blocking, isActive:function(){return active;} };
   })();
 
   // Rig a controlled opening so each lesson reliably works: a couple of strong jabs, a pair, a cheap effect
@@ -7876,14 +7915,10 @@ __QR__
          reading the phase flags the instant a step opens finds them still null, because the Rival has not
          finished its turn — which is what made an earlier cut conclude, wrongly, that round 1 had no
          Resolution window at all. Wait for the boundary; do not sample it. */
-      { text:"<b>Resolution.</b> This is where the round’s outcome lands: who won, and whose <b>shield</b> breaks. It is a priority point, so you get a say before it sticks — and it comes back round until <b>everyone</b> passes.<br><br>You won this one, so there is nothing to answer. <b>Let it resolve.</b>",
-        only:function(){ return []; }, hi:'#respDecline', prep:function(){ tutPhRound = state ? state.round : 0; },
-        gate:function(t){ return (t==='decline' && !(state && state.resolution)) || (state && state.round > tutPhRound); },
-        wait:"Let Resolution finish…" },
-      { text:"<b>Clean-up.</b> The round closes out here: anything over the hand limit is pitched, and equipment timers tick down. One more boundary, one more window.<br><br>Then the <b>Beginning Phase</b> deals the new round in — and the strip rests again whenever the board is theirs rather than yours. <b>Let it resolve.</b>",
-        only:function(){ return []; }, hi:'#respDecline', prep:function(){ tutPhRound = state ? state.round : 0; },
-        gate:function(t){ return (t==='decline' && !(state && state.cleanup)) || (state && state.round > tutPhRound); },
-        wait:"Let Clean-up finish…" },
+      { text:"<b>Resolution.</b> The round’s outcome lands here: who won, and whose <b>shield</b> breaks. The strip is holding on this phase so you can read it — in an ordinary game it goes by in about a second.",
+        hi:hw, hold:'resolve', btn:"Next ▸" },
+      { text:"<b>Clean-up.</b> The round closes out: anything over the hand limit is pitched, and equipment timers tick down.<br><br>Next comes the <b>Beginning Phase</b>, dealing the new round in — and the strip rests again whenever the board is the Rival’s rather than yours.",
+        hi:hw, hold:'cleanup', btn:"Next ▸" },
       { text:"This time there’s nothing worth activating — and that’s fine. <b>Fight still takes you out of Main.</b> Press it, then lead your <b>pair of 3s</b>.",
         only:function(){ return tutPhPair; },
         hi:function(){ return tutPhPair ? tutPhPair.map(function(id){ return '#hand .card[data-id="'+id+'"]'; }).join(',') : '#hand'; },
@@ -7918,7 +7953,7 @@ __QR__
   var LESSONS=[
     { id:'howto',      num:1 , section:'Basics',   title:'How to Play',        blurb:'A full guided duel — the whole loop, start to finish.',          ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonHowToSteps },
     { id:'zones',      num:2 , section:'Basics',   title:'Zones of Play',      blurb:'Deck, hand, play area, energy pile, shuffle pile.',               ready:true,  basics:true,             rig:tutRigZones,     steps:lessonZonesSteps },
-    { id:'phases',     num:3 , section:'Basics',   title:'Phases',             pilot:tutPilotPhases,            blurb:'The four phases, the windows between them \u2014 and the two Quicks that answer them.', ready:true,  basics:true,  shields:2, windows:['resolution','cleanup'], rig:tutRigPhases,    steps:lessonPhasesSteps },
+    { id:'phases',     num:3 , section:'Basics',   title:'Phases and Quicks', pilot:tutPilotPhases,            blurb:'The four phases, the windows between them \u2014 and the two Quicks that answer them.', ready:true,  basics:true,  shields:2, rig:tutRigPhases,    steps:lessonPhasesSteps },
     { id:'specials',   num:4 , section:'Basics',   title:'Specials',           blurb:'The combos that break shields — pairs, trios, straights, houses.', ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonSpecialsSteps },
     { id:'twos',       num:5 , section:'Basics',   title:'The 2',              pilot:tutPilotTwos,              blurb:'The apex trump \u2014 and why it becomes your lowest card.',      ready:true,  basics:true,             rig:tutRigTwos,      steps:lessonTwosSteps },
     /* BASICS, straight after `specials` (Aj, 2026-09-01: *"oh the 2 is a basic tutorial probably after
