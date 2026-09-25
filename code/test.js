@@ -795,15 +795,21 @@ function cards(ids) { return ids.map(card); }
   var pg = E.newGame(null, { numPlayers: 3 });
   pg.players[0].hand = [sc(3, 'D'), sc(5, 'C')]; pg.players[0].energy = [];   // the 5C is a spare: the engine refuses an activation that would empty your hand
   for (var pe = 0; pe < 3; pe++) pg.players[0].energy.push(sc(4, 'D'));    // p0: Telekinesis only, no Quick to answer with
-  /* p1 ALSO HOLDS LEYLINE (9♦) — restaged 2026-09-10. Targeting is part of casting now, and by the second
-     grant the Telekinesis has been countered, so `counterTargets` is empty and a hand of nothing but
-     Counter Spell can no longer add to the stack. p1 would simply not be offered, and the re-grant this
-     whole block exists to provoke would never happen — the assertion says so rather than passing quietly,
-     which is why it is written to fail on an unreached collision. */
+  /* p1 ALSO HOLDS LEYLINE (9♦) — restaged 2026-09-10. Targeting is part of casting now, so a hand of
+     nothing but Counter Spell could not always add to the stack at the second grant; p1 would simply not
+     be offered and the re-grant this block exists to provoke would never happen. The assertion says so
+     rather than passing quietly, which is why it is written to fail on an unreached collision. */
   pg.players[1].hand = [sc(4, 'D'), sc(9, 'D'), sc(6, 'C')]; pg.players[1].energy = [];
   for (var pe1 = 0; pe1 < 13; pe1++) pg.players[1].energy.push(sc(4, 'D')); // p1: holds Quicks, so it is offered priority
-  pg.players[2].hand = [sc(4, 'D'), sc(7, 'C')]; pg.players[2].energy = [];
-  for (var pe2 = 0; pe2 < 4; pe2++) pg.players[2].energy.push(sc(4, 'D')); // p2: the seat that answers
+  /* ⚠ p2 ANSWERS WITH LEYLINE, NOT A COUNTER SPELL — RESTAGED 2026-09-25 when a counter began REMOVING
+     its target from the stack. The collision this block provokes needs the Technique to still BE there
+     after p2's Quick resolves, and a counter now takes it off, so the old staging emptied the stack and
+     the re-grant could never happen (measured: `o1/1 then null/null`, and the assertion said so rather
+     than passing quietly — which is the whole reason it was written to fail on an unreached collision).
+     ANY Quick clears every object's `passed` set, so Leyline provokes the same re-offer while leaving the
+     object beneath it alone. The mechanism under test is `prioGen`, never the counter. */
+  pg.players[2].hand = [sc(9, 'D'), sc(7, 'C')]; pg.players[2].energy = [];
+  for (var pe2 = 0; pe2 < 13; pe2++) pg.players[2].energy.push(sc(4, 'D')); // p2: the seat that answers
   pg.turn = 0; pg.round = 3; pg.pile = null; pg.lastPlayer = null; pg.passes = 0;
 
   E.activate(pg, 0, '3D', { target: 1 });
@@ -812,7 +818,7 @@ function cards(ids) { return ids.map(card); }
 
   E.declineResponse(pg, 1);                                  // p1 passes on it
   ok(pg.respondFor === 2, 'prioGen: priority moves on to p2 after p1 passes');
-  E.respond(pg, 2, '4D');                                    // p2 answers — this clears every object's passed set
+  E.respond(pg, 2, '9D');                                    // p2 answers — this clears every object's passed set
   E.declineResponse(pg, 1);                                  // drain the window on the Counter Spell itself
 
   var oid2 = pg.pending && pg.pending.oid, gen2 = pg.prioGen, who2 = pg.respondFor;
@@ -2385,6 +2391,32 @@ function cards(ids) { return ids.map(card); }
      'stakeFor · …but NOT once the extra strip is banked — the cast would change nothing');
   ok(E.stakeFor(striker(HECTOR(), [SANC()]), 0, SANC(), 'resolution') === null,
      'stakeFor · …nor for a Quick with no bearing on the strike (Sanctuary while WINNING)');
+  /* A COUNTER TAKES ITS TARGET OFF THE STACK (Aj, 2026-09-25: *"yes, make the counter remove its
+     target"*). It used to MARK the object `countered` and leave it there to be popped later, skip its
+     body and go to its owner's Shuffle Pile — same destination, later moment, and in between priority
+     went round again over an object that was already dead. That extra window is what Aj was looking at
+     when he asked how a counter resolves.
+     ASSERT THE STACK AND BOTH PILES, because "the card reached the Shuffle Pile" was true under the old
+     model too — only the emptied stack tells the two apart. */
+  var cx = E.newGame(null, { numPlayers: 2 });
+  cx.players[1].hand = [{ rank:5, suit:'D', id:'5D' }, { rank:6, suit:'C', id:'6C' }]; cx.players[1].energy = [];
+  for (var cxe = 0; cxe < 13; cxe++) cx.players[1].energy.push({ rank:4, suit:'D', id:'e1_'+cxe });
+  cx.players[0].hand = [{ rank:4, suit:'D', id:'4D' }, { rank:6, suit:'S', id:'6S' }]; cx.players[0].energy = [];
+  for (var cxf = 0; cxf < 13; cxf++) cx.players[0].energy.push({ rank:4, suit:'D', id:'e0_'+cxf });
+  cx.turn = 1; cx.round = 3; cx.pile = null; cx.lastPlayer = null; cx.passes = 0;
+  var castOk = E.activate(cx, 1, '5D');
+  ok(castOk && castOk.ok !== false && cx.stack.length === 1,
+     'counter: staging is live — the Rival\'s Technique is on the stack');
+  var shufBefore = cx.players[1].shuffle.length;
+  E.respond(cx, 0, '4D');
+  ok(cx.stack.length === 0 && cx.respondFor == null,
+     'COUNTER REMOVES ITS TARGET — the stack drains to EMPTY with no window left owed  [stack ' +
+     cx.stack.length + ', respondFor ' + cx.respondFor + ']');
+  ok(cx.players[1].shuffle.length === shufBefore + 1,
+     '…and the countered card still reaches its owner\'s Shuffle Pile, as its text says');
+  ok(cx.players[0].removed.some(function (c) { return c.id === '4D'; }),
+     '…while the Counter Spell itself is removed, which is unchanged');
+
   /* 2b · THE `respond` TIMING BECAME STAKE-DRIVEN (Aj, 2026-09-25), which is only safe because the two
      Quicks that LIVE at that timing were given stakes in the same change. `promptDefault` used to return
      true for `respond` unconditionally, so AUTO stopped you for every Technique an opponent cast whether

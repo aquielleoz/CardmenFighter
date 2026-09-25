@@ -237,7 +237,6 @@
   #stackView{display:none; flex-direction:column; gap:3px; align-items:center; margin:3px 0;}
   .stk{font-size:11px; padding:2px 9px; border-radius:8px; border:1px solid var(--line); background:rgba(255,255,255,.05); opacity:.9;}
   .stk.top{border-color:var(--gold); box-shadow:0 0 8px rgba(232,195,122,.4);}
-  .stk.countered{text-decoration:line-through; opacity:.5;}
   /* The pending Fight End loss is not a stack OBJECT (PHASES-AND-PRIORITY §4) and must not read as one —
      dashed rather than solid, and it never takes .top, because nothing resolves it: it lands when the
      sub-phase begins. Colour comes from the existing danger token so it stays theme-correct in both modes. */
@@ -3517,7 +3516,12 @@
     var top = st.stack.pop();
     if (top.trig) return resolveUpkeepTick(st, top);                 // a triggered ability, not a cast card — no `eff`, no `card`
     var pl = st.players[top.p];
-    if (top.countered) { pl.shuffle.push(top.card); return { ok: true, effect: top.eff.id, kind: top.eff.kind, countered: true, state: st }; }
+    /* THE FIZZLE BRANCH WAS HERE AND IS DELETED (2026-09-25). It handled an object that reached the top
+       of the stack already marked `countered` — skip the body, push the card to its owner's Shuffle Pile.
+       A counter now SPLICES its target out and does that push itself, so nothing sets `countered` on a
+       stack object any more and this could never run. Left in place it would be the worst kind of dead
+       code: a branch describing a lifecycle the engine no longer has, which is exactly how a reader
+       concludes that countered cards linger. `grep "countered = true"` returns nothing. */
     if (top.eff.kind === 'counter') {
       /* NAMED TARGET FIRST, then the old "topmost effect beneath me". The fallback is not legacy cruft: a
          Counter Spell cast with nothing named — the AI, an older peer — must still do something sensible,
@@ -3526,7 +3530,17 @@
       for (var i = st.stack.length - 1; i >= 0; i--) {
         if (st.stack[i].kind !== 'effect') continue;
         if (want && st.stack[i].oid !== want) continue;
-        st.stack[i].countered = true; break;
+        /* OFF THE STACK, NOT MERELY MARKED (Aj, 2026-09-25: *"yes, make the counter remove its target"*).
+           This used to set `countered = true` and leave the object in place to be popped later, skip its
+           body and go to its owner's Shuffle Pile. The card text was honoured either way — only the
+           timing differed — but the object sat on the stack already dead, so PRIORITY WENT ROUND AGAIN
+           OVER IT: a Respond? window offering an answer to a Technique that had just been countered, which
+           is the window Aj was looking at when he asked how a counter resolves.
+           THE SHUFFLE PUSH MOVES HERE WITH IT, so the card still ends where its text says — the
+           destination is unchanged, the moment is not. */
+        var hit = st.stack.splice(i, 1)[0];
+        if (hit.card) st.players[hit.p].shuffle.push(hit.card);
+        break;
       }   // counter the effect beneath
       pl.removed.push(top.card);
       return { ok: true, effect: top.eff.id, kind: 'counter', state: st };
@@ -9072,14 +9086,12 @@ window.CardFace = {};
     for(var i=objs.length-1;i>=0;i--){ var o=objs[i], eff=o.eff, who=logName(o.p), isTop=(i===objs.length-1);
       var label = eff ? (eff.name||'?') : (esc(o.name||'Equipment')+' <span class="who">— upkeep counter</span>');
       var sym = o.card ? (' · '+cardSym(o.card)) : '';
-      /* ⚠ A COUNTERED CARD IS NOT "RESOLVING NEXT" (Aj, 2026-09-25, reading the stack in a real window:
-         *"how is counterspell resolved? doesn't it remove the countered spell from the stack?"*). It does
-         not: `resolveTopEffect`'s counter branch MARKS the target `countered` and leaves it in place, and
-         the card fizzles to its owner's Shuffle Pile when it later reaches the top. So a struck-through
-         line was carrying the tag `(resolves next)` — the strike and the words saying opposite things
-         about the same card, which is exactly the question it prompted. The tag is appended for whatever
-         is on top; it now reads what that top object will actually DO. */
-      html+='<div class="stk'+(isTop?' top':'')+(o.countered?' countered':'')+'"><span class="who">'+who+' ▸</span> '+label+sym+(isTop?(' <span class="who">('+(o.countered?'countered \u2014 fizzles next':'resolves next')+')</span>'):'')+'</div>';
+      /* ⚠ NO `countered` STATE HERE ANY MORE (2026-09-25). This line used to strike the row through and —
+         for one commit, after Aj asked how a counter resolves — tag it "(countered — fizzles next)". Both
+         are unreachable now: a counter SPLICES its target off the stack, so a countered object is never
+         rendered at all. Keeping the branch would leave the UI describing a state the engine cannot
+         produce, which is the `spBegin` mistake of the same day in a different file. */
+      html+='<div class="stk'+(isTop?' top':'')+'"><span class="who">'+who+' ▸</span> '+label+sym+(isTop?' <span class="who">(resolves next)</span>':'')+'</div>';
     }
     if(pendingLoss){
       var lWho=(typeof pendingLoss.winner==='number')?logName(pendingLoss.winner):'The winner';
@@ -12757,16 +12769,17 @@ window.CardFace = {};
         gate:function(t){ return t==='play'; }, wait:"Lead the Ace…" },
       { text:"Their turn — and they’re casting <b>Infuse with Magic</b> to push their King past your Ace.<br><br><b>Their play opens a window for you.</b> That’s what priority means: nobody acts unpaused. Spring <b>Counter Spell</b>.",
         hi:'#hand', gate:function(t,d){ return t==='respond' && d && d.countered; }, wait:"Counter the Technique…" },
-      /* THE GO-ROUND COMES BACK, AND THE LESSON TEACHES IT RATHER THAN HIDING IT. Your Counter Spell
-         resolving does not close the window — priority passes round again on what is left of the stack, which
-         is the fizzled Technique. Measured: `respondFor:0  pending:5D#rI`, a second modal, sitting open
-         forever because nothing in the lesson answered it and the narration step behind it could not be
-         clicked through. Suppressing it was the alternative and it is the wrong one twice over: it is
-         CORRECT behaviour, and it is this lesson's own subject.
-         `only:[]` DELIBERATELY — the board behind the modal must refuse Fight and Pass, because neither can
-         satisfy a gate that wants the window answered. */
-      { text:"Notice the window <b>came back to you</b>. Priority keeps going round after every resolution until <b>everyone</b> passes — that is what stops someone sneaking the last word.<br><br>Their Technique is already countered, so there is nothing worth answering. <b>Let it resolve.</b>",
-        only:function(){ return []; }, hi:'#respDecline', gate:function(t){ return t==='decline'; }, wait:"Let it resolve…" },
+      /* THE "THE WINDOW CAME BACK" STEP WAS HERE AND IS DELETED (2026-09-25). It taught a real behaviour:
+         a counter used to MARK its target and leave it on the stack, so priority went round again over an
+         object that was already dead and you were asked to answer a Technique that had just been
+         countered. Aj saw that window, asked *"how is counterspell resolved? doesn't it remove the
+         countered spell from the stack?"*, and then removed it — so the step now teaches something the
+         game no longer does.
+         IT DID NOT FAIL LOUDLY, WHICH IS WORTH KNOWING. The step simply waited for a window that never
+         opens; its round-stamp recovery then carried the lesson past it, and the damage surfaced two
+         steps later as the ROUND-1 RESOLUTION pause finding its boundary already gone (`lessontest_phases`
+         41/4, the orange assertions). A gated step whose event has been designed away is a silent
+         time-sink for every step after it. */
       /* ⚠ NARRATION, NOT A GATE, AND THE FIRST CUT GOT THIS WRONG. Gating on `roundwin` hangs: countering
          resolves the whole round — the Rival passes, you win, the round turns over — BEFORE this step is
          ever shown, so the event has already fired and the gate can never be satisfied. Measured: the

@@ -1721,7 +1721,12 @@
     var top = st.stack.pop();
     if (top.trig) return resolveUpkeepTick(st, top);                 // a triggered ability, not a cast card — no `eff`, no `card`
     var pl = st.players[top.p];
-    if (top.countered) { pl.shuffle.push(top.card); return { ok: true, effect: top.eff.id, kind: top.eff.kind, countered: true, state: st }; }
+    /* THE FIZZLE BRANCH WAS HERE AND IS DELETED (2026-09-25). It handled an object that reached the top
+       of the stack already marked `countered` — skip the body, push the card to its owner's Shuffle Pile.
+       A counter now SPLICES its target out and does that push itself, so nothing sets `countered` on a
+       stack object any more and this could never run. Left in place it would be the worst kind of dead
+       code: a branch describing a lifecycle the engine no longer has, which is exactly how a reader
+       concludes that countered cards linger. `grep "countered = true"` returns nothing. */
     if (top.eff.kind === 'counter') {
       /* NAMED TARGET FIRST, then the old "topmost effect beneath me". The fallback is not legacy cruft: a
          Counter Spell cast with nothing named — the AI, an older peer — must still do something sensible,
@@ -1730,7 +1735,17 @@
       for (var i = st.stack.length - 1; i >= 0; i--) {
         if (st.stack[i].kind !== 'effect') continue;
         if (want && st.stack[i].oid !== want) continue;
-        st.stack[i].countered = true; break;
+        /* OFF THE STACK, NOT MERELY MARKED (Aj, 2026-09-25: *"yes, make the counter remove its target"*).
+           This used to set `countered = true` and leave the object in place to be popped later, skip its
+           body and go to its owner's Shuffle Pile. The card text was honoured either way — only the
+           timing differed — but the object sat on the stack already dead, so PRIORITY WENT ROUND AGAIN
+           OVER IT: a Respond? window offering an answer to a Technique that had just been countered, which
+           is the window Aj was looking at when he asked how a counter resolves.
+           THE SHUFFLE PUSH MOVES HERE WITH IT, so the card still ends where its text says — the
+           destination is unchanged, the moment is not. */
+        var hit = st.stack.splice(i, 1)[0];
+        if (hit.card) st.players[hit.p].shuffle.push(hit.card);
+        break;
       }   // counter the effect beneath
       pl.removed.push(top.card);
       return { ok: true, effect: top.eff.id, kind: 'counter', state: st };

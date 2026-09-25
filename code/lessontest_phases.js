@@ -94,22 +94,25 @@ const { clickFight } = require('./fightclick');
      coin flip dressed as an assertion. */
   await note();
   ok(await respond('Counter Spell'), '…offering Counter Spell, which we spring');
-  ok(await atStep(6), 'countering advanced the lesson to step 6');
+  ok(await atStep(6), 'countering advanced the lesson to step 6 — straight to the payoff');
 
-  /* THE GO-ROUND COMES BACK — step 6, and the reason this lesson could not finish before it existed.
-     Countering does not close the window: priority passes round again on the fizzled Technique, a SECOND
-     modal opens, and it covers `#tutNextBtn` — so the narration behind it can never be clicked through and
-     every assertion after it fails. Measured `respondFor:0 pending:5D#rI`, stable for 12s.
-     Assert the modal is REALLY there before declining, or a build that stopped opening it passes by
-     skipping straight on. */
-  ok(await declineWindow(), 'THE WINDOW CAME BACK — priority goes round again after your Quick resolves');
-  ok(await atStep(7), 'declining advanced the lesson to step 7');
-  const s6 = await st();
-  ok(s6.players[1].shuffle.some(c=>c.rank===5), 'the Technique really fizzled to the Rival\'s shuffle pile');
+  /* THE GO-ROUND STEP IS GONE (2026-09-25). A counter now splices its target off the stack, so the
+     second window it used to leave — priority coming back round over an already-countered Technique —
+     does not exist, and neither does the step that taught it. Countering advances straight to the
+     narration, so there is nothing to decline here. */
+  /* POLL, DO NOT SNAPSHOT — the counter resolves inside the settle that follows the click, so reading the
+     pile on the next line races it. Since 2026-09-25 the counter SPLICES its target off the stack and
+     pushes the card itself, so this is now the assertion that the removal really happened rather than a
+     later fizzle doing it. */
+  ok(await until(()=>window.__solo.st().players[1].shuffle.some(c=>c.rank===5),
+                 'the countered Technique to reach the shuffle pile', 15000),
+     'the Technique really went to the Rival\'s shuffle pile — removed by the counter, not left on the stack');
+  ok(await p.evaluate(()=>(window.__solo.st().stack||[]).length===0),
+     '…and the stack is EMPTY behind it — no dead object left for priority to go round over');
 
   const trace = async(tag)=>{ const x=await st();
     console.log('   · '+tag+': round '+x.round+' turn '+x.turn+' init '+x.initiative+' sub '+x.subPhase+' pile '+(x.pile?'set':'empty')); };
-  await trace('at step 7');
+  await trace('at step 6');
   console.log('   LOG: ' + (await p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'),e=>e.textContent.trim())
     .filter(t=>/won|round|pass|played|Countered/i.test(t)).slice(-6).join('  ||  '))));
   /* THE TWO PHASE PAUSES — the whole point of naming `resolution` and `cleanup` in the lesson's `windows`.
@@ -134,22 +137,22 @@ const { clickFight } = require('./fightclick');
     return { began:true, cleared, cls:c };
   };
 
-  await next(); ok(await atStep(8), 'step 8 is the ORANGE pause — Resolution');
+  await next(); ok(await atStep(7), 'step 7 is the ORANGE pause — Resolution');
   const res = await drainPhase('resolution', 'Resolution');
   ok(res.began, 'RESOLUTION REALLY IS A BOUNDARY — the engine opens the phase and holds there');
   ok(res.cls.indexOf('spResolve')>=0, 'AND THE HAND IS ORANGE WHILE IT WAITS  ['+res.cls.join(',')+']');
   ok(res.cleared>=1, '…and it stopped for you — '+res.cleared+' window(s) declined before the phase ended');
-  ok(await atStep(9), 'finishing Resolution advanced the lesson to step 9 — the yellow pause');
+  ok(await atStep(8), 'finishing Resolution advanced the lesson to step 8 — the yellow pause');
 
   const cln = await drainPhase('cleanup', 'Clean-up');
   ok(cln.began, 'CLEAN-UP REALLY IS A BOUNDARY TOO');
   ok(cln.cls.indexOf('spCleanup')>=0, 'AND THE HAND IS YELLOW WHILE IT WAITS  ['+cln.cls.join(',')+']');
   ok(cln.cleared>=1, '…and it stopped for you — '+cln.cleared+' window(s) declined before the phase ended');
-  ok(await atStep(10), 'finishing Clean-up advanced the lesson to step 10 — the pair');
+  ok(await atStep(9), 'finishing Clean-up advanced the lesson to step 9 — the pair');
   ok(await until(()=>window.__solo.st().round>=2, 'the round resolves in your favour', 20000),
      '…and only THEN does round 2 begin  [round '+((await st()).round)+']');
   await note();          // the round-2 deal: the Beginning tint, now held for the whole fly-in
-  await trace('at step 10');
+  await trace('at step 9');
   await note();
 
   /* ROUND 2 — the same structure with nothing to activate, which is the step's whole teaching point. */
@@ -162,14 +165,14 @@ const { clickFight } = require('./fightclick');
   await clickFight(p);
   const why8 = await playSpot(15000);
   ok(why8===null, 'you led the pair the step spotlit'+(why8?' — '+why8:''));
-  ok(await atStep(11), 'leading it advanced the lesson to step 11 — the pass');
+  ok(await atStep(10), 'leading it advanced the lesson to step 10 — the pass');
 
   /* PASS FIRST — the Rival beating your pair does NOT end the round, and until it ends there is no
      Resolution and nothing for Leyline to answer. Measured on the build before this step existed: Leyline
      still in hand, the log stopping at "Rival 2 played a Special - Pair (8♦, 8♦)", and the shield
      assertion passing because no shield had ever been at risk. */
   ok(await passTurn(20000), 'you passed, which is what ENDS the round');
-  ok(await atStep(12), 'passing advanced the lesson to step 12 — the Resolution window');
+  ok(await atStep(11), 'passing advanced the lesson to step 11 — the Resolution window');
 
   /* LEYLINE — the SECOND window, answered by a DIFFERENT Quick. Shields before and after is the claim, and
      it means something only because the pass above put a shield at risk. */
@@ -180,7 +183,7 @@ const { clickFight } = require('./fightclick');
   /* A RED RUN MUST EXPLAIN ITSELF — this is the one assertion in the file with somewhere to hide, because
      "the lesson did not advance" is equally true of a gate that never fired, a modal still covering the
      panel, and a step that advanced somewhere unexpected. Print all three. */
-  const stepped = await atStep(13);
+  const stepped = await atStep(12);
   if(!stepped) console.log('   WHY: ' + JSON.stringify(await p.evaluate(()=>{
       const s=window.__solo.st(), b=document.getElementById('respDecline');
       return { panel:((document.querySelector('.tutStep')||{}).textContent||'').trim(),
@@ -191,7 +194,7 @@ const { clickFight } = require('./fightclick');
                resolution:!!s.resolution, cleanup:!!s.cleanup, upkeep:!!s.upkeep,
                shields:s.players[0].shields, hand:s.players[0].hand.map(function(c){return c.id;}),
                log:[].map.call(document.querySelectorAll('#log .le'),function(e){return e.textContent.trim();}).slice(-7) }; })));
-  ok(stepped, 'springing it advanced the lesson to step 13');
+  ok(stepped, 'springing it advanced the lesson to step 12');
   /* ⚠ AND PROVE THE SHIELD COULD HAVE BEEN LOST. "Shields unchanged" is equally true of a board where
      nothing was ever at risk — which is exactly how this assertion passed for three runs while Leyline sat
      unplayed in hand and the round had not even resolved. The losing fight is the other half of the claim. */
