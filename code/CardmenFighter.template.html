@@ -541,11 +541,25 @@
      cool→warm for setting-up→committed; the three new ones carry that round to a loop —
      GREEN arriving · BLUE planning · RED committed · ORANGE resolving · YELLOW closing · green again.
      Same translucency and the same border warming, so a phase reads at a glance on a small screen. */
-  #handWrap.spBegin{ background:rgba(46,160,90,.22);  border-top-color:rgba(120,230,165,.42); }
-  #handWrap.spMain { background:rgba(52,66,168,.22); }
-  #handWrap.spFight{ background:rgba(168,44,86,.26); border-top-color:rgba(255,130,150,.45); }
-  #handWrap.spResolve{ background:rgba(206,116,28,.26); border-top-color:rgba(255,178,96,.48); }
-  #handWrap.spCleanup{ background:rgba(198,172,40,.22); border-top-color:rgba(248,228,120,.44); }
+  /* THE PHASE STRIP IS A TEMPERATURE RAMP, AND THE ORDER IS THE POINT (Aj, 2026-09-25): violet → blue →
+     green → yellow → orange → red → violet. It runs cool-to-hot across a round, so the colour tells you
+     how far through the turn you are without reading anything, and it closes back on violet — the resting
+     colour — while the opponent works. Do not reorder these to "improve" a single hue: the sequence is the
+     information, and a swap that reads better in isolation breaks the ramp.
+     THE VALUES ARE ROTATED, NOT INVENTED. Each background/border pair was already tuned against the board;
+     only which phase owns which pair changed, so the contrast work survives. */
+  /* ⚠ IDLE IS THE RESTING BOARD, NOT A SIXTH TINT — and this restates the base on purpose. `--bg` is
+     `#160e1e` and `--bg2` `#241633`, both violet, and `#handWrap`'s own `rgba(0,0,0,.24)` is TRANSLUCENT
+     over them, so the hand already reads violet with no class at all. Aj: *"i want to keep violet as the
+     usual color"* — it is kept by NOT tinting, which also means the resting strip follows the theme for
+     free if `--bg` ever moves. Named as a class anyway so every phase lands on a defined rule rather than
+     on whatever the previous toggle left behind. */
+  #handWrap.spIdle   { background:rgba(0,0,0,.24); border-top-color:var(--line); }                   /* violet — the resting board */
+  #handWrap.spBegin  { background:rgba(46,104,190,.22); border-top-color:rgba(132,186,255,.44); }   /* blue   — Beginning  */
+  #handWrap.spMain   { background:rgba(46,160,90,.22);  border-top-color:rgba(120,230,165,.42); }   /* green  — Main      */
+  #handWrap.spFight  { background:rgba(198,172,40,.22); border-top-color:rgba(248,228,120,.44); }   /* yellow — Fight     */
+  #handWrap.spResolve{ background:rgba(206,116,28,.26); border-top-color:rgba(255,178,96,.48); }    /* orange — Resolution*/
+  #handWrap.spCleanup{ background:rgba(168,44,86,.26);  border-top-color:rgba(255,130,150,.45); }   /* red    — Clean-up  */
   @media (prefers-reduced-motion:reduce){ #handWrap{transition:none;} }
   #handMeta{display:flex; justify-content:space-between; align-items:center; margin:0 4px 6px; font-size:12.5px; gap:8px; flex-wrap:wrap;}
   #handMeta .you{font-weight:800; color:var(--gold);}
@@ -4073,11 +4087,21 @@ __QR__
     var hw=$('handWrap');
     if(hw){
       var dealingIn = !state.pile && Object.keys(pendingEnter||{}).length>0;
+      /* ⚠ A ROUND-LEVEL PHASE OUTRANKS "NOT YOUR TURN", AND THAT ORDER IS MEASURED RATHER THAN CHOSEN.
+         Beginning, Resolution and Clean-up belong to the TABLE, not to a seat — and `state.turn` during
+         them is the round WINNER's, measured as `turn:1` through both boundaries of a round seat 0 won. So
+         testing the turn first paints violet over every boundary and the ramp loses three of its six
+         colours, including the two a player most needs to notice.
+         VIOLET IS THEREFORE THE OPPONENT'S MAIN/FIGHT — the stretch where the board is genuinely theirs,
+         which is what "in between your own turns" means.
+         `upkeep` joins `dealingIn` for blue because the Beginning Phase IS Untap/Upkeep/Draw; `dealingIn`
+         alone caught only the deal, so the phase's own priority point rendered as something else. */
       var ph = state.cleanup ? 'spCleanup'
              : state.resolution ? 'spResolve'
-             : dealingIn ? 'spBegin'
+             : (state.upkeep || dealingIn) ? 'spBegin'
+             : (state.turn !== YOU) ? 'spIdle'
              : (state.subPhase==='play') ? 'spFight' : 'spMain';
-      ['spBegin','spMain','spFight','spResolve','spCleanup'].forEach(function(c){ hw.classList.toggle(c, c===ph); });
+      ['spIdle','spBegin','spMain','spFight','spResolve','spCleanup'].forEach(function(c){ hw.classList.toggle(c, c===ph); });
     }
     notePhaseEdge();
     syncOrder(false);
@@ -7584,11 +7608,17 @@ __QR__
   function lessonPhasesSteps(){
     var hw='#handWrap';
     return [
-      { text:"Every round runs the same four phases: <b>Beginning → Play → Resolution → Clean-up</b>. You don’t have to memorise them — <b>your hand changes colour</b> for each one. Watch the strip behind your cards.", hi:hw, btn:"Start the round ▸" },
-      { text:"<b>Blue</b> — you’re in the <b>Main sub-phase</b>, the first half of the Play Phase. Here you may use <b>effects</b>, but you can’t fight yet.", hi:hw, btn:"Next ▸" },
-      { text:"Press <b>Fight</b> and watch closely: <b>nothing gets played</b>. That button is a <b>doorway</b> — it only moves you from Main into the <b>Fight sub-phase</b>. The colour turns red.",
+      /* ⚠ THE STEPS NAME THE PHASE, NEVER THE HUE (Aj, 2026-09-25: *"no need to explicitly say the color
+         in the tutorial text. maybe in the future, we can add the option for players to change their color
+         preferences in the settings"*). A lesson that says "blue" is a second copy of the stylesheet
+         written in prose, and it goes wrong the day anybody retunes a swatch — the same rot the apex-2
+         reminder text avoids by DERIVING every claim from the live rule. Point at the strip and name the
+         phase; the strip can then be any colour the player likes. */
+      { text:"Every round runs the same four phases: <b>Beginning → Play → Resolution → Clean-up</b>. You don’t have to memorise them — <b>the strip behind your cards changes colour</b> for each one, and rests while the board is the Rival’s. Watch it. Watch the strip behind your cards.", hi:hw, btn:"Start the round ▸" },
+      { text:"You’re in the <b>Main sub-phase</b>, the first half of the Play Phase. Here you may use <b>effects</b>, but you can’t fight yet.", hi:hw, btn:"Next ▸" },
+      { text:"Press <b>Fight</b> and watch closely: <b>nothing gets played</b>. That button is a <b>doorway</b> — it only moves you from Main into the <b>Fight sub-phase</b>. The strip shifts with you.",
         hi:'#fightBtn', gate:function(t){ return t==='transition'; }, wait:"Press Fight to step through…" },
-      { text:"<b>Red</b> — the <b>Fight sub-phase</b>. <i>Now</i> cards go down. Lead your <b>Ace</b>.",
+      { text:"The strip moved — this is the <b>Fight sub-phase</b>. <i>Now</i> cards go down. Lead your <b>Ace</b>.",
         only:function(){ return tutPhAce?[tutPhAce]:null; }, hi:function(){ return tutPhAce?('#hand .card[data-id="'+tutPhAce+'"]'):'#hand'; },
         gate:function(t){ return t==='play'; }, wait:"Lead the Ace…" },
       { text:"Their turn — and they’re casting <b>Infuse with Magic</b> to push their King past your Ace.<br><br><b>Their play opens a window for you.</b> That’s what priority means: nobody acts unpaused. Spring <b>Counter Spell</b>.",
@@ -7619,10 +7649,10 @@ __QR__
          reading the phase flags the instant a step opens finds them still null, because the Rival has not
          finished its turn — which is what made an earlier cut conclude, wrongly, that round 1 had no
          Resolution window at all. Wait for the boundary; do not sample it. */
-      { text:"<b>Orange — Resolution.</b> This is where the round’s outcome lands: who won, and whose <b>shield</b> breaks. It is a priority point, so you get a say before it sticks — and it comes back round until <b>everyone</b> passes.<br><br>You won this one, so there is nothing to answer. <b>Let it resolve.</b>",
+      { text:"<b>Resolution.</b> This is where the round’s outcome lands: who won, and whose <b>shield</b> breaks. It is a priority point, so you get a say before it sticks — and it comes back round until <b>everyone</b> passes.<br><br>You won this one, so there is nothing to answer. <b>Let it resolve.</b>",
         only:function(){ return []; }, hi:'#respDecline',
         gate:function(t){ return t==='decline' && !(state && state.resolution); }, wait:"Let Resolution finish…" },
-      { text:"<b>Yellow — Clean-up.</b> The round closes out here: anything over the hand limit is pitched, and equipment timers tick down. One more boundary, one more window.<br><br>Then <b>green</b> — the <b>Beginning Phase</b>, dealing the new round in. <b>Let it resolve.</b>",
+      { text:"<b>Clean-up.</b> The round closes out here: anything over the hand limit is pitched, and equipment timers tick down. One more boundary, one more window.<br><br>Then the <b>Beginning Phase</b> deals the new round in — and the strip rests again whenever the board is theirs rather than yours. <b>Let it resolve.</b>",
         only:function(){ return []; }, hi:'#respDecline',
         gate:function(t){ return t==='decline' && !(state && state.cleanup); }, wait:"Let Clean-up finish…" },
       { text:"This time there’s nothing worth activating — and that’s fine. <b>Fight still takes you out of Main.</b> Press it, then lead your <b>pair of 3s</b>.",

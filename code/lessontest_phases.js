@@ -184,13 +184,17 @@ const { clickFight } = require('./fightclick');
   await note();
 
   ok(await p.evaluate(()=>!!document.querySelector('#promptMode')), 'the 🔔 notifications button exists to be pointed at');
-  /* FOUR OF THE FIVE PHASE COLOURS, OBSERVED RATHER THAN ASSUMED — and this is the lesson's headline
-     claim ("your hand changes colour for each one"). Only `spBegin` is absent: the Beginning Phase deals
-     the new round in with nothing to answer, so the lesson never holds still inside it. Before the two
-     pauses existed this could only ever see two colours, because Resolution and Clean-up flashed past
-     between frames. */
-  ok(['spMain','spFight','spResolve','spCleanup'].every(c=>seen.has(c)),
-     'the hand painted FOUR phases across the lesson  ['+[...seen].sort().join(',')+']');
+  /* FIVE OF THE SIX STRIP STATES, OBSERVED RATHER THAN ASSUMED — the lesson's headline claim is that the
+     strip changes with the phase, and this is the only assertion that can check it. `spIdle` counts: it is
+     the RESTING board (no tint, the violet of `--bg` showing through), so seeing it proves the strip goes
+     quiet on the Rival's turn rather than holding the last phase's colour.
+     ONLY `spBegin` IS ABSENT, and that is a property of the lesson rather than a gap: the Beginning Phase
+     deals the new round in with nothing to answer, so no step ever holds still inside it.
+     ⚠ ASSERT THE CLASS, NEVER THE COLOUR. The hues are a preference Aj intends to make player-settable,
+     so a test reading `background` would break the day anyone retunes a swatch — the same reason the step
+     text stopped naming them. */
+  ok(['spIdle','spMain','spFight','spResolve','spCleanup'].every(c=>seen.has(c)),
+     'the strip painted FIVE distinct states across the lesson  ['+[...seen].sort().join(',')+']');
 
   /* CARD ACCOUNTING, ported from `lessontest_quicks`: the rig fabricates an exact hand, and a swap that
      dropped or duplicated a card would still play — so count them. */
