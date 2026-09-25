@@ -2068,11 +2068,14 @@ __QR__
      a stake FORCE one?). They were separate literals until today and would have drifted the moment a
      lesson opted in, because a forced window a lesson did not script is the same derailment by another
      route. */
-  function lessonAllowsWindow(timing){
-    if(typeof tutorialMode==='undefined' || !tutorialMode) return true;   // not a lesson — the player's own prefs decide
-    if(timing==='respond') return true;
+  function lessonNamesWindow(timing){
+    if(typeof tutorialMode==='undefined' || !tutorialMode) return false;
     var w=(typeof currentLesson!=='undefined' && currentLesson) ? currentLesson.windows : null;
     return !!(w && w.indexOf(timing)>=0);
+  }
+  function lessonAllowsWindow(timing){
+    if(typeof tutorialMode==='undefined' || !tutorialMode) return true;   // not a lesson — the player's own prefs decide
+    return timing==='respond' || lessonNamesWindow(timing);
   }
   function promptWanted(card, timing){
     var eff=(state&&E.effectFor)?E.effectFor(state, YOU, card):E.effectOf(card);
@@ -2094,6 +2097,15 @@ __QR__
        which makes them the worst offenders yet: `lessontest_twos` went red on "the Rival leads 222 + a
        pair" with the play never landing. `respond` is still the one that survives, because the Quicks
        lesson exists to teach it. Adding a timing without adding it here is how a lesson breaks. */
+    /* A NAMED WINDOW OPENS WHATEVER THE PLAYER'S NOTIFICATION MODE IS, and that is not a licence — it is
+       the only way the opt-in means anything. `promptDefault` is `PROMPT_MODE==='on' || timing==='respond'`,
+       so in AUTO (the default) and in OFF a `resolution` or `cleanup` window is silently auto-passed — and
+       a lesson whose step GATES on that window would dead-end for every player who had not set their
+       notifications to ON. That is the `promptedQuicks` mistake exactly: a notification preference deciding
+       something it has no business deciding, here whether a tutorial can be finished at all.
+       IT IS NARROW BY CONSTRUCTION: only inside `tutorialMode`, and only for a timing the running lesson
+       listed. A lesson that names nothing is unaffected, and nothing outside a lesson can reach it. */
+    if(lessonNamesWindow(timing)) return true;
     if(!lessonAllowsWindow(timing)) return false;                                  // the lesson names its windows; see lessonAllowsWindow
     /* THE MODE GATES THE ROWS. ON is checked BEFORE the per-card override on purpose — "all the notifs on"
        has to mean that, or a card silenced months ago would still be silent in the mode whose whole point
@@ -6377,8 +6389,14 @@ __QR__
        window is a CHOICE — including the choice to pass — had no event to wait for. Fired BEFORE the
        re-cast retry below, which is the older `tutAwaitCounter` path and only runs when the lesson still
        needs something countered. */
-    if(typeof TUT!=='undefined' && TUT.note) TUT.note('decline', { card:null });
     render(); cont();
+    /* ⚠ AFTER `cont()`, UNLIKE THE FLAG ABOVE, AND THE TWO ARE NOT THE SAME QUESTION. `tutAwaitCounter`
+       must be cleared BEFORE the settle because the settle RENDERS the next modal and would draw it
+       disabled. The NOTE must fire after, because a step may legitimately gate on what the settle DID —
+       the Clean-up pause waits for `!state.cleanup`, i.e. for the boundary to be over rather than merely
+       clicked once, and Clean-up's go-round comes back so "declined" and "finished" are different events.
+       Fired before the settle, that condition is never true and the step hangs forever. */
+    if(typeof TUT!=='undefined' && TUT.note) TUT.note('decline', { cleanup: !!(state && state.cleanup) });
     if(tutAwaitCounter && typeof TUT!=='undefined' && TUT.isActive && TUT.isActive()){ tutAwaitCounter=false; setMessage('That one resolved — let’s try again. Counter the next one!'); setTimeout(function(){ if(gen===g) tutCastRivalTech(); }, 700); }   // lesson: don't brick if they let it resolve
   }
   // ---- PRE-FIGHT QUICK WINDOW (Back Stab): the NON-active player may spring a Quick before the active
@@ -7591,10 +7609,22 @@ __QR__
          probe stopped here with `round:2` already on the board. Anything that happens as a CONSEQUENCE of
          the previous step's gate must be narrated, never gated. */
       { text:"🌀 <b>Countered.</b> Without the boost their King is a <b>13</b> against your <b>14</b> — they can’t beat it, so they <b>pass</b>. The round is yours, and so is the <b>initiative</b>.", hi:hw, btn:"Next ▸" },
-      /* AND THE THREE COLOURS ARE DESCRIBED IN THE PAST TENSE for the same reason: Resolution, Clean-up and
-         the next Beginning all went by while the round turned over. Promising a pause we cannot deliver
-         would be worse than naming them honestly — the player sees them again every round from here. */
-      { text:"Three colours just went by. <b>Orange</b> was <b>Resolution</b> — where the round’s outcome lands and shields break. <b>Yellow</b> was <b>Clean-up</b>, closing it out. Then <b>green</b>: a new <b>Beginning Phase</b> dealing your cards in. Watch for them each round.", hi:hw, btn:"Next ▸" },
+      /* TWO REAL PAUSES, ONE PER BOUNDARY — and the gate is "the phase is OVER", never "you clicked once".
+         Both Resolution and Clean-up are priority points, so each go-round COMES BACK until everyone
+         passes; a step gated on a bare `decline` advanced on the first one and left a modal sitting over
+         the next step. `!state.resolution` / `!state.cleanup` are the honest conditions, and they work only
+         because `TUT.note('decline')` fires AFTER the settle — see the note in `humanDeclines`.
+         ⚠ THEY ARE IN ROUND 1 BECAUSE THAT IS WHERE YOU STILL HOLD LEYLINE. A boundary only stops for a
+         seat that can actually cast something, and by round 2 the 9♦ is spent. Measured the other way too:
+         reading the phase flags the instant a step opens finds them still null, because the Rival has not
+         finished its turn — which is what made an earlier cut conclude, wrongly, that round 1 had no
+         Resolution window at all. Wait for the boundary; do not sample it. */
+      { text:"<b>Orange — Resolution.</b> This is where the round’s outcome lands: who won, and whose <b>shield</b> breaks. It is a priority point, so you get a say before it sticks — and it comes back round until <b>everyone</b> passes.<br><br>You won this one, so there is nothing to answer. <b>Let it resolve.</b>",
+        only:function(){ return []; }, hi:'#respDecline',
+        gate:function(t){ return t==='decline' && !(state && state.resolution); }, wait:"Let Resolution finish…" },
+      { text:"<b>Yellow — Clean-up.</b> The round closes out here: anything over the hand limit is pitched, and equipment timers tick down. One more boundary, one more window.<br><br>Then <b>green</b> — the <b>Beginning Phase</b>, dealing the new round in. <b>Let it resolve.</b>",
+        only:function(){ return []; }, hi:'#respDecline',
+        gate:function(t){ return t==='decline' && !(state && state.cleanup); }, wait:"Let Clean-up finish…" },
       { text:"This time there’s nothing worth activating — and that’s fine. <b>Fight still takes you out of Main.</b> Press it, then lead your <b>pair of 3s</b>.",
         only:function(){ return tutPhPair; },
         hi:function(){ return tutPhPair ? tutPhPair.map(function(id){ return '#hand .card[data-id="'+id+'"]'; }).join(',') : '#hand'; },
@@ -7629,7 +7659,7 @@ __QR__
   var LESSONS=[
     { id:'howto',      num:1 , section:'Basics',   title:'How to Play',        blurb:'A full guided duel — the whole loop, start to finish.',          ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonHowToSteps },
     { id:'zones',      num:2 , section:'Basics',   title:'Zones of Play',      blurb:'Deck, hand, play area, energy pile, shuffle pile.',               ready:true,  basics:true,             rig:tutRigZones,     steps:lessonZonesSteps },
-    { id:'phases',     num:3 , section:'Basics',   title:'Phases',             pilot:tutPilotPhases,            blurb:'The four phases, the windows between them \u2014 and the two Quicks that answer them.', ready:true,  basics:true,  shields:2, windows:['resolution'], rig:tutRigPhases,    steps:lessonPhasesSteps },
+    { id:'phases',     num:3 , section:'Basics',   title:'Phases',             pilot:tutPilotPhases,            blurb:'The four phases, the windows between them \u2014 and the two Quicks that answer them.', ready:true,  basics:true,  shields:2, windows:['resolution','cleanup'], rig:tutRigPhases,    steps:lessonPhasesSteps },
     { id:'specials',   num:4 , section:'Basics',   title:'Specials',           blurb:'The combos that break shields — pairs, trios, straights, houses.', ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonSpecialsSteps },
     { id:'twos',       num:5 , section:'Basics',   title:'The 2',              pilot:tutPilotTwos,              blurb:'The apex trump \u2014 and why it becomes your lowest card.',      ready:true,  basics:true,             rig:tutRigTwos,      steps:lessonTwosSteps },
     /* BASICS, straight after `specials` (Aj, 2026-09-01: *"oh the 2 is a basic tutorial probably after

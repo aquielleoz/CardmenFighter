@@ -29,6 +29,17 @@ const { clickFight } = require('./fightclick');
      shield that was never at risk — a green assertion observing nothing. */
   const respond = (re)=>p.evaluate(rx=>{ const b=[].slice.call(document.querySelectorAll('.respQuick'))
       .filter(x=>x.offsetParent && new RegExp(rx,'i').test(x.textContent||''))[0]; if(!b) return false; b.click(); return true; }, re);
+  /* ONE DEFINITION FOR ALL THREE WINDOWS — the go-round, Resolution and Clean-up.
+     ⚠ VISIBILITY, NEVER PRESENCE: `hideOverlay()` leaves `#modal`'s markup in the DOM, so
+     `getElementById('respDecline')` keeps finding the PREVIOUS window's button, which is often correctly
+     `disabled`. Polling on presence read the dead modal and reported a healthy window as broken. */
+  const declineWindow = async(ms=20000)=>{
+    const up = await until(()=>{ const b=document.getElementById('respDecline'); return !!(b && b.offsetParent); },
+                           'a window to decline', ms);
+    if(!up) return false;
+    return await p.evaluate(()=>{ const b=document.getElementById('respDecline');
+      if(!b || !b.offsetParent || b.disabled) return false; b.click(); return true; });
+  };
   const seen = new Set();
   const note = async()=>{ (await cls()).forEach(c=>seen.add(c)); };
 
@@ -69,35 +80,53 @@ const { clickFight } = require('./fightclick');
      every assertion after it fails. Measured `respondFor:0 pending:5D#rI`, stable for 12s.
      Assert the modal is REALLY there before declining, or a build that stopped opening it passes by
      skipping straight on. */
-  /* ⚠ VISIBILITY, NEVER PRESENCE. `hideOverlay()` hides the overlay and LEAVES `#modal`'s markup in the
-     DOM, so `getElementById('respDecline')` keeps finding the COUNTER window's button — which is correctly
-     `disabled`, because that step needed a counter. Polling on presence therefore read the dead previous
-     modal and reported the new window as broken. `offsetParent` is the repo's own answer to this. */
-  const vis = ()=>{ const b=document.getElementById('respDecline'); return !!(b && b.offsetParent); };
-  const back = await until(vis, 'the window comes back round', 20000);
-  ok(back, 'THE WINDOW CAME BACK — priority goes round again after your Quick resolves');
-  ok(await p.evaluate(()=>{ const b=document.getElementById('respDecline');
-       if(!b || !b.offsetParent || b.disabled) return false; b.click(); return true; }),
-     '…and "Let it resolve" is live, because this step needs it declined');
+  ok(await declineWindow(), 'THE WINDOW CAME BACK — priority goes round again after your Quick resolves');
   ok(await atStep(7), 'declining advanced the lesson to step 7');
   const s6 = await st();
   ok(s6.players[1].shuffle.some(c=>c.rank===5), 'the Technique really fizzled to the Rival\'s shuffle pile');
-  /* POLL, DO NOT SNAPSHOT — the same trap this file already notes for round 2. Declining ends YOUR part of
-     the window; the Rival still has to try its King, fail (13 against your unboosted 14) and pass before the
-     round turns over. Reading `round` on the next line catches round 1 every time. It is the step's own
-     claim — *"they can't beat it, so they pass"* — so poll for it rather than weakening it. */
-  ok(await until(()=>window.__solo.st().round>=2, 'the round resolves in your favour', 20000),
-     '…and the round resolved in your favour, so round 2 has begun  [round '+((await st()).round)+']');
 
   const trace = async(tag)=>{ const x=await st();
     console.log('   · '+tag+': round '+x.round+' turn '+x.turn+' init '+x.initiative+' sub '+x.subPhase+' pile '+(x.pile?'set':'empty')); };
   await trace('at step 7');
   console.log('   LOG: ' + (await p.evaluate(()=>[].map.call(document.querySelectorAll('#log .le'),e=>e.textContent.trim())
     .filter(t=>/won|round|pass|played|Countered/i.test(t)).slice(-6).join('  ||  '))));
-  await next(); ok(await atStep(8), 'step 8 names the orange and yellow phases that went by');
-  await trace('at step 8');
-  await next(); ok(await atStep(9), 'step 9 asks for the pair');
-  await trace('at step 9');
+  /* THE TWO PHASE PAUSES — the whole point of naming `resolution` and `cleanup` in the lesson's `windows`.
+     Each is a REAL priority window the engine opens at that boundary, and each is declined, so the lesson's
+     claim ("a window opens at every boundary, and passing is a legitimate answer") is exercised rather than
+     asserted. They sit in ROUND 1 deliberately: a window needs a castable Quick, and the 9♦ is still in
+     hand here — by round 2 it is spent and neither boundary would stop for anything.
+     AND THE ROUND CANNOT TURN OVER UNTIL BOTH ARE ANSWERED, which is why the "round 2 has begun" poll now
+     lives below them rather than beside the counter. */
+  /* THE TWO PHASE PAUSES — the point of naming `resolution` and `cleanup` in the lesson's `windows`.
+     WAIT FOR EACH BOUNDARY, DO NOT SAMPLE IT: the Rival is still finishing its turn when the step opens, so
+     both flags are null for a moment. An earlier cut tested immediately, declined nothing, and concluded
+     round 1 had no Resolution window — it has one.
+     AND DECLINE UNTIL THE PHASE ENDS, because each boundary's go-round comes back; "declined once" and
+     "finished" are different events, which is exactly what the steps' own gates say. */
+  const drainPhase = async(flag, label)=>{
+    const began = await until(f=>!!window.__solo.st()[f], label+' to begin', 25000, flag);
+    if(!began) return { began:false, cleared:0, cls:[] };
+    await note(); const c = await cls();
+    let cleared = 0;
+    for(let i=0;i<6 && await p.evaluate(f=>!!window.__solo.st()[f], flag); i++) if(await declineWindow(20000)) cleared++;
+    return { began:true, cleared, cls:c };
+  };
+
+  await next(); ok(await atStep(8), 'step 8 is the ORANGE pause — Resolution');
+  const res = await drainPhase('resolution', 'Resolution');
+  ok(res.began, 'RESOLUTION REALLY IS A BOUNDARY — the engine opens the phase and holds there');
+  ok(res.cls.indexOf('spResolve')>=0, 'AND THE HAND IS ORANGE WHILE IT WAITS  ['+res.cls.join(',')+']');
+  ok(res.cleared>=1, '…and it stopped for you — '+res.cleared+' window(s) declined before the phase ended');
+  ok(await atStep(9), 'finishing Resolution advanced the lesson to step 9 — the yellow pause');
+
+  const cln = await drainPhase('cleanup', 'Clean-up');
+  ok(cln.began, 'CLEAN-UP REALLY IS A BOUNDARY TOO');
+  ok(cln.cls.indexOf('spCleanup')>=0, 'AND THE HAND IS YELLOW WHILE IT WAITS  ['+cln.cls.join(',')+']');
+  ok(cln.cleared>=1, '…and it stopped for you — '+cln.cleared+' window(s) declined before the phase ended');
+  ok(await atStep(10), 'finishing Clean-up advanced the lesson to step 10 — the pair');
+  ok(await until(()=>window.__solo.st().round>=2, 'the round resolves in your favour', 20000),
+     '…and only THEN does round 2 begin  [round '+((await st()).round)+']');
+  await trace('at step 10');
   await note();
 
   /* ROUND 2 — the same structure with nothing to activate, which is the step's whole teaching point. */
@@ -110,14 +139,14 @@ const { clickFight } = require('./fightclick');
   await clickFight(p);
   const why8 = await playSpot(15000);
   ok(why8===null, 'you led the pair the step spotlit'+(why8?' — '+why8:''));
-  ok(await atStep(10), 'leading it advanced the lesson to step 10 — the pass');
+  ok(await atStep(11), 'leading it advanced the lesson to step 11 — the pass');
 
   /* PASS FIRST — the Rival beating your pair does NOT end the round, and until it ends there is no
      Resolution and nothing for Leyline to answer. Measured on the build before this step existed: Leyline
      still in hand, the log stopping at "Rival 2 played a Special - Pair (8♦, 8♦)", and the shield
      assertion passing because no shield had ever been at risk. */
   ok(await passTurn(20000), 'you passed, which is what ENDS the round');
-  ok(await atStep(11), 'passing advanced the lesson to step 11 — the Resolution window');
+  ok(await atStep(12), 'passing advanced the lesson to step 12 — the Resolution window');
 
   /* LEYLINE — the SECOND window, answered by a DIFFERENT Quick. Shields before and after is the claim, and
      it means something only because the pass above put a shield at risk. */
@@ -128,7 +157,7 @@ const { clickFight } = require('./fightclick');
   /* A RED RUN MUST EXPLAIN ITSELF — this is the one assertion in the file with somewhere to hide, because
      "the lesson did not advance" is equally true of a gate that never fired, a modal still covering the
      panel, and a step that advanced somewhere unexpected. Print all three. */
-  const stepped = await atStep(12);
+  const stepped = await atStep(13);
   if(!stepped) console.log('   WHY: ' + JSON.stringify(await p.evaluate(()=>{
       const s=window.__solo.st(), b=document.getElementById('respDecline');
       return { panel:((document.querySelector('.tutStep')||{}).textContent||'').trim(),
@@ -139,7 +168,7 @@ const { clickFight } = require('./fightclick');
                resolution:!!s.resolution, cleanup:!!s.cleanup, upkeep:!!s.upkeep,
                shields:s.players[0].shields, hand:s.players[0].hand.map(function(c){return c.id;}),
                log:[].map.call(document.querySelectorAll('#log .le'),function(e){return e.textContent.trim();}).slice(-7) }; })));
-  ok(stepped, 'springing it advanced the lesson to step 12');
+  ok(stepped, 'springing it advanced the lesson to step 13');
   /* ⚠ AND PROVE THE SHIELD COULD HAVE BEEN LOST. "Shields unchanged" is equally true of a board where
      nothing was ever at risk — which is exactly how this assertion passed for three runs while Leyline sat
      unplayed in hand and the round had not even resolved. The losing fight is the other half of the claim. */
@@ -155,8 +184,13 @@ const { clickFight } = require('./fightclick');
   await note();
 
   ok(await p.evaluate(()=>!!document.querySelector('#promptMode')), 'the 🔔 notifications button exists to be pointed at');
-  ok(seen.has('spMain') && seen.has('spFight'),
-     'the hand painted more than one phase across the lesson  ['+[...seen].sort().join(',')+']');
+  /* FOUR OF THE FIVE PHASE COLOURS, OBSERVED RATHER THAN ASSUMED — and this is the lesson's headline
+     claim ("your hand changes colour for each one"). Only `spBegin` is absent: the Beginning Phase deals
+     the new round in with nothing to answer, so the lesson never holds still inside it. Before the two
+     pauses existed this could only ever see two colours, because Resolution and Clean-up flashed past
+     between frames. */
+  ok(['spMain','spFight','spResolve','spCleanup'].every(c=>seen.has(c)),
+     'the hand painted FOUR phases across the lesson  ['+[...seen].sort().join(',')+']');
 
   /* CARD ACCOUNTING, ported from `lessontest_quicks`: the rig fabricates an exact hand, and a swap that
      dropped or duplicated a card would still play — so count them. */
