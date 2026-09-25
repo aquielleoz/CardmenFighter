@@ -280,6 +280,28 @@ string.
 the panel is read-only while a game is live, so it bites AFTER a game ends, when the finished board is still on
 screen and Custom rules is editable again.
 
+**A LESSON THAT NARRATES A MECHANIC IS AN AUDIT OF THAT MECHANIC — ELEVEN DEFECTS FROM ONE TUTORIAL
+(2026-09-25).** Aj asked for a lesson about the phases. Building it found: three of the six phase colours
+UNREACHABLE in a real game, a drawn card that never flew in when it landed in a group, a counter leaving
+dead objects on the stack for priority to walk over, the coach panel buried under every modal in every
+tutorial since the overlay was raised, and the saved log's header describing a duel at a 3-player table.
+None was caused by the lesson and all were shipped. Aj: *"what was supposed to be the tutorial for phases
+became the polishing."*
+**THE MECHANISM IS THAT A STEP MAKES A FACTUAL CLAIM OUT LOUD** — *"the strip changes colour for each
+phase"*, *"press Fight and nothing gets played"*, *"the window comes back to you"* — and a claim has to be
+true of the BUILD, not of the design. Nothing else in the repo is obliged to say those sentences: a sim
+measures outcomes, a unit test asserts what its author already believed, and a player rarely knows what
+was supposed to happen. **So when a subsystem feels under-verified, writing the lesson for it is a cheap
+way to find out what is actually there** — cheaper than the audit, and it ships something.
+**⚠ AND THE COROLLARY IS THE EXPENSIVE HALF: BUDGET FOR IT.** "Add a tutorial" is not a tutorial-sized
+task if the mechanic underneath has never been narrated. Say so before starting rather than discovering
+it at defect nine.
+**THE SHARPEST ONE WAS A SUITE I TALKED OUT OF ITS OWN FINDING.** `lessontest_phases` reported `spBegin`
+absent and I wrote a comment calling it a quirk of the lesson — it was unreachable code from the day it
+was written, and it took Aj playing a 3-player game (*"never glowed blue when the cards flew in"*) to
+reopen it. **An assertion that notices an unreachable state must be BELIEVED, not explained**, and the
+tell is a comment in a suite whose job is to explain away a red rather than describe a claim.
+
 **ELEVEN LESSONS, ALL WITH A SUITE as of v1.31.76** (ten as of v1.31.74). **`The 2` is BASICS #5, right after
 `Specials`** — where five-card plays first appear, so its second rule starts mattering there. Adding a lesson
 mid-list renumbers the ones below it; nothing asserts a lesson `num`, so that is mechanical, sharing `lessonlib.js` (a helper, not a suite — the
