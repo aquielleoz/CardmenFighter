@@ -536,8 +536,16 @@
      arriving. Cool = still setting up, warm = committed and effects are closed.
      TRANSLUCENT, so they layer over `--bg` instead of replacing it, and the border-top warms with them
      because a wash alone is easy to miss on a small screen. */
+  /* FIVE PHASES, ONE CYCLE (Aj, 2026-09-25: *"make the hands green in the beginning phase (as the cards
+     drawn fly in)"*, and Resolution *"maybe orange"* with Clean-up yellow). The original pair read
+     cool→warm for setting-up→committed; the three new ones carry that round to a loop —
+     GREEN arriving · BLUE planning · RED committed · ORANGE resolving · YELLOW closing · green again.
+     Same translucency and the same border warming, so a phase reads at a glance on a small screen. */
+  #handWrap.spBegin{ background:rgba(46,160,90,.22);  border-top-color:rgba(120,230,165,.42); }
   #handWrap.spMain { background:rgba(52,66,168,.22); }
   #handWrap.spFight{ background:rgba(168,44,86,.26); border-top-color:rgba(255,130,150,.45); }
+  #handWrap.spResolve{ background:rgba(206,116,28,.26); border-top-color:rgba(255,178,96,.48); }
+  #handWrap.spCleanup{ background:rgba(198,172,40,.22); border-top-color:rgba(248,228,120,.44); }
   @media (prefers-reduced-motion:reduce){ #handWrap{transition:none;} }
   #handMeta{display:flex; justify-content:space-between; align-items:center; margin:0 4px 6px; font-size:12.5px; gap:8px; flex-wrap:wrap;}
   #handMeta .you{font-weight:800; color:var(--gold);}
@@ -8933,8 +8941,24 @@ window.CardFace = {};
     /* PAINT THE SUB-PHASE ON THE HAND. Read from `state.subPhase`, not from whose turn it is: the rule it
        reports — no effects once the fight has begun — is the TABLE's, not yours, which is Aj's whole point
        for wanting the colour. A seat waiting its turn still needs to know the window has closed. */
+    /* PRECEDENCE, NOT A SWITCH ON `subPhase` ALONE. `subPhase` still reads 'play' while `st.resolution` is
+       set, so testing it first would paint the Fight colour through the whole Resolution window — the one
+       stretch this is meant to make visible. Clean-up outranks Resolution for the same reason.
+       BEGINNING HAS NO STATE FLAG (`st.beginning` does not exist), so it rides the DEAL-IN, which is what
+       Aj asked for in those words — cards flying in with an empty pile is v1.31.67's own test for "this is
+       the round's deal". This toggle runs at :4016, before `renderHand` consumes `pendingEnter` at :4147,
+       which is the only reason it can be read here at all.
+       KNOWN AND ACCEPTED: an EFFECT draw taken before you have played anything also shows green, because
+       from the hand's point of view it is the same event — cards arriving. */
     var hw=$('handWrap');
-    if(hw){ var inFightSP=(state.subPhase==='play'); hw.classList.toggle('spFight', inFightSP); hw.classList.toggle('spMain', !inFightSP); }
+    if(hw){
+      var dealingIn = !state.pile && Object.keys(pendingEnter||{}).length>0;
+      var ph = state.cleanup ? 'spCleanup'
+             : state.resolution ? 'spResolve'
+             : dealingIn ? 'spBegin'
+             : (state.subPhase==='play') ? 'spFight' : 'spMain';
+      ['spBegin','spMain','spFight','spResolve','spCleanup'].forEach(function(c){ hw.classList.toggle(c, c===ph); });
+    }
     notePhaseEdge();
     syncOrder(false);
     /* SAY WHY PLAY HAS PAUSED. Every seat but the one picking is auto-trimmed at the end of a round, so the
