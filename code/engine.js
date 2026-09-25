@@ -2420,6 +2420,26 @@
       return null;
     }
     if (timing === 'respond') {
+      /* A COUNTER SPELL'S STAKE IS AN OPPONENT'S TECHNIQUE BEING CAST (Aj, 2026-09-25: *"counter spells
+         stakes is every technique being cast"*, then *"opponent's techniques"*). Nothing narrower works:
+         a counter has no shield to protect and no equipment to save, so keyed on damage alone it would
+         never have a stake at all and AUTO would stop offering the one Quick a new player reaches for.
+         OPPONENTS' ONLY, and that is the same line the mode already draws — *"AUTO DOES NOT STOP YOU FOR
+         YOUR OWN CAST"*. Aj was explicit that the CAPABILITY is untouched: *"technically, with ON you can
+         counter your own techniques"*. This decides interruption, never legality.
+         `counterTargets` IS THE PREDICATE, not a hand-rolled type test: it already knows what is
+         counterable (`COUNTERABLE`, plus Equipment under the Queen of Diamonds) and skips objects that
+         are already countered or are triggers with no cast card behind them. One definition. */
+      if (e.kind === 'counter') {
+        var mine = counterTargets(st, e).filter(function (o) { return o.p !== q; });
+        if (mine.length) return e;
+      }
+      /* AND ANNOINT'S IS AN OPPONENT REACHING FOR EQUIPMENT. Included because AUTO stopped keying on the
+         timing and started keying on the stake: without this the card goes SILENT in the mode most people
+         play, which is the failure that rule exists to prevent, not an acceptable side effect. */
+      if (e.kind === 'protect' && (st.stack || []).some(function (o) {
+            return o.kind === 'effect' && !o.countered && !o.trig && o.p !== q && o.eff && o.eff.kind === 'removeEquip';
+          })) return e;
       /* A destroyShield's response window is its ONLY one — `resolveEffectBody`'s own comment says the
          loss "no longer opens a second guard window". It survives today only because `respond` is the
          timing that defaults on; untick it and Ultima Attack takes your last shield with the answer in

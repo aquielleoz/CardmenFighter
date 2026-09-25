@@ -2385,6 +2385,35 @@ function cards(ids) { return ids.map(card); }
      'stakeFor · …but NOT once the extra strip is banked — the cast would change nothing');
   ok(E.stakeFor(striker(HECTOR(), [SANC()]), 0, SANC(), 'resolution') === null,
      'stakeFor · …nor for a Quick with no bearing on the strike (Sanctuary while WINNING)');
+  /* 2b · THE `respond` TIMING BECAME STAKE-DRIVEN (Aj, 2026-09-25), which is only safe because the two
+     Quicks that LIVE at that timing were given stakes in the same change. `promptDefault` used to return
+     true for `respond` unconditionally, so AUTO stopped you for every Technique an opponent cast whether
+     or not you held anything that cared — Aj, holding only a Leyline against an Infuse with Magic:
+     *"already in Auto sooooo Leyline should not have a stake here"*.
+     THE LEYLINE CASE IS THE ONE HE REPORTED and it is asserted directly, because it is the negative that
+     makes the other two mean something: if every Quick had a stake at `respond`, nothing changed. */
+  function stacked(seat, eff){ var st = rig(0, [], []);
+    st.stack = [{ kind:'effect', p:seat, eff:eff }]; st.pending = st.stack[0]; return st; }
+  var TECH   = { kind:'valueBoost', type:'Technique', name:'Infuse with Magic' };
+  var STRIP  = { kind:'removeEquip', type:'Technique', name:'Disarm' };
+  var CSPELL = { rank:4, suit:'D', id:'4D#stake' }, ANNOINT = { rank:5, suit:'H', id:'5H#stake' };
+  var LEYL   = { rank:9, suit:'D', id:'9D#stake' }, H2H = { rank:3, suit:'S', id:'3S#stake' };
+  ok(!!E.stakeFor(stacked(1, TECH), 0, CSPELL, 'respond'),
+     'stakeFor · RESPOND: a Counter Spell IS stopped for an opponent\'s Technique — that is its stake');
+  ok(E.stakeFor(stacked(0, TECH), 0, CSPELL, 'respond') === null,
+     'stakeFor · …and NOT for your own cast — you cannot have a stake in answering yourself');
+  var empty = rig(0, [], []); empty.stack = []; empty.pending = null;
+  ok(E.stakeFor(empty, 0, CSPELL, 'respond') === null,
+     'stakeFor · …nor on an empty stack, where it has no legal target at all');
+  ok(!!E.stakeFor(stacked(1, STRIP), 0, ANNOINT, 'respond'),
+     'stakeFor · RESPOND: Annoint is stopped for an opponent reaching for Equipment');
+  ok(E.stakeFor(stacked(1, TECH), 0, ANNOINT, 'respond') === null,
+     'stakeFor · …and not for a Technique that threatens no Equipment');
+  ok(E.stakeFor(stacked(1, TECH), 0, LEYL, 'respond') === null,
+     'stakeFor · …and LEYLINE has no stake in a boost — the exact window Aj was stopped for');
+  ok(E.stakeFor(stacked(1, TECH), 0, H2H, 'respond') === null,
+     'stakeFor · …nor a pure draw: Hand-to-Hand Mastery risks nothing, so AUTO never interrupts for it');
+
   // 3 · BACK STAB AT ITS OWN MOMENT — the window `main` had for it
   ok(E.effectFor(striker(AKING(), [BSTAB()]), 0, BSTAB()).quick === true,
      'stakeFor · staging is live: a King really makes Back Stab a Quick');

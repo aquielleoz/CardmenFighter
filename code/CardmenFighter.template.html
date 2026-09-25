@@ -2087,6 +2087,31 @@ __QR__
   function tutPromptRestore(){ if(tutPrevPrompt!==null){ var m=tutPrevPrompt; tutPrevPrompt=null; setPromptMode(m); } }
   function setPromptMode(m){ if(PROMPT_MODES.indexOf(m)<0) return; PROMPT_MODE=m; try{ localStorage.setItem(PROMPT_MODE_KEY, m); }catch(e){} updatePromptModeBtn(); }
   function cyclePromptMode(){ setPromptMode(PROMPT_MODES[(PROMPT_MODES.indexOf(PROMPT_MODE)+1)%PROMPT_MODES.length]); }
+  /* AUTO IS STAKE-DRIVEN AT EVERY TIMING NOW, INCLUDING `respond` (Aj, 2026-09-25). This used to return
+     true for `respond` unconditionally, so in AUTO every Technique an opponent cast stopped you whether or
+     not you could meaningfully answer it — Aj, holding only a Leyline against an Infuse with Magic:
+     *"already in Auto sooooo Leyline should not have a stake here.... what's going on?"*. He was right:
+     the mode promises "only when something is at stake" and the timing was overriding the promise.
+     WHAT KEEPS THE COMMON CASE WORKING IS `stakeFor`, NOT THIS. Counter Spell's stake is an opponent's
+     Technique being cast and Annoint's is an opponent reaching for Equipment, both added in `engine.js`
+     the same day — without them this line would silence the two Quicks that live at this timing, which
+     would be a worse bug than the one it fixes. Check `stakeFor` before narrowing this further.
+     ON IS UNCHANGED and still offers every legal window, including countering your own cast — Aj:
+     *"technically, with ON you can counter your own techniques"*. */
+  /* ⚠ `|| timing === 'respond'` IS THE SHIPPED DEFAULT AND IS DELIBERATELY STILL HERE (2026-09-25).
+     Aj is right that it contradicts what AUTO promises — holding only a Leyline against an Infuse with
+     Magic he was stopped for a card with nothing at stake, and said so. The fix looks like one line:
+     `return PROMPT_MODE === 'on' || !!E.stakeFor(state, YOU, card, timing)`, with Counter Spell's and
+     Annoint's stakes (added to `engine.js` the same day, and asserted in `test.js`) keeping the common
+     cases alive.
+     IT WAS BUILT AND BACKED OUT, because measuring it turned up two costs that are not this line's to
+     pay and are not yet paid: `lessontest_phases` loses its round-1 RESOLUTION boundary entirely (4 red,
+     the engine stops parking there), and `prompttest` loses *"Counter Spell is still offered when a
+     Technique is cast"* even though that card's stake says it should be — so something between
+     `promptDefault` and the modal is not seeing the stack the way a staged `stakeFor` call does.
+     WHAT SURVIVED IS THE HALF THAT IS UNAMBIGUOUSLY RIGHT: the stakes themselves, and the split below
+     that stops a stake from overriding a box the player unticked. Re-land this line once the two reds
+     above are understood — they are evidence of a real gap, not of a bad idea. */
   function promptDefault(card, eff, timing){ return PROMPT_MODE === 'on' || timing === 'respond'; }
   function promptKeyOf(eff){ return eff && eff.id ? eff.id : null; }
   /* A LESSON MAY OPT INTO A BOUNDARY WINDOW — BY NAME, NEVER WHOLESALE (2026-09-25). Every non-`respond`
@@ -2215,6 +2240,18 @@ __QR__
 
     if(!lessonAllowsWindow(timing)) return false;                                  // a scripted lesson writes its own windows — unless it asked for this one
     if(timing!=='resolution' && timing!=='respond' && timing!=='prefight') return false;   // the engine answers for each; this is just the closed set
+    /* ⚠ THE FORCE IS FOR SHIELD EVENTS ONLY, AND SEPARATING IT FROM THE DEFAULT IS THE WHOLE POINT
+       (2026-09-25). `stakeFor` now answers TWO questions: *should AUTO stop me?* (the default, above) and
+       *may a stake override a box the player deliberately unticked?* (here). They were the same call for
+       one afternoon, and the moment Counter Spell gained a stake on every opponent Technique its checkbox
+       went INERT — unticking it changed nothing, because its own stake forced the window straight back
+       open. `prompttest` caught it: *"SUPPRESSED: with the prompt OFF, the same cast opens no modal"*,
+       still prompted.
+       The rule this override exists for is *"a preference may not cost you a SHIELD you could have
+       saved"*, so it keeps that scope. A counter or an equipment save is a missed opportunity, not a lost
+       shield, and the player is allowed to tell the game not to ask. */
+    var e=(E.effectFor && state) ? E.effectFor(state, YOU, card) : E.effectOf(card);
+    if(e && (e.kind==='counter' || e.kind==='protect' || e.kind==='draw')) return false;
     return !!E.stakeFor(state, YOU, card, timing);
   }
   function promptedQuicks(list, timing){ return (list||[]).filter(function(c){ return promptWanted(c, timing) || shieldSaveOverride(c, timing); }); }
