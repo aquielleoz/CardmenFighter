@@ -225,11 +225,18 @@ re-read its tag.
   holder at the branch, run a 3-player game, and correlate. `prioNote` is already there.
   `[id: runopponents-steps-past-window]`
 
-- `needs a measurement` · **`exporttest` IS TIME-CAPPING IN THE SWEEP — GREEN, BUT TESTING LESS THAN IT
+- `needs a decision`    · **`exporttest` IS TIME-CAPPING IN THE SWEEP — GREEN, BUT TESTING LESS THAN IT
   MEANS TO (2026-09-24).** Surfaced by the sweep's new warnings section, which prints a passing suite's own
   `⚠` lines: *"driver stopped on the 90s WALL CLOCK — the board stopped advancing"*, **twice in one run**,
   ending `PASS: 17  FAIL: 0  (TIME-CAPPED)`. It only showed on the slower of the day's sweeps (295s against
   ~230s), which is exactly when a wall-clock budget bites.
+  **✅ CONFIRMED LOAD-DEPENDENT — SECOND DATA POINT 2026-09-25.** The next morning's sweep ran **221s and
+  `exporttest` did NOT cap**, against the 295s run where it capped TWICE. Same commit, same suite, same 90s
+  budget; the only thing that moved was the machine. So *"does this suite always test short?"* is answered —
+  it does not — and what is left is a JUDGEMENT rather than a measurement: **is a suite that silently tests
+  less on a slow machine acceptable?**
+  **221s clean against 295s capped puts the knee between the two**, so the margin is thin rather than
+  absent, and a machine slower than this one would cap every run.
   **THIS IS THE `nettest_sync` SHAPE, ALREADY DOCUMENTED IN CLAUDE.md** — *"a wall-clock-bounded suite tests
   less when the sweep is parallel, and stays green while doing it"* — so the suite is reporting correctly
   and the question is whether 90s is still the right number. **Measure before raising it**, and ask what the
@@ -1200,13 +1207,20 @@ never read.*
   `[id: mirror-contract-findings]`
 
 - `root cause found`    · **★ EXPANDING A ZONE PUSHES THE BOARD PAST ITS HEIGHT ON THE TIGHTEST PHONES** (measured 2026-09-07)
-  **⚠ ITS REPORTED NUMBER IS NOT STABLE — 30px IN ONE SWEEP, 60px IN THE NEXT, SAME BUILD (2026-09-24).**
+  **⚠ ITS REPORTED NUMBER IS NOT STABLE — 30px, THEN 60px, THEN 63px ACROSS THREE SWEEPS OF ONE BUILD
+  (2026-09-24/25).**
   Surfaced by the sweep's new warnings section, which prints a green suite's own `⚠` lines. That is the
   moving-geometry tell CLAUDE.md already names — *"bimodal or wide-swinging geometry on a build nobody
   touched… do not pad the cap to cover it, find what is moving"* — and the known culprits there are the
   RANDOM PERSONA (a Forms zone is labelled `<name>’s Forms & Rides`, so the name sets the zone's width) and
   the deal, both of which `landscapetest` already pins elsewhere via `__solo.setName` and a fixed hand. Pin
-  them for THIS case before trusting either figure; the ratchet's cap should be sized off a pinned number.
+  them for THIS case before trusting ANY of the three figures; the ratchet's cap should be sized off a
+  pinned number.
+  **THE THIRD READING IS WHAT MAKES THIS ACTIONABLE RATHER THAN A CURIOSITY.** Two points could be a
+  one-off; **30 / 60 / 63 on an unchanged build is a 2.1x spread**, which is too wide for any cap to mean
+  anything — sized to 63 the ratchet sits silent through a real regression up to that number, sized to 30 it
+  goes red on the next persona draw. Pin the inputs FIRST, then size the cap, then tighten the ratchet.
+  Sizing it off today's reading in either direction is the mistake this note exists to prevent.
   `[ratchet: phone-zone-expand-overflow]`
   v1.31.111 made both panel zones expandable; at **327x660 opening a seat's Forms and equipment adds 75px to
   that panel and pushes `#board` 63px past its height** (393x852 goes 10px over; 360x800, 390x780 and 412x915
