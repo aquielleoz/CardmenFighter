@@ -2884,5 +2884,83 @@ function cards(ids) { return ids.map(card); }
   ok(warned === 0, 'no "CLEANUP LEFT A PILE" on a healthy game' + (warned ? '  ← ' + warned + ' fired' : ''));
 })();
 
+/* THE TABLE WAITS WHILE A SEAT IS DISCARDING (Aj, 2026-09-16: *"other player could activate stuff while the
+   other players were busy with a modal"*). `[id: client-act-another-seat]`.
+   `respondFor` covers the PRIORITY windows and `subPhase === 'play'` the Fight Sub-Phase, but a FORCED
+   DISCARD touches neither — so the seat on turn could keep playing while its target sat trapped in a picker.
+   MEASURED before the fix: Telekinesis at seat 1, `respondFor` null, seat 0 then played a pair with two
+   discards still owed.
+   THE HARM IS PARTICIPATION, NOT TIDINESS: a play opens a priority window, and a seat stuck in a discard
+   modal cannot take it.
+   WHY THE ENGINE AND NOT THE UI — a client sends an intent over the wire, so a UI lock is a courtesy; and
+   the backlog entry's deadlock warning is for a UI guard on FIGHT (`doFight` reaches `confirmPick()` via the
+   `pick` branch), whereas a pick is confirmed through `resolveDiscard` and never re-enters play/activate.
+   THE WAY OUT IS ASSERTED BELOW, because a guard with no exit is the deadlock the entry warns about. */
+(function () {
+  function C(r, su, t) { return { rank: r, suit: su, id: (t || '') + r + su }; }
+  function rig() {
+    var g = E.newGame(null, { numPlayers: 3, starter: 0 });
+    g.round = 3;                                               // past jabs-only, so a pair is legal
+    var me = g.players[0];
+    me.hand = [C(3, 'D', 'tk'), C(9, 'C', 'a'), C(9, 'D', 'b'), C(5, 'C', 'c')];   // ♦3 Telekinesis + a pair + a spare
+    me.energy = []; for (var i = 0; i < 16; i++) me.energy.push(C(4, 'DHCS'[i % 4], 'e' + i));
+    g.turn = 0;
+    return g;
+  }
+  function drain(g) { var n = 0; while (g.pending && n++ < 40) E.declineResponse(g, g.respondFor); }
+  function pairOf(g) { return g.players[0].hand.filter(function (c) { return c.rank === 9; }); }
+  /* PLAY THE WAY A REAL SEAT DOES. Since epic step 20 `E.play` from the Main Sub-Phase opens the Main → Play
+     go-round and returns `{ok:false, transition:'play'}` — a "not yet", not a refusal — and the caller
+     settles the window and re-applies the intent. Without this the CONTROL below reads as a refusal and the
+     whole block would be asserting the transition rather than the guard. Note the discard guard sits ABOVE
+     the transition in `play`, so a genuine refusal never reaches this. */
+  function playThrough(g, cards) {
+    var r = E.play(g, 0, cards);
+    if (r.ok === false && r.transition) { var n = 0; while (g.respondFor != null && n++ < 40) E.declineResponse(g, g.respondFor); r = E.play(g, 0, cards); }
+    return r;
+  }
+
+  /* CONTROL FIRST. Without a pending discard the very same play must be LEGAL, or every refusal below
+     could be explained by bad staging rather than by the guard. */
+  var ctl = rig();
+  ok(playThrough(ctl, pairOf(ctl)).ok === true, 'discard guard CONTROL: with no discard pending, the pair plays');
+
+  var g = rig();
+  var cast = E.activate(g, 0, 'tk3D', { target: 1 });
+  drain(g);
+  ok(cast.ok === true && !!g.discardPending && g.discardPending.player === 1,
+     'STAGING: Telekinesis at seat 1 leaves a discard owed  [' + JSON.stringify(g.discardPending) + ']');
+  ok(g.respondFor == null,
+     '…and `respondFor` is NULL, which is why the priority guard never saw this');
+  ok(g.turn === 0, '…while it is still seat 0\'s turn — the shape that let it act');
+
+  var pl = E.play(g, 0, pairOf(g));
+  ok(pl.ok === false && /still discarding/.test(pl.reason || ''),
+     'PLAY is refused while another seat owes a discard' + (pl.ok ? '  ← REPRODUCED: the play landed' : '  — ' + pl.reason));
+  var ac = E.activate(g, 0, 'c5C', {});
+  ok(ac.ok === false && /still discarding/.test(ac.reason || ''),
+     'ACTIVATE is refused too' + (ac.ok ? '  ← the guard missed `activate`' : ''));
+  var ps = E.pass(g, 0);
+  ok(ps.ok === false && /still discarding/.test(ps.reason || ''),
+     'and PASS is refused — ending the turn while they pick is the same fault' + (ps.ok ? '  ← the guard missed `pass`' : ''));
+  ok(g.players[0].hand.filter(function (c) { return c.rank === 9; }).length === 2,
+     '…and nothing was spent by the refused attempts');
+
+  /* THE EXIT. A guard with no way out is a deadlock, which is exactly what the backlog entry warns about
+     one door along — so assert that resolving the discard RELEASES the table. */
+  var rd = E.resolveDiscard(g);
+  ok(rd.ok === true && g.discardPending == null, 'resolveDiscard clears it — the pick is still the way out');
+  var after = playThrough(g, pairOf(g));
+  ok(after.ok === true, 'and the SAME play is legal once the table is no longer waiting' + (after.ok ? '' : '  ← DEADLOCK: ' + after.reason));
+
+  /* YOUR OWN DISCARD BLOCKS YOU TOO, with its own wording — the self draw-and-pitch sets `discardPending`
+     on the owner mid-turn, and playing past your own unresolved pick is the same fault wearing your name. */
+  var g2 = rig();
+  g2.discardPending = { player: 0, count: 1 };
+  var own = E.play(g2, 0, pairOf(g2));
+  ok(own.ok === false && /Choose your discards first/.test(own.reason || ''),
+     'your OWN pending discard blocks you, and says so in your own terms' + (own.ok ? '  ← own-seat case unguarded' : ''));
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

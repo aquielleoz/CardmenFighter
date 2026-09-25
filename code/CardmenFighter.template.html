@@ -4695,6 +4695,24 @@ __QR__
       hint.className = (MP() && state.players[YOU].eliminated) ? 'bad' : '';
       return;
     }
+    /* THE TABLE IS WAITING ON SOMEBODY'S PICK, AND THE CONTROLS MUST SAY SO (`[id: client-act-another-seat]`).
+     * `render()` already dims the play area and sets `rivalStatus` to "<name> is discarding…", and the ENGINE
+     * now refuses `play`/`pass`/`activate` while `discardPending` is outstanding — but `updateActions` knew
+     * about none of it, so Fight and Pass rendered ENABLED into a refusal. That is the exact shape the `busy`
+     * comment below was written for, and the same remedy applies: disable both and give the reason.
+     * ABOVE `busy` because it is the more specific cause — a pick outlasts an animation, and "Rival 2 is
+     * discarding" tells you who you are waiting for where "the board is still resolving" does not. BELOW
+     * `!yourTurn`, which stays the more specific sentence when it simply is not your turn.
+     * THE `pick` BRANCH AT THE TOP OF THIS FUNCTION ALREADY OWNS YOUR OWN PICK, so this cannot deadlock the
+     * seat that has to choose; the own-seat wording exists only for the window between the engine setting
+     * `discardPending` and the picker opening. */
+    var dpW = state.discardPending;
+    if(dpW){
+      fight.disabled=true; pass.disabled=true; ctxBtn.style.display='none'; cardAct.style.display='none';
+      hint.textContent = (dpW.player===YOU) ? 'Choose your discards first.'
+                       : (logName(dpW.player)+' is discarding — the table is waiting on them.');
+      hint.className=''; return;
+    }
     /* BUSY MEANS THE PRESENTATION IS STILL RUNNING, and every action handler ALREADY refuses while it is —
      * silently. `yourTurn` is `state.turn===YOU && !state.finished` with no `busy` in it, so once the turn comes
      * back to you but the opponent's beats are still playing, Fight and Pass render ENABLED and do nothing at
