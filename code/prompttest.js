@@ -365,14 +365,35 @@ async function freshGame(p) {
   await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d && !d.disabled) d.click(); });
   await wait(400);
 
-  // (b) the CLAIM — switched OFF, the same staged cast must produce NO modal, and the game must go on.
+  /* (b) THE CLAIM — AND IT INVERTED ON 2026-09-25, BY DECISION RATHER THAN BY ACCIDENT.
+     This used to assert that unticking `respond` SUPPRESSED the modal, which was true while Counter Spell
+     had no stake. Aj then gave it one — *"counter spells stakes is every technique being cast"* — and a
+     card with a live stake is deliberately NOT suppressible by a checkbox: the model's own words are that
+     the rule guards against *a buried per-card default* costing you something you never knowingly
+     declined, while OFF is *a visible, global, one-tap mode* saying "I know, do not stop me".
+     ⚠ I BRIEFLY "FIXED" THE RED THIS PRODUCED by narrowing the stake override to shields, which made the
+     checkbox work again and broke the model. Aj asked "why?" and the rule answered it. When a documented
+     rule and a suite disagree, the RULE wins and the suite is updated — routing around a red is how a
+     suite comes to argue for the wrong behaviour at the only moment anyone would question it.
+     SUPPRESSION IS STILL ASSERTED, one line down, where it belongs: by the MODE. */
   await p.evaluate(() => { window.__solo.setPromptPref('D4', 'respond', false); });
   const withoutPrompt = await stageCast();
-  ok(withoutPrompt === null,
-     'SUPPRESSED: with the prompt OFF, the same cast opens no modal — it is auto-passed' +
-     (withoutPrompt === null ? '' : '  ← still prompted with: ' + withoutPrompt.slice(0, 140)));
+  ok(withoutPrompt !== null && /Counter Spell/.test(withoutPrompt),
+     'A LIVE STAKE OUTRANKS AN UNTICKED BOX — Counter Spell is still offered against a Rival\'s Technique' +
+     (withoutPrompt ? '' : '  ← suppressed, so the per-card row is overriding a stake. Board: ' + lastBoard));
+  await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d && !d.disabled) d.click(); });
+  await wait(400);
+
+  /* …AND OFF IS THE ONE PLACE THAT DECLINES A STAKE. Same staging, same unticked box, mode switched — so
+     the pair isolates the MODE as the only difference, which is the whole claim. */
+  await p.evaluate(() => { window.__solo.setPromptMode('off'); });
+  const modeOff = await stageCast();
+  ok(modeOff === null,
+     'SUPPRESSED BY THE MODE: with notifications OFF the same cast opens no modal — it is auto-passed' +
+     (modeOff === null ? '' : '  ← still prompted with: ' + modeOff.slice(0, 140)));
   ok(await until(() => p.evaluate(() => { const st = window.__solo.st(); return !!st && st.respondFor == null; })),
      '…and no response window is left owed — the pass really happened');
+  await p.evaluate(() => { window.__solo.setPromptMode('auto'); });
 
   /* ---- AND THE MIGRATION IS GUARDED AGAINST A FUTURE SWEEP (epic step 23).
      The runtime test below catches someone DELETING the migration. It cannot catch the likelier mistake:

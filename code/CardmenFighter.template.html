@@ -2239,19 +2239,18 @@ __QR__
     if(PROMPT_MODE==='off') return false;   // the one place a player may knowingly decline a stake — see the mode note
 
     if(!lessonAllowsWindow(timing)) return false;                                  // a scripted lesson writes its own windows — unless it asked for this one
-    if(timing!=='resolution' && timing!=='respond' && timing!=='prefight') return false;   // the engine answers for each; this is just the closed set
-    /* ⚠ THE FORCE IS FOR SHIELD EVENTS ONLY, AND SEPARATING IT FROM THE DEFAULT IS THE WHOLE POINT
-       (2026-09-25). `stakeFor` now answers TWO questions: *should AUTO stop me?* (the default, above) and
-       *may a stake override a box the player deliberately unticked?* (here). They were the same call for
-       one afternoon, and the moment Counter Spell gained a stake on every opponent Technique its checkbox
-       went INERT — unticking it changed nothing, because its own stake forced the window straight back
-       open. `prompttest` caught it: *"SUPPRESSED: with the prompt OFF, the same cast opens no modal"*,
-       still prompted.
-       The rule this override exists for is *"a preference may not cost you a SHIELD you could have
-       saved"*, so it keeps that scope. A counter or an equipment save is a missed opportunity, not a lost
-       shield, and the player is allowed to tell the game not to ask. */
-    var e=(E.effectFor && state) ? E.effectFor(state, YOU, card) : E.effectOf(card);
-    if(e && (e.kind==='counter' || e.kind==='protect' || e.kind==='draw')) return false;
+    if(timing!=='resolution' && timing!=='respond' && timing!=='prefight' && timing!=='cleanup') return false;   // the engine answers for each; this is just the closed set
+    /* ⚠ `cleanup` JOINED THE SET WITH Hand-to-Hand Mastery's stake (2026-09-25). A stake the closed set
+       does not list is DEAD CODE that reads as live — `stakeFor` answers, nothing asks. Add the timing
+       here in the same commit as the branch, or the feature is a comment. */
+    /* ⚠ A PER-CARD UNTICK DOES NOT BEAT A STAKE — OFF IS THE ONLY PLACE THAT DOES, and I broke this
+       for an afternoon by "fixing" it. When Counter Spell gained a stake its checkbox went inert and
+       `prompttest` went red, so I narrowed the force to shields to make the box work again. Aj asked
+       "why?", which is what sent me back to the rule: the distinction it draws is between *a buried
+       per-card default costing you something you never knowingly declined* and *a visible, global,
+       one-tap mode saying "I know, do not stop me"*. The checkbox is the former. Going inert while a card
+       has a LIVE stake is the design, not a regression — the red suite was pinning pre-stake behaviour
+       and wanted updating, not routing around. */
     return !!E.stakeFor(state, YOU, card, timing);
   }
   function promptedQuicks(list, timing){ return (list||[]).filter(function(c){ return promptWanted(c, timing) || shieldSaveOverride(c, timing); }); }

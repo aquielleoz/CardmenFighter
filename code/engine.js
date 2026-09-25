@@ -2419,6 +2419,14 @@
           st.players[q] && !st.players[q].finishingBlow) return e;
       return null;
     }
+    if (timing === 'cleanup') {
+      /* HAND-TO-HAND MASTERY'S MOMENT IS CLEAN-UP (Aj, 2026-09-25: *"put hand-to-hand's stake to at the
+         clean up"*). It is the one Quick that risks nothing — a pure draw — so keyed on damage it would
+         have no stake anywhere and AUTO would never mention it. Clean-up is the boundary where the hand
+         is about to be settled for the round, which is the moment a draw is a decision rather than a
+         reflex. `kind` rather than a card name, like every other branch here. */
+      return (e.kind === 'draw') ? e : null;
+    }
     if (timing === 'respond') {
       /* A COUNTER SPELL'S STAKE IS AN OPPONENT'S TECHNIQUE BEING CAST (Aj, 2026-09-25: *"counter spells
          stakes is every technique being cast"*, then *"opponent's techniques"*). Nothing narrower works:

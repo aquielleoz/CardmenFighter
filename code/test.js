@@ -2412,7 +2412,24 @@ function cards(ids) { return ids.map(card); }
   ok(E.stakeFor(stacked(1, TECH), 0, LEYL, 'respond') === null,
      'stakeFor · …and LEYLINE has no stake in a boost — the exact window Aj was stopped for');
   ok(E.stakeFor(stacked(1, TECH), 0, H2H, 'respond') === null,
-     'stakeFor · …nor a pure draw: Hand-to-Hand Mastery risks nothing, so AUTO never interrupts for it');
+     'stakeFor · …nor a pure draw at RESPOND: Hand-to-Hand Mastery has nothing to answer there');
+  /* SANCTUARY ANSWERS A destroyShield EXACTLY AS LEYLINE DOES, and this is asserted because I told Aj it
+     did not — reporting a table I had reasoned out instead of one I had run. Both go through
+     `lossAnswerFor`, so "does this card answer the loss" is the only question either is asked. */
+  var sancRig = rig(0, HECTOR(), [SANC()]);
+  sancRig.stack = [{ kind:'effect', p:1, eff:{ kind:'destroyShield', type:'Technique' }, opts:{ target:0 } }];
+  sancRig.pending = sancRig.stack[0];
+  ok(!!E.stakeFor(sancRig, 0, SANC(), 'respond'),
+     'stakeFor · RESPOND: Sanctuary is stopped for a destroyShield aimed at you, same as Leyline');
+  /* HAND-TO-HAND MASTERY'S MOMENT IS CLEAN-UP (Aj). The only Quick whose stake is a TIMING rather than a
+     threat, so both directions are asserted: it fires at its own boundary and nothing else does. */
+  var h2hRig = rig(0, [], []);
+  h2hRig.players[0].forms = [{rank:11,suit:'S',id:'JS'},{rank:12,suit:'S',id:'QS'},{rank:13,suit:'S',id:'KS'}];
+  ok(!!E.effectFor(h2hRig, 0, H2H).quick, 'stakeFor · staging is live: a King really makes Hand-to-Hand a Quick');
+  ok(!!E.stakeFor(h2hRig, 0, H2H, 'cleanup'),
+     'stakeFor · CLEANUP: Hand-to-Hand Mastery is stopped at the boundary its draw belongs to');
+  ok(E.stakeFor(h2hRig, 0, LEYL, 'cleanup') === null,
+     'stakeFor · …and a card with no business there is not — the timing alone is not the stake');
 
   // 3 · BACK STAB AT ITS OWN MOMENT — the window `main` had for it
   ok(E.effectFor(striker(AKING(), [BSTAB()]), 0, BSTAB()).quick === true,
