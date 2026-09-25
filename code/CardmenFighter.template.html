@@ -2221,6 +2221,17 @@ __QR__
   var announcedThresh={};      // REWORK: which transform tiers have had their unlock ceremony this duel
   var pendingThreshold=null;   // a threshold unlock waiting for its OWN beat (so it doesn't overlap the round-win banner)
   var holdShields=false;       // when a round strips a shield, defer the shatter to the ceremony's "loses a shield" beat
+  /* THE PHASE THE PLAYER IS IN, WHICH IS NOT ALWAYS THE PHASE THE ENGINE IS PARKED IN (2026-09-25).
+     `state.resolution` / `state.cleanup` are set only while the engine HOLDS at a boundary waiting for
+     priority — so in a lesson, where named timings force a window open, the strip duly turns orange and
+     red, and in an ordinary game with nothing castable the engine blows straight through and the player
+     sees Fight → idle. Aj, from a real 3-player game: *"shield loss should have happened when the hand is
+     orange but after yellow the hand directly became idle."*
+     He is right, and the fix is not to force windows: from the player's side Resolution IS the ceremony
+     — the shatter and the banner — and Clean-up IS the trim. `uiPhase` follows the CEREMONY, the engine
+     flags still win when they are set, and the two agree about what is happening on screen. */
+  var uiPhase=null;            // 'resolve' | 'cleanup' during the round ceremony, else null
+  var dealHoldUntil=0;         // …and the Beginning tint is held until the deal-in animation has finished
   var difficulty='fighter';    // 'minion' | 'fighter' | 'demon' — persists across New Duel
   var youDeck='full', rivalDeck='full';   // RESOLVED concrete decks in play; 'full' or an E.DECKS key
   // ---- N-player (3–6) ----
@@ -3953,7 +3964,7 @@ __QR__
      at the deal (`engine.js` ~597) and again at every draw — so an unscrambled hand reaches the screen in
      ascending order, and only the host's `syncOrder(true)` ever made a dealt hand look dealt. */
   function resetHandPresentation(){
-    handOrder=[]; layout=[]; gidSeq=0; selected={}; dealShuffle=true; handPresetN++;
+    handOrder=[]; layout=[]; gidSeq=0; selected={}; dealShuffle=true; handPresetN++; uiPhase=null; dealHoldUntil=0;
     sortState='unsorted'; updateSortLabel();
   }
   /* keep the UI hand order stable; new draws append at the end (Sort tidies) */
@@ -4084,9 +4095,25 @@ __QR__
        which is the only reason it can be read here at all.
        KNOWN AND ACCEPTED: an EFFECT draw taken before you have played anything also shows green, because
        from the hand's point of view it is the same event — cards arriving. */
+    /* ⚠ BEFORE THE PHASE STRIP, BECAUSE THE STRIP READS WHAT THIS WRITES (2026-09-25). `dealingIn` asks
+       whether cards are arriving, which is `pendingEnter`, and `syncOrder` is the ONLY thing that fills
+       it. This call used to sit ~18 lines BELOW the strip, so on the very render where the new hand lands
+       `pendingEnter` was still empty — and `renderHand` then consumed it before any later render could
+       look. `spBegin` was UNREACHABLE from the day it was written; blue never appeared once.
+       Aj found it in a real game (*"never glowed blue when the cards flew in"*), and `lessontest_phases`
+       had been reporting `spBegin` absent the whole time while a comment explained it away as a quirk of
+       the lesson. A state nothing can reach is a bug, and an assertion that notices one must be believed
+       rather than explained. */
+    syncOrder(false);
     var hw=$('handWrap');
     if(hw){
-      var dealingIn = !state.pile && Object.keys(pendingEnter||{}).length>0;
+      /* ⚠ THE DEAL IS AN ANIMATION, NOT AN INSTANT, AND THE TINT HAS TO LAST AS LONG AS IT DOES.
+         `pendingEnter` is CONSUMED by `renderHand` on the very render that draws the fly-in, so keyed on
+         it alone the Beginning tint lived for exactly one frame — the cards were still visibly arriving
+         while the strip had already moved on. Aj: *"can we let the phases breathe a bit? when the cards
+         are still flying in"*. `dealHoldUntil` is stamped where the animation is scheduled, from the same
+         delay arithmetic, so the two cannot drift; a timer re-renders once it lapses. */
+      var dealingIn = !state.pile && (Object.keys(pendingEnter||{}).length>0 || Date.now() < dealHoldUntil);
       /* ⚠ A ROUND-LEVEL PHASE OUTRANKS "NOT YOUR TURN", AND THAT ORDER IS MEASURED RATHER THAN CHOSEN.
          Beginning, Resolution and Clean-up belong to the TABLE, not to a seat — and `state.turn` during
          them is the round WINNER's, measured as `turn:1` through both boundaries of a round seat 0 won. So
@@ -4096,15 +4123,14 @@ __QR__
          which is what "in between your own turns" means.
          `upkeep` joins `dealingIn` for blue because the Beginning Phase IS Untap/Upkeep/Draw; `dealingIn`
          alone caught only the deal, so the phase's own priority point rendered as something else. */
-      var ph = state.cleanup ? 'spCleanup'
-             : state.resolution ? 'spResolve'
+      var ph = (state.cleanup || uiPhase==='cleanup') ? 'spCleanup'
+             : (state.resolution || uiPhase==='resolve') ? 'spResolve'
              : (state.upkeep || dealingIn) ? 'spBegin'
              : (state.turn !== YOU) ? 'spIdle'
              : (state.subPhase==='play') ? 'spFight' : 'spMain';
       ['spIdle','spBegin','spMain','spFight','spResolve','spCleanup'].forEach(function(c){ hw.classList.toggle(c, c===ph); });
     }
     notePhaseEdge();
-    syncOrder(false);
     /* SAY WHY PLAY HAS PAUSED. Every seat but the one picking is auto-trimmed at the end of a round, so the
      * only seat that stops the table is the one holding an interactive hand-limit pick — and until v1.31.69 the
      * others just saw a gap. `trimPending` rides the mirror (netview whitelists it), so a client can name the
@@ -4480,7 +4506,12 @@ __QR__
       g.cards.forEach(function(c,idx){
         if(kind==='fullhouse' && idx===3){ var gap=document.createElement('span'); gap.className='fhgap'; cardrow.appendChild(gap); }
         var el=cardEl(c,'', YOU); markBoost(el, c); markTransform(el, c); markAfford(el, c);   // YOUR hand: judge Quick against YOUR zone
-        if(g.cards.length===1 && pendingEnter[c.id] && canEnter){ el.classList.add('enter'); el.style.animationDelay=(enterDelayBase+enterIdx*55)+'ms'; enterIdx++; }
+        /* ⚠ NO `g.cards.length===1` HERE ANY MORE. A freshly drawn card that landed INSIDE a group — a
+           pair, a trio — was silently excluded from the deal-in, so it appeared with no animation at all.
+           It reads as a player-count bug and is not: the draw scales with the table (`drawCountFor` =
+           numPlayers), so at 3+ players you draw more cards and far more of them land in groups. Aj, from
+           a 3-player game with two pairs in hand: *"didn't see the card fly in for the 2nd round."* */
+        if(pendingEnter[c.id] && canEnter){ el.classList.add('enter'); el.style.animationDelay=(enterDelayBase+enterIdx*55)+'ms'; enterIdx++; }
         cardrow.appendChild(el);
       });
       groupEl.appendChild(cardrow);
@@ -4488,6 +4519,14 @@ __QR__
       attachGroupHandlers(groupEl, g.id);
       hand.appendChild(groupEl);
     });
+    /* HOLD THE BEGINNING TINT FOR THE WHOLE FLY-IN. `enterIdx` counted the cards actually animated and
+       the delays are `enterDelayBase + i*55`, so the last card starts at `base + (n-1)*55` and the
+       keyframe itself runs ~420ms — derive the hold from the same numbers rather than picking one, or a
+       change to the stagger silently leaves the colour behind. */
+    if(enterIdx>0 && !reduceMotion()){
+      dealHoldUntil = Date.now() + enterDelayBase + (enterIdx-1)*55 + 420;
+      var gh=gen; setTimeout(function(){ if(gh===gen) render(); }, enterDelayBase + (enterIdx-1)*55 + 460);
+    }
     pendingEnter={};                                  // consume the deal-in queue
   }
 
@@ -5880,13 +5919,25 @@ __QR__
     if(res) res.__ceremonyRan=true;
     inCeremony=true;                                            // suppress the render-diff deck-mill float here; the catch-up mill fires its own explicit −N
     holdShields = !reduceMotion() && !!res.shieldStripped;      // defer the shatter to its beat
+    uiPhase='resolve';                                          // ← the shatter and the banner ARE Resolution, from the player's side
     render();                                                   // settle board; no fresh cards yet (draw deferred)
     playPreBeats(res, function(){
+      if(g!==gen) return;
+      /* ← …and the hand-limit trim is Clean-up. IT NEEDS A BEAT OF ITS OWN, because unlike Resolution it
+         usually has no work to show: when nobody is over the hand limit `endOfRoundTrimThen` calls straight
+         back, so the phase existed for less than a frame and the strip never painted red once. Measured on
+         a real 3-player game — the sequence went `spFight → spResolve → spBegin`, skipping Clean-up
+         entirely, which is the same "a state nothing can reach" bug `spBegin` had.
+         The dwell is what makes the colour honest rather than theoretical, and it is skipped under reduced
+         motion like every other beat here. */
+      uiPhase='cleanup'; render();
+      setTimeout(function(){
       if(g!==gen) return;
       flushThreshold(function(){                                // a transform tier that just unlocked gets its OWN beat here
       if(g!==gen) return;
       endOfRoundTrimThen(function(){
         if(g!==gen) return;
+        uiPhase=null;                                           // ← the deal is the BEGINNING phase; `dealingIn` owns the strip from here
         E.roundDraw(state, res);                                // draw the new round's cards (held invisible for a beat)
         if(res.deckedOut){ inCeremony=false; logDeckout(res); render(); clearRoundfx(); busy=false; return endGame(); }
         logRoundDraw(res);
@@ -5895,6 +5946,7 @@ __QR__
         playRoundCardBeat(res, function(){ inCeremony=false; if(g===gen) continuation(); });
       });
       });
+      }, reduceMotion()?0:420);                                 // the Clean-up beat — see the note above
     });
   }
 

@@ -531,6 +531,66 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   ok(verdicts.king.replace(/^[^—]*—/,'') === verdicts.plain.replace(/^[^—]*—/,''),
      '…and both give the SAME reason — the chain does not special-case a card that happens to carry one');
 
+  /* ============ THE PHASE STRIP RUNS THE WHOLE RAMP IN A REAL GAME (2026-09-25) ============
+     Aj played a 3-player game and reported three things that were one feature failing: the strip never
+     glowed for the Beginning phase, the drawn cards never flew in, and *"after yellow the hand directly
+     became idle"* — Resolution and Clean-up skipped. Three different causes, all invisible to the lesson
+     suite, which sees those phases only because a tutorial FORCES its named windows open and so makes the
+     engine park in them.
+     THIS IS THE ONLY ASSERTION THAT WATCHES AN ORDINARY GAME, which is the configuration a player is in.
+     It samples `#handWrap`'s class on a timer and records every CHANGE, so it reads the sequence rather
+     than a snapshot — a snapshot cannot tell "this phase is brief" from "this phase never happens", and
+     that distinction is the entire bug. Kept as a suite rather than a probe because this repo has paid
+     three times for throwaway diagnostics that could not be re-run.
+     ⚠ ASSERT THE CLASS, NEVER THE COLOUR: the hues are becoming a player preference. */
+  if(await start3p()){
+    await p.evaluate(()=>{ window.__seq=[]; window.__dur={}; let cur=null, t0=performance.now();
+      window.__seqT=setInterval(()=>{
+        const hw=document.getElementById('handWrap'); if(!hw) return;
+        const c=(hw.className.match(/sp[A-Z][a-z]+/)||['(none)'])[0], now=performance.now();
+        if(c!==cur){ if(cur){ window.__dur[cur]=Math.max(window.__dur[cur]||0, Math.round(now-t0)); }
+                     cur=c; t0=now; window.__seq.push(c); } }, 12); });
+    for(let i=0;i<70;i++){
+      if(await p.evaluate(()=>{ const s=window.__solo.st(); return !s||s.finished||s.round>3; })) break;
+      await p.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d&&d.offsetParent&&!d.disabled){ d.click(); return; }
+        const fb=document.getElementById('fightBtn'), pb=document.getElementById('passBtn');
+        if(fb&&!fb.disabled){ fb.click(); return; }
+        for(const g of [].slice.call(document.querySelectorAll('#hand .group'))){
+          g.click(); if(fb&&!fb.disabled){ fb.click(); return; }
+          const c=document.getElementById('clearBtn'); if(c&&!c.disabled) c.click(); }
+        if(pb&&!pb.disabled) pb.click(); });
+      await wait(450);
+    }
+    const { seq, dur } = await p.evaluate(()=>{ clearInterval(window.__seqT); return { seq:window.__seq, dur:window.__dur }; });
+    const seen = new Set(seq);
+    ['spIdle','spMain','spFight','spResolve','spCleanup','spBegin'].forEach(c=>{
+      ok(seen.has(c), 'the strip reaches '+c+' in an ordinary 3-player game'+
+         (seen.has(c) ? '' : '  ← a phase the player can NEVER see  ['+seq.join(' → ')+']'));
+    });
+    /* AND IN ORDER AT THE BOUNDARY — Resolution → Clean-up → Beginning, adjacent. Presence alone would
+       pass on a build that painted them in any order, and the ramp IS the information.
+       ⚠ THE BOUNDARY IS NOT ANCHORED TO `spFight`, and an earlier cut that required it was wrong: a round
+       ends when everyone passes, which is usually on ANOTHER seat's turn, so `spIdle` legitimately sits
+       between your last fight and the boundary. Asserting the triple is the claim; what precedes it is
+       whose turn happened to end the round. */
+    /* ⚠ AND LONG ENOUGH TO SEE — which is the assertion that would have caught the original bug, where
+       PRESENCE would not. `spBegin` was keyed on `pendingEnter`, which `renderHand` consumes on the very
+       render that draws the fly-in, so the tint existed for one frame: a sampler can catch that and a
+       person cannot. Aj played the build and reported *"i never saw the blue. every round starts with
+       green"* while a presence check was perfectly green.
+       The floors are well under what the fixed build measures (Beginning 879ms, Clean-up 420ms) and well
+       over one frame, so they discriminate without pinning an animation's exact timing. */
+    [['spBegin',300],['spCleanup',250],['spResolve',300]].forEach(([c,floor])=>{
+      ok((dur[c]||0) >= floor, c+' stays on screen long enough to read — '+(dur[c]||0)+'ms, floor '+floor+
+         ((dur[c]||0)>=floor ? '' : '  ← a tint nobody can SEE, however reliably a sampler finds it'));
+    });
+    const j = seq.join(' ');
+    ok(/spResolve spCleanup spBegin/.test(j),
+       'and the boundary runs Resolution → Clean-up → Beginning, adjacent and in that order  ['+j+']');
+  } else {
+    ok(false, 'could not start a 3-player game for the phase-strip check');
+  }
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

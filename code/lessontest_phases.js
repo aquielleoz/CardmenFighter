@@ -71,6 +71,11 @@ const { clickFight } = require('./fightclick');
      your Ace; countering is what makes the next step's claim ("they cannot beat it") literally true. */
   const got = await until(()=>!!document.querySelector('.respQuick'), 'the Respond? window opens', 20000);
   ok(got, 'the Rival cast a Technique and the Respond? window opened');
+  /* SAMPLE THE RESTING STRIP WHERE IT IS UNAMBIGUOUS — the Rival holds the turn here, and no boundary is
+     open, so this is the one moment in the lesson that MUST be idle. It used to be caught incidentally
+     somewhere else, and the deal-hold fix moved that moment under a phase tint; an incidental sample is a
+     coin flip dressed as an assertion. */
+  await note();
   ok(await respond('Counter Spell'), '…offering Counter Spell, which we spring');
   ok(await atStep(6), 'countering advanced the lesson to step 6');
 
@@ -126,6 +131,7 @@ const { clickFight } = require('./fightclick');
   ok(await atStep(10), 'finishing Clean-up advanced the lesson to step 10 — the pair');
   ok(await until(()=>window.__solo.st().round>=2, 'the round resolves in your favour', 20000),
      '…and only THEN does round 2 begin  [round '+((await st()).round)+']');
+  await note();          // the round-2 deal: the Beginning tint, now held for the whole fly-in
   await trace('at step 10');
   await note();
 
