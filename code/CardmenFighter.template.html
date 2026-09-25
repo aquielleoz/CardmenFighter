@@ -22,7 +22,8 @@
     --zPeekHdr:calc(var(--zNetroot) + 3);    /* …and the HEADER outranks its fellow panels, or its ☰ sheet drops behind them (v1.31.105) */
     --zPeekDlg:calc(var(--zNetroot) + 4);    /* …and a dialog OPENED during peek must outrank all of those (v1.31.103) */
     --zMenu:calc(var(--zNetroot) - 1);       /* the ☰ sheet: over the board, UNDER the lobby and every dialog (v1.31.105) */
-    --zPeekBar:calc(var(--zNetroot) + 5);    /* …and ↩ Back must outrank everything, so peek is never a trap */
+    --zTut:calc(var(--zNetroot) + 5);        /* …and a LESSON's coach panel outranks the dialog it is talking about (2026-09-25) */
+    --zPeekBar:calc(var(--zNetroot) + 6);    /* …and ↩ Back must outrank everything, so peek is never a trap */
     --headerH:56px;   /* the desktop header. The landscape band overrides it — #disconBar hangs off this. */
     --bg:#160e1e; --bg2:#241633; --line:rgba(255,255,255,.12); --gold:#e8c37a;
     --red:#ff5a5a; --txt:#f2ecf6; --panel:rgba(0,0,0,.3); --good:#43c06a; --bad:#e2624a;
@@ -236,7 +237,6 @@
   #stackView{display:none; flex-direction:column; gap:3px; align-items:center; margin:3px 0;}
   .stk{font-size:11px; padding:2px 9px; border-radius:8px; border:1px solid var(--line); background:rgba(255,255,255,.05); opacity:.9;}
   .stk.top{border-color:var(--gold); box-shadow:0 0 8px rgba(232,195,122,.4);}
-  .stk.countered{text-decoration:line-through; opacity:.5;}
   /* The pending Fight End loss is not a stack OBJECT (PHASES-AND-PRIORITY §4) and must not read as one —
      dashed rather than solid, and it never takes .top, because nothing resolves it: it lands when the
      sub-phase begins. Colour comes from the existing danger token so it stays theme-correct in both modes. */
@@ -264,7 +264,15 @@
   .matchupTag{font-size:12px; opacity:.82; margin-right:8px; white-space:nowrap;}
   .basicsTag{color:#8fd8ff; letter-spacing:.5px;}   /* Basics-mode badge in the matchup line */
   /* ---- Guided tutorial: coach panel + spotlight ---- */
-  #tutPanel{position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:80; width:min(500px,calc(100vw - 24px)); background:linear-gradient(180deg,#241533,#1a0f28); border:1px solid var(--gold); border-radius:14px; box-shadow:0 12px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(240,200,80,.15); padding:14px 16px; display:none; animation:tutIn .25s ease; max-height:calc(100vh - 28px); max-height:calc(100dvh - 28px); overflow-y:auto; overscroll-behavior:contain;}   /* uncapped it grew to 565px and hung 247px off the top of a 320px-tall landscape viewport */
+  /* ⚠ `z-index:80` WAS CHOSEN WHEN `.overlay` WAS 30, AND `.overlay` IS NOW `--zNetroot + 1` (2026-09-25).
+     So for every version since that raise, a lesson's coach panel rendered UNDERNEATH the modal backdrop
+     of the very dialog it was explaining — dimmed, unreadable and unclickable. Aj, and it is general
+     rather than one lesson: *"this is also for all tutorials, the tutorial is behind the dim so new
+     players are just 'what's going on?'"*.
+     This is the family drift this stylesheet already documents once — the bare peek lifts of 35 and 60
+     that v1.31.36's raise to 100000 buried. `--zTut` is derived like the rest; `--zPeekBar` moves up one
+     so ↩ Back still outranks everything and peek is never a trap. DO NOT write a bare number here. */
+  #tutPanel{position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:var(--zTut); width:min(500px,calc(100vw - 24px)); background:linear-gradient(180deg,#241533,#1a0f28); border:1px solid var(--gold); border-radius:14px; box-shadow:0 12px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(240,200,80,.15); padding:14px 16px; display:none; animation:tutIn .25s ease; max-height:calc(100vh - 28px); max-height:calc(100dvh - 28px); overflow-y:auto; overscroll-behavior:contain;}   /* uncapped it grew to 565px and hung 247px off the top of a 320px-tall landscape viewport */
   #tutPanel.show{display:block;}
   @keyframes tutIn{from{opacity:0; transform:translate(-50%,12px);} to{opacity:1; transform:translate(-50%,0);}}
   /* Desktop (3-column board): dock the coach over the empty right-side description column — clear of the hand (bottom) and the pile (center). Mobile keeps the bottom-center default above. */
@@ -536,8 +544,30 @@
      arriving. Cool = still setting up, warm = committed and effects are closed.
      TRANSLUCENT, so they layer over `--bg` instead of replacing it, and the border-top warms with them
      because a wash alone is easy to miss on a small screen. */
-  #handWrap.spMain { background:rgba(52,66,168,.22); }
-  #handWrap.spFight{ background:rgba(168,44,86,.26); border-top-color:rgba(255,130,150,.45); }
+  /* FIVE PHASES, ONE CYCLE (Aj, 2026-09-25: *"make the hands green in the beginning phase (as the cards
+     drawn fly in)"*, and Resolution *"maybe orange"* with Clean-up yellow). The original pair read
+     cool→warm for setting-up→committed; the three new ones carry that round to a loop —
+     GREEN arriving · BLUE planning · RED committed · ORANGE resolving · YELLOW closing · green again.
+     Same translucency and the same border warming, so a phase reads at a glance on a small screen. */
+  /* THE PHASE STRIP IS A TEMPERATURE RAMP, AND THE ORDER IS THE POINT (Aj, 2026-09-25): violet → blue →
+     green → yellow → orange → red → violet. It runs cool-to-hot across a round, so the colour tells you
+     how far through the turn you are without reading anything, and it closes back on violet — the resting
+     colour — while the opponent works. Do not reorder these to "improve" a single hue: the sequence is the
+     information, and a swap that reads better in isolation breaks the ramp.
+     THE VALUES ARE ROTATED, NOT INVENTED. Each background/border pair was already tuned against the board;
+     only which phase owns which pair changed, so the contrast work survives. */
+  /* ⚠ IDLE IS THE RESTING BOARD, NOT A SIXTH TINT — and this restates the base on purpose. `--bg` is
+     `#160e1e` and `--bg2` `#241633`, both violet, and `#handWrap`'s own `rgba(0,0,0,.24)` is TRANSLUCENT
+     over them, so the hand already reads violet with no class at all. Aj: *"i want to keep violet as the
+     usual color"* — it is kept by NOT tinting, which also means the resting strip follows the theme for
+     free if `--bg` ever moves. Named as a class anyway so every phase lands on a defined rule rather than
+     on whatever the previous toggle left behind. */
+  #handWrap.spIdle   { background:rgba(0,0,0,.24); border-top-color:var(--line); }                   /* violet — the resting board */
+  #handWrap.spBegin  { background:rgba(46,104,190,.22); border-top-color:rgba(132,186,255,.44); }   /* blue   — Beginning  */
+  #handWrap.spMain   { background:rgba(46,160,90,.22);  border-top-color:rgba(120,230,165,.42); }   /* green  — Main      */
+  #handWrap.spFight  { background:rgba(198,172,40,.22); border-top-color:rgba(248,228,120,.44); }   /* yellow — Fight     */
+  #handWrap.spResolve{ background:rgba(206,116,28,.26); border-top-color:rgba(255,178,96,.48); }    /* orange — Resolution*/
+  #handWrap.spCleanup{ background:rgba(168,44,86,.26);  border-top-color:rgba(255,130,150,.45); }   /* red    — Clean-up  */
   @media (prefers-reduced-motion:reduce){ #handWrap{transition:none;} }
   #handMeta{display:flex; justify-content:space-between; align-items:center; margin:0 4px 6px; font-size:12.5px; gap:8px; flex-wrap:wrap;}
   #handMeta .you{font-weight:800; color:var(--gold);}
@@ -1963,8 +1993,15 @@ __QR__
      exists — *"yes, those are legal"*. The row is live, and the old reasoning is kept here only because
      the same argument still applies to CLEAN-UP until that boundary is built.
      ✅ **THE PRE-FIGHT ROW WAS GATED TO `lockout` AND STEP 20 UNGATED IT** — the model says verbatim
-     *"Every player's Quicks are available here"*, and it is now true of the code as well. Upkeep and
-     Clean-up are still the two points with no rows, and still for the reason above. */
+     *"Every player's Quicks are available here"*, and it is now true of the code as well.
+     ⚠ **AND THE LAST LINE OF THIS BLOCK WAS STALE, WHICH COST A WRONG ANSWER (2026-09-25).** It read
+     *"Upkeep and Clean-up are still the two points with no rows"* — false on both counts: `PROMPT_TIMINGS`
+     carries `upkeep` and `cleanup` rows, and the ENGINE opens a real priority window at each
+     (`st.upkeep` / `st.cleanup`, both drained through `phaseWalk`). ALL FIVE POINTS ARE BUILT AND ALL FIVE
+     HAVE ROWS. The reason the stale line survived is worth more than the correction: the engine never
+     spells those timings as strings — it returns `{ upkeep:true }` / `{ cleanup:true }` and
+     `promptHumanResponse` derives the NAME — so `grep "'cleanup'" engine.js` comes back empty and reads
+     exactly like a boundary that was never built. Read the layer that would have to DO the thing. */
   /* EVERY LEGAL TIMING PROMPTS BY DEFAULT (Aj, 2026-09-10: *"players can really look at all their cards and
      decide which effects to activate. legal mind you at the timing it's being asked at"*).
      THIS USED TO RETURN `immunityEffFor(...)` FOR `resolution` — the whitelist step 18 DELETED. It was right
@@ -2034,10 +2071,72 @@ __QR__
             : PROMPT_MODE==='auto' ? 'Notifications: AUTO — only when a card of yours has a stake'
             : 'Notifications: OFF — nothing stops you, stakes included';
   }
+  /* A LESSON RUNS ON AUTO, WHATEVER THE PLAYER SET (Aj, 2026-09-25, playing it on ON: *"it also saw that
+     my notifs were ON so it fired off here … it should change the notifs to auto when entering this
+     tutorial"*). ON means *every* legal timing stops you, so a scripted lesson is interrupted by windows
+     it never wrote — the exact derailment `lessonAllowsWindow` exists to prevent, arriving through the
+     one door that gate does not cover, because `PROMPT_MODE==='on'` is tested AFTER it.
+     IT IS A REAL MODE CHANGE, NOT A SUPPRESSION, and deliberately so: the lesson's last step points at the
+     🔔 button to explain the three settings, so the button must show what is actually in force. The
+     player's own choice is remembered and put back when the lesson ends.
+     AUTO RATHER THAN OFF because AUTO is what the lesson teaches against — it is the shipped default, and
+     the windows the lesson DOES script are forced open by `lessonNamesWindow` regardless. */
+  var tutPrevPrompt=null;
+  function tutPromptAuto(){ if(tutPrevPrompt===null) tutPrevPrompt=PROMPT_MODE; setPromptMode('auto'); }
+  function tutPromptRestore(){ if(tutPrevPrompt!==null){ var m=tutPrevPrompt; tutPrevPrompt=null; setPromptMode(m); } }
   function setPromptMode(m){ if(PROMPT_MODES.indexOf(m)<0) return; PROMPT_MODE=m; try{ localStorage.setItem(PROMPT_MODE_KEY, m); }catch(e){} updatePromptModeBtn(); }
   function cyclePromptMode(){ setPromptMode(PROMPT_MODES[(PROMPT_MODES.indexOf(PROMPT_MODE)+1)%PROMPT_MODES.length]); }
+  /* AUTO IS STAKE-DRIVEN AT EVERY TIMING NOW, INCLUDING `respond` (Aj, 2026-09-25). This used to return
+     true for `respond` unconditionally, so in AUTO every Technique an opponent cast stopped you whether or
+     not you could meaningfully answer it — Aj, holding only a Leyline against an Infuse with Magic:
+     *"already in Auto sooooo Leyline should not have a stake here.... what's going on?"*. He was right:
+     the mode promises "only when something is at stake" and the timing was overriding the promise.
+     WHAT KEEPS THE COMMON CASE WORKING IS `stakeFor`, NOT THIS. Counter Spell's stake is an opponent's
+     Technique being cast and Annoint's is an opponent reaching for Equipment, both added in `engine.js`
+     the same day — without them this line would silence the two Quicks that live at this timing, which
+     would be a worse bug than the one it fixes. Check `stakeFor` before narrowing this further.
+     ON IS UNCHANGED and still offers every legal window, including countering your own cast — Aj:
+     *"technically, with ON you can counter your own techniques"*. */
+  /* ⚠ `|| timing === 'respond'` IS THE SHIPPED DEFAULT AND IS DELIBERATELY STILL HERE (2026-09-25).
+     Aj is right that it contradicts what AUTO promises — holding only a Leyline against an Infuse with
+     Magic he was stopped for a card with nothing at stake, and said so. The fix looks like one line:
+     `return PROMPT_MODE === 'on' || !!E.stakeFor(state, YOU, card, timing)`, with Counter Spell's and
+     Annoint's stakes (added to `engine.js` the same day, and asserted in `test.js`) keeping the common
+     cases alive.
+     IT WAS BUILT AND BACKED OUT, because measuring it turned up two costs that are not this line's to
+     pay and are not yet paid: `lessontest_phases` loses its round-1 RESOLUTION boundary entirely (4 red,
+     the engine stops parking there), and `prompttest` loses *"Counter Spell is still offered when a
+     Technique is cast"* even though that card's stake says it should be — so something between
+     `promptDefault` and the modal is not seeing the stack the way a staged `stakeFor` call does.
+     WHAT SURVIVED IS THE HALF THAT IS UNAMBIGUOUSLY RIGHT: the stakes themselves, and the split below
+     that stops a stake from overriding a box the player unticked. Re-land this line once the two reds
+     above are understood — they are evidence of a real gap, not of a bad idea. */
   function promptDefault(card, eff, timing){ return PROMPT_MODE === 'on' || timing === 'respond'; }
   function promptKeyOf(eff){ return eff && eff.id ? eff.id : null; }
+  /* A LESSON MAY OPT INTO A BOUNDARY WINDOW — BY NAME, NEVER WHOLESALE (2026-09-25). Every non-`respond`
+     timing is suppressed in `tutorialMode` (see the two notes in `promptWanted`), and that stays the
+     default: those windows open EVERY round, a lesson is a fixed sequence of gated steps, and a modal it
+     did not script derails it — measured twice, both times as `lessontest_twos` going red.
+     THE OPT-IN IS A LIST OF TIMINGS, NOT A BOOLEAN, and that is the whole safety argument. `windows:true`
+     would hand a lesson every boundary the game has, including the two (`upkeep`, `cleanup`) that open on
+     every round and that no lesson teaches — i.e. it would re-create the exact breakage this gate exists
+     to prevent, with the lesson author believing they had asked for one window. A lesson names what it
+     teaches; everything it did not name stays shut.
+     `respond` IS GRANDFATHERED and needs no entry: it is the timing that defaults on for every player, the
+     Quicks lesson has taught it since before this gate existed, and four lessons rely on it implicitly.
+     ONE DEFINITION, TWO CALLERS — `promptWanted` (may this window stop me?) and `shieldSaveOverride` (may
+     a stake FORCE one?). They were separate literals until today and would have drifted the moment a
+     lesson opted in, because a forced window a lesson did not script is the same derailment by another
+     route. */
+  function lessonNamesWindow(timing){
+    if(typeof tutorialMode==='undefined' || !tutorialMode) return false;
+    var w=(typeof currentLesson!=='undefined' && currentLesson) ? currentLesson.windows : null;
+    return !!(w && w.indexOf(timing)>=0);
+  }
+  function lessonAllowsWindow(timing){
+    if(typeof tutorialMode==='undefined' || !tutorialMode) return true;   // not a lesson — the player's own prefs decide
+    return timing==='respond' || lessonNamesWindow(timing);
+  }
   function promptWanted(card, timing){
     var eff=(state&&E.effectFor)?E.effectFor(state, YOU, card):E.effectOf(card);
     if(!promptLegal(card, eff, timing)) return false;
@@ -2058,7 +2157,16 @@ __QR__
        which makes them the worst offenders yet: `lessontest_twos` went red on "the Rival leads 222 + a
        pair" with the play never landing. `respond` is still the one that survives, because the Quicks
        lesson exists to teach it. Adding a timing without adding it here is how a lesson breaks. */
-    if(timing!=='respond' && typeof tutorialMode!=='undefined' && tutorialMode) return false;
+    /* A NAMED WINDOW OPENS WHATEVER THE PLAYER'S NOTIFICATION MODE IS, and that is not a licence — it is
+       the only way the opt-in means anything. `promptDefault` is `PROMPT_MODE==='on' || timing==='respond'`,
+       so in AUTO (the default) and in OFF a `resolution` or `cleanup` window is silently auto-passed — and
+       a lesson whose step GATES on that window would dead-end for every player who had not set their
+       notifications to ON. That is the `promptedQuicks` mistake exactly: a notification preference deciding
+       something it has no business deciding, here whether a tutorial can be finished at all.
+       IT IS NARROW BY CONSTRUCTION: only inside `tutorialMode`, and only for a timing the running lesson
+       listed. A lesson that names nothing is unaffected, and nothing outside a lesson can reach it. */
+    if(lessonNamesWindow(timing)) return true;
+    if(!lessonAllowsWindow(timing)) return false;                                  // the lesson names its windows; see lessonAllowsWindow
     /* THE MODE GATES THE ROWS. ON is checked BEFORE the per-card override on purpose — "all the notifs on"
        has to mean that, or a card silenced months ago would still be silent in the mode whose whole point
        is that nothing is. The tutorial guard stays ABOVE both: a lesson is a scripted sequence and a mode
@@ -2129,8 +2237,29 @@ __QR__
     if(!state || !E.stakeFor) return false;
     if(PROMPT_MODE==='off') return false;   // the one place a player may knowingly decline a stake — see the mode note
 
-    if(typeof tutorialMode!=='undefined' && tutorialMode) return false;            // a scripted lesson writes its own windows
-    if(timing!=='resolution' && timing!=='respond' && timing!=='prefight') return false;   // the engine answers for each; this is just the closed set
+    /* ⚠ NO LESSON GATE HERE, AND THAT IS THE POINT (2026-09-25). This used to refuse inside a tutorial
+       unless the lesson had NAMED the timing, which made a lesson block its own Leyline step the moment
+       the two phase PAUSES stopped needing `windows` — measured: the window never opened, the shield was
+       lost for real, and `9♦` sat in hand.
+       A STAKE IS NOT AN UNSCRIPTED WINDOW. The tutorial guard exists to stop a modal a lesson did not
+       write from derailing a scripted sequence; a shield of yours about to break, with the answer in
+       hand, is a real game event and the rule above says a preference may not cost you that. Being
+       mid-lesson is a weaker claim than a preference, not a stronger one.
+       AND IT IS SELF-LIMITING, which is why it does not reopen the noise problem: `stakeFor` only fires
+       where something is genuinely at risk, so a round you WON stays quiet — which is exactly the
+       complaint that started this (*"i was still prompted for the leyline on a round i won"*). */
+    if(timing!=='resolution' && timing!=='respond' && timing!=='prefight' && timing!=='cleanup') return false;   // the engine answers for each; this is just the closed set
+    /* ⚠ `cleanup` JOINED THE SET WITH Hand-to-Hand Mastery's stake (2026-09-25). A stake the closed set
+       does not list is DEAD CODE that reads as live — `stakeFor` answers, nothing asks. Add the timing
+       here in the same commit as the branch, or the feature is a comment. */
+    /* ⚠ A PER-CARD UNTICK DOES NOT BEAT A STAKE — OFF IS THE ONLY PLACE THAT DOES, and I broke this
+       for an afternoon by "fixing" it. When Counter Spell gained a stake its checkbox went inert and
+       `prompttest` went red, so I narrowed the force to shields to make the box work again. Aj asked
+       "why?", which is what sent me back to the rule: the distinction it draws is between *a buried
+       per-card default costing you something you never knowingly declined* and *a visible, global,
+       one-tap mode saying "I know, do not stop me"*. The checkbox is the former. Going inert while a card
+       has a LIVE stake is the design, not a regression — the red suite was pinning pre-stake behaviour
+       and wanted updating, not routing around. */
     return !!E.stakeFor(state, YOU, card, timing);
   }
   function promptedQuicks(list, timing){ return (list||[]).filter(function(c){ return promptWanted(c, timing) || shieldSaveOverride(c, timing); }); }
@@ -2159,6 +2288,17 @@ __QR__
   var announcedThresh={};      // REWORK: which transform tiers have had their unlock ceremony this duel
   var pendingThreshold=null;   // a threshold unlock waiting for its OWN beat (so it doesn't overlap the round-win banner)
   var holdShields=false;       // when a round strips a shield, defer the shatter to the ceremony's "loses a shield" beat
+  /* THE PHASE THE PLAYER IS IN, WHICH IS NOT ALWAYS THE PHASE THE ENGINE IS PARKED IN (2026-09-25).
+     `state.resolution` / `state.cleanup` are set only while the engine HOLDS at a boundary waiting for
+     priority — so in a lesson, where named timings force a window open, the strip duly turns orange and
+     red, and in an ordinary game with nothing castable the engine blows straight through and the player
+     sees Fight → idle. Aj, from a real 3-player game: *"shield loss should have happened when the hand is
+     orange but after yellow the hand directly became idle."*
+     He is right, and the fix is not to force windows: from the player's side Resolution IS the ceremony
+     — the shatter and the banner — and Clean-up IS the trim. `uiPhase` follows the CEREMONY, the engine
+     flags still win when they are set, and the two agree about what is happening on screen. */
+  var uiPhase=null;            // 'resolve' | 'cleanup' during the round ceremony, else null
+  var dealHoldUntil=0;         // …and the Beginning tint is held until the deal-in animation has finished
   var difficulty='fighter';    // 'minion' | 'fighter' | 'demon' — persists across New Duel
   var youDeck='full', rivalDeck='full';   // RESOLVED concrete decks in play; 'full' or an E.DECKS key
   // ---- N-player (3–6) ----
@@ -3505,9 +3645,40 @@ __QR__
     if(stick){ l.scrollTop=l.scrollHeight; requestAnimationFrame(function(){ l.scrollTop=l.scrollHeight; }); }   // follow the newest (defer once so a tall entry's height is settled)
     else setLogNewBtn(true, true);   // reading history? don't yank — flag "↓ New" instead
   }
+  /* THE SAVED LOG'S HEADER WAS DUEL-SHAPED AND CONTRADICTED ITS OWN NEXT LINE (Aj's 3-player log,
+     2026-09-25). It read *"You: Warlock (Wiz+Rog)   vs   Rival: Sage (Wiz+Cle)"* and
+     *"Reached Round 18 — Rival won"* directly above *"New game — 3 Riders … against Rozalin (Demon
+     Lord), Flonne (Demon Lord)"*: one opponent named where there were two, a deck neither of them played,
+     and the duel default "Rival" standing in for Flonne, who actually won.
+     BOTH HALVES ARE THIS FILE'S OWN CATALOGUED MISTAKES — a hardcoded "Rival" where `logName(seat)`
+     belongs, and a duel assumption in a free-for-all path. `seatDecks` and `seatName` already existed; the
+     header simply never asked them.
+     AND IT MATTERS MORE THAN COSMETICS: a saved log is this project's main diagnostic instrument, and its
+     header is the first thing a reader orients on. A header that misdescribes the game sends them to the
+     wrong hypothesis before they have read a line — the `downloadLog` PointerEvent lesson in a quieter
+     key: the artefact that collects the evidence must not misreport it.
+     EXTRACTED so a suite can read it without downloading a file (`__solo.logHeadText`). */
+  function logHeadLines(){
+    var n=(typeof mpCount==='number' && mpCount>2) ? mpCount : 2, foes=[];
+    for(var i=1;i<n;i++){
+      var nm=(typeof seatName==='function') ? seatName(i) : ('Rival '+(i+1));
+      foes.push(nm+': '+deckLabel((seatDecks && seatDecks[i]) || (i===1?rivalDeck:'full')));
+    }
+    var head=['Cardmen Fighter — Battle Log',
+              'You: '+deckLabel((seatDecks && seatDecks[0]) || youDeck)+'   vs   '+foes.join('   ·   ')];
+    if(state){
+      var out='';
+      if(state.finished){
+        out = (state.winner===YOU) ? ' — YOU WON'
+            : (state.winner!=null && typeof logName==='function') ? ' — '+logName(state.winner)+' won'
+            : ' — no winner';
+      }
+      head.push('Reached Round '+state.round+out);
+    }
+    return head;
+  }
   function downloadLog(lines){   // `lines` defaults to the live log; the lobby passes the LAST game's stash (v1.31.95)
-    var head=['Cardmen Fighter — Battle Log','You: '+deckLabel(youDeck)+'   vs   Rival: '+deckLabel(rivalDeck)];
-    if(state) head.push('Reached Round '+state.round+(state.finished?(' — '+(state.winner===YOU?'YOU WON':'Rival won')):''));
+    var head=logHeadLines();
     var text=head.concat('',lines||fullLog).join('\n');
     /* THE TRACE GOES IN THE SAVE FILE. Aj's saved logs were the only evidence that characterised the fork, and
      * they could not say why — nothing recorded which branch each action took. Appended rather than a separate
@@ -3891,7 +4062,7 @@ __QR__
      at the deal (`engine.js` ~597) and again at every draw — so an unscrambled hand reaches the screen in
      ascending order, and only the host's `syncOrder(true)` ever made a dealt hand look dealt. */
   function resetHandPresentation(){
-    handOrder=[]; layout=[]; gidSeq=0; selected={}; dealShuffle=true; handPresetN++;
+    handOrder=[]; layout=[]; gidSeq=0; selected={}; dealShuffle=true; handPresetN++; uiPhase=null; dealHoldUntil=0;
     sortState='unsorted'; updateSortLabel();
   }
   /* keep the UI hand order stable; new draws append at the end (Sort tidies) */
@@ -3952,7 +4123,12 @@ __QR__
     for(var i=objs.length-1;i>=0;i--){ var o=objs[i], eff=o.eff, who=logName(o.p), isTop=(i===objs.length-1);
       var label = eff ? (eff.name||'?') : (esc(o.name||'Equipment')+' <span class="who">— upkeep counter</span>');
       var sym = o.card ? (' · '+cardSym(o.card)) : '';
-      html+='<div class="stk'+(isTop?' top':'')+(o.countered?' countered':'')+'"><span class="who">'+who+' ▸</span> '+label+sym+(isTop?' <span class="who">(resolves next)</span>':'')+'</div>';
+      /* ⚠ NO `countered` STATE HERE ANY MORE (2026-09-25). This line used to strike the row through and —
+         for one commit, after Aj asked how a counter resolves — tag it "(countered — fizzles next)". Both
+         are unreachable now: a counter SPLICES its target off the stack, so a countered object is never
+         rendered at all. Keeping the branch would leave the UI describing a state the engine cannot
+         produce, which is the `spBegin` mistake of the same day in a different file. */
+      html+='<div class="stk'+(isTop?' top':'')+'"><span class="who">'+who+' ▸</span> '+label+sym+(isTop?' <span class="who">(resolves next)</span>':'')+'</div>';
     }
     if(pendingLoss){
       var lWho=(typeof pendingLoss.winner==='number')?logName(pendingLoss.winner):'The winner';
@@ -4013,10 +4189,27 @@ __QR__
     /* PAINT THE SUB-PHASE ON THE HAND. Read from `state.subPhase`, not from whose turn it is: the rule it
        reports — no effects once the fight has begun — is the TABLE's, not yours, which is Aj's whole point
        for wanting the colour. A seat waiting its turn still needs to know the window has closed. */
-    var hw=$('handWrap');
-    if(hw){ var inFightSP=(state.subPhase==='play'); hw.classList.toggle('spFight', inFightSP); hw.classList.toggle('spMain', !inFightSP); }
-    notePhaseEdge();
+    /* PRECEDENCE, NOT A SWITCH ON `subPhase` ALONE. `subPhase` still reads 'play' while `st.resolution` is
+       set, so testing it first would paint the Fight colour through the whole Resolution window — the one
+       stretch this is meant to make visible. Clean-up outranks Resolution for the same reason.
+       BEGINNING HAS NO STATE FLAG (`st.beginning` does not exist), so it rides the DEAL-IN, which is what
+       Aj asked for in those words — cards flying in with an empty pile is v1.31.67's own test for "this is
+       the round's deal". This toggle runs at :4016, before `renderHand` consumes `pendingEnter` at :4147,
+       which is the only reason it can be read here at all.
+       KNOWN AND ACCEPTED: an EFFECT draw taken before you have played anything also shows green, because
+       from the hand's point of view it is the same event — cards arriving. */
+    /* ⚠ BEFORE THE PHASE STRIP, BECAUSE THE STRIP READS WHAT THIS WRITES (2026-09-25). `dealingIn` asks
+       whether cards are arriving, which is `pendingEnter`, and `syncOrder` is the ONLY thing that fills
+       it. This call used to sit ~18 lines BELOW the strip, so on the very render where the new hand lands
+       `pendingEnter` was still empty — and `renderHand` then consumed it before any later render could
+       look. `spBegin` was UNREACHABLE from the day it was written; blue never appeared once.
+       Aj found it in a real game (*"never glowed blue when the cards flew in"*), and `lessontest_phases`
+       had been reporting `spBegin` absent the whole time while a comment explained it away as a quirk of
+       the lesson. A state nothing can reach is a bug, and an assertion that notices one must be believed
+       rather than explained. */
     syncOrder(false);
+    paintPhaseStrip();
+    notePhaseEdge();
     /* SAY WHY PLAY HAS PAUSED. Every seat but the one picking is auto-trimmed at the end of a round, so the
      * only seat that stops the table is the one holding an interactive hand-limit pick — and until v1.31.69 the
      * others just saw a gap. `trimPending` rides the mirror (netview whitelists it), so a client can name the
@@ -4166,6 +4359,14 @@ __QR__
   // Why the effect can't be activated right now (a short reason), or null if it can. Assumes
   // activatableCard(card) is already true. This decides whether the shown button is GREYED OUT.
   function activateBlock(card){
+    /* ⚠ THE LESSON LOCK LIVES HERE AS WELL AS IN `ctxActionFor`, AND THAT IS NOT DUPLICATION — they are
+       the two halves this function's own comment below is about. `ctxActionFor` is the ACTION path (the
+       drag release calls its `.run()`); this is the DISPLAY path that greys the ⚡ and writes the reason.
+       Guarding only the action left the button looking live, which is the v1.31.74 enabled-but-inert bug:
+       from the outside, a control that does nothing is indistinguishable from a hang. Measured — the
+       suite read `LIVE` with the action already refused. */
+    if(typeof TUT!=='undefined' && TUT.acceptsActivate && !TUT.acceptsActivate())
+      return (TUT.onlyHint && TUT.onlyHint()) || 'Not this step — follow the step above.';
     var eff=E.effectOf(card);
     /* THE SUB-PHASE REFUSAL HAS TO BE HERE TOO, OR THE UI OFFERS WHAT THE ENGINE REFUSES (2026-09-16).
        `activate` gained a `subPhase === 'play'` gate when Aj reported activating in the Fight Sub-Phase;
@@ -4392,7 +4593,12 @@ __QR__
       g.cards.forEach(function(c,idx){
         if(kind==='fullhouse' && idx===3){ var gap=document.createElement('span'); gap.className='fhgap'; cardrow.appendChild(gap); }
         var el=cardEl(c,'', YOU); markBoost(el, c); markTransform(el, c); markAfford(el, c);   // YOUR hand: judge Quick against YOUR zone
-        if(g.cards.length===1 && pendingEnter[c.id] && canEnter){ el.classList.add('enter'); el.style.animationDelay=(enterDelayBase+enterIdx*55)+'ms'; enterIdx++; }
+        /* ⚠ NO `g.cards.length===1` HERE ANY MORE. A freshly drawn card that landed INSIDE a group — a
+           pair, a trio — was silently excluded from the deal-in, so it appeared with no animation at all.
+           It reads as a player-count bug and is not: the draw scales with the table (`drawCountFor` =
+           numPlayers), so at 3+ players you draw more cards and far more of them land in groups. Aj, from
+           a 3-player game with two pairs in hand: *"didn't see the card fly in for the 2nd round."* */
+        if(pendingEnter[c.id] && canEnter){ el.classList.add('enter'); el.style.animationDelay=(enterDelayBase+enterIdx*55)+'ms'; enterIdx++; }
         cardrow.appendChild(el);
       });
       groupEl.appendChild(cardrow);
@@ -4400,6 +4606,14 @@ __QR__
       attachGroupHandlers(groupEl, g.id);
       hand.appendChild(groupEl);
     });
+    /* HOLD THE BEGINNING TINT FOR THE WHOLE FLY-IN. `enterIdx` counted the cards actually animated and
+       the delays are `enterDelayBase + i*55`, so the last card starts at `base + (n-1)*55` and the
+       keyframe itself runs ~420ms — derive the hold from the same numbers rather than picking one, or a
+       change to the stagger silently leaves the colour behind. */
+    if(enterIdx>0 && !reduceMotion()){
+      dealHoldUntil = Date.now() + enterDelayBase + (enterIdx-1)*55 + 420;
+      var gh=gen; setTimeout(function(){ if(gh===gen) render(); }, enterDelayBase + (enterIdx-1)*55 + 460);
+    }
     pendingEnter={};                                  // consume the deal-in queue
   }
 
@@ -4540,6 +4754,17 @@ __QR__
   }
   function canHumanPlay(cards){
     if(state.turn!==YOU || state.finished || busy || pick || targeting || targetPick || E.isLocked(state, YOU)) return false;
+    /* ⚠ AND A DRAG OBEYS THE LESSON'S CARD LIST TOO. `only` was enforced in `updateActions`, which is the
+       FIGHT BUTTON's path — a drag-to-play never passes through it, so a lesson could be broken by
+       dragging what it had just refused to let you press Fight with. Same shape as the v1.31.56 client
+       guard, where clicking Fight was covered and dragging was not; the answer is the same one, put the
+       check in the funnel both paths share. This also greys the drop zone, so the refusal is visible
+       before the release rather than a card that silently will not go down. */
+    var need=(typeof TUT!=='undefined' && TUT.needCards) ? TUT.needCards() : null;
+    if(need){
+      var got=cards.map(function(c){ return c.id; }).sort().join(',');
+      if(got !== need.slice().sort().join(',')) return false;
+    }
     return !!fightLegal(cards);
   }
   // Shared by the Fight button and drag-to-play.
@@ -4604,6 +4829,16 @@ __QR__
      drag, instead of after you let go. */
   function ctxAction(){ return ctxActionFor(selectedCards()); }
   function ctxActionFor(sel){
+    /* ⚠ A GATED LESSON STEP LOCKS ACTIONS, AND THIS IS THE FUNNEL THEY ALL COME THROUGH — the ⚡ button
+       reads its result for both enabled-ness and the reason, and the Main Sub-Phase drag release calls
+       `.run()` on it. Guarding here rather than at the button is the rule this file already carries from
+       `playCards`: a new entry point is covered for free.
+       READING STAYS FREE, which is Aj's line: *"lock actions, leave reading. especially allow the peeks,
+       it helps people see the color changes"*. Sort, Clear, the card reader and Peek are untouched —
+       none of them changes the game. */
+    if(typeof TUT!=='undefined' && TUT.acceptsActivate && !TUT.acceptsActivate())
+      return {mode:'activate', label:'⚡ Activate', ok:false, run:null,
+              reason:(TUT.onlyHint && TUT.onlyHint()) || 'Not this step — follow the step above.'};
     // a staged target waits on an explicit confirm — the button IS the confirm
     if(targetPick && targetPick.chosen!=null)
       return {mode:'activate', label:'⚡ Activate', ok:true, reason:'', gold:true, run:function(){ confirmTargetPick(); }};
@@ -4828,8 +5063,13 @@ __QR__
       var selIds=sel.map(function(c){ return c.id; }).sort().join(',');
       var wantIds=tutOnly.slice().sort().join(',');
       if(selIds!==wantIds){
+        /* THE EMPTY-`only` MESSAGE WAS WRITTEN FOR ONE STEP AND INHERITED BY EVERY OTHER. "use ⚡ Activate"
+           is right for the twos lesson's boost step, where you DO select a card and must activate rather
+           than fight — and wrong for the phases lesson's doorway step, where the answer is to select
+           nothing at all. A step may now say its own; the old text stays the default. */
+        var tutHint=(typeof TUT!=='undefined' && TUT.onlyHint) ? TUT.onlyHint() : null;
         hint.textContent = tutOnly.length ? 'This lesson needs the cards it just pointed at — follow the step above.'
-                                          : 'Not this step — read the step above and use ⚡ Activate.';
+                                          : (tutHint || 'Not this step — read the step above and use ⚡ Activate.');
         hint.className='bad'; fight.disabled=true; pass.disabled=true; return;
       }
     }
@@ -5778,6 +6018,48 @@ __QR__
     nextTrim();
   }
   // Orchestrate a resolved round: pre-draw beats → end-of-round trim → draw → Round card → continuation.
+  /* PARK A CEREMONY BEAT IF A LESSON WANTS TO TALK ABOUT IT, else run straight on. One definition, used
+     at both beats, so the two cannot drift — and a wrapper rather than a split, because the ceremony's
+     nesting is load-bearing and carving it into new functions is how its tail got orphaned once. */
+  function ceremonyBeat(phase, g, run){
+    if(typeof TUT!=='undefined' && TUT.holdFor && TUT.holdFor(phase, function(){ if(g===gen) run(); })) return;
+    run();
+  }
+  /* THE STRIP'S CLASS, WITHOUT A RENDER (2026-09-25). Extracted because the Clean-up beat needs to
+     REPAINT and must not re-render: a full `render()` there runs the shield diff, which queues
+     `pendingThreshold`, which inserts a beat into the round ceremony and displaces the client's —
+     `nettest_ceremony` 11/0 → 10/1, *"the beat reaches BOTH seats together — client 829ms after the
+     host"*. That is the same regression CLAUDE.md already records from `checkThresholds` firing
+     unconditionally, reached from a new direction, and A/B'd here: removing just this one call restores
+     11/0 on an otherwise identical build.
+     `render()` still calls it, so the two cannot drift. */
+  function paintPhaseStrip(){
+    var hw=$('handWrap');
+    if(hw){
+    /* ⚠ THE DEAL IS AN ANIMATION, NOT AN INSTANT, AND THE TINT HAS TO LAST AS LONG AS IT DOES.
+       `pendingEnter` is CONSUMED by `renderHand` on the very render that draws the fly-in, so keyed on
+       it alone the Beginning tint lived for exactly one frame — the cards were still visibly arriving
+       while the strip had already moved on. Aj: *"can we let the phases breathe a bit? when the cards
+       are still flying in"*. `dealHoldUntil` is stamped where the animation is scheduled, from the same
+       delay arithmetic, so the two cannot drift; a timer re-renders once it lapses. */
+    var dealingIn = !state.pile && (Object.keys(pendingEnter||{}).length>0 || Date.now() < dealHoldUntil);
+    /* ⚠ A ROUND-LEVEL PHASE OUTRANKS "NOT YOUR TURN", AND THAT ORDER IS MEASURED RATHER THAN CHOSEN.
+       Beginning, Resolution and Clean-up belong to the TABLE, not to a seat — and `state.turn` during
+       them is the round WINNER's, measured as `turn:1` through both boundaries of a round seat 0 won. So
+       testing the turn first paints violet over every boundary and the ramp loses three of its six
+       colours, including the two a player most needs to notice.
+       VIOLET IS THEREFORE THE OPPONENT'S MAIN/FIGHT — the stretch where the board is genuinely theirs,
+       which is what "in between your own turns" means.
+       `upkeep` joins `dealingIn` for blue because the Beginning Phase IS Untap/Upkeep/Draw; `dealingIn`
+       alone caught only the deal, so the phase's own priority point rendered as something else. */
+    var ph = (state.cleanup || uiPhase==='cleanup') ? 'spCleanup'
+           : (state.resolution || uiPhase==='resolve') ? 'spResolve'
+           : (state.upkeep || dealingIn) ? 'spBegin'
+           : (state.turn !== YOU) ? 'spIdle'
+           : (state.subPhase==='play') ? 'spFight' : 'spMain';
+    ['spIdle','spBegin','spMain','spFight','spResolve','spCleanup'].forEach(function(c){ hw.classList.toggle(c, c===ph); });
+  }
+  }
   function resolveRoundCeremony(res, g, continuation){
     /* ⚠ AND THE CEREMONY ITSELF IS ENTERED ONCE PER RESULT. The guard above catches a stale resume inside
        the trim queue; this catches the other shape — the same `res` orchestrated twice — which would look
@@ -5792,13 +6074,27 @@ __QR__
     if(res) res.__ceremonyRan=true;
     inCeremony=true;                                            // suppress the render-diff deck-mill float here; the catch-up mill fires its own explicit −N
     holdShields = !reduceMotion() && !!res.shieldStripped;      // defer the shatter to its beat
+    uiPhase='resolve';                                          // ← the shatter and the banner ARE Resolution, from the player's side
     render();                                                   // settle board; no fresh cards yet (draw deferred)
+    ceremonyBeat('resolve', g, function(){
     playPreBeats(res, function(){
+      if(g!==gen) return;
+      /* ← …and the hand-limit trim is Clean-up. IT NEEDS A BEAT OF ITS OWN, because unlike Resolution it
+         usually has no work to show: when nobody is over the hand limit `endOfRoundTrimThen` calls straight
+         back, so the phase existed for less than a frame and the strip never painted red once. Measured on
+         a real 3-player game — the sequence went `spFight → spResolve → spBegin`, skipping Clean-up
+         entirely, which is the same "a state nothing can reach" bug `spBegin` had.
+         The dwell is what makes the colour honest rather than theoretical, and it is skipped under reduced
+         motion like every other beat here. */
+      uiPhase='cleanup'; paintPhaseStrip();   // ← repaint ONLY — a render here displaces the client's beat; see paintPhaseStrip
+      ceremonyBeat('cleanup', g, function(){
+      setTimeout(function(){
       if(g!==gen) return;
       flushThreshold(function(){                                // a transform tier that just unlocked gets its OWN beat here
       if(g!==gen) return;
       endOfRoundTrimThen(function(){
         if(g!==gen) return;
+        uiPhase=null;                                           // ← the deal is the BEGINNING phase; `dealingIn` owns the strip from here
         E.roundDraw(state, res);                                // draw the new round's cards (held invisible for a beat)
         if(res.deckedOut){ inCeremony=false; logDeckout(res); render(); clearRoundfx(); busy=false; return endGame(); }
         logRoundDraw(res);
@@ -5807,6 +6103,9 @@ __QR__
         playRoundCardBeat(res, function(){ inCeremony=false; if(g===gen) continuation(); });
       });
       });
+      }, reduceMotion()?0:420);                                 // the Clean-up beat — see the note above
+      });
+    });
     });
   }
 
@@ -6299,8 +6598,17 @@ __QR__
     else { setMessage('You answered with <b>'+qeff.name+'</b>.'); say(YOU, '{who} answered with '+qeff.name+' at instant speed.', 'you'); }
     bumpEffect(YOU, qeff);
     prioNote('  → you CAST ' + (qeff && qeff.name ? qeff.name : quickId) + (qeff && qeff.kind==='counter' ? ('  (countering ' + pendName + ')') : ''));
+    /* CLEARED AND NOTED *BEFORE* `cont()`, FOR THE REASON `tutCastRivalTech` ALREADY GIVES FOR SETTING IT
+       (2026-09-25). `cont()` runs the settle, and the settle is what OPENS THE NEXT WINDOW — priority goes
+       round again on whatever is left of the stack. With the clear below it, that modal rendered while
+       `tutAwaitCounter` was still true: "Let it resolve" came up DISABLED, carrying the stale note *"This
+       lesson needs this one countered"* about a Technique that had just been countered. A dead button with
+       no live alternative is the dead end this file has a rule against, and it is unreachable outside a
+       lesson only because nothing else sets the flag.
+       ADVANCING THE STEP FIRST IS ALSO THE RIGHT ORDER: the step that opens with that window is the one
+       whose `only` list `updateActions` should be reading. */
+    if(typeof TUT!=='undefined' && TUT.note){ tutAwaitCounter=false; TUT.note('respond', { countered: !!(qeff && qeff.kind==='counter') }); }   // the Phases lesson gates here
     render(); cont();
-    if(typeof TUT!=='undefined' && TUT.note){ tutAwaitCounter=false; TUT.note('respond', { countered: !!(qeff && qeff.kind==='counter') }); }   // Quicks lesson gates here
   }
   function humanDeclines(g, cont){
     cont = cont || function(){ resumeRival(g); };
@@ -6311,7 +6619,19 @@ __QR__
     prioNote('  → you DECLINED');
     E.declineResponse(state, YOU);
     say(YOU, '{who} let it resolve.', 'dim');
+    /* A LESSON MAY GATE ON A DECLINE, AND UNTIL TODAY NOTHING TOLD IT ONE HAPPENED. `humanResponds` has
+       fired `respond` since the Quicks lesson existed; its twin never did, so a step teaching that a
+       window is a CHOICE — including the choice to pass — had no event to wait for. Fired BEFORE the
+       re-cast retry below, which is the older `tutAwaitCounter` path and only runs when the lesson still
+       needs something countered. */
     render(); cont();
+    /* ⚠ AFTER `cont()`, UNLIKE THE FLAG ABOVE, AND THE TWO ARE NOT THE SAME QUESTION. `tutAwaitCounter`
+       must be cleared BEFORE the settle because the settle RENDERS the next modal and would draw it
+       disabled. The NOTE must fire after, because a step may legitimately gate on what the settle DID —
+       the Clean-up pause waits for `!state.cleanup`, i.e. for the boundary to be over rather than merely
+       clicked once, and Clean-up's go-round comes back so "declined" and "finished" are different events.
+       Fired before the settle, that condition is never true and the step hangs forever. */
+    if(typeof TUT!=='undefined' && TUT.note) TUT.note('decline', { cleanup: !!(state && state.cleanup) });
     if(tutAwaitCounter && typeof TUT!=='undefined' && TUT.isActive && TUT.isActive()){ tutAwaitCounter=false; setMessage('That one resolved — let’s try again. Counter the next one!'); setTimeout(function(){ if(gen===g) tutCastRivalTech(); }, 700); }   // lesson: don't brick if they let it resolve
   }
   // ---- PRE-FIGHT QUICK WINDOW (Back Stab): the NON-active player may spring a Quick before the active
@@ -6360,6 +6680,11 @@ __QR__
   function moveToPlayThen(g, proceed, stopIfActed, actor, via){
     var me=(actor==null?YOU:actor), mark=stackMark(state, me);
     E.moveToPlay(state);
+    /* THE TRANSITION IS A TAUGHT BEAT AND HAD NO EVENT (2026-09-25). `TUT.note` carried play/pass/activate/
+       respond and nothing for Main → Fight, so a lesson could not gate on *"press Fight and watch nothing
+       get played"* — which is the single thing players most misread about that button, and which the phases
+       lesson teaches twice. Local seat only: a remote seat's transition is not this player's lesson. */
+    if(typeof TUT!=='undefined' && TUT.note && me===YOU) TUT.note('transition', { via:via||null });
     /* THE TRANSITION GOES IN THE LEDGER, INCLUDING WHEN IT DOES NOTHING (2026-09-11). Aj's 10-round log
        carried thirteen entries and not one of them mentioned the Main → Fight go-round, so the file could
        not tell "no seat could ever act at a transition" from "step 20's new priority point is not being
@@ -6795,10 +7120,28 @@ __QR__
     }
     function spotNow(){ var st=steps[i]; if(!st) return; var hi=(typeof st.hi==='function')?st.hi():st.hi; applySpot(hi); }
     function reapply(){ if(active) spotNow(); }        // render() rebuilds the hand DOM and wipes .tut-spot — re-add it each paint
-    function next(){ clearSpots(); i++; if(i>=steps.length){ finish(); return; } show(); }
+    /* A STEP MAY HOLD A CEREMONY BEAT (Aj, 2026-09-25: *"do the ceremony beat instead of forcing
+       windows"*). The lesson used to pause at Resolution and Clean-up by naming those timings in
+       `windows`, which FORCES a real priority window open — so the player was asked to decline a window
+       on a round they had just WON, holding a Leyline with nothing at stake. Aj: *"i was still prompted
+       for the leyline on a round i won … it's crude"*. He is right: a pause is a presentation problem,
+       and forcing a rules event to get one is the wrong instrument.
+       `hold:'resolve' | 'cleanup'` instead. The ceremony asks before moving on, a matching step parks it,
+       the strip stays that phase's colour while the player reads, and their Next releases it. No window
+       opens, nothing is declined, and a lesson can pause on a beat that has no priority at all.
+       THE RELEASE RUNS BEFORE THE STEP CHANGES, which is what lets the Clean-up hold find its own step
+       already current when the ceremony gets there. */
+    var holdCb=null;
+    function holdFor(phase, cb){
+      var st=steps[i];
+      if(!active || !st || st.hold !== phase) return false;
+      holdCb = cb; return true;
+    }
+    function releaseHold(){ var cb=holdCb; holdCb=null; if(cb) try{ cb(); }catch(e){} }
+    function next(){ releaseHold(); clearSpots(); i++; if(i>=steps.length){ finish(); return; } show(); }
     function note(type, data){ if(!active) return; var st=steps[i]; if(!st||!st.gate) return; try{ if(st.gate(type, data)) next(); }catch(e){} }
     function start(list){ steps=list||[]; i=0; active=true; var p=panel(); if(p){ p.style.left=''; p.style.top=''; p.style.transform=''; p.style.bottom=''; p.style.right=''; } show(); }
-    function stop(){ active=false; tutorialMode=false; clearSpots(); var p=panel(); if(p) p.classList.remove('show'); }
+    function stop(){ releaseHold(); active=false; tutorialMode=false; tutPromptRestore(); clearSpots(); var p=panel(); if(p) p.classList.remove('show'); }
     function skip(){ stop(); setMessage('Tutorial dismissed — play on! You can restart it from New Duel.'); }
     function finish(){
       stop();
@@ -6829,8 +7172,33 @@ __QR__
      * throw the boost card away as a jab. */
     function needCards(){ var st=steps[i]; if(!active||!st||!st.only) return null;
       try{ var r=st.only(); return Object.prototype.toString.call(r)==='[object Array]' ? r : null; }catch(e){ return null; } }
+    function onlyHint(){ var st=steps[i]; return (active && st && st.onlyHint) ? st.onlyHint : null; }
+    /* DOES THE CURRENT STEP ACCEPT AN ACTIVATION? ASK ITS OWN GATE (Aj, 2026-09-25: *"lock actions, leave
+       reading"*). A gate is a pure predicate of (type, data), so probing it with `'activate'` answers the
+       question without a new per-step flag to remember — `t==='activate'` says yes, `t==='play'` and
+       `t==='decline'` say no. A TOUR step (no gate) locks nothing: it already holds the board.
+       WHY DERIVE RATHER THAN DECLARE: every step would have to carry the flag, and the one that forgot it
+       would be the one that breaks — the same reason `keepsTheWin` reads `effectFor` itself instead of
+       trusting its caller. Wrapped, because a gate written for one event may not expect another's data. */
+    /* DOES THE CURRENT STEP WANT AN ACTIVATION? READ ITS SPOTLIGHT (Aj, 2026-09-25: *"lock actions, leave
+       reading"*). Every step in the game that expects one points `hi` at `#cardActivate` — energy, decks,
+       rides, forms, the twos boost — because it has to tell the player which control to press. So the
+       spotlight already carries the answer and no step needs a new flag it could forget.
+       ⚠ TWO CHEAPER IDEAS FAILED FIRST, and both broke real lessons. Probing the gate with
+       `gate('activate', {})` cannot tell "wrong event TYPE" from "wrong event DATA": the rides and forms
+       gates read `d.kind === 'transform'`, so they return a clean `false` for an empty probe and the very
+       steps whose job is to be activated through were locked (`rides` 10/5, `forms` 10/5). Treating a
+       THROW as consent did not help either, because those gates do not throw — they just answer no.
+       A TOUR STEP LOCKS NOTHING: it has no gate and already holds the board. */
+    function acceptsActivate(){
+      var st=steps[i]; if(!active || !st || !st.gate) return true;
+      var h=st.hi; if(typeof h==='function'){ try{ h=h(); }catch(e){ return true; } }
+      if(!h) return false;
+      var flat=(Object.prototype.toString.call(h)==='[object Array]') ? h.join(',') : String(h);
+      return flat.indexOf('#cardActivate')>=0 || flat.indexOf('#ctxBtn')>=0;
+    }
     function blocking(){ return active && !!steps[i] && !steps[i].gate; }   // a READ step (no action gate): hold the board until they press the button, so they can't play ahead of the lesson
-    return { start:start, note:note, stop:stop, skip:skip, reapply:reapply, needSpecial:needSpecial, needCards:needCards, blocking:blocking, isActive:function(){return active;} };
+    return { start:start, note:note, stop:stop, skip:skip, reapply:reapply, needSpecial:needSpecial, needCards:needCards, onlyHint:onlyHint, acceptsActivate:acceptsActivate, holdFor:holdFor, blocking:blocking, isActive:function(){return active;} };
   })();
 
   // Rig a controlled opening so each lesson reliably works: a couple of strong jabs, a pair, a cheap effect
@@ -7107,6 +7475,116 @@ __QR__
     foe.hand=fhand; foe.deck=fpool;
     foe.energy=[]; for(var e=0;e<12;e++) foe.energy.push({rank:4,suit:'CDHS'[e%4],id:'tqE'+e});   // plenty for any Technique
     st.turn=st.initiative=0;   // your turn; nothing auto-fires — the lesson triggers the cast on cue
+  }
+  /* ── THE PHASES LESSON (Basics #3) ──────────────────────────────────────────────────────────────────
+   * Aj, 2026-09-25, designing the arc: *"for the first part, we just need the player to notice the phases
+   * and sub-phases as they come… the opponent activates a technique - maybe a boost… and then they can
+   * activate counterspell… round 2 begins and the player is encouraged to play the special they have on
+   * hand (it's a small one because we want the opponent to beat it)… we'll teach the player to use leyline
+   * ascension to save their shields."*
+   * IT ABSORBS THE QUICKS LESSON, and that is the point rather than a saving: a Quick is only meaningful as
+   * a thing you cast INTO a window, and the windows are the phases. Both base ♦ Quicks appear, answering
+   * DIFFERENT windows — Counter Spell a cast, Leyline a shield loss — which is the fact that makes "priority
+   * window" a real idea instead of a word.
+   * ⚠ ROUND 1 IS JABS-ONLY (an engine rule), which is why the counter happens over a SINGLE and the pair
+   * waits for round 2. Designing it the other way round is the obvious mistake.
+   * THE ARITHMETIC IS EXACT AND LOAD-BEARING: you lead A♦ (14); the Rival holds K♦ (13), which only beats it
+   * with ♦5 Infuse with Magic (+4 → 17). Counter the Infuse and the King is 13 against 14, so they cannot
+   * beat it and pass — the lesson's claim is then literally true rather than staged. Infuse is also the card
+   * from Aj's own logged game, lost to Kings because it was counterspelled. */
+  var tutPhAce=null, tutPhPair=null, tutPhCounter=null, tutPhLey=null;
+  /* ⚠ A STEP THAT GATES ON A TRANSIENT WINDOW MUST ALSO NOTICE THAT THE WINDOW HAS GONE (Aj, 2026-09-25:
+     *"tutorial is stuck because i was looking at modals the whole time"* — panel on step 8, board already
+     in Round 2 Main). The narration step BEFORE each pause waits for a button press, and the boundary's
+     window can open AND be answered while that narration is still on screen. A gate only fires for the
+     CURRENT step, so the pause arrived after its own event and waited forever: an unfinishable lesson.
+     This is the trap the "NARRATION, NOT A GATE" comment further down already names, one step along —
+     there the consequence was transient, here it is the WINDOW, and a player reading at their own pace is
+     enough to miss it. `only:[]` made it worse by leaving Fight live but Pass dead, so there was no
+     obvious way out either.
+     THE RECOVERY IS THE ROUND NUMBER, stamped on entry: if the board has reached a later round the
+     boundary is provably behind us, so the next thing the player does satisfies the step instead of
+     trapping them. It costs the pause when they are slow, which is the right way for this to fail. */
+  var tutPhRound=0;
+  var tutPhInfuse=null;      // ♦️5 Infuse with Magic — the Rival cast you counter (the pilot fires it; see tutPilotPhases)
+  function tutRigPhases(st){
+    var me=st.players[0], foe=st.players[1];
+    /* EVERY CARD EITHER SIDE HOLDS IS LISTED HERE — Aj: *"please make it so that there is an exact sequence
+     * to the cards that will be used in the tutorial so that the starting hand is not random."* Fabricated
+     * with `tutCard` for the same reason the twos lesson does: a class deck is four COPIES of one suit, so
+     * duplicate rank+suit with distinct ids is ordinary, and art/EFFECTS are keyed by rank+suit. */
+    me.hand = [ tutCard(1,'D','pA'),                                 // round 1: the Ace you lead
+                tutCard(3,'D','p1'), tutCard(3,'D','p2'),            // round 2: the small pair they will beat
+                tutCard(4,'D','pC'),                                 // ⏩ Counter Spell  — answers a CAST
+                tutCard(9,'D','pL'),                                 // ⏩ Leyline Ascension — answers a LOSS
+                tutCard(6,'D','pS') ];                               // a spare, so a draw never empties the hand
+    tutPhAce='1D#pA'; tutPhPair=['3D#p1','3D#p2']; tutPhCounter='4D#pC'; tutPhLey='9D#pL'; tutPhInfuse='5D#rI';
+    me.deck = tutDropDupes(me.deck, me.hand);
+    /* 14 ♦ ENERGY, STAGED NOT EARNED. Counter Spell costs 4 and Leyline 9 — thirteen between them, and a
+     * round of fighting banks one card. Without this the finale is simply unaffordable. */
+    me.energy=[]; for(var i=0;i<14;i++) me.energy.push(tutCard(4,'D','pe'+i));
+
+    foe.hand = [ tutCard(13,'D','rK'),                               // round 1: the King, 13 against your 14
+                 tutCard(5,'D','rI'),                                // ♦5 Infuse with Magic (+4) — the cast you counter
+                 tutCard(8,'D','r1'), tutCard(8,'D','r2'),           // round 2: the pair that takes your shield
+                 tutCard(7,'D','rS'), tutCard(2,'D','rT') ];
+    foe.deck = tutDropDupes(foe.deck, foe.hand);
+    foe.energy=[]; for(var e=0;e<14;e++) foe.energy.push(tutCard(4,'D','re'+e));
+    st.turn = st.initiative = 0;                                     // YOU lead — the lesson opens on your turn
+  }
+  /* THE PILOT CASTS AS WELL AS FIGHTS, AND THAT IS THE WHOLE REASON THIS LESSON WORKS (2026-09-25).
+   * It was written the way the Quicks lesson does it — the cast as a step's `prep`, through
+   * `tutCastRivalTech` — and that is a shape only Quicks can afford, because Quicks NEVER LETS THE RIVAL
+   * TAKE A REAL TURN (its rig comment: *"nothing auto-fires — the lesson triggers the cast on cue"*). Here
+   * the Rival does take one, so a `prep` fires when the STEP IS SHOWN, which is after that whole turn has
+   * run and the round has already turned over: the cast landed in ROUND 2, and `tutCastRivalTech`'s
+   * `savedTurn` restore then wrote the Rival's turn back onto a round YOU had won. Measured, and it is the
+   * exact signature the twos pilot already has a comment about — `round 2 opening with turn 1, init 0`.
+   * A `prep` CANNOT be made to work here: it is display-time, and the window has to open turn-time.
+   * AND THE TUTORIAL RIVAL WILL NEVER CAST IT ON ITS OWN (Aj: *"maybe it's because the tut ai is
+   * passive?"* — correct). A lesson runs at `minion` unless it names a `diff`, and `runRival`'s own note
+   * says minion *"never uses effects at all"*. Raising the tier is the wrong lever twice over: a tier
+   * cannot promise WHICH card or WHEN, which is the reason pilots exist.
+   * `E.activate` OPENS THE WINDOW AND SUSPENDS, which is precisely what the twos pilot goes out of its way
+   * to AVOID by boosting and playing atomically. Here the window IS the lesson, so we want the suspend:
+   * the driver presents the cast with `buildOppBeats` like any other rival effect and then hands you
+   * `promptHumanResponse` — no bespoke presentation, no hand-rolled priority check, nothing this file has
+   * had to fix twice already. */
+  function tutPilotPhases(st, p){
+    var log=[], pl=st.players[p], cur=st.pile ? st.pile.combo : null;
+    function play(cards){ var r=E.play(st, p, cards); if(r && r.ok!==false){ log.push({ fight:'play', combo:r.combo }); return true; } return false; }
+    function rank(n,k){ return pl.hand.filter(function(c){ return c.rank===n; }).slice(0,k||1); }
+    if(cur){
+      /* THE BOOST FIRST, AND ONLY WHILE THE CARD IS STILL IN HAND — that is the re-entry guard, and it is
+         the card itself rather than a flag. `E.activate` removes it, so the pilot call that resumes after
+         you answer cannot find it and falls straight through to the King. Reading `nextPlayBoost` instead
+         would be WRONG in the case that matters: a COUNTERED boost never sets it, so the pilot would cast
+         again and the lesson would loop. */
+      var inf = (cur.size===1) ? pl.hand.filter(function(c){ return c.id===tutPhInfuse; })[0] : null;
+      if(inf){
+        var ra=E.activate(st, p, inf.id);
+        if(ra && ra.ok!==false){
+          log.push({ play:'BOOST', card:{ rank:inf.rank, suit:inf.suit, id:inf.id } });   // the AI's own log shape — buildOppBeats reveals it and dwells
+          /* ARM THE DEAD-END GUARD THE SAME WAY THE CAST HELPER DOES. `tutAwaitCounter` is what disables
+             "Let it resolve" in a window the lesson needs countered, and `updateActions` reads it as the
+             modal renders — so it has to be set BEFORE we return into the driver, never after. */
+          if(ra.pending && st.respondFor===YOU) tutAwaitCounter=true;
+          if(ra.pending) return log;                                                       // your window is open; the King waits for your answer
+        }
+      }
+      /* Round 1 is a single: the King only beats the Ace while the boost is banked, so `E.play` itself is
+         the arbiter — countered, this refuses and we fall through to the pass. No round test needed. */
+      if(cur.size===1 && play(rank(13,1))) return log;
+      if(cur.size===2 && play(rank(8,2))) return log;
+    }
+    /* ⚠ ONLY LOG A PASS THAT ACTUALLY HAPPENED. The first cut pushed `{fight:'pass'}` whatever `E.pass`
+       returned, so a REFUSED pass — "Not your turn", which this pilot gets whenever the driver polls it off
+       turn — was reported to the driver as a real action. Measured: "Rival 2 passed." twice in one round,
+       and round 2 opening with `turn 1, init 0` when the log said "You won the round of Jabs" — the round
+       winner holding initiative but not the turn. An empty log is the honest answer to "I could not act". */
+    var r=E.pass(st, p);
+    if(r && r.ok!==false) log.push({ fight:'pass', result:r });
+    return log;
   }
   function tutPrepQuick(){
     var me=state.players[YOU];
@@ -7389,6 +7867,90 @@ __QR__
     me.shuffle=me.shuffle||[]; var s1=me.deck.length?me.deck.shift():null; if(s1) me.shuffle.push(s1); var s2=me.deck.length?me.deck.shift():null; if(s2) me.shuffle.push(s2);
     st.turn=st.initiative=0;
   }
+  /* THE PHASES LESSON'S SCRIPT. Eleven steps over TWO rounds, six of them gated — the arc is Aj's
+   * (2026-09-25) and the ordering is forced by an engine rule: round 1 is JABS ONLY, so the counter happens
+   * over a single and the pair waits for round 2.
+   * WHAT EACH ROUND IS FOR: round 1 teaches the phases by walking them; round 2 teaches that the SAME
+   * structure holds when you have nothing to activate, and pays it off with the second Quick. */
+  function lessonPhasesSteps(){
+    var hw='#handWrap';
+    return [
+      /* ⚠ THE STEPS NAME THE PHASE, NEVER THE HUE (Aj, 2026-09-25: *"no need to explicitly say the color
+         in the tutorial text. maybe in the future, we can add the option for players to change their color
+         preferences in the settings"*). A lesson that says "blue" is a second copy of the stylesheet
+         written in prose, and it goes wrong the day anybody retunes a swatch — the same rot the apex-2
+         reminder text avoids by DERIVING every claim from the live rule. Point at the strip and name the
+         phase; the strip can then be any colour the player likes. */
+      { text:"Every round runs the same four phases: <b>Beginning → Play → Resolution → Clean-up</b>. You don’t have to memorise them — <b>the strip behind your cards changes colour</b> for each one, and rests while the board is the Rival’s. Watch it. Watch the strip behind your cards.", hi:hw, btn:"Start the round ▸" },
+      { text:"You’re in the <b>Main sub-phase</b>, the first half of the Play Phase. Here you may use <b>effects</b>, but you can’t fight yet.", hi:hw, btn:"Next ▸" },
+      /* ⚠ `only:[]` — NOTHING MAY BE SELECTED, AND THE STEP'S WHOLE CLAIM DEPENDS ON IT (Aj, 2026-09-25:
+         *"i should not be able to click outside of the tutorial's intent here … and yep, when i pressed
+         fight it skipped through the fight phase"*). `doFight` only acts as a doorway on an EMPTY
+         selection — with a card staged it transitions AND plays it in one press. So the step said
+         "nothing gets played" over a board where pressing Fight would play the Ace, and the player who
+         tried it skipped the beat the lesson exists to show.
+         `only:[]` disables Fight and Pass exactly while something IS selected, and leaves them live when
+         nothing is — which is the doorway, so the step keeps working and can no longer be broken. */
+      { text:"Press <b>Fight</b> and watch closely: <b>nothing gets played</b>. That button is a <b>doorway</b> — it only moves you from Main into the <b>Fight sub-phase</b>. The strip shifts with you.",
+        only:function(){ return []; }, onlyHint:"Not this step — clear your selection, then press Fight.",
+        hi:'#fightBtn', gate:function(t){ return t==='transition'; }, wait:"Press Fight to step through…" },
+      { text:"The strip moved — this is the <b>Fight sub-phase</b>. <i>Now</i> cards go down. Lead your <b>Ace</b>.",
+        only:function(){ return tutPhAce?[tutPhAce]:null; }, hi:function(){ return tutPhAce?('#hand .card[data-id="'+tutPhAce+'"]'):'#hand'; },
+        gate:function(t){ return t==='play'; }, wait:"Lead the Ace…" },
+      { text:"Their turn — and they’re casting <b>Infuse with Magic</b> to push their King past your Ace.<br><br><b>Their play opens a window for you.</b> That’s what priority means: nobody acts unpaused. Spring <b>Counter Spell</b>.",
+        hi:'#hand', gate:function(t,d){ return t==='respond' && d && d.countered; }, wait:"Counter the Technique…" },
+      /* THE "THE WINDOW CAME BACK" STEP WAS HERE AND IS DELETED (2026-09-25). It taught a real behaviour:
+         a counter used to MARK its target and leave it on the stack, so priority went round again over an
+         object that was already dead and you were asked to answer a Technique that had just been
+         countered. Aj saw that window, asked *"how is counterspell resolved? doesn't it remove the
+         countered spell from the stack?"*, and then removed it — so the step now teaches something the
+         game no longer does.
+         IT DID NOT FAIL LOUDLY, WHICH IS WORTH KNOWING. The step simply waited for a window that never
+         opens; its round-stamp recovery then carried the lesson past it, and the damage surfaced two
+         steps later as the ROUND-1 RESOLUTION pause finding its boundary already gone (`lessontest_phases`
+         41/4, the orange assertions). A gated step whose event has been designed away is a silent
+         time-sink for every step after it. */
+      /* ⚠ NARRATION, NOT A GATE, AND THE FIRST CUT GOT THIS WRONG. Gating on `roundwin` hangs: countering
+         resolves the whole round — the Rival passes, you win, the round turns over — BEFORE this step is
+         ever shown, so the event has already fired and the gate can never be satisfied. Measured: the
+         probe stopped here with `round:2` already on the board. Anything that happens as a CONSEQUENCE of
+         the previous step's gate must be narrated, never gated. */
+      { text:"🌀 <b>Countered.</b> Without the boost their King is a <b>13</b> against your <b>14</b> — they can’t beat it, so they <b>pass</b>. The round is yours, and so is the <b>initiative</b>.", hi:hw, btn:"Next ▸" },
+      /* TWO REAL PAUSES, ONE PER BOUNDARY — and the gate is "the phase is OVER", never "you clicked once".
+         Both Resolution and Clean-up are priority points, so each go-round COMES BACK until everyone
+         passes; a step gated on a bare `decline` advanced on the first one and left a modal sitting over
+         the next step. `!state.resolution` / `!state.cleanup` are the honest conditions, and they work only
+         because `TUT.note('decline')` fires AFTER the settle — see the note in `humanDeclines`.
+         ⚠ THEY ARE IN ROUND 1 BECAUSE THAT IS WHERE YOU STILL HOLD LEYLINE. A boundary only stops for a
+         seat that can actually cast something, and by round 2 the 9♦ is spent. Measured the other way too:
+         reading the phase flags the instant a step opens finds them still null, because the Rival has not
+         finished its turn — which is what made an earlier cut conclude, wrongly, that round 1 had no
+         Resolution window at all. Wait for the boundary; do not sample it. */
+      { text:"<b>Resolution.</b> The round’s outcome lands here: who won, and whose <b>shield</b> breaks. The strip is holding on this phase so you can read it — in an ordinary game it goes by in about a second.",
+        hi:hw, hold:'resolve', btn:"Next ▸" },
+      { text:"<b>Clean-up.</b> The round closes out: anything over the hand limit is pitched, and equipment timers tick down.<br><br>Next comes the <b>Beginning Phase</b>, dealing the new round in — and the strip rests again whenever the board is the Rival’s rather than yours.",
+        hi:hw, hold:'cleanup', btn:"Next ▸" },
+      { text:"This time there’s nothing worth activating — and that’s fine. <b>Fight still takes you out of Main.</b> Press it, then lead your <b>pair of 3s</b>.",
+        only:function(){ return tutPhPair; },
+        hi:function(){ return tutPhPair ? tutPhPair.map(function(id){ return '#hand .card[data-id="'+id+'"]'; }).join(',') : '#hand'; },
+        gate:function(t){ return t==='play'; }, wait:"Press Fight, then lead the pair…" },
+      /* YOU HAVE TO PASS BEFORE RESOLUTION EXISTS — the beat this lesson was missing, and it made the
+         finale unreachable. The Rival beating your pair does not end the round: the round ends when
+         everyone passes, and only THEN does Resolution open the window Leyline answers. The old single
+         step said *"spring Leyline"* over a board where nothing was open and no shield was at risk, so a
+         player would sit on it with no legal move the step would accept.
+         IT IS ALSO THE HONEST TEACHING ORDER: you discover you cannot answer, you concede the round, and
+         the window is what is left. `only:[]` because Fight cannot satisfy this — there is no play that
+         beats a pair of 8s in this hand, and an enabled button that cannot advance the step is a dead end. */
+      { text:"Nothing in your hand beats a pair of <b>8s</b> — so <b>pass</b>. Passing is how a round <i>ends</i>: once nobody wants the lead, the fight resolves.",
+        only:function(){ return []; }, hi:'#passBtn', gate:function(t){ return t==='pass'; }, wait:"Pass the round…" },
+      { text:"You lost the fight, and a <b>Special</b> losing costs you a <b>shield</b>.<br><br>But <b>Resolution opens a window too</b> — orange — and a <b>different</b> Quick answers this one. Spring <b>Leyline Ascension</b>: <i>you can’t lose this round.</i>",
+        hi:'#hand', gate:function(t){ return t==='respond' || t==='shield'; }, wait:"Spring Leyline Ascension…" },
+      { text:"Shield saved. Two Quicks, <b>two different windows</b> — Counter Spell answered a <b>cast</b>, Leyline answered a <b>loss</b>.<br><br>Windows can stop you often, so the <b>🔔 button</b> sets how often: <b>ON</b> every legal window · <b>AUTO</b> only when something’s at stake · <b>OFF</b> never — it passes for you and notes it in the log.",
+        hi:'#promptMode', btn:"Finish" }
+    ];
+  }
+
   function lessonZonesSteps(){
     return [
       { text:"A quick tour of the <b>five zones</b>. First, your <b>Hand</b> — the cards you’re holding, ready to fight or activate.", hi:'#hand', btn:"Next ▸" },
@@ -7402,16 +7964,21 @@ __QR__
   var LESSONS=[
     { id:'howto',      num:1 , section:'Basics',   title:'How to Play',        blurb:'A full guided duel — the whole loop, start to finish.',          ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonHowToSteps },
     { id:'zones',      num:2 , section:'Basics',   title:'Zones of Play',      blurb:'Deck, hand, play area, energy pile, shuffle pile.',               ready:true,  basics:true,             rig:tutRigZones,     steps:lessonZonesSteps },
-    { id:'specials',   num:3 , section:'Basics',   title:'Specials',           blurb:'The combos that break shields — pairs, trios, straights, houses.', ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonSpecialsSteps },
-    { id:'twos',       num:4 , section:'Basics',   title:'The 2',              pilot:tutPilotTwos,              blurb:'The apex trump \u2014 and why it becomes your lowest card.',      ready:true,  basics:true,             rig:tutRigTwos,      steps:lessonTwosSteps },
+    { id:'phases',     num:3 , section:'Basics',   title:'Phases and Quicks', pilot:tutPilotPhases,            blurb:'The four phases, the windows between them \u2014 and the two Quicks that answer them.', ready:true,  basics:true,  shields:2, rig:tutRigPhases,    steps:lessonPhasesSteps },
+    { id:'specials',   num:4 , section:'Basics',   title:'Specials',           blurb:'The combos that break shields — pairs, trios, straights, houses.', ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonSpecialsSteps },
+    { id:'twos',       num:5 , section:'Basics',   title:'The 2',              pilot:tutPilotTwos,              blurb:'The apex trump \u2014 and why it becomes your lowest card.',      ready:true,  basics:true,             rig:tutRigTwos,      steps:lessonTwosSteps },
     /* BASICS, straight after `specials` (Aj, 2026-09-01: *"oh the 2 is a basic tutorial probably after
      * specials"*). That is where a player first makes five-card plays, which is the exact moment the 2's second
      * rule starts to matter — it was parked at the end only because inserting here renumbers the lessons below.
      * Runs in BASICS MODE: `basics` gates transforms only, and `NO_FULL_HOUSE` is an unrelated homebrew rule,
      * so the full house this lesson turns on is unaffected. */
-    { id:'initiative', num:5 , section:'Basics',   title:'Initiative',         blurb:'Who leads — and why giving up the lead isn’t so bad.',           ready:true,  basics:true,  shields:2, rig:tutRigInitiative, steps:lessonInitiativeSteps },
-    { id:'energy',     num:6 , section:'Basics',   title:'Energy & Effects',   blurb:'Bank energy, spend it on card effects, keep your deck alive.',    ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonEnergySteps },
-    { id:'quicks',     num:7 , section:'Advanced', title:'Quicks',             blurb:'Cards you can play in response — even on the Rival’s turn.',      ready:true,  basics:false,            rig:tutRigQuicks,    steps:lessonQuicksSteps },
+    { id:'initiative', num:6 , section:'Basics',   title:'Initiative',         blurb:'Who leads — and why giving up the lead isn’t so bad.',           ready:true,  basics:true,  shields:2, rig:tutRigInitiative, steps:lessonInitiativeSteps },
+    { id:'energy',     num:7 , section:'Basics',   title:'Energy & Effects',   blurb:'Bank energy, spend it on card effects, keep your deck alive.',    ready:true,  basics:true,  shields:2, rig:tutRig,           steps:lessonEnergySteps },
+    /* ⚠ `quicks` IS NOT MISSING — IT WAS ABSORBED INTO `phases` (2026-09-25, Aj: *"we'll have to move
+     * quicks to basics and maybe even integrate it"*). A Quick is only meaningful as a thing you cast INTO
+     * a window, and the windows are the phases; teaching them apart is what left a Basics player with no
+     * on-ramp to either. Its assertions were ported into `lessontest_phases` rather than dropped.
+     * Do not re-add it as a separate lesson without deciding what `phases` then stops teaching. */
     { id:'rides',      num:8 , section:'Advanced', title:'Rides',              blurb:'The J — a persistent companion that helps you out.',              ready:true,  basics:false,            rig:tutRigRides,     steps:lessonRidesSteps },
     { id:'forms',      num:9 , section:'Advanced', title:'Form Changes',       blurb:'The Q &amp; K — transformations that upgrade your cards’ effects.', ready:true,  basics:false,            rig:tutRigForms,     steps:lessonFormsSteps },
     { id:'decks',      num:10, section:'Advanced', title:'Custom Decks',      blurb:'Build your own 52-card deck out of class parts.',              ready:true,  basics:false,            rig:tutRig,          steps:lessonDecksSteps },
@@ -7433,7 +8000,7 @@ __QR__
      * All tiers open with the Ace 25/25. So the sequence the "The 2" lesson teaches happens on its own at
      * knight, and nothing has to be scripted — `lessontest_twos` asserts each beat so a policy change goes red
      * instead of leaving the lesson quietly lying. */
-    gameBasics=basics; tutorialMode=true; mpCount=2; difficulty=(lsn && lsn.diff) || 'minion';
+    gameBasics=basics; tutorialMode=true; mpCount=2; difficulty=(lsn && lsn.diff) || 'minion'; tutPromptAuto();
     youDeck='full'; rivalDeck='full'; seatDecks=['full','full']; seatDiffs=[null,'minion'];
     clearPersonas();   // a persona from the game before would otherwise linger — the tutorial wants a plain "Rival"
     tutShields=lsn.shields||4;   // lessons that need the kill arc set shields:2; Advanced keep the full 4
@@ -11121,7 +11688,7 @@ __QR__
   /* Prompt-preference hooks (epic step 15). `promptPrefs` returns the STORED overrides, not the resolved
      rows, because the suite's load-bearing assertion is that only overrides are stored. Duplicate-key check
      run on this literal before adding — CLAUDE.md's `__cmf` trap applies here too. */
-  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ st:function(){return state;}, render:render, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
+  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
     promptWanted:promptWanted, setPromptPref:setPromptPref, setPromptMode:setPromptMode, promptMode:function(){ return PROMPT_MODE; }, promptPrefs:function(){ return promptPrefs; }, showCard:showCard,
     /* LEGAL IS NOT THE SAME QUESTION AS WANTED, and since the boundary defaults went off they give
        different answers — which is the invariant worth being able to assert: an unchecked timing still

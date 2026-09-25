@@ -55,27 +55,35 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
              panelZ:getComputedStyle(t).zIndex,
              overlayZ:getComputedStyle(document.getElementById('overlay')).zIndex };
   });
-  /* RATCHET:tut-panel-buried-by-modal — A KNOWN FAILURE, PINNED IN THE BROKEN DIRECTION ON PURPOSE.
-     The coach panel is UNDER the builder and `Skip ✕` is unclickable, so the lesson cannot be left: the
-     builder's Cancel cannot leave it either, because `tutOpenDeckBuilder`'s continuation re-opens the
-     modal 120ms later whenever `TUT.isActive()`. With both gone the only exits are finishing the deck or
-     reloading the page — which is what Aj hit, 2026-09-17: *"phew can't exit out of the custom deck
-     tutorial"*. Deferred to `main` by his call (*"we can fix this on main later"*); the entry is
-     `[ratchet: tut-panel-buried-by-modal]` and `versiontest` asserts this tag and that entry exist
-     together.
-     IT FAILS BOTH WAYS, which is what makes it a ratchet rather than a suppression. It fails if `Skip`
-     becomes reachable — i.e. THE FIX LANDED, and then these two lines get replaced by the positive
-     assertions above them and the BACKLOG entry gets closed. It also fails if the hit-test stops finding
-     the overlay, which would mean something else moved underneath.
-     DO NOT "fix" this by raising `#tutPanel` alone: the z-index family derives from `--zNetroot`, and the
-     peek panels sit at +2/+3, so the fix has to hit-test peek as well. That coupling is exactly why this
-     is its own change and not a bolt-on. */
-  ok(!panelHit.reachable && panelHit.covering === 'overlay',
-     `RATCHET: the coach panel is BURIED by the builder (panel z ${panelHit.panelZ} vs overlay ${panelHit.overlayZ}, the point hits "${panelHit.covering}")` +
-     (panelHit.reachable ? '  ← THE FIX LANDED — flip this to `ok(panelHit.reachable, …)` and close [id: tut-panel-buried-by-modal]' : ''));
-  ok(!panelHit.skipReachable,
-     'RATCHET: …so "Skip ✕" cannot be clicked and the lesson cannot be LEFT — only finished or reloaded' +
-     (panelHit.skipReachable ? '  ← THE FIX LANDED — flip this one too, and delete the ratchet tag' : ''));
+  /* THE COACH PANEL IS REACHABLE OVER A MODAL — THIS WAS A RATCHET AND THE FIX LANDED (2026-09-25).
+     It was pinned in the BROKEN direction: the panel sat under the builder, `Skip ✕` was unclickable, and
+     because `tutOpenDeckBuilder`'s continuation re-opens the modal while `TUT.isActive()`, the builder's
+     own Cancel could not leave either — so the only exits were finishing the deck or reloading. Aj,
+     2026-09-17: *"phew can't exit out of the custom deck tutorial"*.
+     IT FAILED FOR THE RIGHT REASON, which is the whole point of writing one that fails both ways: `Skip`
+     became reachable, the ratchet went red saying THE FIX LANDED, and these lines are now the positives
+     it asked for. `[id: tut-panel-buried-by-modal]` is closed and the `RATCHET:` tag is gone with it.
+     ⚠ AND THE OLD COMMENT'S WARNING IS KEPT AS AN ASSERTION, not just honoured: *"do not fix this by
+     raising `#tutPanel` alone — the z-index family derives from `--zNetroot` and the peek panels sit at
+     +2/+3, so the fix has to hit-test peek as well."* `--zTut` is +5, above the peek panels and the
+     dialog opened during peek, and `--zPeekBar` moved to +6 so ↩ Back still outranks everything and peek
+     can never become a trap of its own. That ordering is asserted below rather than assumed. */
+  ok(panelHit.reachable,
+     'the coach panel is ON TOP of the builder — hit-tested  (panel z '+panelHit.panelZ+
+     ' vs overlay '+panelHit.overlayZ+', the point hits "'+panelHit.covering+'")');
+  ok(panelHit.skipReachable,
+     '…so "Skip ✕" can be clicked and the lesson can be LEFT, not only finished or reloaded');
+  /* ⚠ RESOLVE THE calc(), DO NOT parseInt IT. `--zTut` is `calc(var(--zNetroot) + 5)`, so
+     `getPropertyValue` hands back that literal string and `parseInt` gives NaN — which compares false and
+     reported a correct stylesheet as broken on the first run. A throwaway element makes the browser do
+     the arithmetic. */
+  ok(await p.evaluate(()=>{
+       function z(v){ var d=document.createElement('div');
+         d.style.cssText='position:fixed;z-index:'+v; document.body.appendChild(d);
+         var n=parseInt(getComputedStyle(d).zIndex,10); d.parentNode.removeChild(d); return n; }
+       return z('var(--zPeekBar)') > z('var(--zTut)');
+     }),
+     '…and ↩ Back still outranks the coach panel, so peek cannot become a trap in its place');
   await next(); await p.waitForTimeout(500);
   s=await step();
   ok(/Cleric/.test(s.text) && !s.hasNext,'step 3 is a GATED step asking for 2 Cleric parts');

@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 576 + 65 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 591 + 65 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 576 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 591 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 65, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (14)
 node nettest_names.js                           # netplay player names, both directions (8)
@@ -51,7 +51,10 @@ node viewtest.js                                # 🔍 View card reader gating o
 node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (96)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (20)
 node lessontest_energyorder.js                       # the "Energy Order" tutorial lesson, full UI (14)
-node lessontest_quicks.js               # the "Quicks" lesson — the interactive Counter Spell demo, full UI (21)
+node lessontest_phases.js               # "Phases and Quicks" (Basics #3) — the lesson that ABSORBED the
+#                                       # old Quicks one. Both base Quicks, the doorway, and pauses held on
+#                                       # real ceremony beats rather than forced windows (43). `lessontest_quicks.js`
+#                                       # is DELETED: its lesson no longer exists
 node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated (25)
 node lessontest_zones.js                # the "Zones of Play" spotlight tour — every selector must LIGHT (21)
 node lessontest_initiative.js           # the "Initiative" lesson — asserts you genuinely cannot beat the lead (17)
@@ -249,7 +252,7 @@ one game in twelve. **The dangerous shape is a rig that needs a UNIQUE card**: t
 Respond? window never opened, and the player sat on step 2 being told to counter something that never arrived —
 no error, no log line, no way to finish. `tutPullShield` lifts it out and swaps a pool card in so the pile keeps
 its size. The Ride and Form rigs ask for `J♣ || any J` and `Q♣ || any Q` and so survive the same hole by luck;
-check for a fallback before assuming a rig is safe. `lessontest_quicks` asserts the card accounting (52 cards,
+check for a fallback before assuming a rig is safe. `lessontest_phases` asserts the card accounting (52 cards,
 none duplicated, `shieldPile.length === shields`) precisely because a swap that dropped a card would still play.
 **AUDITED, 2026-08-31 — Quicks was the ONLY exposure, and this is measured, not reasoned** (8 deals per lesson,
 reading each rig's output at lesson start). Do not re-derive it:
@@ -2117,9 +2120,9 @@ Status as of **v1.31.127 — 2026-09-24, `npm run sweep`, 100 suites ON THE EPIC
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 576, `netview` 65, `mptest` 100, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
+`test` 591, `netview` 65, `mptest` 100, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 17, `lessontest` 20, `lessontest_energyorder` 14,
-`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_quicks` 22, `lessontest_howto` 25,
+`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_phases` 43, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 31, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2663,6 +2666,16 @@ statement — read it, and do not reconstruct the model from the code's call sit
 for whether a design shipped.** `openResponseWindow` implements §2 step-for-step under a different name, and
 `st.pending`/`st.respondFor` are aliases for "top object" and "who holds priority" — a fact stated in a comment
 directly above the loop. Read the layer that would have to DO the thing; a name is not the mechanism.
+
+**A FORM *ADDS* A TIMING; IT NEVER MOVES A CARD OUT OF MAIN (2026-09-25).** Every Technique is castable on
+your own turn in the Main Sub-Phase. A Form granting `quick` **adds** the priority windows to that — so
+"Back Stab is a pre-fight card" is wrong, and has been said to Aj at least three times (*"i feel i keep
+trying to peel you off that misconception"*). The source of the error is a phrase still in the docs by
+design: *"the pre-fight window was a Back Stab special case in `main`"*, which is HISTORY — step 20 folded
+that window into the ordinary Main → Fight go-round. `stakeFor`'s `prefight` branch decides where AUTO
+INTERRUPTS you, never where a card is legal.
+**So describe a Quick as BASE + what the Form adds, as two separate facts**, and when listing where a card
+can be played, start from "every Technique can be played in Main".
 
 **`effectOf` vs `effectFor` — the trap that hid three bugs.** `effectOf(card)` is the card's **base** effect;
 `effectFor(st, p, card)` applies that player's Form/Super boosts. A Form can **grant `quick`** — SIX patches, enumerated

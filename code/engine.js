@@ -1721,7 +1721,12 @@
     var top = st.stack.pop();
     if (top.trig) return resolveUpkeepTick(st, top);                 // a triggered ability, not a cast card — no `eff`, no `card`
     var pl = st.players[top.p];
-    if (top.countered) { pl.shuffle.push(top.card); return { ok: true, effect: top.eff.id, kind: top.eff.kind, countered: true, state: st }; }
+    /* THE FIZZLE BRANCH WAS HERE AND IS DELETED (2026-09-25). It handled an object that reached the top
+       of the stack already marked `countered` — skip the body, push the card to its owner's Shuffle Pile.
+       A counter now SPLICES its target out and does that push itself, so nothing sets `countered` on a
+       stack object any more and this could never run. Left in place it would be the worst kind of dead
+       code: a branch describing a lifecycle the engine no longer has, which is exactly how a reader
+       concludes that countered cards linger. `grep "countered = true"` returns nothing. */
     if (top.eff.kind === 'counter') {
       /* NAMED TARGET FIRST, then the old "topmost effect beneath me". The fallback is not legacy cruft: a
          Counter Spell cast with nothing named — the AI, an older peer — must still do something sensible,
@@ -1730,7 +1735,17 @@
       for (var i = st.stack.length - 1; i >= 0; i--) {
         if (st.stack[i].kind !== 'effect') continue;
         if (want && st.stack[i].oid !== want) continue;
-        st.stack[i].countered = true; break;
+        /* OFF THE STACK, NOT MERELY MARKED (Aj, 2026-09-25: *"yes, make the counter remove its target"*).
+           This used to set `countered = true` and leave the object in place to be popped later, skip its
+           body and go to its owner's Shuffle Pile. The card text was honoured either way — only the
+           timing differed — but the object sat on the stack already dead, so PRIORITY WENT ROUND AGAIN
+           OVER IT: a Respond? window offering an answer to a Technique that had just been countered, which
+           is the window Aj was looking at when he asked how a counter resolves.
+           THE SHUFFLE PUSH MOVES HERE WITH IT, so the card still ends where its text says — the
+           destination is unchanged, the moment is not. */
+        var hit = st.stack.splice(i, 1)[0];
+        if (hit.card) st.players[hit.p].shuffle.push(hit.card);
+        break;
       }   // counter the effect beneath
       pl.removed.push(top.card);
       return { ok: true, effect: top.eff.id, kind: 'counter', state: st };
@@ -2402,9 +2417,19 @@
        lingering resolution object would have shadowed it — the branch would read as live and never fire.
        Writing the tests is what found it; each timing now answers for itself. */
     if (timing === 'prefight') {
-      /* BACK STAB'S OWN MOMENT. The pre-fight window was a Back Stab special case in `main` and is now
-         just the Main -> Fight point of the unified walk, so a seat holding one is exactly as entitled to
-         be stopped there as a Counter Spell is when something is cast. */
+      /* ⚠ THIS IS NOT "BACK STAB'S ONLY MOMENT", AND THE COMMENT THAT USED TO SAY SO WAS STRUCK OUT
+         (Aj, 2026-09-25: *"you can back stab during the main phase too, you know. it wasn't a quick all
+         the time"* — the third time he has had to say it). Back Stab is an ordinary Technique: castable
+         on your own turn in the Main Sub-Phase, with or without a Form. A ♠ King or Super GRANTS it
+         `quick`, which ADDS the priority windows to what it can already do; it never moves the card out
+         of Main.
+         WHAT THIS BRANCH DECIDES IS INTERRUPTION, NOT LEGALITY — which window AUTO stops you at, and
+         nothing more. A lockout's moment to matter is the Main -> Fight boundary, because that is where
+         it can still take the turn it is about to cost someone.
+         THE OLD WORDING CALLED THE PRE-FIGHT WINDOW "a Back Stab special case in `main`". That was
+         history, not behaviour — step 20 folded it into the ordinary Main -> Fight go-round, where
+         *"every player's Quicks are available"* — and reading it is what keeps producing the claim that
+         Back Stab lives only here. Describe a Quick as BASE plus what the Form adds, separately. */
       return (e.kind === 'lockout') ? e : null;
     }
     if (timing === 'resolution') {
@@ -2419,7 +2444,35 @@
           st.players[q] && !st.players[q].finishingBlow) return e;
       return null;
     }
+    if (timing === 'cleanup') {
+      /* HAND-TO-HAND MASTERY'S MOMENT IS CLEAN-UP (Aj, 2026-09-25: *"put hand-to-hand's stake to at the
+         clean up"*). It is the one Quick that risks nothing — a pure draw — so keyed on damage it would
+         have no stake anywhere and AUTO would never mention it. Clean-up is the boundary where the hand
+         is about to be settled for the round, which is the moment a draw is a decision rather than a
+         reflex. `kind` rather than a card name, like every other branch here. */
+      return (e.kind === 'draw') ? e : null;
+    }
     if (timing === 'respond') {
+      /* A COUNTER SPELL'S STAKE IS AN OPPONENT'S TECHNIQUE BEING CAST (Aj, 2026-09-25: *"counter spells
+         stakes is every technique being cast"*, then *"opponent's techniques"*). Nothing narrower works:
+         a counter has no shield to protect and no equipment to save, so keyed on damage alone it would
+         never have a stake at all and AUTO would stop offering the one Quick a new player reaches for.
+         OPPONENTS' ONLY, and that is the same line the mode already draws — *"AUTO DOES NOT STOP YOU FOR
+         YOUR OWN CAST"*. Aj was explicit that the CAPABILITY is untouched: *"technically, with ON you can
+         counter your own techniques"*. This decides interruption, never legality.
+         `counterTargets` IS THE PREDICATE, not a hand-rolled type test: it already knows what is
+         counterable (`COUNTERABLE`, plus Equipment under the Queen of Diamonds) and skips objects that
+         are already countered or are triggers with no cast card behind them. One definition. */
+      if (e.kind === 'counter') {
+        var mine = counterTargets(st, e).filter(function (o) { return o.p !== q; });
+        if (mine.length) return e;
+      }
+      /* AND ANNOINT'S IS AN OPPONENT REACHING FOR EQUIPMENT. Included because AUTO stopped keying on the
+         timing and started keying on the stake: without this the card goes SILENT in the mode most people
+         play, which is the failure that rule exists to prevent, not an acceptable side effect. */
+      if (e.kind === 'protect' && (st.stack || []).some(function (o) {
+            return o.kind === 'effect' && !o.countered && !o.trig && o.p !== q && o.eff && o.eff.kind === 'removeEquip';
+          })) return e;
       /* A destroyShield's response window is its ONLY one — `resolveEffectBody`'s own comment says the
          loss "no longer opens a second guard window". It survives today only because `respond` is the
          timing that defaults on; untick it and Ultima Attack takes your last shield with the answer in
