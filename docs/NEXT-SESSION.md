@@ -294,6 +294,36 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
   **Both need `opts.pitch` BACK in the engine**, which is the thing that was deleted — and each of them is the
   exercise it lacked.
 
+- `root cause found`  · **THE AI's PHANTASMAL ILLUSION NARRATES AS "a Special undefined overtakes the pile"**
+  (Bibong's export, a solo game vs Rozalin on 2026-09-10; see `PLAYER-PROFILE.md` → Bibong). Two fields, one
+  event: `takeTurn` in `ai.js` logs the illusion as `{ phantasm: rp.made, value: rp.value }` — the SHAPE rides
+  in `phantasm` — and `buildOppBeats` renders it with `kindLabel(e.made)`, a field that event never carries,
+  so `TYPE[undefined]` prints the word. The engine-driven sites (the human's own cast, the N-player host path)
+  read the engine result's `made` directly and are fine; only the AI-beat path is wrong. One-line fix either
+  side; read `e.phantasm` rather than adding a second field. `phantasmtest` drives the human's three routes and
+  never the AI's cast — the assertion this needs is that the AI's narrated line names a shape, which is the
+  `oppbeatstest` shape rather than a new suite.
+  `[id: phantasm-beat-reads-wrong-field]`
+
+- `ready to build`     · **THE PLAYTEST EXPORT CARRIES NO BUILD VERSION.** `recordGame` stamps the SCHEMA
+  (`v:'2.1-mp'`) and nothing else, while `GAME_VERSION` sits in the same file. Bibong's nine games span at least
+  three builds — 08-29, 09-10, 09-14 — and nothing in the record can say which, so the profile's `Ver` column
+  reads `?` nine times and a narration bug seen in one game cannot be told from a fixed one. Add
+  `build: GAME_VERSION` to the record; `exporttest` asserts the field is present and equals the README stamp
+  (the way `versiontest` already checks the two screens). The netplay handshake carries the build for exactly
+  this reason (v1.31.21); the export is the other artefact people send and it does not.
+  `[id: export-lacks-build-version]`
+
+- `ready to build`     · **THE HOST NARRATES A CLIENT'S ACTIVATION IN SHORT FORM.** `hostApplyMove`'s activate
+  branch says `'{who} played '+aeff.name+'.'`, while the host's own casts and every AI cast go through
+  `effPhrase(card)` — type, card and text. Same event, two grammars; in Bibong's 08-29 netplay log the host
+  reads *"You played an Equipment - 8♦ Cursed Pendant — Equipment — lasts 4 rounds …"* for itself and *"Aj
+  played Giant Ram."* for its opponent. Cosmetic, and it is the kind of asymmetry Aj has flagged before (*"the
+  client and host seem to have different UI/UX experiences"*). Route the line through `effPhrase`, and check
+  `hostApplyMoveN` for the same short form before calling it done — the two handler families are where a fix
+  lands in one and not the other. `nettest_narrate` is where the assertion belongs.
+  `[id: client-activation-line-short-form]`
+
 ### Tooling
 
 - **`lessontest_forms` blew a THIRTY-SECOND poll once under `-j 4` — and 30s is not slowness, it is a dead end**

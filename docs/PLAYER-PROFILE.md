@@ -132,3 +132,66 @@ AI vs AI; round 1 is jabs-only by rule so it is counted apart):
 legal options while following at 6p and 79% of those turns stuck, a jab is frequently the only legal move, and
 then somebody leads a Special next round and takes it. **One report is about what you play, the other about what
 wins.**
+
+## Bibong — the second player in this file (2026-09-25, 9 games, one export)
+
+**The first corpus attributable to Bibong alone.** Bibong is the playtester named in the 2026-08-22/23 entry
+above — knew nothing about chikicha, learned the game from the tutorials — and that corpus stays unattributed:
+Aj's diagnostics and Bibong's games are mixed in it and cannot be split. This export is different in kind: Aj
+confirmed on 2026-09-25 that it is Bibong's own, and Aj appears in it only as an **opponent**.
+
+**Read the sample before the numbers.** Nine records, 2026-08-29 → 09-14. Two are disconnect concedes against a
+third player, Rabbi (round 1 and round 7), so **seven real games**. Every real game's log is exactly 80 lines
+— the pre-2026-09-24 render cap — so the play-by-play is the back half of each game; the seat stats and the
+activation counts come from separate counters and are sound. **The records carry no build version**, only the
+schema stamp, so which builds these were played on is unknown (filed: `export-lacks-build-version`).
+
+| | result |
+| --- | --- |
+| Solo vs Demon Lord — six games in 26 minutes on 2026-09-10 | **4W–2L**, all six by Fighter Kick |
+| Netplay vs Aj (2026-08-29, 13 rounds) | Win by Fighter Kick |
+| Netplay vs Rabbi (two games) | both won by Rabbi's disconnect |
+
+A player taught by the tutorials alone went 4–2 against the top tier in six consecutive games, at about five
+minutes a game. Worth knowing next to the AI-difficulty question, and small enough to be directional only.
+
+**How Bibong plays**, over the seven real games:
+
+- **Jab-heavier and Technique-lighter than Aj.** Mix **jabs 33% · Specials 39% · Techniques 29%** (Aj's
+  2026-09-24 read: 19 / 45 / 36). Casts 3–7 Techniques a game against the Demon's 8–14, so Bibong is being
+  out-resourced every game and winning four of six anyway.
+- **Same kill as Aj: pair-for-the-kick.** 21 of 30 won rounds were Pairs (Trios 6, Straights 3), and **all five
+  Fighter Kicks landed on an unanswered lead** — the opponent passed into them.
+- **An equipment war, not a ramp engine.** Cursed Pendant in four of seven games; Sabotage ×3 and Forceful Strip
+  ×2 aimed at the opponent's gear. The most-cast cards are the two draw/dig Techniques (Hand-to-Hand Mastery 5,
+  Back to the Books 5). Gather Energy only twice. The engine is **cards, not energy** — the opposite of Aj's
+  ramp-first plan.
+- **The reactive layer IS in use.** Counter Spell ×4 and Leyline Ascension ×5 across seven games. The
+  2026-08-22/23 finding that humans leave the defensive layer idle does **not** describe Bibong; whatever it
+  measured, it was not this player.
+- **Transform layer, lightly.** A Ride most games (Giant Ram, Giant Owl), one Pandora, and a Perseus INCARNATION
+  in the game against Aj.
+- **Always Warlock (Wiz+Rog)**, nine of nine. For a playtester, unlike for Aj, that may be taste — but a resolved
+  🎲 Random roll is indistinguishable from a pick in the export, so it is not a claim.
+
+**Bugs the export surfaced.** One is live and was unfiled: the AI's Phantasmal Illusion narrates as *"a Special
+undefined overtakes the pile"* (`phantasm-beat-reads-wrong-field`). Two more are filed from this corpus:
+`export-lacks-build-version` and `client-activation-line-short-form` (the host narrates a client's cast as
+*"Aj played Giant Ram."* while every other seat gets the full card phrase). Also seen and already covered:
+*"Rival discarded 1 card."* in a solo game (`discard-line-hardcodes-rival`), and *"Rival countered your
+Technique"* in the 08-29 netplay game, which is the human-counter `logMsg` fixed in v1.31.58. **Not a bug:**
+Outbalance discarding two cards under Penelope is the Queen boost working.
+
+### Ingestion log — Bibong
+
+| Date | Ver | Diff | Mode | Deck | Opponent | Result | Rounds | Notes |
+|------|-----|------|------|------|----------|--------|--------|-------|
+| 2026-08-29 | ? | fighter | net | Warlock | Aj (Warlock) | Win (kick) | 13 | Giant Ram, Pandora → Perseus INCARNATION; Counter Spell ×2; Aj dropped and rejoined once |
+| 2026-08-29 | ? | fighter | net | Warlock | Rabbi (Berserker) | Win (concede) | 1 | Rabbi disconnected in round 1 — noise |
+| 2026-09-10 | ? | demon | solo | Warlock | Etna (Warlock) | Win (kick) | 16 | Leyline ×2 held shields; countered Caltrops; won with the 2-trio |
+| 2026-09-10 | ? | demon | solo | Warlock | Rozalin (Sage) | Loss (kick) | 13 | Critical Hit countered; Holy Shroud blanked two wins; **"Special undefined"** phantasm line |
+| 2026-09-10 | ? | demon | solo | Warlock | Adell (Cleric) | Loss (kick) | 15 | Straight + two Trios; Divine Tactics pairs beat the A/K pairs; Counterfeit |
+| 2026-09-10 | ? | demon | solo | Warlock | Rozalin (Sage) | Win (kick) | 19 | Sabotage + own Cursed Pendant; two Straights; longest game |
+| 2026-09-10 | ? | demon | solo | Warlock | Etna (Sage) | Win (kick) | 13 | Infuse with Magic ×2 into boosted pairs; Forceful Strip; *"Rival discarded 1 card."* |
+| 2026-09-10 | ? | demon | solo | Warlock | Vyers (MageKnight) | Win (kick) | 14 | Sabotage ×2 on Spiked Armor / Javelin; Leyline ×2; lost only one shield |
+| 2026-09-14 | ? | fighter | net | Warlock | Rabbi (Sage) | Win (concede) | 7 | Rabbi dropped four times in round 7, Passo took the seat, then dropped |
