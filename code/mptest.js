@@ -550,8 +550,27 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
         const c=(hw.className.match(/sp[A-Z][a-z]+/)||['(none)'])[0], now=performance.now();
         if(c!==cur){ if(cur){ window.__dur[cur]=Math.max(window.__dur[cur]||0, Math.round(now-t0)); }
                      cur=c; t0=now; window.__seq.push(c); } }, 12); });
-    for(let i=0;i<70;i++){
-      if(await p.evaluate(()=>{ const s=window.__solo.st(); return !s||s.finished||s.round>3; })) break;
+    /* ⚠ BOUND BY UNPRODUCTIVE ITERATIONS, NEVER A RAW COUNT — and this file's own history says so
+       (v1.31.85: `exporttest` looped `i<160`, went red under `-j 4` and 5/5 green alone, because an
+       iteration whose click `busy` swallows spends budget while advancing nothing). I wrote `i<70` here
+       anyway and it did exactly that: 113/0 twice alone, then 106/7 in the full sweep with the sequence
+       stopping at `spFight → spIdle → spMain → spFight → spIdle` — no round boundary reached, so every
+       phase-strip assertion failed for lack of a game rather than lack of a colour.
+       A SLOW MACHINE SHOULD TAKE MORE ITERATIONS, NOT DO LESS. Progress is the round advancing or the
+       strip changing; the hard cap is only a hang guard. */
+    let idle=0, lastRound=0, lastSeq=0;
+    for(let i=0;i<400 && idle<40;i++){
+      /* ⚠ PROGRESS IS THE BATTLE LOG, NOT THE ROUND OR THE STRIP. The first cut watched those two and
+         still went red under contention: during an opponent's turn the strip sits on `spIdle` and the
+         round does not move, so a rival turn slow enough to matter reads as pure idling and the guard
+         fired mid-game. The log grows on every action any seat takes, which is the thing that is actually
+         happening — measured, 113/0 alone but 106/7 beside a single other suite before this. */
+      const prog = await p.evaluate(()=>{ const s=window.__solo.st();
+        return { done:(!s||s.finished||s.round>3), round:s?s.round:0,
+                 log:document.querySelectorAll('#log .le').length }; });
+      if(prog.done) break;
+      if(prog.round!==lastRound || prog.log!==lastSeq){ idle=0; lastRound=prog.round; lastSeq=prog.log; }
+      else idle++;
       await p.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d&&d.offsetParent&&!d.disabled){ d.click(); return; }
         const fb=document.getElementById('fightBtn'), pb=document.getElementById('passBtn');
         if(fb&&!fb.disabled){ fb.click(); return; }
