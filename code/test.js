@@ -2431,7 +2431,9 @@ function cards(ids) { return ids.map(card); }
   ok(E.stakeFor(h2hRig, 0, LEYL, 'cleanup') === null,
      'stakeFor · …and a card with no business there is not — the timing alone is not the stake');
 
-  // 3 · BACK STAB AT ITS OWN MOMENT — the window `main` had for it
+  /* 3 · BACK STAB AT THE BOUNDARY IT MATTERS AT — NOT "its only moment". It is castable in Main like
+     any Technique; the ♠ King only ADDS the windows. This heading used to say otherwise and the wording
+     kept propagating — see the note in `stakeFor`'s prefight branch. */
   ok(E.effectFor(striker(AKING(), [BSTAB()]), 0, BSTAB()).quick === true,
      'stakeFor · staging is live: a King really makes Back Stab a Quick');
   ok(!!E.stakeFor(striker(AKING(), [BSTAB()]), 0, BSTAB(), 'prefight'),

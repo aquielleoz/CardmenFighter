@@ -4198,9 +4198,19 @@
        lingering resolution object would have shadowed it — the branch would read as live and never fire.
        Writing the tests is what found it; each timing now answers for itself. */
     if (timing === 'prefight') {
-      /* BACK STAB'S OWN MOMENT. The pre-fight window was a Back Stab special case in `main` and is now
-         just the Main -> Fight point of the unified walk, so a seat holding one is exactly as entitled to
-         be stopped there as a Counter Spell is when something is cast. */
+      /* ⚠ THIS IS NOT "BACK STAB'S ONLY MOMENT", AND THE COMMENT THAT USED TO SAY SO WAS STRUCK OUT
+         (Aj, 2026-09-25: *"you can back stab during the main phase too, you know. it wasn't a quick all
+         the time"* — the third time he has had to say it). Back Stab is an ordinary Technique: castable
+         on your own turn in the Main Sub-Phase, with or without a Form. A ♠ King or Super GRANTS it
+         `quick`, which ADDS the priority windows to what it can already do; it never moves the card out
+         of Main.
+         WHAT THIS BRANCH DECIDES IS INTERRUPTION, NOT LEGALITY — which window AUTO stops you at, and
+         nothing more. A lockout's moment to matter is the Main -> Fight boundary, because that is where
+         it can still take the turn it is about to cost someone.
+         THE OLD WORDING CALLED THE PRE-FIGHT WINDOW "a Back Stab special case in `main`". That was
+         history, not behaviour — step 20 folded it into the ordinary Main -> Fight go-round, where
+         *"every player's Quicks are available"* — and reading it is what keeps producing the claim that
+         Back Stab lives only here. Describe a Quick as BASE plus what the Form adds, separately. */
       return (e.kind === 'lockout') ? e : null;
     }
     if (timing === 'resolution') {

@@ -579,6 +579,17 @@ had never been built, and told Aj so twice — while `openResponseWindow` had be
 The same gap left the pre-fight window looking like a Back Stab special case rather than what it is: the
 priority pass before the shedding play.
 
+> **⚠ AND THAT PHRASE KEEPS DOING DAMAGE ON ITS OWN, so read this before quoting it.** Every surviving
+> mention of "the pre-fight window was a Back Stab special case" is HISTORY — it describes what `main`
+> looked like before epic step 20 folded that window into the ordinary Main → Fight go-round, where
+> *"every player's Quicks are available"*. Skimmed, it produces the claim that **Back Stab lives only in
+> the pre-fight window, which is false and has been repeated to Aj at least three times.**
+> **Back Stab is an ordinary Technique, castable on your own turn in the Main Sub-Phase, with or without
+> a Form.** A ♠ King or Super grants it `quick`, which **adds** the priority windows to what it can
+> already do. `stakeFor`'s `prefight` branch decides where AUTO *interrupts* you, never where the card is
+> legal. The general form: **describe a Quick as what it does at BASE plus what the Form adds, separately**
+> — a Form never moves a card out of Main.
+
 **Two things were also simply missing from both files** and are recorded here for the first time: the
 **Upkeep Sub-Phase**, and the rule that **priority is passed for every object before it resolves** rather than
 once per phase.
