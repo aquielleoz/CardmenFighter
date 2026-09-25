@@ -9072,7 +9072,14 @@ window.CardFace = {};
     for(var i=objs.length-1;i>=0;i--){ var o=objs[i], eff=o.eff, who=logName(o.p), isTop=(i===objs.length-1);
       var label = eff ? (eff.name||'?') : (esc(o.name||'Equipment')+' <span class="who">— upkeep counter</span>');
       var sym = o.card ? (' · '+cardSym(o.card)) : '';
-      html+='<div class="stk'+(isTop?' top':'')+(o.countered?' countered':'')+'"><span class="who">'+who+' ▸</span> '+label+sym+(isTop?' <span class="who">(resolves next)</span>':'')+'</div>';
+      /* ⚠ A COUNTERED CARD IS NOT "RESOLVING NEXT" (Aj, 2026-09-25, reading the stack in a real window:
+         *"how is counterspell resolved? doesn't it remove the countered spell from the stack?"*). It does
+         not: `resolveTopEffect`'s counter branch MARKS the target `countered` and leaves it in place, and
+         the card fizzles to its owner's Shuffle Pile when it later reaches the top. So a struck-through
+         line was carrying the tag `(resolves next)` — the strike and the words saying opposite things
+         about the same card, which is exactly the question it prompted. The tag is appended for whatever
+         is on top; it now reads what that top object will actually DO. */
+      html+='<div class="stk'+(isTop?' top':'')+(o.countered?' countered':'')+'"><span class="who">'+who+' ▸</span> '+label+sym+(isTop?(' <span class="who">('+(o.countered?'countered \u2014 fizzles next':'resolves next')+')</span>'):'')+'</div>';
     }
     if(pendingLoss){
       var lWho=(typeof pendingLoss.winner==='number')?logName(pendingLoss.winner):'The winner';
