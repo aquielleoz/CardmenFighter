@@ -21,7 +21,7 @@ const { clickFight } = require('./fightclick');
 
 (async()=>{
   const L = await openLesson('phases');
-  const { p, ok, until, atStep, next, playSpot, passTurn, st, errs } = L;
+  const { p, ok, until, atStep, next, playSpot, passTurn, st, step, errs } = L;
   const cls = ()=>p.evaluate(()=>((document.getElementById('handWrap')||{}).className||'').match(/sp[A-Z][a-z]+/g)||[]);
   /* ⚠ VISIBLE, NOT MERELY PRESENT. `hideOverlay()` leaves `#modal`'s markup in the DOM, so a plain
      `querySelectorAll('.respQuick')` keeps matching the PREVIOUS window's buttons. Not a harmless miss: it
@@ -71,6 +71,31 @@ const { clickFight } = require('./fightclick');
      see the color changes"*. A lock that also locked the reader would teach nothing. */
   ok(await p.evaluate(()=>{ const s=document.getElementById('sortBtn'); return !!s && !s.disabled; }),
      '…while Sort stays live, because reading and organising are not acting');
+
+  /* THE STEP MUST NAME THE BUTTON THAT IS ON SCREEN, AND NOTHING IN THIS FAMILY COULD SEE THAT (2026-09-29).
+     Every lesson helper presses the control through `__pressFight`, which presses whatever is there BY
+     DESIGN — so a step whose copy names the OTHER button passes every assertion while dead-ending a
+     beginner. It shipped exactly that way: this step requires an empty selection (`only:[]`, because
+     `doFight` is a doorway only on one), an empty selection returns early from `updateActions` with the
+     resting label, and the copy said "press Fight" at a button reading `▶ Next`. The how-to lesson had
+     fixed the same thing for itself nine days earlier.
+     ASSERT THE PAIR AND BOTH WAYS. A label check alone passes on any copy; a copy check alone goes stale
+     the day the label moves; and because this step's prose legitimately mentions the word "Fight" twice
+     (the sub-phase, and the note that it is one button), the claim has to be about which button the
+     IMPERATIVE names — hence `Press <word>`, required for the live label and refused for the other. */
+  const doorway = await p.evaluate(()=>({
+    label: ((document.getElementById('fightBtn')||{}).textContent||'').trim(),
+    sel  : document.querySelectorAll('#hand .card.sel').length
+  }));
+  ok(doorway.sel===0, 'the doorway step really has an empty selection — which is WHY the label is `Next`');
+  const btnWord = /^Next$/i.test(doorway.label) ? 'Next' : /^Fight$/i.test(doorway.label) ? 'Fight' : null;
+  ok(btnWord==='Next', 'the button on screen reads `Next` at the doorway step  ['+doorway.label+']');
+  const copy = (await step()).text;
+  const rx = w => new RegExp('Press\\s+[^A-Za-z]{0,3}' + w + '\\b');
+  const names = !!btnWord && rx(btnWord).test(copy), misnames = !!btnWord && rx(btnWord==='Next'?'Fight':'Next').test(copy);
+  ok(names && !misnames,
+     'AND THE STEP TELLS YOU TO PRESS THAT BUTTON, not the other one  [label "'+doorway.label+
+     '" · names it '+names+' · names the other '+misnames+']');
 
   /* THE DOORWAY — the lesson's headline claim, and the one players most misread. Count the hand BEFORE and
      AFTER: the whole point is that Fight moves you a sub-phase and plays NOTHING. */

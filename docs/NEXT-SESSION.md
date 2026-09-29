@@ -735,24 +735,6 @@ re-read its tag.
   existing step where you can; budget the suite edit where you cannot.
   `[id: tutorials-still-teach-boundary]`
 
-- `ready to build`      · **THE "PHASES AND QUICKS" DOORWAY STEP SAYS "PRESS FIGHT" WHERE THE BUTTON READS
-  "NEXT"** (found 2026-09-29, auditing this header). The step is the one that teaches the doorway —
-  *"Press **Fight** and watch closely: **nothing gets played**"* — and it sets `only:function(){ return []; }`,
-  which is deliberate and correct: `doFight` acts as a doorway only on an EMPTY selection, and with a card
-  staged it transitions AND plays in one press. But an empty selection is exactly the resting state where
-  `updateActions` calls `setActionLabel(fight,'Next')`, so the button on screen reads **▶ Next** while the
-  copy names a button that is not there.
-  **THIS IS THE DEFECT THE HOW-TO LESSON FIXED FOR ITSELF ON 2026-09-16**, reintroduced nine days later by
-  the lesson written to teach the very transition that caused it. That lesson's jab step carries the remedy
-  in its own words — *"With nothing selected that button reads **Next** — it only moves you on."* — and the
-  template comment recording the fix sits ~500 lines above the step that undid it. Aj's framing then is the
-  test: *told to press a button that is not on screen.*
-  **NO SUITE CAN SEE IT, and that is the same blindness the 09-16 note already names:** the lesson helpers
-  drive the button through `__pressFight`, which presses whatever is there by design. The copy fix is one
-  line; the assertion has to read the LABEL at that step rather than the press, which is *"assert what the
-  lesson CLAIMS, not that the panel rendered"* in yet another set of clothes.
-  `[id: phases-doorway-says-fight]`
-
 ### Tooling
 
 - `needs a repro`       · **`lessontest_forms` blew a THIRTY-SECOND poll once under `-j 4` — and 30s is not slowness, it is a dead end**

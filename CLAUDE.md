@@ -53,7 +53,7 @@ node lessontest.js                              # the "Custom Decks" tutorial le
 node lessontest_energyorder.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node lessontest_phases.js               # "Phases and Quicks" (Basics #3) — the lesson that ABSORBED the
 #                                       # old Quicks one. Both base Quicks, the doorway, and pauses held on
-#                                       # real ceremony beats rather than forced windows (43). `lessontest_quicks.js`
+#                                       # real ceremony beats rather than forced windows (46). `lessontest_quicks.js`
 #                                       # is DELETED: its lesson no longer exists
 node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated (25)
 node lessontest_zones.js                # the "Zones of Play" spotlight tour — every selector must LIGHT (21)
@@ -2144,7 +2144,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 591, `netview` 65, `mptest` 100, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 17, `lessontest` 20, `lessontest_energyorder` 14,
-`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_phases` 43, `lessontest_howto` 25,
+`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_phases` 46, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 31, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
