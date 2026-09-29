@@ -138,6 +138,57 @@ async function waitFor(fn,tries=70,ms=120){ for(let i=0;i<tries;i++){ if(await f
      rows.push(`      +${String(f.t-t0).padStart(5)}ms  shields=${f.sh}  round=${f.rd}  ceremony=${f.cer?'Y':'n'}  BEAT=${f.beat?'Y':'n'}`); } });
    console.log('   ↳ client transition (state changes only):\n'+rows.join('\n')); }
 
+  /* ═══ THE PHASE STRIP MUST REACH RESOLUTION AND CLEAN-UP ON THE CLIENT TOO (Aj, 2026-09-29) ═══
+     *"the colors for resolution and clean up never show on the client"*. `uiPhase` was written in exactly
+     one place — `resolveRoundCeremony` — which a client NEVER runs, because `clientPlayCeremony` is a
+     second, hand-rolled presentation path. The mirror was never the gap: `netview` carries `resolution`
+     and `cleanup`, but a client would only catch them if a mirror happened to land inside the window, and
+     the deal mirror is deliberately HELD so the banner and the fly-in arrive together. Measured before the
+     fix: the client's strip ran spFight -> spIdle -> spBegin, every round.
+     THE SAMPLER IS `mptest`'s, DELIBERATELY — that file proved three of these colours unreachable in a
+     real game, and a second idiom for one question is how two answers drift apart. Assert the CLASS, never
+     the colour: the hues are becoming a player preference. */
+  await join.evaluate(()=>{ window.__seq=[]; window.__dur={}; let cur=null, t0=performance.now();
+    window.__seqT=setInterval(()=>{
+      const hw=document.getElementById('handWrap'); if(!hw) return;
+      const c=(hw.className.match(/sp[A-Z][a-z]+/)||['(none)'])[0], now=performance.now();
+      if(c!==cur){ if(cur){ window.__dur[cur]=Math.max(window.__dur[cur]||0, Math.round(now-t0)); }
+                   cur=c; t0=now; window.__seq.push(c); } }, 12); });
+  /* Drive one more round boundary so the sampler has a ceremony to watch. Bound by UNPRODUCTIVE
+     iterations, never a raw count — this suite's own family learned that the expensive way. */
+  { let stale=0, lastRound=await join.evaluate(()=>window.__cmf.turn()!=null?(window.__cmf.boardStamp?1:1):1);
+    const roundOf=pg=>pg.evaluate(()=>{ const m=/Round\s+(\d+)/.exec((document.getElementById('log')||{}).textContent||''); return m?+m[1]:0; });
+    let r0=await roundOf(join);
+    for(let i=0; i<80 && stale<30; i++){
+      const before=await roundOf(join);
+      await host.evaluate(()=>{ const f=document.getElementById('fightBtn'), pb=document.getElementById('passBtn');
+        const g=document.querySelector('#hand .group'); if(g) g.click();
+        if(f&&!f.disabled) f.click(); else if(pb&&!pb.disabled) pb.click();
+        const c=document.getElementById('clearBtn'); if(c&&!c.disabled) c.click(); });
+      await join.evaluate(()=>{ const f=document.getElementById('fightBtn'), pb=document.getElementById('passBtn');
+        const g=document.querySelector('#hand .group'); if(g) g.click();
+        if(f&&!f.disabled) f.click(); else if(pb&&!pb.disabled) pb.click();
+        const c=document.getElementById('clearBtn'); if(c&&!c.disabled) c.click(); });
+      await wait(420);
+      stale = ((await roundOf(join))>before) ? 0 : stale+1;
+      if((await roundOf(join)) > r0+1) break;
+    }
+  }
+  const strip = await join.evaluate(()=>{ clearInterval(window.__seqT); return { seq:window.__seq, dur:window.__dur }; });
+  const sseen = new Set(strip.seq);
+  ok(sseen.has('spResolve'),
+     "THE CLIENT'S STRIP REACHES RESOLUTION" +
+     (sseen.has('spResolve') ? '' : '  ← REPRODUCED: orange never painted on this seat  ['+strip.seq.join(' → ')+']'));
+  ok(sseen.has('spCleanup'),
+     "…and CLEAN-UP" +
+     (sseen.has('spCleanup') ? '' : '  ← REPRODUCED: red never painted on this seat  ['+strip.seq.join(' → ')+']'));
+  /* LONG ENOUGH TO SEE, which is the assertion that catches the shape of the original bug — a phase that
+     exists for less than a frame is found by a 12ms sampler and never by a player. The client's Clean-up
+     dwell is the host's 420ms; the floor sits well under it and well over one frame. */
+  ok((strip.dur['spCleanup']||0) >= 250,
+     '…and Clean-up stays on screen long enough to read — '+(strip.dur['spCleanup']||0)+'ms, floor 250' +
+     ((strip.dur['spCleanup']||0)>=250 ? '' : '  ← a tint nobody can SEE, however reliably a sampler finds it'));
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
 
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

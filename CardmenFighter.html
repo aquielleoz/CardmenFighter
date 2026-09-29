@@ -16089,6 +16089,17 @@ window.CardFace = {};
       if(pendingRoundMirror) trace('mirror HELD -> DISCARDED', 'a new ceremony arrived first; the client loses that round\'s deal');
       clientCeremonyRes=res; clientCeremonyActive=true; pendingRoundMirror=null; awaitingRoundReveal=false;
       holdShields = !reduceMotion() && !!res.shieldStripped;
+      /* ⚠ THE PHASE STRIP NEVER WENT ORANGE OR RED ON A CLIENT (Aj, 2026-09-29: *"the colors for resolution
+         and clean up never show on the client"*). `uiPhase` was assigned in exactly ONE place —
+         `resolveRoundCeremony` — and a client never runs it: this function is a SECOND, hand-rolled
+         presentation path. The MIRROR is not the gap (`netview` carries `resolution` and `cleanup` fine);
+         the gap is that a client's strip could only catch those flags if a mirror happened to land inside
+         the window, and the deal mirror is deliberately HELD so the banner and the fly-in arrive together.
+         So the client went spFight -> spIdle -> spBegin and skipped both colours every round.
+         THIS IS THE DOCUMENTED CLASS, not a new one: *"a bespoke presentation path silently misses features
+         the shared one gained"*. The marks below are the host's, at the host's points, with the host's
+         420ms Clean-up dwell — do not invent a number here and do not re-derive the sequence. */
+      uiPhase='resolve';                                       // ← the shatter and the banner ARE Resolution, on this seat too
       announceRoundWin(res);                                   // message + log, already rotated to our seat — sets pendingKick when res.kick
       render();
       /* A TERMINAL round plays no beats, matching the host: when the game ends the host goes straight from
@@ -16097,11 +16108,22 @@ window.CardFace = {};
        * GATED ON `finished`, NOT ON `kick`. At 3-6 players every elimination is a kick and the game continues,
        * so keying this off `kick` would skip the beats the host DOES play on a mid-game elimination — and leave
        * `pendingKick` set on a client that never reaches endGame(), firing a stray finisher later. */
-      if(res.finished){ clientCeremonyActive=false; holdShields=false; return; }
-      playPreBeats(res, function(){ flushThreshold(function(){ holdShields=false; finishClientCeremony(); }); });
+      if(res.finished){ clientCeremonyActive=false; holdShields=false; uiPhase=null; return; }
+      /* AND CLEAN-UP NEEDS ITS OWN DWELL HERE FOR THE REASON IT NEEDS ONE ON THE HOST: the client has no
+         trim to show — the host owns it — so without a beat the phase exists for less than a frame and the
+         strip never paints red, which is exactly the bug being fixed. `paintPhaseStrip` REPAINTS rather
+         than renders: a `render()` here runs the shield diff, queues `pendingThreshold` and displaces this
+         seat's own beat (`nettest_ceremony` measured that once as the client landing 260ms late). */
+      playPreBeats(res, function(){
+        uiPhase='cleanup'; paintPhaseStrip();
+        setTimeout(function(){
+          flushThreshold(function(){ holdShields=false; finishClientCeremony(); });
+        }, reduceMotion()?0:420);
+      });
     }
     function finishClientCeremony(){
       clientCeremonyActive=false;
+      uiPhase=null;                                            // ← the deal is the BEGINNING phase; `dealingIn` owns the strip from here
       if(pendingRoundMirror){ var m=pendingRoundMirror; pendingRoundMirror=null; revealRound(m); }
       /* THE TEARDOWN MUST BE UNCONDITIONAL. This branch used to arm `awaitingRoundReveal` and, when the timer
        * expired, clear only that flag — its own comment claimed it would "drop the banner after a beat" and it
