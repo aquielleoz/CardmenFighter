@@ -109,10 +109,13 @@ assertions were A/B'd by deleting the migration and rebuilding.
   `'effect'` and deliberately left in place: it is on the wire, and removing it is churn.
 
 **⚠ WHAT IS NOT DONE. None of it shows in a green sweep, and none of it blocks the merge:**
-- **No test for the auto-pass brake.** `stackMark` is live in the template and the brake has been wrong
-  TWICE (it braked on the passer's own cast; it measured the wrong seat for a remote pass), so it is exactly
-  the thing that should not reach `main` uncovered. `nettest_prefight` already rigs the staging it needs — a
-  rival who really casts at the transition.
+- **The auto-pass brake is covered in a DUEL and not at 3-6 players** (`nettest_brake.js`, 22, added
+  2026-09-29). Four legs: a quiet window does not brake (the control — without it a build that brakes on
+  everything passes every other leg), someone else's cast HOLDS the pass and a second press goes through,
+  your OWN cast does not brake you (bug 1), and a REMOTE seat's pass is braked and measured against the
+  right seat (bug 2, the duel re-apply at `stackMark(hostState, 1)`). **What is left is
+  `hostApplyMoveN`'s copy** — a duel never reaches it, so its `actor` argument is read and not driven,
+  which is the two-handler-families trap this repo has now paid for four times.
 - **No test for drag-to-activate in Main**, and `nettest_drag` says so in its own comment: drag-to-PLAY
   lives in the Fight Sub-Phase since step 20, so that suite deliberately steps OUT of Main before dragging.
   The Main gesture — which ACTIVATES — is driven by nothing.
