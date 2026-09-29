@@ -113,9 +113,11 @@ assertions were A/B'd by deleting the migration and rebuilding.
   2026-09-29). Four legs: a quiet window does not brake (the control — without it a build that brakes on
   everything passes every other leg), someone else's cast HOLDS the pass and a second press goes through,
   your OWN cast does not brake you (bug 1), and a REMOTE seat's pass is braked and measured against the
-  right seat (bug 2, the duel re-apply at `stackMark(hostState, 1)`). **What is left is
-  `hostApplyMoveN`'s copy** — a duel never reaches it, so its `actor` argument is read and not driven,
-  which is the two-handler-families trap this repo has now paid for four times.
+  right seat (bug 2, the duel re-apply at `stackMark(hostState, 1)`).
+  **`hostApplyMoveN`'s copy is covered too since 2026-09-29** — `nettest_brake3.js` (15), whose two real
+  legs are the SAME mutation from opposite sides: the HOST casting into a client's pass window must brake
+  it, and the CLIENT casting into its own must not. Either alone is weak; the pair pins the seat, which is
+  what the two-handler-families trap costs when you test only one direction.
 - **No test for drag-to-activate in Main**, and `nettest_drag` says so in its own comment: drag-to-PLAY
   lives in the Fight Sub-Phase since step 20, so that suite deliberately steps OUT of Main before dragging.
   The Main gesture — which ACTIVATES — is driven by nothing.
