@@ -662,8 +662,13 @@
       var shEff = sh && E.effectOf(sh);
       var shSafe = !(shEff && shEff.shieldAll && st.players.some(function (q, qi) { return qi !== p && q.shields <= 0; }));
       if (sh && shSafe && pl.shields <= sT && act(st, p, sh.id, log, 'SHIELD', humans)) continue;   // survive
-      var sph = pick(function (ef) { return ef.kind === 'shieldImmune'; });
-      if (sph && !pl.shieldImmune && pl.shields <= 2 && act(st, p, sph.id, log, 'SPHERE', humans)) continue;   // Sphere: shield up when in danger
+      /* THE `shieldImmune` KIND HAS NO CARD, so the branch that lived here was dead — `pick` could never
+         match and the AI's "Sphere: shield up when in danger" move never existed. Deleted 2026-09-30.
+         ⚠ THE FIELD IS VERY MUCH ALIVE and must not be confused with the kind: Apollo-Sanctuary sets
+         `shieldImmune: true` as a patch and `engine.js` reads it, which is why a grep for the word finds
+         plenty and a grep for the KIND finds nothing. Restoring this is two lines if a card ever takes it.
+         (`stopper` went the same way in v1.31.13; `phantasm` was instead restored as a real card in
+         v1.31.6 — an orphaned kind is a decision, not automatically a deletion.) */
       var wd = pick(function (ef) { return ef.kind === 'ward'; });
       if (wd && pl.shields <= 1 && !pl.cantLoseRound && act(st, p, wd.id, log, 'WARD', humans)) continue;       // Leyline (REWORK base): can't-lose when desperate
       var tr = pickTransform(st, p);
