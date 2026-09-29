@@ -22,11 +22,15 @@ live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(
 
 ## ☀️ START HERE
 
-`main` is at **v1.31.127**, untouched. All the work below is on **`epic/priority-windows`**.
+`main` is at **v1.31.127**. The version is untouched; its two docs commits — Bibong's profile entry and the
+three bugs his export surfaced — were carried into the epic on 2026-09-29. All the work below is on
+**`epic/priority-windows`**.
 
 **⚡ THE PRIORITY MODEL IS COMPLETE AND SPECIFIED (2026-09-17).** Steps 1-23 are done and merged; the two
 boundaries that were still missing — the **end of Clean-up** and the Beginning Phase's **untap queue** —
-landed on the 16th and 17th. **The epic sweeps 94/94 in ~227s.**
+landed on the 16th and 17th. **The epic's sweep is 100 suites**, derived from `sweep.js`'s own filter — read
+the filter rather than a remembered count, and see CLAUDE.md for why one wall-clock figure is not worth
+quoting. *(This said "94/94 in ~227s" until 2026-09-29.)*
 Sub-branches PR **into** the epic, the version is held until it merges, and `main` is merged **into** it
 after any session spent elsewhere (CLAUDE.md → "Branches and PRs"; `checkbranch.js` enforces both).
 
@@ -56,17 +60,22 @@ after any session spent elsewhere (CLAUDE.md → "Branches and PRs"; `checkbranc
 - **The boundary prompts DEFAULT OFF.** Only `respond` stops you. Four suites whose subject is a boundary
   window pass **`?prompts=all`**; if a new suite drives one of those windows and sees nothing, that is why.
 
-**⏭ THE EPIC IS CODE-COMPLETE. WHAT IS LEFT IS THE MERGE ITSELF.** Steps 1-23 are done; the rename landed
-2026-09-14 as **one symbol per commit** (`openFightEndWindow` → `openResolutionWindow`, `drainFightEnd`,
-`fightEndPushCard`, `fightEndGuardCard`, `enterFightEnd`, `fightEndResult`, `st.fightEnd` → `st.resolution`,
-the `'fightend'` prompt id, and both suite files). Code and docs now agree.
+**⏭ THE EPIC IS CODE-COMPLETE. WHAT IS LEFT IS THE MERGE ITSELF.** Steps 1-23 are done and the stack-model
+build landed on top (#225). The rename landed 2026-09-14 as **one symbol per commit** (`openFightEndWindow` →
+`openResolutionWindow`, `drainFightEnd`, `fightEndPushCard`, `fightEndGuardCard`, `enterFightEnd`,
+`fightEndResult`, `st.fightEnd` → `st.resolution`, the `'fightend'` prompt id, and both suite files). Code and
+docs now agree.
+*(All of this was stated TWICE, in near-identical paragraphs thirty lines apart, and the second copy still
+said main must NOT be merged into the epic yet — which the epic rule and `checkbranch.js` both contradict,
+and which was false by 2026-09-29. Consolidated that day. A header that says a thing twice will eventually
+say it two different ways, and the stale copy is the one a reader hits first.)*
 
 **⚠ THE VERSION BUMP IS DELIBERATELY NOT DONE, AND THIS IS THE ORDER THAT MATTERS.** `versiontest` asserts
 the handoff's **"`main` is at vX"** line against README, so bumping README to **v1.32.0** while the epic is
 still unmerged would force that line to claim something false and the gate would correctly go red.
 CLAUDE.md's epic rule says the same thing from the other end: *the version is held for the whole epic and
 bumped ONCE at the merge.* **FIGHT-END-PLAN.md's step 23 says to bump it here — that instruction predates
-the epic rule and is wrong.** Do it in the epic → `main` PR, together:
+the epic rule and is wrong.** Do it in the epic → `main` PR, in ONE commit:
 README `**Status:** v1.32.0` · a `### v1.32.0` heading in `CHANGELOG.md` · this header's **`Current
 version:`** and **"`main` is at"** lines · CLAUDE.md's own `Current version:` line. It is a **minor** bump
 because the rules moved.
@@ -78,23 +87,14 @@ because an unknown key falls back to the default. `prompttest` is 18 → **22** 
 assertions were A/B'd by deleting the migration and rebuilding.
 
 **TWO THINGS THE RENAME NEARLY GOT WRONG, both worth knowing before the next one:**
-- **`sweep.js` carries an explicit ALLOWLIST, not a glob.** Renaming the two suite files without updating it
-  drops them from the sweep **silently** — and the sweep still prints a green N/N. Verified by re-deriving
-  the runner's list: 92, not 90.
+- **`sweep.js` is a HYBRID, not the pure allowlist this line used to claim** — `nettest_*` and `lessontest*`
+  are GLOBBED, everything else is named explicitly. Renaming a NAMED suite without updating it drops that
+  suite **silently**, and the sweep still prints a green N/N. *(It also quoted "92, not 90"; the filter
+  derives 100 as of 2026-09-29. Read the filter in `sweep.js`, never a remembered count.)*
 - **A blanket identifier sweep damaged the one paragraph that was ABOUT the old names** (CLAUDE.md's rename
   note), leaving it reading *"`resolution` in a `.js` file is the old name"*. Prose that discusses a rename
   needs rewriting, never renaming — and dated quotes plus the append-only changelog keep "fight end" on
   purpose.
-
-**⏭ THE EPIC IS CODE-COMPLETE. IT IS HELD OPEN ON PURPOSE, WAITING FOR AJ'S NETPLAY DATA** (2026-09-14).
-Steps 1-23 are done and the stack-model build landed on top (#225). `main` must NOT be merged into yet.
-
-**THE VERSION BUMP IS THE WHOLE OF THE REMAINING WORK, AND IT BELONGS IN THE EPIC → `main` PR.**
-`versiontest` asserts the handoff's **"`main` is at vX"** line against README, so bumping any earlier makes
-that line claim something false and the gate correctly reds. Do all of it in one commit:
-README `**Status:** v1.32.0` · a `### v1.32.0` heading in `CHANGELOG.md` · this header's **`Current
-version:`** and **"`main` is at"** lines · CLAUDE.md's own `Current version:`. **Minor**, because the rules
-moved. FIGHT-END-PLAN step 23 says to bump it earlier; that instruction predates the epic rule and is wrong.
 
 **WHAT THE STACK-MODEL BUILD CHANGED (#225), all of it settled by Aj's rulings:**
 - Shield losses left `st.stack` for **`st.losses`** — a loss is the MOMENT, not an effect (§4).
@@ -108,40 +108,37 @@ moved. FIGHT-END-PLAN step 23 says to bump it earlier; that instruction predates
 - **The Stack now holds effects and only effects**, which §1 has always claimed. `kind` is constant
   `'effect'` and deliberately left in place: it is on the wire, and removing it is churn.
 
-**⚠ THREE GAPS, NONE BLOCKING, ALL WORTH KNOWING BEFORE THE MERGE:**
-- **Transform windows are UNTESTED IN NETPLAY.** Engine and solo are covered. A rival transform opening a
-  window for a REMOTE seat goes through the host drivers and no suite drives it — and the two defects that
-  shipping piece 5 exposed were both in driver code of exactly that kind. This is the first thing Aj's
-  netplay data should be read against.
+**⚠ WHAT IS NOT DONE. None of it shows in a green sweep, and none of it blocks the merge:**
+- **No test for the auto-pass brake.** `stackMark` is live in the template and the brake has been wrong
+  TWICE (it braked on the passer's own cast; it measured the wrong seat for a remote pass), so it is exactly
+  the thing that should not reach `main` uncovered. `nettest_prefight` already rigs the staging it needs — a
+  rival who really casts at the transition.
+- **No test for drag-to-activate in Main**, and `nettest_drag` says so in its own comment: drag-to-PLAY
+  lives in the Fight Sub-Phase since step 20, so that suite deliberately steps OUT of Main before dragging.
+  The Main gesture — which ACTIVATES — is driven by nothing.
+- **A transform opening a window for a REMOTE seat is HALF covered.** `nettest_ridewedge` drives the HOST's
+  own transform and the client's window. The other direction — a client transform opening a window for the
+  host or a third seat — is still undriven, and both defects that shipping piece 5 exposed were in driver
+  code of exactly that kind. *(This read "UNTESTED IN NETPLAY" flatly until 2026-09-29; `ridewedge` closed
+  half of it in September and nobody came back to narrow the claim.)*
+- **`kind: 'shieldImmune'` is an ORPHANED effect kind.** Nothing produces it, so `sph` in `playPhase`
+  (`ai.js`) is always null and its SPHERE branch is dead. The FIELD `shieldImmune` is very much alive —
+  Apollo-Sanctuary's boost sets it and `engine.js` reads it — so it is only the `kind` no card carries.
 - **"1.21 extra priority windows per game" is a SOLO number.** At 3-6 players more seats can hold a Quick,
   so the real figure is higher and unmeasured.
-- **`lessontest_quicks` still flakes** under a parallel sweep (green alone).
 
-**⚠ AND TWO GATES STILL NEED AJ AND TWO DEVICES** — step 18's netplay gate, and step 22's version refusal
-against a genuinely OLD peer (both sides in the suite fake the number with `?ver=`).
+**⚠ TWO GATES ARE FILED AS NEEDING AJ AND TWO DEVICES** — step 18's netplay gate, and step 22's version
+refusal against a genuinely OLD peer (both sides in the suite fake the number with `?ver=`). **Apply
+CLAUDE.md's own test before accepting either:** *"needs two devices" is almost always false, and the
+refutation is a grep of `nettest_*.js` for a suite that already drives the seat in question.* Step 22 looks
+mechanizable on that test — `git show <old-commit>:CardmenFighter.html` is a genuinely old build to load as
+the client page, which is strictly stronger than both sides faking a number. *(Filed THREE times in this
+header before 2026-09-29, once inside a list of things "not done".)*
 
 **READ THE TWO NEW RULES IN CLAUDE.md BEFORE THE NEXT BUILD.** Both are about instruments lying: a seeded
 fingerprint proves the ENGINE and never loads the page (it was byte-identical through four commits while two
 UI defects sat in the build), and a BASELINE HAS TO BE A BUILD YOU DID NOT WRITE (a three-runs-per-arm A/B
 produced six confidently wrong data points and cleared the actual culprit).
-
-**⚠ STILL WAITING ON AJ AND TWO DEVICES** — step 18's netplay gate, **and** step 22's version refusal against
-a genuinely old peer (both sides in the suite run the same build with `?ver=` faking the number).
-
-**⚠ `lessontest_quicks` FLAKES ABOUT EVERY OTHER SWEEP** — parallel contention, green 3/3 alone. It deserves
-its own fix; at this rate it makes every other sweep result harder to read.
-
-**ALSO FOUND, NOT FIXED: `kind: 'shieldImmune'` is an ORPHANED effect kind** — no card has it, so the
-"Sphere" branch in `playPhase` is dead code. `grep -c "kind: 'shieldImmune'" engine.js` returns 0.
-
-**⚠ WHAT IS NOT DONE, and none of it is visible in a green sweep:**
-- **No test for the auto-pass brake, and none for drag-to-activate in Main.** The brake has been wrong
-  TWICE (it braked on the passer's own cast; it measured the wrong seat for a remote pass), so it is
-  exactly the thing that should not reach `main` uncovered. `nettest_prefight` already rigs the staging a
-  brake test needs — a rival who really casts at the transition.
-- **Step 18's netplay gate still needs AJ and two devices.** The solo half is met; suites cannot close it.
-- **The tutorials teach a button that no longer exists** — the lesson copy still says "press Fight". ★ in
-  the Correctness list below, and no suite can see it because they all address the button by id.
 
 **WHAT TO WATCH FOR IN A SOLO GAME.** The saved log's `--- PRIORITY WINDOWS ---` ledger now records every
 boundary including the silent auto-advances, names the press that opened a transition (`[Next]`/`[Pass]`),
@@ -295,14 +292,18 @@ re-read its tag.
   them passed**, so the lesson ran its steps and then did not reach the completion modal — which points at
   the LAST `next()` not landing, not at a mid-lesson stall. `finish()` polls for a VISIBLE modal, so a
   timeout fails both (the second because `localStorage` was never written).
-  **See the `lessontest_quicks` entry above** — measured at ~25% under `-j 4` with a different signature.
-  It is the first suite to look at if this recurs, but it does not close this entry.
+  **`lessontest_quicks` WAS the first suite to look at, and it no longer exists** — its lesson was absorbed
+  into "Phases and Quicks" on 2026-09-25 and the file was deleted, so the suspect this entry named is gone
+  without the entry having been closed. Its ~25% rate under `-j 4` had a different signature anyway, and the
+  cause is recorded in CLAUDE.md (a hand-rolled priority check that abandoned an open window); that is
+  history now, not a lead. *(This read "see the entry above" and pointed at nothing — repaired 2026-09-29.)*
   **The suite name is unknown because I piped that sweep through `tail -4` and the summary line scrolled
   past** — `sweep.js` prints whole lines precisely so this evidence survives, and cropping it cost the
   identification. **Capture the full sweep log.**
   **Not reproduced:** an immediate re-sweep was **89/89**, and **33 runs of all eleven lesson suites
   eleven-at-a-time** (heavier than the sweep's four lanes) were clean. `lessontest_quicks` was the prime
-  suspect — step 14 changed the modal it drives — and passed 21/0 both alone and in the green sweep.
+  suspect — step 14 changed the modal it drives — and passed 21/0 both alone and in the green sweep. (That
+  suite has since been deleted; the sentence is kept as the record of what was ruled out, not as a lead.)
   **Do not file this as a flake and do not raise a poll budget on it.** This repo's record is that an
   intermittent has been a real dependency every single time. The cheap next move is the one the
   `lessontest_twos` entry above already argues for: make the last step self-diagnosing — have `next()` say
@@ -733,6 +734,24 @@ re-read its tag.
   through `atStep(10)`, and inserting one step scored **7 pass / 17 fail**. Fold new teaching into an
   existing step where you can; budget the suite edit where you cannot.
   `[id: tutorials-still-teach-boundary]`
+
+- `ready to build`      · **THE "PHASES AND QUICKS" DOORWAY STEP SAYS "PRESS FIGHT" WHERE THE BUTTON READS
+  "NEXT"** (found 2026-09-29, auditing this header). The step is the one that teaches the doorway —
+  *"Press **Fight** and watch closely: **nothing gets played**"* — and it sets `only:function(){ return []; }`,
+  which is deliberate and correct: `doFight` acts as a doorway only on an EMPTY selection, and with a card
+  staged it transitions AND plays in one press. But an empty selection is exactly the resting state where
+  `updateActions` calls `setActionLabel(fight,'Next')`, so the button on screen reads **▶ Next** while the
+  copy names a button that is not there.
+  **THIS IS THE DEFECT THE HOW-TO LESSON FIXED FOR ITSELF ON 2026-09-16**, reintroduced nine days later by
+  the lesson written to teach the very transition that caused it. That lesson's jab step carries the remedy
+  in its own words — *"With nothing selected that button reads **Next** — it only moves you on."* — and the
+  template comment recording the fix sits ~500 lines above the step that undid it. Aj's framing then is the
+  test: *told to press a button that is not on screen.*
+  **NO SUITE CAN SEE IT, and that is the same blindness the 09-16 note already names:** the lesson helpers
+  drive the button through `__pressFight`, which presses whatever is there by design. The copy fix is one
+  line; the assertion has to read the LABEL at that step rather than the press, which is *"assert what the
+  lesson CLAIMS, not that the panel rendered"* in yet another set of clothes.
+  `[id: phases-doorway-says-fight]`
 
 ### Tooling
 
