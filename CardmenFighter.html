@@ -16709,7 +16709,11 @@ window.CardFace = {};
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ /* `logHead` mirrors `__solo.logHeadText` for the netplay suites — the saved log's
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ /* `ceremony` answers the one question a staging helper cannot infer: IS A ROUND
+       CEREMONY STILL RUNNING? Its hand count is perfectly stable until the deferred draw lands at the
+       very end, so every "wait until the board stops moving" check returns early and stages onto a
+       board that is about to gain two cards. Measured 2026-09-29 in `nettest_brake`. */
+    ceremony:function(){ return !!inCeremony; }, /* `logHead` mirrors `__solo.logHeadText` for the netplay suites — the saved log's
        header is the one place a client's deck names are read back, and nothing could see it.
        Checked for a duplicate key first (a brace-walk of this literal, not the crude grep: that
        one reports six hits here and all six are NESTED keys, so it is a lead, never a verdict). */

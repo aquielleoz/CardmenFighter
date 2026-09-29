@@ -126,15 +126,35 @@ async function lead(p, id, other){
   const want=h=>h.map(c=>c.id).sort().join(',');   // `D()` already builds the id as tag+rank+suit
   async function stage(hostHand, joinHand, turn){
     const wantH=want(hostHand), wantJ=want(joinHand);
+    const force = () => host.evaluate(a=>window.__cmf.forceAll(a.hands,a.energies,a.shields,a.opts),{
+      hands:[hostHand, joinHand], energies:[EN(12,'D'), EN(12,'D')], shields:[3,3],   // ♦ energy: Leyline costs 9
+      opts:{ turn:turn, round:3 }
+    });
+    /* ⚠ STAGE TWICE, ON PURPOSE — THE ROUND DRAW LANDS **AFTER** THE FIRST ONE (measured 2026-09-29).
+       Every leg but the first follows a completed round, and a duel deals two cards each at the boundary.
+       So `forceAll` set the hand to exactly two cards and the game then added two more: the verify saw
+       `12H#44,6S#22,h6C,h7C` where it wanted `h6C,h7C` — MY two cards plus the deal's. The outer retry
+       hid it, landing on attempt 2 every time, and the sweep reported it as three `poll TIMED OUT` lines
+       that read like a suite nearly failing.
+       IT IS ORDER, NOT SLOWNESS, WHICH IS WHY "WAIT LONGER" IS THE WRONG FIX AND WAS MEASURED AS SUCH:
+       a ~1s settle gave 3 misses per run and a ~2s settle gave 1 — helping, never reaching zero, so any
+       delay I picked would be tuned to this machine. Wait for the EVENT instead: let the hands stop
+       moving, then stage again onto a board with nothing in flight. The outer loop stays as a hang guard,
+       and a miss now means something real rather than a deal arriving on schedule. */
     for(let i=0;i<10;i++){
-      await host.evaluate(a=>window.__cmf.forceAll(a.hands,a.energies,a.shields,a.opts),{
-        hands:[hostHand, joinHand], energies:[EN(12,'D'), EN(12,'D')], shields:[3,3],   // ♦ energy: Leyline costs 9
-        opts:{ turn:turn, round:3 }
-      });
+      await force();
       const landed = await until(async()=>
         (await idsOn(host))===wantH && (await idsOn(join))===wantJ &&
         (await host.evaluate(()=>window.__cmf.turn()))===turn, 16);
-      if(landed) return true;
+      if(landed){ if(i) console.log('   ⓘ stage landed on attempt '+(i+1)); return true; }
+      /* WHICH HALF MISSED? A retry that just loops tells you the staging is flaky and nothing else, and a
+         suite that passes on attempt four is one slow machine from passing on attempt eleven. Name the
+         unmet condition on every failed attempt so the margin is readable in a GREEN run. */
+      console.log('   ⓘ stage attempt '+(i+1)+' missed: ' +
+        [ (await idsOn(host))!==wantH ? 'HOST hand ('+(await idsOn(host))+' ≠ '+wantH+')' : null,
+          (await idsOn(join))!==wantJ ? 'CLIENT hand ('+(await idsOn(join))+' ≠ '+wantJ+')' : null,
+          (await host.evaluate(()=>window.__cmf.turn()))!==turn ? 'turn ('+(await host.evaluate(()=>window.__cmf.turn()))+' ≠ '+turn+')' : null
+        ].filter(Boolean).join(' · '));
     }
     console.log('   ⏱ stage never landed — host '+(await idsOn(host))+' want '+wantH+
                 ' | join '+(await idsOn(join))+' want '+wantJ+' | turn '+(await host.evaluate(()=>window.__cmf.turn()))+' want '+turn);
@@ -146,8 +166,20 @@ async function lead(p, id, other){
      mid-ceremony and the round-end deal overwrote the staged hands. The symptom was leg 3 reporting the
      brake broken while the log said *"Rival 2 won the round of Jabs"*: a different round entirely.
      A poll whose condition is always true is the same bug as no poll at all. */
+  /* ⚠ AND THE SNAPSHOT MUST INCLUDE "IS A CEREMONY RUNNING", which was the whole bug (measured
+     2026-09-29). Everything else here is perfectly STABLE while a round ceremony plays its beats — the
+     hand count does not move until the DEFERRED DRAW lands at the very end — so this returned early,
+     `forceAll` set a two-card hand, and the deal then added two more. The verify saw
+     `12H#44,6S#22,h6C,h7C` where it wanted `h6C,h7C`: my cards plus the deal's.
+     THE RETRY HID IT, landing on attempt 2 every run, and the sweep printed it as three `poll TIMED OUT`
+     lines that read like a suite nearly failing.
+     WAITING LONGER IS THE WRONG FIX AND WAS MEASURED AS SUCH — a ~1s settle gave 3 misses per run, ~2s
+     gave 1: helping, never zero, so any delay would be tuned to this machine. Staging TWICE around a
+     settle was also tried and changed nothing, because the ceremony was still running through both.
+     `inCeremony` is the actual event, so ask for it. */
   const snap=()=>host.evaluate(()=>JSON.stringify({
     t:window.__cmf.turn(),
+    cer:window.__cmf.ceremony(),
     h:[].slice.call(document.querySelectorAll('#hand .card')).map(c=>c.getAttribute('data-id')).join(','),
     rs:((document.getElementById('rivalStatus')||{}).textContent||'').trim(),
     m:!!document.querySelector('.respQuick,#respDecline')
@@ -156,7 +188,7 @@ async function lead(p, id, other){
     let last=null, same=0;
     for(let i=0;i<80;i++){
       const now=await snap();
-      same = (now===last) ? same+1 : 0; last=now;
+      same = (now===last && !JSON.parse(now).cer) ? same+1 : 0; last=now;   // a running ceremony is never 'quiet', however still the board looks
       if(same>=4) return true;
       await wait(250);
     }
