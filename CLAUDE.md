@@ -1968,6 +1968,19 @@ is the tell nobody was reading"*, already written in this file — and `nettest_
 is the cropped-summary-line mistake one step earlier, and the same rule applies: **a runner that discards the
 evidence makes the warning invisible.** There is a `warnings (these suites PASSED)` section now.
 
+**⚠ A NEW SUITE THAT IS NOT `nettest_*` OR `lessontest*` IS INVISIBLE TO THE SWEEP UNTIL YOU ADD IT
+(2026-09-29).** `sweep.js`'s filter is a HYBRID — those two families are GLOBBED, everything else is an
+explicit allowlist — so `dragtest.js` was written, reviewed, merged and **never run by the runner**, while
+CLAUDE.md claimed a suite count one higher than the runner could reach. This is the documented rename trap
+in the ADD direction, and it is worse here: a rename at least breaks something, while an unlisted new
+suite is simply green by absence.
+**The check is one line and belongs in the same commit as any new suite** — derive the runner's list and
+assert your file is in it, rather than trusting that adding a file is enough:
+
+```bash
+node -e "const fs=require('fs');const m=/\|\| \[([^\]]*)\]\.includes/.exec(fs.readFileSync('sweep.js','utf8'));console.log((m[1].match(/'[^']+'/g)||[]).join(' '))"
+```
+
 **~~Run them one at a time~~ — USE `node sweep.js`, WHICH RUNS THEM 4 AT A TIME (v1.31.82).** Every suite now
 takes `PORT` from the environment (default unchanged, so running one by hand is exactly as before) and the
 runner hands each job its own. **The old rule was load-bearing, not caution: FIVE port groups actually
