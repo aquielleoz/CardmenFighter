@@ -48,6 +48,19 @@ node nettest_names.js                           # netplay player names, both dir
 node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
 node viewtest.js                                # 🔍 View card reader gating on tight screens + the phone touch targets (25)
+node dragtest.js                                # DRAGGING MEANS TWO THINGS AND THE SUB-PHASE DECIDES (17).
+                                                # In MAIN a drag ACTIVATES; in the Fight Sub-Phase it PLAYS
+                                                # (epic step 20). `nettest_drag` drives only the PLAY half
+                                                # and says so — it steps OUT of Main first — so the half
+                                                # that CHANGED had no coverage. Every leg runs the SAME
+                                                # card from the SAME staging and varies only the
+                                                # sub-phase, because "a drag activated" is also true of a
+                                                # build that lost the branch.
+                                                # ⚠ THE REFUSALS ARE LIVE, IN `#dropHint`, NOT a message
+                                                # after release — `highlightTarget` asks the question the
+                                                # release will ask and writes the reason while the card is
+                                                # in the air. Asserting a post-release `#message` waits
+                                                # for something that by design never comes
 node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (96)
 node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (20)
 node lessontest_energyorder.js                       # the "Energy Order" tutorial lesson, full UI (14)
@@ -2162,13 +2175,13 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127 — 2026-09-24, `npm run sweep`, 102 suites ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, `nettest_brake`, `nettest_brake3`, `lessontest_pickescape`) (four lanes; background
+Status as of **v1.31.127 — 2026-09-24, `npm run sweep`, 103 suites ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, `nettest_brake`, `nettest_brake3`, `dragtest`, `lessontest_pickescape`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 591, `netview` 65, `mptest` 100, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 17, `lessontest` 20, `lessontest_energyorder` 14,
-`versiontest` 33, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_phases` 46, `lessontest_howto` 25,
+`versiontest` 33, `sharetest` 17, `dragtest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 66, `lessontest_phases` 46, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 31, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
