@@ -75,8 +75,13 @@ const why=p=>p.evaluate(()=>({
      window nobody is watching and the leg reports the brake broken. */
   const idsOn=p=>p.evaluate(()=>[].slice.call(document.querySelectorAll('#hand .card')).map(c=>c.getAttribute('data-id')).sort().join(','));
   const want=h=>h.map(c=>c.id).sort().join(',');
-  const snap=()=>host.evaluate(()=>JSON.stringify({t:window.__cmf.turn(),h:document.querySelectorAll('#hand .card').length,m:!!document.querySelector('.respQuick,#respDecline')}));
-  async function quiet(){ let last=null,same=0; for(let i=0;i<80;i++){ const n=await snap(); same=(n===last)?same+1:0; last=n; if(same>=4) return true; await wait(250);} console.log('   ⏱ never settled: '+last); return false; }
+  /* ⚠ `cer` IS LOAD-BEARING — see `nettest_brake`'s note. Every other field here is perfectly STABLE while
+     a round ceremony plays its beats, because the deferred draw lands only at the very end, so a settle
+     without it returns early and stages onto a board about to gain cards. This suite shows zero misses
+     today and the blindness is identical, so it is fixed preventively: leaving one of two sibling suites
+     without the check is how the pair drifts apart. */
+  const snap=()=>host.evaluate(()=>JSON.stringify({t:window.__cmf.turn(),cer:window.__cmf.ceremony(),h:document.querySelectorAll('#hand .card').length,m:!!document.querySelector('.respQuick,#respDecline')}));
+  async function quiet(){ let last=null,same=0; for(let i=0;i<80;i++){ const n=await snap(); same=(n===last && !JSON.parse(n).cer)?same+1:0; last=n; if(same>=4) return true; await wait(250);} console.log('   ⏱ never settled: '+last); return false; }
   async function stage(h0,h1,h2){
     const w=[want(h0),want(h1),want(h2)], pg=[host,c1,c2];
     for(let i=0;i<10;i++){
