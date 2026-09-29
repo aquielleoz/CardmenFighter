@@ -7891,9 +7891,17 @@ __QR__
          tried it skipped the beat the lesson exists to show.
          `only:[]` disables Fight and Pass exactly while something IS selected, and leaves them live when
          nothing is — which is the doorway, so the step keeps working and can no longer be broken. */
-      { text:"Press <b>Fight</b> and watch closely: <b>nothing gets played</b>. That button is a <b>doorway</b> — it only moves you from Main into the <b>Fight sub-phase</b>. The strip shifts with you.",
-        only:function(){ return []; }, onlyHint:"Not this step — clear your selection, then press Fight.",
-        hi:'#fightBtn', gate:function(t){ return t==='transition'; }, wait:"Press Fight to step through…" },
+      /* NAME THE BUTTON THAT IS ON SCREEN, AND AT THIS STEP THAT IS `Next` (2026-09-29). This step REQUIRES
+         an empty selection (`only:[]`, because `doFight` is a doorway only on one), and an empty selection
+         in Main returns early from `updateActions` with the resting label — so the button reads `▶ Next`
+         while this copy used to say "press Fight". The board's own hint says so two lines away: *"Main
+         sub-phase — drag a card to use it, or Next to move on."*
+         IT IS THE DEFECT THE HOW-TO LESSON FIXED FOR ITSELF ON 2026-09-16, reintroduced nine days later by
+         the lesson written to teach this very transition — and the comment recording that fix is ~500 lines
+         above. Aj's framing then is the test: *told to press a button that is not on screen.* */
+      { text:"Press <b>▶ Next</b> and watch closely: <b>nothing gets played</b>. That button is a <b>doorway</b> — it only moves you from Main into the <b>Fight sub-phase</b>. The strip shifts with you. <span class=\"rNote\">(It is the same button as <b>Fight</b>. With nothing selected it reads <b>Next</b>, because moving you on is the only thing the press can do.)</span>",
+        only:function(){ return []; }, onlyHint:"Not this step — clear your selection, then press Next.",
+        hi:'#fightBtn', gate:function(t){ return t==='transition'; }, wait:"Press Next to step through…" },
       { text:"The strip moved — this is the <b>Fight sub-phase</b>. <i>Now</i> cards go down. Lead your <b>Ace</b>.",
         only:function(){ return tutPhAce?[tutPhAce]:null; }, hi:function(){ return tutPhAce?('#hand .card[data-id="'+tutPhAce+'"]'):'#hand'; },
         gate:function(t){ return t==='play'; }, wait:"Lead the Ace…" },
@@ -7930,10 +7938,15 @@ __QR__
         hi:hw, hold:'resolve', btn:"Next ▸" },
       { text:"<b>Clean-up.</b> The round closes out: anything over the hand limit is pitched, and equipment timers tick down.<br><br>Next comes the <b>Beginning Phase</b>, dealing the new round in — and the strip rests again whenever the board is the Rival’s rather than yours.",
         hi:hw, hold:'cleanup', btn:"Next ▸" },
-      { text:"This time there’s nothing worth activating — and that’s fine. <b>Fight still takes you out of Main.</b> Press it, then lead your <b>pair of 3s</b>.",
+      /* AND THE SAME CARE ONE STEP LATER, FOR THE OPPOSITE REASON. Here cards ARE chosen, so the label really
+         is `⚔️ Fight` and ONE press both crosses over and leads them (the 2026-09-18 client note above says
+         the same of a client's seat). The old copy said "Press it, then lead", which describes the two-press
+         route — and that first press, made with nothing selected, shows `Next`. Name the route the step
+         actually wants. */
+      { text:"This time there’s nothing worth activating — and that’s fine. <b>You still have to leave Main.</b> Select your <b>pair of 3s</b> and press <b>⚔️ Fight</b>: with cards chosen, one press crosses over <i>and</i> leads them.",
         only:function(){ return tutPhPair; },
         hi:function(){ return tutPhPair ? tutPhPair.map(function(id){ return '#hand .card[data-id="'+id+'"]'; }).join(',') : '#hand'; },
-        gate:function(t){ return t==='play'; }, wait:"Press Fight, then lead the pair…" },
+        gate:function(t){ return t==='play'; }, wait:"Select the pair, then press Fight…" },
       /* YOU HAVE TO PASS BEFORE RESOLUTION EXISTS — the beat this lesson was missing, and it made the
          finale unreachable. The Rival beating your pair does not end the round: the round ends when
          everyone passes, and only THEN does Resolution open the window Leyline answers. The old single
