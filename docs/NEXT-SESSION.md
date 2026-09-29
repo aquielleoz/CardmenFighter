@@ -1260,6 +1260,33 @@ never read.*
   `hostApplyMoveN` for the same short form before calling it done — the two handler families are where a fix
   lands in one and not the other. `nettest_narrate` is where the assertion belongs.
   `[id: client-activation-line-short-form]`
+- `needs a decision`   · **THE CLIENT'S CEREMONY IS A SECOND IMPLEMENTATION, AND THAT IS CAUSE 2 OF THE
+  HOST/CLIENT DRIFT** (Aj, 2026-09-29: *"why do we keep getting this unsync between host and client?"*).
+  The drift has three causes and only one of them could be gated. Cause 1 — `startGame` is the client's
+  missing constructor — is closed: `versiontest` now derives both sets from source and fails on the
+  difference, and nine more names were moved into `resetBoardMemory` on the way. Cause 3 — narration
+  defaulting to `logMsg` instead of `say` — already has the static scan in `nettest_narrate`, with its two
+  known gaps filed. **This entry is cause 2, the one a gate cannot reach.**
+  **`resolveRoundCeremony` (host/solo) and `clientPlayCeremony` (client) are two hand-written
+  presentations of one event**, so anything added to the host's ceremony is invisible on a client until a
+  human plays that seat. Known instances: `uiPhase` (the Resolution and Clean-up tints, fixed 2026-09-29 by
+  copying the host's marks and its 420ms dwell); `buildOppBeats` before it was extracted, where **every**
+  readability feature was missing from the free-for-all driver; and `tutCastRivalTech`, which lost the
+  reveal pairing the real drivers have. Three instances, one shape.
+  **THE DECISION IS WHETHER TO COLLAPSE THE FORK**, and it is genuinely a decision rather than a cleanup,
+  because the two are not the same function wearing different hats: the client has no trim to run, no draw
+  to make and no engine to consult — its ceremony is a REPLAY of an outcome the host already computed. A
+  shared driver would need a "who owns the work" flag threaded through every beat, and the failure mode of
+  getting that wrong is worse than the drift (a client running engine work is the v1.31.56 class).
+  **THE CHEAP HALF, IF THE ANSWER IS NO:** make the host's ceremony emit its phase marks and beat
+  boundaries through ONE named helper that both paths call, so the next addition has an obvious place to
+  go even while the drivers stay separate. That is what `buildOppBeats` did for the opponent beats, and it
+  is why that particular drift stopped.
+  **WHAT WOULD MEASURE IT:** nothing today compares what the two seats RENDER — `nettest_sync` compares
+  state, and state is not the thing that drifts here. A parity probe that samples both strips and both log
+  line-counts through one game is the instrument this cause has never had.
+  `[id: client-ceremony-is-a-second-impl]`
+
 
 - `root cause found`    · **★ EXPANDING A ZONE PUSHES THE BOARD PAST ITS HEIGHT ON THE TIGHTEST PHONES** (measured 2026-09-07)
   **⚠ ITS REPORTED NUMBER IS NOT STABLE — 30px, THEN 60px, THEN 63px ACROSS THREE SWEEPS OF ONE BUILD

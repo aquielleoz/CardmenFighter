@@ -227,6 +227,64 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
     ok(bar.text===want, `and it reads exactly the built version ("${bar.text}")`);
     ok(bar.h>0, `rendered in the bar: "${bar.bar}"`);
   }
+  /* ═══ THE CLIENT-INIT FORK, GATED (2026-09-29) ═══════════════════════════════════════════════════
+     Aj: *"why do we keep getting this unsync between host and client?"* — and the biggest single cause is
+     mechanical, so it can be a gate rather than a habit. A host or solo seat initialises per-game state in
+     `startGame`; A CLIENT NEVER RUNS IT, reaching the same ground through `t:'setup'` -> `resetHandPresentation`
+     and the lobby return's `clearBoard` -> `resetBoardMemory`. Anything added to `startGame` alone is therefore
+     invisible on a client, silently, because a missing reset throws nothing.
+     FIVE HAVE SHIPPED THAT WAY: `resetBoardMemory` itself, `handOrder`/`layout`/`sortState`, `PRIO_LOG`,
+     `seatDecks`, and `uiPhase`. Each was found by a player, never by a suite. Enumerating it on 2026-09-29
+     turned up nine more sitting there unreset, including the two the `resetBoardMemory` call site already
+     CLAIMED to own.
+     ⚠ IT IS A SOURCE SCAN, SO IT IS A LEAD MADE MANDATORY, NOT A PROOF. It cannot tell a harmless stale
+     value from a damaging one, and it will false-positive on anything that looks like an assignment. The
+     answer to a hit is to move the reset into the SHARED function, or to allowlist it WITH A REASON — never
+     to widen the filter until the red goes away. */
+  {
+    const tplSrc = fs.readFileSync(path.join(__dirname,'CardmenFighter.template.html'),'utf8');
+    const bodyOf = (sig) => { const i=tplSrc.indexOf(sig); if(i<0) return '';
+      let d=0, j=tplSrc.indexOf('{', i);
+      for(let k=j;k<tplSrc.length;k++){ if(tplSrc[k]==='{') d++; else if(tplSrc[k]==='}'){ d--; if(!d) return tplSrc.slice(j,k+1); } }
+      return ''; };
+    const paramsOf = (sig) => { const i=tplSrc.indexOf(sig); if(i<0) return new Set();
+      const m=/\(([^)]*)\)/.exec(tplSrc.slice(i, i+200)); if(!m) return new Set();
+      return new Set(m[1].split(',').map(x=>x.trim()).filter(Boolean)); };
+    /* Comments and string literals both contain things that look like assignments — `class="x"` inside an
+       HTML fragment was the first false positive this scan produced. Strip both before matching. */
+    const clean = t => t.replace(/\/\*[\s\S]*?\*\//g,'').replace(/(?<!:)\/\/[^\n]*/g,'')
+                        .replace(/'(?:[^'\\\n]|\\.)*'/g,"''").replace(/"(?:[^"\\\n]|\\.)*"/g,'""')
+                        .replace(/`(?:[^`\\]|\\.)*`/g,'``');
+    const assigned = (t) => { t=clean(t);
+      const names=new Set((t.match(/(?<![.\w$])[A-Za-z_$][\w$]*\s*=(?![=>])/g)||[]).map(x=>x.replace(/\s*=$/,'')));
+      for(const v of (t.match(/\bvar\s+[^;\n]+/g)||[])) for(const part of v.replace(/^\s*var\s+/,'').split(','))
+        { const m=/^\s*([A-Za-z_$][\w$]*)/.exec(part); if(m) names.delete(m.group===undefined?m[1]:m[1]); }
+      return names; };
+    const RESERVED = new Set(['class','for','if','var','new','return','this','function','in','of','do','else']);
+    const sg  = assigned(bodyOf('function startGame'));
+    const par = paramsOf('function startGame');
+    let cli = new Set();
+    for(const f of ['function resetHandPresentation','function resetBoardMemory','function clearBoard'])
+      for(const n of assigned(bodyOf(f))) cli.add(n);
+    const si = tplSrc.indexOf("else if(m.t==='setup')");
+    if(si>=0) for(const n of assigned(tplSrc.slice(si, si+3000))) cli.add(n);
+    /* THE ALLOWLIST IS SHORT ON PURPOSE AND EVERY ENTRY CARRIES ITS REASON. A long one means the fork has
+       grown back and the gate has stopped meaning anything. */
+    const ALLOWED = {
+      fullLog: 'cleared by `stashLog()` at the lobby return, which BOTH seats run — verified, not assumed',
+    };
+    const gap = [...sg].filter(n => !cli.has(n) && !par.has(n) && !RESERVED.has(n) && !ALLOWED[n]).sort();
+    ok(gap.length===0,
+       'CLIENT-INIT PARITY: every per-game name `startGame` resets is reset on a client too' +
+       (gap.length ? '  ← NOT reset on a client: ' + gap.join(', ') +
+          '\n     Move the reset into `resetBoardMemory` (both seats reach it), or allowlist it in versiontest WITH a reason.'
+        : '  ['+sg.size+' checked, '+Object.keys(ALLOWED).length+' allowlisted]'));
+    /* NOT VACUOUS: if the extractor ever stops finding `startGame`, `sg` is empty and the assertion above
+       passes having checked nothing — the exact shape of a detector that matches nothing. */
+    ok(sg.size >= 10, '…and the scan actually parsed `startGame` ('+sg.size+' assignments found)' +
+       (sg.size>=10 ? '' : '  ← the extractor has gone stale and the gate above is vacuous'));
+  }
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
