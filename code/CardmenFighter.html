@@ -10497,9 +10497,24 @@ window.CardFace = {};
     if(state.finished){ render(); return endGame(); }
     resolveRoundCeremony(r, g, function(){ if(g===gen) afterHumanAction(); });
   }
-  function finishPassRound(r){
+  /* ⚠ NARRATE THE PASS BEFORE THE BRANCHES, BECAUSE MOST PASSES END THE ROUND (Aj's two-device log,
+     2026-09-29). The line used to sit at the BOTTOM of this function, below `if(r.roundWinner!=null){ …
+     return; }` — so it was reached only by a pass that did NOT end the round. In a duel the second pass
+     always ends it, and the log proves the cost: Aj pressed Pass FIVE times, the priority ledger recorded
+     all five, and the battle log carried ZERO of them on EITHER screen.
+     IT LOOKS LIKE A NETPLAY ASYMMETRY AND IS NOT — a REMOTE pass survives because the host narrates it in
+     `hostApplyMove` before resolving, so the client's four passes appear on both seats while the host's
+     five appear on neither. The same hole swallows a SOLO player's round-ending pass; netplay only made it
+     visible by putting a working copy next to a broken one.
+     `quiet` exists for ONE caller: `drainResolution` re-enters this function with the RESOLVED result, and
+     narrating there would print the pass twice. */
+  function finishPassRound(r, quiet){
+    if(!quiet && r && r.ok!==false){
+      if(r.forcedSkip){ setMessage('Locked out — turn skipped.'); say(YOU, 'Back Stab locked {who} out — turn skipped.', 'you'); }   // no agreeing verb after a placeholder — see nettest_narrate's static scan (v1.31.101)
+      else { setMessage('You passed.'); say(YOU, '{who} passed.', 'you'); }
+    }
     if(r && r.fizzled) return finishRoundNobodyWon(r);
-    if(r && r.resolution){ var fg=gen; return drainResolution(r, fg, function(fr){ if(fg===gen) finishPassRound(fr); }); }   // step 18: the window opens first, the outcome lands after
+    if(r && r.resolution){ var fg=gen; return drainResolution(r, fg, function(fr){ if(fg===gen) finishPassRound(fr, true); }); }   // step 18: the window opens first, the outcome lands after
     if(r.roundWinner!=null){
       var g=gen;
       if(typeof NET!=='undefined' && NET.hostLive && NET.hostLive() && MP() && r.needsLossTarget){ return NET.hostResolveWin(r, g, function(fr){ NET.hostSettleRoundThenCeremony(fr, g); }); }   // netplay: a remote winner picks its target, then the ceremony
@@ -10515,8 +10530,6 @@ window.CardFace = {};
       resolveRoundCeremony(r, g, function(){ if(g===gen) afterHumanAction(); });
       return;
     }
-    if(r.forcedSkip){ setMessage('Locked out — turn skipped.'); say(YOU, 'Back Stab locked {who} out — turn skipped.', 'you'); }   // no agreeing verb after a placeholder — see nettest_narrate's static scan (v1.31.101)
-    else { setMessage('You passed.'); say(YOU, '{who} passed.', 'you'); }
     if(state.finished){ render(); return endGame(); }
     render();
     afterHumanAction();
@@ -10670,7 +10683,10 @@ window.CardFace = {};
        that wants "you took the round" hooks it here and nowhere else. `roundWinner===YOU` only: taking the
        initiative is the player's own event, and a rival's win must not satisfy a step that says you won. */
     if(typeof TUT!=='undefined' && TUT.note && res && res.roundWinner===YOU) TUT.note('roundwin', { combo:res.comboType });
-    prioNote('FIGHT END — round resolved', 'winner=' + who +
+    /* THE PHASE IS **RESOLUTION** SINCE STEP 23, and this line was the last place in the ledger still
+       saying otherwise — beside timing labels that already read `[resolution]`, so one file printed two
+       names for one phase. Found in Aj's saved log, 2026-09-29. No suite asserted the old string. */
+    prioNote('RESOLUTION — round resolved', 'winner=' + who +
              ' struck=' + ((res.struck || []).map(logName).join('+') || 'nobody') +
              (res.kick ? '  ⟵ FIGHTER KICK' : ''),
              (res.newRound ? res.newRound - 1 : (state && state.round)));
@@ -11405,6 +11421,9 @@ window.CardFace = {};
               : promptTiming==='endcleanup' ? 'end of clean-up'
               : 'respond';
     var onWhat = pend ? ('  vs ' + rivalName) : '';
+    /* The exact condition `promptWanted` suppresses on — AUTO, a `respond` window, and the thing on the
+       stack is mine. Recomputed here rather than passed in, so the two cannot drift apart silently. */
+    var ownCast = PROMPT_MODE==='auto' && promptTiming==='respond' && state && state.pending && state.pending.p===YOU;
     /* NAME THE OVERRIDE WHEN IT IS WHAT STOPPED YOU. Otherwise a saved log shows a window opening at a
        timing whose box is unticked, and the next reader has to rediscover `shieldSaveOverride` to explain
        it — the same "a diagnostic that cannot explain itself" cost the prompt ledger already paid once. */
@@ -11413,6 +11432,15 @@ window.CardFace = {};
     /* NAME THE MODE, because "PROMPT OFF" alone sends the next reader to the card reader for a row that is
        not what silenced them. In `off` the global toggle did it and no checkbox will explain it — and OFF
        can suppress a STAKE, which is the one auto-pass a reader must never have to guess at. */
+    /* ⚠ AND NAME THE **OWN-CAST** RULE WHEN THAT IS WHAT DID IT (Aj's two-device log, 2026-09-29). AUTO
+       does not stop you for answering yourself — a RULE, not a preference — but this line reported it as
+       `PROMPT OFF` and sent the reader to a card-reader row that would not change it. Measured in one
+       game: BOTH of the client's `[respond]` auto-passes were its own casts (vs Meleager Form, vs Prepare
+       for Combat) and both were filed under a checkbox.
+       It is the 2026-09-24 rule in the place that rule came from — a detector must not name a cause it has
+       not established — except this one CAN establish it, from the same condition `promptWanted` used. */
+    else if(eligible.length && ownCast) prioNote('['+tName+'] auto-passed for you — YOUR OWN CAST' + onWhat,
+      'AUTO never interrupts you to answer yourself; you could still have cast: ' + feNames(eligible) + '  (notifications → ON)');
     else if(eligible.length) prioNote('['+tName+'] AUTO-PASSED for you — '+(PROMPT_MODE==='off'?'NOTIFICATIONS OFF':'PROMPT OFF') + onWhat,
       'you could have cast: ' + feNames(eligible) +
       (PROMPT_MODE==='off' ? '  (the board toggle is set to OFF — stakes included)' : '  (card reader → “Ask me to respond…”)'));
@@ -14983,6 +15011,18 @@ window.CardFace = {};
             for(var ai=0; ai<nn; ai++) loc[((((ai-mySeat)%nn)+nn)%nn)] = m.names[ai]||'';
             setSeatNames(loc);
           }
+          /* AND `seatDecks` IS THE FIFTH MEMBER OF THE "only set in `startGame`" FAMILY (Aj's two-device
+             log, 2026-09-29). It is initialised `['full','full']` and written by `startGame`, which a
+             client never runs — so `logHeadLines()` read the default and every client's saved log was
+             headed *"You: Full Set vs <them>: Full Set"* on a game where neither seat played it. The
+             deck was never actually unknown: `t:'setup'` has carried `decks` all along and the line
+             below already reads it for the board labels. Rotate absolute -> local, exactly like the
+             names above, so `logHeadLines` needs no rotation awareness. */
+          if(m.decks && m.decks.length){
+            var dn=m.decks.length, dloc=[];
+            for(var di=0; di<dn; di++) dloc[((((di-mySeat)%dn)+dn)%dn)] = m.decks[di]||'full';
+            seatDecks=dloc;
+          }
           youDeck=(m.decks&&m.decks[mySeat])||m.clientDeck||'full'; rivalDeck=m.hostDeck||'full'; var yn=$('youDeckName'), rn=$('rivalDeckName'); if(yn)yn.textContent=deckLabel(youDeck); if(rn)rn.textContent=deckLabel(rivalDeck);
           // the host's opening line is written in ITS frame, so a client writes its own locally instead
           logMsg('Online duel — you play <b>'+deckLabel(youDeck)+'</b>. Round 1, jabs only.', 'round'); }   // adopt this seat's concrete deck (for the board labels)
@@ -16635,7 +16675,11 @@ window.CardFace = {};
 
   // Test hook — inert unless the page is opened with ?dbg=1. Lets the netplay test suite stage deterministic hands.
   window.__cmfTrace=function(){ try{ return NET.traceDump(); }catch(e){ return ['(trace unavailable: '+e.message+')']; } };
-  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, shieldsOf:function(seat){ return (state&&state.players[seat])?state.players[seat].shields:null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, renameBase:function(ms){ return NET.setRenameBase(ms); }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, handPresetN:function(){ return handPresetN; }, prioLog:function(){ return PRIO_LOG.slice(); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); },
+  if(/[?&]dbg=1/.test(location.search)){ window.__cmf={ /* `logHead` mirrors `__solo.logHeadText` for the netplay suites — the saved log's
+       header is the one place a client's deck names are read back, and nothing could see it.
+       Checked for a duplicate key first (a brace-walk of this literal, not the crude grep: that
+       one reports six hits here and all six are NESTED keys, so it is a lead, never a verdict). */
+    logHead:function(){ return logHeadLines().join("\n"); }, force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, shieldsOf:function(seat){ return (state&&state.players[seat])?state.players[seat].shields:null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, renameBase:function(ms){ return NET.setRenameBase(ms); }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, handPresetN:function(){ return handPresetN; }, prioLog:function(){ return PRIO_LOG.slice(); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); },
     /* THE LIVE TALLY. The finished record only exists at game end, and no 3-player suite both has a client ACT
      * and plays to a finish — so without this seam the N-player half of the remote-seat tally (v1.31.96) could
      * only be covered by a whole new suite. Read on the HOST, whose stats are the ones every seat adopts. */

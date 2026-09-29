@@ -180,6 +180,23 @@ async function lead(p, id, other){
      'A QUIET WINDOW DOES NOT BRAKE — one press and the pass went through' +
      (went ? '' : '  ← the pass never took effect; host: '+JSON.stringify(await why(host))));
 
+  /* ── AND THAT PASS MUST BE NARRATED, ON BOTH SEATS (Aj's two-device log, 2026-09-29) ──
+     This leg's pass ENDS the round — the client led and the host answered by passing — which is precisely
+     the case `finishPassRound` used to swallow: its narration sat below `if(r.roundWinner!=null){ … return; }`
+     so only a pass that did NOT end the round was ever logged. In a duel the second pass always ends it, so
+     the hole covered most passes in every game, solo included.
+     THE MEASUREMENT THAT NAMED IT: Aj pressed Pass five times, the priority ledger recorded five, and the
+     battle log carried ZERO on either screen — while the CLIENT's four passes appeared on both, because a
+     remote pass is narrated by the host before it resolves. Assert both frames: the host's own line, and
+     that it travelled. */
+  const passLines = async pg => (await pg.evaluate(()=>window.__cmf.log()||[])).filter(l=>/passed/i.test(l));
+  const hostSaid = await until(async()=>(await passLines(host)).length>0, 40);
+  ok(hostSaid, '  …AND THE PASS IS NARRATED — the host logs its own round-ending pass' +
+     (hostSaid ? '  ['+(await passLines(host)).slice(-1)[0]+']' : '  ← REPRODUCED: the round-ending pass was swallowed'));
+  const clientSaw = await until(async()=>(await passLines(join)).length>0, 40);
+  ok(clientSaw, '  …and it reaches the CLIENT too — a pass is public' +
+     (clientSaw ? '  ['+(await passLines(join)).slice(-1)[0]+']' : '  ← the host narrated it locally only'));
+
   await quiet();
   // ═══ LEG 2 — SOMEBODY ELSE CASTS: the pass is HELD ═══
   staged = await stage([D(6,'C','h'),D(7,'C','h')], [D(9,'D','q'),D(4,'H','c')], 1);

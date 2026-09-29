@@ -381,6 +381,17 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     ok(!!line && /Sanctuary/.test(line),
        'C4 · …and the ledger NAMES THE MODE and the card it cost you' +
        (line ? '  [' + line.slice(0, 110) + ']' : '  ← no NOTIFICATIONS OFF line; a log cannot explain a prompt that never fired'));
+    /* ── THE LEDGER'S OWN PHASE NAME (Aj's two-device log, 2026-09-29) ──
+       Step 23 renamed the phase to RESOLUTION and this line was the last place in the ledger still saying
+       `FIGHT END`, sitting beside timing labels that already read `[resolution]` — one file printing two
+       names for one phase, found by reading a real saved log rather than by any suite. Nothing asserted
+       the string in either direction, which is why it survived three steps. Assert BOTH ways: the new
+       name present AND the old one absent, or a build that emits both would pass. */
+    const resolvedLines = led.filter(l => /round resolved/.test(l));
+    ok(resolvedLines.length > 0 && resolvedLines.every(l => /RESOLUTION — round resolved/.test(l)) &&
+       !led.some(l => /FIGHT END/.test(l)),
+       'C4 · …and the ledger calls the phase RESOLUTION, the name the game has used since step 23' +
+       (resolvedLines.length ? '  [' + resolvedLines[0].slice(0, 70) + ']' : '  ← no round-resolved line at all; this assertion is vacuous'));
     /* AND THE VISIBLE LOG SAYS IT TOO (Aj, 2026-09-24). The ledger is download-only by design, so without
        this a player never learns in-game what their own setting just did. Asserted on the RENDERED log,
        not on `fullLog`, because the entry has to actually reach the panel a player reads. */
@@ -695,7 +706,7 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
   /* THE ROUND RESOLVED TWICE IN TWO REAL DUELS, AND THE SECOND ONE KILLED A PLAYER (Aj, 2026-09-15/16:
      *"i lost twice to the same play... not sure why it never cleared.. but also there was no beginning of
      round"*, then *"pc player lost to the same play not clearing again"*). His ledger carries the shape:
-     two `MAIN → FIGHT [Pass]`, two clean-ups, two `FIGHT END`s, and a Fighter Kick off a pile that had
+     two `MAIN → FIGHT [Pass]`, two clean-ups, two round-resolved entries, and a Fighter Kick off a pile that had
      already been resolved once.
      THE HOLE WAS AN UNGUARDED ASYNC HAND-OFF. `drainResolution` calls `settleWindows` — async — and was the
      one such call that did not set `busy` first. A Pass whose transition AUTO-ADVANCED takes
@@ -748,11 +759,16 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
       const st = window.__solo.st();
       const led = window.__solo.prioLog();
       return { shields: st.players[0].shields, round: st.round, finished: !!st.finished,
-               ends: led.filter(l => /FIGHT END/.test(l) && /^r3\b/.test(l)).length,
+               /* `RESOLUTION`, not `FIGHT END` — the ledger's phase name since 2026-09-29. This
+                  counter is a DOUBLE-RESOLUTION detector, so a stale pattern does not fail loudly:
+                  it silently counts ZERO and the suite reports the round resolving no times at all,
+                  which is what happened the moment the string changed. A detector that matches
+                  nothing is worse than one that is wrong. */
+               ends: led.filter(l => /RESOLUTION — round resolved/.test(l) && /^r3\b/.test(l)).length,
                passes: led.filter(l => /MAIN → FIGHT/.test(l) && /\[Pass\]/.test(l) && /^r3\b/.test(l)).length };
     });
     ok(out.ends === 1,
-       `E · ROUND 3 RESOLVED EXACTLY ONCE (${out.ends} FIGHT END entries)` +
+       `E · ROUND 3 RESOLVED EXACTLY ONCE (${out.ends} RESOLUTION entries)` +
        (out.ends === 1 ? '' : '  ← REPRODUCED: the same pile resolved ' + out.ends + ' times off one round'));
     ok(out.passes === 1,
        `E · …and only one Pass reached the transition (${out.passes})` +
@@ -761,6 +777,67 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
        `E · …so you lost exactly ONE shield, 2 → ${out.shields}` +
        (out.shields === 1 ? '' : '  ← REPRODUCED: one pile took two shields'));
     ok(!out.finished, 'E · …and the duel is still alive — this is the shape that landed a Fighter Kick in a real game');
+    await p.close(); }
+
+  /* ═══ H — AN OWN-CAST AUTO-PASS MUST NOT BE FILED UNDER A CHECKBOX (Aj's two-device log, 2026-09-29) ═══
+     AUTO does not interrupt you to answer your OWN cast — a RULE (`promptWanted` returns false when the
+     top of the stack is yours), not a preference. The ledger reported it as `PROMPT OFF` and pointed the
+     reader at a card-reader row that would not have changed it; in Aj's game BOTH of the client's
+     `[respond]` auto-passes were its own casts and both were mislabelled that way.
+     ⚠ THE ASSERTION IS A PAIR, because "the line says YOUR OWN CAST" is also true of a build that says it
+     for everything. The same board must still produce an ordinary `PROMPT OFF` line for a BOUNDARY timing,
+     where no cast of yours is on the stack — so one run shows the label discriminating rather than
+     replacing. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('H: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'H · board');
+    await p.evaluate(() => { window.__solo.setPromptMode('auto'); });
+    /* Cast a Technique of your own while holding an UNTARGETED Quick. ♦9 Leyline is the only untargeted
+       base Quick in the game, so it is the only card that is castable into a window with an empty stack —
+       the same staging fact `nettest_brake` rests on. ♦ energy, because Leyline costs 9. */
+    const staged = await p.evaluate(() => { const st = window.__solo.st(), mk = (r, su, t) => ({ rank: r, suit: su, id: t + r + su });
+      const you = st.players[0];
+      you.hand = [mk(1, 'D', 'tech'), mk(9, 'D', 'ley'), mk(6, 'C', 'x')];
+      you.energy = Array.from({ length: 14 }, (_, i) => mk(2, 'D', 'e' + i));
+      st.round = 3; st.turn = 0; st.subPhase = null; st.pile = null; st.lastPlayer = null; st.passes = 0;
+      window.__solo.render();
+      return you.hand.length === 3; });
+    ok(staged, 'H · staged — your turn in Main, a Technique to cast and ♦9 Leyline in hand');
+    const cast = await p.evaluate(() => { const c = document.querySelector('#hand .card[data-id="tech1D"]');
+      const g = c && c.closest('.group'); if (g) g.click();
+      const a = document.getElementById('cardActivate');
+      if (a && a.offsetParent !== null && !a.disabled && !/off/.test(a.className)) { a.click(); return true; }
+      const cb = document.getElementById('ctxBtn');
+      if (cb && !cb.disabled && !/off/.test(cb.className)) { cb.click(); return true; }
+      return false; });
+    ok(cast, 'H · you cast your own Technique — the go-round starts at the controller, which is you');
+    await wait(900);
+    /* NOW CROSS MAIN -> FIGHT THROUGH THE REAL BUTTON, which is what the discriminator needs: a boundary
+       window with no cast of yours on the stack. It has to be the BUTTON — `clearTransition` calls
+       `E.moveToPlay` directly and so never reaches the UI path that writes the ledger, which would leave
+       the assertion below failing for a staging reason and reading as a product one. */
+    await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d && d.offsetParent !== null) d.click(); });
+    await wait(400);
+    await p.evaluate(() => { const f = document.getElementById('fightBtn'); if (f && !f.disabled) f.click(); });
+    await wait(1200);
+    const ledH = await p.evaluate(() => window.__solo.prioLog());
+    const own = ledH.filter(l => /\[respond\]/.test(l) && /YOUR OWN CAST/.test(l));
+    const mis = ledH.filter(l => /\[respond\]/.test(l) && /PROMPT OFF/.test(l));
+    ok(own.length > 0 && mis.length === 0,
+       'H · THE LEDGER NAMES THE RULE, NOT A CHECKBOX — the respond auto-pass reads YOUR OWN CAST' +
+       (own.length ? '  [' + own[0].slice(0, 92) + ']' : '  ← REPRODUCED: filed under "PROMPT OFF"; the reader is sent to a row that cannot explain it'));
+    /* THE DISCRIMINATOR, and the first version of it asked for the wrong thing. It required a BOUNDARY
+       auto-pass reading `PROMPT OFF` on this board — but crossing Main -> Fight here OPENS a window and
+       shows it (`[respond] window SHOWN to you  offering: Leyline Ascension`), so the line it waited for
+       never existed and the red was my staging, not the label. Dumping the ledger said so in one run.
+       WHAT THIS RUN DOES CONTAIN is the sharper claim anyway: the go-round after the transition is NOT
+       my cast, and it must not wear the new label. So require the label to appear on the own-cast line
+       and NOWHERE ELSE — which is exactly "the label discriminates" rather than "the label exists". */
+    const strays = ledH.filter(l => /YOUR OWN CAST/.test(l) && !/\[respond\] auto-passed/.test(l));
+    ok(strays.length === 0 && ledH.some(l => /window SHOWN to you/.test(l)),
+       'H · …and the label appears ONLY there — a window that is not your cast is untouched by it' +
+       (strays.length ? '  ← stray: ' + strays[0].slice(0, 90)
+          : (ledH.some(l => /window SHOWN to you/.test(l)) ? '' : '  ← no other window in this run, so the claim is vacuous')));
     await p.close(); }
 
   ok(errs.length === 0, 'no JS errors' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
