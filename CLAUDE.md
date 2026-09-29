@@ -107,6 +107,23 @@ node nettest_autopass.js                        # AN AUTO-PASS IS NOT A CHOICE (
                                                 # N-player guard deleted. LEG 2b drives the REAL
                                                 # `#respDecline` button, because the early return it covers
                                                 # is in the UI path that `clientSend` jumps over
+node nettest_brake.js                           # THE AUTO-PASS BRAKE (22). One press carries a pass through;
+                                                # someone ELSE casting into the window it opened HOLDS it.
+                                                # Four legs, and the two middle ones are the bugs this has
+                                                # already had: your OWN cast must not brake you (`stackMark`
+                                                # returned bare `oidSeq`, so a seat that passed then sprang
+                                                # a Quick braked itself) and a REMOTE seat's pass is
+                                                # measured against ITS casts, not the host's (`actor`
+                                                # defaults to YOU). Leg 1 is the control — a quiet window
+                                                # must NOT brake — without which a build that brakes on
+                                                # everything passes every other leg.
+                                                # ⚠ THE QUICK MUST BE ♦9 LEYLINE. Asked directly, the
+                                                # engine has exactly three base Quicks (♦4, ♦9, ♥5) and
+                                                # Leyline is the only UNTARGETED one, so the only one
+                                                # castable into an empty transition window. BACK STAB
+                                                # CANNOT TEST THIS AT ALL — a lockout hits the early return
+                                                # one line ABOVE the brake, so the pass completes as a
+                                                # forced skip and the leg reads as "no brake"
 node nettest_clientdeal.js                      # THE CLIENT'S OPENING HAND ARRIVES DEALT, NOT SORTED (10).
                                                 # The engine keeps every hand sorted, and the only thing that
                                                 # ever made one LOOK dealt is `syncOrder(true)` — called from
@@ -2138,7 +2155,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127 — 2026-09-24, `npm run sweep`, 100 suites ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, `lessontest_pickescape`) (four lanes; background
+Status as of **v1.31.127 — 2026-09-24, `npm run sweep`, 101 suites ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, `nettest_brake`, `lessontest_pickescape`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -2148,7 +2165,7 @@ which is what a number nobody can verify looks like). Counts verified:
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 31, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 56 netplay suites: `nettest_3p` 7, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 11, `clientwin` 10, `concede3` 8,
+The 57 netplay suites: `nettest_3p` 7, `brake` 22, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 11, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
