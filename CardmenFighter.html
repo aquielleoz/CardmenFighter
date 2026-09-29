@@ -8985,7 +8985,7 @@ window.CardFace = {};
     resetControllers(state.numPlayers);   // seat 0 = local human, every opponent = AI (netplay will override specific seats to 'remote')
     if(E.setLossTargetInteractive) E.setLossTargetInteractive(function(st, w){ return isHumanSeat(w); });   // a human winner (local or remote) picks whose shield to strip in 'chosen' mode
     if(mpCount>2){ state._diff={}; for(var _s=0;_s<state.numPlayers;_s++) if(_s!==YOU) state._diff[_s]=diffOf(_s); }   // per-seat AI tier for the round-win chooser
-    lastPileData=[]; lastPileOwner=null; pendingKick=false; resetBoardMemory(); resetStats();   // resetBoardMemory: the fx layers + render-diff caches, shared with clearBoard (v1.31.95); the Sort label rides resetHandPresentation
+    pendingKick=false; resetBoardMemory(); resetStats();   // resetBoardMemory owns the fx layers AND the render-diff caches — including the two that used to sit on this line (moved 2026-09-29); the Sort label rides resetHandPresentation
     $('log').innerHTML=''; $('beaten').innerHTML='';
     $('rivalDeckName').textContent=deckLabel(rivalDeck); $('youDeckName').textContent=deckLabel(youDeck);
     var modeTag=gameBasics?' · <b class="basicsTag">BASICS</b>':'';
@@ -11924,6 +11924,18 @@ window.CardFace = {};
    * are emptied, as startGame always did. */
   function resetBoardMemory(){
     prevShields={}; prevShieldsAll={}; thresholdOwed=false; prevNrg={}; prevNrgSuit={}; prevShufSuit={}; prevDeckN={}; prevHandN={}; prevTurn=null; inCeremony=false; announcedThresh={}; pendingThreshold=null; holdShields=false;
+    /* ⚠ THE REST OF THE PER-GAME PRESENTATION STATE, MOVED HERE 2026-09-29 — it was assigned in
+       `startGame` and nowhere else, which is the family this repo has now paid for five times
+       (`resetBoardMemory` itself, `handOrder`/`layout`/`sortState`, `PRIO_LOG`, `seatDecks`, `uiPhase`).
+       A CLIENT NEVER RUNS `startGame`; it reaches this function through `clearBoard` at the lobby return.
+       Two of these — `lastPileData` and `lastPileOwner` — were assigned on the very line that CALLS this
+       function, under a comment claiming it owned "the render-diff caches". It did not, and that is the
+       whole shape: the note was right about where they belonged and nobody moved them.
+       `versiontest` gates the difference now, so the next one cannot be added to `startGame` quietly. */
+    pileSig=null; lastPileData=[]; lastPileOwner=null;   // pile render-diff: a stale signature suppresses the rebuild on game two's first play
+    pendingEnter={}; flipFrom=null;                      // the deal-in queue (it also drives the Beginning tint via `dealingIn`) and the FLIP source rect
+    equipFx={}; equipOpen=null; formsOpen=null;          // zone flash layer + which zones are expanded
+    drag=null;                                           // any drag still in flight when the board went away
     lastSubPhase=null;   // the Fight announcement is an EDGE — a new game inheriting the old one's sub-phase either fires a phantom beat or swallows the first real one
     ['kick','stagefx','thresholdfx','roundfx','stopfx'].forEach(function(id){ var e=$(id); if(e){ e.className=''; if(id!=='roundfx' && id!=='stopfx') e.innerHTML=''; } });
     var af=$('artFlash'); if(af) af.classList.remove('show','you');
