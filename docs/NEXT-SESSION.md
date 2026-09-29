@@ -118,9 +118,10 @@ assertions were A/B'd by deleting the migration and rebuilding.
   legs are the SAME mutation from opposite sides: the HOST casting into a client's pass window must brake
   it, and the CLIENT casting into its own must not. Either alone is weak; the pair pins the seat, which is
   what the two-handler-families trap costs when you test only one direction.
-- **No test for drag-to-activate in Main**, and `nettest_drag` says so in its own comment: drag-to-PLAY
-  lives in the Fight Sub-Phase since step 20, so that suite deliberately steps OUT of Main before dragging.
-  The Main gesture — which ACTIVATES — is driven by nothing.
+- **Drag-to-activate in Main is covered** (`dragtest.js`, 17, added 2026-09-29). The pair is the test: the
+  same card, the same staging, only the sub-phase varies, because "a drag activated" is equally true of a
+  build that lost the branch and does one thing everywhere. Both refusals are covered too, and they turned
+  out to be LIVE (in `#dropHint`, while the card is in the air) rather than a message after release.
 - **A transform opening a window for a REMOTE seat is HALF covered.** `nettest_ridewedge` drives the HOST's
   own transform and the client's window. The other direction — a client transform opening a window for the
   host or a third seat — is still undriven, and both defects that shipping piece 5 exposed were in driver
@@ -768,6 +769,20 @@ re-read its tag.
   through `atStep(10)`, and inserting one step scored **7 pass / 17 fail**. Fold new teaching into an
   existing step where you can; budget the suite edit where you cannot.
   `[id: tutorials-still-teach-boundary]`
+- `ready to build`      · **DRAGGING THE APEX 2 SAYS *"Select a card, then activate its effect."* — AT A
+  PLAYER WHO HAS JUST SELECTED ONE** (found 2026-09-29 while writing `dragtest`). The drop hint is
+  `ctxActionFor`'s fallback `reason`, which was written for the BUTTON, where the sensible advice really is
+  *select a card*. Dragged, the card is selected by the gesture itself, so the one instruction on screen
+  describes something the player has already done — and it lands on the apex 2, the card with no activated
+  effect BY DESIGN and the most important card in the game.
+  **THE RIGHT COPY ALREADY EXISTS TWENTY LINES AWAY**: the same branch's default is *"nothing to activate on
+  that card"*, which is true, specific, and what the drop hint says for every other dead card. The fix is to
+  stop preferring an empty-selection `reason` when a card IS in the air.
+  **Cosmetic, and narrow: only the drag path, only cards whose `ctxActionFor` falls through.** `dragtest`
+  accepts either wording on purpose, so fixing this does not turn a suite red — see the note beside that
+  assertion.
+  `[id: apex-drag-hint-says-select]`
+
 
 ### Tooling
 
