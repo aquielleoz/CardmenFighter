@@ -15,7 +15,7 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.127.1.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.127.2.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
@@ -576,26 +576,6 @@ re-read its tag.
   widening `.modal`. Note the rules panel's columns are keyed to WIDTH (1040px/1400px); this one wants short
   and wide, so the query is the landscape band, not a width breakpoint.
   `[id: setup-dialog-three-columns]`
-
-- `root cause found`    · **THE DROP HINT OVERFLOWS THE BOARD AND LEAVES A HORIZONTAL SCROLLBAR BEHIND** (Aj, 2026-09-11, two
-  screenshots: the refusal text running off both edges of the play area, then the whole page shifted with a
-  scrollbar). **A REGRESSION FROM THE SAME DAY, AND MINE** — Aj asked for the activation refusal to be
-  visible *while dragging* rather than only after the release, which was right, so `highlightTarget` now
-  feeds `ctxActionFor(...).reason` into `#dropHint`. That pill was built for four fixed short strings and
-  is `position:absolute; white-space:nowrap` with **no `max-width`**, so a full engine sentence
-  ("Needs a Broadway card (10, J, Q, K, or A) in hand to discard as an extra cost") is laid out on one line
-  centred on `#table` and hangs off both sides.
-  **THE SCROLLBAR IS THE SECOND HALF AND IT IS THE WORSE ONE: the pill is hidden by OPACITY, not
-  `display`.** `#dropHint.show{opacity:1}` and `clearZone()` only strips the class — the long `textContent`
-  stays in the layout at full nowrap width **for the rest of the game**, so one drag over an unaffordable
-  card widens the document permanently and every later frame is scrolled sideways. That is why the second
-  screenshot shows a broken board with no drag in progress.
-  **Two small fixes, and they are independent** — cap and wrap the pill (`max-width:min(88%,420px)`,
-  `white-space:normal`, centred) so a long reason is readable, AND clear `textContent` in `clearZone()` so
-  a hidden hint occupies nothing. The second one alone kills the scrollbar.
-  **Verify by MEASURING `document.documentElement.scrollWidth` against `clientWidth` after a drag ends**,
-  not by looking: the element is invisible at that point, so the only evidence is the geometry.
-  `[id: drop-hint-overflows-board]`
 
 - `root cause found`    · **CLICKING A FORM/RIDE CHIP OPENS THE READER AND CAN NEVER EXPAND THE ZONE** (Aj, 2026-09-11, playing the
   build: *"clicking the jack does not expand it. it directly goes to the card viewer"*). The collapsed
