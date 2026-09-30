@@ -107,6 +107,28 @@ const { clickFight } = require('./fightclick');
   ok(s4.players[0].hand.length===handBefore && !s4.pile && !pileBefore,
      'FIGHT PLAYED NOTHING — hand '+handBefore+'→'+s4.players[0].hand.length+', pile still empty. That is the doorway claim');
   ok(s4.subPhase==='play', '…and it really moved you into the Fight sub-phase');
+  /* ⚠ AND THE STEP'S NEW SENTENCE IS A CLAIM ABOUT THE BUILD (2026-09-30). It now says crossing the
+     doorway is *"also a priority point: everyone gets the chance to act before the fight starts. Usually
+     nobody can, so it passes in silence."* That is the `MAIN → FIGHT` go-round, and "in silence" is
+     literally the `auto-advanced — nobody could add to the stack` branch — so the ledger is where the
+     claim is checkable. Asserting the sentence is PRESENT would prove nothing; asserting the ledger
+     recorded the crossing proves the lesson is describing this game.
+     WHY IT WAS ADDED AT ALL: Main → Fight is the third boundary, it is LIVE every single turn (`stakeFor`
+     has a `prefight` branch, and a lockout's moment to matter is exactly here), and the lesson walked
+     players straight through it while explaining the doorway as a phase change only. Upkeep and Clean-up
+     stay untaught on purpose — they default OFF, so naming them teaches a window nobody meets. */
+  const walk = await p.evaluate(()=>{ try{ return (window.__solo.prioLog()||[]).filter(function(l){ return /MAIN → FIGHT/.test(l); }); }catch(e){ return ['NO LEDGER: '+e.message]; } });
+  ok(walk.length>0, 'the crossing really IS a priority point — the ledger recorded it  ["'+((walk[0]||'').slice(0,74))+'"]');
+  /* ⚠ AND THE FIRST WORDING OF THAT SENTENCE WAS FALSE, CAUGHT BY THIS ASSERTION ON ITS FIRST RUN. It
+     said *"usually nobody CAN, so it passes in silence"* and the ledger came back
+     `go-round opened  origin=You  priority→You` — because the lesson stages Counter Spell in the player's
+     hand, so somebody demonstrably CAN act. They are simply not stopped, since nothing is at stake at an
+     empty-stack transition and AUTO does not interrupt for that.
+     SO THE CLAIM IS ABOUT NOT BEING STOPPED, NOT ABOUT NOBODY BEING ABLE — which is true on BOTH
+     branches, `go-round opened` and `auto-advanced`, and is what a player actually experiences. Assert
+     that: the crossing is recorded, and the lesson advanced without a modal having to be dismissed. */
+  ok(!(await p.evaluate(()=>{ const m=document.getElementById('modal'); return !!(m && m.offsetParent); })),
+     '  …and it passed WITHOUT STOPPING YOU, exactly as the step says  ['+walk.length+' crossing(s) logged]');
   await note();
   ok(seen.has('spFight'), 'AND THE HAND CHANGED COLOUR with it — the thing the lesson points at  ['+[...seen].join(',')+']');
 
