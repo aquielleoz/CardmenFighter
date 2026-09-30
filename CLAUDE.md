@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.127**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.127.1**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -160,7 +160,9 @@ node versiontest.js                             # the build stamp: README -> bui
 node sharetest.js                               # the share sheet + the tolerant paste (14)
 node nettest_roundstall.js                      # the host must get the board back after winning a round (9)
 node nettest_actloop.js                         # play must keep moving AFTER a Technique, both seats (22)
-node nettest_version.js                         # the netplay build handshake, both seats + no false alarm (14)
+node nettest_version.js                         # the netplay build handshake, both seats + no false alarm,
+                                                # plus the EPIC LINE: a `vX.Y.Z.a` build refuses a
+                                                # `vX.Y.Z` one, two epic builds only warn (37)
 node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (36)
 node nettest_rules.js                           # custom rules over netplay: propagation + un-ready (20)
 node nettest_passoduel.js                       # PASSO IN A DUEL (epic step 13). `passoTakeover` is not gated
@@ -1264,6 +1266,11 @@ usually harmless and locking two friends out would be the worse failure"*, and *
 still governs the patch case**; only its scope changed, because the second number is what this project's own
 scheme already means by *the rules moved*, and two people playing different RULES while both believe they are
 fine is the precise failure this handshake exists to prevent. `verIncompatible` is the predicate.
+**AND SINCE 2026-09-30 THE FOURTH SEGMENT IS PART OF IT: AN EPIC BUILD REFUSES AGAINST A MAIN BUILD.** An
+epic holds its minor for the whole branch, so `vX.Y.Z.a` and the `vX.Y.Z` it forks from were identical to
+this predicate while genuinely disagreeing about the rules — the pair most likely to meet, and exactly the
+failure the handshake exists to prevent. Two epic builds still only warn. See the `epic/` rules under
+**Branches and PRs** for the scheme and for the regexes it silently truncated.
 **AN UNPARSEABLE VERSION FALLS BACK TO WARNING, NEVER TO REFUSING** — a peer old enough to send something the
 regex cannot read is exactly the peer a hard refusal would strand, and a warning is the behaviour it already
 expects.
@@ -2195,7 +2202,11 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127 — 2026-09-24, `npm run sweep`, 103 suites ON THE EPIC** (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, `nettest_brake`, `nettest_brake3`, `dragtest`, `lessontest_pickescape`) (four lanes; background
+Status as of **v1.31.127.1 — last FULL sweep 2026-09-29, `npm run sweep`, 103/103 ON THE EPIC**
+⚠ **AND THAT SWEEP IS NOW SEVERAL MERGES STALE** — it predates the brake staging fix, the client phase
+strip, the stake-driven AUTO default, the per-card retirement and this versioning change. A suite count
+and a date are a MEASUREMENT, and a measurement is only true of the build it was taken on; re-run before
+quoting it. (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, `nettest_brake`, `nettest_brake3`, `dragtest`, `lessontest_pickescape`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -2210,7 +2221,7 @@ The 58 netplay suites: `nettest_3p` 7, `brake` 24, `brake3` 15, `clientdeal` 10,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 7, `ghostseat` 6, `trim` 15, `unready` 15, `version` 24, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12.
+`target3` 7, `ghostseat` 6, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state
@@ -3248,9 +3259,39 @@ bigger word. Four rules, and each is a way a long branch dies:
   written down somewhere it will be read — this file already requires that ("say what you are unsure about
   IN THE PR") — and eleven merges' worth of reasoning now lives only in commit messages, which nobody
   reviews before the merge because there is nothing to review them *at*.
-- **The version is held for the whole epic and bumped ONCE at the merge.** Bump it early and the handoff
-  header, the README and both in-game screens all claim a version nobody can download — precisely the drift
-  `versiontest` exists to catch.
+- **THE EPIC CARRIES A FOURTH NUMBER: `vX.Y.Z.a` (2026-09-30).** `X.Y.Z` is **the main version the epic is
+  based on** and never moves while the branch lives; **`a` increments by one on every merge into the epic**
+  (Aj: *"since main has 3 numbers… we'll use those to denote which version from main we're based on and
+  then increment a"*, and *"refuse against main, increment per merge"*). At the epic→main merge it drops
+  back to three numbers and the MINOR bumps, which is the one moment the epic's rules become main's.
+  - **This REPLACES "hold the version for the whole epic", and the old rule's reasoning is what forces the
+    new shape rather than contradicting it.** Holding it was right about the danger — *"bump it early and
+    the handoff header, the README and both in-game screens all claim a version nobody can download"* — and
+    wrong about the cost: an epic runs for weeks over dozens of merges, and every build in that window
+    stamped the same `v1.31.127`, so **the one thing a version exists to do, tell two builds apart, was the
+    one thing it could not do on the branch where builds change fastest.** The fourth number moves and the
+    first three do not, so the handoff's *"`main` is at v1.31.127"* stays TRUE while README says
+    `v1.31.127.4` — `versiontest` compares that line against the BASE and every other line against the
+    whole stamp, which is what makes both claims assertable at once.
+  - **AN EPIC BUILD REFUSES THE HANDSHAKE AGAINST A MAIN BUILD, and that is the point of the number.** The
+    compatibility line is still the MINOR — and an epic holds its minor by design, so an epic build and the
+    main build it forks from were indistinguishable to `verIncompatible`. That is the pair of builds most
+    likely to actually meet (a tester on the branch, a friend on the download), and two people playing
+    different rules while both believe they are fine is the precise failure the handshake exists to
+    prevent. **Two EPIC builds only WARN**, deliberately: they may be several merges apart, and locking two
+    testers out of the branch they are testing is the worse failure. `nettest_version` drives both.
+  - **⚠ EVERY VERSION REGEX HAS TO ALLOW THE FOURTH SEGMENT, AND THE ONES THAT DID NOT FAILED SILENTLY.**
+    `v\d+\.\d+\.\d+` **matches the first three of a four-part version and stops** — so `build.js` would
+    have stamped `v1.31.127` into a v1.31.127.4 page and printed its byte count happily, and
+    `nettest_version`'s own parser could not tell an epic build from main, which is the distinction it
+    exists to assert. **This is the IPv6 invite-code truncation in a new place**: a partial match that
+    succeeds and drops the part carrying the meaning. Seven patterns needed widening across `build.js`,
+    `versiontest.js`, `nettest_version.js` and the template; the one that must stay three-part is the
+    handoff's *"`main` is at"*, where a fourth segment is itself the error.
+  - **NO CHANGELOG ENTRY PER EPIC BUILD.** `vX.Y.Z.a` is not a shipped version — nothing is downloadable
+    until the merge — so the epic gets ONE entry when it lands, and until then the heading `versiontest`
+    demands is its BASE's, which already exists. A heading per merge would be a changelog of work nobody
+    can get.
 - **Merge `main` INTO the epic after every session spent elsewhere.** An epic's real enemy is `main` moving
   underneath it, and one heroic rebase at the end is how these turn into abandoned branches.
 - **The sweep must be green ON THE EPIC before the merge**, not merely on each sub-branch. Testing the whole

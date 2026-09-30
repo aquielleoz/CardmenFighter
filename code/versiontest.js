@@ -22,8 +22,14 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
 
   // ---- the chain, before any browser: README is the one source of truth
   const readme=fs.readFileSync(path.resolve(__dirname,'..','README.md'),'utf8');
-  const want=(readme.match(/\*\*Status:\*\*\s*(v\d+\.\d+\.\d+[a-z]?)/)||[])[1];
+  const want=(readme.match(/\*\*Status:\*\*\s*(v\d+\.\d+\.\d+(?:\.\d+)?[a-z]?)/)||[])[1];
   ok(!!want, `README.md's **Status:** line names a version (${want||'NONE — build.js would refuse to build'})`);
+  /* ⚠ "`main` is at" COMPARES THE BASE, NOT THE WHOLE STAMP (2026-09-30) — and that is the whole reason
+     the four-number scheme works. An epic build is `vX.Y.Z.a`, where X.Y.Z names the main version it is
+     based on, so the handoff can say "main is at v1.31.127" and be TRUE while README says v1.31.127.4.
+     Holding the version for a whole epic used to be forced by exactly this line: bumping README made the
+     sentence false and the gate correctly red. */
+  const base = want ? want.split('.').slice(0,3).join('.') : want;
   /* THE CHANGELOG IS PART OF THE GATE NOW. v1.31.33 nearly shipped without an entry: the script writing it
    * asserted on a stale anchor and threw BEFORE its write, and a confirmation that never printed was read as
    * though it had. The version stamp is derived and therefore cannot drift; the changelog is hand-written and
@@ -39,9 +45,13 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
    * The gate was green the whole time, because the prose line does contain the substring.
    * Anchored to the start of a line, which is what "heading" means in Markdown and what every reader and
    * every table-of-contents actually keys off. */
-  const headed=want ? new RegExp('^### '+want.replace(/\./g,'\\.')+'\\b','m').test(chlog) : false;
+  /* AN EPIC BUILD HANGS OFF ITS BASE VERSION'S ENTRY (2026-09-30). `vX.Y.Z.a` is not a shipped version —
+     it is "the epic, a merges past main's X.Y.Z" — so demanding a `### vX.Y.Z.a` heading would demand a
+     changelog entry per merge for work nobody can download. The epic gets ONE entry when it merges and
+     the minor bumps; until then the heading it must carry is its BASE's, which already exists. */
+  const headed=want ? new RegExp('^### '+base.replace(/\./g,'\\.')+'\\b','m').test(chlog) : false;
   ok(headed,
-     `docs/CHANGELOG.md carries a "### ${want}" heading AT THE START OF A LINE — a mention inside a paragraph is not an entry, and a shipped version with no entry is how a change becomes unfindable`);
+     `docs/CHANGELOG.md carries a "### ${base}" heading AT THE START OF A LINE — a mention inside a paragraph is not an entry, and a shipped version with no entry is how a change becomes unfindable`);
   /* AND THE SPLIT HAS TO HOLD. A version heading appearing back in the handoff doc means the two files are
    * drifting into one again, which is how it reached 6,061 lines the first time — so that is a red suite, not
    * a style note. Checked below `## BACKLOG` only, since an entry could legitimately QUOTE a version above it. */
@@ -64,10 +74,13 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok(!!eng && eng.fail===0, `test.js is green, so its count means something (${eng?eng.pass+' / '+eng.fail:'DID NOT REPORT'})`);
   ok(!!nv  && nv.fail===0,  `netview.test.js is green, so its count means something (${nv?nv.pass+' / '+nv.fail:'DID NOT REPORT'})`);
   const hdr=handoff.slice(0, handoff.indexOf('## BACKLOG'));
-  const hv=(hdr.match(/\*\*Current version:\s*(v\d+\.\d+\.\d+[a-z]?)/)||[])[1];
+  const hv=(hdr.match(/\*\*Current version:\s*(v\d+\.\d+\.\d+(?:\.\d+)?[a-z]?)/)||[])[1];
   ok(hv===want, `the handoff header's "Current version" matches README ("${hv||'NONE'}" vs "${want}")`);
+  /* DELIBERATELY THREE-PART HERE, unlike every other pattern in this file: `main` never carries a fourth
+     segment, so a 4-part version written on this line is itself the error and must not match. `**` closes
+     the capture, so `**v1.31.127.1**` yields undefined and reds with the value printed. */
   const mv=(hdr.match(/`main` is at \*\*(v\d+\.\d+\.\d+[a-z]?)\*\*/)||[])[1];
-  ok(mv===want, `START HERE's "\`main\` is at" matches README ("${mv||'NONE'}" vs "${want}")`);
+  ok(mv===base, `START HERE's "\`main\` is at" matches README ("${mv||'NONE'}" vs "${want}")`);
   /* AND CLAUDE.md's OWN HEADER (v1.31.100). The chain covered README -> build -> both screens -> the handoff's
    * two lines -> a changelog heading, and left the line at the top of the file every session reads FIRST. It
    * drifted FOUR versions unnoticed (v1.31.95 against a real v1.31.99) while CLAUDE.md's status line two
@@ -84,9 +97,9 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok(!/\*\*\d+ \/ 0\*\*/.test(hdr),
      'the header states no hand-maintained "NN / 0" expectations — unverifiable numbers are what rot');
   const claude=fs.readFileSync(path.resolve(__dirname,'..','CLAUDE.md'),'utf8');
-  const cv=(claude.match(/^Current version: \*\*(v\d+\.\d+\.\d+[a-z]?)\*\*/m)||[])[1];
+  const cv=(claude.match(/^Current version: \*\*(v\d+\.\d+\.\d+(?:\.\d+)?[a-z]?)\*\*/m)||[])[1];
   ok(cv===want, `CLAUDE.md's "Current version" matches README ("${cv||'NONE'}" vs "${want}")`);
-  const csv=(claude.match(/^Status as of \*\*(v\d+\.\d+\.\d+[a-z]?)\b/m)||[])[1];
+  const csv=(claude.match(/^Status as of \*\*(v\d+\.\d+\.\d+(?:\.\d+)?[a-z]?)\b/m)||[])[1];
   ok(csv===want, `…and its "Status as of" line does too ("${csv||'NONE'}" vs "${want}")`);
   const cc=claude.match(/`test` (\d+), `netview` (\d+)/)||[];
   ok(!!cc[1] && !!eng && +cc[1]===eng.pass, `CLAUDE.md's \`test\` count is REAL (says ${cc[1]||'nothing'}, measured ${eng?eng.pass:'?'})`);
