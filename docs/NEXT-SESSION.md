@@ -15,7 +15,7 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.127.5.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.127.6.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
@@ -269,19 +269,6 @@ re-read its tag.
   `[id: nettest-passoduel-flaky]`
 
 #### Rules, priority and the stack
-
-- `needs a measurement` · **SHOULD THE AI STACK ARMOR PIERCING? It refuses, and that refusal is now a
-  POLICY rather than a fact (2026-09-24).** `resolutionPushCard`'s `if (qp.finishingBlow) return null` was
-  literally true when `finishingBlow` was a boolean against `strips = 2` — a second cast added nothing. It
-  STACKS now, so against a target holding 3+ shields a second cast really would take a third shield.
-  **The AI still declines, deliberately**: that is another Broadway discard plus energy for one shield, and
-  changing it is a balance change. **`strengthsim` is the only harness that can answer it** — every other
-  sim runs the same AI on both seats and is structurally blind to "is this stronger?"
-  (`DECISIONS.md#ai-strength`). Run the control first; identical arms must print exactly 50.00.
-  **The gate would also need widening, not just deleting**: `worth` currently asks for a struck target on
-  2+ shields, which is right for the FIRST cast; a second needs `shields >= 2 + current` or it is wasted by
-  the same "never overkills" rule the first one respects.
-  `[id: ai-stack-armor-piercing]`
 
 - `needs a repro`       · **ROUND 2 RESOLVED TWICE IN A REAL DUEL, AND IT COST A SECOND SHIELD (2026-09-15, unexplained).** From
   Aj's saved logs of one game, BOTH seats, narrated identically:

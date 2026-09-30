@@ -399,6 +399,45 @@ shape, too low) rather than shape-stuck.
 <a id="ai-strength"></a>
 ## AI strength
 
+### Stacking Armor Piercing at Resolution — the question is moot, measured 2026-09-30
+
+**Asked:** `resolutionPushCard` refuses a second Armor Piercing (`if (qp.finishingBlow) return null`). That
+refusal was literally true when `finishingBlow` was a boolean against `strips = 2`; it has been a NUMBER
+since 2026-09-24 (`strips = 1 + apExtra`), so a second cast on a target holding 3+ shields really would
+take a third shield. Filed as a balance question for `strengthsim`.
+
+**Answer: it is not a balance question, because the board does not occur.** Built behind an opt-in policy
+and forced ON for every seat:
+
+| players | games | FIRST Armor Piercing at Resolution | SECOND (the stack) |
+| --- | --- | --- | --- |
+| 2 | 400 | 16 | **0** |
+| 3 | 250 | 24 | **0** |
+| 6 | 250 | 99 | **0** |
+
+6p is the friendliest case — the draw is `numPlayers`, so hands are largest there — and it still never
+happened. The conjunction is too narrow: the seat needs the **Hippolyta Form** to make ♣7 a Quick at all,
+**two** such cards in hand, the energy for both, **a Broadway to pitch for each**, and a struck target
+still holding **3+** shields.
+
+**THE POLICY WAS DELETED RATHER THAN SHIPPED OFF.** An unexercised branch is not a safeguard, it is
+untested code — the same call as `opts.pitch`, the boost attach and `stopper`. What survives is the
+measurement, in `DECISIONS.md` and in a comment on the refusal itself, so the next reader finds the answer
+where the question was.
+
+**⚠ AND `strengthsim` PRINTED 50.00 AT +0.00σ, WHICH IS NOT A NULL RESULT.** That is what "the two arms
+were the same configuration" looks like — the policy never fired, so nothing diverged. A win-rate harness
+cannot tell *worth nothing* from *never ran*; `policyStats()` can, and counting is what turned an
+apparent tie into an answer. This is why the tallies exist (`lockoutStats`' idiom) and why an exact 50.00
+on non-identical arms should be read as a broken measurement until a counter says otherwise.
+
+**⚠ THE FLAG ITSELF ALMOST SHIPPED THE CHANGE.** `policyOn(p, name)` is `!armPolicy || !!armPolicy(...)`
+— with no arm configured, i.e. **in the real game, every name reads ENABLED.** That is correct for `push`,
+which shipped at step 21 and whose flag exists only so a sim can turn it OFF; it is exactly backwards for
+a policy under measurement. Adding `stack` to `POLICIES` would also have redefined bare `knight`, the arm
+every other measurement is read against. Both were caught before a game was run, and the general rule is
+in CLAUDE.md: a policy that has not shipped needs the opposite default from one that has.
+
 - **~~THE DEMON LORD SHOULD ONLY BOOST WHEN THE RESULT SECURES THE INITIATIVE~~ — BUILT, MEASURED, DECLINED
   (2026-09-02).** Aj's proposal, and a reasonable one: *"if he was to boost and then the final value is still
   middling, i'd like him to consider only for when it is more likely to secure the initiative"*. Built in the

@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.127.5**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.127.6**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -2202,7 +2202,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127.5 — last FULL sweep 2026-09-30, `npm run sweep`, 103/103 in 258s ON THE EPIC**
+Status as of **v1.31.127.6 — last FULL sweep 2026-09-30, `npm run sweep`, 103/103 in 258s ON THE EPIC**
 (the run before it was 101/103 — `quicktest` and `nettest_ridewedge`, both red for the prompt MODE rather
 than for a defect; see the entry above). A suite count and a date are a MEASUREMENT and are only true of
 the build they were taken on, so re-run before quoting this. (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, `nettest_brake`, `nettest_brake3`, `dragtest`, `lessontest_pickescape`) (four lanes; background
@@ -2855,6 +2855,26 @@ the thing — **when you close one of these, close the note in the same commit.*
 `effectOf` (template `:4877`, `:4938`, `:8524`), so a Form-granted Quick is offered correctly and then
 described with its base type — the card is playable, the label just says "Technique" where the game means
 "Quick Technique". Display only.
+
+**A POLICY FLAG DEFAULTS TO *ON*, SO ADDING ONE SHIPS THE BEHAVIOUR YOU ADDED IT TO MEASURE
+(2026-09-30).** `policyOn(p, name)` is `!armPolicy || !!armPolicy(p, name)` — with no arm configured,
+which is **the real game**, every name reads enabled. That is right for `push`, which SHIPPED at epic
+step 21 and whose flag exists only so a sim can turn it OFF. It is exactly backwards for a policy under
+measurement: naming `stack` would have made the AI stack Armor Piercing for every player, and the flag
+was added precisely because nobody had decided it should. Use an opt-in predicate for anything unshipped.
+**AND `strengthsim`'s BARE `knight` MUST KEEP MEANING "THE SHIPPED GAME".** Its `:all` expansion walks
+`POLICIES`, so adding an unshipped name there silently redefines the baseline every other measurement is
+read against — and `knight` is the arm nobody re-reads. Keep two lists: what an arm may NAME, and what
+bare `knight` turns on.
+**BOTH WERE CAUGHT BEFORE A SINGLE GAME RAN, and only because the control was run first.** The habit the
+entry demanded — *run the control, identical arms must print exactly 50.00* — is what put the flag under
+a microscope early enough for the default to be noticed.
+**⚠ AND AN EXACT 50.00 AT +0.00σ IS NOT A NULL RESULT — IT IS USUALLY A DEAD POLICY.** It is what "the two
+arms were the same configuration" looks like: nothing diverged because nothing fired. A win-rate harness
+cannot tell *worth nothing* from *never ran*, which is why `policyStats()` exists. Read an exact tie on
+non-identical arms as a broken measurement until a COUNTER says otherwise — here the counter turned an
+apparent tie into the actual answer (139 first casts, 0 second casts, 900 games). Full write-up:
+[`DECISIONS.md#ai-strength`](docs/DECISIONS.md#ai-strength).
 
 **AI personas vary STYLE, not STRENGTH — and `personasim.js` is the guard.** Each AI seat draws a persona
 (name + targeting style) from its difficulty tier at game start; `PERSONAS` and `drawPersonas` live in
