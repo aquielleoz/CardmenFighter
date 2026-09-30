@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.127.1**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.127.2**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -2202,7 +2202,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127.1 — last FULL sweep 2026-09-30, `npm run sweep`, 103/103 in 258s ON THE EPIC**
+Status as of **v1.31.127.2 — last FULL sweep 2026-09-30, `npm run sweep`, 103/103 in 258s ON THE EPIC**
 (the run before it was 101/103 — `quicktest` and `nettest_ridewedge`, both red for the prompt MODE rather
 than for a defect; see the entry above). A suite count and a date are a MEASUREMENT and are only true of
 the build they were taken on, so re-run before quoting this. (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, `nettest_brake`, `nettest_brake3`, `dragtest`, `lessontest_pickescape`) (four lanes; background
@@ -2210,8 +2210,8 @@ it. **The "run serially, never two at once" rule this line used to carry died wi
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 591, `netview` 65, `mptest` 113, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
-`piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 17, `lessontest` 20, `lessontest_energyorder` 14,
-`versiontest` 33, `sharetest` 17, `dragtest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 10, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 46, `lessontest_howto` 25,
+`piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 18, `lessontest` 20, `lessontest_energyorder` 14,
+`versiontest` 33, `sharetest` 17, `dragtest` 20, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 10, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 46, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 31, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2624,6 +2624,28 @@ colour and lost the test.
 **THE TELL FOR THIS WHOLE CLASS: a suite that asserts on a behaviour it never named.** Neither file
 contained the string `prompts` — the default was load-bearing and invisible, which is why a policy change
 reads as a defect. A suite that depends on a mode should SET it.
+
+**A CLAMPED STAGING SILENTLY REINTRODUCES THE DEPENDENCE ITS COMMENT SAYS IT DESIGNED OUT
+(2026-09-30).** `exporttest`'s damage probe read *"STAGED, NOT PLAYED … independent of how far the driver
+got before its 90s cap"* — and staged with **`shields = Math.max(1, shields - 2)`**, which is precisely a
+dependence on how far the driver got: a seat already on TWO shields clamps to 1 and the delta is 1
+instead of 2. Under a parallel sweep the 90s-capped driver lands there often enough to have turned one
+run in four-ish red.
+**THE COST IS THE MESSAGE, NOT THE RED.** The assertion prints `← REPRODUCED: every free-for-all record
+undercounts damage past the second seat` — so a green product reported a specific, serious defect and
+sent the next reader after it. A red that names the wrong cause is worse than a red that says nothing;
+this file already has that rule for DETECTORS, and it applies to assertions word for word.
+**THE TELL IS A `Math.max`/`Math.min` INSIDE STAGING.** A clamp is there to keep a value legal, which
+means the value came from somewhere you do not control — and that is the definition of the dependence
+you were trying to remove. **Stage ABSOLUTE values**: set a known floor, take the baseline AFTER it so
+the raise is absorbed, then set the exact end value. Deltas are then exact whatever the board looks like.
+**AND ASSERT THE STAGING LANDED** — one `ok()` on the values actually written, because staging that
+silently misses makes the run pass having exercised nothing.
+**DIAGNOSE IT BY FORCING THE CONDITION, NOT BY CHASING LOAD.** Three solo runs were 17/0 and told me
+only that it was load-sensitive. Forcing seat 2 to two shields reproduced it on every run in seconds and
+named the mechanism exactly; the fix was then verified against that same forcing, and separately A/B'd
+against the REAL bug (restore the old two-seat reach → `+0`, control still green) so the repair could not
+quietly make the assertion vacuous.
 
 **A SUITE CAN ALSO PIN THE DEFECT — AS FIRMLY AS IT PINS A FEATURE (2026-09-17).** `nettest_emote`'s
 expected output was literally `/^You says hi!/`: the exact "You" + third-person-verb shape that

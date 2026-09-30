@@ -57,10 +57,18 @@ async function dragToTable(page, id){
   await page.mouse.move(g.cx, g.cy-24, {steps:4});
   await page.mouse.move(g.tx, g.ty, {steps:14});
   await wait(80);
-  const zone = await page.evaluate(()=>({
-    hint:((document.getElementById('dropHint')||{}).textContent||'').trim(),
-    ok:document.getElementById('table').classList.contains('pz-ok'),
-    no:document.getElementById('table').classList.contains('pz-no') }));
+  const zone = await page.evaluate(()=>{
+    const dh=document.getElementById('dropHint'), tb=document.getElementById('table');
+    const r=dh?dh.getBoundingClientRect():null, t=tb.getBoundingClientRect(), de=document.documentElement;
+    return {
+      hint:((dh||{}).textContent||'').trim(),
+      ok:tb.classList.contains('pz-ok'),
+      no:tb.classList.contains('pz-no'),
+      /* GEOMETRY, captured for every leg even though only leg 5 asserts it — the pill's overflow was
+         invisible to a text assertion, which is why it shipped. */
+      spill: r ? Math.round(Math.max(0, t.left - r.left) + Math.max(0, r.right - t.right)) : 0,
+      overflow: de.scrollWidth - de.clientWidth };
+  });
   await page.mouse.up();
   return zone;
 }
@@ -221,6 +229,63 @@ async function dragOnto(page, idA, idB){
     ok(false, 'could not form a multi-card group to drag — groups are ['+groups.join(' , ')+']');
     ok(false, '  (the refusal assertion could not run)');
   }
+
+  /* ---------- LEG 5: A LONG REFUSAL MUST NOT COST YOU THE BOARD (2026-09-30).
+     The live refusal is the feature — `highlightTarget` feeds `ctxActionFor(...).reason` into the pill so
+     you learn WHY while the card is still in the air — and the pill was built for four fixed short
+     strings: `white-space:nowrap`, no `max-width`. A full engine sentence therefore hung off both edges
+     of the play area, and, because the pill is hidden by OPACITY rather than `display`, `clearZone()`
+     stripping only the class left that text in the layout at full nowrap width FOR THE REST OF THE GAME.
+     One drag over an unaffordable card widened the document permanently and every later frame was
+     scrolled sideways, with no drag in progress and nothing on screen to explain it.
+     ⚠ MEASURE, DO NOT LOOK — and that is the whole reason this went unnoticed: after the drag the element
+     is INVISIBLE, so the only evidence it is still there is `scrollWidth` against `clientWidth`. A text
+     assertion reads '' on the broken build too... no: it reads the stale text, which is exactly what the
+     second assertion pins. The first pins the cap; they fail independently and are fixed independently. */
+  /* ⚠ AND IT IS MEASURED AT A NARROW VIEWPORT, WHICH IS THE ONLY PLACE THE BUG EXISTS. The first cut ran
+     this at the suite's own 1100px and **passed 22/0 with `white-space:nowrap` and the cap both put back**
+     — at that width the sentence fits on one line and nothing overflows, so two geometry assertions were
+     measuring nothing. That is the green-and-blind shape this repo keeps paying for: the reported
+     screenshots were of a NARROW play area, and a viewport nobody measures is a viewport nobody fixes.
+     760px stays above the 720px phone gate on purpose — the desktop layout is where it was reported, and
+     it keeps this leg from silently becoming a phone-layout test. */
+  const LONG = /Broadway card/i;                       // `pitchHigh` — the longest reason the engine gives
+  await p.setViewportSize({width:760,height:900}); await wait(250);
+  await p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({rank:r,suit:s,id:id});
+    const you=st.players[0];
+    /* Ultima Attack (10♣) with NO 10/J/Q/K/A beside it, so the Broadway pitch has nothing to spend and
+       `ctxActionFor` returns the long sentence rather than a short one. Energy is ample on purpose: the
+       refusal under test must be the PITCH, not affordability, which has its own much shorter copy. */
+    you.hand=[mk(10,'C','ulti'), mk(3,'D','lowA'), mk(4,'D','lowB')];
+    you.energy=[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>mk(n,'C','pe'+n));
+    st.subPhase='main'; st.turn=0; st.pile=null; st.round=4;
+    window.__solo.render(); });
+  await wait(250);
+  const z5 = await dragToTable(p,'ulti');
+  ok(!!z5 && LONG.test(z5.hint||''),
+     'the long Broadway refusal really is what the pill shows  ["'+(z5?z5.hint:'no drag')+'"]');
+  ok(!!z5 && z5.spill===0,
+     '  …and it stays INSIDE the play area — '+(z5?z5.spill:'?')+'px hanging off the edges (cap + wrap)');
+  await wait(200);
+  /* ⚠ THE DOCUMENT-LEVEL SCROLLBAR IS NOT ASSERTED, AND THAT IS A MEASUREMENT RATHER THAN AN OVERSIGHT.
+     The filed entry called it "the second half and the worse one" and said to verify with
+     `scrollWidth` against `clientWidth`. Measured 2026-09-30 on a build with BOTH halves broken, at
+     eleven widths (1100/900/820/760/730/700/600/500/430/390/360): the spill off the play area is real
+     and grows as the viewport narrows — 19px at 820 up to 229px at 360 — and the document overflow is
+     **0 everywhere, during the drag and after it**. So an assertion on it would be green on the broken
+     build too, which is the vacuous shape this repo keeps catching. The MECHANISM is pinned instead
+     (stale text left in a layout that is hidden by opacity), because that is what would produce the
+     scrollbar wherever it does.
+     The entry's screenshot is from 2026-09-11 and nineteen versions of layout work ago; a filed
+     measurement ages exactly as fast as the thing it measured. Re-open it with a repro, not from the
+     screenshot. And note the non-monotonic row: 700 and 600 spill ZERO because the phone layout gives
+     `#table` most of the width and the sentence is ~490px wide — it is the TABLE's width that decides
+     this, never the viewport's. */
+  const after = await p.evaluate(()=>{ const de=document.documentElement;
+    return { text:((document.getElementById('dropHint')||{}).textContent||''),
+             overflow: de.scrollWidth - de.clientWidth }; });
+  ok(after.text==='',
+     'the hidden pill holds NO text after the drag — it is hidden by opacity, so stale text still occupies the layout  ["'+after.text.slice(0,52)+'"]');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

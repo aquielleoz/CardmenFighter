@@ -15,7 +15,7 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.127.1.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.127.2.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
@@ -577,26 +577,6 @@ re-read its tag.
   and wide, so the query is the landscape band, not a width breakpoint.
   `[id: setup-dialog-three-columns]`
 
-- `root cause found`    · **THE DROP HINT OVERFLOWS THE BOARD AND LEAVES A HORIZONTAL SCROLLBAR BEHIND** (Aj, 2026-09-11, two
-  screenshots: the refusal text running off both edges of the play area, then the whole page shifted with a
-  scrollbar). **A REGRESSION FROM THE SAME DAY, AND MINE** — Aj asked for the activation refusal to be
-  visible *while dragging* rather than only after the release, which was right, so `highlightTarget` now
-  feeds `ctxActionFor(...).reason` into `#dropHint`. That pill was built for four fixed short strings and
-  is `position:absolute; white-space:nowrap` with **no `max-width`**, so a full engine sentence
-  ("Needs a Broadway card (10, J, Q, K, or A) in hand to discard as an extra cost") is laid out on one line
-  centred on `#table` and hangs off both sides.
-  **THE SCROLLBAR IS THE SECOND HALF AND IT IS THE WORSE ONE: the pill is hidden by OPACITY, not
-  `display`.** `#dropHint.show{opacity:1}` and `clearZone()` only strips the class — the long `textContent`
-  stays in the layout at full nowrap width **for the rest of the game**, so one drag over an unaffordable
-  card widens the document permanently and every later frame is scrolled sideways. That is why the second
-  screenshot shows a broken board with no drag in progress.
-  **Two small fixes, and they are independent** — cap and wrap the pill (`max-width:min(88%,420px)`,
-  `white-space:normal`, centred) so a long reason is readable, AND clear `textContent` in `clearZone()` so
-  a hidden hint occupies nothing. The second one alone kills the scrollbar.
-  **Verify by MEASURING `document.documentElement.scrollWidth` against `clientWidth` after a drag ends**,
-  not by looking: the element is invisible at that point, so the only evidence is the geometry.
-  `[id: drop-hint-overflows-board]`
-
 - `root cause found`    · **CLICKING A FORM/RIDE CHIP OPENS THE READER AND CAN NEVER EXPAND THE ZONE** (Aj, 2026-09-11, playing the
   build: *"clicking the jack does not expand it. it directly goes to the card viewer"*). The collapsed
   Forms & Rides strip carries a click handler that sets `formsOpen` — but only outside the short-landscape
@@ -845,35 +825,6 @@ re-read its tag.
   non-counter branch, so a player holding two Leylines gets two identical buttons there too — unverified,
   but it follows from the same line.
   `[id: respond-window-offers-duplicate]`
-
-- `needs a decision`    · **★ A STACK VISUALISER, AND IT BELONGS WITH THE ENTRY BELOW** (Aj, 2026-09-11: *"not elegant but it works
-  haha i think we need to overhaul this with a stack visualizer in the future"*). The priority window
-  currently DESCRIBES the stack in prose on a button — *"counter Holy Bow (Adell)"* — when the stack is the
-  one piece of state a player most needs to see laid out, and the epic makes it deeper than it has ever
-  been (holding priority stacks several Quicks; §2's worked example runs six grants over two objects).
-  **Same move as the entry below**: stop narrating the board in a modal when the board can be shown. Do the
-  two together — a visualiser plus in-hand highlighting IS the replacement for the modal, and shipping one
-  without the other leaves the prose half in place.
-  `[id: stack-visualiser]`
-
-- `needs a decision`    · **★ REPLACE THE PER-CARD PRIORITY MODAL WITH "PAUSE AND HIGHLIGHT THE CASTABLE QUICKS IN HAND"** (Aj,
-  2026-09-10, and **explicitly postponed until the epic is done**: *"can we redesign? instead of having a
-  modal for each card... can we just like pause the game and highlight the castable quicks? change of
-  design i know so we could just postpone this to another feat when the epic is done"*).
-  **WHY IT CAME UP:** the epic makes priority a real go-round at several timings, and the current window is
-  a MODAL LISTING CARDS — a second, parallel presentation of a hand you are already looking at. He met it
-  in a real game (`--- PRIORITY WINDOWS ---` in his saved log, rounds 6 and 7) and both prompts were
-  useless: one offered Counter Spell against an empty stack, the other offered Leyline on a jab win with
-  nothing at stake. The second is **legal and not a bug** — his words — but it is a modal you must read and
-  dismiss to learn there was nothing to do.
-  **THE SHAPE:** pause, light up the castable cards in the hand you already have, let the player tap one or
-  pass. The engine side is already there — `E.canCastQuick` is the per-card predicate and the window's
-  offer list is exactly the cards it admits, so this is a presentation change and not a rules one.
-  **DO NOT START IT INSIDE THE EPIC.** It touches `promptHumanResponse`, `promptHumanPreFight` and
-  `promptHostPreFight`, all three of which epic step 20 is still rewriting; landing a new
-  presentation under them would make both changes harder to reason about and impossible to revert
-  separately.
-  `[id: priority-modal-redesign]`
 
 - `ready to build`      · **OPEN THE BATTLE LOG AS AN OVERLAY, like the 🔍 View card reader** (Aj, 2026-08-31: *"i think for the logs,
   we can open it like how we do the view card? but slightly transparent?"* — agreed at the time and, like the 2s
@@ -1268,6 +1219,55 @@ never read.*
   OVERLAY instead of a layout change, or expanding one zone at a time at these sizes only — and note Aj
   explicitly asked for both zones open at once, so the second needs his say-so.
   `[id: expanding-zone-pushes-board]`
+
+### Features
+
+- `needs a decision`    · **⏸ BOTH ★ ENTRIES BELOW ARE DEFERRED UNTIL AFTER THE EPIC MERGES** (Aj, 2026-09-30:
+  *"those starred entries while fancy for the epic can actually be done after it's merged, so we can defer
+  work on them until after the epic"*). **They moved here from the epic's Features section on that
+  decision** — they are still wanted, and they are no longer the epic's business.
+  **THE TAGS STAY `needs a decision`, because what he settled is WHEN and not WHAT.** The visualiser has no
+  design yet, and the modal redesign is explicitly coupled to it (*"do the two together"*), so neither is
+  `ready to build` however clearly the second one's shape is described. A tag is a claim about what the
+  entry needs NEXT; "scheduled" is not "designed".
+  ⚠ **AND STEP 23 USED TO SAY "strike both ★ entries … from the BACKLOG", WHICH WOULD HAVE DELETED THEM.**
+  That instruction was written when they were expected to land inside the epic; it now reads as an order to
+  bin live work at the one moment nobody is checking. Corrected in `FIGHT-END-PLAN.md` in the same commit —
+  step 23 strikes the epic POINTER only.
+  `[id: starred-entries-deferred]`
+
+- `needs a decision`    · **★ A STACK VISUALISER, AND IT BELONGS WITH THE ENTRY BELOW** (Aj, 2026-09-11: *"not elegant but it works
+  haha i think we need to overhaul this with a stack visualizer in the future"*). The priority window
+  currently DESCRIBES the stack in prose on a button — *"counter Holy Bow (Adell)"* — when the stack is the
+  one piece of state a player most needs to see laid out, and the epic makes it deeper than it has ever
+  been (holding priority stacks several Quicks; §2's worked example runs six grants over two objects).
+  **Same move as the entry below**: stop narrating the board in a modal when the board can be shown. Do the
+  two together — a visualiser plus in-hand highlighting IS the replacement for the modal, and shipping one
+  without the other leaves the prose half in place.
+  `[id: stack-visualiser]`
+
+- `needs a decision`    · **★ REPLACE THE PER-CARD PRIORITY MODAL WITH "PAUSE AND HIGHLIGHT THE CASTABLE QUICKS IN HAND"** (Aj,
+  2026-09-10, and **explicitly postponed until the epic is done**: *"can we redesign? instead of having a
+  modal for each card... can we just like pause the game and highlight the castable quicks? change of
+  design i know so we could just postpone this to another feat when the epic is done"*).
+  **WHY IT CAME UP:** the epic makes priority a real go-round at several timings, and the current window is
+  a MODAL LISTING CARDS — a second, parallel presentation of a hand you are already looking at. He met it
+  in a real game (`--- PRIORITY WINDOWS ---` in his saved log, rounds 6 and 7) and both prompts were
+  useless: one offered Counter Spell against an empty stack, the other offered Leyline on a jab win with
+  nothing at stake. The second is **legal and not a bug** — his words — but it is a modal you must read and
+  dismiss to learn there was nothing to do.
+  **THE SHAPE:** pause, light up the castable cards in the hand you already have, let the player tap one or
+  pass. The engine side is already there — `E.canCastQuick` is the per-card predicate and the window's
+  offer list is exactly the cards it admits, so this is a presentation change and not a rules one.
+  **⚠ THE ORIGINAL BLOCKER HAS EXPIRED, AND WHAT HOLDS THIS NOW IS A SCHEDULING CALL, NOT A CONSTRAINT.**
+  It said *"DO NOT START IT INSIDE THE EPIC"* because it touches `promptHumanResponse`,
+  `promptHumanPreFight` and `promptHostPreFight`, *"all three of which epic step 20 is still rewriting"* —
+  and **step 20 landed** (`9b8105a`, `3e8bed8`, `0a4fc38`, `3aa5c1e`, `4d1edd1`). The technical reason is
+  gone; the deferral above is what holds it. Said apart on purpose: a filed constraint ages exactly as fast
+  as the thing it constrained, and reading an expired one as live is how work parks itself indefinitely.
+  The CARE it asked for still applies once started — landing a new presentation under freshly-rewritten
+  prompt paths is harder to reason about and harder to revert separately.
+  `[id: priority-modal-redesign]`
 
 ### Balance and design
 

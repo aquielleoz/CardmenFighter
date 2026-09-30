@@ -7,35 +7,48 @@
 > function, a state field or a suite that still spells it that way, so rewriting the prose would make the
 > plan stop matching what you grep for. Read "Fight End" here as "Resolution".
 
-> ## 📍 WHERE WE ARE — 2026-09-10
+> ## 📍 WHERE WE ARE — 2026-09-30
 >
-> **Steps 1-18 done. THE SWITCH IS LIVE**: the Fight End go-round replaced the guard whitelist, in the
-> engine and on both transports, and the old window is asserted GONE in 600 live games. `main` untouched
-> at v1.31.126. **STEP 18'S ONE REMAINING GATE IS AJ** — one real solo game and one two-device netplay
-> game; suites cannot close it. Read step 18's ✅ block for the root cause (it was NOT the seven
-> `shieldResponsePending` sites, which are dead code and belong to 19) and for the `sharetest` defect the
-> work uncovered in the SHIPPED build, which is filed separately and is not this change.
-> **Step 11 is built** — P1, P2, P3 and the go-round itself, with §3's worked example asserted as a
-> sequence. It is INERT: nothing calls `openResolutionWindow` until step 18. Its one deferred piece (the
-> `finishRoundWin` restructure) is deferred with a measurement — see the step.
-> **The cliff is behind us**, and the shape of the remaining work changed with it: 17 is a test against a
-> mechanism that already exists, and 18 is the switch — now with 12's superset PROOF standing behind it.
-> - **1, 2, 3, 5, 6, 8, 11, 12, 13, 14, 15, 16, 17, 18 — done.** **7** needed no code (step 6 absorbed it). **10** needed no code
->   either — its behavioural half was measured to be already true.
-> - **⚠ STEP 10'S REFACTOR IS STILL OUTSTANDING, and this line used to say it was folded into 11. It is
->   not.** §4 says a shield loss is *not* a stack object — it just happens, and what protects it is the
->   window that runs before the sub-phase. Step 11 built that window, so the refactor is now *possible*;
->   it becomes *necessary* at **step 18**, which is where `driveShieldStack`'s own guard window goes away
->   and the shieldloss objects stop having anything to be responded to. Do it there, not before: while both
->   windows exist, the objects are still load-bearing.
-> - **4 and 9 are PARTLY done on purpose**, each with its remainder recorded at the step that will land it
->   (19 and 11). Neither is a loose end.
-> - **THE PREMISE CHECK IS STILL THE THING TO READ FIRST.** All four load-bearing steps came back *partly*.
->   Step 11's three (**P1/P2/P3**) are now discharged and recorded at the step; **P4-P8 still stand**, and
->   18, 19 and 20 each carry a ⚠ pointing at theirs.
-> - **The step-11 machinery is what 18 and 20 build on** — `nextPrioHolder(st, origin)` is deliberately
->   origin-parameterised so step 20 passes its own, and `openResolutionWindow` is the only thing that parks
->   `st.resolution`. Read both before touching either.
+> **⚠ THIS BLOCK SAID "Steps 1-18 done" AND WAS DATED 2026-09-10 UNTIL TODAY** — five steps out of date, on
+> the one line a next session reads to know where it is. That is the handoff-header drift this repo has
+> already paid thirteen versions for, in the file least able to afford it. **Every claim below names the
+> commit that landed it, so the next reader can check rather than trust.**
+>
+> **STEPS 1-22 ARE DONE. Step 23 is HALF done.**
+> - **19** — `9616789` *refactor: delete the whitelist model*.
+> - **20** — landed over several slices: `9b8105a` (one castability predicate), `3e8bed8` (the pre-fight
+>   window becomes the priority dance), `0a4fc38` (the two-state Fight button and the auto-pass),
+>   `3aa5c1e` (one shared helper for that button across 50 suites), `4d1edd1` (the tutorials teach it).
+> - **21** — `cd97786` *feat(ai): the round winner can press its advantage at Resolution*, **with its
+>   measurement gate discharged**: see `DECISIONS.md` → *"Epic step 21 — the Resolution policy: one change
+>   shipped, one measured and declined (2026-09-12)"*. The AI-strength harness the gate needed is `4e31c92`.
+> - **22** — `9af32b9` *feat(netplay): refuse the handshake across a MINOR version difference*. **Extended
+>   2026-09-30**: an epic build now also refuses a MAIN build, because an epic holds its minor by design and
+>   those two were therefore indistinguishable to `verIncompatible`. See CLAUDE.md's `epic/` rules.
+> - **23 — the RENAME half is done** (`772ba8e`…`980560a`, one symbol per commit, 2026-09-14) **and the DOCS
+>   half is not.** What that step still owes is listed at the step itself: README to **v1.32.0**, a
+>   `### v1.32.0` changelog heading, the handoff header, CLAUDE.md's suite counts, the dead-symbol
+>   tombstones, folding this file and `PHASES-AND-PRIORITY.md` into their final homes, and striking the
+>   epic POINTER from the BACKLOG — **not the ★ entries**, which Aj deferred past the merge on 2026-09-30
+>   and which now live in the BACKLOG's `For main` → `Features` section. There is no `### v1.32` heading in `CHANGELOG.md` today,
+>   which is the cheapest way to check whether it has happened.
+>
+> **STEP 10'S REFACTOR IS DONE — and this block claimed otherwise for three weeks.** It said the shield-loss
+> objects were still load-bearing and the refactor was owed at 18. `e4dcae2` *feat(engine): The Stack holds
+> effects only — the shield-loss queue moves to `st.losses`* landed it; `st.losses` is live in `engine.js`.
+> **4, 7, 9 and 10 are all discharged.** Steps 7 and 10 needed no code of their own (6 absorbed 7; 10's
+> behavioural half measured already true), and 4 and 9 landed their remainders at 19 and 11 as planned.
+>
+> **THE VERSION IS FOUR NUMBERS WHILE THE EPIC LIVES (2026-09-30).** `vX.Y.Z.a` — the main version this is
+> based on, plus a counter that increments on every merge into the epic, gated by `checkbranch.js` whenever
+> the built page moves. Step 23's **v1.32.0** is exactly what dropping the fourth number and bumping the
+> minor looks like, so the two schemes agree; nothing about step 23 changes.
+>
+> **The premise check is still the thing to read first.** P1/P2/P3 are discharged and recorded at step 11;
+> **P4-P8 still stand**, and 18, 19 and 20 each carry a ⚠ pointing at theirs.
+> **The step-11 machinery is what 18 and 20 build on** — `nextPrioHolder(st, origin)` is deliberately
+> origin-parameterised so step 20 passes its own, and `openResolutionWindow` is the only thing that parks
+> `st.resolution`. Read both before touching either.
 
 > ## ⏳ THIS IS A WORKING PLAN. IT IS MEANT TO DIE.
 >
@@ -1426,8 +1439,14 @@ the first minor bump in a long time, and it is a minor because *the rules moved*
 `docs/CHANGELOG.md`, the handoff header, CLAUDE.md's suite-count table, and the **dead-symbol tombstones** —
 `guardEffFor`, `shieldGuardCard`, `wouldBeSaved` are named in CLAUDE.md, `NEXT-SESSION.md` and
 `versiontest.js`'s own citation comment, and **the `file:line` gate cannot see a dead name**. Fold
-`PHASES-AND-PRIORITY.md` and this file's surviving content into their final homes; strike both ★ entries and
-the epic pointer from the BACKLOG. Route by the CLAUDE.md table: measurements → `DECISIONS.md` (**re-taken
+`PHASES-AND-PRIORITY.md` and this file's surviving content into their final homes; strike **the epic
+pointer** from the BACKLOG.
+**⚠ THIS USED TO SAY "strike both ★ entries and the epic pointer", AND IT WOULD HAVE DELETED LIVE WORK.**
+Aj deferred both ★ entries past the merge rather than dropping them (2026-09-30: *"those starred entries
+while fancy for the epic can actually be done after it's merged"*), so they have MOVED to the BACKLOG's
+`For main` → `Features` section and step 23 must leave them where they are. The instruction was written
+expecting them to land inside the epic. An order to delete work, read at the one moment nobody is checking
+whether it is still right, is the most expensive kind of stale line this file can carry. Route by the CLAUDE.md table: measurements → `DECISIONS.md` (**re-taken
 after step 21, not carried forward**); remaining levers → BACKLOG with `RATCHET:` tags on both sides; rules →
 CLAUDE.md. *Gate:* `node versiontest.js`; **a full sweep on the epic** before the merge, per the epic rules.
 

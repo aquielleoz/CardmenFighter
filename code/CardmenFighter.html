@@ -836,7 +836,13 @@
   .group.ghost .card{ outline:none !important; box-shadow:0 4px 10px rgba(0,0,0,.4); }
   #table.pz-ok{ box-shadow:inset 0 0 0 2px var(--good); border-radius:16px; }
   #table.pz-no{ box-shadow:inset 0 0 0 2px var(--bad); border-radius:16px; }
-  #dropHint{ position:absolute; top:6px; left:50%; transform:translateX(-50%); font-size:12px; font-weight:800; letter-spacing:.3px; padding:5px 13px; border-radius:20px; background:var(--panel); border:1px solid var(--line); opacity:0; transition:opacity .12s; pointer-events:none; z-index:5; white-space:nowrap; }
+  /* ⚠ THE CAP AND `white-space:normal` ARE LOAD-BEARING. This pill was built for four fixed short strings
+     and was `nowrap` with no max-width; since `highlightTarget` started feeding `ctxActionFor(...).reason`
+     into it (so a refusal is visible WHILE dragging, which is right), a full engine sentence — "Needs a
+     Broadway card (10, J, Q, K, or A) in hand to discard as an extra cost" — laid out on one line centred
+     on `#table` and hung off both edges. Centred with `text-align`, because wrapping makes the box wider
+     than its text. */
+  #dropHint{ position:absolute; top:6px; left:50%; transform:translateX(-50%); font-size:12px; font-weight:800; letter-spacing:.3px; padding:5px 13px; border-radius:20px; background:var(--panel); border:1px solid var(--line); opacity:0; transition:opacity .12s; pointer-events:none; z-index:5; white-space:normal; max-width:min(88%,420px); text-align:center; line-height:1.25; }
   #dropHint.show{ opacity:1; } #dropHint.ok{ color:var(--good); border-color:rgba(67,192,106,.6);} #dropHint.no{ color:var(--bad); border-color:rgba(226,98,74,.6);}
   /* deal-in for freshly drawn cards */
   @keyframes dealIn{ from{ opacity:0; transform:translateY(32px) scale(.78) rotate(-5deg);} 60%{opacity:1;} to{ opacity:1; transform:none;} }
@@ -6794,7 +6800,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.127.1';
+  var GAME_VERSION='v1.31.127.2';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -9662,7 +9668,13 @@ window.CardFace = {};
     }
     clearZone();
   }
-  function clearZone(){ $('table').classList.remove('pz-ok','pz-no'); $('dropHint').className=''; }
+  /* ⚠ CLEAR THE TEXT, NOT JUST THE CLASS — THIS IS THE HALF THAT BROKE THE BOARD. The pill is hidden by
+     OPACITY, so a hidden hint is still laid out: stripping the class alone left the longest reason of the
+     game sitting in the document at full width FOREVER, and the page stayed scrolled sideways with no drag
+     in progress and nothing on screen to explain it. The cap above makes a long reason readable; this line
+     is what stops an invisible one costing you the board. Verify by MEASURING `scrollWidth` against
+     `clientWidth` after the drag ends — the element is invisible by then, so looking proves nothing. */
+  function clearZone(){ $('table').classList.remove('pz-ok','pz-no'); var dh=$('dropHint'); dh.className=''; dh.textContent=''; }
   function endGhost(d){ d=d||drag; if(!d) return; if(d.ghost&&d.ghost.parentNode) d.ghost.parentNode.removeChild(d.ghost); if(d.hl) d.hl.classList.remove('drop-ok','drop-no'); if(d.el) d.el.classList.remove('dragging'); clearZone(); }
   function onTap(gid){
     var g=groupById(gid); if(!g) return;
