@@ -1543,6 +1543,23 @@ Measured on v1.31.95, the two halves of the same day:
   **Report a severity you measured, or report the finding without one.** "This is live" is a claim about the
   player's build, and a subagent has never seen it.
 
+**THE THIRD SITE OF THAT SHAPE WAS MEASURED AND DOES NOT FIRE — AND THE GUESSED MECHANISM WAS WRONG
+(2026-09-30).** `runOpponents`' `step()` hands back to the human after checking only `===YOU`, so a window
+owed to another AI seat looked like it would fall through — the same shape as the duel driver's bug and
+`tutCastRivalTech`'s. It does not: **47 natural hand-backs, 0; 141 forced writes, 0; forced once and
+watched, the table RECOVERED in under 9s.** Full write-up:
+[`DECISIONS.md#runopponents-window`](docs/DECISIONS.md#runopponents-window).
+**THE ENTRY GUESSED `settleWindows` WAS DRAINING IT FIRST. IT IS NOT** — it is one line in `ai.js`,
+**`if (st.respondFor != null) return;`**: the AI refuses to ACT while a window is open, so the turn never
+advances to the state where `step()` could hand back. Two different mechanisms with the same symptom, and
+only measuring told them apart. **When an entry explains why a bug is probably unreachable, the
+explanation is a hypothesis too** — check which guard is actually load-bearing, because the fix you would
+write depends on it.
+**AND RULE OUT THE OPPOSITE SYMPTOM BEFORE CLOSING.** Once "steps past" was dead, the live worry was that
+it STALLS instead — an AI that will not act plus a driver that keeps asking is a plausible spin. Forcing
+the condition once and then *watching without writing* is what answered it; a probe that keeps re-forcing
+can only ever show you the forced state.
+
 **A HAND-ROLLED PRIORITY CHECK OUTLIVES THE RULE IT ENCODED — SECOND INSTANCE, AND IT WAS THE
 `lessontest_quicks` FLAKE ALL ALONG (2026-09-24).** `tutCastRivalTech` casts as the RIVAL and then tested
 `if(state.respondFor===YOU)`, with an `else` that did `state.turn=savedTurn; render();`. **Epic step 6 made

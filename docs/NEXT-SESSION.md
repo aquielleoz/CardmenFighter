@@ -234,22 +234,6 @@ re-read its tag.
 
 #### Flaky suites
 
-- `needs a repro`       · **`runOpponents` MAY STEP PAST A WINDOW OWED TO ANOTHER AI SEAT — same shape as
-  two fixed bugs, reachability NOT measured (2026-09-24).** Found while enumerating the kind after the
-  Quicks fix. Its `step()` tests `discardPending.player===YOU`, then `respondFor===YOU`, then
-  `state.turn===YOU` and hands back to the human — so a window owed to a **non-human, non-YOU** seat falls
-  straight through and the board goes live with it still open.
-  **THAT IS EXACTLY THE BUG FIXED AT THE DUEL DRIVER ON 2026-09-14** (the comment there says it outright:
-  *"a window held by ANY OTHER SEAT must be DRAINED, not stepped past"*, and the fix was to route through
-  `settleWindows` and re-check) **and again in `tutCastRivalTech` today**. Three sites, one shape; this is
-  the third and the only one not yet settled.
-  **IT MAY WELL BE UNREACHABLE** — the N-player driver calls `settleWindows` after each opponent acts, so
-  `respondFor` is normally drained before `step()` sees it. That is a reason to measure, not to assume:
-  the same argument was available for the other two.
-  **HOW TO SETTLE IT CHEAPLY:** the Quicks investigation's method transfers directly — log the priority
-  holder at the branch, run a 3-player game, and correlate. `prioNote` is already there.
-  `[id: runopponents-steps-past-window]`
-
 - `needs a repro`       · **`nettest_passoduel` FLAKES AT ROUGHLY 1 IN 8, SOLO — MEASURED AND A/B'd 2026-09-15.** It hung a lane
   in one `-j 4` sweep (killed at 300s), and the first instinct was the Resolution shield override that had
   just merged: that change can open a window where none opened before, this suite installs `netwindows`
