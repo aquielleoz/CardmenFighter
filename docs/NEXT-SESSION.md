@@ -15,7 +15,7 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.127.6.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.127.7.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
@@ -228,8 +228,9 @@ re-read its tag.
 > it belongs here. That question has an answer anyone can check with a grep; "is this epic work" does not.
 > **WORKED EXAMPLES, because the surprising ones are surprising in both directions.** `nettest_passoduel`
 > is a FLAKE, which sounds like tooling — but the epic added that suite, so there is nothing on main to
-> fix it in. `dead-main-subphase`'s remaining half is auto-advancing through the Main SUB-PHASE, which
-> step 20 created. And the Fighter Kick flash, the straights sort and the lobby ping all sound like
+> fix it in. `tutorials-still-teach-boundary` sounds like a tutorial, which is main work all day — except
+> what is left of it is teaching the BOUNDARY WINDOWS, which the epic created. And the Fighter Kick
+> flash, the straights sort and the lobby ping all sound like
 > netplay or engine work and are none of them priority: they ship on main today.
 
 #### Flaky suites
@@ -379,21 +380,6 @@ re-read its tag.
 
 #### Netplay
 
-- `needs a decision`    · **A CLIENT'S PRIORITY LEDGER HAS NO PHASE-TRANSITION ENTRIES AT ALL (2026-09-23).**
-  Aj's host log carries ten `MAIN → FIGHT … auto-advanced — nobody could add to the stack (origin=You)`
-  lines; his client log carries **zero**. Both carry their eight `FIGHT END` lines, so it is not that the
-  ledger is dead on a client — it is that the phase walk is recorded where it happens, on the host, and
-  nothing tells the other seats.
-  **THE DECISION, and it is why this is not `ready to build`:** a mirror is a full snapshot and the walk is
-  host-side authority, so carrying it would mean broadcasting ledger lines — a new message kind, or a field
-  on the mirror, for a diagnostic nobody sees on screen. That may not be worth it. The cheaper answer is to
-  say so in the saved log: a client's ledger could carry one line stating that phase transitions are
-  recorded on the host's copy, so a reader stops looking for them.
-  **WHY IT MATTERS AT ALL:** this repo's own rule is that a diagnostic must explain itself, and the client
-  is the seat that most often reports the hang. A reader diffing two saved logs — the method that has now
-  found several defects — currently finds a 10-vs-0 gap that is expected and looks alarming.
-  `[id: client-ledger-no-phase-walk]`
-
 #### Phone and layout
 
 #### Tutorials and prompts
@@ -426,25 +412,6 @@ re-read its tag.
   existing step where you can; budget the suite edit where you cannot.
   `[id: tutorials-still-teach-boundary]`
 ### Features
-
-- `needs a decision`    · **⚠ HALF SHIPPED 2026-09-30 — THE HINT TELLS THE TRUTH NOW; AUTO-ADVANCE DOES NOT
-  EXIST.** Change 1 of this entry landed: the Main hint reads *"nothing to use yet, press Next to move
-  on."* when no card in hand is activatable, asked through `ctxActionFor` so "can this seat act at all"
-  cannot drift from "may this card act", and deferring to a gated lesson step so a tutorial is never told
-  its own instruction is impossible. `mptest` asserts both boards.
-  **WHAT IS LEFT IS CHANGE 2, AND IT IS A DECISION RATHER THAN A BUILD** — auto-advancing THROUGH a dead
-  Main. The predicate it needed now exists in the hint, so the cost has dropped a great deal; what has not
-  been decided is whether skipping a phase silently is right. It removes a beat the player may be using to
-  read the board, and the phase strip teaches the ramp by showing every colour — a phase that sometimes
-  does not happen is a lesson that sometimes lies. Aj's own words were *"maybe we can skip main phase when
-  nothing is activateable too?"*, which is a question.
-  **THE ORIGINAL (Aj, 2026-09-16, from a round-1 screenshot):** *"kings and jacks aren't activateable yet
-  at this point in the game… maybe we can skip main phase when nothing is activateable too?"*
-  `TRANSFORM_GATE` defaults to `'table'`, so a tier opens only once total shields lost across the table
-  reaches `numPlayers × lvl` — at round 1 that is `0 >= 2`, and the Jack and King tiers are both shut. On
-  top of that the seat held **0 energy**. Neither is a bug; together they make the sub-phase inert.
-  `[id: dead-main-subphase]`
-
 
 - `parked`              · **A SHIELD GAIN AS A GUARD IS PARKED on `exp/shield-gain-guard`** (2026-09-10). `exp/` and not `parked/`:
   the table reserves `parked/` for work that is **built, green** and deliberately unmerged, and this is an

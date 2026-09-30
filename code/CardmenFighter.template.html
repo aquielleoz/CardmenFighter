@@ -1898,6 +1898,28 @@ __QR__
      resolution logged from there is stamped with the round AFTER it. Caught by reading a probe's output:
      five rounds resolved and came out labelled r2-r6. A diagnostic that is off by one sends the next
      reader to the wrong round, which is worse than not logging it. */
+  /* ⚠ A LEDGER LINE THAT NAMES A SEAT MUST TRAVEL AS A SEAT, NOT AS TEXT (2026-09-30). Aj's host log
+     carried ten `MAIN → FIGHT … auto-advanced (origin=You)` lines and his client log carried ZERO — the
+     phase walk is host-side authority, recorded where it happens, and nothing told the other seats. He
+     asked for the lines to be broadcast.
+     THE NAMES ARE THE WHOLE DIFFICULTY. `logName` renders the reader as **"You"**, so a host-written
+     `origin=You` broadcast verbatim would tell a client the CLIENT opened a go-round the host opened.
+     That is the sender-baked-perspective bug this repo has shipped three times (`{who}`, `{foe}`, the
+     `You is` copula), and a ledger is the one artefact read months later by someone who cannot re-check.
+     So a broadcast ledger line carries `{sN}` tokens — N an ABSOLUTE seat — and EACH END renders them.
+     The host's local frame IS the absolute frame (that is what lets `sayBroadcast` send a local actor),
+     so a host writes its own copy with the identity rotation and clients rotate by `mySeat`, exactly as
+     `t:'log'` does. Do not interpolate a name into one of these. */
+  function prioRender(tpl, rot){
+    return String(tpl==null?'':tpl).replace(/\{s(\d+)\}/g, function(_, d){ return logName(rot ? rot(+d) : +d); });
+  }
+  /* `prioSay` IS TO `prioNote` WHAT `say` IS TO `logMsg` — the public one. Use it for anything the other
+     seats need in their own saved log; `prioNote` stays for what is genuinely local. */
+  function prioSay(kind, detail, roundAt){
+    prioNote(prioRender(kind), prioRender(detail), roundAt);
+    if(typeof NET!=='undefined' && NET.prioBroadcast)
+      NET.prioBroadcast(kind, detail, (roundAt!=null?roundAt:((state&&state.round)||'?')));
+  }
   function prioNote(kind, detail, roundAt){
     if(PRIO_LOG.length>=PRIO_CAP) PRIO_LOG.shift();
     var rn = (roundAt != null) ? roundAt : ((state && state.round) || '?');
@@ -6770,9 +6792,9 @@ __QR__
        this ledger entry is the only record that the transition happened at all, and without the trigger the
        reader still cannot tell a Next from a Pass. Both reach this funnel. */
     var viaTxt = '  [' + (via || 'Next') + ']';
-    prioNote('MAIN → FIGHT' + viaTxt, state.respondFor != null
-      ? ('go-round opened  origin=' + logName(me) + '  priority→' + logName(state.respondFor))
-      : ('auto-advanced — nobody could add to the stack  (origin=' + logName(me) + ')'));
+    prioSay('MAIN → FIGHT' + viaTxt, state.respondFor != null
+      ? ('go-round opened  origin={s' + me + '}  priority→{s' + state.respondFor + '}')
+      : ('auto-advanced — nobody could add to the stack  (origin={s' + me + '})'));
     if(state.respondFor == null) return proceed();
     busy=true; render();
     settleWindows(g, function(){
@@ -10046,6 +10068,13 @@ __QR__
           setRulesFromKey(m.k||''); iReady=false; stopJoinRetry(); renderNet();
           setMessage('⚗️ The host changed the rules — check them and hit Ready again.'); }
         else if(m.t==='full'){ if(!m.cid || m.cid===myId){ setMessage('⚠ This game is full.'); setLobbyErr('This game is full (6 players max).'); } }   // reachable on BC, where `sig` is null
+        else if(m.t==='prio'){                                  // the host's phase walk — render its seats in OUR frame
+          /* ONE EVENT, ONE LINE, AND THE HOST OWNS IT: a client writes no phase-walk note of its own (that
+             is the gap this closes), so there is nothing here to double. If a client ever starts recording
+             its own, this needs the `sayOnce` treatment rather than a second copy. */
+          var pn=(state&&state.numPlayers)||2, prot=function(abs){ return ((((abs-mySeat)%pn)+pn)%pn); };
+          prioNote(prioRender(m.kind, prot), prioRender(m.detail, prot), m.round);
+        }
         else if(m.t==='log'){                                   // public narration — resolve {who}/{foe} in OUR frame
           var n=(state&&state.numPlayers)||2, rot=function(abs){ return ((((abs-mySeat)%n)+n)%n); };
           /* CALL `logName`, DO NOT RESTATE IT (v1.31.120). This was a private fourth namer with its own copy
@@ -10199,6 +10228,15 @@ __QR__
     function sayBroadcast(actorSeat, tpl, cls, foes){
       if(!isHost() || !started) return;                 // only the referee narrates to the table
       send({t:'log', actor:actorSeat, tpl:tpl, cls:cls||'', foes:foes||null});
+    }
+    /* THE LEDGER'S PUBLIC HALF (2026-09-30). Same rule as `sayBroadcast` — only the referee records for the
+       table — and the same shape: the TEMPLATE travels with `{sN}` absolute-seat tokens and each end names
+       them. It is NOT put on the mirror: a mirror is a full snapshot deduped BY CONTENT, so an accumulating
+       ledger would change it on every line, defeat the dedupe that stops a client reading stale, and bloat
+       the one message the table cannot afford to make bigger. */
+    function prioBroadcast(kind, detail, round){
+      if(!isHost() || !started) return;
+      send({t:'prio', kind:kind, detail:detail||'', round:round});
     }
     function isClient(){ return role==='join'; }
     /* TRACED HERE RATHER THAN AT THE CALL SITES. Every action reads this, so instrumenting the function itself
@@ -11767,7 +11805,7 @@ __QR__
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostRename:hostRename, setRenameBase:function(ms){ RENAME_BASE=ms; }, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); }, backToLobby:hostBackToLobby, dbgInject:function(m){ onMsg(m); }, lastLog:function(){ return lobbyLogStash.slice(); } };
+    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, prioBroadcast:prioBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostRename:hostRename, setRenameBase:function(ms){ RENAME_BASE=ms; }, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); }, backToLobby:hostBackToLobby, dbgInject:function(m){ onMsg(m); }, lastLog:function(){ return lobbyLogStash.slice(); } };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:var(--zNetroot);background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the

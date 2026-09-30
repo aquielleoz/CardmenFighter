@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.127.6**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.127.7**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -858,6 +858,38 @@ the kick line after two hand-written greps missed it. The scan reads whole lines
 in a comment beside a `say()`** — the first version tripped on its own comment. The runtime list also checks
 BOTH directions now: it only ever tested the "You" side, so `{who} were …` would render fine for the reader and
 wrongly for everyone else.
+
+**A REMARK THAT DESCRIBES EXISTING BEHAVIOUR IS NOT A REQUEST TO BUILD NEW BEHAVIOUR (2026-09-30).** Aj,
+on the dead Main sub-phase: *"nobody gets prompted when they don't have anything to play anyway so it
+should really just fire off."* Read as consent to auto-advance the phase; he meant the **priority dance**,
+which already fires off — the `auto-advanced — nobody could add to the stack` line the ledger has always
+carried. His next message said so again (*"there's a separate pass button and if they wanted to, they
+could have pressed that one instead"*) and the one after was explicit: *"don't auto advance @\_@ they can
+pass from fight."* It was built in between, and reverted.
+**THE TWO READINGS ARE OPPOSITE INSTRUCTIONS** — *"this already works, why is it a question?"* versus
+*"go and make it work"* — and they are hard to tell apart precisely when the person is being brief because
+they think the answer is obvious. **Ask which.** The cost here was a build, a revert, and reading as not
+listening, against one clarifying sentence.
+**AND THE MEASUREMENT AGREED WITH HIM, WHICH IS WORTH RECORDING SO NOBODY RETRIES IT**: `browsertest`
+passed 12 duels with the auto-advance in, and `mptest` went **105/10**. Declined on design and red in
+practice. See [`DECISIONS.md#main-autoadvance`](docs/DECISIONS.md#main-autoadvance).
+
+**THE LEDGER IS BROADCAST NOW, AND IT CARRIES SEATS RATHER THAN NAMES (2026-09-30).** Aj's host log had
+ten `MAIN → FIGHT … (origin=You)` lines and his client log had **zero**, while both had their eight
+`FIGHT END` lines — the phase walk is host-side authority, recorded where it happens, and nothing told the
+other seats. He chose to broadcast rather than to paper over it with a "recorded on the host's copy" note.
+**`prioSay` IS TO `prioNote` WHAT `say` IS TO `logMsg`** — the public one. A broadcast ledger line carries
+`{sN}` ABSOLUTE-seat tokens and EACH END renders them with its own `logName`; the host's local frame is
+the absolute frame, which is what already lets `sayBroadcast` send a local actor.
+**THE NAMES ARE THE ENTIRE RISK, and shipping the host's rendering verbatim is the obvious implementation:**
+`logName` renders the reader as "You", so a verbatim line tells a CLIENT that IT opened a go-round the HOST
+opened. That is `{who}` / `{foe}` / the `You is` copula for the fourth time, in the one artefact read
+months later by someone who cannot re-check. `nettest_prioledger` asserts both frames off one event —
+host `origin=You`, client `origin=Rival 2` — and the A/B is the point: with the verbatim mutant the
+"the line arrived" assertion stays GREEN *showing the bug*, and only the naming one reds.
+**IT IS NOT ON THE MIRROR, DELIBERATELY.** A mirror is a full snapshot deduped BY CONTENT, so an
+accumulating ledger would change it on every line, defeat the dedupe that stops a client reading stale,
+and grow the one message the table can least afford to grow.
 
 **A GRAMMAR SCAN IS CHEAPER THAN A REVIEW.** `nettest_narrate` greps the rendered client log for `You is`,
 `You has`, `You moves`, `You’s`. None of those has a legitimate reading, all of them have shipped, and the scan
@@ -2234,7 +2266,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127.6 — last FULL sweep 2026-09-30, `npm run sweep`, 103/103 in 258s ON THE EPIC**
+Status as of **v1.31.127.7 — last FULL sweep 2026-09-30, `npm run sweep`, 103/103 in 258s ON THE EPIC**
 (the run before it was 101/103 — `quicktest` and `nettest_ridewedge`, both red for the prompt MODE rather
 than for a defect; see the entry above). A suite count and a date are a MEASUREMENT and are only true of
 the build they were taken on, so re-run before quoting this. (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, `nettest_brake`, `nettest_brake3`, `dragtest`, `lessontest_pickescape`) (four lanes; background
@@ -2252,7 +2284,7 @@ The 58 netplay suites: `nettest_3p` 7, `brake` 24, `brake3` 15, `clientdeal` 10,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 7, `ghostseat` 6, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12.
+`target3` 7, `ghostseat` 6, `prioledger` 8, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state
