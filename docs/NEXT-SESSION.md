@@ -475,7 +475,12 @@ re-read its tag.
   resolution is not reachable by the solo driver.
   `[id: round-2-resolved-twice]`
 
-- `ready to build`      · **THE CLEAN-UP → BEGINNING ORDERING IS FIXED; IT IS THE TEST THAT IS STILL OWED (2026-09-16).** Aj
+- `parked`              · **THE CLEAN-UP → BEGINNING ORDERING IS FIXED; IT IS THE TEST THAT IS STILL OWED (2026-09-16).**
+  **⚠ RETAGGED FROM `ready to build` ON 2026-09-30, AND THE ENTRY ITSELF SAYS WHY** — it is not ready to
+  build, it is blocked on a card existing. Nothing in the game can put a trigger on the stack during
+  Clean-up, so both orders are observationally identical and the test would be vacuous. `parked` is the tag
+  whose definition is *deliberately not now, and the entry says what would revive it* — which this one
+  already did, in its own last paragraph. A tag is a claim and rots like any other. Aj
   called the mis-ordering a bug rather than a latent one and was right — it was shipped code with the
   wrong order in it. `finishCleanup` ran its events and then `pushUpkeepTicks` in the same breath, so a
   trigger a clean-up event had stacked sat UNDERNEATH the ticks and, The Stack being LIFO, the next
@@ -707,7 +712,13 @@ re-read its tag.
   absent. Third suite-versus-reality gap found by playing the tutorials today.
   `[id: twos-lesson-pilot-leads-nothing]`
 
-- `needs a decision`    · **BEFORE SHIP, THE PROMPT CHECKBOXES DEFAULT TO *UNCHECKED*** (Aj, 2026-09-11: *"the checkboxes will be
+- `needs a decision`    · **⚠ THIS DECISION IS MOOT AS OF 2026-09-30 AND SURVIVES ONLY AS CONTEXT — Aj has
+  greenlit RETIRING the per-card checkboxes entirely (*"we can retire the per card prompts now actually,
+  i'm liking the auto and on"*), so "what do they default to at ship" is a question about a control that is
+  being deleted. Fold it into `retire-per-card-prompt-rows` and close this when that lands (named in backticks, NOT in
+  `[id: …]` form — the uniqueness gate reads that as a second declaration, which is how a `closes` claim
+  could pass while the real entry stayed open; it caught this very edit).**
+  The original, kept because its second half is still the live rule: **BEFORE SHIP, THE PROMPT CHECKBOXES DEFAULT TO *UNCHECKED*** (Aj, 2026-09-11: *"the checkboxes will be
   unchecked by default when we finally ship"*). The player opts IN per card, per timing, in the card reader.
   **⚠ THIS ENTRY DESCRIBED A BUILD THAT NO LONGER EXISTS, AND THE GAP COST A REAL SHIELD (2026-09-15).** It
   read *"`promptDefault` currently `return true` — every legal timing stops you — and that is a DEVELOPMENT
@@ -731,7 +742,19 @@ re-read its tag.
   **AND THE SUITES ENCODE TODAY'S DEFAULT** — `prompttest` asserts "the DEFAULTS are today's experience",
   so flipping it is a product change AND a suite change, in one commit.
   `[id: prompt-checkboxes-default]`
-- `ready to build`      · **THE TUTORIALS STILL DO NOT TEACH THE BOUNDARY WINDOWS (the rest of #6, after 2026-09-16).** The
+- `ready to build`      · **⚠ MOSTLY SHIPPED — RE-SCOPED 2026-09-30, AND EVERY PREMISE BELOW IS NOW FALSE.**
+  Its blocker (*"a lesson that wants to TEACH a boundary window has to opt itself back in"*) was BUILT on
+  2026-09-25: `windows:` / `lessonNamesWindow` / `lessonAllowsWindow`. Its named home (*"the Quicks lesson
+  is the only one that teaches responding"*) NO LONGER EXISTS — absorbed into "Phases and Quicks". And that
+  lesson now teaches the model twice over: *"Their play opens a window for you"* and *"Resolution opens a
+  window too — orange — and a different Quick answers it"*, closing with *"Two Quicks, two different
+  windows."*
+  **WHAT IS ACTUALLY LEFT** is the generalisation the lesson stops short of: that priority is passed at
+  EVERY phase and sub-phase change, not only at a cast and at Resolution. The two boundaries it does not
+  name (Upkeep, Clean-up) default OFF, so teaching them means teaching a window the player will not meet —
+  which may be the right reason not to. Re-read before building; the body below describes a build from
+  two weeks ago.
+  **THE ORIGINAL (2026-09-16):** **THE TUTORIALS STILL DO NOT TEACH THE BOUNDARY WINDOWS (the rest of #6).** The
   two-state Fight and the Main-only activation rule are taught now, and all eleven suites are green. What
   is still missing is the model itself: **priority is passed at every phase and sub-phase change**, and no
   lesson says so. A player learns to press Next and Fight without learning WHY there is a crossing.
