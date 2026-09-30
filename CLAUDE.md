@@ -3303,6 +3303,22 @@ bigger word. Four rules, and each is a way a long branch dies:
     different rules while both believe they are fine is the precise failure the handshake exists to
     prevent. **Two EPIC builds only WARN**, deliberately: they may be several merges apart, and locking two
     testers out of the branch they are testing is the worse failure. `nettest_version` drives both.
+  - **AND THE INCREMENT IS A GATE, TRIGGERED BY THE BUILT ARTIFACT** (`checkbranch.js`, pre-push; Aj,
+    2026-09-30: *"oh let's make it a gate then?"*). It shipped as a warning, and the objection to hardening
+    it was real — forcing a bump, a rebuild and both HTML copies for a docs typo would be the rule bullying
+    the work. **Both halves are answered by asking the right question: not "did anything change" but
+    "WOULD A PLAYER GET A DIFFERENT FILE".** `code/CardmenFighter.html` is committed build output, so
+    diffing IT between the epic's merge-base and the pushed tip is the artifact ITSELF rather than a proxy
+    — there is no list of build inputs to drift out of step with `build.js`, and a docs-only PR is silent
+    **by construction** rather than by an escape hatch someone has to remember. That is the generalisable
+    part: when a gate's cost is false positives, look for a trigger that is the thing you actually care
+    about, before reaching for an opt-out.
+    It asserts the RULE and not merely a change — same `X.Y.Z`, fourth segment **strictly greater** —
+    because `now !== was` passes a typo that moves the version backwards or sideways, which is the same
+    build-identity hole one level down. A/B'd six ways: docs-only silent · page moved with no bump REFUSED
+    · page moved with a correct bump silent · backwards bump REFUSED · different base REFUSED · a branch
+    aimed at `main` silent (the one that matters most now it is a hard exit, since a false positive there
+    would block ordinary work).
   - **⚠ EVERY VERSION REGEX HAS TO ALLOW THE FOURTH SEGMENT, AND THE ONES THAT DID NOT FAILED SILENTLY.**
     `v\d+\.\d+\.\d+` **matches the first three of a four-part version and stops** — so `build.js` would
     have stamped `v1.31.127` into a v1.31.127.4 page and printed its byte count happily, and
