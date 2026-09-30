@@ -457,6 +457,29 @@ knows to check whether the epic has already moved the same lines.*
 
 ### Correctness
 
+- `ready to build`      · **THE RESPOND? WINDOW DOES NOT SAY WHAT A TARGETED EFFECT IS TARGETING** (Aj, 2026-09-30,
+  with a screenshot of the window mid-game: *"what is the strip targeting?"*). It reads
+  `Flonne ▸ Forceful Strip · 7♦ (resolves next)` and *"Return Target Equipment to its owner's hand"* — and
+  never names the Equipment. **That is the whole decision**: whether to spend Annoint depends entirely on
+  WHICH piece is about to be stripped, and the one window that exists to let you decide withholds it.
+  **THE DATA IS ALREADY ON THE STACK ENTRY AND THE RENDERER IGNORES IT.** `st.stack.push({ … opts: opts … })`
+  carries the cast's `opts`, and `opts.target` is the equipment id; the stack row builds its `label` from
+  `eff.name` and its `sym` from `o.card`, and reads neither. **Same shape as the forced-discard line fixed
+  the same day** — `ai.js` had recorded `who` and the renderer read only the count. Look for this shape
+  whenever a window under-describes something: the field is usually there.
+  **USE `pickEquip`, DO NOT RE-DERIVE THE NAME.** Annoint's own resolution already resolves the same
+  target with `pickEquip(st, rem.p, rem.opts && rem.opts.target)`, so a label built from that function
+  cannot disagree with what answering will actually protect — which is the failure mode that matters here,
+  worse than saying nothing. This is the `isChopOf` / `resolveIds` rule: one definition, called twice.
+  **IT IS NOT THE ★ STACK VISUALISER, and should not wait for it.** That entry is a presentation overhaul
+  (`stack-visualiser`, parked behind `priority-modal-redesign`); this is one missing noun in a line that
+  already exists, and it is what makes the current window answerable in the meantime.
+  **THE TEST IS BOTH WAYS ON ONE BOARD**, because "names an Equipment" is equally true of a build that
+  names the wrong one: stage TWO pieces of Equipment on the target seat, strip a named one, and require
+  the row to carry that one AND NOT the other. An untargeted effect on the stack must still render
+  unchanged — the row is shared.
+  `[id: stack-row-omits-target]`
+
 - `needs a repro`       · **WAS AJ ACTUALLY TELEKINESIS'D, OR WAS SOMEONE ELSE? THE LOG COULD NOT SAY — AND NOW IT CAN
   (2026-09-30).** He reported *"i did not discard any cards despite being telekinesis'd. was it auto picked
   again?"* from a 3-player game with FOUR `Adell played a Technique - 3♦ Telekinesis` lines in it. The
