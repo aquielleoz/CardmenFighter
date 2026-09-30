@@ -82,20 +82,35 @@ function backlogAt(sha) {
   try { return execSync('git show ' + sha + ':docs/NEXT-SESSION.md', { stdio: ['ignore','pipe','ignore'] }).toString(); }
   catch (e) { return null; }                      // the doc is absent at that commit — nothing to check against
 }
-function baseFor(lsha, rsha) {
-  if (rsha && !/^0+$/.test(rsha)) return rsha;    // updating an existing branch: only the new commits
-  /* A BRAND-NEW BRANCH HAS NO REMOTE SIDE, so fall back to the NEAREST integration point — this repo has two
-   * (`main` and whichever epic is live), and picking the wrong one would drag in an epic's whole history. */
+/* WHICH INTEGRATION BRANCH IS THIS WORK FOR — one definition, two callers with different questions.
+ * `baseFor` wants the SHA to diff from; the epic-build check below wants to know WHICH ref won, because the
+ * rule only applies to work aimed at an epic. Inlining the walk twice is how two copies drift. */
+function nearestIntegration(lsha) {
   var best = null, bestN = Infinity;
   execSync('git for-each-ref --format="%(refname)" refs/remotes/origin/main refs/remotes/origin/epic').toString()
     .split('\n').filter(Boolean).forEach(function (ref) {
       try {
-        var mb = execSync('git merge-base ' + ref.trim() + ' ' + lsha).toString().trim();
+        var r = ref.trim();
+        var mb = execSync('git merge-base ' + r + ' ' + lsha).toString().trim();
         var n = parseInt(execSync('git rev-list --count ' + mb + '..' + lsha).toString().trim(), 10);
-        if (n < bestN) { bestN = n; best = mb; }
+        if (n < bestN) { bestN = n; best = { ref: r, mb: mb }; }
       } catch (e) {}
     });
   return best;
+}
+function baseFor(lsha, rsha) {
+  if (rsha && !/^0+$/.test(rsha)) return rsha;    // updating an existing branch: only the new commits
+  /* A BRAND-NEW BRANCH HAS NO REMOTE SIDE, so fall back to the NEAREST integration point — this repo has two
+   * (`main` and whichever epic is live), and picking the wrong one would drag in an epic's whole history. */
+  var n = nearestIntegration(lsha);
+  return n && n.mb;
+}
+function statusAt(sha) {
+  try {
+    var t = execSync('git show ' + sha + ':README.md', { stdio: ['ignore','pipe','ignore'] }).toString();
+    var m = /\*\*Status:\*\*\s*(v\d+\.\d+\.\d+(?:\.\d+)?[a-z]?)/.exec(t);
+    return m && m[1];
+  } catch (e) { return null; }
 }
 pushRefs().forEach(function (line) {
   if (process.env.EPIC_PUSH === '1') return;
@@ -159,6 +174,35 @@ pushRefs().forEach(function (line) {
     process.exit(1);
   }
   });
+});
+
+/* ---- THE EPIC BUILD NUMBER — A WARNING, NOT A GATE (2026-09-30).
+ * An epic build is `vX.Y.Z.a`: X.Y.Z is the main version it is based on and never moves, `a` increments on
+ * every merge INTO the epic. That number is what lets `verIncompatible` tell two builds on the same branch
+ * apart — hold it still and the branch where builds change fastest is the one where every build claims to
+ * be the same, which is the hole the four-number scheme exists to close.
+ * COMPARED AGAINST THE EPIC, NOT `baseFor`. On a second push to the same branch `baseFor` returns that
+ * branch's own previous tip, so the bump would already be behind it and the check would say nothing — the
+ * question is always "does this differ from the epic I am merging into".
+ * WHY IT ONLY WARNS: a docs-only PR into an epic produces nothing anyone can download, and forcing a bump,
+ * a rebuild and both HTML copies for a typo fix would be the rule bullying the work — the same call the
+ * two-to-four-word note makes below. What it buys is that nobody forgets the bump silently. */
+pushRefs().forEach(function (line) {
+  if (process.env.EPIC_PUSH === '1') return;
+  var f = line.trim().split(/\s+/), lsha = f[1] || '', rref = f[2] || '';
+  if (!lsha || /^0+$/.test(lsha)) return;
+  if (rref === 'refs/heads/main' || rref.indexOf('refs/heads/epic/') === 0) return;
+  var n = nearestIntegration(lsha);
+  if (!n || n.ref.indexOf('refs/remotes/origin/epic/') !== 0) return;   // aimed at main — this rule is not about you
+  var was = statusAt(n.mb), now = statusAt(lsha);
+  if (!was || !now) return;
+  if (!/^v\d+\.\d+\.\d+\.\d+/.test(was)) return;   // that epic has not adopted the scheme
+  if (now !== was) return;                            // bumped
+  console.error('⚠ branch "' + branch + '": README **Status:** is still ' + was + ', the same as ' +
+                n.ref.replace('refs/remotes/', '') + '.');
+  console.error('  An epic increments the FOURTH number on every merge into it, so two builds of the branch');
+  console.error('  can be told apart — that is what makes the netplay handshake able to refuse a stale peer.');
+  console.error('  Bump README\'s **Status:** line, rebuild, and copy the page to the repo root.');
 });
 
 if (branch === 'main' || branch === 'HEAD') process.exit(0);
