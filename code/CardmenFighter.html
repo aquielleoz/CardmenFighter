@@ -6800,7 +6800,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.127.4';
+  var GAME_VERSION='v1.31.127.5';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -8320,9 +8320,23 @@ window.CardFace = {};
         c.className='formChip'+(f.tier==='ride'?' ride':'');
         c.innerHTML=rankLabel(f.rank)+'<span class="'+(red(f.suit)?'sr':'')+'">'+SUIT_SYMBOL[f.suit]+'</span>';
         if(f.card){
-          c.title=(f.name||'')+' — tap to read';
+          /* ⚠ A COLLAPSED CHIP DOES NOT READ — IT EXPANDS (Aj, 2026-09-30: *"tap expands, then tapping the
+             expanded one reads, tapping out does what it already does"*). The chip used to call `readCard`
+             and `stopPropagation()` in EVERY layout, and the chips fill the strip — so the only surface
+             left for the strip's expand handler was the sliver of padding around them, and with one Form
+             in the zone there is none. The zone could not be expanded at all while its own `title`
+             promised *"Tap to expand"*.
+             THIS WAS A COLLISION BETWEEN TWO CORRECT DECISIONS, not a stray line, which is why neither
+             half is deleted. The per-chip read path was added FOR the landscape band, where the zone
+             deliberately never expands (v1.31.111: `#table` is 87px at 800x360 and two expanded zones need
+             112px) and reading a Form has nowhere else to live. So the read stays there and ONLY there;
+             everywhere else the tap falls through to the strip and opens the zone, and the expanded card
+             is what you then tap to read. Tapping outside already collapses it — a document listener that
+             calls `collapseForms()` for any click outside `.formZone` — so the three states close a loop.
+             HOVER STILL PREVIEWS in both, because it costs no tap and cannot swallow one. */
+          c.title=(f.name||'')+(land?' — tap to read':' — tap to expand');
           (function(fc){ c.addEventListener('mouseenter', function(){ showCard(fc); }); })(f.card);
-          (function(fc){ c.addEventListener('click', function(ev){ ev.stopPropagation(); readCard(fc); }); })(f.card);
+          if(land) (function(fc){ c.addEventListener('click', function(ev){ ev.stopPropagation(); readCard(fc); }); })(f.card);
         }
         strip.appendChild(c);
       });

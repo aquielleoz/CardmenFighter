@@ -15,7 +15,7 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.127.4.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.127.5.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
@@ -559,26 +559,6 @@ re-read its tag.
   widening `.modal`. Note the rules panel's columns are keyed to WIDTH (1040px/1400px); this one wants short
   and wide, so the query is the landscape band, not a width breakpoint.
   `[id: setup-dialog-three-columns]`
-
-- `root cause found`    · **CLICKING A FORM/RIDE CHIP OPENS THE READER AND CAN NEVER EXPAND THE ZONE** (Aj, 2026-09-11, playing the
-  build: *"clicking the jack does not expand it. it directly goes to the card viewer"*). The collapsed
-  Forms & Rides strip carries a click handler that sets `formsOpen` — but only outside the short-landscape
-  band — while EVERY CHIP inside it carries its own handler that calls `readCard` and `stopPropagation()`.
-  The chips fill the strip, so the only surface left for the expand is the sliver of padding around them,
-  and with one Form in the zone there is effectively none.
-  **THE STRIP ITSELF PROMISES THE THING IT CANNOT DO**: its `title` is set to *"Tap to expand"* in exactly
-  the layouts where the chip swallows the click, and *"Tap a card to read it"* in the landscape band where
-  refusing to expand is deliberate (v1.31.111 — `#table` is 87px at 800x360 and two expanded zones need
-  112px, so expanding there could only re-create the overlap that version removed).
-  **This is a collision between two correct decisions, not a stray line.** The per-chip read path was added
-  FOR the landscape band, where it is the only way to read a Form; `stopPropagation` was added so a chip
-  would not also toggle the strip "in the layouts that do expand" — and the two together mean those layouts
-  can no longer be expanded at all. Whoever picks this up should decide what the chip means per layout
-  rather than delete either half: plausibly, tap-to-expand and a separate affordance to read (the hover
-  already calls `showCard`), or drop the expand outside landscape entirely and make the title honest.
-  **Verify by LAYOUT, not by clicking once** — `shortLandscape()` splits the behaviour, so a fix checked
-  only on desktop or only on a phone proves nothing about the other.
-  `[id: clicking-form-ride-chip]`
 
 #### Tutorials and prompts
 

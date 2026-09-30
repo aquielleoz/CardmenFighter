@@ -486,7 +486,26 @@ const CASES=[
        its own card, which is the read path that refusal owes the player. A suite that only knew the portrait
        behaviour would report six reds for a deliberate decision. */
     const landBand = (h<=520 && w>h);
-    await p.evaluate(()=>{ const s=document.querySelector('.formStrip'); if(s) s.click(); });
+    /* ⚠ EXPAND BY CLICKING A **CHIP**, NOT THE STRIP — the chip is where the bug lived (Aj, 2026-09-11:
+       *"clicking the jack does not expand it. it directly goes to the card viewer"*). Every chip carried
+       its own `readCard` + `stopPropagation()` in every layout, and the chips FILL the strip, so the only
+       surface left for the expand was the sliver of padding around them — with one Form in the zone,
+       effectively none. Clicking `.formStrip` hits that sliver directly and therefore always worked,
+       which is exactly why staging it that way could not see the defect.
+       A collapsed chip now falls through to the strip and OPENS the zone; the expanded card is what you
+       tap to read; clicking outside still collapses it (a document listener on anything outside
+       `.formZone`). In the landscape band the chip keeps reading, because the zone deliberately never
+       expands there and reading would otherwise have nowhere to live. */
+    const expandedByChip = await p.evaluate(()=>{
+      const c=document.querySelector('.formChip'); if(!c){ const s=document.querySelector('.formStrip'); if(s) s.click(); return null; }
+      c.click(); return true;
+    });
+    /* ⚠ NO SECOND, UNCONDITIONAL STRIP CLICK. The first cut had one here "for the INCARNATION case", and
+       it made the assertion below BLIND: with the chip merely reading, the strip click expanded the zone
+       anyway, so `minis>0` held either way and the mutant passed 195/0. The no-chip fallback already
+       happens INSIDE the evaluate above, in the branch that returns null — which is the only case that
+       needs it. A fallback that also runs on the path under test is not a fallback, it is a second way to
+       pass. */
     await p.evaluate(()=>{ const e=document.querySelector('.eq'); if(e) e.click(); });
     await settledBoard(p);
     const x=await p.evaluate(()=>{
@@ -524,6 +543,9 @@ const CASES=[
          `${tag}: …and a chip READS its card instead (reader went "${(read.before||'').slice(0,22)}" → "${(read.after||'').slice(0,28)}")`);
     } else {
       ok(x.minis>0, `${tag}: STAGED EXPANDED — the Forms zone really opened into ${x.minis} cards`);
+      ok(expandedByChip===null || x.minis>0,
+         `${tag}: …and a CHIP is what opened it — the tap is not swallowed by the reader` +
+         (expandedByChip && x.minis>0 ? '' : '  ← REPRODUCED: the chip read its card instead of expanding'));
       /* ONE SIZE OVERFLOWS THE BOARD WHEN A ZONE EXPANDS, AND ITS COVERAGE NUMBER IS THEREFORE UNSTABLE.
          At 327x660 expanding both of a seat's zones adds 75px to a panel and pushes `#board` **63px** past
          its height (393x852 goes 10px over; every other phone size stays at 0). Once the board overflows,

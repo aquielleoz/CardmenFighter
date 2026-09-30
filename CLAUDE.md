@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.127.4**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.127.5**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -2202,14 +2202,14 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127.4 — last FULL sweep 2026-09-30, `npm run sweep`, 103/103 in 258s ON THE EPIC**
+Status as of **v1.31.127.5 — last FULL sweep 2026-09-30, `npm run sweep`, 103/103 in 258s ON THE EPIC**
 (the run before it was 101/103 — `quicktest` and `nettest_ridewedge`, both red for the prompt MODE rather
 than for a defect; see the entry above). A suite count and a date are a MEASUREMENT and are only true of
 the build they were taken on, so re-run before quoting this. (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, `nettest_brake`, `nettest_brake3`, `dragtest`, `lessontest_pickescape`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 591, `netview` 65, `mptest` 115, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
+`test` 591, `netview` 65, `mptest` 115, `rulestest` 150, `landscapetest` 195, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 18, `lessontest` 20, `lessontest_energyorder` 14,
 `versiontest` 33, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 46, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
@@ -2646,6 +2646,19 @@ only that it was load-sensitive. Forcing seat 2 to two shields reproduced it on 
 named the mechanism exactly; the fix was then verified against that same forcing, and separately A/B'd
 against the REAL bug (restore the old two-seat reach → `+0`, control still green) so the repair could not
 quietly make the assertion vacuous.
+
+**A FALLBACK THAT ALSO RUNS ON THE PATH UNDER TEST IS NOT A FALLBACK, IT IS A SECOND WAY TO PASS
+(2026-09-30).** A new `landscapetest` leg staged the Forms zone by clicking a CHIP — the surface the bug
+was in — and then clicked `.formStrip` unconditionally *"for the INCARNATION case, which has no chips"*.
+Both clicks expand, so with the chip merely reading the strip opened the zone anyway: **the mutant passed
+195/0.** The assertion was written specifically to catch that mutant, and could not.
+**THE TELL IS A FALLBACK WITH NO CONDITION ON IT.** The no-chip case already had its own branch inside the
+`evaluate`; the extra click ran on every path, including the one being measured. Gate a fallback on the
+thing it is falling back FROM, or it is an alternative route to the same green.
+**AND IT WAS CAUGHT ONLY BY THE A/B, WHICH IS THE POINT.** Everything else looked right — the leg was
+green on the fix, red-shaped in its message, split correctly by layout, and sitting beside six passing
+landscape assertions. Nothing short of reintroducing the defect would have shown it. This is the fourth
+green-and-blind in this file and the first one that was *in the assertion written to prevent the third*.
 
 **A SUITE CAN ALSO PIN THE DEFECT — AS FIRMLY AS IT PINS A FEATURE (2026-09-17).** `nettest_emote`'s
 expected output was literally `/^You says hi!/`: the exact "You" + third-person-verb shape that
