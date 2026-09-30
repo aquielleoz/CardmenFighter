@@ -15,7 +15,7 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.127.7.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.127.8.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
@@ -445,6 +445,24 @@ knows to check whether the epic has already moved the same lines.*
 
 ### Correctness
 
+- `needs a repro`       · **WAS AJ ACTUALLY TELEKINESIS'D, OR WAS SOMEONE ELSE? THE LOG COULD NOT SAY — AND NOW IT CAN
+  (2026-09-30).** He reported *"i did not discard any cards despite being telekinesis'd. was it auto picked
+  again?"* from a 3-player game with FOUR `Adell played a Technique - 3♦ Telekinesis` lines in it. The
+  question was unanswerable, because `buildOppBeats` rendered a forced discard with the CASTER's name — so
+  *"Adell discarded 2 cards"* and "somebody was hit and we cannot tell who" were the same text. **That half
+  is fixed**: the line names the target (`oppbeatstest`, A/B'd).
+  **WHAT IS STILL OPEN is whether a discard owed by the HUMAN ever gets asked for.** Measured on the way:
+  the ENGINE is correct — a staged AI cast at seat 0 returns `ok`, sets `discardPending {player:0,count:2}`
+  and leaves the hand untouched for the target to choose. So if he WAS the target, the gap is in the UI
+  never opening the picker. `runOpponents`' `step()` does check
+  `state.discardPending && state.discardPending.player===YOU` first, so it should prompt — which is
+  precisely why this needs a repro rather than a patch.
+  **THE CHEAP NEXT STEP IS HIS NEXT LOG.** With the naming fixed, one more 3-player game says outright
+  whether he is ever the target; if he is and no `You discarded` line follows, the picker is the bug and
+  the repro is already half-built. A staged attempt to make the AI cast it did NOT cast — its heuristics
+  declined — so drive the engine directly (`E.activate(st, 1, 'tk', {target:0})`) and then let the UI run.
+  `[id: telekinesis-target-never-asked]`
+
 - `root cause found`    · **THE HOST'S "🔔 Ping the table" IS INVISIBLE TO THE CLIENT — IT PAINTS BEHIND THE LOBBY (reported in live
   play, 2026-09-15).** The client's handler is `SFX.play('ping'); setMessage(…)`, and `setMessage` writes
   `#message`, which lives **inside the board**. `#netroot` is `position:fixed; inset:0` at `--zNetroot`, so
@@ -695,15 +713,6 @@ never read.*
   comment already credits the wording to Aj (*"One neutral line for everyone (Aj's wording)"*), so the
   split between what is broadcast and what stays local is his call, not a refactor.
   `[id: client-never-told-draw-fizzled]`
-
-- `ready to build`      · **`handleDiscardAfterAction` HARDCODES "Rival" AND IS HOST-LOCAL** (same audit). Filed for `main`.
-  `logMsg('<b>Rival</b> discarded N cards.')` — two documented smells in one line. CLAUDE.md states
-  *"Announcements name seats via `logName(seat)`; there is no hardcoded 'Rival' left in them"*, and there
-  is: at 3-6 players it names nobody in particular, and being `logMsg` it never leaves the host.
-  **LOW SEVERITY, MEASURED.** It sits in `activate`, which returns early for a client (`isClientActive` →
-  `clientSend`), so only a HOST reaches it; the seat that actually discarded sees its own hand shrink via
-  the mirror. What is lost is the narration for everyone else, and the wrong name at a full table.
-  `[id: discard-line-hardcodes-rival]`
 
 - `ready to build`      · **★ THE BROADWAY PITCH CHOOSES ITSELF, FOR BOTH SIDES** (Aj, 2026-09-07, from real play: *"oh no it did not
   let me pick which broadway card.... this is a bug for sure.. and probably more of a problem in multiplayer
