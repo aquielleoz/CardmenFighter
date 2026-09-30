@@ -84,6 +84,19 @@ async function dragToTable(page, id){
   ok(await until(async()=>(await snap(join)).pile>0, 60), '  → and the client sees it, so the host path is unbroken');
   ok(await until(async()=>(await snap(join)).yourTurn, 60), 'the turn reached the client');
 
+  /* ⚠ CHECK THE INSTRUMENT FIRST. `reduceMotion()` returns BEFORE either entrance branch, so a browser
+     reporting reduced motion makes the counter read 0 for a reason that has nothing to do with the code
+     under test. */
+  const motion = await join.evaluate(()=>!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  ok(motion, 'the client is not in reduced-motion, so the entrance animation runs at all');
+  /* THE CONTROL, TAKEN HERE BECAUSE THE HOST HAS JUST PLAYED AND THE CLIENT HAS RENDERED IT. A card
+     arriving from the HOST was never in this client's hand, so it must NOT flip — the slide from a seat's
+     side is what "from over there" looks like, and it is the only cue for whose play it was. Without this
+     the assertion below passes on a build that flips everything. */
+  const flipsFromHostPlay = await join.evaluate(()=>window.__cmf && window.__cmf.flips ? window.__cmf.flips() : -1);
+  ok(flipsFromHostPlay===0,
+     `the HOST's card slid in on the client — it was never in that hand (${flipsFromHostPlay} FLIP entrance(s), must be 0)`);
+
   // ---- CLIENT plays by DRAGGING. This is the bug. ----
   const joinRoundBefore=(await snap(join)).round;
   await enterFight(join);
@@ -99,6 +112,21 @@ async function dragToTable(page, id){
   // The client must not have advanced the round on its own — that is the phantom-round signature.
   const jr=(await snap(join)).round, hr=(await snap(host)).round;
   ok(jr<=hr, '  → and the client did not advance past the host on its own (client '+jr+' vs host '+hr+')');
+
+  /* ---------- AND THE CLIENT'S OWN PLAY MUST *FLY* (2026-09-30).
+     Aj, 2026-09-16: *"i expected the cards to fly into the play area"*. `animatePileEntrance` does a true
+     FLIP from the card's own slot in your hand when `flipFrom` holds its rect, and otherwise slides it in
+     from a seat's side. The capture sat three lines BELOW `playCards`' client return, so on a client your
+     own play had no capture at all: it went to the host, came back as a mirror, and took the rival's
+     slide. This suite already drove exactly that path and never looked at the animation.
+     ⚠ ASSERT THE BRANCH, NOT THE STYLE. The initial inline `opacity`/`transform` survives about two frames
+     before the transition clears it, so polling for it is a race — the shape this repo has paid for four
+     times over. `__cmf.flips()` counts inside the function itself, so deleting the capture is observable
+     and nothing sitting beside the call can agree with it by accident. */
+  const flipsAfterOwn = await join.evaluate(()=>window.__cmf && window.__cmf.flips ? window.__cmf.flips() : -1);
+  ok(flipsAfterOwn>flipsFromHostPlay,
+     `CLIENT: its OWN played card FLIES from its slot in hand (${flipsFromHostPlay} → ${flipsAfterOwn} FLIP entrances)` +
+     (flipsAfterOwn>flipsFromHostPlay?'':"  ← REPRODUCED: the client's own play slid in like a rival's"));
 
   const jlog=(await snap(join)).log;
   ok(!/NaN|undefined/.test(jlog), '  → and no NaN/undefined card appears, which a local play off a redacted mirror produces');
