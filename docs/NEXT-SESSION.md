@@ -874,6 +874,21 @@ never read.*
 
 ### Tooling
 
+- `ready to build`      · **SUITE COUNTS ARE DECLARED TWICE IN CLAUDE.md AND NOTHING CHECKS EITHER — 27 WERE STALE
+  (2026-09-30).** `versiontest` asserts `test` and `netview` only. The verified list had drifted in 3
+  places and **the COMMAND LIST in 24**, some wildly: `rulestest` said 36 against a real 150,
+  `landscapetest` 96 against 195, `peektest` 31 against 43, `resolutiontest_ui` 46 against 71. All 27 are
+  corrected; the DEFECT is that a second hand-maintained copy exists at all, which this repo's own rule
+  forbids — a measurement lives in one place, and any second copy must be ASSERTED rather than written.
+  **THE FIX IS SMALL AND FOLLOWS AN EXISTING PATTERN:** `sweep.js` already writes `.sweep-times.json`, so
+  have it record each suite's `PASS:` count in the same file, and have `docsweep.js` report declared-vs-
+  actual. **Report, never gate** — a suite legitimately changes count in the same commit that changes the
+  doc, and a gate would fire on the way past.
+  **THE COMMAND LIST IS THE ONE THAT MATTERS**, because it is what a session reads first to decide what to
+  run — and it was the one nobody was updating. Note a scan that reads only the first line of each `node
+  x.js` entry misses five, since several carry the count on a continuation line.
+  `[id: suite-counts-declared-twice]`
+
 - `needs a decision`    · **`exporttest` IS TIME-CAPPING IN THE SWEEP — GREEN, BUT TESTING LESS THAN IT
   MEANS TO (2026-09-24).** Surfaced by the sweep's new warnings section, which prints a passing suite's own
   `⚠` lines: *"driver stopped on the 90s WALL CLOCK — the board stopped advancing"*, **twice in one run**,
