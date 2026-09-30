@@ -82,20 +82,35 @@ function backlogAt(sha) {
   try { return execSync('git show ' + sha + ':docs/NEXT-SESSION.md', { stdio: ['ignore','pipe','ignore'] }).toString(); }
   catch (e) { return null; }                      // the doc is absent at that commit — nothing to check against
 }
-function baseFor(lsha, rsha) {
-  if (rsha && !/^0+$/.test(rsha)) return rsha;    // updating an existing branch: only the new commits
-  /* A BRAND-NEW BRANCH HAS NO REMOTE SIDE, so fall back to the NEAREST integration point — this repo has two
-   * (`main` and whichever epic is live), and picking the wrong one would drag in an epic's whole history. */
+/* WHICH INTEGRATION BRANCH IS THIS WORK FOR — one definition, two callers with different questions.
+ * `baseFor` wants the SHA to diff from; the epic-build check below wants to know WHICH ref won, because the
+ * rule only applies to work aimed at an epic. Inlining the walk twice is how two copies drift. */
+function nearestIntegration(lsha) {
   var best = null, bestN = Infinity;
   execSync('git for-each-ref --format="%(refname)" refs/remotes/origin/main refs/remotes/origin/epic').toString()
     .split('\n').filter(Boolean).forEach(function (ref) {
       try {
-        var mb = execSync('git merge-base ' + ref.trim() + ' ' + lsha).toString().trim();
+        var r = ref.trim();
+        var mb = execSync('git merge-base ' + r + ' ' + lsha).toString().trim();
         var n = parseInt(execSync('git rev-list --count ' + mb + '..' + lsha).toString().trim(), 10);
-        if (n < bestN) { bestN = n; best = mb; }
+        if (n < bestN) { bestN = n; best = { ref: r, mb: mb }; }
       } catch (e) {}
     });
   return best;
+}
+function baseFor(lsha, rsha) {
+  if (rsha && !/^0+$/.test(rsha)) return rsha;    // updating an existing branch: only the new commits
+  /* A BRAND-NEW BRANCH HAS NO REMOTE SIDE, so fall back to the NEAREST integration point — this repo has two
+   * (`main` and whichever epic is live), and picking the wrong one would drag in an epic's whole history. */
+  var n = nearestIntegration(lsha);
+  return n && n.mb;
+}
+function statusAt(sha) {
+  try {
+    var t = execSync('git show ' + sha + ':README.md', { stdio: ['ignore','pipe','ignore'] }).toString();
+    var m = /\*\*Status:\*\*\s*(v\d+\.\d+\.\d+(?:\.\d+)?[a-z]?)/.exec(t);
+    return m && m[1];
+  } catch (e) { return null; }
 }
 pushRefs().forEach(function (line) {
   if (process.env.EPIC_PUSH === '1') return;
@@ -159,6 +174,57 @@ pushRefs().forEach(function (line) {
     process.exit(1);
   }
   });
+});
+
+/* ---- THE EPIC BUILD NUMBER — A GATE (2026-09-30, Aj: *"oh let's make it a gate then?"*).
+ * An epic build is `vX.Y.Z.a`: X.Y.Z is the main version it is based on and never moves, `a` increments on
+ * every merge INTO the epic. That number is what lets `verIncompatible` tell two builds on the same branch
+ * apart — hold it still and the branch where builds change fastest is the one where every build claims to
+ * be the same, which is the hole the four-number scheme exists to close.
+ * COMPARED AGAINST THE EPIC, NOT `baseFor`. On a second push to the same branch `baseFor` returns that
+ * branch's own previous tip, so a bump made in an earlier commit would already be behind it and the check
+ * would say nothing — the question is always "does this differ from the epic I am merging into".
+ * ⚠ THE TRIGGER IS THE BUILT ARTIFACT, AND THAT IS WHAT MAKES A HARD GATE DEFENSIBLE. It shipped as a
+ * warning because forcing a bump, a rebuild and both HTML copies for a docs typo would be the rule
+ * bullying the work — a real cost, and the reason to gate anyway is that a warning nobody has to obey is
+ * the honour system this file exists to replace. Both are answered by asking the right question: not "did
+ * anything change" but **"would a player get a different file"**. `code/CardmenFighter.html` is committed
+ * build output, so diffing IT at the two commits is the artifact itself rather than a proxy for it — no
+ * list of build inputs to drift out of step with `build.js`, and a docs-only PR is silent by construction
+ * rather than by an escape hatch someone has to remember.
+ * AND IT ASSERTS THE RULE, NOT MERELY A CHANGE: same X.Y.Z, and `a` STRICTLY GREATER. `now !== was` would
+ * pass a typo that moved the version backwards or sideways, which is the same build-identity hole one
+ * level down. */
+function epicBuildOf(v) {                       // the 4th segment, or null for a main build
+  var m = /^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?/.exec(String(v || ''));
+  return m ? { base: m[1] + '.' + m[2] + '.' + m[3], n: m[4] == null ? null : +m[4] } : null;
+}
+function pageChanged(a, b) {
+  try { execSync('git diff --quiet ' + a + ' ' + b + ' -- code/CardmenFighter.html', { stdio: 'ignore' }); return false; }
+  catch (e) { return true; }                    // non-zero exit = the built page differs
+}
+pushRefs().forEach(function (line) {
+  if (process.env.EPIC_PUSH === '1') return;
+  var f = line.trim().split(/\s+/), lsha = f[1] || '', rref = f[2] || '';
+  if (!lsha || /^0+$/.test(lsha)) return;
+  if (rref === 'refs/heads/main' || rref.indexOf('refs/heads/epic/') === 0) return;
+  var n = nearestIntegration(lsha);
+  if (!n || n.ref.indexOf('refs/remotes/origin/epic/') !== 0) return;   // aimed at main — this rule is not about you
+  var was = statusAt(n.mb), now = statusAt(lsha);
+  if (!was || !now) return;
+  var ep = epicBuildOf(was), np = epicBuildOf(now);
+  if (!ep || !np || ep.n == null) return;       // that epic has not adopted the scheme
+  if (!pageChanged(n.mb, lsha)) return;         // docs-only: a player would get the same file
+  var epicRef = n.ref.replace('refs/remotes/', '');
+  if (np.base === ep.base && np.n != null && np.n > ep.n) return;       // bumped, correctly
+  console.error('✗ branch "' + branch + '": the built page differs from ' + epicRef +
+                ', but README **Status:** went ' + was + ' → ' + now + '.');
+  console.error('  An epic increments the FOURTH number on every merge into it, so two builds of the branch');
+  console.error('  can be told apart — that is what makes the netplay handshake able to refuse a stale peer.');
+  console.error('  Expected ' + ep.base + '.' + (ep.n + 1) + ' or later (same base, higher build number).');
+  console.error('  Bump README\'s **Status:** line, `node build.js`, and copy the page to the repo root.');
+  console.error('  A docs-only change needs no bump and is not checked — this fired because the BUILT PAGE moved.');
+  process.exit(1);
 });
 
 if (branch === 'main' || branch === 'HEAD') process.exit(0);

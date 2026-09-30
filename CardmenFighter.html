@@ -6794,7 +6794,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.127';
+  var GAME_VERSION='v1.31.127.1';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -16236,11 +16236,25 @@ window.CardFace = {};
      * AN UNPARSEABLE VERSION FALLS BACK TO WARNING, never to refusing. A peer old enough to send something
      * this cannot read is exactly the peer a hard refusal would strand, and the warning is the behaviour it
      * already expects. */
-    function verParts(v){ var m=/^v?(\d+)\.(\d+)\.(\d+)/.exec(String(v||'')); return m ? [+m[1], +m[2], +m[3]] : null; }
+    /* ⚠ THE FOURTH SEGMENT IS AN EPIC BUILD AND IT IS PART OF THE ANSWER (2026-09-30). `vX.Y.Z.a` means
+       "based on main's X.Y.Z, epic build a"; a main build has three. The old pattern matched the first
+       three and stopped, so an epic build and the main build it forks from parsed IDENTICALLY — and the
+       handshake, whose entire job is to stop two people playing different rules while both believe they
+       are fine, said nothing. That is the failure it exists to prevent, on the one pair of builds most
+       likely to meet. The 4th is captured, and `null` when absent means "a main build". */
+    function verParts(v){ var m=/^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?/.exec(String(v||'')); return m ? [+m[1], +m[2], +m[3], (m[4]==null?null:+m[4])] : null; }
     function verIncompatible(theirs){
       var a=verParts(netVersion()), b=verParts(theirs);
       if(!a || !b) return false;                               // cannot tell — warn, do not strand them
-      return a[0]!==b[0] || a[1]!==b[1];
+      if(a[0]!==b[0] || a[1]!==b[1]) return true;                // the minor is what this scheme means by "the rules moved"
+      /* AND AN EPIC BUILD REFUSES AGAINST A MAIN BUILD (Aj, 2026-09-30: *"refuse against main"*). An epic
+         holds its minor by design — `versiontest` asserts the handoff's "`main` is at vX" against README —
+         so an epic and the main it forks from share a minor while genuinely disagreeing about the rules.
+         The 4th segment is the only thing that can say so, which is why it exists.
+         TWO EPIC BUILDS ONLY WARN, deliberately: they may be several merges apart and so may differ, but
+         locking two testers out of the branch they are testing is the worse failure, and the warning
+         already names both versions. Revisit if an epic ever ships to people who are not testing it. */
+      return (a[3]==null) !== (b[3]==null);
     }
     function netVersion(){
       var m=/[?&]ver=([^&]+)/.exec(location.search);
