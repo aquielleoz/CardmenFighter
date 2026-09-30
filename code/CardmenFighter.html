@@ -6810,7 +6810,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.127.7';
+  var GAME_VERSION='v1.31.127.8';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -11185,7 +11185,17 @@ window.CardFace = {};
         else if(e.phantasm){ beats.push({ dwell:1300, run:function(){ say(seat, '{who} conjured a Phantasmal Illusion — a '+kindLabel(e.made)+' overtakes the pile.', 'rival'); setMessage('🎭 <b>Rival warped your play with a Phantasmal Illusion!</b>'); render(); } }); }
         else if(e.fight==='pass'){ beats.push({ dwell:950, run:function(){ say(seat, '{who} passed.', 'rival'); setMessage('<b>'+who+'</b> passed.'); render(); } }); }
         else if(e.discard){ beats.push({ dwell:600, run:function(){ say(seat, '{who} discarded '+e.discard+' to hand size.', 'rival'); } }); }
-        else if(e.forcedDiscard){ beats.push({ dwell:750, run:function(){ say(seat, '{who} discarded '+e.forcedDiscard+' card'+(e.forcedDiscard>1?'s':'')+'.', 'rival'); } }); }
+        /* ⚠ A FORCED DISCARD NAMES THE TARGET, NOT THE CASTER (Aj, 2026-09-30: *"i did not discard any
+           cards despite being telekinesis'd. was it auto picked again?"*). `buildOppBeats`' `seat` is the
+           seat whose TURN is being presented — the caster — so a Telekinesis Adell cast at someone else
+           was narrated *"Adell discarded 2 cards."* about Adell's own hand.
+           THE TARGET WAS ALREADY IN THE DATA AND THE RENDERER THREW IT AWAY: `ai.js` records
+           `{ forcedDiscard: n, who: dr0.player }`, and only the count was read. That is the whole fix.
+           IT IS WHY HIS QUESTION COULD NOT BE ANSWERED FROM THE LOG. Four Telekinesis casts appear in
+           that game and not one line says who was hit, so "I was targeted and nothing happened" and
+           "someone else was targeted" are the same text — which is the shape this repo's own rule calls
+           a diagnostic that cannot explain itself. */
+        else if(e.forcedDiscard){ beats.push({ dwell:750, run:function(){ say((e.who!=null?e.who:seat), '{who} discarded '+e.forcedDiscard+' card'+(e.forcedDiscard>1?'s':'')+'.', 'rival'); } }); }
         else if(e.lockedSkip){ beats.push({ dwell:650, run:function(){ say(seat, 'Back Stab locked {who} out — turn skipped.', 'warn'); setMessage('<b>'+who+'</b> is locked out — turn skipped.'); render(); } }); }
         else if(e.stuck){ beats.push({ dwell:650, run:function(){ say(seat, '{who} ran out of cards!', 'warn'); setMessage('<b>'+who+'</b> is out of cards!'); render(); } }); }
       });
@@ -16874,7 +16884,7 @@ window.CardFace = {};
   /* Prompt-preference hooks (epic step 15). `promptPrefs` returns the STORED overrides, not the resolved
      rows, because the suite's load-bearing assertion is that only overrides are stored. Duplicate-key check
      run on this literal before adding — CLAUDE.md's `__cmf` trap applies here too. */
-  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
+  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
     promptWanted:promptWanted, setPromptMode:setPromptMode, promptMode:function(){ return PROMPT_MODE; }, showCard:showCard,
     /* LEGAL IS NOT THE SAME QUESTION AS WANTED, and since the boundary defaults went off they give
        different answers — which is the invariant worth being able to assert: an unchecked timing still
