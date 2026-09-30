@@ -37,13 +37,23 @@
  *     because Counter Spell targets an effect on the stack and `canCastQuick` refuses a cast with no legal
  *     target. Armor Piercing (♣7 under Hippolyta ♣Q) is `onWin` and targets nothing — which is exactly why the
  *     reported game's client was offered it. Its `pitchHigh` also needs a Broadway card in hand.
+ *   - AND `prompts=all`, WHICH IS A THIRD STAGING FACT AND NOT A CONVENIENCE (2026-09-30). Since the AUTO
+ *     default became stake-driven (`e41e459`) a seat is interrupted only when `stakeFor` says something is
+ *     at risk, and a RIDE is not a shield event — so on the default mode the client auto-passes, no window
+ *     opens, and the two window steps below go red while the WEDGE assertion they exist to set up still
+ *     passes. That is this file failing for the mode rather than for a defect: bisected to `e41e459`, green
+ *     on its parent, and the flag restores the board this suite was written against.
+ *     THE GUARD STILL DISCRIMINATES WITH IT ON — A/B'd 2026-09-30 by deleting the `NET.hostAfterOwnCast(gen)`
+ *     hop from the transform branch: 8/1, with the captured host state matching the original report word for
+ *     word (`turn=0`, *"Hold on — the board is still resolving."*). A flag that quietly made this green would
+ *     be worth nothing, so that check belongs with the flag.
  * Run: node nettest_ridewedge.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
 const { enterFight } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8365),ROOM='RW'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
-const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
+const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1&prompts=all`;
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const D=(n,s,t)=>({rank:n,suit:s,id:(t||'')+n+s});
 const turnOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.turn():null);

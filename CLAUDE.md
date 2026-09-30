@@ -2212,7 +2212,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 591, `netview` 65, `mptest` 113, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 17, `lessontest` 20, `lessontest_energyorder` 14,
-`versiontest` 33, `sharetest` 17, `dragtest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 46, `lessontest_howto` 25,
+`versiontest` 33, `sharetest` 17, `dragtest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 10, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 46, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 31, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
@@ -2601,6 +2601,30 @@ reproduces the filed symptom word for word: *"Rival 2 is deciding…"* on a host
 resume it, whereas a host that FOUGHT correctly hands the turn over and shows "Waiting for opponent…".
 It nearly reported a wedge that was correct play. The liveness question is **does the table move**: drive
 the other seat's turn and require control to come back.
+
+**AND IT PINS A DEFAULT JUST AS FIRMLY — TWO SUITES WENT RED FOR THE MODE, NOT FOR A DEFECT
+(2026-09-30).** Making AUTO stake-driven (`e41e459`) turned `quicktest` and `nettest_ridewedge` red, and
+both look exactly like a broken priority window: *"the Respond? window OPENS … it auto-declined instead"*.
+Neither names a prompt mode, so both were running on the DEFAULT and asserting the behaviour it used to
+have — a Rival's plain Technique and a host's Ride are neither of them shield events, so AUTO is CORRECT
+to stay silent on those boards.
+**THE BISECT IS THE WHOLE DIAGNOSIS AND IT COSTS FOUR MINUTES.** Both green on `e41e459`'s parent, both
+red on it, with a change in between (the per-card retirement) that was the obvious suspect and was
+innocent. **Bisect before reading the window code** — "a window stopped opening" reads as a priority bug
+and was a policy change, which no amount of staring at `openResponseWindow` would have said.
+**THE FIX IS `prompts=all`, AND ON ITS OWN IT IS A FUDGE.** A flag that restores the old default makes the
+suite blind to the new one forever, so it is only honest paired with the twin: `quicktest` now runs the
+IDENTICAL staging under AUTO and requires the opposite — silent, **and still recorded in the ledger**,
+because silent-and-unrecorded is indistinguishable from a window that never existed. One staging
+function, evaluated on both pages, so the two boards cannot drift.
+**AND A FLAG MUST NOT QUIETLY MAKE A REPRO GREEN.** `nettest_ridewedge`'s window steps are staging for a
+WEDGE assertion that passed either way, so the flag had to be paired with an A/B proving the guard still
+discriminates — hop deleted, 8/1, captured host state matching the original report word for word. **When
+you add a flag to make a suite green, A/B the assertion the suite exists for**, or you have restored the
+colour and lost the test.
+**THE TELL FOR THIS WHOLE CLASS: a suite that asserts on a behaviour it never named.** Neither file
+contained the string `prompts` — the default was load-bearing and invisible, which is why a policy change
+reads as a defect. A suite that depends on a mode should SET it.
 
 **A SUITE CAN ALSO PIN THE DEFECT — AS FIRMLY AS IT PINS A FEATURE (2026-09-17).** `nettest_emote`'s
 expected output was literally `/^You says hi!/`: the exact "You" + third-person-verb shape that
