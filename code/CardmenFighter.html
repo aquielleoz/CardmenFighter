@@ -6070,12 +6070,22 @@
     if (!effectsAllowed(st, q)) return null;                              // analysis: pure-fighter never casts
     if (!kindOK('onWin', q)) return null;                                 // analysis: blocked reactive kind
     var qp = st.players[q];
-    /* A SECOND CAST IS A POLICY REFUSAL NOW, NOT A STATEMENT OF FACT. It used to be literally true that
-       "a second one adds nothing" — `finishingBlow` was a boolean against `strips = 2`. It stacks since
-       2026-09-24, so a second cast on a target holding 3+ shields really would take a third; the AI still
-       declines because that is another Broadway discard plus energy for one shield, and changing the
-       policy is a balance change that needs `strengthsim`, not a comment edit. Filed. */
-    if (qp.finishingBlow) return null;                                    // already armed — declining a stack, deliberately
+    /* A SECOND CAST NEVER ARISES — MEASURED, NOT ARGUED (2026-09-30), and that CLOSES the question this
+       line was filed under. It used to be literally true that "a second one adds nothing": `finishingBlow`
+       was a boolean against `strips = 2`. It has been a NUMBER since 2026-09-24 (`strips = 1 + apExtra`),
+       so a second cast on a target holding 3+ shields really would take a third, and whether that is worth
+       another Broadway discard plus energy looked like a balance question for `strengthsim`.
+       IT IS NOT A BALANCE QUESTION, BECAUSE THE BOARD DOES NOT OCCUR. Built behind an opt-in policy and
+       forced ON for every seat: across **900 games at 2/3/6 players the FIRST Armor Piercing at Resolution
+       fired 139 times and a SECOND fired 0 times** (2p 16/0, 3p 24/0, 6p 99/0 — and 6p is the friendliest
+       case, since the draw is `numPlayers` and hands are largest there). The conjunction is too narrow: the
+       seat needs the Hippolyta Form to make ♣7 a Quick at all, TWO such cards in hand, the energy for both,
+       a Broadway to pitch for EACH, and a struck target still holding 3+.
+       SO THE POLICY WAS DELETED RATHER THAN SHIPPED OFF — an unexercised branch is not a safeguard, it is
+       untested code (`opts.pitch`, the boost attach, `stopper`). `strengthsim` duly printed 50.00 at
+       +0.00σ, which is what "the two arms were the same configuration" looks like and is NOT a null
+       result; the tally is what told them apart. Full write-up: `DECISIONS.md#ai-strength`. */
+    if (qp.finishingBlow) return null;                                    // already armed — and a second chance never comes
     var targets = st.resolution.strikeTargets || [], worth = false;
     for (var t = 0; t < targets.length; t++) if (st.players[targets[t]].shields >= 2) { worth = true; break; }
     if (!worth) return null;                                              // "never overkills" — below 2 it changes nothing
@@ -6800,7 +6810,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.127.5';
+  var GAME_VERSION='v1.31.127.6';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
