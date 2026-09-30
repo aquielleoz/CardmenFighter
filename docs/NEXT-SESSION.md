@@ -217,6 +217,21 @@ re-read its tag.
 
 ### Correctness
 
+> **⚠ WHAT BELONGS ABOVE `### For main`, AND THE TEST IS CHECKABLE (routed 2026-09-30).** Aj, on finding
+> two just-built fixes riding the epic: *"it sounds like we could have done that on main."* He was right,
+> and it was not two entries — **17 of the 26 here were main work**, so anyone triaging *within* these
+> sections (as I did) picks main work and builds it on a long branch, where it reaches players only when
+> the branch lands.
+> **THE TEST IS NOT "does it feel related to priority". It is: DOES THE THING IT TOUCHES EXIST ON `main`,
+> UNCHANGED BY THE EPIC?** If yes it can ship on its own and belongs under `For main`. If no — the
+> Resolution model, the go-round, the Main/Fight sub-phase split, a suite the epic added — it cannot, and
+> it belongs here. That question has an answer anyone can check with a grep; "is this epic work" does not.
+> **WORKED EXAMPLES, because the surprising ones are surprising in both directions.** `nettest_passoduel`
+> is a FLAKE, which sounds like tooling — but the epic added that suite, so there is nothing on main to
+> fix it in. `dead-main-subphase`'s remaining half is auto-advancing through the Main SUB-PHASE, which
+> step 20 created. And the Fighter Kick flash, the straights sort and the lobby ping all sound like
+> netplay or engine work and are none of them priority: they ship on main today.
+
 #### Flaky suites
 
 - `needs a repro`       · **`runOpponents` MAY STEP PAST A WINDOW OWED TO ANOTHER AI SEAT — same shape as
@@ -234,52 +249,6 @@ re-read its tag.
   **HOW TO SETTLE IT CHEAPLY:** the Quicks investigation's method transfers directly — log the priority
   holder at the branch, run a 3-player game, and correlate. `prioNote` is already there.
   `[id: runopponents-steps-past-window]`
-
-- `needs a decision`    · **`exporttest` IS TIME-CAPPING IN THE SWEEP — GREEN, BUT TESTING LESS THAN IT
-  MEANS TO (2026-09-24).** Surfaced by the sweep's new warnings section, which prints a passing suite's own
-  `⚠` lines: *"driver stopped on the 90s WALL CLOCK — the board stopped advancing"*, **twice in one run**,
-  ending `PASS: 17  FAIL: 0  (TIME-CAPPED)`. It only showed on the slower of the day's sweeps (295s against
-  ~230s), which is exactly when a wall-clock budget bites.
-  **✅ CONFIRMED LOAD-DEPENDENT — SECOND DATA POINT 2026-09-25.** The next morning's sweep ran **221s and
-  `exporttest` did NOT cap**, against the 295s run where it capped TWICE. Same commit, same suite, same 90s
-  budget; the only thing that moved was the machine. So *"does this suite always test short?"* is answered —
-  it does not — and what is left is a JUDGEMENT rather than a measurement: **is a suite that silently tests
-  less on a slow machine acceptable?**
-  **221s clean against 295s capped puts the knee between the two**, so the margin is thin rather than
-  absent, and a machine slower than this one would cap every run.
-  **THIS IS THE `nettest_sync` SHAPE, ALREADY DOCUMENTED IN CLAUDE.md** — *"a wall-clock-bounded suite tests
-  less when the sweep is parallel, and stays green while doing it"* — so the suite is reporting correctly
-  and the question is whether 90s is still the right number. **Measure before raising it**, and ask what the
-  driver is waiting FOR first: a wait on work stretches under load, a wait on a timer does not, and this
-  repo spent a day getting that backwards on `lessontest_quicks`.
-  **AND CHECK THE SECOND MESSAGE**: *"the board stopped advancing"* is not the same claim as "it ran out of
-  time" — a driver that stops advancing may be parked on something, which would make the cap a symptom.
-  `exporttest` already had the v1.31.85 unproductive-iteration fix for a related problem.
-  `[id: exporttest-time-capped]`
-
-- `needs a repro`       · **`lessontest_twos` DEAD-ENDS ON AN UNSCRIPTED CLEAN-UP PICK — CAUSE FOUND
-  2026-09-24, TRIGGER STILL OPEN.** Filed three times as a poll-budget flake under `-j 4`
-  (`PASS: 24  FAIL: 5`, opening on *"you beat it with your own full house — card 5C#t6 has no group
-  (retried for 30000ms)"*, 112s in the sweep against 22s solo). **It was never the poll budget.**
-  **THE MECHANISM, MEASURED.** `card <id> has no group` means the board is in PICK MODE: `renderHand`'s
-  first branch renders bare cards into `#hand` with no `.group` wrapper and is the only writer that does.
-  A pick never clears itself, so the retry burns its whole 30s against a board that cannot move. And **the
-  lesson sits at 10 of 10 cards at that step — exactly the cap, zero headroom** — so one card left unspent
-  by a slipped beat takes the hand to 11 and opens the clean-up trim. The full rule is in CLAUDE.md.
-  **WHAT SHIPPED:** `lessonlib.pickMode()` names the state, `answerWindow()` escapes it loudly,
-  `lessontest_twos` asserts the rig's own `[10/10]` promise, `nettest_trim` asserts the DOM contract, and
-  `lessontest_pickescape` forces the condition so neither guard is untested code. The sweep also surfaces
-  warnings from GREEN suites now, so the `⚠` escape line cannot pass unnoticed.
-  **WHAT IS STILL OPEN — AND IT IS THE ONLY THING LEFT HERE: WHICH BEAT SLIPS.** Every earlier assertion in
-  the suite passed on all three red runs, so the unspent card is not one an assertion covers. The next red
-  run will print the hand size (`[11/10]`) and name the pick, which bounds the search to one round
-  boundary; until then there is nothing to fix, only something to catch.
-  **DO NOT RAISE A POLL BUDGET FOR THIS.** Three occurrences were read as contention because the suite was
-  22s solo and 112s loaded; the 112s is the retry burning down, not the machine. The lane-count theory this
-  entry used to carry is **withdrawn** — a stable wrong state for thirty seconds is a mode, not a race.
-  **`lessontest_forms` (2026-09-24, *"the Q is spotlit for you to activate"*, 13/2, 3/3 solo) is a
-  DIFFERENT signature** and is not explained by this; it needs its own repro rather than being folded in.
-  `[id: lessontest-twos-poll-under-load]`
 
 - `needs a repro`       · **`nettest_passoduel` FLAKES AT ROUGHLY 1 IN 8, SOLO — MEASURED AND A/B'd 2026-09-15.** It hung a lane
   in one `-j 4` sweep (killed at 300s), and the first instinct was the Resolution shield override that had
@@ -299,90 +268,7 @@ re-read its tag.
   badly is the rate moving when the code did not. Do not read a single 91/92 as a regression.
   `[id: nettest-passoduel-flaky]`
 
-- `needs a repro`       · **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
-  sweep during epic step 14; not reproduced since). The two failures were `lessonlib`'s shared `finish()`:
-  *the completion modal is actually on screen* and *…and the lesson is marked done*. **Everything before
-  them passed**, so the lesson ran its steps and then did not reach the completion modal — which points at
-  the LAST `next()` not landing, not at a mid-lesson stall. `finish()` polls for a VISIBLE modal, so a
-  timeout fails both (the second because `localStorage` was never written).
-  **`lessontest_quicks` WAS the first suite to look at, and it no longer exists** — its lesson was absorbed
-  into "Phases and Quicks" on 2026-09-25 and the file was deleted, so the suspect this entry named is gone
-  without the entry having been closed. Its ~25% rate under `-j 4` had a different signature anyway, and the
-  cause is recorded in CLAUDE.md (a hand-rolled priority check that abandoned an open window); that is
-  history now, not a lead. *(This read "see the entry above" and pointed at nothing — repaired 2026-09-29.)*
-  **The suite name is unknown because I piped that sweep through `tail -4` and the summary line scrolled
-  past** — `sweep.js` prints whole lines precisely so this evidence survives, and cropping it cost the
-  identification. **Capture the full sweep log.**
-  **Not reproduced:** an immediate re-sweep was **89/89**, and **33 runs of all eleven lesson suites
-  eleven-at-a-time** (heavier than the sweep's four lanes) were clean. `lessontest_quicks` was the prime
-  suspect — step 14 changed the modal it drives — and passed 21/0 both alone and in the green sweep. (That
-  suite has since been deleted; the sentence is kept as the record of what was ruled out, not as a lead.)
-  **Do not file this as a flake and do not raise a poll budget on it.** This repo's record is that an
-  intermittent has been a real dependency every single time. The cheap next move is the one the
-  `lessontest_twos` entry above already argues for: make the last step self-diagnosing — have `next()` say
-  when it did not click, and have `finish()` print the step it was on when the modal failed to appear. One
-  red run would then name both the suite and the step.
-  `[id: lesson-suite-lost-name]`
-
-- `needs a repro`       · **`lessontest_twos` FAILED ONCE UNDER LOAD, AND THE SIGNATURE POINTS AT THE PREP, NOT THE POLL** (seen once
-  in a `-j 4` sweep, 2026-09-07; 3/3 solo and 86/86 on an immediate re-sweep, so it is rare). Do not file this
-  as "flaky" and re-tune a budget — this repo's record is that an intermittent has been a REAL dependency every
-  single time, and the captured hint names one:
-  `Fight is disabled — hint: Special Full House — doesn't beat the Special Pair.`
-  **The pile was a PAIR when the lesson had just claimed the Rival led `222` + a pair.** So the failing thing is
-  the PREP playing for the Rival, not the assertion waiting on it: a full house went in and a pair came out,
-  which is the shape of a partially-landed play — the documented `busy`-swallows-a-click class that
-  `lessonlib`'s helpers retry for and that has already presented as a product bug three times.
-  **The cheap first move is to make the prep self-diagnosing** rather than to raise the 30s poll (it timed out
-  at its full budget, so the budget is not the constraint): have the Rival-leads step assert WHAT it led and say
-  so, the way `why()` prints the refusal state. A prep that reports what it actually did would have named this
-  in one run.
-  `[id: lessontest-twos-prep]`
-
 #### Rules, priority and the stack
-
-- `needs a measurement` · **RE-CHECK `setRecycleTech`, AND THE DISCARD PILE NOBODY CAN SEE** (Aj, 2026-09-08, on finding out
-  decks thin: *"so were decks actually getting thinner without me noticing? huh?"*). They are, and the
-  "without noticing" half is structural rather than careless.
-  - **What thins.** `spendCard` is `(RECYCLE_TECH ? pl.shuffle : pl.removed).push(card)` and **`RECYCLE_TECH`
-    defaults false**, so every normally-resolved Technique leaves the pool for good. So does the Broadway
-    pitch, Counter Spell's own card, Annoint's own card, and anything Sabotage or an equipment-destroy kills.
-  - **What does NOT thin, and is the reason this is easy to miss.** Spent **energy returns to the Shuffle
-    Pile** (`payEnergy` pushes there, both the coloured pips and the generic remainder), and a **countered**
-    card goes there too. So the pile a player watches most closely is the one that cycles perfectly.
-  - **Two escape valves, both narrow:** Ares's Super `reclaim` pulls Shuffle + Discard + hand back into the
-    deck, and Hippolyta's `reclaimDiscard` pulls the Discard back. Nothing else touches `removed`.
-  - **THERE IS NO DISCARD-PILE VIEWER.** `openPileView` is only ever called with `'energy'` and `'shuffle'`
-    (⚡ and ♻). The one zone that only ever grows, and that permanently shrinks your game, is the one zone
-    you cannot open. **That is almost certainly the whole answer to "without me noticing".**
-  - **IT HAS BEEN MEASURED BEFORE — AND THE NUMBER ONLY COVERS DUELS, ON A BUILD FROM BEFORE THE DRAW
-    SCALED.** [`ENERGY-REORDER-DESIGN.md`](ENERGY-REORDER-DESIGN.md) records **154/400 = 39% of games ever
-    reshuffle**, median first reshuffle **round 12**, **0.41 reshuffles per game**. Read straight, that is the
-    answer to *"why did I never notice"*: in ~61% of games the deck never runs dry, so the thinning never
-    bites. **Two reasons not to stop there**, and the doc says the second itself (*"at v1.28.1 and will
-    drift"*):
-    - **`recyclesim` calls `newGame` with no player count, so every one of those games was a DUEL.**
-    - **It predates v1.31.3, which scaled the per-round draw to `numPlayers`.** At six players that is a
-      **6-card draw against the 2 those games ran on** — three times the rate through the deck, and thinning
-      compounds every cycle because `removed` never refills the Shuffle Pile. The duel figure cannot be
-      carried across; **re-measure at 3/4/6p before concluding anything about multiplayer.**
-    - **HYPOTHESIS, UNTESTED, worth one run rather than an argument:** this may be a thread in ♦'s
-      multiplayer dominance, which Aj raised independently (*"the insane win rate in multiplayer"*). Wizard is
-      the **ramp/reclaim** class, and reclaim is worth most exactly when the pool is thin and cycling fast —
-      which is the 6p condition and not the duel one. `CARD-STATS` already shows Pure Wizard middling in a
-      duel and climbing with the table. **This is a lead, not a finding**; the honest test is `analysis.js`
-      with `RECYCLE` on and off at 6p, which needs no new code.
-  - **Two jobs, and they are separable.** (1) Measure the magnitude — how many cards a real game removes, and
-    whether it materially changes deck-out pressure; `recyclesim.js` measures cycling pressure already and
-    `analysis.js` takes `RECYCLE` as an argument, so **option "all Techniques recycle" is measurable today
-    with no new code**. (2) Decide whether the Discard deserves a viewer, which is a UI question independent
-    of the balance one — and cheap, since the pile viewer is already generic over a zone name.
-  - **Related, and deliberately NOT bundled:** whether Counter Spell's own card should go to the Shuffle Pile
-    instead. Aj: *"let's leave counter spell alone for now."* It is a **buff** rather than a consistency fix
-    (every Technique goes to the Discard; ♦ is not singled out), and it lands on the class that already
-    scales hardest with player count. The three options are written up on `epic/priority-windows` in
-    `FIGHT-END-PLAN.md` → *Where a mid-cast card goes*.
-  `[id: re-check-setrecycletech-discard]`
 
 - `needs a measurement` · **SHOULD THE AI STACK ARMOR PIERCING? It refuses, and that refusal is now a
   POLICY rather than a fact (2026-09-24).** `resolutionPushCard`'s `if (qp.finishingBlow) return null` was
@@ -513,6 +399,90 @@ re-read its tag.
   found several defects — currently finds a 10-vs-0 gap that is expected and looks alarming.
   `[id: client-ledger-no-phase-walk]`
 
+#### Phone and layout
+
+#### Tutorials and prompts
+
+- `ready to build`      · **⚠ MOSTLY SHIPPED — RE-SCOPED 2026-09-30, AND EVERY PREMISE BELOW IS NOW FALSE.**
+  Its blocker (*"a lesson that wants to TEACH a boundary window has to opt itself back in"*) was BUILT on
+  2026-09-25: `windows:` / `lessonNamesWindow` / `lessonAllowsWindow`. Its named home (*"the Quicks lesson
+  is the only one that teaches responding"*) NO LONGER EXISTS — absorbed into "Phases and Quicks". And that
+  lesson now teaches the model twice over: *"Their play opens a window for you"* and *"Resolution opens a
+  window too — orange — and a different Quick answers it"*, closing with *"Two Quicks, two different
+  windows."*
+  **WHAT IS ACTUALLY LEFT** is the generalisation the lesson stops short of: that priority is passed at
+  EVERY phase and sub-phase change, not only at a cast and at Resolution. The two boundaries it does not
+  name (Upkeep, Clean-up) default OFF, so teaching them means teaching a window the player will not meet —
+  which may be the right reason not to. Re-read before building; the body below describes a build from
+  two weeks ago.
+  **THE ORIGINAL (2026-09-16):** **THE TUTORIALS STILL DO NOT TEACH THE BOUNDARY WINDOWS (the rest of #6).** The
+  two-state Fight and the Main-only activation rule are taught now, and all eleven suites are green. What
+  is still missing is the model itself: **priority is passed at every phase and sub-phase change**, and no
+  lesson says so. A player learns to press Next and Fight without learning WHY there is a crossing.
+  **THE LINE THAT HAS TO BE ARGUED WITH IS `promptWanted`**, which returns false for every non-`respond`
+  timing while `tutorialMode` is on. That is deliberate — an unscripted modal derails a gated step, and
+  `lessontest_twos` went red the day the default flipped — so a lesson that wants to TEACH a boundary
+  window has to opt itself back in rather than have the suppression removed. `shieldSaveOverride` repeats
+  the same suppression for the same reason; anything new that forces a prompt must too.
+  **THE QUICKS LESSON IS THE ONLY ONE THAT TEACHES RESPONDING**, so it is the natural home — it already
+  survives a real Counter Spell window, which is the hard part.
+  **ADDING A STEP RENUMBERS ITS SUITE'S ASSERTIONS, MEASURED:** `lessontest_howto` asserts `atStep(2)`
+  through `atStep(10)`, and inserting one step scored **7 pass / 17 fail**. Fold new teaching into an
+  existing step where you can; budget the suite edit where you cannot.
+  `[id: tutorials-still-teach-boundary]`
+### Features
+
+- `needs a decision`    · **⚠ HALF SHIPPED 2026-09-30 — THE HINT TELLS THE TRUTH NOW; AUTO-ADVANCE DOES NOT
+  EXIST.** Change 1 of this entry landed: the Main hint reads *"nothing to use yet, press Next to move
+  on."* when no card in hand is activatable, asked through `ctxActionFor` so "can this seat act at all"
+  cannot drift from "may this card act", and deferring to a gated lesson step so a tutorial is never told
+  its own instruction is impossible. `mptest` asserts both boards.
+  **WHAT IS LEFT IS CHANGE 2, AND IT IS A DECISION RATHER THAN A BUILD** — auto-advancing THROUGH a dead
+  Main. The predicate it needed now exists in the hint, so the cost has dropped a great deal; what has not
+  been decided is whether skipping a phase silently is right. It removes a beat the player may be using to
+  read the board, and the phase strip teaches the ramp by showing every colour — a phase that sometimes
+  does not happen is a lesson that sometimes lies. Aj's own words were *"maybe we can skip main phase when
+  nothing is activateable too?"*, which is a question.
+  **THE ORIGINAL (Aj, 2026-09-16, from a round-1 screenshot):** *"kings and jacks aren't activateable yet
+  at this point in the game… maybe we can skip main phase when nothing is activateable too?"*
+  `TRANSFORM_GATE` defaults to `'table'`, so a tier opens only once total shields lost across the table
+  reaches `numPlayers × lvl` — at round 1 that is `0 >= 2`, and the Jack and King tiers are both shut. On
+  top of that the seat held **0 energy**. Neither is a bug; together they make the sub-phase inert.
+  `[id: dead-main-subphase]`
+
+
+- `parked`              · **A SHIELD GAIN AS A GUARD IS PARKED on `exp/shield-gain-guard`** (2026-09-10). `exp/` and not `parked/`:
+  the table reserves `parked/` for work that is **built, green** and deliberately unmerged, and this is an
+  unreviewed stash that has never been run — and it may well be reverted, which is what `exp/` is for. Widens `guardEffFor`
+  to admit a card that GAINS a shield, so Hector's Sanctuary — a Quick by the Form, but granting no
+  immunity — can be sprung at the moment it is for. Aj's own reasoning is in the patch: *"really since it's
+  a quick it should be offered everywhere the player gets priority."*
+  **Recovered by accident**: a `git stash pop` after a failed `git stash push` applied an earlier session's
+  stash into unrelated work. It has never been reviewed or run as shipped.
+  **Why it is not merged:** it breaks the epic's step-12 superset proof, measured — base Sanctuary is
+  `quick: false`, and the rebuilt window gates on `canAddToStack`, which requires `quick`. Applied on the
+  epic, `shadowtest` half A gives 93 counterexamples and half B 108 live violations.
+  **WHEN TO COME BACK TO IT: at step 19, and the answer may be "never".** Step 19 *deletes* `guardEffFor` —
+  it is on the epic's DELETE table by name, along with `shieldGuardCard` and all four API exports. This
+  patch widens a function that is scheduled to stop existing, so it cannot simply be rebased on: the
+  question it answers has to be re-asked of the new window.
+  **Re-ask it as:** *should base Sanctuary be castable in a priority window?* Under the rebuilt model only
+  Quicks are, and base Sanctuary is not one — Hector makes it one, and Hector-Sanctuary is already admitted.
+  So the quoted reasoning (*"since it's a quick it should be offered everywhere the player gets priority"*)
+  may be **satisfied by the rebuild**, and what is left is a card-design question (should the base card be a
+  Quick?) rather than a window question. **Unverified; check at 19, do not assume.**
+  Reproduce the failure by applying the patch on `epic/priority-windows` and running `node shadowtest.js`
+  (the suite does not exist on `main`, so running it on this branch proves nothing).
+  `[id: shield-gain-guard-parked]`
+
+### For main
+
+*Work that is NOT epic work — it touches the shipped game rather than the priority model, and could ship on
+its own. Kept separate so it does not get tangled in `epic/priority-windows`, and so whoever picks it up
+knows to check whether the epic has already moved the same lines.*
+
+### Correctness
+
 - `root cause found`    · **THE HOST'S "🔔 Ping the table" IS INVISIBLE TO THE CLIENT — IT PAINTS BEHIND THE LOBBY (reported in live
   play, 2026-09-15).** The client's handler is `SFX.play('ping'); setMessage(…)`, and `setMessage` writes
   `#message`, which lives **inside the board**. `#netroot` is `position:fixed; inset:0` at `--zNetroot`, so
@@ -545,22 +515,6 @@ re-read its tag.
   gains (the tutorial's 51ms cast), and a CLIENT does not run `startGame`, so anything reset only there is
   never reset on a client (`resetBoardMemory` is the shared one). Check both before inventing a number.
   `[id: client-animations-shanked]`
-
-#### Phone and layout
-
-- `ready to build`      · **THE SETUP DIALOG SHOULD BE THREE COLUMNS IN LANDSCAPE** (Aj, 2026-09-07, with a screenshot of New Duel):
-  *"can we do this in 3 columns for landscape? player count, name, your deck; opponent strength and decks;
-  buttons"*. It is one tall column of five label/control rows plus the roll strip, which is exactly the shape
-  that does not fit a short viewport — `landscapetest` already has to assert the dialog *scrolls* to reach its
-  last control at 568x320. His grouping is the natural one: your setup, their setup, actions.
-  **Precedent to copy, not invent:** the Custom rules panel is the one dialog that already goes multi-column
-  (`.modal` is shared by every dialog, so the width lives on a class on that panel alone, and `showModal`
-  resets `#modal`'s class list so a wide dialog cannot leak into the next one). Do the same here rather than
-  widening `.modal`. Note the rules panel's columns are keyed to WIDTH (1040px/1400px); this one wants short
-  and wide, so the query is the landscape band, not a width breakpoint.
-  `[id: setup-dialog-three-columns]`
-
-#### Tutorials and prompts
 
 - `root cause found`    · **THE "THE 2" LESSON STALLS BECAUSE ITS PILOT LEADS NOTHING — AND THE STALE PILE
   IS THE CONSEQUENCE, NOT THE CAUSE (Aj, 2026-09-17, with a saved log).** *"the rival never plays their full
@@ -634,220 +588,6 @@ re-read its tag.
   never reaches a hand the pilot cannot lead from. The suite needs a deal where the Rival's non-2 pair is
   absent. Third suite-versus-reality gap found by playing the tutorials today.
   `[id: twos-lesson-pilot-leads-nothing]`
-
-- `ready to build`      · **⚠ MOSTLY SHIPPED — RE-SCOPED 2026-09-30, AND EVERY PREMISE BELOW IS NOW FALSE.**
-  Its blocker (*"a lesson that wants to TEACH a boundary window has to opt itself back in"*) was BUILT on
-  2026-09-25: `windows:` / `lessonNamesWindow` / `lessonAllowsWindow`. Its named home (*"the Quicks lesson
-  is the only one that teaches responding"*) NO LONGER EXISTS — absorbed into "Phases and Quicks". And that
-  lesson now teaches the model twice over: *"Their play opens a window for you"* and *"Resolution opens a
-  window too — orange — and a different Quick answers it"*, closing with *"Two Quicks, two different
-  windows."*
-  **WHAT IS ACTUALLY LEFT** is the generalisation the lesson stops short of: that priority is passed at
-  EVERY phase and sub-phase change, not only at a cast and at Resolution. The two boundaries it does not
-  name (Upkeep, Clean-up) default OFF, so teaching them means teaching a window the player will not meet —
-  which may be the right reason not to. Re-read before building; the body below describes a build from
-  two weeks ago.
-  **THE ORIGINAL (2026-09-16):** **THE TUTORIALS STILL DO NOT TEACH THE BOUNDARY WINDOWS (the rest of #6).** The
-  two-state Fight and the Main-only activation rule are taught now, and all eleven suites are green. What
-  is still missing is the model itself: **priority is passed at every phase and sub-phase change**, and no
-  lesson says so. A player learns to press Next and Fight without learning WHY there is a crossing.
-  **THE LINE THAT HAS TO BE ARGUED WITH IS `promptWanted`**, which returns false for every non-`respond`
-  timing while `tutorialMode` is on. That is deliberate — an unscripted modal derails a gated step, and
-  `lessontest_twos` went red the day the default flipped — so a lesson that wants to TEACH a boundary
-  window has to opt itself back in rather than have the suppression removed. `shieldSaveOverride` repeats
-  the same suppression for the same reason; anything new that forces a prompt must too.
-  **THE QUICKS LESSON IS THE ONLY ONE THAT TEACHES RESPONDING**, so it is the natural home — it already
-  survives a real Counter Spell window, which is the hard part.
-  **ADDING A STEP RENUMBERS ITS SUITE'S ASSERTIONS, MEASURED:** `lessontest_howto` asserts `atStep(2)`
-  through `atStep(10)`, and inserting one step scored **7 pass / 17 fail**. Fold new teaching into an
-  existing step where you can; budget the suite edit where you cannot.
-  `[id: tutorials-still-teach-boundary]`
-### Tooling
-
-- `needs a repro`       · **`lessontest_forms` blew a THIRTY-SECOND poll once under `-j 4` — and 30s is not slowness, it is a dead end**
-  (2026-09-07). `⏱ poll TIMED OUT after 30000ms: the Q is spotlit`, in a sweep. **Not reproducible on demand
-  and not attributable:** 3/3 alone, **4/4 in parallel on that build AND 4/4 in parallel on `main`**, and the
-  change it appeared under does not touch the lesson path (lessons launch by clicking a `.lessonRow`; the dice
-  live in the setup dialog's roll).
-  **Why 30s matters.** v1.31.84 raised all six lesson polls 9s → 30s precisely to end this class, and the note
-  there says a poll budget is a HANG GUARD, not a race — it returns the instant the condition holds. Blowing the
-  whole 30s therefore means the condition never became true, not that the machine was slow. The rig is not the
-  suspect either: CLAUDE.md measured `tutRigForms` placing a Q **8/8**, with a fallback whose failure needs all
-  four jacks behind shields (1 in 270,725).
-  **THE ONE THING THAT WOULD SETTLE IT COSTS NOTHING, and should be added before hunting:** on timeout, print
-  `step()` — it already returns the step number, its text and `spots`. That separates the two live hypotheses,
-  which need completely different fixes: **the lesson never reached that step** (an earlier gate silently failed
-  to advance) versus **it is on the right step and the `.tut-spot` selector matched nothing** (a rig or
-  spotlight-selector problem). Right now a red run cannot tell you which, which is the whole reason this entry
-  exists rather than a fix. Make the suite self-diagnosing; do not write a bespoke probe.
-  **IT RECURRED 2026-09-17, AND A HUMAN SIGHTING IN A DIFFERENT LESSON IS NOW THE BETTER LEAD.** One full
-  sweep went 92/93 on this suite — both spotlight assertions, *"the Q is spotlit"* and *"…and the spotlit
-  card really is the Q"*. The SAME MORNING, Aj hit the same symptom by hand in **How to Play step 8**:
-  *"lots of un greyed cards here and no cards are glowing"* — a step that GATES on activating, telling the
-  player to select a glowing card that is not there. Two different lessons, one mechanism (`tut-spot` never
-  applied), and one of them reproducible by a person rather than 1-in-many in a sweep.
-  **CHASE THE HUMAN ONE.** `lessontest_howto` asserts a card is spotlit at step 8 and is GREEN, so the suite
-  and the real game disagree — which is worth more than another rate measurement. Start at `tutPickEffect`
-  → `tutEnsureEffect` → `tutEffId`: it returns null when nothing passes `tutEffOK`, and `render()` wipes
-  `.tut-spot` every paint (`reapply` re-adds it), so either half failing looks identical on screen.
-  **A/B'd AND IT PROVED NOTHING, which is worth recording so nobody repeats it.** `clickFight` gained a
-  verification step in #251 and `lessonlib` calls it, so it was a fair suspect — but **12 runs per arm at 4
-  concurrent reproduced ZERO failures in EITHER arm**. That neither implicates nor clears the change; it
-  only re-measures how rare this is. Do not read 0-vs-0 as exoneration.
-  `[id: lessontest-forms-poll]`
-
-- `needs a repro`       · **`landscapetest`'s ↓ New log assertion is INTERMITTENT — 2 failures in 26 runs (2026-09-04), and it has a
-  fixed wait in it.** Seen only while building v1.31.104: **0/6 on v1.31.103, 2/10 on an intermediate build,
-  0/10 on the shipped one**, so it is rare and NOT attributable to the icon row. Deliberately left unfixed:
-  there is no reproduction on the current build to verify a fix against, and changing a suite on a hunch is how
-  the throwaway-probe entries in CLAUDE.md got written.
-  **BOTH ASSERTIONS FAIL TOGETHER AND IT IS ONE CAUSE.** The recorded pair is
-  `shown=false visible=false` and `scrollTop 24` — i.e. **the log auto-followed to the bottom**, so
-  `logAtBottom()` was true and the ↓ New button correctly did not show. The bug is that the suite stopped
-  "reading history", not that the button is broken. Do not chase `setLogNewBtn`.
-  **The shape is the documented one, twice over** (`landscapetest.js` ~305): it takes a **deal-dependent action**
-  (`if(f&&!f.disabled) f.click(); else if(ps&&!ps.disabled) ps.click()` — Fight and Pass emit different numbers
-  of log lines, and a Fight that RESOLVES A ROUND emits a whole ceremony), and then it `wait(800)` before
-  asserting. A round that resolves re-renders the log repeatedly inside that window. **Poll for the line and
-  re-read `scrollTop` at the same instant**, rather than sleeping — the rule this file already carries.
-  Note the staging injects fake `.le` divs straight into `#log` to create the overflow; confirm a re-render does
-  not wipe them before assuming the scroll position is the whole story.
-  `[id: landscapetest-newlog-flaky]`
-
-### Features
-
-- `needs a decision`    · **⚠ HALF SHIPPED 2026-09-30 — THE HINT TELLS THE TRUTH NOW; AUTO-ADVANCE DOES NOT
-  EXIST.** Change 1 of this entry landed: the Main hint reads *"nothing to use yet, press Next to move
-  on."* when no card in hand is activatable, asked through `ctxActionFor` so "can this seat act at all"
-  cannot drift from "may this card act", and deferring to a gated lesson step so a tutorial is never told
-  its own instruction is impossible. `mptest` asserts both boards.
-  **WHAT IS LEFT IS CHANGE 2, AND IT IS A DECISION RATHER THAN A BUILD** — auto-advancing THROUGH a dead
-  Main. The predicate it needed now exists in the hint, so the cost has dropped a great deal; what has not
-  been decided is whether skipping a phase silently is right. It removes a beat the player may be using to
-  read the board, and the phase strip teaches the ramp by showing every colour — a phase that sometimes
-  does not happen is a lesson that sometimes lies. Aj's own words were *"maybe we can skip main phase when
-  nothing is activateable too?"*, which is a question.
-  **THE ORIGINAL (Aj, 2026-09-16, from a round-1 screenshot):** *"kings and jacks aren't activateable yet
-  at this point in the game… maybe we can skip main phase when nothing is activateable too?"*
-  `TRANSFORM_GATE` defaults to `'table'`, so a tier opens only once total shields lost across the table
-  reaches `numPlayers × lvl` — at round 1 that is `0 >= 2`, and the Jack and King tiers are both shut. On
-  top of that the seat held **0 energy**. Neither is a bug; together they make the sub-phase inert.
-  `[id: dead-main-subphase]`
-
-
-- `needs a decision`    · **THE NARROWEST PHONES STILL HAVE 34px TOUCH TARGETS, AND THE ACTION ROW IS WHY (measured 2026-09-16,
-  while fixing the rest).** Everything from 360px up now gets 44px-tall icon buttons and a widened 🔍/⚡
-  channel; **at ≤340px nothing changed**, because the row cannot afford it on either axis — the `@media
-  (max-width:480px)` block already records it as **2px over budget at 327px**, and `landscapetest`'s
-  ratchet on the known expand overflow at 327×660 went **63px → 73px** the moment 44px targets were
-  applied there. That ratchet is what caught it, on the first run.
-  **SO THE LEVER IS NOT THE BUTTONS, IT IS `sortBtn`.** It is the widest item in the row by a distance
-  (86-106px against 30-44px) because it keeps a WORD — the sort state it reports — while every other
-  button collapsed to a glyph. The `max-width:480px` block already shaves its padding twice for exactly
-  this reason. Freeing ~40px there is what would buy the floor phones the same targets.
-  **DO NOT JUST COLLAPSE IT TO ⇅.** v1.31.104's note is explicit that Sort keeps words *because it is the
-  state it reports*, and a glyph cannot say "Straights". A rotating one-word label, or moving Sort out of
-  the action row entirely, are the two shapes worth costing — both are design calls, not tuning.
-  `[id: narrowest-phones-still-34px]`
-
-- `ready to build`      · **OPEN THE BATTLE LOG AS AN OVERLAY, like the 🔍 View card reader** (Aj, 2026-08-31: *"i think for the logs,
-  we can open it like how we do the view card? but slightly transparent?"* — agreed at the time and, like the 2s
-  tutorial, **never filed; caught 2026-09-01 when he asked what else was missing**).
-  **This is NOT the scrolling bug.** v1.31.59 stopped a long log evicting the hand, which fixed the symptom he
-  hit; the overlay is the design he actually proposed, and it is still open. The case for it is the phone: the
-  log competes with the board for vertical space on exactly the viewport where space is scarcest (see the 340px
-  floor and `landscapetest`), and an overlay removes it from the vertical stack entirely instead of rationing it.
-  Precedent to copy: the 🔍 View card reader is already a phone-only overlay (`#viewCardBtn` exists only inside
-  `@media (max-width:720px) and (max-height:800px)`, which is why `viewtest.js` runs at 390×780).
-  Two things to get right, both already recorded as traps: the overlay must outrank `#netroot` — use the
-  `--zNetroot`-derived family, never a bare z-index — and **DOM presence is not visibility**, so assert it with
-  `elementFromPoint`, not by reading `textContent`.
-  `[id: open-battle-log-overlay]`
-
-- `ready to build`      · **THE FAMILY-SHAPE PROGRAMME IS ESSENTIALLY COMPLETE. One cheap piece is left.** (Rewritten 2026-08-31: the
-  original entry listed eleven sub-items and **ten had shipped**, including all four it called "still missing
-  and NOT yet wanted" — trio+single, four+two, airplane and variable-length straights all landed in v1.31.39.
-  Kits v1.31.24-26, Quadro v1.31.29, the chop v1.31.33, chop-strips v1.31.38, tooltips v1.31.35, bulk actions
-  and presets v1.31.30. The changelog carries each.)
-  **What is actually left: four of a kind + ONE spare** — Big Two's shape, distinct from our 四带二's two spares.
-  Named in CLAUDE.md as "the only cheap piece" of a Big Two preset, which was itself considered and declined
-  (that reasoning is in CLAUDE.md, not here: Big Two's identity is the poker ladder and suit tiebreaks, and we
-  refuse both on principle).
-  **The house rules for adding one are settled and live in CLAUDE.md** — group by KIND not by source game, every
-  rule defaults OFF, a shape that shares a size signature with another must be a MODE rather than two toggles,
-  re-read every PRESET afterwards (a preset is an exact state, so a later rule is implicitly off in it), and
-  measure with `mpsim`/`rulesim` expecting **options, not tempo** — eight rules in a row have left pacing
-  untouched. Also check the wide panel still fits at 1512×945; there is no slack left.
-  Why FLUSH will never be one of them is in [`DECISIONS.md`](DECISIONS.md#balance).
-  `[id: family-shapes-last-piece]`
-
-- `parked`              · **Rogue "slash": an on-demand card that LOWERS the current pile's value** (Aj, 2026-08-25 — filed for when
-  Rogue needs a boost in balancing; nothing built). Distinct from Caltrops, which is a standing `oppDelta`
-  debuff on opponents' cards. Aj's example: the pile is a boosted pair of 4s at effective 6 and you hold a pair
-  of 5s; a "slash 2" drops the pile to 4 and your 5s become legal. **The engine already has the hook** —
-  `st.pile.mod`, folded in by `refreshPile()`, and the value-modifier model it must obey is
-  [`DECISIONS.md#value-modifiers`](DECISIONS.md#value-modifiers).
-  **The measured support is settled: [`DECISIONS.md#value-stuck`](DECISIONS.md#value-stuck)** — read it there,
-  including the correction to an earlier claim about Rogue. Do not re-derive it, and do not copy its numbers
-  back here. **What is open is only the card:** cost, whether it is a Quick, and how much it slashes.
-  `[id: rogue-slash-demand-card]`
-
-- `parked`              · **A count-up "charge" CLASS** (Aj, 2026-08-25 — his current lean; nothing built). Full analysis in
-  **[`docs/COUNT-UP-DESIGN.md`](COUNT-UP-DESIGN.md)**, which came out of his brother asking why the game has
-  shields at all and proposing "Kick Coins" — a count-up replacing them wholesale. Aj's landing point: not a
-  rules overhaul, **one class whose schtick is counting up**.
-  - **The count-up resource already exists twice**, so this needs no tokens and no new zone: the **energy pile**
-    already counts up, is card-backed and public — a charge class could gate effects on how much it has *banked*
-    rather than spent, which genuinely conflicts with everyone else's "spend energy on effects". And
-    `TRANSFORM_GATE='table'` is *already* a count-up (total `shieldsLost` unlocks Rides/Forms).
-  - Read the doc's **bias-correction section** before re-opening the wholesale version: the first analysis
-    leaned toward the shipped shield design, and four of its objections did not survive re-checking — notably
-    "length balloons with player count", which is false if a Special win pays **a coin per opponent beaten**
-    (the v1.31.0 fix, mirrored).
-  - The one objection that *did* survive: the **leader-snowball is worse under coins**, because a win advances
-    only the winner where a shield hit damages everyone, and initiative is already 1.8x concentrated.
-  `[id: count-up-class]`
-
-- `parked`              · **A SHIELD GAIN AS A GUARD IS PARKED on `exp/shield-gain-guard`** (2026-09-10). `exp/` and not `parked/`:
-  the table reserves `parked/` for work that is **built, green** and deliberately unmerged, and this is an
-  unreviewed stash that has never been run — and it may well be reverted, which is what `exp/` is for. Widens `guardEffFor`
-  to admit a card that GAINS a shield, so Hector's Sanctuary — a Quick by the Form, but granting no
-  immunity — can be sprung at the moment it is for. Aj's own reasoning is in the patch: *"really since it's
-  a quick it should be offered everywhere the player gets priority."*
-  **Recovered by accident**: a `git stash pop` after a failed `git stash push` applied an earlier session's
-  stash into unrelated work. It has never been reviewed or run as shipped.
-  **Why it is not merged:** it breaks the epic's step-12 superset proof, measured — base Sanctuary is
-  `quick: false`, and the rebuilt window gates on `canAddToStack`, which requires `quick`. Applied on the
-  epic, `shadowtest` half A gives 93 counterexamples and half B 108 live violations.
-  **WHEN TO COME BACK TO IT: at step 19, and the answer may be "never".** Step 19 *deletes* `guardEffFor` —
-  it is on the epic's DELETE table by name, along with `shieldGuardCard` and all four API exports. This
-  patch widens a function that is scheduled to stop existing, so it cannot simply be rebased on: the
-  question it answers has to be re-asked of the new window.
-  **Re-ask it as:** *should base Sanctuary be castable in a priority window?* Under the rebuilt model only
-  Quicks are, and base Sanctuary is not one — Hector makes it one, and Hector-Sanctuary is already admitted.
-  So the quoted reasoning (*"since it's a quick it should be offered everywhere the player gets priority"*)
-  may be **satisfied by the rebuild**, and what is left is a card-design question (should the base card be a
-  Quick?) rather than a window question. **Unverified; check at 19, do not assume.**
-  Reproduce the failure by applying the patch on `epic/priority-windows` and running `node shadowtest.js`
-  (the suite does not exist on `main`, so running it on this branch proves nothing).
-  `[id: shield-gain-guard-parked]`
-
-- `parked`              · **QR SCANNING IS BUILT, GREEN, AND PARKED on `feat/qr-scanning`** (PR #29, closed 2026-08-25, 21/0).
-  **Why it is not merged:** scanning needs an origin that can be granted camera access, and a file opened from
-  Android's Downloads is `content://` — an opaque origin — so Chrome rejects `getUserMedia` without ever
-  prompting. **MEASURED AND SETTLED 2026-08-28:** the same file over **https is GRANTED** with a live preview.
-  **What would revive it:** a decision to host the file. The blocker is no longer technical.
-  Full reasoning, the origin experiment, and everything else considered for making joining easier are in
-  [`DECISIONS.md`](DECISIONS.md#joining-discovery-and-the-qr-path).
-  `[id: qr-scanning-built-green]`
-
-### For main
-
-*Work that is NOT epic work — it touches the shipped game rather than the priority model, and could ship on
-its own. Kept separate so it does not get tangled in `epic/priority-windows`, and so whoever picks it up
-knows to check whether the epic has already moved the same lines.*
-
-### Correctness
 
 - `root cause found`    · **THE ROUND-BOUNDARY DETECTOR FIRED, AND IT DISPROVES ITS OWN MESSAGE — THE
   CEREMONY RE-RAN, THE BOUNDARY DID NOT FAIL (Aj's 3-player log, 2026-09-24).** The 2026-09-17 detector was
@@ -1144,7 +884,239 @@ never read.*
   explicitly asked for both zones open at once, so the second needs his say-so.
   `[id: expanding-zone-pushes-board]`
 
+### Tooling
+
+- `needs a decision`    · **`exporttest` IS TIME-CAPPING IN THE SWEEP — GREEN, BUT TESTING LESS THAN IT
+  MEANS TO (2026-09-24).** Surfaced by the sweep's new warnings section, which prints a passing suite's own
+  `⚠` lines: *"driver stopped on the 90s WALL CLOCK — the board stopped advancing"*, **twice in one run**,
+  ending `PASS: 17  FAIL: 0  (TIME-CAPPED)`. It only showed on the slower of the day's sweeps (295s against
+  ~230s), which is exactly when a wall-clock budget bites.
+  **✅ CONFIRMED LOAD-DEPENDENT — SECOND DATA POINT 2026-09-25.** The next morning's sweep ran **221s and
+  `exporttest` did NOT cap**, against the 295s run where it capped TWICE. Same commit, same suite, same 90s
+  budget; the only thing that moved was the machine. So *"does this suite always test short?"* is answered —
+  it does not — and what is left is a JUDGEMENT rather than a measurement: **is a suite that silently tests
+  less on a slow machine acceptable?**
+  **221s clean against 295s capped puts the knee between the two**, so the margin is thin rather than
+  absent, and a machine slower than this one would cap every run.
+  **THIS IS THE `nettest_sync` SHAPE, ALREADY DOCUMENTED IN CLAUDE.md** — *"a wall-clock-bounded suite tests
+  less when the sweep is parallel, and stays green while doing it"* — so the suite is reporting correctly
+  and the question is whether 90s is still the right number. **Measure before raising it**, and ask what the
+  driver is waiting FOR first: a wait on work stretches under load, a wait on a timer does not, and this
+  repo spent a day getting that backwards on `lessontest_quicks`.
+  **AND CHECK THE SECOND MESSAGE**: *"the board stopped advancing"* is not the same claim as "it ran out of
+  time" — a driver that stops advancing may be parked on something, which would make the cap a symptom.
+  `exporttest` already had the v1.31.85 unproductive-iteration fix for a related problem.
+  `[id: exporttest-time-capped]`
+
+- `needs a repro`       · **`lessontest_twos` DEAD-ENDS ON AN UNSCRIPTED CLEAN-UP PICK — CAUSE FOUND
+  2026-09-24, TRIGGER STILL OPEN.** Filed three times as a poll-budget flake under `-j 4`
+  (`PASS: 24  FAIL: 5`, opening on *"you beat it with your own full house — card 5C#t6 has no group
+  (retried for 30000ms)"*, 112s in the sweep against 22s solo). **It was never the poll budget.**
+  **THE MECHANISM, MEASURED.** `card <id> has no group` means the board is in PICK MODE: `renderHand`'s
+  first branch renders bare cards into `#hand` with no `.group` wrapper and is the only writer that does.
+  A pick never clears itself, so the retry burns its whole 30s against a board that cannot move. And **the
+  lesson sits at 10 of 10 cards at that step — exactly the cap, zero headroom** — so one card left unspent
+  by a slipped beat takes the hand to 11 and opens the clean-up trim. The full rule is in CLAUDE.md.
+  **WHAT SHIPPED:** `lessonlib.pickMode()` names the state, `answerWindow()` escapes it loudly,
+  `lessontest_twos` asserts the rig's own `[10/10]` promise, `nettest_trim` asserts the DOM contract, and
+  `lessontest_pickescape` forces the condition so neither guard is untested code. The sweep also surfaces
+  warnings from GREEN suites now, so the `⚠` escape line cannot pass unnoticed.
+  **WHAT IS STILL OPEN — AND IT IS THE ONLY THING LEFT HERE: WHICH BEAT SLIPS.** Every earlier assertion in
+  the suite passed on all three red runs, so the unspent card is not one an assertion covers. The next red
+  run will print the hand size (`[11/10]`) and name the pick, which bounds the search to one round
+  boundary; until then there is nothing to fix, only something to catch.
+  **DO NOT RAISE A POLL BUDGET FOR THIS.** Three occurrences were read as contention because the suite was
+  22s solo and 112s loaded; the 112s is the retry burning down, not the machine. The lane-count theory this
+  entry used to carry is **withdrawn** — a stable wrong state for thirty seconds is a mode, not a race.
+  **`lessontest_forms` (2026-09-24, *"the Q is spotlit for you to activate"*, 13/2, 3/3 solo) is a
+  DIFFERENT signature** and is not explained by this; it needs its own repro rather than being folded in.
+  `[id: lessontest-twos-poll-under-load]`
+
+- `needs a repro`       · **A LESSON SUITE FAILED ITS COMPLETION ASSERTIONS ONCE, AND I LOST WHICH ONE** (2026-09-10, one `-j 4`
+  sweep during epic step 14; not reproduced since). The two failures were `lessonlib`'s shared `finish()`:
+  *the completion modal is actually on screen* and *…and the lesson is marked done*. **Everything before
+  them passed**, so the lesson ran its steps and then did not reach the completion modal — which points at
+  the LAST `next()` not landing, not at a mid-lesson stall. `finish()` polls for a VISIBLE modal, so a
+  timeout fails both (the second because `localStorage` was never written).
+  **`lessontest_quicks` WAS the first suite to look at, and it no longer exists** — its lesson was absorbed
+  into "Phases and Quicks" on 2026-09-25 and the file was deleted, so the suspect this entry named is gone
+  without the entry having been closed. Its ~25% rate under `-j 4` had a different signature anyway, and the
+  cause is recorded in CLAUDE.md (a hand-rolled priority check that abandoned an open window); that is
+  history now, not a lead. *(This read "see the entry above" and pointed at nothing — repaired 2026-09-29.)*
+  **The suite name is unknown because I piped that sweep through `tail -4` and the summary line scrolled
+  past** — `sweep.js` prints whole lines precisely so this evidence survives, and cropping it cost the
+  identification. **Capture the full sweep log.**
+  **Not reproduced:** an immediate re-sweep was **89/89**, and **33 runs of all eleven lesson suites
+  eleven-at-a-time** (heavier than the sweep's four lanes) were clean. `lessontest_quicks` was the prime
+  suspect — step 14 changed the modal it drives — and passed 21/0 both alone and in the green sweep. (That
+  suite has since been deleted; the sentence is kept as the record of what was ruled out, not as a lead.)
+  **Do not file this as a flake and do not raise a poll budget on it.** This repo's record is that an
+  intermittent has been a real dependency every single time. The cheap next move is the one the
+  `lessontest_twos` entry above already argues for: make the last step self-diagnosing — have `next()` say
+  when it did not click, and have `finish()` print the step it was on when the modal failed to appear. One
+  red run would then name both the suite and the step.
+  `[id: lesson-suite-lost-name]`
+
+- `needs a repro`       · **`lessontest_twos` FAILED ONCE UNDER LOAD, AND THE SIGNATURE POINTS AT THE PREP, NOT THE POLL** (seen once
+  in a `-j 4` sweep, 2026-09-07; 3/3 solo and 86/86 on an immediate re-sweep, so it is rare). Do not file this
+  as "flaky" and re-tune a budget — this repo's record is that an intermittent has been a REAL dependency every
+  single time, and the captured hint names one:
+  `Fight is disabled — hint: Special Full House — doesn't beat the Special Pair.`
+  **The pile was a PAIR when the lesson had just claimed the Rival led `222` + a pair.** So the failing thing is
+  the PREP playing for the Rival, not the assertion waiting on it: a full house went in and a pair came out,
+  which is the shape of a partially-landed play — the documented `busy`-swallows-a-click class that
+  `lessonlib`'s helpers retry for and that has already presented as a product bug three times.
+  **The cheap first move is to make the prep self-diagnosing** rather than to raise the 30s poll (it timed out
+  at its full budget, so the budget is not the constraint): have the Rival-leads step assert WHAT it led and say
+  so, the way `why()` prints the refusal state. A prep that reports what it actually did would have named this
+  in one run.
+  `[id: lessontest-twos-prep]`
+
+- `needs a repro`       · **`lessontest_forms` blew a THIRTY-SECOND poll once under `-j 4` — and 30s is not slowness, it is a dead end**
+  (2026-09-07). `⏱ poll TIMED OUT after 30000ms: the Q is spotlit`, in a sweep. **Not reproducible on demand
+  and not attributable:** 3/3 alone, **4/4 in parallel on that build AND 4/4 in parallel on `main`**, and the
+  change it appeared under does not touch the lesson path (lessons launch by clicking a `.lessonRow`; the dice
+  live in the setup dialog's roll).
+  **Why 30s matters.** v1.31.84 raised all six lesson polls 9s → 30s precisely to end this class, and the note
+  there says a poll budget is a HANG GUARD, not a race — it returns the instant the condition holds. Blowing the
+  whole 30s therefore means the condition never became true, not that the machine was slow. The rig is not the
+  suspect either: CLAUDE.md measured `tutRigForms` placing a Q **8/8**, with a fallback whose failure needs all
+  four jacks behind shields (1 in 270,725).
+  **THE ONE THING THAT WOULD SETTLE IT COSTS NOTHING, and should be added before hunting:** on timeout, print
+  `step()` — it already returns the step number, its text and `spots`. That separates the two live hypotheses,
+  which need completely different fixes: **the lesson never reached that step** (an earlier gate silently failed
+  to advance) versus **it is on the right step and the `.tut-spot` selector matched nothing** (a rig or
+  spotlight-selector problem). Right now a red run cannot tell you which, which is the whole reason this entry
+  exists rather than a fix. Make the suite self-diagnosing; do not write a bespoke probe.
+  **IT RECURRED 2026-09-17, AND A HUMAN SIGHTING IN A DIFFERENT LESSON IS NOW THE BETTER LEAD.** One full
+  sweep went 92/93 on this suite — both spotlight assertions, *"the Q is spotlit"* and *"…and the spotlit
+  card really is the Q"*. The SAME MORNING, Aj hit the same symptom by hand in **How to Play step 8**:
+  *"lots of un greyed cards here and no cards are glowing"* — a step that GATES on activating, telling the
+  player to select a glowing card that is not there. Two different lessons, one mechanism (`tut-spot` never
+  applied), and one of them reproducible by a person rather than 1-in-many in a sweep.
+  **CHASE THE HUMAN ONE.** `lessontest_howto` asserts a card is spotlit at step 8 and is GREEN, so the suite
+  and the real game disagree — which is worth more than another rate measurement. Start at `tutPickEffect`
+  → `tutEnsureEffect` → `tutEffId`: it returns null when nothing passes `tutEffOK`, and `render()` wipes
+  `.tut-spot` every paint (`reapply` re-adds it), so either half failing looks identical on screen.
+  **A/B'd AND IT PROVED NOTHING, which is worth recording so nobody repeats it.** `clickFight` gained a
+  verification step in #251 and `lessonlib` calls it, so it was a fair suspect — but **12 runs per arm at 4
+  concurrent reproduced ZERO failures in EITHER arm**. That neither implicates nor clears the change; it
+  only re-measures how rare this is. Do not read 0-vs-0 as exoneration.
+  `[id: lessontest-forms-poll]`
+
+- `needs a repro`       · **`landscapetest`'s ↓ New log assertion is INTERMITTENT — 2 failures in 26 runs (2026-09-04), and it has a
+  fixed wait in it.** Seen only while building v1.31.104: **0/6 on v1.31.103, 2/10 on an intermediate build,
+  0/10 on the shipped one**, so it is rare and NOT attributable to the icon row. Deliberately left unfixed:
+  there is no reproduction on the current build to verify a fix against, and changing a suite on a hunch is how
+  the throwaway-probe entries in CLAUDE.md got written.
+  **BOTH ASSERTIONS FAIL TOGETHER AND IT IS ONE CAUSE.** The recorded pair is
+  `shown=false visible=false` and `scrollTop 24` — i.e. **the log auto-followed to the bottom**, so
+  `logAtBottom()` was true and the ↓ New button correctly did not show. The bug is that the suite stopped
+  "reading history", not that the button is broken. Do not chase `setLogNewBtn`.
+  **The shape is the documented one, twice over** (`landscapetest.js` ~305): it takes a **deal-dependent action**
+  (`if(f&&!f.disabled) f.click(); else if(ps&&!ps.disabled) ps.click()` — Fight and Pass emit different numbers
+  of log lines, and a Fight that RESOLVES A ROUND emits a whole ceremony), and then it `wait(800)` before
+  asserting. A round that resolves re-renders the log repeatedly inside that window. **Poll for the line and
+  re-read `scrollTop` at the same instant**, rather than sleeping — the rule this file already carries.
+  Note the staging injects fake `.le` divs straight into `#log` to create the overflow; confirm a re-render does
+  not wipe them before assuming the scroll position is the whole story.
+  `[id: landscapetest-newlog-flaky]`
+
 ### Features
+
+- `ready to build`      · **THE SETUP DIALOG SHOULD BE THREE COLUMNS IN LANDSCAPE** (Aj, 2026-09-07, with a screenshot of New Duel):
+  *"can we do this in 3 columns for landscape? player count, name, your deck; opponent strength and decks;
+  buttons"*. It is one tall column of five label/control rows plus the roll strip, which is exactly the shape
+  that does not fit a short viewport — `landscapetest` already has to assert the dialog *scrolls* to reach its
+  last control at 568x320. His grouping is the natural one: your setup, their setup, actions.
+  **Precedent to copy, not invent:** the Custom rules panel is the one dialog that already goes multi-column
+  (`.modal` is shared by every dialog, so the width lives on a class on that panel alone, and `showModal`
+  resets `#modal`'s class list so a wide dialog cannot leak into the next one). Do the same here rather than
+  widening `.modal`. Note the rules panel's columns are keyed to WIDTH (1040px/1400px); this one wants short
+  and wide, so the query is the landscape band, not a width breakpoint.
+  `[id: setup-dialog-three-columns]`
+
+- `needs a decision`    · **THE NARROWEST PHONES STILL HAVE 34px TOUCH TARGETS, AND THE ACTION ROW IS WHY (measured 2026-09-16,
+  while fixing the rest).** Everything from 360px up now gets 44px-tall icon buttons and a widened 🔍/⚡
+  channel; **at ≤340px nothing changed**, because the row cannot afford it on either axis — the `@media
+  (max-width:480px)` block already records it as **2px over budget at 327px**, and `landscapetest`'s
+  ratchet on the known expand overflow at 327×660 went **63px → 73px** the moment 44px targets were
+  applied there. That ratchet is what caught it, on the first run.
+  **SO THE LEVER IS NOT THE BUTTONS, IT IS `sortBtn`.** It is the widest item in the row by a distance
+  (86-106px against 30-44px) because it keeps a WORD — the sort state it reports — while every other
+  button collapsed to a glyph. The `max-width:480px` block already shaves its padding twice for exactly
+  this reason. Freeing ~40px there is what would buy the floor phones the same targets.
+  **DO NOT JUST COLLAPSE IT TO ⇅.** v1.31.104's note is explicit that Sort keeps words *because it is the
+  state it reports*, and a glyph cannot say "Straights". A rotating one-word label, or moving Sort out of
+  the action row entirely, are the two shapes worth costing — both are design calls, not tuning.
+  `[id: narrowest-phones-still-34px]`
+
+- `ready to build`      · **OPEN THE BATTLE LOG AS AN OVERLAY, like the 🔍 View card reader** (Aj, 2026-08-31: *"i think for the logs,
+  we can open it like how we do the view card? but slightly transparent?"* — agreed at the time and, like the 2s
+  tutorial, **never filed; caught 2026-09-01 when he asked what else was missing**).
+  **This is NOT the scrolling bug.** v1.31.59 stopped a long log evicting the hand, which fixed the symptom he
+  hit; the overlay is the design he actually proposed, and it is still open. The case for it is the phone: the
+  log competes with the board for vertical space on exactly the viewport where space is scarcest (see the 340px
+  floor and `landscapetest`), and an overlay removes it from the vertical stack entirely instead of rationing it.
+  Precedent to copy: the 🔍 View card reader is already a phone-only overlay (`#viewCardBtn` exists only inside
+  `@media (max-width:720px) and (max-height:800px)`, which is why `viewtest.js` runs at 390×780).
+  Two things to get right, both already recorded as traps: the overlay must outrank `#netroot` — use the
+  `--zNetroot`-derived family, never a bare z-index — and **DOM presence is not visibility**, so assert it with
+  `elementFromPoint`, not by reading `textContent`.
+  `[id: open-battle-log-overlay]`
+
+- `ready to build`      · **THE FAMILY-SHAPE PROGRAMME IS ESSENTIALLY COMPLETE. One cheap piece is left.** (Rewritten 2026-08-31: the
+  original entry listed eleven sub-items and **ten had shipped**, including all four it called "still missing
+  and NOT yet wanted" — trio+single, four+two, airplane and variable-length straights all landed in v1.31.39.
+  Kits v1.31.24-26, Quadro v1.31.29, the chop v1.31.33, chop-strips v1.31.38, tooltips v1.31.35, bulk actions
+  and presets v1.31.30. The changelog carries each.)
+  **What is actually left: four of a kind + ONE spare** — Big Two's shape, distinct from our 四带二's two spares.
+  Named in CLAUDE.md as "the only cheap piece" of a Big Two preset, which was itself considered and declined
+  (that reasoning is in CLAUDE.md, not here: Big Two's identity is the poker ladder and suit tiebreaks, and we
+  refuse both on principle).
+  **The house rules for adding one are settled and live in CLAUDE.md** — group by KIND not by source game, every
+  rule defaults OFF, a shape that shares a size signature with another must be a MODE rather than two toggles,
+  re-read every PRESET afterwards (a preset is an exact state, so a later rule is implicitly off in it), and
+  measure with `mpsim`/`rulesim` expecting **options, not tempo** — eight rules in a row have left pacing
+  untouched. Also check the wide panel still fits at 1512×945; there is no slack left.
+  Why FLUSH will never be one of them is in [`DECISIONS.md`](DECISIONS.md#balance).
+  `[id: family-shapes-last-piece]`
+
+- `parked`              · **Rogue "slash": an on-demand card that LOWERS the current pile's value** (Aj, 2026-08-25 — filed for when
+  Rogue needs a boost in balancing; nothing built). Distinct from Caltrops, which is a standing `oppDelta`
+  debuff on opponents' cards. Aj's example: the pile is a boosted pair of 4s at effective 6 and you hold a pair
+  of 5s; a "slash 2" drops the pile to 4 and your 5s become legal. **The engine already has the hook** —
+  `st.pile.mod`, folded in by `refreshPile()`, and the value-modifier model it must obey is
+  [`DECISIONS.md#value-modifiers`](DECISIONS.md#value-modifiers).
+  **The measured support is settled: [`DECISIONS.md#value-stuck`](DECISIONS.md#value-stuck)** — read it there,
+  including the correction to an earlier claim about Rogue. Do not re-derive it, and do not copy its numbers
+  back here. **What is open is only the card:** cost, whether it is a Quick, and how much it slashes.
+  `[id: rogue-slash-demand-card]`
+
+- `parked`              · **A count-up "charge" CLASS** (Aj, 2026-08-25 — his current lean; nothing built). Full analysis in
+  **[`docs/COUNT-UP-DESIGN.md`](COUNT-UP-DESIGN.md)**, which came out of his brother asking why the game has
+  shields at all and proposing "Kick Coins" — a count-up replacing them wholesale. Aj's landing point: not a
+  rules overhaul, **one class whose schtick is counting up**.
+  - **The count-up resource already exists twice**, so this needs no tokens and no new zone: the **energy pile**
+    already counts up, is card-backed and public — a charge class could gate effects on how much it has *banked*
+    rather than spent, which genuinely conflicts with everyone else's "spend energy on effects". And
+    `TRANSFORM_GATE='table'` is *already* a count-up (total `shieldsLost` unlocks Rides/Forms).
+  - Read the doc's **bias-correction section** before re-opening the wholesale version: the first analysis
+    leaned toward the shipped shield design, and four of its objections did not survive re-checking — notably
+    "length balloons with player count", which is false if a Special win pays **a coin per opponent beaten**
+    (the v1.31.0 fix, mirrored).
+  - The one objection that *did* survive: the **leader-snowball is worse under coins**, because a win advances
+    only the winner where a shield hit damages everyone, and initiative is already 1.8x concentrated.
+  `[id: count-up-class]`
+
+- `parked`              · **QR SCANNING IS BUILT, GREEN, AND PARKED on `feat/qr-scanning`** (PR #29, closed 2026-08-25, 21/0).
+  **Why it is not merged:** scanning needs an origin that can be granted camera access, and a file opened from
+  Android's Downloads is `content://` — an opaque origin — so Chrome rejects `getUserMedia` without ever
+  prompting. **MEASURED AND SETTLED 2026-08-28:** the same file over **https is GRANTED** with a live preview.
+  **What would revive it:** a decision to host the file. The blocker is no longer technical.
+  Full reasoning, the origin experiment, and everything else considered for making joining easier are in
+  [`DECISIONS.md`](DECISIONS.md#joining-discovery-and-the-qr-path).
+  `[id: qr-scanning-built-green]`
 
 - `needs a decision`    · **⏸ BOTH ★ ENTRIES BELOW ARE DEFERRED UNTIL AFTER THE EPIC MERGES** (Aj, 2026-09-30:
   *"those starred entries while fancy for the epic can actually be done after it's merged, so we can defer
@@ -1194,6 +1166,49 @@ never read.*
   `[id: priority-modal-redesign]`
 
 ### Balance and design
+
+- `needs a measurement` · **RE-CHECK `setRecycleTech`, AND THE DISCARD PILE NOBODY CAN SEE** (Aj, 2026-09-08, on finding out
+  decks thin: *"so were decks actually getting thinner without me noticing? huh?"*). They are, and the
+  "without noticing" half is structural rather than careless.
+  - **What thins.** `spendCard` is `(RECYCLE_TECH ? pl.shuffle : pl.removed).push(card)` and **`RECYCLE_TECH`
+    defaults false**, so every normally-resolved Technique leaves the pool for good. So does the Broadway
+    pitch, Counter Spell's own card, Annoint's own card, and anything Sabotage or an equipment-destroy kills.
+  - **What does NOT thin, and is the reason this is easy to miss.** Spent **energy returns to the Shuffle
+    Pile** (`payEnergy` pushes there, both the coloured pips and the generic remainder), and a **countered**
+    card goes there too. So the pile a player watches most closely is the one that cycles perfectly.
+  - **Two escape valves, both narrow:** Ares's Super `reclaim` pulls Shuffle + Discard + hand back into the
+    deck, and Hippolyta's `reclaimDiscard` pulls the Discard back. Nothing else touches `removed`.
+  - **THERE IS NO DISCARD-PILE VIEWER.** `openPileView` is only ever called with `'energy'` and `'shuffle'`
+    (⚡ and ♻). The one zone that only ever grows, and that permanently shrinks your game, is the one zone
+    you cannot open. **That is almost certainly the whole answer to "without me noticing".**
+  - **IT HAS BEEN MEASURED BEFORE — AND THE NUMBER ONLY COVERS DUELS, ON A BUILD FROM BEFORE THE DRAW
+    SCALED.** [`ENERGY-REORDER-DESIGN.md`](ENERGY-REORDER-DESIGN.md) records **154/400 = 39% of games ever
+    reshuffle**, median first reshuffle **round 12**, **0.41 reshuffles per game**. Read straight, that is the
+    answer to *"why did I never notice"*: in ~61% of games the deck never runs dry, so the thinning never
+    bites. **Two reasons not to stop there**, and the doc says the second itself (*"at v1.28.1 and will
+    drift"*):
+    - **`recyclesim` calls `newGame` with no player count, so every one of those games was a DUEL.**
+    - **It predates v1.31.3, which scaled the per-round draw to `numPlayers`.** At six players that is a
+      **6-card draw against the 2 those games ran on** — three times the rate through the deck, and thinning
+      compounds every cycle because `removed` never refills the Shuffle Pile. The duel figure cannot be
+      carried across; **re-measure at 3/4/6p before concluding anything about multiplayer.**
+    - **HYPOTHESIS, UNTESTED, worth one run rather than an argument:** this may be a thread in ♦'s
+      multiplayer dominance, which Aj raised independently (*"the insane win rate in multiplayer"*). Wizard is
+      the **ramp/reclaim** class, and reclaim is worth most exactly when the pool is thin and cycling fast —
+      which is the 6p condition and not the duel one. `CARD-STATS` already shows Pure Wizard middling in a
+      duel and climbing with the table. **This is a lead, not a finding**; the honest test is `analysis.js`
+      with `RECYCLE` on and off at 6p, which needs no new code.
+  - **Two jobs, and they are separable.** (1) Measure the magnitude — how many cards a real game removes, and
+    whether it materially changes deck-out pressure; `recyclesim.js` measures cycling pressure already and
+    `analysis.js` takes `RECYCLE` as an argument, so **option "all Techniques recycle" is measurable today
+    with no new code**. (2) Decide whether the Discard deserves a viewer, which is a UI question independent
+    of the balance one — and cheap, since the pile viewer is already generic over a zone name.
+  - **Related, and deliberately NOT bundled:** whether Counter Spell's own card should go to the Shuffle Pile
+    instead. Aj: *"let's leave counter spell alone for now."* It is a **buff** rather than a consistency fix
+    (every Technique goes to the Discard; ♦ is not singled out), and it lands on the class that already
+    scales hardest with player count. The three options are written up on `epic/priority-windows` in
+    `FIGHT-END-PLAN.md` → *Where a mid-cast card goes*.
+  `[id: re-check-setrecycletech-discard]`
 
 - `needs a measurement` · **GAME LENGTH SCALES WITH PLAYER COUNT AND DAMAGE DOES NOT — the open question is what sits between the
   corners.** Median **11 (2p) → 15 → 22 → 33 (6p)** live; the engine's own defaults hold it flat at ~10. The

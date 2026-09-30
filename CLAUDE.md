@@ -3502,6 +3502,25 @@ now recorded at [`DECISIONS.md#persona-traits`](docs/DECISIONS.md#persona-traits
   prefixes carry.
   **A TAG IS A CLAIM AND ROTS LIKE ANY OTHER.** `root cause found` on an entry whose diagnosis was never
   written into the body is this exact failure wearing a tag; re-read the tag whenever you touch the entry.
+  **AND IT IS NOT ONLY STALE — MOST OF IT IS NOT THE EPIC'S WORK AT ALL (routed 2026-09-30).** Aj, on
+  finding two just-built fixes riding `epic/priority-windows`: *"it sounds like we could have done that on
+  main."* **17 of the 26 entries filed under the epic were main work** — layout, tutorials, a shapes rule,
+  the AI's straight sort, the Fighter Kick flash, the battle-log overlay and six harness flakes, none of
+  them touching the priority model. The cost is not tidiness: a fix built on a long branch reaches players
+  only when the branch lands, and two player-visible ones now wait on the whole epic.
+  **THE FAILURE IS TRIAGING *WITHIN* A SECTION RATHER THAN QUESTIONING IT.** I read the epic's Correctness
+  list, verified entries against the code exactly as this file demands, picked the two best — and never
+  asked whether the list was the right list. Every check I ran was a check on the entry.
+  **THE TEST IS CHECKABLE AND THE OBVIOUS ONE IS NOT: *DOES THE THING IT TOUCHES EXIST ON `main`,
+  UNCHANGED BY THE EPIC?*** If yes it ships on its own; if no — the Resolution model, the go-round, the
+  Main/Fight sub-phase split, **a suite the epic added** — it cannot. "Is this epic work?" is a judgement
+  and drifts; that question is a grep. The surprising cases go both ways: `nettest_passoduel`'s flake
+  sounds like tooling but the epic added the suite, so there is nothing on main to fix it in; the lobby
+  ping and the Fighter Kick flash sound like netplay and are plain main work.
+  **DO THE ROUTING WHEN THE EPIC STARTS, NOT AT ITS STEP 23.** Step 23 says *"route by the CLAUDE.md
+  table"*, which is far too late — the whole point of routing is to stop work being built on the wrong
+  branch, and by step 23 it already has been.
+
   **⚠ AND THE WHOLE BACKLOG BEHIND AN EPIC IS STALE UNTIL PROVEN OTHERWISE — MEASURED AT FOUR IN SIX
   (2026-09-17).** Aj picked "the priority cluster", six entries, every one `ready to build` or `root cause
   found`. Opening the code on each **before writing anything**: the pre-fight-window bullet named
