@@ -60,16 +60,34 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
   });
   await p.waitForTimeout(250);
   const zoneTap = await p.evaluate(()=>{
-    /* `.formChip` on a phone (the collapsed strip), `.formMini` where the zone renders full cards —
-       same gesture on the same thing, which is why both route through `readCard`. */
-    const m=document.querySelector('.formChip, .formMini'); if(!m) return {staged:false, open:false, body:''};
-    document.getElementById('cardFull').classList.remove('show');
+    /* ⚠ TWO TAPS ON A COLLAPSED STRIP SINCE 2026-09-30, AND THE CLAIM IS UNCHANGED. This used to click
+       `.formChip, .formMini` — whichever existed — because both routed through `readCard`. A collapsed
+       chip now EXPANDS instead (Aj: *"tap expands, then tapping the expanded one reads, tapping out does
+       what it already does"*), which fixed a zone that could never be opened at all: the chips fill the
+       strip, so their `stopPropagation` left no surface for the expand.
+       SO THE GESTURE MOVED AND THE PROMISE DID NOT. What this file asserts is that **a zone card can be
+       read where there is no side panel**, and that is still true — it just takes the expand first. Drive
+       the real path rather than relaxing the assertion: chip, then the mini it reveals.
+       THIS SUITE IS WHAT CAUGHT THE CONSEQUENCE. `landscapetest` proved the chip expands and that the
+       landscape band still reads, and was blind to this, because it never asks whether the READER is
+       still reachable on a phone. Two suites, two halves of one behaviour. */
+    const cf=document.getElementById('cardFull');
+    const chip=document.querySelector('.formChip');
+    if(chip) chip.click();                                  // collapsed → expand
+    const m=document.querySelector('.formMini') || chip;    // expanded → the card you then tap to read
+    if(!m) return {staged:false, open:false, body:''};
+    cf.classList.remove('show');
     m.click();
-    return { staged:true, open:document.getElementById('cardFull').classList.contains('show'),
-             body:(document.querySelector('#cardFull .cfText')||{}).textContent||'' };
+    return { staged:true, open:cf.classList.contains('show'),
+             body:(document.querySelector('#cardFull .cfText')||{}).textContent||'',
+             viaExpand: !!chip && m!==chip };
   });
   ok(zoneTap.staged, 'STAGED: a Forms mini-card is on the board to tap');
-  ok(zoneTap.open===true, 'tapping a zone card OPENS the full reader where there is no side panel');
+  ok(zoneTap.open===true, 'tapping a zone card OPENS the full reader where there is no side panel'+
+     (zoneTap.open?'':'  ← the read path is unreachable on a phone, which is the one size that has no other'));
+  ok(zoneTap.viaExpand===true,
+     '  …reached by EXPANDING first — the collapsed chip opens the zone, the card inside it reads'+
+     (zoneTap.viaExpand?'':'  ← the chip still swallowed the tap; the zone never expanded'));
   ok(/Hippolyta|Q♣|12/.test(zoneTap.body) || zoneTap.body.length>0, '  → and the reader is showing that card, not an empty shell');
 
   /* EQUIPMENT, WHICH IS THE THING AJ ACTUALLY ASKED ABOUT, and it is the TWO-tap path: v1.31.111 made the
