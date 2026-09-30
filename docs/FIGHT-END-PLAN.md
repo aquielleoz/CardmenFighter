@@ -28,8 +28,9 @@
 > - **23 — the RENAME half is done** (`772ba8e`…`980560a`, one symbol per commit, 2026-09-14) **and the DOCS
 >   half is not.** What that step still owes is listed at the step itself: README to **v1.32.0**, a
 >   `### v1.32.0` changelog heading, the handoff header, CLAUDE.md's suite counts, the dead-symbol
->   tombstones, folding this file and `PHASES-AND-PRIORITY.md` into their final homes, and striking both ★
->   entries plus the epic pointer from the BACKLOG. There is no `### v1.32` heading in `CHANGELOG.md` today,
+>   tombstones, folding this file and `PHASES-AND-PRIORITY.md` into their final homes, and striking the
+>   epic POINTER from the BACKLOG — **not the ★ entries**, which Aj deferred past the merge on 2026-09-30
+>   and which now live in the BACKLOG's `For main` → `Features` section. There is no `### v1.32` heading in `CHANGELOG.md` today,
 >   which is the cheapest way to check whether it has happened.
 >
 > **STEP 10'S REFACTOR IS DONE — and this block claimed otherwise for three weeks.** It said the shield-loss
@@ -1438,8 +1439,14 @@ the first minor bump in a long time, and it is a minor because *the rules moved*
 `docs/CHANGELOG.md`, the handoff header, CLAUDE.md's suite-count table, and the **dead-symbol tombstones** —
 `guardEffFor`, `shieldGuardCard`, `wouldBeSaved` are named in CLAUDE.md, `NEXT-SESSION.md` and
 `versiontest.js`'s own citation comment, and **the `file:line` gate cannot see a dead name**. Fold
-`PHASES-AND-PRIORITY.md` and this file's surviving content into their final homes; strike both ★ entries and
-the epic pointer from the BACKLOG. Route by the CLAUDE.md table: measurements → `DECISIONS.md` (**re-taken
+`PHASES-AND-PRIORITY.md` and this file's surviving content into their final homes; strike **the epic
+pointer** from the BACKLOG.
+**⚠ THIS USED TO SAY "strike both ★ entries and the epic pointer", AND IT WOULD HAVE DELETED LIVE WORK.**
+Aj deferred both ★ entries past the merge rather than dropping them (2026-09-30: *"those starred entries
+while fancy for the epic can actually be done after it's merged"*), so they have MOVED to the BACKLOG's
+`For main` → `Features` section and step 23 must leave them where they are. The instruction was written
+expecting them to land inside the epic. An order to delete work, read at the one moment nobody is checking
+whether it is still right, is the most expensive kind of stale line this file can carry. Route by the CLAUDE.md table: measurements → `DECISIONS.md` (**re-taken
 after step 21, not carried forward**); remaining levers → BACKLOG with `RATCHET:` tags on both sides; rules →
 CLAUDE.md. *Gate:* `node versiontest.js`; **a full sweep on the epic** before the merge, per the epic rules.
 
