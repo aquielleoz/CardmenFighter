@@ -15,7 +15,7 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.127.8.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.127.9.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
@@ -228,8 +228,8 @@ re-read its tag.
 > it belongs here. That question has an answer anyone can check with a grep; "is this epic work" does not.
 > **WORKED EXAMPLES, because the surprising ones are surprising in both directions.** `nettest_passoduel`
 > is a FLAKE, which sounds like tooling — but the epic added that suite, so there is nothing on main to
-> fix it in. `tutorials-still-teach-boundary` sounds like a tutorial, which is main work all day — except
-> what is left of it is teaching the BOUNDARY WINDOWS, which the epic created. And the Fighter Kick
+> fix it in. `go-round-lesson` sounds like a tutorial, which is main work all day — except its subject is
+> the priority LOOP, which the epic built. And the Fighter Kick
 > flash, the straights sort and the lobby ping all sound like
 > netplay or engine work and are none of them priority: they ship on main today.
 
@@ -401,34 +401,29 @@ re-read its tag.
 
 #### Tutorials and prompts
 
-- `ready to build`      · **⚠ MOSTLY SHIPPED — RE-SCOPED 2026-09-30, AND EVERY PREMISE BELOW IS NOW FALSE.**
-  Its blocker (*"a lesson that wants to TEACH a boundary window has to opt itself back in"*) was BUILT on
-  2026-09-25: `windows:` / `lessonNamesWindow` / `lessonAllowsWindow`. Its named home (*"the Quicks lesson
-  is the only one that teaches responding"*) NO LONGER EXISTS — absorbed into "Phases and Quicks". And that
-  lesson now teaches the model twice over: *"Their play opens a window for you"* and *"Resolution opens a
-  window too — orange — and a different Quick answers it"*, closing with *"Two Quicks, two different
-  windows."*
-  **WHAT IS ACTUALLY LEFT** is the generalisation the lesson stops short of: that priority is passed at
-  EVERY phase and sub-phase change, not only at a cast and at Resolution. The two boundaries it does not
-  name (Upkeep, Clean-up) default OFF, so teaching them means teaching a window the player will not meet —
-  which may be the right reason not to. Re-read before building; the body below describes a build from
-  two weeks ago.
-  **THE ORIGINAL (2026-09-16):** **THE TUTORIALS STILL DO NOT TEACH THE BOUNDARY WINDOWS (the rest of #6).** The
-  two-state Fight and the Main-only activation rule are taught now, and all eleven suites are green. What
-  is still missing is the model itself: **priority is passed at every phase and sub-phase change**, and no
-  lesson says so. A player learns to press Next and Fight without learning WHY there is a crossing.
-  **THE LINE THAT HAS TO BE ARGUED WITH IS `promptWanted`**, which returns false for every non-`respond`
-  timing while `tutorialMode` is on. That is deliberate — an unscripted modal derails a gated step, and
-  `lessontest_twos` went red the day the default flipped — so a lesson that wants to TEACH a boundary
-  window has to opt itself back in rather than have the suppression removed. `shieldSaveOverride` repeats
-  the same suppression for the same reason; anything new that forces a prompt must too.
-  **THE QUICKS LESSON IS THE ONLY ONE THAT TEACHES RESPONDING**, so it is the natural home — it already
-  survives a real Counter Spell window, which is the hard part.
-  **ADDING A STEP RENUMBERS ITS SUITE'S ASSERTIONS, MEASURED:** `lessontest_howto` asserts `atStep(2)`
-  through `atStep(10)`, and inserting one step scored **7 pass / 17 fail**. Fold new teaching into an
-  existing step where you can; budget the suite edit where you cannot.
-  `[id: tutorials-still-teach-boundary]`
 ### Features
+
+- `parked`              · **A GO-ROUND LESSON — PARKED UNTIL THE CARD POOL HAS MORE QUICKS (Aj, 2026-09-30:
+  *"we're only going for number 2 when we have more quicks in the card pool. so that's probably a bit
+  later"*).** What no lesson teaches is priority as a LOOP: that it passes seat to seat, that you can HOLD
+  it and stack a second Quick of your own, and that passing is what closes the go-round. "Phases and
+  Quicks" teaches the two windows a player meets — a cast and Resolution, *"two Quicks, two different
+  windows"* — and Main → Fight is named as a priority point since 2026-09-30. None of that is the
+  go-round itself.
+  **THE REVIVAL CONDITION IS A NUMBER, so nobody has to re-litigate it: there are THREE base Quicks
+  today** — ♦4 Counter Spell, ♦9 Leyline Ascension, ♥5 Annoint (plus six Form/Super patches that GRANT
+  `quick`). A lesson about holding priority and stacking needs a player to plausibly hold two castable
+  Quicks at once, and with three in the pool that staging is a contrivance rather than a game. Re-count
+  when the pool grows; if it is still three, it is still parked.
+  **AND BUDGET FOR IT WHEN IT COMES.** This repo's own rule: a lesson that narrates a mechanic is an AUDIT
+  of that mechanic, and the phases lesson found eleven shipped defects. The go-round is the deepest
+  mechanic in the game, so expect the same — a reason to do it, not a reason to avoid it, but not a
+  tutorial-sized task.
+  **THE SMALL HALF ALREADY SHIPPED**, which is why `tutorials-still-teach-boundary` is closed. Main →
+  Fight was the third unnamed boundary and the only one a player actually meets (Upkeep and Clean-up
+  default OFF, so naming them teaches a window nobody sees). Step 3 now says crossing the doorway offers
+  everyone a chance to act, and `lessontest_phases` asserts it against the LEDGER.
+  `[id: go-round-lesson]`
 
 - `parked`              · **A SHIELD GAIN AS A GUARD IS PARKED on `exp/shield-gain-guard`** (2026-09-10). `exp/` and not `parked/`:
   the table reserves `parked/` for work that is **built, green** and deliberately unmerged, and this is an
