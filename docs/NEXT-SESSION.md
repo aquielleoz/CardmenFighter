@@ -127,19 +127,26 @@ assertions were A/B'd by deleting the migration and rebuilding.
   host or a third seat — is still undriven, and both defects that shipping piece 5 exposed were in driver
   code of exactly that kind. *(This read "UNTESTED IN NETPLAY" flatly until 2026-09-29; `ridewedge` closed
   half of it in September and nobody came back to narrow the claim.)*
-- **`kind: 'shieldImmune'` is an ORPHANED effect kind.** Nothing produces it, so `sph` in `playPhase`
-  (`ai.js`) is always null and its SPHERE branch is dead. The FIELD `shieldImmune` is very much alive —
-  Apollo-Sanctuary's boost sets it and `engine.js` reads it — so it is only the `kind` no card carries.
+- ~~`kind: 'shieldImmune'` is an ORPHANED effect kind~~ — **the dead branch is deleted (2026-09-30).**
+  `sph` in `ai.js`'s `playPhase` could never match, so the AI's "shield up when in danger" move did not
+  exist. ⚠ THE FIELD IS ALIVE and must not be confused with the kind: Apollo-Sanctuary sets
+  `shieldImmune: true` as a patch and `engine.js` reads it, which is why grepping the word finds plenty
+  while grepping the KIND finds nothing. Restoring the branch is two lines if a card ever takes it.
 - **"1.21 extra priority windows per game" is a SOLO number.** At 3-6 players more seats can hold a Quick,
   so the real figure is higher and unmeasured.
 
-**⚠ TWO GATES ARE FILED AS NEEDING AJ AND TWO DEVICES** — step 18's netplay gate, and step 22's version
-refusal against a genuinely OLD peer (both sides in the suite fake the number with `?ver=`). **Apply
-CLAUDE.md's own test before accepting either:** *"needs two devices" is almost always false, and the
-refutation is a grep of `nettest_*.js` for a suite that already drives the seat in question.* Step 22 looks
-mechanizable on that test — `git show <old-commit>:CardmenFighter.html` is a genuinely old build to load as
-the client page, which is strictly stronger than both sides faking a number. *(Filed THREE times in this
-header before 2026-09-29, once inside a list of things "not done".)*
+**⚠ ONE GATE LEFT, AND IT IS NOT STEP 18 (2026-09-29).** Step 18 asked for *one real solo game and one
+two-device netplay game*. **Aj supplied the netplay game on 2026-09-29** — a complete nine-round duel,
+both ends saved, with the play-by-play IDENTICAL across the two seats and the Main → Fight go-round
+opening and being answered in real play at rounds 6, 7 and 8. That is the gate's substance and it is
+evidence, not reasoning. The SOLO half is closed on `browsertest`'s twelve complete duels through the
+real page — **that part is a judgement call and is marked as one**, so re-open it if a solo report ever
+contradicts it.
+**WHAT REMAINS IS STEP 22'S**: the version refusal against a genuinely OLD peer, with both sides in the
+suite faking the number via `?ver=`. It is **not** blocked on two devices, and it is not blocked on Aj:
+the version is HELD for the whole epic, so every build in existence is v1.31 and `verIncompatible`
+compares the MINOR — the refusal cannot fire at all until the bump. It is a POST-MERGE check by
+construction, and listing it as owed beforehand is what kept it looking blocked.
 
 **READ THE TWO NEW RULES IN CLAUDE.md BEFORE THE NEXT BUILD.** Both are about instruments lying: a seeded
 fingerprint proves the ENGINE and never loads the page (it was byte-identical through four commits while two
