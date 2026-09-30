@@ -2202,11 +2202,10 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127.1 — last FULL sweep 2026-09-29, `npm run sweep`, 103/103 ON THE EPIC**
-⚠ **AND THAT SWEEP IS NOW SEVERAL MERGES STALE** — it predates the brake staging fix, the client phase
-strip, the stake-driven AUTO default, the per-card retirement and this versioning change. A suite count
-and a date are a MEASUREMENT, and a measurement is only true of the build it was taken on; re-run before
-quoting it. (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, `nettest_brake`, `nettest_brake3`, `dragtest`, `lessontest_pickescape`) (four lanes; background
+Status as of **v1.31.127.1 — last FULL sweep 2026-09-30, `npm run sweep`, 103/103 in 258s ON THE EPIC**
+(the run before it was 101/103 — `quicktest` and `nettest_ridewedge`, both red for the prompt MODE rather
+than for a defect; see the entry above). A suite count and a date are a MEASUREMENT and are only true of
+the build they were taken on, so re-run before quoting this. (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, `nettest_brake`, `nettest_brake3`, `dragtest`, `lessontest_pickescape`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
