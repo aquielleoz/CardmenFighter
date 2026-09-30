@@ -531,6 +531,43 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   ok(verdicts.king.replace(/^[^—]*—/,'') === verdicts.plain.replace(/^[^—]*—/,''),
      '…and both give the SAME reason — the chain does not special-case a card that happens to carry one');
 
+  /* ============ THE MAIN HINT DOES NOT OFFER A SUB-PHASE THAT IS DEAD (2026-09-30) ============
+     Aj, 2026-09-16, from a round-1 screenshot: *"kings and jacks aren't activateable yet at this point in
+     the game… maybe we can skip main phase when nothing is activateable too?"* `TRANSFORM_GATE` defaults
+     to `'table'`, so a tier opens only once total shields lost reaches `numPlayers × lvl` — at round 1
+     that is `0 >= 2`, both the Jack and King tiers shut — and a seat on 0 energy can afford nothing else.
+     Neither is a bug; together they make Main inert while the hint said *"drag a card to use it"*.
+     ⚠ BOTH BOARDS, AND THE SECOND IS THE ONE THAT KEEPS THIS HONEST. "It says nothing is usable" is
+     equally true of a build that says so always, which would be a worse lie than the original in the
+     other direction. The pair differs only in whether the seat can actually pay for anything. */
+  const mainHint = await p.evaluate(()=>{
+    const st=window.__solo.st(), mk=(r,s,i)=>({rank:r,suit:s,id:i});
+    const you=st.players[0];
+    const read=()=>{
+      const clr=document.getElementById('clearBtn'); if(clr && !clr.disabled) clr.click();
+      window.__solo.render();
+      return ((document.getElementById('hint')||{}).textContent||'').trim();
+    };
+    st.round=1; st.turn=0; st.subPhase='main'; st.pile=null; st.passes=0; st.lastPlayer=null;
+    /* DEAD: a King and a Jack, whose tiers are shield-gated shut at round 1, and NO energy. */
+    you.hand=[mk(13,'D','mk1'),mk(11,'D','mj1')]; you.energy=[];
+    const dead=read();
+    /* LIVE: the SAME board plus an affordable effect card and the energy for it.
+       ⚠ THE CONTROL CARD MUST NEED NO TARGET. The first cut used ♥5 Annoint, which targets a `removeEquip`
+       on the stack or your own Equipment — with neither present it is genuinely unactivatable, so the
+       control reported "nothing to use" and read as the fix firing always. ♥3 Pray for Strength is `ramp`:
+       no target, cost 3, and hearts pay for it. */
+    you.hand=[mk(13,'D','mk1'),mk(11,'D','mj1'),mk(3,'H','mh3')];
+    you.energy=[]; for(let i=0;i<12;i++) you.energy.push(mk(1,'H','me'+i));
+    const live=read();
+    return { dead:dead, live:live };
+  });
+  ok(/nothing to use yet/i.test(mainHint.dead),
+     `a dead Main sub-phase says so  ["${mainHint.dead.slice(0,64)}"]` +
+     (/nothing to use yet/i.test(mainHint.dead) ? '' : '  ← REPRODUCED: offers a sub-phase in which nothing can be used'));
+  ok(/drag a card to use it/i.test(mainHint.live),
+     `  …and a LIVE one still invites you in — the control  ["${mainHint.live.slice(0,64)}"]`);
+
   /* ============ THE PHASE STRIP RUNS THE WHOLE RAMP IN A REAL GAME (2026-09-25) ============
      Aj played a 3-player game and reported three things that were one feature failing: the strip never
      glowed for the Beginning phase, the drawn cards never flew in, and *"after yellow the hand directly
