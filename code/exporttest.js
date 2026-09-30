@@ -150,16 +150,30 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
      SEAT 2 IS THE SUBJECT AND SEAT 0 IS THE CONTROL. Seats 0 and 1 were always counted — seat 1 by
      accident, via a `revealShields()` call on a panel that is `display:none` here — so "some seat is
      counted" would have passed on the broken build. The pair is what isolates the fix. */
+  /* ⚠ ABSOLUTE VALUES, NOT A CLAMPED SUBTRACTION — AND THE COMMENT ABOVE USED TO BE FALSE (2026-09-30).
+     It said "independent of how far the driver got", and the staging was
+     `shields = Math.max(1, shields - 2)`, which is exactly a dependence on how far the driver got: a seat
+     already on TWO shields clamps to 1 and the delta is 1, not 2. That is a 102/103 sweep reporting
+     `← REPRODUCED: every free-for-all record undercounts damage past the second seat` about a product
+     that is fine — the worst kind of red, because it names a specific defect and sends the next reader
+     after it. Three solo runs were 17/0; forcing seat 2 to two shields reproduces it every time.
+     Setting a known floor FIRST and taking the baseline AFTER absorbs the raise, so only the drop below
+     is counted and the deltas are exact whatever the board looks like. */
   const dmg = await p.evaluate(()=>{
     const st=window.__solo.st();
-    window.__solo.render();                                    // baseline every seat's tracker
+    st.players[0].shields = 4; st.players[2].shields = 4;      // a KNOWN floor…
+    window.__solo.render();                                    // …absorbed into the baseline below
     const before=(window.__solo.stats().seats||[]).map(s=>s.shieldsLost);
-    st.players[2].shields = Math.max(1, st.players[2].shields-2);   // a seat PAST the second bleeds…
-    st.players[0].shields = Math.max(1, st.players[0].shields-1);   // …and the local seat, which always worked
+    st.players[2].shields = 2;                                 // a seat PAST the second bleeds exactly 2…
+    st.players[0].shields = 3;                                 // …and the local seat exactly 1, the control
     window.__solo.render();
     const after=(window.__solo.stats().seats||[]).map(s=>s.shieldsLost);
-    return { d0:after[0]-before[0], d2:after[2]-before[2] };
+    return { d0:after[0]-before[0], d2:after[2]-before[2],
+             staged: st.players[0].shields===3 && st.players[2].shields===2,
+             seats: st.players.map(function(q){ return q.shields; }).join('/') };
   });
+  /* STAGING THAT SILENTLY MISSES MAKES THE RUN PASS HAVING EXERCISED NOTHING — assert it landed. */
+  ok(dmg.staged, `the damage probe's staging landed (shields now ${dmg.seats})`);
   ok(dmg.d0===1, `the local seat's damage is counted (+${dmg.d0}) — it always was, and is the control here`);
   ok(dmg.d2===2,
      `and SEAT 2's is too (+${dmg.d2}) — the seat no render diff ever reached` +
