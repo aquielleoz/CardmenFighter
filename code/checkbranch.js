@@ -176,17 +176,33 @@ pushRefs().forEach(function (line) {
   });
 });
 
-/* ---- THE EPIC BUILD NUMBER — A WARNING, NOT A GATE (2026-09-30).
+/* ---- THE EPIC BUILD NUMBER — A GATE (2026-09-30, Aj: *"oh let's make it a gate then?"*).
  * An epic build is `vX.Y.Z.a`: X.Y.Z is the main version it is based on and never moves, `a` increments on
  * every merge INTO the epic. That number is what lets `verIncompatible` tell two builds on the same branch
  * apart — hold it still and the branch where builds change fastest is the one where every build claims to
  * be the same, which is the hole the four-number scheme exists to close.
  * COMPARED AGAINST THE EPIC, NOT `baseFor`. On a second push to the same branch `baseFor` returns that
- * branch's own previous tip, so the bump would already be behind it and the check would say nothing — the
- * question is always "does this differ from the epic I am merging into".
- * WHY IT ONLY WARNS: a docs-only PR into an epic produces nothing anyone can download, and forcing a bump,
- * a rebuild and both HTML copies for a typo fix would be the rule bullying the work — the same call the
- * two-to-four-word note makes below. What it buys is that nobody forgets the bump silently. */
+ * branch's own previous tip, so a bump made in an earlier commit would already be behind it and the check
+ * would say nothing — the question is always "does this differ from the epic I am merging into".
+ * ⚠ THE TRIGGER IS THE BUILT ARTIFACT, AND THAT IS WHAT MAKES A HARD GATE DEFENSIBLE. It shipped as a
+ * warning because forcing a bump, a rebuild and both HTML copies for a docs typo would be the rule
+ * bullying the work — a real cost, and the reason to gate anyway is that a warning nobody has to obey is
+ * the honour system this file exists to replace. Both are answered by asking the right question: not "did
+ * anything change" but **"would a player get a different file"**. `code/CardmenFighter.html` is committed
+ * build output, so diffing IT at the two commits is the artifact itself rather than a proxy for it — no
+ * list of build inputs to drift out of step with `build.js`, and a docs-only PR is silent by construction
+ * rather than by an escape hatch someone has to remember.
+ * AND IT ASSERTS THE RULE, NOT MERELY A CHANGE: same X.Y.Z, and `a` STRICTLY GREATER. `now !== was` would
+ * pass a typo that moved the version backwards or sideways, which is the same build-identity hole one
+ * level down. */
+function epicBuildOf(v) {                       // the 4th segment, or null for a main build
+  var m = /^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?/.exec(String(v || ''));
+  return m ? { base: m[1] + '.' + m[2] + '.' + m[3], n: m[4] == null ? null : +m[4] } : null;
+}
+function pageChanged(a, b) {
+  try { execSync('git diff --quiet ' + a + ' ' + b + ' -- code/CardmenFighter.html', { stdio: 'ignore' }); return false; }
+  catch (e) { return true; }                    // non-zero exit = the built page differs
+}
 pushRefs().forEach(function (line) {
   if (process.env.EPIC_PUSH === '1') return;
   var f = line.trim().split(/\s+/), lsha = f[1] || '', rref = f[2] || '';
@@ -196,13 +212,19 @@ pushRefs().forEach(function (line) {
   if (!n || n.ref.indexOf('refs/remotes/origin/epic/') !== 0) return;   // aimed at main — this rule is not about you
   var was = statusAt(n.mb), now = statusAt(lsha);
   if (!was || !now) return;
-  if (!/^v\d+\.\d+\.\d+\.\d+/.test(was)) return;   // that epic has not adopted the scheme
-  if (now !== was) return;                            // bumped
-  console.error('⚠ branch "' + branch + '": README **Status:** is still ' + was + ', the same as ' +
-                n.ref.replace('refs/remotes/', '') + '.');
+  var ep = epicBuildOf(was), np = epicBuildOf(now);
+  if (!ep || !np || ep.n == null) return;       // that epic has not adopted the scheme
+  if (!pageChanged(n.mb, lsha)) return;         // docs-only: a player would get the same file
+  var epicRef = n.ref.replace('refs/remotes/', '');
+  if (np.base === ep.base && np.n != null && np.n > ep.n) return;       // bumped, correctly
+  console.error('✗ branch "' + branch + '": the built page differs from ' + epicRef +
+                ', but README **Status:** went ' + was + ' → ' + now + '.');
   console.error('  An epic increments the FOURTH number on every merge into it, so two builds of the branch');
   console.error('  can be told apart — that is what makes the netplay handshake able to refuse a stale peer.');
-  console.error('  Bump README\'s **Status:** line, rebuild, and copy the page to the repo root.');
+  console.error('  Expected ' + ep.base + '.' + (ep.n + 1) + ' or later (same base, higher build number).');
+  console.error('  Bump README\'s **Status:** line, `node build.js`, and copy the page to the repo root.');
+  console.error('  A docs-only change needs no bump and is not checked — this fired because the BUILT PAGE moved.');
+  process.exit(1);
 });
 
 if (branch === 'main' || branch === 'HEAD') process.exit(0);
