@@ -43,12 +43,12 @@ node build.js                                   # engine+ai+art+netview → code
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
 node test.js                                    # engine + AI suite — 591 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 65, must end 0 FAIL
-node nettest_log.js                             # netplay public battle log, both frames (14)
-node nettest_names.js                           # netplay player names, both directions (8)
+node nettest_log.js                             # netplay public battle log, both frames (18)
+node nettest_names.js                           # netplay player names, both directions (13)
 node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
-node viewtest.js                                # 🔍 View card reader gating on tight screens + the phone touch targets (25)
-node dragtest.js                                # DRAGGING MEANS TWO THINGS AND THE SUB-PHASE DECIDES (17).
+node viewtest.js                                # 🔍 View card reader gating on tight screens + the phone touch targets (26)
+node dragtest.js                                # DRAGGING MEANS TWO THINGS AND THE SUB-PHASE DECIDES (21).
                                                 # In MAIN a drag ACTIVATES; in the Fight Sub-Phase it PLAYS
                                                 # (epic step 20). `nettest_drag` drives only the PLAY half
                                                 # and says so — it steps OUT of Main first — so the half
@@ -61,8 +61,8 @@ node dragtest.js                                # DRAGGING MEANS TWO THINGS AND 
                                                 # release will ask and writes the reason while the card is
                                                 # in the air. Asserting a post-release `#message` waits
                                                 # for something that by design never comes
-node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (96)
-node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (20)
+node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (195)
+node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (21)
 node lessontest_energyorder.js                       # the "Energy Order" tutorial lesson, full UI (14)
 node lessontest_phases.js               # "Phases and Quicks" (Basics #3) — the lesson that ABSORBED the
 #                                       # old Quicks one. Both base Quicks, the doorway, and pauses held on
@@ -70,13 +70,13 @@ node lessontest_phases.js               # "Phases and Quicks" (Basics #3) — th
 #                                       # is DELETED: its lesson no longer exists
 node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated (25)
 node lessontest_zones.js                # the "Zones of Play" spotlight tour — every selector must LIGHT (21)
-node lessontest_initiative.js           # the "Initiative" lesson — asserts you genuinely cannot beat the lead (17)
-node lessontest_specials.js             # the "Specials" lesson — jab, then a real pair, then the shield (19)
+node lessontest_initiative.js           # the "Initiative" lesson — asserts you genuinely cannot beat the lead (22)
+node lessontest_specials.js             # the "Specials" lesson — jab, then a real pair, then the shield (21)
 node lessontest_energy.js               # the "Energy & Effects" lesson — bank, activate, spend (18)
 node lessontest_rides.js                # the "Rides" lesson — the J really enters your zone (15)
 node lessontest_forms.js                # the "Form Changes" lesson — the Q really enters your zone (15)
 node lessontest_twos.js                 # the "The 2" lesson AND the apex card text — asserts the text is
-                                        # DERIVED from the live rules, not a hardcoded string (29)
+                                        # DERIVED from the live rules, not a hardcoded string (31)
 #   The 2 lesson runs on a DELIBERATELY ILLEGAL deck (the Rival needs six 2s) and a per-lesson `pilot` rather
 #   than the AI; each gated step names the cards it accepts, so ignoring the instructions cannot dead-end it.
 node lessontest_pickescape.js           # THE CLEAN-UP PICK and the harness's escape from it (11). `card <id>
@@ -88,7 +88,7 @@ node lessontest_pickescape.js           # THE CLEAN-UP PICK and the harness's es
 node piletest.js                                # energy/shuffle pile viewers + promote (30)
 node revealtest.js                              # Outbalance's hand read: the modal, and that it never
                                                 # reaches `state` (12)
-node exporttest.js                              # the playtest export at 3 players — per-seat stats (17)
+node exporttest.js                              # the playtest export at 3 players — per-seat stats (18)
 node phantasmtest.js                            # Phantasmal Illusion: all three routes + the bare-copy
                                                 # refusal, in the real page (12)
 node nettest_reveal.js                          # the hand read over netplay, incl. who must NOT see it (10)
@@ -120,7 +120,7 @@ node nettest_autopass.js                        # AN AUTO-PASS IS NOT A CHOICE (
                                                 # N-player guard deleted. LEG 2b drives the REAL
                                                 # `#respDecline` button, because the early return it covers
                                                 # is in the UI path that `clientSend` jumps over
-node nettest_brake.js                           # THE AUTO-PASS BRAKE (22). One press carries a pass through;
+node nettest_brake.js                           # THE AUTO-PASS BRAKE (24). One press carries a pass through;
                                                 # someone ELSE casting into the window it opened HOLDS it.
                                                 # Four legs, and the two middle ones are the bugs this has
                                                 # already had: your OWN cast must not brake you (`stackMark`
@@ -151,20 +151,20 @@ node nettest_clientdeal.js                      # THE CLIENT'S OPENING HAND ARRI
                                                 # (`handPresetN`), never the order: a fair shuffle reproduces
                                                 # the engine's order 1 time in 720, so an order assertion is a
                                                 # mystery red waiting to happen
-node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming, the phase strip (113)
+node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming, the phase strip (115)
 node qrtest.js                                  # the QR encoder, every symbol decoded back by a real decoder,
-                                                # plus the geometry a camera actually needs (19)
+                                                # plus the geometry a camera actually needs (32)
 node qrref.js                                   # the same encoder diffed module-for-module against macOS
                                                 # CoreImage — darwin only, CORROBORATES rather than gates (26)
-node versiontest.js                             # the build stamp: README -> build -> both screens, the doc chain + the backlog tags (33)
-node sharetest.js                               # the share sheet + the tolerant paste (14)
+node versiontest.js                             # the build stamp: README -> build -> both screens, the doc chain + the backlog tags (35)
+node sharetest.js                               # the share sheet + the tolerant paste (17)
 node nettest_roundstall.js                      # the host must get the board back after winning a round (9)
 node nettest_actloop.js                         # play must keep moving AFTER a Technique, both seats (22)
 node nettest_version.js                         # the netplay build handshake, both seats + no false alarm,
                                                 # plus the EPIC LINE: a `vX.Y.Z.a` build refuses a
                                                 # `vX.Y.Z` one, two epic builds only warn (37)
-node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (36)
-node nettest_rules.js                           # custom rules over netplay: propagation + un-ready (20)
+node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (150)
+node nettest_rules.js                           # custom rules over netplay: propagation + un-ready (28)
 node nettest_passoduel.js                       # PASSO IN A DUEL (epic step 13). `passoTakeover` is not gated
                                                 # to multiplayer, but `passoStep` only knew driveN's parks —
                                                 # a duel parks on `duelWait`/`netSettle`/`netDiscard`
@@ -198,7 +198,7 @@ node resolutiontest_ui.js                          # THE TWO REPORTED BUGS, PLAY
                                                 # the STRIKER too (Armor Piercing under Hippolyta); C3
                                                 # keeps the narrowness claim C2 used to carry — the same
                                                 # board with the strip already banked forces nothing.
-                                                # F adds the STACK IN THE WINDOW (46)
+                                                # F adds the STACK IN THE WINDOW (71)
 node prompttest.js                              # NOTIFICATIONS, now the TRI-STATE only (12). The per-card
                                                 # checkboxes were RETIRED 2026-09-30 and two thirds of this
                                                 # suite went with them — it asserted six rendered rows, that
@@ -472,22 +472,22 @@ node nettest_parkbeat3.js    # THE IDLE PARK, at 3 players (10). Same drop idiom
 node nettest_sync.js         # THE CROSS-CHECK: plays a real game over the ROOM CODE and makes the two sides
                              # prove they AGREE — round, each side's view of the other's hand size, and that NARRATION is not doubled
                              # (count ratio vs the host, never adjacency) — against
-                             # the other's actual hand (7). The only suite that compares the two ends to each
+                             # the other's actual hand (12). The only suite that compares the two ends to each
                              # OTHER rather than to expectations. Reaches round ~14 in ~50 actions.
-node nettest_narrate.js      # PUBLIC NARRATION must reach the other seat (10). Its second half is the durable
+node nettest_narrate.js      # PUBLIC NARRATION must reach the other seat (12). Its second half is the durable
                              # part: it scans the client's log for SENDER-BAKED GRAMMAR — "You is", "You has",
                              # "You moves", "You’s" — each of which has shipped at least once.
 node twosim.js               # what the 2 does in plays of 4+ — off/low/high x 2/4/6 players. Counts SHAPES
                              # PLAYED, which is the only thing that moves: pacing and jab share do not, and a
                              # study that only measured those would report a null result.
-node peektest.js             # PEEK AT THE TABLE, the review mode (31). Peek SHOWS, it never CHANGES. Uses
+node peektest.js             # PEEK AT THE TABLE, the review mode (43). Peek SHOWS, it never CHANGES. Uses
                              # __solo.peek() — the REAL enterPeek, because showModal's peek branch keys off the
                              # `peeking` VARIABLE, so staging the classes alone tests nothing. And the hand's
                              # click target is the .group; `.group .card{pointer-events:none}` is by design.
 node nettest_trim.js         # the table is told who it is waiting on during a clean-up pick (15). The HOST is
                              # staged over the cap because every OTHER seat is auto-trimmed, so the host's own
                              # pick is the only one that stops play. A pick is confirmed with FIGHT.
-node nettest_unready.js      # a client can take its Ready back (12). Waits PAST the 350ms join retry before
+node nettest_unready.js      # a client can take its Ready back (15). Waits PAST the 350ms join retry before
                              # asserting — the retry silently re-readies the seat, so an immediate check passes
                              # on a build where the button does nothing.
 node nettest_dim.js          # the round banner must COME DOWN on a client (8). Stages the client OVER the hand
@@ -496,11 +496,11 @@ node nettest_dim.js          # the round banner must COME DOWN on a client (8). 
 node nettest_kick.js         # the CLIENT must play the FIGHTER KICK finisher (11). Stages it deterministically:
                              # loser out of shields, host holding a pair. NOTE round 1 is jabs only, and the
                              # kick fires on the next Special win AFTER a seat is already at 0 shields.
-node nettest_drag.js         # DRAG-TO-PLAY must go through the host (13). The first suite to drive the drag
+node nettest_drag.js         # DRAG-TO-PLAY must go through the host (16). The first suite to drive the drag
                              # path at all — clicking Fight exercises a DIFFERENT branch, which is why a client
                              # playing locally survived twenty green suites.
 node nettest_relay.js        # THE ROOM-CODE PATH end to end: host shows four characters, joiner types them, a
-                             # real DataChannel opens with nothing pasted (14). Drives relay/mock.js, and also
+                             # real DataChannel opens with nothing pasted (17). Drives relay/mock.js, and also
                              # asserts the FALLBACK both ways — norelay=1 and a dead relay.
 node ../relay/relaytest.js   # the signalling relay's protocol, against a local mock (20 assertions).
                              # Pass a base URL to test a REAL deployment — that is the only thing that turns
@@ -2274,12 +2274,12 @@ it. **The "run serially, never two at once" rule this line used to carry died wi
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
 `test` 591, `netview` 65, `mptest` 115, `rulestest` 150, `landscapetest` 195, `decktest` 42, `viewtest` 26,
-`piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 18, `lessontest` 20, `lessontest_energyorder` 14,
-`versiontest` 33, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 10, `counterfeittest` 11, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 46, `lessontest_howto` 25,
+`piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 18, `lessontest` 21, `lessontest_energyorder` 14,
+`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 10, `counterfeittest` 11, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 46, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 31, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 58 netplay suites: `nettest_3p` 7, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 11, `clientwin` 10, `concede3` 8,
+The 58 netplay suites: `nettest_3p` 7, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 16,
 `elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 7,
 `losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
@@ -2381,6 +2381,23 @@ wrong. Ten here would have been the same mistake in the other direction.
 third state and left `nettest_elim3` red for five versions, because that suite asserts an ELIMINATED seat's
 header text and nothing about the change suggested it. The sweep takes a few minutes; a suite that is red and
 unnoticed is worth less than no suite at all.
+**⚠ AND THE COUNTS ARE DECLARED IN *TWO* PLACES, ONLY ONE OF WHICH ANYONE MAINTAINS — 27 WERE STALE
+(audited 2026-09-30).** `versiontest` asserts `test` and `netview`, and nothing checks the rest. The
+verified list below had drifted in 3 places; **the COMMAND LIST above had drifted in 24**, some of them
+wildly — `rulestest` said 36 against a real 150, `landscapetest` 96 against 195, `peektest` 31 against 43,
+`resolutiontest_ui` 46 against 71. The command list is the one a session reads FIRST, to decide what to
+run, and it was the one nobody was updating.
+**THE AUDIT IS MECHANICAL AND TAKES SECONDS — DO IT WHENEVER A SWEEP IS FRESH.** Parse each `node x.js`
+block's single `(N)` and the verified list's `` `name` N ``, and diff both against the sweep's own
+per-suite `PASS:` lines. A first pass that reads only the FIRST line of each command entry misses five,
+because several blocks carry the count on a continuation line — walk the whole block to the next
+`node `.
+**THE REAL DEFECT IS THE SECOND COPY, NOT THE NUMBERS.** This file's own rule is that a measurement lives
+in exactly ONE place and any second copy must be ASSERTED rather than written. Two hand-maintained count
+lists is that rule broken twice over, and re-typing 27 numbers fixes today and guarantees a repeat. Filed
+as `[id: suite-counts-declared-twice]`: have `sweep.js` record per-suite counts beside `.sweep-times.json`
+and have `docsweep.js` report the diff — report, never gate, like every other staleness check here.
+
 **If a count here disagrees with a suite, the suite is right — fix this line.**
 **A FAILING SUITE NOW SAYS `FAILED — PASS: n  FAIL: m`, and the old form was actively harmful (fixed 2026-08-31).**
 Every suite printed `(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail`, so a red run read **`FAIL: 23  FAIL: 1`** —
