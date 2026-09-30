@@ -55,7 +55,6 @@ async function freshGame(p) {
      wrong, not the defaults. Same startup as `peektest`. */
   await p.goto(URL);
   await until(() => p.evaluate(() => !!window.__solo));
-  await p.evaluate(() => { try { localStorage.removeItem('cmf_prompts_v1'); } catch (e) {} });
   await p.reload();
   await until(() => p.evaluate(() => !!window.__solo));
   ok(await freshGame(p), 'a solo game is running — defaults are readable');
@@ -67,7 +66,6 @@ async function freshGame(p) {
     const q = (c, t) => window.__solo.promptWanted(c, t);      // does it STOP you?
     const L = (c, t) => window.__solo.promptLegal(c, t);       // does the row EXIST at all?
     return {
-      stored:        JSON.stringify(window.__solo.promptPrefs()),
       counterRespond: q(C(4, 'D'), 'respond'),    // Counter Spell — the classic response timing
       counterResolution: q(C(4, 'D'), 'resolution'),  // …and NOW at Fight End too — see the assertion below
       leylineResolution: q(C(9, 'D'), 'resolution'),  // Leyline guards, so it always spoke here
@@ -81,7 +79,8 @@ async function freshGame(p) {
     };
   });
 
-  ok(D.stored === '{}', 'a fresh device stores NO preferences — every answer below is a default (' + D.stored + ')');
+  /* the "a fresh device stores nothing" assertion went with the store it read — there is no per-card
+     preference to store now, so every answer below is a default by construction rather than by luck. */
   /* ⚠ THIS ASSERTION NAMED A BOARD IT NEVER STAGED, and that is why it read as the blocker on the
      stake-driven default for three weeks. It said *"when a Technique is cast"* and then queried
      `promptWanted` on an EMPTY board — no stack, nothing to counter. Under the old unconditional default
@@ -154,168 +153,18 @@ async function freshGame(p) {
      'EVERY Quick HAS the pre-fight timing — the `lockout` gate is gone (step 20); it is merely unticked' +
      (D.legalCounterPrefight === true ? '' : '  ← still gated; grep promptLegal for a `kind` test that should not be there'));
 
-  /* ---- 2 · THE READER RENDERS THE ROWS, and only for Quicks. `promptLegal` decides which rows exist, so a
-     card with no legal timing must show no block at all rather than an empty one. */
-  const R = await p.evaluate(() => {
-    const C = (r, su) => ({ rank: r, suit: su, id: '' + r + su });
-    const html = t => { window.__solo.showCard(t); const el = document.getElementById('cardView'); return el ? el.innerHTML : ''; };
-    const quick = html(C(4, 'D'));            // Counter Spell — a Quick
-    const plain = html(C(3, 'D'));            // Telekinesis — a Technique, not a Quick
-    return {
-      quickRows: (quick.match(/class="promptPref"/g) || []).length,
-      quickHasHead: /Ask me to respond/.test(quick),
-      plainHasBlock: /cvPrompts/.test(plain),
-      note: /never changes the rules/.test(quick),
-    };
-  });
-  /* SIX SINCE THE END OF CLEAN-UP WAS BUILT (2026-09-16); four when Upkeep became a real priority point
-     (epic step 20). The count is asserted rather than the labels because the COUNT is what silently drifts
-     when a boundary is added or removed — a row nobody rendered would leave this green if it only checked
-     that some rows exist.
-     AND IT DULY WENT RED THE DAY THE SIXTH LANDED, which is the suite working: `PROMPT_TIMINGS` grew a row
-     and two others were RELABELLED (`resolution` was named for a consequence — "when shields are about to
-     break" — and `cleanup` said "at the end of a round" while firing at the BEGINNING of clean-up, which is
-     the name the sixth timing actually needed). The IDS were left alone on purpose: they are stored
-     preferences in `localStorage`, so a relabel is free and a re-key would orphan every box a player has
-     ticked. If this count changes again, check that a row was ADDED rather than an id renamed. */
-  ok(R.quickHasHead && R.quickRows === 6,
-     'the reader offers the legal timings for a Quick (' + R.quickRows + ' rows: respond + upkeep + main→fight + resolution + clean-up + end of clean-up)' +
-     (R.quickRows === 6 ? '' : '  ← want 6; the model has six priority points since the end-of-clean-up window was built'));
-  ok(!R.plainHasBlock, 'a non-Quick gets no block at all — a timing it can never be cast at is not a choice');
-  ok(R.note, 'the reader says out loud that unchecked never changes the rules — it is a notification layer');
-
-  /* ---- 3 · TICKING A BOX PERSISTS, and stores an OVERRIDE rather than the resolved value. Storing the
-     resolved value would freeze today's defaults onto the device forever. */
-  await p.evaluate(() => {
-    const C = (r, su) => ({ rank: r, suit: su, id: '' + r + su });
-    window.__solo.showCard(C(4, 'D'));
-    const box = document.querySelector('.promptPref[data-timing="resolution"]');
-    box.checked = true; box.dispatchEvent(new Event('change', { bubbles: true }));
-  });
-  const afterTick = await p.evaluate(() => ({
-    stored: JSON.stringify(window.__solo.promptPrefs()),
-    wanted: window.__solo.promptWanted({ rank: 4, suit: 'D', id: '4D' }, 'resolution'),
-  }));
-  ok(afterTick.wanted === true, 'ticking Fight End for Counter Spell takes effect');
-  ok(/"resolution":true/.test(afterTick.stored) && !/"respond"/.test(afterTick.stored),
-     'only the OVERRIDE is stored, not the resolved row (' + afterTick.stored + ')' +
-     (/"respond"/.test(afterTick.stored) ? '  ← a later change to the DEFAULTS could never reach this device' : ''));
-
-  /* A reload drops the game, which is fine here: this asserts PERSISTENCE, and `respond`/`prefight`
-     defaults do not consult state. Re-start a game before anything reads a Fight End default again. */
-  await p.reload();
-  await until(() => p.evaluate(() => !!window.__solo));
-  ok(await p.evaluate(() => window.__solo.promptWanted({ rank: 4, suit: 'D', id: '4D' }, 'resolution')) === true,
-     '…and it survives a reload — the preference is per DEVICE');
-  await freshGame(p);
-
-  /* ---- 4 · THE LOAD-BEARING ONE. Unchecking a card's live timing must AUTO-PASS, and the game must keep
-     moving. Counter Spell's `respond` row is the one timing that is live today, so switching it off and
-     playing on is the only way to prove the suppression is a pass and not a stall. A deadlock here is
-     silent — the board simply stops — which is exactly why this is asserted as PROGRESS, not as a modal
-     being absent. */
-  await p.evaluate(() => {
-    window.__solo.setPromptPref('D4', 'respond', false);
-    window.__solo.setPromptPref('D9', 'resolution', false);
-  });
-  ok(await p.evaluate(() => window.__solo.promptWanted({ rank: 4, suit: 'D', id: '4D' }, 'respond')) === false,
-     'Counter Spell’s live timing is switched OFF');
-
-  const moved = await p.evaluate(async () => {
-    const $ = i => document.getElementById(i);
-    const clear = () => { const c = $('clearBtn'); if (c && !c.disabled) c.click();
-                          [].forEach.call(document.querySelectorAll('#hand .card.sel'), x => x.click()); };
-    /* BOUNDED BY UNPRODUCTIVE ITERATIONS, NEVER BY A RAW COUNT — CLAUDE.md, v1.31.85 (`exporttest`):
-       "an iteration whose click `busy` swallows spends budget while advancing nothing… bound by
-       UNPRODUCTIVE iterations (reset the count on any progress) so a slow machine takes MORE of them
-       rather than doing less."
-       MEASURED, on this suite, in that order: a raw `i < 400` cap gave 8 failures in 40. Raising the stall
-       tolerance from 25 to 100 while KEEPING the cap made it 14 in 40 — worse, because the loop then
-       tolerated long busy stretches and still died at 400 iterations, exiting with too few actions and no
-       diagnostic (its `stuck` run never reached 100 consecutively). The cap was the binding constraint the
-       whole time; the two fixes I tried before this were reasoned from rules rather than from a captured
-       failure, and both were wrong.
-       `stuck` is the real budget: 100 x 70ms = 7s of NO progress, against a busy window CLAUDE.md measures
-       at 2014ms. The wall clock is only a backstop so a genuinely wedged board ends the suite instead of
-       hanging it, and the action target is 12 because the assertion needs 6. */
-    let acted = 0, stuck = 0, blocked = null, r0 = window.__solo.st().round;
-    const deadline = Date.now() + 180000;
-    while (acted < 8 && Date.now() < deadline) {
-      const ov = $('overlay');
-      if (ov && ov.classList.contains('show')) {
-        const d = $('respDecline') || $('pfDecline') || $('sgNo') || $('revOk');
-        if (d && !d.disabled) { d.click(); await new Promise(r => setTimeout(r, 60)); continue; }
-      }
-      if (window.__solo.st().finished) break;
-      /* SELECT CUMULATIVELY — the old loop cleared between every card, so it could only ever offer ONE.
-         THE EVIDENCE: the captured stall read `handN: 12` against a `MAX_HAND` of 10. That is the
-         end-of-round CLEAN-UP TRIM, and a pick is confirmed with FIGHT (`nettest_trim`) — but Fight does
-         not enable until enough cards are selected, so a two-card pitch could never be satisfied one card
-         at a time and the board sat with both controls disabled forever.
-         CLAUDE.md records this exact gap for `nettest_sync`: "the host ending a round over MAX_HAND sat on
-         its own clean-up picker forever", fixed by "select until Fight enables, confirm with FIGHT".
-         Accumulating also covers ordinary play: a jab enables Fight on the first card, a Special on the
-         second, and an illegal combination simply never enables it — so this is strictly more capable, not
-         a different policy. */
-      clear();
-      let did = false;
-      const cards = [].slice.call(document.querySelectorAll('#hand .card'));
-      for (const c of cards) { c.click(); if (await window.__pressFight()) { did = true; break; } }
-      if (!did) { clear(); if (await window.__pressPass()) did = true; }
-      if (did) { acted++; stuck = 0; } else { stuck++; }
-      /* 100 iterations x 70ms = ~7s BEFORE calling it a stall, and the number is not arbitrary: the board
-         legitimately disables Fight AND Pass while it animates, saying "Hold on — the board is still
-         resolving", and CLAUDE.md measured that window at **2014ms** in the Initiative lesson. The first
-         version of this detector gave up at 25 iterations — **1.75s, shorter than the documented busy
-         window on an IDLE machine** — so it reported a stalled table on a board that was simply mid-beat.
-         That was 8 failures in 40 runs, and it is the actual cause; the fixed startup waits I replaced
-         first were not (the polled build failed at exactly the same rate, which is what said so).
-         A real stall still fails, just 7s later, and the loop's 400-iteration ceiling is unchanged. */
-      /* IS IT STUCK, OR MERELY SLOW? Wait a further 20s before calling it, and record whether the board
-         RECOVERED. `handN: 12` in the captured stalls is a red herring — CLAUDE.md: "MAX_HAND is an
-         END-OF-TURN discard limit, not a hand cap… a player is on turn with more than ten cards on 78% of
-         turns" — so the only real signal is `busy` staying true with both controls disabled on YOUR turn.
-         MEASURED, and it settles the question: the board RECOVERS after **9.2s** — the stall was a Rival
-         turn running long ("Rival is fighting…", turn 1), not a wedge and not step 15's auto-pass. So the
-         budget is 400 unproductive iterations (~28s, 3x the observed worst case) and the wall clock is
-         180s. A poll budget is a HANG GUARD, not a race: it returns the instant the board frees up, so a
-         generous ceiling costs a passing run nothing, and this suite is destined for a four-lane sweep
-         where every beat is slower.
-         WHY THE EARLIER RAISE FAILED: tolerance went 25 -> 100 while a raw `i < 400` cap was still in
-         place, so the loop tolerated the wait and then died of iteration count instead — 14/40, worse than
-         the 8/40 it started at. The cap had to go FIRST; only then does the budget matter. */
-      if (stuck > 400) {                      // 28s — see the measurement above
-        const ov2 = $('overlay');
-        blocked = {
-          overlay: !!(ov2 && ov2.classList.contains('show')),
-          modal: (() => { const m = $('modal'); return m && m.offsetParent ? m.textContent.replace(/\s+/g, ' ').slice(0, 120) : null; })(),
-          hint: (($('hint') || {}).textContent || '').slice(0, 80),
-          msg: (($('message') || {}).textContent || '').slice(0, 80),
-          turn: window.__solo.st().turn,
-          fight: (() => { const f = $('fightBtn'); return f ? (f.disabled ? 'disabled' : 'enabled') : 'absent'; })(),
-          pass: (() => { const b = $('passBtn'); return b ? (b.disabled ? 'disabled' : 'enabled') : 'absent'; })(),
-          handN: document.querySelectorAll('#hand .card').length
-        };
-        // one long look before giving up: does it EVER come back?
-        for (let w = 0; w < 100; w++) {
-          await new Promise(r => setTimeout(r, 200));
-          const f2 = $('fightBtn'), p2 = $('passBtn');
-          if ((f2 && !f2.disabled) || (p2 && !p2.disabled)) { blocked.recoveredAfterMs = 7000 + w * 200; break; }
-        }
-        if (!blocked.recoveredAfterMs) blocked.recoveredAfterMs = 'never (27s)';
-        break;
-      }
-      await new Promise(r => setTimeout(r, 70));
-    }
-    const st = window.__solo.st();
-    if (!blocked && acted < 12 && Date.now() >= deadline) blocked = { why: 'wall clock: 90s elapsed with ' + acted + ' actions' };
-    return { acted: acted, rounds: st.round - r0, finished: !!st.finished, blocked: blocked };
-  });
-  ok(moved.acted > 5 && (moved.rounds > 0 || moved.finished),
-     'THE GAME KEEPS MOVING with the prompt suppressed — the window is passed, not left open' +
-     ' (' + moved.acted + ' actions, ' + moved.rounds + ' rounds' + (moved.finished ? ', finished' : '') + ')' +
-     ((moved.acted > 5 && (moved.rounds > 0 || moved.finished)) ? '' :
-       '  ← STALLED. What was on screen: ' + JSON.stringify(moved.blocked)));
+  /* ---- 2, 3 AND 4 ARE DELETED (2026-09-30) — THEY TESTED THE PER-CARD CHECKBOXES, AND THE CHECKBOXES ARE
+     GONE (Aj: *"we can retire the per card prompts now actually, i'm liking the auto and on"*). They
+     asserted that the reader renders six rows, that ticking one persists an OVERRIDE rather than the
+     resolved value, and that an unchecked timing really suppresses the modal both ways.
+     ⚠ WHAT WENT WITH THEM IS WORTH NAMING RATHER THAN QUIETLY LOSING: section 4 was "the load-bearing
+     one", added because a mutant proved it missing, and the store assertions were the guard against
+     writing a RESOLVED value (which would have frozen a device on today's defaults forever). Neither claim
+     has a subject any more — there is no store and no row — but the SHAPE is worth re-reading before any
+     per-card preference is ever reintroduced.
+     WHAT REPLACES THEM is section 5's tri-state coverage plus 1b, which stages the board the old default
+     only claimed. The migration blocks below went too: they guarded the `'fightend'` -> `'resolution'`
+     rename of a PERSISTED id, and nothing is persisted now. */
 
   /* ---- 5 · THE ASSERTION THIS SUITE WAS MISSING, and a mutant proved it. Everything above tests the
      PREFERENCE; nothing tested that the preference SUPPRESSES A PROMPT. Deleting the filter from
@@ -383,12 +232,9 @@ async function freshGame(p) {
 
   // (a) the CONTROL — with the default preference ON, the window must appear. Without this half, (b) below
   //     passes on a build where the window never opens for any reason at all.
-  /* AND SHUT THE FIGHT END TIMING OFF FOR THIS PAIR. `resolution` was ticked ON for D4 forty lines above, so
-     with step 18 live the staged round ends into a Fight End window this block is not testing — the drain
-     assertion below then reports a window "left owed" that the game legitimately owes. One timing at a
-     time is what makes each half of the pair mean one thing. */
-  await p.evaluate(() => { window.__solo.setPromptPref('D4', 'resolution', false); });
-  await p.evaluate(() => { window.__solo.setPromptPref('D4', 'respond', true); });
+  /* THE TWO PER-CARD SETUP LINES THAT SAT HERE WENT WITH THE ROWS (2026-09-30). They ticked `respond` on
+     and `resolution` off for Counter Spell so each half of the pair meant one thing; with no rows, the
+     timing a card speaks at is decided by its STAKE and there is nothing to tick. */
   const withPrompt = await stageCast();
   ok(!!withPrompt && /Counter Spell/.test(withPrompt),
      'CONTROL: with the prompt ON, the Rival’s cast opens the Respond? window offering Counter Spell' +
@@ -396,27 +242,17 @@ async function freshGame(p) {
   await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d && !d.disabled) d.click(); });
   await wait(400);
 
-  /* (b) THE CLAIM — AND IT INVERTED ON 2026-09-25, BY DECISION RATHER THAN BY ACCIDENT.
-     This used to assert that unticking `respond` SUPPRESSED the modal, which was true while Counter Spell
-     had no stake. Aj then gave it one — *"counter spells stakes is every technique being cast"* — and a
-     card with a live stake is deliberately NOT suppressible by a checkbox: the model's own words are that
-     the rule guards against *a buried per-card default* costing you something you never knowingly
-     declined, while OFF is *a visible, global, one-tap mode* saying "I know, do not stop me".
-     ⚠ I BRIEFLY "FIXED" THE RED THIS PRODUCED by narrowing the stake override to shields, which made the
-     checkbox work again and broke the model. Aj asked "why?" and the rule answered it. When a documented
-     rule and a suite disagree, the RULE wins and the suite is updated — routing around a red is how a
-     suite comes to argue for the wrong behaviour at the only moment anyone would question it.
-     SUPPRESSION IS STILL ASSERTED, one line down, where it belongs: by the MODE. */
-  await p.evaluate(() => { window.__solo.setPromptPref('D4', 'respond', false); });
-  const withoutPrompt = await stageCast();
-  ok(withoutPrompt !== null && /Counter Spell/.test(withoutPrompt),
-     'A LIVE STAKE OUTRANKS AN UNTICKED BOX — Counter Spell is still offered against a Rival\'s Technique' +
-     (withoutPrompt ? '' : '  ← suppressed, so the per-card row is overriding a stake. Board: ' + lastBoard));
-  await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d && !d.disabled) d.click(); });
-  await wait(400);
-
-  /* …AND OFF IS THE ONE PLACE THAT DECLINES A STAKE. Same staging, same unticked box, mode switched — so
-     the pair isolates the MODE as the only difference, which is the whole claim. */
+  /* (b) IS DELETED, AND ITS HISTORY IS WHY THAT IS WORTH A TOMBSTONE RATHER THAN A QUIET REMOVAL. It
+     asserted *"A LIVE STAKE OUTRANKS AN UNTICKED BOX"*, and it had already INVERTED once — on 2026-09-25,
+     when Aj gave Counter Spell a stake and a card with a live stake stopped being suppressible by a
+     checkbox. I briefly "fixed" that red by narrowing the stake override to shields, which made the
+     checkbox work and broke the model; Aj asked *"why?"* and the rule answered it.
+     WITH NO BOX THERE IS NOTHING FOR A STAKE TO OUTRANK, so the assertion has no subject left. Its
+     substance — a rival's Technique opens the window and offers Counter Spell — is (a) above, and the
+     SUPPRESSION half is asserted immediately below by the MODE, which is where it belonged all along.
+     A twice-inverted assertion earns a note: read this before ever reintroducing a per-card preference. */
+  /* …AND OFF IS THE ONE PLACE THAT DECLINES A STAKE. Same staging, mode switched — so the pair isolates
+     the MODE as the only difference, which is the whole claim. */
   await p.evaluate(() => { window.__solo.setPromptMode('off'); });
   const modeOff = await stageCast();
   ok(modeOff === null,
@@ -425,50 +261,6 @@ async function freshGame(p) {
   ok(await until(() => p.evaluate(() => { const st = window.__solo.st(); return !!st && st.respondFor == null; })),
      '…and no response window is left owed — the pass really happened');
   await p.evaluate(() => { window.__solo.setPromptMode('auto'); });
-
-  /* ---- AND THE MIGRATION IS GUARDED AGAINST A FUTURE SWEEP (epic step 23).
-     The runtime test below catches someone DELETING the migration. It cannot catch the likelier mistake:
-     a blanket `s/fightend/resolution/g` that renames the migration AND this file's own fixture, after which
-     the test stages a preference already under the new key, the dead migration has nothing to do, and it
-     PASSES GREEN. So the guard has to read the SOURCE — the same reason `nettest_narrate` grew a static half,
-     a runtime scan only covers what that run happened to emit.
-     THE OLD ID IS ASSEMBLED, NEVER SPELLED, so that a sweep cannot quietly rewrite the assertion into one
-     that checks for the NEW name and is therefore trivially true. Do not "tidy" it into a literal. */
-  const OLD_ID = 'fight' + 'end';
-  const tplSrc = fs.readFileSync(path.resolve(__dirname, 'CardmenFighter.template.html'), 'utf8');
-  ok(tplSrc.indexOf('migratePromptTimings') >= 0,
-     'the prompt-timing migration is still in the template');
-  ok(tplSrc.indexOf(OLD_ID) >= 0,
-     'and it still names the OLD id — deleting that literal to "finish the rename" orphans every preference a player has ticked, SILENTLY, because an unknown key just falls back to the default');
-  ok((tplSrc.match(new RegExp(OLD_ID, 'g')) || []).length >= 3,
-     'in all three places the migration needs it (the hasOwnProperty test, the copy, and the delete) — a partial sweep is the same bug as a whole one');
-
-  /* ---- THE OLD TIMING ID MIGRATES (epic step 23). The prompt-timing id was renamed `fightend` ->
-     `resolution`, and it is PERSISTED — so without a migration every preference a player had already
-     ticked would be orphaned SILENTLY: an unknown key falls back to the default and nothing on screen
-     says a setting was lost.
-     THE ASSERTION HAS TO DISCRIMINATE, which is why it stages `true` on a timing whose default is FALSE.
-     Staging a saved `false` would pass on a build with no migration at all, because "carried across" and
-     "fell back to the default" are the same observation there.
-     AND THE ROW IS KEYED BY THE EFFECT ID, NOT THE CARD ID — `D4`, suit-first, which is what
-     `promptKeyOf(eff)` returns. Staging `4D` reads as "no preference saved" and the assertion fails
-     against a migration that worked perfectly, which is how this was first written. */
-  await p.evaluate(() => localStorage.setItem('cmf_prompts_v1',
-    JSON.stringify({ 'D4': { fightend: true }, 'D9': { respond: false } })));   // keyed by EFFECT id (suit-first), not card id
-  await p.reload();
-  await until(() => p.evaluate(() => !!window.__solo));
-  const mig = await p.evaluate(() => ({
-    stored: JSON.stringify(window.__solo.promptPrefs()),
-    d4:     window.__solo.promptWanted({ rank: 4, suit: 'D', id: '4D' }, 'resolution'),
-    d9resp: window.__solo.promptWanted({ rank: 9, suit: 'D', id: '9D' }, 'respond'),
-  }));
-  ok(mig.d4 === true,
-     'a preference saved under the OLD `fightend` id still applies at `resolution` — the default there is OFF, so this could only be the migration');
-  ok(!/fightend/.test(mig.stored),
-     'and the old key is deleted, so the migration is idempotent (' + mig.stored + ')');
-  ok(mig.d9resp === false,
-     'a timing that was never renamed is carried through untouched');
-  await freshGame(p);
 
   ok(errs.length === 0, 'no JS errors' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
   console.log('\n' + (fail ? 'FAILED — ' : '') + 'PASS: ' + pass + '  FAIL: ' + fail);

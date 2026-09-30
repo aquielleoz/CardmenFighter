@@ -619,26 +619,6 @@ re-read its tag.
 
 #### Tutorials and prompts
 
-- `ready to build`      · **RETIRE THE PER-CARD PROMPT CHECKBOXES NOW THAT THE TRI-STATE EXISTS (Aj,
-  2026-09-24: *"once we have this, we can also remove the checkboxes on the individual cards (this is just
-  better for most users)"*).** `PROMPT_MODE` (ON · AUTO · OFF) plus `stakeFor` covers what the six per-card
-  rows covered, with one control instead of six per card.
-  **SEQUENCED AFTER THE TOGGLE SHIPS, DELIBERATELY.** "Once we have this" is the load-bearing half: play a
-  couple of games on the mode first and confirm it genuinely replaces the rows, because deleting them is
-  not cheap to undo and the intermediate state costs nothing.
-  **IT IS A BIGGER DELETION THAN IT LOOKS**, and this repo's parse check cannot see a deletion — so it
-  needs the full grep sweep, a UI canary before the sweep, and `grep -n 'name:name'` on the export
-  literals. What goes: `promptPrefs`, `PROMPT_KEY` / the stored `cmf_prompts_v1`, `setPromptPref`,
-  `promptKeyOf`, `promptLegal`, the card reader's `.cvPrompts` rows, and the ledger's
-  *"(card reader → …)"* pointer, which becomes a lie the moment the reader has no rows.
-  **AND IT TAKES A SUITE WITH IT: `prompttest` (25) is entirely about those checkboxes**, and
-  `resolutiontest_ui`'s C, C2, C3, C5 and D all stage through `setPromptPref` — they need rewiring to
-  `setPromptMode`, not deleting, since their subjects (the stake override, its narrowness, the mode ends)
-  outlive the rows.
-  **ONE REAL GAIN BEYOND SIMPLICITY:** scenario D exists only to prove an unchecked card is still
-  CASTABLE — a bug class that stops existing when there is nothing to uncheck.
-  `[id: retire-per-card-prompt-rows]`
-
 - `root cause found`    · **THE "THE 2" LESSON STALLS BECAUSE ITS PILOT LEADS NOTHING — AND THE STALE PILE
   IS THE CONSEQUENCE, NOT THE CAUSE (Aj, 2026-09-17, with a saved log).** *"the rival never plays their full
   house of 2s"* · *"the last play did not clear... i could not click Next because of the pair of 2s in the
@@ -712,36 +692,6 @@ re-read its tag.
   absent. Third suite-versus-reality gap found by playing the tutorials today.
   `[id: twos-lesson-pilot-leads-nothing]`
 
-- `needs a decision`    · **⚠ THIS DECISION IS MOOT AS OF 2026-09-30 AND SURVIVES ONLY AS CONTEXT — Aj has
-  greenlit RETIRING the per-card checkboxes entirely (*"we can retire the per card prompts now actually,
-  i'm liking the auto and on"*), so "what do they default to at ship" is a question about a control that is
-  being deleted. Fold it into `retire-per-card-prompt-rows` and close this when that lands (named in backticks, NOT in
-  `[id: …]` form — the uniqueness gate reads that as a second declaration, which is how a `closes` claim
-  could pass while the real entry stayed open; it caught this very edit).**
-  The original, kept because its second half is still the live rule: **BEFORE SHIP, THE PROMPT CHECKBOXES DEFAULT TO *UNCHECKED*** (Aj, 2026-09-11: *"the checkboxes will be
-  unchecked by default when we finally ship"*). The player opts IN per card, per timing, in the card reader.
-  **⚠ THIS ENTRY DESCRIBED A BUILD THAT NO LONGER EXISTS, AND THE GAP COST A REAL SHIELD (2026-09-15).** It
-  read *"`promptDefault` currently `return true` — every legal timing stops you — and that is a DEVELOPMENT
-  setting"*. It is `PROMPT_ALL || timing === 'respond'`: **the flip already half-happened**, every boundary
-  timing now defaults OFF, and `?prompts=all` is what restores the dev setting. So the decision this entry
-  was holding open had quietly been taken — and taking it is what removed the Resolution prompt that used
-  to save a shield, found by Aj in a live duel and fixed by `shieldSaveOverride` the same day.
-  **THE LESSON IS THE ONE THIS REPO KEEPS PAYING FOR:** a BACKLOG entry that quotes an implementation is a
-  copied fact, and it rots exactly like a line number. Name the symbol and what it should DO; let the
-  reader grep for what it currently does.
-  **WHAT IS ACTUALLY LEFT:** decide whether `respond` stays on at ship or joins the rest at off.
-  **THIS IS WHY A FOURTH AND FIFTH PRIORITY POINT ARE AFFORDABLE.** Upkeep and Clean-up — **built
-  2026-09-11; this line said "still owed by step 20" until 2026-09-15** — would each add a stop on every
-  round at a prompt-everything default, which was the main argument against them; defaulted off, they cost
-  nothing a player did not ask for. Decide the default BEFORE measuring how the windows feel, or the
-  measurement is of the dev setting.
-  **THE HALF TO GET RIGHT IS WHAT "OFF" MEANS, AND IT IS ALREADY WRITTEN DOWN**: unchecked must mean *the
-  window still opens and you pass automatically* — never *the card becomes uncastable*. That distinction
-  cost a real bug once (a notification preference deciding legality) and the reader's own footnote states
-  it; a flipped default makes it load-bearing for every card instead of a few.
-  **AND THE SUITES ENCODE TODAY'S DEFAULT** — `prompttest` asserts "the DEFAULTS are today's experience",
-  so flipping it is a product change AND a suite change, in one commit.
-  `[id: prompt-checkboxes-default]`
 - `ready to build`      · **⚠ MOSTLY SHIPPED — RE-SCOPED 2026-09-30, AND EVERY PREMISE BELOW IS NOW FALSE.**
   Its blocker (*"a lesson that wants to TEACH a boundary window has to opt itself back in"*) was BUILT on
   2026-09-25: `windows:` / `lessonNamesWindow` / `lessonAllowsWindow`. Its named home (*"the Quicks lesson
