@@ -2359,6 +2359,20 @@ machine. It does NOT say the fork is fixed: nobody found a mechanism, nothing wa
 the suites that were red the same morning were red because the machine had spent a session being
 `kill -9`'d — so "quiet machine" may be the whole variable. **Re-measure rather than trusting this number if
 the suite ever goes red again**, and do not quote it as a fix.
+**THE SAME ARITHMETIC SETTLED `nettest_passoduel` ON 2026-09-30 — 23 RUNS, NOT 20 AND NOT 18.** Its filed
+rate was 1 in 8, so the threshold is `0.875^n < 0.05`, i.e. **n = 23**; the series was run to exactly that
+and came back 23/23. **Eighteen would not have done it** (`0.875^18 = 0.090`) and eighteen is the number
+a person naturally stops at. Pick n from the rate BEFORE running, every time — this is now the second
+entry where the obvious round number licensed nothing.
+**AND A RUN SERIES THAT DOES NOT PRINT ITS DENOMINATOR CANNOT BE READ.** The first attempt reported two
+reds that were neither: the loop wrapped each run in `timeout`, **which macOS does not have**, so both
+were `rc=127` in 0s. It was caught only because the harness printed the return code and the elapsed
+time — a bare `FAILED`/`PASS` tally would have sent the next hour after a flake that had not run. Print
+rc, seconds and the summary line for every run.
+**AND SAY WHICH CONFIGURATION THE STREAK COVERS.** Solo is rejected; the signature that has actually been
+seen since is a HANG under `-j 4`, which is a different measurement, and nothing about 23 clean solo runs
+speaks to it. A streak closes the case it sampled and no other.
+
 **AND THE GENERAL RULE: PICK THE RUN COUNT FROM THE RATE YOU ARE TRYING TO REJECT, BEFORE RUNNING.** This file
 already carries the mirror of it — a probabilistic assertion is settled by counting, and `nettest_starter`'s
 six coin flips were called "a real test rather than a hopeful one" by a comment that had done the arithmetic
