@@ -6800,7 +6800,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.127.3';
+  var GAME_VERSION='v1.31.127.4';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -7235,6 +7235,7 @@ window.CardFace = {};
   var targeting=null;          // {cardId} while choosing an equipment to remove
   var pileSig=null;            // signature of the pile currently rendered (skip rebuild/re-animate)
   var flipFrom=null;           // {cardId: DOMRect} captured from the hand for a play-to-pile FLIP
+  var flipCount=0;             // dbg only: how many pile cards have entered by FLIP rather than by slide
   var pendingEnter={};         // ids of freshly-drawn hand cards to deal-in on next renderHand
   var lastPileData=[];         // [{id,rank,suit}] of the pile as last rendered (for the beaten-sweep)
   var lastPileOwner=null;      // who owned that pile
@@ -8486,6 +8487,9 @@ window.CardFace = {};
       var from=flipFrom && flipFrom[id];
       var dx, dy, sc, fadeFrom;
       if(from){                                   // true FLIP from the card's slot in your hand
+        flipCount++;                              // dbg: which BRANCH ran. The initial inline style is readable
+                                                  // for ~2 frames before the transition clears it, so asserting
+                                                  // opacity/scale is a race; the branch itself is not.
         dx=from.left-last.left; dy=from.top-last.top; sc=from.width/last.width || 1; fadeFrom=1;
       } else {                                    // rival (or dealt) card slides in from their side
         dy=(byPlayer===RIVAL?-1:1)*130; dx=(i-(n-1)/2)*10; sc=.62; fadeFrom=0;
@@ -9738,13 +9742,25 @@ window.CardFace = {};
   }
   function isNetClient(){ return !!(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()); }
 
-  function playCards(cards){
-    if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
-    if(isNetClient()){ sendClientPlay(cards); return; }                // the backstop: every path into the engine
-    if(!canHumanPlay(cards)){ setMessage('That play won’t beat the pile here.'); render(); return; }
-    if(typeof TUT!=='undefined' && TUT.needSpecial && TUT.needSpecial() && (!cards||cards.length<2)){ setMessage('For this lesson, make a <b>Special</b> — two cards of the same number.'); render(); return; }
+  /* ONE DEFINITION, TWO CALLERS — the local play and the client's. A second copy would drift, and the
+     copy that drifted would be the netplay one, which is the one nobody watches. */
+  function captureFlipFrom(){
     flipFrom={};
     Array.prototype.forEach.call($('hand').querySelectorAll('.card'), function(el){ if(el.dataset.id) flipFrom[el.dataset.id]=el.getBoundingClientRect(); });
+  }
+  function playCards(cards){
+    if(typeof TUT!=='undefined' && TUT.blocking && TUT.blocking()) return;
+    /* ⚠ CAPTURE BEFORE THE CLIENT RETURNS, OR YOUR OWN PLAY NEVER FLIES (Aj, 2026-09-16: *"i expected the
+       cards to fly into the play area"*). `animatePileEntrance` does a true FLIP from the card's own slot
+       in your hand when `flipFrom` holds its rect, and otherwise slides a card in from a seat's side. The
+       capture sat three lines BELOW this return, so on a client your own play had none: it went to the
+       host, came back as a mirror, and took the rival's slide. The rects are still valid here — the hand
+       has not re-rendered yet, and `sendClientPlay`'s own `render()` does not touch the pile, so nothing
+       consumes the capture before the mirror lands. */
+    if(isNetClient()){ captureFlipFrom(); sendClientPlay(cards); return; }   // the backstop: every path into the engine
+    if(!canHumanPlay(cards)){ setMessage('That play won’t beat the pile here.'); render(); return; }
+    if(typeof TUT!=='undefined' && TUT.needSpecial && TUT.needSpecial() && (!cards||cards.length<2)){ setMessage('For this lesson, make a <b>Special</b> — two cards of the same number.'); render(); return; }
+    captureFlipFrom();
     var r=E.play(state, YOU, cards);
     if(!r.ok){ flipFrom=null; setMessage(r.reason); render(); return; }
     selected={};
@@ -15075,6 +15091,12 @@ window.CardFace = {};
         else if(m.t==='refused'){                             // the host threw a play away — say so, or it reads as a dropped click
           /* THE LEDGER GETS IT TOO, or a client's record shows "you CAST X — sent" with nothing after it
              and the next reader cannot tell a landed cast from a discarded one. */
+          /* AND DROP THE FLIP CAPTURE. It was taken as the play was sent; with the play thrown away the
+             rects describe a hand that has since re-laid out, and the next pile entrance would fly a card
+             in from where it used to be. `animatePileEntrance` nulls it on every run, so this only
+             narrows an already-small window — but the window is exactly "the host refused you", which is
+             when the board is least worth lying about. */
+          flipFrom=null;
           busy=false; selected={}; prioNote('  ⚠ the host REFUSED that', m.why||'no reason given'); setMessage('⚠ '+(m.why||'That play could not be made — have another look.')); render(); }
         else if(m.t==='ping'){ SFX.play('ping'); setMessage('🔔 The host is ready — pinged you.'); }
         else if(m.t==='fx'){                                  // includes our OWN cast, echoed back by the host
@@ -15106,7 +15128,7 @@ window.CardFace = {};
         }
         else if(m.t==='concede'){ onOpponentConcede(); }
         else if(m.t==='peer'){ clientPeerDown=(m.ev==='back'?false:m.ev); renderDisconBar(); }    // host: another player dropped('drop') / Passo covering('passo') / back(false)
-        else if(m.t==='err'){ if(m.seat==null || m.seat===mySeat) setMessage('⚠ '+(m.reason||'Illegal move.')); }
+        else if(m.t==='err'){ if(m.seat==null || m.seat===mySeat){ flipFrom=null; setMessage('⚠ '+(m.reason||'Illegal move.')); } }
       }
     }
 
@@ -16764,7 +16786,7 @@ window.CardFace = {};
      * Save button writes and is never trimmed. */
     log:function(){ return fullLog.slice(); },
     inject:function(m){ return NET.dbgInject(m); },   /* hand this page a raw message through the REAL handler — how a suite proves a straggler mirror is ignored in the lobby */
-    lastLog:function(){ return NET.lastLog(); } }; }
+    flips:function(){ return flipCount; }, lastLog:function(){ return NET.lastLog(); } }; }
   /* --headerH: measured, not hardcoded. #disconBar hangs off it, and the header's height is not a constant —
    * 56px on desktop, 37px in the landscape band, and ~92px on a portrait phone where it WRAPS to two rows.
    * A hardcoded 54px floated it 17px low in landscape and put it 38px INSIDE the wrapped portrait header,

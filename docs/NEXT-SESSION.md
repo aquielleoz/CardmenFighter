@@ -15,7 +15,7 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.127.3.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.127.4.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
@@ -529,39 +529,22 @@ re-read its tag.
   the nudge is aimed at the seat that has *not* pressed Ready yet.
   `[id: ping-invisible-to-client]`
 
-- `needs a repro`       · **THE CLIENT'S ANIMATIONS ARE STILL WRONG, AND "SHANKED" IS ALL WE HAVE (Aj, 2026-09-16: *"animations
-  are still shanked in the client"*).** Reported twice now without a specific frame, so **the first job is
+- `needs a repro`       · **⚠ ITS NAMED ROOT WAS FIXED 2026-09-30 — RE-CHECK BEFORE INVESTIGATING FURTHER.**
+  The entry `nothing-animates-press-fight` (now closed) said this was *"almost certainly the shanked animations entry as
+  well… treat them as one investigation"*, and that root is now closed: `playCards` captures `flipFrom`
+  BEFORE its client return, so a client's own play FLIPs from its slot in hand instead of sliding in like
+  a rival's. `nettest_drag` asserts the branch both ways (host's card 0 flips, own card 1) and A/B's red.
+  **THIS ENTRY IS NOT CLOSED WITH IT, because "shanked" was never pinned to that root** — it is one word
+  from one session, and closing a `needs a repro` on a sibling's fix is how a real report gets lost. The
+  next move is unchanged and is cheap: play a netplay duel and say which animation still looks wrong, or
+  confirm it does not. A suite cannot judge how something LOOKS; it can only say which branch ran.
+  **THE ORIGINAL:** Reported twice now without a specific frame, so **the first job is
   to make the report precise** — which beat, which seat, reduced-motion or not — rather than to start
   changing dwells. Two things already known that a vague animation report usually turns out to be:
   `buildOppBeats` is the single funnel both drivers use and a bespoke path silently misses whatever it
   gains (the tutorial's 51ms cast), and a CLIENT does not run `startGame`, so anything reset only there is
   never reset on a client (`resetBoardMemory` is the shared one). Check both before inventing a number.
   `[id: client-animations-shanked]`
-
-- `root cause found`    · **NOTHING ANIMATES WHEN YOU PRESS FIGHT — ROOT CAUSE FOUND, NOT YET FIXED (Aj, 2026-09-16: *"i expected
-  the cards to fly into the play area"*).** `animatePileEntrance` has two branches: a **true FLIP** from
-  the card's own slot in your hand when `flipFrom` holds its rect, and otherwise a generic slide in from a
-  seat's side. `flipFrom` is captured in exactly one place — `playCards` — and **a netplay client returns
-  three lines above it**:
-  ```js
-  if(isNetClient()){ sendClientPlay(cards); return; }   // ← returns here
-  …
-  flipFrom={};                                          // ← never reached on a client
-  ```
-  So on a client your OWN play has no capture, comes back through the host's mirror, and takes the slide.
-  **THIS IS ALMOST CERTAINLY THE "shanked animations" ENTRY ABOVE AS WELL** — same root, stated twice from
-  different angles: a client's plays arrive as mirrors and lose the local context the animation needs.
-  Treat them as one investigation.
-  **THE FIX IS NOT A ONE-LINER, which is why it is filed rather than done.** Capturing `flipFrom` before
-  `sendClientPlay` is the easy half; the hard half is that it must survive a network round-trip and be
-  CLEARED if the host refuses the play, or a stale capture mis-animates the next pile. `flipFrom` is
-  consumed by the next `animatePileEntrance` and nulled — so a refused play currently leaves it set.
-  **AND CHECK `reduceMotion()` FIRST when reproducing**: it returns before any of this and disables the
-  entrance outright, so a phone with Reduce Motion on looks identical to the bug.
-  **RULED OUT — do not re-chase it:** step 20's two-state Fight is NOT the cause. `doFight` calls
-  `playCards` only once `subPhase === 'play'`, so the local path never sees the `transition:'play'`
-  refusal and `flipFrom` survives on a solo board.
-  `[id: nothing-animates-press-fight]`
 
 #### Phone and layout
 
