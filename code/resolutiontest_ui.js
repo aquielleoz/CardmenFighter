@@ -822,8 +822,13 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     await wait(1200);
     const ledH = await p.evaluate(() => window.__solo.prioLog());
     const own = ledH.filter(l => /\[respond\]/.test(l) && /YOUR OWN CAST/.test(l));
-    const mis = ledH.filter(l => /\[respond\]/.test(l) && /PROMPT OFF/.test(l));
-    ok(own.length > 0 && mis.length === 0,
+    /* ⚠ `PROMPT OFF` AT `respond` IS LEGITIMATE SINCE THE DEFAULT WENT STAKE-DRIVEN (2026-09-30), and
+       forbidding it here was this suite pinning the PREVIOUS default — written the day before, when
+       `respond` prompted unconditionally so the only auto-pass that could occur there was an own cast.
+       Now a respond window with nothing at stake auto-passes too, and says so correctly. The CLAIM never
+       changed: the own-cast case must be labelled by the RULE and not by a checkbox. Assert that, and let
+       the discriminator below carry "and nothing else wears the label". */
+    ok(own.length > 0,
        'H · THE LEDGER NAMES THE RULE, NOT A CHECKBOX — the respond auto-pass reads YOUR OWN CAST' +
        (own.length ? '  [' + own[0].slice(0, 92) + ']' : '  ← REPRODUCED: filed under "PROMPT OFF"; the reader is sent to a row that cannot explain it'));
     /* THE DISCRIMINATOR, and the first version of it asked for the wrong thing. It required a BOUNDARY
@@ -834,10 +839,24 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
        my cast, and it must not wear the new label. So require the label to appear on the own-cast line
        and NOWHERE ELSE — which is exactly "the label discriminates" rather than "the label exists". */
     const strays = ledH.filter(l => /YOUR OWN CAST/.test(l) && !/\[respond\] auto-passed/.test(l));
-    ok(strays.length === 0 && ledH.some(l => /window SHOWN to you/.test(l)),
-       'H · …and the label appears ONLY there — a window that is not your cast is untouched by it' +
+    /* THE VACUITY GUARD MOVED WITH THE DEFAULT TOO. It used to require a window SHOWN on this board, and
+       under a stake-driven default none opens here — the other card has no stake, so it is auto-passed
+       rather than offered. The guard's JOB is unchanged: prove the run contained another auto-pass that
+       correctly did NOT wear the label, so "appears only there" is a discrimination and not an accident
+       of there being nothing else to look at. */
+    /* ⚠ AND THE GUARD IS "THE RUN HAD OTHER LINES", NOT "THE RUN HAD ANOTHER AUTO-PASS" — the stronger
+       version was tried and is not constructible on this board. Under a stake-driven default the other
+       Quick has no stake, so it is auto-passed BEFORE anything is offered, and the boundary auto-passes
+       that would carry `PROMPT OFF` need an eligible card at a boundary this short scenario never reaches.
+       WHAT THIS ASSERTION IS FOR IS THE LABEL, and that is all it now claims: exactly one line wears it,
+       on a run that produced several. THE BOTH-WAYS FORM LIVES IN THE ENGINE — `test.js` asserts
+       `stakeFor`'s `respond` branch returns null for your own cast and non-null for a rival's, each with
+       a negative — so the rule is pinned there and the label is pinned here. Cross-referenced rather than
+       duplicated, because a second copy of a claim is the thing that rots. */
+    ok(strays.length === 0 && ledH.length > 1,
+       'H · …and the label appears ONLY there — it is on one line of a run that produced ' + ledH.length +
        (strays.length ? '  ← stray: ' + strays[0].slice(0, 90)
-          : (ledH.some(l => /window SHOWN to you/.test(l)) ? '' : '  ← no other window in this run, so the claim is vacuous')));
+          : (ledH.length > 1 ? '' : '  ← a one-line ledger cannot discriminate; the claim is vacuous')));
     await p.close(); }
 
   ok(errs.length === 0, 'no JS errors' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));

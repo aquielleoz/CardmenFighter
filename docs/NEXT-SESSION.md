@@ -731,36 +731,6 @@ re-read its tag.
   **AND THE SUITES ENCODE TODAY'S DEFAULT** — `prompttest` asserts "the DEFAULTS are today's experience",
   so flipping it is a product change AND a suite change, in one commit.
   `[id: prompt-checkboxes-default]`
-- `root cause found`    · **AUTO STOPS YOU AT EVERY `respond` WINDOW, WHATEVER YOUR STAKE — SECOND LIVE
-  REPORT** (Aj, 2026-09-29, playing a CLIENT on AUTO: *"this timing is not the stakes for a quick armor
-  piercing"*, with a screenshot of the Respond? modal offering ♣7 Armor Piercing against Drandrew's Pray
-  for Guidance — a ♥4 that draws two cards and threatens nothing).
-  **THE ENGINE AGREES WITH HIM.** `stakeFor`'s `respond` branch recognises exactly three stakes: Counter
-  Spell with an OPPONENT's Technique on the stack, Annoint with an opponent's `removeEquip` on it, and a
-  `destroyShield` aimed at you. Armor Piercing is `kind:'onWin'` and its stake is at `resolution`, where
-  you are the winner about to strike. Asked about that board it returns null, correctly.
-  **AUTO NEVER ASKS IT.** `promptWanted` falls through to `promptDefault`, which is
-  `PROMPT_MODE === 'on' || timing === 'respond'` — so every `respond` window is default-on for every card,
-  and the stake can only ever ADD a prompt (`shieldSaveOverride`), never remove one. **In AUTO, `respond`
-  therefore behaves exactly like ON**, which is the one thing the three-state model promises it does not.
-  **THE FIX IS ONE LINE AND IT WAS BUILT AND BACKED OUT (2026-09-24)** — the reasoning is in the comment
-  directly above `promptDefault`, written after the FIRST report of this shape (holding only a Leyline
-  against an Infuse with Magic). It is
-  `return PROMPT_MODE === 'on' || !!E.stakeFor(state, YOU, card, timing)`.
-  **THE BLOCKER IS A REAL LEAD, NOT A COST.** Two suites went red and one of them is evidence: `prompttest`
-  lost *"Counter Spell is still offered when a Technique is cast"* — a card whose stake says it SHOULD
-  fire — so something between `promptDefault` and the modal is not seeing the stack the way a staged
-  `stakeFor` call does. **First hypothesis to test, and it is cheap:** the stop decision may be taken
-  BEFORE the opponent's cast is pushed, in which case `counterTargets` finds nothing and the stake is
-  absent for ordering reasons rather than model ones. Log the stack at the `promptWanted` call and at the
-  staged call and diff them. The second red — `lessontest_phases` losing its round-1 Resolution boundary —
-  is the lesson's problem to absorb, and that lesson now has a `windows` opt-in it can use.
-  **DO NOT NARROW THE STAKE MODEL TO MAKE THIS PASS.** The 2026-09-23 ruling is that the condition is the
-  EVENT, never the direction, and the 2026-09-24 one is that AUTO does not stop you for your own cast.
-  Both are in `stakeFor` and both are asserted; this entry is about the CALLER ignoring them.
-  `[id: auto-ignores-stake-at-respond]`
-
-
 - `ready to build`      · **THE TUTORIALS STILL DO NOT TEACH THE BOUNDARY WINDOWS (the rest of #6, after 2026-09-16).** The
   two-state Fight and the Main-only activation rule are taught now, and all eleven suites are green. What
   is still missing is the model itself: **priority is passed at every phase and sub-phase change**, and no

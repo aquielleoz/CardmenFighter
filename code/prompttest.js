@@ -82,7 +82,38 @@ async function freshGame(p) {
   });
 
   ok(D.stored === '{}', 'a fresh device stores NO preferences — every answer below is a default (' + D.stored + ')');
-  ok(D.counterRespond === true, 'default: Counter Spell is still offered when a Technique is cast — today’s experience');
+  /* ⚠ THIS ASSERTION NAMED A BOARD IT NEVER STAGED, and that is why it read as the blocker on the
+     stake-driven default for three weeks. It said *"when a Technique is cast"* and then queried
+     `promptWanted` on an EMPTY board — no stack, nothing to counter. Under the old unconditional default
+     (`timing === 'respond'`) it passed for a reason that had nothing to do with its own sentence; under a
+     stake-driven one it correctly returns false, because a Counter Spell with nothing to counter has no
+     stake. THE SUITE WAS PINNING THE OLD DEFAULT, which is this repo's documented "a suite can pin a
+     belief" shape: when a rule and a suite disagree, the RULE wins and the suite says so in its comment.
+     Split in two — the bare default is asserted as what it now is, and the sentence the old one CLAIMED
+     is asserted for real one block below, against a stack with an opponent's Technique on it. */
+  ok(D.counterRespond === false,
+     'default: Counter Spell does NOT stop you on an empty stack — there is nothing to counter, so no stake' +
+     (D.counterRespond === false ? '' : '  ← the default is still unconditional'));
+
+  /* ---- 1b · THE SENTENCE THE ASSERTION ABOVE USED TO MAKE, NOW STAGED. An opponent's Technique really is
+     on the stack, so Counter Spell really does have a stake and really must stop you. This is the claim
+     that matters for a player, and nothing asserted it before today. */
+  const staged = await p.evaluate(() => {
+    const st = window.__solo.st(), C = (r, su, t) => ({ rank: r, suit: su, id: (t || '') + r + su });
+    const eff = window.CardmenEngine.effectOf(C(1, 'D', 'riv'));         // A♦ Imbue with Power — a plain Technique
+    st.stack = [{ kind: 'effect', p: 1, oid: 'o1', card: C(1, 'D', 'riv'), eff: eff }];
+    st.pending = st.stack[0]; st.respondFor = 0;
+    window.__solo.render();
+    return { onStack: st.stack.length,
+             mine: !!window.CardmenEngine.stakeFor(st, 0, C(4, 'D'), 'respond'),
+             stops: window.__solo.promptWanted(C(4, 'D'), 'respond') };
+  });
+  ok(staged.onStack === 1 && !!staged.mine,
+     "1b · staged — an OPPONENT's Technique is on the stack, so Counter Spell has a real stake" +
+     (staged.mine ? '' : '  ← no stake found; the assertion below would pass vacuously'));
+  ok(staged.stops === true,
+     '1b · …and AUTO stops you for it — the sentence the old default only claimed');
+
   /* THE BOUNDARIES DEFAULT OFF SINCE 2026-09-11 (Aj: *"flip the boundary prompt defaults off"*). Only
      `respond` stops you out of the box — something has just HAPPENED there. The four boundaries fire on a
      schedule, several times a round now that all five points exist, so stopping at each by default is a

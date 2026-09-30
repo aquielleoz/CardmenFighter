@@ -2111,7 +2111,7 @@ __QR__
      WHAT SURVIVED IS THE HALF THAT IS UNAMBIGUOUSLY RIGHT: the stakes themselves, and the split below
      that stops a stake from overriding a box the player unticked. Re-land this line once the two reds
      above are understood — they are evidence of a real gap, not of a bad idea. */
-  function promptDefault(card, eff, timing){ return PROMPT_MODE === 'on' || timing === 'respond'; }
+  function promptDefault(card, eff, timing){ return PROMPT_MODE === 'on' || !!(E.stakeFor && E.stakeFor(state, YOU, card, timing)); }
   function promptKeyOf(eff){ return eff && eff.id ? eff.id : null; }
   /* A LESSON MAY OPT INTO A BOUNDARY WINDOW — BY NAME, NEVER WHOLESALE (2026-09-25). Every non-`respond`
      timing is suppressed in `tutorialMode` (see the two notes in `promptWanted`), and that stays the
