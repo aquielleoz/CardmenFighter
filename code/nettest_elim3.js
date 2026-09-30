@@ -82,6 +82,29 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   await host.evaluate(()=>{ var el=document.querySelector('.oppPanel[data-seat="2"]'); if(el)el.click(); });
 
   ok(await waitFor(async()=>(await elimSelf(c2))===true, 80, 150),'the kicked client (c2) sees itself ELIMINATED in its mirror');
+
+  /* ⚠ AND THE KICK LINE MUST NAME THE SEAT THAT ACTUALLY DIED (2026-09-30). From Aj's 3-player log:
+     Rozalin was eliminated in r14, and the game-winning kick in r17 took out FLONNE — yet both lines read
+     *"it took Rozalin out!"*. A kick fires on a seat ALREADY at 0 shields, so nothing is stripped,
+     `res.struck` is `[]` (the ledger prints `struck=nobody`), and the victim fell through to
+     `[w===YOU?RIVAL:YOU]` — the DUEL constant, i.e. seat 1, whoever really died. It is the last line a
+     winner reads.
+     THIS SUITE IS THE RIGHT HOME AND SEAT 2 IS WHY: it already stages the exact scenario, and the seat it
+     kills is **2**. The broken fallback names seat 1, so a suite that kicked seat 1 would pass on it.
+     `res.eliminated` is set by the engine on the kill and `ceremonyResFor` already rotates it onto the
+     wire beside `struck`, so the fix reads a field both ends already have. */
+  const kickLine = await host.evaluate(()=>[].slice.call(document.querySelectorAll('#log .le'))
+    .map(function(e){ return e.textContent.trim(); }).filter(function(t){ return /FIGHTER KICK/.test(t); }).pop()||'');
+  ok(/took .* out/.test(kickLine), `the host narrated the kick  ["${kickLine.slice(0,84)}"]`);
+  /* ⚠ `defaultName(i)` IS "Rival N" WITH N = i+1, so SEAT 2 READS "Rival 3" — and seat 1, the one the
+     broken fallback named, reads "Rival 2". The first cut of this assertion looked for "Rival 2" and
+     reported the FIX as the bug; the off-by-one was mine, not the code's. Assert the victim's name AND
+     the absence of the foil's, because "names a rival" is true of both builds. */
+  ok(kickLine.indexOf('Rival 3')>=0,
+     `  …and it names SEAT 2 — "Rival 3" — the seat that actually died  ["${kickLine.slice(0,84)}"]` +
+     (kickLine.indexOf('Rival 3')>=0 ? '' : '  ← REPRODUCED: the duel fallback named the wrong seat'));
+  ok(kickLine.indexOf('Rival 2')<0,
+     '  …and NOT seat 1 ("Rival 2"), which the duel constant `[w===YOU?RIVAL:YOU]` would have named');
   ok(await waitFor(async()=>await c2.evaluate(()=>document.body.classList.contains('spectating'))),'c2 enters SPECTATOR mode (body.spectating) — keeps watching the live duel');
   ok(await c2.evaluate(()=>/[Ss]pectating/.test((document.getElementById('turnTag')||{}).textContent||'')),'c2 turn indicator reads "Spectating — …"');
   /* The header button must stop offering Concede once this seat is out — but ONLINE it reads "← Leave", not

@@ -5777,14 +5777,29 @@ __QR__
     var lostVerb = (struck.length===1 && struck[0]===YOU) ? 'lose' : (foe==='You' ? 'lose' : 'lost');
     if(res.kick){
       pendingKick=true; lastEndType='kick';
-      setMessage('💥🦵 <b>'+who+'</b> land'+(w===YOU?'':'s')+' the FIGHTER KICK — '+foe+' explode'+(foe==='You'?'':'s')+'!');
+      /* ⚠ A KICK STRIKES NOBODY, SO `struck` IS EMPTY AND THE FALLBACK WAS THE DUEL CONSTANT (Aj's log,
+         2026-09-30). The kick fires when a seat is ALREADY at 0 shields, so nothing is stripped —
+         `res.struck` is `[]`, the ledger duly prints `struck=nobody`, and `foe` fell through to
+         `[w===YOU?RIVAL:YOU]`. `RIVAL` is seat 1. In a duel that is right; at 3-6 players it names seat 1
+         whoever actually died. His game ended r17 with Flonne kicked and read
+         *"it took Rozalin out!"* — about a player eliminated three rounds earlier, on the LAST line a
+         winner sees.
+         READ `res.eliminated`, WHICH ALREADY EXISTS AT BOTH ENDS: the engine sets it on the kill
+         (`result.eliminated.push(q)`) and `ceremonyResFor` already ROTATES it onto the wire beside
+         `struck` and `spared`. This is the v1.29.6 rule — never infer who lost, read the result — in the
+         one branch where `struck` legitimately cannot answer. */
+      var kickedSeats = (res.eliminated && res.eliminated.length) ? res.eliminated
+                      : (struck.length ? struck : [w===YOU?RIVAL:YOU]);
+      var kickedYou = kickedSeats.length===1 && kickedSeats[0]===YOU;
+      var kickedName = kickedSeats.map(logName).join(' & ');
+      setMessage('💥🦵 <b>'+who+'</b> land'+(w===YOU?'':'s')+' the FIGHTER KICK — '+kickedName+' explode'+(kickedYou?'':'s')+'!');
       /* NOTE `foe` is still built with the SENDER's `logName`, so a client can read a foe name where it should read
        * "You". Left as a known limit rather than fixed blind: resolving it needs the struck seats on the wire,
        * and `say` carries one seat. Filed in the BACKLOG. The verb agreement is fixed here. */
       /* PAST TENSE ON BOTH HALVES. v1.31.55 moved {who}'s verb to past tense and left this copula alone, so a
        * client reading itself as {foe} got "You is out!" — Aj's log, 2026-08-29. A verb attached to {foe} needs
        * the same treatment as one attached to {who}; neither name's number is known when the template is written. */
-      sayOnce(w, '💥 {who} landed the FIGHTER KICK — it took {foe} out!', cls, struck.length?struck:[w===YOU?RIVAL:YOU]);
+      sayOnce(w, '💥 {who} landed the FIGHTER KICK — it took {foe} out!', cls, kickedSeats);
     }
     else if(res.prevented && !res.shieldStripped){
       setMessage('🛡 The loss was prevented!');
