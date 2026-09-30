@@ -4828,8 +4828,18 @@ __QR__
         return {mode:'activate', label: tgt?'🎯 Choose target':'⚡ Activate', ok:!block, reason:block||'', run:function(){ activate(card.id); }};
       }
     }
+    /* ⚠ "SELECT A CARD" IS ONLY TRUE WITH NOTHING SELECTED, AND THIS BRANCH IS REACHED BOTH WAYS.
+       Written for the BUTTON, where an empty selection really does want *select a card* — but ONE card
+       that simply has no activatable effect falls through here too, and then the single instruction on
+       screen describes something the player has already done. Dragging made it loud (the gesture selects
+       the card for you, so it is never empty) and it lands hardest on the apex 2, which has no activated
+       effect BY DESIGN and is the most important card in the game. The same wrong advice was sitting on
+       the ⚡ button's title all along, which is why this is fixed HERE and not in the drop hint: one
+       funnel, both surfaces. */
     return {mode:'activate', label:'⚡ Activate', ok:false,
-      reason:(sel.length>1?'Select a single effect card to activate it.':'Select a card, then activate its effect.'), run:null};
+      reason:(sel.length>1 ? 'Select a single effect card to activate it.'
+            : sel.length===1 ? 'Nothing to activate on that card.'
+            : 'Select a card, then activate its effect.'), run:null};
   }
   function onCtxClick(e){
     if(peeking) return;
@@ -4981,7 +4991,24 @@ __QR__
          it re-assigns to the same values, and the label it lands on — `Fight` — is now the true one,
          because one press from here really does fight. */
       if(selectedCards().length) { /* fall through to the shared verdict below */ } else {
-        hint.textContent='Main sub-phase — drag a card to use it, or Next to move on.'+
+        /* ⚠ DO NOT OFFER A SUB-PHASE THAT IS DEAD (Aj, 2026-09-16, from a round-1 screenshot: *"kings and
+           jacks aren't activateable yet at this point in the game"*). `TRANSFORM_GATE` defaults to
+           `'table'`, so a tier opens only once total shields lost reaches `numPlayers × lvl` — at round 1
+           that is `0 >= 2` and the Jack and King tiers are both shut — and a seat on 0 energy can afford
+           nothing else either. Neither is a bug; together they make Main inert while the hint cheerfully
+           says *"drag a card to use it"*.
+           ASKED THROUGH `ctxActionFor`, WHICH IS THE FUNNEL EVERY OTHER CONSUMER USES — the ⚡ button and
+           the drag release both read it, so "can this seat act at all" cannot drift from "may this card
+           act", and the gate/afford rules stay in one place. This is the hint half only; AUTO-ADVANCING
+           through a dead Main is the other half of that entry and is a much larger change.
+           ⚠ AND IT DEFERS TO A GATED LESSON STEP. `ctxActionFor` returns `ok:false` for every card while a
+           step restricts activation, so computing this during one would report "nothing to use" at a
+           player the lesson is telling to activate something. The tutorial keeps the original wording. */
+        var tutGated = (typeof TUT!=='undefined' && TUT.acceptsActivate && !TUT.acceptsActivate());
+        var canUseAny = tutGated || (state.players[YOU].hand||[]).some(function(c){
+          var a=ctxActionFor([c]); return !!(a && a.ok && a.run); });
+        hint.textContent=(canUseAny ? 'Main sub-phase — drag a card to use it, or Next to move on.'
+                                    : 'Main sub-phase — nothing to use yet, press Next to move on.')+
                          ((state.players[YOU].nextPlayBoost||0)?(' ⚡+'+state.players[YOU].nextPlayBoost+' charged'):'');
         hint.className='';
         return;
@@ -6530,7 +6557,22 @@ __QR__
        then DESCRIBED with its base effect: the button read "Technique" for a card the game was treating as a
        Quick, with the base cost and base text beside it. Offered right, labelled wrong — which is worse than
        either, because the label is what the player decides on. */
+    /* ⚠ ONE BUTTON PER PLAY, NOT PER CARD INSTANCE (Aj, 2026-09-11, screenshot: holding TWO Counter Spells
+       against two legal targets rendered FOUR buttons, of which two pairs were the same play). Which
+       physical copy leaves your hand changes nothing, so the second copy is a choice the player has to read
+       and cannot act on differently.
+       THIS IS `enumerateCombos`' RULE APPLIED TO A DIFFERENT LIST — *"emits one representative per shape and
+       top value… enumerating them all floods the legal-play list with identical offers."*
+       KEYED ON rank+suit, NEVER ON CARD ID. A class deck ships duplicate rank+suit with distinct ids
+       (`7D#24`), and `EFFECTS` is keyed by suit+rank — so rank+suit IS the effect's identity, while the id
+       is the thing that must NOT matter here. Two DIFFERENT countering cards still both appear, because
+       they differ in rank or suit; the target `oid` is in the key for the same reason, since countering
+       one object is not the same play as countering another.
+       IT COVERS THE NON-COUNTER BRANCH TOO: the entry noted two Leylines produce two identical buttons by
+       the same line, unverified at the time and true by construction. */
+    var offered={};
     eligible.forEach(function(c){ var ef=E.effectFor(state, YOU, c)||E.effectOf(c);
+      var ekey=c.rank+c.suit;
       /* A COUNTER WITH A REAL CHOICE GETS ONE BUTTON PER TARGET (epic step 8). Since step 6 a player can
          hold priority and stack two Quicks, so "counter the thing beneath me" stops being unambiguous — and
          the choice has to be made BEFORE the card goes on the stack, which is why it is a button rather than
@@ -6541,8 +6583,10 @@ __QR__
         ctgts.forEach(function(o){
           var onm=((o.card && E.effectOf(o.card))||{}).name || 'an effect';
           var who=(typeof o.p==='number') ? logName(o.p) : '';
+          var k=ekey+'|'+o.oid; if(offered[k]) return; offered[k]=1;
           html+='<button class="respQuick" data-id="'+c.id+'" data-coid="'+o.oid+'">'+ef.name+' · counter <b>'+onm+'</b>'+(who?' ('+who+')':'')+' <span class="respTxt">'+ef.cost+'⚡ · '+cardSym(c)+'</span></button>'; });
         return; }
+      if(offered[ekey]) return; offered[ekey]=1;
       html+='<button class="respQuick" data-id="'+c.id+'">'+ef.name+' · '+cardSym(c)+' ('+ef.cost+'⚡)<span class="respTxt">'+ef.text+'</span></button>'; });
     /* THE QUICKS LESSON'S STEP IS GATED ON COUNTERING, so "Let it resolve" cannot satisfy it. Declining does
      * re-cast (see the retry in `humanDeclines`), but every retry SPENDS the Rival's energy, so a player who

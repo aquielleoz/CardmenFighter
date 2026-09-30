@@ -190,13 +190,20 @@ async function dragOnto(page, idA, idB){
   const z4 = await dragToTable(p,'dead2C');
   await wait(300);
   const a4 = await snap();
-  /* ⚠ THE COPY IS WRONG FOR THIS GESTURE AND THE ASSERTION DELIBERATELY ACCEPTS IT. The hint reads
-     *"Select a card, then activate its effect."* — `ctxActionFor`'s fallback, written for the BUTTON, where
-     nothing is selected yet. Dragged, the player has selected a card; being told to select one is the
-     apex 2's reader problem in a new place, on the game's most important card. Filed as
-     `[id: apex-drag-hint-says-select]`; the regex accepts either wording so the fix does not red this. */
-  ok(z4 && z4.no && !z4.ok && /nothing to activate|activate its effect/i.test(z4.hint),
+  /* THE COPY IS NOW EXACT, AND THE TOLERANT REGEX IS GONE (fixed 2026-09-30). This accepted either
+     wording while `[id: apex-drag-hint-says-select]` was open: the hint read *"Select a card, then
+     activate its effect."* at a player whose gesture had already selected one, on the apex 2 — the card
+     with no activated effect BY DESIGN and the most important card in the game. `ctxActionFor` now
+     distinguishes an EMPTY selection (where "select a card" is the right advice, and which the button
+     still reaches) from ONE card that has nothing to activate, so the same fix repaired the ⚡ button's
+     title too.
+     ⚠ ASSERT THE NEW WORDING AND REFUSE THE OLD. A tolerant regex is right while a defect is filed and
+     wrong the moment it is fixed — left as-is it would accept a regression silently, which is the whole
+     point of having closed the entry. */
+  ok(z4 && z4.no && !z4.ok && /nothing to activate/i.test(z4.hint),
      'A CARD WITH NOTHING TO ACTIVATE IS REFUSED WHILE IT IS STILL IN THE AIR  ["'+(z4?z4.hint:'no drag')+'"]');
+  ok(z4 && !/activate its effect/i.test(z4.hint||''),
+     '  …and it does NOT tell a player who is holding a card to select one'+(z4&&/activate its effect/i.test(z4.hint)?'  ← REGRESSED':''));
   ok(a4.pile===0 && a4.hand===b4.hand && a4.energy===b4.energy,
      '  …and releasing it does nothing at all — no play, no activation, no energy');
 

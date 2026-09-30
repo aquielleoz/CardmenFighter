@@ -15,7 +15,7 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.31.127.2.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.31.127.3.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
@@ -699,21 +699,6 @@ re-read its tag.
   through `atStep(10)`, and inserting one step scored **7 pass / 17 fail**. Fold new teaching into an
   existing step where you can; budget the suite edit where you cannot.
   `[id: tutorials-still-teach-boundary]`
-- `ready to build`      · **DRAGGING THE APEX 2 SAYS *"Select a card, then activate its effect."* — AT A
-  PLAYER WHO HAS JUST SELECTED ONE** (found 2026-09-29 while writing `dragtest`). The drop hint is
-  `ctxActionFor`'s fallback `reason`, which was written for the BUTTON, where the sensible advice really is
-  *select a card*. Dragged, the card is selected by the gesture itself, so the one instruction on screen
-  describes something the player has already done — and it lands on the apex 2, the card with no activated
-  effect BY DESIGN and the most important card in the game.
-  **THE RIGHT COPY ALREADY EXISTS TWENTY LINES AWAY**: the same branch's default is *"nothing to activate on
-  that card"*, which is true, specific, and what the drop hint says for every other dead card. The fix is to
-  stop preferring an empty-selection `reason` when a card IS in the air.
-  **Cosmetic, and narrow: only the drag path, only cards whose `ctxActionFor` falls through.** `dragtest`
-  accepts either wording on purpose, so fixing this does not turn a suite red — see the note beside that
-  assertion.
-  `[id: apex-drag-hint-says-select]`
-
-
 ### Tooling
 
 - `needs a repro`       · **`lessontest_forms` blew a THIRTY-SECOND poll once under `-j 4` — and 30s is not slowness, it is a dead end**
@@ -768,34 +753,22 @@ re-read its tag.
 
 ### Features
 
-- `ready to build`      · **THE MAIN SUB-PHASE IS DEAD ON MOST EARLY TURNS, AND THE HINT STILL OFFERS IT**
-  (Aj, 2026-09-16, from a round-1 screenshot: *"kings and jacks aren't activateable yet at this point in the
-  game... maybe we can skip main phase when nothing is activateable too?"*). Both halves agreed; filed as
-  quality of life rather than built.
-  **THE OBSERVATION IS CORRECT AND HAS TWO INDEPENDENT CAUSES.** `TRANSFORM_GATE` defaults to `'table'`, so a
-  tier opens only once *total shields lost across the table* reaches `numPlayers × lvl` — at round 1 that is
-  `0 >= 2`, and the Jack and King tiers are both shut. On top of that the seat in the screenshot held **0
-  energy**, so nothing else was affordable either. Neither is a bug; together they make the sub-phase inert.
-  **TWO CHANGES, AND THEY ARE VERY DIFFERENT SIZES — the first is worth doing on its own.**
-  1. **Tell the truth in the hint.** It currently reads *"Main sub-phase — drag a card to use it, or Next to
-     move on"* at a moment when nothing can be used. No phase change, no priority risk.
-  2. **Auto-advance through Main** when the seat on turn cannot activate anything. Needs a real predicate —
-     "can this seat act at all" — which does not exist today; only per-card `canAfford` / gate checks do.
-  **⚠ AUTO-ADVANCE, NEVER SKIP — Aj confirmed he meant auto-advance, and the distinction is recorded for
-  whoever BUILDS it rather than as a correction of the ask.** The Main → Fight boundary is `st.toPlay`,
-  a phase window, and [`PHASES-AND-PRIORITY.md`](PHASES-AND-PRIORITY.md) passes priority at every phase and
-  sub-phase change. Skipping the sub-phase DELETES the window; auto-advancing leaves it open and merely stops
-  asking. **The engine already has this exact pattern and it is the precedent to copy**: an empty
-  `eligibleQuicks()` auto-declines for the player — the window still opens, you are simply not stopped by it.
-  **AND THE CONDITION IS TABLE-WIDE, NOT THE LOCAL SEAT.** "I cannot activate anything" is not "nobody can":
-  at 3-6 players another seat may hold an affordable Technique while your hand is dead, and deciding a window
-  from one seat's position is precisely what `noopDestroy` did — it suppressed priority for everyone from a
-  single target, and deleting it MOVED A 480-GAME FINGERPRINT (9 games in 480, some with a different winner).
-  A local-seat check here would reintroduce that class of bug in a new place.
-  **DO NOT SELL THIS AS SAVING CLICKS — IT DOES NOT.** One-press Fight from Main landed the same day: select
-  cards, press Fight once, and it crosses Main → Fight *and* plays. So Main already costs zero extra presses
-  when you have a play. What it costs is a hint that offers an action the board cannot perform, which is why
-  change 1 carries most of the value for almost none of the risk.
+- `needs a decision`    · **⚠ HALF SHIPPED 2026-09-30 — THE HINT TELLS THE TRUTH NOW; AUTO-ADVANCE DOES NOT
+  EXIST.** Change 1 of this entry landed: the Main hint reads *"nothing to use yet, press Next to move
+  on."* when no card in hand is activatable, asked through `ctxActionFor` so "can this seat act at all"
+  cannot drift from "may this card act", and deferring to a gated lesson step so a tutorial is never told
+  its own instruction is impossible. `mptest` asserts both boards.
+  **WHAT IS LEFT IS CHANGE 2, AND IT IS A DECISION RATHER THAN A BUILD** — auto-advancing THROUGH a dead
+  Main. The predicate it needed now exists in the hint, so the cost has dropped a great deal; what has not
+  been decided is whether skipping a phase silently is right. It removes a beat the player may be using to
+  read the board, and the phase strip teaches the ramp by showing every colour — a phase that sometimes
+  does not happen is a lesson that sometimes lies. Aj's own words were *"maybe we can skip main phase when
+  nothing is activateable too?"*, which is a question.
+  **THE ORIGINAL (Aj, 2026-09-16, from a round-1 screenshot):** *"kings and jacks aren't activateable yet
+  at this point in the game… maybe we can skip main phase when nothing is activateable too?"*
+  `TRANSFORM_GATE` defaults to `'table'`, so a tier opens only once total shields lost across the table
+  reaches `numPlayers × lvl` — at round 1 that is `0 >= 2`, and the Jack and King tiers are both shut. On
+  top of that the seat held **0 energy**. Neither is a bug; together they make the sub-phase inert.
   `[id: dead-main-subphase]`
 
 
@@ -813,18 +786,6 @@ re-read its tag.
   state it reports*, and a glyph cannot say "Straights". A rotating one-word label, or moving Sort out of
   the action row entirely, are the two shapes worth costing — both are design calls, not tuning.
   `[id: narrowest-phones-still-34px]`
-
-- `ready to build`      · **THE RESPOND WINDOW OFFERS DUPLICATE BUTTONS FOR INTERCHANGEABLE COPIES** (Aj, 2026-09-11, screenshot).
-  Holding TWO Counter Spells against two legal targets renders **four** buttons, of which two pairs are the
-  same play — which physical copy leaves your hand changes nothing. The loop in `promptHumanResponse` is
-  `eligible.forEach(card) × ctgts.forEach(target)`, i.e. one button per card INSTANCE.
-  **This is `enumerateCombos`' rule applied to a different list** — *"emits one representative per shape and
-  top value… enumerating them all floods the legal-play list with identical offers."* Dedupe on
-  **`(effect id, target oid)`**, not on card id: two DIFFERENT countering cards must still both appear.
-  Small, no design decision in it, and independent of the redesign below. Note the same loop feeds the
-  non-counter branch, so a player holding two Leylines gets two identical buttons there too — unverified,
-  but it follows from the same line.
-  `[id: respond-window-offers-duplicate]`
 
 - `ready to build`      · **OPEN THE BATTLE LOG AS AN OVERLAY, like the 🔍 View card reader** (Aj, 2026-08-31: *"i think for the logs,
   we can open it like how we do the view card? but slightly transparent?"* — agreed at the time and, like the 2s
