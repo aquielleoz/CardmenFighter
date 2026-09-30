@@ -396,6 +396,40 @@ shape, too low) rather than shape-stuck.
   **`nettest_sync` remains the only suite that compares the two peers to EACH OTHER** rather than each to
   expectations. Keep it green-or-explained, never disabled.
 
+<a id="runopponents-window"></a>
+## `runOpponents` stepping past a window — measured, does not occur (2026-09-30)
+
+**Filed as:** `step()` tests `discardPending.player===YOU`, then `respondFor===YOU`, then `state.turn===YOU`
+and hands back to the human — so a window owed to a **non-human, non-YOU** seat would fall straight through
+and the board would go live with it still open. Same shape as two bugs already fixed (the duel driver on
+2026-09-14, `tutCastRivalTech` on 2026-09-24); this was the third site and the only unsettled one. The entry
+said it *may* be unreachable and that this was **a reason to measure, not to assume** — correctly, since the
+same argument had been available for the other two.
+
+**Measured three ways, and the symptom does not occur:**
+
+| how | result |
+| --- | --- |
+| natural play, 14 games at 3p and 6p with `prompts=all` | **47** hand-backs, **0** with a window owed elsewhere |
+| forcing `respondFor` to an AI seat throughout the AI phase | **141** writes landed, **0** step-pasts |
+| forcing it ONCE and then watching for 9s | **RECOVERED** — round 1→2, turn back to the human, window drained, board live |
+
+**AND THE MECHANISM IS NOT THE ONE THE ENTRY GUESSED.** It supposed `settleWindows` after each opponent
+action drains `respondFor` first. What actually prevents it is one line in `ai.js`: **`if (st.respondFor !=
+null) return;`** — the AI refuses to ACT while a window is open, so the turn cannot advance to the state
+where `step()` hands back. The board cannot go live past a window because nothing gets far enough to try.
+
+**THE THIRD ROW IS THE ONE THAT SETTLES IT**, because the obvious worry once "steps past" is ruled out is
+that it **stalls** instead — an AI that refuses to act and a driver that keeps asking is a plausible spin.
+It does not: the table recovered on its own, unaided, in under nine seconds.
+
+**WHAT REMAINS IS A STRUCTURAL ASYMMETRY, NOT A DEFECT, AND IT IS WORTH KNOWING.** `runRival` gained an
+explicit `if(state.respondFor!=null) return settleWindows(...)` on 2026-09-14; `runOpponents` has no
+equivalent on its non-round-resolution path. Today that costs nothing, because the engine-side guard above
+makes it unreachable. **If anyone ever relaxes that guard — lets an AI act with a window open — this is the
+site that stops being protected**, and the fix is the house form the sibling driver already uses. No drain
+was added: an unexercised branch is not a safeguard, it is untested code.
+
 <a id="ai-strength"></a>
 ## AI strength
 
