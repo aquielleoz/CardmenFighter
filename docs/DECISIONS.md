@@ -396,6 +396,37 @@ shape, too low) rather than shape-stuck.
   **`nettest_sync` remains the only suite that compares the two peers to EACH OTHER** rather than each to
   expectations. Keep it green-or-explained, never disabled.
 
+<a id="main-autoadvance"></a>
+## Auto-advancing through a dead Main sub-phase — DECLINED (Aj, 2026-09-30)
+
+**Proposed** as the second half of `dead-main-subphase`: when the seat on turn can activate nothing, skip
+the Main sub-phase rather than make them press Next. The first half — the hint telling the truth
+(*"nothing to use yet, press Next to move on."*) — shipped and stays.
+
+**Declined, and the reason is that nothing was being automated away except a choice the player already
+has.** Aj: *"there's a separate pass button and if they wanted to, they could have pressed that one
+instead"*, then plainly: *"don't auto advance @\_@ they can pass from fight."* A dead Main is not a
+dead end — Next and Pass are different buttons, and the player can leave by either. Removing the press
+removes a control, not a chore.
+
+**AND THE PRIORITY DANCE WAS NEVER THE PROBLEM, which is what the discussion clarified.** It already
+auto-advances at the boundary when nobody can add to the stack — that is the
+`auto-advanced — nobody could add to the stack` line the ledger has always carried, and it is why nobody
+is prompted when they have nothing to play. Aj's *"it should really just fire off"* was about THAT, and
+it already does.
+
+**IT WAS BUILT BEFORE BEING DECLINED, AND IT ALSO FAILED IN PRACTICE.** Routed through `doFight` so a
+local seat took `moveToPlayThen(… 'Next')` and a client sent `{op:'toFight'}` — no host/client divergence
+— guarded against re-entry, deferred a tick, and skipped during tutorials. `browsertest` passed 12 duels
+with it in, and **`mptest` went 105/10**. Reverted whole; `mptest` back to 115/0. So there is no "but it
+nearly worked" to tempt a second attempt: it was declined on design AND measured red.
+
+**⚠ THE MISREAD IS THE REUSABLE PART.** *"nobody gets prompted when they don't have anything to play
+anyway so it should really just fire off"* is a description of behaviour that ALREADY EXISTS, and it was
+read as consent to build new behaviour. When a remark could be *"this already works, why is it a
+question?"* rather than *"go and make it work"*, those are opposite instructions — ask which, because
+building the wrong one costs a revert and reads as not listening.
+
 <a id="runopponents-window"></a>
 ## `runOpponents` stepping past a window — measured, does not occur (2026-09-30)
 
