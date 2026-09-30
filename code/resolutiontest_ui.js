@@ -91,7 +91,6 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
          both of the cards the epic exists to fix. That is what scenario C below caught. The default is
          now "every legal timing prompts" (Aj, 2026-09-10), so `true` here is a no-op; it stays because a
          suite that silently depends on a default cannot tell you when the default moves. */
-      window.__solo.setPromptPref('H10', 'resolution', !!prompt);
       window.__solo.render();
       const sanc = you.hand[0];
       return { quick: !!(E.effectFor(st, 0, sanc) || {}).quick,
@@ -179,7 +178,6 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
       riv.energy = []; riv.forms = [];
       st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = null; st.pile = null; st.preFightHandled = true;
       st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
-      window.__solo.setPromptPref('C7', 'resolution', true);   // see the note in stageKick — the default is the old whitelist
       window.__solo.render();
       const ap = you.hand[2];
       return { quick: !!(E.effectFor(st, 0, ap) || {}).quick, afford: E.canAfford(you, ap), rivShields: riv.shields,
@@ -271,10 +269,18 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
        'C · …and the card that forced it is the one on offer' +
        (offered.length ? '  [' + offered.join(' | ').slice(0, 80) + ']' : '  ← no Quick buttons at all'));
     const led = await p.evaluate(() => window.__solo.prioLog());
-    const line = led.filter(l => /SHIELD AT RISK/.test(l))[0];
+    /* ⚠ THE "FORCED" LINE IS UNREACHABLE SINCE AUTO WENT STAKE-DRIVEN (2026-09-30), so asserting it would
+       be asserting dead output. `shieldSaveOverride` existed to force a window past an UNTICKED CHECKBOX;
+       the checkboxes are gone and `promptDefault` now returns true on a stake, so the override fires
+       exactly when the ordinary path already did — `saved` is always empty and the ledger never writes
+       "SHIELD AT RISK, prompt forced".
+       THE CLAIM UNDERNEATH IS UNCHANGED and is what is asserted now: the window opened on a board where a
+       shield was genuinely at risk, and the ledger names the card. That the override is now redundant is
+       FILED rather than deleted here — it is a second deletion and deserves its own verification. */
+    const line = led.filter(l => /window SHOWN to you/.test(l))[0];
     ok(!!line && /Sanctuary/.test(line),
-       'C · …and the ledger says the prompt was FORCED rather than wanted, naming the card' +
-       (line ? '  [' + line.slice(0, 110) + ']' : '  ← no SHIELD AT RISK line; a log cannot tell a forced prompt from a ticked box'));
+       'C · …and the ledger records the prompt, naming the card' +
+       (line ? '  [' + line.slice(0, 110) + ']' : '  ← no window-shown line; a log cannot explain a prompt that fired'));
     /* THE BOARD WAS REALLY LETHAL — the same control A carries. Without it, "a window opened" is equally
        true of a staging where nothing was ever at stake. */
     await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d) d.click(); });
@@ -302,7 +308,6 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     await p.goto(URL);
     if (!await freshGame(p)) ok(false, 'C2 · a board where the shield about to break is the RIVAL\'s');
     await stagePierce(p);
-    await p.evaluate(() => { window.__solo.setPromptPref('C7', 'resolution', false); });
     await leadAces(p);
     const up = await until(() => p.evaluate(() => !!document.getElementById('respDecline')));
     ok(up, 'C2 · THE OVERRIDE FIRES FOR THE STRIKER — `resolution` is unticked and the window opens anyway, because a shield is about to break and Armor Piercing changes it' +
@@ -311,10 +316,10 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     ok(offered.some(t => /Armor Piercing/i.test(t)),
        'C2 · …offering the card that forced it' + (offered.length ? '  [' + offered.join(' | ').slice(0, 80) + ']' : '  ← no Quick buttons at all'));
     const led = await p.evaluate(() => window.__solo.prioLog());
-    const line = led.filter(l => /SHIELD AT RISK/.test(l) && /\[resolution\]/.test(l))[0];
+    const line = led.filter(l => /window SHOWN to you/.test(l) && /\[resolution\]/.test(l))[0];
     ok(!!line && /Armor Piercing/.test(line),
-       'C2 · …and the ledger says FORCED at resolution, naming it' +
-       (line ? '  [' + line.slice(0, 110) + ']' : '  ← no [resolution] SHIELD AT RISK line'));
+       'C2 · …and the ledger records it AT RESOLUTION, naming it' +
+       (line ? '  [' + line.slice(0, 110) + ']' : '  ← no [resolution] window-shown line'));
     await p.close(); }
 
   // ------------------------------------------------- C3 · AND IT IS STILL NARROW
@@ -329,7 +334,6 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     if (!await freshGame(p)) ok(false, 'C3 · a board where the extra strip is already banked');
     await stagePierce(p);
     const banked = await p.evaluate(() => {
-      window.__solo.setPromptPref('C7', 'resolution', false);
       const st = window.__solo.st(); st.players[0].finishingBlow = true; return !!st.players[0].finishingBlow;
     });
     ok(banked, 'C3 · staged — the extra strip is already banked, so the card has nothing left to change');
@@ -417,7 +421,6 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     if (!await freshGame(p)) ok(false, 'C5 · a board where nothing forces a prompt');
     await stagePierce(p);
     const staged = await p.evaluate(() => {
-      window.__solo.setPromptPref('C7', 'resolution', false);
       window.__solo.setPromptMode('on');
       return window.__solo.promptMode();
     });
@@ -600,8 +603,6 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
       st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = 1; st.preFightHandled = true;
       st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
       st.pile = { p: 1, byPlayer: 1, combo: { type: 'pair', size: 2, value: 9, key: [9], cards: [C(9, 'C', 'x'), C(9, 'S', 'y')] } };
-      window.__solo.setPromptPref('H10', 'resolution', false);   // SILENCED — must not stop me, must still be playable
-      window.__solo.setPromptPref('D9', 'resolution', true);     // this one is what opens the window
       window.__solo.render();
       return { eligible: E.eligibleQuicks ? null : null,
                sancQuick: !!(E.effectFor(st, 0, you.hand[0]) || {}).quick,

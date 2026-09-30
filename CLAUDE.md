@@ -197,11 +197,18 @@ node resolutiontest_ui.js                          # THE TWO REPORTED BUGS, PLAY
                                                 # keeps the narrowness claim C2 used to carry — the same
                                                 # board with the strip already banked forces nothing.
                                                 # F adds the STACK IN THE WINDOW (46)
-node prompttest.js                              # PROMPT PREFERENCES (epic step 15): per-card, per-timing
-                                                # checkboxes in the card reader. Asserts the DEFAULTS are
-                                                # today's experience, that only OVERRIDES are stored, and —
-                                                # the half a mutant proved missing — that an unchecked
-                                                # timing really SUPPRESSES the modal, both ways (18)
+node prompttest.js                              # NOTIFICATIONS, now the TRI-STATE only (12). The per-card
+                                                # checkboxes were RETIRED 2026-09-30 and two thirds of this
+                                                # suite went with them — it asserted six rendered rows, that
+                                                # only OVERRIDES were stored, and that an unchecked timing
+                                                # suppressed the modal. None of those has a subject any
+                                                # more. What is left is the DEFAULTS (stake-driven since the
+                                                # same day), `promptLegal`'s timing legality, and ON/AUTO/OFF.
+                                                # ⚠ THE DELETED SECTIONS ARE TOMBSTONED IN THE FILE rather
+                                                # than removed silently — one of them was "the load-bearing
+                                                # one", added because a mutant proved it missing, and one
+                                                # had INVERTED twice. Read them before ever reintroducing a
+                                                # per-card preference
 node shadowtest.js                              # THE SHADOW COMPARATOR (epic step 12): whoever the OLD Fight
                                                 # End guard whitelist lets answer, the NEW go-round must let
                                                 # answer too. Half A is EXHAUSTIVE (every card x 299 Form
@@ -2194,7 +2201,7 @@ var and `sweep.js` assigns one per job. It contradicted the sweep-runner section
 which is what a number nobody can verify looks like). Counts verified:
 `test` 591, `netview` 65, `mptest` 113, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 25,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 17, `lessontest` 20, `lessontest_energyorder` 14,
-`versiontest` 33, `sharetest` 17, `dragtest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 25, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 46, `lessontest_howto` 25,
+`versiontest` 33, `sharetest` 17, `dragtest` 17, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 46, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
 `lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 31, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
