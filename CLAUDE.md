@@ -1688,6 +1688,21 @@ one game can prove a die was rolled, the faces differ (ties re-roll) and **the h
 the actual claim, is deterministic, and says more than six lucky games. A broken build now fails with
 `opener seat 0 (dbg: pinned)` instead of a suspicious-looking series.
 
+**A REPRO THAT DOES NOT REPRODUCE PROVES NOTHING UNTIL YOU BREAK THE THING IT WATCHES (2026-09-30).**
+A netplay repro for the double round resolution came back clean — one round, one shield, detector quiet —
+which reads as "not reproducible here". **Then the brake it was aimed at was deleted and the suite stayed
+GREEN**, so the staging had never reached the braked branch and the clean run meant nothing at all. The
+suite was deleted rather than committed: a repro that cannot fail reads as coverage, which is worse than
+no suite, and this file already says a green suite that cannot fail is not evidence a hang is gone.
+**THE A/B FOR A REPRO IS THE MIRROR OF THE A/B FOR A FIX.** For a fix you reintroduce the defect and
+require red; for a repro you remove the DEFENCE and require red. Same cost, same one command, and without
+it "I could not reproduce it" is indistinguishable from "I did not reach the code".
+**AND THE TRACE IS WHERE THE NEXT ATTEMPT GETS CHEAPER.** The host trace showed both duplicate intents
+arriving and then nothing — the pass had resolved the round DIRECTLY rather than returning
+`{ok:false, transition:'play'}`, so the re-apply never ran. That turned a shrug into one concrete missing
+staging fact for the next attempt. **When a repro fails, read the trace for what did NOT happen**; filing
+"did not reproduce" without it just makes the next person repeat you.
+
 **A THROWAWAY DIAGNOSTIC IS THE LEAST TRUSTWORTHY CODE IN THE ROOM.** Hunting the Quicks bugs, two bespoke
 probes lied before the real suite told the truth: one clicked `#tutNextBtn` before the tutorial panel had
 rendered it, so `if(b)b.click()` did nothing and it reported **8 consecutive false failures**; the other planted

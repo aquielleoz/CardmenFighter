@@ -330,6 +330,30 @@ re-read its tag.
   **AND SOLO IS NOW MEASURED CLEAN, which sharpens the netplay reading:** 0 duplicate resolutions across 12
   full duels in the real page, both declining and casting into every window. Whatever drives the second
   resolution is not reachable by the solo driver.
+  **⚠ ATTEMPT 3 (2026-09-30) — A NETPLAY REPRO WITH DUPLICATE RAW INTENTS. IT DID NOT REPRODUCE, AND THE
+  INSTRUMENT COULD NOT HAVE SEEN IT ANYWAY.** Staged a duel, host wins with a pair of Aces the client
+  cannot answer, then `__cmf.clientSend` a `{op:'pass'}` followed by TWO `{op:'decline'}` 70ms apart — the
+  interval measured off the real trace, and sent RAW so the client's courtesy gate cannot swallow the
+  duplicate the way the UI would. Result: one round, one shield, detector quiet.
+  **THAT RESULT IS WORTH NOTHING ON ITS OWN, AND THE A/B IS HOW WE KNOW.** Removing the duel's re-apply
+  brake — `if(it.op==='pass' && stackMark(hostState, 1)!==passMark) return broadcastMirror();` — left the
+  suite **still green**, so the staging never reached the braked branch at all. The suite was DELETED
+  rather than committed: a repro that cannot fail reads as coverage, which is worse than no suite.
+  **AND THE HOST TRACE SAYS EXACTLY WHAT WAS MISSING**, which is what makes attempt 4 cheaper than this one:
+  ```
+  move IN from seat 1 op=pass q=4
+  move IN from seat 1 op=decline q=5   x2      ← both duplicates DID arrive…
+  ```
+  …and nothing after it. Both declines landed and were no-ops, because **the pass resolved the round
+  directly instead of returning `{ok:false, transition:'play'}`** — so `hostSettle`'s re-apply, where the
+  brake and the doubling both live, never ran at all.
+  **SO THE STAGING FACT TO ADD IS: THE CLIENT MUST PASS FROM THE *MAIN* SUB-PHASE.** The real ledger's two
+  lines are `MAIN → FIGHT [Pass]` — `auto-advanced`, then `go-round opened` — and a client already in the
+  Fight sub-phase passes straight through without transitioning. Every attempt so far, solo and netplay,
+  has passed from Fight. Get the client's turn to BEGIN in Main with the host's Special already on the
+  table, and the braked branch becomes reachable; only then does a double decline have anything to race.
+  **`__cmf.boardStamp()` DOES NOT CARRY THE SUB-PHASE** (it reads `4:0/pair2/14`), so attempt 4 needs a way
+  to SEE it — assert the client is in Main before sending, or the same silent miss repeats.
   `[id: round-2-resolved-twice]`
 
 - `parked`              · **THE CLEAN-UP → BEGINNING ORDERING IS FIXED; IT IS THE TEST THAT IS STILL OWED (2026-09-16).**
