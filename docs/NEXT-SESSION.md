@@ -235,7 +235,24 @@ re-read its tag.
 
 #### Flaky suites
 
-- `needs a repro`       · **`nettest_passoduel` FLAKES AT ROUGHLY 1 IN 8, SOLO — MEASURED AND A/B'd 2026-09-15.** It hung a lane
+- `needs a repro`       · **⚠ THE SOLO RATE IS REJECTED — 23/23 GREEN ON 2026-09-30, AND THE SWEEP SIGNATURE IS WHAT IS LEFT.**
+  Twenty-three consecutive solo runs, every one `PASS: 8  FAIL: 0`, 33-51s each. **The run count is the
+  point, not the streak:** at the filed 1-in-8, `0.875^23 = 0.046`, so this rejects that rate at 5% — and
+  eighteen would NOT have (`0.875^18 = 0.090`, a 9% chance of happening anyway). This file has already
+  paid for the round-number version of that mistake twice, in both directions.
+  **WHAT IT DOES AND DOES NOT LICENSE.** It says the SOLO rate has changed on this machine. It does NOT
+  say the suite is fixed: nobody found a mechanism and nothing was changed to address it. And the entry's
+  own next step — *"capture a failing solo run's assertions"* — is now unavailable, because there was no
+  failing solo run to capture.
+  **SO THE OPEN HALF IS THE SWEEP SIGNATURE, WHICH IS A DIFFERENT MEASUREMENT.** In the sweep it HUNG to
+  the 300s cap; solo it returned `PASS: 6  FAIL: 2`. Those may not be the same fault, and nothing today
+  touched the loaded case — the next attempt should reproduce it UNDER `-j 4` contention rather than
+  solo, since that is the only configuration the failure has been seen in since.
+  **AND THE FIRST ATTEMPT AT THIS MEASUREMENT REPORTED TWO REDS THAT WERE NEITHER**: the loop wrapped each
+  run in `timeout`, which **macOS does not have**, so both "failures" were `rc=127` in 0s. Caught only
+  because the harness printed the return code and the elapsed time. A run series that does not print its
+  denominator cannot be read.
+  **THE ORIGINAL (2026-09-15):** **`nettest_passoduel` FLAKED AT ROUGHLY 1 IN 8, SOLO — MEASURED AND A/B'd.** It hung a lane
   in one `-j 4` sweep (killed at 300s), and the first instinct was the Resolution shield override that had
   just merged: that change can open a window where none opened before, this suite installs `netwindows`
   via `startDuel`, and each unscripted window costs ~6s of grace — a real mechanism for pushing a suite
