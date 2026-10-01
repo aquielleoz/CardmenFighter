@@ -2266,10 +2266,11 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127.10 — last FULL sweep 2026-09-30, `npm run sweep`, 103/103 in 258s ON THE EPIC**
-(the run before it was 101/103 — `quicktest` and `nettest_ridewedge`, both red for the prompt MODE rather
-than for a defect; see the entry above). A suite count and a date are a MEASUREMENT and are only true of
-the build they were taken on, so re-run before quoting this. (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, `nettest_brake`, `nettest_brake3`, `dragtest`, `lessontest_pickescape`) (four lanes; background
+Status as of **v1.31.127.10 — last FULL sweep 2026-10-01, `npm run sweep`, 104/104 in 247s ON THE EPIC**
+(the 104th is `nettest_prioledger`, added 2026-09-30 with the broadcast ledger). A suite count and a date
+are a MEASUREMENT and are only true of the build they were taken on, so re-run before quoting this — and
+note that this line was itself 27-stale-counts' worth of evidence for that on 2026-09-30, which is why
+the per-suite numbers below are now checked against the sweep output rather than re-typed. (`main` is 86 suites in 182s; the epic adds `shadowtest`, `prompttest`, `resolutiontest`, `resolutiontest_ui`, `nettest_passoduel`, `nettest_priosig`, `nettest_ridewedge`, `nettest_rtcready`, `nettest_quickwedge`, `nettest_clientdeal`, `nettest_autopass`, `nettest_rename`, `nettest_prefightduel`, `nettest_brake`, `nettest_brake3`, `dragtest`, `lessontest_pickescape`) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -2282,7 +2283,7 @@ gates), `browsertest` (smoke, 12 duels — prints no PASS line).
 The 58 netplay suites: `nettest_3p` 7, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
 `counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 16,
 `elim3` 19, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 7,
-`losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
+`losspick_remote3` 7, `names` 13, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
 `target3` 7, `ghostseat` 6, `prioledger` 8, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
@@ -2397,6 +2398,21 @@ in exactly ONE place and any second copy must be ASSERTED rather than written. T
 lists is that rule broken twice over, and re-typing 27 numbers fixes today and guarantees a repeat. Filed
 as `[id: suite-counts-declared-twice]`: have `sweep.js` record per-suite counts beside `.sweep-times.json`
 and have `docsweep.js` report the diff — report, never gate, like every other staleness check here.
+
+**AND A SUITE CAN BE LISTED TWICE, WHICH NO COUNT CHECK CATCHES BY ITSELF (2026-10-01).** `narrate`
+appeared in the netplay list as both **11** and **12**. A diff that walks the declared entries finds the
+stale one and silently passes the fresh one, so the list reads correct from either end — the same shape
+as the `__cmf` duplicate-key trap, in prose. **The grep must be SCOPED TO THE LIST**, because an
+unscoped one matches prose and reports four false positives — `prompttest` 43**s** is a timing, and
+*"`landscapetest` 96 against 195"* is this file narrating the audit:
+
+```bash
+awk '/Counts verified:/,/^\*\*A DEADLOCKED/' CLAUDE.md | grep -oE '`[a-z0-9_]+` [0-9]+' | awk '{print $1}' | sort | uniq -d
+```
+
+Verified both ways on the day: silent on the fixed file, and it prints `narrate` against the commit
+before the fix. **An unverified grep written INTO this file as advice is worse than no advice** — the
+unscoped version was written here first, and only running it showed it was wrong.
 
 **If a count here disagrees with a suite, the suite is right — fix this line.**
 **A FAILING SUITE NOW SAYS `FAILED — PASS: n  FAIL: m`, and the old form was actively harmful (fixed 2026-08-31).**
