@@ -103,6 +103,21 @@ const CASES=[
       await p.evaluate(n=>{const s=document.getElementById('setPlayers'); s.value=String(n); s.dispatchEvent(new Event('change'));},np);
       await poll(p, n=>document.getElementById('setPlayers').value===String(n), 'the player count took', np);
     }
+    /* ⚠ PIN BOTH DECKS, OR THE MEASUREMENT MOVES WITH THE SHUFFLE (2026-10-01). `DEFAULT_SEL` is
+       `{you:'random', rival:'random'}`, so every run rolled two fresh classes — and at 327x660 a long deck
+       name WRAPS `#handMeta` onto a second line. Measured over eight staged runs with every other
+       rectangle identical: `#handMeta` 167px for `Pure Rogue` (overflow 0) against 197px for
+       `Mage Knight (Wiz+Fig)` (overflow 18-21). That one row is the whole expand-overflow, and it is why
+       the 327x660 ratchet printed 33px, 60px and 60px across three sweeps of builds nobody touched —
+       drifting toward its own 63px cap, i.e. an intermittent red waiting for a slow day.
+       SAME SHAPE AS THE 2026-09-07 PERSONA PIN, ONE ELEMENT ALONG: that one fixed a zone's WIDTH because
+       the Forms label carries a random name; this fixes a HEIGHT because the deck line does.
+       `MageKnight` IS THE WORST CASE ON PURPOSE — "Mage Knight (Wiz+Fig)" is the longest name the picker
+       ships (21 chars), so the ratchet guards the hardest configuration rather than a lucky draw.
+       `commitSetup` reads these selects directly, so setting `.value` is enough; no `change` needed. */
+    await p.evaluate(()=>{ ['setYouDeck','setRivalDeck'].forEach(function(id){ var s=document.getElementById(id); if(s) s.value='MageKnight'; }); });
+    await poll(p, ()=>{ var a=document.getElementById('setYouDeck'), b=document.getElementById('setRivalDeck');
+                        return !!(a&&b&&a.value==='MageKnight'&&b.value==='MageKnight'); }, 'both decks pinned');
     await p.evaluate(()=>{const g=document.getElementById('goFirstBtn'); if(g)g.click();});
     await poll(p, ()=>document.querySelectorAll('#hand .card').length>0, 'the game dealt');
     await settled(p);
@@ -559,7 +574,12 @@ const CASES=[
          asserts that tag against the BACKLOG in BOTH directions, so deleting this ratchet on the day the fix
          lands goes red until the entry is closed too. That link is what was missing when v1.31.111 fixed the
          landscape overlap and left its entry quoting a measurement that had stopped being true. */
-      const OVF={'327x660':63,'393x852':10};
+      /* THE CAP IS 60 AND NOT 63 BECAUSE THE INPUT IS PINNED NOW (2026-10-01). 63 was padding for a
+         number that swung 33/60/60 across sweeps of untouched builds, because the deck roll moved
+         `#handMeta`; with the worst-case deck pinned in `open()` this reads 60 on four consecutive runs,
+         so the ratchet can be tight enough to catch a 1px growth. A cap wider than the measurement is a
+         suppression wearing a ratchet's clothes. */
+      const OVF={'327x660':60,'393x852':10};
       const cap=OVF[`${w}x${h}`];
       if(cap!==undefined){
         console.log(`   ⚠ ${tag}: KNOWN — expanding a zone pushes the board ${x.over}px past its height; coverage is scroll-dependent there and is not asserted.`);

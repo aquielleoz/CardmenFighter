@@ -1070,20 +1070,22 @@ never read.*
 
 
 - `root cause found`    · **★ EXPANDING A ZONE PUSHES THE BOARD PAST ITS HEIGHT ON THE TIGHTEST PHONES** (measured 2026-09-07)
-  **⚠ ITS REPORTED NUMBER IS NOT STABLE — 30px, THEN 60px, THEN 63px ACROSS THREE SWEEPS OF ONE BUILD
-  (2026-09-24/25).**
-  Surfaced by the sweep's new warnings section, which prints a green suite's own `⚠` lines. That is the
-  moving-geometry tell CLAUDE.md already names — *"bimodal or wide-swinging geometry on a build nobody
-  touched… do not pad the cap to cover it, find what is moving"* — and the known culprits there are the
-  RANDOM PERSONA (a Forms zone is labelled `<name>’s Forms & Rides`, so the name sets the zone's width) and
-  the deal, both of which `landscapetest` already pins elsewhere via `__solo.setName` and a fixed hand. Pin
-  them for THIS case before trusting ANY of the three figures; the ratchet's cap should be sized off a
-  pinned number.
-  **THE THIRD READING IS WHAT MAKES THIS ACTIONABLE RATHER THAN A CURIOSITY.** Two points could be a
-  one-off; **30 / 60 / 63 on an unchanged build is a 2.1x spread**, which is too wide for any cap to mean
-  anything — sized to 63 the ratchet sits silent through a real regression up to that number, sized to 30 it
-  goes red on the next persona draw. Pin the inputs FIRST, then size the cap, then tighten the ratchet.
-  Sizing it off today's reading in either direction is the mistake this note exists to prevent.
+  **✅ THE UNSTABLE NUMBER IS FIXED (2026-10-01) — the overflow itself is what is still open.** This entry
+  used to carry *"30px, THEN 60px, THEN 63px ACROSS THREE SWEEPS OF ONE BUILD"* and the instruction *"pin
+  the inputs FIRST, then size the cap, then tighten the ratchet"*. That is done: `open()` now pins BOTH
+  decks, the reading is **60px on four consecutive runs**, and the cap is tightened 63 → **60** so the
+  ratchet can catch a 1px growth. What remains is the real defect — expanding a zone still pushes the
+  board 60px past its height at 327x660.
+  **⚠ THE ENTRY NAMED TWO CULPRITS AND THE REAL ONE WAS A THIRD.** It blamed the RANDOM PERSONA and the
+  DEAL — both already pinned — and the mover was the **deck name**: `DEFAULT_SEL` is
+  `{you:'random', rival:'random'}` and at 327px a long name WRAPS `#handMeta` onto a second line, which is
+  the whole overflow. A/B'd by pinning the two extremes: `Mage Knight (Wiz+Fig)` → **60px**,
+  `Pure Rogue` → **33px**, which are exactly the values the sweeps had been printing. **An entry's guess
+  at what is moving is a hypothesis like any other** — the same lesson as `runopponents-window`, where the
+  filed mechanism was also wrong while the symptom was right.
+  **AND PINNING THE *SHORT* NAME WOULD HAVE SILENTLY LOOSENED THE RATCHET** — 33px passes both the old cap
+  and the `over>0` floor, so the suite would have gone quiet-and-green while guarding nothing. Pin the
+  worst case, which is the longest name the picker ships.
   `[ratchet: phone-zone-expand-overflow]`
   v1.31.111 made both panel zones expandable; at **327x660 opening a seat's Forms and equipment adds 75px to
   that panel and pushes `#board` 63px past its height** (393x852 goes 10px over; 360x800, 390x780 and 412x915
@@ -1101,36 +1103,6 @@ never read.*
   `[id: expanding-zone-pushes-board]`
 
 ### Tooling
-
-- `ready to build`      · **`landscapetest`'s EXPAND-OVERFLOW NUMBER MOVES WITH THE RANDOM DECK ROLL, AND IT IS
-  DRIFTING INTO ITS OWN RATCHET CAP (measured 2026-10-01).** The 327x660 warning has printed **33px, 60px
-  and 60px** across three full sweeps of builds nobody touched, against a ratchet that fails at **63**. A
-  number that swings 27px under a 63px cap is a red waiting for a slow day, and the ratchet it guards
-  (`phone-zone-expand-overflow`) cannot be read while its input wanders.
-  **THE MOVER IS `#handMeta`, AND IT IS THE DECK NAME.** Eight staged runs at 327x660, every other
-  rectangle identical (`hand` 134, `table` 96, `actions` 73 on all eight):
-
-  | `#handMeta` | the deck line it rendered | `over` |
-  | --- | --- | --- |
-  | 167px | `Pure Rogue`, `Pure Cleric` | **0** |
-  | 197px | `Warlock (Wiz+Rog)`, `Bard (Cle+Rog)`, `Mage Knight (Wiz+Fig)` | **18-21** |
-
-  A long deck name wraps `#handMeta` onto a second line at 327px, and that one row is the whole overflow.
-  **`open()` TAKES THE SETUP DIALOG'S DEFAULT, AND `DEFAULT_SEL` IS `{you:'random', rival:'random'}`** — so
-  every run rolls two fresh class decks and the suite measures whichever pair it drew.
-  **THE FIX IS THE 2026-09-07 ONE, ONE ELEMENT ALONG.** That day pinned the opponent's persona name because
-  the Forms zone is labelled `<name>'s Forms & Rides` and the random draw moved its WIDTH; this is the same
-  shape moving a HEIGHT, through the deck name instead of the persona. `landscapetest` already pins the
-  hand and `__solo.setName(1,…)`; it must pin the DECKS too, in `open()`, and the worst case is the longest
-  name the picker ships (`Mage Knight (Wiz+Fig)`) so the ratchet guards the hardest configuration rather
-  than a lucky one.
-  **ASSERT IT BY REPEATING, NOT BY LOOKING.** The tell for this class is bimodal geometry on an untouched
-  build, so the check is four consecutive runs printing the same `over`; a single green run is exactly what
-  the unstable version produces most of the time.
-  ⚠ **THE ABSOLUTE NUMBERS ABOVE ARE FROM A PROBE, NOT FROM THE SUITE** — it expands both seats' zones
-  rather than the suite's one, so it reads 18-21 where the suite reads 33/60. The MECHANISM is what
-  transfers; re-measure inside the suite before writing a new cap.
-  `[id: landscape-overflow-moves-with-deck-roll]`
 
 - `ready to build`      · **SUITE COUNTS ARE DECLARED TWICE IN CLAUDE.md AND NOTHING CHECKS EITHER — 27 WERE STALE
   (2026-09-30).** `versiontest` asserts `test` and `netview` only. The verified list had drifted in 3
