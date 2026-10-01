@@ -526,6 +526,36 @@ re-read its tag.
   and does not touch what a seat is allowed to send.
   **AND SHIP IT WITH A REPRO, NOT BEFORE.** `round-2-resolved-twice` already records a refusing build that
   was written and pulled the same day for exactly this reason.
+  **⚠ REPRO ATTEMPT 1 (2026-10-01) — THE DUPLICATE IS REPRODUCED; THE CONTROL IS NOT YET SOUND.** A
+  3-player suite was built on `nettest_brake3`'s harness and is NOT committed (saved aside), because its
+  CONTROL leg also fails to close a round — so a red clobber leg cannot be attributed, which is attempt 3's
+  rule in a new place. **What it DID establish, every run:**
+  - **the mid-park gate is open** — `turn=2`, the seat that passed, exactly as the headless probe predicted;
+  - **the duplicate crossing is real.** One genuine Pass press plus one injected `{op:'pass'}` produced two
+    identical ledger lines in one round:
+    `r3  MAIN → FIGHT  [Pass]  go-round opened  origin=Rival 3` **×2**.
+  **FOUR STAGING FACTS IT COST, EACH OF WHICH MAKES THE RUN VACUOUS IF LOST — do not rediscover these:**
+  - **THE QUICK MUST NOT BE ON THE CLOBBERING SEAT.** With ♦9 Leyline on the seat that also sends the
+    turn-op, BOTH parks carry the same continuation ("apply seat 2's pass"), so a clobber is invisible by
+    construction. The harm needs DIFFERENT continuations: park 1 = `drainResolution` finishing the round,
+    park 2 = a transition settle. Put the Quick on a seat that is not the clobberer.
+  - **ASSERT `drainResolution`'s OWN LEDGER LINE (`GO-ROUND opened before it`), NOT `rivalStatus`.** A bare
+    "the host parked" probe matches the TRANSITION window that the same pass opens one beat earlier, and
+    passes having staged the wrong park entirely. That is what the first cut did.
+  - **A DRAIN LOOP MUST NEVER PRESS A TURN BUTTON WHILE A WINDOW IS OPEN, AND NEVER TWO SEATS.** Firing
+    Pass at both clients every 220ms manufactures a NEW transition window per landed press: `netwindows`
+    auto-passed **8-9 unscripted windows per run** and the round never closed. The loop was the suite's,
+    not the product's — and the `⚠ netwindows: auto-passed N` line is what says so, on a GREEN run too.
+  - **A HELD PASS MUST BE RE-PRESSED.** `moveToPlayThen`: *"One press passes, and it keeps passing until
+    something happens"*. Pressing once and then only declining leaves the seat holding the board.
+  **⚠ AND THE SHARPEST LESSON IS A PRODUCT BUG I ALMOST REPORTED.** When the control first stalled it looked
+  exactly like a wedge. The `nettest_sync` classifier said otherwise: **`pending:false` on both seats, no
+  window open anywhere, and the client reading *"Main sub-phase — drag a card to use it"* on its own turn**
+  — i.e. a perfectly healthy table waiting for a press the harness was not making. **Run that classifier
+  before calling any stall a wedge**; three of this attempt's four stalls were the harness.
+  **WHERE IT IS STUCK:** the control ends with seat 2 on turn in the Main Sub-Phase with Pass disabled and
+  the hint *"nothing to use yet, press Next to move on"* — so the next attempt's question is why that seat
+  is leading rather than following, which is a staging question and not a product one.
   `[id: park-write-clobbers-live-park]`
 
 - `parked`              · **THE CLEAN-UP → BEGINNING ORDERING IS FIXED; IT IS THE TEST THAT IS STILL OWED (2026-09-16).**
