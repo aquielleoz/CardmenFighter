@@ -2105,6 +2105,19 @@ diagnosis stripped out. `WHY:` and `←` are in the filter now. **When a suite a
 runner's job is not to crop it** — this is the third instance of that one mistake (the summary line, the
 green suites' warnings, and now this).
 
+**BEFORE BLAMING CONTENTION FOR A SUITE'S BUDGET, MEASURE WHETHER CONTENTION SLOWS THAT SUITE AT ALL
+(2026-10-01).** `nettest_passoduel`'s hang was filed against a `-j 4` sweep and the theory was unscripted
+windows eating its budget. Run eight times against the three heaviest suites — a real lane shape — it was
+**8/8 green at 42-47s against 33-51s solo**: the loaded band is TIGHTER. Load does not move it, because
+its runtime is wall-clock (`graceMs(300)`, fixed `wait()` beats, polls that return on their condition) and
+**CPU contention does not slow a timer**. The unscripted window fired in 1 of 8 and cost its ~6s; six
+seconds cannot become three hundred.
+**THAT IS A REFUTATION, NOT A FAILED SEARCH** — it says the proposed mechanism cannot produce the symptom,
+which is worth more than another clean run. It is the `lessontest_quicks` lesson from the other side: there
+I raised a poll budget on the reasoning that load must be slowing it, and measuring showed 2695ms solo
+against 2743ms under load. **One loaded run against one solo run settles it, and it has now saved two
+investigations.**
+
 **AND MEASURE THE MARGIN, OR THE NEXT PARTIAL FIX LOOKS COMPLETE (v1.31.99).** v1.31.84 raised the lesson polls
 to 30s and left TWO explicit overrides behind, which is what left an intermittent tail. Instrumenting every wait
 found exactly one outlier: `atStep` returns in **0-4ms** of 12000 and the Rival's answers in ~1.07s of 30000
