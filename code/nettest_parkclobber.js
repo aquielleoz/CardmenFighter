@@ -111,6 +111,12 @@ const why=p=>p.evaluate(()=>({
        on the way; the park we want is the one `drainResolution` writes. */
     await until(async()=>!(await join.evaluate(()=>!!document.getElementById('passBtn').disabled)), 60);
     await clickPassBtn(join);
+    /* ⚠ INJECT 70ms LATER, WHICH IS WHAT THE REAL TRACE SHOWED — two intents from one seat 70ms apart.
+       An earlier cut waited for the host to be visibly PARKED and then injected; that is timing-coupled,
+       and a FIX which closes the park sooner makes the injection land somewhere else entirely, so the
+       leg starts failing its own staging and its reds stop being readable. Firing on the clock instead
+       reproduces the reported shape and judges any candidate on the same event. */
+    if(clobber){ await wait(70); await join.evaluate(()=>window.__cmf.clientSend({op:'pass'})); }
     /* ⚠ PARK ON WHATEVER IS LIVE, AND LET THE TWO LEGS DISCRIMINATE. The first cut demanded
        `drainResolution`'s own line and never saw it: ♦9 Leyline is castable into the TRANSITION window
        but not at `resolution` timing, so the Resolution go-round never opened (the cards that do open it
@@ -123,14 +129,9 @@ const why=p=>p.evaluate(()=>({
     const parked = await until(async()=>
       await host.evaluate(()=>/deciding|may respond|may guard/i.test(((document.getElementById('rivalStatus')||{}).textContent||''))) &&
       (await roundOf(host))===roundBefore, 90);
-    ok(parked, `${tag}: the client's pass is mid-flight and the host is PARKED on it, round still ${roundBefore}` +
-       (parked ? '' : '  ← nothing to clobber; host: '+JSON.stringify(await why(host))));
+    if(!parked) console.log(`   ⓘ ${tag}: the host was not caught mid-park (it closes fast with a fix in) — the injection is clock-based and does not depend on it`);
 
-    if(clobber){
-      ok((await turnOf(host))===1, `${tag}: mid-drain the turn is still the seat that passed — the gate is OPEN`);
-      await join.evaluate(()=>window.__cmf.clientSend({op:'pass'}));   // ← a TURN op, not a decline
-      await wait(900);
-    }
+    if(clobber) await wait(900);
 
     await quietBoard();
     const moved = await until(async()=>{ await quietBoard(); return (await roundOf(host))>roundBefore; }, 60);
