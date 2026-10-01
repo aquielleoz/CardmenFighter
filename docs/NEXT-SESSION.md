@@ -505,6 +505,26 @@ re-read its tag.
   `E.pass`, rather than refusing the second resolution after it. The gate is `hostApplyMove`'s
   `hostState.turn !== seat`, which is open by construction here; a stamp or a "this round already
   resolved" check on the INTENT is the shape to try next, and the repro is standing by to judge it.
+  **⚠ CANDIDATE 3 TRIED 2026-10-01 — IT KILLS THE DEFECT AND WEDGES THE DUPLICATE. Closest yet.**
+  Refuse the stale INTENT at both host gates:
+  `if(hostState.resolvedRound === hostState.round && (it.op==='play'||it.op==='pass'||it.op==='toFight')) return broadcastMirror();`
+  Measured against the repro:
+  - **the double resolution is GONE** — the clobber leg reads `0` where it read `1`;
+  - **the CONTROL stays clean** (7/0, `0 + 0`, round advances) — no legitimate traffic refused;
+  - **`browsertest` is CLEAN at 56s**, 12/12 duels to a valid win overlay. That is the ~70s baseline and
+    **the first candidate of three not to stall ordinary play** — both earlier shapes took it past 400s.
+  - **but the clobber leg now reads `0 + 1` and the round STOPS ADVANCING**: the stale banner fires and
+    the duplicate wedges the table instead of resolving it twice.
+  **THE LIKELY REASON, and it is the next candidate's whole problem:** `hostApplyMove`'s transition path
+  legitimately RE-APPLIES the same intent after settling —
+  `if(r.ok===false && r.transition==='play'){ return hostSettleN(g, function(){ hostApplyMoveN(seat, it); }); }`
+  — so the guard cannot tell that INTERNAL re-apply from a fresh duplicate off the wire, and kills the
+  first pass's own completion. **A candidate must distinguish the two**: mark the re-applied intent, or
+  apply the check only where an intent ENTERS from the transport rather than in the shared body.
+  **AND THE TIMING COUPLING IS GONE FROM THE SUITE.** The clobber used to wait for the host to be visibly
+  parked and then inject; a candidate that closes the park sooner moved the injection somewhere else, so
+  the leg failed its own staging and its reds stopped being readable. It now fires **70ms after the
+  press**, which is the interval the real trace showed and judges every candidate on the same event.
   `[ratchet: duplicate-turnop-double-resolves]`
   `[id: duplicate-turnop-double-resolves]`
 
