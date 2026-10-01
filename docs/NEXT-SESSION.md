@@ -235,7 +235,14 @@ re-read its tag.
 
 #### Flaky suites
 
-- `needs a repro`       · **⚠ THE SOLO RATE IS REJECTED — 23/23 GREEN ON 2026-09-30, AND THE SWEEP SIGNATURE IS WHAT IS LEFT.**
+- `parked`              · **⚠ PARKED 2026-10-01 — IT REVIVES WHEN A SWEEP GOES RED, AND NOTHING ELSE WILL DO IT**
+  (Aj: *"it hasn't come up in a while… can we just park those and then bring them up again when we encounter
+  them?"*). The solo rate is formally rejected and the only signature left is a LOADED sweep — so there is no
+  experiment to run that is not just "run the sweep again", which happens anyway. **Revival condition: this
+  suite fails in any `npm run sweep`.** The full sweep on 2026-10-01 was 104/104, so there is currently
+  nothing to chase. ⚠ Do NOT re-run a solo series against it: 23/23 already rejected that rate, and a 24th
+  clean run licenses nothing it has not already licensed.
+  **⚠ THE SOLO RATE IS REJECTED — 23/23 GREEN ON 2026-09-30, AND THE SWEEP SIGNATURE IS WHAT IS LEFT.**
   Twenty-three consecutive solo runs, every one `PASS: 8  FAIL: 0`, 33-51s each. **The run count is the
   point, not the streak:** at the filed 1-in-8, `0.875^23 = 0.046`, so this rejects that rate at 5% — and
   eighteen would NOT have (`0.875^18 = 0.090`, a 9% chance of happening anyway). This file has already
@@ -291,7 +298,18 @@ re-read its tag.
 
 #### Rules, priority and the stack
 
-- `needs a repro`       · **ROUND 2 RESOLVED TWICE IN A REAL DUEL, AND IT COST A SECOND SHIELD (2026-09-15, unexplained).** From
+- `parked`              · **⚠ PARKED 2026-10-01 — THE DETECTOR IS THE PLAN, AND IT IS ALREADY LIVE.**
+  Four attempts have failed to force this, and the thing that will describe the fifth occurrence is already
+  built and shipping: `enterResolution` counts a second entry inside one round and `noteBlockedResolves`
+  writes **`⚠ DOUBLE RESOLUTION BLOCKED`** into the saved log, the priority ledger is broadcast to every
+  seat since 2026-09-30, and the ROUND BOUNDARY trace rules the clean-up family in or out on its own.
+  **Revival condition: a saved log carrying that line, or a report of a shield lost to a pile that had
+  already resolved.** Nobody has to go looking — the next occurrence arrives diagnosed. **Check for the
+  detector line FIRST in any log Aj sends.** Everything below is kept because it is what the next reader
+  needs the moment that happens, including four ruled-out families and the staging recipe that works.
+  ⚠ A LEAD FROM THIS ENTRY MAY HAVE BEEN CLOSED ELSEWHERE — see `park-write-clobbers-live-park`, which was
+  found on 2026-10-01 chasing this and is filed as its own entry because it stands on its own evidence.
+  **ROUND 2 RESOLVED TWICE IN A REAL DUEL, AND IT COST A SECOND SHIELD (2026-09-15, unexplained).** From
   Aj's saved logs of one game, BOTH seats, narrated identically:
   ```
   Round 2 begins. Each player draws 2.
@@ -461,33 +479,54 @@ re-read its tag.
   `netplay-intents-bypass-busy`.
   `[id: round-2-resolved-twice]`
 
-- `needs a measurement` · **THE NETPLAY INTENT HANDLERS NEVER CONSULT `busy`, SO PR #230's LOCK IS
-  LOCAL-ONLY (found 2026-10-01, reachability NOT measured).** `busy` is a UI concept: `doPass`/`doFight`/
-  `toggle` each return on it, and that is what PR #230 leaned on when it added `busy=true; render();` to
-  `drainResolution` to stop a second Pass re-draining the Resolution window. **`grep -c busy` inside
-  `hostApplyMove` returns 0**, and `hostApplyMoveN` gates turn ops only on `hostState.turn !== seat` — so
-  nothing on the WIRE is stopped by that lock, and the recorded evidence for the double resolution is
-  precisely that *"the re-entry arrives over the wire"* (`drainResolution`'s own comment; the host trace
-  carries two client intents 70ms apart mid-drain).
-  **SAY WHAT IS AND IS NOT ESTABLISHED, because only the first half is measured.** ESTABLISHED: the two
-  handlers contain no `busy` reference, the duel handler delegates its seat gate to the engine
-  (*"the seat gate lives in `E.moveToPlay`, not here"*), and `moveToPlayThen` — the function that writes
-  the `MAIN → FIGHT` ledger line and drains the window — is reachable from both of them. NOT ESTABLISHED:
-  that any intent actually arrives in that window. A trace of the duel path suggests it does not (see
-  `round-2-resolved-twice`), so **this may be a latent gap rather than the reported bug**, and it
-  must not be scheduled as though it were the cause.
-  **THE MEASUREMENT THAT SETTLES IT, and it is a different op from attempt 4's.** Attempt 4 sent duplicate
-  `{op:'decline'}`, which routes through the `netSettle` branch and never reaches `moveToPlayThen`; the
-  question here is a `{op:'pass'}` / `{op:'play'}` / `{op:'toFight'}` arriving mid-drain, which routes
-  through the TURN-OP branch that does. Stage a 3-player table (where `hostApplyMoveN`'s explicit turn
-  check is the only gate), drive a round to resolution, and send a turn op from a seat the resolution has
-  just handed the turn to. **A/B it by deleting `drainResolution`'s `busy=true`** — if the suite is green
-  both ways the staging never reached the branch, which is the trap attempt 3 fell into.
-  **AND THE FIX SHAPE IS CONSTRAINED BY A MEASURED DEAD END**: refusing turn ops outright while
-  `respondFor != null` stalls the board forever, because `moveToPlayThen`'s settle is what DRAINS the
-  window on some paths — `browsertest` went 70s → past 400s. Lock the board for the duration; never forbid
-  the action.
-  `[id: netplay-intents-bypass-busy]`
+- `root cause found`    · **★ A PARK WRITE CLOBBERS A LIVE PARK, AND THE FIRST DRAIN'S CONTINUATION IS
+  ORPHANED (2026-10-01).** Filed the same day as `netplay-intents-bypass-busy` and REPLACES it: that entry
+  said the netplay handlers never consult `busy`, which is true and is only the door. This is the room.
+  **MEASURED, headlessly against `engine.js` at 3 players** — seat 0 leads a pair, seats 1 and 2 pass, and
+  seat 2's pass resolves the round:
+  ```
+  >>> MID-DRAIN  st.turn = 2   respondFor = 2   round = 4   pile = true   passes = 2
+     hostApplyMoveN's only gate is `hostState.turn !== seat`  ->  OPEN for seat 2
+  ```
+  The turn sits on **the seat that passed last**, because `pass` does `return resolveRoundWin(st)` BEFORE
+  `st.turn = nextPlayer(st, p)`. So a client turn-op arriving mid-drain passes the handler's only gate. The
+  engine then refuses it (`ok:false, transition:'play'`, `passes` unchanged) — **and a refusal is not a
+  rejection here**, because epic step 20 taught both handlers that a transition means *not yet*:
+  `if(r&&r.ok===false&&r.transition==='play'){ return hostSettleN(g, function(){ hostApplyMoveN(seat, it); }); }`
+  **AND `moveToPlayThen` HAS ALREADY RUN BY THEN** — the handler wraps its whole body in it — so the intent
+  has written a second `MAIN → FIGHT` ledger line and called `settleWindows` on a window that is already
+  draining. With `respondFor` non-null that second line reads **`go-round opened`**, in the SAME round,
+  after an **`auto-advanced`**: the exact pair `round-2-resolved-twice` reports.
+  **THE DEFECT IS ONE LINE, AND IT IS THE SAME SHAPE AT EVERY PARK SITE.** `hostSettleN`:
+  ```js
+  netParked=null; netReact={ kind:'respond', seat:…, g:g, resume:function(){ hostSettleN(g, done); } };
+  ```
+  A park is written **unconditionally**. The second `settleWindows` replaces the park object and with it the
+  FIRST drain's `resume`, so the client's decline resumes the second continuation and `drainResolution`'s
+  original completion is orphaned — a wedge, or a second resolution if the re-applied intent now succeeds.
+  **FIVE WRITE SITES, NONE GUARDED** (`grep -n 'netReact=\s*{\|netSettle=\s*{'`): `netReact` at the discard
+  park, the `hostSettleN` respond park, `driveN`'s window park and the loss-pick park; `netSettle` in
+  `hostSettle`. The `if(!netSettle) return;` at the duel's reply handler is a guard on the REPLY, not on the
+  WRITE — nothing stops a second park from clobbering a live one.
+  **SAY WHICH HALF IS MEASURED.** MEASURED: the turn mid-drain, the gate being open, the engine's refusal
+  shape. READ: that the overwrite follows, which is one unambiguous line but is still code-reading — this
+  repo has been wrong that way before and right by measuring. **NOT DEMONSTRATED: an end-to-end double
+  resolution in the real page.** Do not schedule this as *the* cause of `round-2-resolved-twice` until it is.
+  **THE REPRO, and it is a different op from attempt 4's.** Attempt 4 sent duplicate `{op:'decline'}`, which
+  routes through the `netSettle`/`netReact` REPLY branch and never reaches `moveToPlayThen`. This needs a
+  `{op:'pass'}` from the seat the resolution just left the turn on, fired while the drain is parked. Stage 3
+  players (`nettest_brake3`'s harness is the closest fit), give a seat ♦9 Leyline + diamond energy so the
+  go-round actually OPENS, let a CLIENT seat cast the last pass, then `__cmf.clientSend({op:'pass'})` from
+  that same seat. Assert the PARK, not the symptom: a counter bumped inside the park write is observable
+  where a second `MAIN → FIGHT` line is also true of a build that merely logs twice.
+  **⚠ THE FIX IS CONSTRAINED BY A MEASURED DEAD END — DO NOT REFUSE THE ACTION.** Refusing turn ops while
+  `respondFor != null` stalls the board forever, because `moveToPlayThen`'s settle is what DRAINS the window
+  on some paths; `browsertest` went 70s → past 400s. The shape that fits is guarding the **park write** —
+  refuse to overwrite a live park, or make the resume a queue — which is narrower than anything tried so far
+  and does not touch what a seat is allowed to send.
+  **AND SHIP IT WITH A REPRO, NOT BEFORE.** `round-2-resolved-twice` already records a refusing build that
+  was written and pulled the same day for exactly this reason.
+  `[id: park-write-clobbers-live-park]`
 
 - `parked`              · **THE CLEAN-UP → BEGINNING ORDERING IS FIXED; IT IS THE TEST THAT IS STILL OWED (2026-09-16).**
   **⚠ RETAGGED FROM `ready to build` ON 2026-09-30, AND THE ENTRY ITSELF SAYS WHY** — it is not ready to
