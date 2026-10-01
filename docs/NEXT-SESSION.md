@@ -391,6 +391,49 @@ re-read its tag.
   table, and the braked branch becomes reachable; only then does a double decline have anything to race.
   **`__cmf.boardStamp()` DOES NOT CARRY THE SUB-PHASE** (it reads `4:0/pair2/14`), so attempt 4 needs a way
   to SEE it — assert the client is in Main before sending, or the same silent miss repeats.
+  **⚠ ATTEMPT 4 (2026-10-01) — THE STAGING FINALLY REACHED THE CHAIN, AND THE WHOLE FAMILY IS NOW RULED
+  OUT.** Attempts 1-3 never got the press to land; this one asserts that it did (`1 crossing(s) logged`)
+  before asking whether it landed twice, which is the staging assertion attempt 3 lacked. It still does
+  not reproduce — and this time that result is worth something, because three separate A/Bs say the
+  duplicate-decline mechanism cannot produce it:
+  - **BOTH DECLINES ARRIVE AND ARE ACCEPTED.** Measured in the host trace — `op=decline q=19` and
+    `op=decline q=22`, 70ms apart, neither refused as stale. So the stamp check is not what absorbs them,
+    which was the obvious guess and is wrong.
+  - **REMOVING THE DUPLICATE-REPLY DEFENCE CHANGES NOTHING.** `var ns=netSettle; netSettle=null;` is
+    commented *"stale/duplicate reply, ignore"* and is the defence by name; deleting the null left the
+    suite green. Deleting `moveToPlayThen`'s `if(g!==gen) return;` **as well** — both defences off at once
+    — also left it green.
+  - **AND A GENUINELY DOUBLED PASS DOES NOT LOSE A QUIET SHIELD, IT BLOWS THE PAGE UP.** Forcing a second
+    `E.pass(state, YOU)` in `doPassBody` (non-recursive, guarded by a one-shot flag) gives
+    `Maximum call stack size exceeded` on the host. **Aj's game did not crash**, so whatever took the
+    second shield is not a doubled `doPassBody`/`E.pass` — which is the family every attempt so far has
+    been hunting.
+  **⚠ AND THE CROSSING COUNT IS THE WRONG INVARIANT, WHICH IS WHY THIS SUITE WAS NOT COMMITTED EVEN AS A
+  SKELETON.** `moveToPlayThen`'s own comment says a held pass is pressed **twice** by design — *"when a
+  rival really casts into the window it opened, the pass is held and the board comes back to you… press
+  Pass again"* — and every turn handover resets `subPhase` to `main`, so the second press crosses
+  Main → Fight again and logs a second line legitimately. **Two `MAIN → FIGHT [Pass]` lines are therefore
+  not by themselves the bug.** The signature that IS the bug is the pair of `[clean-up]`s and `FIGHT END`s
+  — two *resolutions of one round* — which the detector and the shield count measure and the crossing
+  count does not. An attempt 5 that asserts on crossings is asserting the defect's co-occurrence, not the
+  defect.
+  **THE STAGING RECIPE WORKS AND IS THE EXPENSIVE HALF — DO NOT REDERIVE IT.** Recorded here because the
+  suite itself was deleted (a repro that cannot fail reads as coverage):
+  ```js
+  // forceAll leaves the HOST on turn (measured: turn:0), so the pile is built the way a real game builds it
+  hands:[[D(4,'C','h1'),D(5,'C','h2'),D(6,'C','h3')],      // host: a jab to lead, nothing that answers a 10
+         [D(10,'S','ca'),D(10,'H','cb'),D(9,'D','ley')]],  // client: a 10 to beat it, ♦9 Leyline for the window
+  energies:[13x D(3,'D'), same], shields:[3,3], opts:{ round:4 }
+  // 1. host leads h14C through its own UI (enterFight, click the group, click Fight) — retry, `busy` eats clicks
+  // 2. client beats via __cmf.clientSend({op:'play', ids:['ca10S']})  ← NOT the UI; see below
+  // 3. host presses Pass from Main; client sends two raw {op:'decline'} 70ms apart
+  ```
+  **TWO TRAPS INSIDE THAT RECIPE, BOTH OF WHICH COST A RUN EACH.** Driving the CLIENT's board does not
+  work here — it still read *"Rival is fighting…"* with Fight disabled when the clicks landed, `busy`
+  dropped them in silence, and the probe reported `sel:0`, i.e. the suite accusing the product of being
+  unable to play; `clientSend` goes round it, and the client's UI is not this bug's subject anyway. And
+  the pile label reads **`"Rival · Jab"`** — seat and SHAPE, never the rank — so a `/10/` probe on it
+  reports a healthy play as a failure; assert the card LEFT THE HAND instead.
   `[id: round-2-resolved-twice]`
 
 - `parked`              · **THE CLEAN-UP → BEGINNING ORDERING IS FIXED; IT IS THE TEST THAT IS STILL OWED (2026-09-16).**
