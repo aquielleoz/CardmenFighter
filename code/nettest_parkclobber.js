@@ -65,7 +65,12 @@ const why=p=>p.evaluate(()=>({
   ok(await until(async()=>(await host.evaluate(()=>document.querySelectorAll('#hand .card').length))>0), 'duel started');
 
   /* STAGE TWICE — the round draw lands AFTER the first call; see `nettest_brake`'s note. */
-  async function stage(hh,jh){
+  /* ⚠ EACH LEG STAGES ITS OWN ROUND NUMBER, AND THIS IS THE WHOLE CORRECTION OF 2026-10-02.
+     `forceAll` rewinds `st.round` and does NOT reset `st.resolvedRound`, so a leg staged at the round the
+     PREVIOUS leg just resolved starts with `round === resolvedRound` before anybody has played — and
+     `enterResolution` counts exactly that as a duplicate on its first entry. Measured on one clean build,
+     the round number as the only variable: clobber leg at round 3 → `1 + 0`, at round 6 → `0 + 0`. */
+  async function stage(hh,jh,rnd){
     const wH=want(hh), wJ=want(jh);
     for(let i=0;i<10;i++){
       await host.evaluate(a=>window.__cmf.forceAll(a.hands,a.energies,a.shields,a.opts),
@@ -75,7 +80,7 @@ const why=p=>p.evaluate(()=>({
              timing, the Resolution go-round never opens and `drainResolution` returns immediately with
              no park to clobber. `dbgForceAll` takes `opts.forms`, which is what makes this stageable
              over netplay at all. ♥ energy because Sanctuary costs 10 in its own colour. */
-          opts:{ turn:0, round:3, forms:[[], [{rank:13,suit:'H',tier:'king',name:'Hector Form'}]] } });
+          opts:{ turn:0, round:rnd, forms:[[], [{rank:13,suit:'H',tier:'king',name:'Hector Form'}]] } });
       if(await until(async()=>(await idsOn(host))===wH && (await idsOn(join))===wJ && (await turnOf(host))===0, 16)) return true;
     }
     console.log('   ⏱ stage never landed — host '+(await idsOn(host))+' | join '+(await idsOn(join)));
@@ -94,7 +99,7 @@ const why=p=>p.evaluate(()=>({
 
   async function leg(clobber){
     const tag = clobber ? 'CLOBBER' : 'CONTROL';
-    ok(await stage([D(6,'C','h'),D(6,'H','h'),D(3,'S','h')], [D(10,'H','sanc'),D(5,'S','j')]),
+    ok(await stage([D(6,'C','h'),D(6,'H','h'),D(3,'S','h')], [D(10,'H','sanc'),D(5,'S','j')], clobber?6:3),
        `${tag}: staged — the client holds ♥10 Sanctuary under HECTOR, so it can act at RESOLUTION`);
     const roundBefore = await roundOf(host);
     const prioBefore  = (await prio(host)).length;
@@ -142,25 +147,17 @@ const why=p=>p.evaluate(()=>({
     const L = (await prio(host)).slice(prioBefore);
     const dbl = L.filter(l=>/DOUBLE RESOLUTION BLOCKED/.test(l));
     const banner = L.filter(l=>/ROUND BANNER FIRED WITH A PILE/.test(l));
-    if(!clobber){
-      ok(dbl.length===0 && banner.length===0,
-         `${tag}: the round resolved ONCE — no double-resolution, no stale banner (${dbl.length} + ${banner.length})` +
-         (dbl.length||banner.length ? '  ← the CONTROL is dirty, so the clobber leg discriminates nothing' : ''));
-    } else {
-      /* RATCHET:duplicate-turnop-double-resolves — A KNOWN FAILURE, ENCODED BOTH WAYS.
-         This leg REPRODUCES a live defect, so it cannot assert the healthy outcome without turning the
-         sweep red. It pins the known damage instead: EXACTLY ONE extra resolution, no stale banner.
-         ⚠ IT FAILS IF THE DAMAGE GROWS **AND** IF IT GOES AWAY. If this line fails reading 0, the bug is
-         FIXED — delete this ratchet, restore the `dbl.length===0` assertion the control already uses, and
-         close the BACKLOG entry; `versiontest` asserts the RATCHET tag against that entry in both
-         directions, so it will tell you. If it fails reading 2+, the re-entry got worse.
-         THE CONTROL LEG IS WHAT MAKES THIS MEAN ANYTHING: identical staging, no injected intent, 0 + 0. */
-      ok(dbl.length===1 && banner.length===0,
-         `${tag}: RATCHET — the known double-resolution is still exactly one, with no stale banner (${dbl.length} + ${banner.length})` +
-         (dbl.length===1&&!banner.length ? '' : (dbl.length===0
-            ? '  ← IT IS FIXED: delete this ratchet and close the BACKLOG entry'
-            : '  ← IT GOT WORSE: '+JSON.stringify(L.filter(l=>/⚠/.test(l)).map(l=>l.slice(0,72))))));
-    }
+    /* ⚠ THIS USED TO BE A RATCHET PINNING `dbl.length===1` ON THE CLOBBER LEG, AND THAT ONE WAS THE
+       STAGING ARTIFACT ABOVE RATHER THAN THE PRODUCT (corrected 2026-10-02 — see the backlog entry).
+       The invariant is the same for both legs: a duplicate turn op must not resolve the round twice and
+       must not wedge the table. The CONTROL is what makes the clobber leg readable — identical staging,
+       no injected intent — so the pair discriminates even though both are green today. */
+    ok(dbl.length===0 && banner.length===0,
+       `${tag}: the round resolved ONCE — no double-resolution, no stale banner (${dbl.length} + ${banner.length})` +
+       (dbl.length||banner.length ? '  ← ' + (clobber
+          ? 'a duplicate TURN op drove a second resolution'
+          : 'the CONTROL is dirty, so the clobber leg discriminates nothing') +
+          '\n     '+JSON.stringify(L.filter(l=>/⚠/.test(l)).map(l=>l.slice(0,72))) : ''));
     ok(moved, `${tag}: THE TABLE STILL MOVES — the round advanced past ${roundBefore}` +
        (moved ? '' : (clobber ? '  ← REPRODUCED: the second settle clobbered the live park and orphaned `drainResolution`'
                               : '  ← the CONTROL wedged: this suite cannot answer its own window, so the clobber leg proves nothing')+

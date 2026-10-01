@@ -479,53 +479,40 @@ re-read its tag.
   `netplay-intents-bypass-busy`.
   `[id: round-2-resolved-twice]`
 
-- `root cause found`    · **★ A DUPLICATE TURN OP RESOLVES ONE ROUND TWICE — REPRODUCED 2026-10-01,
-  AND THE SANCTIONED FIX MAKES IT WORSE.** `nettest_parkclobber` is the repro `round-2-resolved-twice`
-  has wanted since 2026-09-15. Two legs off identical staging, 3/3 deterministic: the CONTROL resolves
-  cleanly (`0 + 0`), and injecting ONE `{op:'pass'}` fires the engine's own
-  **`⚠ DOUBLE RESOLUTION BLOCKED`** (`1 + 0`).
-  **THE MECHANISM, and it is NOT the park clobber this entry used to claim.** `pass` does
-  `return resolveRoundWin(st)` BEFORE `st.turn = nextPlayer(st, p)`, so mid-drain the turn is still the
-  seat that passed and its next turn-op walks through `hostApplyMove`'s only gate. That op then
-  **re-applies `E.pass` on a round that has already resolved but not yet been cleaned up** — `st.passes`
-  and `st.pile` are both still live, because the UI defers the draw — so one play resolves the round
-  twice. **Guarding the park WRITE was tried and does not fix it** (`netSettle`/`netReact` gen-guarded at
-  both handlers: still `1 + 0`), which is how the old mechanism was disproved.
-  **⚠ AND THE ONE-LINE FIX THIS REPO HAD WRITTEN DOWN BREAKS THE TABLE — MEASURED, NOT INHERITED.**
-  `round-2-resolved-twice` carried `if (st.resolvedRound === st.round) return { ok:true, state:st,
-  alreadyResolved:true }` in `enterResolution`, to ship "when there is a repro to prove it against".
-  Against this repro it goes from `1 + 0` to **`1 + 1`** and the round STOPS ADVANCING — the stale banner
-  starts firing and liveness is lost. That is the same refusing build that was pulled once before, now
-  with a number on it. **Do not re-apply it.** `test.js` 591/0 and `netview` 65/0 throughout, so the
-  engine suites cannot see this: the damage is in what the caller receives at the moment a round ends.
-  **WHAT IS CONTAINED TODAY, SO NOBODY OVERSTATES IT.** `enterResolution` COUNTS the duplicate and the
-  round still advances, so the live harm is a second resolution being attempted rather than a shield
-  silently lost — the 2026-09-15 reports predate the counter. The ratchet pins exactly that state.
-  **THE FIX HAS TO STOP THE RE-ENTRY, NOT THE RESOLUTION** — refuse the duplicate turn-op before it reaches
-  `E.pass`, rather than refusing the second resolution after it. The gate is `hostApplyMove`'s
-  `hostState.turn !== seat`, which is open by construction here; a stamp or a "this round already
-  resolved" check on the INTENT is the shape to try next, and the repro is standing by to judge it.
-  **⚠ CANDIDATE 3 TRIED 2026-10-01 — IT KILLS THE DEFECT AND WEDGES THE DUPLICATE. Closest yet.**
-  Refuse the stale INTENT at both host gates:
-  `if(hostState.resolvedRound === hostState.round && (it.op==='play'||it.op==='pass'||it.op==='toFight')) return broadcastMirror();`
-  Measured against the repro:
-  - **the double resolution is GONE** — the clobber leg reads `0` where it read `1`;
-  - **the CONTROL stays clean** (7/0, `0 + 0`, round advances) — no legitimate traffic refused;
-  - **`browsertest` is CLEAN at 56s**, 12/12 duels to a valid win overlay. That is the ~70s baseline and
-    **the first candidate of three not to stall ordinary play** — both earlier shapes took it past 400s.
-  - **but the clobber leg now reads `0 + 1` and the round STOPS ADVANCING**: the stale banner fires and
-    the duplicate wedges the table instead of resolving it twice.
-  **THE LIKELY REASON, and it is the next candidate's whole problem:** `hostApplyMove`'s transition path
-  legitimately RE-APPLIES the same intent after settling —
-  `if(r.ok===false && r.transition==='play'){ return hostSettleN(g, function(){ hostApplyMoveN(seat, it); }); }`
-  — so the guard cannot tell that INTERNAL re-apply from a fresh duplicate off the wire, and kills the
-  first pass's own completion. **A candidate must distinguish the two**: mark the re-applied intent, or
-  apply the check only where an intent ENTERS from the transport rather than in the shared body.
-  **AND THE TIMING COUPLING IS GONE FROM THE SUITE.** The clobber used to wait for the host to be visibly
-  parked and then inject; a candidate that closes the park sooner moved the injection somewhere else, so
-  the leg failed its own staging and its reds stopped being readable. It now fires **70ms after the
-  press**, which is the interval the real trace showed and judges every candidate on the same event.
-  `[ratchet: duplicate-turnop-double-resolves]`
+- `needs a repro`       · **★ THE DOUBLE RESOLUTION IS STILL UNREPRODUCED — AND THE 2026-10-01 "REPRO" WAS
+  MY OWN STAGING (corrected 2026-10-02).** `nettest_parkclobber` reported `⚠ DOUBLE RESOLUTION BLOCKED` on
+  its clobber leg and clean on its control, which read as the repro this entry had wanted since
+  2026-09-15. It was not. **`forceAll` rewinds `st.round` and does NOT reset `st.resolvedRound`**, so
+  staging the second leg at the round the FIRST leg had just resolved left `round === resolvedRound`
+  before anybody played — and `enterResolution` counts precisely that as a duplicate on its first entry.
+  The detector was right; the staging manufactured the condition it detects.
+  **MEASURED WITH THE ROUND NUMBER AS THE ONLY VARIABLE, one clean build, no product change:**
+
+  | clobber leg staged at | detector |
+  | --- | --- |
+  | round 3 (as shipped 2026-10-01) | **`1 + 0`** |
+  | round 6 | **`0 + 0`** |
+
+  **TWO CANDIDATE FIXES WERE JUDGED AGAINST THAT ARTIFACT AND BOTH VERDICTS WERE WRONG.** Refusing a stale
+  turn op at the host gate (`if(hostState.resolvedRound === hostState.round && (play|pass|toFight))
+  return broadcastMirror();`) was recorded as *"kills the defect but wedges the duplicate"* — the wedge was
+  the SAME stale stamp making the guard refuse the leg's own LEGITIMATE pass, which the trace shows
+  outright (`STALE TURNOP REFUSED round=3 resolvedRound=3` on the real click, 70ms before the injected
+  one). A variant exempting the internal re-apply (`it.__reapply`) measured IDENTICAL and was dropped.
+  **Neither is shipped: there is nothing demonstrated to fix.**
+  **WHAT STILL STANDS, because it was measured separately and headlessly:** mid-drain the turn sits on the
+  seat that passed — `pass` does `return resolveRoundWin(st)` BEFORE `st.turn = nextPlayer(st, p)` — so
+  `hostApplyMove`'s only gate is open to that seat's next turn op. That is a real property. What is NOT
+  established is that anything harmful follows from it: with distinct round numbers the injected duplicate
+  is absorbed, the round resolves once and the table keeps moving.
+  **THE SUITE IS KEPT AS A REGRESSION GUARD, NOT A REPRO.** Both legs now assert `0 + 0` plus liveness, and
+  its ratchet is deleted — a ratchet pinning an artifact is worse than none, because it makes the artifact
+  look like a known product defect. The control leg is what keeps the clobber leg readable.
+  **THE RULE THIS COST: A HARNESS THAT REWINDS STATE MUST REWIND ALL OF IT.** `forceAll` sets `round`,
+  `turn`, hands, energy, shields and forms, and leaves every other per-round stamp alone. Any assertion
+  keyed on one of those stamps is measuring the harness. **Before believing a detector that only fires on
+  the SECOND leg of a suite, run that leg FIRST, or give it a fresh round number** — one variable, two
+  runs, four minutes.
   `[id: duplicate-turnop-double-resolves]`
 
 - `parked`              · **THE CLEAN-UP → BEGINNING ORDERING IS FIXED; IT IS THE TEST THAT IS STILL OWED (2026-09-16).**
