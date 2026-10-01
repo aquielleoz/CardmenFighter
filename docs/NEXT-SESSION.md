@@ -556,6 +556,32 @@ re-read its tag.
   **WHERE IT IS STUCK:** the control ends with seat 2 on turn in the Main Sub-Phase with Pass disabled and
   the hint *"nothing to use yet, press Next to move on"* — so the next attempt's question is why that seat
   is leading rather than following, which is a staging question and not a product one.
+  **⚠ ATTEMPT 2 (2026-10-01) — "SEAT 2 IS LEADING" WAS WRONG, AND THE BLOCKER IS NAMED NOW.** The question
+  attempt 1 left (*why does seat 2 end up leading rather than following*) has an answer: **it is not
+  leading.** Traced side by side, the boards after "seat 1 passed" and "seat 2 passed" were BYTE-IDENTICAL
+  — Pass enabled, pile still up, seat 2 on turn — so the pass had simply never completed. Reading a seat
+  that is stuck on turn as a seat that is leading sent attempt 1 down the wrong staging entirely.
+  **THREE CAUSES RULED OUT BY MEASUREMENT, not by reading:**
+  - **NOT the brake, and NOT any window.** With NO Quick anywhere at the table the transition logs
+    `auto-advanced — nobody could add` — no window opens, so no brake can fire — and the pass still does
+    not complete. That one arm clears the whole window/brake family in a single run.
+  - **NOT the host going out.** Leading a pair from a 2-card hand takes the host to zero cards, which is a
+    going-out state; giving it a third card changes nothing.
+  - **NOT the suite manufacturing windows** (attempt 1's finding), now fixed: ~40 `MAIN → FIGHT` lines per
+    round down to 1 unscripted window, by pressing only when the board is quiet.
+  **THE HOST NAMES THE BLOCKER ITSELF, and it is in its own trace:**
+  ```
+  move IN from seat 2 op=pass q=667 (NO CHANNEL — seat guessed)   ← every intent, ~12 of them
+  ```
+  The intents ARRIVE and the stamp advances, so the wire is fine — but on this transport the host cannot
+  bind a channel to a seat and is GUESSING which one sent the pass. `hostApplyMoveN`'s only gate is
+  `hostState.turn !== seat`, so a wrong guess refuses a legitimate pass, silently from the suite's side.
+  **SO THE NEXT STEP IS A TRANSPORT QUESTION, NOT A PRIORITY ONE** — find what makes the host bind seats
+  on the 3-player suites that DO drive clients successfully (`nettest_brake3` presses Pass on a client and
+  is green), and copy it. That is a much smaller question than the five staging hypotheses this attempt
+  burned, and it is the only thing between here and a sound control.
+  ⚠ **TWO ESTIMATES WERE GIVEN AS "ONE CHANGE AWAY" AND BOTH WERE WRONG** (moving the Leyline; stopping the
+  host going out). Treat a staging diagnosis in this area as a hypothesis to measure, not a fix to apply.
   `[id: park-write-clobbers-live-park]`
 
 - `parked`              · **THE CLEAN-UP → BEGINNING ORDERING IS FIXED; IT IS THE TEST THAT IS STILL OWED (2026-09-16).**
