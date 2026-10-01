@@ -268,7 +268,26 @@ re-read its tag.
   documented "the J is spotlit" poll — 5/5 green solo), at **261s and 434s** against a ~240s band. That
   spread is the machine, and this file's own rule applies: the tell that an intermittent is being measured
   badly is the rate moving when the code did not. Do not read a single 91/92 as a regression.
-  `[id: nettest-passoduel-flaky]`
+    **⚠ AND THE LOADED HALF IS NOW MEASURED TOO — CONTENTION IS THE WRONG LEVER (2026-10-01).** Eight runs
+  with the three heaviest suites (`mptest`, `browsertest`, `landscapetest`) running concurrently, which is
+  the shape a `-j 4` lane actually has: **8/8 green, 42-47s**. Solo the same day was **33-51s**. The
+  loaded band is TIGHTER than the solo one, so load does not slow this suite measurably at all.
+  **THAT REFUTES THE FILED MECHANISM RATHER THAN FAILING TO FIND IT.** The theory was that unscripted
+  windows cost ~6s of `netwindows` grace each and could push the suite past its budget under contention.
+  Measured: the unscripted window fired in **1 of 8** loaded runs (`auto-passed 1 unscripted window(s) —
+  host:1`), cost its ~6s, and that run finished at 44s like the rest. Six seconds cannot become 300.
+  **WHY LOAD DOES NOT BITE HERE, which is the reusable part:** this suite's runtime is dominated by
+  WALL-CLOCK waits, not CPU — `__cmf.graceMs(300)`, fixed `wait(400)`/`wait(500)` beats, and a poll that
+  returns the instant its condition holds. CPU contention does not slow a timer. **Before blaming
+  contention for a suite's budget, measure whether contention slows that suite at all** — it is one
+  loaded run against one solo run, and here it would have saved two investigations.
+  **SO 31 RUNS NOW SEPARATE US FROM THE ONE OBSERVED HANG** (23 solo + 8 loaded, zero reproductions), and
+  it has been green in every sweep run on 2026-09-30 and 2026-10-01. **NOT CLOSED**, deliberately: it was
+  a real 300s hang in a real sweep, and this file's own rule is that a known-real bug which stops
+  reproducing gets its mechanism forced rather than a ghost-closure. What is left to try is the thing no
+  harness can stage — catch the next occurrence IN a sweep, where `sweep.js` already SIGKILLs at 300s and
+  keeps the suite's output. A port collision is ruled out: `PORT` has been per-job since v1.31.82.
+`[id: nettest-passoduel-flaky]`
 
 #### Rules, priority and the stack
 
