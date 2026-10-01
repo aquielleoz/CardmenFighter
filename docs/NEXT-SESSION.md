@@ -479,110 +479,34 @@ re-read its tag.
   `netplay-intents-bypass-busy`.
   `[id: round-2-resolved-twice]`
 
-- `root cause found`    · **★ A PARK WRITE CLOBBERS A LIVE PARK, AND THE FIRST DRAIN'S CONTINUATION IS
-  ORPHANED (2026-10-01).** Filed the same day as `netplay-intents-bypass-busy` and REPLACES it: that entry
-  said the netplay handlers never consult `busy`, which is true and is only the door. This is the room.
-  **MEASURED, headlessly against `engine.js` at 3 players** — seat 0 leads a pair, seats 1 and 2 pass, and
-  seat 2's pass resolves the round:
-  ```
-  >>> MID-DRAIN  st.turn = 2   respondFor = 2   round = 4   pile = true   passes = 2
-     hostApplyMoveN's only gate is `hostState.turn !== seat`  ->  OPEN for seat 2
-  ```
-  The turn sits on **the seat that passed last**, because `pass` does `return resolveRoundWin(st)` BEFORE
-  `st.turn = nextPlayer(st, p)`. So a client turn-op arriving mid-drain passes the handler's only gate. The
-  engine then refuses it (`ok:false, transition:'play'`, `passes` unchanged) — **and a refusal is not a
-  rejection here**, because epic step 20 taught both handlers that a transition means *not yet*:
-  `if(r&&r.ok===false&&r.transition==='play'){ return hostSettleN(g, function(){ hostApplyMoveN(seat, it); }); }`
-  **AND `moveToPlayThen` HAS ALREADY RUN BY THEN** — the handler wraps its whole body in it — so the intent
-  has written a second `MAIN → FIGHT` ledger line and called `settleWindows` on a window that is already
-  draining. With `respondFor` non-null that second line reads **`go-round opened`**, in the SAME round,
-  after an **`auto-advanced`**: the exact pair `round-2-resolved-twice` reports.
-  **THE DEFECT IS ONE LINE, AND IT IS THE SAME SHAPE AT EVERY PARK SITE.** `hostSettleN`:
-  ```js
-  netParked=null; netReact={ kind:'respond', seat:…, g:g, resume:function(){ hostSettleN(g, done); } };
-  ```
-  A park is written **unconditionally**. The second `settleWindows` replaces the park object and with it the
-  FIRST drain's `resume`, so the client's decline resumes the second continuation and `drainResolution`'s
-  original completion is orphaned — a wedge, or a second resolution if the re-applied intent now succeeds.
-  **FIVE WRITE SITES, NONE GUARDED** (`grep -n 'netReact=\s*{\|netSettle=\s*{'`): `netReact` at the discard
-  park, the `hostSettleN` respond park, `driveN`'s window park and the loss-pick park; `netSettle` in
-  `hostSettle`. The `if(!netSettle) return;` at the duel's reply handler is a guard on the REPLY, not on the
-  WRITE — nothing stops a second park from clobbering a live one.
-  **SAY WHICH HALF IS MEASURED.** MEASURED: the turn mid-drain, the gate being open, the engine's refusal
-  shape. READ: that the overwrite follows, which is one unambiguous line but is still code-reading — this
-  repo has been wrong that way before and right by measuring. **NOT DEMONSTRATED: an end-to-end double
-  resolution in the real page.** Do not schedule this as *the* cause of `round-2-resolved-twice` until it is.
-  **THE REPRO, and it is a different op from attempt 4's.** Attempt 4 sent duplicate `{op:'decline'}`, which
-  routes through the `netSettle`/`netReact` REPLY branch and never reaches `moveToPlayThen`. This needs a
-  `{op:'pass'}` from the seat the resolution just left the turn on, fired while the drain is parked. Stage 3
-  players (`nettest_brake3`'s harness is the closest fit), give a seat ♦9 Leyline + diamond energy so the
-  go-round actually OPENS, let a CLIENT seat cast the last pass, then `__cmf.clientSend({op:'pass'})` from
-  that same seat. Assert the PARK, not the symptom: a counter bumped inside the park write is observable
-  where a second `MAIN → FIGHT` line is also true of a build that merely logs twice.
-  **⚠ THE FIX IS CONSTRAINED BY A MEASURED DEAD END — DO NOT REFUSE THE ACTION.** Refusing turn ops while
-  `respondFor != null` stalls the board forever, because `moveToPlayThen`'s settle is what DRAINS the window
-  on some paths; `browsertest` went 70s → past 400s. The shape that fits is guarding the **park write** —
-  refuse to overwrite a live park, or make the resume a queue — which is narrower than anything tried so far
-  and does not touch what a seat is allowed to send.
-  **AND SHIP IT WITH A REPRO, NOT BEFORE.** `round-2-resolved-twice` already records a refusing build that
-  was written and pulled the same day for exactly this reason.
-  **⚠ REPRO ATTEMPT 1 (2026-10-01) — THE DUPLICATE IS REPRODUCED; THE CONTROL IS NOT YET SOUND.** A
-  3-player suite was built on `nettest_brake3`'s harness and is NOT committed (saved aside), because its
-  CONTROL leg also fails to close a round — so a red clobber leg cannot be attributed, which is attempt 3's
-  rule in a new place. **What it DID establish, every run:**
-  - **the mid-park gate is open** — `turn=2`, the seat that passed, exactly as the headless probe predicted;
-  - **the duplicate crossing is real.** One genuine Pass press plus one injected `{op:'pass'}` produced two
-    identical ledger lines in one round:
-    `r3  MAIN → FIGHT  [Pass]  go-round opened  origin=Rival 3` **×2**.
-  **FOUR STAGING FACTS IT COST, EACH OF WHICH MAKES THE RUN VACUOUS IF LOST — do not rediscover these:**
-  - **THE QUICK MUST NOT BE ON THE CLOBBERING SEAT.** With ♦9 Leyline on the seat that also sends the
-    turn-op, BOTH parks carry the same continuation ("apply seat 2's pass"), so a clobber is invisible by
-    construction. The harm needs DIFFERENT continuations: park 1 = `drainResolution` finishing the round,
-    park 2 = a transition settle. Put the Quick on a seat that is not the clobberer.
-  - **ASSERT `drainResolution`'s OWN LEDGER LINE (`GO-ROUND opened before it`), NOT `rivalStatus`.** A bare
-    "the host parked" probe matches the TRANSITION window that the same pass opens one beat earlier, and
-    passes having staged the wrong park entirely. That is what the first cut did.
-  - **A DRAIN LOOP MUST NEVER PRESS A TURN BUTTON WHILE A WINDOW IS OPEN, AND NEVER TWO SEATS.** Firing
-    Pass at both clients every 220ms manufactures a NEW transition window per landed press: `netwindows`
-    auto-passed **8-9 unscripted windows per run** and the round never closed. The loop was the suite's,
-    not the product's — and the `⚠ netwindows: auto-passed N` line is what says so, on a GREEN run too.
-  - **A HELD PASS MUST BE RE-PRESSED.** `moveToPlayThen`: *"One press passes, and it keeps passing until
-    something happens"*. Pressing once and then only declining leaves the seat holding the board.
-  **⚠ AND THE SHARPEST LESSON IS A PRODUCT BUG I ALMOST REPORTED.** When the control first stalled it looked
-  exactly like a wedge. The `nettest_sync` classifier said otherwise: **`pending:false` on both seats, no
-  window open anywhere, and the client reading *"Main sub-phase — drag a card to use it"* on its own turn**
-  — i.e. a perfectly healthy table waiting for a press the harness was not making. **Run that classifier
-  before calling any stall a wedge**; three of this attempt's four stalls were the harness.
-  **WHERE IT IS STUCK:** the control ends with seat 2 on turn in the Main Sub-Phase with Pass disabled and
-  the hint *"nothing to use yet, press Next to move on"* — so the next attempt's question is why that seat
-  is leading rather than following, which is a staging question and not a product one.
-  **⚠ ATTEMPT 2 (2026-10-01) — "SEAT 2 IS LEADING" WAS WRONG, AND THE BLOCKER IS NAMED NOW.** The question
-  attempt 1 left (*why does seat 2 end up leading rather than following*) has an answer: **it is not
-  leading.** Traced side by side, the boards after "seat 1 passed" and "seat 2 passed" were BYTE-IDENTICAL
-  — Pass enabled, pile still up, seat 2 on turn — so the pass had simply never completed. Reading a seat
-  that is stuck on turn as a seat that is leading sent attempt 1 down the wrong staging entirely.
-  **THREE CAUSES RULED OUT BY MEASUREMENT, not by reading:**
-  - **NOT the brake, and NOT any window.** With NO Quick anywhere at the table the transition logs
-    `auto-advanced — nobody could add` — no window opens, so no brake can fire — and the pass still does
-    not complete. That one arm clears the whole window/brake family in a single run.
-  - **NOT the host going out.** Leading a pair from a 2-card hand takes the host to zero cards, which is a
-    going-out state; giving it a third card changes nothing.
-  - **NOT the suite manufacturing windows** (attempt 1's finding), now fixed: ~40 `MAIN → FIGHT` lines per
-    round down to 1 unscripted window, by pressing only when the board is quiet.
-  **THE HOST NAMES THE BLOCKER ITSELF, and it is in its own trace:**
-  ```
-  move IN from seat 2 op=pass q=667 (NO CHANNEL — seat guessed)   ← every intent, ~12 of them
-  ```
-  The intents ARRIVE and the stamp advances, so the wire is fine — but on this transport the host cannot
-  bind a channel to a seat and is GUESSING which one sent the pass. `hostApplyMoveN`'s only gate is
-  `hostState.turn !== seat`, so a wrong guess refuses a legitimate pass, silently from the suite's side.
-  **SO THE NEXT STEP IS A TRANSPORT QUESTION, NOT A PRIORITY ONE** — find what makes the host bind seats
-  on the 3-player suites that DO drive clients successfully (`nettest_brake3` presses Pass on a client and
-  is green), and copy it. That is a much smaller question than the five staging hypotheses this attempt
-  burned, and it is the only thing between here and a sound control.
-  ⚠ **TWO ESTIMATES WERE GIVEN AS "ONE CHANGE AWAY" AND BOTH WERE WRONG** (moving the Leyline; stopping the
-  host going out). Treat a staging diagnosis in this area as a hypothesis to measure, not a fix to apply.
-  `[id: park-write-clobbers-live-park]`
+- `root cause found`    · **★ A DUPLICATE TURN OP RESOLVES ONE ROUND TWICE — REPRODUCED 2026-10-01,
+  AND THE SANCTIONED FIX MAKES IT WORSE.** `nettest_parkclobber` is the repro `round-2-resolved-twice`
+  has wanted since 2026-09-15. Two legs off identical staging, 3/3 deterministic: the CONTROL resolves
+  cleanly (`0 + 0`), and injecting ONE `{op:'pass'}` fires the engine's own
+  **`⚠ DOUBLE RESOLUTION BLOCKED`** (`1 + 0`).
+  **THE MECHANISM, and it is NOT the park clobber this entry used to claim.** `pass` does
+  `return resolveRoundWin(st)` BEFORE `st.turn = nextPlayer(st, p)`, so mid-drain the turn is still the
+  seat that passed and its next turn-op walks through `hostApplyMove`'s only gate. That op then
+  **re-applies `E.pass` on a round that has already resolved but not yet been cleaned up** — `st.passes`
+  and `st.pile` are both still live, because the UI defers the draw — so one play resolves the round
+  twice. **Guarding the park WRITE was tried and does not fix it** (`netSettle`/`netReact` gen-guarded at
+  both handlers: still `1 + 0`), which is how the old mechanism was disproved.
+  **⚠ AND THE ONE-LINE FIX THIS REPO HAD WRITTEN DOWN BREAKS THE TABLE — MEASURED, NOT INHERITED.**
+  `round-2-resolved-twice` carried `if (st.resolvedRound === st.round) return { ok:true, state:st,
+  alreadyResolved:true }` in `enterResolution`, to ship "when there is a repro to prove it against".
+  Against this repro it goes from `1 + 0` to **`1 + 1`** and the round STOPS ADVANCING — the stale banner
+  starts firing and liveness is lost. That is the same refusing build that was pulled once before, now
+  with a number on it. **Do not re-apply it.** `test.js` 591/0 and `netview` 65/0 throughout, so the
+  engine suites cannot see this: the damage is in what the caller receives at the moment a round ends.
+  **WHAT IS CONTAINED TODAY, SO NOBODY OVERSTATES IT.** `enterResolution` COUNTS the duplicate and the
+  round still advances, so the live harm is a second resolution being attempted rather than a shield
+  silently lost — the 2026-09-15 reports predate the counter. The ratchet pins exactly that state.
+  **THE FIX HAS TO STOP THE RE-ENTRY, NOT THE RESOLUTION** — refuse the duplicate turn-op before it reaches
+  `E.pass`, rather than refusing the second resolution after it. The gate is `hostApplyMove`'s
+  `hostState.turn !== seat`, which is open by construction here; a stamp or a "this round already
+  resolved" check on the INTENT is the shape to try next, and the repro is standing by to judge it.
+  `[ratchet: duplicate-turnop-double-resolves]`
+  `[id: duplicate-turnop-double-resolves]`
 
 - `parked`              · **THE CLEAN-UP → BEGINNING ORDERING IS FIXED; IT IS THE TEST THAT IS STILL OWED (2026-09-16).**
   **⚠ RETAGGED FROM `ready to build` ON 2026-09-30, AND THE ENTRY ITSELF SAYS WHY** — it is not ready to
