@@ -434,7 +434,60 @@ re-read its tag.
   unable to play; `clientSend` goes round it, and the client's UI is not this bug's subject anyway. And
   the pile label reads **`"Rival · Jab"`** — seat and SHAPE, never the rank — so a `/10/` probe on it
   reports a healthy play as a failure; assert the card LEFT THE HAND instead.
+  **⚠ THE `auto-advanced` → `go-round opened` ASYMMETRY IS CLOSED — IT WAS CHASED AND HARDENED IN PR #230,
+  AND CHASING IT AGAIN ON 2026-10-01 RE-DERIVED THE SHIPPED FIX.** The mechanism is written verbatim in
+  `drainResolution`: `moveToPlayThen`'s auto-advance branch is `if(state.respondFor == null) return
+  proceed();` with **no `busy=true`**, so a pass that auto-advanced reached `E.pass`, opened the go-round,
+  handed off to `settleWindows` and returned to the event loop with the board still LIVE. That comment is
+  explicit that it is HARDENING and not a demonstrated fix. **Read the fix comment before re-chasing a lead
+  this entry names** — CLAUDE.md already says to grep every symbol an entry names, and the twin is that a
+  mechanism may already be owned by a comment on the function that fixed it.
+  **TWO DIAGNOSTIC RULES FOR READING THIS ENTRY'S EVIDENCE, both of which cost a detour on 2026-10-01:**
+  - **THE ORDER IS THE DIAGNOSIS.** `go-round opened` → `auto-advanced` is the DOCUMENTED HELD PASS —
+    `moveToPlayThen`'s own comment says a pass is pressed twice by design when a rival casts into the
+    window it opened — and it is correct. Only `auto-advanced` → `go-round opened` is the bug shape,
+    because the first line means the pass already went through (`return proceed()`). `cardmen-battle-log
+    (1).txt` r7 carries the benign order and reads alarming.
+  - **TWO `[Pass]` TRANSITIONS IN ONE ROUND MEAN NOTHING ABOVE 2 PLAYERS.** `pass` does not remove a seat
+    from the round — it bumps `st.passes` and resolves at `>= aliveCount(st) - 1`, and any play in between
+    resets the count, so at 3 players passing twice in a round is ordinary. **Only in a DUEL is the first
+    pass structurally terminal** (`aliveCount - 1 == 1`). `cardmen-battle-log.txt` r9 has two
+    `[Pass] auto-advanced` in one round and is a 3-player game, i.e. not evidence. Check the header's seat
+    count before reading any ledger pair as a doubling.
+  **AND THE DUEL PATH LOOKS COVERED, WHICH IS WHY ATTEMPT 4 WAS NEGATIVE.** `E.pass` returns
+  `resolveRoundWin(st)` BEFORE `st.turn = nextPlayer(st, p)`, so mid-drain the turn is still the passing
+  seat and a client turn-op is refused by the engine's own `p !== st.turn`; the host's own second press is
+  refused by the `busy` PR #230 now sets. The remaining wire question is filed separately as
+  `netplay-intents-bypass-busy`.
   `[id: round-2-resolved-twice]`
+
+- `needs a measurement` · **THE NETPLAY INTENT HANDLERS NEVER CONSULT `busy`, SO PR #230's LOCK IS
+  LOCAL-ONLY (found 2026-10-01, reachability NOT measured).** `busy` is a UI concept: `doPass`/`doFight`/
+  `toggle` each return on it, and that is what PR #230 leaned on when it added `busy=true; render();` to
+  `drainResolution` to stop a second Pass re-draining the Resolution window. **`grep -c busy` inside
+  `hostApplyMove` returns 0**, and `hostApplyMoveN` gates turn ops only on `hostState.turn !== seat` — so
+  nothing on the WIRE is stopped by that lock, and the recorded evidence for the double resolution is
+  precisely that *"the re-entry arrives over the wire"* (`drainResolution`'s own comment; the host trace
+  carries two client intents 70ms apart mid-drain).
+  **SAY WHAT IS AND IS NOT ESTABLISHED, because only the first half is measured.** ESTABLISHED: the two
+  handlers contain no `busy` reference, the duel handler delegates its seat gate to the engine
+  (*"the seat gate lives in `E.moveToPlay`, not here"*), and `moveToPlayThen` — the function that writes
+  the `MAIN → FIGHT` ledger line and drains the window — is reachable from both of them. NOT ESTABLISHED:
+  that any intent actually arrives in that window. A trace of the duel path suggests it does not (see
+  `round-2-resolved-twice`), so **this may be a latent gap rather than the reported bug**, and it
+  must not be scheduled as though it were the cause.
+  **THE MEASUREMENT THAT SETTLES IT, and it is a different op from attempt 4's.** Attempt 4 sent duplicate
+  `{op:'decline'}`, which routes through the `netSettle` branch and never reaches `moveToPlayThen`; the
+  question here is a `{op:'pass'}` / `{op:'play'}` / `{op:'toFight'}` arriving mid-drain, which routes
+  through the TURN-OP branch that does. Stage a 3-player table (where `hostApplyMoveN`'s explicit turn
+  check is the only gate), drive a round to resolution, and send a turn op from a seat the resolution has
+  just handed the turn to. **A/B it by deleting `drainResolution`'s `busy=true`** — if the suite is green
+  both ways the staging never reached the branch, which is the trap attempt 3 fell into.
+  **AND THE FIX SHAPE IS CONSTRAINED BY A MEASURED DEAD END**: refusing turn ops outright while
+  `respondFor != null` stalls the board forever, because `moveToPlayThen`'s settle is what DRAINS the
+  window on some paths — `browsertest` went 70s → past 400s. Lock the board for the duration; never forbid
+  the action.
+  `[id: netplay-intents-bypass-busy]`
 
 - `parked`              · **THE CLEAN-UP → BEGINNING ORDERING IS FIXED; IT IS THE TEST THAT IS STILL OWED (2026-09-16).**
   **⚠ RETAGGED FROM `ready to build` ON 2026-09-30, AND THE ENTRY ITSELF SAYS WHY** — it is not ready to
