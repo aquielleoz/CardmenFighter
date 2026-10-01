@@ -1102,6 +1102,36 @@ never read.*
 
 ### Tooling
 
+- `ready to build`      · **`landscapetest`'s EXPAND-OVERFLOW NUMBER MOVES WITH THE RANDOM DECK ROLL, AND IT IS
+  DRIFTING INTO ITS OWN RATCHET CAP (measured 2026-10-01).** The 327x660 warning has printed **33px, 60px
+  and 60px** across three full sweeps of builds nobody touched, against a ratchet that fails at **63**. A
+  number that swings 27px under a 63px cap is a red waiting for a slow day, and the ratchet it guards
+  (`phone-zone-expand-overflow`) cannot be read while its input wanders.
+  **THE MOVER IS `#handMeta`, AND IT IS THE DECK NAME.** Eight staged runs at 327x660, every other
+  rectangle identical (`hand` 134, `table` 96, `actions` 73 on all eight):
+
+  | `#handMeta` | the deck line it rendered | `over` |
+  | --- | --- | --- |
+  | 167px | `Pure Rogue`, `Pure Cleric` | **0** |
+  | 197px | `Warlock (Wiz+Rog)`, `Bard (Cle+Rog)`, `Mage Knight (Wiz+Fig)` | **18-21** |
+
+  A long deck name wraps `#handMeta` onto a second line at 327px, and that one row is the whole overflow.
+  **`open()` TAKES THE SETUP DIALOG'S DEFAULT, AND `DEFAULT_SEL` IS `{you:'random', rival:'random'}`** — so
+  every run rolls two fresh class decks and the suite measures whichever pair it drew.
+  **THE FIX IS THE 2026-09-07 ONE, ONE ELEMENT ALONG.** That day pinned the opponent's persona name because
+  the Forms zone is labelled `<name>'s Forms & Rides` and the random draw moved its WIDTH; this is the same
+  shape moving a HEIGHT, through the deck name instead of the persona. `landscapetest` already pins the
+  hand and `__solo.setName(1,…)`; it must pin the DECKS too, in `open()`, and the worst case is the longest
+  name the picker ships (`Mage Knight (Wiz+Fig)`) so the ratchet guards the hardest configuration rather
+  than a lucky one.
+  **ASSERT IT BY REPEATING, NOT BY LOOKING.** The tell for this class is bimodal geometry on an untouched
+  build, so the check is four consecutive runs printing the same `over`; a single green run is exactly what
+  the unstable version produces most of the time.
+  ⚠ **THE ABSOLUTE NUMBERS ABOVE ARE FROM A PROBE, NOT FROM THE SUITE** — it expands both seats' zones
+  rather than the suite's one, so it reads 18-21 where the suite reads 33/60. The MECHANISM is what
+  transfers; re-measure inside the suite before writing a new cap.
+  `[id: landscape-overflow-moves-with-deck-roll]`
+
 - `ready to build`      · **SUITE COUNTS ARE DECLARED TWICE IN CLAUDE.md AND NOTHING CHECKS EITHER — 27 WERE STALE
   (2026-09-30).** `versiontest` asserts `test` and `netview` only. The verified list had drifted in 3
   places and **the COMMAND LIST in 24**, some wildly: `rulestest` said 36 against a real 150,
