@@ -1515,8 +1515,21 @@
                             cards: oppD.hand.map(function (c) { return { rank: c.rank, suit: c.suit, id: c.id }; }) };
         }
         if (dn > 0) {
-          if (opts.oppDiscard || dn >= oppD.hand.length) { discardChosen(oppD, opts.oppDiscard, dn); }  // forced-all needs no choice
-          else { st.discardPending = { player: oppIdx, count: dn }; }   // the TARGET chooses which to pitch
+          /* ⚠ "FORCED-ALL NEEDS NO CHOICE" WAS A MECHANICAL ARGUMENT AND THE PLAYER DISAGREED (Aj, live
+             3-player game 2026-10-02: *"i got an auto pick later in the round, but only because i only had
+             2 remaining… i still would like to pick even it means picking everything"*). The old guard
+             skipped the picker whenever the forced count covered the whole hand, on the reasoning that the
+             same cards leave either way — true, and beside the point: a player watching their hand emptied
+             learns which cards went and when, and a board state that changes without a confirm reads as the
+             game doing something to you rather than with you.
+             IT COSTS NOTHING MECHANICALLY, which is what makes it safe: when `dn >= hand.length` the
+             outcome is identical by construction. `opts.oppDiscard` (an explicit caller-supplied list) still
+             short-circuits, because that IS a choice already made.
+             AND IT CANNOT HANG A SEAT: `ai.js` resolves a pending discard at the top of its loop, and Passo
+             answers a dropped seat's `discard` window with `ids:[]`, which `discardChosen` tops up to
+             `count` — so every non-human target still clears it without being asked. */
+          if (opts.oppDiscard) { discardChosen(oppD, opts.oppDiscard, dn); }
+          else { st.discardPending = { player: oppIdx, count: dn }; }   // the TARGET chooses which to pitch — even when that is everything
         }
         spendCard(pl, card); break;
       case 'energyDenyOpp':                               // Chi Block: up to N of the Rival's Energy -> their Shuffle
