@@ -143,7 +143,18 @@ const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll(
     /* THE ROUND MUST RESOLVE BEFORE "you survived" MEANS ANYTHING — with the go-round open the outcomes have
        not run, so `finished === false` would be true merely because nothing had happened yet. This is the
        vacuous shape step 18 already found in `nettest_guard`. */
-    const resolved = await until(() => p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; }));
+    /* ⚠ AND IT MUST ANSWER THE WINDOWS THE CAST OPENS (2026-10-02). This waited for the round to advance
+       while answering nothing, which was fine only while the ceremony ran straight through a parked
+       boundary. Once it DRIVES the drain, the boundary legitimately asks the next seat — and a suite that
+       never answers makes a correct product look like a stall: this exact assertion went red and the
+       change was reverted on the strength of it. A harness that cannot play the position cannot measure
+       it. Declining is the minimal answer and keeps the scenario's subject (did Sanctuary save the seat)
+       untouched — exercising what those windows DO is other suites' job. */
+    const resolved = await until(() => p.evaluate(() => {
+      const st = window.__solo.st(); if (st.round > 3 || st.finished) return true;
+      const d = document.getElementById('respDecline'); if (d && d.offsetParent) d.click();   // answer, then re-check
+      return false;
+    }));
     ok(resolved, 'A · the round RESOLVED after the cast — so the reading below is not vacuous');
     const out = await p.evaluate(() => { const st = window.__solo.st();
       return { finished: !!st.finished, elim: !!st.players[0].eliminated, shields: st.players[0].shields, round: st.round }; });
