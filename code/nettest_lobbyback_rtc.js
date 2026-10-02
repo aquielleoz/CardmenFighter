@@ -8,6 +8,7 @@
  * Modelled on nettest_rtc_discon (close the page to close the channel) and nettest_rtc3 (the invite() helper).
  * Run: node nettest_lobbyback_rtc.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { selectAndFight, clickFight } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8449),ROOM='LB'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -59,17 +60,18 @@ async function invite(host, client, prevOffer){
   ok(await until(async()=>/Dustin/.test(await host.evaluate(()=>(document.getElementById('rivalWho')||{}).textContent||'')), 40), '  → the host knows the client by name');
 
   // round 1 is jabs only — reach round 2, then stage the kick (the nettest_endscreen shape)
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   await until(async()=>(await view(join)).yourTurn, 100);
   await click(join,'passBtn');
   ok(await until(async()=>(await view(host)).round>=2, 120), 'round 2 reached');
-  await host.evaluate(()=>{
-    const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
+  await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
     window.__cmf.force([C(9,'D','h'),C(9,'H','h'),C(4,'C','h'),C(5,'S','h')],
                        [C(3,'D','c'),C(6,'H','c'),C(7,'C','c'),C(8,'S','c')], null,null, 4, 0);
   });
   await wait(600);
-  await host.evaluate(()=>{ ['h9D','h9H'].forEach(id=>{const c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click();}); const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ ['h9D','h9H'].forEach(id=>{const c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click();}); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   await until(async()=>(await view(join)).yourTurn, 100);
   await click(join,'passBtn');
   ok(await until(async()=>(await view(host)).finished===true, 140), 'game one finished on the host');
@@ -129,7 +131,8 @@ async function invite(host, client, prevOffer){
   const seats=await host.evaluate(()=>({ s1:(window.__cmf.handOf(1)||[]).length, s2:window.__cmf.handOf(2) }));
   ok(seats.s1===6 && seats.s2===null, '  → it is a DUEL: seat 1 holds 6 cards and there is no seat 2  [s1 '+seats.s1+', s2 '+(seats.s2===null?'none':'PRESENT — a ghost was dealt in')+']');
   ok(await until(async()=>/Cass/.test(await host.evaluate(()=>(document.getElementById('rivalWho')||{}).textContent||'')), 40), '  → and the host knows the NEW player by name, in seat 1');
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); });
+await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await until(async()=>(await view(join2)).yourTurn, 100), 'the host leads game two and the turn reaches the new player');
   await click(join2,'passBtn');
   ok(await until(async()=>(await view(host)).round>=2 && (await view(join2)).round>=2, 120), 'game two reaches round 2 on both ends — a full round');

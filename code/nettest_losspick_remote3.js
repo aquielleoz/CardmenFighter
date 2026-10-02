@@ -1,7 +1,8 @@
 /* CHOOSE-WHO-LOSES (remote winner, 3p): client 1 is placed as the round-2 leader with a straight; it leads, host & c2
  * can't beat and pass → c1 wins WITH a combo → c1's own board shows the target picker (from its mirror) and c1 picks
  * c2 over the wire → only c2 loses a shield. Exercises the remote loss-choice park + un-rotation. */
-const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const http=require('http'),fs=require('fs'),path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const autoAnswerWindows=require('./netwindows.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8300),ROOM='LR'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -10,8 +11,9 @@ const D=(n,s,tag)=>({rank:n,suit:s,id:(tag||'')+n+s});
 const turnOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.turn():null);
 const shieldsOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.shields():null);
 const ready=p=>p.evaluate(()=>{ var g=document.getElementById('lobbyGo'); if(g)g.click(); });
-const leadCombo=(p,ids)=>p.evaluate(function(ids){ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); ids.forEach(function(id){ var c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click(); }); var f=document.getElementById('fightBtn'); if(f)f.click(); }, ids);
-const passT=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var b=document.getElementById('passBtn'); if(b)b.click(); });
+const leadCombo=(p,ids)=>selectAndFight(p, ids);            // two-state button since epic step 20 — see fightclick.js
+const passT=async p=>{ await p.evaluate(()=>{ var c=document.getElementById('clearBtn'); if(c&&!c.disabled)c.click(); });
+                     return clickPass(p); };   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
 /* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll
  * that gave up used to be invisible and surfaced later as an unrelated assertion failing on a board that
  * was still mid-round-trip — the v1.31.9 waitTurnEnds bug, in the general case. A red run must explain
@@ -26,6 +28,11 @@ async function waitFor(fn,t=120,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   const c1=await ctx.newPage(); c1.on('pageerror',e=>errs.push('c1: '+e.message));
   const c2=await ctx.newPage(); c2.on('pageerror',e=>errs.push('c2: '+e.message));
   await host.goto(url('host')); await c1.goto(url('join')); await c2.goto(url('join')); await host.waitForTimeout(1200);
+  /* ANSWER WINDOWS THIS SUITE DOES NOT SCRIPT — see `netwindows.js`. The duel suites get this from
+     `startDuel`; the 3-player ones hand-roll their lobby, so they install it themselves. Without it a
+     client seat offered priority at Fight End parks the host forever: `nettest_3p` hung 4 times in 8
+     runs the day the prompt default widened, against 8/8 on the build before it. */
+  await autoAnswerWindows(host,'host'); await autoAnswerWindows(c1,'c1'); await autoAnswerWindows(c2,'c2');
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
 
   await ready(c1); await wait(300); await ready(c2);

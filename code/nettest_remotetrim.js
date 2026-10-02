@@ -13,6 +13,7 @@
  * cap, which is the branch that parks the host on `netReact` and waits for a `{op:'discard'}` from the wire.
  * Run: node nettest_remotetrim.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8451),ROOM='RT'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -45,8 +46,7 @@ const tail=p=>p.evaluate(()=>{ try{ return window.__cmf.trace().slice(-8); }catc
 
   /* THE CLIENT over the hand cap — the mirror image of nettest_trim, and the case nothing covered. 13 cards
    * against a cap of 10 leaves it over even after playing one, so the pick is unavoidable. */
-  await host.evaluate(()=>{
-    const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
+  await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
     const many=[]; [3,4,5,6,7,8,9,10,11,12,13,1,2].forEach((r,i)=>many.push(C(r,'DHCS'[i%4],'c')));
     window.__cmf.force([C(4,'D','h'),C(5,'H','h'),C(6,'C','h'),C(7,'S','h')], many);
   });
@@ -54,10 +54,10 @@ const tail=p=>p.evaluate(()=>{ try{ return window.__cmf.trace().slice(-8); }catc
   ok(await until(async()=>(await view(join)).hand>=12, 40), 'the CLIENT is staged over the hand cap  (hand '+(await view(join)).hand+')');
 
   // play the round out so the end-of-round clean-up fires
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await until(async()=>(await view(join)).yourTurn, 80), 'the turn reached the client');
-  await join.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled)b.click(); });
+  await clickPass(join);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
 
   /* The client should now be handed the real picker on its own board. */
   const gotPicker = await until(async()=>/[Dd]iscard|[Cc]lean-up|hand limit/.test((await view(join)).msg), 90);

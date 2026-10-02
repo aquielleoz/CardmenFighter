@@ -1,6 +1,7 @@
 /* Full-UI netplay core loop: two tabs on the REAL board. Turn-driven, patient bot that waits out the async
  * mirror round-trip. Verifies both play, rounds resolve in sync, no errors. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { selectAndFight, clickFight, clickPass, enterFight } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8273),ROOM='F'+Date.now().toString().slice(-4);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}`;
@@ -18,7 +19,8 @@ const clear=p=>p.evaluate(()=>{var c=document.getElementById('clearBtn'); if(c)c
  * is the same deal-dependence already fixed in nettest_log and nettest_names: a suite about the core loop had
  * no business depending on the shuffle.
  * Deselects between attempts, because a leftover multi-card selection is staged as a different play entirely. */
-const beatAny=p=>p.evaluate(()=>{
+const beatAny=async p=>{ await enterFight(p);   // Fight in Main is the phase move — see fightclick.js
+  return p.evaluate(()=>{
   var clr=document.getElementById('clearBtn'), f=document.getElementById('fightBtn');
   function reset(){
     if(clr && !clr.disabled) clr.click();
@@ -33,9 +35,9 @@ const beatAny=p=>p.evaluate(()=>{
   }
   reset();
   return null;                                                 // genuinely nothing beats it — passing is correct
-});
-const passT=p=>p.evaluate(()=>{var b=document.getElementById('passBtn'); if(b)b.click();});
-const play=(p,id)=>p.evaluate(function(id){ var c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click(); var f=document.getElementById('fightBtn'); if(f)f.click(); }, id);
+  }); };
+const passT=p=>clickPass(p);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
+const play=(p,id)=>selectAndFight(p, [id]);                 // two-state button since epic step 20 — see fightclick.js
 /* Returns TRUE only if the turn really ended. It used to return void after 40x80ms = 3.2s, so under load the
  * caller could not tell "turn over" from "gave up" — and then acted into a board still mid-round-trip. That is
  * the documented position-dependence: late in a long serial sweep this suite reported `maxRound=2 acted=80`,

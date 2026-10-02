@@ -13,6 +13,7 @@
  * ends on the client's action with the host winning — the precise configuration that triggers it.
  * Run: node nettest_roundstall.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8329),ROOM='RS'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -45,8 +46,7 @@ async function until(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retu
 
   /* Stage it: the host holds the apex 2 (fight value 15 — unbeatable), the client holds only 3s. The client
    * therefore CANNOT answer and must pass, which is what puts the round-end on the client's action. */
-  await host.evaluate(()=>{
-    const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
+  await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
     window.__cmf.force([C(2,'D','h'),C(4,'H','h'),C(5,'C','h'),C(6,'S','h')],
                        [C(3,'D','c'),C(3,'H','c'),C(3,'C','c'),C(3,'S','c')]);
   });
@@ -54,13 +54,13 @@ async function until(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retu
   ok(await host.evaluate(()=>!!document.querySelector('#hand .card[data-id="h2D"]')), 'hands staged (host holds the apex 2)');
 
   // host leads the apex 2
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="h2D"]'); if(c)c.click();
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="h2D"]'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await until(async()=>(await snap(host)).pile>0), 'host led the apex 2');
   ok(await until(async()=>(await snap(join)).yourTurn), 'the turn reached the client');
 
   // the client cannot beat it, so it passes — this is what ends the round on the CLIENT's action
-  await join.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled)b.click(); });
+  await clickPass(join);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
   const advanced = await until(async()=>(await snap(host)).round>=2, 120);
   ok(advanced, 'the round resolved and a new round began');
 
@@ -80,11 +80,8 @@ async function until(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retu
   ok(st.yourTurn, `it is the host's turn again (round ${st.round})`);
   ok(usable, usable ? 'the host can play the round it just won — board handed back'
                     : `the host is LOCKED OUT of its own turn (rivalStatus "${st.rivalStatus}", Fight disabled)`);
-  const landed=await host.evaluate(()=>{
-    const before=document.querySelectorAll('#hand .card').length;
-    const f=document.getElementById('fightBtn'); if(f&&!f.disabled) f.click();
-    return before;
-  });
+  const landed=await host.evaluate(()=>document.querySelectorAll('#hand .card').length);
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await until(async()=>(await snap(host)).hand<landed), 'and the play actually lands, so the game continues');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

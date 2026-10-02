@@ -4,6 +4,7 @@
  * seat-rotated. That rotation is the part most likely to be wrong, so it is asserted from both ends.
  * Run: node nettest_names.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { selectAndFight, clickFight, clickPass, enterFight } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8314),ROOM='NM'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -34,8 +35,7 @@ async function waitHand(p){ for(let i=0;i<60;i++){ if((await p.evaluate(()=>docu
    * client never played, and the two assertions about ITS narration failed together. Measured before this fix:
    * 2 failures in 10 runs, both times exactly those two assertions — the same deal-dependence found in
    * nettest_log the same day. Host leads a 4, the client holds a 10, so an answer is guaranteed. */
-  await host.evaluate(()=>{
-    const C=(n,su)=>({rank:n, suit:su, id:'nm'+n+su});
+  await host.evaluate(()=>{ const C=(n,su)=>({rank:n, suit:su, id:'nm'+n+su});
     window.__cmf.force([C(4,'D'),C(5,'H'),C(6,'C'),C(7,'S')],
                        [C(10,'C'),C(9,'S'),C(8,'H'),C(7,'D')]);
   });
@@ -44,14 +44,18 @@ async function waitHand(p){ for(let i=0;i<60;i++){ if((await p.evaluate(()=>docu
      'hands staged, so this suite no longer depends on the deal');
 
   // the HOST plays: the client must see "Aj", never "Rival"
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="nm4D"]'); if(c)c.click();
-    const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="nm4D"]'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await hasLog(join,/^Aj played/),'the client sees the host by name ("Aj played …"), not "Rival"');
   ok(!(await log(join)).some(l=>/^Rival played/.test(l)),'…and no line falls back to "Rival"');
   ok(await hasLog(host,/^You played/),'the host still reads its own play as "You played"');
 
   // the CLIENT plays: the host must see "Bea"
   for(let i=0;i<60 && (await join.evaluate(()=>window.__cmf?window.__cmf.turn():null))!==0;i++) await wait(150);
+  await enterFight(join);
+   /* `#fightBtn.disabled` only means "this play is legal" in the FIGHT Sub-Phase — in Main the same
+      button is the phase move and is always enabled, so the probe below would click it on the first
+      card it tried and report a play that never happened. See fightclick.js. */
   await join.evaluate(()=>{
     const clr=document.getElementById('clearBtn'), f=document.getElementById('fightBtn');
     const cards=[].slice.call(document.querySelectorAll('#hand .card'));

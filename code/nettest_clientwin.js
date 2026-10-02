@@ -12,6 +12,7 @@
  * host CANNOT answer and the round ends on the client's action with the client winning.
  * Run: node nettest_clientwin.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8331),ROOM='CW'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -42,22 +43,21 @@ async function until(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retu
 
   /* The CLIENT holds the apex 2 this time. The host holds only 3s and 4s, so once the 2 is on the pile it has
    * no legal answer and the round must end on the client's action — with the client winning. */
-  await host.evaluate(()=>{
-    const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
+  await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
     window.__cmf.force([C(3,'D','h'),C(4,'H','h'),C(5,'C','h'),C(6,'S','h')],
                        [C(2,'D','c'),C(7,'H','c'),C(8,'C','c'),C(9,'S','c')]);
   });
   await wait(500);
   ok(await join.evaluate(()=>!!document.querySelector('#hand .card[data-id="c2D"]')), 'hands staged (the CLIENT holds the apex 2)');
 
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="h3D"]'); if(c)c.click();
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="h3D"]'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await until(async()=>(await snap(host)).pile>0), 'host led a 3');
   ok(await until(async()=>(await snap(join)).yourTurn), 'the turn reached the client');
 
   // the client beats it with the unbeatable 2 — the host cannot answer, so this ends the round
-  await join.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="c2D"]'); if(c)c.click();
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await join.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="c2D"]'); if(c)c.click(); });
+  await clickFight(join);   // two-state button (epic step 20) — see fightclick.js
 
   /* MEASURED: nothing auto-resolves here. The turn comes BACK to the host, which has no legal answer to a 2, so
    * the round only ends when the host PASSES — and for that the host must be able to tell it is its turn.
@@ -69,7 +69,7 @@ async function until(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) retu
              (lying ? '  <-- REPRODUCED: it is your turn and the game says the rival is thinking' : ''));
   ok(!mid.passOff, '  → and Pass is offered, which is the only legal move left');
 
-  await host.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled)b.click(); });
+  await clickPass(host);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
 
   const hostAdvanced = await until(async()=>(await snap(host)).round>=2, 140);
   const joinAdvanced = await until(async()=>(await snap(join)).round>=2, 40);

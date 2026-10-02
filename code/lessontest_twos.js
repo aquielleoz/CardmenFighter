@@ -61,6 +61,20 @@ const { openLesson } = require('./lessonlib');
   const s7=(await step()).text;
   ok(/four cards or more/i.test(s7) && /lowest/i.test(s7),'step 7 explains the flip BEFORE asking you to beat it');
   ok(/smallest full house/i.test(s7),'…and calls theirs the smallest, not the best');
+  /* THE RIG'S OWN PROMISE, ASSERTED — it claims "ten cards, exactly what the lesson spends, and `MAX_HAND`
+     is 10 so none of it is trimmed", and nothing checked it. A hand over the limit opens the clean-up PICK,
+     which renders bare ungrouped cards, so `playSpot` below reports `card 5C#t6 has no group` and retries
+     its whole 30s budget against a modal state that never clears — the signature filed three times as a
+     poll-budget flake. Assert the CAUSE here, where it is one number, rather than reading the symptom there.
+     MEASURED: the hand is at **10 of 10 here — exactly the cap, zero headroom**, which is the whole story.
+     The rig deals 10 and the lesson spends all 10, so the four round draws are pure surplus; ONE card left
+     unspent by a slipped beat takes it to 11. Do not "fix" that by dealing fewer — every one of the ten is
+     played. The graceful half lives in `lessonlib.answerWindow`, which answers such a pick and says so. */
+  const handNow=await p.evaluate(()=>({ n:window.__solo.st().players[0].hand.length, max:window.CardmenEngine.MAX_HAND }));
+  ok(handNow.n<=handNow.max,
+     `your hand is within the limit, so no clean-up pick can open  [${handNow.n}/${handNow.max}]`);
+  const pm=await L.pickMode();
+  ok(pm===null, 'the board is not sitting on an unscripted pick'+(pm?' — '+pm:''));
   const fhWhy=await L.playSpot();
   ok(fhWhy===null,'you beat it with your own full house'+(fhWhy?' — '+fhWhy:''));
   ok(await L.atStep(8),'beating it advanced the lesson to step 8');

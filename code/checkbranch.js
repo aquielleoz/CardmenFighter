@@ -1,5 +1,8 @@
 #!/usr/bin/env node
-/* BRANCH-NAME GATE. CLAUDE.md documents six prefixes and no synonyms; that rule sat on the honour system and
+/* BRANCH GATE — two rules, both of which were prose first and were broken.
+ *   1. the branch NAME (prefixes; below)
+ *   2. the INTEGRATION path — `main` and every `epic/*` move only through a PR (see the block below `branch`)
+ * BRANCH-NAME GATE. CLAUDE.md documents six prefixes and no synonyms; that rule sat on the honour system and
  * was broken twice in two days by inventing `perf/` mid-session — once already unerasable from history.
  * Aj, 2026-09-02: *"who knows what other sorts of prefix we'll get into? a wild wild west is out there when an
  * llm doesn't even follow it's own rules"*.
@@ -9,6 +12,239 @@
 const { execSync } = require('child_process');
 const OK = ['feat/', 'fix/', 'docs/', 'exp/', 'parked/', 'epic/'];   // keep in step with CLAUDE.md's table
 const branch = (process.argv[2] || execSync('git rev-parse --abbrev-ref HEAD').toString()).trim();
+
+/* ---- THE INTEGRATION GATE: an epic and `main` MOVE ONLY THROUGH A PR (added 2026-09-10, Aj).
+ * CLAUDE.md's epic rules already said "sub-branches PR INTO the epic, never into `main`". COUNTED rather
+ * than guessed, after the first version of this comment claimed all eleven steps had skipped it and Aj
+ * pointed at the PR list: steps 1-9 each had one (#184-#191), and FOUR merges skipped — two docs branches,
+ * plus the flag-residue fix and STEP 11, both on the day the gate was written. So the rule held for nine
+ * consecutive code steps and broke on the two fastest days, losing the merge the plan calls the cliff.
+ * WHY A PUSH IS THE RIGHT THING TO CATCH, and it is the whole trick: a PR merge happens SERVER-SIDE, so a
+ * correctly-run epic never receives a push from anyone's machine at all. "Did this branch move locally?" and
+ * "did this skip its PR?" are therefore the same question, and this is the only hook that can see it.
+ * THE ONE LEGITIMATE LOCAL PUSH is CLAUDE.md's own "merge `main` INTO the epic after every session spent
+ * elsewhere", which has no PR to hang off. It gets a NAMED escape rather than a hole: `EPIC_PUSH=1`, which
+ * says out loud what it is for and leaves a reason in the shell history. */
+var _refs = null;
+function pushRefs() {
+  // pre-push feeds `<localref> <localsha> <remoteref> <remotesha>` on stdin. Run by hand there is none, and
+  // reading fd 0 from a terminal would HANG — which would make the gate look like a broken push.
+  /* MEMOISED, AND THAT IS LOAD-BEARING RATHER THAN TIDY (2026-09-16). stdin is a STREAM: the first read
+     DRAINS it, so a second caller gets an empty string and its gate silently does nothing. The backlog gate
+     below is a second caller, and without this it passed every negative case — a gate that cannot fail, which
+     is the "green and blind" shape CLAUDE.md already catalogues, reached by a one-word cause. */
+  if (_refs) return _refs;
+  try {
+    if (process.stdin.isTTY) return (_refs = []);
+    return (_refs = require('fs').readFileSync(0, 'utf8').split('\n').filter(Boolean));
+  } catch (e) { return (_refs = []); }            // no stdin at all (e.g. `node checkbranch.js`) — nothing to gate
+}
+var blocked = null;
+pushRefs().forEach(function (line) {
+  var f = line.trim().split(/\s+/), rref = f[2] || '', rsha = f[3] || '';
+  var protectedRef = rref === 'refs/heads/main' || rref.indexOf('refs/heads/epic/') === 0;
+  if (!protectedRef) return;
+  if (/^0+$/.test(rsha)) return;                  // the ref does not exist yet — creating an epic is fine
+  if (process.env.EPIC_PUSH === '1') { console.error('⚠ EPIC_PUSH=1 — pushing straight to ' + rref.replace('refs/heads/', '') + '. Use this ONLY to carry `main` into an epic.'); return; }
+  blocked = rref.replace('refs/heads/', '');
+});
+if (blocked) {
+  console.error('✗ refusing to push directly to "' + blocked + '" — it moves through a PULL REQUEST.');
+  console.error('  A PR merge happens on the server, so this branch should never receive a local push.');
+  console.error('  What you almost certainly want, from your sub-branch:');
+  console.error('      git push -u origin <your-branch>');
+  console.error('      gh pr create --base ' + blocked + ' --title "..." --body-file <file>');
+  console.error('      gh pr merge --merge --delete-branch');
+  console.error('  (--body-file, never --body: backticks in a double-quoted shell string are EXECUTED, and');
+  console.error('   that has already shipped a mangled PR body in this repo.)');
+  console.error('  The one exception is carrying `main` into an epic, which has no PR:  EPIC_PUSH=1 git push');
+  console.error('  Rule: CLAUDE.md → "Branches and PRs" → epic/. Eleven step-merges skipped it before this');
+  console.error('  gate existed, which is why it is a gate and not a paragraph.');
+  process.exit(1);
+}
+
+/* ---- THE BACKLOG GATE: a PR must SAY what it did to the backlog (2026-09-16, Aj: *"we should probably add
+ * a gate during pr to check the backlog if the related entry hasn't been cleared/moved to the correct
+ * tracking document"*).
+ * THIS IS THE RATCHET ASYMMETRY, GENERALISED. CLAUDE.md already records why a known failure needed tagging on
+ * BOTH sides: deleting a ratchet is a HAPPY act done inside the suite, and the doc is nowhere in the author's
+ * view at that moment — so no amount of "remember to check the BACKLOG" survives it. Closing a backlog entry
+ * has exactly that shape, and it has already happened here: on the day this landed, a cull pass found an entry
+ * describing a bug fixed EARLIER THE SAME DAY, and another whose five findings the epic had closed one by one
+ * without anyone touching the doc.
+ * WHAT IT CAN AND CANNOT DO, stated plainly because the weak half matters. It verifies a `closes` CLAIM — say
+ * you closed an entry and the gate checks the entry is really gone. It CANNOT catch silent omission: nothing
+ * can tell whether `Backlog: none` is true. What it buys is that the question is asked once per PR, out loud,
+ * in a place that ends up in the history — and that the claim, once made, is checked. That is the same bargain
+ * the ratchet registry makes, and it is strictly better than the paragraph it replaces.
+ * The id lives on its own line at the end of each entry (`[id: slug]`), out of the scannable tag column. */
+function backlogAt(sha) {
+  try { return execSync('git show ' + sha + ':docs/NEXT-SESSION.md', { stdio: ['ignore','pipe','ignore'] }).toString(); }
+  catch (e) { return null; }                      // the doc is absent at that commit — nothing to check against
+}
+/* WHICH INTEGRATION BRANCH IS THIS WORK FOR — one definition, two callers with different questions.
+ * `baseFor` wants the SHA to diff from; the epic-build check below wants to know WHICH ref won, because the
+ * rule only applies to work aimed at an epic. Inlining the walk twice is how two copies drift. */
+function nearestIntegration(lsha) {
+  var best = null, bestN = Infinity;
+  execSync('git for-each-ref --format="%(refname)" refs/remotes/origin/main refs/remotes/origin/epic').toString()
+    .split('\n').filter(Boolean).forEach(function (ref) {
+      try {
+        var r = ref.trim();
+        var mb = execSync('git merge-base ' + r + ' ' + lsha).toString().trim();
+        var n = parseInt(execSync('git rev-list --count ' + mb + '..' + lsha).toString().trim(), 10);
+        if (n < bestN) { bestN = n; best = { ref: r, mb: mb }; }
+      } catch (e) {}
+    });
+  return best;
+}
+function baseFor(lsha, rsha) {
+  if (rsha && !/^0+$/.test(rsha)) return rsha;    // updating an existing branch: only the new commits
+  /* A BRAND-NEW BRANCH HAS NO REMOTE SIDE, so fall back to the NEAREST integration point — this repo has two
+   * (`main` and whichever epic is live), and picking the wrong one would drag in an epic's whole history. */
+  var n = nearestIntegration(lsha);
+  return n && n.mb;
+}
+function statusAt(sha) {
+  try {
+    var t = execSync('git show ' + sha + ':README.md', { stdio: ['ignore','pipe','ignore'] }).toString();
+    var m = /\*\*Status:\*\*\s*(v\d+\.\d+\.\d+(?:\.\d+)?[a-z]?)/.exec(t);
+    return m && m[1];
+  } catch (e) { return null; }
+}
+pushRefs().forEach(function (line) {
+  if (process.env.EPIC_PUSH === '1') return;
+  var f = line.trim().split(/\s+/), lsha = f[1] || '', rref = f[2] || '', rsha = f[3] || '';
+  if (!lsha || /^0+$/.test(lsha)) return;                                   // a deletion
+  if (rref === 'refs/heads/main' || rref.indexOf('refs/heads/epic/') === 0) return;   // already refused above
+  var base = baseFor(lsha, rsha); if (!base) return;
+  var msgs;
+  try { msgs = execSync('git log --format=%B ' + base + '..' + lsha).toString(); } catch (e) { return; }
+  if (!msgs.trim()) return;
+  /* EVERY TRAILER, NOT THE FIRST ONE (2026-09-17). This was `msgs.match(...)` with no `/g`, which returns
+   * the FIRST match across all the commits being pushed — so a PR closing six entries could declare six
+   * and have exactly one verified, and the other five were free to be typos or to name entries still
+   * sitting in the doc. The gate reporting success at precisely its own job, for the second time: the
+   * first was the `pushRefs()` stdin drain, and the shape is the same both times — a check that runs, says
+   * nothing, and is read as a pass.
+   * FOUND BY NEEDING IT. A cluster PR closed six entries and there was no way to say so; the limit was not
+   * visible from reading the gate, only from trying to use it. */
+  var all = msgs.match(/^Backlog:[ \t]*(none|closes|updates|files)([ \t]+([a-z0-9-]+))?[ \t]*$/gmi) || [];
+  if (!all.length) {
+    console.error('✗ branch "' + branch + '": no `Backlog:` trailer on any commit being pushed.');
+    console.error('  Every PR states what it did to the backlog — the entry does not close itself, and a fix');
+    console.error('  that ships while its entry stays open is how a doc starts lying. One of:');
+    console.error('      Backlog: closes  <id>     (and the entry must be GONE from docs/NEXT-SESSION.md)');
+    console.error('      Backlog: updates <id>     (rewritten against what is true now)');
+    console.error('      Backlog: files   <id>     (this PR adds the entry)');
+    console.error('      Backlog: none             (nothing in the backlog relates to this)');
+    console.error('  Ids are the `[id: slug]` line at the end of each BACKLOG entry:  grep "\\[id: " docs/NEXT-SESSION.md');
+    process.exit(1);
+  }
+  var doc = backlogAt(lsha); if (doc === null) return;
+  var before = backlogAt(base);
+  all.forEach(function (line) {
+  var m = line.match(/^Backlog:[ \t]*(none|closes|updates|files)([ \t]+([a-z0-9-]+))?[ \t]*$/i);
+  var verb = m[1].toLowerCase(), slug = m[3] || '';
+  if (verb === 'none') return;
+  if (!slug) { console.error('✗ `Backlog: ' + verb + '` needs an id — e.g. `Backlog: ' + verb + ' drop-hint-overflows-board`'); process.exit(1); }
+  var present = doc.indexOf('[id: ' + slug + ']') >= 0;
+  if (verb === 'closes') {
+    if (present) {
+      console.error('✗ `Backlog: closes ' + slug + '` — but that entry is STILL in docs/NEXT-SESSION.md.');
+      console.error('  Either delete it (the work is done), or say `updates ' + slug + '` if it only shrank.');
+      console.error('  Closing is the half that rots: the fix ships, the entry stays, and the doc quietly lies.');
+      process.exit(1);
+    }
+    /* A TYPO MUST NOT READ AS A CLOSE, and the first version of this gate let one through: an id that never
+     * existed is "gone" by the same test as one you deleted, so `closes drop-hint-overflowss` passed and the
+     * real entry stayed open — the gate reporting success at precisely its own job. Found by testing the
+     * thing rather than reading it, which is this repo's standing result. So a close must show the entry was
+     * THERE BEFORE and is gone NOW. */
+    if (before !== null && before.indexOf('[id: ' + slug + ']') < 0) {
+      console.error('✗ `Backlog: closes ' + slug + '` — no entry with that id existed before this push either.');
+      console.error('  That is a typo, not a close: the gate cannot tell "I deleted it" from "it never existed".');
+      console.error('  Check the slug:  grep "\\[id: " docs/NEXT-SESSION.md');
+      process.exit(1);
+    }
+  }
+  if (verb !== 'closes' && !present) {
+    console.error('✗ `Backlog: ' + verb + ' ' + slug + '` — no entry with that id in docs/NEXT-SESSION.md.');
+    console.error('  Check the slug:  grep "\\[id: " docs/NEXT-SESSION.md');
+    process.exit(1);
+  }
+  });
+});
+
+/* ---- THE EPIC BUILD NUMBER — A GATE (2026-09-30, Aj: *"oh let's make it a gate then?"*).
+ * An epic build is `vX.Y.Z.a`: X.Y.Z is the main version it is based on and never moves, `a` increments on
+ * every merge INTO the epic. That number is what lets `verIncompatible` tell two builds on the same branch
+ * apart — hold it still and the branch where builds change fastest is the one where every build claims to
+ * be the same, which is the hole the four-number scheme exists to close.
+ * COMPARED AGAINST THE EPIC, NOT `baseFor`. On a second push to the same branch `baseFor` returns that
+ * branch's own previous tip, so a bump made in an earlier commit would already be behind it and the check
+ * would say nothing — the question is always "does this differ from the epic I am merging into".
+ * ⚠ THE TRIGGER IS THE BUILT ARTIFACT, AND THAT IS WHAT MAKES A HARD GATE DEFENSIBLE. It shipped as a
+ * warning because forcing a bump, a rebuild and both HTML copies for a docs typo would be the rule
+ * bullying the work — a real cost, and the reason to gate anyway is that a warning nobody has to obey is
+ * the honour system this file exists to replace. Both are answered by asking the right question: not "did
+ * anything change" but **"would a player get a different file"**. `code/CardmenFighter.html` is committed
+ * build output, so diffing IT at the two commits is the artifact itself rather than a proxy for it — no
+ * list of build inputs to drift out of step with `build.js`, and a docs-only PR is silent by construction
+ * rather than by an escape hatch someone has to remember.
+ * AND IT ASSERTS THE RULE, NOT MERELY A CHANGE: same X.Y.Z, and `a` STRICTLY GREATER. `now !== was` would
+ * pass a typo that moved the version backwards or sideways, which is the same build-identity hole one
+ * level down. */
+function epicBuildOf(v) {                       // the 4th segment, or null for a main build
+  var m = /^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?/.exec(String(v || ''));
+  return m ? { base: m[1] + '.' + m[2] + '.' + m[3], n: m[4] == null ? null : +m[4] } : null;
+}
+function pageChanged(a, b) {
+  try { execSync('git diff --quiet ' + a + ' ' + b + ' -- code/CardmenFighter.html', { stdio: 'ignore' }); return false; }
+  catch (e) { return true; }                    // non-zero exit = the built page differs
+}
+pushRefs().forEach(function (line) {
+  if (process.env.EPIC_PUSH === '1') return;
+  var f = line.trim().split(/\s+/), lsha = f[1] || '', rref = f[2] || '';
+  if (!lsha || /^0+$/.test(lsha)) return;
+  if (rref === 'refs/heads/main' || rref.indexOf('refs/heads/epic/') === 0) return;
+  var n = nearestIntegration(lsha);
+  if (!n || n.ref.indexOf('refs/remotes/origin/epic/') !== 0) return;   // aimed at main — this rule is not about you
+  var was = statusAt(n.mb), now = statusAt(lsha);
+  if (!was || !now) return;
+  var ep = epicBuildOf(was), np = epicBuildOf(now);
+  if (!ep || !np || ep.n == null) return;       // that epic has not adopted the scheme
+  if (!pageChanged(n.mb, lsha)) return;         // docs-only: a player would get the same file
+  var epicRef = n.ref.replace('refs/remotes/', '');
+  if (np.base === ep.base && np.n != null && np.n > ep.n) return;       // bumped, correctly
+  /* ⚠ THE EPIC LANDING IS THE CASE THIS GATE DID NOT KNOW (2026-10-02). The fourth segment exists so two
+     builds OF THE BRANCH can be told apart, and the one commit that RETIRES it — the epic → `main` release
+     bump, `1.31.128.15` → `1.32.0` — necessarily has no fourth segment and so looked like a branch that had
+     forgotten to increment. It fired on exactly the commit CLAUDE.md's epic rule tells you to write.
+     IT CANNOT BE SOLVED BY LOOKING AT THE PR TARGET, because this is a PRE-PUSH hook and there is no PR
+     yet; `nearestIntegration` reads the commit graph, and a release branch cut from the epic descends from
+     the epic whatever it is aimed at.
+     SO IT RECOGNISES THE SHAPE INSTEAD, and narrowly: three segments, no build number, and a MINOR strictly
+     greater than the epic base's. That is the only version that can legitimately replace `X.Y.Z.a`, it is
+     what "the rules moved" means in this scheme, and it is the bump the netplay handshake refuses across.
+     A typo cannot reach it — a lower or equal minor still fails, and so does a same-minor patch bump.
+     WHY NOT `EPIC_PUSH=1`: that escape says in its own text it is for carrying `main` into an epic. Using
+     it for a second, different, predictable case is how a named exception becomes a hole — the gate should
+     learn the case rather than be stepped around. */
+  /* ⚠ `statusAt` KEEPS THE LEADING `v` AND `epicBuildOf().base` DROPS IT — the first cut compared
+     `v1.32.0` against `1.31.128` with a digit-anchored regex and silently never matched, so the gate went
+     on refusing the one commit this clause exists to allow. Both sides tolerate the `v` now. */
+  var mRel = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(now), mBase = /^v?(\d+)\.(\d+)\./.exec(ep.base || '');
+  if (mRel && mBase && +mRel[1] === +mBase[1] && +mRel[2] > +mBase[2]) return;   // the epic landing — see above
+  console.error('✗ branch "' + branch + '": the built page differs from ' + epicRef +
+                ', but README **Status:** went ' + was + ' → ' + now + '.');
+  console.error('  An epic increments the FOURTH number on every merge into it, so two builds of the branch');
+  console.error('  can be told apart — that is what makes the netplay handshake able to refuse a stale peer.');
+  console.error('  Expected ' + ep.base + '.' + (ep.n + 1) + ' or later (same base, higher build number).');
+  console.error('  Bump README\'s **Status:** line, `node build.js`, and copy the page to the repo root.');
+  console.error('  A docs-only change needs no bump and is not checked — this fired because the BUILT PAGE moved.');
+  process.exit(1);
+});
 
 if (branch === 'main' || branch === 'HEAD') process.exit(0);
 if (OK.some(p => branch.startsWith(p))) {

@@ -9,6 +9,7 @@
  * Deliberately no assertions of its own beyond "the hub lists it" and "it started" — a shared helper that
  * asserts product behaviour makes one bug look like seven. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
+const { clickFight, clickPass } = require('./fightclick');   // epic step 20: Fight is a two-state button and Pass only exists in the Fight Sub-Phase
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 
 async function openLesson(id, viewport){
@@ -34,7 +35,59 @@ async function openLesson(id, viewport){
       const el=Date.now()-t0;
       if(POLLLOG || el>ms*0.5) console.log('   ⏱ '+el+'ms of '+ms+'ms'+(el>ms*0.5?'  ← OVER HALF THE BUDGET':'')+': '+src);
       return true; } await p.waitForTimeout(80); }
-    console.log('⏱ poll TIMED OUT after '+ms+'ms: '+src); return false; };
+    /* SAY WHETHER THE BOARD WAS IN PICK MODE. A pick blocks everything — no window opens, no play lands —
+       and it never clears itself, so ANY poll in this file can die against it. Without this the timeout
+       names only what it was waiting for, which is how `lessontest_twos` was misfiled three times as a poll
+       budget; `lessontest_quicks` fails on "the Respond? window opens" and a covered board would look the
+       same. `pickMode` is declared below and this only runs later, so the const is initialised by then. */
+    const pk=await pickMode().catch(()=>null);
+    console.log('⏱ poll TIMED OUT after '+ms+'ms: '+src+(pk?'\n   ← '+pk:'')); return false; };
+  /* ANSWER A PRIORITY WINDOW THE BOARD PUTS UP, so a covered board is not mistaken for a broken lesson
+     (epic step 3). Every helper below polls the board; a modal covers it, so each would retry to timeout and
+     report the LESSON broken when the truth is that the harness never learned this window. Today no lesson
+     reaches one outside its own script — which is why it LOGS LOUDLY rather than passing silently: the sweep
+     is grepped for this line and must find none, so "inert" is measured rather than assumed. After step 18 a
+     Fight End window opens every round and this stops eleven suites going red at once.
+     Deliberately last-resort — called only after an attempt has already failed — so a lesson that drives its
+     own window (the Quicks lesson counters a real Technique) always gets there first. */
+  const answerWindow=async()=>{
+    const hit=await p.evaluate(()=>{
+      /* A CLEAN-UP PICK IS NOT A MODAL, so the overlay test below cannot see it — it is an inline board
+         state, and it NEVER clears itself. Every helper here then retries its whole 30s budget against a
+         board that will not move and fails with `card <id> has no group`, three steps after the beat that
+         actually slipped. Measured on "The 2": that lesson sits at **10 of 10 cards** at its last step, so
+         one card left unspent takes it to 11 and opens this.
+         PREFER A CARD THE STEP IS NOT ASKING FOR. The pick takes any card, and pitching a spotlit one makes
+         the next instruction unsatisfiable — a worse dead end than the one being escaped. A pick is
+         confirmed with FIGHT (`fightBtn` is wired `pick ? confirmPick() : doFight()`), so click cards until
+         it enables, exactly as `nettest_trim` does. */
+      const loose=[].slice.call(document.querySelectorAll('#hand > .card'));
+      if(loose.length){
+        /* SELECT `need` CARDS, THEN CONFIRM — do not confirm on the first frame the button goes live. The
+           first cut clicked one card, found FIGHT enabled and pressed it; the pick took that single card,
+           was still over the cap, and immediately re-opened for the rest, so the board never left pick mode
+           (measured: 13 cards, "Discard 3", escaped with 12 still up). */
+        const st=(window.__solo&&window.__solo.st())||{};
+        const need=Math.max(1, ((st.trimPending&&st.trimPending.need) || (st.discardPending&&st.discardPending.count) || 1));
+        const order=loose.filter(c=>!c.classList.contains('tut-spot')).concat(loose.filter(c=>c.classList.contains('tut-spot')));
+        for(let i=0;i<need && i<order.length;i++) order[i].click();
+        const f=document.getElementById('fightBtn');
+        if(f && !f.disabled){ f.click(); return 'clean-up pick ('+need+')'; }
+        return 'clean-up pick — could not confirm '+need+' of '+order.length;
+      }
+      const ov=document.getElementById('overlay');
+      if(!ov || !ov.classList.contains('show')) return null;
+      const PASS=[['respDecline','Respond? window'],['pfDecline','pre-fight window'],['sgNo','shield guard window']];   // each label carries its own noun: a pick is not a window
+      for(const [id,label] of PASS){ const el=document.getElementById(id); if(el && el.offsetParent){ el.click(); return label; } }
+      return null; });
+    /* A FLOOD OF THESE IS A PRODUCT CHANGE, NOT A HARNESS PROBLEM — read it that way before touching the
+       lesson. `promptWanted` in the template SUPPRESSES the `resolution` timing while `tutorialMode` is on,
+       precisely because a scripted lesson cannot survive a window at the end of every round: when the
+       Fight End default flipped on 2026-09-10 this warning fired three times in `lessontest_twos` and the
+       lesson stalled on "the Rival leads 222 + a pair". If that suppression is ever removed, THIS is the
+       line that will tell you why the lessons went red — the failing assertion will name a full house. */
+    if(hit) console.log('   ⚠ lessonlib answered a '+hit+' the lesson did not script');
+    return hit; };
   const step=()=>p.evaluate(()=>{ const t=document.getElementById('tutPanel');
     return { n:(t&&t.querySelector('.tutStep')||{}).textContent||'', text:(t&&t.querySelector('.tutText')||{}).textContent||'',
              hasNext:!!(t&&t.querySelector('#tutNextBtn')), spots:document.querySelectorAll('.tut-spot').length }; });
@@ -59,13 +112,13 @@ async function openLesson(id, viewport){
    * This helper was written without the retry and `lessontest_twos` caught it immediately — the lesson's own
    * prep makes the Rival lead, so the board is busy at exactly the moment the suite tries to answer. */
   const playAny=async(multi,ms=30000)=>{ const t0=Date.now();
-    while(Date.now()-t0<ms){ const r=await playAnyOnce(multi); if(r!==null) return r; await p.waitForTimeout(200); }
+    while(Date.now()-t0<ms){ const r=await playAnyOnce(multi); if(r!==null) return r; await answerWindow(); await p.waitForTimeout(200); }
     return null; };
   const playAnyOnce=async(multi)=>{ const gids=await p.evaluate(m=>[].map.call(document.querySelectorAll('#hand .group'+(m?'.multi':':not(.multi)')),g=>g.dataset.gid), !!multi);
     for(const gid of gids){ await deselect();
       const armed=await p.evaluate(g=>{ const el=document.querySelector('#hand .group[data-gid="'+g+'"]'); if(!el) return null; el.click();
         const f=document.getElementById('fightBtn'); return f && !f.disabled ? (document.getElementById('hint')||{}).textContent||'' : null; }, gid);
-      if(armed!==null){ await p.evaluate(()=>document.getElementById('fightBtn').click()); return armed||'played'; } }
+      if(armed!==null){ await clickFight(p); return armed||'played'; } }
     await deselect(); return null; };
   /* Play a pair by CARD ID, selecting each card's group. The hand only groups a pair into one `.group.multi`
    * in the "Pairs" SORT MODE — the default layout is singles, so "click the multi group" finds nothing and
@@ -79,31 +132,51 @@ async function openLesson(id, viewport){
      * and the hand still renders as interactive, so the clicks land on nothing and the report reads "Fight is
      * disabled" with an empty selection. Measured: the window after the Rival's turn is ~2s. */
     const t0=Date.now(); let last='never attempted';
-    while(Date.now()-t0<ms){ last=await attemptPair(ids); if(last===null) return null; await p.waitForTimeout(200); }
+    while(Date.now()-t0<ms){ last=await attemptPair(ids); if(last===null) return null; await answerWindow(); await p.waitForTimeout(200); }
     return last+' (retried for '+ms+'ms)';
   };
+  /* THE DIAGNOSTIC MOVED BELOW THE PRESS (epic step 20). `Fight` in the Main Sub-Phase is the PHASE MOVE
+     and is enabled with nothing selected, so "Fight is disabled" no longer separates a bad selection from an
+     illegal play — it is simply never true there. What still separates them is whether the button reaches
+     `Play`, which is exactly what `clickFight` reports. */
   const attemptPair=async(ids)=>{
     await deselect();
-    return p.evaluate(list=>{
+    const selErr=await p.evaluate(list=>{
       const seen=new Set();
       for(const id of list){ const c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(!c) return 'card '+id+' is not rendered';
         const g=c.closest('.group'); if(!g) return 'card '+id+' has no group';
         if(seen.has(g)) continue;                                  // both cards already live in this one group
         seen.add(g); if(!g.classList.contains('gsel')) g.click(); }
-      const f=document.getElementById('fightBtn');
-      if(!f || f.disabled){
-        /* A red run must explain itself: report the whole hand layout and what is selected, since "Fight is
-         * disabled" alone cannot distinguish a bad selection from an illegal play. */
-        const lay=[].map.call(document.querySelectorAll('#hand .group'),g=>
-          (g.classList.contains('gsel')?'[SEL]':'')+[].map.call(g.querySelectorAll('.card'),c=>c.dataset.id).join('+')).join(' ');
-        return 'Fight is disabled — wanted '+list.join('+')+' | layout: '+lay+' | hint: '+((document.getElementById('hint')||{}).textContent||'');
-      }
-      f.click(); return null; }, ids);
+      return null; }, ids);
+    if(selErr) return selErr;
+    if(await clickFight(p) === 'played') return null;
+    return p.evaluate(list=>{
+      const lay=[].map.call(document.querySelectorAll('#hand .group'),g=>
+        (g.classList.contains('gsel')?'[SEL]':'')+[].map.call(g.querySelectorAll('.card'),c=>c.dataset.id).join('+')).join(' ');
+      return 'the play did not land — wanted '+list.join('+')+' | layout: '+lay+' | hint: '+((document.getElementById('hint')||{}).textContent||'');
+    }, ids);
   };
   /* RETRY UNTIL IT LANDS, and report how long it took. `doPass` returns SILENTLY on `busy` (and on peeking /
    * pick / targeting), while `#passBtn` is NOT disabled in those states — so one click on an enabled-looking
    * button can do nothing at all. A single click plus an assertion reads as "Pass is broken". Returns the ms it
    * took, or null if it never landed. */
+  /* IS THE BOARD IN PICK MODE? `renderHand`'s FIRST branch renders bare cards straight into `#hand` with no
+   * `.group` wrapper — "pick mode: flat individual cards, no grouping/drag" — and it is the only writer that
+   * does, so a `#hand > .card` direct child IS pick mode and nothing else is.
+   * WHY THIS HELPER EXISTS: every helper below reaches for `.closest('.group')`, so in pick mode they all
+   * report `card <id> has no group` — for EVERY id, because none of them has one. That message reads as a
+   * layout or render bug and sent three investigations at the DOM; the board was simply sitting on a
+   * clean-up the lesson never scripted. It also never clears itself, which is why those runs spent their
+   * whole 30s budget retrying and then failed with a message describing none of it.
+   * Returns null when the hand is grouped normally, so callers can use it as a fallback diagnosis. */
+  const pickMode=()=>p.evaluate(()=>{
+    if(!document.querySelector('#hand > .card')) return null;
+    const s=(window.__solo&&window.__solo.st())||{}, me=(s.players||[])[0]||{};
+    const kind=s.trimPending?'clean-up over the hand limit':s.discardPending?'a forced discard':'unknown';
+    return 'the board is in PICK MODE ('+kind+'), which the lesson did not script — hand '+
+      ((me.hand||[]).length)+'/'+((window.CardmenEngine||{}).MAX_HAND)+', round '+s.round+', msg "'+
+      (((document.getElementById('message')||{}).textContent)||'').trim().slice(0,70)+'"';
+  });
   /* Play an EXACT set of cards by id, retrying. Every helper here has needed the retry for the same reason —
    * `toggle` and `doFight` return silently while `busy` is set — and since v1.31.74 the board says so out loud
    * ("Hold on — the board is still resolving."), which is what identified this one. Returns null on success. */
@@ -115,10 +188,12 @@ async function openLesson(id, viewport){
         for(const id of want){ const el=document.querySelector('#hand .card[data-id="'+id+'"]'); if(!el) return 'card '+id+' is not rendered';
           const g=el.closest('.group'); if(!g) return 'card '+id+' has no group';
           if(!g.classList.contains('gsel')) g.click(); }
-        const f=document.getElementById('fightBtn');
-        if(!f || f.disabled) return 'Fight is disabled — hint: '+((document.getElementById('hint')||{}).textContent||'');
-        f.click(); return null; }, ids);
+        return null; }, ids);
+      if(last===null && await clickFight(p) !== 'played')            // epic step 20: only `played` means cards really went down
+        last=await p.evaluate(()=>'the play did not land — hint: '+((document.getElementById('hint')||{}).textContent||''));
       if(last===null) return null;
+      if(/has no group/.test(last)) last=(await pickMode())||last;   // name the board state, not the symptom
+      await answerWindow();
       await p.waitForTimeout(200);
     }
     return last+' (retried for '+ms+'ms)'; };
@@ -137,10 +212,11 @@ async function openLesson(id, viewport){
      * unrelated assertion failing further down. A pass either bumps `passes` or ends the round. */
     const before=await p.evaluate(()=>{ const s=window.__solo.st(); return {round:s.round, passes:s.passes||0}; });
     while(Date.now()-t0<ms){
-      await p.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b && !b.disabled) b.click(); });
+      await clickPass(p);   // Pass only exists in the Fight Sub-Phase now — the helper moves there first
       const moved=await p.evaluate(b=>{ const s=window.__solo.st();
         return s.round!==b.round || (s.passes||0)>b.passes; }, before);
       if(moved) return Date.now()-t0;
+      await answerWindow();
       await p.waitForTimeout(150);
     }
     console.log('⏱ Pass never took effect in '+ms+'ms'); return null; };
@@ -150,7 +226,9 @@ async function openLesson(id, viewport){
    * single attempt right after an opponent's answer reports "activate control not offered" and reads as a
    * product bug. Every helper in this file has needed this; the one that lacked it was the one that broke. */
   const activateSpot=async(ms=30000)=>{ const t0=Date.now(); let last='never attempted';
-    while(Date.now()-t0<ms){ last=await activateSpotOnce(); if(last===null) return null; await p.waitForTimeout(200); }
+    while(Date.now()-t0<ms){ last=await activateSpotOnce(); if(last===null) return null;
+      if(/has no group/.test(last)) last=(await pickMode())||last;   // same trap as playIds — see pickMode
+      await answerWindow(); await p.waitForTimeout(200); }
     return last+' (retried for '+ms+'ms)'; };
   const activateSpotOnce=async()=>{ await deselect();
     return p.evaluate(()=>{ const c=document.querySelector('#hand .card.tut-spot') || document.querySelector('#hand .group.tut-spot .card') || document.querySelector('#hand .card.transformReady');
@@ -167,7 +245,7 @@ async function openLesson(id, viewport){
   if(listed) await p.evaluate(i=>document.querySelector('.lessonRow[data-lesson="'+i+'"]').click(), id);
   ok(await until(()=>/ \/ /.test((document.querySelector('.tutStep')||{}).textContent||''),'the lesson starts'),'the lesson starts');
 
-  return { b, p, ok, until, step, at, atStep, next, st, deselect, playAny, playPair, playIds, playSpot, passTurn, activateSpot, errs,
+  return { b, p, ok, until, step, at, atStep, next, st, deselect, playAny, playPair, playIds, playSpot, passTurn, activateSpot, pickMode, answerWindow, errs,
     /* Finish: the completion modal must be VISIBLE, not merely present in the DOM — asserted the naive way
      * (`/Lesson complete/.test(document.body.textContent)`) this passes on a lesson stuck mid-way. */
     async finish(lessonId){

@@ -1,0 +1,877 @@
+/* THE TWO BUGS THE EPIC EXISTS FOR, PLAYED THROUGH THE REAL PAGE — epic/priority-windows, step 18.
+ *
+ * `resolutiontest.js` asserts the MODEL headlessly. This asserts the two things a player actually reported,
+ * end to end in the built HTML, because neither had ever been played through a UI by anything:
+ *
+ *   A · SANCTUARY UNDER HECTOR SURVIVES THE FIGHTER KICK. The ♥K patch is `{quick:true}` **alone** — a
+ *       Quick whose own boost text says *"cast it in response"* — with no `immune` and no `shieldImmune`.
+ *       `immunityEffFor` (then `guardEffFor`) therefore returned null and the old window REFUSED the card.
+ *       Apollo's Super patch does carry `shieldImmune` and was admitted, so testing Apollo proves nothing:
+ *       **Hector is the case, precisely because its patch is the bare `quick`.**
+ *       It works now by TIMING and no new rule — the shield gain resolves above the strike, so
+ *       `resolveShieldLossObj`'s `wasBroken` is false and the kick branch is never entered.
+ *
+ *   B · ARMOR PIERCING LANDS REACTIVELY. **It is the ♣7, and it is NOT a Quick at base** — the plan and
+ *       an earlier draft of this file both said "the ♠7 is `type:'Quick Technique'` at base", and both
+ *       were wrong twice over: ♠7 is Caltrops, and the Fighter block strips Quick from Armor Piercing and
+ *       adds the Broadway pitch. It becomes a Quick under **Hippolyta (♣Q)**. Measured, not read off the
+ *       table's layout — which is CLAUDE.md's own rule about `copyPlus`, and it caught this.
+ *       That makes both reported symptoms the SAME class: a Form-granted Quick that `immunityEffFor`
+ *       refuses. What B adds over A is the other half of the walk — A is the THREATENED seat, B is the
+ *       WINNER, who the old window never offered anything to at all.
+ *       AND IT PROVES THE WINDOW MOVED RATHER THAN MERELY WIDENED: `applyRoundLossBody` reads
+ *       `wpl.finishingBlow` into `strips` **before** it pushes the shieldloss objects, so a guard window
+ *       living inside `driveShieldStack` was already too late. Cast in the go-round, the extra strip lands.
+ *
+ * EVERY CLAIM IS A BOTH-WAYS PAIR, and that is the whole design. "You survived" is also true of a board
+ * that was never lethal, and "they lost 2" is also true of a striker that always strips 2 — so each
+ * scenario is run twice off identical staging, once DECLINING and once CASTING, and the assertion is the
+ * DIFFERENCE. A build where the window opens and the cast does nothing passes every one-sided version.
+ *
+ * Run: node resolutiontest_ui.js
+ */
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
+const path = require('path');
+const URL = 'file://' + path.resolve(__dirname, 'CardmenFighter.html') + '?dbgsolo=1';
+const wait = ms => new Promise(r => setTimeout(r, ms));
+function pollTimedOut(fn) { console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g, ' ').slice(0, 110)); }
+async function until(fn, t = 200, ms = 100) { for (let i = 0; i < t; i++) { if (await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
+
+/* POLL FOR EVERY STEP, NEVER SLEEP PAST ONE — `prompttest` went red on run 10 of 40 doing that, and a suite
+   in the sweep is a loaded machine by definition. */
+async function freshGame(p) {
+  if (!await until(() => p.evaluate(() => !!document.getElementById('newBtn')))) return false;
+  await p.evaluate(() => document.getElementById('newBtn').click());
+  if (!await until(() => p.evaluate(() => { const b = document.getElementById('goFirstBtn'); return !!(b && b.offsetParent); }))) return false;
+  await p.evaluate(() => document.getElementById('goFirstBtn').click());
+  return await until(() => p.evaluate(() => !!(window.__solo && window.__solo.st() && window.__solo.st().players)));
+}
+/* GET PAST THE MAIN → PLAY TRANSITION FIRST (epic step 20). A pass or a play now opens the transition
+   go-round before it, and these boards deliberately hold castable Quicks — so the FIRST modal a staged
+   board produces is the transition, not the window under test. Draining it in the page keeps each
+   scenario about the thing it names; without this, scenario A read the pre-fight prompt and reported the
+   Fight End copy missing. */
+const clearTransition = p => p.evaluate(() => {
+  const E = window.CardmenEngine, st = window.__solo.st();
+  E.moveToPlay(st);
+  let guard = 0; while (st.respondFor != null && guard++ < 12) E.declineResponse(st, st.respondFor);
+  window.__solo.render();
+});
+const modalText = p => p.evaluate(() => { const m = document.getElementById('modal');
+  return (m && m.offsetParent) ? (m.textContent || '').replace(/\s+/g, ' ') : null; });
+const quickBtns = p => p.evaluate(() => [].slice.call(document.querySelectorAll('.respQuick')).map(b => b.textContent.replace(/\s+/g, ' ')));
+
+(async () => {
+  const b = await chromium.launch(LAUNCH);
+  let pass = 0, fail = 0; const ok = (c, m) => { console.log((c ? '✓' : '✗') + ' ' + m); c ? pass++ : fail++; };
+  const errs = [];
+
+  // ---------------------------------------------------------------- A · SANCTUARY vs THE FIGHTER KICK
+  /* Staged rather than played: the Rival's winning pair is put on the table directly and YOU end the round
+     by passing, so the scenario cannot drift with a deal. That also routes through `finishPassRound`'s
+     drain, which is the human-pass half of step 18 (B covers `finishStep`, the driver half). */
+  async function stageKick(p, prompt) {
+    return await p.evaluate((prompt) => {
+      const st = window.__solo.st(), E = window.CardmenEngine;
+      const C = (r, s, t) => ({ rank: r, suit: s, id: (t || '') + r + s });
+      const you = st.players[0], riv = st.players[1];
+      you.shields = 0; riv.shields = 4;
+      you.hand = [C(10, 'H', 'sanc')];                       // ♥10 Sanctuary — a Technique at base
+      you.energy = []; for (let i = 0; i < 13; i++) you.energy.push(C(3, 'H', 'e' + i));   // hearts: costReq wants its own suit
+      you.forms = [C(13, 'H', 'hector')];                    // ♥K Hector → patches Sanctuary to {quick:true} ALONE
+      riv.hand = []; riv.energy = [];                        // the Rival can add nothing, so priority reaches you
+      st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = 1; st.preFightHandled = true;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
+      const cards = [C(9, 'C', 'x'), C(9, 'S', 'y')];
+      st.pile = { p: 1, byPlayer: 1, combo: { type: 'pair', size: 2, value: 9, key: [9], cards: cards } };
+      /* SET THE PREFERENCE EXPLICITLY RATHER THAN LEANING ON THE DEFAULT, so this suite tests the
+         MECHANISM and `prompttest` owns the policy. It matters that they stay separate: when this file was
+         written the default was `immunityEffFor` — the whitelist step 18 deleted — and it auto-declined
+         both of the cards the epic exists to fix. That is what scenario C below caught. The default is
+         now "every legal timing prompts" (Aj, 2026-09-10), so `true` here is a no-op; it stays because a
+         suite that silently depends on a default cannot tell you when the default moves. */
+      window.__solo.render();
+      const sanc = you.hand[0];
+      return { quick: !!(E.effectFor(st, 0, sanc) || {}).quick,
+               whitelisted: !!E.immunityEffFor(st, 0, sanc),
+               afford: E.canAfford(you, sanc), shields: you.shields };
+    }, prompt);
+  }
+
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('A: ' + e.message));
+    await p.goto(URL);
+    ok(await freshGame(p), 'A · a solo game is running');
+    const s = await stageKick(p, true);
+    /* THE STAGING IS THE CLAIM. `quick && !whitelisted` IS the bug: a card the go-round must offer and the
+       old gate had to refuse. If `whitelisted` ever comes back true this scenario silently stops testing
+       Hector and starts testing Apollo, and would pass on the build that shipped the bug. */
+    ok(s.quick && !s.whitelisted && s.afford && s.shields === 0,
+       'A · staged the exact refused case — Hector makes Sanctuary a Quick, the OLD whitelist refuses it ' +
+       `(quick=${s.quick} whitelisted=${s.whitelisted}), it is affordable, and you are at 0 shields` +
+       (s.quick && !s.whitelisted ? '' : '  ← not the reported bug any more; re-read the ♥K patch in BOOSTS'));
+
+    await clearTransition(p);
+    await clickPass(p);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
+    const up = await until(async () => !!(await modalText(p)));
+    ok(up, 'A · the Fight End window opens on the seat about to be kicked');
+    const txt = await modalText(p) || '';
+    ok(/FIGHTER KICK/i.test(txt),
+       'A · …and it says out loud that this is the KICK, not an ordinary shield' +
+       (/FIGHTER KICK/i.test(txt) ? '' : '  ← said: "' + txt.slice(0, 120) + '"'));
+    const offered = await quickBtns(p);
+    ok(offered.some(t => /Sanctuary/i.test(t)),
+       'A · SANCTUARY IS OFFERED — the card the whitelist refused for the whole of its existence' +
+       (offered.length ? '  [' + offered.join(' | ').slice(0, 80) + ']' : '  ← no Quick buttons at all'));
+
+    // (a) DECLINE — the control. Without it "you survived" below is true of a board that was never lethal.
+    await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d) d.click(); });
+    const died = await until(() => p.evaluate(() => { const st = window.__solo.st(); return !!st.finished; }));
+    ok(died, 'A · CONTROL: declining, the kick lands and the game ends — the staging really was lethal');
+    await p.close(); }
+
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('A2: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'A · second board for the cast');
+    await stageKick(p, true);
+    await clearTransition(p);
+    await clickPass(p);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
+    await until(async () => !!(await modalText(p)));
+    const clicked = await p.evaluate(() => { const y = [].slice.call(document.querySelectorAll('.respQuick'))
+      .filter(x => /Sanctuary/i.test(x.textContent))[0]; if (y) { y.click(); return true; } return false; });
+    ok(clicked, 'A · the same board again — this time Sanctuary is cast');
+    /* THE ROUND MUST RESOLVE BEFORE "you survived" MEANS ANYTHING — with the go-round open the outcomes have
+       not run, so `finished === false` would be true merely because nothing had happened yet. This is the
+       vacuous shape step 18 already found in `nettest_guard`. */
+    /* ⚠ AND IT MUST ANSWER THE WINDOWS THE CAST OPENS (2026-10-02). This waited for the round to advance
+       while answering nothing, which was fine only while the ceremony ran straight through a parked
+       boundary. Once it DRIVES the drain, the boundary legitimately asks the next seat — and a suite that
+       never answers makes a correct product look like a stall: this exact assertion went red and the
+       change was reverted on the strength of it. A harness that cannot play the position cannot measure
+       it. Declining is the minimal answer and keeps the scenario's subject (did Sanctuary save the seat)
+       untouched — exercising what those windows DO is other suites' job. */
+    const resolved = await until(() => p.evaluate(() => {
+      const st = window.__solo.st(); if (st.round > 3 || st.finished) return true;
+      const d = document.getElementById('respDecline'); if (d && d.offsetParent) d.click();   // answer, then re-check
+      return false;
+    }));
+    ok(resolved, 'A · the round RESOLVED after the cast — so the reading below is not vacuous');
+    const out = await p.evaluate(() => { const st = window.__solo.st();
+      return { finished: !!st.finished, elim: !!st.players[0].eliminated, shields: st.players[0].shields, round: st.round }; });
+    /* THE LEDGER IS THE THING AJ SENDS BACK, so it is asserted rather than eyeballed — `logtest` measured
+       the Save button's HEIGHT at three viewports and never clicked it, and the log it produced was the
+       single line "[object PointerEvent]" for fifteen versions. */
+    const led = await p.evaluate(() => window.__solo.prioLog());
+    ok(led.some(l => /a GO-ROUND opened before it/.test(l) && /priority→/.test(l)) && led.some(l => /\[resolution\] window SHOWN to you/.test(l) && /Sanctuary/.test(l)),
+       'A · the saved-log ledger records the go-round and the offer' +
+       (led.length ? '  [' + led.slice(0, 2).join(' // ').slice(0, 130) + ']' : '  ← the ledger is EMPTY'));
+    ok(!out.finished && !out.elim,
+       `A · SURVIVED THE FIGHTER KICK by casting Sanctuary in the window (round ${out.round}, shields ${out.shields})` +
+       (out.finished ? '  ← still died: the shield gain is not resolving above the strike' : ''));
+    await p.close(); }
+
+  // ---------------------------------------------------------------- B · ARMOR PIERCING, REACTIVELY
+  /* Played rather than staged: YOU lead a pair of Aces and the Rival must pass, so this goes through
+     `runRival` → `finishStep` → the drain — the driver half of step 18, and the half that presents beats. */
+  async function stagePierce(p) {
+    return await p.evaluate(() => {
+      const st = window.__solo.st(), E = window.CardmenEngine;
+      const C = (r, s, t) => ({ rank: r, suit: s, id: (t || '') + r + s });
+      const you = st.players[0], riv = st.players[1];
+      you.shields = 4; riv.shields = 4;
+      /* A pair of NINES to lead, not Aces: Armor Piercing carries the Broadway pitch (`pitchHigh`), the
+         engine picks the lowest Broadway in hand for it, and a leftover Ace would be spent instead of the
+         ♦10 that is here to be spent. The ♣Q is Hippolyta — one Queen, so `queen` tier and NOT Super. */
+      you.hand = [C(9, 'C', 'n1'), C(9, 'D', 'n2'), C(7, 'C', 'ap'), C(10, 'D', 'pitch')];
+      you.energy = []; for (let i = 0; i < 13; i++) you.energy.push(C(3, 'C', 'e' + i));
+      you.forms = [C(12, 'C', 'hippo')];
+      riv.hand = [C(3, 'H', 'r1')];                          // a lone 3 cannot answer a pair → the AI must pass
+      riv.energy = []; riv.forms = [];
+      st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = null; st.pile = null; st.preFightHandled = true;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
+      window.__solo.render();
+      const ap = you.hand[2];
+      return { quick: !!(E.effectFor(st, 0, ap) || {}).quick, afford: E.canAfford(you, ap), rivShields: riv.shields,
+               whitelisted: !!E.immunityEffFor(st, 0, ap) };
+    });
+  }
+  async function leadAces(p) {
+    await clearTransition(p);
+    await selectAndFight(p, ['n19C', 'n29D']);   // two-state button (epic step 20) — see fightclick.js
+  }
+
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('B: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'B · a solo game is running');
+    const s = await stagePierce(p);
+    ok(s.quick && !s.whitelisted && s.afford && s.rivShields === 4,
+       `B · staged — Hippolyta makes Armor Piercing a Quick, the OLD whitelist refuses it, it is affordable, the Rival holds ${s.rivShields} shields` +
+       (s.quick && !s.whitelisted && s.afford && s.rivShields === 4 ? '' : `  ← quick=${s.quick} whitelisted=${s.whitelisted} afford=${s.afford} rivShields=${s.rivShields}`));
+    await leadAces(p);
+    const up = await until(async () => !!(await modalText(p)));
+    ok(up, 'B · THE WINNER IS OFFERED THE WINDOW — the striker was never offered one under the old model');
+    const offered = await quickBtns(p);
+    ok(offered.some(t => /Armor Piercing/i.test(t)),
+       'B · …and Armor Piercing is among its Quicks' + (offered.length ? '  [' + offered.join(' | ').slice(0, 80) + ']' : '  ← no Quick buttons at all'));
+
+    await p.evaluate(() => { const y = [].slice.call(document.querySelectorAll('.respQuick'))
+      .filter(x => /Armor Piercing/i.test(x.textContent))[0]; if (y) y.click(); });
+    const done = await until(() => p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; }));
+    ok(done, 'B · the round resolved after the cast');
+    const cast = await p.evaluate(() => window.__solo.st().players[1].shields);
+    ok(cast === 2,
+       `B · THE EXTRA STRIP LANDED — the Rival lost 2 shields, not 1 (4 → ${cast})` +
+       (cast === 2 ? '' : '  ← `finishingBlow` is being read BEFORE the window, which is the whole reason the window had to move'));
+    await p.close(); }
+
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('B2: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'B · second board for the control');
+    await stagePierce(p);
+    await leadAces(p);
+    await until(async () => !!(await modalText(p)));
+    /* DRAIN, DO NOT CLICK ONCE. A go-round can grant priority more than once — an addition resets the
+       all-passed check (§2 step 5), and since step 20 the walk starts at the active player rather than
+       skipping them, so a single decline is no longer guaranteed to close the window. Polling for the
+       ROUND to turn over is what makes the shield reading below mean something, which is the same
+       vacuity this suite already guards against elsewhere. */
+    for (let i = 0; i < 40; i++) {
+      if (await p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; })) break;
+      await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d && !d.disabled) d.click(); });
+      await wait(150);
+    }
+    const dec = await p.evaluate(() => window.__solo.st().players[1].shields);
+    ok(dec === 3,
+       `B · CONTROL: declining the same board strips ONE (4 → ${dec}), so the 2 above is the cast and not the staging`);
+    await p.close(); }
+
+  // ------------------------------------------------- C · A PREFERENCE MAY NOT COST YOU A SHIELD
+  /* THIS CLAIM INVERTED ON 2026-09-15, AND THE OLD ONE IS WORTH KEEPING IN VIEW. It read *"with the prompt
+     OFF the window is auto-passed and the kick lands — no modal at all"*, and it was correct about the
+     build it was written for. Aj then met it in a real duel — Leyline in hand, `resolution` unticked, a
+     shield gone, and the saved log reading `[resolution] AUTO-PASSED — PROMPT OFF  you could have cast:
+     Leyline Ascension` one line above the loss. His ruling: *"a player can have that unchecked but when
+     their shields are threatened, the prompt should still fire off for leyline"*.
+     NOBODY HAD DECIDED THE OLD BEHAVIOUR EITHER, which is the part worth remembering. The pre-epic build
+     opened its shield guard unconditionally; step 18 replaced it with the general Resolution go-round; and
+     `promptDefault` later narrowed to `respond`-only. The guarantee died between three separately-correct
+     changes, and this suite dutifully encoded the wreckage as the expectation.
+     `shieldSaveOverride` IS THE CONDITION: you are in `strikeTargets`, and the ENGINE's `lossAnswerFor`
+     says this card answers the loss. It overrides the checkbox, never `eligibleQuicks` — a notification
+     preference still may not decide what is legal.
+     THE LEDGER ASSERTION SURVIVES IN THE OPPOSITE DIRECTION. It used to prove a silent auto-pass could be
+     READ in a saved log; it now proves a FORCED prompt can be. C2 keeps the auto-pass half honest. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C · a board for the overridden prompt');
+    await stageKick(p, false);
+    await clearTransition(p);
+    await clickPass(p);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
+    /* POLL FOR THE RESPONSE WINDOW, NOT FOR "A MODAL". Caught by the A/B that reverted the override: on the
+       unfixed build the kick lands and the END SCREEN is a modal too, so a bare `modalText` check went
+       GREEN on exactly the build this scenario exists to fail — it took the next assertion, reading
+       `[New Duel]` off the buttons, to notice. `#respDecline` is the response window's own control and
+       the end screen has none. */
+    const up = await until(() => p.evaluate(() => !!document.getElementById('respDecline')));
+    ok(up, 'C · THE OVERRIDE FIRES — `resolution` is unticked for Sanctuary and the window opens regardless, because this shield is about to break' +
+       (up ? '' : '  ← no Respond? window; the kick landed unanswered'));
+    const offered = await quickBtns(p);
+    ok(offered.some(t => /Sanctuary/i.test(t)),
+       'C · …and the card that forced it is the one on offer' +
+       (offered.length ? '  [' + offered.join(' | ').slice(0, 80) + ']' : '  ← no Quick buttons at all'));
+    const led = await p.evaluate(() => window.__solo.prioLog());
+    /* ⚠ THE "FORCED" LINE IS UNREACHABLE SINCE AUTO WENT STAKE-DRIVEN (2026-09-30), so asserting it would
+       be asserting dead output. `shieldSaveOverride` existed to force a window past an UNTICKED CHECKBOX;
+       the checkboxes are gone and `promptDefault` now returns true on a stake, so the override fires
+       exactly when the ordinary path already did — `saved` is always empty and the ledger never writes
+       "SHIELD AT RISK, prompt forced".
+       THE CLAIM UNDERNEATH IS UNCHANGED and is what is asserted now: the window opened on a board where a
+       shield was genuinely at risk, and the ledger names the card. That the override is now redundant is
+       FILED rather than deleted here — it is a second deletion and deserves its own verification. */
+    const line = led.filter(l => /window SHOWN to you/.test(l))[0];
+    ok(!!line && /Sanctuary/.test(line),
+       'C · …and the ledger records the prompt, naming the card' +
+       (line ? '  [' + line.slice(0, 110) + ']' : '  ← no window-shown line; a log cannot explain a prompt that fired'));
+    /* THE BOARD WAS REALLY LETHAL — the same control A carries. Without it, "a window opened" is equally
+       true of a staging where nothing was ever at stake. */
+    await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d) d.click(); });
+    const died = await until(() => p.evaluate(() => !!window.__solo.st().finished));
+    ok(died, 'C · CONTROL: declining the forced window still ends the game — the shield really was on the line');
+    await p.close(); }
+
+  // ------------------------------------------------- C2 · THE STRIKER IS FORCED TOO
+  /* THIS CLAIM INVERTED ON 2026-09-23, THE SECOND TIME THIS SCENARIO HAS TURNED OVER, and the reason is
+     the same both times: nobody had decided the behaviour, so the suite encoded whatever fell out.
+     C2 used to assert the override was DEFENSIVE ONLY — you win the round, you hold Armor Piercing, the
+     box is unticked, and nothing stops you. Aj overturned the premise:
+       *"i want you to see past sanctuary … when it sees that i won a fight, and will now break a shield,
+       at the priority window before resolution, the game would still prompt you to use the armor
+       piercing - provided it was quicked with the queen form"*
+     and then widened it again — *"for all the other quicks, they had their preferred timings back in
+     main right? those will still fire off with or without the notices checked"*. THE RULE IS THE EVENT,
+     NOT THE DIRECTION: a shield is about to break and you hold a Quick that changes what happens.
+     ⚠ THE OBVIOUS IMPLEMENTATION IS THE ONE THAT ALREADY FAILED. "Force whatever `main` forced" means
+     `immunityEffFor`, and that predicate REFUSES Sanctuary-under-Hector and Armor-Piercing-under-
+     Hippolyta — the two cards the epic exists to fix. Step 15 keyed a default off it and made the
+     headline fix invisible; `E.stakeFor` asks whether the card has a live stake instead.
+     C3 BELOW KEEPS THE NARROWNESS HALF C2 USED TO CARRY. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C2: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C2 · a board where the shield about to break is the RIVAL\'s');
+    await stagePierce(p);
+    await leadAces(p);
+    const up = await until(() => p.evaluate(() => !!document.getElementById('respDecline')));
+    ok(up, 'C2 · THE OVERRIDE FIRES FOR THE STRIKER — `resolution` is unticked and the window opens anyway, because a shield is about to break and Armor Piercing changes it' +
+       (up ? '' : '  ← no Respond? window; the strike landed at 1 and the preference decided it'));
+    const offered = await quickBtns(p);
+    ok(offered.some(t => /Armor Piercing/i.test(t)),
+       'C2 · …offering the card that forced it' + (offered.length ? '  [' + offered.join(' | ').slice(0, 80) + ']' : '  ← no Quick buttons at all'));
+    const led = await p.evaluate(() => window.__solo.prioLog());
+    const line = led.filter(l => /window SHOWN to you/.test(l) && /\[resolution\]/.test(l))[0];
+    ok(!!line && /Armor Piercing/.test(line),
+       'C2 · …and the ledger records it AT RESOLUTION, naming it' +
+       (line ? '  [' + line.slice(0, 110) + ']' : '  ← no [resolution] window-shown line'));
+    await p.close(); }
+
+  // ------------------------------------------------- C3 · AND IT IS STILL NARROW
+  /* AN OVERRIDE THAT QUIETLY BECAME "ALWAYS PROMPT AT RESOLUTION" WOULD PASS C AND C2 AND BE WORTHLESS.
+     This is the same winning board with the extra strip ALREADY BANKED, so casting Armor Piercing would
+     add nothing — `applyRoundLossBody` consumes `finishingBlow` and it does not stack. Both halves of
+     the condition are false while every other fact about the board is identical, which is the only shape
+     that separates "the override is gated" from "the override is on".
+     It also re-homes the assertion C2 used to carry: a SUPPRESSED prompt stays legible in a saved log. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C3: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C3 · a board where the extra strip is already banked');
+    await stagePierce(p);
+    const banked = await p.evaluate(() => {
+      const st = window.__solo.st(); st.players[0].finishingBlow = true; return !!st.players[0].finishingBlow;
+    });
+    ok(banked, 'C3 · staged — the extra strip is already banked, so the card has nothing left to change');
+    await leadAces(p);
+    const done = await until(() => p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; }));
+    ok(done, 'C3 · the round resolved with no modal to answer — nothing forced a prompt');
+    const led = await p.evaluate(() => window.__solo.prioLog());
+    const off = led.filter(l => /\[resolution\]/.test(l) && /PROMPT OFF/.test(l) && /Armor Piercing/.test(l))[0];
+    ok(!!off,
+       'C3 · …and the ledger records the suppressed prompt AT RESOLUTION by name' +
+       (off ? '  [' + off.slice(0, 110) + ']'
+            : '  ← no [resolution] PROMPT OFF line  {' + led.filter(l => /resolution/.test(l)).join(' // ').slice(0, 160) + '}'));
+    const forced = led.filter(l => /SHIELD AT RISK/.test(l))[0];
+    ok(!forced,
+       'C3 · …and NOTHING was forced — the override really is gated on the card still mattering' +
+       (forced ? '  ← REPRODUCED: it fired with the strip already banked  [' + forced.slice(0, 90) + ']' : ''));
+    await p.close(); }
+
+  // ------------------------------------------------- C4 · OFF SUPPRESSES A FORCED PROMPT
+  /* THE ONE PLACE A PLAYER MAY KNOWINGLY DECLINE A STAKE (Aj, 2026-09-24, from Master Duel: *"OFF turns
+     all the notifs off even when effects will have stakes"*). It deliberately inverts the guarantee C
+     asserts, and the justification is the DIFFERENCE IN ACT: C protects against a buried per-card default
+     costing you a shield you never knowingly declined; this is a visible, global, one-tap mode saying
+     "I know, do not stop me".
+     IT IS THE EXACT TWIN OF C — same `stageKick`, same unticked card, same lethal board — so the pair
+     isolates the mode and nothing else. Without C above it, a green run here would be equally true of a
+     build where no window ever opens. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C4: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C4 · a board for the suppressed prompt');
+    await stageKick(p, false);
+    await p.evaluate(() => { window.__solo.setPromptMode('off'); });
+    ok(await p.evaluate(() => window.__solo.promptMode()) === 'off', 'C4 · staged — notifications are OFF');
+    await clearTransition(p);
+    await clickPass(p);
+    /* POLL FOR THE GAME ENDING, NOT FOR "NO MODAL". A negative asserted after a fixed wait is the shape
+       this repo has been burned by: it passes on a build where the board never got as far as the window. */
+    const died = await until(() => p.evaluate(() => !!window.__solo.st().finished));
+    ok(died, 'C4 · the kick LANDED — OFF let the shield break with the answer in hand' +
+       (died ? '' : '  ← the game did not end; the board may never have reached resolution'));
+    const up = await p.evaluate(() => !!document.getElementById('respDecline'));
+    ok(!up, 'C4 · …and no window ever opened, though C proves this very board forces one on AUTO' +
+       (up ? '  ← REPRODUCED: OFF did not reach `shieldSaveOverride`' : ''));
+    /* THE CONDITION THAT MAKES OFF DEFENSIBLE AT ALL. Silent is fine; unexplainable is not — a saved log
+       has to say the toggle did this, or the next reader hunts a card-reader checkbox that is not the
+       cause. This is the assertion to keep if any of C4's others are ever dropped. */
+    const led = await p.evaluate(() => window.__solo.prioLog());
+    const line = led.filter(l => /NOTIFICATIONS OFF/.test(l))[0];
+    ok(!!line && /Sanctuary/.test(line),
+       'C4 · …and the ledger NAMES THE MODE and the card it cost you' +
+       (line ? '  [' + line.slice(0, 110) + ']' : '  ← no NOTIFICATIONS OFF line; a log cannot explain a prompt that never fired'));
+    /* ── THE LEDGER'S OWN PHASE NAME (Aj's two-device log, 2026-09-29) ──
+       Step 23 renamed the phase to RESOLUTION and this line was the last place in the ledger still saying
+       `FIGHT END`, sitting beside timing labels that already read `[resolution]` — one file printing two
+       names for one phase, found by reading a real saved log rather than by any suite. Nothing asserted
+       the string in either direction, which is why it survived three steps. Assert BOTH ways: the new
+       name present AND the old one absent, or a build that emits both would pass. */
+    const resolvedLines = led.filter(l => /round resolved/.test(l));
+    ok(resolvedLines.length > 0 && resolvedLines.every(l => /RESOLUTION — round resolved/.test(l)) &&
+       !led.some(l => /FIGHT END/.test(l)),
+       'C4 · …and the ledger calls the phase RESOLUTION, the name the game has used since step 23' +
+       (resolvedLines.length ? '  [' + resolvedLines[0].slice(0, 70) + ']' : '  ← no round-resolved line at all; this assertion is vacuous'));
+    /* AND THE VISIBLE LOG SAYS IT TOO (Aj, 2026-09-24). The ledger is download-only by design, so without
+       this a player never learns in-game what their own setting just did. Asserted on the RENDERED log,
+       not on `fullLog`, because the entry has to actually reach the panel a player reads. */
+    const shown = await p.evaluate(() => [].map.call(document.querySelectorAll('#log .le'), e => e.textContent.trim())
+                                            .filter(t => /Notifications are off/i.test(t))[0] || '');
+    ok(!!shown && /Sanctuary/.test(shown),
+       'C4 · …and the BATTLE LOG says a stake was skipped, naming the card' +
+       (shown ? '  ["' + shown.slice(0, 80) + '"]' : '  ← nothing visible; only a saved file would explain the lost shield'));
+    /* IT MUST NOT CLAIM AN OUTCOME. The window is skipped before the loss resolves, and a stake is not
+       always a loss — Armor Piercing's is a shield you are about to TAKE — so a "you lost" phrasing would
+       be wrong in a case this very suite stages two scenarios below. */
+    ok(!/lost|lose/i.test(shown), 'C4 · …and claims no outcome it has not seen yet' + (/lost|lose/i.test(shown) ? '  ← ' + shown.slice(0, 70) : ''));
+    await p.close(); }
+
+  // ------------------------------------------------- C5 · ON OVERRIDES A CARD YOU SILENCED
+  /* THE OTHER END. ON means "all the notifs on", so it has to beat a per-card untick — otherwise a card
+     silenced months ago stays silent in the mode whose whole point is that nothing is.
+     THE STAGING IS C3's — you WIN the round holding a Quick with no stake in the strike — precisely
+     because `stakeFor` refuses it there. So the window cannot be forced, the checkbox is off, and ON is
+     the only thing left that could open it. C3 is the AUTO half of the pair. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C5: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C5 · a board where nothing forces a prompt');
+    await stagePierce(p);
+    const staged = await p.evaluate(() => {
+      window.__solo.setPromptMode('on');
+      return window.__solo.promptMode();
+    });
+    ok(staged === 'on', 'C5 · staged — Armor Piercing is unticked at `resolution` and notifications are ON');
+    await leadAces(p);
+    const up = await until(() => p.evaluate(() => !!document.getElementById('respDecline')));
+    ok(up, 'C5 · the window opens ANYWAY — ON beats the per-card untick' +
+       (up ? '' : '  ← REPRODUCED: an untick survived the mode whose point is that nothing is silenced'));
+    await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d) d.click(); });
+    await p.close(); }
+
+  // ------------------------------------------------- C6 · THE CONTROL CYCLES AND REMEMBERS
+  /* THE MODEL IS WORTH NOTHING IF THE BUTTON CANNOT REACH IT, and a preference that forgets itself is a
+     preference nobody sets twice. Asserted through the REAL control rather than `setPromptMode`, which is
+     the same reason `nettest_autopass` leg 2b clicks `#respDecline` instead of sending the intent. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C6: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C6 · a board for the control');
+    const seen = await p.evaluate(() => {
+      const btn = document.getElementById('promptMode'), out = [window.__solo.promptMode()];
+      for (let i = 0; i < 3; i++) { btn.click(); out.push(window.__solo.promptMode()); }
+      return { cycle: out, label: btn.querySelector('span') ? btn.querySelector('span').textContent : '(no label)' };
+    });
+    ok(seen.cycle.join('>') === 'auto>off>on>auto',
+       `C6 · the button cycles auto → off → on → auto  [${seen.cycle.join(' > ')}]`);
+    /* THE LABEL IS ITS OWN ASSERTION because the renderer wiped it once already: a leftover
+       `b.textContent = …` from the first stub deleted the <span> on every paint, and the button rendered
+       one flat text node for three rounds of CSS work before anyone measured it. */
+    ok(seen.label === 'AUTO', `C6 · …and the label survives the render  [${seen.label}]`);
+    await p.evaluate(() => { document.getElementById('promptMode').click(); });   // -> off
+    await p.reload(); await wait(600);
+    ok(await p.evaluate(() => window.__solo.promptMode()) === 'off', 'C6 · …and the choice survives a reload');
+    await p.evaluate(() => { window.__solo.setPromptMode('auto'); });             // leave the store as we found it
+    await p.close(); }
+
+  // ------------------------------------------------- C7 · AND OFF STAYS QUIET WHEN NOTHING IS AT STAKE
+  /* THE NEGATIVE THAT PROTECTS THE POINT OF OFF. The visible line C4 asserts is written on a SUPPRESSED
+     STAKE; fired on every auto-pass instead it would flood the log of the one mode a player chose for
+     quiet, and each message would be about a window where nothing was ever at risk.
+     SAME BOARD AS C3 — you win, the extra strip is already banked, so `stakeFor` refuses — with the mode
+     set to OFF. The ledger must still record the auto-pass (a diagnostic never goes quiet); the battle
+     log must not. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C7: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C7 · a board where nothing is at stake');
+    await stagePierce(p);
+    const ready = await p.evaluate(() => {
+      window.__solo.setPromptMode('off');
+      const st = window.__solo.st(); st.players[0].finishingBlow = true;
+      return window.__solo.promptMode() === 'off' && !!st.players[0].finishingBlow;
+    });
+    ok(ready, 'C7 · staged — notifications OFF and the extra strip already banked, so the card changes nothing');
+    await leadAces(p);
+    const done = await until(() => p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; }));
+    ok(done, 'C7 · the round resolved');
+    const shown = await p.evaluate(() => [].map.call(document.querySelectorAll('#log .le'), e => e.textContent.trim())
+                                            .filter(t => /Notifications are off/i.test(t)));
+    ok(shown.length === 0,
+       'C7 · …and the battle log stayed SILENT — the line is for a suppressed stake, not for every auto-pass' +
+       (shown.length ? `  ← ${shown.length} line(s) on a board with nothing at risk: "${shown[0].slice(0, 70)}"` : ''));
+    /* THE DIAGNOSTIC DOES NOT GO QUIET WITH IT. Without this, a build that simply stopped recording
+       auto-passes would pass the assertion above, and the ledger is what makes OFF defensible. */
+    const led = await p.evaluate(() => window.__solo.prioLog());
+    const noted = led.filter(l => /\[resolution\]/.test(l) && /AUTO-PASSED/.test(l))[0];
+    ok(!!noted, 'C7 · …while the LEDGER still records the auto-pass' +
+       (noted ? '  [' + noted.slice(0, 100) + ']' : '  ← the ledger went quiet too; silence is not the same as nothing happened'));
+    await p.evaluate(() => { window.__solo.setPromptMode('auto'); });
+    await p.close(); }
+
+  // ------------------------------------------------- C8 · AUTO DOES NOT STOP YOU FOR YOUR OWN CAST
+  /* Aj met this in a real game: the Respond? modal offered him Counter Spell against his own Infuse with
+     Magic. *"on auto, you should not have a stake to counter your own spells … this is entirely
+     appropriate in ON, but not in Auto"*.
+     BEING ABLE TO IS THE RULE AND IS NOT WHAT CHANGED. `nextPrioHolder` starts the go-round at the
+     CONTROLLER by design (epic step 6), which is what holding priority means — so ON must still offer it.
+     Only the INTERRUPTION was wrong, in the mode whose promise is "stop me when I have a stake".
+     IT IS A BOTH-WAYS PAIR ON ONE BOARD, because "no modal appeared" is equally true of a staging where
+     nothing was ever castable. The ON half proves the very same cast still opens a window. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C8: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C8 · a board to cast on');
+    const staged = await p.evaluate(() => {
+      const st = window.__solo.st();
+      const C = (r, s, t) => ({ rank: r, suit: s, id: (t || '') + r + s });
+      const you = st.players[0], riv = st.players[1];
+      you.shields = 3; riv.shields = 3;
+      you.hand = [C(5, 'D', 'infuse'), C(4, 'D', 'ctr'), C(9, 'C', 'x')];   // ♦5 to cast, ♦4 Counter Spell to answer with
+      you.energy = []; for (let i = 0; i < 13; i++) you.energy.push(C(3, 'D', 'e' + i));
+      you.forms = []; riv.hand = []; riv.energy = [];                        // the Rival can add nothing, so priority is ours alone
+      st.round = 3; st.turn = 0; st.passes = 0; st.pile = null; st.lastPlayer = null; st.preFightHandled = true;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null;
+      window.__solo.setPromptMode('auto');
+      window.__solo.render();
+      return window.__solo.promptMode();
+    });
+    ok(staged === 'auto', 'C8 · staged — AUTO, holding a Technique to cast and a Counter Spell to answer with');
+    const cast = () => p.evaluate(() => {
+      const clr = document.getElementById('clearBtn'); if (clr && !clr.disabled) clr.click();
+      const c = document.querySelector('#hand .card[data-id="infuse5D"]'); if (!c) return 'gone';
+      c.click();
+      const ca = document.getElementById('cardActivate'), cx = document.getElementById('ctxBtn');
+      if (ca && ca.offsetParent !== null && !ca.disabled && !/off/.test(ca.className)) { ca.click(); return 'icon'; }
+      if (cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
+      return 'not offerable';
+    });
+    let how = null;
+    await until(async () => { how = await cast(); return how === 'icon' || how === 'ctx'; }, 40);
+    ok(how === 'icon' || how === 'ctx', `C8 · you cast it (via ${how})`);
+    await wait(1200);
+    const stopped = await p.evaluate(() => !!document.getElementById('respDecline'));
+    ok(!stopped, 'C8 · AUTO did NOT stop you to answer your own cast' +
+       (stopped ? '  ← REPRODUCED: a modal on every Technique you play, asking whether to counter yourself' : ''));
+    await p.close(); }
+
+  // ------------------------------------------------- C8b · …AND ON STILL DOES
+  /* THE HALF THAT KEEPS C8 HONEST. Without it, deleting the window entirely — or staging a board where
+     nothing could ever be cast in response — passes C8 perfectly. Same board, same cast, mode ON. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('C8b: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'C8b · the same board on ON');
+    await p.evaluate(() => {
+      const st = window.__solo.st();
+      const C = (r, s, t) => ({ rank: r, suit: s, id: (t || '') + r + s });
+      const you = st.players[0], riv = st.players[1];
+      you.shields = 3; riv.shields = 3;
+      you.hand = [C(5, 'D', 'infuse'), C(4, 'D', 'ctr'), C(9, 'C', 'x')];
+      you.energy = []; for (let i = 0; i < 13; i++) you.energy.push(C(3, 'D', 'e' + i));
+      you.forms = []; riv.hand = []; riv.energy = [];
+      st.round = 3; st.turn = 0; st.passes = 0; st.pile = null; st.lastPlayer = null; st.preFightHandled = true;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null;
+      window.__solo.setPromptMode('on');
+      window.__solo.render();
+    });
+    let how2 = null;
+    const cast2 = () => p.evaluate(() => {
+      const clr = document.getElementById('clearBtn'); if (clr && !clr.disabled) clr.click();
+      const c = document.querySelector('#hand .card[data-id="infuse5D"]'); if (!c) return 'gone';
+      c.click();
+      const ca = document.getElementById('cardActivate'), cx = document.getElementById('ctxBtn');
+      if (ca && ca.offsetParent !== null && !ca.disabled && !/off/.test(ca.className)) { ca.click(); return 'icon'; }
+      if (cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent || '')) { cx.click(); return 'ctx'; }
+      return 'not offerable';
+    });
+    await until(async () => { how2 = await cast2(); return how2 === 'icon' || how2 === 'ctx'; }, 40);
+    ok(how2 === 'icon' || how2 === 'ctx', `C8b · the same cast, on ON (via ${how2})`);
+    const up = await until(() => p.evaluate(() => !!document.getElementById('respDecline')), 40);
+    ok(up, 'C8b · ON DOES stop you — holding priority over your own cast is the rule, and ON is where it shows' +
+       (up ? '' : '  ← C8 would be passing because the window is gone, not because AUTO is quiet'));
+    await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d) d.click(); window.__solo.setPromptMode('auto'); });
+    await p.close(); }
+
+  // ------------------------------------------------- D · AN UNCHECKED CARD IS STILL CASTABLE
+  /* THE HALF AJ ASKED FOR, and the one no suite covered: *"players can really look at all their cards and
+     decide which effects to activate."* One filter was answering two questions — should this window stop
+     me, and what may I play once stopped — so unchecking a card made it UNCASTABLE, a capability gate
+     wearing a notification's clothes. You could be stopped by card X and find card Y missing from the
+     window even though the engine says it is legal.
+     STAGED WITH TWO QUICKS AND ONE OF THEM SILENCED, which is the only shape that can tell the two apart:
+     the window must still open (Leyline stopped you) AND Sanctuary must still be on offer (the rules say
+     it is legal). With the old behaviour the window opens and Sanctuary is simply absent — every
+     one-sided version of this test passes on that build. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('D: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'D · a board for the two-Quick case');
+    const st = await p.evaluate(() => {
+      const st = window.__solo.st(), E = window.CardmenEngine;
+      const C = (r, s, t) => ({ rank: r, suit: s, id: (t || '') + r + s });
+      const you = st.players[0], riv = st.players[1];
+      you.shields = 2; riv.shields = 4;
+      /* Leyline is the ♦9, NOT the ♥9 — the Cleric block swaps 9/10 so ♥9 is Holy Shroud and ♥10 is
+         Sanctuary. Measured; the first draft of this scenario guessed ♥9 and staged a card that is not a
+         Quick at all, which made the window fail to open for a reason that had nothing to do with the
+         claim. Costs need their OWN suit's pips, so the energy is mixed. */
+      you.hand = [C(10, 'H', 'sanc'), C(9, 'D', 'ley')];    // Sanctuary (Quick via Hector) + Leyline (Quick at base)
+      you.energy = [];
+      for (let i = 0; i < 12; i++) you.energy.push(C(3, 'H', 'eh' + i));
+      for (let i = 0; i < 12; i++) you.energy.push(C(3, 'D', 'ed' + i));
+      you.forms = [C(13, 'H', 'hector')];
+      riv.hand = []; riv.energy = [];
+      st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = 1; st.preFightHandled = true;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
+      st.pile = { p: 1, byPlayer: 1, combo: { type: 'pair', size: 2, value: 9, key: [9], cards: [C(9, 'C', 'x'), C(9, 'S', 'y')] } };
+      window.__solo.render();
+      return { eligible: E.eligibleQuicks ? null : null,
+               sancQuick: !!(E.effectFor(st, 0, you.hand[0]) || {}).quick,
+               leyQuick: !!(E.effectFor(st, 0, you.hand[1]) || {}).quick };
+    });
+    ok(st.sancQuick && st.leyQuick, `D · staged — both cards are legal Quicks here (Sanctuary ${st.sancQuick}, Leyline ${st.leyQuick})`);
+    await clearTransition(p);
+    await clickPass(p);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
+    ok(await until(async () => !!(await modalText(p))), 'D · the window still opens — the un-silenced card stopped you');
+    const offered = await quickBtns(p);
+    ok(offered.some(t => /Leyline/i.test(t)), 'D · …and Leyline, the card that stopped you, is offered');
+    ok(offered.some(t => /Sanctuary/i.test(t)),
+       'D · …AND THE SILENCED CARD IS STILL ON OFFER — the checkbox is notification, not capability' +
+       (offered.some(t => /Sanctuary/i.test(t)) ? '' : '  ← unchecking made it unplayable; the offer list is being filtered by the prompt preference again  [' + offered.join(' | ').slice(0, 80) + ']'));
+    await p.close(); }
+
+  // ------------------------------------------------- F · THE WINDOW SHOWS THE WHOLE STACK
+  /* THE BOARD'S STACK VIEW IS BEHIND THE MODAL, so the one moment a player most needs to read the stack —
+     being asked for priority — was the one moment it was covered. `#stackView` renders into the board and
+     `.overlay` sits above it; the modal named only the TOP object, via `respIncoming`.
+     ONE OBJECT CANNOT TEST THIS. At depth 1 `respIncoming` already names the only thing there, so a
+     one-deep assertion passes on the old build — which is why this scenario pays to reach depth 2 through
+     the real flow rather than staging `st.stack` directly. Since epic step 6 you keep priority after your
+     own cast, so two casts into your own window is the honest way there, and it is exactly the shape the
+     entry described: a chain where "the object beneath me" has stopped being unambiguous.
+     THREE QUICKS, because the third is what keeps the window open at depth 2 — with two the stack reaches
+     depth 2 and the window closes before anyone could read it. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('F: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'F · a board for the stack-depth case');
+    await p.evaluate(() => {
+      const st = window.__solo.st();
+      const C = (r, s, t) => ({ rank: r, suit: s, id: (t || '') + r + s });
+      const you = st.players[0], riv = st.players[1];
+      you.shields = 2; riv.shields = 4;
+      you.hand = [C(9, 'D', 'ley'), C(10, 'H', 'sanc'), C(4, 'D', 'cs')];   // Leyline · Sanctuary (Quick via Hector) · Counter Spell
+      you.energy = [];
+      for (let i = 0; i < 14; i++) you.energy.push(C(3, 'H', 'eh' + i));
+      for (let i = 0; i < 14; i++) you.energy.push(C(3, 'D', 'ed' + i));
+      you.forms = [C(13, 'H', 'hector')];
+      riv.hand = []; riv.energy = [];
+      st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = 1; st.preFightHandled = true;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
+      st.pile = { p: 1, byPlayer: 1, combo: { type: 'pair', size: 2, value: 9, key: [9], cards: [C(9, 'C', 'x'), C(9, 'S', 'y')] } };
+      window.__solo.render();
+    });
+    await clearTransition(p);
+    await clickPass(p);
+    ok(await until(async () => !!(await modalText(p))), 'F · the resolution window opens');
+    /* Click by NAME, not by index — the offer list is ordered by hand order and a reorder would silently
+       cast the wrong card while every assertion below still passed. */
+    const castByName = async (re) => p.evaluate((src) => {
+      const b = [].slice.call(document.querySelectorAll('.respQuick')).filter(x => new RegExp(src, 'i').test(x.textContent))[0];
+      if (b) { b.click(); return true; } return false;
+    }, re);
+    /* A RED RUN HERE MUST EXPLAIN ITSELF. The first draft asserted "depth >= 2" and reported only that it
+       was not, which is indistinguishable between "the click missed", "the cast was refused" and "the
+       object resolved before the next window opened" — three different bugs. `snap` is sampled after every
+       step and printed by whichever assertion fails. */
+    const snap = async (tag) => p.evaluate((t) => { const st = window.__solo.st();
+      return t + '{depth ' + (st.stack || []).filter(o => o.kind === 'effect').length + ' respondFor ' + st.respondFor + ' hand ' + st.players[0].hand.length + '}';
+    }, tag);
+    const trail = [await snap('open') + ' offers[' + (await quickBtns(p)).map(t => t.split(' ')[0]).join('|') + ']'];
+    ok(await castByName('Leyline'), 'F · cast Leyline into your own window (step 6: you keep priority)');
+    await until(async () => (await p.evaluate(() => (window.__solo.st().stack || []).filter(o => o.kind === 'effect').length)) >= 1);
+    await until(async () => !!(await modalText(p)));
+    trail.push(await snap('+ley') + ' offers[' + (await quickBtns(p)).map(t => t.split(' ')[0]).join('|') + ']');
+    ok(await castByName('Counter'),
+       'F · …the window re-opens and you answer your own Leyline with Counter Spell');
+    const deep = await until(async () => (await p.evaluate(() => (window.__solo.st().stack || []).filter(o => o.kind === 'effect').length)) >= 2);
+    trail.push(await snap('+sanc'));
+    ok(deep, 'F · …so the stack is now 2 deep — "the object beneath me" is no longer unambiguous  ' + trail.join(' → '));
+    ok(await until(async () => !!(await modalText(p))), 'F · …and the window re-opens a third time, with Counter Spell still to answer with');
+    /* READ THE STACK ROW, NOT THE MODAL. The first version tested the whole `modalText` for both card
+       names and PASSED VACUOUSLY: every card still in hand is printed on its own offer button, so
+       "Sanctuary" was in the text because it was on offer, not because it was on the stack. The same
+       mistake `nettest_priosig` records one file over — it matched /Rival/ against the whole modal and a
+       mutant survived inside `tableContextHTML`. Scope the read to the element under test. */
+    const stackRow = await p.evaluate(() => { const r = document.querySelector('#modal .ctxStack');
+      return r ? (r.textContent || '').replace(/\s+/g, ' ').trim() : null; });
+    ok(stackRow !== null,
+       'F · THE WINDOW SHOWS THE STACK — the board\'s #stackView is behind the overlay, so this is the only copy the player can read' +
+       (stackRow !== null ? '' : '  ← REPRODUCED: no stack row in the window; only the top object is named, via respIncoming'));
+    ok(!!stackRow && /Leyline/i.test(stackRow) && /Counter Spell/i.test(stackRow),
+       'F · …and the ROW itself names BOTH objects, top and bottom: "' + (stackRow || '(absent)') + '"');
+    /* AND IT READS AS ENGLISH TO THE PERSON IT NAMES. Putting the stack in the modal is what exposed this:
+       the pending-loss line took its number from the TARGET COUNT, so one target named "You" produced
+       **"You loses a shield"** — the agreement bug this repo has shipped four times, in a RENDERER rather
+       than a `say()` template, which is why `nettest_narrate`'s static scan cannot see it (that scan reads
+       `say(` call sites). Asserted here because this is the suite that put the line on screen. */
+    ok(!!stackRow && !/You (loses|is|has|moves)\b/.test(stackRow),
+       'F · …and the pending-loss line agrees with the reader it names — no "You loses a shield"' +
+       (/You loses/.test(stackRow || '') ? '  ← REPRODUCED: ' + stackRow : ''));
+    /* AND IT IS ABSENT WHEN THE STACK IS EMPTY, or the row is decoration rather than information — the
+       Main → Fight and end-of-round go-rounds both run on an empty stack, and an empty labelled box there
+       reads as something lost. The first window in this very scenario was one: depth 0. */
+    ok(/depth 0 /.test(trail[0]) && trail[0].indexOf('offers[') > 0,
+       'F · …and the FIRST window of this scenario ran on an empty stack — ' + trail[0]);
+    await p.close(); }
+
+  // ------------------------------------------------- E · ONE PASS RESOLVES ONE ROUND
+  /* THE ROUND RESOLVED TWICE IN TWO REAL DUELS, AND THE SECOND ONE KILLED A PLAYER (Aj, 2026-09-15/16:
+     *"i lost twice to the same play... not sure why it never cleared.. but also there was no beginning of
+     round"*, then *"pc player lost to the same play not clearing again"*). His ledger carries the shape:
+     two `MAIN → FIGHT [Pass]`, two clean-ups, two round-resolved entries, and a Fighter Kick off a pile that had
+     already been resolved once.
+     THE HOLE WAS AN UNGUARDED ASYNC HAND-OFF. `drainResolution` calls `settleWindows` — async — and was the
+     one such call that did not set `busy` first. A Pass whose transition AUTO-ADVANCED takes
+     `moveToPlayThen`'s `return proceed()` path, which never touches `busy` either, so control reached the
+     event loop with the board LIVE and a go-round open. A second Pass re-entered and drained the same
+     window again.
+     ⚠ THIS BLOCK DOES NOT REPRODUCE THAT BUG, AND SAYING SO IS THE POINT. A/B'd against the build without
+     the `busy` lock and it passes there too — staged both ways (window open at the transition, and Aj's
+     exact `auto-advanced` shape), two synchronous clicks resolve the round exactly ONCE either way,
+     because click 1 runs far enough to set `busy` before click 2 lands. Both of his logs are NETPLAY and
+     the doubling host's trace carries two client `decline` intents 70ms apart mid-drain, so the re-entry
+     comes over the WIRE. A netplay repro is still owed; see the BACKLOG.
+     WHAT IT IS WORTH KEEPING FOR is the invariant in its own name — ONE PASS RESOLVES ONE ROUND, asserted
+     on shields and on the ledger — which is cheap, is the player-visible statement of the defect, and
+     would catch the solo-reachable version of this shape the day somebody introduces it.
+     TWO CLICKS IN ONE TASK, not two polled presses: a helper that waits for the board settles the very
+     gap this is aiming at. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('E: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'E · a board for the double pass');
+    const st0 = await p.evaluate(() => {
+      const st = window.__solo.st();
+      const C = (r, s, t) => ({ rank: r, suit: s, id: (t || '') + r + s });
+      const you = st.players[0], riv = st.players[1];
+      you.shields = 2; riv.shields = 4;                       // 2, so "lost one" and "lost two" are different numbers
+      /* THE QUICK GOES TO THE RIVAL, AND THAT IS THE WHOLE STAGING TRICK. The window has to OPEN — with no
+         `r.resolution` the drain returns synchronously and there is no gap to race — but it must open for
+         a seat the AI answers, not for a human. Giving the struck player a Leyline does the opposite: it
+         IS a loss answer, so `shieldSaveOverride` forces a modal and the drain parks on it forever. The
+         first cut of this block did exactly that and resolved nothing. */
+      you.hand = [C(5, 'C', 'x'), C(6, 'C', 'y')]; you.energy = [];   // nothing castable → no prompt, forced or otherwise
+      riv.hand = [C(9, 'D', 'ley')];
+      riv.energy = []; for (let i = 0; i < 13; i++) riv.energy.push(C(3, 'D', 'f' + i));
+      st.round = 3; st.turn = 0; st.passes = 0; st.lastPlayer = 1;
+      st.pending = null; st.respondFor = null; st.stack = []; st.prioPassed = {}; st.resolution = null; st.resolutionResult = null;
+      st.pile = { p: 1, byPlayer: 1, combo: { type: 'pair', size: 2, value: 9, key: [9], cards: [C(9, 'C', 'a'), C(9, 'S', 'b')] } };
+      window.__solo.render();
+      return { shields: you.shields, round: st.round };
+    });
+    ok(st0.shields === 2 && st0.round === 3, `E · staged — you hold 2 shields in round ${st0.round}, and the rival's pair stands`);
+
+    await clearTransition(p);
+    /* BOTH CLICKS IN ONE `evaluate`, so the second lands inside the first's async chain. Polling helpers
+       (`clickPass`) are useless here by construction — they wait for exactly the state this bug leaves
+       behind, and would therefore never reproduce it. */
+    await p.evaluate(() => { const b = document.getElementById('passBtn'); b.click(); b.click(); });
+    await until(() => p.evaluate(() => { const st = window.__solo.st(); return st.round > 3 || st.finished; }));
+
+    const out = await p.evaluate(() => {
+      const st = window.__solo.st();
+      const led = window.__solo.prioLog();
+      return { shields: st.players[0].shields, round: st.round, finished: !!st.finished,
+               /* `RESOLUTION`, not `FIGHT END` — the ledger's phase name since 2026-09-29. This
+                  counter is a DOUBLE-RESOLUTION detector, so a stale pattern does not fail loudly:
+                  it silently counts ZERO and the suite reports the round resolving no times at all,
+                  which is what happened the moment the string changed. A detector that matches
+                  nothing is worse than one that is wrong. */
+               ends: led.filter(l => /RESOLUTION — round resolved/.test(l) && /^r3\b/.test(l)).length,
+               passes: led.filter(l => /MAIN → FIGHT/.test(l) && /\[Pass\]/.test(l) && /^r3\b/.test(l)).length };
+    });
+    ok(out.ends === 1,
+       `E · ROUND 3 RESOLVED EXACTLY ONCE (${out.ends} RESOLUTION entries)` +
+       (out.ends === 1 ? '' : '  ← REPRODUCED: the same pile resolved ' + out.ends + ' times off one round'));
+    ok(out.passes === 1,
+       `E · …and only one Pass reached the transition (${out.passes})` +
+       (out.passes === 1 ? '' : '  ← the second click got past the guard and re-entered moveToPlayThen'));
+    ok(out.shields === 1,
+       `E · …so you lost exactly ONE shield, 2 → ${out.shields}` +
+       (out.shields === 1 ? '' : '  ← REPRODUCED: one pile took two shields'));
+    ok(!out.finished, 'E · …and the duel is still alive — this is the shape that landed a Fighter Kick in a real game');
+    await p.close(); }
+
+  /* ═══ H — AN OWN-CAST AUTO-PASS MUST NOT BE FILED UNDER A CHECKBOX (Aj's two-device log, 2026-09-29) ═══
+     AUTO does not interrupt you to answer your OWN cast — a RULE (`promptWanted` returns false when the
+     top of the stack is yours), not a preference. The ledger reported it as `PROMPT OFF` and pointed the
+     reader at a card-reader row that would not have changed it; in Aj's game BOTH of the client's
+     `[respond]` auto-passes were its own casts and both were mislabelled that way.
+     ⚠ THE ASSERTION IS A PAIR, because "the line says YOUR OWN CAST" is also true of a build that says it
+     for everything. The same board must still produce an ordinary `PROMPT OFF` line for a BOUNDARY timing,
+     where no cast of yours is on the stack — so one run shows the label discriminating rather than
+     replacing. */
+  { const p = await b.newPage(); p.on('pageerror', e => errs.push('H: ' + e.message));
+    await p.goto(URL);
+    if (!await freshGame(p)) ok(false, 'H · board');
+    await p.evaluate(() => { window.__solo.setPromptMode('auto'); });
+    /* Cast a Technique of your own while holding an UNTARGETED Quick. ♦9 Leyline is the only untargeted
+       base Quick in the game, so it is the only card that is castable into a window with an empty stack —
+       the same staging fact `nettest_brake` rests on. ♦ energy, because Leyline costs 9. */
+    const staged = await p.evaluate(() => { const st = window.__solo.st(), mk = (r, su, t) => ({ rank: r, suit: su, id: t + r + su });
+      const you = st.players[0];
+      you.hand = [mk(1, 'D', 'tech'), mk(9, 'D', 'ley'), mk(6, 'C', 'x')];
+      you.energy = Array.from({ length: 14 }, (_, i) => mk(2, 'D', 'e' + i));
+      st.round = 3; st.turn = 0; st.subPhase = null; st.pile = null; st.lastPlayer = null; st.passes = 0;
+      window.__solo.render();
+      return you.hand.length === 3; });
+    ok(staged, 'H · staged — your turn in Main, a Technique to cast and ♦9 Leyline in hand');
+    const cast = await p.evaluate(() => { const c = document.querySelector('#hand .card[data-id="tech1D"]');
+      const g = c && c.closest('.group'); if (g) g.click();
+      const a = document.getElementById('cardActivate');
+      if (a && a.offsetParent !== null && !a.disabled && !/off/.test(a.className)) { a.click(); return true; }
+      const cb = document.getElementById('ctxBtn');
+      if (cb && !cb.disabled && !/off/.test(cb.className)) { cb.click(); return true; }
+      return false; });
+    ok(cast, 'H · you cast your own Technique — the go-round starts at the controller, which is you');
+    await wait(900);
+    /* NOW CROSS MAIN -> FIGHT THROUGH THE REAL BUTTON, which is what the discriminator needs: a boundary
+       window with no cast of yours on the stack. It has to be the BUTTON — `clearTransition` calls
+       `E.moveToPlay` directly and so never reaches the UI path that writes the ledger, which would leave
+       the assertion below failing for a staging reason and reading as a product one. */
+    await p.evaluate(() => { const d = document.getElementById('respDecline'); if (d && d.offsetParent !== null) d.click(); });
+    await wait(400);
+    await p.evaluate(() => { const f = document.getElementById('fightBtn'); if (f && !f.disabled) f.click(); });
+    await wait(1200);
+    const ledH = await p.evaluate(() => window.__solo.prioLog());
+    const own = ledH.filter(l => /\[respond\]/.test(l) && /YOUR OWN CAST/.test(l));
+    /* ⚠ `PROMPT OFF` AT `respond` IS LEGITIMATE SINCE THE DEFAULT WENT STAKE-DRIVEN (2026-09-30), and
+       forbidding it here was this suite pinning the PREVIOUS default — written the day before, when
+       `respond` prompted unconditionally so the only auto-pass that could occur there was an own cast.
+       Now a respond window with nothing at stake auto-passes too, and says so correctly. The CLAIM never
+       changed: the own-cast case must be labelled by the RULE and not by a checkbox. Assert that, and let
+       the discriminator below carry "and nothing else wears the label". */
+    ok(own.length > 0,
+       'H · THE LEDGER NAMES THE RULE, NOT A CHECKBOX — the respond auto-pass reads YOUR OWN CAST' +
+       (own.length ? '  [' + own[0].slice(0, 92) + ']' : '  ← REPRODUCED: filed under "PROMPT OFF"; the reader is sent to a row that cannot explain it'));
+    /* THE DISCRIMINATOR, and the first version of it asked for the wrong thing. It required a BOUNDARY
+       auto-pass reading `PROMPT OFF` on this board — but crossing Main -> Fight here OPENS a window and
+       shows it (`[respond] window SHOWN to you  offering: Leyline Ascension`), so the line it waited for
+       never existed and the red was my staging, not the label. Dumping the ledger said so in one run.
+       WHAT THIS RUN DOES CONTAIN is the sharper claim anyway: the go-round after the transition is NOT
+       my cast, and it must not wear the new label. So require the label to appear on the own-cast line
+       and NOWHERE ELSE — which is exactly "the label discriminates" rather than "the label exists". */
+    const strays = ledH.filter(l => /YOUR OWN CAST/.test(l) && !/\[respond\] auto-passed/.test(l));
+    /* THE VACUITY GUARD MOVED WITH THE DEFAULT TOO. It used to require a window SHOWN on this board, and
+       under a stake-driven default none opens here — the other card has no stake, so it is auto-passed
+       rather than offered. The guard's JOB is unchanged: prove the run contained another auto-pass that
+       correctly did NOT wear the label, so "appears only there" is a discrimination and not an accident
+       of there being nothing else to look at. */
+    /* ⚠ AND THE GUARD IS "THE RUN HAD OTHER LINES", NOT "THE RUN HAD ANOTHER AUTO-PASS" — the stronger
+       version was tried and is not constructible on this board. Under a stake-driven default the other
+       Quick has no stake, so it is auto-passed BEFORE anything is offered, and the boundary auto-passes
+       that would carry `PROMPT OFF` need an eligible card at a boundary this short scenario never reaches.
+       WHAT THIS ASSERTION IS FOR IS THE LABEL, and that is all it now claims: exactly one line wears it,
+       on a run that produced several. THE BOTH-WAYS FORM LIVES IN THE ENGINE — `test.js` asserts
+       `stakeFor`'s `respond` branch returns null for your own cast and non-null for a rival's, each with
+       a negative — so the rule is pinned there and the label is pinned here. Cross-referenced rather than
+       duplicated, because a second copy of a claim is the thing that rots. */
+    ok(strays.length === 0 && ledH.length > 1,
+       'H · …and the label appears ONLY there — it is on one line of a run that produced ' + ledH.length +
+       (strays.length ? '  ← stray: ' + strays[0].slice(0, 90)
+          : (ledH.length > 1 ? '' : '  ← a one-line ledger cannot discriminate; the claim is vacuous')));
+    await p.close(); }
+
+  ok(errs.length === 0, 'no JS errors' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
+  console.log('\n' + (fail ? 'FAILED — ' : '') + 'PASS: ' + pass + '  FAIL: ' + fail);
+  await b.close(); process.exit(fail ? 1 : 0);
+})().catch(e => { console.log('HARNESS ERROR: ' + e.message); process.exit(1); });

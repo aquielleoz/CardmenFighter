@@ -43,8 +43,20 @@ ok(NV.snapshotFor(g2, 2).prompt.kind === 'discard' && NV.snapshotFor(g2, 2).prom
 ok(!NV.snapshotFor(g2, 0).prompt || NV.snapshotFor(g2, 0).prompt.kind !== 'discard', 'prompt: discard not shown to others');
 g2.discardPending = null; g2.turn = 1;
 ok(NV.snapshotFor(g2, 1).prompt.kind === 'turn' && NV.snapshotFor(g2, 0).prompt === null, 'prompt: active seat=turn, others=null');
-g2.shieldResponse = { q: 0 };
-ok(NV.snapshotFor(g2, 0).prompt.kind === 'shieldGuard', 'prompt: shieldGuard takes priority');
+/* THE `shieldGuard` PROMPT IS GONE (epic step 19), AND THE REPLACEMENT ASSERTS THE REORDERING IT LEFT
+   BEHIND — which the step required be CHECKED rather than assumed. `shieldGuard` used to rank FIRST,
+   above `discard` and `preFight`, while `respond` ranks below both. Removing the top entry promotes
+   `discard`, and that is correct rather than accidental: a forced discard BLOCKS the table (`trimPending`
+   locks every other seat), whereas a priority window is answerable by several seats at once and
+   auto-passes anyone who cannot act. Asserted, because "it still returns something" would pass on any
+   ordering at all. */
+g2.discardPending = { player: 0, count: 1 }; g2.respondFor = 0;
+ok(NV.snapshotFor(g2, 0).prompt.kind === 'discard',
+   'prompt: a blocking discard outranks a priority window for the same seat');
+g2.discardPending = null;
+ok(NV.snapshotFor(g2, 0).prompt.kind === 'respond',
+   'prompt: …and with the discard gone that seat owes a respond — the window the guard branch used to hide');
+g2.respondFor = null;
 
 // ---- mirrorFor: full redacted, seat-rotated state for the client's render() ----
 var gm = E.newGame(null, { numPlayers: 2 });
@@ -99,24 +111,51 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   foe.energy = []; for (var i = 1; i <= 12; i++) foe.energy.push({ rank: i, suit: 'D', id: 'fe' + i });
   me.hand = [a, b, { rank: 5, suit: 'C', id: 'x' }];
   st.round = 3; st.turn = 0; st.pile = null; st.lastPlayer = null; st.passes = 0;
-  E.play(st, 0, [a, b]); E.pass(st, 1);                      // seat 1 must lose a shield and holds Leyline
+  /* DRAIN THE MAIN → PLAY TRANSITION FIRST (epic step 20). Seat 1 holds an affordable Leyline, so seat 0's
+     play now opens the transition go-round before it — `E.play` refuses with `transition:'play'` until
+     everyone has passed. That is the rules step working, not staging drift: this helper exists precisely
+     because a suite that skips it is testing a game nobody plays. */
+  function toPlay(st, seat) {
+    var r = E.play ? null : null;
+    E.moveToPlay(st);
+    var guard = 0; while (st.respondFor != null && guard++ < 12) E.declineResponse(st, st.respondFor);
+  }
+  toPlay(st, 0);
+  E.play(st, 0, [a, b]);
+  toPlay(st, 1);
+  E.pass(st, 1);                                             // seat 1 must lose a shield and holds Leyline
   /* NOT VACUOUS: without an OPEN window there is nothing to alias, and every assertion below would pass on
      the broken build. The staging is the half that matters. */
-  ok(!!st.shieldResponse && st.shieldResponse.q === 1, 'STAGED: a real round opened the shield-guard window on seat 1');
-  ok(!!st.roundWinResult && st.roundWinResult.state === st, '  → and the host result really does hold a back-reference to state');
+  /* THE SAME ROUND, THE NEW WINDOW (epic step 18, P5). This block used to stage the shield-GUARD window and
+     assert the mirror was safe with it open. Step 18 removed that window: the identical staging now opens
+     the Fight End GO-ROUND — seat 1 is offered priority because it holds an affordable Quick, rather than
+     being prompted about one whitelisted card — so the assertions move onto `resolution` and keep their job.
+     `roundWinResult` is no longer set at this point either: the outcomes have not run yet, because the
+     window comes BEFORE the sub-phase (§3). That is the switch working, not a lost assertion — its own
+     redaction is still checked in the loop below, which now proves it stays null rather than redacted. */
+  ok(!!st.resolution && st.respondFor === 1, 'STAGED: a real round opened the FIGHT END go-round, offering seat 1');
+  ok(st.resolution.winner === 0 && st.resolution.strikeTargets.join() === '1',
+     '  → and it carries who struck and who is struck, in ABSOLUTE seats (winner ' + st.resolution.winner + ', struck ' + st.resolution.strikeTargets.join() + ')');
 
   for (var seat = 0; seat < st.numPlayers; seat++) {
     var m = NV.mirrorFor(st, seat), serialised = null, threw = '';
     try { serialised = JSON.stringify(m); } catch (e) { threw = e.message.split('\n')[0]; }
     ok(serialised !== null, 'seat ' + seat + ': the mirror is JSON-serialisable with a window open' + (threw ? ' — THREW: ' + threw : ''));
-    ok(!m.shieldResponse || m.shieldResponse.result === undefined, 'seat ' + seat + ': the mirror does not carry the host result object');
+    ok(!('shieldResponse' in m),
+       'seat ' + seat + ': the mirror carries NO `shieldResponse` KEY at all (step 19 deleted the field)' +
+       (('shieldResponse' in m) ? '  ← the key is back; `!m.shieldResponse` would not have caught that' : ''));
     ok(m.roundWinResult === null, 'seat ' + seat + ': ceremony state stays host-only (the redaction is real, not aliased around)');
   }
   var m1 = NV.mirrorFor(st, 1);
-  ok(m1.shieldResponse.q === 0, 'the threatened seat reads itself as 0, like every other seat reference');
-  ok(m1.shieldResponse.guardId === 'ley', '  → and still learns WHICH card it may spring');
-  ok(m1.shieldResponse.obj && m1.shieldResponse.obj.source != null, '  → and what is threatening it (obj.source, the one field the modal reads)');
-  ok(m1.shieldResponse.obj.target === 0, '  → with the object\'s target ROTATED, not the absolute seat');
+  /* ROTATED, NOT REDACTED — the same rule the window itself carries (step 11, P3). §3 picks the target
+     BEFORE the window precisely so a defender can see the strike is aimed at them; a client that cannot
+     see who is struck cannot make the decision the window exists to offer. Seat 1 reads itself as 0. */
+  ok(m1.resolution && m1.resolution.strikeTargets.join() === '0',
+     'the struck seat reads ITSELF as 0, like every other seat reference');
+  ok(m1.resolution.winner === 1, '  → and the striker is rotated too (absolute 0 → 1 from seat 1)');
+  ok(m1.respondFor === 0, '  → and the seat that owes the answer is rotated to itself');
+  ok(m1.resolution.wonWithCombo === true && m1.resolution.winSize === 2,
+     '  → while the scalars travel as they are (a Special of size 2)');
   /* THE GENERAL FORM, so a future field cannot reintroduce it quietly: nothing anywhere in a mirror may be
      the host state or a player of it. Checked by identity over the whole tree, not by key name. */
   var hostObjs = [st].concat(st.players), bad = null;
@@ -193,7 +232,7 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   r.preFightQ = 2;
   r.trimPending = { player: 2, need: 1 };
   r.pendingLossChoice = { winner: 2, cands: [2], comboType: 'pair' };
-  r.shieldResponse = { q: 2, winner: 2, guardId: 'g1', roundWin: true, obj: { source: 'Pair', n: 1, target: 2 } };
+  r.resolution = { origin: 2, winner: 2, wonWithCombo: true, strikeTargets: [2], winSize: 2 };   // every member seat-valued except the two scalars
   r.stack = [{ oid: 1, kind: 'effect', p: 2, target: 2, winner: 2, n: 1, card: { rank: 9, suit: 'H', id: 's9H' }, eff: { id: 'x', kind: 'draw' }, opts: { target: 2 } }];
   r.respondFor = 2;
 
@@ -209,17 +248,49 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
   var perSeat = mirrors.map(function (m) { return leaves(m, '', {}); });
   var paths = {}; perSeat.forEach(function (L) { for (var k in L) paths[k] = 1; });
 
+  /* `prioPassed` IS REDACTED ON PURPOSE (epic step 5). It is keyed by ABSOLUTE seat, so shipping it
+     unrotated would hand every client a map whose keys mean something different at each seat — the exact
+     class of bug `rot()` exists for. Nothing on a client needs it either: `respondFor` already says whether
+     this seat owes an answer. Asserted rather than left to chance, because the natural "fix" for a missing
+     field is to add it to `mirrorFor`, and doing that without rotating is silent. */
+  (function () {
+    var gp = E.newGame(null, { numPlayers: 3 });
+    gp.prioPassed = { 0: true, 2: true };
+    var mp = NV.mirrorFor(gp, 1);
+    ok(!('prioPassed' in mp),
+       'prioPassed is NOT mirrored — it is absolute-seat-keyed and the client does not need it' +
+       (('prioPassed' in mp) ? '  ← it leaked; either rotate it or drop it, never ship it raw' : ''));
+  })();
+
+  /* AN OBJECTLESS PRIORITY WINDOW SURVIVES THE MIRROR (epic step 2). A Fight End go-round runs on an empty
+     stack, so `respondFor` is set and `pending` is null. `promptFor` used to require the OBJECT, which made
+     such a window read as "waiting on someone else" — the client would never know it owed an answer. */
+  (function () {
+    var gw = E.newGame(null, { numPlayers: 3 });
+    gw.pending = null; gw.respondFor = 2;
+    var mv = null, threw = null;
+    try { mv = NV.mirrorFor(gw, 1); } catch (ex) { threw = ex.message; }
+    ok(mv !== null, 'objectless window: mirrorFor survives a window with no object' + (threw ? '  ← ' + threw : ''));
+    ok(mv && mv.pending === null && mv.respondFor === (2 - 1 + 3) % 3,
+       'objectless window: the mirror carries a null object and a ROTATED holder');
+    var pr = NV.promptFor ? NV.promptFor(gw, 2) : null;
+    if (NV.promptFor) ok(pr && pr.kind === 'respond',
+       'objectless window: the seat is told it owes a RESPOND' + (pr && pr.kind === 'respond' ? '' : '  ← reads as "waiting on someone else", so nobody ever answers'));
+  })();
+
   /* DECLARED PUBLIC: a small-integer leaf that is legitimately the same for every seat. Short and reviewable
      BY DESIGN — that is the whole point of inverting the burden. A new key that is constant and unlisted
      fails this suite by name, and the reviewer answers one question: is it public, or did it forget to rotate? */
   var PUBLIC = {
-    'numPlayers': 1, 'round': 1, 'passes': 1, 'startShields': 1,
+    'numPlayers': 1, 'round': 1, 'passes': 1, 'startShields': 1, 'prioGen': 1,
+    'resolution.winSize': 1,   // the SIZE of the winning play, not a seat — constant for every reader
+
     'pile.mod': 1, 'pile.combo.size': 1,
-    'stack.0.n': 1, 'stack.0.oid': 1, 'shieldResponse.obj.n': 1
+    'stack.0.n': 1, 'stack.0.oid': 1   // `shieldResponse.obj.n` was here until step 19 deleted the field
   };
   function pub(p) {
     if (PUBLIC[p]) return true;
-    return /(^|\.)(shields|energyCount|handCount|deckCount|shuffleCount|removedCount|kicksLanded|counters|counter|rank|size|value|tier|mod|need|count|protectedRound|_effUsed|nextPlayBoost)$/.test(p)
+    return /(^|\.)(shields|energyCount|handCount|deckCount|shuffleCount|removedCount|kicksLanded|counters|counter|rank|size|value|tier|mod|need|count|protectedRound|_effUsed|nextPlayBoost|finishingBlow)$/.test(p)
         || /^players\.\d+\.(hand|deck|shuffle|removed|energy|forms|equipment)\./.test(p)
         || /(^|\.)key\.\d+$/.test(p);
   }

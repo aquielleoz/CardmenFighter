@@ -2,7 +2,8 @@
  * chosen target is already at 0 shields, so the strike is the FIGHTER KICK — that player is eliminated and the
  * remaining two continue. Verifies: the eliminated client sees itself OUT (mirror.eliminated), the game is NOT
  * finished (2 alive), the host keeps driving, and the survivors advance to the next round. Over BroadcastChannel. */
-const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const http=require('http'),fs=require('fs'),path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const autoAnswerWindows=require('./netwindows.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8303),ROOM='EL'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -14,9 +15,10 @@ const roundOf=p=>p.evaluate(()=>parseInt(((document.getElementById('roundTag')||
 const elimSelf=p=>p.evaluate(()=>window.__cmf?window.__cmf.eliminated(0):null);   // seat 0 = "me" on both host and (rotated) client state
 const finishedOf=p=>p.evaluate(()=>window.__cmf?window.__cmf.finished():null);    // reads live `state.finished` — works on host and client
 const ready=p=>p.evaluate(()=>{ var g=document.getElementById('lobbyGo'); if(g)g.click(); });
-const leadFirst=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card'); if(c)c.click(); var f=document.getElementById('fightBtn'); if(f)f.click(); });
-const leadCombo=(p,ids)=>p.evaluate(function(ids){ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); ids.forEach(function(id){ var c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click(); }); var f=document.getElementById('fightBtn'); if(f)f.click(); }, ids);
-const passT=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var b=document.getElementById('passBtn'); if(b)b.click(); });
+const leadFirst=p=>selectAndFight(p);                       // two-state button since epic step 20 — see fightclick.js
+const leadCombo=(p,ids)=>selectAndFight(p, ids);            // two-state button since epic step 20 — see fightclick.js
+const passT=async p=>{ await p.evaluate(()=>{ var c=document.getElementById('clearBtn'); if(c&&!c.disabled)c.click(); });
+                     return clickPass(p); };   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
 /* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll
  * that gave up used to be invisible and surfaced later as an unrelated assertion failing on a board that
  * was still mid-round-trip — the v1.31.9 waitTurnEnds bug, in the general case. A red run must explain
@@ -31,6 +33,11 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   const c1=await ctx.newPage(); c1.on('pageerror',e=>errs.push('c1: '+e.message));
   const c2=await ctx.newPage(); c2.on('pageerror',e=>errs.push('c2: '+e.message));
   await host.goto(url('host')); await c1.goto(url('join')); await c2.goto(url('join')); await host.waitForTimeout(1200);
+  /* ANSWER WINDOWS THIS SUITE DOES NOT SCRIPT — see `netwindows.js`. The duel suites get this from
+     `startDuel`; the 3-player ones hand-roll their lobby, so they install it themselves. Without it a
+     client seat offered priority at Fight End parks the host forever: `nettest_3p` hung 4 times in 8
+     runs the day the prompt default widened, against 8/8 on the build before it. */
+  await autoAnswerWindows(host,'host'); await autoAnswerWindows(c1,'c1'); await autoAnswerWindows(c2,'c2');
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
 
   await ready(c1); await wait(300); await ready(c2);
@@ -75,6 +82,29 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   await host.evaluate(()=>{ var el=document.querySelector('.oppPanel[data-seat="2"]'); if(el)el.click(); });
 
   ok(await waitFor(async()=>(await elimSelf(c2))===true, 80, 150),'the kicked client (c2) sees itself ELIMINATED in its mirror');
+
+  /* ⚠ AND THE KICK LINE MUST NAME THE SEAT THAT ACTUALLY DIED (2026-09-30). From Aj's 3-player log:
+     Rozalin was eliminated in r14, and the game-winning kick in r17 took out FLONNE — yet both lines read
+     *"it took Rozalin out!"*. A kick fires on a seat ALREADY at 0 shields, so nothing is stripped,
+     `res.struck` is `[]` (the ledger prints `struck=nobody`), and the victim fell through to
+     `[w===YOU?RIVAL:YOU]` — the DUEL constant, i.e. seat 1, whoever really died. It is the last line a
+     winner reads.
+     THIS SUITE IS THE RIGHT HOME AND SEAT 2 IS WHY: it already stages the exact scenario, and the seat it
+     kills is **2**. The broken fallback names seat 1, so a suite that kicked seat 1 would pass on it.
+     `res.eliminated` is set by the engine on the kill and `ceremonyResFor` already rotates it onto the
+     wire beside `struck`, so the fix reads a field both ends already have. */
+  const kickLine = await host.evaluate(()=>[].slice.call(document.querySelectorAll('#log .le'))
+    .map(function(e){ return e.textContent.trim(); }).filter(function(t){ return /FIGHTER KICK/.test(t); }).pop()||'');
+  ok(/took .* out/.test(kickLine), `the host narrated the kick  ["${kickLine.slice(0,84)}"]`);
+  /* ⚠ `defaultName(i)` IS "Rival N" WITH N = i+1, so SEAT 2 READS "Rival 3" — and seat 1, the one the
+     broken fallback named, reads "Rival 2". The first cut of this assertion looked for "Rival 2" and
+     reported the FIX as the bug; the off-by-one was mine, not the code's. Assert the victim's name AND
+     the absence of the foil's, because "names a rival" is true of both builds. */
+  ok(kickLine.indexOf('Rival 3')>=0,
+     `  …and it names SEAT 2 — "Rival 3" — the seat that actually died  ["${kickLine.slice(0,84)}"]` +
+     (kickLine.indexOf('Rival 3')>=0 ? '' : '  ← REPRODUCED: the duel fallback named the wrong seat'));
+  ok(kickLine.indexOf('Rival 2')<0,
+     '  …and NOT seat 1 ("Rival 2"), which the duel constant `[w===YOU?RIVAL:YOU]` would have named');
   ok(await waitFor(async()=>await c2.evaluate(()=>document.body.classList.contains('spectating'))),'c2 enters SPECTATOR mode (body.spectating) — keeps watching the live duel');
   ok(await c2.evaluate(()=>/[Ss]pectating/.test((document.getElementById('turnTag')||{}).textContent||'')),'c2 turn indicator reads "Spectating — …"');
   /* The header button must stop offering Concede once this seat is out — but ONLINE it reads "← Leave", not

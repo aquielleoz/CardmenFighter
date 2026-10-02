@@ -13,6 +13,12 @@ const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,100)); }
 async function until(fn,t=80,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
+/* A DELIBERATE NEGATIVE MUST NOT PRINT A TIMEOUT. `never()` is `until(...)===false` for the cases that
+   assert something NEVER appears — where the poll giving up IS the assertion passing. Without it the run
+   prints `⏱ poll TIMED OUT` on a green suite, which since 2026-09-24 the sweep surfaces in its warnings
+   section: an expected warning nobody can distinguish from a real one is how a section stops being read.
+   Keep the wait SHORT here — a negative pays its full budget every time, unlike a positive poll. */
+async function never(fn,t=10,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return false; await wait(ms); } return true; }
 
 const openRules=p=>p.evaluate(()=>{ const b=document.getElementById('lobbyRules'); if(b)b.click(); return !!b; });
 const closeRules=p=>p.evaluate(()=>{ const b=document.getElementById('ruleDone'); if(b)b.click(); });
@@ -118,7 +124,7 @@ const setName=(p,n)=>p.evaluate(n=>{ const i=document.getElementById('netName');
   await openRules(c2); await wait(400);
   ok(await until(async()=>{ const v=await votes(c2,'dblPair'); return !!(v&&v.length && /Non-consecutive/i.test(v.join(' '))); }),
      'and it can see ANOTHER seat\'s suggestion — a late joiner gets the whole map, not just changes since it arrived');
-  ok(await until(async()=>{ const v=await votes(host,'quadro'); return !!(v&&v.length); },10)===false,
+  ok(await never(async()=>{ const v=await votes(host,'quadro'); return !!(v&&v.length); }),
      'nothing is invented: a rule nobody suggested still carries no chip');
 
   /* Reader-relative, like every other name in this game. The host is never in the map — its picks are the

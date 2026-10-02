@@ -7,13 +7,22 @@
  * This drives a real 3-player game far enough for the opponents to act, then asserts the export would contain
  * them. Run: node exporttest.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
+const { installPageHelpers } = require('./fightclick');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
   const b=await chromium.launch(LAUNCH);
   const p=await (await b.newContext({viewport:{width:1400,height:1000}})).newPage();
+  /* A SHORT HELPER BUDGET, BECAUSE THIS LOOP'S GUARD COUNTS ITERATIONS AND NOT TIME (2026-09-11).
+     `stuck<160` assumes an unproductive pass is cheap. `__pressFight` waits its budget out whenever the
+     button stays DISABLED — the busy case it exists for — so on a board that stops advancing, 160 passes
+     at the 5s default is ~800s. Measured exactly that: two back-to-back runs of this suite came in at
+     14s and **750s**, which is a hang wearing a slowdown's clothes and is what has been killing it at
+     sweep.js's 300s cap. Nothing here is netplay, so 1.2s is ample patience for a solo board. */
+  await installPageHelpers(p, 1200);   // epic step 20: the two-state Fight button, for drivers that decide inside the page
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
+  let cappedByClock=false;   // set by the driver loop; reported on the SUMMARY line so a sweep can see it
 
   /* A FRESH 3-PLAYER GAME, and we may need more than one — see the retry below. */
   async function startGame(){
@@ -50,21 +59,26 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
    * lesson (`nettest_full`: "a transition used to burn budget") in a suite that predates the fix, and it is how
    * this went red once under `sweep.js -j 4` while passing 5/5 alone and 1/1 under deliberate load.
    * `stuck` resets on any progress, so a slow machine now takes MORE iterations rather than fewer rounds. */
+  /* AND A WALL CLOCK AS WELL AS A COUNT, the `nettest_sync` pattern: bound the thing that actually
+     runs away, and SAY SO rather than quietly testing less. */
+  const T0=Date.now(), BUDGET_MS=90000;
   for(let i=0, stuck=0, seen=''; i<900 && stuck<160; i++){
+    if(Date.now()-T0>BUDGET_MS){ cappedByClock=true; break; }
     const done=await p.evaluate(()=>{ const st=window.__solo.st(); return !st||st.finished; });
     if(done) break;
-    await p.evaluate(()=>{
+    await p.evaluate(async ()=>{
       const ov=document.getElementById('overlay');
       if(ov&&ov.classList.contains('show')){
         const d=document.getElementById('pfDecline')||document.getElementById('respDecline')||document.getElementById('revOk');
         if(d){ d.click(); return; }
       }
-      const pb=document.getElementById('passBtn'); if(pb&&!pb.disabled){ pb.click(); return; }
+      if(await window.__pressPass()) return;
       // holding the initiative means passing is illegal — lead the lowest card instead
       const clr=document.getElementById('clearBtn'); if(clr)clr.click();
       const c=document.querySelector('#hand .card'); if(c)c.click();
       const f=document.getElementById('fightBtn');
-      if(f&&!f.disabled){ f.click(); if(/Confirm/i.test(f.textContent||'') && !f.disabled) f.click(); }
+      if(f&&/Confirm/i.test(f.textContent||'')&&!f.disabled){ f.click(); return; }   // a pick confirms with this button
+      await window.__pressFight();
     });
     await wait(120);
     /* EXIT ON WHAT THE ASSERTIONS NEED, not on a round count. "Four rounds is plenty of opponent turns" is
@@ -82,6 +96,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     const sig=prog.round+'/'+prog.o1+'/'+prog.o2;
     if(sig===seen) stuck++; else { stuck=0; seen=sig; }     // progress resets the budget; only a wedged board spends it
   }
+  if(cappedByClock) console.log('   ⚠ driver stopped on the 90s WALL CLOCK — the board stopped advancing');
   return { round:0, o1:0, o2:0 };
   }
 
@@ -115,7 +130,59 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
      'and that merge is now HONEST — it sums the opponents instead of reporting zeros');
   ok(rec && rec.seats.every(x=>typeof x.seat==='number' && 'finalShields' in x), 'each seat entry carries its own seat number and final shields');
 
+  /* THE LOG IS THE WHOLE GAME, NOT THE LAST 80 LINES (2026-09-24). The record was built from
+     `$('log').children` — the RENDERED panel — and `logMsg` trims that to 80 entries, so any game longer
+     than that silently lost its EARLY rounds while `fullLog`, the uncapped history ⤓ Save already uses,
+     sat right beside it. Measured on Aj's real export: 7 of 19 games sat exactly at 80, including a
+     15-round 3-player game whose log began mid-round-8.
+     DRIVEN PAST THE CAP ON PURPOSE. At 80 lines exactly the two sources agree, so a shorter game cannot
+     tell them apart — the assertion has to push the history beyond the trim and then look for the START
+     of it, which is the part that was being thrown away. */
+  /* ---- EVERY SEAT'S DAMAGE IS COUNTED, NOT JUST THE FIRST TWO (2026-09-24) ----
+     The `shieldsLost` tally hung off `animateShields`' render diff, which runs for `YOU` always and for
+     `RIVAL` only in the DUEL branch — at 3+ players `renderOpponents()` draws opponent shields as a raw
+     HTML string with no diff at all. Seats 2-5 were never tallied. Measured on Aj's export: a 3-player
+     record with seat 2 on `shieldsLost: 0` and `finalShields: 0` from a start of four.
+     STAGED, NOT PLAYED. The first cut read the tally after the driver's own game and the board came out
+     4/4/4 — nobody had been hit, so the assertion passed having observed nothing, and only its control
+     caught that. Moving the shields by hand makes the claim exact and independent of how far the driver
+     got before its 90s cap.
+     SEAT 2 IS THE SUBJECT AND SEAT 0 IS THE CONTROL. Seats 0 and 1 were always counted — seat 1 by
+     accident, via a `revealShields()` call on a panel that is `display:none` here — so "some seat is
+     counted" would have passed on the broken build. The pair is what isolates the fix. */
+  /* ⚠ ABSOLUTE VALUES, NOT A CLAMPED SUBTRACTION — AND THE COMMENT ABOVE USED TO BE FALSE (2026-09-30).
+     It said "independent of how far the driver got", and the staging was
+     `shields = Math.max(1, shields - 2)`, which is exactly a dependence on how far the driver got: a seat
+     already on TWO shields clamps to 1 and the delta is 1, not 2. That is a 102/103 sweep reporting
+     `← REPRODUCED: every free-for-all record undercounts damage past the second seat` about a product
+     that is fine — the worst kind of red, because it names a specific defect and sends the next reader
+     after it. Three solo runs were 17/0; forcing seat 2 to two shields reproduces it every time.
+     Setting a known floor FIRST and taking the baseline AFTER absorbs the raise, so only the drop below
+     is counted and the deltas are exact whatever the board looks like. */
+  const dmg = await p.evaluate(()=>{
+    const st=window.__solo.st();
+    st.players[0].shields = 4; st.players[2].shields = 4;      // a KNOWN floor…
+    window.__solo.render();                                    // …absorbed into the baseline below
+    const before=(window.__solo.stats().seats||[]).map(s=>s.shieldsLost);
+    st.players[2].shields = 2;                                 // a seat PAST the second bleeds exactly 2…
+    st.players[0].shields = 3;                                 // …and the local seat exactly 1, the control
+    window.__solo.render();
+    const after=(window.__solo.stats().seats||[]).map(s=>s.shieldsLost);
+    return { d0:after[0]-before[0], d2:after[2]-before[2],
+             staged: st.players[0].shields===3 && st.players[2].shields===2,
+             seats: st.players.map(function(q){ return q.shields; }).join('/') };
+  });
+  /* STAGING THAT SILENTLY MISSES MAKES THE RUN PASS HAVING EXERCISED NOTHING — assert it landed. */
+  ok(dmg.staged, `the damage probe's staging landed (shields now ${dmg.seats})`);
+  ok(dmg.d0===1, `the local seat's damage is counted (+${dmg.d0}) — it always was, and is the control here`);
+  ok(dmg.d2===2,
+     `and SEAT 2's is too (+${dmg.d2}) — the seat no render diff ever reached` +
+     (dmg.d2===2 ? '' : '  ← REPRODUCED: every free-for-all record undercounts damage past the second seat'));
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
-  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
+  /* THE SUMMARY CARRIES THE CAP, because `sweep.js` prints only this line for a PASSING suite — a
+     warning anywhere else is invisible in a sweep, which is precisely where a shallower run needs to be
+     legible. `nettest_sync` set the pattern with its own `(TIME-CAPPED)`. */
+  console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail+(cappedByClock?'  (TIME-CAPPED — the driver stopped on its 90s clock)':''));
   await b.close(); process.exit(fail?1:0);
 })().catch(e=>{console.error('HARNESS ERROR',e);process.exit(2);});

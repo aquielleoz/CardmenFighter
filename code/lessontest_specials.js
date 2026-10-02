@@ -8,7 +8,7 @@ const { openLesson } = require('./lessonlib');
   const L=await openLesson('specials');
   const { p, ok, until, step, at, next, st, playAny } = L;
 
-  ok((await at()||{}).n===6,'6 steps');
+  ok((await at()||{}).n===7,'7 steps');   // 6 until 2026-09-17, when the payoff stopped being claimed at PLAY time
   await next();                                                   // "Show me" → the gated jab step
   ok((await at()||{}).i===2,'step 2 is the jab step');
   ok((await step()).spots>0,'…and it spotlights the hand and Fight');
@@ -29,14 +29,20 @@ const { openLesson } = require('./lessonlib');
   const spec=await L.playPair();
   ok(spec===null,'the pair was playable as a Special'+(spec?' — '+spec:''));
   ok(await L.atStep(4),'playing the Special advanced the lesson to step 4');
-  ok(/Shield broken/.test((await step()).text),'step 4 is the "Shield broken!" payoff');
-  /* The step CLAIMS a shield broke. The gate only requires that you PLAYED a Special, so this is a real and
-   * separate question — `tutRig` is the win-oriented rig, and if that ever stops holding the lesson lies. */
+  /* STEP 4 IS THE NEW ONE, AND IT IS THE POINT OF THE LESSON (2026-09-17). The payoff used to sit HERE and
+   * announce "Shield broken!" the instant the pair left your hand — gated on `t==='play'`, before the Rival
+   * had answered. If the pair lost, the lesson said the shield broke anyway. It now waits for the real
+   * strip (`TUT.note('shield')`, fired where the shield actually comes off), and its prep neuters the
+   * Rival's hand so a gated step can never be refused — a dead end being the cost of gating on an outcome. */
+  ok(/let the round finish|has to <b>win<\/b>/i.test((await step()).text),
+     'step 4 waits for the round to be WON, not merely for a Special to be played');
   ok(await until(()=>window.__solo.st().players[1].shields < 2,'the Rival loses a shield'),
-    '…and the Rival really did lose a shield, as the step claims');
+    '…and the Rival really did lose a shield');
+  ok(await L.atStep(5),'the shield breaking — not the play — is what advances the lesson');
+  ok(/Shield broken/.test((await step()).text),'step 5 is the "Shield broken!" payoff, and it is now TRUE when it is shown');
 
-  await next(); ok(await L.atStep(5),'step 5 (Sort and Hints) is reachable');
-  await next(); ok(await L.atStep(6),'step 6 (the cheat sheet) is reachable');
+  await next(); ok(await L.atStep(6),'step 6 (Sort and Hints) is reachable');
+  await next(); ok(await L.atStep(7),'step 7 (the cheat sheet) is reachable');
   await next();
   await L.finish('specials');
   await L.done();

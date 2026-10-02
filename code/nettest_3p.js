@@ -1,7 +1,8 @@
 /* N-PLAYER netplay (3 players) over BroadcastChannel: host + two clients share a room; each client picks a deck &
  * readies, the host starts a 3-Rider free-for-all. A patient bot drives whichever seat's turn it is on the real
  * board. Verifies seat assignment, per-seat mirrors, N-player turn routing, round advance, and cross-board sync. */
-const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const http=require('http'),fs=require('fs'),path=require('path');
+const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const autoAnswerWindows=require('./netwindows.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8295),ROOM='T3'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -14,8 +15,9 @@ async function snap(p){ return p.evaluate(()=>({
   finished: /win|knocked|defeat|victor/i.test((document.getElementById('turnTag')||{}).textContent||''),
 })); }
 const clear=p=>p.evaluate(()=>{var c=document.getElementById('clearBtn'); if(c)c.click();});
-const passT=p=>p.evaluate(()=>{var c=document.getElementById('clearBtn'); if(c)c.click(); var b=document.getElementById('passBtn'); if(b)b.click();});
-const play=(p,id)=>p.evaluate(function(id){ var c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click(); var f=document.getElementById('fightBtn'); if(f)f.click(); }, id);
+const passT=async p=>{ await p.evaluate(()=>{ var c=document.getElementById('clearBtn'); if(c&&!c.disabled)c.click(); });
+                     return clickPass(p); };   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
+const play=(p,id)=>selectAndFight(p, [id]);                 // two-state button since epic step 20 — see fightclick.js
 const ready=p=>p.evaluate(()=>{ var g=document.getElementById('lobbyGo'); if(g)g.click(); });
 /* A TIMED-OUT POLL NOW SAYS SO. Most call sites discard this boolean (they are staging steps), so a poll
  * that gave up used to be invisible and surfaced later as an unrelated assertion failing on a board that
@@ -32,6 +34,11 @@ async function turnOff(p){ for(let i=0;i<40;i++){ if(!(await snap(p)).mine) retu
   const c1=await ctx.newPage(); c1.on('pageerror',e=>errs.push('c1: '+e.message));
   const c2=await ctx.newPage(); c2.on('pageerror',e=>errs.push('c2: '+e.message));
   await host.goto(url('host')); await c1.goto(url('join')); await c2.goto(url('join')); await host.waitForTimeout(1200);
+  /* ANSWER WINDOWS THIS SUITE DOES NOT SCRIPT — see `netwindows.js`. The duel suites get this from
+     `startDuel`; the 3-player ones hand-roll their lobby, so they install it themselves. Without it a
+     client seat offered priority at Fight End parks the host forever: `nettest_3p` hung 4 times in 8
+     runs the day the prompt default widened, against 8/8 on the build before it. */
+  await autoAnswerWindows(host,'host'); await autoAnswerWindows(c1,'c1'); await autoAnswerWindows(c2,'c2');
   let pass=0,fail=0; const ok=(c,m)=>{console.log((c?'✓':'✗')+' '+m);c?pass++:fail++;};
 
   // Lobby: both clients ready → host sees 2 joined → host starts a 3-Rider game.

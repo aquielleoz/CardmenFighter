@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.128**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.32.0**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 402 + 60 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 594 + 65 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,48 +41,187 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 402 assertions, must end 0 FAIL
-node netview.test.js                            # netplay snapshot redaction + the mirror contract — 60, must end 0 FAIL
-node nettest_log.js                             # netplay public battle log, both frames (14)
-node nettest_names.js                           # netplay player names, both directions (8)
+node test.js                                    # engine + AI suite — 594 assertions, must end 0 FAIL
+node netview.test.js                            # netplay snapshot redaction + the mirror contract — 65, must end 0 FAIL
+node nettest_log.js                             # netplay public battle log, both frames (18)
+node nettest_names.js                           # netplay player names, both directions (13)
 node browsertest.js                             # headless duel smoke
 node decktest.js                                # custom deck builder, full UI (35 assertions)
-node viewtest.js                                # 🔍 View card reader gating on tight screens (10)
-node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (96)
-node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (19)
+node viewtest.js                                # 🔍 View card reader gating on tight screens + the phone touch targets (26)
+node dragtest.js                                # DRAGGING MEANS TWO THINGS AND THE SUB-PHASE DECIDES (21).
+                                                # In MAIN a drag ACTIVATES; in the Fight Sub-Phase it PLAYS
+                                                # (epic step 20). `nettest_drag` drives only the PLAY half
+                                                # and says so — it steps OUT of Main first — so the half
+                                                # that CHANGED had no coverage. Every leg runs the SAME
+                                                # card from the SAME staging and varies only the
+                                                # sub-phase, because "a drag activated" is also true of a
+                                                # build that lost the branch.
+                                                # ⚠ THE REFUSALS ARE LIVE, IN `#dropHint`, NOT a message
+                                                # after release — `highlightTarget` asks the question the
+                                                # release will ask and writes the reason while the card is
+                                                # in the air. Asserting a post-release `#message` waits
+                                                # for something that by design never comes
+node landscapetest.js                           # landscape / short-viewport layout, 8 device sizes (195)
+node lessontest.js                              # the "Custom Decks" tutorial lesson, full UI (21)
 node lessontest_energyorder.js                       # the "Energy Order" tutorial lesson, full UI (14)
-node lessontest_quicks.js               # the "Quicks" lesson — the interactive Counter Spell demo, full UI (21)
-node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated (24)
+node lessontest_phases.js               # "Phases and Quicks" (Basics #3) — the lesson that ABSORBED the
+#                                       # old Quicks one. Both base Quicks, the doorway, and pauses held on
+#                                       # real ceremony beats rather than forced windows (48). `lessontest_quicks.js`
+#                                       # is DELETED: its lesson no longer exists
+node lessontest_howto.js                # the "How to Play" lesson — 10 steps, 3 gated (25)
 node lessontest_zones.js                # the "Zones of Play" spotlight tour — every selector must LIGHT (21)
-node lessontest_initiative.js           # the "Initiative" lesson — asserts you genuinely cannot beat the lead (17)
-node lessontest_specials.js             # the "Specials" lesson — jab, then a real pair, then the shield (19)
+node lessontest_initiative.js           # the "Initiative" lesson — asserts you genuinely cannot beat the lead (22)
+node lessontest_specials.js             # the "Specials" lesson — jab, then a real pair, then the shield (21)
 node lessontest_energy.js               # the "Energy & Effects" lesson — bank, activate, spend (18)
 node lessontest_rides.js                # the "Rides" lesson — the J really enters your zone (15)
 node lessontest_forms.js                # the "Form Changes" lesson — the Q really enters your zone (15)
 node lessontest_twos.js                 # the "The 2" lesson AND the apex card text — asserts the text is
-                                        # DERIVED from the live rules, not a hardcoded string (29)
+                                        # DERIVED from the live rules, not a hardcoded string (31)
 #   The 2 lesson runs on a DELIBERATELY ILLEGAL deck (the Rival needs six 2s) and a per-lesson `pilot` rather
 #   than the AI; each gated step names the cards it accepts, so ignoring the instructions cannot dead-end it.
+node lessontest_pickescape.js           # THE CLEAN-UP PICK and the harness's escape from it (11). `card <id>
+#                                       # has no group` is NOT a DOM bug — it is PICK MODE, whose branch in
+#                                       # `renderHand` appends bare cards with no `.group`. Forces the
+#                                       # condition (no lesson reaches it on a good day) so `pickMode()` and
+#                                       # `answerWindow()`'s pick escape are not untested code
 #   lessonlib.js is a shared HELPER for the seven above, not a suite — don't run it directly
 node piletest.js                                # energy/shuffle pile viewers + promote (30)
 node revealtest.js                              # Outbalance's hand read: the modal, and that it never
                                                 # reaches `state` (12)
-node exporttest.js                              # the playtest export at 3 players — per-seat stats (14)
+node exporttest.js                              # the playtest export at 3 players — per-seat stats (18)
 node phantasmtest.js                            # Phantasmal Illusion: all three routes + the bare-copy
                                                 # refusal, in the real page (12)
 node nettest_reveal.js                          # the hand read over netplay, incl. who must NOT see it (10)
-node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming (82)
+node nettest_prefightduel.js                    # THE PRE-FIGHT WINDOW IN A **DUEL** (8). `nettest_prefight`
+                                                # is 3-PLAYER ONLY and says so in its first line, so the duel
+                                                # path had no suite — which is the only reason a filed
+                                                # `root cause found` HANG could sit open for eight days with
+                                                # nobody able to say whether it was still real. It is not:
+                                                # step 20 folded the pre-fight window into Main → Fight,
+                                                # which routes through `settleWindows` and so parks in the
+                                                # right family. A/B'd by deleting the duel resume — the
+                                                # filed symptom reproduces exactly
+node nettest_rename.js                          # A MID-GAME RENAME MUST REACH THE TABLE (17). The editor
+                                                # committed four LOCAL calls and sent nothing, so a name
+                                                # travelled exactly twice — a client's `t:'join'` and the
+                                                # host's `t:'setup'`, both before the game existed. Asserts
+                                                # through the BATTLE LOG ("Zed played …"), never a name
+                                                # table, plus the announcement's grammar in BOTH frames and
+                                                # a host-side cooldown that ESCALATES. `__cmf.renameBase`
+                                                # shrinks the 20s base so the doubling is testable
+node nettest_autopass.js                        # AN AUTO-PASS IS NOT A CHOICE (24). A client whose prompt
+                                                # for a timing is off answers with the SAME `{op:'decline'}`
+                                                # a player clicking "Let it resolve" sends, so the host
+                                                # narrated both. Three legs: a real decline STILL narrates,
+                                                # an `auto` one is silent AND STILL APPLIES (silent and
+                                                # ignored look identical in a log), and a SOURCE SCAN,
+                                                # because a duel drives `hostApplyMove` and never reaches
+                                                # `hostApplyMoveN` — the first A/B passed 15/0 with the
+                                                # N-player guard deleted. LEG 2b drives the REAL
+                                                # `#respDecline` button, because the early return it covers
+                                                # is in the UI path that `clientSend` jumps over
+node nettest_brake.js                           # THE AUTO-PASS BRAKE (24). One press carries a pass through;
+                                                # someone ELSE casting into the window it opened HOLDS it.
+                                                # Four legs, and the two middle ones are the bugs this has
+                                                # already had: your OWN cast must not brake you (`stackMark`
+                                                # returned bare `oidSeq`, so a seat that passed then sprang
+                                                # a Quick braked itself) and a REMOTE seat's pass is
+                                                # measured against ITS casts, not the host's (`actor`
+                                                # defaults to YOU). Leg 1 is the control — a quiet window
+                                                # must NOT brake — without which a build that brakes on
+                                                # everything passes every other leg.
+                                                # ⚠ THE QUICK MUST BE ♦9 LEYLINE. Asked directly, the
+                                                # engine has exactly three base Quicks (♦4, ♦9, ♥5) and
+                                                # Leyline is the only UNTARGETED one, so the only one
+                                                # castable into an empty transition window. BACK STAB
+                                                # CANNOT TEST THIS AT ALL — a lockout hits the early return
+                                                # one line ABOVE the brake, so the pass completes as a
+                                                # forced skip and the leg reads as "no brake"
+node nettest_brake3.js                          # THE BRAKE AT 3-6 PLAYERS (15) — `hostApplyMoveN`'s copy,
+                                                # which a duel NEVER reaches. Both legs are the SAME
+                                                # mutation from opposite sides (`moveToPlayThen`'s `actor`
+                                                # defaulting to the host instead of the passing seat): the
+                                                # HOST casting into a client's pass window must BRAKE it,
+                                                # and the CLIENT casting into its own must NOT. One alone
+                                                # is weak; the pair pins the seat. Leg 1 is the control
+node nettest_clientdeal.js                      # THE CLIENT'S OPENING HAND ARRIVES DEALT, NOT SORTED (10).
+                                                # The engine keeps every hand sorted, and the only thing that
+                                                # ever made one LOOK dealt is `syncOrder(true)` — called from
+                                                # `startGame`, which A CLIENT NEVER RUNS. Asserts the MECHANISM
+                                                # (`handPresetN`), never the order: a fair shuffle reproduces
+                                                # the engine's order 1 time in 720, so an order assertion is a
+                                                # mystery red waiting to happen
+node mptest.js                                  # free-for-all parity: pre-fight, responses, zones, presentation, targeting, naming, the phase strip (115)
 node qrtest.js                                  # the QR encoder, every symbol decoded back by a real decoder,
-                                                # plus the geometry a camera actually needs (19)
+                                                # plus the geometry a camera actually needs (32)
 node qrref.js                                   # the same encoder diffed module-for-module against macOS
                                                 # CoreImage — darwin only, CORROBORATES rather than gates (26)
-node versiontest.js                             # the build stamp: README -> build -> both screens (10)
-node sharetest.js                               # the share sheet + the tolerant paste (14)
+node versiontest.js                             # the build stamp: README -> build -> both screens, the doc chain + the backlog tags (35)
+node sharetest.js                               # the share sheet + the tolerant paste (17)
 node nettest_roundstall.js                      # the host must get the board back after winning a round (9)
 node nettest_actloop.js                         # play must keep moving AFTER a Technique, both seats (22)
-node nettest_version.js                         # the netplay build handshake, both seats + no false alarm (14)
-node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (36)
-node nettest_rules.js                           # custom rules over netplay: propagation + un-ready (20)
+node nettest_version.js                         # the netplay build handshake, both seats + no false alarm,
+                                                # plus the EPIC LINE: a `vX.Y.Z.a` build refuses a
+                                                # `vX.Y.Z` one, two epic builds only warn (37)
+node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (150)
+node nettest_rules.js                           # custom rules over netplay: propagation + un-ready (28)
+node nettest_passoduel.js                       # PASSO IN A DUEL (epic step 13). `passoTakeover` is not gated
+                                                # to multiplayer, but `passoStep` only knew driveN's parks —
+                                                # a duel parks on `duelWait`/`netSettle`/`netDiscard`
+                                                # (and `netGuard` until epic step 19) and NOTHING answered them, so a dropped duel
+                                                # opponent deadlocked the table (measured: 1 host action,
+                                                # then 41 idle polls). Also asserts Passo DEFENDS (8)
+node resolutiontest.js                            # THE RESOLUTION MODEL (epic step 17). Asserts the two things
+                                                # nothing else does — SIMULTANEOUS KICKS (both zero-shield
+                                                # seats die to one Special, both credited) and the
+                                                # WHITELIST CANARY (a seat whose only Quick guards NOTHING
+                                                # is still offered the window). The other four of step 17's
+                                                # six live in test.js and are cross-referenced, not copied.
+                                                # Run it 40x, not once (16)
+node resolutiontest_ui.js                          # THE TWO REPORTED BUGS, PLAYED IN THE REAL PAGE (epic step
+                                                # 18). `resolutiontest` asserts the model headlessly; this
+                                                # asserts what a PLAYER reported, end to end: Sanctuary
+                                                # under HECTOR surviving the Fighter Kick (the ♥K patch is
+                                                # `{quick:true}` ALONE — Apollo's carries `shieldImmune`
+                                                # and was always admitted, so testing Apollo proves
+                                                # nothing), and Armor Piercing (♣7 under HIPPOLYTA, NOT
+                                                # the ♠7 and NOT a Quick at base — measured) landing its
+                                                # extra strip from the window. Every claim is a BOTH-WAYS
+                                                # pair off identical staging: decline and die vs cast and
+                                                # live; decline and strip 1 vs cast and strip 2. Also
+                                                # asserts the Resolution LEDGER, and that a SILENCED card is
+                                                # still castable — the two-Quick shape is the only one that
+                                                # can tell "did not stop me" from "cannot play it". C and C2
+                                                # are the STAKE trio: a notification preference may not
+                                                # decide a shield event. C is the defensive half
+                                                # (2026-09-15); C2 INVERTED 2026-09-23 and now forces for
+                                                # the STRIKER too (Armor Piercing under Hippolyta); C3
+                                                # keeps the narrowness claim C2 used to carry — the same
+                                                # board with the strip already banked forces nothing.
+                                                # F adds the STACK IN THE WINDOW (71)
+node prompttest.js                              # NOTIFICATIONS, now the TRI-STATE only (12). The per-card
+                                                # checkboxes were RETIRED 2026-09-30 and two thirds of this
+                                                # suite went with them — it asserted six rendered rows, that
+                                                # only OVERRIDES were stored, and that an unchecked timing
+                                                # suppressed the modal. None of those has a subject any
+                                                # more. What is left is the DEFAULTS (stake-driven since the
+                                                # same day), `promptLegal`'s timing legality, and ON/AUTO/OFF.
+                                                # ⚠ THE DELETED SECTIONS ARE TOMBSTONED IN THE FILE rather
+                                                # than removed silently — one of them was "the load-bearing
+                                                # one", added because a mutant proved it missing, and one
+                                                # had INVERTED twice. Read them before ever reintroducing a
+                                                # per-card preference
+node shadowtest.js                              # THE SHADOW COMPARATOR (epic step 12): whoever the OLD Fight
+                                                # End guard whitelist lets answer, the NEW go-round must let
+                                                # answer too. Half A is EXHAUSTIVE (every card x 299 Form
+                                                # contexts) and carries the claim. **HALF B CHANGED MEANING
+                                                # AT STEP 18** — there is no old window left to compare
+                                                # against, so it now asserts the switch LANDED: zero
+                                                # `shieldResponse` in 600 live games, and the go-round
+                                                # really opening (4016 times, 909 of them offering more than
+                                                # one seat). The zero and the floor are asserted TOGETHER —
+                                                # "nothing opened the old window" is also true of a build
+                                                # where nothing happens. `GAMES=n` (7)
 ```
 
 `test.js` and `netview.test.js` are the gate: **both must print 0 FAIL before anything is called done.** They
@@ -100,6 +239,28 @@ v1.31.71 boost removal left `boost.style.display='none'` inside `updateActions`,
 page threw** while `test.js` stayed 333/0 (it never loads the page) and I reported the removal as clean. After
 deleting anything from the template, `grep -i` the removed name and run at least one **UI** suite — `mptest` is
 the cheapest, and it failed on its third assertion.
+
+**AND A DELETED FUNCTION LEFT IN AN EXPORT LITERAL KILLS THE WHOLE PAGE (2026-09-11).** `hostPreFight` was
+deleted at epic step 20 and `hostPreFight:hostPreFight` stayed in the NET module's return object — a
+`ReferenceError` while that object is BUILT, so the IIFE never finishes, `window.__cmf` is never defined,
+and every netplay suite fails on staging with `Cannot read properties of undefined`. The build printed its
+byte count happily: this is the deletion case the parse check cannot see, in the one place greps miss,
+because those literals are single lines 300 characters wide.
+**`grep -n 'name:name'` AFTER DELETING ANY FUNCTION** — the export objects (`NET`'s return, `__cmf`,
+`__solo`, `API` in engine.js) all use the shorthand-looking `x:x` form, so the deleted name appears twice
+on one line and reads as a definition.
+**AND THE CANARY IS A UI SUITE, RUN BEFORE THE SWEEP, NOT AFTER.** `node test.js` is engine-only and stayed
+447/0 throughout; `mptest` finds it in 20 seconds. This file already says to run one after deleting from
+the template — the mistake was sweeping first and reading 3 red netplay suites as three problems.
+
+**AND A RENAME IS A DELETION WEARING A FRIENDLIER FACE (2026-09-10).** `guardEffFor` → `immunityEffFor`
+was applied to `engine.js`, `ai.js` and the template — the three files the symbol is *implemented and
+consumed* in — and the SUITES were forgotten. `shadowtest` calls `E.guardEffFor` directly and died on
+`is not a function`, which the sweep caught in 0s. The parse check cannot see it for the same reason it
+cannot see a deletion: the reference is valid syntax pointing at nothing.
+**The grep must cover `code/*.js` and `docs/`, not just the files you edited** — step 19's own gate already
+says so for its deletions, and a rename earns the same sweep. The tell that you have missed one is a suite
+failing in **0s**: it died at require/first-call, not in a test.
 
 **NOR CAN IT SEE A DUPLICATE DECLARATION, AND THAT ONE IS SILENT FOREVER.** `resolveIds` — the host's only
 defence against a client naming a card it does not hold — was declared **twice in the same scope**,
@@ -137,7 +298,7 @@ one game in twelve. **The dangerous shape is a rig that needs a UNIQUE card**: t
 Respond? window never opened, and the player sat on step 2 being told to counter something that never arrived —
 no error, no log line, no way to finish. `tutPullShield` lifts it out and swaps a pool card in so the pile keeps
 its size. The Ride and Form rigs ask for `J♣ || any J` and `Q♣ || any Q` and so survive the same hole by luck;
-check for a fallback before assuming a rig is safe. `lessontest_quicks` asserts the card accounting (52 cards,
+check for a fallback before assuming a rig is safe. `lessontest_phases` asserts the card accounting (52 cards,
 none duplicated, `shieldPile.length === shields`) precisely because a swap that dropped a card would still play.
 **AUDITED, 2026-08-31 — Quicks was the ONLY exposure, and this is measured, not reasoned** (8 deals per lesson,
 reading each rig's output at lesson start). Do not re-derive it:
@@ -164,6 +325,28 @@ string.
 **A RULES CHANGE MUST REFRESH AN OPEN READER**, because `showCard` is not part of `render()`. Narrow but real:
 the panel is read-only while a game is live, so it bites AFTER a game ends, when the finished board is still on
 screen and Custom rules is editable again.
+
+**A LESSON THAT NARRATES A MECHANIC IS AN AUDIT OF THAT MECHANIC — ELEVEN DEFECTS FROM ONE TUTORIAL
+(2026-09-25).** Aj asked for a lesson about the phases. Building it found: three of the six phase colours
+UNREACHABLE in a real game, a drawn card that never flew in when it landed in a group, a counter leaving
+dead objects on the stack for priority to walk over, the coach panel buried under every modal in every
+tutorial since the overlay was raised, and the saved log's header describing a duel at a 3-player table.
+None was caused by the lesson and all were shipped. Aj: *"what was supposed to be the tutorial for phases
+became the polishing."*
+**THE MECHANISM IS THAT A STEP MAKES A FACTUAL CLAIM OUT LOUD** — *"the strip changes colour for each
+phase"*, *"press Fight and nothing gets played"*, *"the window comes back to you"* — and a claim has to be
+true of the BUILD, not of the design. Nothing else in the repo is obliged to say those sentences: a sim
+measures outcomes, a unit test asserts what its author already believed, and a player rarely knows what
+was supposed to happen. **So when a subsystem feels under-verified, writing the lesson for it is a cheap
+way to find out what is actually there** — cheaper than the audit, and it ships something.
+**⚠ AND THE COROLLARY IS THE EXPENSIVE HALF: BUDGET FOR IT.** "Add a tutorial" is not a tutorial-sized
+task if the mechanic underneath has never been narrated. Say so before starting rather than discovering
+it at defect nine.
+**THE SHARPEST ONE WAS A SUITE I TALKED OUT OF ITS OWN FINDING.** `lessontest_phases` reported `spBegin`
+absent and I wrote a comment calling it a quirk of the lesson — it was unreachable code from the day it
+was written, and it took Aj playing a 3-player game (*"never glowed blue when the cards flew in"*) to
+reopen it. **An assertion that notices an unreachable state must be BELIEVED, not explained**, and the
+tell is a comment in a suite whose job is to explain away a red rather than describe a claim.
 
 **ELEVEN LESSONS, ALL WITH A SUITE as of v1.31.76** (ten as of v1.31.74). **`The 2` is BASICS #5, right after
 `Specials`** — where five-card plays first appear, so its second rule starts mattering there. Adding a lesson
@@ -262,6 +445,15 @@ node mpsim.js 1000 knight     # 3/4/6p free-for-all. NAMED flags: mill= loss= ap
                              # every arm of two studies run the SAME config; see PATCHNOTES 0j.
 node recyclesim.js 400       # how often a game reaches the reshuffle (deck-cycling pressure)
 node personasim.js 150 demon  # AI persona parity — args: gamesPerRotation tier [control]
+node strengthsim.js 4000 demon knight   # IS THIS CHANGE STRONGER? — the ONLY harness here that can ask.
+                             # Every other sim runs the same AI on both seats and is structurally blind to it.
+                             # Args: pairs armA armB [deck]. An arm is `tier` or `tier:policies` —
+                             # `knight:none` / `knight:push` / `knight` (all on) — which is what keeps two
+                             # changes shipped together ATTRIBUTABLE. Each deal is played TWICE (arm A on seat 0, then
+                             # on seat 1) and pooled, which cancels the ~2.3-point seat advantage; Math.random
+                             # is pinned per game. **RUN THE CONTROL FIRST** — identical arms must print
+                             # EXACTLY 50.00 (it is exact by construction, and it exits non-zero if not).
+                             # Built twice before and thrown away twice; see DECISIONS.md#ai-strength.
 node passsim.js 200 6 knight   # strategic-pass study + initiative concentration. `drawplayers` is a NAMED
                              # flag now, valid in any position, and stripped before the positional slots are
                              # read — it used to be argv[7] and a typo silently ran the default. Prints CONFIG.
@@ -280,22 +472,22 @@ node nettest_parkbeat3.js    # THE IDLE PARK, at 3 players (10). Same drop idiom
 node nettest_sync.js         # THE CROSS-CHECK: plays a real game over the ROOM CODE and makes the two sides
                              # prove they AGREE — round, each side's view of the other's hand size, and that NARRATION is not doubled
                              # (count ratio vs the host, never adjacency) — against
-                             # the other's actual hand (7). The only suite that compares the two ends to each
+                             # the other's actual hand (12). The only suite that compares the two ends to each
                              # OTHER rather than to expectations. Reaches round ~14 in ~50 actions.
-node nettest_narrate.js      # PUBLIC NARRATION must reach the other seat (10). Its second half is the durable
+node nettest_narrate.js      # PUBLIC NARRATION must reach the other seat (12). Its second half is the durable
                              # part: it scans the client's log for SENDER-BAKED GRAMMAR — "You is", "You has",
                              # "You moves", "You’s" — each of which has shipped at least once.
 node twosim.js               # what the 2 does in plays of 4+ — off/low/high x 2/4/6 players. Counts SHAPES
                              # PLAYED, which is the only thing that moves: pacing and jab share do not, and a
                              # study that only measured those would report a null result.
-node peektest.js             # PEEK AT THE TABLE, the review mode (31). Peek SHOWS, it never CHANGES. Uses
+node peektest.js             # PEEK AT THE TABLE, the review mode (43). Peek SHOWS, it never CHANGES. Uses
                              # __solo.peek() — the REAL enterPeek, because showModal's peek branch keys off the
                              # `peeking` VARIABLE, so staging the classes alone tests nothing. And the hand's
                              # click target is the .group; `.group .card{pointer-events:none}` is by design.
-node nettest_trim.js         # the table is told who it is waiting on during a clean-up pick (11). The HOST is
+node nettest_trim.js         # the table is told who it is waiting on during a clean-up pick (15). The HOST is
                              # staged over the cap because every OTHER seat is auto-trimmed, so the host's own
                              # pick is the only one that stops play. A pick is confirmed with FIGHT.
-node nettest_unready.js      # a client can take its Ready back (12). Waits PAST the 350ms join retry before
+node nettest_unready.js      # a client can take its Ready back (15). Waits PAST the 350ms join retry before
                              # asserting — the retry silently re-readies the seat, so an immediate check passes
                              # on a build where the button does nothing.
 node nettest_dim.js          # the round banner must COME DOWN on a client (8). Stages the client OVER the hand
@@ -304,17 +496,22 @@ node nettest_dim.js          # the round banner must COME DOWN on a client (8). 
 node nettest_kick.js         # the CLIENT must play the FIGHTER KICK finisher (11). Stages it deterministically:
                              # loser out of shields, host holding a pair. NOTE round 1 is jabs only, and the
                              # kick fires on the next Special win AFTER a seat is already at 0 shields.
-node nettest_drag.js         # DRAG-TO-PLAY must go through the host (13). The first suite to drive the drag
+node nettest_drag.js         # DRAG-TO-PLAY must go through the host (16). The first suite to drive the drag
                              # path at all — clicking Fight exercises a DIFFERENT branch, which is why a client
                              # playing locally survived twenty green suites.
 node nettest_relay.js        # THE ROOM-CODE PATH end to end: host shows four characters, joiner types them, a
-                             # real DataChannel opens with nothing pasted (14). Drives relay/mock.js, and also
+                             # real DataChannel opens with nothing pasted (17). Drives relay/mock.js, and also
                              # asserts the FALLBACK both ways — norelay=1 and a dead relay.
 node ../relay/relaytest.js   # the signalling relay's protocol, against a local mock (20 assertions).
                              # Pass a base URL to test a REAL deployment — that is the only thing that turns
                              # relay/worker.js from reviewed code into tested code.
 node gen-cardlist.js         # regenerate docs/CARD-LIST.md from engine.js — RUN IT after any card
                              # name/cost/text change, or the published card list silently goes stale
+node docsweep.js             # THE DOCS STALENESS SWEEP, mechanical half. Greps every backticked identifier
+                             # in every BACKLOG entry against the live code; a symbol that no longer exists
+                             # is the cheapest proof an entry has moved on. Reports, never gates — a hit is
+                             # a LEAD (a browser API reads the same). It CANNOT see an entry whose remedy
+                             # already shipped, which is the half that actually rots
 ```
 
 ### Playwright suites (browser + netplay)
@@ -327,8 +524,30 @@ npm install            # in code/ — installs the playwright devDependency
 npx playwright install chromium
 ```
 
-Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` is a shared
-helper, not a suite — don't run it directly.
+Run one suite with `node nettest_full.js` (each prints its own `PASS: n  FAIL: n`). `nettest_lobby.js` and
+**`netwindows.js`** are shared helpers, not suites — don't run them directly.
+
+**A WIDER WINDOW BREAKS EVERY HARNESS THAT NEVER LEARNED TO ANSWER ONE (2026-09-10).** When the Resolution
+prompt default widened to "every legal timing", `nettest_3p` started HANGING — **4 times in 8 runs, against
+8/8 on the build before it**, at any port and at `-j 1` as well as `-j 4`, so neither contention nor a port
+collision. The mechanism was an ABSENCE: that file contains no reference to a modal at all, so a client seat
+was offered priority, nobody answered, and the host parked until `sweep.js` SIGKILLed it at 300s.
+**IT WAS NEVER ONE SUITE — 27 of them drive play and never answer a window**, found by grepping
+`fightBtn|passBtn` against `respDecline|respQuick|sgNo|pfDecline` across `nettest_*.js`. All 27 were green
+only because the old window was rare. **An unreliable sweep is worth less than a red one**, because it
+makes every other result unreadable.
+`netwindows.js` answers them: `startDuel` installs it for the 18 duel suites, and the nine hand-rolled
+3-player ones install it themselves. **It waits a GRACE DELAY rather than taking an opt-out flag**, and that
+is the design — ten suites drive these windows deliberately, so a poller that clicked on sight would steal
+their windows and turn one flake into ten; a suite that means to act does so in milliseconds, an unscripted
+window sits open forever. It PASSES and never casts, because choosing a card would change what the suite
+measures.
+**AND ITS FIRST TEN-RUN CHECK WAS WORTHLESS: 10/10 green with ZERO auto-passes logged**, which is exactly
+what "it fixed the hang" and "it never fired and I got lucky" both look like. `NETWINDOWS_GRACE=999999`
+exists to settle that — it arms the helper without letting it act, so the A/B holds every other code path
+identical. Measured that way: **OFF 4 pass / 2 hang · ON 6 pass / 0 hang**, with the log naming the seat.
+**Verify the instrument before believing the result**: the helper throws if `window.__nw` is absent after
+install, because `page.evaluate` on a page that has not navigated yet fails exactly this silently.
 
 **Emotes ride the intent channel, not a new one** (v1.31.16). A client sends `{op:'emote'}`; the host narrates
 with `say()` (reader-relative + broadcast) and then broadcasts `t:'emote'` for the bubble. Three rules: they are
@@ -640,9 +859,60 @@ in a comment beside a `say()`** — the first version tripped on its own comment
 BOTH directions now: it only ever tested the "You" side, so `{who} were …` would render fine for the reader and
 wrongly for everyone else.
 
+**A REMARK THAT DESCRIBES EXISTING BEHAVIOUR IS NOT A REQUEST TO BUILD NEW BEHAVIOUR (2026-09-30).** Aj,
+on the dead Main sub-phase: *"nobody gets prompted when they don't have anything to play anyway so it
+should really just fire off."* Read as consent to auto-advance the phase; he meant the **priority dance**,
+which already fires off — the `auto-advanced — nobody could add to the stack` line the ledger has always
+carried. His next message said so again (*"there's a separate pass button and if they wanted to, they
+could have pressed that one instead"*) and the one after was explicit: *"don't auto advance @\_@ they can
+pass from fight."* It was built in between, and reverted.
+**THE TWO READINGS ARE OPPOSITE INSTRUCTIONS** — *"this already works, why is it a question?"* versus
+*"go and make it work"* — and they are hard to tell apart precisely when the person is being brief because
+they think the answer is obvious. **Ask which.** The cost here was a build, a revert, and reading as not
+listening, against one clarifying sentence.
+**AND THE MEASUREMENT AGREED WITH HIM, WHICH IS WORTH RECORDING SO NOBODY RETRIES IT**: `browsertest`
+passed 12 duels with the auto-advance in, and `mptest` went **105/10**. Declined on design and red in
+practice. See [`DECISIONS.md#main-autoadvance`](docs/DECISIONS.md#main-autoadvance).
+
+**THE LEDGER IS BROADCAST NOW, AND IT CARRIES SEATS RATHER THAN NAMES (2026-09-30).** Aj's host log had
+ten `MAIN → FIGHT … (origin=You)` lines and his client log had **zero**, while both had their eight
+`FIGHT END` lines — the phase walk is host-side authority, recorded where it happens, and nothing told the
+other seats. He chose to broadcast rather than to paper over it with a "recorded on the host's copy" note.
+**`prioSay` IS TO `prioNote` WHAT `say` IS TO `logMsg`** — the public one. A broadcast ledger line carries
+`{sN}` ABSOLUTE-seat tokens and EACH END renders them with its own `logName`; the host's local frame is
+the absolute frame, which is what already lets `sayBroadcast` send a local actor.
+**THE NAMES ARE THE ENTIRE RISK, and shipping the host's rendering verbatim is the obvious implementation:**
+`logName` renders the reader as "You", so a verbatim line tells a CLIENT that IT opened a go-round the HOST
+opened. That is `{who}` / `{foe}` / the `You is` copula for the fourth time, in the one artefact read
+months later by someone who cannot re-check. `nettest_prioledger` asserts both frames off one event —
+host `origin=You`, client `origin=Rival 2` — and the A/B is the point: with the verbatim mutant the
+"the line arrived" assertion stays GREEN *showing the bug*, and only the naming one reds.
+**IT IS NOT ON THE MIRROR, DELIBERATELY.** A mirror is a full snapshot deduped BY CONTENT, so an
+accumulating ledger would change it on every line, defeat the dedupe that stops a client reading stale,
+and grow the one message the table can least afford to grow.
+
 **A GRAMMAR SCAN IS CHEAPER THAN A REVIEW.** `nettest_narrate` greps the rendered client log for `You is`,
 `You has`, `You moves`, `You’s`. None of those has a legitimate reading, all of them have shipped, and the scan
 catches the next one without anyone re-reading every template.
+
+**THE `logMsg` SWEEP IS FINISHED, AND THE ANSWER IS 24 SITES / 2 GAPS (audited 2026-09-18).** The v1.31.58
+entry above says nineteen sites had the wrong one; a twentieth turned up the same day this audit ran, so
+"finished" deserved a number rather than a feeling. Every `logMsg(` call site triaged against this file's
+own question — *can this happen while netplay is live, and does another seat need to see it?*
+**CLEARED, and worth recording so nobody re-audits them:** `rivalMayRespond`'s two lines and
+`tutCastRivalTech` hardcode "Rival" but are AI/tutorial paths a netplay host never reaches (a host's rival
+is a human and routes through `NET.hostSettle`); the three opener lines and the client's own are
+deliberately per-frame; the `t:'say'` renderer is correct by definition; concede is framed locally on each
+side; the lobby/disconnect/Passo family DOES reach other clients, via `t:'peer'` + `renderDisconBar`, as a
+deliberately generic banner rather than a named line; two are debug hooks.
+**THE TWO REAL ONES ARE FILED** — `[id: client-never-told-draw-fizzled]` and
+`[id: discard-line-hardcodes-rival]`. The first is the sharp one and shows the shape to look for: `say` and
+`logMsg` **one line apart in the same function**, so the neutral half of a message travels and the per-seat
+half does not.
+**AND THE METHOD GENERALISES: DIFF TWO SAVED LOGS OF ONE GAME.** Normalise so "You" on each side resolves
+to the same player, then `difflib` them. Aj's pair came out 76 lines against 75 with the play-by-play
+IDENTICAL and every difference in the opening block — which located three defects in seconds and bounded
+the search. A static grep tells you which sites COULD diverge; the diff tells you which ones DID.
 
 **EVERY WAY TO PERFORM AN ACTION NEEDS THE CLIENT GUARD, AND THE GUARD BELONGS AT THE FUNNEL (v1.31.56).**
 `doFight` carried an `isClientActive()` branch that sends an intent; the **drag-to-play release called
@@ -1021,8 +1291,27 @@ Three more things worth knowing before touching them:
 
 **Netplay carries a BUILD VERSION and warns on a mismatch (v1.31.21).** The client sends `v` with `t:'join'`,
 the host returns its own on `t:'welcome'`, and `noteVersion()` banners + logs a difference on both seats,
-reader-relative ("you are on X, they are on Y"). **It warns, it does not refuse** — a patch-level difference is
-usually harmless and locking two friends out would be the worse failure. `?ver=` overrides the reported version
+reader-relative ("you are on X, they are on Y"). **THE MINOR NUMBER IS THE COMPATIBILITY LINE (epic step 22).**
+v1.32.4 and v1.32.5 still play and still warn; **v1.31 and v1.32 are REFUSED** and both players are told to
+download the same build. The old rule here was *"it warns, it does not refuse — a patch-level difference is
+usually harmless and locking two friends out would be the worse failure"*, and **that reasoning is intact and
+still governs the patch case**; only its scope changed, because the second number is what this project's own
+scheme already means by *the rules moved*, and two people playing different RULES while both believe they are
+fine is the precise failure this handshake exists to prevent. `verIncompatible` is the predicate.
+**AND SINCE 2026-09-30 THE FOURTH SEGMENT IS PART OF IT: AN EPIC BUILD REFUSES AGAINST A MAIN BUILD.** An
+epic holds its minor for the whole branch, so `vX.Y.Z.a` and the `vX.Y.Z` it forks from were identical to
+this predicate while genuinely disagreeing about the rules — the pair most likely to meet, and exactly the
+failure the handshake exists to prevent. Two epic builds still only warn. See the `epic/` rules under
+**Branches and PRs** for the scheme and for the regexes it silently truncated.
+**AN UNPARSEABLE VERSION FALLS BACK TO WARNING, NEVER TO REFUSING** — a peer old enough to send something the
+regex cannot read is exactly the peer a hard refusal would strand, and a warning is the behaviour it already
+expects.
+**THE HOST REFUSES BEFORE ALLOCATING A SEAT, and that placement is load-bearing**: `hostSeatOf[cid]=nextSeat++`
+is not undone by returning later, so a refusal further down would leave a hole that `hostStartRealN` indexes
+straight through. It is modelled on the `full` refusal two lines below it.
+**AND THE CLIENT CHECKS FOR ITSELF, which is the case that actually matters**: an OLDER host does not know how
+to refuse, so when only one side has this build it must be the one to stop — checked on `t:'welcome'` before
+`connected=true` and before any seat state is adopted. `?ver=` overrides the reported version
 for testing and is dbg-gated. Matched builds must stay **silent**; `nettest_version` asserts that too, because a
 warning that cried wolf would be worse than none. This is the prerequisite for any homebrew rules menu: a peer
 silently ignoring an unknown rule means two people playing different games without knowing.
@@ -1053,6 +1342,37 @@ sets the turn to the round WINNER and `roundDraw` runs AFTER the end-of-round tr
 won held a live board while the host was still picking — able to play into a round whose cards had not been
 dealt. `trimPending` (seat + count, on state, whitelisted by `netview`) is what locks them and what names the
 seat on the other screens.
+**A MODAL THAT IS NOT A PRIORITY WINDOW STILL STOPS THE TABLE, AND `respondFor` DOES NOT COVER IT
+(2026-09-25).** Aj, 2026-09-16: *"other player could activate stuff while the other players were busy with a
+modal"*. `activate` already refused on `st.respondFor != null` and on `st.subPhase === 'play'` — both
+priority states — but a FORCED DISCARD touches neither, so the seat on turn kept playing while its target
+sat trapped in a picker. **Measured: Telekinesis at seat 1, `respondFor` null, turn 0, and seat 0 then
+played a pair with two discards still owed.** `play` / `pass` / `activate` all refuse on `st.discardPending`
+now.
+**THE HARM IS PARTICIPATION, NOT TIDINESS** — a play opens a priority window, and a seat stuck in a discard
+modal cannot take it. That is what makes it a correctness bug rather than a manners one.
+**THE UI HAD BEEN ANNOUNCING A RULE THE ENGINE DID NOT ENFORCE.** `render()`'s `waitOn` already dimmed the
+play area and set *"<name> is discarding…"*, and `updateActions` knew about none of it — so Fight and Pass
+rendered ENABLED into what is now a refusal. **A status line is not a gate and neither is a dim**; the
+controls are disabled with the reason, which is the v1.31.74 `busy` remedy in a new place.
+**THE BACKLOG'S DEADLOCK WARNING WAS FOR A *UI* GUARD, AND READING IT AS A BAN ON GUARDING AT ALL WOULD
+HAVE PARKED THIS.** The entry says a clean-up pick is confirmed with FIGHT, so blocking Fight deadlocks the
+pick — true of `doFight`, which reaches `confirmPick()` via the `pick` branch. **`confirmPick` routes to
+`E.resolveDiscard` and never re-enters `play`/`activate`**, so an ENGINE guard cannot deadlock it, and the
+engine is where a gate belongs anyway because a client sends an intent over the wire. The suite asserts the
+EXIT (resolve, then the same play is legal) precisely so a future guard with no way out is caught.
+**AND THE OTHER TWO MODALS THE ENTRY NAMED ARE OUT OF SCOPE, BY GREP RATHER THAN BY ARGUMENT:**
+`targetPick` is **UI-only** (0 references in `engine.js`/`netview.js`) so it is the acting seat's own
+in-progress choice and blocks nobody, and **`trimPending` does not exist in the engine at all** — it is a
+template construct for the round-end queue, which is why that warning was written and why the UI already
+locks the other seats on it.
+**IT CHANGES NO AI GAME, AND THAT IS MEASURED: 740 seeded games at 2/3/6 players, byte-identical
+fingerprints in both arms** (rng AND `Math.random` pinned; the instrument run against itself first). `ai.js`
+resolves a pending discard at the top of its loop and suspends only for a human, so the guard is reachable
+only by a human or a netplay client — which is the population that reported it. **Run the fingerprint before
+believing an engine guard is inert**, and note what it does NOT prove: it drives `engine.js`/`ai.js` in Node
+and never loads the page, so the UI half needed `browsertest` separately.
+
 **EVERY INTERACTIVE DISCARD GOES THROUGH `discardPending` — there are exactly TWO sites** (the owner banking
 looked cards, `engine.js` ~1447; and `discardOpp` — Telekinesis, Outbalance, Discombobulate, ~1513). The
 round-end trim is the separate `trimPending`. So one notice reading either covers the whole game; enumerate
@@ -1139,9 +1459,80 @@ cache is dropped on join and rejoin, so a reconnecting peer is never deduped aga
   **And when a report smells stale, run `cmp` — do not drop the hypothesis because the reporter says they are on
   the right branch.** They were. The file was not.
 - **NEVER REBUILD WHILE A BATCH IS RUNNING.** Three measurements were invalidated this way and had to be redone.
+  **AND THE GENERAL FORM, LEARNED THE EXPENSIVE WAY ON 2026-09-10: ONE SWEEP AT A TIME, AND NOTHING ELSE
+  TOUCHING THE MACHINE.** Three separate self-inflicted failures in one session, each of which first looked
+  like a product or suite problem: (1) `engine.js` was edited mid-sweep, so `versiontest`'s stale-build
+  assertion went red — correctly, about a file I had changed underneath it; (2) two netplay suites were run
+  by hand *during* a sweep, which is a port collision waiting to happen because `sweep.js` assigns ports on
+  the assumption it owns them; (3) **three sweeps were started concurrently** — output looked "empty"
+  because a pipe buffers until exit, so each apparent non-result prompted another launch — and they raced
+  for ports, producing `FAILED — 67/88` with a screen of `EADDRINUSE`. **A sweep is exclusive. Start one,
+  leave the machine alone, and read the pipe only when it exits.**
+  **AND NEVER PIPE A SWEEP THROUGH `tail -n` (2026-09-10).** `sweep.js` prints each suite's WHOLE summary
+  line specifically so a failure identifies itself — v1.31.84's note records that cropping to the
+  `PASS:`/`FAIL:` fragment is what once hid a suite's own evidence. Piping the run to `tail -4` reproduced
+  that mistake from the other end: a lesson suite failed two assertions, the four surviving lines carried
+  the assertion text but not the SUITE NAME, and identifying it then cost a re-sweep plus 33 loaded runs —
+  which did not reproduce it, so the name is simply gone. **Redirect to a file and grep it.**
+  **A SWEEP THAT PRINTS NOTHING IS NOT A SWEEP THAT DID NOTHING.** `node sweep.js | tail -n` shows nothing at
+  all until the pipeline closes, and to a file Node block-buffers as well — so an empty output file at the
+  two-minute mark is the NORMAL appearance of a healthy run. Check `ps`, never the output length, and never
+  relaunch on the strength of a quiet file.
+  **A BACKGROUND WAITER IS NOT FREE, AND A DELETED FILE MAKES IT IMMORTAL.** Three `until grep ... /tmp/sw.txt`
+  waiters were still spinning an hour later, because the cleanup above had `rm -f /tmp/sw.txt` — the
+  condition they poll for can now never be true, so they never exit and the task list fills with work that
+  finished long ago. Aj saw the pile before I did. **Poll for a condition that can still become true, prefer
+  the task notification the harness already sends, and never delete the file something is waiting on.** One
+  waiter per thing waited on; `TaskStop` the rest.
+  **AND `ps aux | grep -c '[n]ode sweep.js'` INSIDE A COMMAND SUBSTITUTION COUNTS ITSELF.** The bracket trick
+  defeats the `grep` process but not the enclosing shell, whose command line also contains the pattern — so
+  a clean machine reported "2 alive" twice and nearly earned a third round of `pkill -9`. This is the
+  self-matching trap already in this file under the busy-wait note, wearing a different hat: print the PIDs
+  (`awk '{print $2}'`) and look at them rather than trusting a count.
 - **COPY THE RETRY WHEN YOU ADD A HELPER.** `playAny`, `activateSpot` and `passTurn` were each written without
   the retry every other helper in `lessonlib` has, and each presented as a product bug. `passTurn` was worse than
   missing it: it reported success on ANY state change, so it masked real failures for several runs.
+
+**THERE ARE TWO PARK FAMILIES AND A DUEL CANNOT READ THE N-PLAYER ONE — THIS HAS NOW COST THREE BUGS
+(v1.31.91, v1.31.116, and epic step 18).** `hostApplyMove` (the duel) resumes from **`netSettle`** /
+`netDiscard` (and `netGuard` until epic step 19 deleted the guard window); `hostApplyMoveN` (3-6 players)
+resumes from **`netReact`** / `netParked`. A park
+written into the wrong family is not an error and prints nothing: the client's intent arrives, the handler
+finds its own variable null, and **returns in silence** — the host waits forever with a plausible status
+line on screen. Step 18 re-made it exactly: a new park in `hostSettleRoundThenCeremony` set `netReact`, and
+that function is N-player only, so a duel client's `{op:'respond'}` was dropped and the round never turned
+over (measured: round 2 → 2 through twelve seconds of draining).
+**THE FIX IS NEVER A NEW PARK — IT IS TO CALL THE SETTLE THAT ALREADY OWNS THE MODE.** `settleWindows`
+dispatches to `hostSettle` (duel) or `hostSettleN` (N-player) and each parks in its own family, so routing a
+new window through it inherits `reassertMirror`, the park beat, `maybePasso` and the right resume variable
+for free — the seven-parks-of-nine lesson (v1.31.116) applied before the drift rather than after it. The
+grep that enumerates the kind: `grep -n 'netReact=\|netSettle=\|netDiscard=' code/CardmenFighter.template.html`.
+
+**A ROUND WIN IS NO LONGER A RESULT, IT IS A WINDOW (epic step 18).** `resolveRoundWin` → `enterResolution`
+opens the Resolution go-round and returns `{resolution:true}` with **no `roundWinner`**, so every UI site that
+tested `r.roundWinner != null` fell straight through — six of them, in both drivers and both transports.
+`drainResolution(r, g, then)` is the single seam: it runs `settleWindows` and then reads the outcome off
+**`st.resolutionResult`**, which the engine parks as it runs the sub-phase. It is deliberately NOT
+`roundWinResult` — `driveShieldStack` reads that one as "this is a round win" and would finish the round
+inside its own window. **Any new round-win call site goes through `drainResolution`**, and the tell that one
+was missed is a table that parks with the round number unchanged.
+
+**THE SAVED LOG CARRIES A PRIORITY LEDGER (`prioNote`, 2026-09-10) — AND ITS FIRST TWO VERSIONS BOTH HAD
+THE SAME HOLE.** Aj: *"make the records as complete as you need. no one else will debug this game for
+us."* It rides the download beside the netplay trace, one file being what actually gets sent, and is NOT
+on screen — the go-round opens far too often for a battle-log line.
+**v1 LOGGED ONLY RESOLUTION AND ONLY WHEN A WINDOW OPENED.** Aj's first real log came back with **2 entries
+across 10 rounds**, which cannot distinguish a quiet game from a broken one — and a probe then played five
+full rounds and logged **nothing at all**, which is what both look like. The cause: a round win only
+RETURNS a go-round when somebody can add to the stack, so `r.resolution` is usually unset and
+`finishPassRound` does not even call the drain. The note moved to **`announceRoundWin`**, the one funnel
+all six round-win paths reach exactly once.
+**AND THE ROUND STAMP WAS OFF BY ONE THERE**, because `state.round` has already advanced by the time
+`announceRoundWin` runs — five rounds came out labelled r2-r6. `prioNote` takes a `roundAt` override for
+that caller. **A diagnostic that is off by one sends the next reader to the wrong round**, which is worse
+than not logging it.
+**THE RULE: log the SILENT case, not just the interesting one.** "Nothing happened" and "the code never
+ran" are the same absence, and telling them apart is the entire value of a ledger.
 
 **MULTI-AGENT ORCHESTRATION ("ultracode") IS FOR DESIGN, NEVER FOR TESTING OR REVIEW** (Aj, 2026-09-03, after
 hitting his session cap twice in one day: *"so the next session doesn't super bleed out my tokens on testing"*).
@@ -1163,19 +1554,131 @@ Measured on v1.31.95, the two halves of the same day:
   launching any workflow, say in one line what it will spend and whether one careful read answers the same
   question; if it does, read.
 - **(5) A SUBAGENT'S FINDING AND A SUBAGENT'S SEVERITY ARE NOT THE SAME CLAIM, AND ONLY ONE OF THEM IS
-  RELIABLE (2026-09-08).** A design pass over the Fight End window found four real defects — every one of
+  RELIABLE (2026-09-08).** A design pass over the Resolution window found four real defects — every one of
   them confirmed by opening the code. Two came labelled *"live in the build you're playing"*, I repeated that
-  to Aj, and **both labels were wrong**: `noopDestroy` produces no wrong outcome in the shipped
+  to Aj, and **both labels were wrong**: `noopDestroy` (deleted at epic step 19) produced no wrong outcome in the shipped
   configuration, and the discarded `driveShieldStack` result is read by nothing on that path. The finding was
   right; the severity was invented. **Severity is the half that decides scheduling** — Aj had already said
   *"let's do the two live bugs first"* on the strength of it, which would have spent a `fix/` branch and a
   version on two latent defects sitting inside the very functions an epic was about to rewrite.
+  **⚠ AND THAT SEVERITY CALL WAS ITSELF TOO GENEROUS, MEASURED 2026-09-11.** Deleting `noopDestroy` at
+  epic step 19 moved the seeded 480-game fingerprint, and restoring only that hunk moved it back exactly:
+  **9 games in 480 differ (1.9%), some with a different WINNER.** So it produced no *reachable wrong*
+  outcome — the multi-target hole needs `DAMAGE_SPAN`, which the rules menu cannot set — but it absolutely
+  had a behavioural effect, because suppressing a priority window denies seats a play they would have made.
+  **"No reachable wrong outcome" is not "no behavioural effect", and a fingerprint is what tells them
+  apart.** Do not call a suppression inert without running one.
   **The check is cheap and specific: does the shipped configuration reach it?** Both answers came from two
   greps — `DAMAGE_SPAN`/`DAMAGE_ALL` are not wired to the custom rules menu, so no player can reach the
   multi-target hole; and the one site that reads `struck` is the round-win path, which never enters
   `openResponseWindow`. A defect reachable only by a sim is real and is not urgent.
   **Report a severity you measured, or report the finding without one.** "This is live" is a claim about the
   player's build, and a subagent has never seen it.
+
+**THE THIRD SITE OF THAT SHAPE WAS MEASURED AND DOES NOT FIRE — AND THE GUESSED MECHANISM WAS WRONG
+(2026-09-30).** `runOpponents`' `step()` hands back to the human after checking only `===YOU`, so a window
+owed to another AI seat looked like it would fall through — the same shape as the duel driver's bug and
+`tutCastRivalTech`'s. It does not: **47 natural hand-backs, 0; 141 forced writes, 0; forced once and
+watched, the table RECOVERED in under 9s.** Full write-up:
+[`DECISIONS.md#runopponents-window`](docs/DECISIONS.md#runopponents-window).
+**THE ENTRY GUESSED `settleWindows` WAS DRAINING IT FIRST. IT IS NOT** — it is one line in `ai.js`,
+**`if (st.respondFor != null) return;`**: the AI refuses to ACT while a window is open, so the turn never
+advances to the state where `step()` could hand back. Two different mechanisms with the same symptom, and
+only measuring told them apart. **When an entry explains why a bug is probably unreachable, the
+explanation is a hypothesis too** — check which guard is actually load-bearing, because the fix you would
+write depends on it.
+**AND RULE OUT THE OPPOSITE SYMPTOM BEFORE CLOSING.** Once "steps past" was dead, the live worry was that
+it STALLS instead — an AI that will not act plus a driver that keeps asking is a plausible spin. Forcing
+the condition once and then *watching without writing* is what answered it; a probe that keeps re-forcing
+can only ever show you the forced state.
+
+**A HAND-ROLLED PRIORITY CHECK OUTLIVES THE RULE IT ENCODED — SECOND INSTANCE, AND IT WAS THE
+`lessontest_quicks` FLAKE ALL ALONG (2026-09-24).** `tutCastRivalTech` casts as the RIVAL and then tested
+`if(state.respondFor===YOU)`, with an `else` that did `state.turn=savedTurn; render();`. **Epic step 6 made
+the go-round start at the CONTROLLER**, so after a Rival cast priority is transiently the RIVAL's, the gate
+falls through, and the `else` **abandons an open window** — `pending` set, nobody who will ever drain it.
+It was correct when written and stopped being correct three steps later, with nothing connecting them: the
+same shape as `promptDefault` deriving from `immunityEffFor` below.
+**THE MEASUREMENT IS THE ENTRY'S WHOLE VALUE, because the filed diagnosis was the opposite.** The entry
+said to hunt *"why `tutCastRivalTech`'s window does not open under load"*. It opens. Logging the priority
+holder at the cast and correlating it with whether the modal ever appeared:
+
+| priority after the cast | modal appears | end state |
+| --- | --- | --- |
+| `You` (6 of 8) | yes, ~2.6s | `respondFor:0` |
+| `Rival 2` (2 of 8) | **never** | `respondFor:1 pending:true` |
+
+**2 of 8 is 25%, the filed rate, and `pending=true respondFor=1` is the sweep's captured failure state
+byte for byte.** Not load: these were solo runs. The "under load" framing came from small samples, and the
+suite survived 26 solo runs beforehand because the natural condition is a coin flip the harness usually
+wins.
+**THE FIX IS `settleWindows`, WHICH ALREADY DID ALL OF IT** — drain every AI seat ahead of you, then
+`promptHumanResponse(g, function(){ settleWindows(g, done); })` when priority arrives. A hand-rolled
+"is it my window yet" check in front of it is the bug; this is the same *"the fix is never a new park — it
+is to call the settle that already owns the mode"* rule, one layer up.
+**AND FORCE THE CONDITION IN THE SUITE, OR IT IS A 1-IN-4 COIN FLIP.** `lessontest_quicks` now pushes
+priority to the Rival during the reveal dwell every run (`__solo.st()` is by reference; `revealDwell` is a
+~2650ms window to land the write) and ASSERTS the staging landed, because staging that silently misses
+makes the run pass having exercised nothing. A/B'd: **4/4 red on the pre-fix build (16/6 every time),
+4/4 green after.** Note the forced red is 16/6 rather than the natural 10/11 — same root cause, caught one
+beat earlier.
+**THE COMMENT IN THAT SUITE ASSERTED THE WRONG CAUSE FOR A DAY** (*"when this poll times out the window
+genuinely never opened"*) — written the same morning, from a correct measurement of the poll margin and an
+incorrect inference about what the timeout meant. Corrected in place. A measurement that exonerates one
+cause does not identify another.
+
+**A DEFAULT DERIVED FROM A PREDICATE OUTLIVES THE PREDICATE (epic step 18; FIXED 2026-09-10).** Step 15's
+`promptDefault(card, eff, 'resolution')` returned `immunityEffFor(...)` — chosen so the prompt defaults would
+reproduce "today's experience" exactly, which was right on the day. Step 18 then DELETED the window that
+predicate described, and the default silently kept describing it: the two cards the whole epic exists to
+fix (Sanctuary under Hector, Armor Piercing under Hippolyta) are both refused by `immunityEffFor`, so both
+were **auto-declined by default** and the fix was invisible to anyone who had not found the checkbox in the
+card reader. Neither step was wrong on its own; nothing connected them.
+**THE TELL IS A DEFAULT THAT CALLS A PREDICATE RATHER THAN NAMING A VALUE** — `grep -n 'function .*Default'`
+and read what each one consults. When you delete or widen a gate, grep for the gate's own name: anything
+still calling it is now describing a world that does not exist.
+**AND IT WAS FOUND BY AN END-TO-END UI TEST, NOT BY READING.** Both unit layers were green — the engine
+opened the window and the card was a legal Quick — because the suppression happens between them, in the UI.
+
+**TARGETING HAPPENS ON CAST — NO LEGAL TARGET MEANS NO CAST (Aj, 2026-09-10).** He found it in a real
+game: a Resolution go-round on an EMPTY stack offered him Counter Spell as its only option. Measured before
+anything changed — `counterTargets` returned `[]`, `canAddToStack` said true anyway, and `respond`
+**accepted** the cast: hand -1, energy 8→4, nothing countered. Not noise in a window; a trap that spends a
+card for nothing. Aj: *"it has to target as part of its casting right? and since there are no effects on
+the stack to target… it shouldn't be castable."*
+**THREE OF THE SEVEN QUICKS TARGET** — Counter Spell (an effect on the stack), Annoint (a `removeEquip` on
+the stack, else your own Equipment), Back Stab (a living rival, which only runs out once the game is over).
+So on an EMPTY stack the only castable Quicks are the untargeted ones, and **Leyline is the only base Quick
+in that set** — worth knowing before staging any empty-stack test, because Counter Spell was the generic
+"a Quick" in five of them and all five stopped staging what they claimed.
+**FIZZLING ON RESOLUTION IS UNTOUCHED, AND THE TWO ARE DIFFERENT MOMENTS.** A target that stops being legal
+before resolution still fizzles (someone countered it first); what is refused is choosing no target at all.
+**IT PARTLY OVERTURNS v1.31.120** — *"offering a Quick that will fizzle is CORRECT, not a leak"* — and the
+overturn is deliberate and narrow: that decision was about the UI NARROWING RELATIVE TO THE ENGINE, and its
+lesson was **one predicate, two definitions**. The fix therefore went in the ENGINE (`canCastQuick`, and
+`respond` refuses before spending anything, because a client sends a card id and a UI-only check is
+reachable over the wire), and `eligibleQuicks` now CALLS that predicate instead of restating it.
+
+**A NOTIFICATION PREFERENCE MUST NOT DECIDE WHAT IS LEGAL (2026-09-10).** `promptedQuicks` was answering two
+questions at once — *should this window stop me?* and *once stopped, what may I play?* — so unchecking a
+card in the reader made it **uncastable**, even in a window you were stopped for by a different card. A
+capability gate wearing a notification's clothes. Aj: *"players can really look at all their cards and
+decide which effects to activate. legal mind you at the timing it's being asked at."* Now every window
+renders the ENGINE's eligibility (`eligibleQuicks` / `eligiblePreFightQuicks`) and the preference decides
+only whether you are interrupted; an empty preference result is an auto-pass, as before.
+**AND "FIVE SPELLINGS" WAS FOUR — corrected 2026-09-11 by reading the fifth.** `promptLegal` asks *"does
+this card have this timing at all"*, a STATIC property that renders the card reader's rows; it must never
+become "castable right now" or a card with no target this instant loses its checkboxes. It shares two
+clauses with the predicate and answers a different question. **Count the askers by the QUESTION, not by the
+clauses that look alike.**
+
+**THREE CALLERS, AND THE THIRD IS THE ONE A CAREFUL FIX MISSES** — `promptHumanResponse`,
+`promptHumanPreFight`, and **`promptHostPreFight`**, the netplay host's own seat, which lives 3,700 lines
+away in the NET IIFE. `grep -n 'promptedQuicks('` is the enumeration; this is v1.31.116's "a fix wired in
+by name covered two parks of nine" in a new place.
+**THE ONLY SHAPE THAT CATCHES IT IS TWO QUICKS WITH ONE SILENCED.** With one card, "did not stop me" and
+"cannot play it" are the same observation. `resolutiontest_ui` scenario D stages both and asserts the silenced
+one is still on offer; A/B'd by reverting the one line, which reds exactly that assertion.
 
 **BEFORE TOUCHING `fightValue`, `applyEquip` OR `lockedDelta`, READ
 [`DECISIONS.md#value-modifiers`](docs/DECISIONS.md#value-modifiers).** It settles which layer a value modifier
@@ -1217,6 +1720,21 @@ one game can prove a die was rolled, the faces differ (ties re-roll) and **the h
 the actual claim, is deterministic, and says more than six lucky games. A broken build now fails with
 `opener seat 0 (dbg: pinned)` instead of a suspicious-looking series.
 
+**A REPRO THAT DOES NOT REPRODUCE PROVES NOTHING UNTIL YOU BREAK THE THING IT WATCHES (2026-09-30).**
+A netplay repro for the double round resolution came back clean — one round, one shield, detector quiet —
+which reads as "not reproducible here". **Then the brake it was aimed at was deleted and the suite stayed
+GREEN**, so the staging had never reached the braked branch and the clean run meant nothing at all. The
+suite was deleted rather than committed: a repro that cannot fail reads as coverage, which is worse than
+no suite, and this file already says a green suite that cannot fail is not evidence a hang is gone.
+**THE A/B FOR A REPRO IS THE MIRROR OF THE A/B FOR A FIX.** For a fix you reintroduce the defect and
+require red; for a repro you remove the DEFENCE and require red. Same cost, same one command, and without
+it "I could not reproduce it" is indistinguishable from "I did not reach the code".
+**AND THE TRACE IS WHERE THE NEXT ATTEMPT GETS CHEAPER.** The host trace showed both duplicate intents
+arriving and then nothing — the pass had resolved the round DIRECTLY rather than returning
+`{ok:false, transition:'play'}`, so the re-apply never ran. That turned a shrug into one concrete missing
+staging fact for the next attempt. **When a repro fails, read the trace for what did NOT happen**; filing
+"did not reproduce" without it just makes the next person repeat you.
+
 **A THROWAWAY DIAGNOSTIC IS THE LEAST TRUSTWORTHY CODE IN THE ROOM.** Hunting the Quicks bugs, two bespoke
 probes lied before the real suite told the truth: one clicked `#tutNextBtn` before the tutorial panel had
 rendered it, so `if(b)b.click()` did nothing and it reported **8 consecutive false failures**; the other planted
@@ -1225,6 +1743,33 @@ looked like a verified fix. Both were written in a hurry to answer one question,
 done what it claimed. **Make the real suite self-diagnosing instead** — a `next()` that reports when it did not
 click, and a `why()` that prints the refusal state, found all three bugs in one run each. And any probe that
 patches a file must assert its anchor count, exactly like every other edit here.
+
+**A SEEDED FINGERPRINT PROVES THE ENGINE, NOT THE GAME — AND IT GAVE ME FOUR COMMITS OF FALSE CONFIDENCE
+(2026-09-14).** The stack-model build ran a 240-game seeded fingerprint (rng AND `Math.random` pinned,
+hashing winner/round/shields/hand/energy/elimination) after every piece, and it was byte-identical through
+all of them. It was also blind to the two real defects, because **it drives `engine.js`/`ai.js` in Node and
+never loads the page** — both bugs lived in the UI: the rival driver stepping past a window it did not own,
+and `renderStack` throwing on a stack entry with no `eff`. **"Byte-identical fingerprint" and "nothing
+broke" are different claims**, and treating them as one is the `boost.style.display` incident in a new
+instrument (`test.js` stayed 333/0 while every render threw).
+**THE ACTIONABLE HALF: when a change alters what the UI MUST HANDLE, the fingerprint's silence is not
+evidence — run `browsertest` BETWEEN pieces, not only at the end.** It is the only suite that plays twelve
+complete duels through the real page, it takes ~70s, and it is what caught both. Four commits deep is a
+worse place to learn this than one.
+
+**AND A BASELINE HAS TO BE A BUILD YOU DID NOT WRITE (2026-09-14).** Chasing that hang, every A/B against my
+own partial work agreed with me. The worst was a careful-looking **three-runs-per-arm** A/B that hung 3/3 in
+BOTH arms and "cleared" the suspect commit: arm A's three hung runs each left the machine loaded, and a 200s
+cap then turned arm B's slow-but-fine runs into fake hangs — **six confidently wrong data points**. Its other
+flaw was structural: the "without" arm still contained the four earlier pieces, so it compared my build
+against my build. Against the MERGED EPIC it was unambiguous in two runs — 2/2 pass at ~70s versus 2/2 hang
+past 400s — and a per-commit bisect then named the culprit in minutes.
+**So: pick the baseline from merged history, run the arms CLEAN (kill stray browsers between runs, and never
+let one arm's wreckage into the next), and size the cap off a measured passing run rather than a guess.**
+This sharpens the existing "A/B the actual builds" note above, which says to do one and not against what.
+**The tell that an intermittent failure is being measured badly: the rate moves when nothing in the code
+did.** Here the same commit read 3/3 hang, then 0/1, then 2/2 hang. The mechanism, once found headlessly,
+was **5 of 339,433 driven rival turns — about one duel in 24**, which no single run could ever have settled.
 
 **IF AN A/B RETURNS IDENTICAL NUMBERS, CHECK THAT THE BUILD ACTUALLY WROTE.** On 2026-08-30 a comment repair
 orphaned its tail onto its own line; `build.js` refused to write (correctly), and the suites kept running the
@@ -1277,7 +1822,11 @@ made me revert a correct fix on 2026-08-28. Compare counts against the HOST: it 
 is the truth. `nettest_sync` asserts it.
 
 **Narration is reader-relative.** Never write a name into a log line — call `say(actor, '{who} …', cls)`. It
-renders `{who}` in the local frame via `logName` (yourself → "You"; a duel opponent → "Rival"; otherwise `P<n>`)
+renders `{who}` in the local frame via `logName` — yourself → **"You"**, everyone else → their typed name or
+**`defaultName(i)` = "Rival N"** (`N = i+1`), which is ONE default at every player count. *(This line used to
+say "a duel opponent → Rival; otherwise `P<n>`" and neither half was true: a duel opponent with no name reads
+**"Rival 2"**, and `P<n>` is used by the LOBBY roster and the pre-fight strip, not by `logName`. Found
+2026-09-10 writing the Resolution copy, from a test printing the name it actually got.)*
 and, when we are the netplay host, broadcasts the **template** plus the actor's absolute seat so each client
 renders it in *its* frame. A bare `logMsg` is host-local and reaches nobody else — which is how clients ended up
 with a completely empty battle log for every version up to v1.28.2.
@@ -1378,7 +1927,7 @@ stack view landed on a subtitle, the one for `respondDecision`'s threat list on 
 `openShieldGuardModal` on an unrelated client guard — and **most had drifted that same day**
 *(and this paragraph cannot quote them, because the gate scans this file — the `nettest_narrate` trap of
 tripping on your own example, which it duly did on the first run)*, from comment blocks added and dead functions deleted in the very session that
-wrote them. **Cite a SYMBOL** (`guardEffFor`, `openResponseWindow`, `THREAT_KIND`): greppable, says what you
+wrote them. **Cite a SYMBOL** (`immunityEffFor`, `openResponseWindow`, `THREAT_KIND`): greppable, says what you
 meant, and survives an edit above it. `versiontest` gates this now across the four live docs; the approximate
 form (`engine.js` ~1447) is deliberately still allowed, because the tilde is honest about drifting and banning
 it pushes people back to prose that names nothing.
@@ -1390,6 +1939,31 @@ counts, which are gated; it is in CLAIMS** — a measurement, or an assertion th
 Three of those were found and killed on 2026-09-07/08 (a landscape overlap, the Caltrops text, this file's own
 `effectOf` "still open" list), and none of them would have been caught by any mechanical scan. The only
 defence that has worked is the one already in this file: **make the second copy ASSERTED, not written.**
+
+**THE SWEEP RE-RUN, 2026-09-24 — AND THE 2026-09-08 CONCLUSION HELD EXACTLY.** Fifty backlog entries,
+every backticked identifier in each one checked against `code/*.js` + the template: **one hit, and it was
+`getUserMedia`** — a browser API named in the parked camera entry, not our code. So the mechanical axes
+(names, counts, citations) are still clean, which is what being gated does, and **every real finding was
+again a CLAIM**.
+**THE CHEAP TEST IS PER-ENTRY, NOT PER-DOC, AND IT IS `node docsweep.js` NOW**: it splits the BACKLOG on
+its `[id: …]` lines, pulls the backticked identifiers out of each entry, and greps them. A second to run,
+and the only part of a docs sweep that needs no judgement. **It reports and never gates**, because a hit is
+a lead rather than a verdict — today's single hit was `getUserMedia`.
+*(Written as a throwaway python script and ported the same hour: it would have been the first `.py` in an
+all-JS repo, introduced by surprise, which is the branch-prefix drift rule wearing different clothes. And
+it had a `_` prefix while being tracked, where `_` is this repo's mark for a GITIGNORED scratch probe.)*
+**WHAT IT CANNOT SEE is the half that rots**: an entry whose symbols all still exist while its *action* has
+already shipped. Today's example — `round-ceremony-reruns-with-stale-res` named a wording fix and two
+guards, **all three of which landed that same morning**, and the entry still read as if they were owed.
+Nothing mechanical could catch that; the tell is an entry that names a specific remedy, so **re-read the
+remedy, not just the symptoms.**
+**AND VERIFY THE SURVIVORS TOO, which is where the confidence comes from.** Three entries were spot-checked
+and all three are STILL LIVE, quoted code byte-identical: `twos-lesson-pilot-leads-nothing` (its pilot's
+leading branch still needs three 2s AND a non-2 pair and still falls through silently — thirty green
+`lessontest_twos` runs mean the rig happens to supply both, not that a guard exists),
+`discard-line-hardcodes-rival`, and `respond-window-offers-duplicate` — that last one nearly misread as
+fixed because a `uniq` dedupe does exist two thousand lines away, in **Counterfeit's picker**, not the
+respond window. **A dedupe somewhere is not a dedupe here**; read which function it is in.
 
 **A RECORDED MEASUREMENT IS ONLY TRUE OF THE BUILD IT WAS TAKEN ON — RE-MEASURE BEFORE BUILDING AGAINST ONE.**
 Every number in the zones-into-panels entry was wrong by the time anyone acted on it, three versions of layout
@@ -1443,6 +2017,48 @@ forever is not worth 1s. Do not re-propose it without timing the suites first.
 geometry stops moving" poll; the first version watched `#hand`'s box and returned while the CARDS were still
 growing into it, so two negative cases measured a 60px card against a 66px floor and failed.
 
+**THE SWEEP'S SCHEDULING COST IS MEASURED, NOT DECLARED — AND THE LIST THAT DECLARED IT HAD SILENTLY
+INVERTED (2026-09-24).** `SLOW` drove BOTH the longest-first schedule and `--fast`, which are two different
+questions: *what costs the most* is a MEASUREMENT and rots, *what is stable enough to skip while iterating*
+is a JUDGEMENT and does not. Measured, the six it named were mptest 63s, browsertest 59s, landscapetest 44s,
+lessontest_twos 22s, exporttest 15s and **rulestest 11s**, while `nettest_passoduel` 44s, `prompttest` 43s,
+`nettest_sync` 28s and `resolutiontest_ui` 24s were not in it at all — so an 11s suite sat at the head of the
+queue and a 44s one was left to readdir order.
+**CONFLATING THEM MADE EVERY NEW HEAVY SUITE A BAD CHOICE**: add it and `--fast` skips the code you are
+actively changing, leave it out and the scheduler mis-orders. That is why the epic added three of the seven
+slowest suites and none of them could go in. Now `FAST_SKIP` is hand-maintained and the cost is a file every
+run writes and the next run reads (`code/.sweep-times.json`, gitignored — a tracked one would dirty the tree
+and break the PR checklist's clean-tree step).
+**THE MINIMUM ACROSS RUNS, NEVER THE LAST TIME, and that is the whole trick.** Longest-first puts a suite
+into the MOST contended window, so recording the last time is a feedback loop: a suite is slow because it is
+scheduled early and scheduled early because it is slow. `lessontest_twos` is the worked example — recorded at
+**112s under load against a real 22s**, it has been starting alongside the three heaviest suites in the repo
+ever since, which is precisely where a thin margin dies.
+**DO NOT EXPECT A WALL-CLOCK WIN.** The existing A/B found longest-vs-shortest indistinguishable on this
+machine — though note it ran on the half-inverted list, so it compared "roughly sorted" against "reverse
+sorted". The reason to get the order right is *what lands in the head of the queue*, not the total.
+
+**A GREEN SUITE'S OWN WARNINGS WERE BEING THROWN AWAY (2026-09-24).** `sweep.js` printed a suite's evidence
+only when it FAILED, so every line a passing suite wrote to explain itself went into a discarded buffer:
+`lessonlib`'s `← OVER HALF THE BUDGET` (which exists exactly so a poll returning at 13.4s of 14s is visible
+before the day it returns at 14.1s), `netwindows`' auto-passed count — *"it prints on GREEN runs too, which
+is the tell nobody was reading"*, already written in this file — and `nettest_sync`'s WALL CLOCK notice. This
+is the cropped-summary-line mistake one step earlier, and the same rule applies: **a runner that discards the
+evidence makes the warning invisible.** There is a `warnings (these suites PASSED)` section now.
+
+**⚠ A NEW SUITE THAT IS NOT `nettest_*` OR `lessontest*` IS INVISIBLE TO THE SWEEP UNTIL YOU ADD IT
+(2026-09-29).** `sweep.js`'s filter is a HYBRID — those two families are GLOBBED, everything else is an
+explicit allowlist — so `dragtest.js` was written, reviewed, merged and **never run by the runner**, while
+CLAUDE.md claimed a suite count one higher than the runner could reach. This is the documented rename trap
+in the ADD direction, and it is worse here: a rename at least breaks something, while an unlisted new
+suite is simply green by absence.
+**The check is one line and belongs in the same commit as any new suite** — derive the runner's list and
+assert your file is in it, rather than trusting that adding a file is enough:
+
+```bash
+node -e "const fs=require('fs');const m=/\|\| \[([^\]]*)\]\.includes/.exec(fs.readFileSync('sweep.js','utf8'));console.log((m[1].match(/'[^']+'/g)||[]).join(' '))"
+```
+
 **~~Run them one at a time~~ — USE `node sweep.js`, WHICH RUNS THEM 4 AT A TIME (v1.31.82).** Every suite now
 takes `PORT` from the environment (default unchanged, so running one by hand is exactly as before) and the
 runner hands each job its own. **The old rule was load-bearing, not caution: FIVE port groups actually
@@ -1462,6 +2078,46 @@ on any progress) so a slow machine takes more of them rather than doing less. Th
 (`nettest_full`) applied to a suite that predated it — **grep for a bare `for(let i=0;i<N;i++)` driving a
 board before adding another.**
 
+**A POLL WAITING ON A WALL-CLOCK DWELL HAS A LOAD-INDEPENDENT MARGIN, AND I RAISED ONE BEFORE CHECKING
+(2026-09-24).** `lessontest_quicks` hand-rolls its own polls — it is not a `lessonlib` client — so its
+budgets sat at **6000ms against the family's 30000**, with the Respond? wait at **9000ms**. That is exactly
+what the v1.31.84 raise having missed a file looks like, the suite is filed red ~25% of the time at `-j 4`
+opening on that very wait, and I raised it on that reasoning and wrote a confident comment about a 4x load
+slowdown. **Then I measured it: 2695ms solo · 2709ms with four copies of the suite running · 2743ms against
+mptest + browsertest + landscapetest together.** Contention does not move it, because what it waits for is
+`revealDwell` — **2650ms of MANDATORY WALL-CLOCK dwell**, and CPU load does not slow a timer down. Reverted.
+**THE REUSABLE DISTINCTION: ask what a poll is waiting FOR before sizing it.** A wait on WORK (a render, a
+solve, a page load) stretches with load and needs headroom for the slowest plausible machine; a wait on a
+TIMER does not stretch at all, so its margin is whatever it is on any machine and a raise buys nothing but
+a slower report when the thing genuinely never happens. The two look identical in a suite listing.
+**AND A FAILING SUITE'S WALL CLOCK IS A CONSEQUENCE, NOT EVIDENCE.** The 39s that made this read as
+starvation (against ~10s green) is four poll budgets — 9+6+6+6 — burning down after the FIRST assertion
+failed. Reading the elapsed time as a cause inverts it: the suite is slow *because* it went red.
+**THE GENERAL FORM IS ALREADY IN THIS FILE — "raise a budget because you measured it, never on principle" —
+and the failure mode was that the number LOOKED wrong** (5x below its family) which felt like measurement.
+A number being out of line with its neighbours is a reason to measure, never a measurement.
+
+**AND THE SWEEP WAS DROPPING THE ONE LINE THAT WOULD HAVE SETTLED IT.** `lessontest_quicks` prints
+`   WHY: step=… turn=… pending=… counterSpell=…` on exactly the assertion it fails — whether the Rival even
+holds Counter Spell, whether it had the energy — and `sweep.js`'s failure filter matched
+`^✗|FAILED|TIMED OUT|ERROR|⚠|⏱` and **not `WHY:`**, so three sweeps reported that failure with its own
+diagnosis stripped out. `WHY:` and `←` are in the filter now. **When a suite already does the work, the
+runner's job is not to crop it** — this is the third instance of that one mistake (the summary line, the
+green suites' warnings, and now this).
+
+**BEFORE BLAMING CONTENTION FOR A SUITE'S BUDGET, MEASURE WHETHER CONTENTION SLOWS THAT SUITE AT ALL
+(2026-10-01).** `nettest_passoduel`'s hang was filed against a `-j 4` sweep and the theory was unscripted
+windows eating its budget. Run eight times against the three heaviest suites — a real lane shape — it was
+**8/8 green at 42-47s against 33-51s solo**: the loaded band is TIGHTER. Load does not move it, because
+its runtime is wall-clock (`graceMs(300)`, fixed `wait()` beats, polls that return on their condition) and
+**CPU contention does not slow a timer**. The unscripted window fired in 1 of 8 and cost its ~6s; six
+seconds cannot become three hundred.
+**THAT IS A REFUTATION, NOT A FAILED SEARCH** — it says the proposed mechanism cannot produce the symptom,
+which is worth more than another clean run. It is the `lessontest_quicks` lesson from the other side: there
+I raised a poll budget on the reasoning that load must be slowing it, and measuring showed 2695ms solo
+against 2743ms under load. **One loaded run against one solo run settles it, and it has now saved two
+investigations.**
+
 **AND MEASURE THE MARGIN, OR THE NEXT PARTIAL FIX LOOKS COMPLETE (v1.31.99).** v1.31.84 raised the lesson polls
 to 30s and left TWO explicit overrides behind, which is what left an intermittent tail. Instrumenting every wait
 found exactly one outlier: `atStep` returns in **0-4ms** of 12000 and the Rival's answers in ~1.07s of 30000
@@ -1470,6 +2126,35 @@ day that suite failed it ran **5x slow**. `until` now warns on any wait past hal
 `LESSONPOLL=1` prints them all. **A poll returning at 13.4s of 14s is a green run one slow machine away from
 red, and nothing said so.** Raise a budget because you measured it, never on principle — the six other
 sub-default budgets in the harness all return under 5% and were deliberately left alone.
+
+**`card <id> has no group` IS NOT A DOM BUG — IT IS PICK MODE, AND IT COST THREE INVESTIGATIONS
+(2026-09-24).** `renderHand`'s FIRST branch renders bare cards straight into `#hand` with no `.group`
+wrapper — *"pick mode: flat individual cards, no grouping/drag"* — and `grep "hand.appendChild"` proves it
+is the only writer that does. So every `lessonlib` helper reaching for `.closest('.group')` reports that
+message, for EVERY id, whenever a pick is up; and a pick is an inline board state that **never clears
+itself**, so the retry spends its whole 30s budget against a board that cannot move and then fails with a
+message describing a render bug that is not there.
+**IT WAS FILED THREE TIMES AS A POLL-BUDGET FLAKE** (`[id: lessontest-twos-poll-under-load]`), and the poll
+budget really did expire — as a SYMPTOM. The tell that separates the two: pure slowness makes a suite
+slower and then it succeeds; **a stable wrong state for thirty seconds is a mode, not a race.**
+**WHAT OPENS IT: "The 2" SITS AT 10 OF 10 CARDS AT ITS LAST STEP — exactly the cap, zero headroom.** The rig
+deals ten and the lesson spends all ten, so the four round draws are pure surplus and ONE card left unspent
+takes the hand to 11 and fires the clean-up trim. That is why it only bites under load, and why it always
+surfaces three steps after the beat that actually slipped. **Do not "fix" it by dealing fewer cards** —
+every one of the ten is played. `lessontest_twos` now asserts the rig's own promise (`[10/10]`) at that
+step, which is one number instead of a symptom.
+**THREE GUARDS, AND TWO OF THEM WOULD OTHERWISE BE UNTESTED CODE** because no lesson reaches a pick on a
+good day: `lessonlib.pickMode()` names the state (hand size, round, and the board's own "Clean-up — over the
+hand limit" message), `answerWindow()` escapes it — taking `need` cards in ONE go and preferring
+**non-spotlit** ones, since pitching the card the next step asks for swaps one dead end for another — and
+`lessontest_pickescape` forces the condition so both are exercised. **`nettest_trim` asserts the DOM
+contract they rest on**, because it is the only suite in the repo that reaches a real pick through ordinary
+play; if the pick branch ever starts wrapping cards, no lesson suite could catch the diagnosis silently
+reverting.
+**THE ESCAPE MUST SELECT `need` CARDS BEFORE CONFIRMING.** The first cut clicked one card, saw FIGHT go
+live and pressed it — the pick took that single card, was still over the cap and re-opened, so the board
+never left pick mode (measured: 13 cards, "Discard 3", escaped with 12 still up). FIGHT is the confirm
+(`fightBtn` is wired `pick ? confirmPick() : doFight()`), which `nettest_trim` already documents.
 
 **A POLL BUDGET SIZED FOR A QUIET MACHINE GOES RED WHEN THE SWEEP IS PARALLEL (v1.31.84).** The lesson suites
 polled with **9s**; under `-j 4` `lessontest_rides` blew it once on "the J is spotlit", and a tutorial paces
@@ -1594,22 +2279,29 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.128 — 2026-09-10, `npm run sweep`, 86 suites and 0 FAIL in 182s** (four lanes; background
+Status as of **v1.32.0 — last FULL sweep 2026-10-02, `npm run sweep`, 105/105 in 290s**, plus
+`nettest_sync` re-run ALONE at full depth (12/0, rounds 9, actions 60). That re-run is the habit, not a
+flourish: it time-capped inside the parallel sweep at rounds 5 / 27 actions and stayed GREEN while doing
+it, and it is the only suite that compares the two peers to EACH OTHER — a shallow pass from the one
+suite that can see a fork is exactly the result not to green-light a release on. A suite count and a date
+are a MEASUREMENT and are only true of the build they were taken on, so re-run before quoting this — and
+note that this line was itself 27-stale-counts' worth of evidence for that on 2026-09-30, which is why
+the per-suite numbers below are now checked against the sweep output rather than re-typed. (The epic/main split this line used to carry is GONE as of v1.32.0 — `epic/priority-windows` merged, so the 105 suites listed below ARE main's.) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 402, `netview` 60, `mptest` 85, `rulestest` 150, `landscapetest` 192, `decktest` 42, `viewtest` 21,
-`piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 15, `lessontest` 19, `lessontest_energyorder` 14,
-`versiontest` 30, `sharetest` 17, `qrtest` 32, `peektest` 43, `logtest` 21, `motiontest` 7, `phonetest` 72, `oppbeatstest` 8, `counterfeittest` 11, `quicktest` 6, `lessontest_quicks` 21, `lessontest_howto` 24,
-`lessontest_zones` 21, `lessontest_initiative` 17, `lessontest_specials` 19, `lessontest_energy` 18,
-`lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 29, `qrref` 26 (darwin only, corroborates rather than
+`test` 594, `netview` 65, `mptest` 115, `rulestest` 150, `landscapetest` 195, `decktest` 42, `viewtest` 26,
+`piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 18, `lessontest` 21, `lessontest_energyorder` 14,
+`versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 10, `counterfeittest` 11, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
+`lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
+`lessontest_rides` 15, `lessontest_forms` 15, `lessontest_twos` 31, `lessontest_pickescape` 11, `qrref` 26 (darwin only, corroborates rather than
 gates), `browsertest` (smoke, 12 duels — prints no PASS line).
-The 50 netplay suites: `nettest_3p` 7, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 9, `clientwin` 10, `concede3` 8,
-`counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 13,
-`elim3` 16, `emote` 21, `energy` 10, `full` 5, `guard` 8, `inpage` 14, `kick` 11, `log` 16, `losspick3` 7,
-`losspick_remote3` 7, `names` 13, `narrate` 11, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
+The 58 netplay suites: `nettest_3p` 7, `brake` 24, `brake3` 15, `clientdeal` 10, `autopass` 24, `rename` 17, `prefightduel` 8, `priosig` 19, `passoduel` 8, `parkbeat3` 10, `stale` 7, `endscreen` 51, `lobbyback_rtc` 26, `remotetrim` 9, `desync` 7, `starter` 10, `mirrordrop` 10, `activate` 14, `actloop` 22, `ceremony` 14, `clientwin` 10, `concede3` 8,
+`counter` 10, `customdeck` 18, `deckout3` 8, `deckpick` 8, `dim` 8, `discard` 10, `discon3` 22, `drag` 16,
+`elim3` 19, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 7,
+`losspick_remote3` 7, `names` 13, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 7, `ghostseat` 6, `trim` 14, `unready` 15, `version` 14.
+`target3` 7, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state
@@ -1670,13 +2362,74 @@ prediction was a DEADLOCK; it never happened — two divergences, zero stalls. S
 recorded fork. An earlier version of this same fix was withdrawn on 2026-08-31 precisely because the experiment
 of the day could not validate it either way; write the prediction down first.
 
-**`nettest_sync` PASSED this sweep, and that is not evidence it is fixed** — the host/client fork it hunts is
+**`nettest_sync` PASSED this sweep, and that is not evidence it is fixed** — the host/client fork it hunts was
 intermittent at roughly 1-3 runs in 8, so one green run is exactly what the bug looks like most of the time. A
 single clean sweep is evidence for the OTHER 60 suites and says nothing about this one.
+**THE RATE NO LONGER HOLDS ON A QUIET MACHINE — MEASURED 23/23 GREEN (2026-09-16), and the arithmetic is the
+point of the entry rather than the streak.** Ten runs was not enough and saying so is the useful half: at a
+1-in-8 rate, ten clean runs happen **26%** of the time, so the obvious round number licenses nothing. The
+threshold is `0.875^n < 0.05`, i.e. **n = 23** — at which point 23 straight passes carry a 4.6% chance under
+the old rate, and it is rejected. Every run went deep (rounds 10-13, all stopping on the ACTION cap, none
+time-capped), so these are not shallow passes.
+**WHAT THAT DOES AND DOES NOT LICENSE, because the two get conflated.** It says the RATE has changed on this
+machine. It does NOT say the fork is fixed: nobody found a mechanism, nothing was changed to address it, and
+the suites that were red the same morning were red because the machine had spent a session being
+`kill -9`'d — so "quiet machine" may be the whole variable. **Re-measure rather than trusting this number if
+the suite ever goes red again**, and do not quote it as a fix.
+**THE SAME ARITHMETIC SETTLED `nettest_passoduel` ON 2026-09-30 — 23 RUNS, NOT 20 AND NOT 18.** Its filed
+rate was 1 in 8, so the threshold is `0.875^n < 0.05`, i.e. **n = 23**; the series was run to exactly that
+and came back 23/23. **Eighteen would not have done it** (`0.875^18 = 0.090`) and eighteen is the number
+a person naturally stops at. Pick n from the rate BEFORE running, every time — this is now the second
+entry where the obvious round number licensed nothing.
+**AND A RUN SERIES THAT DOES NOT PRINT ITS DENOMINATOR CANNOT BE READ.** The first attempt reported two
+reds that were neither: the loop wrapped each run in `timeout`, **which macOS does not have**, so both
+were `rc=127` in 0s. It was caught only because the harness printed the return code and the elapsed
+time — a bare `FAILED`/`PASS` tally would have sent the next hour after a flake that had not run. Print
+rc, seconds and the summary line for every run.
+**AND SAY WHICH CONFIGURATION THE STREAK COVERS.** Solo is rejected; the signature that has actually been
+seen since is a HANG under `-j 4`, which is a different measurement, and nothing about 23 clean solo runs
+speaks to it. A streak closes the case it sampled and no other.
+
+**AND THE GENERAL RULE: PICK THE RUN COUNT FROM THE RATE YOU ARE TRYING TO REJECT, BEFORE RUNNING.** This file
+already carries the mirror of it — a probabilistic assertion is settled by counting, and `nettest_starter`'s
+six coin flips were called "a real test rather than a hopeful one" by a comment that had done the arithmetic
+wrong. Ten here would have been the same mistake in the other direction.
 **RUN THE WHOLE NETPLAY SWEEP AFTER A UI CHANGE, NOT THE SUITES THAT LOOK RELEVANT.** v1.31.57 gave `#newBtn` a
 third state and left `nettest_elim3` red for five versions, because that suite asserts an ELIMINATED seat's
 header text and nothing about the change suggested it. The sweep takes a few minutes; a suite that is red and
 unnoticed is worth less than no suite at all.
+**⚠ AND THE COUNTS ARE DECLARED IN *TWO* PLACES, ONLY ONE OF WHICH ANYONE MAINTAINS — 27 WERE STALE
+(audited 2026-09-30).** `versiontest` asserts `test` and `netview`, and nothing checks the rest. The
+verified list below had drifted in 3 places; **the COMMAND LIST above had drifted in 24**, some of them
+wildly — `rulestest` said 36 against a real 150, `landscapetest` 96 against 195, `peektest` 31 against 43,
+`resolutiontest_ui` 46 against 71. The command list is the one a session reads FIRST, to decide what to
+run, and it was the one nobody was updating.
+**THE AUDIT IS MECHANICAL AND TAKES SECONDS — DO IT WHENEVER A SWEEP IS FRESH.** Parse each `node x.js`
+block's single `(N)` and the verified list's `` `name` N ``, and diff both against the sweep's own
+per-suite `PASS:` lines. A first pass that reads only the FIRST line of each command entry misses five,
+because several blocks carry the count on a continuation line — walk the whole block to the next
+`node `.
+**THE REAL DEFECT IS THE SECOND COPY, NOT THE NUMBERS.** This file's own rule is that a measurement lives
+in exactly ONE place and any second copy must be ASSERTED rather than written. Two hand-maintained count
+lists is that rule broken twice over, and re-typing 27 numbers fixes today and guarantees a repeat. Filed
+as `[id: suite-counts-declared-twice]`: have `sweep.js` record per-suite counts beside `.sweep-times.json`
+and have `docsweep.js` report the diff — report, never gate, like every other staleness check here.
+
+**AND A SUITE CAN BE LISTED TWICE, WHICH NO COUNT CHECK CATCHES BY ITSELF (2026-10-01).** `narrate`
+appeared in the netplay list as both **11** and **12**. A diff that walks the declared entries finds the
+stale one and silently passes the fresh one, so the list reads correct from either end — the same shape
+as the `__cmf` duplicate-key trap, in prose. **The grep must be SCOPED TO THE LIST**, because an
+unscoped one matches prose and reports four false positives — `prompttest` 43**s** is a timing, and
+*"`landscapetest` 96 against 195"* is this file narrating the audit:
+
+```bash
+awk '/Counts verified:/,/^\*\*A DEADLOCKED/' CLAUDE.md | grep -oE '`[a-z0-9_]+` [0-9]+' | awk '{print $1}' | sort | uniq -d
+```
+
+Verified both ways on the day: silent on the fixed file, and it prints `narrate` against the commit
+before the fix. **An unverified grep written INTO this file as advice is worse than no advice** — the
+unscoped version was written here first, and only running it showed it was wrong.
+
 **If a count here disagrees with a suite, the suite is right — fix this line.**
 **A FAILING SUITE NOW SAYS `FAILED — PASS: n  FAIL: m`, and the old form was actively harmful (fixed 2026-08-31).**
 Every suite printed `(fail?'FAIL':'PASS')+': '+pass+'  FAIL: '+fail`, so a red run read **`FAIL: 23  FAIL: 1`** —
@@ -1686,6 +2439,365 @@ line — which looks like a crash rather than a failure, and misled me twice whi
 moved to the FRONT (`FAILED — `) so the loud signal survives while `PASS: n  FAIL: m` stays intact and greppable.
 59 files, one line each, including `relay/relaytest.js` which spelled it with spaces. **When you add a suite,
 copy the summary line from an existing one — do not re-invent it.**
+
+**EVERYTHING RESET ONLY IN `startGame` IS NEVER RESET ON A CLIENT — THAT IS FOUR TIMES NOW (2026-09-24).**
+`resetBoardMemory` is the documented one and its comment already says why. `handOrder`, `layout` and
+`sortState` were in the same position and nobody noticed, because their failure is silent: the ENGINE keeps
+every hand sorted (`sortHand` at the deal and at every draw), so the only thing that ever made a dealt hand
+LOOK dealt was `syncOrder(true)` from `startGame`. A client therefore read its hand in ascending order from
+round 1, every game, and never reset its arrangement between games at all. Aj found it playing the client
+seat: *"the client view's cards come pre-sorted in singles"*.
+**THE STRUCTURAL READ IS HIS AND IT IS THE POINT**: *"both comments stem from the client and host seeming to
+have different UI/UX experiences."* Two reports, one fault. `resetHandPresentation()` now owns the per-game
+hand presentation and BOTH seats call it.
+**THE ENUMERATION, which is cheap and was never done:** `startGame` is one statement wide — read what it
+assigns and ask of each name whether anything else ever resets it. Anything that does not appear in
+`clearBoard`, `resetBoardMemory` or the client's `t:'setup'` is in this class.
+**DOING THAT ENUMERATION IMMEDIATELY FOUND THE FOURTH: `PRIO_LOG`.** `stashLog()` clears `fullLog` at the
+lobby return and leaves the priority ledger, and `startGame` is the only other place it is touched — so a
+client's ledger ACCUMULATED across every game of a session (capped at 400) while the host's reset cleanly.
+It is now cleared at `t:'setup'` beside `resetHandPresentation()`. **The tell for this whole family is a
+per-game variable whose only assignment outside its use is on `startGame`'s one long line.**
+**AND THE MECHANISM IS WHAT YOU ASSERT, NOT THE SHUFFLE.** `nettest_clientdeal` reads a counter the reset
+bumps. Its first version read a trace line written BESIDE the call, stayed green with the fix deleted, and
+was caught only by A/B'ing it — so the counter is bumped INSIDE `resetHandPresentation`, where removing any
+call site is observable. An order assertion was rejected outright: a fair shuffle reproduces the engine's
+order once in 720.
+
+**A NOTIFICATION PREFERENCE MAY NOT DECIDE A SHIELD EVENT — AND "WHAT `main` DID" IS THE WRONG CONDITION
+FOR RESTORING ONE (2026-09-23).** The 2026-09-15 override was defensive only: you are a strike target and
+`lossAnswerFor` says your card answers the loss. Aj widened it twice in one sitting — *"i want you to see
+past sanctuary … when it sees that i won a fight, and will now break a shield … the game would still
+prompt you to use the armor piercing"*, then *"for all the other quicks, they had their preferred timings
+back in main right? those will still fire off with or without the notices checked"*. **The rule is the
+EVENT, not the direction**, and `E.stakeFor(st, q, card, timing)` is the condition: strike target with an
+answer · the WINNER holding a strike modifier · Back Stab at `prefight` · a `destroyShield` aimed at you at
+`respond`, which is the only window that card ever gets.
+**⚠ THE OBVIOUS IMPLEMENTATION IS THE ONE THIS REPO ALREADY GOT WRONG.** "Force whatever the old build
+forced" means `immunityEffFor`, and that predicate **REFUSES Sanctuary-under-Hector and
+Armor-Piercing-under-Hippolyta — the two cards the epic exists to fix.** Step 15 keyed a default off it and
+made the headline fix invisible until a box was ticked; keying the FORCE off it would have reproduced that
+exactly, for the same reason, against the same two cards. The question is whether the card has a live
+stake, never what a previous build happened to whitelist.
+**A CARD WITH A STAKE IT CANNOT ACT ON IS NOT FORCED, and that falls out of `effectFor` (Aj asked directly:
+*"some of them might not be able to act, not until they get boosted to their quick forms first, right?"*).**
+`stakeFor` opens with `effectFor`, NOT `effectOf`, and returns null unless the result is `quick` — so Armor
+Piercing with no Queen in the zone is a plain Technique, uncastable in any window, and stopping you for it
+would be a modal offering nothing. The Form is what creates the stake, which is the same `effectOf`/
+`effectFor` trap this file already catalogues, in a new place.
+**THE ENGINE OWNS IT**, like `lossAnswerFor` before it: a client sends a card id over the wire, so a
+UI-side rule is unenforceable. The template keeps only the closed set of timings and the tutorial guard.
+**WRITING THE TESTS FOUND AN ORDERING BUG THE CODE READ PAST.** The first cut tested `st.resolution` before
+the `prefight` branch, so a lingering resolution object would have shadowed it — a branch that reads as
+live and never fires. It dispatches on `timing` first now. Every branch has a NEGATIVE and all of them are
+mutation-tested: removing any one kills exactly one assertion.
+**AND `resolutiontest_ui` C2 HAS NOW INVERTED TWICE**, both times because nobody had decided the behaviour
+and the suite encoded whatever fell out. That is the "a suite can pin the defect" rule below in its most
+expensive form: the second inversion was a feature request, and the first was a bug.
+
+**AN AUTO-PASS IS NOT A CHOICE, AND THE WIRE COULD NOT TELL THEM APART (2026-09-23).** A client whose
+prompt for a timing is off answers the window with `{op:'decline'}` — the **identical intent** a player
+clicking "Let it resolve" sends — so the host narrated both with `say(seat, '{who} let it resolve.')`.
+Aj's log showed him declining **seven times in two rounds having chosen once**, and his opponent read the
+same seven. **The tell was the CLOCK, not the wording: five declines 0.2s apart** in the netplay trace,
+which is not a human clicking modals; the ledger's six `AUTO-PASSED — PROMPT OFF` lines accounted for them
+exactly. `{op:'decline', auto:true}` is the distinction, and the host stays silent for it.
+**SOLO WAS ALREADY RIGHT, WHICH IS BOTH THE DIAGNOSIS AND THE FIX.** The same branch's local path is
+`E.declineResponse(state, YOU); return cont();` with no `say` at all — so an auto-pass was silent offline
+and narrated online, and the only reason was that the netplay one routed through the generic decline
+handler. **When a netplay behaviour looks wrong, check what solo does on the same branch**: a divergence
+there is a bug in the netplay path roughly every time, and it names the correct behaviour for free.
+**PASSO WAS THE SAME BUG WITH A WORSE VICTIM** — its auto-answer for a DROPPED seat came through the same
+handler, so the table read "Rival 2 let it resolve." about a player who was not connected. Both Passo
+sites now send `auto`. **Enumerate by `grep -n "op:'decline'"`: four senders, two handlers.**
+**AND "SILENT" MUST NOT BECOME "IGNORED", which is the easy way to get this wrong** — dropping the decline
+suppresses the line too, and the two are indistinguishable in a log and opposite in a game. The suite
+asserts the window CLOSES on the auto path before it asserts the silence.
+**THE STATIC LEG EXISTS BECAUSE THE FIRST A/B PASSED ON A HALF-BROKEN BUILD.** A duel drives
+`hostApplyMove` and never reaches `hostApplyMoveN`, so deleting the N-player guard left the suite 15/0 —
+the two-handler-families trap, now four times over. A source scan covers both and any future one. It
+discriminates on the ACTOR: `say(YOU, …)` is exempt, because a seat narrating its own click knows it
+chose, while a host narrating for another seat cannot and must be told.
+
+**NOTIFICATIONS ARE ONE TRI-STATE: ON · AUTO · OFF (2026-09-24).** Aj brought the model back from Master
+Duel — *"ON turns all the notifs on; AUTO only notifies the player when they have stakes; OFF turns all the
+notifs off even when effects will have stakes"* — and the middle state was already built: AUTO is
+`stakeFor` plus the per-card rows. `PROMPT_MODE` GATES those rows rather than replacing them, so the mode
+is a strict superset: ON ignores an untick, OFF ignores a tick, AUTO is what shipped before it.
+**OFF DELIBERATELY OVERRIDES `stakeFor`, INVERTING THE GUARANTEE FROM THE DAY BEFORE**, and the difference
+is the ACT, not the outcome: that rule protects against a buried per-card default costing you a shield you
+never knowingly declined; a visible, global, one-tap mode is the player saying *"I know, do not stop me"*.
+**THE LEDGER NAMES THE MODE**, and that is the condition that makes OFF defensible rather than a hole —
+silent is fine, unexplainable is not. `resolutiontest_ui` C4 keeps that assertion specifically.
+**AND A SUPPRESSED *STAKE* ALSO GETS A VISIBLE BATTLE-LOG LINE** (Aj: *"can we add to the logs for when a
+stake was auto passed because the notifs were off?"*) — the ledger is download-only by design, so without
+it a player never learns in-game what their own setting just did. **Only a stake, never every auto-pass:**
+dropping that filter put **5 lines on a board with nothing at risk**, measured, which would flood the log
+of the one mode chosen for quiet. It is `logMsg`, never `say` — your setting is not the other seat's
+business — and it names the card and the stake but **claims no outcome**, because the window is skipped
+before the loss resolves and a stake is not always a loss (Armor Piercing's is a shield you are about to
+TAKE). C7 is the negative and asserts the LEDGER still records what the battle log stays quiet about.
+**EVERY MODE SCENARIO IS A TWIN OF AN EXISTING ONE ON IDENTICAL STAGING** — C4 against C, C5 against C3 —
+because "no window opened" is equally true of a build where nothing ever opens one. A tri-state tested
+only in its own new scenarios proves nothing about the two states that were already there.
+**`?prompts=all` MAPS ONTO `on`** instead of remaining a second mechanism; four suites set it, and a flag
+meaning something a player cannot express is the drift `promptDefault` already suffered once.
+
+**A BOARD CONTROL IS JUDGED BY WHAT IT READS AS, AND NO MEASUREMENT ANSWERS THAT (2026-09-24).** Placing
+one button cost more turns than the whole feature, and every wrong step measured clean: `stretch` made it
+286px the moment the log expanded; `center` parked it mid-column so it read as part of the panel above;
+sizing it per-state gave it two sizes so it changed shape when the log opened; and lifting the log's caret
+out of its header left **three things in the rail of which only two were clickable** — Aj: *"why does it
+look like there's three buttons then? a bell, an arrow and a log thing that i can't even click?"*, and
+then *"if you are not sure about something, ask"*. **Ask which lane before building one**; a screenshot
+shows you the mistake but only the person can say which shape they meant.
+**THE RESOLUTION IS THE RULE WORTH KEEPING: IF IT LOOKS LIKE A CONTROL IT MUST BE ONE.** The collapsed log
+rail is a tall rounded strip with a label, so the whole strip now expands the log, and the separate button
+is gone. Only while COLLAPSED — expanded, it is a reading surface and a click must not close what you are
+reading, which the suite asserts both ways.
+**AND `textContent` ON AN ELEMENT WITH CHILDREN IS A DELETION WEARING AN ASSIGNMENT'S CLOTHES.** A leftover
+`b.textContent = …` from the button's first stub survived its own rewrite and wiped the `<span>` label on
+every paint, so three rounds of CSS width tuning were done against a control that was not the control.
+Measuring the INNER widths found it in one probe; re-reading the function three times did not. The log
+toggle's handler had the identical line waiting for the same accident. `resolutiontest_ui` C6 now asserts
+the label survives a render.
+
+**A NAME REACHED THE TABLE EXACTLY TWICE, BOTH BEFORE THE GAME EXISTED (2026-09-24).** Aj: *"renaming
+yourself in netplay doesn't tell the host"*. `openNameEditor`'s commit was four local calls and nothing on
+the wire, so a name travelled only on a client's `t:'join'` and the host's `t:'setup'`, and a mid-game
+rename was invisible to everyone but the player. **The shape to look for is a committing function whose
+whole body is local calls**, in a feature whose state other seats hold a copy of.
+**`t:'names'` IS ITS OWN MESSAGE AND MUST STAY ONE.** Re-sending `t:'setup'` is the obvious shortcut and is
+now actively wrong: `setup` also runs `resetHandPresentation()`, so it would scramble the hand mid-game.
+A message that has grown side effects is not a broadcast primitive any more.
+**ANNOUNCE BEFORE ADOPTING THE NEW TABLE**, or `{who}` renders as the name being announced — *"Zed picked
+a new name — Zed."*, measured on the first cut. Said first, `{who}` is the OLD name, which is what connects
+the two for a reader, and the ordering carries to the other seats because `say` broadcasts ahead of
+`t:'names'` and both transports deliver in order.
+**THE COOLDOWN ESCALATES AND IS THE HOST'S** (20s doubling to a 4-minute ceiling, per game, reset in
+`hostStartRealN`); a client controls its own clock, so its gate is a courtesy. **A REFUSAL IS PRIVATE** —
+announcing one hands a flooder the attention they were refused. **AND AN ESCALATING COOLDOWN NEEDS A
+TUNABLE BASE OR IT IS UNTESTED CODE**: at 20s the doubling needs a 40-second suite, so `__cmf.renameBase`
+shrinks the BASE only. A flat cooldown passes every assertion except the one that waits past one window.
+
+**AUTO MUST NOT STOP YOU FOR YOUR OWN CAST, AND IT DID SO ON EVERY TECHNIQUE (2026-09-24).** Aj, from a
+real game: *"on auto, you should not have a stake to counter your own spells … this is entirely
+appropriate in ON, but not in Auto"*. **Being ABLE to is correct and unchanged** — `nextPrioHolder` starts
+the go-round at the CONTROLLER by design (epic step 6, `PHASES-AND-PRIORITY.md` §2), which is what holding
+priority means — so ON still offers it. Only the INTERRUPTION was wrong, in the mode whose whole promise is
+"stop me when I have a stake", and you cannot have a stake in answering yourself. `stakeFor` already
+agreed: its `respond` branch requires `top.p !== q`.
+**IT FIRED ON EVERY CAST, NOT OCCASIONALLY**, because the caster is always first in the walk — so the cost
+was a modal on every Technique a player played, which is the sort of thing a sim never sees and one game
+finds immediately.
+**AND THE COMMENT FOUR LINES ABOVE THAT WALK SAID "prompt its NON-controller"** — a leftover from before
+step 6 that contradicted both the code and the rule, i.e. a stale line explaining away the exact behaviour
+you are staring at. Corrected in the same commit.
+
+**THE PLAYTEST RECORD KEPT THE LAST 80 LINES, NOT THE GAME (2026-09-24).** `recordGame` built its `log`
+from `$('log').children` — the RENDERED panel — and `logMsg` trims that view to 80 entries, so every game
+longer than that silently lost its EARLY rounds while `fullLog`, the uncapped history the ⤓ Save button
+already uses, sat beside it. **MEASURED ON A REAL EXPORT: 7 of 19 games sat exactly at 80**, including a
+15-round 3-player game whose log began mid-round-8.
+**IT IS THE `downloadLog` POINTEREVENT BUG IN A SECOND PLACE** — the artefact that exists to collect the
+evidence was the thing destroying it — and worse here, because a battle log is saved by someone who has
+just noticed something, while a record is read months later by someone who cannot go back and get it
+again. **Never build a record from the DOM when the state it renders is still in hand**: a view is allowed
+to be lossy, which is exactly what makes it the wrong source.
+**AND UNCAPPING A STORED RECORD MEANS FACING THE QUOTA**, which was failing silently too:
+`catch(e){ memGames.push(rec); }` dropped to memory-only on a full store, and memory dies on reload — so
+the fix would have traded a truncated history for a missing one. It sheds the oldest games and retries
+before giving up; a rolling window is the design, losing the newest game is not.
+**THE ASSERTION HAS TO DRIVE PAST THE CAP**, because at or under 80 the two sources agree and a short game
+cannot tell them apart. It lives in `logtest`, not `exporttest`: the trim is a LOG behaviour, and
+`exporttest` drives a full 3-player game against a 90s cap, which made the probe's state depend on how far
+that got — two runs, two different wrong numbers, before it moved.
+**⚠ `__solo.log(text)` APPENDS; `__cmf.log()` READS.** One key, opposite jobs across the two debug hooks,
+which cost a wrong probe here. Check which hook you are on before reaching for it.
+
+**A VERDICT AT THE END OF AN `else if` CHAIN IS A VERDICT THAT CAN BE SWALLOWED (2026-09-24).**
+`updateActions` ends with the answer to the question a selection actually asks — *does this beat the
+pile?* — and two branches above it returned first whenever the chosen card happened to carry an effect.
+Aj had a King selected against a Pair and was told *"Odysseus Form — The fight has begun — effects are a
+Main-half move."*: the reason he could not do the thing he was not trying to do.
+**THE TELL IS THAT THE BUG TRACKED THE CARD, NOT THE SITUATION.** A plain 7 answered correctly on the same
+board, which is why it reads as "sometimes the hint is missing" rather than as an ordering bug. **When a
+report says a message is missing, check what ELSE could have claimed that slot** before looking for the
+message itself — it existed here and had never been deleted.
+**ORDER BY WHAT THE PLAYER IS DOING.** The fight verdict leads because selecting cards is a question about
+fighting; the effect is an ALTERNATIVE and is appended only when it is actually available. A BLOCKED
+effect adds nothing — `cardAct.title` already carries that reason and the ⚡ is visibly grey — and `#hint`
+is pinned to one row in the landscape bands, so there is no room to say both.
+**NOTHING ASSERTED THIS HINT BEFORE TODAY**, which is how the 2026-09-16 fall-through (added for the same
+complaint in the Main Sub-Phase) came to be silently swallowed later. `mptest` now stages an effect card
+and a plain card on ONE board and requires them to AGREE — asserting the King alone would prove nothing,
+because the plain card was never broken.
+
+**A DETECTOR THAT NAMES A CAUSE IT HAS NOT ESTABLISHED IS WORSE THAN ONE THAT DESCRIBES WHAT IT SAW
+(2026-09-24).** The 2026-09-17 round-boundary detector printed *"the clean-up boundary did not complete"*
+— a HYPOTHESIS, written into the output as fact. Aj's 3-player log then fired it and disproved it in the
+same file: the ROUND BOUNDARY trace shows that clean-up running every step, `⚠ CLEANUP LEFT A PILE` never
+fired, and `⚠ DOUBLE RESOLUTION BLOCKED` has zero occurrences, so the engine resolved once and advanced
+once. Anyone reading that message would have gone back down the path five hypotheses already died on.
+**IT NOW STATES THE OBSERVATION** — `⚠ ROUND BANNER FIRED WITH A PILE STILL ON THE TABLE` — and the two
+new guards name causes, because they sit on the call they block and can prove it.
+**THE DETECTOR EARNED ITS KEEP ANYWAY, AND THAT IS THE LESSON TO KEEP.** It was built *because the bug
+would not reproduce*, with the note that the next occurrence has to explain itself. It did: one game
+turned "the boundary is broken somewhere" into "the clean-up path is exonerated and the UI ceremony
+re-ran". **When five hypotheses are dead, stop guessing and build the thing that will describe the sixth
+occurrence.**
+**A GUARD MUST BLOCK *AND* REPORT.** `nextTrim` reached `cb()` from two resume paths (`pick.resume`,
+`hostParkTrim`) with no once-guard, so a stale resume re-enters a PREVIOUS round's closure and re-runs its
+tail with the OLD `res` — which is exactly a banner printing last round's number while the board is on
+this round's pile and turn. Blocking it silently would convert a reproducible bug into a mystery; the note
+carries the round the closure was QUEUED for against the round the board is on, which is the pair that
+identifies the stale caller.
+**AND THE SEAT COUNT IS THE DISCRIMINATOR NOBODY CHECKED.** Every one of the five killed hypotheses was
+measured in a DUEL — the detector's own comment says twelve duels never trip it — and the occurrence that
+finally explained itself was a 3-player game. **When a bug resists measurement, check whether the whole
+measuring surface shares a configuration.**
+**THE GUARDS ARE SOURCE-SCANNED, NOT EXERCISED, AND THE SUITE SAYS SO.** Firing a stale resume needs a
+closure no hook reaches, so `logtest` asserts the guards are present and that the queue routes through
+`done()` rather than `cb()` — the exact regression a later edit would make. A/B'd by restoring `cb()`:
+one red. Same shape and same honesty as `nettest_autopass` leg 3.
+
+**BOOKKEEPING THAT LIVES INSIDE AN ANIMATION ONLY REACHES THE SEATS THAT ANIMATE (2026-09-24).** The
+`shieldsLost` tally and `checkThresholds()` both hung off `animateShields`' render diff — seat-agnostic by
+design, and v1.31.98 had already hoisted the tally above the motion guard for exactly that reason. But
+`animateShields` is called for `YOU` always and for `RIVAL` **only in the duel branch**: at 3-6 players
+`renderOpponents()` draws opponent shields as a raw HTML string with no diff at all. **Seats 2-5 were
+never tallied and never re-checked the threshold**, so every free-for-all record ever exported undercounts
+damage — and that field feeds `CARD-STATS.md` and the `PLAYER-PROFILE.md` ingestion log.
+**IT WAS FOUND BY A RECORD CONTRADICTING ITSELF**, not by reading code: Aj's export had a seat on
+`shieldsLost: 0` with `finalShields: 0` from a start of four. **A self-contradicting record is the
+cheapest possible assertion** — it needs no knowledge of how the game went, so it cannot rot with the
+rules, and `exporttest` now carries that shape.
+**SEAT 1 WAS COUNTED BY ACCIDENT, WHICH IS WHY THIS READS AS "OPPONENTS ARE BROKEN" AND IS NOT.**
+`revealShields()` calls `animateShields($('rivalShields'), …)` unconditionally, even though that panel is
+`display:none` in a free-for-all. Seats 0 and 1 were fine; 2-5 never were — so an assertion that "some
+opponent is counted" passes on the broken build. **The suite stages seat 2 as the subject and seat 0 as
+the control**, and the A/B restores the OLD REACH rather than deleting the fix: the control passes, the
+subject fails. Deleting the whole walk reds both and proves far less.
+**THE SECOND TRACKER IS NOT DUPLICATION.** `noteShieldChanges` keeps its own `prevShieldsAll` because
+sharing `prevShields` would have the bookkeeping walk consume the change the animation is waiting to draw
+— the shatter would simply stop firing, a fix that silently breaks the thing it was extracted from. Two
+diffs answering different questions keep their own memory.
+**⚠ EXTRACTING BOOKKEEPING FROM AN ANIMATION CHANGES ITS TIMING, AND THAT TOOK THREE TRIES — ALL THREE
+CAUGHT BY SUITES, NONE BY READING.** Worth the space, because the third is the subtle one:
+1. **Fired unconditionally** → `checkThresholds` queues `pendingThreshold`, which inserts a BEAT into the
+   round ceremony, so it displaced the client's. `nettest_ceremony` 11/0 → 10/1 (*"the beat reaches BOTH
+   seats together — client 260ms after the host"*), reproducible 2/2 and clean on the epic — i.e. a
+   regression of the held-mirror fix from that same morning.
+2. **Gated the whole walk on `holdShields`** → ceremony repaired, tally now skipped during a ceremony,
+   `exporttest` red. The same class of error one layer down.
+3. **Gated only the threshold** → **9/2, worse than the bug being fixed.** The walk writes
+   `prevShieldsAll` every time, so a tally taken during the hold CONSUMES the drop; skipping the
+   threshold then leaves nothing to detect when the hold clears, and it never fires at all.
+**A SKIPPED CHECK MUST BE OWED, NOT SKIPPED.** `thresholdOwed` carries the debt across the hold. The rule
+generalises past this function: **when one consumer of a diff is deferred and another is not, the diff's
+memory must not advance until both have read it** — or defer the read and keep the debt.
+**AND IT IS THE "SECOND TRACKER" TRAP REPEATED INSIDE THE FIX FOR IT.** `prevShieldsAll` exists precisely
+so the bookkeeping walk cannot eat the change the animation is waiting to draw; step 3 then did exactly
+that to a second consumer WITHIN the new function. Writing the rule down did not stop me applying it one
+scope too shallowly.
+**THE A/B AGAINST THE MERGED EPIC IS WHAT MADE EACH STEP HONEST.** Without it the first red reads as
+flakiness — the suite has a documented intermittency — and the regression ships on top of a same-day fix.
+
+**AND THE STAGED PROBE BEAT THE PLAYED ONE.** The first cut read the tally after `exporttest`'s own game
+and the board came out 4/4/4 — nobody had been hit, so the assertion passed having observed nothing, and
+only its control caught it. Moving the shields by hand made the claim exact and independent of how far a
+90s-capped driver happens to get.
+
+**A `root cause found` HANG SAT OPEN FOR EIGHT DAYS BECAUSE NOTHING COULD TEST IT (2026-09-24).**
+`[id: duel-prefight-abandoned]` described a 2-player pre-fight window abandoned by the host, rated a
+permanent hang. Two greps closed it: **no `prefight` op exists on the wire at all** — step 20 folded that
+window into the Main → Fight transition, which routes through `settleWindows` and therefore parks in the
+right family — and `nettest_prefight` **is 3-player only, and says so in its own first line**. The duel
+path had no suite, so nobody could say whether the bug was still real, and a scary entry stayed scary.
+**BEFORE BUILDING AGAINST AN ENTRY, CHECK WHETHER ITS TEST SURFACE EXISTS.** This file already says to
+grep every symbol an entry names; the twin question is which configuration the suites actually cover. The
+five dead round-boundary hypotheses were all measured in duels; this hang was filed for duels and tested
+only at three players. **A whole mode missing from the harness is the shape both of those share.**
+**CLOSE IT WITH A REPRO, NOT WITH REASONING.** The suite is kept even though it is green, and it is
+A/B'd by deleting the duel resume (`var ns=netSettle; … return hostSettle(ns.g, ns.done)`), which
+reproduces the filed symptom word for word: *"Rival 2 is deciding…"* on a host whose hint reads *"Hold on
+— the board is still resolving."* A green suite that cannot fail is not evidence that a hang is gone.
+**AND "THE HOST'S BOARD IS DEAD" IS NOT A HANG WHEN THE HOST JUST FOUGHT.** The first cut asserted
+`boardUsable(host)`, copied from `nettest_ridewedge` — but there the host cast on its OWN turn and must
+resume it, whereas a host that FOUGHT correctly hands the turn over and shows "Waiting for opponent…".
+It nearly reported a wedge that was correct play. The liveness question is **does the table move**: drive
+the other seat's turn and require control to come back.
+
+**AND IT PINS A DEFAULT JUST AS FIRMLY — TWO SUITES WENT RED FOR THE MODE, NOT FOR A DEFECT
+(2026-09-30).** Making AUTO stake-driven (`e41e459`) turned `quicktest` and `nettest_ridewedge` red, and
+both look exactly like a broken priority window: *"the Respond? window OPENS … it auto-declined instead"*.
+Neither names a prompt mode, so both were running on the DEFAULT and asserting the behaviour it used to
+have — a Rival's plain Technique and a host's Ride are neither of them shield events, so AUTO is CORRECT
+to stay silent on those boards.
+**THE BISECT IS THE WHOLE DIAGNOSIS AND IT COSTS FOUR MINUTES.** Both green on `e41e459`'s parent, both
+red on it, with a change in between (the per-card retirement) that was the obvious suspect and was
+innocent. **Bisect before reading the window code** — "a window stopped opening" reads as a priority bug
+and was a policy change, which no amount of staring at `openResponseWindow` would have said.
+**THE FIX IS `prompts=all`, AND ON ITS OWN IT IS A FUDGE.** A flag that restores the old default makes the
+suite blind to the new one forever, so it is only honest paired with the twin: `quicktest` now runs the
+IDENTICAL staging under AUTO and requires the opposite — silent, **and still recorded in the ledger**,
+because silent-and-unrecorded is indistinguishable from a window that never existed. One staging
+function, evaluated on both pages, so the two boards cannot drift.
+**AND A FLAG MUST NOT QUIETLY MAKE A REPRO GREEN.** `nettest_ridewedge`'s window steps are staging for a
+WEDGE assertion that passed either way, so the flag had to be paired with an A/B proving the guard still
+discriminates — hop deleted, 8/1, captured host state matching the original report word for word. **When
+you add a flag to make a suite green, A/B the assertion the suite exists for**, or you have restored the
+colour and lost the test.
+**THE TELL FOR THIS WHOLE CLASS: a suite that asserts on a behaviour it never named.** Neither file
+contained the string `prompts` — the default was load-bearing and invisible, which is why a policy change
+reads as a defect. A suite that depends on a mode should SET it.
+
+**A CLAMPED STAGING SILENTLY REINTRODUCES THE DEPENDENCE ITS COMMENT SAYS IT DESIGNED OUT
+(2026-09-30).** `exporttest`'s damage probe read *"STAGED, NOT PLAYED … independent of how far the driver
+got before its 90s cap"* — and staged with **`shields = Math.max(1, shields - 2)`**, which is precisely a
+dependence on how far the driver got: a seat already on TWO shields clamps to 1 and the delta is 1
+instead of 2. Under a parallel sweep the 90s-capped driver lands there often enough to have turned one
+run in four-ish red.
+**THE COST IS THE MESSAGE, NOT THE RED.** The assertion prints `← REPRODUCED: every free-for-all record
+undercounts damage past the second seat` — so a green product reported a specific, serious defect and
+sent the next reader after it. A red that names the wrong cause is worse than a red that says nothing;
+this file already has that rule for DETECTORS, and it applies to assertions word for word.
+**THE TELL IS A `Math.max`/`Math.min` INSIDE STAGING.** A clamp is there to keep a value legal, which
+means the value came from somewhere you do not control — and that is the definition of the dependence
+you were trying to remove. **Stage ABSOLUTE values**: set a known floor, take the baseline AFTER it so
+the raise is absorbed, then set the exact end value. Deltas are then exact whatever the board looks like.
+**AND ASSERT THE STAGING LANDED** — one `ok()` on the values actually written, because staging that
+silently misses makes the run pass having exercised nothing.
+**DIAGNOSE IT BY FORCING THE CONDITION, NOT BY CHASING LOAD.** Three solo runs were 17/0 and told me
+only that it was load-sensitive. Forcing seat 2 to two shields reproduced it on every run in seconds and
+named the mechanism exactly; the fix was then verified against that same forcing, and separately A/B'd
+against the REAL bug (restore the old two-seat reach → `+0`, control still green) so the repair could not
+quietly make the assertion vacuous.
+
+**A FALLBACK THAT ALSO RUNS ON THE PATH UNDER TEST IS NOT A FALLBACK, IT IS A SECOND WAY TO PASS
+(2026-09-30).** A new `landscapetest` leg staged the Forms zone by clicking a CHIP — the surface the bug
+was in — and then clicked `.formStrip` unconditionally *"for the INCARNATION case, which has no chips"*.
+Both clicks expand, so with the chip merely reading the strip opened the zone anyway: **the mutant passed
+195/0.** The assertion was written specifically to catch that mutant, and could not.
+**THE TELL IS A FALLBACK WITH NO CONDITION ON IT.** The no-chip case already had its own branch inside the
+`evaluate`; the extra click ran on every path, including the one being measured. Gate a fallback on the
+thing it is falling back FROM, or it is an alternative route to the same green.
+**AND IT WAS CAUGHT ONLY BY THE A/B, WHICH IS THE POINT.** Everything else looked right — the leg was
+green on the fix, red-shaped in its message, split correctly by layout, and sitting beside six passing
+landscape assertions. Nothing short of reintroducing the defect would have shown it. This is the fourth
+green-and-blind in this file and the first one that was *in the assertion written to prevent the third*.
+
+**A SUITE CAN ALSO PIN THE DEFECT — AS FIRMLY AS IT PINS A FEATURE (2026-09-17).** `nettest_emote`'s
+expected output was literally `/^You says hi!/`: the exact "You" + third-person-verb shape that
+`nettest_narrate` exists to forbid, written down in another suite as CORRECT. It was green for as long as
+the bug lived, and fixing the bug turned it red — so the suite argued for the defect at the only moment
+anyone would have questioned it.
+**THE TELL IS A SUITE GOING RED *BECAUSE* YOU FIXED SOMETHING**, and the rule is: when a documented rule
+and a suite disagree, THE RULE WINS — change the suite and say in its comment that it asserted the bug, or
+the next person reads the red as a regression and reverts a correct fix. The same shape appeared twice more
+the same day: `resolutiontest`'s anti-spin cap was sized for three phase boundaries and went red when the
+MODEL grew, and `nettest_endscreen` filtered the log for wording a copy fix had removed. **None of the
+three was a product regression; all three looked exactly like one.**
 
 **A SUITE CAN BE GREEN AND BLIND. Three shapes of it, all found in one 2026-08-27 sweep and all fixed:**
 - **A vacuous assertion.** `nettest_emote` had `ok(await waitLog(...) || true, 'duel started')` — literally
@@ -1701,6 +2813,95 @@ copy the summary line from an existing one — do not re-invent it.**
   the v1.31.9 `waitTurnEnds` bug in its general form. Every one of the 27 helpers now prints
   `⏱ poll TIMED OUT: <condition source>`. **Never assert on the other peer's state after a fixed `wait(n)`** —
   poll it (`nettest_rtc`, `nettest_energy` both did, and were fixed).
+
+**A PHASE TRANSITION IS NOT AN ILLEGAL MOVE, AND THE HOST MUST NOT SAY IT IS (epic step 20).** `E.play`
+and `E.pass` open the Main → Play go-round when the seat is still in the Main Sub-Phase and return
+`{ok:false, transition:'play'}` while anyone can still act. Both host intent handlers treated any
+`ok===false` as illegal and replied *"Illegal move."* to the client — so a remote pass was rejected, the
+round never turned over, and the table wedged. `nettest_guard` measured it as round 2 → 2.
+**THE SHAPE TO WATCH FOR: a refusal that means "not yet" rather than "never".** Both handlers now settle
+the window (`hostSettle` / `hostSettleN`, which park for a remote seat) and RE-APPLY the intent the client
+already sent. Any future not-yet refusal needs the same, and a bare `if (r.ok === false)` is where it will
+be missed.
+
+**READ A CONDITION BEFORE THE THING THAT CHANGES IT (2026-09-11).** `settleWindows` narrates an AI's answer,
+and the new timing-aware wording tested `!state.pending` — computed AFTER `respondDecision` had already put
+the answer ON the stack, so `pending` was always set and the transition never got its own sentence. Same
+shape as the simultaneous-kicks rule ("was this player already broken?" must be sampled for every target
+before any strip lands). If a line describes an event, sample its inputs before the event.
+
+**"NEEDS TWO DEVICES" IS ALMOST ALWAYS FALSE, AND IT WAS CLAIMED TWICE IN ONE DAY (2026-09-16).** Once for
+the client's missing FLIP animation and once for the client's two-press Fight — Aj answered the first with
+*"haven't i supplied you enough logs from 2 devices?"* and was right both times. **It is the phrase that
+gets reached for when the real reason is that the work is fiddly**, and it is expensive because it reads as
+a hard blocker: it parks work that is merely awkward.
+**The refutation is a grep, not an argument.** Twenty-odd `nettest_*` suites drive a real CLIENT page against
+a real host, headlessly — `nettest_clientwin` and `nettest_sync` both press Fight on one. The two-press entry
+even refuted itself in writing, noting that mislabelling the button took `nettest_clientwin` to 6/4, which
+IS a suite seeing the behaviour, two sentences before calling it unverifiable.
+**So before writing that a netplay behaviour cannot be tested, grep `nettest_*.js` for a suite that already
+drives the seat in question**, and say what is actually hard instead — for the two-press case it is holding
+an intended play across a host round-trip and dropping it if the board moved, which is real, and testable.
+**The one thing a suite genuinely cannot judge is how something LOOKS** (Aj's *"animations are still
+shanked"*), and even there the branch taken is assertable: a FLIP starts at `opacity:1` and scale ≈ 1, a
+slide at `opacity:0` and `scale(.62)`.
+
+**THE TRANSFORM/RIDE BRANCH IS A SEPARATE PATH, AND FORGETTING IT HAS NOW COST SIX BUGS (2026-09-16).** A
+transform does not go through `pick`, does not go through the ordinary effect tail, and needed its own client
+guard when those were swept. The sixth: its settle continuation was a bare `render()` while every other effect
+goes through `NET.hostAfterOwnCast` → `hostRivalWindows` → **`hostTakeBack()`**, the only thing that clears
+`busy`. So a netplay HOST that called a Ride on its own turn and had the window declined simply stopped —
+its board reading *"your turn"* with *"Hold on — the board is still resolving"*, while the client sat
+correctly on *"Rival is fighting…"* receiving the park beat's unchanging mirror every 1.8s. **That is why it
+looked like a live connection rather than a hang**, and it is the v1.31.20 `busy` signature in a new place.
+**THE STALE COMMENT IS THE TELL.** That branch said *"persists, no response window"* — true when written,
+false since the stack model landed, and load-bearing because it explained away the missing call. When you
+change what happens after a cast, change it in the transform branch too; `nettest_actloop` covers a host
+**Technique** and stayed green through all of this.
+**AND THE REPRO IS WHAT MADE THE FIX FIVE MINUTES.** `nettest_ridewedge` — 8/1 before, 9/0 after, on one
+build. Two staging facts it paid for, each of which makes it pass VACUOUSLY if lost: the **transform gate**
+(3/3 shields = two lost table-wide = `numPlayers × 1`, or the Ride is silently refused), and the client's
+Quick must be **untargeted** — the first attempt staged Counter Spell, which targets an effect on the stack,
+so `canCastQuick` refused it, NO window opened, and the liveness assertion passed while proving nothing.
+**AND THE SEVENTH CAME TWO DAYS LATER, IN THE NEXT DOOR ALONG (2026-09-18).** The fix above ends with *"when
+you change what happens after a cast, change it HERE TOO"* — and `doRemove` was not changed, because it is
+neither the transform branch nor the ordinary tail but a **THIRD copy of the same five lines**. It dropped
+the one that matters: `NET.hostAfterOwnCast(gen)`, the hop that reaches `hostTakeBack()`. So a netplay HOST
+that cast a **targeted** Technique on its own turn and had the client **ANSWER** it simply stopped — Aj's
+real duel, Sabotage (♠5) at the client's Holy Bow, answered with Annoint (♥5).
+**IT WAS DIAGNOSABLE ONLY BECAUSE HE SAVED BOTH ENDS.** The host's trace ENDS at `move IN from seat 1
+op=respond` — no `hostTakeBack`, no `awaitRival` — while the client received ~160s of mirrors at exactly
+**1.8s**, which is `startParkBeat()`. Both seats looked connected the whole time, which is this failure's
+signature and why it reads as lag. The **ROUND BOUNDARY** trace shipped that morning earned itself here:
+r9 → r10 complete, both queues reaching `exit`, which RULED OUT the stale-pile family instead of leaving it
+merely unsuspected.
+**ENUMERATE BY `grep -n 'settleWindows('`, WHICH IS THE WHOLE KIND ON ONE SCREEN.** Three of the call sites
+are cast continuations and each owes the hop (transform, ordinary tail, `doRemove`); the rest are not and
+should not have it — the rival driver continues into `step()`, and two others clear `busy` themselves. Doing
+that enumeration is what turns "fix the instance" into "fix the kind", and it is the lesson this file already
+carries from the seven-parks-of-nine.
+**`nettest_quickwedge` IS THE REPRO AND IT IS THE DECLINE-vs-RESPOND TWIN OF `nettest_ridewedge`.** That one
+DECLINES and is green; this one ANSWERS, which is a different continuation. 10/1 before the fix, 11/0 after,
+with the captured host state matching Aj's screenshot to the word: `turn=0`, *"Hold on — the board is still
+resolving."*, *"You played Sabotage."* Its third staging fact is new: **the client must OWN Equipment**, or
+`quickTargets`' `protect` branch has no legal target, the cast is refused, and the run reports "no window"
+having cast nothing.
+
+**`prompts=all` BUYS YOUR SUITE EXTRA WINDOWS, AND EACH ONE COSTS ~6s OF `netwindows` GRACE (2026-09-17).**
+`nettest_guard` was red **1-4 runs in 8** for weeks at `control passed to the client to answer the combo`,
+and three investigations read it as a transport fault. It was a **poll budget**: that suite runs
+`prompts=all` because its subject IS a boundary window, which makes the client eligible for windows it does
+not script, and `netwindows` answers each only after its grace — deliberately, so a suite that means to
+drive a window is not robbed of it. One unscripted window therefore ate most of a 7.2s budget before the
+handover could even happen. Raised to 30s: **6 red in 24 → 0 in 24**.
+**SO: A SUITE THAT SETS `prompts=all` MUST BUDGET FOR AT LEAST ONE GRACE DELAY IT DID NOT ASK FOR** — and
+the `⚠ netwindows: auto-passed N unscripted window(s)` line at the end of a run is the count. It prints on
+GREEN runs too, which is the tell nobody was reading.
+**AND THE DIAGNOSIS IS THE REUSABLE PART, NOT THE NUMBER.** What settled it in ONE red run, after weeks of
+guessing, was making the assertion dump state instead of a boolean: both boards, and **whether the played
+cards had left the host's hand**. That single question halves this class — still held means the press never
+landed, gone means the play landed and the HANDOVER is what is lost. The dump stays in the suite; three
+earlier investigations built throwaway probes and this repo has already paid for that habit once.
 
 **A CLIENT-SIDE GATE IS NOT THE GATE.** `sendEmote`'s 1.2s cooldown is a courtesy; `hostEmote`'s per-seat one
 is the real check, because a client controls its own clock. Driving the UI only ever exercises the courtesy
@@ -1741,6 +2942,16 @@ for whether a design shipped.** `openResponseWindow` implements §2 step-for-ste
 `st.pending`/`st.respondFor` are aliases for "top object" and "who holds priority" — a fact stated in a comment
 directly above the loop. Read the layer that would have to DO the thing; a name is not the mechanism.
 
+**A FORM *ADDS* A TIMING; IT NEVER MOVES A CARD OUT OF MAIN (2026-09-25).** Every Technique is castable on
+your own turn in the Main Sub-Phase. A Form granting `quick` **adds** the priority windows to that — so
+"Back Stab is a pre-fight card" is wrong, and has been said to Aj at least three times (*"i feel i keep
+trying to peel you off that misconception"*). The source of the error is a phrase still in the docs by
+design: *"the pre-fight window was a Back Stab special case in `main`"*, which is HISTORY — step 20 folded
+that window into the ordinary Main → Fight go-round. `stakeFor`'s `prefight` branch decides where AUTO
+INTERRUPTS you, never where a card is legal.
+**So describe a Quick as BASE + what the Form adds, as two separate facts**, and when listing where a card
+can be played, start from "every Technique can be played in Main".
+
 **`effectOf` vs `effectFor` — the trap that hid three bugs.** `effectOf(card)` is the card's **base** effect;
 `effectFor(st, p, card)` applies that player's Form/Super boosts. A Form can **grant `quick`** — SIX patches, enumerated
 from `BOOSTS` rather than remembered, because every hand-written list of them so far has been short by one:
@@ -1772,6 +2983,26 @@ the thing — **when you close one of these, close the note in the same commit.*
 described with its base type — the card is playable, the label just says "Technique" where the game means
 "Quick Technique". Display only.
 
+**A POLICY FLAG DEFAULTS TO *ON*, SO ADDING ONE SHIPS THE BEHAVIOUR YOU ADDED IT TO MEASURE
+(2026-09-30).** `policyOn(p, name)` is `!armPolicy || !!armPolicy(p, name)` — with no arm configured,
+which is **the real game**, every name reads enabled. That is right for `push`, which SHIPPED at epic
+step 21 and whose flag exists only so a sim can turn it OFF. It is exactly backwards for a policy under
+measurement: naming `stack` would have made the AI stack Armor Piercing for every player, and the flag
+was added precisely because nobody had decided it should. Use an opt-in predicate for anything unshipped.
+**AND `strengthsim`'s BARE `knight` MUST KEEP MEANING "THE SHIPPED GAME".** Its `:all` expansion walks
+`POLICIES`, so adding an unshipped name there silently redefines the baseline every other measurement is
+read against — and `knight` is the arm nobody re-reads. Keep two lists: what an arm may NAME, and what
+bare `knight` turns on.
+**BOTH WERE CAUGHT BEFORE A SINGLE GAME RAN, and only because the control was run first.** The habit the
+entry demanded — *run the control, identical arms must print exactly 50.00* — is what put the flag under
+a microscope early enough for the default to be noticed.
+**⚠ AND AN EXACT 50.00 AT +0.00σ IS NOT A NULL RESULT — IT IS USUALLY A DEAD POLICY.** It is what "the two
+arms were the same configuration" looks like: nothing diverged because nothing fired. A win-rate harness
+cannot tell *worth nothing* from *never ran*, which is why `policyStats()` exists. Read an exact tie on
+non-identical arms as a broken measurement until a COUNTER says otherwise — here the counter turned an
+apparent tie into the actual answer (139 first casts, 0 second casts, 900 games). Full write-up:
+[`DECISIONS.md#ai-strength`](docs/DECISIONS.md#ai-strength).
+
 **AI personas vary STYLE, not STRENGTH — and `personasim.js` is the guard.** Each AI seat draws a persona
 (name + targeting style) from its difficulty tier at game start; `PERSONAS` and `drawPersonas` live in
 **`ai.js`**, not the template, so the sims can `require` them. The name is fed into `seatNames`, so it reaches
@@ -1782,8 +3013,16 @@ The knobs are `grudge` (0..1), `focus` (`weakest`/`leader`/`random`) and `holds`
 **If a persona in a tier out-wins its tier-mates, the tier has stopped meaning anything** — picking an opponent
 would be a hidden difficulty slider. Run `node personasim.js <games> <tier>` after touching a style, and read
 the **spread**, not the ranking. It has a **`control`** mode that seats six *identical* personas: whatever
-spread that prints is the noise floor (**2.8 points at 900 games**), and a real spread means nothing until it
-clears it. All five tiers currently sit at or under it.
+spread that prints is the noise floor, and a real spread means nothing until it clears it. **RUN SIZE DECIDES
+WHETHER IT CAN TELL YOU ANYTHING: at 900 games nothing under ~6 points is distinguishable from noise; 3600
+brings the floor to ~2.2** — the distribution, both run counts and the reason a single run cannot establish
+either are in [`DECISIONS.md#ai-strength`](docs/DECISIONS.md#ai-strength). This line used to restate the floor
+as **2.8 points at 900 games**; that figure was one draw quoted as a constant and sat BELOW the minimum of
+twenty runs, so it would have called a median-noise spread a balance bug. All five tiers were measured at or
+under the old figure and so clear the real one comfortably.
+**AND IT IS NOT REPRODUCIBLE THOUGH IT READS AS SEEDED** — `personasim` seeds every game and contains no
+`Math.random`, yet four identical invocations printed 11.7 / 10.0 / 8.3 / 10.0, because the engine and AI
+reach for it upstream. Never quote one run.
 
 That harness caught a design error worth remembering: a `nice` flag (Axelrod's "never defect first") measured
 **+6 points** because it bundled a personality with a **competence upgrade** — preferentially hitting whoever
@@ -1937,10 +3176,45 @@ a whole UI picker flow, and the `phantasmPlus` boost hook all keyed to `kind:'ph
 for eighteen versions. `grep -c "kind: 'phantasm'" engine.js` returning 0 is the check that finds this class of
 bug; the code looks alive in all three layers.
 
-**Card text speaks to a TABLE, not a duel.** Four texts understated their own effect because the code loops
-every opponent while the text named one — `equipDelta` (Caltrops, Spiked Armor), `rideCostDelta` (Giant Ram),
-`swanValue` (Giant Swan). The house pattern for a genuinely single-target card is **"Target Rival"**. After any
-text edit run `node gen-cardlist.js`.
+**AND THE MIRROR OF IT — A KIND NOTHING *DRAWS* — WHICH NO GREP IN THIS FILE COULD FIND (2026-09-17).** Every
+check above asks whether a kind is *reachable*; none asks whether a reachable kind is *rendered*. `effIcon`
+maps `eff.kind` into `EFF_ICON_SVG` and returns `''` when the lookup misses, so **Leyline Ascension carried no
+effect glyph at all** — its kind became `ward` while `effIcon` still branched on `reclaim && eff.immune`,
+Leyline's OLD kind, and a dead `leyline:` key sat in the map the whole time. Silent in both directions: the
+missing branch threw nothing and the orphaned key read as live art.
+**IT WAS COSMETIC UNTIL IT WAS NOT.** The affordance dim moved onto `.efrow` the same day, and a card with no
+row cannot show it — so a missing icon stopped being a missing decoration and became a **signal that renders
+as nothing**, indistinguishable from "you can afford this". A gap can be harmless for versions and then be
+load-bearing the moment something else lands on it.
+**THE FIX IS AN ASSERTION OVER THE SET, NOT A CARD.** `mptest` puts all 52 cards in hand at zero energy and
+requires every card `markAfford` greys to have a row — so the next effect kind cannot lose the signal quietly,
+and it names the card when it does. A per-card assertion would have to be remembered; this one cannot be.
+**AND THE ARITHMETIC IT MADE VISIBLE:** 32 of 52 grey, not 44. The twelve J/Q/K are absent because
+`TRANSFORM_COST` is **0** and `rideCostDelta` returns 0 for ranks 11-13 — **a transform is always affordable**,
+which is easy to get wrong from `engine.js`'s own stale comment on that line (*"transforms are a flat 10"*).
+If transforms ever cost energy, that assertion goes red naming them, which is the right moment to decide what
+a Ride's glyph should be.
+
+**A HEADING IS A LINE, AND `indexOf` CANNOT TELL ONE FROM A MENTION (2026-09-17).** `versiontest` gated the
+changelog with `chlog.indexOf('### '+want) >= 0`, and it was **green on a corrupted file**: the v1.31.127 entry
+had been inserted *inside the intro paragraph*, spliced at the literal `` `### vX.Y.Z — short title` `` the
+intro uses as its own example — so the real heading was prose on line 7, the EXAMPLE became the document's
+first `###`, and the substring search found the mention and called it an entry. Anchored to the start of a
+line now (`/^### v1\.31\.127\b/m`), which is what "heading" means in Markdown and what every reader keys off.
+**The shape to distrust: a gate that searches for formatting with a substring.** The same insertion would be
+invisible to any `grep -c`; only `grep -n '^### '` shows it. Verified by re-burying the heading — one red.
+
+**Card text speaks to a TABLE, not a duel.** FIVE texts have now understated their own effect because the
+code loops every opponent while the text named one — `equipDelta` (Caltrops, Spiked Armor), `rideCostDelta`
+(Giant Ram), `swanValue` (Giant Swan), and **Armor Piercing** (2026-09-24). The house pattern for a genuinely
+single-target card is **"Target Rival"**. After any text edit run `node gen-cardlist.js`.
+**THE FIFTH ONE IS THE INSTRUCTIVE ONE, because the fix could have gone either way and the code was right.**
+`resolveRoundWin` applies `strips` to EVERY entry in `strikeTargets`, so under the `lossAll` custom rule one
+Armor Piercing took two shields off each struck seat while the card said *"the Rival you strike"*, singular.
+I offered to narrow the code to match the text; Aj kept the behaviour — *"every seat struck, this will
+increase shield loss for everyone when we do lossAll yes"* — so the TEXT was the thing that was wrong.
+**Ask which half is wrong before assuming it is the code**: a singular text over a looping implementation is
+this class, and in four of five cases the loop was the intent.
 
 **A revealed hand must never touch `st`.** Pandora's Outbalance lets the caster look at the target's hand
 (v1.31.4). Anything on state travels in netplay snapshots — including back to the player whose hand it is — so
@@ -1956,6 +3230,14 @@ Full Set deck, "Pure Rogue" was never in the game, and both arms of an A/B retur
 exactly 1/6 — which reads like a clean null result. **If an A/B returns identical counts in both arms, suspect
 the instrument, not the code.** Assert the staging (e.g. that seat 0's deck really is one suit) and count the
 thing you are studying, so a silent zero cannot pass as a finding.
+**AND THE MIRROR OF IT: AN A/B THAT REPORTS A DIFFERENCE CAN ALSO BE THE INSTRUMENT (2026-09-10).** A
+seeded whole-game fingerprint — same seeds, 480 games, hash the outcomes — was used to prove a priority-walk
+extraction behaviour-preserving. The two arms disagreed, which reads as a refactor that changed the game;
+**the same file run twice also disagreed.** The engine and AI reach for bare `Math.random` outside the rng
+`newGame` is handed (persona draw, tie-breaks), so seeding the rng alone does not make a game reproducible.
+Pin `Math.random` too and the arms match byte for byte. **Run the instrument against ITSELF before reading
+either arm** — the existing rule above says a null result can be the instrument, and this is the other half:
+a POSITIVE result can be too, and it is the more persuasive of the two because it looks like a finding.
 
 **`mpsim`'s `flag()` MATCHED SUBSTRINGS until v1.31.26.** `FLAGS` is the joined argument STRING and `flag(name)`
 was `FLAGS.indexOf(name) >= 0`, so `flag('kits')` matched inside the argument `kits3` and asking for `kits3`
@@ -2070,7 +3352,10 @@ not a class problem but a rules problem. The lever belongs at the rules level �
   persona** (a Forms zone is labelled `<name>’s Forms & Rides`, so the name sets the zone's width); and
   **`__cmf.clientSend(msg)` sends a raw client intent**, which is the only way to test a HOST-side authority
   check — a client's own gate is a courtesy, and going through the UI exercises that copy instead of the one
-  that matters.
+  that matters. **`__cmf.prioLog()` reads that seat's priority ledger** (the `__solo.prioLog` twin, for the
+  netplay suites) — and note the pair is not interchangeable: `clientSend` JUMPS OVER the client's UI path,
+  so anything being fixed inside `humanResponds`/`humanDeclines` needs the real button, which is why
+  `nettest_autopass` drives both ways.
 - **THE DECK PICKER HAS THREE DEFAULTS, NOT ONE** (v1.31.28). The setup dialog reads `DEFAULT_SEL`, the netplay
   lobby has its own `myDeck`, and `boot()` supplies the `?net=` path's — that third one is what every shared
   invite and every test suite goes through, and it silently made the Full Set the online default for months
@@ -2157,9 +3442,77 @@ be one PR**; a branch that could have been a `feat/` and is called an `epic/` is
 bigger word. Four rules, and each is a way a long branch dies:
 - **Sub-branches PR INTO the epic, never into `main`.** The epic is the integration point; `main` sees exactly
   one merge, at the end.
-- **The version is held for the whole epic and bumped ONCE at the merge.** Bump it early and the handoff
-  header, the README and both in-game screens all claim a version nobody can download — precisely the drift
-  `versiontest` exists to catch.
+  **AND THAT IS A GATE NOW (2026-09-10, Aj: *"i dont' see a pr for step 11. can we make it a rule too that
+  we must make prs to merge into epics?"*).** `checkbranch.js` refuses a push to `main` or any `epic/*`.
+  **COUNTED, BECAUSE THE FIRST VERSION OF THIS PARAGRAPH GUESSED AND WAS WRONG.** I wrote *"all eleven
+  step-merges were a local `git merge`"*; Aj replied *"hmmm i can see prs for the previous steps tho"* and he
+  was right. The real split, from `git log --merges`: **steps 1-9 each had a PR (#184-#191). Four merges
+  skipped one** — two docs branches, and, on the day this was noticed, the flag-residue fix and **step 11
+  itself**. Four more are `main`-into-epic carries, which have no PR to skip.
+  **That is a sharper argument for the gate than the version I invented, not a weaker one:** the rule held
+  for nine consecutive code steps and then broke on the two days of fastest movement, and the merge it lost
+  was the one the plan calls *the cliff*. A rule that fails precisely when the work is hardest is worth
+  strictly more than one that never worked — and "it has been fine so far" is exactly the evidence that
+  makes people leave it on trust.
+  **The thing it catches is the PUSH, and that is the whole trick: a PR merge happens SERVER-SIDE, so a
+  correctly-run epic never receives a local push at all** — "did this branch move locally?" and "did this
+  skip its PR?" are the same question, and pre-push is the only place that can see it. Creating an epic is
+  allowed (the remote ref does not exist yet). The one legitimate local push is the `main`-into-epic merge
+  below, which has no PR to hang off; it gets a NAMED escape, `EPIC_PUSH=1 git push`, so the exception is
+  deliberate and visible in the shell history rather than a hole.
+  **THE COST OF SKIPPING THE PR IS NOT CEREMONY, IT IS THE RECORD.** A PR is where an open question gets
+  written down somewhere it will be read — this file already requires that ("say what you are unsure about
+  IN THE PR") — and eleven merges' worth of reasoning now lives only in commit messages, which nobody
+  reviews before the merge because there is nothing to review them *at*.
+- **THE EPIC CARRIES A FOURTH NUMBER: `vX.Y.Z.a` (2026-09-30).** `X.Y.Z` is **the main version the epic is
+  based on** and never moves while the branch lives; **`a` increments by one on every merge into the epic**
+  (Aj: *"since main has 3 numbers… we'll use those to denote which version from main we're based on and
+  then increment a"*, and *"refuse against main, increment per merge"*). At the epic→main merge it drops
+  back to three numbers and the MINOR bumps, which is the one moment the epic's rules become main's.
+  - **This REPLACES "hold the version for the whole epic", and the old rule's reasoning is what forces the
+    new shape rather than contradicting it.** Holding it was right about the danger — *"bump it early and
+    the handoff header, the README and both in-game screens all claim a version nobody can download"* — and
+    wrong about the cost: an epic runs for weeks over dozens of merges, and every build in that window
+    stamped the same `v1.31.127`, so **the one thing a version exists to do, tell two builds apart, was the
+    one thing it could not do on the branch where builds change fastest.** The fourth number moves and the
+    first three do not, so the handoff's *"`main` is at v1.31.127"* stays TRUE while README says
+    `v1.31.127.4` — `versiontest` compares that line against the BASE and every other line against the
+    whole stamp, which is what makes both claims assertable at once.
+  - **AN EPIC BUILD REFUSES THE HANDSHAKE AGAINST A MAIN BUILD, and that is the point of the number.** The
+    compatibility line is still the MINOR — and an epic holds its minor by design, so an epic build and the
+    main build it forks from were indistinguishable to `verIncompatible`. That is the pair of builds most
+    likely to actually meet (a tester on the branch, a friend on the download), and two people playing
+    different rules while both believe they are fine is the precise failure the handshake exists to
+    prevent. **Two EPIC builds only WARN**, deliberately: they may be several merges apart, and locking two
+    testers out of the branch they are testing is the worse failure. `nettest_version` drives both.
+  - **AND THE INCREMENT IS A GATE, TRIGGERED BY THE BUILT ARTIFACT** (`checkbranch.js`, pre-push; Aj,
+    2026-09-30: *"oh let's make it a gate then?"*). It shipped as a warning, and the objection to hardening
+    it was real — forcing a bump, a rebuild and both HTML copies for a docs typo would be the rule bullying
+    the work. **Both halves are answered by asking the right question: not "did anything change" but
+    "WOULD A PLAYER GET A DIFFERENT FILE".** `code/CardmenFighter.html` is committed build output, so
+    diffing IT between the epic's merge-base and the pushed tip is the artifact ITSELF rather than a proxy
+    — there is no list of build inputs to drift out of step with `build.js`, and a docs-only PR is silent
+    **by construction** rather than by an escape hatch someone has to remember. That is the generalisable
+    part: when a gate's cost is false positives, look for a trigger that is the thing you actually care
+    about, before reaching for an opt-out.
+    It asserts the RULE and not merely a change — same `X.Y.Z`, fourth segment **strictly greater** —
+    because `now !== was` passes a typo that moves the version backwards or sideways, which is the same
+    build-identity hole one level down. A/B'd six ways: docs-only silent · page moved with no bump REFUSED
+    · page moved with a correct bump silent · backwards bump REFUSED · different base REFUSED · a branch
+    aimed at `main` silent (the one that matters most now it is a hard exit, since a false positive there
+    would block ordinary work).
+  - **⚠ EVERY VERSION REGEX HAS TO ALLOW THE FOURTH SEGMENT, AND THE ONES THAT DID NOT FAILED SILENTLY.**
+    `v\d+\.\d+\.\d+` **matches the first three of a four-part version and stops** — so `build.js` would
+    have stamped `v1.31.127` into a v1.31.127.4 page and printed its byte count happily, and
+    `nettest_version`'s own parser could not tell an epic build from main, which is the distinction it
+    exists to assert. **This is the IPv6 invite-code truncation in a new place**: a partial match that
+    succeeds and drops the part carrying the meaning. Seven patterns needed widening across `build.js`,
+    `versiontest.js`, `nettest_version.js` and the template; the one that must stay three-part is the
+    handoff's *"`main` is at"*, where a fourth segment is itself the error.
+  - **NO CHANGELOG ENTRY PER EPIC BUILD.** `vX.Y.Z.a` is not a shipped version — nothing is downloadable
+    until the merge — so the epic gets ONE entry when it lands, and until then the heading `versiontest`
+    demands is its BASE's, which already exists. A heading per merge would be a changelog of work nobody
+    can get.
 - **Merge `main` INTO the epic after every session spent elsewhere.** An epic's real enemy is `main` moving
   underneath it, and one heroic rebase at the end is how these turn into abandoned branches.
 - **The sweep must be green ON THE EPIC before the merge**, not merely on each sub-branch. Testing the whole
@@ -2197,6 +3550,22 @@ paste`. If a PR wants two bumps it is two PRs.
 **invalid** (arms run in blocks at different times, on a machine under external load). A PR that admits an open
 question is cheap; a merge that buries one is not.
 
+**A STACKED PR DIES WHEN ITS BASE BRANCH IS DELETED — MERGE THE STACK FROM THE TOP DOWN (2026-09-16).**
+Stacking is legitimate here and will keep happening: a docs change lands, and the next change builds on the
+ids or headings it introduced, so basing the child on the parent BRANCH rather than on the epic is what keeps
+its diff readable. The trap is the merge order. `gh pr merge --delete-branch` on the parent removes the
+child's base, and **GitHub CLOSES the child rather than retargeting it** — then refuses to reopen it or to
+change its base, because *"Cannot change the base branch of a closed pull request"*. The work is not lost (the
+branch and its commits survive), but the PR is unrecoverable and has to be raised again from scratch, which
+costs the review thread.
+**So: retarget the child BEFORE merging the parent** — `gh pr edit <child> --base epic/...` — or merge the
+stack top-down. Measured the hard way on #241/#242: #242 was closed by #241's merge and reopened as **#243**
+with the identical commit.
+**AND THE RECOVERY IS A COMMENT, NOT A FORCE-PUSH.** The closed PR keeps its description and discussion, so
+the repair is a cross-reference on it naming the successor and the merge commit; anything else rewrites a
+record that is still accurate. A future reader's problem is not that the work vanished, it is that a closed
+PR with no link reads as abandoned.
+
 **Merge with `gh pr merge --merge --delete-branch`,** then prune locally:
 
 ```bash
@@ -2215,11 +3584,114 @@ done
 That `--merged` filter is also the safety rail: an open PR's branch and a `parked/` branch are unmerged by
 definition, so it cannot delete them.
 
+**BUT `--merged` IS A TIP TEST, NOT A CONTENT TEST, AND IT CALLS MERGED WORK UNMERGED (2026-09-17).**
+`exp/boost-promise-guard` shows as unmerged and **its guard has been live in `test.js` the whole time** —
+there are two commits with that subject, `5f4d612` (an ancestor of the epic) and the branch tip `f01ad6a`,
+a rebased duplicate that was never merged. The branch ref survived, nothing reachable from it is new, and
+`--merged` reports exactly what it should: that *tip* is not an ancestor. **The ref is litter; the work is
+not missing.**
+**THE COST OF READING IT AS MISSING WAS NEARLY A DUPLICATE TEST.** Asked to file two undocumented `exp/`
+branches, I re-added a 52-line assertion block that was already in the file 300 lines above — caught only
+because a mutation run printed the SAME failure twice, and the count came out 541 instead of the 543 two
+copies should have produced. Two identical assertion messages is the tell.
+**SO THE CHECK IS THE CONTENT, NOT THE REF** — the same rule this file already gives for stale BACKLOG
+entries, in a new place. Before treating an unmerged branch as unfiled work:
+
+```bash
+git log --oneline -1 -S '<a distinctive string from the branch>' -- <path>   # is it already in history?
+git diff --stat <integration-branch> origin/<branch>                          # does it add anything at all?
+```
+
+A branch that is thousands of deletions behind and whose unique commit duplicates a merged one is a ref to
+delete, not a finding to file. **`exp/ai-upkeep-cast` is the other case and the greps prove it:** no
+`eager`/`rush`/`favour` anywhere in the live tree, one commit ahead, no `-S` hit — genuinely unfiled, and
+now recorded at [`DECISIONS.md#persona-traits`](docs/DECISIONS.md#persona-traits).
+
 ## Docs map
 
 - **WHICH DOC A THING GOES IN is a rule, not a preference — see the routing table under Conventions.** The
   short form: BACKLOG = someone should do it · `DECISIONS.md` = nobody should redo it · this file = work
   differently · changelog = what shipped.
+- **AND A PR MUST DECLARE WHAT IT DID TO THE BACKLOG — `checkbranch.js`, at pre-push (2026-09-16, Aj:
+  *"we should probably add a gate during pr to check the backlog if the related entry hasn't been
+  cleared/moved to the correct tracking document"*).** Every entry carries a stable **`[id: slug]`** on its
+  own last line, and the commits being pushed must carry a `Backlog:` trailer: `none` / `closes <id>` /
+  `updates <id>` / `files <id>`. A **`closes`** claim is verified — the entry must have been PRESENT at the
+  base commit and GONE at the pushed one, so neither "the fix shipped and the entry stayed" nor a mistyped
+  slug reads as a close. `versiontest` asserts the ids are unique and one per entry, because a duplicate
+  would let a `closes` pass while the other entry stayed open.
+  **THIS IS THE RATCHET ASYMMETRY, GENERALISED**, and the same argument applies: closing an entry is a happy
+  act done inside the code, where the doc is nowhere in the author's view. The day it landed, a cull pass
+  found an entry describing a bug fixed EARLIER THAT DAY and another whose five findings the epic had closed
+  one at a time with nobody touching the doc.
+  **SAY WHAT IT CANNOT DO. Nothing can tell whether `Backlog: none` is true**, so silent omission still gets
+  through; what the gate buys is that the question is asked once per PR, in the history, and that a claim
+  once made is checked. Do not describe it as airtight.
+  **AND IT WAS GREEN AND BLIND ON ITS FIRST RUN, FOR A ONE-WORD REASON:** `pushRefs()` reads **fd 0**, stdin
+  is a STREAM, and this is its SECOND caller — the integration gate had already drained it, so the backlog
+  gate iterated an empty list and passed every negative case. It is memoised now. **Any new gate added to
+  this file must reuse `pushRefs()` and must be A/B'd by reintroducing the failure**, not read.
+  **THE PROBE THAT FOUND IT ALSO DESTROYED IT TWICE**: `git reset --hard` between cases wiped the
+  uncommitted fix under test, so three directions "passed" against the broken file. **Commit the fix before
+  testing it**, and treat a harness that resets the tree as part of the experiment.
+- **EVERY BACKLOG ENTRY CARRIES ONE STATUS TAG, AND `versiontest` ASSERTS BOTH HALVES (2026-09-16).** Six
+  tags, closed set, defined in a legend at the top of the BACKLOG: `needs a repro` · `root cause found` ·
+  `ready to build` · `needs a decision` · `needs a measurement` · `parked`. They answer *what does this need
+  NEXT*, which is the one fact a reader reconstructs by reading a whole entry — and at 55 entries and ~900
+  lines, that reconstruction is what stops happening. **The trigger was a live confusion**: an entry whose
+  root cause was found and written down got relayed to Aj as "needs two devices", from memory, because the
+  answer was on line 19 of 24. The prose was not ambiguous; it simply was not re-read.
+  **SO THE POINT IS NOT PRECISION, IT IS THAT A CLOSED SET IS CHECKABLE** — free prose can only be read
+  carefully, and this file's own rule is that the only duplication which survives here is the ASSERTED kind.
+  Both directions are gated: an untagged entry is invisible to whoever is planning, and an invented tag forks
+  the vocabulary the way `feature/` and `feat/` did. **Adding a seventh tag means editing `TAGS` in
+  `versiontest.js` AND the legend, in one commit** — the same by-agreement-never-by-surprise rule the branch
+  prefixes carry.
+  **A TAG IS A CLAIM AND ROTS LIKE ANY OTHER.** `root cause found` on an entry whose diagnosis was never
+  written into the body is this exact failure wearing a tag; re-read the tag whenever you touch the entry.
+  **AND IT IS NOT ONLY STALE — MOST OF IT IS NOT THE EPIC'S WORK AT ALL (routed 2026-09-30).** Aj, on
+  finding two just-built fixes riding `epic/priority-windows`: *"it sounds like we could have done that on
+  main."* **17 of the 26 entries filed under the epic were main work** — layout, tutorials, a shapes rule,
+  the AI's straight sort, the Fighter Kick flash, the battle-log overlay and six harness flakes, none of
+  them touching the priority model. The cost is not tidiness: a fix built on a long branch reaches players
+  only when the branch lands, and two player-visible ones now wait on the whole epic.
+  **THE FAILURE IS TRIAGING *WITHIN* A SECTION RATHER THAN QUESTIONING IT.** I read the epic's Correctness
+  list, verified entries against the code exactly as this file demands, picked the two best — and never
+  asked whether the list was the right list. Every check I ran was a check on the entry.
+  **THE TEST IS CHECKABLE AND THE OBVIOUS ONE IS NOT: *DOES THE THING IT TOUCHES EXIST ON `main`,
+  UNCHANGED BY THE EPIC?*** If yes it ships on its own; if no — the Resolution model, the go-round, the
+  Main/Fight sub-phase split, **a suite the epic added** — it cannot. "Is this epic work?" is a judgement
+  and drifts; that question is a grep. The surprising cases go both ways: `nettest_passoduel`'s flake
+  sounds like tooling but the epic added the suite, so there is nothing on main to fix it in; the lobby
+  ping and the Fighter Kick flash sound like netplay and are plain main work.
+  **DO THE ROUTING WHEN THE EPIC STARTS, NOT AT ITS STEP 23.** Step 23 says *"route by the CLAUDE.md
+  table"*, which is far too late — the whole point of routing is to stop work being built on the wrong
+  branch, and by step 23 it already has been.
+
+  **⚠ AND THE WHOLE BACKLOG BEHIND AN EPIC IS STALE UNTIL PROVEN OTHERWISE — MEASURED AT FOUR IN SIX
+  (2026-09-17).** Aj picked "the priority cluster", six entries, every one `ready to build` or `root cause
+  found`. Opening the code on each **before writing anything**: the pre-fight-window bullet named
+  `preFightHolder`, which epic step 20 had DELETED; the `activate` open-window guard had shipped
+  2026-09-14; `counter-spell-target` was built at step 8 (`counterTargets` + `respond` validating
+  `counterOid` + `resolveTopEffect` honouring it); `engine-ui-respond-disagree` closed when
+  `eligibleQuicks` started calling `E.canCastQuick`; and `ai-heuristics-miss-quicks` closed on both halves
+  — `lockout` is in `THREAT_KIND` and the immunity branch calls `E.immunityEffFor`. **One and a half of six
+  survived contact with the code.**
+  **THE MECHANISM IS STRUCTURAL, NOT CARELESSNESS, WHICH IS WHY THE GATE CANNOT CATCH IT.** An epic ships
+  20+ steps against a backlog written before it started, and a step closes entries it never read — step 20
+  deleted an entire parallel implementation and with it three filed bugs. The `Backlog:` trailer gate only
+  sees a PR that KNOWS about an entry; it is blind to a PR that happens to fix one.
+  **SO: GREP FOR EVERY SYMBOL AN ENTRY NAMES BEFORE BUDGETING THE WORK.** `grep -n preFightHolder
+  engine.js` answered one of these in three seconds — the symbol was gone from the code and present only
+  in the comment explaining its deletion. A symbol that no longer exists is the cheapest possible proof
+  that an entry has moved on, and a stale entry is worse than none, because it is specific enough to plan
+  against. This is the recorded "a filed measurement ages exactly as fast as the thing it measured", in the
+  place it costs the most: scheduling.
+  **AND VERIFY A CLOSURE, DO NOT ASSUME ONE EITHER.** Of the six, `shield-loss-technique-cast` LOOKED
+  closed — `activateBlock` carries the guard and the entry names `activateBlock` as its home — and the
+  ENGINE had none: measured, `E.activate` returned `ok:true` and spent energy 12 → 3 and hand 4 → 2 against
+  a rival on 0 shields. "A client-side gate is not the gate" is the rule that catches this one, and the
+  check is to run the engine rather than to read the template.
 - `docs/NEXT-SESSION.md` — **start here**: build/test header, START HERE, and the RANKED backlog (open work
   only). 6,061 lines → 293 when the changelog was split out on 2026-09-07.
 - `docs/CHANGELOG.md` — what shipped and why, newest first. Append-only history; nobody actions it, which is
@@ -2263,6 +3735,23 @@ definition, so it cannot delete them.
 - **`docs/PHASES-AND-PRIORITY.md` — CURRENT TRUTH for turn structure and priority.** Dictated by Aj
   2026-09-08 and the only live statement of the model. **Read it before touching any window, the stack, or
   anything that grants priority.**
+  **THE PHASES WERE RENAMED 2026-09-11 AND THE CODE FOLLOWED AT EPIC STEP 23 (2026-09-14). THE SPLIT IS
+  CLOSED.** `Fight Phase` → **Play Phase** (Main · **Fight** · **Resolution**), because the phase you spend
+  your turn in is the one you play in; the old `Play Sub-Phase` is the **Fight Sub-Phase** and `Fight End` is
+  **Resolution**. Code and docs now agree: `st.resolution`, `openResolutionWindow`, `enterResolution`,
+  `resolutionResult`, `drainResolution`, `resolutionGuardCard` / `resolutionPushCard`, `resolutiontest.js` and
+  `resolutiontest_ui.js`. **If you find `fightEnd` in a `.js` file it is a genuine leftover now, not the
+  deliberate lag it used to be** — that inversion is the whole point of this note.
+  **THE ONE SURVIVING `'fightend'` IS THE `localStorage` MIGRATION** in the template (and its assertion in
+  `prompttest`). The prompt-timing id is persisted, so the migration has to know the OLD name by definition;
+  deleting that literal to "finish the rename" would orphan every preference a player has ticked, silently,
+  because an unknown key just falls back to the default.
+  **THE RENAME WAS DELIBERATELY HELD until the behaviour stopped moving**, and that was right: a rename is a
+  deletion wearing a friendlier face, and threading it through a step still changing behaviour makes a red run
+  unbisectable. It shipped as **one symbol per commit** for the same reason.
+  **DATED QUOTES STILL SAY "fight end" ON PURPOSE** — `PHASES-AND-PRIORITY.md` says so in its own line 15, and
+  `CHANGELOG.md` is append-only history. A blanket prose sweep is WRONG here; the only paragraph a blanket
+  identifier rename damaged was this one, because it was *about* the old names.
 - `docs/BUILD-PLAN-v0.82.md`, `docs/Cardmen-Fighter-Design-v0.70.md`, `docs/STACK-DESIGN-v0.53.md` —
   historical snapshots, not current truth — **and specifically wrong about priority**, which is what
   `PHASES-AND-PRIORITY.md` now owns.

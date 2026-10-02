@@ -22,8 +22,14 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
 
   // ---- the chain, before any browser: README is the one source of truth
   const readme=fs.readFileSync(path.resolve(__dirname,'..','README.md'),'utf8');
-  const want=(readme.match(/\*\*Status:\*\*\s*(v\d+\.\d+\.\d+[a-z]?)/)||[])[1];
+  const want=(readme.match(/\*\*Status:\*\*\s*(v\d+\.\d+\.\d+(?:\.\d+)?[a-z]?)/)||[])[1];
   ok(!!want, `README.md's **Status:** line names a version (${want||'NONE — build.js would refuse to build'})`);
+  /* ⚠ "`main` is at" COMPARES THE BASE, NOT THE WHOLE STAMP (2026-09-30) — and that is the whole reason
+     the four-number scheme works. An epic build is `vX.Y.Z.a`, where X.Y.Z names the main version it is
+     based on, so the handoff can say "main is at v1.31.127" and be TRUE while README says v1.31.127.4.
+     Holding the version for a whole epic used to be forced by exactly this line: bumping README made the
+     sentence false and the gate correctly red. */
+  const base = want ? want.split('.').slice(0,3).join('.') : want;
   /* THE CHANGELOG IS PART OF THE GATE NOW. v1.31.33 nearly shipped without an entry: the script writing it
    * asserted on a stale anchor and threw BEFORE its write, and a confirmation that never printed was read as
    * though it had. The version stamp is derived and therefore cannot drift; the changelog is hand-written and
@@ -32,16 +38,20 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   /* THE CHANGELOG MOVED OUT on 2026-09-07 (`NEXT-SESSION.md` was 6,061 lines and almost all of it was this), so
    * the heading assertion follows it to `CHANGELOG.md`. */
   const chlog=fs.readFileSync(path.resolve(__dirname,'..','docs','CHANGELOG.md'),'utf8');
-  /* ⚠ ANCHORED TO THE START OF A LINE, BECAUSE `indexOf` CANNOT TELL A HEADING FROM A MENTION — and this
-     file was GREEN over a corrupted changelog for two versions because of it (found 2026-10-02). The
-     v1.31.127 entry had been spliced INSIDE the intro paragraph, at the literal `### vX.Y.Z — short title`
-     the intro uses as its own example: the real heading became prose, a bogus `### vX.Y.Z — short title`
-     heading ended up mid-file, and the substring search found the mention and called it an entry.
-     The same insertion is invisible to any `grep -c`; only `grep -n '^### '` shows it. Verified by
-     re-burying the heading — one red. */
-  const headingRe=new RegExp('^### '+String(want||'\u0000').replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','m');
-  ok(want ? headingRe.test(chlog) : false,
-     `docs/CHANGELOG.md carries a "### ${want}" heading ON ITS OWN LINE — a shipped version with no entry is how a change becomes unfindable`);
+  /* A HEADING IS A LINE, AND `indexOf` CANNOT TELL ONE FROM A MENTION (2026-09-17). This was
+   * `chlog.indexOf('### '+want) >= 0`, and it passed on a file where the v1.31.127 entry had been inserted
+   * INSIDE the intro paragraph — spliced at the literal "`### vX.Y.Z — short title`" the intro uses as its
+   * example, so the real heading was prose on line 7 and the EXAMPLE became the document's first H3.
+   * The gate was green the whole time, because the prose line does contain the substring.
+   * Anchored to the start of a line, which is what "heading" means in Markdown and what every reader and
+   * every table-of-contents actually keys off. */
+  /* AN EPIC BUILD HANGS OFF ITS BASE VERSION'S ENTRY (2026-09-30). `vX.Y.Z.a` is not a shipped version —
+     it is "the epic, a merges past main's X.Y.Z" — so demanding a `### vX.Y.Z.a` heading would demand a
+     changelog entry per merge for work nobody can download. The epic gets ONE entry when it merges and
+     the minor bumps; until then the heading it must carry is its BASE's, which already exists. */
+  const headed=want ? new RegExp('^### '+base.replace(/\./g,'\\.')+'\\b','m').test(chlog) : false;
+  ok(headed,
+     `docs/CHANGELOG.md carries a "### ${base}" heading AT THE START OF A LINE — a mention inside a paragraph is not an entry, and a shipped version with no entry is how a change becomes unfindable`);
   /* AND THE SPLIT HAS TO HOLD. A version heading appearing back in the handoff doc means the two files are
    * drifting into one again, which is how it reached 6,061 lines the first time — so that is a red suite, not
    * a style note. Checked below `## BACKLOG` only, since an entry could legitimately QUOTE a version above it. */
@@ -64,10 +74,13 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok(!!eng && eng.fail===0, `test.js is green, so its count means something (${eng?eng.pass+' / '+eng.fail:'DID NOT REPORT'})`);
   ok(!!nv  && nv.fail===0,  `netview.test.js is green, so its count means something (${nv?nv.pass+' / '+nv.fail:'DID NOT REPORT'})`);
   const hdr=handoff.slice(0, handoff.indexOf('## BACKLOG'));
-  const hv=(hdr.match(/\*\*Current version:\s*(v\d+\.\d+\.\d+[a-z]?)/)||[])[1];
+  const hv=(hdr.match(/\*\*Current version:\s*(v\d+\.\d+\.\d+(?:\.\d+)?[a-z]?)/)||[])[1];
   ok(hv===want, `the handoff header's "Current version" matches README ("${hv||'NONE'}" vs "${want}")`);
+  /* DELIBERATELY THREE-PART HERE, unlike every other pattern in this file: `main` never carries a fourth
+     segment, so a 4-part version written on this line is itself the error and must not match. `**` closes
+     the capture, so `**v1.31.127.1**` yields undefined and reds with the value printed. */
   const mv=(hdr.match(/`main` is at \*\*(v\d+\.\d+\.\d+[a-z]?)\*\*/)||[])[1];
-  ok(mv===want, `START HERE's "\`main\` is at" matches README ("${mv||'NONE'}" vs "${want}")`);
+  ok(mv===base, `START HERE's "\`main\` is at" matches README ("${mv||'NONE'}" vs "${want}")`);
   /* AND CLAUDE.md's OWN HEADER (v1.31.100). The chain covered README -> build -> both screens -> the handoff's
    * two lines -> a changelog heading, and left the line at the top of the file every session reads FIRST. It
    * drifted FOUR versions unnoticed (v1.31.95 against a real v1.31.99) while CLAUDE.md's status line two
@@ -84,9 +97,9 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok(!/\*\*\d+ \/ 0\*\*/.test(hdr),
      'the header states no hand-maintained "NN / 0" expectations — unverifiable numbers are what rot');
   const claude=fs.readFileSync(path.resolve(__dirname,'..','CLAUDE.md'),'utf8');
-  const cv=(claude.match(/^Current version: \*\*(v\d+\.\d+\.\d+[a-z]?)\*\*/m)||[])[1];
+  const cv=(claude.match(/^Current version: \*\*(v\d+\.\d+\.\d+(?:\.\d+)?[a-z]?)\*\*/m)||[])[1];
   ok(cv===want, `CLAUDE.md's "Current version" matches README ("${cv||'NONE'}" vs "${want}")`);
-  const csv=(claude.match(/^Status as of \*\*(v\d+\.\d+\.\d+[a-z]?)\b/m)||[])[1];
+  const csv=(claude.match(/^Status as of \*\*(v\d+\.\d+\.\d+(?:\.\d+)?[a-z]?)\b/m)||[])[1];
   ok(csv===want, `…and its "Status as of" line does too ("${csv||'NONE'}" vs "${want}")`);
   const cc=claude.match(/`test` (\d+), `netview` (\d+)/)||[];
   ok(!!cc[1] && !!eng && +cc[1]===eng.pass, `CLAUDE.md's \`test\` count is REAL (says ${cc[1]||'nothing'}, measured ${eng?eng.pass:'?'})`);
@@ -124,13 +137,46 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
      `every BACKLOG ratchet entry still has a live ratchet [${docRatchets.size} entry(ies): ${[...docRatchets.keys()].join(', ')||'none'}]`+
      (orphanDoc.length?`  ← THE FIX LANDED: ${orphanDoc.join(', ')} — no suite ratchets this any more, so the entry's measurements are STALE. Close it or rewrite it against what the suite measures today`:''));
 
+  /* ---- EVERY BACKLOG ENTRY CARRIES ONE STATUS TAG, FROM A CLOSED SET (2026-09-16). The doc is 55 entries
+   * and ~900 lines, and the one fact a reader needs first — what does this need NEXT — was buried in prose:
+   * an entry whose root cause was found and written down got summarised as "needs two devices", from memory,
+   * because the answer sat on line 19 of 24. Prose can only be read carefully; a closed vocabulary can be
+   * CHECKED, and this file's own history says the only duplication that survives here is the asserted kind.
+   * THE GATE IS THE POINT. A vocabulary nobody enforces is a style note, and this repo has watched a style
+   * note lose to a busy afternoon (the `perf/` prefix, the four merges that skipped their PR). Both
+   * directions fail: an untagged entry is invisible to whoever is planning, and an INVENTED tag quietly
+   * forks the vocabulary, which is how `feat/` and `feature/` came to coexist. */
+  const TAGS=['needs a repro','root cause found','ready to build','needs a decision','needs a measurement','parked'];
+  const entryLines=afterBacklog.split('\n').filter(l=>/^- /.test(l));
+  const untagged=entryLines.filter(l=>!/^- `[^`]+`\s+· /.test(l));
+  const badTag=entryLines.map(l=>(l.match(/^- `([^`]+)`\s+· /)||[])[1]).filter(t=>t&&TAGS.indexOf(t)<0);
+  ok(entryLines.length>0 && untagged.length===0,
+     `every BACKLOG entry carries a status tag [${entryLines.length} entry(ies) checked]`+
+     (untagged.length?`  ← UNTAGGED: ${untagged.map(l=>l.slice(0,60)).join(' | ')} — prefix it with one of: ${TAGS.join(' / ')}`:''));
+  ok(badTag.length===0,
+     `every status tag comes from the closed set [${TAGS.length} allowed: ${TAGS.join(' / ')}]`+
+     (badTag.length?`  ← INVENTED: ${[...new Set(badTag)].join(', ')} — a tag nobody agreed to forks the vocabulary; use one of the six, or add yours to TAGS here AND to the legend in NEXT-SESSION.md in the same commit`:''));
+
+  /* ---- EVERY BACKLOG ENTRY HAS A UNIQUE `[id: slug]` (2026-09-16). The ids are what `checkbranch.js`'s
+   * pre-push backlog gate cites, so a missing one makes an entry uncitable and a DUPLICATE makes a `closes`
+   * claim ambiguous — it would pass while the wrong entry stayed open, which is the exact failure the gate
+   * exists to catch, wearing the gate's own clothes. Checked here rather than in the hook because a hook
+   * only runs for whoever enabled it, and because this is a property of the DOC. */
+  const idLines=afterBacklog.match(/`\[id: [a-z0-9-]+\]`/g)||[];
+  const idSlugs=idLines.map(x=>x.slice(6,-2));
+  const dupIds=[...new Set(idSlugs.filter((v,i)=>idSlugs.indexOf(v)!==i))];
+  ok(idSlugs.length===entryLines.length && dupIds.length===0,
+     `every BACKLOG entry has a unique [id: slug] [${idSlugs.length} id(s) for ${entryLines.length} entries]`+
+     (idSlugs.length!==entryLines.length?`  ← COUNT MISMATCH: an entry with no id cannot be cited by a "Backlog: closes <id>" trailer`:'')+
+     (dupIds.length?`  ← DUPLICATE: ${dupIds.join(', ')} — a "closes" claim against a duplicated id passes while the other entry stays open`:''));
+
   /* ---- NO `file:NNNN` CITATIONS IN THE LIVE DOCS (2026-09-08). A staleness sweep found **8 of 20** line
    * references already pointing at the wrong line, and most had drifted THAT DAY — every comment block added
    * and every dead function deleted shifts everything below it. A line number claims a precision it cannot
    * keep for one commit.
    * CLAUDE.md already has the rule one level up, about numbers: "a pointer rots only if a file or anchor is
    * renamed; a copied number rots every time the number changes, and silently." A line number is a copied
-   * number. **Cite a SYMBOL** — `guardEffFor`, `openResponseWindow`, `THREAT_KIND` — which is greppable, says
+   * number. **Cite a SYMBOL** — `immunityEffFor`, `openResponseWindow`, `THREAT_KIND` — which is greppable, says
    * what you meant, and survives an edit above it.
    * The approximate form (`engine.js` ~1447) is left alone on purpose: the tilde is honest about drifting, and
    * banning it would push people back to prose that names nothing at all. */
@@ -194,6 +240,64 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
     ok(bar.text===want, `and it reads exactly the built version ("${bar.text}")`);
     ok(bar.h>0, `rendered in the bar: "${bar.bar}"`);
   }
+  /* ═══ THE CLIENT-INIT FORK, GATED (2026-09-29) ═══════════════════════════════════════════════════
+     Aj: *"why do we keep getting this unsync between host and client?"* — and the biggest single cause is
+     mechanical, so it can be a gate rather than a habit. A host or solo seat initialises per-game state in
+     `startGame`; A CLIENT NEVER RUNS IT, reaching the same ground through `t:'setup'` -> `resetHandPresentation`
+     and the lobby return's `clearBoard` -> `resetBoardMemory`. Anything added to `startGame` alone is therefore
+     invisible on a client, silently, because a missing reset throws nothing.
+     FIVE HAVE SHIPPED THAT WAY: `resetBoardMemory` itself, `handOrder`/`layout`/`sortState`, `PRIO_LOG`,
+     `seatDecks`, and `uiPhase`. Each was found by a player, never by a suite. Enumerating it on 2026-09-29
+     turned up nine more sitting there unreset, including the two the `resetBoardMemory` call site already
+     CLAIMED to own.
+     ⚠ IT IS A SOURCE SCAN, SO IT IS A LEAD MADE MANDATORY, NOT A PROOF. It cannot tell a harmless stale
+     value from a damaging one, and it will false-positive on anything that looks like an assignment. The
+     answer to a hit is to move the reset into the SHARED function, or to allowlist it WITH A REASON — never
+     to widen the filter until the red goes away. */
+  {
+    const tplSrc = fs.readFileSync(path.join(__dirname,'CardmenFighter.template.html'),'utf8');
+    const bodyOf = (sig) => { const i=tplSrc.indexOf(sig); if(i<0) return '';
+      let d=0, j=tplSrc.indexOf('{', i);
+      for(let k=j;k<tplSrc.length;k++){ if(tplSrc[k]==='{') d++; else if(tplSrc[k]==='}'){ d--; if(!d) return tplSrc.slice(j,k+1); } }
+      return ''; };
+    const paramsOf = (sig) => { const i=tplSrc.indexOf(sig); if(i<0) return new Set();
+      const m=/\(([^)]*)\)/.exec(tplSrc.slice(i, i+200)); if(!m) return new Set();
+      return new Set(m[1].split(',').map(x=>x.trim()).filter(Boolean)); };
+    /* Comments and string literals both contain things that look like assignments — `class="x"` inside an
+       HTML fragment was the first false positive this scan produced. Strip both before matching. */
+    const clean = t => t.replace(/\/\*[\s\S]*?\*\//g,'').replace(/(?<!:)\/\/[^\n]*/g,'')
+                        .replace(/'(?:[^'\\\n]|\\.)*'/g,"''").replace(/"(?:[^"\\\n]|\\.)*"/g,'""')
+                        .replace(/`(?:[^`\\]|\\.)*`/g,'``');
+    const assigned = (t) => { t=clean(t);
+      const names=new Set((t.match(/(?<![.\w$])[A-Za-z_$][\w$]*\s*=(?![=>])/g)||[]).map(x=>x.replace(/\s*=$/,'')));
+      for(const v of (t.match(/\bvar\s+[^;\n]+/g)||[])) for(const part of v.replace(/^\s*var\s+/,'').split(','))
+        { const m=/^\s*([A-Za-z_$][\w$]*)/.exec(part); if(m) names.delete(m.group===undefined?m[1]:m[1]); }
+      return names; };
+    const RESERVED = new Set(['class','for','if','var','new','return','this','function','in','of','do','else']);
+    const sg  = assigned(bodyOf('function startGame'));
+    const par = paramsOf('function startGame');
+    let cli = new Set();
+    for(const f of ['function resetHandPresentation','function resetBoardMemory','function clearBoard'])
+      for(const n of assigned(bodyOf(f))) cli.add(n);
+    const si = tplSrc.indexOf("else if(m.t==='setup')");
+    if(si>=0) for(const n of assigned(tplSrc.slice(si, si+3000))) cli.add(n);
+    /* THE ALLOWLIST IS SHORT ON PURPOSE AND EVERY ENTRY CARRIES ITS REASON. A long one means the fork has
+       grown back and the gate has stopped meaning anything. */
+    const ALLOWED = {
+      fullLog: 'cleared by `stashLog()` at the lobby return, which BOTH seats run — verified, not assumed',
+    };
+    const gap = [...sg].filter(n => !cli.has(n) && !par.has(n) && !RESERVED.has(n) && !ALLOWED[n]).sort();
+    ok(gap.length===0,
+       'CLIENT-INIT PARITY: every per-game name `startGame` resets is reset on a client too' +
+       (gap.length ? '  ← NOT reset on a client: ' + gap.join(', ') +
+          '\n     Move the reset into `resetBoardMemory` (both seats reach it), or allowlist it in versiontest WITH a reason.'
+        : '  ['+sg.size+' checked, '+Object.keys(ALLOWED).length+' allowlisted]'));
+    /* NOT VACUOUS: if the extractor ever stops finding `startGame`, `sg` is empty and the assertion above
+       passes having checked nothing — the exact shape of a detector that matches nothing. */
+    ok(sg.size >= 10, '…and the scan actually parsed `startGame` ('+sg.size+' assignments found)' +
+       (sg.size>=10 ? '' : '  ← the extractor has gone stale and the gate above is vacuous'));
+  }
+
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

@@ -13,6 +13,7 @@
  *
  * Run: node oppbeatstest.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
+const { selectAndFight, clickFight } = require('./fightclick');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
@@ -46,7 +47,7 @@ const stage = p => p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({
   await p.evaluate(()=>{ const g=[...document.querySelectorAll('#hand .group')]
     .filter(el=>el.querySelector('.card[data-id="y0"]'))[0]; if(g) g.click(); }); await wait(250);
   const t0 = Date.now();
-  await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f&&!f.disabled) f.click(); });
+  await clickFight(p);   // two-state button (epic step 20) — see fightclick.js
 
   /* Record WHEN each line first appears, and whether the card reader ever lit up. `revealEffect` adds
      `.reveal` to #cardView and pops #artFlash; both are transient, so they are sampled, not read at the end. */
@@ -84,6 +85,30 @@ const stage = p => p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({
   const wrong = lines.filter(t=>/\bRival\b/.test(t));
   ok(wrong.length===0, `no log line calls the opponent "Rival" when it has a name${wrong.length?': '+JSON.stringify(wrong.slice(0,3)):''}`);
   ok(lines.some(t=>t.indexOf(rival)>=0), `  → they use "${rival}" instead (not vacuous: the log does name it)`);
+
+  /* ---------- A FORCED DISCARD NAMES THE TARGET, NOT THE CASTER (2026-09-30).
+     Aj, from a 3-player game: *"i did not discard any cards despite being telekinesis'd. was it auto
+     picked again?"* — and the log could not answer him. `buildOppBeats`' `seat` is the seat whose TURN is
+     being presented, i.e. the CASTER, so a Telekinesis Adell cast at somebody else rendered as
+     *"Adell discarded 2 cards."* about Adell's own hand. Four casts in that game, not one naming a target.
+     THE TARGET WAS ALREADY IN THE DATA: `ai.js` pushes `{ forcedDiscard: n, who: dr0.player }` and only the
+     count was read.
+     ⚠ DRIVEN THROUGH THE RENDERER, NOT THROUGH A GAME. Getting the AI to actually cast Telekinesis depends
+     on its heuristics — a staged attempt did not cast at all — so this feeds `buildOppBeats` the log entry
+     ai.js produces and asserts the line it renders. That is the layer that was wrong, and it makes the
+     assertion independent of whether any given deal tempts the AI.
+     BOTH NAMES ARE REQUIRED, because "names the target" is also true of a build that names everyone the
+     same: the line must carry seat 2's name AND NOT the caster's. */
+  await p.evaluate(()=>{ window.__solo.setName(1,'Caster'); window.__solo.setName(2,'Victim'); window.__solo.render(); });
+  const beforeN = await p.evaluate(()=>document.querySelectorAll('#log .le').length);
+  await p.evaluate(()=>window.__solo.oppBeats([{ forcedDiscard:2, who:2 }], 1));
+  await wait(1400);
+  const dline = await p.evaluate(n=>[...document.querySelectorAll('#log .le')].slice(n).map(e=>e.textContent.trim())
+                                   .filter(t=>/discarded/.test(t))[0]||'', beforeN);
+  ok(/Victim/.test(dline),
+     `a forced discard names the TARGET  ["${dline}"]` + (/Victim/.test(dline)?'':'  ← REPRODUCED: the log cannot say who was hit'));
+  ok(dline && !/Caster/.test(dline),
+     '  …and NOT the caster — the seat whose turn is being presented is not the seat that discarded');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

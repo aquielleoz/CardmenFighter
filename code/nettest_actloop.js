@@ -11,6 +11,7 @@
  * hand picker, not an overlay, and that is precisely what wedged the earlier driver.
  * Run: node nettest_actloop.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { selectAndFight, clickFight, clickPass, enterFight } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8331),ROOM='AL'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -48,7 +49,8 @@ const activate=(p,id)=>p.evaluate(cid=>{
   if(cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent||'')){ cx.click(); return 'ctx'; }
   return 'not offerable';
 }, id);
-const playCard=(p,id)=>p.evaluate(cid=>{
+const playCard=async(p,id)=>{ await enterFight(p);   // Fight in Main is the phase move — see fightclick.js
+  return p.evaluate(cid=>{
   var clr=document.getElementById('clearBtn'); if(clr && !clr.disabled) clr.click();
   [].slice.call(document.querySelectorAll('#hand .card.sel')).forEach(function(c){ c.click(); });
   var c=document.querySelector('#hand .card[data-id="'+cid+'"]'); if(!c) return false;
@@ -56,7 +58,7 @@ const playCard=(p,id)=>p.evaluate(cid=>{
   var f=document.getElementById('fightBtn');
   if(f && !f.disabled){ f.click(); return true; }
   return false;
-}, id);
+  }, id); };
 /* Why an activation was refused. A red run should explain itself — today's whole lesson is that the answer was
  * always in the first trace anyone bothered to capture. */
 const whyNot=(p,id)=>p.evaluate(cid=>{
@@ -123,7 +125,7 @@ const boardUsable=p=>p.evaluate(()=>{
   ok(await until(async()=>await playCard(join,'10C')), 'the client answers');
   const r0=await roundOf(host);
   ok(await until(async()=>await turnOf(host)===0), 'the turn comes back to the host');
-  await host.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled)b.click(); });
+  await clickPass(host);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
   ok(await until(async()=>(await roundOf(host))>r0), `the round resolved after an activation (round ${r0} → ${await roundOf(host)})`);
   /* THE WEDGE CHECK, from the client's side this time: the client won, so it must get a usable board. */
   ok(await until(async()=>await boardUsable(join)), 'and the round WINNER can act — no lockout after a Technique');

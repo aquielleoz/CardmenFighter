@@ -6,7 +6,8 @@
  *       seat 2+ was handled by NEITHER — that seat never countered and the window stayed pending.
  * NOTE ai.js already handled both correctly for AI-vs-AI turns; only the human-acts paths were broken.
  * Run: node mptest.js */
-const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
+const { chromium } = require('playwright');
+const { clickFight } = require('./fightclick'); const LAUNCH = require('./pwchrome'); const path=require('path');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
@@ -71,7 +72,7 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   const staged=await p.evaluate(()=>{
     const st=window.__solo.st(), E=window.CardmenEngine;
     const mk=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s});
-    st.round=3; st.turn=0; st.pile=null; st.passes=0; st.preFightHandled=false; st.preFightQ=null;
+    st.round=3; st.turn=0; st.pile=null; st.passes=0; st.subPhase='main'; st.toPlay=null;
     st.players[1].eliminated=true;                                   // P2 is OUT — so P3 becomes the pre-fight holder
     st.players[0].hand=[mk(5,'D'),mk(9,'H')];
     const p3=st.players[2];
@@ -79,12 +80,19 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     p3.forms=[{rank:11,suit:'S',tier:'ride',name:'J'},{rank:12,suit:'S',tier:'queen',name:'Q'},{rank:13,suit:'S',tier:'king',name:'K'}];  // Hermes Super → Back Stab is a Quick
     p3.energy=Array.from({length:14},(_,i)=>mk(2,'S','e'+i));
     window.__solo.render();
-    return { holder: E.openPreFight(st).q, super: E.hasSuper(p3) };
+    /* THE HOLDER IS THE GO-ROUND'S, NOT A BESPOKE WINDOW'S (epic step 20). This read
+       `E.openPreFight(st).q` — a second priority model that named ONE seat. `moveToPlay` opens the real
+       transition and the walk answers the same question, and answers it better: seat 0 is the active
+       player and is offered FIRST now, but holds no castable Quick (5♦/9♥) so `canAddToStack` skips it;
+       seat 1 is eliminated; so priority lands on seat 2 — which is still exactly the case the old gate
+       dropped, proven through the walk everything else uses. */
+    E.moveToPlay(st);
+    return { holder: st.respondFor, super: E.hasSuper(p3) };
   });
   ok(staged.super===true, 'P3 is in Super Mode (J+Q+K), so Back Stab is a Quick');
-  ok(staged.holder===2, 'the pre-fight holder really is seat 2, not 1 ('+staged.holder+') — the case the old gate dropped');
-  await p.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
-    const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  ok(staged.holder===2, 'the transition offers priority to seat 2, not 1 ('+staged.holder+') — the case the old gate dropped');
+  await p.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); });
+    await clickFight(p);   // two-state button (epic step 20) — see fightclick.js
   const bsName=await nm(2), bsOther=await nm(1);
   ok(await hasLog(new RegExp(bsName+'.*sprang Back Stab','i')) && !(await hasLog(new RegExp(bsOther+'.*sprang Back Stab','i'))),
      'seat 2 ('+bsName+') sprang Back Stab against your fight, and it is not credited to seat 1 ('+bsOther+')');
@@ -184,8 +192,8 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     window.__solo.render();
   }); await wait(300);
   // your own play writes the caption; an opponent's turn must then OVERWRITE it
-  await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="4H"]'); if(c)c.click();
-    const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="4H"]'); if(c)c.click(); });
+  await clickFight(p);   // two-state button: Fight moves to the Fight Sub-Phase, Play commits the cards
   // NB: your own fight does not set the centre caption (the log carries it) — the caption after your play is a
   // prompt/status line. What matters for C1 is that an opponent's turn WRITES one at all, asserted next.
   ok(await hasLog(/^You played/), 'your own play is logged');
@@ -237,6 +245,15 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
     resolved=(await log()).some(l=>/won with a|won the round of Jabs/.test(l));
     if(resolved) break;
     await p.evaluate(()=>{
+      /* A PRIORITY WINDOW COVERS THE BOARD, and this loop would then spin out its 160 iterations and fail as
+         "a round resolved in a real 3-player game" with nothing pointing at the real cause (epic step 3).
+         Inert today — no window opens during this loop — and after step 18 a Fight End window opens every
+         round. Pass it and let the next iteration carry on. */
+      const ov=document.getElementById('overlay');
+      if(ov && ov.classList.contains('show')){
+        const PASS=['respDecline','pfDecline','sgNo'];
+        for(const id of PASS){ const el=document.getElementById(id); if(el && el.offsetParent){ el.click(); return; } }
+      }
       const clr=document.getElementById('clearBtn'), f=document.getElementById('fightBtn'), ps=document.getElementById('passBtn');
       const cards=[].slice.call(document.querySelectorAll('#hand .card'));
       for(let k=0;k<cards.length;k++){ if(clr)clr.click(); document.querySelectorAll('#hand .card')[k].click(); if(f&&!f.disabled){ f.click(); return; } }
@@ -365,6 +382,293 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   // and the names reach the shared naming funnel, so they show up everywhere else for free
   ok((await nm(1))===perse[0] && (await nm(2))===perse[1], 'logName() resolves each seat to its persona, so all narration inherits it');
   ok((await nm(0))==='You', '…while you still read as "You" in your own frame');
+
+  /* ---- AN EMPTY PILE NAMES WHOSE LEAD IT IS (Aj, from live play, 2026-09-16) ---- */
+  /* *"it says fight is open - lead a card even when it's the other player's turn to lead"*. The hint keyed
+     off `state.pile` alone, so the one moment it is guaranteed to show — the start of a round, before
+     anybody has led — gave every seat an instruction only ONE of them could follow. It belongs in this
+     file because it is presentation AND naming: it goes through `logName`, so it inherits the persona and
+     the reader-relative frame for free, which is the pair the block above asserts.
+     BOTH DIRECTIONS AND THEN BACK, because the pile renderer rebuilds only when its SIGNATURE changes and
+     the empty signature did not carry the turn — so the first cut of the fix rendered the right words once
+     and then never repainted. A one-way check passes on exactly that build. */
+  const pileTxt=()=>p.evaluate(()=>document.getElementById('pile').textContent.replace(/\s+/g,' ').trim());
+  const setTurn=t=>p.evaluate(x=>{const st=window.__solo.st();st.pile=null;st.turn=x;window.__solo.render();},t);
+  await setTurn(0);
+  const mine=await pileTxt();
+  ok(/lead a card/.test(mine), 'an empty pile on YOUR turn still invites you to lead: "'+mine+'"');
+  await setTurn(1);
+  const theirs=await pileTxt();
+  ok(!/lead a card/.test(theirs) && theirs.indexOf(perse[0])>=0,
+     '…and on a RIVAL\'s turn it names them instead of inviting you: "'+theirs+'"'+
+     (/lead a card/.test(theirs)?'  ← REPRODUCED: every seat is told to lead':''));
+  await setTurn(0);
+  ok(/lead a card/.test(await pileTxt()),
+     '…and it repaints when the turn comes back — the empty signature tracks the turn, not just the cards');
+
+  /* ---- A CARD YOU CANNOT PAY FOR IS GREYED, AND ONLY WHERE THAT MEANS SOMETHING (Aj, 2026-09-16) ---- */
+  /* *"would be nice to grey out the cards you don't have mana to cast in the main phase."* `markAfford` is
+     a sibling of `markBoost`/`markTransform` and, like them, had nowhere to be tested — so it lands here,
+     with the other presentation checks.
+     THE CHEAP CARD IS THE DISCRIMINATOR. "The expensive one greyed" is also true of a build that greys
+     EVERYTHING, so every reading below is a pair: at four pips the cost-9 card must dim and the cost-3
+     card must not. */
+  const hand=n=>p.evaluate(x=>{
+    const st=window.__solo.st(), C=(r,s,t)=>({rank:r,suit:s,id:(t||'')+r+s}), you=st.players[0];
+    you.hand=[C(3,'S','h2h'), C(9,'D','ley'), C(2,'C','apex')];        // cost 3, cost 9, and the apex (no activated effect at all)
+    you.energy=[]; for(let i=0;i<x;i++){ you.energy.push(C(3,'D','e'+i)); you.energy.push(C(3,'S','s'+i)); }
+    st.turn=0; st.subPhase='main'; st.pile=null; window.__solo.render();
+    const g=id=>{const el=document.querySelector('#hand .card[data-id="'+id+'"]');return el?el.classList.contains('nomana'):null;};
+    /* AND WHAT THE CLASS MEANS, not merely that it is set (2026-09-17). Asserting `.nomana` was true the
+       whole time the signal was WRONG: it used to dim the entire card, which reads as "you cannot play
+       this" — and an unaffordable card is still perfectly legal to FIGHT with, which is what the How-to
+       lesson asks you to do two steps later. A class assertion cannot see that; computed opacity can. */
+    const dim=id=>{const el=document.querySelector('#hand .card[data-id="'+id+'"]'); if(!el) return null;
+      const row=el.querySelector('.efrow'); if(!row) return {card:+getComputedStyle(el).opacity, row:null, grey:null};
+      const cs=getComputedStyle(row);
+      return { card:+getComputedStyle(el).opacity, row:+cs.opacity, grey:/grayscale/.test(cs.filter||'') };};
+    return {cheap:g('h2h3S'), dear:g('ley9D'), apex:g('apex2C'), dearDim:dim('ley9D'), richDim:dim('h2h3S')};
+  },n);
+  const rich=await hand(12), poor=await hand(4), broke=await hand(0);
+  ok(rich.cheap===false && rich.dear===false, 'with energy to spare nothing is greyed');
+  ok(poor.dear===true && poor.cheap===false,
+     'at four pips the cost-9 card greys and the cost-3 card does NOT — it is reading the cost, not blanket-dimming'+
+     (poor.dear===true && poor.cheap===false?'':'  ← dear='+poor.dear+' cheap='+poor.cheap));
+  ok(broke.cheap===true && broke.dear===true, 'with no energy both effect cards grey');
+  /* WHERE the dimming lands, which is the half the class cannot report. Until 2026-09-17 the whole CARD
+     went to .5 — "you cannot play this" — about a card that is perfectly legal to FIGHT with. */
+  ok(broke.dearDim && broke.dearDim.card===1 && broke.dearDim.grey===true,
+     'and the dimming is on the EFFECT ROW, not the card — an unaffordable effect must not say "unplayable card" (card '+
+     (broke.dearDim?broke.dearDim.card:'?')+', effect row grey='+(broke.dearDim?broke.dearDim.grey:'?')+')');
+  /* AND IT MUST STILL BE THERE. The first cut used `opacity:.25`, which over the card art erases the chip
+     outright — "this card has no effect", which is a DIFFERENT false statement and a worse one, because a
+     player who reads it stops looking. The floor is what makes `grayscale` the signal rather than a fade
+     with extra steps; the ceiling is what stops a build from simply not dimming. */
+  ok(broke.dearDim && broke.dearDim.row>0.4 && broke.dearDim.row<1,
+     '…and the row is GREYED, never hidden — an erased chip reads as "no effect at all" (opacity '+
+     (broke.dearDim?broke.dearDim.row:'?')+', wanted 0.4 < x < 1)');
+  /* The both-ways pair: the affordable card's chip keeps its colour, or the rule is dimming everything. */
+  ok(rich.richDim && rich.richDim.grey===false && rich.richDim.row===1,
+     '…and an AFFORDABLE effect keeps its colour — grey means unaffordable, not "is an effect" (grey='+
+     (rich.richDim?rich.richDim.grey:'?')+', opacity '+(rich.richDim?rich.richDim.row:'?')+')');
+  ok(rich.apex===false && broke.apex===false,
+     'the apex 2 NEVER greys at any energy — it has no activated effect, so there is nothing to be unable to afford');
+  const inFight=await p.evaluate(()=>{const st=window.__solo.st();st.subPhase='play';window.__solo.render();
+    return [].slice.call(document.querySelectorAll('#hand .card')).filter(el=>el.classList.contains('nomana')).length;});
+  ok(inFight===0,
+     'and NOTHING greys in the Fight Sub-Phase — an activation is illegal there anyway, so dimming the whole hand would say nothing about energy'+
+     (inFight===0?'':'  ← '+inFight+' cards greyed'));
+
+  /* ---- THE SIGNAL MUST HAVE SOMEWHERE TO LAND, FOR EVERY CARD THAT CAN CARRY IT ----
+     Moving the dim onto `.efrow` bought a narrower claim and a new way to fail SILENTLY: a card with no
+     effect row shows nothing at all, and looks exactly like a card you can afford. It was already true of
+     one card when the move landed — Leyline Ascension's kind is `ward` and `EFF_ICON_SVG` had no `ward`,
+     so `effIcon` returned '' (the stale branch still tested `reclaim && immune`, Leyline's OLD kind).
+     SO ASSERT THE SET, NOT THE CARD. Every card in the deck goes into hand at zero energy; whatever
+     `markAfford` greys must have a row. A per-card assertion would have to be remembered for each new
+     effect kind, and this is the repo's documented orphaned-kind trap — `grep -c "kind: 'x'"` finds a kind
+     nothing reads, and nothing at all finds a kind nothing DRAWS.
+     NOTE the twelve J/Q/K are correctly absent from the greyed set rather than exempted by hand:
+     `TRANSFORM_COST` is 0 and `rideCostDelta` returns 0 for ranks 11-13, so a transform is always
+     affordable. That is measured here, not assumed — if transforms ever cost energy, this assertion goes
+     red naming them, which is the right moment to decide what a Ride's glyph should be. */
+  const every=await p.evaluate(()=>{
+    const st=window.__solo.st(), you=st.players[0], E=window.CardmenEngine;
+    const suits=['D','H','C','S'], all=[];
+    suits.forEach(s=>{ for(let r=2;r<=14;r++) all.push({rank:r,suit:s,id:'all'+r+s}); });
+    you.hand=all; you.energy=[]; st.turn=0; st.subPhase='main'; st.pile=null; window.__solo.render();
+    const cards=[].slice.call(document.querySelectorAll('#hand .card'));
+    const grey=cards.filter(el=>el.classList.contains('nomana'));
+    return {
+      total: cards.length,
+      greyed: grey.length,
+      rowless: grey.filter(el=>!el.querySelector('.efrow')).map(el=>el.dataset.id),
+      /* and the negative half: a card with an implemented effect that is NOT greyed at zero energy is a
+         card whose effect is free, so naming them makes the exemption legible instead of invisible. */
+      freeEffects: cards.filter(el=>!el.classList.contains('nomana') && el.querySelector('.efrow')).map(el=>el.dataset.id).length
+    };
+  });
+  ok(every.greyed>0 && every.rowless.length===0,
+     'EVERY card the affordance signal greys carries an effect row to show it — '+every.greyed+' of '+every.total+
+     ' greyed at zero energy, 0 with nowhere to land'+
+     (every.rowless.length?'  ← REPRODUCED: '+every.rowless.join(', ')+' grey SILENTLY (no .efrow, so the player sees a normal card)':''));
+
+  /* ---- THE FIGHT VERDICT IS NOT PRE-EMPTED BY AN EFFECT (Aj, 2026-09-24) ----
+     *"in the fight phase it should tell me if the selection can beat the current play or not"*. The
+     verdict already existed as the LAST branch of `updateActions`' chain, and two branches above it
+     swallowed it whenever the selected card happened to carry an effect: he had a King chosen against a
+     Pair and was told *"Odysseus Form — The fight has begun — effects are a Main-half move."*, a reason he
+     could not do the thing he was not trying to do.
+     THE PAIR IS THE POINT. A plain card answered correctly all along, so asserting the King alone proves
+     nothing about the ordering — the two must be staged on ONE board and required to AGREE, which is what
+     catches a chain that special-cases effect cards again. Nothing asserted this hint before today, which
+     is how a fix from 2026-09-16 came to be silently swallowed. */
+  const verdicts = await p.evaluate(()=>{
+    const st=window.__solo.st(), E=window.CardmenEngine, mk=(r,s,i)=>({rank:r,suit:s,id:i});
+    const you=st.players[0];
+    /* THE CONTROL MUST BE GENUINELY EFFECT-FREE, and almost nothing is: the first cut used a ♠7, which is
+       CALTROPS, so BOTH cards were swallowed on the broken build and the contrast proved nothing. The
+       apex 2 is the one card with no activated effect (`effectOf` returns null for rank 2 by design), so
+       it is the only honest control — and a lone 2 is still just a Jab against a Pair. */
+    you.hand=[mk(13,'D','vk'),mk(2,'D','vp')];                      // a King (carries a transform) and the apex 2 (no effect at all)
+    you.energy=[]; for(let i=0;i<6;i++) you.energy.push(mk(3,'D','ve'+i));
+    st.pile={p:1, byPlayer:1, combo:E.detectCombo([mk(9,'C','vx'),mk(9,'S','vy')])};   // a Pair neither can beat
+    st.round=4; st.turn=0; st.subPhase='play'; st.passes=0; st.lastPlayer=1;
+    window.__solo.render();
+    const read=id=>{                                                 // the click target is the .group — see peektest
+      const clr=document.getElementById('clearBtn'); if(clr && !clr.disabled) clr.click();
+      const c=document.querySelector('#hand .card[data-id="'+id+'"]'), g=c && c.closest('.group');
+      if(g) g.click();
+      return ((document.getElementById('hint')||{}).textContent||'').trim();
+    };
+    return { king:read('vk'), plain:read('vp') };
+  });
+  ok(/doesn’t beat|doesn't beat/.test(verdicts.plain),
+     `a plain card says whether it beats the pile  ["${verdicts.plain.slice(0,56)}"]`);
+  ok(/doesn’t beat|doesn't beat/.test(verdicts.king),
+     `and so does an EFFECT card — the verdict is not swallowed by its effect  ["${verdicts.king.slice(0,56)}"]` +
+     (/doesn’t beat|doesn't beat/.test(verdicts.king) ? '' : '  ← REPRODUCED: told about the effect instead of the fight'));
+  ok(verdicts.king.replace(/^[^—]*—/,'') === verdicts.plain.replace(/^[^—]*—/,''),
+     '…and both give the SAME reason — the chain does not special-case a card that happens to carry one');
+
+  /* ============ THE MAIN HINT DOES NOT OFFER A SUB-PHASE THAT IS DEAD (2026-09-30) ============
+     Aj, 2026-09-16, from a round-1 screenshot: *"kings and jacks aren't activateable yet at this point in
+     the game… maybe we can skip main phase when nothing is activateable too?"* `TRANSFORM_GATE` defaults
+     to `'table'`, so a tier opens only once total shields lost reaches `numPlayers × lvl` — at round 1
+     that is `0 >= 2`, both the Jack and King tiers shut — and a seat on 0 energy can afford nothing else.
+     Neither is a bug; together they make Main inert while the hint said *"drag a card to use it"*.
+     ⚠ BOTH BOARDS, AND THE SECOND IS THE ONE THAT KEEPS THIS HONEST. "It says nothing is usable" is
+     equally true of a build that says so always, which would be a worse lie than the original in the
+     other direction. The pair differs only in whether the seat can actually pay for anything. */
+  const mainHint = await p.evaluate(()=>{
+    const st=window.__solo.st(), mk=(r,s,i)=>({rank:r,suit:s,id:i});
+    const you=st.players[0];
+    const read=()=>{
+      const clr=document.getElementById('clearBtn'); if(clr && !clr.disabled) clr.click();
+      window.__solo.render();
+      return ((document.getElementById('hint')||{}).textContent||'').trim();
+    };
+    st.round=1; st.turn=0; st.subPhase='main'; st.pile=null; st.passes=0; st.lastPlayer=null;
+    /* DEAD: a King and a Jack, whose tiers are shield-gated shut at round 1, and NO energy. */
+    you.hand=[mk(13,'D','mk1'),mk(11,'D','mj1')]; you.energy=[];
+    const dead=read();
+    /* LIVE: the SAME board plus an affordable effect card and the energy for it.
+       ⚠ THE CONTROL CARD MUST NEED NO TARGET. The first cut used ♥5 Annoint, which targets a `removeEquip`
+       on the stack or your own Equipment — with neither present it is genuinely unactivatable, so the
+       control reported "nothing to use" and read as the fix firing always. ♥3 Pray for Strength is `ramp`:
+       no target, cost 3, and hearts pay for it. */
+    you.hand=[mk(13,'D','mk1'),mk(11,'D','mj1'),mk(3,'H','mh3')];
+    you.energy=[]; for(let i=0;i<12;i++) you.energy.push(mk(1,'H','me'+i));
+    const live=read();
+    return { dead:dead, live:live };
+  });
+  ok(/nothing to use yet/i.test(mainHint.dead),
+     `a dead Main sub-phase says so  ["${mainHint.dead.slice(0,64)}"]` +
+     (/nothing to use yet/i.test(mainHint.dead) ? '' : '  ← REPRODUCED: offers a sub-phase in which nothing can be used'));
+  ok(/drag a card to use it/i.test(mainHint.live),
+     `  …and a LIVE one still invites you in — the control  ["${mainHint.live.slice(0,64)}"]`);
+
+  /* ============ THE PHASE STRIP RUNS THE WHOLE RAMP IN A REAL GAME (2026-09-25) ============
+     Aj played a 3-player game and reported three things that were one feature failing: the strip never
+     glowed for the Beginning phase, the drawn cards never flew in, and *"after yellow the hand directly
+     became idle"* — Resolution and Clean-up skipped. Three different causes, all invisible to the lesson
+     suite, which sees those phases only because a tutorial FORCES its named windows open and so makes the
+     engine park in them.
+     THIS IS THE ONLY ASSERTION THAT WATCHES AN ORDINARY GAME, which is the configuration a player is in.
+     It samples `#handWrap`'s class on a timer and records every CHANGE, so it reads the sequence rather
+     than a snapshot — a snapshot cannot tell "this phase is brief" from "this phase never happens", and
+     that distinction is the entire bug. Kept as a suite rather than a probe because this repo has paid
+     three times for throwaway diagnostics that could not be re-run.
+     ⚠ ASSERT THE CLASS, NEVER THE COLOUR: the hues are becoming a player preference. */
+  if(await start3p()){
+    await p.evaluate(()=>{ window.__seq=[]; window.__dur={}; let cur=null, t0=performance.now();
+      window.__seqT=setInterval(()=>{
+        const hw=document.getElementById('handWrap'); if(!hw) return;
+        const c=(hw.className.match(/sp[A-Z][a-z]+/)||['(none)'])[0], now=performance.now();
+        if(c!==cur){ if(cur){ window.__dur[cur]=Math.max(window.__dur[cur]||0, Math.round(now-t0)); }
+                     cur=c; t0=now; window.__seq.push(c); } }, 12); });
+    /* ⚠ BOUND BY UNPRODUCTIVE ITERATIONS, NEVER A RAW COUNT — and this file's own history says so
+       (v1.31.85: `exporttest` looped `i<160`, went red under `-j 4` and 5/5 green alone, because an
+       iteration whose click `busy` swallows spends budget while advancing nothing). I wrote `i<70` here
+       anyway and it did exactly that: 113/0 twice alone, then 106/7 in the full sweep with the sequence
+       stopping at `spFight → spIdle → spMain → spFight → spIdle` — no round boundary reached, so every
+       phase-strip assertion failed for lack of a game rather than lack of a colour.
+       A SLOW MACHINE SHOULD TAKE MORE ITERATIONS, NOT DO LESS. Progress is the round advancing or the
+       strip changing; the hard cap is only a hang guard. */
+    let idle=0, lastRound=0, lastSeq=0;
+    for(let i=0;i<400 && idle<40;i++){
+      /* ⚠ PROGRESS IS THE BATTLE LOG, NOT THE ROUND OR THE STRIP. The first cut watched those two and
+         still went red under contention: during an opponent's turn the strip sits on `spIdle` and the
+         round does not move, so a rival turn slow enough to matter reads as pure idling and the guard
+         fired mid-game. The log grows on every action any seat takes, which is the thing that is actually
+         happening — measured, 113/0 alone but 106/7 beside a single other suite before this. */
+      const prog = await p.evaluate(()=>{ const s=window.__solo.st();
+        return { done:(!s||s.finished||s.round>3), round:s?s.round:0,
+                 log:document.querySelectorAll('#log .le').length }; });
+      if(prog.done) break;
+      if(prog.round!==lastRound || prog.log!==lastSeq){ idle=0; lastRound=prog.round; lastSeq=prog.log; }
+      else idle++;
+      await p.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d&&d.offsetParent&&!d.disabled){ d.click(); return; }
+        const fb=document.getElementById('fightBtn'), pb=document.getElementById('passBtn');
+        if(fb&&!fb.disabled){ fb.click(); return; }
+        for(const g of [].slice.call(document.querySelectorAll('#hand .group'))){
+          g.click(); if(fb&&!fb.disabled){ fb.click(); return; }
+          const c=document.getElementById('clearBtn'); if(c&&!c.disabled) c.click(); }
+        if(pb&&!pb.disabled) pb.click(); });
+      await wait(450);
+    }
+    const { seq, dur } = await p.evaluate(()=>{ clearInterval(window.__seqT); return { seq:window.__seq, dur:window.__dur }; });
+    const seen = new Set(seq);
+    ['spIdle','spMain','spFight','spResolve','spCleanup','spBegin'].forEach(c=>{
+      ok(seen.has(c), 'the strip reaches '+c+' in an ordinary 3-player game'+
+         (seen.has(c) ? '' : '  ← a phase the player can NEVER see  ['+seq.join(' → ')+']'));
+    });
+    /* AND IN ORDER AT THE BOUNDARY — Resolution → Clean-up → Beginning, adjacent. Presence alone would
+       pass on a build that painted them in any order, and the ramp IS the information.
+       ⚠ THE BOUNDARY IS NOT ANCHORED TO `spFight`, and an earlier cut that required it was wrong: a round
+       ends when everyone passes, which is usually on ANOTHER seat's turn, so `spIdle` legitimately sits
+       between your last fight and the boundary. Asserting the triple is the claim; what precedes it is
+       whose turn happened to end the round. */
+    /* ⚠ AND LONG ENOUGH TO SEE — which is the assertion that would have caught the original bug, where
+       PRESENCE would not. `spBegin` was keyed on `pendingEnter`, which `renderHand` consumes on the very
+       render that draws the fly-in, so the tint existed for one frame: a sampler can catch that and a
+       person cannot. Aj played the build and reported *"i never saw the blue. every round starts with
+       green"* while a presence check was perfectly green.
+       The floors are well under what the fixed build measures (Beginning 879ms, Clean-up 420ms) and well
+       over one frame, so they discriminate without pinning an animation's exact timing. */
+    [['spBegin',300],['spCleanup',250],['spResolve',300]].forEach(([c,floor])=>{
+      ok((dur[c]||0) >= floor, c+' stays on screen long enough to read — '+(dur[c]||0)+'ms, floor '+floor+
+         ((dur[c]||0)>=floor ? '' : '  ← a tint nobody can SEE, however reliably a sampler finds it'));
+    });
+    const j = seq.join(' ');
+    ok(/spResolve spCleanup spBegin/.test(j),
+       'and the boundary runs Resolution → Clean-up → Beginning, adjacent and in that order  ['+j+']');
+  } else {
+    ok(false, 'could not start a 3-player game for the phase-strip check');
+  }
+
+  /* ============ THE SAVED LOG'S HEADER DESCRIBES THE TABLE IT WAS PLAYED ON (2026-09-25) ============
+     From Aj's real 3-player log: *"You: Warlock (Wiz+Rog)   vs   Rival: Sage (Wiz+Cle)"* / *"Reached Round
+     18 — Rival won"*, sitting directly above the game's own line naming Rozalin and Flonne. One opponent
+     where there were two, and the duel default "Rival" standing in for the seat that actually won.
+     A SELF-CONTRADICTING FILE IS THE CHEAPEST ASSERTION THERE IS — the same shape `exporttest` uses for a
+     seat on `shieldsLost: 0` with `finalShields: 0`. It needs no knowledge of how the game went, so it
+     cannot rot with the rules: whoever the header names must be who the game names. */
+  {
+    const h = await p.evaluate(()=>window.__solo.logHeadText());
+    const names = await p.evaluate(()=>[1,2].map(i=>window.__solo.logName(i)));
+    ok(names.every(n=>h.indexOf(n)>=0),
+       'the saved header names EVERY opponent, not just one  ['+h.split('\n')[1]+']');
+    ok(!/vs\s+Rival:/.test(h),
+       '…and does not fall back to the duel default "Rival:" at a 3-player table');
+    /* THE WINNER LINE, STAGED — the driver above does not always reach an end, and "the header is right
+       about the winner" is exactly the half that was wrong. `__solo.st()` is by reference. */
+    const won = await p.evaluate(()=>{ const s=window.__solo.st(); s.finished=true; s.winner=2;
+      return window.__solo.logHeadText(); });
+    ok(won.indexOf(names[1]+' won')>=0,
+       'and the winner line NAMES the winner rather than saying "Rival won"  ['+won.split('\n')[2]+']');
+    await p.evaluate(()=>{ const s=window.__solo.st(); s.finished=false; s.winner=null; });
+  }
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

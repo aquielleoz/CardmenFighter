@@ -2,6 +2,7 @@
  * its own turn. Verifies {op:'activate'} reaches the host, the engine applies it (client ramps), the host settles
  * with no counter, the client keeps its turn, and both boards stay error-free and in sync. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8281),ROOM='V'+Date.now().toString().slice(-4);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -16,7 +17,7 @@ const armFx=p=>p.evaluate(()=>{ window.__fx=[]; var w=document.getElementById('a
   window.__fxObs=new MutationObserver(function(){ if(w.classList.contains('show')){ var t=w.querySelector('.afTitle'); window.__fx.push(((t&&t.textContent)||'?').replace(/\s+/g,' ').trim()); } });
   window.__fxObs.observe(w,{attributes:true,attributeFilter:['class']}); });
 const fxSeen=async(p,ms)=>{ for(let i=0;i<(ms||4000)/100;i++){ const f=await p.evaluate(()=>window.__fx||[]); if(f.length) return f; await wait(100); } return []; };
-const playFirst=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn'); if(clr)clr.click(); var c=document.querySelector('#hand .card'); if(c)c.click(); var f=document.getElementById('fightBtn'); if(f)f.click(); });
+const playFirst=p=>selectAndFight(p);                       // two-state button since epic step 20 — see fightclick.js
 (async()=>{
   await new Promise((r,j)=>{ srv.once('error',e=>j(new Error('cannot bind port '+PORT+' ('+e.code+') — another suite or a stray process has it. sweep.js assigns ports; to run alone use PORT=n node <suite>'))); srv.listen(PORT,r); });
   const b=await chromium.launch(LAUNCH);
@@ -82,7 +83,7 @@ const playFirst=p=>p.evaluate(()=>{ var clr=document.getElementById('clearBtn');
 
   /* THE OTHER DIRECTION: the host's own cast is presented locally but nothing pushes it to the client, so a
    * client never saw ANY effect art — its own or the opponent's. Hand the turn back and cast from the host. */
-  for(let i=0;i<30 && await turnOf(join)===0;i++){ await join.evaluate(()=>{ var b=document.getElementById('passBtn'); if(b&&!b.disabled)b.click(); }); await wait(300); }
+  for(let i=0;i<30 && await turnOf(join)===0;i++){ await clickPass(join); await wait(300); }   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
   let hostTurn=false; for(let i=0;i<40;i++){ if(await turnOf(host)===0){ hostTurn=true; break; } await wait(150); }
   ok(hostTurn,'turn came back to the host');
   // re-stage the host's energy: several rounds have been played since the first force() and it has been spending.

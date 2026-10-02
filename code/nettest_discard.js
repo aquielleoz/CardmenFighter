@@ -2,6 +2,7 @@
  * remote client gets the discard PICKER on its own board and chooses which 2 to pitch. Verifies the picker appears
  * from the mirror, the client's chosen ids resolve on the host, its hand shrinks by 2, and no errors / stays in sync. */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js'); const http=require('http'),fs=require('fs'),path=require('path');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const DIR=__dirname,PORT=+(process.env.PORT||8283),ROOM='DC'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
 const url=r=>`http://localhost:${PORT}/CardmenFighter.html?net=${r}&room=${ROOM}&dbg=1`;
@@ -60,7 +61,8 @@ const pickerUp=p=>p.evaluate(()=>/discard/i.test((document.getElementById('messa
      '  → named reader-relative, not from the sender’s point of view');
 
   // Client selects 2 cards and confirms.
-  const chosen=await join.evaluate(()=>{ var cards=[].slice.call(document.querySelectorAll('#hand .card')).slice(0,2); cards.forEach(c=>c.click()); var f=document.getElementById('fightBtn'); if(f)f.click(); return cards.map(c=>c.dataset.id); });
+  const chosen=await join.evaluate(()=>{ var cards=[].slice.call(document.querySelectorAll('#hand .card')).slice(0,2); cards.forEach(c=>c.click()); return cards.map(c=>c.dataset.id); });
+  await clickFight(join);   // two-state button (epic step 20) — see fightclick.js
   await wait(900);
 
   const after=(await handOf(join)).length;

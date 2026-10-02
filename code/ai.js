@@ -125,6 +125,21 @@
   function effectsAllowed(st, p) { return !effectPolicy || effectPolicy(st, p); }
   var kindBlock = null;                                // analysis hook: (kind,p)=>bool — block one effect KIND for player p (marginal-value test)
   function setKindBlock(fn) { kindBlock = fn; }
+  /* STEP 21'S POLICIES, SWITCHABLE PER SEAT — the analysis hook that lets `strengthsim` put the new
+     behaviour on ONE side of a head-to-head. Default null = every policy ON, which is the shipped game;
+     an arm turns one OFF to measure it alone. Same shape as `effectPolicy` / `kindBlock` above, and per
+     seat for the same reason: a symmetric sim cannot see a strength change. */
+  var armPolicy = null;
+  function setArmPolicy(fn) { armPolicy = fn; }
+  function policyOn(p, name) { return !armPolicy || !!armPolicy(p, name); }
+  /* AND THEY TALLY THEMSELVES, by name — the `lockoutStats` idiom, and for the reason that note gives:
+     a policy measuring as WORTH NOTHING and a policy that never RAN are the same number, and telling them
+     apart afterwards costs more than counting as you go. A throwaway probe cannot do this: these policies
+     are called as LOCAL functions, so monkey-patching the export intercepts nothing and reports a
+     confident zero — it did, on the first attempt, and the zero was believed for a minute. */
+  var POLICY_STATS = { push: 0 };
+  function policyStats() { return { push: POLICY_STATS.push }; }
+  function resetPolicyStats() { POLICY_STATS.push = 0; }
   function kindOK(kind, p) { return !kindBlock || !kindBlock(kind, p); }
 
   // ---- N-PLAYER TARGETING (Phase 2): which living rival a "choose a rival" effect hits, by difficulty tier ----
@@ -608,11 +623,10 @@
       return best;
     }
     // REWORK: does the hand hold a Broadway card (10/J/Q/K/A) to pay a pitch cost, other than exclId?
-    function isBroadway(c) { return c.rank === 1 || c.rank === 10 || c.rank === 11 || c.rank === 12 || c.rank === 13; }
     function broadwayPitchAvail(exclId) { return pl.hand.some(function (c) { return c.id !== exclId && isBroadway(c); }); }   // one definition of Broadway — keepsTheWin needs it too
     if (diff === 'minion') {                                    // barely uses effects — only a desperate shield gain
       while (guard++ < 3) {
-        if (st.pending) return;
+        if (st.respondFor != null) return;                      // P6: the WINDOW is respondFor; an objectless one has no `pending`
         if (pl.shields <= 1) { var s0 = pick(function (ef) { return ef.kind === 'shield'; }); var s0e = s0 && E.effectOf(s0); var s0Safe = !(s0e && s0e.shieldAll && st.players.some(function (q, qi) { return qi !== p && q.shields <= 0; })); if (s0 && s0Safe && act(st, p, s0.id, log, 'SHIELD', humans)) continue; }
         break;
       }
@@ -624,8 +638,14 @@
     var sT = demon ? 3 : 2, drawT = (top ? 6 : demon ? 5 : 3), rampCap = (top ? 15 : demon ? 12 : 9);
     var oppIdx = (p + 1) % st.numPlayers;
     while (guard++ < 6) {
-      if (st.pending) return;                                                             // a human response window is open — suspend the turn
-      if (st.shieldResponse) return;                                                      // a reactive shield-guard window is open (destroyShield) — suspend
+      /* P6 (epic step 18): `respondFor`, not `pending`. All four of these were bare `if (st.pending)`,
+         which is exactly why step 2's grep — keyed on `pending && …respondFor` — did not see them, and why
+         its "23 sites" was itself an undercount. A Fight End go-round sets `respondFor` with `pending`
+         NULL, so all four read false and an AI seat would play a whole turn straight through an open
+         window: `E.play` and `E.pass` have no `respondFor` guard of their own to stop it.
+         Inert until step 18 makes such a window reachable, which is why these land ahead of the flip
+         rather than after it. */
+      if (st.respondFor != null) return;                                                  // a response window is open — suspend the turn
       if (st.discardPending) {                                                            // a forced discard was set (discardOpp)
         if (isHuman(humans, st.discardPending.player)) return;                            // human must choose — suspend
         E.resolveDiscard(st);                                                             // AI target auto-pitches (avoids breaking its Specials)
@@ -642,8 +662,13 @@
       var shEff = sh && E.effectOf(sh);
       var shSafe = !(shEff && shEff.shieldAll && st.players.some(function (q, qi) { return qi !== p && q.shields <= 0; }));
       if (sh && shSafe && pl.shields <= sT && act(st, p, sh.id, log, 'SHIELD', humans)) continue;   // survive
-      var sph = pick(function (ef) { return ef.kind === 'shieldImmune'; });
-      if (sph && !pl.shieldImmune && pl.shields <= 2 && act(st, p, sph.id, log, 'SPHERE', humans)) continue;   // Sphere: shield up when in danger
+      /* THE `shieldImmune` KIND HAS NO CARD, so the branch that lived here was dead — `pick` could never
+         match and the AI's "Sphere: shield up when in danger" move never existed. Deleted 2026-09-30.
+         ⚠ THE FIELD IS VERY MUCH ALIVE and must not be confused with the kind: Apollo-Sanctuary sets
+         `shieldImmune: true` as a patch and `engine.js` reads it, which is why a grep for the word finds
+         plenty and a grep for the KIND finds nothing. Restoring this is two lines if a card ever takes it.
+         (`stopper` went the same way in v1.31.13; `phantasm` was instead restored as a real card in
+         v1.31.6 — an orphaned kind is a decision, not automatically a deletion.) */
       var wd = pick(function (ef) { return ef.kind === 'ward'; });
       if (wd && pl.shields <= 1 && !pl.cantLoseRound && act(st, p, wd.id, log, 'WARD', humans)) continue;       // Leyline (REWORK base): can't-lose when desperate
       var tr = pickTransform(st, p);
@@ -737,11 +762,10 @@
     if (r.pending) {
       if (isHuman(humans, st.respondFor)) return true;        // human decides — leave st.pending for the UI
       resolveAIWindows(st, humans, log);                      // AI opponent answers recursively (Counter-a-Counter)
-      if (st.pending && isHuman(humans, st.respondFor)) return true;   // the recursion opened a window a human must answer
+      if (st.respondFor != null && isHuman(humans, st.respondFor)) return true;   // the recursion opened a window a human must answer
     }
     // a destroyShield may have opened a reactive shield-guard window (Leyline) for the target:
     // an AI target guards/passes right here; a human target's window is left set for the UI.
-    if (st.shieldResponse) shieldGuardAI(st, log, humans);
     return true;
   }
 
@@ -762,9 +786,39 @@
                       equip: 1, protect: 1, ward: 1, counter: 1, counterfeit: 1, onWin: 1, phantasm: 1 };
 
   function respondDecision(st, q) {
-    if (!st.pending || st.respondFor !== q) return null;
+    /* THE WINDOW IS `respondFor`; `pending` is only the OBJECT it is about, and a Fight End go-round has
+       none. Gating on the object made an objectless window invisible here — this returned null, `driveN`'s
+       loop below never ran, and nothing drained it. Not a crash: a silently parked table. */
+    if (st.respondFor !== q) return null;
     if (!effectsAllowed(st, q)) return E.declineResponse(st, q);   // analysis: pure-fighter never answers with a Quick
-    var qp = st.players[q], pend = st.pending, eff = pend.eff;
+    var qp = st.players[q], pend = st.pending, eff = pend && pend.eff;
+    /* THE FIGHT END BRANCH, AND IT DELIBERATELY CHANGES NOTHING (epic step 16). No object means the Fight
+       End go-round, which step 18 makes the live path in place of `driveShieldStack`'s guard window. On the
+       day of that swap an AI seat must behave exactly as it does today, so the policy here is a VERBATIM
+       port of the deleted `shieldGuardAI`'s: `shieldGuardWants` decides (one definition, shared with Passo since step
+       13), and the card is found with `immunityEffFor` — the engine's own predicate, not a restatement.
+       WHAT IT IS NOT: a real Fight End policy. The rebuilt window offers ANY Quick to anyone holding
+       priority, and deciding what an AI should do with that — counter, ramp, hold — is **step 21**, which
+       measures. Widening it here would ship an unmeasured behaviour change inside a step whose whole claim
+       is that it makes none.
+       INERT TODAY: nothing mints an objectless window until step 18, so this branch cannot be reached in a
+       real game — proven by the seeded fingerprint, not asserted. */
+    if (!eff) {
+      /* TWO OBJECTLESS WINDOWS NOW, AND THEY ARE DIFFERENT DECISIONS (epic step 20). Until this step the
+         only window with no object was Fight End; the Main → Play transition is the second. `st.toPlay`
+         and `st.resolution` say which, and answering one with the other's policy would be silent: both look
+         like "no pending effect" from here. */
+      if (st.toPlay) {
+        var bs = transitionQuick(st, q);
+        if (bs) { var br = E.respond(st, q, bs.id); if (br && br.ok) return br; }
+        return E.declineResponse(st, q);
+      }
+      var guardC = resolutionGuardCard(st, q);
+      if (guardC) { var gr = E.respond(st, q, guardC.id); if (gr && gr.ok) return gr; }
+      var pushC = resolutionPushCard(st, q);                                // the WINNER's line — defence first, it is the urgent one
+      if (pushC) { var pr2 = E.respond(st, q, pushC.id); if (pr2 && pr2.ok) return pr2; }
+      return E.declineResponse(st, q);
+    }
     function bestQuick(kind) {
       if (!kindOK(kind, q)) return null;               // analysis: blocked reactive kind
       var best = null, bestEff = null;
@@ -780,13 +834,13 @@
       if (prot) { var pr = E.respond(st, q, prot.id); if (pr.ok) return pr; }
     }
     /* Reactive immunity: spring an immunity Quick to blank a destroyShield technique aimed at us.
-       THIS TESTED `e.immune` ONLY, and there are TWO spellings — the engine's `guardEffFor` has admitted
+       THIS TESTED `e.immune` ONLY, and there are TWO spellings — the engine's `immunityEffFor` has admitted
        `immune || shieldImmune` since v1.31.112 and the second was never carried across. So an AI in Apollo
        Mode holding Sanctuary took the hit, then would have sprung the very same card against a fight-win
        strip a moment later. Call the ENGINE's predicate instead of restating it: one definition, and the next
        spelling added there reaches the AI for free. Same rule as `isChopOf` and `resolveIds`. */
     if (eff.kind === 'destroyShield' && qp.shields <= 2) {
-      var immuneQ = qp.hand.filter(function (c) { return E.guardEffFor(st, q, c) && E.canAfford(qp, c); })[0];
+      var immuneQ = qp.hand.filter(function (c) { return E.immunityEffFor(st, q, c) && E.canAfford(qp, c); })[0];
       if (immuneQ) { var ir = E.respond(st, q, immuneQ.id); if (ir.ok) return ir; }
     }
     // Counter Spell: negate the genuinely threatening Techniques (not friendly draws/ramp).
@@ -803,7 +857,7 @@
   // (left for the UI to prompt).
   function resolveAIWindows(st, humans, log) {
     var guard = 0;
-    while (st.pending && st.respondFor != null && !isHuman(humans, st.respondFor) && guard++ < 64) {
+    while (st.respondFor != null && !isHuman(humans, st.respondFor) && guard++ < 64) {
       var q = st.respondFor, rr = respondDecision(st, q);
       if (!rr) break;
       if (log && rr.respondedWith) log.push({ respond: rr.respondKind, respName: rr.respondName, respBy: q, countered: !!rr.countered });
@@ -816,22 +870,125 @@
   // window opens for one of them the turn suspends (st.pending stays set) and this
   // returns the partial log — call takeTurn again once the human has responded.
   // Resolve a reactive shield-guard window (Leyline) for an AI defender — spring it when a shield matters.
-  function shieldGuardAI(st, log, humans) {
-    var sr = st.shieldResponse; if (!sr) return log;
-    var q = sr.q;
-    if (isHuman(humans, q)) return log;                      // a human decides via the UI — suspend
-    if (!effectsAllowed(st, q)) { E.shieldGuardPass(st, q); log.push({ shieldGuardPass: true, who: q }); return log; }   // analysis: pure-fighter never guards
-
-    var pl = st.players[q];
-    if (pl.shields <= 2) {                                   // save the shield when it matters (Leyline also ramps, rarely wasted)
-      var res = E.shieldGuard(st, q, sr.guardId);
-      if (res && res.ok === false) { E.shieldGuardPass(st, q); log.push({ shieldGuardPass: true, who: q }); }
-      else log.push({ shieldGuard: true, who: q, name: res.guardName });
-    } else {
-      E.shieldGuardPass(st, q); log.push({ shieldGuardPass: true, who: q });
+  /* SHOULD SEAT q SPRING ITS GUARD? ONE DEFINITION, because there are now TWO askers (epic step 13):
+     `respondDecision`'s Fight End branch above (this policy used to live in `shieldGuardAI`, deleted at
+     step 19), and **Passo** in the template — a bot holding a dropped player's seat, which
+     Aj ruled must defend rather than always take the hit. A second copy of `shields <= 2` in the template
+     would drift the day this policy changes; the same reasoning as `isChopOf` and `immunityEffFor`.
+     It answers only "does this seat WANT to guard" — whether a usable card exists is a separate question,
+     answered by `resolutionGuardCard` above (it was `shieldGuardCard`'s until step 19 deleted that). */
+  /* WHICH CARD SHOULD SEAT q SPRING AT FIGHT END — ONE DEFINITION, TWO ASKERS (epic step 18).
+     `respondDecision` asks it for an AI seat; **PASSO** asks it in the template for a dropped player's
+     seat. Passo has to get the same answer: Aj's step-13 ruling is that disconnecting must not stop a seat
+     defending itself, and step 18 moved the window Passo used to answer (`netGuard`, a yes/no on one
+     whitelisted card) into the go-round, where the reply is an ordinary `{op:'respond', id}`. A second copy
+     of the policy in the template is the `isChopOf` / `immunityEffFor` mistake for the third time.
+     IT GATES ITSELF ON THE WINDOW rather than trusting its callers: an objectless window is Fight End, an
+     ordinary Counter-a-Counter window is a different question entirely, and Passo answers both through the
+     same park variable.
+     AND IT ASKS WHETHER THIS SEAT IS ACTUALLY STRUCK, which step 16's verbatim port could not: the old
+     window only ever opened for the threatened seat, so `shieldGuardWants` alone was a complete policy
+     there. The go-round offers priority to EVERYONE, so without this an AI at two shields springs Leyline
+     on a round it was never going to lose one to. Restoring that condition is what keeps step 18's claim —
+     that it changes no AI behaviour — literally true. A real Fight End policy is step 21, which measures. */
+  function resolutionGuardCard(st, q) {
+    if (!st.resolution || st.pending) return null;                          // not the Fight End go-round
+    if ((st.resolution.strikeTargets || []).indexOf(q) < 0) return null;    // not struck this round — nothing to guard
+    if (!shieldGuardWants(st, q)) return null;
+    var qp = st.players[q];
+    /* `E.lossAnswerFor`, NOT `E.immunityEffFor` — the predicate used to be "is this immunity", and
+       Sanctuary under HECTOR carries no immunity flag at all (`{quick:true}` on a `kind:'shield'` base),
+       so an AI seat at 0 shields holding the card that saves it was refused and kicked. A human plays
+       that exact line in `resolutiontest_ui`. The engine owns the rule because it is the same two-branch
+       board read `resolveShieldLossObj` makes; one definition, and PASSO inherits the fix for free.
+       AND THE CHEAPEST, NOT `[0]`: the widened predicate makes two candidates an ordinary occurrence,
+       and `hand.filter(...)[0]` is the "first candidate is gambling on the deal" shape CLAUDE.md
+       catalogues — with a real cost here, since it could spend Leyline where a Sanctuary would do. */
+    var best = null, bestCost = Infinity;
+    for (var i = 0; i < qp.hand.length; i++) {
+      var c = qp.hand[i], e = E.lossAnswerFor(st, q, c);
+      if (!e || !E.canAfford(qp, c)) continue;
+      var cost = E.activationCost(c);
+      if (cost < bestCost) { best = c; bestCost = cost; }
     }
-    return log;
+    return best;
   }
+  /* BROADWAY — hoisted out of `playPhase` (epic step 21) because the winner's line below needs the same
+     test, and a second copy 400 lines away is the `isChopOf` mistake for the fourth time. NOTE it reads
+     `rank`, not `fightValue`, and that is correct: an Ace is stored as rank 1 and VALUED at 14, so this is
+     an identity test ("is this one of 10/J/Q/K/A"), not a comparison. */
+  function isBroadway(c) { return c.rank === 1 || c.rank === 10 || c.rank === 11 || c.rank === 12 || c.rank === 13; }
+
+  /* `holdsGuard` WAS HERE AND IS DELETED — BUILT, MEASURED, DECLINED (epic step 21, 2026-09-12).
+     It stopped knight and Demon Lord spending Leyline/Sanctuary proactively in `playPhase`, so the card
+     would still be in hand when the Resolution window opened. It FIRED OFTEN — 33 withheld casts per 300
+     knight duels — and was worth **+0.13 points at knight (0.48 sigma) and +0.41 at demon (1.48 sigma)**
+     over 32,000 paired games: nothing a player could perceive.
+     WHY, and this is the part worth keeping: Leyline is not only a ward, it is `reclaim, half` — it ramps
+     half the deck into Energy. Holding it for the window delays that ramp, and the timing gain and the
+     tempo loss cancel. The design pass's "the AI holds an answer only 8% of the times it is kicked" was
+     TRUE and measured the wrong thing: how often the card was available, never what holding it costs.
+     Do not rebuild it without a card whose guard has no tempo of its own. See DECISIONS.md#ai-strength. */
+  /* THE WINNER'S LINE AT RESOLUTION (epic step 21, Aj's call) — and it is NOT a kill, which is worth
+     stating because the obvious reading of "an offensive play at Resolution" is one.
+     THE ONLY `onWin` CARD IN THE GAME IS ♣7 ARMOR PIERCING, it is not a Quick at base (Hippolyta grants
+     that), and it costs a Broadway discard on top of its energy. It sets `finishingBlow`, which since
+     2026-09-24 is a COUNT read from the card's own `extraShield` rather than a boolean against a literal —
+     so the strike takes `1 + extraShield` shields, which is 2 for every card in the game today and would
+     follow a Form patch if one ever raised it — and `resolveShieldLossObj` samples `wasBroken` BEFORE its loop,
+     so a seat that had shields when the strike began can never be kicked by the extra strip. That is what
+     the card's own "never overkills" means, and it is MEASURED, not read: a target on 2 goes to 0, a
+     target on 1 goes to 0 either way, and a target on 0 was already dead to the ordinary strip.
+     SO THE ONLY BOARD WHERE IT DOES ANYTHING AT ALL is a struck target holding 2 or more shields. On 1 or
+     0 it is strictly wasted, and the gate below says so rather than trusting a caller to know. What it
+     buys is a rival left on 0, where the NEXT special win kicks them. */
+  function resolutionPushCard(st, q) {
+    if (!policyOn(q, 'push')) return null;
+    if (!st.resolution || st.pending) return null;                          // not the Resolution go-round
+    if (st.resolution.winner !== q) return null;                            // only the seat about to strike
+    if (!effectsAllowed(st, q)) return null;                              // analysis: pure-fighter never casts
+    if (!kindOK('onWin', q)) return null;                                 // analysis: blocked reactive kind
+    var qp = st.players[q];
+    /* A SECOND CAST NEVER ARISES — MEASURED, NOT ARGUED (2026-09-30), and that CLOSES the question this
+       line was filed under. It used to be literally true that "a second one adds nothing": `finishingBlow`
+       was a boolean against `strips = 2`. It has been a NUMBER since 2026-09-24 (`strips = 1 + apExtra`),
+       so a second cast on a target holding 3+ shields really would take a third, and whether that is worth
+       another Broadway discard plus energy looked like a balance question for `strengthsim`.
+       IT IS NOT A BALANCE QUESTION, BECAUSE THE BOARD DOES NOT OCCUR. Built behind an opt-in policy and
+       forced ON for every seat: across **900 games at 2/3/6 players the FIRST Armor Piercing at Resolution
+       fired 139 times and a SECOND fired 0 times** (2p 16/0, 3p 24/0, 6p 99/0 — and 6p is the friendliest
+       case, since the draw is `numPlayers` and hands are largest there). The conjunction is too narrow: the
+       seat needs the Hippolyta Form to make ♣7 a Quick at all, TWO such cards in hand, the energy for both,
+       a Broadway to pitch for EACH, and a struck target still holding 3+.
+       SO THE POLICY WAS DELETED RATHER THAN SHIPPED OFF — an unexercised branch is not a safeguard, it is
+       untested code (`opts.pitch`, the boost attach, `stopper`). `strengthsim` duly printed 50.00 at
+       +0.00σ, which is what "the two arms were the same configuration" looks like and is NOT a null
+       result; the tally is what told them apart. Full write-up: `DECISIONS.md#ai-strength`. */
+    if (qp.finishingBlow) return null;                                    // already armed — and a second chance never comes
+    var targets = st.resolution.strikeTargets || [], worth = false;
+    for (var t = 0; t < targets.length; t++) if (st.players[targets[t]].shields >= 2) { worth = true; break; }
+    if (!worth) return null;                                              // "never overkills" — below 2 it changes nothing
+    var best = null, bestCost = Infinity;
+    for (var i = 0; i < qp.hand.length; i++) {
+      var c = qp.hand[i], e = E.effectFor(st, q, c);                      // effectFor: Hippolyta GRANTS the quick
+      if (!e || !e.impl || !e.quick || e.kind !== 'onWin') continue;
+      if (!E.canAfford(qp, c)) continue;
+      if (e.pitchHigh && !qp.hand.some(function (x) { return x.id !== c.id && isBroadway(x); })) continue;   // the extra discard must exist
+      var cost = E.activationCost(c);
+      if (cost < bestCost) { best = c; bestCost = cost; }
+    }
+    if (best) POLICY_STATS.push++;
+    return best;
+  }
+  function shieldGuardWants(st, q) {
+    if (!effectsAllowed(st, q)) return false;                // analysis: pure-fighter never guards
+    return st.players[q].shields <= 2;                       // save the shield when it matters (Leyline also ramps, rarely wasted)
+  }
+  /* `shieldGuardAI` WAS HERE AND IS DELETED (epic step 19). It was the AI's ENTIRE answer to the Fight End
+     window — spring the engine-chosen card if `shields <= 2`, else take the hit — and it never chose a card
+     or considered anything but immunity. `respondDecision`'s Fight End branch replaces it, and the two
+     things worth preserving were: the `isHuman` suspend (now in `resolveAIWindows`' loop condition) and the
+     `effectsAllowed` gate (now the first line of `respondDecision`). A REAL Fight End policy is step 21. */
   // The affordable lockout Quick (Back Stab) in q's hand, if any.
   function lockoutQuick(st, q) {
     if (!kindOK('lockout', q)) return null;            // analysis: blocked lockout kind
@@ -843,6 +1000,20 @@
   // Should the NON-active player q spring Back Stab before the active player fights? Deny an opening
   // LEAD: if the active player is about to lead (no pile) and we hold a combo to capitalize, lock them —
   // they skip, we seize the initiative and lead our own Special next.
+  /* P8, DISCHARGED (epic step 20). The ONLY pre-fight AI policy lived inline in `takeTurn`, reachable
+     through `openPreFight`; deleting that model without porting this would have killed Back Stab outright,
+     which is what the premise check flagged as P8. It is the same policy — `aiPreFightLock` below is
+     untouched — reached through the window that exists now.
+     THE ACTIVE PLAYER IS EXCLUDED, and that is new rather than inherited: the old window was only ever
+     offered to `nextPlayer(st, st.turn)`, so "am I the one about to fight?" could not arise. It can now —
+     the go-round starts AT the active player — and Back Stab locks a RIVAL, so the active player springing
+     it would be locking someone out of a turn that is not happening yet. */
+  function transitionQuick(st, q) {
+    if (q === st.turn) return null;
+    var diff = (st._diff && st._diff[q]) || 'fighter';
+    if (!aiPreFightLock(st, q, st.turn, diff)) return null;
+    return lockoutQuick(st, q);
+  }
   function aiPreFightLock(st, q, activeP, diff) {
     if (diff === 'minion' || diff === 'recruit') return false;   // Recruit doesn't spring Back Stab
     if (!effectsAllowed(st, q)) return false;          // analysis: pure-fighter never springs Back Stab
@@ -854,11 +1025,26 @@
     diff = diff || 'fighter';
     (st._diff = st._diff || {})[p] = diff;                          // remember each seat's tier (round-win chooser reads it)
     var log = [];
-    if (st.shieldResponse) return shieldGuardAI(st, log, humans);   // a reactive shield-guard window is open
-    if (st.pending) {                                               // a response window is open (Counter-a-Counter chain)
+    /* THE GUARD ENTRY GATE WAS HERE, AND IT DIED BETWEEN TWO MEASUREMENTS (epic step 19). Step 4 measured
+       it at **188 hits over 420 AI games** and rescued it from the DELETE list on that evidence — correctly,
+       at the time: it answered the ROUND-WIN guard window. Step 18 then stopped minting `st.shieldResponse`
+       at all, and re-taking the same measurement on the current build over the same 420 games at 2-6
+       players gives **0 hits, and the field is never set once**.
+       **A LINE RESCUED BY A MEASUREMENT IS NOT RESCUED FOREVER** — re-take it after anything that changes
+       what mints the state, or a stale rescue keeps dead code alive with a citation attached. The window it
+       answered is now the go-round, handled by the `respondFor` branch immediately below. */
+    if (st.respondFor != null) {                                    // P6: a response window is open (Counter-a-Counter chain), object or not
       if (isHuman(humans, st.respondFor)) return log;               // human answers via the UI — suspend
       resolveAIWindows(st, humans, log);
-      if (st.pending && isHuman(humans, st.respondFor)) return log;
+      if (st.respondFor != null && isHuman(humans, st.respondFor)) return log;
+      /* DRAINING A WINDOW CAN END THE ROUND, AND AFTER STEP 18 IT ROUTINELY DOES. Before the switch, a
+         round-winning play resolved inside `play()` and the turn had already moved by the time anyone
+         called `takeTurn`. Now `enterResolution` OPENS the go-round instead, so the outcomes — and the new
+         round, and the new turn — land when the last seat passes, which happens right here. Carrying on
+         to fight as `p` then throws "Not your turn", because it is now the round winner's.
+         `st.finished` is checked too: the drain can end the GAME (simultaneous kicks), and every caller
+         of `takeTurn` loops on `!finished`. */
+      if (st.finished || st.turn !== p) return log;
     }
     if (st.discardPending) {                                 // a forced discard from a prior suspended action
       if (isHuman(humans, st.discardPending.player)) return log;   // still needs the human to choose
@@ -872,22 +1058,19 @@
     }
     playPhase(st, p, log, diff, humans);
     if (st.discardPending) return log;                       // a human must choose discards — suspend
-    if (st.pending) return log;                              // suspended awaiting a human response
-    if (st.shieldResponse) return log;                       // suspended awaiting a human shield-guard response
-    // Phase 2 — non-active pre-fight window: the opponent may spring a proactive Quick (Back Stab) before we fight.
-    var pf = E.openPreFight(st);
-    if (pf.preFightPending) {
-      var qq = pf.q;
-      if (isHuman(humans, qq)) return log;                   // the human (non-active) decides via the UI — suspend
-      if (aiPreFightLock(st, qq, p, diff)) {
-        var bs = lockoutQuick(st, qq);
-        var card = { rank: bs.rank, suit: bs.suit, id: bs.id };
-        var pr = E.preFightCast(st, qq, bs.id, {});
-        if (pr && pr.ok !== false) {
-          log.push({ preFight: 'lock', by: qq, card: card });
-          if (pr.pending) { resolveAIWindows(st, humans, log); if (st.pending && isHuman(humans, st.respondFor)) return log; }
-        }
-      } else { E.preFightPass(st, qq); }
+    if (st.respondFor != null) return log;                   // P6: suspended awaiting a response, objectless or not
+    /* MOVE TO THE PLAY SUB-PHASE (epic step 20). This was a bespoke block driving `openPreFight` /
+       `preFightCast` / `preFightPass` — a second priority model with its own verbs. It is the ordinary
+       go-round now: open the transition, let `resolveAIWindows` drain whatever AI seats hold priority,
+       and suspend if a human owes an answer. `moveToPlay` auto-advances when nobody can act, so on most
+       turns `respondFor` is still null on the next line and nothing else happens. */
+    E.moveToPlay(st);
+    if (st.respondFor != null) {
+      resolveAIWindows(st, humans, log);
+      if (st.respondFor != null && isHuman(humans, st.respondFor)) return log;   // a human holds priority — suspend
+      /* THE SAME REASON AS THE FIGHT END DRAIN ABOVE: answering a window can end the round (a Quick that
+         resolves, a lock that forces a skip), and carrying on to fight as `p` then throws "Not your turn". */
+      if (st.finished || st.turn !== p) return log;
     }
     if (E.isLocked(st, p)) {                                  // a Back Stab just locked us — our fight is a forced skip
       var lr2 = E.pass(st, p);
@@ -923,14 +1106,19 @@
     // hand-limit trim happens once at the round's Clean-up (engine finishRoundWin / UI resolveRoundCeremony), not per turn
   }
 
-  // Drive the NON-active player q's pre-fight decision from the UI (the engine window is already open).
-  function preFightMove(st, q, activeP, diff) {
-    observe(st);
-    if (aiPreFightLock(st, q, activeP, diff)) { var bs = lockoutQuick(st, q); if (bs) return { cast: bs.id, card: { rank: bs.rank, suit: bs.suit, id: bs.id } }; }
-    return { pass: true };
-  }
+  /* `preFightMove` WAS HERE AND IS DELETED (epic step 20). It drove the NON-active player's pre-fight
+     decision from the UI, for a window the UI no longer owns: the transition is an ordinary priority
+     window and `respondDecision` answers it, via `transitionQuick`, for whatever seat holds priority.
+     Its one caller (`rivalPreFightThen` in the template) went with the same model. */
+
+  /* `shieldGuardWants` is exported for PASSO in the template (epic step 13) — one definition of the guard
+     policy, so the bot holding a dropped seat defends on exactly the terms an AI seat would.
+     NOTE THE SHAPE OF THIS LITERAL: it is a handful of very long lines, so a trailing `//` note added
+     mid-line comments out every export after it. That is not hypothetical — adding this one that way
+     silently removed `preFightMove`, `lockoutWorth` and six others, and `test.js` died on the first of
+     them. Notes go ABOVE the literal; entries go in it. */
   var API = { THREAT_KIND: THREAT_KIND, BENIGN_KIND: BENIGN_KIND,   // exported so test.js can require every effect kind to be CLASSIFIED
-    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, preFightMove: preFightMove, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
+    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, resolutionGuardCard: resolutionGuardCard, resolutionPushCard: resolutionPushCard, setArmPolicy: setArmPolicy, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
     lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;

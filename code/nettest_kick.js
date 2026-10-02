@@ -11,6 +11,7 @@
  * change it.
  * Run: node nettest_kick.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8371),ROOM='KK'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -44,18 +45,17 @@ async function until(fn,t=120,ms=120){ for(let i=0;i<t;i++){ if(await fn()) retu
   /* ROUND 1 IS JABS ONLY — specials are locked — so get to round 2 before staging the pair. The first version
      of this suite staged a pair immediately and the play was silently refused: the turn never reached the
      client and five assertions fell together. */
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await until(async()=>(await snap(join)).yourTurn, 80), 'round 1: the turn reached the client');
-  await join.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled)b.click(); });
+  await clickPass(join);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
   ok(await until(async()=>(await snap(host)).round>=2, 120), 'round 2 reached, so Specials are unlocked');
 
   /* Host: a pair of 9s. Client: unmatched singles it cannot answer a pair with, and ONE shield left — so the
    * host's pair lands the FIGHTER KICK. Shields are forced to ZERO, not one: the kick fires on the next
    * Special win AFTER a player is already out of shields, so leaving them on 1 only strips it (measured — the
    * first version staged 1 and the round ended normally). */
-  await host.evaluate(()=>{
-    const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
+  await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
     window.__cmf.force([C(9,'D','h'),C(9,'H','h'),C(4,'C','h'),C(5,'S','h')],
                        [C(3,'D','c'),C(6,'H','c'),C(7,'C','c'),C(8,'S','c')],
                        null, null, 4, 0);
@@ -63,11 +63,11 @@ async function until(fn,t=120,ms=120){ for(let i=0;i<t;i++){ if(await fn()) retu
   await wait(600);
   ok(await join.evaluate(()=>document.querySelectorAll('#youShields .s.on').length===0), 'hands and shields staged (the client is out of shields)');
 
-  await host.evaluate(()=>{ ['h9D','h9H'].forEach(id=>{const c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click();});
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ ['h9D','h9H'].forEach(id=>{const c=document.querySelector('#hand .card[data-id="'+id+'"]'); if(c)c.click();}); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await until(async()=>(await snap(host)).pile>0, 60), 'the host led a Pair');
   ok(await until(async()=>(await snap(join)).yourTurn, 60), 'the turn reached the client');
-  await join.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled)b.click(); });
+  await clickPass(join);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
 
   // the host's own finisher — the control, and proof the round really was terminal
   const hostKick = await until(async()=>{ const s=await snap(host); return s.kickShown || /FIGHTER KICK/i.test(s.log); }, 80);

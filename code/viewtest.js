@@ -60,16 +60,34 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
   });
   await p.waitForTimeout(250);
   const zoneTap = await p.evaluate(()=>{
-    /* `.formChip` on a phone (the collapsed strip), `.formMini` where the zone renders full cards —
-       same gesture on the same thing, which is why both route through `readCard`. */
-    const m=document.querySelector('.formChip, .formMini'); if(!m) return {staged:false, open:false, body:''};
-    document.getElementById('cardFull').classList.remove('show');
+    /* ⚠ TWO TAPS ON A COLLAPSED STRIP SINCE 2026-09-30, AND THE CLAIM IS UNCHANGED. This used to click
+       `.formChip, .formMini` — whichever existed — because both routed through `readCard`. A collapsed
+       chip now EXPANDS instead (Aj: *"tap expands, then tapping the expanded one reads, tapping out does
+       what it already does"*), which fixed a zone that could never be opened at all: the chips fill the
+       strip, so their `stopPropagation` left no surface for the expand.
+       SO THE GESTURE MOVED AND THE PROMISE DID NOT. What this file asserts is that **a zone card can be
+       read where there is no side panel**, and that is still true — it just takes the expand first. Drive
+       the real path rather than relaxing the assertion: chip, then the mini it reveals.
+       THIS SUITE IS WHAT CAUGHT THE CONSEQUENCE. `landscapetest` proved the chip expands and that the
+       landscape band still reads, and was blind to this, because it never asks whether the READER is
+       still reachable on a phone. Two suites, two halves of one behaviour. */
+    const cf=document.getElementById('cardFull');
+    const chip=document.querySelector('.formChip');
+    if(chip) chip.click();                                  // collapsed → expand
+    const m=document.querySelector('.formMini') || chip;    // expanded → the card you then tap to read
+    if(!m) return {staged:false, open:false, body:''};
+    cf.classList.remove('show');
     m.click();
-    return { staged:true, open:document.getElementById('cardFull').classList.contains('show'),
-             body:(document.querySelector('#cardFull .cfText')||{}).textContent||'' };
+    return { staged:true, open:cf.classList.contains('show'),
+             body:(document.querySelector('#cardFull .cfText')||{}).textContent||'',
+             viaExpand: !!chip && m!==chip };
   });
   ok(zoneTap.staged, 'STAGED: a Forms mini-card is on the board to tap');
-  ok(zoneTap.open===true, 'tapping a zone card OPENS the full reader where there is no side panel');
+  ok(zoneTap.open===true, 'tapping a zone card OPENS the full reader where there is no side panel'+
+     (zoneTap.open?'':'  ← the read path is unreachable on a phone, which is the one size that has no other'));
+  ok(zoneTap.viaExpand===true,
+     '  …reached by EXPANDING first — the collapsed chip opens the zone, the card inside it reads'+
+     (zoneTap.viaExpand?'':'  ← the chip still swallowed the tap; the zone never expanded'));
   ok(/Hippolyta|Q♣|12/.test(zoneTap.body) || zoneTap.body.length>0, '  → and the reader is showing that card, not an empty shell');
 
   /* EQUIPMENT, WHICH IS THE THING AJ ACTUALLY ASKED ABOUT, and it is the TWO-tap path: v1.31.111 made the
@@ -111,6 +129,38 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
   ok(deskTap.staged && deskTap.panelShown && !deskTap.btnShown, 'STAGED: at 1100x820 the side panel is present and the 🔍 is not');
   ok(deskTap.open===false, '  → so the same tap does NOT throw the overlay up — it fills the panel, as before');
   await p.setViewportSize({width:390, height:780}); await p.waitForTimeout(200);
+
+  /* ---- THE 🔍 AND ⚡ ARE ONE MIS-TAP APART (Aj, 2026-09-16) ----
+     *"the icon buttons are kinda too close in the mobile version... i'm afraid i'll click the activate
+     button when trying to view a card haha"*. Measured before the fix at 390×780: 35-43px wide, **37px
+     tall**, **5px** between them — under Apple's 44px floor and Material's 48px, with a channel narrower
+     than a fingertip's error. This suite owns it because `#viewCardBtn` is phone-only and this is the
+     phone viewport.
+     ASSERT THE HIT BOX AND THE CHANNEL, NOT THE LOOK. A screenshot cannot tell 37px from 44px, and the
+     whole reason this shipped under the floor is that it was arrived at by tuning padding rather than by
+     declaring a target.
+     AND ASSERT IT DOES NOT WRAP, because every one of these costs width. A WRAP IS A `left` THAT GOES
+     BACKWARDS — the first probe for this bucketed buttons by their `top` and reported phantom wraps
+     everywhere, because `sortBtn` is 37px tall against the others' 44 and centres differently on the
+     SAME line. Two iterations were spent shrinking padding to fix a wrap that was not happening. */
+  const bar = await p.evaluate(()=>{
+    const el=id=>document.getElementById(id);
+    const box=id=>{const e=el(id); return e&&e.offsetParent?e.getBoundingClientRect():null;};
+    const v=box('viewCardBtn'), c=box('ctxBtn'), cl=box('clearBtn');
+    const kids=[].slice.call(document.getElementById('actions').children).filter(e=>e.offsetParent&&e.id!=='hint');
+    const ls=kids.map(e=>e.getBoundingClientRect().left);
+    let wrapped=false; for(let i=1;i<ls.length;i++) if(ls[i]<ls[i-1]) wrapped=true;
+    return { vh:v&&Math.round(v.height), ch:c&&Math.round(c.height), wrapped,
+             moat: (v&&c)?Math.round((c.left-(v.left+v.width))*10)/10 : null,
+             plain:(cl&&v)?Math.round((v.left-(cl.left+cl.width))*10)/10 : null };
+  });
+  ok(bar.vh>=44 && bar.ch>=44,
+     `the 🔍 and ⚡ are at least 44px tall — the platform touch-target floor (🔍 ${bar.vh}px, ⚡ ${bar.ch}px)`);
+  ok(bar.moat!=null && bar.moat>=8,
+     `and the channel between them is ${bar.moat}px, up from the 5px that prompted this`);
+  ok(bar.moat>bar.plain,
+     `…and WIDER than an ordinary neighbour gap (${bar.moat}px vs ${bar.plain}px) — 🔍 is idempotent and ⚡ SPENDS A CARD, so the boundary that matters is the expensive one`);
+  ok(!bar.wrapped, 'and the action row still fits on ONE line — every pixel of this came out of a row already measured 2px over at 327px');
 
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

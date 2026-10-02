@@ -45,10 +45,17 @@
   // What input, if any, seat `s` owes right now. Mirrors the turn-driver gates in the UI, in priority order.
   function promptFor(st, s) {
     if (st.finished) return null;
-    if (st.shieldResponse && st.shieldResponse.q === s) return { kind: 'shieldGuard' };
+    /* THE `shieldGuard` BRANCH WAS FIRST AND IS DELETED (epic step 19). The reordering was CHECKED rather
+       than assumed, as the step required: `shieldGuard` outranked `discard` and `preFight`, and `respond`
+       ranks BELOW both — so removing the top entry silently promotes `discard`. That is correct and not an
+       accident of ordering: a forced discard is a pick the table is BLOCKED on (`trimPending` locks every
+       other seat, v1.31.69), while a priority window is answerable by several seats at once and auto-passes
+       anyone who cannot act. The seat that owes a discard owes it first. */
     if (st.discardPending && st.discardPending.player === s) return { kind: 'discard', count: st.discardPending.count || 1 };
-    if (st.preFightQ === s) return { kind: 'preFight' };
-    if (st.pending && st.respondFor === s) return { kind: 'respond' };
+    /* THE `preFight` PROMPT IS GONE (epic step 20) — there is no separate pre-fight window to own it. The
+       Main → Play transition is an ordinary priority window, so the seat that owes an answer owes a
+       `respond`, and the UI reads `subPhase` to know which timing it is looking at. */
+    if (st.respondFor === s) return { kind: 'respond' };   // the window is respondFor — an objectless go-round still owes this seat an answer
     if (st.turn === s) return { kind: 'turn' };
     return null; // waiting on someone else
   }
@@ -81,7 +88,7 @@
         // round-long flags a client renders as badges (all public)
         shieldImmune: !!pl.shieldImmune,
         cantLoseRound: !!pl.cantLoseRound,
-        finishingBlow: !!pl.finishingBlow
+        finishingBlow: (+pl.finishingBlow || 0)   // a COUNT since 2026-09-24; a client renders the real amount rather than a hardcoded +1
       };
       // HIDDEN INFO BOUNDARY: only your own seat's actual hand cards travel. Everyone else = count only.
       if (mine) o.hand = cards(pl.hand);
@@ -131,11 +138,17 @@
        by accident. A seat that is not on the mirror cannot be silently misread. */
     function remapStack(s) {
       return (s || []).map(function (o) {
-        var c = { oid: o.oid, kind: o.kind, source: o.source || null };
+        /* `target` / `winner` / `n` / `source` WERE PROJECTED HERE AND ARE GONE (2026-09-14). They were
+           SHIELD-LOSS fields, and shield losses no longer live on The Stack — they are a work queue on
+           `st.losses`, per PHASES-AND-PRIORITY.md §4 ("a shield loss just happens"). They were already
+           unreachable before the move: measured over 719,068 observations across 120 games, a shieldloss
+           object was visible outside the engine ZERO times, because it is created and drained inside one
+           synchronous call. So this projected a state the wire has never carried.
+           THE RULE ABOVE STILL GOVERNS — project, never copy the keys. The remaining fields are the two
+           kinds that really do reach a client: an `effect` ({p, card, eff, opts, countered}) and a `tick`. */
+        var c = { oid: o.oid, kind: o.kind };
+        if (o.trig) { c.trig = true; c.name = o.name || null; }        // a TRIGGERED effect: the client must not describe it as a cast
         if (typeof o.p === 'number') c.p = rot(o.p);
-        if (typeof o.target === 'number') c.target = rot(o.target);
-        if (typeof o.winner === 'number') c.winner = rot(o.winner);
-        if (typeof o.n === 'number') c.n = o.n;
         if (o.countered != null) c.countered = !!o.countered;
         if (o.card) c.card = card(o.card);
         if (o.eff) c.eff = o.eff;                                  // static EFFECTS data — no seats, no cycles
@@ -143,33 +156,43 @@
         return c;
       });
     }
-    /* PROJECT, NEVER COPY THE KEYS (v1.31.114). This was `for (var k in sr) c[k] = sr[k]`, which carried
-       `obj` (an alias INTO st.stack) and `result` (which IS st.roundWinResult, and that holds `state: st`).
-       So the mirror pointed back at the raw host state and was CIRCULAR — verified through a real round:
-       `JSON.stringify(mirrorFor(st,1))` throws. On BroadcastChannel structured clone swallows the cycle and
-       ships the whole host state; on a real RTCDataChannel the send throws inside a catch that discards it,
-       so the threatened seat never receives the window it is being waited on for, and the table wedges.
-       It also silently defeated the `roundWinResult: null` redaction three lines below, since that is the
-       very object `result` aliased. Everything else in this file names its fields; these two helpers were
-       the exceptions, and both were the bug. `obj` is projected down to the ONE property the client reads
-       (`sr.obj.source`, template openShieldGuardModal) with its seat rotated. */
-    function remapSR(sr) {
-      if (!sr) return null;
-      return {
-        q: rot(sr.q), winner: rot(sr.winner), guardId: sr.guardId || null, roundWin: !!sr.roundWin,
-        obj: sr.obj ? { source: sr.obj.source || null, n: sr.obj.n || 0, target: rot(sr.obj.target) } : null
-      };
-    }
+    /* PROJECT, NEVER COPY THE KEYS (v1.31.114) — THE RULE OUTLIVES THE FUNCTION IT WAS WRITTEN ON.
+       `remapSR` lived here and was deleted with the whitelist model at epic step 19; this comment is kept
+       deliberately, because it is the record of the bug and the rule governs every field anything adds to
+       a mirror from now on.
+       It was `for (var k in sr) c[k] = sr[k]`, which carried `obj` (an alias INTO st.stack) and `result`
+       (which IS st.roundWinResult, and that holds `state: st`). So the mirror pointed back at the raw host
+       state and was CIRCULAR — verified through a real round: `JSON.stringify(mirrorFor(st,1))` throws. On
+       BroadcastChannel structured clone swallows the cycle and ships the whole host state; on a real
+       RTCDataChannel the send throws inside a catch that discards it, so the threatened seat never receives
+       the window it is being waited on for, and the table wedges. It also silently defeated the
+       `roundWinResult: null` redaction below, since that is the very object `result` aliased.
+       **NAME EVERY FIELD YOU PROJECT.** Everything else in this file does; the two helpers that did not
+       were both the bug. */
     return {
       numPlayers: n, players: players, round: st.round, basics: !!st.basics,
       turn: rot(st.turn), initiative: rot(st.initiative), lastPlayer: (st.lastPlayer == null ? null : rot(st.lastPlayer)),
       pile: remapPile(st.pile), passes: st.passes || 0,
       finished: !!st.finished, winner: (typeof st.winner === 'number') ? rot(st.winner) : null,
-      pending: st.pending ? remapStack([st.pending])[0] : null, respondFor: (st.respondFor == null ? null : rot(st.respondFor)),
+      pending: st.pending ? remapStack([st.pending])[0] : null, respondFor: (st.respondFor == null ? null : rot(st.respondFor)), prioGen: st.prioGen || 0,   // NOT seat-valued: a counter, same for every seat, so it is declared PUBLIC rather than rotated
       discardPending: st.discardPending ? { player: rot(st.discardPending.player), count: st.discardPending.count, from: (st.discardPending.from || null) } : null,   // `from` = a dig's looked-at card ids (only the owner's own real ids, which they hold)
-      shieldResponse: remapSR(st.shieldResponse), stack: remapStack(st.stack),
-      preFightQ: (st.preFightQ == null ? null : rot(st.preFightQ)), preFightHandled: !!st.preFightHandled,
+      stack: remapStack(st.stack),   // `shieldResponse` was projected here until step 19; `respondFor` + `pending` carry strictly more
+      subPhase: st.subPhase || 'main', toPlay: null,   // subPhase is PUBLIC (same for every seat); `toPlay` is host bookkeeping like roundWinResult
+      /* UPKEEP IS PUBLIC AND ROTATED, for the reason `subPhase` is: the client has to know WHICH boundary
+         it is being offered priority at, or it labels the window with the wrong timing. `respondFor` alone
+         cannot say — an objectless window is the Main→Fight transition, Resolution or Upkeep depending
+         only on what is parked. Its RESULT is host bookkeeping and is nulled like the other two. */
+      upkeep: st.upkeep ? { origin: rot(st.upkeep.origin) } : null,
+      cleanup: st.cleanup ? { origin: rot(st.cleanup.origin) } : null,   // the fifth priority point, same reasoning as `upkeep`
+      endCleanup: st.endCleanup ? { origin: rot(st.endCleanup.origin) } : null,   // the SIXTH — the end of Clean-up, and a client must see it or it labels the window `cleanup` and reads the wrong preference row
       pendingLossChoice: st.pendingLossChoice ? { winner: rot(st.pendingLossChoice.winner), cands: (st.pendingLossChoice.cands || []).map(rot), comboType: st.pendingLossChoice.comboType } : null,   // winner picks whose shield to strip
+      /* THE FIGHT END WINDOW IS ROTATED, NOT REDACTED (epic step 11, P3). Every member is seat-valued and
+         every one of them is PUBLIC on purpose: `PHASES-AND-PRIORITY.md` §3 picks the loss target BEFORE the
+         window precisely *"so that people will know if they want to activate shield protection or no"*, so a
+         client that cannot see who is struck cannot make the decision the window exists to offer. Contrast
+         `roundWinResult` below, which is redacted because it is ceremony bookkeeping and holds a
+         back-reference to the whole state. `winSize` and `wonWithCombo` are scalars and travel as they are. */
+      resolution: st.resolution ? { origin: rot(st.resolution.origin), winner: rot(st.resolution.winner), wonWithCombo: !!st.resolution.wonWithCombo, strikeTargets: (st.resolution.strikeTargets || []).map(rot), winSize: st.resolution.winSize || 0 } : null,
       /* WHO THE TABLE IS WAITING ON while a seat trims to hand size. Seat + COUNT only, never cards — a hand
        * must never travel (see E.takeReveal). Every seat but the local one is auto-trimmed, so this is only
        * ever set for the seat actually picking, and it exists so the OTHER seats can say why play has paused
@@ -185,6 +208,9 @@
                             though the discount were always still available. */
       startShields: st.startShields, _effUsed: !!st._effUsed,
       roundWinResult: null,   // ceremony state is host-only; the client renders the settled board
+      resolutionResult: null,   // the same: the parked Fight End outcome is the host'''s ceremony input, and it holds `state`
+      upkeepResult: null,     // …and the parked Draw, for the same reason
+      cleanupResult: null,    // …and the parked round-end work
       _mirror: true, _seat: seat
     };
   }

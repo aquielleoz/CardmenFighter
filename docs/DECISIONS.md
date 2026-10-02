@@ -257,6 +257,32 @@ This is a better reason than "suits do not rank" for why v1.14 cut them.
   the ceremony teardown) were never demonstrated either and should not be re-chased first.
 
 <a id="host-client-fork"></a>
+## Giving the controller priority on their own object <a id="controller-priority"></a>
+
+**Measured 2026-09-09, `epic/priority-windows` step 6.** `openResponseWindow` walked `k = 1..n-1` from the
+controller, so the player who cast an object was never offered priority on it. `k = 0` fixes the ★ BACKLOG
+entry's "skip" half and, by the same character, delivers *holding priority* — you can add to what you just
+cast. Three runs of `node analysis.js 200 on` per arm, non-overlapping on both metrics:
+
+| | `k = 1` (before) | `k = 0` (after) |
+| --- | --- | --- |
+| Quick responses / run | 6857 · 6961 · 6956 | **8172 · 8196 · 8199** |
+| deck spread (#1 − #11) | 12.0 · 13.4 · 12.5 | **9.2 · 8.7 · 9.8** |
+| Pure Wizard win% | 56.5 · 56.9 · 55.8 | **54.0 · 53.8 · 54.3** |
+| avg rounds (Pure Wizard) | 12.2 · 12.3 · 12.3 | 12.2 · 12.2 · 12.3 |
+
+**+18% Quick responses is the DIRECT effect** — one more seat can act in every window — and it is the tightest
+number here (three runs within 27 of each other), so it is the one to trust.
+
+**The spread narrowing ~3.4 points is a CONSEQUENCE, not the goal.** More interaction compresses win rates
+toward 50%, and the deck with the most to lose is the one that was winning: Pure Wizard drops ~2.3. It is a
+welcome direction — deck spread is this repo's primary balance metric, and the v1.31.0 revert happened because
+spread blew out to 40.7 — but **this was a rules correctness fix and the balance move is a side effect.** Do
+not cite it as a balance lever, and do not "tune" it.
+
+**Pacing does not move**, which is the standing "options, not tempo" result holding for a priority change as
+well as for every new shape.
+
 ## The strategic pass, and what the study found instead <a id="strategic-pass"></a>
 
 **Moved out of the BACKLOG on 2026-09-07 — it is a measured result, not work.** It had been sitting inside the
@@ -370,8 +396,112 @@ shape, too low) rather than shape-stuck.
   **`nettest_sync` remains the only suite that compares the two peers to EACH OTHER** rather than each to
   expectations. Keep it green-or-explained, never disabled.
 
+<a id="main-autoadvance"></a>
+## Auto-advancing through a dead Main sub-phase — DECLINED (Aj, 2026-09-30)
+
+**Proposed** as the second half of `dead-main-subphase`: when the seat on turn can activate nothing, skip
+the Main sub-phase rather than make them press Next. The first half — the hint telling the truth
+(*"nothing to use yet, press Next to move on."*) — shipped and stays.
+
+**Declined, and the reason is that nothing was being automated away except a choice the player already
+has.** Aj: *"there's a separate pass button and if they wanted to, they could have pressed that one
+instead"*, then plainly: *"don't auto advance @\_@ they can pass from fight."* A dead Main is not a
+dead end — Next and Pass are different buttons, and the player can leave by either. Removing the press
+removes a control, not a chore.
+
+**AND THE PRIORITY DANCE WAS NEVER THE PROBLEM, which is what the discussion clarified.** It already
+auto-advances at the boundary when nobody can add to the stack — that is the
+`auto-advanced — nobody could add to the stack` line the ledger has always carried, and it is why nobody
+is prompted when they have nothing to play. Aj's *"it should really just fire off"* was about THAT, and
+it already does.
+
+**IT WAS BUILT BEFORE BEING DECLINED, AND IT ALSO FAILED IN PRACTICE.** Routed through `doFight` so a
+local seat took `moveToPlayThen(… 'Next')` and a client sent `{op:'toFight'}` — no host/client divergence
+— guarded against re-entry, deferred a tick, and skipped during tutorials. `browsertest` passed 12 duels
+with it in, and **`mptest` went 105/10**. Reverted whole; `mptest` back to 115/0. So there is no "but it
+nearly worked" to tempt a second attempt: it was declined on design AND measured red.
+
+**⚠ THE MISREAD IS THE REUSABLE PART.** *"nobody gets prompted when they don't have anything to play
+anyway so it should really just fire off"* is a description of behaviour that ALREADY EXISTS, and it was
+read as consent to build new behaviour. When a remark could be *"this already works, why is it a
+question?"* rather than *"go and make it work"*, those are opposite instructions — ask which, because
+building the wrong one costs a revert and reads as not listening.
+
+<a id="runopponents-window"></a>
+## `runOpponents` stepping past a window — measured, does not occur (2026-09-30)
+
+**Filed as:** `step()` tests `discardPending.player===YOU`, then `respondFor===YOU`, then `state.turn===YOU`
+and hands back to the human — so a window owed to a **non-human, non-YOU** seat would fall straight through
+and the board would go live with it still open. Same shape as two bugs already fixed (the duel driver on
+2026-09-14, `tutCastRivalTech` on 2026-09-24); this was the third site and the only unsettled one. The entry
+said it *may* be unreachable and that this was **a reason to measure, not to assume** — correctly, since the
+same argument had been available for the other two.
+
+**Measured three ways, and the symptom does not occur:**
+
+| how | result |
+| --- | --- |
+| natural play, 14 games at 3p and 6p with `prompts=all` | **47** hand-backs, **0** with a window owed elsewhere |
+| forcing `respondFor` to an AI seat throughout the AI phase | **141** writes landed, **0** step-pasts |
+| forcing it ONCE and then watching for 9s | **RECOVERED** — round 1→2, turn back to the human, window drained, board live |
+
+**AND THE MECHANISM IS NOT THE ONE THE ENTRY GUESSED.** It supposed `settleWindows` after each opponent
+action drains `respondFor` first. What actually prevents it is one line in `ai.js`: **`if (st.respondFor !=
+null) return;`** — the AI refuses to ACT while a window is open, so the turn cannot advance to the state
+where `step()` hands back. The board cannot go live past a window because nothing gets far enough to try.
+
+**THE THIRD ROW IS THE ONE THAT SETTLES IT**, because the obvious worry once "steps past" is ruled out is
+that it **stalls** instead — an AI that refuses to act and a driver that keeps asking is a plausible spin.
+It does not: the table recovered on its own, unaided, in under nine seconds.
+
+**WHAT REMAINS IS A STRUCTURAL ASYMMETRY, NOT A DEFECT, AND IT IS WORTH KNOWING.** `runRival` gained an
+explicit `if(state.respondFor!=null) return settleWindows(...)` on 2026-09-14; `runOpponents` has no
+equivalent on its non-round-resolution path. Today that costs nothing, because the engine-side guard above
+makes it unreachable. **If anyone ever relaxes that guard — lets an AI act with a window open — this is the
+site that stops being protected**, and the fix is the house form the sibling driver already uses. No drain
+was added: an unexercised branch is not a safeguard, it is untested code.
+
 <a id="ai-strength"></a>
 ## AI strength
+
+### Stacking Armor Piercing at Resolution — the question is moot, measured 2026-09-30
+
+**Asked:** `resolutionPushCard` refuses a second Armor Piercing (`if (qp.finishingBlow) return null`). That
+refusal was literally true when `finishingBlow` was a boolean against `strips = 2`; it has been a NUMBER
+since 2026-09-24 (`strips = 1 + apExtra`), so a second cast on a target holding 3+ shields really would
+take a third shield. Filed as a balance question for `strengthsim`.
+
+**Answer: it is not a balance question, because the board does not occur.** Built behind an opt-in policy
+and forced ON for every seat:
+
+| players | games | FIRST Armor Piercing at Resolution | SECOND (the stack) |
+| --- | --- | --- | --- |
+| 2 | 400 | 16 | **0** |
+| 3 | 250 | 24 | **0** |
+| 6 | 250 | 99 | **0** |
+
+6p is the friendliest case — the draw is `numPlayers`, so hands are largest there — and it still never
+happened. The conjunction is too narrow: the seat needs the **Hippolyta Form** to make ♣7 a Quick at all,
+**two** such cards in hand, the energy for both, **a Broadway to pitch for each**, and a struck target
+still holding **3+** shields.
+
+**THE POLICY WAS DELETED RATHER THAN SHIPPED OFF.** An unexercised branch is not a safeguard, it is
+untested code — the same call as `opts.pitch`, the boost attach and `stopper`. What survives is the
+measurement, in `DECISIONS.md` and in a comment on the refusal itself, so the next reader finds the answer
+where the question was.
+
+**⚠ AND `strengthsim` PRINTED 50.00 AT +0.00σ, WHICH IS NOT A NULL RESULT.** That is what "the two arms
+were the same configuration" looks like — the policy never fired, so nothing diverged. A win-rate harness
+cannot tell *worth nothing* from *never ran*; `policyStats()` can, and counting is what turned an
+apparent tie into an answer. This is why the tallies exist (`lockoutStats`' idiom) and why an exact 50.00
+on non-identical arms should be read as a broken measurement until a counter says otherwise.
+
+**⚠ THE FLAG ITSELF ALMOST SHIPPED THE CHANGE.** `policyOn(p, name)` is `!armPolicy || !!armPolicy(...)`
+— with no arm configured, i.e. **in the real game, every name reads ENABLED.** That is correct for `push`,
+which shipped at step 21 and whose flag exists only so a sim can turn it OFF; it is exactly backwards for
+a policy under measurement. Adding `stack` to `POLICIES` would also have redefined bare `knight`, the arm
+every other measurement is read against. Both were caught before a game was run, and the general rule is
+in CLAUDE.md: a policy that has not shipped needs the opposite default from one that has.
 
 - **~~THE DEMON LORD SHOULD ONLY BOOST WHEN THE RESULT SECURES THE INITIATIVE~~ — BUILT, MEASURED, DECLINED
   (2026-09-02).** Aj's proposal, and a reasonable one: *"if he was to boost and then the final value is still
@@ -447,13 +577,156 @@ shape, too low) rather than shape-stuck.
     is most of the variance gone.
   - **Prove the instrumented build is byte-identical when idle** — same wins, exactly, with the flag off. The
     first version was not, and the difference hid inside ordinary noise.
-  - **`personasim`'s verdict at 900 games is NOISE, and CLAUDE.md's "2.8 points" reads as a fixed floor when
-    it is one draw from a wide distribution.** Three CONTROL runs — six identical personas, so the true spread
-    is zero — printed **5.6, 1.3 and 4.6**, straddling both the floor and the WIDE threshold. A single run
-    flagged this change WIDE on one build and OK on the other, and both readings were meaningless. **Run it at
-    least three times, or do not quote it.**
+  - **`personasim`'s verdict at 900 games is NOISE, and CLAUDE.md's "2.8 points" read as a fixed floor when
+    it is one draw from a wide distribution. MEASURED PROPERLY 2026-09-12 (epic step 21's gate), and the old
+    figure is wrong in the DANGEROUS direction — it sits below the MINIMUM of twenty runs**, so a spread the
+    harness would have called *"WIDE — retune before shipping"* is the median of pure noise. Control mode,
+    demon, six identical personas, so the true spread is zero and whatever prints is the floor:
+
+    | games/run | runs | min | median | max | mean |
+    | --- | --- | --- | --- | --- | --- |
+    | 900 | 20 | 2.3 | 3.7 | **5.9** | 3.92 |
+    | 3600 | 10 | 0.8 | 1.5 | **2.2** | 1.48 |
+
+    **So: at 900 games nothing under ~6 points is distinguishable from noise; at 3600 the floor is ~2.2.**
+    4x the games tightens it ~2.6x. The three runs recorded above (5.6, 1.3, 4.6) sit inside the 900-game
+    distribution and were never anomalous — one draw each from a range that wide.
+    **AND THE INSTRUMENT IS NOT REPRODUCIBLE ALTHOUGH IT READS AS SEEDED**, which is why this took twenty runs
+    rather than one: `personasim` seeds every game (`mulberry32(1000 * rot + n + 1)`, no `Math.random` in the
+    file at all), yet four runs of the IDENTICAL command line printed 11.7 / 10.0 / 8.3 / 10.0. The leak is
+    upstream, in the engine and AI — which is the same fact the first bullet above requires be fixed, reached
+    from the other end. A seeded two-arm `personasim` is therefore not available without that fix.
   - **Run BOTH arms and pool.** Seat 0 carries a consistent ~2.3-point advantage here, which is larger than
     every effect being measured; one arm alone reports it as the result.
+
+### The harness, rebuilt and committed — `code/strengthsim.js` (2026-09-12)
+
+**Built twice before and thrown away twice** (v1.31.78, v1.31.79), which is why the tables above could not
+be re-checked and why every entry in this section had to be taken on trust. It is a file now. Epic step 21
+needs it: a Resolution policy changes AI strength, and nothing else in the repo can see that.
+
+`node strengthsim.js [pairs] [armA] [armB] [deck]`. Every deal is played **twice** — arm A on seat 0, then
+arm A on seat 1, same seed — and pooled, which cancels the seat advantage this section measures at ~2.3
+points. `Math.random` is pinned per game, because the engine and AI reach for it outside the rng `newGame`
+is handed.
+
+**THE CONTROL IS STRUCTURAL, NOT A HABIT.** With identical arms the two halves of a pair are the same
+configuration, so they yield the same winning seat — and since arm A holds seat 0 in one and seat 1 in the
+other, the pooled share is **exactly 50.00%** by construction. Anything else means the pairing is broken.
+It prints CONTROL PASS / CONTROL FAIL rather than a number to interpret, and exits non-zero on failure.
+Verified at three tiers: `knight knight`, `demon demon`, `minion minion` — all exactly 50.00, every pair
+replaying identically.
+
+**CALIBRATION.** A fair control only proves the pairing is even, not that the instrument can SEE anything.
+Against the knight→demon gap recorded above at **+7.63**, this prints **+8.97 points (16.05σ) over 8000
+games**. Same direction, same order, not the same number — expected, since that figure was taken on
+v1.31.79 and the epic has moved twenty steps since. **Re-take it, do not carry it forward** (step 23 says
+the same of every measurement here).
+
+**The tier ladder, which is now 8 seconds to ask rather than a day** — demon vs each tier, 3000 games each:
+
+| opponent | demon's share | points |
+| --- | --- | --- |
+| minion | 100.00% | +50.00 |
+| fighter | 65.70% | +15.70 |
+| knight | 58.87% | +8.87 |
+
+**The 100% against `minion` is not a bug and was checked before being reported as one:** the tier **never
+uses effects at all** (stated in the template beside the tutorial pilot), so it is a pure-fighter arm and
+loses to anything that casts. `fighter vs minion` is 99.94%, so it does win — about once in 1600 games.
+Worth knowing before anyone reads a future arm's number: **a difference this large means the arms are not
+playing the same game**, and that is the shape to be suspicious of.
+
+### Epic step 21 — the Resolution policy: one change shipped, one measured and declined (2026-09-12)
+
+Both were Aj's calls, and both were measured with `strengthsim.js` **separately and then together**, because
+shipping two strength changes at once otherwise makes neither attributable — his own stated reservation.
+32,000 paired games per row, `Math.random` pinned, control exact at 50.00 before each.
+
+| policy | knight | demon |
+| --- | --- | --- |
+| hold the guard for the window | +0.13 (0.48σ) | +0.41 (1.48σ) |
+| **the winner's line (shipped)** | **+0.82 (2.94σ)** | **+0.78 (2.77σ)** |
+| both together | +0.98 (3.51σ) | +1.22 (4.35σ) |
+
+**~~WIDEN ARMOR PIERCING TO ANY SHIELD LOSS YOU CAUSE~~ — DECLINED 2026-09-24, and the entry that proposed
+it was partly wrong.** `[id: armor-piercing-timing]` read: *"ARMOR PIERCING IS '+1 TO YOUR NEXT FIGHT WIN',
+NOT '+1 TO A SHIELD LOSS YOU CAUSE' … the card text agrees with the code; the design intended the other
+reading."* Measured in the engine before deciding: armed then winning a fight strips **2**; armed then
+casting Ultima Attack strips **1** and the arm **survives** to your next fight win. So the behaviour claim
+was exact.
+**THE DESIGN CLAIM WAS NOT.** `Cardmen-Fighter-Design-v0.70.md`'s own card table reads *"The next fight you
+win this round…"* — identical to the card text and to the code. Three sources agree, and no written record
+of the other reading was found. **Declined on that plus timing**: the epic had just shipped and tuned the
+reactive Resolution cast at +0.82σ, and widening the card would have invalidated a measurement taken days
+earlier on a card that had already had its buff. `destroyShield` therefore still does not consume
+`finishingBlow`, and `test.js` pins it (*"a Technique-caused loss does NOT consume the arm — DECLINED on
+purpose"*), A/B'd by making it consume — one red.
+**WHAT DID SHIP FROM THAT ENTRY IS DATA HYGIENE, NOT BALANCE.** `extraShield: 1` was declared and dead:
+`finishingBlow` was a boolean read against a literal `strips = 2`, so a second cast added nothing and a
+Form patch raising it would have done nothing. It is a count now, read from the card. **The shipped
+configuration is unmoved — armed once still strips exactly 2** — which is the assertion that makes this
+safe to call hygiene, and "never overkills" holds at any size because `resolveShieldLossObj` samples
+`wasBroken` once before its loop (checked at +5 against 1 shield: 0 shields, not eliminated).
+**THE AI'S REFUSAL TO STACK SURVIVED AS A POLICY** and is filed as `[id: ai-stack-armor-piercing]`, because
+it is a `strengthsim` question and not a comment edit.
+
+**THE WINNER'S LINE SHIPPED.** At Resolution the round winner may cast **♣7 Armor Piercing** — the only
+`onWin` card in the game, a Quick only under Hippolyta, costing a Broadway discard on top of its energy —
+to take a second shield off a struck target. **It cannot kill, and the gate is built on that**: `strips = 2`
+runs a loop whose `wasBroken` is sampled BEFORE it, so a seat holding shields when the strike began is never
+kicked by the extra strip. Measured: a target on 2 → 0, a target on 1 → 0 either way, a target on 0 was
+already dead. That is the card's own *"never overkills"*, and it means the only board where the play does
+anything is **a struck target on 2 or more shields**. `resolutionPushCard` refuses every other. It fires ~10
+times per 300 knight duels. Half the Resolution priority grants go to seats that previously could never use
+them; this is the first play any of them has.
+
+**~~HOLD THE GUARD FOR THE WINDOW~~ — BUILT, MEASURED, DECLINED.** It stopped knight and Demon Lord spending
+Leyline/Sanctuary proactively in `playPhase`, so the card would still be in hand when Resolution opened. It
+**fired often** — 33 withheld casts per 300 knight duels — and was worth nothing a player could perceive.
+Declined on the same basis as the Demon Lord boost refusal above.
+**WHY IT DOES NOT PAY, which is the part worth keeping:** Leyline is not only a ward, it is `reclaim, half`
+— it ramps half the deck into Energy. Holding it for the window delays that ramp, and the timing gain and
+the tempo loss cancel. **The design pass's finding that "the AI holds an answer only 8% of the times it is
+about to be kicked" was TRUE and measured the wrong thing** — how often the card was available, never what
+holding it costs. Do not rebuild this without a guard card that has no tempo of its own.
+
+**A NOTE ON THE PREDICTION, because it was wrong in a useful way.** Holding was expected to be the change
+with reach and the winner's line was recommended for SKIPPING, on the grounds that one narrow card could
+not clear noise. The opposite held at both tiers. Aj overrode the recommendation (*"just better gameplay
+overall"*) and that was the better read: a rare play that always gains beats a frequent one that trades.
+
+**ALSO FOUND AND NOT FIXED: `kind: 'shieldImmune'` IS AN ORPHANED EFFECT KIND** — no card has it, so the
+"Sphere" branch in `playPhase` is dead code. The fourth instance of the pattern CLAUDE.md catalogues.
+`grep -c "kind: 'shieldImmune'" engine.js` returns 0. Left alone rather than bundled into a policy change.
+
+### Three candidate persona traits, all measured unusable — and the reason is always FREQUENCY (2026-09-12) <a id="persona-traits"></a>
+
+*Filed 2026-09-17 from `exp/ai-upkeep-cast`, where it had lived only in a commit message. The branch is
+kept, not merged; see the mechanism note at the end for why.*
+
+Aj's idea, and it is a good one: a behaviour measured as strength-**neutral** is exactly what you can hand
+to some personas and not others, because [personas vary STYLE not STRENGTH](#ai-strength) — and until
+`strengthsim` existed nobody could prove a trait was neutral *before* shipping it. Three candidates were
+built and measured. None is usable, and not one of them failed on strength:
+
+| candidate | why it fails |
+| --- | --- |
+| **cast at Upkeep** | **0.04 casts/game** with every seat eager, flat at 2/3/4/6 players — more rounds do not help, because the single Leyline in the deck is the constraint. Strength +0.10 pts / 0.37σ at knight: neutral, and invisible. |
+| **reorder the chain** | only **6.2%** of turns have more than one proactive cast, and the loop casts both anyway — it changes the sequence, not the outcome. Transform is ALREADY the first act of the turn **835 times in 928**. |
+| **favour a class** | moves the played-suit mix **24.8% → 24.9%**. The 36.5% of turns with plays identical in type/size/value was the WRONG tie: the AI ranks singles by `keepValue`, which also weighs effects and Quicks, so ties in its own ordering are far rarer than ties in raw value. |
+
+**THE CONSOLIDATED FINDING, which is the part worth not re-deriving:** `grudge` and `focus` work because of
+a structural accident — in a free-for-all, *who* you hit does not change how well you play, so the choice is
+genuinely free. The AI's other decisions mostly are not free: it has a reason for nearly every one, and
+where it does not, the choice does not reach anything a player can see. **Neutral-and-visible axes inside
+the PLAY logic look scarce.** Presentation — emotes, taunts, what a persona says on a win — is where that
+idea would pay, with zero strength risk by construction.
+
+**THE BRANCH IS KEPT BECAUSE THE MECHANISM IS REUSABLE**, not because the traits are: the `eager`/`rush`/
+`favour` knobs, `strengthsim` arming persona styles per seat, and the **minion capability-guard** — a trait
+may only RE-TIME a behaviour its tier already has, never add one, which is the `nice` flag's +6-point
+mistake in miniature. `npm test` was 478/0 + 65/0 on that branch.
 
 ## Joining, discovery, and the QR path
 
@@ -634,6 +907,20 @@ independently" — that SHIPPED in v1.31.21.*
   says so itself: `until` warns on any wait past half its budget in every run, and `LESSONPOLL=1` prints them
   all. The rule this produced is in [`CLAUDE.md`](../CLAUDE.md) — *measure the margin, or the next partial fix
   looks complete.*
+
+- **`browsertest`'s WALL CLOCK VARIES ~15s RUN TO RUN ON AN UNTOUCHED BUILD, so a single before/after pair
+  measures nothing (2026-09-12).** Three consecutive runs, nothing changed between them: **68.1 / 53.0 /
+  65.1 seconds** — a 15-second spread on a 62-second mean, 24% of it. Taken while characterising epic step
+  21's gates, because that step's stated check is *"browsertest **timed** before and after"* and the AI's
+  cast rate into the priority windows is the change's largest wall-clock variable (each AI answer dwells
+  1400ms in `settleWindows`, 300ms reduced-motion).
+  **So the gate as written cannot see a change smaller than about 15 seconds**, which at 1400ms an answer is
+  roughly ten extra casts across twelve duels. Run it enough times to separate the arms, or measure the cast
+  RATE directly out of the AI log and leave the clock as corroboration — the rate is the thing the design
+  actually controls, and it has no variance problem.
+  **THIS IS THE THIRD GATE IN A ROW whose documented usage is one run and whose real variance is wide** —
+  `personasim`'s spread (above) and the sweep time (which CLAUDE.md already says never to quote singly) are
+  the other two. Treat "time it before and after" as a request for a distribution.
 
 ## Exported-data facts
 

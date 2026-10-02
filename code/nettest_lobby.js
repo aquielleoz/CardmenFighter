@@ -1,5 +1,6 @@
 /* Shared helper for the netplay tests: drive the deck-picker lobby to start a duel.
  * The client optionally picks a deck then clicks Ready; the host optionally picks, waits for Start to enable, clicks it. */
+const autoAnswerWindows = require('./netwindows.js');
 module.exports = async function startDuel(host, join, opts){
   opts = opts || {};
   const wait = ms => new Promise(r=>setTimeout(r,ms));
@@ -21,6 +22,10 @@ module.exports = async function startDuel(host, join, opts){
      a caller could snapshot a half-dealt hand — which `nettest_full` did, intermittently, reading 3 of 6. This
      is the repo's own settle rule: the predicate must include the thing being asserted on. Waits for both
      counts to be non-zero AND unchanged since the previous poll. */
+  /* ANSWER WINDOWS THE SUITE DOES NOT SCRIPT — see `netwindows.js` for why 27 suites needed this and why
+     it is a grace delay rather than an opt-out. Installed AFTER Start so it cannot touch the lobby, and
+     before the deal settles so the very first round is covered. `manualWindows` opts out. */
+  if(!opts.manualWindows){ await autoAnswerWindows(host, 'host'); await autoAnswerWindows(join, 'join'); }
   const count = p => p.evaluate(()=>document.querySelectorAll('#hand .card').length);
   let prev='';
   for(let i=0;i<140;i++){

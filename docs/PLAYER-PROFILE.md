@@ -8,7 +8,13 @@ Aj is a **tempo-control** player whose signature is the **interrupt-into-combo**
 
 ## What the games show
 
-**Deck taste — Wizard/Cleric, never the aggro suits.** Across the rework sample he ran Pure Wizard (♦) three times, Bard (Cle+Rog) twice, and Pure/mixed Cleric (♥) twice. He gravitates to the control/value archetypes and has not once picked Pure Fighter (♣) or Pure Rogue (♠) for himself.
+**⚠ DECK CHOICE IS A TESTING SIGNAL, NEVER A PREFERENCE SIGNAL — and this file got it wrong (corrected 2026-09-24).** It used to read *"Deck taste — Wizard/Cleric, never the aggro suits… he gravitates to the control/value archetypes and has not once picked Pure Fighter or Pure Rogue for himself"*. Aj: *"the deck choices are always for testing… even those previous 7 ones, wizard was in a bad spot before"*. He picks whatever needs looking at, so the old claim inferred a preference from behaviour that had an entirely different purpose — and the 2026-09-24 sample makes the error obvious: **ten different classes across twenty games**, near-uniform, including the Rogue and Fighter the file said he never picks.
+
+**What the deck history IS good for, read correctly:** a record of which deck needed attention when. Three Pure Wizard games in August says Wizard was weak in August, not that he likes Wizard. **And the resolved deck is all the export stores, so a 🎲 Random roll is indistinguishable from a deliberate pick** — one more reason never to read taste out of this column.
+
+**The durable read is deck-INDEPENDENT, and that is what makes it trustworthy.** Everything below describes how he plays whatever he is handed; it held across two classes in August and across ten in September.
+
+**The mix, measured over the 13 substantive games of the 2026-09-24 sample: jabs 19% · Specials 45% · Techniques 36%.** Almost exactly what this file already claimed from seven games, now across ten classes — and **Counter Spell is his single most-activated card** (10 casts, ahead of Gather Energy 9 and Infuse with Magic 8), which is the interrupt thesis holding up on four times the data. He plays his games OUT: 11 of 13 solo games ended in a Fighter Kick rather than a concede.
 
 **Technique-heavy engine.** Every game leans on a stack of non-fight effects — draw (Pray for Guidance, Back to the Books, Superior Training, Prepare for Combat), ramp (Gather Energy, Pray for Strength), and value boosts (Infuse with Magic, Imbue with Power, Divine Tactics, Brilliant Tactic). He routinely chains two or three techniques in a turn to dig, refuel, and then push a play. Technique counts of 4–7 per game are typical, often outnumbering his own jabs.
 
@@ -20,20 +26,30 @@ Aj is a **tempo-control** player whose signature is the **interrupt-into-combo**
 
 **Tempo — patient and grindy.** Games run long (9–13 rounds). He's comfortable ceding jab rounds and leaning on the catch-up mechanic (shields back to hand, loser mill) to refuel, then converting to shield strips with Specials once his engine is online.
 
-## Record (rework games)
+## Record
 
-Clean rework games: **5–0**, every win by Fighter Kick — including **3–0 vs Demon Lord** (a 4th demon game was an instant round-1 concede, treated as noise, not a loss). One pre-rework (v0.40) loss under the old STOPPER/1-low ruleset. So on the current game he is a strong, comfortably-winning player, even against the top AI tier.
+**Against the Demon Lord: 8W–5L over 13 solo games (2026-09-24 sample).** This file used to say **5–0 / 3–0 vs demon** and call him *"comfortably-winning… even against the top AI tier"*. That is no longer true, and the likeliest reason is not the player: **`keepsTheWin` went always-on for the demon tier in v1.31.79**, measured at about a quarter of a whole tier step (knight→demon +6.14 → +7.63). The AI caught up.
+
+**Free-for-all: 0W–3L**, two of them full 14–15 round games. The first multiplayer data in this file — the previous sample had none — and small enough to be directional only. But it has a plausible mechanism rather than being noise: his whole plan is **one well-timed interrupt flipping initiative**, and at three seats a single Counter Spell faces two threats while the third seat profits from whichever exchange he wins. Tempo-control assumes a two-body problem.
+
+**Read the sample before the numbers:** of 20 games, **7 ran under 8 rounds** — concedes and one-rounders from testing, whose profile ("78% jabs, 0% techniques") only means nothing happened. Every figure here is from the **13 real games**.
 
 ## Implications (for AI / balance / design)
 
 - **The AI gets punished for casting into an open window.** Because Aj holds Counter Spell, an AI that fires its most important technique first, unprotected, hands him value. A smarter AI would sequence low-stakes effects first to bait the counter, or hold key techniques for a safer beat. Worth considering for the Demon tier.
 - **Ramp/ snowball tuning matters to him specifically.** His whole plan is out-resourcing; the catch-up mechanic and any ramp nerfs/buffs hit his style hardest — watch those in balance runs.
 - **Boost-a-pair is the dominant kill.** The interaction between value boosts and the apex (2/A) is his primary lever; keep an eye on it when tuning value-boost magnitudes.
-- **A "play like Aj" opponent** would be a Wizard-or-Cleric tempo-control list: heavy draw + ramp, an interrupt (Counter Spell / Leyline, the apex 2 held) saved to blunt the opponent's key play and flip initiative, value boosts, and a patient pair-for-the-kick plan — not an aggro rush.
+- **A "play like Aj" opponent** is a tempo-control PLAN, not a deck list: heavy draw + ramp, an interrupt (Counter Spell / Leyline, the apex 2 held) saved to blunt the opponent's key play and flip initiative, value boosts, and a patient pair-for-the-kick close — not an aggro rush. **This used to name "a Wizard-or-Cleric list" and that half is deleted**: it rested on the deck-taste claim corrected above, and the behaviour it describes has now been observed across ten classes.
+- **Free-for-all may need its own read.** 0W–3L is too small to act on, but if it holds, the interesting question is whether the interrupt plan is structurally weaker at 3+ seats rather than whether he played badly.
 
 ## Caveats
 
-Small sample (7 logged games, 5 clean rework duels, all vs the AI, all 1v1). Treat as directional, not statistical. No multiplayer or netplay games yet. Re-derive once the sample meaningfully grows.
+Still small (20 games as of 2026-09-24, 13 of them substantive, all vs the AI except four netplay). Directional, not statistical.
+
+**Three things in this corpus are NOT usable and each has a reason:**
+- **deck choice** — testing, not taste (see above), and a Random roll is indistinguishable from a pick;
+- **`shieldsLost` in any 3-6 player game** — `animateShields` carries that tally and runs for seat 0 only at 3+ players, so every free-for-all record undercounts damage. Filed as `shield-diff-skips-seats-past-the-second`. The play-mix and activation counts come from separate counters and ARE sound;
+- **logs on records written before 2026-09-24** — the record was built from the RENDERED log panel, which trims to 80 lines, so seven of the nineteen older games lost their early rounds. Fixed that day; anything read out of those logs is a tail, not a game.
 
 ## Ingestion log
 
@@ -49,6 +65,48 @@ Games already folded into this profile (so future uploads aren't double-counted)
 | 2026-08-20 | 1.0 | demon | Pure Wizard (♦) | Win (kick) | 12 | Giant Boar, Hippolyta; Counter Spell ×2 |
 | 2026-08-20 | 1.0 | demon | Pure Wizard (♦) | Win (kick) | 9 | Giant Owl, Penelope; countered Caltrops |
 | 2026-08-20 | 1.0 | demon | Cleric/Fighter mix | Win (kick) | 12 | Javelin/Spiked Armor; countered Armor Piercing, sprang Leyline |
+
+### 2026-09-24 — 20 games (one export, Aj only, `cardmen-games (5).json`)
+
+**What it changes:** the deck-taste claim (deleted — testing, not preference), the record (8W–5L vs demon,
+not 5–0), and the first free-for-all data in this file (0W–3L). **What it confirms:** the play mix and the
+interrupt signature, now across ten classes instead of two.
+
+**Read the shape first:** 13 solo, 4 netplay, 3 local free-for-all; 16 of 20 against the demon tier; 14
+ended in a Fighter Kick, 6 in a concede. **Seven ran under 8 rounds** and are testing noise — their
+"78% jabs, 0% techniques" means nothing happened, not that he jabs.
+
+| Date | Mode | Diff | Deck (TESTING, not taste) | Result | Rounds |
+|------|------|------|---------------------------|--------|--------|
+| 2026-08-28 | net | fighter | Rogue | Loss (kick) | 6 |
+| 2026-08-29 | net | fighter | Fighter | Win (concede) | 1 |
+| 2026-08-29 | net | fighter | Paladin | Loss (concede) | 1 |
+| 2026-08-29 | net | fighter | Bard | Win (concede) | 4 |
+| 2026-08-31 | local-mp | demon | Paladin | Loss (concede) | 1 |
+| 2026-08-31 | solo | demon | Sage | Win (kick) | 15 |
+| 2026-09-01 | solo | demon | Cleric | Loss (concede) | 3 |
+| 2026-09-04 | solo | demon | MageKnight | Loss (concede) | 1 |
+| 2026-09-07 | solo | demon | Berserker | Loss (kick) | 8 |
+| 2026-09-07 | solo | demon | MageKnight | Win (kick) | 14 |
+| 2026-09-07 | solo | demon | Bard | Win (kick) | 14 |
+| 2026-09-07 | solo | demon | Sage | Loss (kick) | 13 |
+| 2026-09-07 | solo | demon | Sage | Loss (kick) | 10 |
+| 2026-09-07 | solo | demon | Warlock | Win (kick) | 10 |
+| 2026-09-10 | solo | demon | MageKnight | Win (kick) | 10 |
+| 2026-09-11 | solo | demon | Wizard | Win (kick) | 12 |
+| 2026-09-11 | solo | demon | Berserker | Win (kick) | 10 |
+| 2026-09-11 | solo | demon | Bard | Win (kick) | 11 |
+| 2026-09-24 | local-mp | demon | Warlock | Loss (kick) | 15 |
+| 2026-09-24 | local-mp | demon | Warlock | Loss (kick) | 14 |
+
+**Most-activated, whole sample:** Counter Spell 10 · Gather Energy 9 · Hand-to-Hand Mastery 8 · Infuse with
+Magic 8 · Pray for Guidance 5 · Never Out of Options 5 · Imbue with Power 3 · Pray for Strength 3 · Prepare
+for Combat 3 · Outbalance 3 · Back to the Books 3.
+
+**⚠ DO NOT re-derive damage or early-game behaviour from this export.** `shieldsLost` is broken for seats
+2+ in every free-for-all record (`shield-diff-skips-seats-past-the-second`), and nineteen of the twenty
+were written before the record kept a full log, so their `log` arrays are the last 80 lines only. The play
+mix and activation counts above come from separate counters and are unaffected.
 
 ### 2026-08-22/23 — 14 games (2 exports, "bibong+aj", 25 records deduped to 14)
 

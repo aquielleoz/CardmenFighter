@@ -10,6 +10,7 @@
  * HOST over the hand cap, because that is the only seat that gets an interactive pick.
  * Run: node nettest_trim.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8401),ROOM='TR'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -43,8 +44,7 @@ async function until(fn,t=120,ms=120){ for(let i=0;i<t;i++){ if(await fn()) retu
 
   /* THE HOST must be over the cap: it is the only seat that gets an interactive pick, because every other seat
    * is auto-trimmed. 13 cards, one played, leaves 12 against a cap of 10 — so the pick is unavoidable. */
-  await host.evaluate(()=>{
-    const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
+  await host.evaluate(()=>{ const C=(n,su,t)=>({rank:n,suit:su,id:(t||'')+n+su});
     const many=[]; [3,4,5,6,7,8,9,10,11,12,13,1,2].forEach((r,i)=>many.push(C(r,'DHCS'[i%4],'h')));
     window.__cmf.force(many, [C(4,'D','c'),C(5,'H','c'),C(6,'C','c'),C(7,'S','c')]);
   });
@@ -52,14 +52,27 @@ async function until(fn,t=120,ms=120){ for(let i=0;i<t;i++){ if(await fn()) retu
   const hs=(await snap(host)).hand;
   ok(hs>10, `host staged OVER the hand cap (${hs} cards) — the only seat that gets an interactive pick`);
 
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await until(async()=>(await snap(join)).yourTurn, 60), 'the turn reached the client');
-  await join.evaluate(()=>{ const p=document.getElementById('passBtn'); if(p&&!p.disabled) p.click(); });
+  await clickPass(join);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
 
   // the host reaches its clean-up pick
   const picking = await until(async()=>/hand limit|Discard/i.test((await snap(host)).msg), 100);
   ok(picking, 'the host reaches its clean-up pick' + (picking?'':'  (staging problem, not the feature)'));
+
+  /* THE DOM CONTRACT THAT `lessonlib.pickMode()` RESTS ON, asserted where a real pick actually exists.
+     `renderHand`'s pick branch appends BARE cards to `#hand` ("flat individual cards, no grouping/drag") and
+     is the only writer that does, so `#hand > .card` is the one reliable tell for pick mode. Eleven lesson
+     suites now use that to tell "the board is sitting on an unscripted clean-up" apart from a render bug —
+     for three investigations they could not, because every helper reaching for `.closest('.group')` reported
+     `card <id> has no group` instead. If the pick branch ever starts wrapping cards, that diagnosis silently
+     reverts to the misleading message; no lesson suite can catch it, because none of them reaches a pick.
+     This is the only suite in the repo that does. */
+  const bare = await host.evaluate(()=>({ loose:document.querySelectorAll('#hand > .card').length,
+                                          grouped:document.querySelectorAll('#hand .group').length }));
+  ok(bare.loose>0 && bare.grouped===0,
+     `  → and the hand renders as bare ungrouped cards, which is how lessonlib names pick mode  [${bare.loose} loose, ${bare.grouped} grouped]`);
 
   /* THE ASSERTION. Play is stopped on the host's pick; the client must be told why rather than shown a gap. */
   const told = await until(async()=>/discarding to hand size/i.test((await snap(join)).status), 80);
@@ -118,10 +131,10 @@ async function until(fn,t=120,ms=120){ for(let i=0;i<t;i++){ if(await fn()) retu
   const cOver = await join.evaluate(()=>document.querySelectorAll('#hand .card').length);
   ok(cOver>10, `client staged over the cap (${cOver} cards), lowest card 3♦`);
 
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   await until(async()=>(await snap(join)).yourTurn, 60);
-  await join.evaluate(()=>{ const p=document.getElementById('passBtn'); if(p&&!p.disabled) p.click(); });
+  await clickPass(join);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
 
   const gotPicker = await until(async()=>await join.evaluate(()=>
      /[Dd]iscard/.test((document.getElementById('message')||{}).textContent||'')), 120);
@@ -133,8 +146,8 @@ async function until(fn,t=120,ms=120){ for(let i=0;i<t;i++){ if(await fn()) retu
     const cards=[...document.querySelectorAll('#hand .card')];
     const hi=cards.find(c=>/2♠|2\u2660/.test(c.textContent||'')) || cards[cards.length-1];
     if(hi) hi.click();
-    const f=document.getElementById('fightBtn'); if(f&&!f.disabled) f.click();
   });
+  await clickFight(join);   // a pick is CONFIRMED with Fight — the label is 'Confirm', never 'Play', so the helper's second click cannot fire
   await wait(1200);
   const kept = await join.evaluate(()=>[...document.querySelectorAll('#hand .card')].some(c=>/3♦|3\u2666/.test(c.textContent||'')));
   ok(kept, '  → and the card IT chose left, not the lowest one the engine would have taken (3♦ still in hand)');

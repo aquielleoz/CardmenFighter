@@ -11,6 +11,7 @@
  * Every case is the WORST case for its size: battle log OPEN, hand stuffed to MAX_HAND, 5-card pile staged.
  * Run: node landscapetest.js */
 const { chromium }=require('playwright'); const LAUNCH=require('./pwchrome'); const path=require('path');
+const { enterFight } = require('./fightclick');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 // [w, h, players, label]
@@ -102,6 +103,21 @@ const CASES=[
       await p.evaluate(n=>{const s=document.getElementById('setPlayers'); s.value=String(n); s.dispatchEvent(new Event('change'));},np);
       await poll(p, n=>document.getElementById('setPlayers').value===String(n), 'the player count took', np);
     }
+    /* ⚠ PIN BOTH DECKS, OR THE MEASUREMENT MOVES WITH THE SHUFFLE (2026-10-01). `DEFAULT_SEL` is
+       `{you:'random', rival:'random'}`, so every run rolled two fresh classes — and at 327x660 a long deck
+       name WRAPS `#handMeta` onto a second line. Measured over eight staged runs with every other
+       rectangle identical: `#handMeta` 167px for `Pure Rogue` (overflow 0) against 197px for
+       `Mage Knight (Wiz+Fig)` (overflow 18-21). That one row is the whole expand-overflow, and it is why
+       the 327x660 ratchet printed 33px, 60px and 60px across three sweeps of builds nobody touched —
+       drifting toward its own 63px cap, i.e. an intermittent red waiting for a slow day.
+       SAME SHAPE AS THE 2026-09-07 PERSONA PIN, ONE ELEMENT ALONG: that one fixed a zone's WIDTH because
+       the Forms label carries a random name; this fixes a HEIGHT because the deck line does.
+       `MageKnight` IS THE WORST CASE ON PURPOSE — "Mage Knight (Wiz+Fig)" is the longest name the picker
+       ships (21 chars), so the ratchet guards the hardest configuration rather than a lucky draw.
+       `commitSetup` reads these selects directly, so setting `.value` is enough; no `change` needed. */
+    await p.evaluate(()=>{ ['setYouDeck','setRivalDeck'].forEach(function(id){ var s=document.getElementById(id); if(s) s.value='MageKnight'; }); });
+    await poll(p, ()=>{ var a=document.getElementById('setYouDeck'), b=document.getElementById('setRivalDeck');
+                        return !!(a&&b&&a.value==='MageKnight'&&b.value==='MageKnight'); }, 'both decks pinned');
     await p.evaluate(()=>{const g=document.getElementById('goFirstBtn'); if(g)g.click();});
     await poll(p, ()=>document.querySelectorAll('#hand .card').length>0, 'the game dealt');
     await settled(p);
@@ -316,6 +332,11 @@ const CASES=[
       return { max:Math.round(l.scrollHeight-l.clientHeight), lines:l.children.length }; });
     ok(set.max>4 && set.max<80,
        `log staged with a small overflow: ${set.max}px over ${set.lines} lines (must be under the old 80px slack to discriminate)`);
+    /* THE ACTION HAS TO BE A REAL PLAY, or no log line arrives and this measures nothing (epic step 20).
+       A single Fight press in the Main Sub-Phase is the PHASE MOVE — it logs nothing — so the probe below
+       needs the board already in the Fight Sub-Phase for `!f.disabled` to mean "this play is legal" again.
+       See fightclick.js. */
+    await enterFight(p);
     const acted=await p.evaluate(()=>{ const l=document.getElementById('log'), n0=l.children.length;
       const c=document.querySelector('#hand .card'); if(c)c.click();
       const f=document.getElementById('fightBtn'), ps=document.getElementById('passBtn');
@@ -480,7 +501,26 @@ const CASES=[
        its own card, which is the read path that refusal owes the player. A suite that only knew the portrait
        behaviour would report six reds for a deliberate decision. */
     const landBand = (h<=520 && w>h);
-    await p.evaluate(()=>{ const s=document.querySelector('.formStrip'); if(s) s.click(); });
+    /* ⚠ EXPAND BY CLICKING A **CHIP**, NOT THE STRIP — the chip is where the bug lived (Aj, 2026-09-11:
+       *"clicking the jack does not expand it. it directly goes to the card viewer"*). Every chip carried
+       its own `readCard` + `stopPropagation()` in every layout, and the chips FILL the strip, so the only
+       surface left for the expand was the sliver of padding around them — with one Form in the zone,
+       effectively none. Clicking `.formStrip` hits that sliver directly and therefore always worked,
+       which is exactly why staging it that way could not see the defect.
+       A collapsed chip now falls through to the strip and OPENS the zone; the expanded card is what you
+       tap to read; clicking outside still collapses it (a document listener on anything outside
+       `.formZone`). In the landscape band the chip keeps reading, because the zone deliberately never
+       expands there and reading would otherwise have nowhere to live. */
+    const expandedByChip = await p.evaluate(()=>{
+      const c=document.querySelector('.formChip'); if(!c){ const s=document.querySelector('.formStrip'); if(s) s.click(); return null; }
+      c.click(); return true;
+    });
+    /* ⚠ NO SECOND, UNCONDITIONAL STRIP CLICK. The first cut had one here "for the INCARNATION case", and
+       it made the assertion below BLIND: with the chip merely reading, the strip click expanded the zone
+       anyway, so `minis>0` held either way and the mutant passed 195/0. The no-chip fallback already
+       happens INSIDE the evaluate above, in the branch that returns null — which is the only case that
+       needs it. A fallback that also runs on the path under test is not a fallback, it is a second way to
+       pass. */
     await p.evaluate(()=>{ const e=document.querySelector('.eq'); if(e) e.click(); });
     await settledBoard(p);
     const x=await p.evaluate(()=>{
@@ -518,6 +558,9 @@ const CASES=[
          `${tag}: …and a chip READS its card instead (reader went "${(read.before||'').slice(0,22)}" → "${(read.after||'').slice(0,28)}")`);
     } else {
       ok(x.minis>0, `${tag}: STAGED EXPANDED — the Forms zone really opened into ${x.minis} cards`);
+      ok(expandedByChip===null || x.minis>0,
+         `${tag}: …and a CHIP is what opened it — the tap is not swallowed by the reader` +
+         (expandedByChip && x.minis>0 ? '' : '  ← REPRODUCED: the chip read its card instead of expanding'));
       /* ONE SIZE OVERFLOWS THE BOARD WHEN A ZONE EXPANDS, AND ITS COVERAGE NUMBER IS THEREFORE UNSTABLE.
          At 327x660 expanding both of a seat's zones adds 75px to a panel and pushes `#board` **63px** past
          its height (393x852 goes 10px over; every other phone size stays at 0). Once the board overflows,
@@ -531,7 +574,12 @@ const CASES=[
          asserts that tag against the BACKLOG in BOTH directions, so deleting this ratchet on the day the fix
          lands goes red until the entry is closed too. That link is what was missing when v1.31.111 fixed the
          landscape overlap and left its entry quoting a measurement that had stopped being true. */
-      const OVF={'327x660':63,'393x852':10};
+      /* THE CAP IS 60 AND NOT 63 BECAUSE THE INPUT IS PINNED NOW (2026-10-01). 63 was padding for a
+         number that swung 33/60/60 across sweeps of untouched builds, because the deck roll moved
+         `#handMeta`; with the worst-case deck pinned in `open()` this reads 60 on four consecutive runs,
+         so the ratchet can be tight enough to catch a 1px growth. A cap wider than the measurement is a
+         suppression wearing a ratchet's clothes. */
+      const OVF={'327x660':60,'393x852':10};
       const cap=OVF[`${w}x${h}`];
       if(cap!==undefined){
         console.log(`   ⚠ ${tag}: KNOWN — expanding a zone pushes the board ${x.over}px past its height; coverage is scroll-dependent there and is not asserted.`);

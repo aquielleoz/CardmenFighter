@@ -17,6 +17,7 @@
  *
  * Run: node counterfeittest.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const path=require('path');
+const { selectAndFight, clickFight } = require('./fightclick');
 const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
@@ -77,7 +78,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(ui.mods.some(t=>/Giant Boar/i.test(t)), '  → alongside Giant Boar, so the player can total the +2 they were counting on');
 
   // and it must actually beat the pair of 7s it was copied from, then hold the pile at +2
-  await p.evaluate(()=>{ const f=document.getElementById('fightBtn'); if(f&&!f.disabled) f.click(); }); await wait(900);
+  await clickFight(p); await wait(900);   // two-state button (epic step 20) — see fightclick.js
   const pile = await p.evaluate(()=>{ const st=window.__solo.st();
     return st.pile&&st.pile.combo?{by:st.pile.byPlayer,type:st.pile.combo.type,value:st.pile.combo.value}:null; });
   ok(pile && pile.by===0 && pile.type==='pair', `the pair took the pile (${pile?pile.type:'none'})`);

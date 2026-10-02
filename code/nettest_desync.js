@@ -11,6 +11,7 @@
  * Both directions are asserted, because a banner that never clears would pass the first half alone.
  * Run: node nettest_desync.js */
 const { chromium } = require('playwright'); const LAUNCH = require('./pwchrome'); const startDuel=require('./nettest_lobby.js');
+const { selectAndFight, clickFight, clickPass } = require('./fightclick');
 const http=require('http'),fs=require('fs'),path=require('path');
 const DIR=__dirname,PORT=+(process.env.PORT||8443),ROOM='DS'+Date.now().toString().slice(-3);
 const srv=http.createServer((q,r)=>{let p=path.join(DIR,q.url.split('?')[0]==='/'?'/CardmenFighter.html':q.url.split('?')[0]);fs.readFile(p,(e,b)=>{if(e){r.writeHead(404);r.end();}else{r.writeHead(200,{'Content-Type':'text/html'});r.end(b);}});});
@@ -38,15 +39,15 @@ const view=p=>p.evaluate(()=>({
   await startDuel(host, join);
   ok(await until(async()=>(await view(host)).round>0), 'duel started');
 
-  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click();
-                            const f=document.getElementById('fightBtn'); if(f&&!f.disabled)f.click(); });
+  await host.evaluate(()=>{ const c=document.querySelector('#hand .card'); if(c)c.click(); });
+  await clickFight(host);   // two-state button (epic step 20) — see fightclick.js
   ok(await until(async()=>(await view(join)).yourTurn, 80), 'the turn reached the client');
   ok((await view(join)).bar==='', 'no banner while everything is normal');
 
   /* Swallow every mirror to this seat, then act. Forty is far more than the ~5s window needs — the point is
    * that NOTHING comes back, not that a particular number is lost. */
   await host.evaluate(()=>window.__cmf.dropMirrors(1,40));
-  await join.evaluate(()=>{ const b=document.getElementById('passBtn'); if(b&&!b.disabled)b.click(); });
+  await clickPass(join);   // Pass lives only in the Fight Sub-Phase now — see fightclick.js
 
   const warned = await until(async()=>/not synced/i.test((await view(join)).bar), 80);
   ok(warned, 'the client is TOLD its board is unconfirmed'+(warned?'':'  ← it just sits there silently, which is the report'));
