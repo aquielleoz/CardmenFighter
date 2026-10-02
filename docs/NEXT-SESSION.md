@@ -298,6 +298,55 @@ re-read its tag.
 
 #### Rules, priority and the stack
 
+- `root cause found`    · **THE FIGHT SUB-PHASE ANNOUNCEMENT FIRES ON A COMMIT, NOT JUST ON THE PHASE MOVE**
+  (Aj, live game 2026-10-02: *"fight sub phase announcement flew in when i clicked fight. it should only
+  fly in for next"*).
+  **ONE BUTTON, TWO LABELS, AND THE EDGE DETECTOR CANNOT TELL THEM APART.** `▶ Next` moves you into the
+  Fight Sub-Phase; `⚔️ Fight` commits the play — Aj's own naming, 2026-09-11. But with cards SELECTED in
+  Main the label is already `Fight` and that one press does BOTH: it transitions and then re-applies the
+  held intent (epic step 20's "a phase transition is not an illegal move"). `notePhaseEdge` is a pure edge
+  detector on `was==='main' && now==='play'` inside `render()`, so it fires in the middle of that single
+  press and announces *"⚔️ Fight sub-phase — throw your cards down"* at the exact moment the cards have
+  already gone down.
+  **THE EXISTING RULE IS NOT WRONG, IT IS UNDER-SPECIFIED.** The comment above it records Aj's 2026-09-11
+  ruling — *"i wanted the announcement to fire when the sub phase starts (that is, after the priority
+  passing)"* — and that is still right for the `Next` press, where the beat is the thing that says the
+  go-round closed and the sub-phase arrived. What nobody considered is the press that crosses over AND
+  commits, where the beat narrates something the player just did deliberately.
+  **THE FIX IS A ONE-SHOT SUPPRESSION AT THE COMMIT, NOT A CHANGE TO THE DETECTOR'S CONDITION.** ⚠ And it
+  must be set on EVERY seat that can commit, or it covers two of three: the comment on `notePhaseEdge`
+  says in terms why it lives in `render()` — a netplay CLIENT never runs `moveToPlayThen` and learns the
+  transition from a MIRROR, so a flag set only in the host's funnel would leave the client announcing.
+  That is the "a fix wired in by name covered two parks of nine" shape, and this entry is written before
+  the fix precisely so it is not repeated.
+  **ASSERT BOTH DIRECTIONS**: a `Next` press MUST still announce, a `Fight`-with-selection press must not.
+  One of those alone passes on a build where the beat is simply deleted.
+  `[id: fight-announce-on-commit]`
+
+- `root cause found`    · **★ TAPPING AN EQUIPMENT TARGET CASTS IMMEDIATELY — THERE IS NO CONFIRM** (Aj, live
+  3-player game 2026-10-02: *"after selecting a target for plead for peace, it didn't ask to activate, it
+  just did"*).
+  **THERE ARE TWO TARGETING MODES AND ONLY ONE OF THEM IS CONFIRM-FIRST.** `targetPick` — choosing a SEAT —
+  stages into `targetPick.chosen`, relabels the context button **⚡ Activate**, and spends nothing until
+  `confirmTargetPick()`; that is the v1.29.5 model CLAUDE.md documents. `targeting` is a SEPARATE, older
+  variable, declared *"{cardId} while choosing an equipment to remove"*, and its own comment at the
+  assignment says the quiet part out loud: *"always tap a target — energy is only spent on the tap"*. So an
+  equipment target resolves on the first tap, with no staging, no ⚡ Activate and no `Clear` to back out of.
+  **PLEAD FOR PEACE IS ♥7 `kind:'removeEquip'`**, so it takes the second path. The same is true of every
+  other equipment-targeting card — `removeEquip` is the kind to enumerate, not the card.
+  **WHY IT SURVIVED v1.29.5:** that change was written against the seat picker, and the sweep stopped at the
+  variable it was holding. This is the documented *"a fix wired in by name covered two parks of nine"*
+  shape, in the UI: `grep -n 'targetPick\|targeting *=' code/CardmenFighter.template.html` shows the two
+  modes side by side, and nothing ties them together.
+  **THE FIX IS TO ROUTE `targeting` THROUGH THE SAME STAGE-THEN-CONFIRM**, not to add a second confirm — one
+  definition, the way `isChopOf` and `resolveIds` are single definitions. Note `clearBtn` already branches
+  on `targeting` first (*"Cancelled — no energy spent"*), so the cancel half exists and only the staging
+  half is missing.
+  **MAIN WORK, BY THE ROUTING TEST:** both the declaration and the assignment are present on `main`
+  unchanged by the epic, so there is nothing epic-specific to fix this in. Held behind the epic merge like
+  the other main-routed items, per Aj 2026-10-02.
+  `[id: equip-target-casts-without-confirm]`
+
 - `root cause found`    · **★ THE RIDE TIER UNLOCKED AND NOBODY TOLD THE PLAYER — NO ROAR** (Aj, live
   3-player game 2026-10-02: *"no roar…"*).
   **THE GATE WAS OPEN AND THE LOG PROVES IT.** His board had every seat on 3 of 4 — three shields lost
