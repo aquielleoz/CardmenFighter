@@ -11207,6 +11207,65 @@ window.CardFace = {};
            ' prio='+(state.respondFor!=null?logName(state.respondFor):'—')+
            ' turn='+(state.turn!=null?logName(state.turn):'?');
   }
+  /* ---- THE CEREMONY WAITS FOR THE ENGINE'S BOUNDARY (2026-10-02) ----
+     AJ'S r6, AND IT IS A STATE BUG RATHER THAN A DISPLAY ONE. The engine ran its r6 boundary exactly ONCE
+     and correctly — `CLEANUP · pileClear  pile=—` is in his trace, and `⚠ CLEANUP LEFT A PILE` never
+     fired. The UI ran the round-end TWICE. The first ceremony fired while the clean-up window was still
+     parked, so `pileClear`, `roundAdvance` and the `passes` reset had not run: it announced a round over
+     a pile that was still on the table, with the pass count still at the resolve threshold. The next
+     round therefore opened on ROZALIN'S STRAIGHT, nobody could beat it, everyone passed, and she won a
+     second round off one Special — Etna then spent a Leyline blocking a phantom strike, paid for with the
+     6 energy that duplicate round-end had just handed over. Aj read it back to the cause before the code
+     did: *"it's because rozalin's play never cleared... we lost to it, and then again because it was
+     still there at the beginning of the round without her playing a new special."*
+     `res.newRound` IS THE COMPLETION SIGNAL, and it is exact rather than a proxy: `stampRound` is the LAST
+     of `BEGIN_ORDER`, so a stamped result means CLEANUP and BEGIN have both finished. Unstamped is
+     precisely the state `logRoundDraw` was papering over with its `|| state.round` fallback.
+     ⚠ IT PROCEEDS RATHER THAN STALLING, and that is deliberate. This function has already been burned
+     once by the fix-shaped move: refusing an action outright while a window was open removed the DRAIN and
+     the board hung forever — a 70s suite ran past 400s. A bounded wait that gives up loudly leaves a
+     visibly wrong round number; an unbounded one leaves a dead game, which is strictly worse.
+     IT DOES NOT ADDRESS WHY THE WINDOW PARKED — four hypotheses for that are dead (a stale closure, a
+     stranded Stack object, Etna's Leyline, and a falsy `respondDecision`) and the cause is still open.
+     This stops a parked window from corrupting the game, which is worth having on its own. */
+  /* ⚠ AND IT GETS A PERMANENT HOOK, BECAUSE AN UNEXERCISED BRANCH IS UNTESTED CODE (2026-10-02).
+     Measured: this guard fires ZERO times in ordinary play — the boundary is normally complete by the
+     draw, which is exactly why Aj's r6 is rare. That leaves it in the shape this file warns about twice:
+     a safeguard nobody has ever seen run. `__solo.stallBoundary(n)` withholds the stamp for n attempts so
+     the wait, the ledger line and the give-up path are all reachable from a suite — the same reasoning
+     that made `__cmf.dropMirrors` permanent after three investigations built a probe and threw it away. */
+  var dbgStallBoundary=0;
+  function boundaryThen(res, g, then){
+    if(g!==gen) return;
+    var tries=0;
+    function go(){
+      if(g!==gen) return;
+      if(dbgStallBoundary>0){ dbgStallBoundary--; tries++;
+        prioNote('ceremony WAITING for the round boundary', ceremonyParks()+' · attempt '+tries+' (dbg: stall forced)');
+        if(tries>=3){ prioNote('⚠ CEREMONY GAVE UP WAITING FOR THE BOUNDARY — proceeding anyway', ceremonyParks()+' · after '+tries+' polls (dbg: stall forced)'); return then(); }
+        return setTimeout(go, 40);
+      }
+      if(res && res.newRound != null) return then();                       // stamped: CLEANUP and BEGIN are done
+      if(!(state && (state.cleanup || state.endCleanup || state.upkeep))) return then();   // nothing parked
+      if(tries++ >= 8){
+        prioNote('⚠ CEREMONY GAVE UP WAITING FOR THE BOUNDARY — proceeding anyway',
+          ceremonyParks()+' · after '+tries+' polls (~1s) · the round number below will be WRONG, and that is the lesser evil');
+        return then();
+      }
+      /* ⚠ IT POLLS; IT DOES NOT DRIVE. The first cut called `settleWindows(g, go)` here and
+         `resolutiontest_ui` scenario A went red in one sweep — that function can reach
+         `promptHumanResponse`, which waits for a PLAYER, so the ceremony stalled and the round never
+         resolved. That is the same trap as the `drainResolution` note below: a wait that needs an answer
+         is a stall, and refusing an action to fix this function once took a 70s suite past 400s.
+         So this only ASKS whether the boundary has finished, and lets whatever normally drains it do the
+         draining. In healthy play it never polls at all (measured: 0 engagements in 3 games); when the
+         boundary is a beat behind it waits that beat out; when it is parked for good it gives up loudly
+         and we are no worse off than before, with a ledger line naming it. */
+      if(tries===1) prioNote('ceremony WAITING for the round boundary', ceremonyParks()+' · polling, not driving');
+      return setTimeout(go, 120);
+    }
+    go();
+  }
   function ceremonyBeat(phase, g, run){
     prioNote('ceremony beat · '+phase, ceremonyParks());
     if(typeof TUT!=='undefined' && TUT.holdFor && TUT.holdFor(phase, function(){ if(g===gen) run(); })) return;
@@ -11281,6 +11340,8 @@ window.CardFace = {};
       if(g!==gen) return;
       endOfRoundTrimThen(function(){
         if(g!==gen) return;
+        boundaryThen(res, g, function(){
+        if(g!==gen) return;
         uiPhase=null;                                           // ← the deal is the BEGINNING phase; `dealingIn` owns the strip from here
         /* ⚠ THE CEREMONY MUST NOT ANNOUNCE A ROUND WHOSE BOUNDARY HAS NOT RUN (2026-10-02, from Aj's r6).
            `roundAdvance` (st.round += 1), `stampRound` (result.newRound = st.round) and `pileClear` all
@@ -11305,6 +11366,7 @@ window.CardFace = {};
         enterDelayBase = reduceMotion()?0:340;                  // Round banner appears FIRST (round start), THEN the new cards fly in
         render(); enterDelayBase = 0;
         playRoundCardBeat(res, function(){ inCeremony=false; if(g===gen) continuation(); });
+        });
       });
       });
       }, reduceMotion()?0:420);                                 // the Clean-up beat — see the note above
@@ -17041,7 +17103,7 @@ window.CardFace = {};
   /* Prompt-preference hooks (epic step 15). `promptPrefs` returns the STORED overrides, not the resolved
      rows, because the suite's load-bearing assertion is that only overrides are stored. Duplicate-key check
      run on this literal before adding — CLAUDE.md's `__cmf` trap applies here too. */
-  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
+  if(/[?&]dbgsolo=1/.test(location.search)){ window.__solo={ stallBoundary:function(n){ dbgStallBoundary=(n==null?1:n)|0; return dbgStallBoundary; },  logHeadText:function(){ return logHeadLines().join("\n"); }, st:function(){return state;}, render:render, oppBeats:function(log, seat){ return playBeats(buildOppBeats(log, seat), gen, function(){}); }, prioLog:function(){ return PRIO_LOG.slice(); },   /* the priority ledger the save file carries — see prioNote */
     promptWanted:promptWanted, setPromptMode:setPromptMode, promptMode:function(){ return PROMPT_MODE; }, showCard:showCard,
     /* LEGAL IS NOT THE SAME QUESTION AS WANTED, and since the boundary defaults went off they give
        different answers — which is the invariant worth being able to assert: an unchecked timing still
