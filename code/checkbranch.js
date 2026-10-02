@@ -217,6 +217,25 @@ pushRefs().forEach(function (line) {
   if (!pageChanged(n.mb, lsha)) return;         // docs-only: a player would get the same file
   var epicRef = n.ref.replace('refs/remotes/', '');
   if (np.base === ep.base && np.n != null && np.n > ep.n) return;       // bumped, correctly
+  /* ⚠ THE EPIC LANDING IS THE CASE THIS GATE DID NOT KNOW (2026-10-02). The fourth segment exists so two
+     builds OF THE BRANCH can be told apart, and the one commit that RETIRES it — the epic → `main` release
+     bump, `1.31.128.15` → `1.32.0` — necessarily has no fourth segment and so looked like a branch that had
+     forgotten to increment. It fired on exactly the commit CLAUDE.md's epic rule tells you to write.
+     IT CANNOT BE SOLVED BY LOOKING AT THE PR TARGET, because this is a PRE-PUSH hook and there is no PR
+     yet; `nearestIntegration` reads the commit graph, and a release branch cut from the epic descends from
+     the epic whatever it is aimed at.
+     SO IT RECOGNISES THE SHAPE INSTEAD, and narrowly: three segments, no build number, and a MINOR strictly
+     greater than the epic base's. That is the only version that can legitimately replace `X.Y.Z.a`, it is
+     what "the rules moved" means in this scheme, and it is the bump the netplay handshake refuses across.
+     A typo cannot reach it — a lower or equal minor still fails, and so does a same-minor patch bump.
+     WHY NOT `EPIC_PUSH=1`: that escape says in its own text it is for carrying `main` into an epic. Using
+     it for a second, different, predictable case is how a named exception becomes a hole — the gate should
+     learn the case rather than be stepped around. */
+  /* ⚠ `statusAt` KEEPS THE LEADING `v` AND `epicBuildOf().base` DROPS IT — the first cut compared
+     `v1.32.0` against `1.31.128` with a digit-anchored regex and silently never matched, so the gate went
+     on refusing the one commit this clause exists to allow. Both sides tolerate the `v` now. */
+  var mRel = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(now), mBase = /^v?(\d+)\.(\d+)\./.exec(ep.base || '');
+  if (mRel && mBase && +mRel[1] === +mBase[1] && +mRel[2] > +mBase[2]) return;   // the epic landing — see above
   console.error('✗ branch "' + branch + '": the built page differs from ' + epicRef +
                 ', but README **Status:** went ' + was + ' → ' + now + '.');
   console.error('  An epic increments the FOURTH number on every merge into it, so two builds of the branch');
