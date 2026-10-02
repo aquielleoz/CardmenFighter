@@ -1881,12 +1881,49 @@ __QR__
      this is a diagnostic, where missing the unknown path defeats the entire point. `render` runs after
      every state change on every path, so comparing a counter here catches it wherever it comes from. */
   var lastBlockedResolves=0;
+  /* ⚠ IT SAID "BLOCKED … REFUSED BY THE ENGINE" AND NOTHING IS REFUSED (corrected 2026-10-02).
+     `enterResolution` COUNTS the duplicate and then resolves anyway — the refusing version was written,
+     measured against the repro and pulled. So the old wording named an outcome that does not happen, which
+     is this repo's own rule about detectors broken by the detector itself, and it is the reason a reader
+     (me) believed the second resolution was being prevented.
+     AND IT CARRIED NO EVIDENCE, WHICH COST A WHOLE MORNING. The condition is `resolvedRound === round`,
+     and that pair is ALSO true when a round number is rewound onto a stamp from an earlier resolution —
+     which is what a test harness does and a real game never does. With only "it happened" in the file
+     there was no way to tell a genuine second resolution from a stale stamp, and a suite's staging
+     artifact was shipped as a repro. The state that separates them is printed now.
+     HOW TO READ IT: look back in this ledger for a `RESOLUTION — round resolved` line stamped with the
+     SAME round. Present → this really is a second resolution of a round that already resolved. Absent →
+     the stamp is stale and the round number moved backwards, which is a harness, not the game. */
   function noteBlockedResolves(){
     var n=(state&&state.blockedResolves)||0;
     if(n<=lastBlockedResolves){ lastBlockedResolves=n; return; }   // also resets when a new game zeroes it
     lastBlockedResolves=n;
-    prioNote('⚠ DOUBLE RESOLUTION BLOCKED', 'a second resolution of round '+((state&&state.round)||'?')+
-             ' was refused by the engine — the pile had already been resolved (blocked this game: '+n+')');
+    var st=state||{};
+    prioNote('⚠ SECOND RESOLUTION OF ONE ROUND', 'round '+(st.round!=null?st.round:'?')+
+             ' entered Resolution again — NOT refused, the engine counts and proceeds' +
+             '  ·  resolvedRound=' + (st.resolvedRound!=null?st.resolvedRound:'?') +
+             ' turn=' + (st.turn!=null?logName(st.turn):'?') +
+             ' passes=' + (st.passes!=null?st.passes:'?') +
+             ' pile=' + (st.pile?'on the table':'empty') +
+             ' subPhase=' + (st.subPhase||'?') +
+             '  (this game: '+n+')' +
+             '  ↳ check for an earlier `RESOLUTION — round resolved` at the SAME round: present = real, absent = a rewound round number');
+  }
+  /* A ROUND NUMBER NEVER GOES BACKWARDS IN A REAL GAME, SO SAYING SO IS FREE AND CONCLUSIVE (2026-10-02).
+     `finishCleanup` only ever ADVANCES `st.round`, so `resolvedRound > round` cannot happen in play — it
+     means something rewound the round under a stamp left by a later one. Today that was `forceAll` in a
+     suite; it would equally be a mirror applied out of order. Stateless on purpose: no counter to reset,
+     so it cannot join the family of things reset only in `startGame` and therefore never on a client. */
+  var saidRewind=false;
+  function noteRoundRewind(){
+    var st=state||{};
+    if(st.resolvedRound==null || st.round==null) return;
+    if(st.resolvedRound<=st.round){ saidRewind=false; return; }
+    if(saidRewind) return;
+    saidRewind=true;
+    prioNote('⚠ THE ROUND NUMBER WENT BACKWARDS', 'resolvedRound=' + st.resolvedRound + ' is AHEAD of round=' +
+             st.round + ' — a later round already resolved, so this round number was rewound. A real game ' +
+             'never does this; suspect staging, or a mirror applied out of order.');
   }
   /* RENAMED FROM `FE_LOG`/`feNote` AND WIDENED TO EVERY TIMING (Aj, 2026-09-10: *"make the records as
      complete as you need. no one else will debug this game for us"*). The first version logged only Fight
@@ -4190,7 +4227,7 @@ __QR__
     /* NO GAME, NOTHING TO DRAW. Everything below dereferences `state`, and until `clearBoard()` existed there
      * was no way to be in that position — a game was only ever replaced by another one. */
     if(!state) return;
-    noteBlockedResolves();      // the engine refused a duplicate round resolution — say so in the saved log
+    noteBlockedResolves(); noteRoundRewind();   // a duplicate round resolution, and a round number that moved backwards — both into the saved log
     /* PAINT THE SUB-PHASE ON THE HAND. Read from `state.subPhase`, not from whose turn it is: the rule it
        reports — no effects once the fight has begun — is the TABLE's, not yours, which is Aj's whole point
        for wanting the colour. A seat waiting its turn still needs to know the window has closed. */
