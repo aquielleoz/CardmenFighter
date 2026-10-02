@@ -72,6 +72,32 @@ refuse each other rather than quietly playing different games.
 - **The phone board draws content on top of content at 327px and in every landscape size**, and it predates
   this epic — measured identical on `main`. It is filed on main with a design direction and is the next
   piece of work, not part of this one.
+### v1.31.128 — a forced discard still asks, even when it takes your whole hand
+
+Aj, from a live 3-player game: *"i got an auto pick later in the round, but only because i only had 2
+remaining… i still would like to pick even it means picking everything."*
+
+`discardOpp` (Telekinesis, Outbalance, Discombobulate) skipped the picker whenever the forced count
+covered the target's whole hand — `dn >= oppD.hand.length` — under the comment *"forced-all needs no
+choice"*. Mechanically true, and the wrong call: the player watches which cards go and confirms it, and a
+hand that empties without a confirm reads as the game doing something to you rather than with you.
+
+**It costs nothing, which is what makes it safe.** When the count covers the hand the same cards leave
+either way — measured, a 240-game seeded fingerprint (rng *and* `Math.random` pinned, 2/3/6 players) is
+**byte-identical** before and after, so no AI game changes. `opts.oppDiscard` still short-circuits, because
+an explicit caller-supplied list is a choice already made. And no seat can hang on it: `ai.js` resolves a
+pending discard at the top of its loop, and Passo answers a dropped seat's window with `ids:[]`, which
+`discardChosen` tops up to the count.
+
+A/B'd on one build: before, `handAfter=0, pending=null`; after, `handAfter=2, pending={player:0,count:2}`.
+Three assertions added to `test.js`, two of which go red on the old behaviour — the third is the control.
+
+**This release also repairs the changelog itself.** The v1.31.127 entry had been spliced INSIDE the intro
+paragraph, at the literal `` `### vX.Y.Z — short title` `` the intro uses as its own example — so the real
+heading was prose and a bogus `### vX.Y.Z — short title` heading sat mid-file. `versiontest` passed over it
+for two versions because its check was `chlog.indexOf('### '+want)`, a substring that cannot tell a heading
+from a mention. The gate is anchored to the start of a line now (`/^### vX\.Y\.Z\b/m`), which is what
+"heading" means in Markdown and what every reader keys off.
 
 ### v1.31.127 — an invite code with an IPv6 candidate could not be pasted
 

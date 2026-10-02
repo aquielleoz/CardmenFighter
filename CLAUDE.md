@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.31.127.11**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.31.128.12**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 591 + 65 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 594 + 65 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 591 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 594 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 65, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
@@ -2279,7 +2279,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.31.127.11 — last FULL sweep 2026-10-01, `npm run sweep`, 104/104 in 247s ON THE EPIC**
+Status as of **v1.31.128.12 — last FULL sweep 2026-10-01, `npm run sweep`, 104/104 in 247s ON THE EPIC**
 (the 104th is `nettest_prioledger`, added 2026-09-30 with the broadcast ledger). A suite count and a date
 are a MEASUREMENT and are only true of the build they were taken on, so re-run before quoting this — and
 note that this line was itself 27-stale-counts' worth of evidence for that on 2026-09-30, which is why
@@ -2287,7 +2287,7 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 591, `netview` 65, `mptest` 115, `rulestest` 150, `landscapetest` 195, `decktest` 42, `viewtest` 26,
+`test` 594, `netview` 65, `mptest` 115, `rulestest` 150, `landscapetest` 195, `decktest` 42, `viewtest` 26,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 18, `lessontest` 21, `lessontest_energyorder` 14,
 `versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 10, `counterfeittest` 11, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,
