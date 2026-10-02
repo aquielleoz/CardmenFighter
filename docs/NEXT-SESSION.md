@@ -1010,37 +1010,53 @@ never read.*
   `[id: client-ceremony-is-a-second-impl]`
 
 
-- `root cause found`    · **★ EXPANDING A ZONE PUSHES THE BOARD PAST ITS HEIGHT ON THE TIGHTEST PHONES** (measured 2026-09-07)
-  **✅ THE UNSTABLE NUMBER IS FIXED (2026-10-01) — the overflow itself is what is still open.** This entry
-  used to carry *"30px, THEN 60px, THEN 63px ACROSS THREE SWEEPS OF ONE BUILD"* and the instruction *"pin
-  the inputs FIRST, then size the cap, then tighten the ratchet"*. That is done: `open()` now pins BOTH
-  decks, the reading is **60px on four consecutive runs**, and the cap is tightened 63 → **60** so the
-  ratchet can catch a 1px growth. What remains is the real defect — expanding a zone still pushes the
-  board 60px past its height at 327x660.
-  **⚠ THE ENTRY NAMED TWO CULPRITS AND THE REAL ONE WAS A THIRD.** It blamed the RANDOM PERSONA and the
-  DEAL — both already pinned — and the mover was the **deck name**: `DEFAULT_SEL` is
-  `{you:'random', rival:'random'}` and at 327px a long name WRAPS `#handMeta` onto a second line, which is
-  the whole overflow. A/B'd by pinning the two extremes: `Mage Knight (Wiz+Fig)` → **60px**,
-  `Pure Rogue` → **33px**, which are exactly the values the sweeps had been printing. **An entry's guess
-  at what is moving is a hypothesis like any other** — the same lesson as `runopponents-window`, where the
-  filed mechanism was also wrong while the symptom was right.
-  **AND PINNING THE *SHORT* NAME WOULD HAVE SILENTLY LOOSENED THE RATCHET** — 33px passes both the old cap
-  and the `over>0` floor, so the suite would have gone quiet-and-green while guarding nothing. Pin the
-  worst case, which is the longest name the picker ships.
+- `root cause found`    · **★ THE PHONE BOARD DRAWS CONTENT ON TOP OF CONTENT — AND "EXPANDING A ZONE" WAS
+  NEVER THE DEFECT** (re-measured as collisions 2026-10-02; supersedes the overflow framing this entry carried)
   `[ratchet: phone-zone-expand-overflow]`
-  v1.31.111 made both panel zones expandable; at **327x660 opening a seat's Forms and equipment adds 75px to
-  that panel and pushes `#board` 63px past its height** (393x852 goes 10px over; 360x800, 390x780 and 412x915
-  stay at 0). Above the 340px floor the stated contract is everything-on-one-screen, so a board that scrolls
-  because a user opened an inspector is a contract break, not a nicety.
-  **It also makes a measurement unstable, which is how it was found:** once the board overflows, where the
-  pile sits relative to the other panel depends on the scroll, so `landscapetest`'s coverage read 0% on ten
-  consecutive standalone runs and 33% on about one suite run in five — reported as `youFormZone over card2`.
-  The suite now asserts the OVERFLOW instead, which is deterministic, and ratchets it at both sizes; the
-  coverage line is deliberately not asserted there until this is fixed.
-  **Do not reach for smaller mini-cards** — the arithmetic says the growth is 33px (Forms) + 42px (equipment)
-  against 63px of overflow, so trimming card size cannot close it. The candidates are a zone that expands as an
-  OVERLAY instead of a layout change, or expanding one zone at a time at these sizes only — and note Aj
-  explicitly asked for both zones open at once, so the second needs his say-so.
+  Filed for months as *"expanding a zone pushes the board 60px past its height"* — a SCROLL-contract number.
+  A screenshot shows the real symptom: at 327x660 the pile cards are drawn **on top of** `#handMeta`, and in
+  every LANDSCAPE size the round banner runs **underneath** the corner-pinned Forms and equipment chips
+  (*"…ave the initiative"* at one end, *"Only jabs are allow…"* cut off at the other). Pairwise overlap as a
+  share of the smaller box, all nine viewports the suite opens, collapsed vs both zones expanded:
+
+  | viewport | collapsed | expanded |
+  | --- | --- | --- |
+  | 327x660 | pileCard x handMeta **71%** · handMeta x message **95%** | **98%** · 95% |
+  | 390x780 | clean | clean |
+  | 568x320 land | formZone x message 26% · eq 21% | **identical** |
+  | 640x360 land | eq x message 11% | identical |
+  | 667x375 land | eq x message 8% | identical |
+  | 800x360 land | formZone x message **46%** · eq 26% | identical |
+  | 844x390 land | formZone x message **45%** · eq 30% | identical |
+  | 932x430 land | eq x message 20% · formZone 5% | identical |
+  | desktop | clean | clean |
+
+  **EXPANDING IS NOT THE CAUSE.** Every landscape size is byte-identical collapsed and expanded, and 327 is
+  already at 71% with everything shut. So the four behaviour options this entry used to offer — overlay /
+  one-at-a-time / accept the scroll / inner scroll — were all answers to the wrong question, which is why it
+  kept bouncing back to Aj as a decision he could not make sense of.
+  **IT IS TWO BUGS, AND `#message` IS IN BOTH.** 390x780 and desktop are clean at every state.
+  **MEASURED IDENTICAL ON `main`'s OWN BUILT PAGE** (71% / 45% / 30%), so this is main work by the documented
+  routing test rather than by judgement — **and it is filed on `main` too**, where the build should happen.
+  **⚠ THE ONE CHECK THAT WOULD HAVE CAUGHT IT IS SWITCHED OFF AT THOSE SIZES.** `landscapetest` has a
+  zone-vs-pile COVERAGE assertion and this entry's own earlier text said it was *"deliberately not asserted
+  there until this is fixed"* — disabled because the overflow made it unstable. **When you disable an
+  assertion because its input is noisy, you have also stopped looking at what it was watching**: the suite
+  has been green over a board that overlaps in its DEFAULT state ever since.
+  **AJ'S DIRECTION, 2026-10-02** — remove the cause rather than negotiate around it: *"specials list can live
+  in the burger menu, your turn can move to the top beside the logo. we can probably make shields a number…
+  maybe we don't need all that info on display all the time? i think the most important one is shields, then
+  energy, then effects affecting the board."* Priority **shields > energy > board effects**; deck name, deck
+  count and discard count expand on demand. That strips `#handMeta` and `#message`, the two elements in every
+  collision above.
+  **THE SHIELD BREAK SURVIVES THE MOVE TO A NUMBER, checked rather than assumed.** `animateShields` already
+  works off a NUMERIC diff (`prev` vs `n`) and knows how many were lost; only the TARGET is pip-specific —
+  `shatterShield(slots[i])` bursts a pip, `shake-shield` shakes the container. The shake transfers unchanged.
+  ⚠ Note `animateShields` runs for YOU always and the rival only in the DUEL branch, so at 3-6 players
+  opponents go through `noteShieldChanges` — an opponent's break animation is a pre-existing second gap.
+  **AND THE OLD ARITHMETIC IS STILL TRUE, it was answering the wrong question:** Forms expanding is 33px of
+  CARD THUMBNAIL (a 23px strip becomes a 56px card) and Equipment 42px, so no truncation closes the scroll
+  gap. Shortening the deck name is worth ~27px and is real, but the half it is not is pictures.
   `[id: expanding-zone-pushes-board]`
 
 ### Tooling
