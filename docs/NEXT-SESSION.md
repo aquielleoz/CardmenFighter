@@ -298,6 +298,30 @@ re-read its tag.
 
 #### Rules, priority and the stack
 
+- `root cause found`    · **★ TAPPING AN EQUIPMENT TARGET CASTS IMMEDIATELY — THERE IS NO CONFIRM** (Aj, live
+  3-player game 2026-10-02: *"after selecting a target for plead for peace, it didn't ask to activate, it
+  just did"*).
+  **THERE ARE TWO TARGETING MODES AND ONLY ONE OF THEM IS CONFIRM-FIRST.** `targetPick` — choosing a SEAT —
+  stages into `targetPick.chosen`, relabels the context button **⚡ Activate**, and spends nothing until
+  `confirmTargetPick()`; that is the v1.29.5 model CLAUDE.md documents. `targeting` is a SEPARATE, older
+  variable, declared *"{cardId} while choosing an equipment to remove"*, and its own comment at the
+  assignment says the quiet part out loud: *"always tap a target — energy is only spent on the tap"*. So an
+  equipment target resolves on the first tap, with no staging, no ⚡ Activate and no `Clear` to back out of.
+  **PLEAD FOR PEACE IS ♥7 `kind:'removeEquip'`**, so it takes the second path. The same is true of every
+  other equipment-targeting card — `removeEquip` is the kind to enumerate, not the card.
+  **WHY IT SURVIVED v1.29.5:** that change was written against the seat picker, and the sweep stopped at the
+  variable it was holding. This is the documented *"a fix wired in by name covered two parks of nine"*
+  shape, in the UI: `grep -n 'targetPick\|targeting *=' code/CardmenFighter.template.html` shows the two
+  modes side by side, and nothing ties them together.
+  **THE FIX IS TO ROUTE `targeting` THROUGH THE SAME STAGE-THEN-CONFIRM**, not to add a second confirm — one
+  definition, the way `isChopOf` and `resolveIds` are single definitions. Note `clearBtn` already branches
+  on `targeting` first (*"Cancelled — no energy spent"*), so the cancel half exists and only the staging
+  half is missing.
+  **MAIN WORK, BY THE ROUTING TEST:** both the declaration and the assignment are present on `main`
+  unchanged by the epic, so there is nothing epic-specific to fix this in. Held behind the epic merge like
+  the other main-routed items, per Aj 2026-10-02.
+  `[id: equip-target-casts-without-confirm]`
+
 - `root cause found`    · **★ THE RIDE TIER UNLOCKED AND NOBODY TOLD THE PLAYER — NO ROAR** (Aj, live
   3-player game 2026-10-02: *"no roar…"*).
   **THE GATE WAS OPEN AND THE LOG PROVES IT.** His board had every seat on 3 of 4 — three shields lost
