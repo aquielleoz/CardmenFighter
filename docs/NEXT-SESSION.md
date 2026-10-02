@@ -298,6 +298,31 @@ re-read its tag.
 
 #### Rules, priority and the stack
 
+- `root cause found`    · **THE FIGHT SUB-PHASE ANNOUNCEMENT FIRES ON A COMMIT, NOT JUST ON THE PHASE MOVE**
+  (Aj, live game 2026-10-02: *"fight sub phase announcement flew in when i clicked fight. it should only
+  fly in for next"*).
+  **ONE BUTTON, TWO LABELS, AND THE EDGE DETECTOR CANNOT TELL THEM APART.** `▶ Next` moves you into the
+  Fight Sub-Phase; `⚔️ Fight` commits the play — Aj's own naming, 2026-09-11. But with cards SELECTED in
+  Main the label is already `Fight` and that one press does BOTH: it transitions and then re-applies the
+  held intent (epic step 20's "a phase transition is not an illegal move"). `notePhaseEdge` is a pure edge
+  detector on `was==='main' && now==='play'` inside `render()`, so it fires in the middle of that single
+  press and announces *"⚔️ Fight sub-phase — throw your cards down"* at the exact moment the cards have
+  already gone down.
+  **THE EXISTING RULE IS NOT WRONG, IT IS UNDER-SPECIFIED.** The comment above it records Aj's 2026-09-11
+  ruling — *"i wanted the announcement to fire when the sub phase starts (that is, after the priority
+  passing)"* — and that is still right for the `Next` press, where the beat is the thing that says the
+  go-round closed and the sub-phase arrived. What nobody considered is the press that crosses over AND
+  commits, where the beat narrates something the player just did deliberately.
+  **THE FIX IS A ONE-SHOT SUPPRESSION AT THE COMMIT, NOT A CHANGE TO THE DETECTOR'S CONDITION.** ⚠ And it
+  must be set on EVERY seat that can commit, or it covers two of three: the comment on `notePhaseEdge`
+  says in terms why it lives in `render()` — a netplay CLIENT never runs `moveToPlayThen` and learns the
+  transition from a MIRROR, so a flag set only in the host's funnel would leave the client announcing.
+  That is the "a fix wired in by name covered two parks of nine" shape, and this entry is written before
+  the fix precisely so it is not repeated.
+  **ASSERT BOTH DIRECTIONS**: a `Next` press MUST still announce, a `Fight`-with-selection press must not.
+  One of those alone passes on a build where the beat is simply deleted.
+  `[id: fight-announce-on-commit]`
+
 - `root cause found`    · **★ TAPPING AN EQUIPMENT TARGET CASTS IMMEDIATELY — THERE IS NO CONFIRM** (Aj, live
   3-player game 2026-10-02: *"after selecting a target for plead for peace, it didn't ask to activate, it
   just did"*).
