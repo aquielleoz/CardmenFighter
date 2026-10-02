@@ -15,6 +15,63 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.0 — priority windows: the Resolution go-round, and a stack that holds only effects
+
+The `epic/priority-windows` branch, **164 merges** over three and a half weeks, landing as one version. It
+replaces the ad-hoc shield-guard dialog with a real priority model, and the minor bump is the point: this
+is the number the netplay handshake reads as *the rules moved*, so a v1.31 build and a v1.32 build now
+refuse each other rather than quietly playing different games.
+
+**WHAT A PLAYER GETS**
+
+- **Your Quicks work at the moment a shield breaks.** The old Fight End window was a fixed
+  *Guard with X / Take the hit* dialog offered to the threatened seat only, admitting one card the engine
+  picked for you and refusing anything that was not `immune || shieldImmune`. It is gone. In its place is
+  the **Resolution go-round**: every seat gets priority in turn order and may cast anything legal at that
+  timing. The two cards this epic exists for both work now — **Sanctuary under Hector** (which the old
+  whitelist refused, because that patch is `{quick:true}` alone) and **Armor Piercing under Hippolyta**,
+  which lands its extra strip from the window.
+- **Priority at the phase boundaries, not just over a played card.** Upkeep, Main → Fight, Clean-up and
+  Resolution each open a go-round. Most of the time nobody can add anything and it passes without stopping
+  you — 19 turns in 20 — but the point is that the window exists and is recorded.
+- **Notifications are one tri-state: ON · AUTO · OFF.** AUTO — the default — interrupts you only when you
+  have a real stake: you are a strike target holding an answer, or the winner holding a strike modifier.
+  It no longer stops you to ask whether you want to counter your own spell. OFF is silent even on a stake,
+  and says so in the log so a quiet setting can never cost you a shield unexplained.
+- **The board says more and claims less.** Unaffordable cards are greyed, the pile hint names the leader,
+  the Fighter Kick names who it took out, a forced discard names the target rather than the caster, and a
+  mid-game rename reaches the table instead of only your own screen.
+- **Netplay stops wedging in four places it used to.** A host that cast a Ride, or a targeted Technique the
+  client answered, no longer freezes with a live-looking connection; a dropped duel opponent no longer
+  deadlocks the table; a lost mirror at an idle park recovers.
+
+**WHAT CHANGED UNDERNEATH**
+
+- **The Stack holds EFFECTS. Only effects.** (Aj: *"The Stack was only ever meant to contain the effects of
+  cards. not the cards themselves."*) That one statement settled three questions by refusing them: a shield
+  loss is not an effect so it is never on the stack, a go-round's pass bookkeeping lives on the window, and
+  a sentinel for "we are at Resolution" could never have belonged there.
+- **Priority starts with the CONTROLLER**, not the active player, and passes in turn order from there — the
+  rule reversed on 2026-09-08 once the case that separates the two readings was on the table.
+- **The phases were renamed** to match what you do in them: `Fight Phase` → **Play Phase**, with
+  Main · **Fight** · **Resolution** as its sub-phases. The code followed one symbol per commit, deliberately
+  held until the behaviour stopped moving.
+- **The saved log carries a priority ledger**, broadcast to every seat, recording each phase crossing and
+  go-round — including the silent ones, because "nothing happened" and "the code never ran" are the same
+  absence otherwise.
+- **The netplay handshake refuses on the minor number**, and an epic build refuses a main build.
+
+**WHAT TO KNOW HONESTLY**
+
+- **19 new suites** (86 → **105**, green at 105/105), most of them built because a bug got through. The
+  headline behaviours above are asserted by suites written alongside them, which is not the same as having
+  been played.
+- **Six entries are parked, not fixed** — three waiting on cards that do not exist yet, and the double
+  round resolution, which has never been reproduced. Detectors ship with this version so the next
+  occurrence explains itself rather than arriving as another mystery.
+- **The phone board draws content on top of content at 327px and in every landscape size**, and it predates
+  this epic — measured identical on `main`. It is filed on main with a design direction and is the next
+  piece of work, not part of this one.
 ### v1.31.128 — a forced discard still asks, even when it takes your whole hand
 
 Aj, from a live 3-player game: *"i got an auto pick later in the round, but only because i only had 2
