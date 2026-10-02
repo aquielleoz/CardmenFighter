@@ -3400,9 +3400,39 @@
     }
     /* CLEAN-UP, checked before Upkeep because it comes first in the round and the two are sequential —
        `finishCleanup` is what parks Upkeep, so they can never be live together. */
+    /* ⚠ THE TRACE MUST SPEAK WHERE IT CURRENTLY GOES SILENT (Aj, 2026-10-02).
+       His r6 log has no `CLEANUP enter` at all — the boundary simply stopped, and a trace that stops says
+       "nothing happened" and "the code never ran" with the same silence. That is the exact rule this file
+       already wrote down for `prioNote` and then rebuilt the hole under.
+       THIS GUARD IS WHY IT CAN STOP. `st.stack = []` used to open `finishRoundWin` and was DELETED when
+       the non-effects moved off The Stack (see the note on that function): the ordering was handed to
+       `!st.stack.length` instead, so Clean-up — and with it `pileClear`, `roundAdvance` and the `passes`
+       reset — now runs ONLY once the stack drains. Anything stranded on it and the round never ends:
+       the pile stays on the table, `passes` stays at the resolve threshold, and the round is still ARMED.
+       Aj read the symptom back to its cause before the code did — *"this is still the pile no clearing
+       defect"* — and this is the line that will say whether the stack is what held it.
+       IT NAMES WHAT IS ON THE STACK, because "blocked" without the contents is the same dead end the
+       round-banner detectors hit: a reader needs the owner and kind to know which cast stranded it. */
+    if (st.cleanup && st.stack.length && !st.finished) {
+      var blk = st.stack.map(function (o) { return (o && o.kind ? o.kind : '?') + (o && o.p != null ? '/p' + o.p : ''); }).join(',');
+      bnote('⚠ CLEAN-UP BLOCKED BY THE STACK', st, 'the round cannot end while The Stack is occupied — holding: ' + blk +
+            '  ·  pile stays, passes=' + st.passes + ' stays at the resolve threshold, so the round is still ARMED');
+    }
     if (st.cleanup && !st.stack.length && !st.finished) {
       var cq = phaseWalk(st, st.cleanup.origin);
-      if (cq >= 0) return { ok: true, state: st, pending: true, cleanup: true, respondFor: cq };
+      /* ⚠ AND WHEN IT PARKS, SAY WHO FOR (Aj, 2026-10-02). This is the branch that leaves the round
+         half-ended — `pileClear`, `roundAdvance` and the `passes` reset all sit past it — and the trace
+         simply STOPPED here in his r6 log, which reads identically to "the code never ran".
+         TWO HYPOTHESES DIED FOR WANT OF THIS ONE FACT. A stranded Stack object was refused by
+         measurement (a non-empty stack makes an ordinary pass illegal, and his passes were accepted), and
+         "Etna held a castable Leyline" by arithmetic (♦9 costs 9 and Etna gained 6 energy AFTER the
+         boundary). Both were guesses about WHO could still act, which is precisely what `phaseWalk`
+         already knows and never said out loud. */
+      if (cq >= 0) {
+        bnote('CLEAN-UP PARKED — waiting on a seat', st, 'priority→p' + cq + ' (walk began at p' + st.cleanup.origin +
+              ')  ·  the round is half-ended here: pile stays, passes=' + st.passes + ' stays armed, round not advanced');
+        return { ok: true, state: st, pending: true, cleanup: true, respondFor: cq };
+      }
       st.cleanup = null;
       var cr = st.cleanupResult; st.cleanupResult = null;        // unpark BEFORE the outcomes — see the Resolution branch
       if (cr) return finishCleanup(st, cr);
@@ -6823,7 +6853,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.128.13';
+  var GAME_VERSION='v1.31.128.14';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
