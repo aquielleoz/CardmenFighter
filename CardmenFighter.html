@@ -6853,7 +6853,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.128.14';
+  var GAME_VERSION='v1.31.128.15';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -10936,8 +10936,19 @@ window.CardFace = {};
       });
     }
   }
+  /* ⚠ THE ROUND NUMBER HAS ONE DEFINITION NOW, BECAUSE THE SECOND COPY WAS WRONG (Aj, live game
+     2026-10-02: *"round 6 began with a round undefined announcement"*).
+     `res.newRound` is stamped by `stampRound`, the LAST of `BEGIN_ORDER` — so a result whose boundary has
+     not finished carries no number at all. `logRoundDraw` already knew that and fell back to
+     `state.round`, under a comment reading *"never render 'Round undefined' (Aj saw it)"*. THE ROUND CARD
+     DID NOT: it interpolated `res.newRound` straight into its markup, so the same unstamped result that
+     the log handled gracefully rendered **Round undefined** on the biggest element on screen.
+     One fix would have been a second `||`. This is the repo's own rule instead — one definition, called
+     twice — for the same reason `isChopOf` and `resolveIds` are single definitions: the two copies are two
+     hundred lines apart and the first one's comment proves they already drifted once. */
+  function roundNumberFor(res){ return (res && res.newRound != null) ? res.newRound : (state && state.round); }
   function logRoundDraw(res){
-    var rn = res.newRound || (state && state.round);      // never render "Round undefined" (Aj saw it)
+    var rn = roundNumberFor(res);
     if(!rn) return;
     /* One neutral line for everyone (Aj's wording), instead of "You draw 2, Rival draws 2" — which could not
      * be phrased for 3-6 seats and named the wrong player in a free-for-all. Per-seat detail that actually
@@ -11110,7 +11121,7 @@ window.CardFace = {};
     if(!fx || reduceMotion()){ setTimeout(function(){ if(g===gen) done(); }, reduceMotion()?200:0); return; }
     function fin(){ if(ended) return; ended=true; clearTimeout(t); fx.className=''; fx.onclick=null; inner.className='rfInner'; inner.innerHTML=''; snapDrawnCards(); if(g===gen) done(); }
     var fizzle=!!(res.draws && res.draws[YOU]===0);
-    inner.className='rfInner rfCard'+(fizzle?' fizzle':''); inner.innerHTML='<div class="rfRound">Round '+res.newRound+'</div><div class="rfSub">'+roundSubtitle(res)+'</div>';
+    inner.className='rfInner rfCard'+(fizzle?' fizzle':''); inner.innerHTML='<div class="rfRound">Round '+roundNumberFor(res)+'</div><div class="rfSub">'+roundSubtitle(res)+'</div>';
     void inner.offsetWidth; inner.classList.add('in');
     fx.className='show'; fx.onclick=fin;
     t=setTimeout(fin, ROUND_HOLD);
