@@ -1900,7 +1900,8 @@ __QR__
     lastBlockedResolves=n;
     var st=state||{};
     prioNote('⚠ SECOND RESOLUTION OF ONE ROUND', 'round '+(st.round!=null?st.round:'?')+
-             ' entered Resolution again — NOT refused, the engine counts and proceeds' +
+             ' entered Resolution again — A FAULT, not a design feature (Aj ruled it 2026-10-02: a round win' +
+             ' is TWO announcements and ONE resolution). NOT refused; the engine counts and proceeds' +
              '  ·  resolvedRound=' + (st.resolvedRound!=null?st.resolvedRound:'?') +
              ' turn=' + (st.turn!=null?logName(st.turn):'?') +
              ' passes=' + (st.passes!=null?st.passes:'?') +
@@ -5800,8 +5801,24 @@ __QR__
     /* THE PHASE IS **RESOLUTION** SINCE STEP 23, and this line was the last place in the ledger still
        saying otherwise — beside timing labels that already read `[resolution]`, so one file printed two
        names for one phase. Found in Aj's saved log, 2026-09-29. No suite asserted the old string. */
+    /* ⚠ ONE FIELD WAS DOING TWO JOBS, AND IT IS WHY THE LOG COULD NOT SHOW THE BUG (Aj, 2026-10-02).
+       His model of a round win is TWO announcements and ONE resolution: *"Rozalin wins! Etna is
+       targetted."* → Etna answers → *"No shields lost."* The first names a TARGET and takes nothing; only
+       the second settles damage. The ledger called both of them `struck=`, so a targeting announcement and
+       a damage announcement rendered identically — and his r6 log therefore showed two lines that could be
+       read either as the model working or as the round resolving twice. They are opposite conclusions.
+       THE SHIELD COUNT IS THE DISCRIMINATOR, because a number cannot be read two ways: the same count on
+       both lines means nothing was taken between them, a changed one means damage landed at the first.
+       `blockedResolves` is incremented in the ENGINE on `resolvedRound === st.round`, so it counts real
+       entries into Resolution rather than announcements — the two signals are independent on purpose, and
+       agreeing or disagreeing is itself the finding. */
+    var strikeNames = (res.struck || []).map(function(q){
+      var sh = (state && state.players && state.players[q]) ? state.players[q].shields : '?';
+      return logName(q) + '(' + sh + ' shields now)';
+    }).join('+') || 'nobody';
     prioNote('RESOLUTION — round resolved', 'winner=' + who +
-             ' struck=' + ((res.struck || []).map(logName).join('+') || 'nobody') +
+             ' struck=' + strikeNames +
+             ' · window ' + ((state && state.resolution) ? 'STILL OPEN — this is the TARGETING announcement' : 'closed — this is the OUTCOME announcement') +
              (res.kick ? '  ⟵ FIGHTER KICK' : ''),
              (res.newRound ? res.newRound - 1 : (state && state.round)));
     var spec = res.comboType ? (TYPE[res.comboType]||'Special') : 'Special';
@@ -6139,7 +6156,28 @@ __QR__
   /* PARK A CEREMONY BEAT IF A LESSON WANTS TO TALK ABOUT IT, else run straight on. One definition, used
      at both beats, so the two cannot drift — and a wrapper rather than a split, because the ceremony's
      nesting is load-bearing and carving it into new functions is how its tail got orphaned once. */
+  /* ---- THE CEREMONY IS LOGGED NOW (Aj, 2026-10-02: *"add logs for the animations"*) ----
+     THE ROUND-END ANIMATION WAS THE ONE UNINSTRUMENTED STRETCH OF THE ROUND, and it is where the
+     double-resolution bug lives. The ledger already carried the priority go-rounds and the engine's
+     CLEANUP/BEGIN queues, so a saved log could say what the ENGINE did and nothing at all about what the
+     UI was doing in between — and the whole defect is an INTERLEAVING: the ceremony announcing a round
+     whose boundary queues have not run.
+     IT RECORDS THE PARKED WINDOWS, not just the beat name. `state.cleanup` / `state.endCleanup` /
+     `state.resolution` are the three parks the boundary crosses; a beat that fires while one of them is
+     still set is the bug, and the pair (beat, park) is what identifies it. A beat name alone would be a
+     prettier log that still could not answer the question. */
+  function ceremonyParks(){
+    if(!state) return 'no state';
+    return 'r'+state.round+
+           ' pile='+(state.pile?((state.pile.combo&&state.pile.combo.type)||'yes'):'—')+
+           ' parked['+[state.resolution?'resolution':null, state.cleanup?'cleanup':null,
+                       state.endCleanup?'endCleanup':null, state.upkeepResult?'upkeep':null]
+                      .filter(Boolean).join(',')+']'+
+           ' prio='+(state.respondFor!=null?logName(state.respondFor):'—')+
+           ' turn='+(state.turn!=null?logName(state.turn):'?');
+  }
   function ceremonyBeat(phase, g, run){
+    prioNote('ceremony beat · '+phase, ceremonyParks());
     if(typeof TUT!=='undefined' && TUT.holdFor && TUT.holdFor(phase, function(){ if(g===gen) run(); })) return;
     run();
   }
@@ -6213,6 +6251,23 @@ __QR__
       endOfRoundTrimThen(function(){
         if(g!==gen) return;
         uiPhase=null;                                           // ← the deal is the BEGINNING phase; `dealingIn` owns the strip from here
+        /* ⚠ THE CEREMONY MUST NOT ANNOUNCE A ROUND WHOSE BOUNDARY HAS NOT RUN (2026-10-02, from Aj's r6).
+           `roundAdvance` (st.round += 1), `stampRound` (result.newRound = st.round) and `pileClear` all
+           live in the engine's CLEANUP/BEGIN queues, which run behind the clean-up go-round. That window
+           only PARKS when a seat can genuinely add to the stack — normally nobody can and it completes in
+           the same breath, which is why this is intermittent; Aj's Etna was holding Leyline Ascension.
+           Park it and the queues have not run, so `res.newRound` was never stamped, `logRoundDraw` falls
+           back to `state.round`, and the banner announces the round that just ENDED over a pile
+           `pileClear` never dropped. Every symptom in that log follows from this one line of ordering.
+           IT REPORTS AND DOES NOT BLOCK, deliberately. Blocking is the fix-shaped move and it is the one
+           this function has already been burned by: refusing outright while a window was open removed the
+           drain and stalled the board forever (`browsertest` 70s → 400s). Until there is a repro that can
+           A/B a real fix, a detector that NAMES the cause is worth more than a guess that can deadlock. */
+        if(state && (state.cleanup || state.endCleanup || state.resolution))
+          prioNote('⚠ CEREMONY REACHED THE DRAW WITH THE ROUND BOUNDARY STILL PARKED',
+            ceremonyParks()+' · res.newRound='+(res&&res.newRound!=null?res.newRound:'UNSTAMPED')+
+            ' · the banner is about to announce '+((res&&res.newRound)||(state&&state.round))+
+            ' — if that is the round that just ended, this is the cause');
         E.roundDraw(state, res);                                // draw the new round's cards (held invisible for a beat)
         if(res.deckedOut){ inCeremony=false; logDeckout(res); render(); clearRoundfx(); busy=false; return endGame(); }
         logRoundDraw(res);
@@ -6410,7 +6465,14 @@ __QR__
       var resp=AI.respondDecision(state, q);
       if(!resp) break;
       if(resp.respondedWith){
-        prioNote('  → ' + logName(q) + ' CAST ' + (resp.respondName || resp.respondedWith) + (resp.countered ? '  (a counter)' : ''));
+        /* STAMPED WITH THE ENGINE'S ROUND, NOT THE UI'S (2026-10-02). Aj's log carried
+           `r7  → Etna CAST Leyline Ascension` for a cast made during ROUND 6's boundary — the UI ceremony
+           had already run `roundDraw`, so `state.round` read 7 by the time this line was written, and the
+           ledger sent the next reader to the wrong round. Same off-by-one this file already recorded for
+           `announceRoundWin`, in the one place it most confuses a boundary bug: the cast is the EVIDENCE
+           for which side of the window the damage landed on. */
+        prioNote('  → ' + logName(q) + ' CAST ' + (resp.respondName || resp.respondedWith) + (resp.countered ? '  (a counter)' : ''),
+                 (state && state.resolvedRound != null && state.resolution) ? state.resolvedRound : (state && state.round));
         bumpEffect(q, {kind:resp.respondKind, id:resp.respondedWith});
         /* NAME THE TIMING, NOT JUST THE CARD. "answered at instant speed" is right for a response to a
            cast and wrong for the other two windows: at the Main → Play transition nothing has been cast
