@@ -298,6 +298,39 @@ re-read its tag.
 
 #### Rules, priority and the stack
 
+- `root cause found`    · **★ THE RIDE TIER UNLOCKED AND NOBODY TOLD THE PLAYER — NO ROAR** (Aj, live
+  3-player game 2026-10-02: *"no roar…"*).
+  **THE GATE WAS OPEN AND THE LOG PROVES IT.** His board had every seat on 3 of 4 — three shields lost
+  table-wide — and `TRANSFORM_GATE='table'` needs `numPlayers x tier level` = 3 for the ride tier. Asked
+  directly at that exact state the engine agrees: `transformGateStatus(st,0,'ride')` →
+  `{gate:'table', ok:true, have:3, need:3}`. And the game went on to use it: his log line 51 is
+  `Vyers played a Ride - J♠ Giant Ram`. So Rides were live, an opponent rode one, and the player was
+  never shown the ROAR banner that announces it.
+  **THE ENGINE IS NOT THE BUG — the announcement path is.** `checkThresholds()` queues `pendingThreshold`
+  and the round ceremony flushes it as its own beat (`flushThreshold`), so a tier that unlocks mid-ceremony
+  depends on the queue being filled BEFORE the flush runs.
+  **THE LEAD, and it is a lead rather than a proof:** `noteShieldChanges` — the only thing that pays the
+  `thresholdOwed` debt — is called from **`render()` and nowhere else**. The ceremony clears the hold by
+  calling `revealShields()` DIRECTLY on the shield beat (not via a render), and the line immediately before
+  the flush is `uiPhase='cleanup'; paintPhaseStrip();` carrying the comment *"← repaint ONLY — a render
+  here displaces the client's beat"*. If no render falls between the shatter and `flushThreshold`, the debt
+  is still owed, `pendingThreshold` is still null, the flush finds nothing — and the later render that
+  finally pays it queues a beat into a ceremony that has already ended.
+  **WHICH WOULD MAKE THIS THE 2026-09-24 FAILURE REINTRODUCED BY ITS OWN FIX.** That note says in terms:
+  *"skipping the threshold then leaves nothing to detect when the hold clears, and it never fires at all"*
+  — the exact symptom — and `thresholdOwed` was added to carry the debt across the hold. It does; what it
+  cannot do is make a render happen before the flush. **Verify before fixing**: instrument whether any
+  render occurs between `revealShields()` and `flushThreshold`, because the previous three attempts in this
+  function were each wrong in a different way and each was caught by a suite rather than by reading.
+  **⚠ AND THE FIX MUST NOT QUEUE EARLIER.** Firing the check unconditionally is attempt 1 from that note
+  and it displaced the client's ceremony beat (`nettest_ceremony` 11/0 → 10/1, reproducible 2/2). Pay the
+  debt at the flush — ask for it there — rather than moving when it is incurred.
+  **EPIC WORK BY THE ROUTING TEST:** `noteShieldChanges` and `thresholdOwed` do not exist on `main` (0
+  hits), so there is nothing on main to fix this in. Note main plausibly has the same SYMPTOM by the older
+  route — on main `checkThresholds` hangs off `animateShields`, which never runs for seats 2-5 — so a
+  3-player ROAR owed to an opponent's shield would be missed there too, for a different reason.
+  `[id: roar-never-announced]`
+
 - `parked`              · **⚠ PARKED 2026-10-01 — THE DETECTOR IS THE PLAN, AND IT IS ALREADY LIVE.**
   Four attempts have failed to force this, and the thing that will describe the fifth occurrence is already
   built and shipping: `enterResolution` counts a second entry inside one round and `noteBlockedResolves`
