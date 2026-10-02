@@ -11213,7 +11213,8 @@ window.CardFace = {};
     return 'r'+state.round+
            ' pile='+(state.pile?((state.pile.combo&&state.pile.combo.type)||'yes'):'—')+
            ' parked['+[state.resolution?'resolution':null, state.cleanup?'cleanup':null,
-                       state.endCleanup?'endCleanup':null, state.upkeepResult?'upkeep':null]
+                       state.endCleanup?'endCleanup':null, state.upkeep?'upkeep':null,
+                       state.upkeepResult?'+parkedResult':null]
                       .filter(Boolean).join(',')+']'+
            ' prio='+(state.respondFor!=null?logName(state.respondFor):'—')+
            ' turn='+(state.turn!=null?logName(state.turn):'?');
@@ -11258,22 +11259,29 @@ window.CardFace = {};
       }
       if(res && res.newRound != null) return then();                       // stamped: CLEANUP and BEGIN are done
       if(!(state && (state.cleanup || state.endCleanup || state.upkeep))) return then();   // nothing parked
-      if(tries++ >= 8){
+      if(tries++ >= 3){
         prioNote('⚠ CEREMONY GAVE UP WAITING FOR THE BOUNDARY — proceeding anyway',
-          ceremonyParks()+' · after '+tries+' polls (~1s) · the round number below will be WRONG, and that is the lesser evil');
+          ceremonyParks()+' · after '+tries+' settle attempts · the round number below will be WRONG, and that is the lesser evil');
         return then();
       }
-      /* ⚠ IT POLLS; IT DOES NOT DRIVE. The first cut called `settleWindows(g, go)` here and
-         `resolutiontest_ui` scenario A went red in one sweep — that function can reach
-         `promptHumanResponse`, which waits for a PLAYER, so the ceremony stalled and the round never
-         resolved. That is the same trap as the `drainResolution` note below: a wait that needs an answer
-         is a stall, and refusing an action to fix this function once took a 70s suite past 400s.
-         So this only ASKS whether the boundary has finished, and lets whatever normally drains it do the
-         draining. In healthy play it never polls at all (measured: 0 engagements in 3 games); when the
-         boundary is a beat behind it waits that beat out; when it is parked for good it gives up loudly
-         and we are no worse off than before, with a ledger line naming it. */
-      if(tries===1) prioNote('ceremony WAITING for the round boundary', ceremonyParks()+' · polling, not driving');
-      return setTimeout(go, 120);
+      /* ⚠ IT DRIVES. IT POLLED FOR ONE VERSION AND AJ'S OWN LOG REFUTED THAT (6-player game, 39 rounds,
+         2026-10-02): the guard engaged FOUR times and gave up FOUR times — the bound never once helped,
+         because the boundary is not "a beat behind", it is waiting on a seat. `parked[cleanup] prio=Etna`,
+         `parked[endCleanup] prio=You`, twice more. A poll cannot finish a window that is owed to somebody.
+         WHY IT WAS POLLING: the first cut drove, and `resolutiontest_ui` scenario A went red, so I read
+         that as the product stalling. It was not — that suite casts a Quick and then waits for the round
+         to advance WITHOUT answering the window the cast opens, so the stall was a harness gap. The suite
+         answers now. A measurement from a harness that cannot play the position is not a measurement; this
+         file already says the harness must be able to play the whole game.
+         THE `prio=You` CASE IS WHY DRIVING IS NOT MERELY TIDIER. A boundary window owed to the HUMAN was
+         never surfaced: the ceremony waited a second and announced over it. `settleWindows` is what calls
+         `promptHumanResponse`, so driving is what gives the player the window they are owed — waiting for
+         them to answer is CORRECT, not a hang.
+         STILL BOUNDED. Three settle attempts, then proceed with the loud line: a window that neither an AI
+         nor the player can close must not take the game with it, and the 400s stall this function already
+         caused came from removing the drain, not from bounding it. */
+      if(tries===1) prioNote('ceremony WAITING for the round boundary', ceremonyParks()+' · driving the drain');
+      return settleWindows(g, go);
     }
     go();
   }
