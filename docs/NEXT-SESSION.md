@@ -479,7 +479,17 @@ re-read its tag.
   `netplay-intents-bypass-busy`.
   `[id: round-2-resolved-twice]`
 
-- `needs a repro`       · **★ THE DOUBLE RESOLUTION IS STILL UNREPRODUCED — AND THE 2026-10-01 "REPRO" WAS
+- `parked`              · **⚠ PARKED 2026-10-02 — IT REVIVES WHEN WE HIT IT AGAIN, AND THE DETECTORS NOW
+  MAKE THAT OCCURRENCE SELF-EXPLAINING** (Aj: *"we can't repro it right? we'll probably park that for now
+  with the unpark condition set to whenever we hit it again. can we add enough detectors?"*).
+  **Revival condition: a saved log carrying `⚠ SECOND RESOLUTION OF ONE ROUND`, or a report of a shield
+  lost to a pile that had already resolved.** Nobody has to go looking.
+  **WHAT WAS ADDED SO THE NEXT ONE ARRIVES DIAGNOSED (v1.31.127.11):** the line no longer claims a block
+  that never happens, it prints the state that separates a genuine duplicate from a stale stamp
+  (`resolvedRound`, turn, passes, pile, subPhase) and says what to compare it against; and a second
+  detector fires on `resolvedRound > round`, which is impossible in play and so names a rewound round
+  number outright — the exact artifact that wasted 2026-10-01/02.
+  **★ THE DOUBLE RESOLUTION IS STILL UNREPRODUCED — AND THE 2026-10-01 "REPRO" WAS
   MY OWN STAGING (corrected 2026-10-02).** `nettest_parkclobber` reported `⚠ DOUBLE RESOLUTION BLOCKED` on
   its clobber leg and clean on its control, which read as the repro this entry had wanted since
   2026-09-15. It was not. **`forceAll` rewinds `st.round` and does NOT reset `st.resolvedRound`**, so
