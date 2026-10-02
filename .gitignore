@@ -22,3 +22,4 @@ _*.js
 *.key
 *.p12
 credentials.json
+code/.sweep-times.json
