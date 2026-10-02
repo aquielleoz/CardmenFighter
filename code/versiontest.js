@@ -32,8 +32,16 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   /* THE CHANGELOG MOVED OUT on 2026-09-07 (`NEXT-SESSION.md` was 6,061 lines and almost all of it was this), so
    * the heading assertion follows it to `CHANGELOG.md`. */
   const chlog=fs.readFileSync(path.resolve(__dirname,'..','docs','CHANGELOG.md'),'utf8');
-  ok(want ? chlog.indexOf('### '+want) >= 0 : false,
-     `docs/CHANGELOG.md carries a "### ${want}" heading — a shipped version with no entry is how a change becomes unfindable`);
+  /* ⚠ ANCHORED TO THE START OF A LINE, BECAUSE `indexOf` CANNOT TELL A HEADING FROM A MENTION — and this
+     file was GREEN over a corrupted changelog for two versions because of it (found 2026-10-02). The
+     v1.31.127 entry had been spliced INSIDE the intro paragraph, at the literal `### vX.Y.Z — short title`
+     the intro uses as its own example: the real heading became prose, a bogus `### vX.Y.Z — short title`
+     heading ended up mid-file, and the substring search found the mention and called it an entry.
+     The same insertion is invisible to any `grep -c`; only `grep -n '^### '` shows it. Verified by
+     re-burying the heading — one red. */
+  const headingRe=new RegExp('^### '+String(want||'\u0000').replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','m');
+  ok(want ? headingRe.test(chlog) : false,
+     `docs/CHANGELOG.md carries a "### ${want}" heading ON ITS OWN LINE — a shipped version with no entry is how a change becomes unfindable`);
   /* AND THE SPLIT HAS TO HOLD. A version heading appearing back in the handoff doc means the two files are
    * drifting into one again, which is how it reached 6,061 lines the first time — so that is a red suite, not
    * a style note. Checked below `## BACKLOG` only, since an entry could legitimately QUOTE a version above it. */

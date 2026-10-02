@@ -627,6 +627,24 @@ function cards(ids) { return ids.map(card); }
   E.activate(g1, 0, '3D', { target: 2 });
   ok(g1.discardPending && g1.discardPending.player === 2, 'MP targeting: Telekinesis with target=2 hits player 2, not the next seat (1)');
 
+  /* A FORCED-ALL DISCARD STILL ASKS (Aj, live game 2026-10-02: *"i still would like to pick even it means
+     picking everything"*). `discardOpp` used to short-circuit on `dn >= hand.length` with the comment
+     "forced-all needs no choice" — mechanically true, and the wrong call: the player watches which cards go
+     and confirms it. The assertion is the PENDING state, not the hand, because the hand ends up the same
+     either way — which is exactly why this was invisible and why a hand-count check would pass on the old
+     build. A/B'd: before, `handAfter=0, pending=null`. */
+  var gfa = E.newGame(null, { numPlayers: 3 });
+  gfa.players[0].hand = [sc(3, 'D'), sc(8, 'S')];                 // caster keeps one so the leave-one guard allows the cast
+  gfa.players[0].energy = [];
+  for (var ef = 0; ef < 4; ef++) gfa.players[0].energy.push(sc(4, 'D'));   // Telekinesis (D3) costs 3
+  gfa.players[2].hand = [sc(5, 'S'), sc(6, 'S')];                 // target holds exactly the forced count
+  gfa.turn = 0; gfa.round = 3; gfa.pile = null; gfa.lastPlayer = null; gfa.passes = 0;
+  var rfa = E.activate(gfa, 0, '3D', { target: 2 });
+  ok(rfa && rfa.ok !== false, 'forced-all discard: the cast is still legal when it takes the whole hand');
+  ok(gfa.discardPending && gfa.discardPending.player === 2 && gfa.discardPending.count === 2,
+     'forced-all discard: the TARGET is still asked to pick, even when the pick is their whole hand');
+  ok(gfa.players[2].hand.length === 2, '…and nothing left the hand until they choose');
+
   // SPECIAL_LOSS_MODE 'all' — every non-winner loses a shield
   E.setSpecialLossMode('all'); E.setShieldTargetChooser(null);
   var ga = threePlayerSpecialWin();
