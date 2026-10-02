@@ -70,6 +70,29 @@ A struck-through entry does not belong here — if it shipped, move it to [`CHAN
 
 ### Correctness
 
+- **A TARGETED TECHNIQUE'S CAST LINE NEVER SAYS WHO IT HIT** (Aj, live 3-player game 2026-10-02:
+  *"oh this is out balance, i was the target i guess but it's not on the log"*)
+  His log reads `Vyers played a Technique - A♠ Outbalance — Target Rival discards 1 card.` — which is the
+  CARD'S OWN TEXT, not a statement about this cast. At 3+ players that is unreadable: nothing anywhere
+  says whether Vyers hit Aj or Rozalin, and he only knew because a picker opened on his screen.
+  **THE CAUSE IS ONE LINE AND IT CANNOT DO BETTER.** `effPhrase(card)` takes only the card:
+  `return art+' '+eff.type+' - '+cardSym(card)+' '+eff.name+' — '+(eff.text||'')…`. It has no target
+  argument, so every targeted Technique narrates its generic rules text and no caller can repair it.
+  **⚠ DO NOT CONFUSE THIS WITH THE 2026-09-30 FIX, WHICH IS A DIFFERENT LINE.** That one taught
+  `buildOppBeats`' forced-discard RESULT line to name the target (*"X discarded 2 cards"* used to carry the
+  CASTER's name) and is asserted by `oppbeatstest`. The RESULT names the target; the CAST does not. Both
+  are needed and only one shipped — which is why the log still cannot answer the question the earlier fix
+  was built for.
+  **THE SHAPE OF THE FIX:** give `effPhrase` the resolved target (or append it at the call site) so a
+  targeted cast reads *"… — Outbalance on You"*. The house pattern for naming a seat is `logName(seat)`,
+  never interpolated text — and because this travels over netplay it must be the `{foe}` seat-token form,
+  or a client renders the wrong name. See the reader-relative narration rules in CLAUDE.md.
+  **AND IT IS NOT JUST OUTBALANCE** — `discardOpp` covers Telekinesis, Outbalance and Discombobulate, and
+  Aj took two of them in one turn. Any Technique with a target has this.
+  **ONE THING THIS EPISODE CLOSED, in Aj's favour:** the open half of the telekinesis entry asked whether a
+  discard owed by the HUMAN ever gets asked for. It does — he got the picker for both casts and discarded
+  from each. That half needed a repro and a real game supplied it.
+
 - **`lessontest_twos` FAILED ONCE UNDER LOAD, AND THE SIGNATURE POINTS AT THE PREP, NOT THE POLL** (seen once
   in a `-j 4` sweep, 2026-09-07; 3/3 solo and 86/86 on an immediate re-sweep, so it is rare). Do not file this
   as "flaky" and re-tune a budget — this repo's record is that an intermittent has been a REAL dependency every
