@@ -6823,7 +6823,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.31.128.12';
+  var GAME_VERSION='v1.31.128.13';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -11140,7 +11140,28 @@ window.CardFace = {};
   /* PARK A CEREMONY BEAT IF A LESSON WANTS TO TALK ABOUT IT, else run straight on. One definition, used
      at both beats, so the two cannot drift — and a wrapper rather than a split, because the ceremony's
      nesting is load-bearing and carving it into new functions is how its tail got orphaned once. */
+  /* ---- THE CEREMONY IS LOGGED NOW (Aj, 2026-10-02: *"add logs for the animations"*) ----
+     THE ROUND-END ANIMATION WAS THE ONE UNINSTRUMENTED STRETCH OF THE ROUND, and it is where the
+     double-resolution bug lives. The ledger already carried the priority go-rounds and the engine's
+     CLEANUP/BEGIN queues, so a saved log could say what the ENGINE did and nothing at all about what the
+     UI was doing in between — and the whole defect is an INTERLEAVING: the ceremony announcing a round
+     whose boundary queues have not run.
+     IT RECORDS THE PARKED WINDOWS, not just the beat name. `state.cleanup` / `state.endCleanup` /
+     `state.resolution` are the three parks the boundary crosses; a beat that fires while one of them is
+     still set is the bug, and the pair (beat, park) is what identifies it. A beat name alone would be a
+     prettier log that still could not answer the question. */
+  function ceremonyParks(){
+    if(!state) return 'no state';
+    return 'r'+state.round+
+           ' pile='+(state.pile?((state.pile.combo&&state.pile.combo.type)||'yes'):'—')+
+           ' parked['+[state.resolution?'resolution':null, state.cleanup?'cleanup':null,
+                       state.endCleanup?'endCleanup':null, state.upkeepResult?'upkeep':null]
+                      .filter(Boolean).join(',')+']'+
+           ' prio='+(state.respondFor!=null?logName(state.respondFor):'—')+
+           ' turn='+(state.turn!=null?logName(state.turn):'?');
+  }
   function ceremonyBeat(phase, g, run){
+    prioNote('ceremony beat · '+phase, ceremonyParks());
     if(typeof TUT!=='undefined' && TUT.holdFor && TUT.holdFor(phase, function(){ if(g===gen) run(); })) return;
     run();
   }
@@ -11214,6 +11235,23 @@ window.CardFace = {};
       endOfRoundTrimThen(function(){
         if(g!==gen) return;
         uiPhase=null;                                           // ← the deal is the BEGINNING phase; `dealingIn` owns the strip from here
+        /* ⚠ THE CEREMONY MUST NOT ANNOUNCE A ROUND WHOSE BOUNDARY HAS NOT RUN (2026-10-02, from Aj's r6).
+           `roundAdvance` (st.round += 1), `stampRound` (result.newRound = st.round) and `pileClear` all
+           live in the engine's CLEANUP/BEGIN queues, which run behind the clean-up go-round. That window
+           only PARKS when a seat can genuinely add to the stack — normally nobody can and it completes in
+           the same breath, which is why this is intermittent; Aj's Etna was holding Leyline Ascension.
+           Park it and the queues have not run, so `res.newRound` was never stamped, `logRoundDraw` falls
+           back to `state.round`, and the banner announces the round that just ENDED over a pile
+           `pileClear` never dropped. Every symptom in that log follows from this one line of ordering.
+           IT REPORTS AND DOES NOT BLOCK, deliberately. Blocking is the fix-shaped move and it is the one
+           this function has already been burned by: refusing outright while a window was open removed the
+           drain and stalled the board forever (`browsertest` 70s → 400s). Until there is a repro that can
+           A/B a real fix, a detector that NAMES the cause is worth more than a guess that can deadlock. */
+        if(state && (state.cleanup || state.endCleanup || state.resolution))
+          prioNote('⚠ CEREMONY REACHED THE DRAW WITH THE ROUND BOUNDARY STILL PARKED',
+            ceremonyParks()+' · res.newRound='+(res&&res.newRound!=null?res.newRound:'UNSTAMPED')+
+            ' · the banner is about to announce '+((res&&res.newRound)||(state&&state.round))+
+            ' — if that is the round that just ended, this is the cause');
         E.roundDraw(state, res);                                // draw the new round's cards (held invisible for a beat)
         if(res.deckedOut){ inCeremony=false; logDeckout(res); render(); clearRoundfx(); busy=false; return endGame(); }
         logRoundDraw(res);
