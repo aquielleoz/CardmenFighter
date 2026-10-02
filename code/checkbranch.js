@@ -41,11 +41,38 @@ function pushRefs() {
 }
 var blocked = null;
 pushRefs().forEach(function (line) {
-  var f = line.trim().split(/\s+/), rref = f[2] || '', rsha = f[3] || '';
+  var f = line.trim().split(/\s+/), lsha = f[1] || '', rref = f[2] || '', rsha = f[3] || '';
   var protectedRef = rref === 'refs/heads/main' || rref.indexOf('refs/heads/epic/') === 0;
   if (!protectedRef) return;
   if (/^0+$/.test(rsha)) return;                  // the ref does not exist yet — creating an epic is fine
   if (process.env.EPIC_PUSH === '1') { console.error('⚠ EPIC_PUSH=1 — pushing straight to ' + rref.replace('refs/heads/', '') + '. Use this ONLY to carry `main` into an epic.'); return; }
+  /* ⚠ A DELETION IS NOT A DIRECT PUSH, AND THIS GATE REFUSED THE ONE THAT ENDS AN EPIC (2026-10-02).
+     The rule it enforces is "commits reach an integration branch through a PR, which merges SERVER-side,
+     so this branch should never receive a local push". Removing a finished branch is a different act and
+     has no PR to hang off — it fired on the documented post-merge prune, right after letting three
+     ordinary branches go.
+     IT DOES NOT SIMPLY ALLOW IT. An unmerged epic is weeks of work living in one ref, so the delete is
+     allowed exactly when the ref is already an ANCESTOR of `origin/main` — i.e. nothing would be lost.
+     That makes the gate stronger than it was: before, a delete was refused outright and the obvious
+     workaround was `EPIC_PUSH=1`, which skips every check in this file including this one. Now the safe
+     delete needs no escape and the unsafe one is refused on the thing that actually matters.
+     ⚠ AND `EPIC_PUSH` IS READ FIRST, WHICH THE FIRST CUT GOT WRONG: this block sat ABOVE the escape and
+     `process.exit(1)`'d before it was ever reached, so an ABANDONED epic — unmerged by definition — could
+     not have been deleted by any means at all. A gate with no way out is not a gate, it is a trap, and
+     this repo has paid for that once already at 400 seconds. */
+  if (/^0+$/.test(lsha)) {
+    var ref = rref.replace('refs/heads/', '');
+    if (ref === 'main') { blocked = ref; return; }                       // never, under any circumstances
+    try {
+      execSync('git merge-base --is-ancestor ' + rsha + ' origin/main', { stdio: 'ignore' });
+      console.error('⚠ deleting "' + ref + '" — every commit on it is already in `main`, so nothing is lost.');
+      return;
+    } catch (e) {
+      console.error('✗ refusing to delete "' + ref + '": it has commits that are NOT in `main`.');
+      console.error('  Merge it first, or if it is deliberately unmerged it belongs under `parked/` with a BACKLOG entry.');
+      blocked = null; process.exit(1);
+    }
+  }
   blocked = rref.replace('refs/heads/', '');
 });
 if (blocked) {
