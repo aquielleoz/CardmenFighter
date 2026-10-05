@@ -639,7 +639,7 @@
   .oppPanel .oppZones .formRow{flex-wrap:wrap; gap:3px;}
   .oppPanel .oppZones .zoneLbl{font-size:10px; letter-spacing:.05em; text-transform:uppercase; opacity:.6;}
   /* A STAGED target, waiting on ⚡ Activate — distinct from the pulsing "pick me" state (v1.29.5) */
-  .oppPanel.aimed, .fighter.aimed{border-color:var(--bad) !important; box-shadow:0 0 0 2px var(--bad), 0 0 18px rgba(226,98,74,.55) !important; animation:none !important;}
+  .oppPanel.aimed, .fighter.aimed, .equipZone .eq.aimed, .equip .e.aimed, .formZone .card.formMini.aimed{border-color:var(--bad) !important; box-shadow:0 0 0 2px var(--bad), 0 0 18px rgba(226,98,74,.55) !important; animation:none !important;}
   .oppPanel.aimed::after{content:'🎯 aimed'; position:absolute; top:4px; right:6px; font-size:9.5px; font-weight:800; letter-spacing:.04em; color:var(--bad);}
   /* Respond? modal — who cast it and who it is aimed at (v1.29.5) */
   .modal .respAtYou{color:var(--bad); letter-spacing:.03em;}
@@ -3444,7 +3444,7 @@ __QR__
       (function(fc){ c.addEventListener('mouseenter', function(){ showCard(fc); }); })(f.card);   // hover → full card + ability in the description box
       if(targeting){                                             // zone removal: highlight the Rides/Forms this card may hit
         var isRide=f.tier==='ride', valid=(isRide&&targeting.ride)||(!isRide&&targeting.form);
-        if(valid){ c.classList.add('targetable'); (function(id){ c.addEventListener('click', function(){ doRemove(targeting.cardId, id); }); })(f.card.id); }
+        if(valid){ c.classList.add('targetable'); if(targeting.chosen===f.card.id) c.classList.add('aimed'); (function(id){ c.addEventListener('click', function(){ stageRemove(id); }); })(f.card.id); }
         else { (function(fc){ c.addEventListener('click', function(){ readCard(fc); }); })(f.card); }
       } else { (function(fc){ c.addEventListener('click', function(e){ e.stopPropagation(); readCard(fc); }); })(f.card); }   // tap to read (touch); stays expanded
       row.appendChild(c);
@@ -3530,7 +3530,7 @@ __QR__
     box.title=opts.ghost?((e.name||'')+' — left play (spent or removed — see the log)'):((e.name||'')+' — '+e.counters+' counter'+(e.counters===1?'':'s')+(open?'':' — tap to expand'));
     if(!opts.ghost){
       if(e.card){ (function(fc){ box.addEventListener('mouseenter', function(){ showCard(fc); }); })(e.card); }   // hover → full card + rules in the description box below
-      if(targeting){ box.classList.add('targetable'); (function(id){ box.addEventListener('click', function(){ doRemove(targeting.cardId, id); }); })(e.id); }
+      if(targeting){ box.classList.add('targetable'); if(targeting.chosen===e.id) box.classList.add('aimed'); (function(id){ box.addEventListener('click', function(){ stageRemove(id); }); })(e.id); }
       else if(open && e.card){ (function(fc){ box.addEventListener('click', function(ev){ ev.stopPropagation(); readCard(fc); }); })(e.card); }   // already open → tap opens the reader, exactly like a formMini
       /* ONLY WHERE THE CHIP EXISTS. `zonesInPanel()` is the same gate that compacts the box in the first
          place, so desktop and the landscape band keep the untouched tap-to-read — there is no chip there and
@@ -4905,6 +4905,11 @@ __QR__
       return {mode:'activate', label:'⚡ Activate', ok:true, reason:'', gold:true, run:function(){ confirmTargetPick(); }};
     if(targetPick)
       return {mode:'activate', label:'🎯 Pick a target', ok:false, reason:'Tap the rival you want to hit, then press ⚡ Activate.', run:null};
+    // the SAME stage-then-confirm for an Equipment / zone target (removeEquip) — it used to cast on the tap
+    if(targeting && targeting.chosen!=null)
+      return {mode:'activate', label:'⚡ Activate', ok:true, reason:'', gold:true, run:function(){ var t=targeting; doRemove(t.cardId, t.chosen); }};
+    if(targeting)
+      return {mode:'activate', label:'🎯 Pick a target', ok:false, reason:'Tap the card you want to remove, then press ⚡ Activate.', run:null};
     if(sel.length===1){
       var eff=E.effectOf(sel[0]);
       if(eff && eff.kind==='phantasm'){
@@ -5318,9 +5323,9 @@ __QR__
     if(eff.kind==='removeEquip'){                          // needs a target — Equipment, and (boosted) a zone Ride/Form
       var tgts=(E.removeTargets?E.removeTargets(state, YOU, eff):E.equipTargets(state, YOU));
       if(!tgts.length){ setMessage('No Equipment or zone card on the board to target.'); return; }
-      targeting={cardId:cardId, ride:!!eff.ride, form:!!eff.form}; selected={};   // always tap a target — energy is only spent on the tap, so you can back out (Clear)
+      targeting={cardId:cardId, ride:!!eff.ride, form:!!eff.form, chosen:null, name:eff.name}; selected={};   // tap a target to STAGE it (stageRemove), then ⚡ Activate confirms — nothing is spent before that, and Clear backs out
       var what='an Equipment'+(eff.ride||eff.form?(eff.form?', Ride or Form':' or Ride'):'');
-      setMessage('Tap '+what+' to remove with <b>'+eff.name+'</b>. (Clear to cancel.)'); render(); return;
+      setMessage('Tap '+what+' to aim <b>'+eff.name+'</b>. Nothing is spent until you confirm.'); render(); return;
     }
     if(eff.kind==='counterfeit'){                          // Counterfeit — copy a card from the Rival's current play
       if(!state.pile || state.pile.byPlayer===YOU){ setMessage('Counterfeit needs the Rival’s current play to copy — cast it while facing an attack.'); return; }
@@ -5427,6 +5432,18 @@ __QR__
     var d=E.resolveDiscard(state);   // Rival is the one discarding — auto-pick (avoids breaking its Specials)
     if(d.ok) logMsg('<b>Rival</b> discarded '+d.discarded.length+' card'+(d.discarded.length>1?'s':'')+'.', 'rival');
     return false;
+  }
+  /* STAGE ONLY — the removeEquip twin of `chooseTargetSeat`. Tapping an Equipment / Ride / Form target used
+     to call `doRemove` straight away, so the card was spent on the tap with no ⚡ Activate and no way back
+     (Aj, 2026-10-02: Plead for Peace "didn't ask to activate, it just did"). v1.29.5 made the SEAT picker
+     confirm-first and stopped at that variable; this is the other half. `ctxActionFor` is the confirm. */
+  function stageRemove(id){
+    if(!targeting) return;
+    targeting.chosen=id;
+    var eff0=E.effectOf(cardById(targeting.cardId)), t=(E.removeTargets?E.removeTargets(state, YOU, eff0):E.equipTargets(state, YOU)).filter(function(x){ return x.id===id; })[0];
+    var what=t ? (t.own ? 'your ' : logName(t.playerIdx)+'’s ')+'<b>'+(t.name||'card')+'</b>' : 'that card';
+    setMessage('<b>'+targeting.name+'</b> aimed at '+what+' — press <b>⚡ Activate</b> to confirm, or <b>Clear</b> to cancel.');
+    render();
   }
   function doRemove(cardId, targetId){
     var card=cardById(cardId), eff=card?E.effectOf(card):null;

@@ -15,6 +15,22 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.1 — choosing an Equipment target asks before it casts
+
+**Tapping an Equipment (or a Ride/Form) target no longer spends the card on the spot.** Aj, live 3-player
+game 2026-10-02: *"after selecting a target for plead for peace, it didn't ask to activate, it just did"*.
+The tap now **stages** the target — it is marked 🎯 aimed, the message names whose card it is, and the
+context button reads **⚡ Activate** — and nothing is spent until you press it. **Clear** backs out free.
+**There were two targeting modes and only one was confirm-first.** v1.29.5 made choosing a SEAT
+stage-then-confirm (`targetPick`); choosing an Equipment used a separate, older variable (`targeting`) whose
+tap went straight into `doRemove`. Every `removeEquip` card took that path — Plead for Peace, Forceful
+Strip and the rest. `stageRemove` is now the twin of `chooseTargetSeat`, and `ctxActionFor` confirms both
+the same way, so a netplay client still sends its intent from the one funnel.
+**Tests:** `mptest`'s Forceful Strip leg asserts both directions off one staging — a tap spends nothing and
+lights ⚡ Activate, Clear backs out, Activate removes — and A/B'd against v1.32.0's template, where the same
+tap spent 7 energy and the card (4 red). `nettest_autopass` / `nettest_quickwedge`'s `tapTarget` now press
+⚡ Activate after the tap. `mptest` 115 → 120.
+
 ### v1.32.0 — priority windows: the Resolution go-round, and a stack that holds only effects
 
 The `epic/priority-windows` branch, **164 merges** over three and a half weeks, landing as one version. It

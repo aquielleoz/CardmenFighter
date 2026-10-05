@@ -77,7 +77,8 @@ const armCast=(p,id)=>p.evaluate(cid=>{
   return 'not offerable';
 }, id);
 // step 2: tap the target. `.targetable` exists only while `targeting` is live, so this doubles as proof of step 1.
-const tapTarget=p=>p.evaluate(()=>{ var t=document.querySelector('.targetable'); if(!t) return false; t.click(); return true; });
+// a tap STAGES the target and ⚡ Activate (#ctxBtn) casts it — confirm-first since equip-target-casts-without-confirm
+const tapTarget=p=>p.evaluate(()=>{ var t=document.querySelector('.targetable'); if(!t) return false; t.click(); var b=document.getElementById('ctxBtn'); if(!b||b.classList.contains('off')||!/Activate/.test(b.textContent)) return false; b.click(); return true; });
 const respQuicks=p=>p.evaluate(()=>[].slice.call(document.querySelectorAll('.respQuick')).map(b=>b.textContent.replace(/\s+/g,' ')));
 const respondWith=(p,re)=>p.evaluate(src=>{
   var b=[].slice.call(document.querySelectorAll('.respQuick')).filter(x=>new RegExp(src,'i').test(x.textContent))[0];

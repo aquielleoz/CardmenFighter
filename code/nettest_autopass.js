@@ -46,7 +46,8 @@ const armCast=(p,id)=>p.evaluate(cid=>{
   if(cx && !cx.disabled && !/off/.test(cx.className) && /Activate/i.test(cx.textContent||'')){ cx.click(); return 'ctx'; }
   return 'not offerable';
 }, id);
-const tapTarget=p=>p.evaluate(()=>{ var t=document.querySelector('.targetable'); if(!t) return false; t.click(); return true; });
+// a tap STAGES the target and ⚡ Activate (#ctxBtn) casts it — confirm-first since equip-target-casts-without-confirm
+const tapTarget=p=>p.evaluate(()=>{ var t=document.querySelector('.targetable'); if(!t) return false; t.click(); var b=document.getElementById('ctxBtn'); if(!b||b.classList.contains('off')||!/Activate/.test(b.textContent)) return false; b.click(); return true; });
 /* WINDOW STATE IS READ OFF THE HOST, NOT THE CLIENT'S DOM. `__cmf.clientSend` deliberately bypasses the
    client UI, so nothing calls `hideOverlay()` there and the `.respQuick` buttons stay on screen after the
    intent is answered. The first cut polled those buttons: leg 1's stale modal satisfied leg 2's "the window
