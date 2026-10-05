@@ -1286,10 +1286,8 @@
     // sacrifice — recoverable only via Hippolyta's reclaim-Discard). Auto-picks the least valuable (lowest 10 first).
     var pitchCard = null;
     if (eff.pitchHigh) {
-      var pitchCands = pl.hand.filter(function (c) { return c.id !== cardId && BROADWAY[c.rank]; });
-      if (!pitchCands.length) return { ok: false, reason: 'Also requires a Broadway card (10, J, Q, K, or A) in hand to discard.' };
-      if (opts.pitch) pitchCard = pitchCands.filter(function (c) { return c.id === opts.pitch; })[0];
-      if (!pitchCard) pitchCard = pitchCands.slice().sort(function (a, b) { return fightValue(a) - fightValue(b); })[0];
+      pitchCard = pitchFor(pl, cardId, opts.pitch);
+      if (!pitchCard) return { ok: false, reason: PITCH_REFUSAL };
     }
 
     // Lead-lock guard: an activation must not leave you with an empty hand when you
@@ -1413,6 +1411,20 @@
      IT RETURNS A REASON, NOT A BOOLEAN, because that is what the authority needs and a boolean cannot be
      widened into one later without a second function appearing beside it. `canCastQuick` is the boolean,
      derived — never the other way round. */
+  /* THE BROADWAY PITCH, ONE DEFINITION FOR BOTH WAYS TO CAST (broadway-pitch-chooses-itself, 2026-10-05).
+     `activate` charged it and `respond` NEVER DID — measured: Armor Piercing cast as a Quick under Hippolyta
+     from a Respond? window went on the stack with the caster still holding a 10♥ AND an A♠. An additional
+     cost that one cast path skips is a free card for every Quick cast of it, the AI's included.
+     `pitchId` is the caster's CHOICE (the UI asks now — Aj: *"it did not let me pick which broadway card"*);
+     an absent or illegal one falls back to the lowest, which is what an older peer or the AI still sends. */
+  var PITCH_REFUSAL = 'Also requires a Broadway card (10, J, Q, K, or A) in hand to discard.';
+  function pitchCands(pl, cardId) { return pl.hand.filter(function (c) { return c.id !== cardId && BROADWAY[c.rank]; }); }
+  function pitchFor(pl, cardId, pitchId) {
+    var cands = pitchCands(pl, cardId);
+    if (!cands.length) return null;
+    var chosen = pitchId ? cands.filter(function (c) { return c.id === pitchId; })[0] : null;
+    return chosen || cands.slice().sort(function (a, b) { return fightValue(a) - fightValue(b); })[0];
+  }
   function castRefusal(st, q, card) {
     var qp = st.players[q], e = card && effectFor(st, q, card);                // effectFor: a Form can make a card Quick
     /* A LOCKED PLAYER IS SKIPPED, AND SKIPPED MEANS SKIPPED (Aj, 2026-09-17, re-reading the card:
@@ -1436,6 +1448,7 @@
     if (!e || !e.impl) return 'That card has no effect to cast.';
     if (!e.quick) return 'That is not a Quick.';
     if (!canAfford(qp, card)) return 'Not enough Fighter Energy (need ' + costHint(card) + ').';
+    if (e.pitchHigh && !pitchCands(qp, card.id).length) return PITCH_REFUSAL;   // the additional cost is part of casting — no window for a cast you cannot pay
     var t = quickTargets(st, q, e);
     if (t !== null && !t.length) return 'No legal target for ' + (e.name || 'that Quick') + '.';
     return null;
@@ -1852,8 +1865,10 @@
       if (qeff.kind !== 'counter') return { ok: false, reason: 'That card does not counter anything.' };
       if (!counterTargets(st, qeff).some(function (o) { return o.oid === cOid; })) return { ok: false, reason: 'That is no longer on the stack to counter.' };
     }
+    var qPitch = qeff.pitchHigh ? pitchFor(qp, quickCardId, opts && opts.pitch) : null;   // castRefusal already proved one exists
     qp.hand = qp.hand.filter(function (c) { return c.id !== quickCardId; });
     payEnergy(qp, qcard);
+    if (qPitch) { qp.hand = qp.hand.filter(function (c) { return c.id !== qPitch.id; }); qp.removed.push(qPitch); }   // Broadway pitch → Discard pile, as `activate` does
     st.stack.push({ oid: newOid(st), kind: 'effect', p: q, card: qcard, eff: qeff, opts: (cOid ? { counterOid: cOid } : {}), countered: false });
     /* WHO ADDED IT, counted per seat. The UI's auto-pass brake asks "did anything happen while I was
        passing?" and `oidSeq` alone answers "did anything happen at all" — which includes the passer's OWN
@@ -1865,6 +1880,7 @@
     st.pending = null; st.respondFor = null;
     var res = openResponseWindow(st);
     res.respondedWith = qeff.id; res.respondKind = qeff.kind; res.respondName = qeff.name;
+    if (qPitch) res.pitched = { rank: qPitch.rank, suit: qPitch.suit, id: qPitch.id };
     return res;
   }
   // Player q passes the window: the top effect resolves (the controller had already passed by
@@ -3354,7 +3370,8 @@
     setTransformCost: setTransformCost, setTransformDraw: setTransformDraw, setTransformGate: setTransformGate, transformGateOK: transformGateOK, transformGateStatus: transformGateStatus, transformCost: transformCost, transformDraw: transformDraw, setBoostScale: setBoostScale, setFormSuitMatch: setFormSuitMatch,
     moveToPlay: moveToPlay,
     effectTarget: effectTarget,   // who a pending effect is aimed at — the UI needs it to say so out loud
-    stackTargetOf: stackTargetOf,   // WHAT a stack object is aimed at (Equipment / Ride / seat / effect) — built from resolution's own lookups
+    stackTargetOf: stackTargetOf,
+    pitchCands: pitchCands,   // the Broadway cards a pitch cast may discard — the UI offers exactly these   // WHAT a stack object is aimed at (Equipment / Ride / seat / effect) — built from resolution's own lookups
     HOSTILE_SINGLE: HOSTILE_SINGLE,
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
     canAddToStack: canAddToStack, canCastQuick: canCastQuick, castRefusal: castRefusal, quickTargets: quickTargets, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would

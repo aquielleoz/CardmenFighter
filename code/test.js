@@ -3117,5 +3117,44 @@ function cards(ids) { return ids.map(card); }
   ok(E.stackTargetOf(g, { oid: 'o8', kind: 'effect', p: 0, trig: true, name: 'Caltrops' }) === null, 'a trigger (no eff) names nothing and does not throw');
 })();
 
+/* ============ THE BROADWAY PITCH (broadway-pitch-chooses-itself) ============
+   Staged so a default and a choice are DISTINGUISHABLE: the lowest Broadway card (a 10) is the one worth
+   keeping and a higher one (an Ace) is spare — "which card left" is the assertion, never "the hand shrank". */
+(function () {
+  var mk = function (r, s, id) { return { rank: r, suit: s, id: id }; };
+  var EN = function (s) { return [1,2,3,4,5,6,7,8,9,10,11,12].map(function (n) { return mk(n, s, 'e' + s + n); }); };
+  // --- activate: a named pitch is honoured, an absent one still defaults to the lowest
+  function rigAct() { var g = E.newGame(null, { starter: 0 }); g.round = 3; g.turn = 0; g.subPhase = 'main'; g.pile = null;
+    g.players[0].hand = [mk(9, 'S', 'crit'), mk(10, 'H', 'b10'), mk(10, 'C', 'b10b'), mk(1, 'D', 'bA'), mk(4, 'D', 'x4')];
+    g.players[0].energy = EN('S'); g.players[1].shields = 4; return g; }
+  var ga = rigAct(); var ra = E.activate(ga, 0, 'crit', { target: 1, pitch: 'bA' });
+  var ha = ga.players[0].hand.map(function (c) { return c.id; });
+  ok(ra.ok && ha.indexOf('bA') < 0 && ha.indexOf('b10') >= 0, 'activate honours a NAMED pitch — the Ace went, the 10 of the pair stayed  [' + ha + ']');
+  var gd = rigAct(); E.activate(gd, 0, 'crit', { target: 1 });
+  var hd = gd.players[0].hand.map(function (c) { return c.id; });
+  ok(hd.indexOf('bA') >= 0 && hd.indexOf('b10') < 0, '…and an unnamed one still takes the lowest (the AI / an older peer)  [' + hd + ']');
+
+  // --- respond: a Quick cast PAYS the pitch now (it paid nothing before)
+  function rigQ(extra) { var g = E.newGame(null, { starter: 0 }); g.round = 3; g.turn = 0; g.subPhase = 'main'; g.pile = null;
+    var p1 = g.players[1]; p1.forms = [{ rank: 12, suit: 'C', tier: 'queen', name: 'Hippolyta', card: mk(12, 'C', 'fq') }];
+    p1.hand = [mk(7, 'C', 'ap'), mk(4, 'D', 'x4')].concat(extra); p1.energy = EN('C');
+    g.players[0].energy = EN('D'); g.players[0].hand = [mk(6, 'D', 'bk'), mk(3, 'H', 'z3')];
+    var a = E.activate(g, 0, 'bk', {}); if (g.respondFor === 0) E.declineResponse(g, 0); return g; }
+  var g1 = rigQ([mk(10, 'H', 'b10'), mk(1, 'S', 'bA')]);
+  ok(E.effectFor(g1, 1, { rank: 7, suit: 'C', id: 'ap' }).quick === true && g1.respondFor === 1, 'STAGED: Armor Piercing is a Quick under Hippolyta and seat 1 holds priority');
+  var r1 = E.respond(g1, 1, 'ap', { pitch: 'bA' });
+  var h1 = g1.players[1].hand.map(function (c) { return c.id; });
+  ok(r1.ok && h1.indexOf('bA') < 0 && h1.indexOf('b10') >= 0, 'a QUICK cast pays the pitch it names — the Ace went, the 10 stayed  [' + h1 + ']' + (h1.indexOf('bA') >= 0 && h1.indexOf('b10') >= 0 ? '  ← REPRODUCED: the Quick paid NO pitch' : ''));
+  ok(g1.players[1].removed.some(function (c) { return c.id === 'bA'; }), '…and the pitched card is in the Discard pile, as an activation\'s is');
+  var g2 = rigQ([mk(10, 'H', 'b10'), mk(1, 'S', 'bA')]); E.respond(g2, 1, 'ap', {});
+  ok(g2.players[1].hand.every(function (c) { return c.id !== 'b10'; }), 'an unnamed Quick pitch defaults to the lowest, like activate');
+  var g3 = rigQ([mk(5, 'H', 'x5')]);
+  var cast3 = E.canCastQuick(g3, 1, g3.players[1].hand[0]);
+  ok(!cast3, 'with NO other Broadway card the Quick is not castable — the window is not offered for a cast you cannot pay');
+  var r3 = E.respond(g3, 1, 'ap', {});
+  ok(r3.ok === false && g3.players[1].hand.length === 3, '…and respond refuses it over the wire, spending nothing');
+  ok(E.pitchCands(g1.players[1], 'ap').length === 1 && E.pitchCands(rigQ([mk(10, 'H', 'b10'), mk(1, 'S', 'bA')]).players[1], 'ap').length === 2, 'pitchCands lists the Broadway cards a pitch may take, never the casting card');
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);
