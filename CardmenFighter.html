@@ -6996,7 +6996,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.32.10';
+  var GAME_VERSION='v1.32.11';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -15743,7 +15743,9 @@ window.CardFace = {};
              when the board is least worth lying about. */
           flipFrom=null;
           busy=false; selected={}; prioNote('  ⚠ the host REFUSED that', m.why||'no reason given'); setMessage('⚠ '+(m.why||'That play could not be made — have another look.')); render(); }
-        else if(m.t==='ping'){ SFX.play('ping'); setMessage('🔔 The host is ready — pinged you.'); }
+        else if(m.t==='ping'){ SFX.play('ping');
+          if(!started){ pingAt=Date.now(); renderNet(); clearTimeout(pingT); pingT=setTimeout(function(){ pingAt=0; if(!started) renderNet(); }, 7000); }   // the lobby covers the board — say it IN the lobby
+          else setMessage('🔔 The host is ready — pinged you.'); }
         else if(m.t==='fx'){                                  // includes our OWN cast, echoed back by the host
           var fn=(state&&state.numPlayers)||2;                 // `seat` is ABSOLUTE — rotate into our frame
           showFx(((((m.seat-mySeat)%fn)+fn)%fn), m.card);
@@ -17200,6 +17202,17 @@ window.CardFace = {};
       SFX.play('ping'); send({t:'ping'});
       var st=$('lobbyPingMsg'); if(st){ st.textContent='🔔 Pinged your table.'; setTimeout(function(){ if($('lobbyPingMsg')) $('lobbyPingMsg').textContent=''; }, 2200); }
     }
+    /* THE HOST'S PING MUST BE VISIBLE ON THE SEAT IT IS AIMED AT (ping-invisible-to-client). The client's handler
+       was `setMessage(…)`, which writes `#message` INSIDE the board — and in the lobby `#netroot` covers the
+       viewport, so the ping's only visible output landed behind it: a beep and nothing to read (*"the client
+       didn't receive any prompts to ready"*). The host got "🔔 Pinged your table." inside netroot and concluded
+       it worked. Now it renders in the lobby's own header, so it shows in BOTH client branches — the nudge is
+       aimed at the seat that has NOT pressed Ready, and the readied one should still learn the host is set. */
+    var pingAt=0, pingT=null;
+    function pingNoteHTML(){
+      if(isHost() || !pingAt) return '';
+      return '<div class="netmsg ping" id="lobbyPingIn">🔔 The host pinged you — '+(iReady ? 'they’re ready to start.' : 'pick your deck and press <b>Ready ▶</b>.')+'</div>';
+    }
     // Lobby: after the transport connects, each side picks a deck before the host starts the real board.
     function renderLobby(root){
       /* THE ERROR HAS TO BE RENDERED HERE TOO (v1.31.97). `renderSignaling` and `renderHostRtcLobby` both paint
@@ -17211,7 +17224,7 @@ window.CardFace = {};
       var _e = lobbyErr || (sig&&sig.err) || '';
       var errHTML = _e ? '<div class="netmsg err">⚠ '+_e+'</div>' : '';
       var head='<div class="netlobby"><h1>Cardmen Fighter — Online</h1>'+
-        '<div class="netbar">Room <b>'+room+'</b> · You are '+(isHost()?'Player 1 (host)':'Player 2')+' · '+connLabel()+' · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML();
+        '<div class="netbar">Room <b>'+room+'</b> · You are '+(isHost()?'Player 1 (host)':'Player 2')+' · '+connLabel()+' · '+verTag()+rulesChip()+'</div>'+errHTML+verWarnHTML()+pingNoteHTML();
       var body=lobbyBackHTML()+nameRowHTML(!isHost() && iReady)+'<h3>Choose your deck</h3><select id="deckSel" class="deckSel">'+deckOptionsHTML()+'</select>'+
         '<button id="lobbyRules" class="netbtn">'+(isHost()?'⚗️ Custom rules':'⚗️ Rules &amp; suggest')+(customRules()?' · on':'')+'</button>'+''
       if(isHost()){
@@ -17418,7 +17431,7 @@ window.CardFace = {};
     '#netroot .netname input:disabled{opacity:.55}'+
     '#netroot .netbar{background:#161c26;border:1px solid #263140;border-radius:8px;padding:8px 12px;margin-bottom:10px}'+
     '#netroot .ok{color:#5fd08a}#netroot .wait{color:#e0b055}'+
-    '#netroot .netmsg{background:#161c26;border:1px solid #263140;border-radius:8px;padding:8px 12px;margin-bottom:10px;min-height:20px}#netroot .netmsg.err{border-color:#c0563a;color:#ff9d7d}'+
+    '#netroot .netmsg{background:#161c26;border:1px solid #263140;border-radius:8px;padding:8px 12px;margin-bottom:10px;min-height:20px}#netroot .netmsg.err{border-color:#c0563a;color:#ff9d7d}#netroot .netmsg.ping{border-color:#d4a73a;color:#ffd77a}'+
     '#netroot .netbtn{font:600 14px system-ui;padding:10px 16px;border-radius:8px;border:1px solid #33404f;background:#1c2531;color:#e8edf5;cursor:pointer}'+
     '#netroot .netbtn.go{background:#2b6cb0;border-color:#3b82c4}#netroot .netbtn.alt{background:#6b46c1;border-color:#7c53d6}#netroot .netbtn.ghost{background:#1c2531}'+
     '#netroot .nethint{color:#9fb0c4}#netroot .netlobby{max-width:620px;margin:5vh auto}#netroot code{background:#10151d;padding:2px 6px;border-radius:5px}'+

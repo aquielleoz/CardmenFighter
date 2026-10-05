@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.32.10**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.32.11**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -2308,13 +2308,15 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.32.10 — last FULL sweep 2026-10-05, `npm run sweep`, 115/115 in 281s** (114 + `versiontest`,
-whose only red was this line; no `mptest` stall line), with `nettest_sync` at full depth INSIDE the sweep (12/0, rounds 9, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
+Status as of **v1.32.11 — last FULL sweep 2026-10-05, `npm run sweep`, 116/116 in 288s**. That sweep ran on a
+page still stamped v1.32.10 (the rebuild was missed after the README bump — the code was identical), so
+`versiontest` and `exporttest`'s build check went red on the STAMP alone; both re-run green on the rebuilt page.
+`nettest_sync` at full depth INSIDE the sweep (12/0, rounds 12, actions 60). Re-running it alone is the habit whenever it does not: on 2026-10-02 it time-capped inside
 the parallel sweep at rounds 5 / 27 actions and stayed GREEN while doing it, and it is the only suite that compares the two peers to EACH OTHER — a shallow pass from the one
 suite that can see a fork is exactly the result not to green-light a release on. A suite count and a date
 are a MEASUREMENT and are only true of the build they were taken on, so re-run before quoting this — and
 note that this line was itself 27-stale-counts' worth of evidence for that on 2026-09-30, which is why
-the per-suite numbers below are now checked against the sweep output rather than re-typed. (The epic/main split this line used to carry is GONE as of v1.32.0 — `epic/priority-windows` merged, so the suites listed below ARE main's — 115 since `sorttest`.) (four lanes; background
+the per-suite numbers below are now checked against the sweep output rather than re-typed. (The epic/main split this line used to carry is GONE as of v1.32.0 — `epic/priority-windows` merged, so the suites listed below ARE main's — 116 since `nettest_ping`.) (four lanes; background
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
@@ -2329,7 +2331,7 @@ The 58 netplay suites: `nettest_3p` 7, `brake` 24, `brake3` 15, `clientdeal` 10,
 `elim3` 19, `emote` 21, `energy` 10, `full` 5, `guard` 10, `inpage` 14, `kick` 11, `log` 18, `losspick3` 8,
 `losspick_remote3` 7, `names` 13, `phantasm` 8, `prefight` 13, `react3` 7, `record` 18, `relay` 17,
 `reveal` 10, `roundstall` 9, `rtc` 11, `rtc3` 10, `rtc_discon` 5, `rules` 28, `suggest` 34, `sync` 12,
-`target3` 9, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 11, `heldplay` 22, `heldplay3` 11, `pitch` 15, `drawfizzle` 8, `respondtarget3` 8.
+`target3` 9, `ghostseat` 6, `prioledger` 8, `parkclobber` 10, `trim` 15, `unready` 15, `version` 37, `ridewedge` 9, `rtcready` 9, `quickwedge` 11, `narrate` 12, `fightbeat` 11, `heldplay` 22, `heldplay3` 11, `pitch` 15, `drawfizzle` 8, `respondtarget3` 8, `ping` 10.
 **A DEADLOCKED TABLE USED TO PASS `nettest_sync` (fixed v1.31.75).** Its loop failed only on DIVERGENCE, so a
 table where nobody could act spun out the 120s wall clock and fell through with `drift===null` — both assertions
 green. That is exactly what a lost turn-handover mirror looks like: the hands still **AGREE**, so a state

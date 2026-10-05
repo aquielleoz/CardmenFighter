@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.10.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.11.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.10** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.32.11** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -625,22 +625,6 @@ knows to check whether the epic has already moved the same lines.*
   the repro is already half-built. A staged attempt to make the AI cast it did NOT cast — its heuristics
   declined — so drive the engine directly (`E.activate(st, 1, 'tk', {target:0})`) and then let the UI run.
   `[id: telekinesis-target-never-asked]`
-
-- `root cause found`    · **THE HOST'S "🔔 Ping the table" IS INVISIBLE TO THE CLIENT — IT PAINTS BEHIND THE LOBBY (reported in live
-  play, 2026-09-15).** The client's handler is `SFX.play('ping'); setMessage(…)`, and `setMessage` writes
-  `#message`, which lives **inside the board**. `#netroot` is `position:fixed; inset:0` at `--zNetroot`, so
-  in the lobby it covers the viewport and the ping's only visible output lands behind it. The client gets a
-  beep and nothing to read — reported as *"the client didn't receive any prompts to ready"*.
-  **THE HOST GETS POSITIVE FEEDBACK, WHICH IS WHY IT SHIPPED.** `lobbyPingMsg` *is* inside netroot, so the
-  host reads "🔔 Pinged your table." and concludes it worked. Only the receiving seat can see the failure,
-  and only while the lobby is up.
-  **`hostPing`'s OWN COMMENT NAMES THE WINDOW IT BREAKS IN:** *"it works BEFORE the game starts, which is
-  exactly when it is needed"* — which is precisely when its feedback is invisible. Same family as the
-  `.overlay`-behind-`#netroot` bug, and the same consequence for testing it: **no DOM assertion can see a
-  stacking bug**, so this needs a visibility check, not a presence one.
-  **THE FIX RENDERS INTO THE LOBBY**, and must cover BOTH client lobby branches — readied and not — since
-  the nudge is aimed at the seat that has *not* pressed Ready yet.
-  `[id: ping-invisible-to-client]`
 
 - `needs a repro`       · **⚠ ITS NAMED ROOT WAS FIXED 2026-09-30 — RE-CHECK BEFORE INVESTIGATING FURTHER.**
   The entry `nothing-animates-press-fight` (now closed) said this was *"almost certainly the shanked animations entry as
