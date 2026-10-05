@@ -3226,5 +3226,27 @@ function cards(ids) { return ids.map(card); }
   AI.resetPolicyStats();
 })();
 
+/* ============ A 2-LOW STRAIGHT IS A CANDIDATE (straight-sort-picks-the-lowest, engine half) ============
+   Runs were built over FIGHT value (the 2 = 15), so under the DEFAULT `seqTwos: 'low'` the AI was offered no
+   2-3-4-5-6 at all although `detectCombo` accepts it. Asserted at all three settings, because "offered" is
+   equally true of a build that offers it under `off`, where it is illegal. */
+(function () {
+  var mk = function (r, s, id) { return { rank: r, suit: s, id: id }; };
+  function straightsFor(seq, hand) { E.setSeqTwos(seq); var g = E.newGame(null, { starter: 0 }); g.round = 3; g.pile = null;
+    g.players[0].hand = hand; var r = E.legalFightPlays(g, 0).filter(function (x) { return x.combo && x.combo.type === 'straight'; }).map(function (x) { return x.cards.map(function (c) { return c.id; }).join(','); }); return r; }
+  var low = [mk(2, 'D', 'd2'), mk(3, 'S', 's3'), mk(4, 'H', 'h4'), mk(5, 'C', 'c5'), mk(6, 'D', 'd6'), mk(13, 'S', 'sK')];
+  var hi = [mk(11, 'D', 'dJ'), mk(12, 'S', 'sQ'), mk(13, 'H', 'hK'), mk(1, 'C', 'cA'), mk(2, 'D', 'd2'), mk(4, 'S', 's4')];
+  var a = straightsFor('low', low);
+  ok(a.length === 1 && a[0].indexOf('d2') >= 0, 'seqTwos LOW (the default): 2-3-4-5-6 is offered  [' + a + ']' + (a.length ? '' : '  ← REPRODUCED: the AI could never play it'));
+  ok(straightsFor('off', low).length === 0, 'seqTwos OFF: it is not — the 2 does not chain');
+  ok(straightsFor('low', hi).length === 0, 'seqTwos LOW: J-Q-K-A-2 is not offered');
+  ok(straightsFor('high', hi).length === 1, 'seqTwos HIGH: J-Q-K-A-2 is');
+  E.setStraightMin('3');
+  var r3 = straightsFor('low', [mk(2, 'D', 'd2'), mk(3, 'S', 's3'), mk(4, 'H', 'h4'), mk(9, 'C', 'c9')]);
+  ok(r3.some(function (x) { return x === 'd2,s3,h4'; }), 'with 3-card runs allowed, 2-3-4 is offered too — the variable-length loop had the same hole  [' + r3 + ']');
+  E.setStraightMin('off');
+  E.setSeqTwos('low');
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

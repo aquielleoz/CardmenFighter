@@ -7323,21 +7323,28 @@ __QR__
     return groups;
   }
   // Pull out runs of 5 consecutive values as straight groups (low→high), rest as singles.
+  /* THE HIGHEST STRAIGHT FIRST, AND ONLY LEGAL ONES (straight-sort-picks-the-lowest; Aj, 2026-09-24: *"i think
+     it should sort by the higher straight"*). This walked raw fight values ASCENDING and claimed the first
+     five-in-a-row, which had two faults:
+     - it took the LOWEST run — on his hand `4 · 6789♠ · 10 10 10 · J♠ · 2 2` it built 6-7-8-9-10 and left the
+       J♠ single while 7-8-9-10-J was there, and a straight is only as good as its top card;
+     - it read `fightValue`, where the apex 2 is 15 — so under the DEFAULT rule (the 2 chains LOW) it could
+       never show 2-3-4-5-6 (and its walk COMPUTED J-Q-K-A-2, which the engine refuses — replayed in Node;
+       the page did not show that one as a group, so the visible symptom is the missing 2-low run).
+     So it asks the ENGINE: `enumerateCombos` already applies `seqTwos` and the straight-length rule, and the
+     greedy loop takes the highest-valued five-card straight, removes it, and repeats on what is left. Greedy
+     is Aj's rule; a hand where it loses to a lower-first split would be a second entry, not this one. */
   function sortIntoStraights(hand){
-    var remaining=hand.slice(), groups=[], made=true;
-    while(made){
-      made=false;
-      var byV={}; remaining.forEach(function(c){ var v=fv(c); if(!byV[v]) byV[v]=c; });   // one card per value
-      var vals=Object.keys(byV).map(Number).sort(function(a,b){return a-b;});
-      for(var s=0;s<vals.length;s++){
-        var run=[vals[s]]; for(var k=1;k<5;k++){ if(vals.indexOf(vals[s]+k)>=0) run.push(vals[s]+k); else break; }
-        if(run.length===5){
-          var cards=run.map(function(v){ return byV[v]; });
-          groups.push(cards.slice().sort(bySortVal));
-          cards.forEach(function(cd){ remaining=remaining.filter(function(x){ return x!==cd; }); });
-          made=true; break;
-        }
-      }
+    var remaining=hand.slice(), groups=[];
+    for(var guard=0; guard<4; guard++){
+      var best=null;
+      E.enumerateCombos(remaining).forEach(function(x){               // {cards, combo} — already filtered to LEGAL combos by `detectCombo`
+        if(!x.combo || x.combo.type!=='straight' || x.combo.size!==5) return; // five-card runs: what this mode has always shown
+        if(!best || x.combo.value>best.value) best={ value:x.combo.value, cards:x.cards };
+      });
+      if(!best) break;
+      groups.push(best.cards.slice().sort(bySortVal));
+      remaining=remaining.filter(function(x){ return best.cards.indexOf(x)<0; });
     }
     remaining.slice().sort(bySortVal).forEach(function(c){ groups.push([c]); });
     groups.sort(function(a,b){ return Math.min.apply(null,a.map(fv)) - Math.min.apply(null,b.map(fv)); });   // low→high by the group's lowest card

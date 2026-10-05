@@ -381,11 +381,19 @@
     if (!NO_FULL_HOUSE) trioRanks.forEach(function (tr) {                          // full houses
       pairRanks.forEach(function (pr) { if (pr !== tr) out.push([byRank[tr][0], byRank[tr][1], byRank[tr][2], byRank[pr][0], byRank[pr][1]]); });
     });
-    // straight windows over fight VALUE: 3-7 .. J-Q-K-A-2 (lo 3..11)
-    var loMin = 3, loMax = 11;
+    /* RUNS ARE BUILT OVER THE CHAIN VALUE, NOT THE FIGHT VALUE (straight-sort-picks-the-lowest, 2026-10-05).
+       Under `seqTwos: 'low'` — the DEFAULT — the 2 chains as the LOW card (2-3-4-5-6), but runs were walked over
+       fight value, where the apex 2 is 15, so a 2-low straight was never a candidate. `detectCombo` accepted it
+       and `legalFightPlays` offered ZERO straights from 2♦3♠4♥5♣6♦ — measured: the AI could never play one, and
+       the Straights sort could never show one. `runRank` moves the 2 to 2 when it chains low; every candidate is
+       still passed through `detectCombo` below, so an extra window can never make an illegal run playable. */
+    var runRank = {}; Object.keys(byRank).forEach(function (r) { runRank[r] = byRank[r]; });
+    if (SEQ_TWOS === 'low' && byRank[15]) { runRank[2] = byRank[15]; delete runRank[15]; }
+    // straight windows over chain value: 2-6 (2 low) / 3-7 .. J-Q-K-A-2 (2 high) — detectCombo decides which are legal
+    var loMin = 2, loMax = 11;
     for (var lo = loMin; lo <= loMax; lo++) {
       var window = [lo, lo + 1, lo + 2, lo + 3, lo + 4];
-      if (window.every(function (v) { return byRank[v]; })) out.push(window.map(function (v) { return byRank[v][0]; }));
+      if (window.every(function (v) { return runRank[v]; })) out.push(window.map(function (v) { return runRank[v][0]; }));
     }
     /* ONE REPRESENTATIVE PER SHAPE AND TOP VALUE, not every combination. A 三带一's strength is its trio, so
      * every choice of spare card is an equal-strength play — enumerating them all would flood the hand's legal
@@ -442,10 +450,10 @@
       }
     }
     if (STRAIGHT_MIN !== 'off') {                                                 // every allowed length
-      for (var clo = 3; clo <= 15; clo++) {
+      for (var clo = 2; clo <= 15; clo++) {                                        // over chain value — see runRank above
         var crun = [];
-        for (var cv = clo; cv <= 15 && byRank[cv]; cv++) {
-          crun.push(byRank[cv][0]);
+        for (var cv = clo; cv <= 15 && runRank[cv]; cv++) {
+          crun.push(runRank[cv][0]);
           if (crun.length !== 5 && straightLenOK(crun.length)) out.push(crun.slice());   // 5 is emitted below
         }
       }

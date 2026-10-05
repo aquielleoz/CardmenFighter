@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**629**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**634**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.9.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.10.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.9** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.32.10** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -798,28 +798,6 @@ knows to check whether the epic has already moved the same lines.*
   picture. That sequencing is the one this repo learned the expensive way on the notification toggle: a
   measurement says a control is clean, only the person says it reads right.
   `[id: kick-flash-only-at-game-end]`
-
-- `ready to build`      · **THE STRAIGHTS SORT BUILDS THE LOWEST STRAIGHT, NOT THE BEST ONE (Aj,
-  2026-09-24: *"i think it should sort by the higher straight"*).** `sortIntoStraights` walks the distinct
-  values ASCENDING and claims the first five-in-a-row it finds, so with two overlapping runs available it
-  always takes the lower and spends a card the better one needed.
-  **REPRODUCED ON HIS HAND, not reasoned:** `4♦ · 6♠7♠8♠9♠ · 10♦10♠10♠ · J♠ · 2♦2♠` sorts to a
-  **6-7-8-9-10** with the **J♠ left as a single** — while **7-8-9-10-J** was available and is strictly
-  higher. The 6 becomes the spare instead of being spent, which is the whole of the fix: same five slots,
-  a better play.
-  **WHY IT MATTERS MORE THAN IT LOOKS:** `beats()` compares within a type and size, so a straight is only
-  as good as its top card. The sort exists to show you your best plays, and here it actively hides one.
-  **THE FIX IS THE LOOP DIRECTION** — take the HIGHEST run first, then repeat on what is left — but check
-  two things before calling it done:
-  - **the 2.** `fv` ranks the apex at 15 and `seqTwos` (`off` / `low` / `high`) decides whether it chains
-    at all and at which end, so "highest run" is rule-dependent and the greedy walk must read the live
-    rule rather than the raw value. `sortIntoPairs` has no equivalent hazard; this one does.
-  - **greedy is not always optimal.** Taking the highest run first can leave a worse remainder than taking
-    a lower one would — with 5-6-7-8-9-10 a single run either way, but overlapping runs plus pairs can
-    diverge. Aj's rule is the simple one and is what to build; if a hand is found where it loses, that is
-    a second entry, not a reason to delay this.
-  **AFTER THE EPIC** (Aj, same message: *"the sorting can wait until after the epic tho"*).
-  `[id: straight-sort-picks-the-lowest]`
 
 *Defects in the shipped game. Each was verified present on `main` by grepping the symbols its entry
 names — `pitchHigh`, `send`/`_effUsed`/`startShields`, `formsOpen` — rather than assumed, after four
