@@ -74,6 +74,14 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
   ok(!!cStats && cStats.techniques>0,
      'the client\'s Technique is counted on the host ('+((cStats&&cStats.techniques)||0)+') — hostApplyMoveN tallies a remote seat');
 
+  /* THE CLIENT'S CAST IS NARRATED IN FULL (client-activation-line-short-form) — `hostApplyMoveN` said
+     "Rival 2 played Critical Hit." while the host's own casts and every AI cast read type, card and text. The
+     line is broadcast, so the OTHER client reads the same wording. */
+  const longForm=t=>/played a Technique - 9♠ Critical Hit —/.test(t);
+  const hLog=await host.evaluate(()=>[...document.querySelectorAll('#log .le')].map(e=>e.textContent).join('\n'));
+  const c2Log=await c2.evaluate(()=>[...document.querySelectorAll('#log .le')].map(e=>e.textContent).join('\n'));
+  ok(longForm(hLog), 'the host narrates the client\'s cast in full ("…played a Technique - 9♠ Critical Hit — …")'+(longForm(hLog)?'':'  ← '+((hLog.match(/.*Critical Hit.*/)||[''])[0])));
+  ok(longForm(c2Log), '…and so does the OTHER client');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
 
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);

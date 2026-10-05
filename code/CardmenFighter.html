@@ -6918,7 +6918,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.32.6';
+  var GAME_VERSION='v1.32.7';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -8403,7 +8403,7 @@ window.CardFace = {};
     /* v2.1-mp: the RULE SET is recorded. Without it a homebrew game silently poisons PLAYER-PROFILE.md's
      * ingestion log — a weird statistic becomes indistinguishable from a weird ruleset — and that is exactly the
      * pre-v1.31.5 mistake, which could not be repaired because the information was never written down. */
-    var rec={ v:'2.1-mp', ts:new Date().toISOString(), difficulty:difficulty, rules:rulesKey(),
+    var rec={ v:'2.1-mp', build:GAME_VERSION, ts:new Date().toISOString(), difficulty:difficulty, rules:rulesKey(),   // build: WHICH game made this record (export-lacks-build-version) — `v` is the schema, not the build
       numPlayers:np, mode:(net?'net':(np>2?'local-mp':'solo')), yourSeat:YOU,
       winner:(state.winner===YOU?'you':'rival'), winnerSeat:(state.winner!=null?state.winner:null),
       end:(lastEndType||'deckout'), rounds:state.round, durationMs:Date.now()-gameStartTs,
@@ -11165,7 +11165,19 @@ window.CardFace = {};
     if(window.__lastRoundBanner===rn) prioNote('⚠ ROUND BANNER REPEATED — the round did not advance', 'round '+rn+' announced twice', rn);
     window.__lastRoundBanner=rn;
     say(null, '<b>Round '+rn+'</b> begins. Each player draws '+per+'.', 'round');
-    if(res.draws && res.draws[YOU]===0) logMsg('Draw fizzled — your deck &amp; shuffle pile are empty. Spend energy on effects to recycle cards back into your deck.', 'warn');
+    /* A FIZZLED DRAW: THE FACT IS PUBLIC, THE ADVICE IS PRIVATE (client-never-told-draw-fizzled; Aj's wording,
+       2026-10-05). This used to be ONE host-local `logMsg`, so a netplay client whose deck and shuffle pile
+       were both empty was never told in any game — this function runs on the host and in solo only, and a
+       client replays the round through `clientPlayCeremony`. Now: the deck-out is narrated to the TABLE (the
+       🂠 count already shows it), and the advice goes only to the seat it helps — locally for this seat, via
+       `NET.noteTo` for a remote one. `res.draws` is indexed by ABSOLUTE seat here (host / solo frame). */
+    if(res.draws) for(var dq=0; dq<res.draws.length; dq++){
+      if(res.draws[dq]!==0 || !state.players[dq] || state.players[dq].eliminated) continue;
+      say(dq, 'Draw fizzled for {who} — no cards left in the deck or shuffle pile.', 'warn');
+      var advice='Spend energy on effects to recycle cards back into your deck.';
+      if(dq===YOU) logMsg(advice, 'warn');
+      else if(typeof NET!=='undefined' && NET.isHost && NET.isHost() && NET.noteTo) NET.noteTo(dq, advice, 'warn');
+    }
   }
   function logDeckout(res){
     // The engine records the decked-out seat in res.eliminated for N-player games; only a duel can safely
@@ -11620,7 +11632,7 @@ window.CardFace = {};
         else if(e.useEquip){ beats.push({ dwell:750, run:function(){ say(seat, '{who} spent a '+e.name+' counter — drew a card.', 'rival'); } }); }
         else if(e.fight==='play'){ bumpFight(seat, e.combo&&e.combo.type);   // opponents' fights were never counted — see recordGame
         beats.push({ dwell:1500, run:function(){ say(seat, '{who} played '+playPhrase(e.combo)+(e.boost?' with a <b>Brilliant Tactic</b> boost':'')+'.', 'rival'); bumpFight(RIVAL, e.combo.type); setMessage('<b>'+who+'</b> played '+kindPhrase(e.combo.type)+'.'); render(); } }); }
-        else if(e.phantasm){ beats.push({ dwell:1300, run:function(){ say(seat, '{who} conjured a Phantasmal Illusion — a '+kindLabel(e.made)+' overtakes the pile.', 'rival'); setMessage('🎭 <b>Rival warped your play with a Phantasmal Illusion!</b>'); render(); } }); }
+        else if(e.phantasm){ beats.push({ dwell:1300, run:function(){ say(seat, '{who} conjured a Phantasmal Illusion — a '+kindLabel(e.phantasm)+' overtakes the pile.', 'rival');   /* `e.phantasm`, NOT `e.made`: ai.js logs the SHAPE in `phantasm`, so `made` printed "a Special undefined" (phantasm-beat-reads-wrong-field) */ setMessage('🎭 <b>Rival warped your play with a Phantasmal Illusion!</b>'); render(); } }); }
         else if(e.fight==='pass'){ beats.push({ dwell:950, run:function(){ say(seat, '{who} passed.', 'rival'); setMessage('<b>'+who+'</b> passed.'); render(); } }); }
         else if(e.discard){ beats.push({ dwell:600, run:function(){ say(seat, '{who} discarded '+e.discard+' to hand size.', 'rival'); } }); }
         /* ⚠ A FORCED DISCARD NAMES THE TARGET, NOT THE CASTER (Aj, 2026-09-30: *"i did not discard any
@@ -12700,7 +12712,7 @@ window.CardFace = {};
     function next(){ releaseHold(); clearSpots(); i++; if(i>=steps.length){ finish(); return; } show(); }
     function note(type, data){ if(!active) return; var st=steps[i]; if(!st||!st.gate) return; try{ if(st.gate(type, data)) next(); }catch(e){} }
     function start(list){ steps=list||[]; i=0; active=true; var p=panel(); if(p){ p.style.left=''; p.style.top=''; p.style.transform=''; p.style.bottom=''; p.style.right=''; } show(); }
-    function stop(){ releaseHold(); active=false; tutorialMode=false; tutPromptRestore(); clearSpots(); var p=panel(); if(p) p.classList.remove('show'); }
+    function stop(){ releaseHold(); active=false; tutorialMode=false; tutPromptRestore(); clearSpots(); var p=panel(); if(p) p.classList.remove('show'); tutLockBuilderCancel(false); }   // an abandoned lesson must not leave the builder's Cancel dead
     function skip(){ stop(); setMessage('Tutorial dismissed — play on! You can restart it from New Duel.'); }
     function finish(){
       stop();
@@ -13257,12 +13269,30 @@ window.CardFace = {};
     // only hands the key back), so without force the guard below would short-circuit and the saved-decks list
     // would still show the pre-save state.
     if(!force && document.querySelector('.deckBuild')) return;    // already open (a re-entered step)
-    openDeckBuilder(null, function(){                             // start from an empty 0/4 so the steppers ARE the lesson
-      // While the lesson runs, always come back: on a cancel it would otherwise strand the step, and after a
-      // save the reopened builder re-renders "Your saved decks" so the final step can point at the real deck
-      // the player just built (the modal is not rebuilt in place).
-      if(TUT.isActive()) setTimeout(function(){ tutOpenDeckBuilder(true); }, 120);
+    openDeckBuilder(null, function(key){                          // start from an empty 0/4 so the steppers ARE the lesson
+      // After a SAVE the reopened builder re-renders "Your saved decks" so the final step can point at the real
+      // deck the player just built (the modal is not rebuilt in place). A CANCEL no longer comes back here while
+      // the lesson runs — Cancel is disabled (below) — and once the lesson has stopped it simply closes.
+      if(TUT.isActive()){ if(key) setTimeout(function(){ tutOpenDeckBuilder(true); }, 120); }
+      else hideOverlay();
     });
+    tutLockBuilderCancel(true);
+  }
+  /* CANCEL IS DISABLED WHILE THE LESSON NEEDS THE BUILDER, AND SAYS WHY (decks-cancel-flickers). It used to be
+     live and the continuation re-opened the builder 120ms later — EMPTY, so a Cancel also wiped the parts
+     you had set. An action that cannot satisfy a gated step is disabled with a visible note, never silently
+     undone ("Let it resolve" in the Quicks lesson is the precedent). Skip ✕ is the way out, and `stop()`
+     UNLOCKS it — a disabled Cancel on a builder the lesson has abandoned would be a trap. */
+  function tutLockBuilderCancel(lock){
+    var dc=document.getElementById('dbCancel'); if(!dc) return;
+    var note=document.getElementById('dbTutNote');
+    if(lock){
+      dc.disabled=true; overlayDismiss=null;
+      if(!note){ note=document.createElement('div'); note.id='dbTutNote'; note.className='respNotYou'; note.innerHTML='This lesson needs the builder — finish it, or leave the lesson with <b>Skip ✕</b>.'; dc.parentNode.parentNode.insertBefore(note, dc.parentNode); }
+    } else {
+      dc.disabled=false; if(note) note.remove();
+      overlayDismiss=function(){ dc.click(); };
+    }
   }
   function lessonDecksSteps(){
     return [
@@ -14926,6 +14956,8 @@ window.CardFace = {};
       if(hubMode){ for(var i=0;i<dcs.length;i++){ if(chanSeat[i]===seat){ try{ if(dcs[i].readyState==='open') dcs[i].send(JSON.stringify(m)); }catch(e){} return; } } return; }
       send(m);
     }
+    // a PRIVATE log line for one seat — advice that only helps the player it names (see logRoundDraw)
+    function noteTo(seat, text, cls){ sendTo(seat, {t:'note', seat:seat, text:String(text||''), cls:cls||''}); }
     function sendTo0(chan, m){ if(hubMode && chan){ try{ if(chan.readyState==='open') chan.send(JSON.stringify(m)); }catch(e){} } else send(m); }   // to one specific (not-yet-seated) channel
     function seatOfChan(chan){ var i=dcs.indexOf(chan); return (i>=0)?chanSeat[i]:null; }
 
@@ -15646,6 +15678,7 @@ window.CardFace = {};
         else if(m.t==='concede'){ onOpponentConcede(); }
         else if(m.t==='peer'){ clientPeerDown=(m.ev==='back'?false:m.ev); renderDisconBar(); }    // host: another player dropped('drop') / Passo covering('passo') / back(false)
         else if(m.t==='err'){ if(m.seat==null || m.seat===mySeat){ flipFrom=null; setMessage('⚠ '+(m.reason||'Illegal move.')); } }
+        else if(m.t==='note'){ if(m.seat===mySeat) logMsg(esc(m.text), m.cls||''); }   // a private line from the host — escaped: it is data, never markup
         else if(m.t==='held'){ if(m.seat==null || m.seat===mySeat){ clientHeld(); } }   // the host held our Fight — see heldPlayMessage
       }
     }
@@ -16120,7 +16153,7 @@ window.CardFace = {};
         try{ r=E.activate(hostState, 1, it.id, { target:(it.target!=null?it.target:YOU), copyId:it.copyId, discard:it.discard, toTop:it.toTop, pitch:it.pitch }); }
         catch(e){ send({t:'err', reason:'Move rejected.'}); broadcastMirror(); return; }
         if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
-        say(1, '{who} played '+(aeff?aeff.name:'a Technique')+'.', 'rival');
+        say(1, '{who} played '+effPhrase(acard)+'.', 'rival');   // effPhrase, like the host's own casts and every AI cast (client-activation-line-short-form)
         fxBroadcast(1, acard);   // the remote seat's effect was invisible on the host too — its own board only logged the line
         bumpEffect(1, aeff);     // ...and uncounted: every other bumpEffect site is a LOCAL path, so the host's record — the one every seat ADOPTS — had this seat at zero
         return hostSettle(g, function(){ hostRivalContinue(g); });   // host may Counter; rival may counter-back; then the rival's turn continues
@@ -16537,7 +16570,7 @@ window.CardFace = {};
           var tgt=(it.target!=null)?((it.target+seat)%n):undefined;   // un-rotate the client's (rotated) target back to the absolute seat
           r=E.activate(hostState, seat, it.id, { target:tgt, copyId:it.copyId, discard:it.discard, toTop:it.toTop, pitch:it.pitch });
           if(r&&r.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:r.reason||'Illegal move.'}); broadcastMirror(); return; }
-          say(seat, '{who} played '+(ae?ae.name:'a Technique')+'.', 'rival');
+          say(seat, '{who} played '+effPhrase(ac)+'.', 'rival');   // effPhrase — same grammar as every other cast; the duel handler's twin
           fxBroadcast(seat, ac);
           bumpEffect(seat, ae);
           hostFlushReveals();          // Outbalance: hand the read to the caster (no-op for every other card)
@@ -17265,7 +17298,7 @@ window.CardFace = {};
         '<p>'+(isHost()?'Share this link with your opponent (same machine, another tab):<br><code>?net=join&room='+room+'</code>':'Connecting to the host…')+'</p></div>'; return; }
       return renderLobby(root);
     }
-    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, prioBroadcast:prioBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostRename:hostRename, setRenameBase:function(ms){ RENAME_BASE=ms; }, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); }, backToLobby:hostBackToLobby, dbgInject:function(m){ onMsg(m); }, lastLog:function(){ return lobbyLogStash.slice(); } };
+    return { boot:boot, start:start, leaveOnline:leaveOnline, hostParkTrim:hostParkTrim, isRemoteHumanSeat:isRemoteHumanSeat, suggestions:suggestions, sendSuggest:sendSuggest, emoteBroadcast:emoteBroadcast, sayBroadcast:sayBroadcast, noteTo:noteTo, prioBroadcast:prioBroadcast, active:active, isHost:isHost, isClientActive:isClientActive, awaitRival:awaitRival, onRender:onRender, clientSend:clientSend, concede:concede, hostSettle:hostSettle, hostSettleActive:hostSettleActive, hostSettleN:hostSettleN, hostLive:hostLive, hostAfterOwnCast:hostAfterOwnCast, sendCeremony:sendCeremony, sendRecord:sendRecord, sendFx:fxSend, driveN:driveN, hostResolveWin:hostResolveWin, hostSettleRoundThenCeremony:hostSettleRoundThenCeremony, hostConcede:hostConcede, hostRename:hostRename, setRenameBase:function(ms){ RENAME_BASE=ms; }, hostOnPeerDrop:hostOnPeerDrop, hostOnPeerBack:hostOnPeerBack, hostDropPlayer:hostDropPlayer, isPasso:isPasso, clientNotReady:clientNotReady, dbgUnstart:dbgUnstart, trace:trace, traceDump:traceDump, setGraceMs:function(ms){ GRACE_MS=ms; }, clearDiscon:clearDiscon, dbgForce:dbgForce, dbgForceAll:dbgForceAll, dbgDropMirrors:dbgDropMirrors, dbgForceBS:dbgForceBS, boardStamp:function(){ return boardStamp(hostState); }, backToLobby:hostBackToLobby, dbgInject:function(m){ onMsg(m); }, lastLog:function(){ return lobbyLogStash.slice(); } };
   })();
   var NETCSS='#netroot{position:fixed;inset:0;z-index:var(--zNetroot);background:#0d1016;color:#e8edf5;font:14px/1.4 system-ui,sans-serif;overflow:auto;padding:14px;box-sizing:border-box}'+
     /* THE ROOM CODE IS READ ALOUD AND TYPED, so it is large, monospaced and letter-spaced — the same reason the

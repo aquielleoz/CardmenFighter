@@ -110,6 +110,14 @@ const stage = p => p.evaluate(()=>{ const st=window.__solo.st(), mk=(r,s,id)=>({
   ok(dline && !/Caster/.test(dline),
      '  …and NOT the caster — the seat whose turn is being presented is not the seat that discarded');
 
+  /* THE AI's PHANTASMAL ILLUSION NAMES A SHAPE (phantasm-beat-reads-wrong-field). Bibong's export read
+     "a Special undefined overtakes the pile": `ai.js` logs `{ phantasm: rp.made }` and the renderer read
+     `e.made`. Fed the exact entry ai.js produces, like the forced-discard leg above. */
+  const beforeP = await p.evaluate(()=>document.querySelectorAll('#log .le').length);
+  await p.evaluate(()=>window.__solo.oppBeats([{ phantasm:'fullhouse', value:9 }], 1));
+  await wait(1600);
+  const pline = await p.evaluate(n=>[...document.querySelectorAll('#log .le')].slice(n).map(e=>e.textContent.trim()).filter(t=>/Phantasmal/.test(t))[0]||'', beforeP);
+  ok(/Full House/i.test(pline) && !/undefined/.test(pline), `the AI's illusion names the shape it made  ["${pline}"]` + (/undefined/.test(pline)?'  ← REPRODUCED':''));
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,2).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);
