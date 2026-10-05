@@ -3066,5 +3066,56 @@ function cards(ids) { return ids.map(card); }
      'your OWN pending discard blocks you, and says so in your own terms' + (own.ok ? '  ← own-seat case unguarded' : ''));
 })();
 
+/* ============ WHAT A STACK OBJECT IS AIMED AT (stack-row-omits-target) ============
+   Aj: "what is the strip targeting?" — the Respond? window named a removal and never the Equipment.
+   `stackTargetOf` is built from resolution's own lookups; the headline assertion is BOTH WAYS on one board,
+   because "names an Equipment" is equally true of a build that names the wrong one. */
+(function () {
+  function effOfKind(kind) {
+    var suits = ['D', 'H', 'C', 'S'];
+    for (var si = 0; si < 4; si++) for (var r = 3; r <= 14; r++) { var e = E.effectOf({ rank: r, suit: suits[si] }); if (e && e.kind === kind) return { eff: e, card: { rank: r, suit: suits[si], id: 'k' + r + suits[si] } }; }
+    return null;
+  }
+  var g = E.newGame(null, { starter: 0, numPlayers: 3 });
+  g.players[2].equipment = [ { id: 'eqA', name: 'Caltrops', counters: 3 }, { id: 'eqB', name: 'Spiked Armor', counters: 3 } ];
+  g.players[0].equipment = [ { id: 'eqMine', name: 'Holy Bow', counters: 3 } ];
+  var rem = effOfKind('removeEquip'), ctr = effOfKind('counter'), pro = effOfKind('protect'), lock = effOfKind('lockout');
+  ok(rem && ctr && pro && lock, 'STAGED: the card pool has a removal, a counter, an Annoint and a lockout');
+
+  var strip = { oid: 'o1', kind: 'effect', p: 1, card: rem.card, eff: rem.eff, opts: { target: 'eqB' } };
+  g.stack = [strip];
+  var t = E.stackTargetOf(g, strip);
+  ok(t && t.equip && t.equip.name === 'Spiked Armor' && t.equip.owner === 2, 'a removal names the Equipment it was CAST at — Spiked Armor, seat 2  [' + JSON.stringify(t) + ']');
+  ok(!(t && t.equip && t.equip.name === 'Caltrops'), '…and NOT the other piece on the same seat (both ways, one board)');
+
+  var auto = { oid: 'o2', kind: 'effect', p: 1, card: rem.card, eff: rem.eff, opts: {} };
+  g.stack = [auto];
+  var ta = E.stackTargetOf(g, auto), pick = null;
+  ok(ta && ta.equip, 'an UNNAMED removal (the AI, an older peer) still names what pickEquip will take  [' + JSON.stringify(ta) + ']');
+
+  var ann = { oid: 'o3', kind: 'effect', p: 2, card: pro.card, eff: pro.eff, opts: {} };
+  g.stack = [strip, ann];
+  var tp = E.stackTargetOf(g, ann);
+  ok(tp && tp.equip && tp.equip.name === 'Spiked Armor', 'Annoint names the piece the removal BENEATH it is aiming at — the same one it will protect  [' + JSON.stringify(tp) + ']');
+
+  var cs = { oid: 'o4', kind: 'effect', p: 0, card: ctr.card, eff: ctr.eff, opts: { counterOid: 'o1' } };
+  g.stack = [strip, ann, cs];
+  var tc = E.stackTargetOf(g, cs);
+  ok(tc && tc.effect && tc.effect.name === rem.eff.name && tc.effect.owner === 1, 'a Counter Spell with a NAMED target names it, not the object directly beneath  [' + JSON.stringify(tc) + ']');
+  var cs2 = { oid: 'o5', kind: 'effect', p: 0, card: ctr.card, eff: ctr.eff, opts: {} };
+  g.stack = [strip, ann, cs2];
+  var tc2 = E.stackTargetOf(g, cs2);
+  ok(tc2 && tc2.effect && tc2.effect.name === pro.eff.name, '…and an unnamed one names the topmost effect beneath it, as resolution does  [' + JSON.stringify(tc2) + ']');
+
+  var bs = { oid: 'o6', kind: 'effect', p: 0, card: lock.card, eff: lock.eff, opts: { target: 2 } };
+  g.stack = [bs];
+  ok((E.stackTargetOf(g, bs) || {}).seat === 2, 'a seat-targeted effect names the rival it was aimed at');
+
+  var plain = effOfKind('draw') || effOfKind('energy');
+  if (plain) { var po = { oid: 'o7', kind: 'effect', p: 0, card: plain.card, eff: plain.eff, opts: {} }; g.stack = [po];
+    ok(E.stackTargetOf(g, po) === null, 'an UNTARGETED effect names nothing — its row renders exactly as before'); }
+  ok(E.stackTargetOf(g, { oid: 'o8', kind: 'effect', p: 0, trig: true, name: 'Caltrops' }) === null, 'a trigger (no eff) names nothing and does not throw');
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

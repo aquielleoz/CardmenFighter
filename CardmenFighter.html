@@ -1060,6 +1060,7 @@
   .modal .respOpts{display:flex; flex-direction:column; gap:8px; margin-top:12px;}
   .modal .respOpts button{margin-top:0; text-align:left; display:flex; flex-direction:column; gap:2px; line-height:1.3;}
   .modal .respQuick{background:var(--gold); color:#3a2a08;}
+  .stkTgt{font-weight:600;}
   .modal .respQuick.cfSel{outline:3px solid var(--pick); box-shadow:0 0 12px rgba(201,139,255,.8);}
   .modal .respQuick:disabled{opacity:.5; cursor:default;}
   .modal .respQuick .respTxt{font-weight:600; font-size:11.5px; opacity:.85;}
@@ -3690,6 +3691,49 @@
     return nextPlayer(st, p);
   }
   var HOSTILE_SINGLE = { discardOpp: 1, destroyShield: 1, energyDenyOpp: 1, lockout: 1 };   // singular effects that make a grudge
+  /* WHAT A STACK OBJECT IS AIMED AT, for the UI to say out loud (stack-row-omits-target, Aj 2026-09-30:
+     *"what is the strip targeting?"*). The Respond? window named a removal and never the Equipment — and
+     WHICH piece is about to go is the entire decision about spending Annoint.
+     BUILT FROM THE LOOKUPS RESOLUTION USES, never re-derived: the zone branch, then `pickEquip` (which is
+     also what Annoint resolves against), `effectTarget` for a rival seat, and the counter's named object
+     else the topmost effect beneath it. A label that disagreed with what answering will actually do is worse
+     than no label. Returns null for an untargeted effect, so the row stays exactly as it was.
+     { equip:{name, owner} } | { zone:{name, owner, tier} } | { seat:q } | { effect:{name, owner} } */
+  function stackTargetOf(st, o) {
+    if (!o || o.kind !== 'effect' || !o.eff) return null;
+    var eff = o.eff, opts = o.opts || {};
+    if (eff.kind === 'removeEquip') {
+      if ((eff.ride || eff.form) && opts.target) {
+        for (var zq = 0; zq < st.numPlayers; zq++) {
+          var zf = (st.players[zq].forms || []).filter(function (f) { return f.card && f.card.id === opts.target; })[0];
+          if (zf && ((zf.tier === 'ride' && eff.ride) || (zf.tier !== 'ride' && eff.form))) return { zone: { name: zf.name, owner: zq, tier: zf.tier } };
+        }
+      }
+      var t = pickEquip(st, o.p, opts.target);
+      return t ? { equip: { name: t.e.name, owner: t.q } } : null;
+    }
+    if (eff.kind === 'protect') {                          // Annoint: the equipment the removal beneath is aiming at, else its caster's own
+      var idx = st.stack.indexOf(o);
+      for (var j = (idx < 0 ? st.stack.length : idx) - 1; j >= 0; j--) {
+        var b = st.stack[j];
+        if (b.kind === 'effect' && b.eff && b.eff.kind === 'removeEquip') { var tb = pickEquip(st, b.p, b.opts && b.opts.target); return tb ? { equip: { name: tb.e.name, owner: tb.q } } : null; }
+      }
+      var own = (st.players[o.p].equipment || []).filter(function (e) { return !opts.target || e.id === opts.target; })[0];
+      return own ? { equip: { name: own.name, owner: o.p } } : null;
+    }
+    if (eff.kind === 'counter') {
+      var at = st.stack.indexOf(o);
+      for (var k = (at < 0 ? st.stack.length : at) - 1; k >= 0; k--) {
+        var c = st.stack[k];
+        if (c.kind !== 'effect') continue;
+        if (opts.counterOid && c.oid !== opts.counterOid) continue;
+        return { effect: { name: c.eff ? c.eff.name : (c.name || 'an effect'), owner: c.p } };
+      }
+      return null;
+    }
+    if (HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp')) return { seat: effectTarget(st, o.p, opts) };
+    return null;
+  }
   function resolveEffect(st, p, card, eff, opts) {
     opts = opts || {};
     var pl = st.players[p], oppIdx = effectTarget(st, p, opts);
@@ -5114,6 +5158,7 @@
     setTransformCost: setTransformCost, setTransformDraw: setTransformDraw, setTransformGate: setTransformGate, transformGateOK: transformGateOK, transformGateStatus: transformGateStatus, transformCost: transformCost, transformDraw: transformDraw, setBoostScale: setBoostScale, setFormSuitMatch: setFormSuitMatch,
     moveToPlay: moveToPlay,
     effectTarget: effectTarget,   // who a pending effect is aimed at — the UI needs it to say so out loud
+    stackTargetOf: stackTargetOf,   // WHAT a stack object is aimed at (Equipment / Ride / seat / effect) — built from resolution's own lookups
     HOSTILE_SINGLE: HOSTILE_SINGLE,
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
     canAddToStack: canAddToStack, canCastQuick: canCastQuick, castRefusal: castRefusal, quickTargets: quickTargets, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
@@ -6451,7 +6496,8 @@ window.CardFace = {};
         if (o.countered != null) c.countered = !!o.countered;
         if (o.card) c.card = card(o.card);
         if (o.eff) c.eff = o.eff;                                  // static EFFECTS data — no seats, no cycles
-        if (o.opts) c.opts = { target: rot(o.opts.target) };       // the only seat-bearing opt a client reads
+        if (o.opts) { c.opts = { target: rot(o.opts.target) };    // the only seat-bearing opt a client reads
+          if (o.opts.counterOid) c.opts.counterOid = o.opts.counterOid; }   // an oid, not a seat — lets the client name WHICH object a Counter Spell hits (stackTargetOf)
         return c;
       });
     }
@@ -6855,7 +6901,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.32.4';
+  var GAME_VERSION='v1.32.5';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -9199,6 +9245,16 @@ window.CardFace = {};
      Returning a STRING rather than exporting a second renderer is what keeps this one definition; the CSS
      moved off `#stackView .stk` onto a plain `.stk` for the same reason — a copy of these five rules under
      a second id is the drift, not the fix. */
+  // reader-relative: "your Caltrops", "Tank’s Giant Ram", "You"
+  function stackTargetPhrase(t){
+    if(!t) return '';
+    function whose(q){ return q===YOU ? 'your ' : esc(logName(q))+'’s '; }
+    if(t.equip) return whose(t.equip.owner)+'<b>'+esc(t.equip.name||'Equipment')+'</b>';
+    if(t.zone) return whose(t.zone.owner)+'<b>'+esc(t.zone.name||(t.zone.tier==='ride'?'Ride':'Form'))+'</b>';
+    if(t.effect) return whose(t.effect.owner)+'<b>'+esc(t.effect.name||'effect')+'</b>';
+    if(typeof t.seat==='number') return '<b>'+esc(logName(t.seat))+'</b>';
+    return '';
+  }
   function stackRowsHTML(){
     var objs=(state.stack||[]).filter(function(o){return o.kind==='effect';});
     var fe=state.resolution||null;
@@ -9218,7 +9274,11 @@ window.CardFace = {};
          are unreachable now: a counter SPLICES its target off the stack, so a countered object is never
          rendered at all. Keeping the branch would leave the UI describing a state the engine cannot
          produce, which is the `spBegin` mistake of the same day in a different file. */
-      html+='<div class="stk'+(isTop?' top':'')+'"><span class="who">'+who+' ▸</span> '+label+sym+(isTop?' <span class="who">(resolves next)</span>':'')+'</div>';
+      /* AND WHAT IT IS AIMED AT (stack-row-omits-target) — the noun the decision turns on. From
+         `E.stackTargetOf`, which reads resolution's own lookups, so the row cannot name a different piece
+         from the one answering will protect. Untargeted effects render exactly as before. */
+      var tTxt=stackTargetPhrase(E.stackTargetOf ? E.stackTargetOf(state, o) : null);
+      html+='<div class="stk'+(isTop?' top':'')+'"><span class="who">'+who+' ▸</span> '+label+sym+(tTxt?' <span class="stkTgt">→ '+tTxt+'</span>':'')+(isTop?' <span class="who">(resolves next)</span>':'')+'</div>';
     }
     if(pendingLoss){
       var lWho=(typeof pendingLoss.winner==='number')?logName(pendingLoss.winner):'The winner';

@@ -152,7 +152,8 @@
         if (o.countered != null) c.countered = !!o.countered;
         if (o.card) c.card = card(o.card);
         if (o.eff) c.eff = o.eff;                                  // static EFFECTS data — no seats, no cycles
-        if (o.opts) c.opts = { target: rot(o.opts.target) };       // the only seat-bearing opt a client reads
+        if (o.opts) { c.opts = { target: rot(o.opts.target) };    // the only seat-bearing opt a client reads
+          if (o.opts.counterOid) c.opts.counterOid = o.opts.counterOid; }   // an oid, not a seat — lets the client name WHICH object a Counter Spell hits (stackTargetOf)
         return c;
       });
     }

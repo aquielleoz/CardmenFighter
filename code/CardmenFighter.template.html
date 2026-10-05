@@ -1060,6 +1060,7 @@
   .modal .respOpts{display:flex; flex-direction:column; gap:8px; margin-top:12px;}
   .modal .respOpts button{margin-top:0; text-align:left; display:flex; flex-direction:column; gap:2px; line-height:1.3;}
   .modal .respQuick{background:var(--gold); color:#3a2a08;}
+  .stkTgt{font-weight:600;}
   .modal .respQuick.cfSel{outline:3px solid var(--pick); box-shadow:0 0 12px rgba(201,139,255,.8);}
   .modal .respQuick:disabled{opacity:.5; cursor:default;}
   .modal .respQuick .respTxt{font-weight:600; font-size:11.5px; opacity:.85;}
@@ -4168,6 +4169,16 @@ __QR__
      Returning a STRING rather than exporting a second renderer is what keeps this one definition; the CSS
      moved off `#stackView .stk` onto a plain `.stk` for the same reason — a copy of these five rules under
      a second id is the drift, not the fix. */
+  // reader-relative: "your Caltrops", "Tank’s Giant Ram", "You"
+  function stackTargetPhrase(t){
+    if(!t) return '';
+    function whose(q){ return q===YOU ? 'your ' : esc(logName(q))+'’s '; }
+    if(t.equip) return whose(t.equip.owner)+'<b>'+esc(t.equip.name||'Equipment')+'</b>';
+    if(t.zone) return whose(t.zone.owner)+'<b>'+esc(t.zone.name||(t.zone.tier==='ride'?'Ride':'Form'))+'</b>';
+    if(t.effect) return whose(t.effect.owner)+'<b>'+esc(t.effect.name||'effect')+'</b>';
+    if(typeof t.seat==='number') return '<b>'+esc(logName(t.seat))+'</b>';
+    return '';
+  }
   function stackRowsHTML(){
     var objs=(state.stack||[]).filter(function(o){return o.kind==='effect';});
     var fe=state.resolution||null;
@@ -4187,7 +4198,11 @@ __QR__
          are unreachable now: a counter SPLICES its target off the stack, so a countered object is never
          rendered at all. Keeping the branch would leave the UI describing a state the engine cannot
          produce, which is the `spBegin` mistake of the same day in a different file. */
-      html+='<div class="stk'+(isTop?' top':'')+'"><span class="who">'+who+' ▸</span> '+label+sym+(isTop?' <span class="who">(resolves next)</span>':'')+'</div>';
+      /* AND WHAT IT IS AIMED AT (stack-row-omits-target) — the noun the decision turns on. From
+         `E.stackTargetOf`, which reads resolution's own lookups, so the row cannot name a different piece
+         from the one answering will protect. Untargeted effects render exactly as before. */
+      var tTxt=stackTargetPhrase(E.stackTargetOf ? E.stackTargetOf(state, o) : null);
+      html+='<div class="stk'+(isTop?' top':'')+'"><span class="who">'+who+' ▸</span> '+label+sym+(tTxt?' <span class="stkTgt">→ '+tTxt+'</span>':'')+(isTop?' <span class="who">(resolves next)</span>':'')+'</div>';
     }
     if(pendingLoss){
       var lWho=(typeof pendingLoss.winner==='number')?logName(pendingLoss.winner):'The winner';
