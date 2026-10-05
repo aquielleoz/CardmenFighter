@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.12.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.13.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.12** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.32.13** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -643,80 +643,7 @@ knows to check whether the epic has already moved the same lines.*
   never reset on a client (`resetBoardMemory` is the shared one). Check both before inventing a number.
   `[id: client-animations-shanked]`
 
-- `root cause found`    · **THE "THE 2" LESSON STALLS BECAUSE ITS PILOT LEADS NOTHING — AND THE STALE PILE
-  IS THE CONSEQUENCE, NOT THE CAUSE (Aj, 2026-09-17, with a saved log).** *"the rival never plays their full
-  house of 2s"* · *"the last play did not clear... i could not click Next because of the pair of 2s in the
-  play area."*
-  **THE MECHANISM — `tutPilotTwos`'s leading branch:**
-  ```js
-  if(!cur){                     // LEADING — only ever happens in round 3
-    var t3=twos(3), pr=pairOf(2);
-    if(t3.length===3 && pr && play(t3.concat(pr))) return log;
-  }                             // falls through, returns an empty log, plays NOTHING
-  ```
-  It needs **three 2s AND a non-2 pair** and guarantees neither. Miss either and the Rival does nothing, so
-  the round never resolves and the previous round's pile stays on the table — which the ENGINE still holds,
-  not just the UI, which is why the board refuses the player's full house with *"Special Full House —
-  doesn't beat the Special Pair."* Step 7 meanwhile insists *"They lead a full house built on three 2s…
-  Beat it."* No way out.
-  **THE COMMENT DIRECTLY ABOVE IT RECORDS THE SAME BUG, FIXED ONCE:** *"This scanned 3..13 and so could not
-  see a pair of Aces… it then had no full house to lead and **passed forever**."* That fix widened the rank
-  scan; the hole that remains is having no qualifying pair at all, and the failure is identical.
-  **FIVE HYPOTHESES MEASURED AND KILLED 2026-09-17 — the value here is what NOT to re-chase:**
-
-  | hypothesis | how it died |
-  | --- | --- |
-  | the untap move broke `roundAdvance` | 40 Basics games to round 37, **0 stuck** |
-  | `pileClear` broken generally | **1366-1378 round boundaries, 0 stale piles** |
-  | the hand-limit trim eats the Rival's pair | it plays as it draws — `8→7→9→7→9`, never reaches the cap of 10 |
-  | clean-up skipped for a falsy `cleanupResult` | engine detector, **0 hits in 1366 boundaries** |
-  | a falsy return breaking `settleWindows`' loop | `last` is initialised `{ok:true}` and never reassigned |
-
-  **AND ONE THAT LOOKS DAMNING AND IS NOT.** `promptHumanResponse`'s default continuation is `resumeRival`,
-  not `settleWindows`, and three call sites take that default — which reads exactly like the tutorial wedge
-  CLAUDE.md records. All three sit INSIDE the rival driver's own loop, which re-checks `respondFor` each
-  step, so the default is self-draining there. **Do not "fix" it without a failing case.**
-  **THE DETECTOR IS LIVE — ASK FOR A SAVED LOG.** A round cannot legitimately begin with a pile on the
-  table, so the round-begin path now writes **⚠ ROUND BEGAN WITH A STALE PILE** and **⚠ ROUND BANNER
-  REPEATED** into the priority ledger, which rides in the downloaded battle log. The next occurrence will
-  say which fired and at which round. ⚠ **It has not been SEEN to fire**: four bespoke probes were written
-  chasing this and all four were wrong, `prioNote`'s arity was checked by reading, and 12 duels plus the 2s
-  lesson do not trip it — so a silent ledger is weak evidence, not absence.
-  **AND THAT DETECTOR CANNOT SEE THE REPORTED FAILURE, WHICH IS WHY A SECOND ONE SHIPPED 2026-09-17.** It
-  fires at the ROUND BANNER, so it can only speak when a round BEGINS — and if the boundary never
-  completes, no banner is drawn and it has nothing to fire on. "Nothing happened" and "the code never ran"
-  are the same absence, which is the rule this repo wrote down for `prioNote` and then rebuilt the hole
-  under. Aj named it: *"it all waits on me because you never seem to encounter the pile not clearing."*
-  **READ `--- ROUND BOUNDARY ---` IN THE SAVED LOG FIRST.** `bnote` (engine.js) records the boundary
-  itself, every time, including the quiet ones. A healthy boundary is
-  `CLEANUP enter → initiative → pileClear → expire → temps → exit` then
-  `BEGIN enter → roundAdvance → equipReset → stampRound → exit`, each line carrying `pile=`, `turn=` and
-  `stack=`. **A SHORT BLOCK IS THE FINDING** — the missing tail names the step it stopped on — and the
-  engine reads its own trace for the one case it can judge, writing **⚠ CLEANUP LEFT A PILE** when a pile
-  survives `pileClear`.
-  It is a module-level ring with a pickup accessor (`E.boundaryTrace()`), NOT on `st`, so it never travels
-  in a mirror. Instrument verified by mutation — removing `st.pile = null` from `pileClear` fires 50
-  warnings in one game — and `logtest` asserts the section reaches the downloaded file with real rows,
-  which is the half that can silently not work (`downloadLog` reads it inside a `try{}catch{}`).
-  **AND THE PILOT IS DOWNSTREAM OF ALL OF IT.** With a stale pile present, `tutPilotTwos` sees `cur` set
-  where the script expects null, matches no branch (`size===2` but `cards[0].rank` is 2, not the Ace it
-  tests for) and passes. **Fixing the pilot to cope would paper over the boundary failure** — which is why
-  it was not done when the fix was asked for.
-  **THE ENGINE IS EXONERATED, MEASURED — do not re-chase it.** The untap queue had just moved `roundAdvance`
-  and was the obvious suspect: **40 solo Basics games, deepest round 37, ZERO stuck rounds**, and **1378
-  round boundaries with ZERO stale piles**. `browsertest` independently reached round 28. `pileClear` and
-  `roundAdvance` both work; this is the lesson pilot.
-  **⚠ AN EARLIER VERSION OF THIS ENTRY BLAMED TURN ORDER AND WAS WRONG.** I read the pile as the Rival
-  ANSWERING in-round, and concluded the step assumed the Rival leads. Aj: *"nope, they didn't play anything.
-  that was the play from the previous round."* The distinction matters — "the Rival followed with a pair"
-  is a script-expectation bug, "the Rival played nothing and the board never cleared" is a stall. **Read a
-  stale pile as evidence that a turn never happened, not as evidence of what was played.**
-  **`lessontest_twos` IS 29/0 GREEN THROUGH ALL OF IT**, because it plays what each step spotlights and so
-  never reaches a hand the pilot cannot lead from. The suite needs a deal where the Rival's non-2 pair is
-  absent. Third suite-versus-reality gap found by playing the tutorials today.
-  `[id: twos-lesson-pilot-leads-nothing]`
-
-- `root cause found`    · **THE ROUND-BOUNDARY DETECTOR FIRED, AND IT DISPROVES ITS OWN MESSAGE — THE
+- `needs a repro`       · **THE ROUND-BOUNDARY DETECTOR FIRED, AND IT DISPROVES ITS OWN MESSAGE — THE
   CEREMONY RE-RAN, THE BOUNDARY DID NOT FAIL (Aj's 3-player log, 2026-09-24).** The 2026-09-17 detector was
   built precisely because this would not reproduce — five hypotheses measured and killed, with the note
   *"the next occurrence has to explain itself instead."* This is that occurrence, and it does.
@@ -824,28 +751,6 @@ never read.*
   beat was genuinely skipped on that run. Telling them apart needs the sampler to record what it DID see
   around the boundary (the `mptest` stall-line approach) before anyone touches the floor or the beat.
   `[id: nettest-ceremony-cleanup-tint-zero]`
-
-- `root cause found`    · **★ THE MIRROR-CONTRACT AUDIT'S THREE UNFIXED FINDINGS.** v1.31.114/.115 took the two live bugs and
-  v1.31.116 the park heartbeat; these are what the judge left standing. Each is a mirror or transport fault, so
-  each is silent on BroadcastChannel and only bites over RTC or at 3–6 players — the same shape as both bugs
-  that did ship.
-  - **`send()` stringifies OUTSIDE its `try` (template `:7177`).** So a body that will not serialise throws out
-    of `send` rather than being caught, and the caller dies with it. The caller that matters is `endGame`: a
-    fault there aborts the end screen for everyone. Move the `JSON.stringify` inside, and trace the failure the
-    way `broadcastMirror` now does — the loud-failure half of v1.31.115, applied to the other sender.
-  - **A ROTATION-DIFFERENTIAL TEST.** Every mirror bug found so far was a field that was copied when it should
-    have been projected, or projected when it should have been rotated, and `netview.test.js` can only assert
-    the fields someone thought to name. The test that generalises: build `mirrorFor(st, s)` for **every** seat
-    of one non-trivial state and require every seat-valued field to differ by exactly the rotation — a field
-    that is identical across seats is either public or a bug, and the list of public ones is short and
-    reviewable. That inverts the burden from "did we remember this key" to "why is this key not rotating".
-  - **THREE FIELDS ARE MISSING FROM THE MIRROR ENTIRELY**, and the third is user-visible at every table of 3+:
-    `_effUsed` (so a client cannot tell whether the first-effect discount is still available), `startShields`
-    (so a client cannot render the shield track against its start), and **`struck`/`spared` on the round
-    result** — without which a client cannot name who lost a shield and falls back to *"a rival lost a
-    shield"*. That last one is the v1.29.6 lesson (never infer the loser — read `result.struck`) reappearing
-    as a redaction gap rather than a UI one.
-  `[id: mirror-contract-findings]`
 
 - `needs a decision`   · **THE CLIENT'S CEREMONY IS A SECOND IMPLEMENTATION, AND THAT IS CAUSE 2 OF THE
   HOST/CLIENT DRIFT** (Aj, 2026-09-29: *"why do we keep getting this unsync between host and client?"*).

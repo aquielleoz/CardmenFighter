@@ -15,6 +15,33 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.13 — "The 2" lesson always gets its finale
+
+**The Rival's last play in "The 2" lesson can no longer go missing, and it no longer shows the same card
+twice.** The lesson ends with the Rival leading a full house of three 2s so you can beat it with any full
+house. That lead needs three 2s **and** a pair, and the pilot guaranteed neither: on a hand short of either,
+it played nothing in silence, and the lesson sat on step 7 forever with *"doesn't beat the Special Pair"*.
+Aj's 2026-09-17 report (*"the rival never plays their full house of 2s"*) was this.
+
+- **The pilot repairs a short hand instead of passing.** It fabricates the missing 2s or pair (the Rival's
+  hidden cards may be illegal, its plays may not), keeps the play suit-distinct, never copies a card any seat
+  holds, and writes `⚠ TWOS PILOT REPAIRED its round-3 lead` to the priority ledger so a repaired run is
+  never mistaken for a natural one.
+- **Its 2s are now spent suit-distinct.** It took them in hand order, which used up the unique suits early,
+  so the finale's trio was **2♠ 2♠ 2♣**: one card shown twice, on every run. That was shipped, and the
+  suite never looked. It now spends the most-duplicated suit first and comes out 2♥ 2♠ 2♣.
+- **`lessontest_twos` forces the hole on every run** (it strips the Rival's non-2 cards and empties its deck
+  before round 3) and requires the full house anyway, routed through the repair. A/B against v1.32.12:
+  **7 red** with `← REPRODUCED: the pilot passed with a short hand`; **35/0** on this build. It also asserts
+  the pair of 2s and the finale are suit-distinct.
+- `nettest_actloop` no longer prints a `⏱ poll TIMED OUT` on green runs. The warning came from a deliberate
+  re-stage retry, and it had shown up in every sweep's warnings section.
+
+Docs: closed `mirror-contract-findings` (all three findings shipped in v1.31.118/.119: `send()`'s guarded
+stringify, the rotation differential in `netview.test`, and the three projected fields). Retagged
+`round-ceremony-reruns-with-stale-res` from `root cause found` to `needs a repro`: its guards are in and
+nobody knows what makes the ceremony re-enter.
+
 ### v1.32.12 — nothing on the phone board draws over anything else
 
 **The round message no longer draws over your panel on a phone, or under the Forms/Equipment chips in
