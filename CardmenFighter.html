@@ -1060,6 +1060,8 @@
   .modal .respOpts{display:flex; flex-direction:column; gap:8px; margin-top:12px;}
   .modal .respOpts button{margin-top:0; text-align:left; display:flex; flex-direction:column; gap:2px; line-height:1.3;}
   .modal .respQuick{background:var(--gold); color:#3a2a08;}
+  .modal .respQuick.cfSel{outline:3px solid var(--pick); box-shadow:0 0 12px rgba(201,139,255,.8);}
+  .modal .respQuick:disabled{opacity:.5; cursor:default;}
   .modal .respQuick .respTxt{font-weight:600; font-size:11.5px; opacity:.85;}
   .modal .respLet{background:var(--panel); color:var(--txt); border:1px solid var(--line); text-align:center !important;}
   .modal .respOpts .endNote{margin:0 2px; font-size:12px; line-height:1.35; opacity:.8; text-align:left;}   /* one line of context under the end screen's online buttons; a 🔄 ask overwrites it (see emoteFx) */
@@ -8493,7 +8495,7 @@ window.CardFace = {};
       var pl=state.players[i], el=host.children[idx];
       var isTurn=(state.turn===i && !state.finished);
       var pickable=(targetPick && !pl.eliminated) || (lossPick && lossPick.cands.indexOf(i)>=0);
-      var staged=!!(targetPick && targetPick.chosen===i);
+      var staged=!!(targetPick && targetPick.chosen===i) || !!(lossPick && lossPick.chosen===i);
       el.className='oppPanel'+(isTurn?' turn':'')+(pl.eliminated?' dead':'')+(pickable?' targetable':'')+(staged?' aimed':'');
       el.dataset.seat=i;
       var sh='', slots=Math.max(E.START_SHIELDS, pl.shields);
@@ -10019,6 +10021,15 @@ window.CardFace = {};
         : 'Choose 1 card to put on top of your deck ('+n+'/1 picked).');
       return;
     }
+    if(lossPick){                                  // round-win shield pick: mandatory, so Confirm and no Cancel
+      sort.style.display='none'; pass.style.display='none'; clear.style.display='none';
+      setActionLabel(fight,'Confirm'); fight.classList.add('confirm');
+      fight.disabled=(lossPick.chosen==null);
+      hint.className='pick';
+      hint.textContent = lossPick.chosen==null ? 'Tap a rival to aim your strike, then Confirm.'
+                       : 'Striking '+logName(lossPick.chosen)+'’s shield — Confirm, or tap another rival.';
+      return;
+    }
     sort.style.display=''; pass.style.display=''; clear.style.display='';
     /* THE RESTING LABEL IS `Next`, because the resting sub-phase is Main. This default is what the
        `!yourTurn`, busy, locked-out and tutorial-hold branches all render, and leaving it as `Fight` would
@@ -10329,13 +10340,24 @@ window.CardFace = {};
   function cancelTargetPick(){ if(targetPick){ targetPick=null; setMessage('Target cancelled.'); render(); return true; } return false; }
   // The round winner (chosen mode, 3–6p) picks whose shield to strip. `done(finalRes)` continues with the resolved result.
   function promptLossTarget(res, g, done){
-    lossPick={ cands:res.cands.slice(), g:g, done:done };
+    lossPick={ cands:res.cands.slice(), g:g, done:done, chosen:null };
     busy=true;   // lock hand actions; the opponent panels stay clickable (their onclick isn't gated by busy)
-    setMessage('You won with a <b>'+(TYPE[res.comboType]||'Special')+'</b> — tap a rival to strip a shield.');
+    setMessage('You won with a <b>'+(TYPE[res.comboType]||'Special')+'</b> — tap a rival to aim, then <b>Confirm</b> to strip their shield.');
     render();
   }
+  /* STAGE, THEN CONFIRM — the same model as `chooseTargetSeat` and `stageRemove` (2026-10-05). A tap used to
+     strip the shield on the spot, so a mis-tap on a crowded 3-6 player strip could not be taken back. The
+     pick is MANDATORY, so there is no cancel: Fight reads Confirm (the `pick` idiom in `updateActions`) and a
+     second tap on another rival simply re-aims. */
   function chooseLossSeat(seat){
     if(!lossPick || lossPick.cands.indexOf(seat)<0) return;
+    lossPick.chosen=seat;
+    setMessage('Strike <b>'+logName(seat)+'</b>’s shield? Press <b>Confirm</b>, or tap another rival.');
+    render();
+  }
+  function confirmLossSeat(){
+    if(!lossPick || lossPick.chosen==null) return;
+    var seat=lossPick.chosen;
     if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ lossPick=null; NET.clientSend({op:'lossTarget', target:seat}); busy=true; render(); return; }   // client picks → host applies
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     var g=lossPick.g, done=lossPick.done; lossPick=null;
@@ -10726,11 +10748,20 @@ window.CardFace = {};
     uniq.sort(function(a,b){ return E.fightValue(b)-E.fightValue(a); });
     var html='<h2>Counterfeit</h2><p>Copy a card from the Rival’s current play — the copy enters your hand and must be played in a fight this round.</p><div class="respOpts">';
     uniq.forEach(function(c){ html+='<button class="respQuick cfPick" data-id="'+c.id+'">'+cardSym(c)+'</button>'; });
+    html+='<button id="cfConfirm" class="respQuick" style="text-align:center;" disabled>Choose a card to copy</button>';
     html+='<button id="cfCancel" class="respLet">Cancel</button></div>';
     showModal(html);
+    /* STAGE, THEN CONFIRM (2026-10-05) — tapping a card used to cast on the spot. The pick highlights; the
+       Confirm button names it and is the only thing that spends anything. */
+    var cfChosen=null;
     Array.prototype.forEach.call(document.querySelectorAll('.cfPick'), function(btn){
-      btn.addEventListener('click', function(){ hideOverlay(); doCounterfeit(cardId, btn.getAttribute('data-id')); });
+      btn.addEventListener('click', function(){
+        cfChosen=btn.getAttribute('data-id');
+        Array.prototype.forEach.call(document.querySelectorAll('.cfPick'), function(b){ b.classList.toggle('cfSel', b===btn); });
+        var ok=$('cfConfirm'); ok.disabled=false; ok.innerHTML='⚡ Counterfeit the '+btn.innerHTML;
+      });
     });
+    $('cfConfirm').addEventListener('click', function(){ if(cfChosen==null) return; hideOverlay(); doCounterfeit(cardId, cfChosen); });
     $('cfCancel').addEventListener('click', hideOverlay);
   }
   function doCounterfeit(cardId, copyId){
@@ -13992,7 +14023,7 @@ window.CardFace = {};
     if(e.target.closest && (e.target.closest('.oppZones') || e.target.closest('.oppGear'))) return;
     oppOpen=null; render();
   });   // tap outside an expanded Forms zone → minimize it back to chips
-  $('fightBtn').addEventListener('click', function(){ pick?confirmPick():doFight(); });
+  $('fightBtn').addEventListener('click', function(){ pick?confirmPick():lossPick?confirmLossSeat():doFight(); });
   $('passBtn').addEventListener('click', function(){ pick?cancelPick():doPass(); });
   $('ctxBtn').addEventListener('click', onCtxClick);
   $('cardActivate').addEventListener('click', onActivateClick);

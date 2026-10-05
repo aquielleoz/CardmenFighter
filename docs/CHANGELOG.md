@@ -15,7 +15,7 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
-### v1.32.1 — choosing an Equipment target asks before it casts
+### v1.32.1 — picking a target never fires on its own: Equipment, Counterfeit, the shield strip
 
 **Tapping an Equipment (or a Ride/Form) target no longer spends the card on the spot.** Aj, live 3-player
 game 2026-10-02: *"after selecting a target for plead for peace, it didn't ask to activate, it just did"*.
@@ -30,6 +30,18 @@ the same way, so a netplay client still sends its intent from the one funnel.
 lights ⚡ Activate, Clear backs out, Activate removes — and A/B'd against v1.32.0's template, where the same
 tap spent 7 energy and the card (4 red). `nettest_autopass` / `nettest_quickwedge`'s `tapTarget` now press
 ⚡ Activate after the tap. `mptest` 115 → 120.
+**THE SAME SWEEP FOUND TWO MORE "PICK, AND IT FIRES" SITES, folded in at Aj's call.** Enumerated by asking
+of every picker in the template whether the choosing tap is also the spending one:
+- **Counterfeit (♠8).** Tapping a card in its picker cast the copy on the spot. The tap now highlights it and
+  a **⚡ Counterfeit the …** button (disabled until something is chosen) casts it; Cancel is unchanged.
+- **The round-win shield strip (3-6 players, chosen mode).** Tapping a rival stripped their shield at once.
+  The tap now aims (🎯) and **Fight reads Confirm** — the same idiom as every mandatory pick (`pick` in
+  `updateActions`), so no new control. It is mandatory, so there is no cancel; tapping another rival re-aims.
+  A netplay client confirms through the same branch and still sends `{op:'lossTarget'}`.
+Both A/B'd against the build before them (one red each); `counterfeittest` 11 → 12, `nettest_losspick3`
+7 → 8, and `nettest_elim3` / `nettest_losspick_remote3` press Confirm after the tap.
+**NOT IN THIS VERSION, AND FILED:** a Quick cast from the Respond? window never asks for a target at all —
+`[id: respond-quick-target-never-asked]`.
 
 ### v1.32.0 — priority windows: the Resolution go-round, and a stack that holds only effects
 

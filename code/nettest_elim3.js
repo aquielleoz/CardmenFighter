@@ -80,6 +80,7 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
 
   // Host picks client 2 (absolute seat 2) — already at 0 shields → FIGHTER KICK → elimination.
   await host.evaluate(()=>{ var el=document.querySelector('.oppPanel[data-seat="2"]'); if(el)el.click(); });
+  await wait(300); await host.evaluate(()=>{ var f=document.getElementById('fightBtn'); if(f&&!f.disabled) f.click(); });   // the tap aims; Confirm strikes
 
   ok(await waitFor(async()=>(await elimSelf(c2))===true, 80, 150),'the kicked client (c2) sees itself ELIMINATED in its mirror');
 

@@ -666,6 +666,22 @@ knows to check whether the epic has already moved the same lines.*
 
 ### Correctness
 
+- `ready to build`      · **A QUICK CAST FROM THE RESPOND? WINDOW NEVER ASKS FOR A TARGET — THE ENGINE PICKS
+  ONE** (found 2026-10-05 auditing every "pick, and it fires" site for v1.32.1). `respond()` pushes the Quick
+  with `opts` holding only `counterOid`, so `effectTarget` falls back to its default:
+  - **Back Stab** (a Quick under Perseus / Hermes) locks the NEXT living rival. Cast in Main the same card
+    goes through `promptTargetPick` and you choose — so at 3-6 players WHERE you cast it decides whether you
+    get a say in who is locked out.
+  - **Annoint** with no strip on the stack protects your FIRST Equipment (`resolveTopEffect`'s `protect`
+    branch reads `top.opts.target`, which nothing sets).
+  **Counter Spell is the model and already right**: one button per target, so the button you press IS the
+  choice — and its comment says why it must be chosen BEFORE the card goes on the stack. The fix is the same
+  shape for `lockout` (one button per `hostileTargets`) and `protect` (one per own Equipment when no strip is
+  on the stack), carrying `target` through `respond`'s `opts` and the wire (`{op:'respond', id, coid}` gains
+  a target) — and `respond` must VALIDATE it, because a client sends it. A duel needs nothing for Back Stab
+  (one rival); Annoint with two Equipment is the duel case.
+  `[id: respond-quick-target-never-asked]`
+
 - `ready to build`      · **THE RESPOND? WINDOW DOES NOT SAY WHAT A TARGETED EFFECT IS TARGETING** (Aj, 2026-09-30,
   with a screenshot of the window mid-game: *"what is the strip targeting?"*). It reads
   `Flonne ▸ Forceful Strip · 7♦ (resolves next)` and *"Return Target Equipment to its owner's hand"* — and

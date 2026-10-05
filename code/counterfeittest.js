@@ -55,7 +55,12 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
     .filter(el=>el.querySelector('.card[data-id="cf"]'))[0]; if(g) g.click(); }); await wait(250);
   await p.evaluate(()=>{ const c=document.getElementById('ctxBtn'); if(c) c.click(); }); await wait(400);
   ok(await p.evaluate(()=>document.querySelectorAll('.cfPick').length>0), 'the Counterfeit picker opens with the pile\'s cards to choose from');
-  await p.evaluate(()=>{ const b=[...document.querySelectorAll('.cfPick')][0]; if(b) b.click(); }); await wait(500);
+  // a tap STAGES the copy; ⚡ Counterfeit (#cfConfirm) casts it. Both ways off one board: a tap that still cast
+  // passes the copy assertions below, and a confirm that did nothing passes this one.
+  await p.evaluate(()=>{ const b=[...document.querySelectorAll('.cfPick')][0]; if(b) b.click(); }); await wait(300);
+  ok(await p.evaluate(()=>!window.__solo.st().players[0].hand.some(c=>c.counterfeit) && !!document.querySelector('.cfPick.cfSel')
+       && !document.getElementById('cfConfirm').disabled), 'a tap only STAGES the copy — nothing cast yet, Confirm is live');
+  await p.evaluate(()=>{ const b=document.getElementById('cfConfirm'); if(b) b.click(); }); await wait(500);
 
   const copy = await p.evaluate(()=>{ const h=window.__solo.st().players[0].hand.filter(c=>c.counterfeit)[0];
     return h?{rank:h.rank,bonus:h.valueBonus,fv:window.CardmenEngine.fightValue(h),id:h.id}:null; });
