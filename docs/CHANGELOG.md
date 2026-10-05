@@ -15,6 +15,18 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.11 — the host's 🔔 ping is visible to the client
+
+**A client now SEES the host's ping in the lobby** — *"🔔 The host pinged you — pick your deck and press
+Ready ▶."*, or *"…they're ready to start."* once readied. Reported in live play as *"the client didn't receive
+any prompts to ready"*: the handler wrote `#message`, which is inside the board, and in the lobby `#netroot`
+covers the whole viewport — so the client got a beep and nothing to read, while the host saw "🔔 Pinged your
+table." and reasonably concluded it worked. The notice renders in the lobby's own header (both client
+branches), clears itself after a few seconds, and survives a lobby re-render; mid-game the old line stands.
+**Tests:** `nettest_ping.js` (10) — asserted by HIT-TEST (`elementFromPoint` at the notice's centre lands on
+it), because no presence check can see a stacking bug; both client branches; a control that nothing shows
+before the ping. On v1.32.10 the client gets nothing visible (5 reds).
+
 ### v1.32.10 — the Straights sort shows your best straight, and the AI can finally play 2-3-4-5-6
 
 **Sort: Straights now builds the HIGHEST legal straight first.** Aj: *"i think it should sort by the higher
