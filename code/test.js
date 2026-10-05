@@ -3202,5 +3202,29 @@ function cards(ids) { return ids.map(card); }
   ok(E.respondChoices(gx, 1, mk(5, 'H', 'an')) === null && rx.ok, 'one piece of Equipment — nothing to choose, and a stray target is ignored rather than refused');
 })();
 
+/* ============ THE DEMON LORD'S SMART PITCH (broadway-pitch-chooses-itself, AI half) ============
+   Staged so the default and the smart choice DIFFER: the lowest Broadway card is a 10 that is half of a pair,
+   and an Ace is spare. The engine's default would break the pair; the Demon Lord must not. */
+(function () {
+  var mk = function (r, s, id) { return { rank: r, suit: s, id: id }; };
+  function rig(diff) { var g = E.newGame(null, { starter: 0 }); g.round = 3; g.turn = 0; g.pile = null; g.subPhase = 'main';
+    g.players[0].hand = [mk(9, 'S', 'crit'), mk(10, 'H', 'b10'), mk(10, 'D', 'b10b'), mk(1, 'D', 'bA'), mk(4, 'C', 'x4')];
+    (g._diff = {})[0] = diff; return g; }
+  AI.setArmPolicy(null); AI.resetPolicyStats();
+  var gd = rig('demon'), od = AI.pitchOptsFor(gd, 0, gd.players[0].hand[0]);
+  ok(od && od.pitch === 'bA', 'the Demon Lord pitches the spare ACE, keeping its pair of 10s  [' + JSON.stringify(od) + ']');
+  ok(AI.policyStats().pitch === 1, '…and the tally counts a pick that DIFFERED from the default');
+  var gk = rig('knight');
+  ok(AI.pitchOptsFor(gk, 0, gk.players[0].hand[0]) === null, 'a Knight sends no choice — the engine still takes the lowest (a tier behaviour)');
+  AI.setArmPolicy(function () { return false; });
+  var go = rig('demon');
+  ok(AI.pitchOptsFor(go, 0, go.players[0].hand[0]) === null, 'with the `pitch` policy OFF the Demon Lord defaults too — the strengthsim arm');
+  AI.setArmPolicy(null);
+  var gt = rig('demon'); gt.players[0].hand = [mk(9, 'S', 'crit'), mk(10, 'H', 'b10'), mk(13, 'D', 'bK'), mk(4, 'C', 'x4')];
+  var ot = AI.pitchOptsFor(gt, 0, gt.players[0].hand[0]);
+  ok(ot && ot.pitch === 'b10', 'with nothing load-bearing it pitches the LOWEST, same as the default — it only differs when the default would cost something');
+  AI.resetPolicyStats();
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);

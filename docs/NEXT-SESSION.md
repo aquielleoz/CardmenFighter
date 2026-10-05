@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**624**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**629**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.8.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.9.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.8** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.32.9** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -862,22 +862,6 @@ never read.*
   beat was genuinely skipped on that run. Telling them apart needs the sampler to record what it DID see
   around the boundary (the `mptest` stall-line approach) before anyone touches the floor or the beat.
   `[id: nettest-ceremony-cleanup-tint-zero]`
-
-- `ready to build`      · **THE AI'S BROADWAY PITCH IS STILL THE LOWEST CARD — THE HUMAN HALF SHIPPED IN v1.32.6.**
-  Aj: *"the ai should absolutely smart pitch as well... especially for the ones who are smarter"*. The player
-  now chooses (a Broadway-only pick in Main, one Respond? button per Broadway card for a pitch Quick) and a
-  Quick cast now PAYS the pitch at all — it paid nothing before (CHANGELOG v1.32.6). The AI still sends no
-  `opts.pitch`, so the engine takes its lowest Broadway card even when that card is load-bearing.
-  **THIS IS NOT THE `opts.pitch` DECISION CLAUDE.md ALREADY RECORDS.** That removal was an ARBITRARY AI pick
-  that measured no better than the default. This one is not arbitrary and is separable by a test: stage the
-  lowest Broadway card as load-bearing (in a pair or straight) and a higher one as spare, assert WHICH left.
-  **Same shape as `keepsTheWin`**, reusing its method: `legalFightPlays` on a hypothetical hand answers "is
-  this Broadway card load-bearing?". Gate on `isTop(diff)` like the Demon Lord's `keepsTheWin`, so it reads
-  as a tier behaviour; `strengthsim` (control first) measures whether it moves the tier step at all, and an
-  exact 50.00 on non-identical arms means the policy never fired — count it (`policyStats`).
-  The engine hook (`opts.pitch`, now via `pitchFor`) needs no change; `chooseMove` and the AI's respond path
-  pass a card id. `E.pitchCands` lists the legal set.
-  `[id: broadway-pitch-chooses-itself]`
 
 - `root cause found`    · **★ THE MIRROR-CONTRACT AUDIT'S THREE UNFIXED FINDINGS.** v1.31.114/.115 took the two live bugs and
   v1.31.116 the park heartbeat; these are what the judge left standing. Each is a mirror or transport fault, so
