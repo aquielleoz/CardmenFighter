@@ -15,6 +15,32 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.7 — five small fixes: the illusion line, the export build, a client's cast, the deck builder's Cancel, a fizzled draw
+
+- **The AI's Phantasmal Illusion names the shape it made** — Bibong's export read *"a Special undefined
+  overtakes the pile"*: `ai.js` logs the shape in `phantasm` and the renderer read `made`. (`oppbeatstest`,
+  fed the entry ai.js produces; reproduces the line word for word on v1.32.6.)
+- **The playtest export records the build that made it** (`build: GAME_VERSION`). `v` is the schema; nine
+  of Bibong's games spanned three builds and the profile's Ver column read `?` nine times. `exporttest`
+  checks it against README's stamp, the source the build derives it from.
+- **A client's activation is narrated in full**, like the host's own casts and every AI cast — the host
+  read *"Aj played Giant Ram."* for its opponent and type, card and text for itself. Both host handlers
+  (`effPhrase`); each mutated alone reds its own suite (`nettest_pitch` duel, `nettest_target3` 3-player,
+  where the OTHER client reads the same line).
+- **The deck builder's Cancel is disabled in the Custom Decks lesson, with a note pointing at Skip ✕.** It
+  was live, and the lesson re-opened the builder 120ms later — EMPTY, so a Cancel also wiped the parts you
+  had set and the lesson could no longer advance (11 reds on v1.32.6). After Skip ✕ Cancel works again and
+  now actually closes the builder; before, nothing closed it once the lesson let go.
+- **A netplay client is told its draw fizzled.** The line was one host-local `logMsg` in a function a client
+  never runs, so a client with an empty deck and shuffle pile was never told in any game. Aj's wording splits
+  it: the table reads *"Draw fizzled for {who} — no cards left in the deck or shuffle pile."*, and only the
+  seat it helps gets *"Spend energy on effects to recycle cards back into your deck."* — locally, or through a
+  new private `t:'note'` (`NET.noteTo`) for a remote seat. `nettest_drawfizzle` (8) asserts both halves and
+  that the host does NOT get the advice; on v1.32.6 the client is never told.
+**Harness:** `mptest`'s phase-strip driver could not answer a forced-discard pick (bare cards, no groups) and
+stalled under load; it now prints its board state on an idle exit — which is how the cause was found on the
+next sweep — and answers picks. Filed to confirm over further sweeps, with a `nettest_ceremony` sampler miss.
+
 ### v1.32.6 — you choose which Broadway card to pitch, and a Quick pitch is paid at all
 
 **Critical Hit, Ultima Attack and Armor Piercing now let you choose the Broadway card they discard.** Aj,

@@ -95,6 +95,9 @@ let host, join;
   const h3=await clientHand();
   ok(h3.indexOf('c1H')<0 && h3.indexOf('c10H')>=0 && h3.indexOf('c10D')>=0, 'the Ace it CHOSE left, and the pair of 10s is intact  ['+h3+']');
 
+  // the duel host narrates a client's cast in full too (client-activation-line-short-form) — `hostApplyMove`'s twin
+  const hl=await host.evaluate(()=>[...document.querySelectorAll('#log .le')].map(e=>e.textContent).join('\n'));
+  ok(/played a Technique - 9♠ Critical Hit —/.test(hl), 'the duel host narrates the client\'s Critical Hit in full'+(/played a Technique - 9♠ Critical Hit —/.test(hl)?'':'  ← '+((hl.match(/.*Critical Hit.*/)||[''])[0])));
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); srv.close(); process.exit(fail?1:0);

@@ -122,6 +122,11 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   ok(rec && Array.isArray(rec.seats) && rec.seats.length===3, 'it carries one entry per seat ('+(rec&&rec.seats&&rec.seats.length)+')');
   ok(rec && rec.winnerSeat===2, 'it records WHICH seat won ('+(rec&&rec.winnerSeat)+'), not just "rival"');
   ok(rec && rec.v==='2.1-mp', 'the version string is bumped so old files stay identifiable ("'+(rec&&rec.v)+'")');
+  /* THE BUILD THAT MADE IT (export-lacks-build-version). `v` is the SCHEMA; nine of Bibong's games spanned
+     three builds and the profile's Ver column read `?` nine times. Compared to README's stamp — the same
+     source `build.js` derives GAME_VERSION from — so a stale or hardcoded value cannot pass. */
+  const readmeVer=(/\*\*Status:\*\*\s*(v\d+\.\d+\.\d+(?:\.\d+)?)/.exec(require('fs').readFileSync(require('path').join(__dirname,'..','README.md'),'utf8'))||[])[1];
+  ok(rec && rec.build && rec.build===readmeVer, 'the record carries the BUILD that made it ("'+(rec&&rec.build)+'" vs README '+readmeVer+')');
   ok(rec && typeof rec.rules==='string', 'and it records the RULE SET ("'+(rec&&rec.rules)+'") — v2.1-mp added this so a homebrew game cannot be mistaken for a weird one');
   ok(rec && rec.mode==='local-mp', 'it records the mode ("'+(rec&&rec.mode)+'")');
   ok(rec && rec.rivalIsMerged===true, 'the legacy `rival` field is explicitly FLAGGED as a merge at 3+ players');

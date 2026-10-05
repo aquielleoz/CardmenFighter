@@ -90,6 +90,15 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
   ok(await p.evaluate(()=>document.querySelector('.dbRow[data-su="H"] [data-d="1"]').classList.contains('tut-spot')),'the Cleric + button is spotlighted inside the modal');
   await p.evaluate(()=>document.querySelector('.dbRow[data-su="H"] [data-d="1"]').click()); await p.waitForTimeout(250);
   ok(/3 \/ 6/.test((await step()).n),'one Cleric part is not enough — the gate holds on step 3');
+  /* CANCEL IS DISABLED, AND SAYS WHY (decks-cancel-flickers). It used to close the builder and re-open it EMPTY
+     120ms later, wiping the part just set. Asserted as the PART SURVIVING a click, not just `disabled`. */
+  const tot1=await p.evaluate(()=>(document.querySelector('.deckBuild .dbTotal')||{}).textContent||'');
+  const cs=await p.evaluate(()=>{ const c=document.getElementById('dbCancel'), n=document.getElementById('dbTutNote');
+    return { disabled:!!(c&&c.disabled), note:!!(n&&n.offsetParent), noteText:n?n.textContent:'' }; });
+  ok(cs.disabled && cs.note && /Skip/.test(cs.noteText), 'Cancel is DISABLED in the lesson, with a visible note pointing at Skip ✕ ("'+cs.noteText+'")');
+  await p.evaluate(()=>{ const c=document.getElementById('dbCancel'); if(c) c.click(); document.getElementById('overlay').click(); }); await p.waitForTimeout(400);
+  ok(await p.evaluate(()=>!!document.querySelector('.deckBuild')) && (await p.evaluate(()=>(document.querySelector('.deckBuild .dbTotal')||{}).textContent||''))===tot1,
+     '…clicking it (or the backdrop) changes nothing — the builder stays and the Cleric part survives ('+tot1+')');
   await p.evaluate(()=>document.querySelector('.dbRow[data-su="H"] [data-d="1"]').click()); await p.waitForTimeout(400);
   ok(/4 \/ 6/.test((await step()).n),'two Cleric parts advanced to step 4');
   await p.evaluate(()=>{document.querySelector('.dbRow[data-su="D"] [data-d="1"]').click();}); await p.waitForTimeout(200);
@@ -105,6 +114,18 @@ const URL='file://'+path.resolve(__dirname,'CardmenFighter.html')+'?dbgsolo=1';
   ok(await p.evaluate(()=>/Lesson complete/.test(document.body.textContent)),'the lesson completes');
   ok(await p.evaluate(()=>{const a=JSON.parse(localStorage.getItem('cmf_decks_v1')||'[]'); return a.length===1 && a[0].name==='Battle Priest' && a[0].parts.H===2;}),'the deck the player built in the lesson is really saved');
   ok(await p.evaluate(()=>localStorage.getItem('cmf_lesson_decks_v1')==='1'),'the lesson is marked done');
+  /* AND SKIP ✕ GIVES CANCEL BACK — a disabled Cancel on a builder the lesson has abandoned would be a trap. */
+  await p.goto(URL); await p.waitForTimeout(700);                               // a fresh page — the same way in as the top of the suite
+  await p.evaluate(()=>document.getElementById('newBtn').click()); await p.waitForTimeout(350);
+  await p.evaluate(()=>{const b=[].find.call(document.querySelectorAll('button'),x=>/Tutorials/.test(x.textContent)); if(b)b.click();}); await p.waitForTimeout(400);
+  await p.evaluate(()=>document.querySelector('.lessonRow[data-lesson="decks"]').click()); await p.waitForTimeout(1400);
+  await next(); await p.waitForTimeout(700);
+  ok(await p.evaluate(()=>!!document.querySelector('.deckBuild') && document.getElementById('dbCancel').disabled), 'SKIP LEG: lesson restarted, builder open with Cancel locked');
+  await p.evaluate(()=>document.getElementById('tutSkipBtn').click()); await p.waitForTimeout(400);
+  ok(await p.evaluate(()=>{ const c=document.getElementById('dbCancel'); return !!c && !c.disabled && !document.getElementById('dbTutNote'); }), 'after Skip ✕, Cancel is live again and the note is gone');
+  await p.evaluate(()=>document.getElementById('dbCancel').click()); await p.waitForTimeout(500);
+  ok(await p.evaluate(()=>{ const d=document.querySelector('.deckBuild'); return !(d && d.offsetParent) && !document.getElementById('overlay').classList.contains('show'); }),   // VISIBILITY, not DOM presence — a hidden overlay keeps its markup
+     '…and it CLOSES the builder (nothing used to close it once the lesson let go)');
   ok(errs.length===0,'no JS errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
   console.log('\n'+(fail?'FAILED — ':'')+'PASS: '+pass+'  FAIL: '+fail);
   await b.close(); process.exit(fail?1:0);

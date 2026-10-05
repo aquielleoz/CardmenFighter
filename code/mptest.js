@@ -633,6 +633,15 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
       else idle++;
       await p.evaluate(()=>{ const d=document.getElementById('respDecline'); if(d&&d.offsetParent&&!d.disabled){ d.click(); return; }
         const fb=document.getElementById('fightBtn'), pb=document.getElementById('passBtn');
+        /* A PICK (a forced discard, the clean-up trim) RENDERS BARE CARDS, NO GROUPS — so the group loop below
+           can never answer it, and the driver sat there until the idle guard fired. Its own stall line named it
+           on the first sweep: `discard:{player:0,count:2}`, Fight reading "Confirm (off)". Select eligible cards
+           until Confirm lights, then confirm (mptest-phase-strip-stalls-under-load). */
+        if(fb && /Confirm/.test(fb.textContent)){
+          if(!fb.disabled){ fb.click(); return; }
+          for(const c of [].slice.call(document.querySelectorAll('#hand .card:not(.notpick):not(.picked)'))){ c.click(); if(!fb.disabled){ fb.click(); return; } }
+          return;
+        }
         if(fb&&!fb.disabled){ fb.click(); return; }
         for(const g of [].slice.call(document.querySelectorAll('#hand .group'))){
           g.click(); if(fb&&!fb.disabled){ fb.click(); return; }
@@ -640,6 +649,13 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
         if(pb&&!pb.disabled) pb.click(); });
       await wait(450);
     }
+    /* ⚠ AN IDLE EXIT EXPLAINS ITSELF (mptest-phase-strip-stalls-under-load, 2026-10-05). The signature above came
+       back once under a parallel sweep — 3/3 clean alone — and with nothing printed the stall was unreadable.
+       If the driver gave up because nothing moved, say what the board was waiting on. */
+    if(idle>=40) console.log('   ⚠ PHASE-STRIP DRIVER STALLED (40 idle polls): '+JSON.stringify(await p.evaluate(()=>{ const s=window.__solo.st(), f=document.getElementById('fightBtn'), pb=document.getElementById('passBtn');
+      return { round:s&&s.round, turn:s&&s.turn, sub:s&&s.subPhase, respondFor:s&&s.respondFor, pending:!!(s&&s.pending), discard:s&&s.discardPending, cleanup:!!(s&&s.cleanup), resolution:!!(s&&s.resolution),
+               fight:f&&(f.textContent.trim()+(f.disabled?' (off)':'')), pass:pb&&(pb.textContent.trim()+(pb.disabled?' (off)':'')),
+               hint:(document.getElementById('hint')||{}).textContent, msg:(document.getElementById('message')||{}).textContent, modal:!!document.querySelector('#overlay.show') }; })));
     const { seq, dur } = await p.evaluate(()=>{ clearInterval(window.__seqT); return { seq:window.__seq, dur:window.__dur }; });
     const seen = new Set(seq);
     ['spIdle','spMain','spFight','spResolve','spCleanup','spBegin'].forEach(c=>{
