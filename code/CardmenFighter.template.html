@@ -8359,7 +8359,14 @@ __QR__
   function tutPilotTwos(st, p){
     var log=[], pl=st.players[p], cur=st.pile ? st.pile.combo : null;
     function play(cards){ var r=E.play(st, p, cards); if(r && r.ok!==false){ log.push({ fight:'play', combo:r.combo }); return true; } return false; }
-    function twos(n){ return pl.hand.filter(function(c){ return c.rank===2; }).slice(0, n); }
+    /* SUIT-DISTINCT, spending the most-duplicated suit first. The rig fabricates six 2s over four suits, and taking
+     * them in hand order spent the unique ones early — round 3's trio came out 2♠ 2♠ 2♣, a card shown twice. */
+    function twos(n){ var all=pl.hand.filter(function(c){ return c.rank===2; }), by={}, out=[];
+      all.forEach(function(c){ (by[c.suit]=by[c.suit]||[]).push(c); });
+      var suits=Object.keys(by).sort(function(a,b){ return by[b].length-by[a].length; });
+      suits.forEach(function(su){ if(out.length<n) out.push(by[su][0]); });
+      all.forEach(function(c){ if(out.length<n && out.indexOf(c)<0) out.push(c); });
+      return out; }
     /* ANY rank but the 2 — INCLUDING ACES. This scanned 3..13 and so could not see a pair of Aces, which by
      * round 3 is often the only pair the Rival holds; it then had no full house to lead and passed forever.
      * The baggage on a full house is just baggage: 222+AA is as small a full house as 222+33, because the shape
@@ -8373,6 +8380,21 @@ __QR__
     if(!cur){
       /* LEADING — only ever happens in round 3, after its pair of 2s took the round back. */
       var t3=twos(3), pr=pairOf(2);
+      /* REPAIR, don't fall through. The rig is meant to leave three 2s and a non-2 pair here, and on a good day it
+       * does — but nothing GUARANTEED it, and a miss passed silently into a lesson whose last step waits for this
+       * full house forever. Fabricate whatever is short (the Rival's hidden zones may be illegal; its PLAYS stay
+       * suit-distinct and never copy a card the player can see), and say so in the ledger. */
+      if(t3.length<3 || !pr){
+        var seen={}, need=[], fix=[];
+        st.players.forEach(function(q){ q.hand.forEach(function(c){ seen[c.rank+c.suit]=1; }); });
+        var used={}; t3.forEach(function(c){ used[c.suit]=1; });
+        ['H','S','C','D'].forEach(function(su){ if(t3.length+need.length<3 && !used[su]){ need.push(tutCard(2, su, 'fix'+su)); } });
+        if(!pr){ for(var r=3;r<=13 && !pr;r++){ var su2=['D','C','H','S'].filter(function(su){ return !seen[r+su]; });
+          if(su2.length>=2) pr=[tutCard(r, su2[0], 'fixp1'), tutCard(r, su2[1], 'fixp2')]; } fix=pr||[]; }
+        need.concat(fix).forEach(function(c){ pl.hand.push(c); });
+        t3=t3.concat(need);
+        prioNote('⚠ TWOS PILOT REPAIRED its round-3 lead', 'fabricated '+need.length+' two(s) and '+(fix.length?'a pair':'no pair')+' — the rig left it short');
+      }
       if(t3.length===3 && pr && play(t3.concat(pr))) return log;
     } else if(cur.size===1 && cur.cards[0].rank!==2){
       /* ANY single, not just the Ace. The step asks you to lead your Ace, but its gate takes any single — and a

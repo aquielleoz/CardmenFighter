@@ -29,7 +29,7 @@ const pileOf=p=>p.evaluate(()=>document.querySelectorAll('#pile .card').length);
  * was still mid-round-trip — the v1.31.9 waitTurnEnds bug, in the general case. A red run must explain
  * itself, so name the condition that never came true. */
 function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).replace(/\s+/g,' ').slice(0,100)); }
-async function until(fn,t=140,ms=150){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } pollTimedOut(fn); return false; }
+async function until(fn,t=140,ms=150,quiet){ for(let i=0;i<t;i++){ if(await fn()) return true; await wait(ms); } if(!quiet) pollTimedOut(fn); return false; }
 /* Deselect EVERYTHING before staging anything. Clear alone is not enough: a leftover multi-card selection is
  * staged as a FIGHT ("Special Pair — fight!"), and you cannot activate a pair — both Activate controls go `off`
  * and the attempt reads as "not offerable" forever. That was a 1-in-10 red run, and the culprit was this
@@ -141,7 +141,9 @@ const boardUsable=p=>p.evaluate(()=>{
   let staged=false;
   for(let i=0;i<8 && !staged;i++){
     await stage([D(4,'D'),D(6,'H'),D(7,'C')], [D(1,'D'),D(9,'S'),D(8,'H')]);
-    staged=await until(async()=>await join.evaluate(()=>!!document.querySelector('#hand .card[data-id="1D"]')), 12);
+    // QUIET on all but the last attempt: a miss here is a re-stage the loop exists for, not a timeout, and the
+    // `⏱` it printed was in every sweep's warnings section for a suite that was green. The ok() below still fails loud.
+    staged=await until(async()=>await join.evaluate(()=>!!document.querySelector('#hand .card[data-id="1D"]')), 12, 150, i<7);
   }
   ok(staged, 'staged: the CLIENT really holds Gather Energy (asserted on its own board), host holds Counter Spell (4♦)');
 

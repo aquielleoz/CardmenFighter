@@ -49,15 +49,30 @@ const { openLesson } = require('./lessonlib');
   ok(await until(()=>{ const s=window.__solo.st();
       return !!s.pile && s.pile.combo.size===2 && s.pile.combo.cards.every(c=>c.rank===2); },'the Rival answers with a pair of 2s'),
     'the Rival answered with a PAIR OF 2s — still apex at two cards');
+  const pr2=await p.evaluate(()=>window.__solo.st().pile.combo.cards.map(c=>c.suit));
+  ok(pr2.length===2 && pr2[0]!==pr2[1], `…two DIFFERENT 2s, not one card shown twice  [${pr2}]`);
   ok(await p.evaluate(()=>window.CardmenEngine.legalFightPlays(window.__solo.st(),0).length===0),
     '…and nothing you hold beats it, as the step says');
+  /* FORCE THE PILOT'S HOLE (twos-lesson-pilot-leads-nothing). The round-3 lead needs three 2s AND a non-2 pair,
+     and before the repair a short hand fell through to `E.pass` in silence — the lesson then waited forever for
+     the full house below. The rig supplies both on a good day, so thirty green runs proved only that. Strip the
+     Rival's non-2 cards and empty its deck + shuffle pile (so the round draw cannot hand the pair back), and the
+     full-house assertion below must STILL pass — through the repair, which the ledger names. */
+  const forced=await p.evaluate(()=>{ const f=window.__solo.st().players[1];
+    f.hand=f.hand.filter(c=>c.rank===2); f.deck=[]; f.shuffle=[];
+    return { n:f.hand.length, nonTwo:f.hand.filter(c=>c.rank!==2).length, deck:f.deck.length }; });
+  ok(forced.nonTwo===0 && forced.deck===0 && forced.n>=3, `STAGED: the Rival holds only its 2s and has nothing to draw  [${forced.n} cards]`);
   ok(await L.passTurn()!==null,'you passed');
   ok(await L.atStep(7),'passing advanced the lesson to step 7');
 
   /* AND THE FLIP, at five cards, with the reveal in the step BEFORE the instruction. */
   const ledFh=await until(()=>{ const s=window.__solo.st();
       return !!s.pile && s.pile.combo.type==='fullhouse' && s.pile.combo.cards.filter(c=>c.rank===2).length===3; },'the Rival leads 222 + a pair');   // no override: the default 30s. At 4.7s idle this was the only poll in the harness under a 4x margin
-  ok(ledFh,'the Rival led a full house built on three 2s');
+  ok(ledFh,'the Rival led a full house built on three 2s'+(ledFh?'':'  ← REPRODUCED: the pilot passed with a short hand'));
+  ok(await p.evaluate(()=>window.__solo.prioLog().some(l=>/TWOS PILOT REPAIRED/.test(typeof l==='string'?l:JSON.stringify(l)))),
+     '…through the REPAIR, which the ledger names — the forced hole really was reached');
+  const fhCards=await p.evaluate(()=>{ const s=window.__solo.st(); return s.pile?s.pile.combo.cards.map(c=>c.rank+c.suit):[]; });
+  ok(new Set(fhCards).size===fhCards.length, `…and the repaired play is suit-distinct — no card shown twice  [${fhCards}]`);
   const s7=(await step()).text;
   ok(/four cards or more/i.test(s7) && /lowest/i.test(s7),'step 7 explains the flip BEFORE asking you to beat it');
   ok(/smallest full house/i.test(s7),'…and calls theirs the smallest, not the best');
