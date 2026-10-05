@@ -6855,7 +6855,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.32.1';
+  var GAME_VERSION='v1.32.2';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -8173,7 +8173,7 @@ window.CardFace = {};
       prevShieldsAll[i]=n;
     }
     if(bled) thresholdOwed=true;                                        // the table bled — a check is now owed
-    if(thresholdOwed && !holdShields){ thresholdOwed=false; checkThresholds(); }   // …paid once the ceremony lets the shatter through
+    payThresholdDebt();                                                 // …paid once the ceremony lets the shatter through
   }
   function suitCountsOf(cards){ var m={C:0,D:0,H:0,S:0}; for(var i=0;i<cards.length;i++){ var s=cards[i].suit; if(s in m) m[s]++; } return m; }
   function suitBitsHTML(map){ return E.SUITS.filter(function(s){ return map[s]; }).map(function(s){ return '<span class="pS">'+(map[s]>0?'+':'−')+Math.abs(map[s])+SUIT_SYMBOL[s]+'</span>'; }).join(''); }
@@ -8261,6 +8261,8 @@ window.CardFace = {};
     fx.className=''; void fx.offsetWidth; fx.className='show';
     var g=gen; setTimeout(function(){ if(g!==gen) return; fx.className=''; fx.innerHTML=''; }, 2000);
   }
+  // The one place the owed check is paid — `noteShieldChanges` on a render, and `flushThreshold` at the beat.
+  function payThresholdDebt(){ if(thresholdOwed && !holdShields){ thresholdOwed=false; checkThresholds(); } }
   // Called after any shield loss. Announces the highest tier that just crossed its unlock line (once each).
   function checkThresholds(){
     if(!state || !E.transformGateStatus) return;
@@ -8275,6 +8277,18 @@ window.CardFace = {};
   // Play a queued threshold unlock as a standalone beat, then continue. Called at a clean gap in the round
   // ceremony so ROAR/OVERDRIVE/REDLINE never overlaps the round-win banner.
   function flushThreshold(cb){
+    /* ⚠ PAY THE DEBT HERE, AT THE BEAT (roar-never-announced, 2026-10-05). The debt was only ever paid by
+       `noteShieldChanges`, i.e. by a RENDER — and the ceremony lifts the hold with `revealShields()` (no
+       render) and reaches this flush through a Clean-up beat that deliberately only REPAINTS. So when the
+       drop was first seen DURING the hold, the flush found `thresholdOwed` set and nothing queued, and the
+       next render queued ROAR into a ceremony that had already ended. MEASURED: every 3-player round win
+       (the strip lands after the ceremony's opening render, so `bled` arrives with the hold up), both when
+       you win and when an AI does; the duel happened to see the drop one render EARLIER and so worked.
+       THE FIX DOES NOT QUEUE EARLIER — that is attempt 1 in CLAUDE.md, which displaced the client's beat
+       (`nettest_ceremony` 11/0 → 10/1). It asks for the owed check at the one moment the beat exists.
+       Gated on `!holdShields` like every other payment, so the client's flush (which still holds) is
+       unchanged. */
+    payThresholdDebt();
     if(!pendingThreshold){ if(cb) cb(); return; }
     var info=pendingThreshold; pendingThreshold=null;
     clearRoundfx();                                                   // hide the round-win banner so the unlock gets a clean stage
