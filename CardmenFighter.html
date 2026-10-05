@@ -740,6 +740,21 @@
      the first row back where it was, so only rows 2+ move up. Later DOM order paints later, so the lower row
      lands IN FRONT with no z-index. Measured at 393x852 with 13 cards before this: 4 rows of 66px plus 18px of
      gaps = 270px of cards inside a 187px box, i.e. 83px of the hand simply scrolled out of sight. */
+  /* the moved hand-bar row (see placeZones): `#turnTag` beside the logo, `#specialsRefBtn` in the ☰ sheet */
+  /* THE ROUND MESSAGE STAYS BETWEEN THE CORNER ZONES IN LANDSCAPE (expanding-zone-pushes-board, 2026-10-05). The
+     zones are pinned to `#table`'s corners and the message ran the full width UNDER them — "…ave the initiative"
+     at one end, "Only Jabs are allow…" at the other. Giving it the channel between them makes it WRAP instead;
+     the rows the hand bar gave back (Specials → ☰, your turn → header, the boost chip onto the shields line)
+     are what pay for the second line. */
+  @media (orientation:landscape) and (max-height:520px){ #table #message{max-width:calc(100% - 2 * min(30%, 132px)); margin-left:auto; margin-right:auto;} }
+  #hdrTurnSlot:empty{display:none;}
+  #hdrTurnSlot #turnTag{font-size:12px; font-weight:700; white-space:nowrap; margin-left:8px;}
+  #menuSpecialsSlot:empty{display:none;}
+  #menuSpecialsSlot #specialsRefBtn{width:100%;}
+  #youMetaMods:empty{display:none;}
+  #youMetaMods #playMods{display:inline-flex; margin:0; gap:4px;}
+  #youMetaMods #playMods .pmod{padding:1px 7px; font-size:11px;}
+  @media (orientation:portrait){ #youMetaMods #playMods .pmod .src{display:none;} }   /* portrait: the amount only (sources in the title); landscape has the width for them */
   @media (max-width:720px){
     #hand{padding-top:calc(24px + var(--handLap));}
     #hand > .group{margin-top:calc(-1 * var(--handLap));}
@@ -1399,6 +1414,16 @@
     #sortBtn{padding:9px 11px;}
   }
   @media (max-width:380px){ .card{width:40px;height:58px;} .card .c{font-size:20px;} .card.big{width:52px;height:76px;} }
+  /* THE FORMS ZONE AND THE EQUIPMENT CHIP SHARE ONE LINE IN A PANEL (expanding-zone-pushes-board, 2026-10-05).
+     At 327 wide they missed by 8px — Forms 129 + gap 12 + Equipment 148 in a 281px panel — so the chip wrapped
+     onto a row of its own in BOTH panels, and that ~56px is most of what pushed the round message over your
+     panel. A slightly shorter name truncation closes it; the full card is one tap away, as it always was. */
+  @media (max-width:380px){ .panelZones .equipZone .eqName{max-width:78px;} }
+  /* …AND THE BOOST CHIP FITS BESIDE YOUR SHIELDS (Aj: "the boost/debuff we'll move to the same line as the
+     shields"). Measured at 327: pips + ⚡ + "🂠 42 deck" + ♻ ≈ 246px with 12px gaps, plus the chip, in 281px — so
+     it wrapped and pushed your Equipment onto a row of its own. Dropping the word "deck" (the 🂠 says it, as the
+     rival's panel already does) and 6px gaps bring it to ~260px of the 263 the line really has (measured: 268 at 8px). Narrowest phones only. */
+  @media (max-width:380px){ #handMeta .fighter{gap:6px !important;} #handMeta .deckWord{display:none;} #handMeta .panelZones .equipZone .eqName{max-width:68px;} }   /* your panel is 263px inside, 18px narrower than the rival's — so Forms 129 + Equipment 128 + gap missed by rounding */   /* 0,3,0 — the shared chip rule `.equipZone .eqName` comes LATER at 0,2,0 and won over a 0,2,0 here */
   /* One step tighter for the narrowest phones. 327px is the narrowest viewport `landscapetest` covers, and six
      buttons plus Sort's state word do not fit there at the 480px sizing — measured 331px of a 303px line. */
   @media (max-width:380px){
@@ -1698,6 +1723,7 @@
 <body>
 <header>
   <h1><span class="tWord">CARDMEN</span> <span class="tWord">FIGHTER</span> <small id="modeSub">duel vs AI</small></h1>
+  <span id="hdrTurnSlot"></span>   <!-- portrait phone: `#turnTag` is MOVED here by placeZones (Aj, 2026-10-02: "your turn can move to the top beside the logo") -->
   <div class="spacer"></div>
   <span id="matchupTag" class="matchupTag"></span>
   <!-- THE BUTTONS ARE MOVED, NOT REBUILT (v1.31.105). Same ids, same nodes, so `paintSfxBtn`, the hints IIFE,
@@ -1708,6 +1734,7 @@
   <div id="menuWrap">
     <button id="menuBtn" title="Menu" aria-haspopup="true" aria-expanded="false">☰</button>
     <div id="menuSheet" hidden>
+      <span id="menuSpecialsSlot"></span>   <!-- portrait phone: `#specialsRefBtn` is MOVED here ("specials list can live in the burger menu") -->
       <button id="hintsBtn" title="Show or hide play hints">💡 Hints: Off</button>
       <button id="sfxBtn" title="Sound on/off">🔊</button>
       <button id="settingsBtn" title="Settings">⚙️ Settings</button>
@@ -1773,8 +1800,9 @@
         <button type="button" id="youWho" class="who whoBtn" style="min-width:0;" title="Click to change your name">You</button><span id="youDeckName" class="deckName"></span>
         <span class="shields" id="youShields"></span>
         <span class="stat"><button type="button" id="youNrgBtn" class="statBtn" title="Open your energy pile">⚡<span id="youNrgSuits" class="nrgSuits nrgBox clickable"></span></button></span>
-        <span class="stat deck">🂠 <b id="youDeck">0</b> deck</span>
+        <span class="stat deck">🂠 <b id="youDeck">0</b><span class="deckWord"> deck</span></span>
         <span class="stat"><button type="button" id="youShufBtn" class="statBtn" title="Open your shuffle pile">♻ <span id="youShuf" class="shufBox clickable">0</span></button></span>
+        <span id="youMetaMods"></span>   <!-- portrait phone: `#playMods` is MOVED here, onto the shields line (see placeZones) -->
         <span class="equip" id="youEquip"></span>
         <span class="panelZones" id="youZones"></span>     <!-- phone: ditto — see placeZones -->
       </span>
@@ -6996,7 +7024,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.32.11';
+  var GAME_VERSION='v1.32.12';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -9408,7 +9436,7 @@ window.CardFace = {};
     var costs=(E.costModifiers?E.costModifiers(state, YOU):[]);
     function signed(n){ return (n>0?'+':(n<0?'−':''))+Math.abs(n); }
     function chip(cls, amt, src){ var s=document.createElement('span'); s.className='pmod '+cls;
-      s.innerHTML='<span class="amt">'+amt+'</span> <span class="src">'+src+'</span>'; el.appendChild(s); }
+      s.innerHTML='<span class="amt">'+amt+'</span> <span class="src">'+src+'</span>'; s.title=(amt+' '+src).replace(/<[^>]*>/g,''); el.appendChild(s); }   // title: the sources survive where a phone shows the amount only
     function group(mods, kind){                        // kind: 'value' | 'cost'
       if(!mods.length) return;
       var mixed=mods.some(function(m){return m.amount>0;}) && mods.some(function(m){return m.amount<0;});
@@ -12983,7 +13011,7 @@ window.CardFace = {};
   function lessonHowToSteps(){
     return [
       { text:"Welcome! You’re a <b>Cardmen Fighter</b>. This guided duel runs in <b>Basics</b> mode — no transforms, just the core loop. Your goal: strip the Rival’s <b>2 shields</b>, then land the finisher.", btn:"Let’s go ▸" },
-      { text:"First, the most important thing — <b>which cards are strong</b>. The ladder runs <b>3 → 10</b>, then your two trumps: the <b>A</b>, and at the very top the <b>2 — the apex, which beats everything</b>. So your <b>2 is your best card</b> and your <b>Ace is second</b>. To win a fight you must play <b>strictly higher</b> — <b>equal values tie, and a tie doesn’t win</b>.", hi:'#specialsRefBtn', btn:"Got it ▸" },
+      { text:"First, the most important thing — <b>which cards are strong</b>. The ladder runs <b>3 → 10</b>, then your two trumps: the <b>A</b>, and at the very top the <b>2 — the apex, which beats everything</b>. So your <b>2 is your best card</b> and your <b>Ace is second</b>. To win a fight you must play <b>strictly higher</b> — <b>equal values tie, and a tie doesn’t win</b>.", hi:'#specialsRefBtn, #menuWrap:has(#specialsRefBtn) > #menuBtn', btn:"Got it ▸" },
       /* THE TURN HAS TWO HALVES AND THE BUTTON SAYS SO (epic step 20; taught here 2026-09-16). Pressing
          Fight in the Main Sub-Phase plays NOTHING — it moves you to the Fight Sub-Phase, and the button
          relabels itself `Next` → `Fight` to say which press you are on. Measured: select a card in Main
@@ -13026,7 +13054,7 @@ window.CardFace = {};
       { text:"Now let the round finish. Your pair has to <b>win</b> the round for the shield to break \u2014 playing a Special is not the same as landing one.", hi:'#pile', prep:tutNeuterRivalPair, gate:function(t){ return t==='shield'; }, wait:"Win the round\u2026" },
       { text:"Shield broken! 🛡 Bigger Specials exist too: <b>trio</b> (three of a number), <b>straight</b> (five in a row, any suits), and <b>full house</b> (a trio + a pair). Suit never matters — a run of one suit is just a straight.", hi:'#rivalShields', btn:"How do they rank? ▸" },
       { text:"Two helpers for spotting combos: the <b>Sort</b> button cycles <b>Singles → Pairs → Straights</b> to line your hand up, and <b>💡 Hints</b> (top bar) dims cards you can’t play right now and dashes a group that can <b>break</b> to beat the pile. Try tapping <b>Sort</b>.", hi:'#sortBtn', btn:"Next ▸" },
-      { text:"Same shape beats same shape by <b>value</b> (ties don’t win); a bigger shape beats a smaller one. Keep the <b>Specials cheat sheet</b> handy — tap it any time from the board.", hi:'#specialsRefBtn', btn:"Finish" }
+      { text:"Same shape beats same shape by <b>value</b> (ties don’t win); a bigger shape beats a smaller one. Keep the <b>Specials cheat sheet</b> handy — tap it any time from the board (on a phone it lives in the <b>☰</b> menu).", hi:'#specialsRefBtn, #menuWrap:has(#specialsRefBtn) > #menuBtn', btn:"Finish" }
     ];
   }
   function lessonEnergySteps(){
@@ -14679,6 +14707,27 @@ window.CardFace = {};
       if(!z || !host || z.parentNode===host) return;      // only on a real change — a no-op move still reflows
       host.appendChild(z);
     });
+    /* THE HAND BAR'S LAST ROW MOVES OUT ON A PORTRAIT PHONE (expanding-zone-pushes-board; Aj, 2026-10-02:
+       *"specials list can live in the burger menu, your turn can move to the top beside the logo"*). On a
+       327-wide screen `🃏 Specials list` + `● your turn` are a whole ~32px row of `#handMeta`, the tallest
+       thing on the board. MOVED, NOT REBUILT — same nodes, same ids — so the click handler, the tutorial
+       spotlights on `#specialsRefBtn` / `#turnTag` and every suite keep working (the header buttons' own
+       v1.31.105 rule). Desktop and the landscape band are untouched: `zonesInPanel()` is the phone-portrait
+       predicate and already re-runs this on a rotation. */
+    /* AND THE LANDSCAPE BAND TOO — that is where Aj meant it (2026-10-05: *"sorry i meant this for the
+       landscape"*). Portrait got it first and it fixed the portrait collision, so both bands move these three
+       now; only desktop and a tall tablet keep them in the hand bar. */
+    var moved = phone || shortLandscape();
+    var meta=document.querySelector('#handMeta .metaRight'), tt=$('turnTag'), sp=$('specialsRefBtn');
+    var ttHost=moved?$('hdrTurnSlot'):meta, spHost=moved?$('menuSpecialsSlot'):meta;
+    if(sp && spHost && sp.parentNode!==spHost){ if(moved) spHost.appendChild(sp); else meta.insertBefore(sp, meta.firstChild); }
+    if(tt && ttHost && tt.parentNode!==ttHost) ttHost.appendChild(tt);
+    /* AND THE BOOST/DEBUFF ROW JOINS THE SHIELDS LINE (Aj, 2026-10-05: *"the boost/debuff we'll move to the same
+       line as the shields"*). `#playMods` was its own ~28px row between the hand bar and the hand. On a phone
+       it shows the AMOUNT only ("value +2") so it really shares the line — the sources ride in each chip's
+       `title`, and wider layouts keep the full "from Giant Boar, Hero's Javelin". */
+    var pm=$('playMods'), pmHome=$('handWrap'), pmPhone=$('youMetaMods'), hand=$('hand');
+    if(pm && pmPhone && pmHome){ if(moved){ if(pm.parentNode!==pmPhone) pmPhone.appendChild(pm); } else if(pm.parentNode!==pmHome) pmHome.insertBefore(pm, hand); }
   }
   function buildDice(n){
     var da=$('diceArea'); if(!da) return; da.style.opacity='';

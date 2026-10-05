@@ -15,6 +15,28 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.12 — nothing on the phone board draws over anything else
+
+**The round message no longer draws over your panel on a phone, or under the Forms/Equipment chips in
+landscape.** Filed as *"expanding a zone pushes the board"* for months; re-measured on 2026-10-02 as the real
+symptom — `#message`'s box is one line and the round-1 text (*"You have the initiative — lead the fight. Only
+Jabs are allowed in Round 1."*) is three, so it spilled over your panel, and in landscape it ran the full
+table width under the corner zones (*"…ave the initiative"*, *"Only Jabs are allow…"*).
+**AJ'S DIRECTION, BUILT WITH SCREENSHOTS AT EACH STEP** — on a portrait phone and in the landscape band
+(desktop untouched), the nodes are MOVED, not rebuilt, so every handler, spotlight and suite still works:
+- **🃏 Specials list → the ☰ menu**, and **"● your turn" → beside the game title**;
+- **the boost/debuff chip → the shields line** (amount only on a portrait phone, sources in its tooltip);
+- on the narrowest phones, **Forms and Equipment share one line** in each panel (they missed by 8px);
+- in landscape, **the message keeps to the channel between the corner zones** and wraps instead.
+Measured on v1.32.11 against this build: 327×660 message text 111px into your panel → clear; landscape message
+under a zone 6-46% → 0% at every size. **And the 60px expand overflow at 327×660 went to 0** — its ratchet
+failed its own floor, which is the signal it was written to send, and was collected; the planned "expanded zone
+as an overlay" was therefore not built.
+**Tests:** `landscapetest` 195 → 203 — guards on the message's TEXT (not its box, which always fitted, which is
+how this sat unseen) at portrait sizes, and on message-vs-zone overlap in the landscape band; the 327×660
+ratchet replaced by the ordinary assertions. On v1.32.11 the new guards red seven ways and reproduce the filed
+45% / 46%. Lessons that spotlight the Specials button light ☰ too when it lives there.
+
 ### v1.32.11 — the host's 🔔 ping is visible to the client
 
 **A client now SEES the host's ping in the lobby** — *"🔔 The host pinged you — pick your deck and press

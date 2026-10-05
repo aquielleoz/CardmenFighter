@@ -491,6 +491,30 @@ const CASES=[
        **176% covered** at 800x360, in a band the suite named and never measured for this. */
     ok(m.worst<5, `${tag}: no pile card is covered by a Forms/equipment zone (worst ${m.worst}%${m.worst?' — '+m.who:''})`);
     ok(m.zz<5, `${tag}: no two zones overlap each other (worst ${m.zz}%${m.zzPair?' — '+m.zzPair:''})`);
+    /* THE ROUND MESSAGE STAYS OUT OF YOUR PANEL (expanding-zone-pushes-board, 2026-10-05). The real collision
+       on a portrait phone was never the expand: the three-line round-1 message ("You have the initiative — lead
+       the fight. Only Jabs are allowed in Round 1.") drew ON TOP of your panel, because `#message`'s box is one
+       line and its text is not. Measured on the TEXT (`scrollHeight`), not the box — the box always fitted,
+       which is how this sat unseen. Portrait only: the landscape band's message is a separate, open entry. */
+    if(!(h<=520 && w>h) && w<=720){
+      const mm=await p.evaluate(()=>{ const msg=document.getElementById('message'), hw=document.getElementById('handWrap');
+        msg.innerHTML='You have the initiative — lead the fight. Only <b>Jabs</b> are allowed in Round 1.';
+        const r=msg.getBoundingClientRect(); return { textBottom:Math.round(r.top+msg.scrollHeight), handTop:Math.round(hw.getBoundingClientRect().top) }; });
+      ok(mm.textBottom<=mm.handTop+1, `${tag}: the round-1 message's TEXT ends above your panel (text bottom ${mm.textBottom}, panel top ${mm.handTop})`);
+    }
+    /* …AND IN THE LANDSCAPE BAND IT STAYS BETWEEN THE CORNER ZONES. It ran the full table width UNDER them
+       ("…ave the initiative" / "Only Jabs are allow…"); it now gets the channel between them and wraps. */
+    if(h<=520 && w>h){
+      const lm=await p.evaluate(()=>{ const m=document.getElementById('message');
+        m.innerHTML='You have the initiative — lead the fight. Only <b>Jabs</b> are allowed in Round 1.';
+        const mr=m.getBoundingClientRect(), mb={left:mr.left,right:mr.right,top:mr.top,bottom:mr.top+m.scrollHeight};
+        let worst=0, who='';
+        [...document.querySelectorAll('#table .formZone,#table .equipZone')].filter(e=>e.offsetParent && e.getBoundingClientRect().width>2).forEach(z=>{
+          const zr=z.getBoundingClientRect(), ix=Math.max(0,Math.min(mb.right,zr.right)-Math.max(mb.left,zr.left)), iy=Math.max(0,Math.min(mb.bottom,zr.bottom)-Math.max(mb.top,zr.top));
+          const f=ix*iy/Math.min((mb.right-mb.left)*(mb.bottom-mb.top), zr.width*zr.height); if(f>worst){ worst=f; who=z.id; } });
+        return { worst:Math.round(worst*100), who }; });
+      ok(lm.worst<5, `${tag}: the round-1 message runs under no corner zone (worst ${lm.worst}%${lm.who?' — '+lm.who:''})`);
+    }
 
     /* AND THE EXPANDED STATE, WHICH NOTHING HAD EVER MEASURED (v1.31.110). Both zones grow on a tap — the
        Forms strip into mini-cards, and the equipment chip into its desktop box — and every screenshot of
@@ -561,34 +585,13 @@ const CASES=[
       ok(expandedByChip===null || x.minis>0,
          `${tag}: …and a CHIP is what opened it — the tap is not swallowed by the reader` +
          (expandedByChip && x.minis>0 ? '' : '  ← REPRODUCED: the chip read its card instead of expanding'));
-      /* ONE SIZE OVERFLOWS THE BOARD WHEN A ZONE EXPANDS, AND ITS COVERAGE NUMBER IS THEREFORE UNSTABLE.
-         At 327x660 expanding both of a seat's zones adds 75px to a panel and pushes `#board` **63px** past
-         its height (393x852 goes 10px over; every other phone size stays at 0). Once the board overflows,
-         where the pile sits relative to the other panel depends on the scroll, so the coverage read 0% on ten
-         consecutive standalone runs and 33% on roughly one suite run in five — an intermittent, and this file
-         is emphatic that an intermittent is worse than a clean red.
-         So assert the CAUSE, which is deterministic and is the actual defect: the board must not overflow
-         because a zone opened. It is a RATCHET — it fails if the overflow grows AND when it goes away — and
-         the coverage line is deliberately not asserted at those sizes until it does. Filed as ★ EXPANDING A
-         ZONE OVERFLOWS THE BOARD in the BACKLOG, tagged RATCHET:phone-zone-expand-overflow — `versiontest`
-         asserts that tag against the BACKLOG in BOTH directions, so deleting this ratchet on the day the fix
-         lands goes red until the entry is closed too. That link is what was missing when v1.31.111 fixed the
-         landscape overlap and left its entry quoting a measurement that had stopped being true. */
-      /* THE CAP IS 60 AND NOT 63 BECAUSE THE INPUT IS PINNED NOW (2026-10-01). 63 was padding for a
-         number that swung 33/60/60 across sweeps of untouched builds, because the deck roll moved
-         `#handMeta`; with the worst-case deck pinned in `open()` this reads 60 on four consecutive runs,
-         so the ratchet can be tight enough to catch a 1px growth. A cap wider than the measurement is a
-         suppression wearing a ratchet's clothes. */
-      const OVF={'327x660':60,'393x852':10};
-      const cap=OVF[`${w}x${h}`];
-      if(cap!==undefined){
-        console.log(`   ⚠ ${tag}: KNOWN — expanding a zone pushes the board ${x.over}px past its height; coverage is scroll-dependent there and is not asserted.`);
-        ok(x.over<=cap, `${tag}: the known expand overflow has not grown (${x.over}px vs the recorded ${cap}px)`);
-        ok(x.over>0, `${tag}: …and it is still REAL — if this line fails it is FIXED: drop this entry and assert coverage`);
-      } else {
-        ok(x.over===0, `${tag}: expanding a zone does not push the board past its height (${x.over}px)`);
-        ok(x.worst<5, `${tag}: expanding a zone still covers no pile card (${m.worst}% → ${x.worst}%${x.worst?' — '+x.who:''})`);
-      }
+      /* THE 327x660 EXPAND-OVERFLOW RATCHET WAS COLLECTED (2026-10-05, v1.32.12) — it failed its own floor, which
+         is the signal it was written to send: *"if this line fails it is FIXED"*. It stood at 60px for months and
+         went to 0 when the hand bar lost a row (Specials list → ☰, "your turn" → header, the boost chip onto the
+         shields line, Forms + Equipment sharing a line in each panel). Every size now answers the same question
+         again. The `393x852` cap it carried was dead — that size is not in this loop. */
+      ok(x.over===0, `${tag}: expanding a zone does not push the board past its height (${x.over}px)`);
+      ok(x.worst<5, `${tag}: expanding a zone still covers no pile card (${m.worst}% → ${x.worst}%${x.worst?' — '+x.who:''})`);
     }
     ok(x.zz<5, `${tag}: no two zones overlap each other in that state (worst ${x.zz}%${x.zzPair?' — '+x.zzPair:''})`);
     ok(x.scrollW<=x.clientW+1, `${tag}: …and does not start a sideways scroll (${x.scrollW} vs ${x.clientW})`);

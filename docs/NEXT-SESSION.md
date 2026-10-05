@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.11.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.12.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.11** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.32.12** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -875,54 +875,17 @@ never read.*
   `[id: client-ceremony-is-a-second-impl]`
 
 
-- `root cause found`    · **★ THE PHONE BOARD DRAWS CONTENT ON TOP OF CONTENT — AND "EXPANDING A ZONE" WAS
-  NEVER THE DEFECT** (re-measured as collisions 2026-10-02; supersedes the overflow framing this entry carried)
-  `[ratchet: phone-zone-expand-overflow]`
-  Filed for months as *"expanding a zone pushes the board 60px past its height"* — a SCROLL-contract number.
-  A screenshot shows the real symptom: at 327x660 the pile cards are drawn **on top of** `#handMeta`, and in
-  every LANDSCAPE size the round banner runs **underneath** the corner-pinned Forms and equipment chips
-  (*"…ave the initiative"* at one end, *"Only jabs are allow…"* cut off at the other). Pairwise overlap as a
-  share of the smaller box, all nine viewports the suite opens, collapsed vs both zones expanded:
-
-  | viewport | collapsed | expanded |
-  | --- | --- | --- |
-  | 327x660 | pileCard x handMeta **71%** · handMeta x message **95%** | **98%** · 95% |
-  | 390x780 | clean | clean |
-  | 568x320 land | formZone x message 26% · eq 21% | **identical** |
-  | 640x360 land | eq x message 11% | identical |
-  | 667x375 land | eq x message 8% | identical |
-  | 800x360 land | formZone x message **46%** · eq 26% | identical |
-  | 844x390 land | formZone x message **45%** · eq 30% | identical |
-  | 932x430 land | eq x message 20% · formZone 5% | identical |
-  | desktop | clean | clean |
-
-  **EXPANDING IS NOT THE CAUSE.** Every landscape size is byte-identical collapsed and expanded, and 327 is
-  already at 71% with everything shut. So the four behaviour options this entry used to offer — overlay /
-  one-at-a-time / accept the scroll / inner scroll — were all answers to the wrong question, which is why it
-  kept bouncing back to Aj as a decision he could not make sense of.
-  **IT IS TWO BUGS, AND `#message` IS IN BOTH.** 390x780 and desktop are clean at every state.
-  **MEASURED IDENTICAL ON `main`'s OWN BUILT PAGE** (71% / 45% / 30%), so this is main work by the documented
-  routing test rather than by judgement — **and it is filed on `main` too**, where the build should happen.
-  **⚠ THE ONE CHECK THAT WOULD HAVE CAUGHT IT IS SWITCHED OFF AT THOSE SIZES.** `landscapetest` has a
-  zone-vs-pile COVERAGE assertion and this entry's own earlier text said it was *"deliberately not asserted
-  there until this is fixed"* — disabled because the overflow made it unstable. **When you disable an
-  assertion because its input is noisy, you have also stopped looking at what it was watching**: the suite
-  has been green over a board that overlaps in its DEFAULT state ever since.
-  **AJ'S DIRECTION, 2026-10-02** — remove the cause rather than negotiate around it: *"specials list can live
-  in the burger menu, your turn can move to the top beside the logo. we can probably make shields a number…
-  maybe we don't need all that info on display all the time? i think the most important one is shields, then
-  energy, then effects affecting the board."* Priority **shields > energy > board effects**; deck name, deck
-  count and discard count expand on demand. That strips `#handMeta` and `#message`, the two elements in every
-  collision above.
-  **THE SHIELD BREAK SURVIVES THE MOVE TO A NUMBER, checked rather than assumed.** `animateShields` already
-  works off a NUMERIC diff (`prev` vs `n`) and knows how many were lost; only the TARGET is pip-specific —
-  `shatterShield(slots[i])` bursts a pip, `shake-shield` shakes the container. The shake transfers unchanged.
-  ⚠ Note `animateShields` runs for YOU always and the rival only in the DUEL branch, so at 3-6 players
-  opponents go through `noteShieldChanges` — an opponent's break animation is a pre-existing second gap.
-  **AND THE OLD ARITHMETIC IS STILL TRUE, it was answering the wrong question:** Forms expanding is 33px of
-  CARD THUMBNAIL (a 23px strip becomes a 56px card) and Equipment 42px, so no truncation closes the scroll
-  gap. Shortening the deck name is worth ~27px and is real, but the half it is not is pictures.
-  `[id: expanding-zone-pushes-board]`
+- `needs a decision`    · **THE REST OF AJ'S PHONE DECLUTTER — NO DEFECT NEEDS IT ANY MORE** (2026-10-05). His
+  2026-10-02 direction for the hand bar: *"we can probably make shields a number… maybe we don't need all that
+  info on display all the time? i think the most important one is shields, then energy, then effects affecting
+  the board"* — deck name, deck count and discard count on demand. v1.32.12 built the parts that the collision
+  needed (Specials list → ☰, your turn → header, the boost chip onto the shields line, Forms + Equipment on one
+  line) and every phone and landscape size measures clean, so what is left is a design choice, not a fix.
+  **IF SHIELDS BECOME A NUMBER, THE BREAK ANIMATION SURVIVES** — checked when this was filed: `animateShields`
+  works off a numeric diff; only the target (`shatterShield(slots[i])`) is pip-specific. ⚠ And a separate
+  pre-existing gap noted at the same time: `animateShields` runs for you always and the rival only in a DUEL, so
+  at 3-6 players an opponent's shield break has no animation.
+  `[id: phone-declutter-rest]`
 
 ### Tooling
 
