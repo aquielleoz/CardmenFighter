@@ -6855,7 +6855,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.32.2';
+  var GAME_VERSION='v1.32.3';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -10621,6 +10621,7 @@ window.CardFace = {};
          scored was the label saying `Fight` while this branch still sent `toFight` — a promise the code
          did not keep. Conditioning both on the same selection makes the promise true. */
       if(state.subPhase !== 'play' && !selectedCards().length){ NET.clientSend({op:'toFight'}); busy=true; render(); return; }
+      if(state.subPhase !== 'play' && selectedCards().length) commitCrossing=true;   // crosses AND plays — no Fight beat
       sendClientPlay(selectedCards()); return;   // must short-circuit HERE too — below is host/rival pre-fight logic a client must never run
     }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
@@ -10654,9 +10655,10 @@ window.CardFace = {};
        Fight Sub-Phase without committing is a legitimate thing to want. */
     var selNow=selectedCards();
     if(!selNow.length) return moveToPlayThen(g, function(){ if(g===gen) render(); }, null, null, 'Next');
+    commitCrossing=true;                                   // crosses AND plays — no Fight beat (see notePhaseEdge)
     moveToPlayThen(g, function(){ if(g===gen) playCards(selectedCards()); }, function(){
       setMessage('Someone answered — your play is on hold. Press <b>Fight</b> again to go through with it.');
-      render();
+      var sw=(commitCrossing==='used'); commitCrossing=false; render(); if(sw) announceFight();   // held: you ARE in the Fight Sub-Phase with nothing played — announce if the edge was swallowed (else render's edge does it)
     }, null, 'Fight');
   }
   function doPass(){
@@ -11121,14 +11123,35 @@ window.CardFace = {};
    * the new sub-phase through `moveToPlayThen`; a netplay CLIENT never runs that function at all — it
    * learns the transition from a MIRROR (`subPhase` is public in netview for exactly this) — so a call
    * placed in the funnel would announce on two seats of three. Everything renders; nothing else does. */
-  var lastSubPhase=null;
+  /* ⚠ A PRESS THAT CROSSES OVER AND COMMITS IS NOT ANNOUNCED (fight-announce-on-commit, Aj 2026-10-02:
+     *"fight sub phase announcement flew in when i clicked fight. it should only fly in for next"*). With
+     cards selected in Main the button reads `Fight`, and that ONE press transitions and then plays — so
+     the beat narrated something the player had just done on purpose. (Pass is not rendered in Main since
+     step 20, so it cannot cross and commit — no flag there; an unreachable branch is not a safeguard.)
+     `commitCrossing` is a ONE-SHOT the committing press sets, and the next Main → Fight edge
+     consumes it instead of announcing. ANY other edge clears it, so a commit that never crossed cannot
+     swallow a later `Next`.
+     SET ON EVERY SEAT THAT CAN COMMIT, including the netplay CLIENT's send — the client learns the edge
+     from a MIRROR, which is the whole reason this detector lives in `render()`; a flag set only in the
+     local funnel would leave the client announcing (the "two parks of nine" shape).
+     A HELD commit ("Someone answered — your play is on hold") DOES land you in the Fight Sub-Phase with
+     nothing played, which is exactly what the beat is for, so the hold path announces explicitly. */
+  var lastSubPhase=null, commitCrossing=false;
   function notePhaseEdge(){
+    /* THE FLAG LIVES ONLY WHILE THE TURN IS YOURS. A QUIET commit crosses and plays inside one call, so no
+       render ever sees the Main → Fight edge and nothing consumes the flag — measured: it then swallowed
+       the NEXT `Next`. The play hands the turn on, so clearing it here retires it on the first render
+       after the commit, on every seat (a client sees the turn move in the mirror the same way). */
+    if(!state || state.turn!==YOU) commitCrossing=false;
     var now=(state && state.subPhase) || null;
     if(now===lastSubPhase) return;
     var was=lastSubPhase; lastSubPhase=now;
-    if(was==='main' && now==='play' && state && state.turn===YOU && !state.finished && !E.isLocked(state, YOU))
-      announcePhase('⚔️ <b>Fight sub-phase</b> — throw your cards down.', 'you');
+    if(!(was==='main' && now==='play')){ commitCrossing=false; return; }
+    if(commitCrossing===true){ commitCrossing='used'; return; }        // 'used' tells a HELD commit the beat was swallowed
+    commitCrossing=false;
+    if(state && state.turn===YOU && !state.finished && !E.isLocked(state, YOU)) announceFight();
   }
+  function announceFight(){ announcePhase('⚔️ <b>Fight sub-phase</b> — throw your cards down.', 'you'); }
   var phaseFxT=null;
   function announcePhase(txt, cls){
     var fx=$('roundfx'); if(!fx) return;
@@ -12328,7 +12351,7 @@ window.CardFace = {};
     pendingEnter={}; flipFrom=null;                      // the deal-in queue (it also drives the Beginning tint via `dealingIn`) and the FLIP source rect
     equipFx={}; equipOpen=null; formsOpen=null;          // zone flash layer + which zones are expanded
     drag=null;                                           // any drag still in flight when the board went away
-    lastSubPhase=null;   // the Fight announcement is an EDGE — a new game inheriting the old one's sub-phase either fires a phantom beat or swallows the first real one
+    lastSubPhase=null; commitCrossing=false;   // the Fight announcement is an EDGE — a new game inheriting the old one's sub-phase either fires a phantom beat or swallows the first real one
     ['kick','stagefx','thresholdfx','roundfx','stopfx'].forEach(function(id){ var e=$(id); if(e){ e.className=''; if(id!=='roundfx' && id!=='stopfx') e.innerHTML=''; } });
     var af=$('artFlash'); if(af) af.classList.remove('show','you');
     document.body.classList.remove('kicking');
