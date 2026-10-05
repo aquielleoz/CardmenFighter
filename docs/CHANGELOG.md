@@ -15,6 +15,24 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.8 — Back Stab and Annoint cast from the Respond? window let you choose the target
+
+**A Quick cast from the Respond? window now asks what it is aimed at**, like the same card cast in Main.
+`respond` used to push only a Counter Spell's `counterOid`, so the engine filled the rest in:
+- **Back Stab** (a Quick under a King) locked the NEXT rival. Now one button per rival — "Back Stab · lock
+  out Tank". A duel has one rival and Hermes' Back Stab hits everyone, so neither shows a choice.
+- **Annoint** with no strip on the stack protected your FIRST Equipment. Now one button per piece —
+  "Annoint · protect Holy Shroud". Answering a strip still protects whatever that strip is aiming at.
+The Counter Spell shape: the choice is part of casting, made before the card goes on the stack.
+`E.respondChoices` is the set the window offers AND the set `respond` validates against (a client sends the
+target, so the host refuses a self-target or a piece that is not yours BEFORE anything is spent); the target
+rides on the stack entry, so resolution, the stack row (`stackTargetOf`) and the protection all read one
+value. A seat target arrives in the client's rotated frame and both host handlers un-rotate it.
+**Tests:** `test.js` +11, staged so every choice differs from the old default; a mutant that drops the target
+off the stack reproduces the old behaviour exactly (locked seat 2, protected the first piece).
+`nettest_respondtarget3.js` (8), from a 3-player client — on v1.32.7 no per-target buttons exist.
+New debug accessors `__cmf.equipOf(seat)` / `__cmf.roundNow()`.
+
 ### v1.32.7 — five small fixes: the illusion line, the export build, a client's cast, the deck builder's Cancel, a fizzled draw
 
 - **The AI's Phantasmal Illusion names the shape it made** — Bibong's export read *"a Special undefined

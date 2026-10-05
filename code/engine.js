@@ -1425,6 +1425,35 @@
     var chosen = pitchId ? cands.filter(function (c) { return c.id === pitchId; })[0] : null;
     return chosen || cands.slice().sort(function (a, b) { return fightValue(a) - fightValue(b); })[0];
   }
+  /* WHAT A QUICK CAST FROM A RESPOND? WINDOW MAY BE AIMED AT (respond-quick-target-never-asked, 2026-10-05).
+     `respond` pushed only `counterOid`, so Back Stab locked the NEXT rival and Annoint protected the FIRST
+     Equipment — while the same cards cast in Main let you choose. Counter Spell is the model (one button per
+     target, chosen before the card goes on the stack). Returns the CHOOSABLE set, or null when there is no
+     choice to make: Hermes' Back Stab hits everyone, a duel has one rival, and an Annoint answering a strip
+     protects whatever that strip is aiming at. { seats:[q…] } | { equip:[{id,name}…] } */
+  function respondChoices(st, q, card) {
+    var e = card && effectFor(st, q, card);
+    if (!e) return null;
+    if (e.kind === 'lockout' && !e.all) {
+      var alive = []; for (var i = 0; i < st.numPlayers; i++) if (i !== q && !st.players[i].eliminated) alive.push(i);
+      return alive.length > 1 ? { seats: alive } : null;
+    }
+    if (e.kind === 'protect') {
+      for (var j = st.stack.length - 1; j >= 0; j--) if (st.stack[j].kind === 'effect' && st.stack[j].eff && st.stack[j].eff.kind === 'removeEquip') return null;   // a strip on the stack decides what it protects
+      var eq = st.players[q].equipment.map(function (x) { return { id: x.id, name: x.name }; });
+      return eq.length > 1 ? { equip: eq } : null;
+    }
+    return null;
+  }
+  // validate a chosen target against `respondChoices` — the host's check, because a client sends it
+  function respondTargetRefusal(st, q, card, target) {
+    if (target == null) return null;                                   // none named → the default, as before
+    var ch = respondChoices(st, q, card);
+    if (!ch) return null;                                              // nothing to choose — a named target is simply ignored
+    if (ch.seats && ch.seats.indexOf(target) < 0) return 'That is not a Rival you can target.';
+    if (ch.equip && !ch.equip.some(function (x) { return x.id === target; })) return 'That is not your Equipment.';
+    return null;
+  }
   function castRefusal(st, q, card) {
     var qp = st.players[q], e = card && effectFor(st, q, card);                // effectFor: a Form can make a card Quick
     /* A LOCKED PLAYER IS SKIPPED, AND SKIPPED MEANS SKIPPED (Aj, 2026-09-17, re-reading the card:
@@ -1865,11 +1894,16 @@
       if (qeff.kind !== 'counter') return { ok: false, reason: 'That card does not counter anything.' };
       if (!counterTargets(st, qeff).some(function (o) { return o.oid === cOid; })) return { ok: false, reason: 'That is no longer on the stack to counter.' };
     }
+    var qTarget = (opts && opts.target != null && respondChoices(st, q, qcard)) ? opts.target : null;
+    var tBad = respondTargetRefusal(st, q, qcard, qTarget);
+    if (tBad) return { ok: false, reason: tBad };                     // refused BEFORE anything is spent
     var qPitch = qeff.pitchHigh ? pitchFor(qp, quickCardId, opts && opts.pitch) : null;   // castRefusal already proved one exists
     qp.hand = qp.hand.filter(function (c) { return c.id !== quickCardId; });
     payEnergy(qp, qcard);
     if (qPitch) { qp.hand = qp.hand.filter(function (c) { return c.id !== qPitch.id; }); qp.removed.push(qPitch); }   // Broadway pitch → Discard pile, as `activate` does
-    st.stack.push({ oid: newOid(st), kind: 'effect', p: q, card: qcard, eff: qeff, opts: (cOid ? { counterOid: cOid } : {}), countered: false });
+    var qOpts = cOid ? { counterOid: cOid } : {};
+    if (qTarget != null) qOpts.target = qTarget;                      // resolution, stackTargetOf and Annoint all read it from here
+    st.stack.push({ oid: newOid(st), kind: 'effect', p: q, card: qcard, eff: qeff, opts: qOpts, countered: false });
     /* WHO ADDED IT, counted per seat. The UI's auto-pass brake asks "did anything happen while I was
        passing?" and `oidSeq` alone answers "did anything happen at all" — which includes the passer's OWN
        cast, and braking on that is backwards: you cast Leyline into the window your pass opened precisely
@@ -3371,7 +3405,8 @@
     moveToPlay: moveToPlay,
     effectTarget: effectTarget,   // who a pending effect is aimed at — the UI needs it to say so out loud
     stackTargetOf: stackTargetOf,
-    pitchCands: pitchCands,   // the Broadway cards a pitch cast may discard — the UI offers exactly these   // WHAT a stack object is aimed at (Equipment / Ride / seat / effect) — built from resolution's own lookups
+    pitchCands: pitchCands,
+    respondChoices: respondChoices,   // what a Quick cast from a Respond? window may be aimed at — the UI offers exactly these   // the Broadway cards a pitch cast may discard — the UI offers exactly these   // WHAT a stack object is aimed at (Equipment / Ride / seat / effect) — built from resolution's own lookups
     HOSTILE_SINGLE: HOSTILE_SINGLE,
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
     canAddToStack: canAddToStack, canCastQuick: canCastQuick, castRefusal: castRefusal, quickTargets: quickTargets, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would

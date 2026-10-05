@@ -3229,6 +3229,35 @@
     var chosen = pitchId ? cands.filter(function (c) { return c.id === pitchId; })[0] : null;
     return chosen || cands.slice().sort(function (a, b) { return fightValue(a) - fightValue(b); })[0];
   }
+  /* WHAT A QUICK CAST FROM A RESPOND? WINDOW MAY BE AIMED AT (respond-quick-target-never-asked, 2026-10-05).
+     `respond` pushed only `counterOid`, so Back Stab locked the NEXT rival and Annoint protected the FIRST
+     Equipment — while the same cards cast in Main let you choose. Counter Spell is the model (one button per
+     target, chosen before the card goes on the stack). Returns the CHOOSABLE set, or null when there is no
+     choice to make: Hermes' Back Stab hits everyone, a duel has one rival, and an Annoint answering a strip
+     protects whatever that strip is aiming at. { seats:[q…] } | { equip:[{id,name}…] } */
+  function respondChoices(st, q, card) {
+    var e = card && effectFor(st, q, card);
+    if (!e) return null;
+    if (e.kind === 'lockout' && !e.all) {
+      var alive = []; for (var i = 0; i < st.numPlayers; i++) if (i !== q && !st.players[i].eliminated) alive.push(i);
+      return alive.length > 1 ? { seats: alive } : null;
+    }
+    if (e.kind === 'protect') {
+      for (var j = st.stack.length - 1; j >= 0; j--) if (st.stack[j].kind === 'effect' && st.stack[j].eff && st.stack[j].eff.kind === 'removeEquip') return null;   // a strip on the stack decides what it protects
+      var eq = st.players[q].equipment.map(function (x) { return { id: x.id, name: x.name }; });
+      return eq.length > 1 ? { equip: eq } : null;
+    }
+    return null;
+  }
+  // validate a chosen target against `respondChoices` — the host's check, because a client sends it
+  function respondTargetRefusal(st, q, card, target) {
+    if (target == null) return null;                                   // none named → the default, as before
+    var ch = respondChoices(st, q, card);
+    if (!ch) return null;                                              // nothing to choose — a named target is simply ignored
+    if (ch.seats && ch.seats.indexOf(target) < 0) return 'That is not a Rival you can target.';
+    if (ch.equip && !ch.equip.some(function (x) { return x.id === target; })) return 'That is not your Equipment.';
+    return null;
+  }
   function castRefusal(st, q, card) {
     var qp = st.players[q], e = card && effectFor(st, q, card);                // effectFor: a Form can make a card Quick
     /* A LOCKED PLAYER IS SKIPPED, AND SKIPPED MEANS SKIPPED (Aj, 2026-09-17, re-reading the card:
@@ -3669,11 +3698,16 @@
       if (qeff.kind !== 'counter') return { ok: false, reason: 'That card does not counter anything.' };
       if (!counterTargets(st, qeff).some(function (o) { return o.oid === cOid; })) return { ok: false, reason: 'That is no longer on the stack to counter.' };
     }
+    var qTarget = (opts && opts.target != null && respondChoices(st, q, qcard)) ? opts.target : null;
+    var tBad = respondTargetRefusal(st, q, qcard, qTarget);
+    if (tBad) return { ok: false, reason: tBad };                     // refused BEFORE anything is spent
     var qPitch = qeff.pitchHigh ? pitchFor(qp, quickCardId, opts && opts.pitch) : null;   // castRefusal already proved one exists
     qp.hand = qp.hand.filter(function (c) { return c.id !== quickCardId; });
     payEnergy(qp, qcard);
     if (qPitch) { qp.hand = qp.hand.filter(function (c) { return c.id !== qPitch.id; }); qp.removed.push(qPitch); }   // Broadway pitch → Discard pile, as `activate` does
-    st.stack.push({ oid: newOid(st), kind: 'effect', p: q, card: qcard, eff: qeff, opts: (cOid ? { counterOid: cOid } : {}), countered: false });
+    var qOpts = cOid ? { counterOid: cOid } : {};
+    if (qTarget != null) qOpts.target = qTarget;                      // resolution, stackTargetOf and Annoint all read it from here
+    st.stack.push({ oid: newOid(st), kind: 'effect', p: q, card: qcard, eff: qeff, opts: qOpts, countered: false });
     /* WHO ADDED IT, counted per seat. The UI's auto-pass brake asks "did anything happen while I was
        passing?" and `oidSeq` alone answers "did anything happen at all" — which includes the passer's OWN
        cast, and braking on that is backwards: you cast Leyline into the window your pass opened precisely
@@ -5175,7 +5209,8 @@
     moveToPlay: moveToPlay,
     effectTarget: effectTarget,   // who a pending effect is aimed at — the UI needs it to say so out loud
     stackTargetOf: stackTargetOf,
-    pitchCands: pitchCands,   // the Broadway cards a pitch cast may discard — the UI offers exactly these   // WHAT a stack object is aimed at (Equipment / Ride / seat / effect) — built from resolution's own lookups
+    pitchCands: pitchCands,
+    respondChoices: respondChoices,   // what a Quick cast from a Respond? window may be aimed at — the UI offers exactly these   // the Broadway cards a pitch cast may discard — the UI offers exactly these   // WHAT a stack object is aimed at (Equipment / Ride / seat / effect) — built from resolution's own lookups
     HOSTILE_SINGLE: HOSTILE_SINGLE,
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
     canAddToStack: canAddToStack, canCastQuick: canCastQuick, castRefusal: castRefusal, quickTargets: quickTargets, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
@@ -6918,7 +6953,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.32.7';
+  var GAME_VERSION='v1.32.8';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -12096,6 +12131,17 @@ window.CardFace = {};
       /* A PITCH QUICK GETS ONE BUTTON PER BROADWAY CARD — the Counter Spell shape, for the same reason: the
          choice is part of CASTING, so it is made before the card goes on the stack. Armor Piercing under
          Hippolyta is the case; `E.pitchCands` is the set `respond` takes from. One candidate: no choice. */
+      /* BACK STAB / ANNOINT GET ONE BUTTON PER TARGET (respond-quick-target-never-asked). Cast from this window
+         they used to take the engine's default — the NEXT rival, your FIRST Equipment — while the same cards
+         cast in Main let you choose. `E.respondChoices` is the set `respond` validates against; null means
+         there is no choice to make (one rival, Hermes hitting everyone, an Annoint answering a strip). */
+      var rc=E.respondChoices ? E.respondChoices(state, YOU, c) : null;
+      if(rc){
+        (rc.seats||[]).forEach(function(q){ var k=ekey+'|s'+q; if(offered[k]) return; offered[k]=1;
+          html+='<button class="respQuick" data-id="'+c.id+'" data-tseat="'+q+'">'+ef.name+' · lock out <b>'+esc(logName(q))+'</b> <span class="respTxt">'+ef.cost+'⚡ · '+cardSym(c)+'</span></button>'; });
+        (rc.equip||[]).forEach(function(x){ var k=ekey+'|e'+x.id; if(offered[k]) return; offered[k]=1;
+          html+='<button class="respQuick" data-id="'+c.id+'" data-tequip="'+esc(x.id)+'">'+ef.name+' · protect <b>'+esc(x.name||'Equipment')+'</b> <span class="respTxt">'+ef.cost+'⚡ · '+cardSym(c)+'</span></button>'; });
+        return; }
       var pcs=(ef.pitchHigh && E.pitchCands) ? E.pitchCands(state.players[YOU], c.id) : [];
       if(pcs.length>1){
         pcs.forEach(function(pc){
@@ -12117,7 +12163,7 @@ window.CardFace = {};
     html+='<button id="respDecline" class="respLet"'+(tutNeedsCounter?' disabled':'')+'>'+declineLabel()+'</button></div>'+peekBtnHTML();
     showModal(html); wirePeek();
     Array.prototype.forEach.call(document.querySelectorAll('.respQuick'), function(btn){
-      btn.addEventListener('click', function(){ humanResponds(g, btn.getAttribute('data-id'), cont, btn.getAttribute('data-coid')||null, btn.getAttribute('data-pitch')||null); });
+      btn.addEventListener('click', function(){ var ts=btn.getAttribute('data-tseat'), te=btn.getAttribute('data-tequip'); humanResponds(g, btn.getAttribute('data-id'), cont, btn.getAttribute('data-coid')||null, btn.getAttribute('data-pitch')||null, ts!=null ? +ts : (te!=null ? te : null)); });
     });
     $('respDecline').addEventListener('click', function(){ humanDeclines(g, cont); });
   }
@@ -12137,19 +12183,19 @@ window.CardFace = {};
     var e=c ? ((E.effectFor && E.effectFor(state, YOU, c)) || E.effectOf(c)) : null;   // effectFor: a Form can rename what you are casting
     return (e && e.name) ? e.name : id;
   }
-  function humanResponds(g, quickId, cont, coid, pitch){
+  function humanResponds(g, quickId, cont, coid, pitch, target){
     cont = cont || function(){ resumeRival(g); };
     /* THE CHOSEN TARGET TRAVELS AS AN OID, and the host re-validates it against its OWN stack — same rule as
        `resolveIds` and `phantasmSolveFor`: a client sends its CHOICE, never its solution. An oid is the
        host's own identifier for the object, so unlike a stack INDEX it cannot be rotated or stale-shifted. */
-    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ prioNote('  → you CAST ' + quickLabelFor(quickId) + ' — sent to the host'); hideOverlay(); NET.clientSend({op:'respond', id:quickId, coid:coid||null, pitch:pitch||null}); busy=true; render(); return; }
+    if(typeof NET!=='undefined' && NET.isClientActive && NET.isClientActive()){ prioNote('  → you CAST ' + quickLabelFor(quickId) + ' — sent to the host'); hideOverlay(); NET.clientSend({op:'respond', id:quickId, coid:coid||null, pitch:pitch||null, target:(target==null?null:target)}); busy=true; render(); return; }
     if(typeof NET!=='undefined' && NET.clientNotReady && NET.clientNotReady()){ setMessage('Connecting to the host\u2026 wait for the game to start.'); return; }
     if(g!==gen){ hideOverlay(); return; }
     var qcard=state.players[YOU].hand.filter(function(c){return c.id===quickId;})[0];
     var qeff=qcard?E.effectOf(qcard):null;
     var pendName=((state.pending && state.pending.card && E.effectOf(state.pending.card))||{}).name
                || (state.pending && state.pending.trig ? ((state.pending.name||'Equipment')+'’s upkeep tick') : 'the Technique');
-    var r=E.respond(state, YOU, quickId, {counterOid:coid||null, pitch:pitch||null});
+    var r=E.respond(state, YOU, quickId, {counterOid:coid||null, pitch:pitch||null, target:(target==null?null:target)});
     if(!r.ok){ setMessage(r.reason); return; }
     hideOverlay();
     if(qeff){ flashArt(qcard, 'You'); quickFlash('You', qeff.name, qeff.kind==='counter'); }
@@ -16096,7 +16142,7 @@ window.CardFace = {};
       if(it.op==='respond' || it.op==='decline'){
         if(!netSettle) return;                                  // no open window — stale/duplicate reply, ignore
         try{
-          if(it.op==='respond'){ var qc=(hostState.players[1].hand.filter(function(c){return c.id===it.id;})[0]), qe=qc?E.effectOf(qc):null; r=E.respond(hostState, 1, it.id, {counterOid:it.coid||null, pitch:it.pitch||null}); if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal response.'}); broadcastMirror(); return; } if(qe && qe.kind==='counter') say(1, '{who} countered with '+qe.name+'!', 'rival'); else say(1, '{who} answered at instant speed'+(qe?(' with '+qe.name):'')+'.', 'rival'); }
+          if(it.op==='respond'){ var qc=(hostState.players[1].hand.filter(function(c){return c.id===it.id;})[0]), qe=qc?E.effectOf(qc):null; r=E.respond(hostState, 1, it.id, {counterOid:it.coid||null, pitch:it.pitch||null, target:(typeof it.target==='number' ? (it.target+1)%2 : (it.target||null))}); if(r && r.ok===false){ send({t:'err', reason:r.reason||'Illegal response.'}); broadcastMirror(); return; } if(qe && qe.kind==='counter') say(1, '{who} countered with '+qe.name+'!', 'rival'); else say(1, '{who} answered at instant speed'+(qe?(' with '+qe.name):'')+'.', 'rival'); }
           else { E.declineResponse(hostState, 1); if(!it.auto) say(1, '{who} let it resolve.', 'dim'); }   // an auto-pass is not a choice — see the N-player twin
         }catch(e){ send({t:'err', reason:'Response rejected.'}); broadcastMirror(); return; }
         var ns=netSettle; netSettle=null; return hostSettle(ns.g, ns.done);
@@ -16491,7 +16537,7 @@ window.CardFace = {};
           return;
         }
         try{
-          if(it.op==='respond'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=respond but the open window is '+netReact.kind); return; } var qc=resolveIds(seat,[it.id])[0], qe=qc?E.effectOf(qc):null; var rr=E.respond(hostState, seat, it.id, {counterOid:it.coid||null, pitch:it.pitch||null}); if(rr&&rr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:rr.reason||'Illegal response.'}); broadcastMirror(); return; } say(seat, '{who} '+((qe&&qe.kind==='counter')?('countered with '+qe.name+'!'):('answered'+(qe?(' with '+qe.name):'')+' at instant speed.')), 'rival'); }
+          if(it.op==='respond'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=respond but the open window is '+netReact.kind); return; } var qc=resolveIds(seat,[it.id])[0], qe=qc?E.effectOf(qc):null; var rr=E.respond(hostState, seat, it.id, {counterOid:it.coid||null, pitch:it.pitch||null, target:(typeof it.target==='number' ? (it.target+seat)%hostState.numPlayers : (it.target||null))}); if(rr&&rr.ok===false){ sendTo(seat,{t:'err',seat:seat,reason:rr.reason||'Illegal response.'}); broadcastMirror(); return; } say(seat, '{who} '+((qe&&qe.kind==='counter')?('countered with '+qe.name+'!'):('answered'+(qe?(' with '+qe.name):'')+' at instant speed.')), 'rival'); }
           else if(it.op==='decline'){ if(netReact.kind!=='respond'){ trace('react KIND MISMATCH', 'op=decline but the open window is '+netReact.kind); return; } E.declineResponse(hostState, seat);
             /* AN AUTO-PASS IS NOT A CHOICE (2026-09-23). A client whose prompt for this timing is off answers
                with the SAME `{op:'decline'}` a player clicking "Let it resolve" sends, so the host narrated
@@ -17340,7 +17386,7 @@ window.CardFace = {};
        header is the one place a client's deck names are read back, and nothing could see it.
        Checked for a duplicate key first (a brace-walk of this literal, not the crude grep: that
        one reports six hits here and all six are NESTED keys, so it is a lead, never a verdict). */
-    logHead:function(){ return logHeadLines().join("\n"); }, force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, shieldsOf:function(seat){ return (state&&state.players[seat])?state.players[seat].shields:null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, renameBase:function(ms){ return NET.setRenameBase(ms); }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, handPresetN:function(){ return handPresetN; }, prioLog:function(){ return PRIO_LOG.slice(); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); },
+    logHead:function(){ return logHeadLines().join("\n"); }, force:function(hh,rh,he,re,hs,rs){ return NET.dbgForce(hh,rh,he,re,hs,rs); }, turn:function(){ return state?state.turn:null; }, adopted:function(){ return lastAdopted; }, hand:function(){ return (state&&state.players[YOU]?state.players[YOU].hand.map(function(c){return c.id;}):[]); }, pending:function(){ return !!(state&&state.pending); }, energy:function(){ return (state&&state.players[YOU]?state.players[YOU].energy.length:0); }, shields:function(){ return (state&&state.players[YOU]?state.players[YOU].shields:null); }, lock:function(seat){ return (state&&state.players[seat])?!!(state.players[seat].lockSkip||state.players[seat].lockRound):null; }, equipOf:function(seat){ return (state&&state.players[seat])?state.players[seat].equipment.map(function(e){ return {id:e.id, name:e.name, protectedRound:(e.protectedRound==null?null:e.protectedRound)}; }):null; }, roundNow:function(){ return state?state.round:null; }, handOf:function(seat){ return (state&&state.players[seat])?state.players[seat].hand.map(function(c){return c.id;}):null; }, shieldsOf:function(seat){ return (state&&state.players[seat])?state.players[seat].shields:null; }, comp:function(seat){ if(!state||!state.players[seat]) return null; var pl=state.players[seat], out={}; ['deck','hand','energy','shuffle','shieldPile','forms','equipment','removed'].forEach(function(z){ (pl[z]||[]).forEach(function(c){ out[c.suit]=(out[c.suit]||0)+1; }); }); return out; }, finished:function(){ return state?!!state.finished:null; }, winner:function(){ return (state&&typeof state.winner==='number')?state.winner:null; }, eliminated:function(seat){ return (state&&state.players[seat])?!!state.players[seat].eliminated:null; }, clientSend:function(m){ return NET.clientSend?NET.clientSend(m):null; }, renameBase:function(ms){ return NET.setRenameBase(ms); }, myRulesKey:myRulesKey, rulesKey:rulesKey, basics:function(){ return !!(state && state.basics); }, handPresetN:function(){ return handPresetN; }, prioLog:function(){ return PRIO_LOG.slice(); }, drop:function(seat){ return NET.hostOnPeerDrop(seat); }, reconnect:function(seat){ return NET.hostOnPeerBack(seat); }, dropNow:function(seat){ return NET.hostDropPlayer(seat); }, passo:function(seat){ return NET.isPasso(seat); }, graceMs:function(ms){ return NET.setGraceMs(ms); }, disconShown:function(){ var b=document.getElementById('disconBar'); return !!(b&&b.classList.contains('show')); }, forceAll:function(h,e,s,o){ return NET.dbgForceAll(h,e,s,o); }, unstart:function(){ return NET.dbgUnstart(); }, dropMirrors:function(seat,n){ return NET.dbgDropMirrors(seat,n); }, forceBS:function(v){ return NET.dbgForceBS(v); }, openSetup:function(){ return openSetup(); },   /* the solo funnel `clearBoard()` hangs off — reachable so the teardown stays testable now that netplay routes elsewhere */ boardStamp:function(){ return NET.boardStamp(); }, trace:function(){ return NET.traceDump(); },
     /* THE LIVE TALLY. The finished record only exists at game end, and no 3-player suite both has a client ACT
      * and plays to a finish — so without this seam the N-player half of the remote-seat tally (v1.31.96) could
      * only be covered by a whole new suite. Read on the HOST, whose stats are the ones every seat adopts. */
