@@ -15,6 +15,30 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.3 — the Fight sub-phase banner flies in for Next, not over a play
+
+**Pressing ⚔️ Fight with cards selected no longer announces "Fight sub-phase — throw your cards down"
+over the cards you just threw.** Aj, live game 2026-10-02: *"fight sub phase announcement flew in when i
+clicked fight. it should only fly in for next"*. With cards selected in Main the button reads Fight, and one
+press crosses into the Fight Sub-Phase AND plays; `notePhaseEdge` announced the crossing it saw.
+**IT ONLY FIRES WHEN YOU HOLD A CASTABLE QUICK, which is why the first three stagings could not see it.**
+Measured, not reasoned: the engine flips `subPhase` to play only when the Main → Fight go-round closes, and
+with nobody able to act that happens inside the same call as the play, so the next render already shows the
+turn moved on — no build announces. The go-round starts at the CONTROLLER (epic step 6), so a Quick in YOUR
+hand gives you priority first; your pass closes it and the board renders on your turn in the Fight Sub-Phase
+before the play lands. Same on a netplay client, via the mirror the host sends between the crossing and the
+re-applied play. A counter-heavy player holds a Quick most turns, which is the population that reported it.
+**THE FIX IS A ONE-SHOT AT THE COMMIT, not a change to the detector's condition** (as the backlog entry
+said): `commitCrossing` is set by the committing press on BOTH seats — the local Fight and the client's send —
+and the next Main → Fight edge consumes it instead of announcing. Two guards, each measured: it dies the
+moment the turn leaves you (a quiet commit renders no edge, and the first cut then swallowed the NEXT Next),
+and a HELD commit ("your play is on hold") announces explicitly, because you really are in the Fight
+Sub-Phase with nothing played. Pass is untouched — it is not rendered in Main, so it cannot cross and commit.
+**Tests:** `fightbeattest.js` (13, solo) and `nettest_fightbeat.js` (11, client), both directions: Next
+announces, Fight-with-selection does not, and a later Next still announces. A/B against v1.32.2: the
+hold-a-Quick leg goes red on both seats; deleting only the client's flag reds the netplay suite. **Not
+covered:** the held-commit announce — staging it needs the AI to actually cast into the window.
+
 ### v1.32.2 — ROAR fires when the Ride tier unlocks at 3+ players
 
 **The unlock banner was skipped when the shield that opened a tier fell in a round YOU won at a 3-6 player
