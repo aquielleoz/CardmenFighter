@@ -15,6 +15,30 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.6 — you choose which Broadway card to pitch, and a Quick pitch is paid at all
+
+**Critical Hit, Ultima Attack and Armor Piercing now let you choose the Broadway card they discard.** Aj,
+from real play: *"oh no it did not let me pick which broadway card.... this is a bug for sure.. and probably
+more of a problem in multiplayer clients"* — and later a 10 lost out of a full house. The engine took the
+LOWEST Broadway card with nobody asked.
+- **In Main**, after you aim it, a Broadway-only pick opens (the pick mode discards use): tap the card,
+  **Confirm** — or **Cancel**, and nothing is spent. One candidate means no choice and no prompt.
+- **From the Respond? window** (Armor Piercing is a Quick under Hippolyta), one button per Broadway card —
+  "Armor Piercing · pitch A♠" — the Counter Spell shape: the choice is part of casting.
+Both travel over netplay (`pitch` on `activate` and `respond`, both host handlers). Chosen on CAST rather than
+through `discardPending` as the entry suggested, because it is an additional cost — decided before anything
+is spent, like a target.
+**AND A QUICK CAST PAID NO PITCH AT ALL — measured before fixing.** `activate` charged it and `respond`
+never did: Armor Piercing cast from a Respond? window went on the stack with the caster still holding a 10♥
+AND an A♠. One definition now (`pitchFor`) for both cast paths, and `castRefusal` refuses a pitch card with
+no other Broadway card in hand, so the window is not offered for a cast you cannot pay. **This changes AI
+games** where a Quick Armor Piercing was cast — it now costs the card it always should have.
+**Not in this version:** the AI's smart pitch (`[id: broadway-pitch-chooses-itself]`, narrowed to that half).
+**Tests:** `test.js` +9 (a named pitch honoured and a default still lowest, both cast paths; refused with no
+Broadway; staged so the 10 is the default and the Ace the choice), `nettest_pitch.js` (14, from a client). A/B
+against v1.32.5: the engine half reds five ways including *"the Quick paid NO pitch"*, the netplay suite nine
+— Critical Hit took a 10 out of the pair.
+
 ### v1.32.5 — the Respond? window names what an effect is aimed at
 
 **A targeted effect on the stack now says what it is aimed at** — *"Flonne ▸ Forceful Strip · 7♦ →
