@@ -332,5 +332,20 @@ ok(NV.mirrorFor(g3, 2).turn === (1 - 2 + 3) % 3, 'mirror(3p): turn rotates by se
      '  → and it would SEE a field left absolute (seat 1 rotates turn 2→1; an unrotated copy stays 2)');
 })();
 
+/* A COUNTER SPELL'S NAMED TARGET REACHES THE CLIENT (stack-row-omits-target). `stackTargetOf` names WHICH
+   object a counter hits, and on a client it runs on the mirror — without `counterOid` it would fall back to
+   "the object beneath" and could name the wrong one. An oid is not a seat, so it travels UNROTATED, while
+   `target` (a seat) still rotates. */
+(function () {
+  var gc = E.newGame(null, { numPlayers: 3 });
+  gc.stack = [ { oid: 41, kind: 'effect', p: 2, card: { rank: 7, suit: 'D', id: 'x7D' }, eff: { id: 'a', kind: 'removeEquip' }, opts: { target: 'eqB' } },
+               { oid: 42, kind: 'effect', p: 0, card: { rank: 4, suit: 'D', id: 'x4D' }, eff: { id: 'b', kind: 'counter' }, opts: { counterOid: 41 } } ];
+  var all = [0, 1, 2].map(function (seat) { return NV.mirrorFor(gc, seat); });
+  ok(all.every(function (m) { return m.stack[1].opts && m.stack[1].opts.counterOid === 41; }),
+     'counterOid travels to every seat, UNROTATED (an oid, not a seat)  [' + all.map(function (m) { return JSON.stringify(m.stack[1].opts); }).join(' ') + ']');
+  ok(all.every(function (m) { return m.stack[0].opts.target === 'eqB'; }), '…and an Equipment-id target passes through untouched');
+  ok(!('counterOid' in (all[0].stack[0].opts || {})), '…and an object with no counterOid does not grow one');
+})();
+
 console.log('\n' + (fail ? 'FAILED — ' : '') + 'PASS: ' + pass + '  FAIL: ' + fail);
 process.exit(fail ? 1 : 0);

@@ -6,7 +6,7 @@ only `code/`, and the repo-root copy is the file people download. `faces.js` is 
 v0.95; build.js stubs `window.CardFace = {}`). `build.js` parses every inlined script and **refuses to write on a
 syntax error** — read its `built … bytes` line before believing a surprising measurement.
 
-**Test gate:** `npm test` = `node test.js` (**594**) + `node netview.test.js` (**65**). Both must end **0 FAIL**;
+**Test gate:** `npm test` = `node test.js` (**604**) + `node netview.test.js` (**68**). Both must end **0 FAIL**;
 they run straight on the sources, so run them after a source edit even if you skip the build. Everything else,
 including every `nettest_*` suite and the eleven `lessontest*` ones, is listed in **CLAUDE.md** with its expected
 count — that list is the authority, and if a count there disagrees with a suite, the suite is right.
@@ -15,14 +15,14 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.4.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.5.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.4** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+`main` is at **v1.32.5** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
 retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
 split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
@@ -623,29 +623,6 @@ knows to check whether the epic has already moved the same lines.*
   a target) — and `respond` must VALIDATE it, because a client sends it. A duel needs nothing for Back Stab
   (one rival); Annoint with two Equipment is the duel case.
   `[id: respond-quick-target-never-asked]`
-
-- `ready to build`      · **THE RESPOND? WINDOW DOES NOT SAY WHAT A TARGETED EFFECT IS TARGETING** (Aj, 2026-09-30,
-  with a screenshot of the window mid-game: *"what is the strip targeting?"*). It reads
-  `Flonne ▸ Forceful Strip · 7♦ (resolves next)` and *"Return Target Equipment to its owner's hand"* — and
-  never names the Equipment. **That is the whole decision**: whether to spend Annoint depends entirely on
-  WHICH piece is about to be stripped, and the one window that exists to let you decide withholds it.
-  **THE DATA IS ALREADY ON THE STACK ENTRY AND THE RENDERER IGNORES IT.** `st.stack.push({ … opts: opts … })`
-  carries the cast's `opts`, and `opts.target` is the equipment id; the stack row builds its `label` from
-  `eff.name` and its `sym` from `o.card`, and reads neither. **Same shape as the forced-discard line fixed
-  the same day** — `ai.js` had recorded `who` and the renderer read only the count. Look for this shape
-  whenever a window under-describes something: the field is usually there.
-  **USE `pickEquip`, DO NOT RE-DERIVE THE NAME.** Annoint's own resolution already resolves the same
-  target with `pickEquip(st, rem.p, rem.opts && rem.opts.target)`, so a label built from that function
-  cannot disagree with what answering will actually protect — which is the failure mode that matters here,
-  worse than saying nothing. This is the `isChopOf` / `resolveIds` rule: one definition, called twice.
-  **IT IS NOT THE ★ STACK VISUALISER, and should not wait for it.** That entry is a presentation overhaul
-  (`stack-visualiser`, parked behind `priority-modal-redesign`); this is one missing noun in a line that
-  already exists, and it is what makes the current window answerable in the meantime.
-  **THE TEST IS BOTH WAYS ON ONE BOARD**, because "names an Equipment" is equally true of a build that
-  names the wrong one: stage TWO pieces of Equipment on the target seat, strip a named one, and require
-  the row to carry that one AND NOT the other. An untargeted effect on the stack must still render
-  unchanged — the row is shared.
-  `[id: stack-row-omits-target]`
 
 - `needs a repro`       · **WAS AJ ACTUALLY TELEKINESIS'D, OR WAS SOMEONE ELSE? THE LOG COULD NOT SAY — AND NOW IT CAN
   (2026-09-30).** He reported *"i did not discard any cards despite being telekinesis'd. was it auto picked

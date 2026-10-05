@@ -15,6 +15,26 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.5 — the Respond? window names what an effect is aimed at
+
+**A targeted effect on the stack now says what it is aimed at** — *"Flonne ▸ Forceful Strip · 7♦ →
+Tank’s Spiked Armor (resolves next)"* where it used to stop at the card. Aj, with a screenshot of the
+window: *"what is the strip targeting?"* Which piece is about to go is the entire decision about spending
+Annoint, and the one window that exists to let you decide withheld it. Reader-relative ("your Holy Bow",
+"→ You"); the board's stack view and the modal's "On the stack" box are one function, so both got it.
+**ONE DEFINITION, BUILT FROM RESOLUTION'S OWN LOOKUPS** — new `E.stackTargetOf`: the zone Ride/Form branch,
+then `pickEquip` (also what Annoint resolves against), `effectTarget` for a rival seat, and a Counter
+Spell's named object else the topmost effect beneath it. A label that disagreed with what answering will
+actually do would be worse than none. Covers Equipment and zone removals, Annoint, Counter Spell, and every
+seat-targeted effect; an untargeted row is unchanged.
+**THE CLIENT NEEDED ONE MORE FIELD.** The mirror carried a stack object's `target` but not a Counter Spell's
+`counterOid`, so a client would have fallen back to "the object beneath" and could name the wrong one.
+`netview` projects it now — an oid, not a seat, so unrotated.
+**Tests:** `test.js` +10 (every kind; the headline is both ways on one board — two Equipment on a seat, the
+strip names the one it was cast at and not the other), `netview.test.js` +3 (`counterOid` reaches every
+seat; reverting the projection reds it), and `stackrowtest.js` (7) in the real page. A/B against v1.32.4:
+the row reproduces the screenshot exactly, three reds.
+
 ### v1.32.4 — a held Fight keeps your cards selected, on every seat
 
 **When someone else casts into the go-round your ⚔️ Fight press opened, you are now moved into the Fight

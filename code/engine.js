@@ -1887,6 +1887,49 @@
     return nextPlayer(st, p);
   }
   var HOSTILE_SINGLE = { discardOpp: 1, destroyShield: 1, energyDenyOpp: 1, lockout: 1 };   // singular effects that make a grudge
+  /* WHAT A STACK OBJECT IS AIMED AT, for the UI to say out loud (stack-row-omits-target, Aj 2026-09-30:
+     *"what is the strip targeting?"*). The Respond? window named a removal and never the Equipment — and
+     WHICH piece is about to go is the entire decision about spending Annoint.
+     BUILT FROM THE LOOKUPS RESOLUTION USES, never re-derived: the zone branch, then `pickEquip` (which is
+     also what Annoint resolves against), `effectTarget` for a rival seat, and the counter's named object
+     else the topmost effect beneath it. A label that disagreed with what answering will actually do is worse
+     than no label. Returns null for an untargeted effect, so the row stays exactly as it was.
+     { equip:{name, owner} } | { zone:{name, owner, tier} } | { seat:q } | { effect:{name, owner} } */
+  function stackTargetOf(st, o) {
+    if (!o || o.kind !== 'effect' || !o.eff) return null;
+    var eff = o.eff, opts = o.opts || {};
+    if (eff.kind === 'removeEquip') {
+      if ((eff.ride || eff.form) && opts.target) {
+        for (var zq = 0; zq < st.numPlayers; zq++) {
+          var zf = (st.players[zq].forms || []).filter(function (f) { return f.card && f.card.id === opts.target; })[0];
+          if (zf && ((zf.tier === 'ride' && eff.ride) || (zf.tier !== 'ride' && eff.form))) return { zone: { name: zf.name, owner: zq, tier: zf.tier } };
+        }
+      }
+      var t = pickEquip(st, o.p, opts.target);
+      return t ? { equip: { name: t.e.name, owner: t.q } } : null;
+    }
+    if (eff.kind === 'protect') {                          // Annoint: the equipment the removal beneath is aiming at, else its caster's own
+      var idx = st.stack.indexOf(o);
+      for (var j = (idx < 0 ? st.stack.length : idx) - 1; j >= 0; j--) {
+        var b = st.stack[j];
+        if (b.kind === 'effect' && b.eff && b.eff.kind === 'removeEquip') { var tb = pickEquip(st, b.p, b.opts && b.opts.target); return tb ? { equip: { name: tb.e.name, owner: tb.q } } : null; }
+      }
+      var own = (st.players[o.p].equipment || []).filter(function (e) { return !opts.target || e.id === opts.target; })[0];
+      return own ? { equip: { name: own.name, owner: o.p } } : null;
+    }
+    if (eff.kind === 'counter') {
+      var at = st.stack.indexOf(o);
+      for (var k = (at < 0 ? st.stack.length : at) - 1; k >= 0; k--) {
+        var c = st.stack[k];
+        if (c.kind !== 'effect') continue;
+        if (opts.counterOid && c.oid !== opts.counterOid) continue;
+        return { effect: { name: c.eff ? c.eff.name : (c.name || 'an effect'), owner: c.p } };
+      }
+      return null;
+    }
+    if (HOSTILE_SINGLE[eff.kind] || (eff.kind === 'recycle' && eff.scope === 'opp')) return { seat: effectTarget(st, o.p, opts) };
+    return null;
+  }
   function resolveEffect(st, p, card, eff, opts) {
     opts = opts || {};
     var pl = st.players[p], oppIdx = effectTarget(st, p, opts);
@@ -3311,6 +3354,7 @@
     setTransformCost: setTransformCost, setTransformDraw: setTransformDraw, setTransformGate: setTransformGate, transformGateOK: transformGateOK, transformGateStatus: transformGateStatus, transformCost: transformCost, transformDraw: transformDraw, setBoostScale: setBoostScale, setFormSuitMatch: setFormSuitMatch,
     moveToPlay: moveToPlay,
     effectTarget: effectTarget,   // who a pending effect is aimed at — the UI needs it to say so out loud
+    stackTargetOf: stackTargetOf,   // WHAT a stack object is aimed at (Equipment / Ride / seat / effect) — built from resolution's own lookups
     HOSTILE_SINGLE: HOSTILE_SINGLE,
     counterTargets: counterTargets,   // the UI offers exactly what `respond` will accept — one definition, not two
     canAddToStack: canAddToStack, canCastQuick: canCastQuick, castRefusal: castRefusal, quickTargets: quickTargets, nextPrioHolder: nextPrioHolder,   // the go-round walk, one definition — the UI must offer exactly whom the engine would
