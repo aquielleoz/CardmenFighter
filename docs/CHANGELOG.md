@@ -15,6 +15,33 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.4 — a held Fight keeps your cards selected, on every seat
+
+**When someone else casts into the go-round your ⚔️ Fight press opened, you are now moved into the Fight
+sub-phase with your cards still selected and a line that reads the board as it is — on a netplay client
+too.** Aj, 2026-10-05, settling the rule: *"the sub-phase will just overtly move to the fight sub-phase -
+with the fight sub-phase announcement. but since his selected cards might be affected, by what ever
+happened, the player will be given the choice to reselect their fight cards"* — and keep them selected,
+with a hint that makes sense in the new phase. Now in `PHASES-AND-PRIORITY.md` §3.
+**THE CLIENT DID NOT FOLLOW IT.** Both host handlers re-applied a client's play once the stack emptied —
+the duel's on purpose (*"Re-applying unconditionally is right for a PLAY"*), the N-player one because only
+a pass was given the brake — so a client's cards went down over whatever had resolved. Both now hold it on
+the same `stackMark` rule the Pass brake uses and send `t:'held'`; the client restores the selection its
+send had cleared, shows the Fight beat its commit flag had swallowed, and gets the same line.
+**THE LINE IS ONE DEFINITION** (`heldPlayMessage`) and reads the board NOW: still a winning play → "press
+Fight to go through with it, change them, or Pass"; no longer beats the pile → "pick again"; nothing left
+→ "pick your cards". "Or Pass" only when passing is legal. It replaces "Press Fight again to go through
+with it", which promised a play that might no longer exist.
+**A LOCKED SEAT IS FORCE-SKIPPED, NEVER HELD — and the first sweep said so.** A Back Stab sprung into the
+go-round IS "someone else acted", and `moveToPlayThen` checks the lock only for the LOCAL seat before it runs
+the hold; a remote seat's lock lived in the re-apply the hold now skipped, so a locked client was asked to
+choose again instead of losing its turn (`nettest_prefight`, red deterministically, 12/1). Both host handlers
+let a locked seat through to the re-apply, as before.
+**Tests:** `nettest_heldplay.js` (22, both duel seats, a human casting Leyline into the go-round) and
+`nettest_heldplay3.js` (11, `hostApplyMoveN`). A/B against v1.32.3: the client leg is red six ways (its Jack
+went down); reverting only the N-player hold reds the 3-player suite four ways. **Not covered:** the "no
+longer beats" and "nothing left" lines — Leyline changes neither the pile nor the hand.
+
 ### v1.32.3 — the Fight sub-phase banner flies in for Next, not over a play
 
 **Pressing ⚔️ Fight with cards selected no longer announces "Fight sub-phase — throw your cards down"
