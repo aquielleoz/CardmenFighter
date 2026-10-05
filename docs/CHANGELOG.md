@@ -15,6 +15,28 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.2 — ROAR fires when the Ride tier unlocks at 3+ players
+
+**The unlock banner was skipped when the shield that opened a tier fell in a round YOU won at a 3-6 player
+table.** Aj, live solo 3-player game 2026-10-02: *"no roar…"* — every seat on 3 of 4, the Ride tier open,
+an opponent riding a J, and no ROAR. OVERDRIVE and REDLINE ride the same path.
+**WHY, MEASURED WITH TRACE LINES BEFORE ANY FIX.** The tier check is a debt (`thresholdOwed`) taken on when a
+shield drop is seen while the ceremony holds the shatter back, and only a RENDER ever paid it. The ceremony
+lifts the hold with `revealShields()` and reaches `flushThreshold` through a Clean-up beat that deliberately
+only repaints — so the flush found the debt unpaid and nothing queued, and the render that finally paid it
+came after the ceremony had ended. At 3+ players a round you win goes through the shield pick, and the
+strip lands after the ceremony's opening render, so the drop is first seen with the hold up. The duel, and
+an AI-won 3-player round, happened to see the drop one render earlier — which is why the backlog's first
+probe (a duel) could not see it.
+**THE FIX ASKS FOR THE CHECK AT THE BEAT, IT DOES NOT QUEUE EARLIER.** `flushThreshold` pays the debt
+(`payThresholdDebt`, the one payment shared with `noteShieldChanges`). Queuing earlier is the first of the
+three wrong attempts recorded in CLAUDE.md, and it displaced the client's ceremony beat; `nettest_ceremony`
+is 14/0 four runs out of four with this change.
+**Tests:** new `roartest.js` (21) — duel as the control, a 3-player round you win, and one an AI wins; each
+asserts the banner shows, shows inside the ceremony (before the next round's banner), never overlaps the
+round banner, and fires once. A/B against v1.32.1: the 3-player-you case goes red three ways, the other two
+stay green, matching the diagnosis. Registered in `sweep.js`'s allowlist.
+
 ### v1.32.1 — picking a target never fires on its own: Equipment, Counterfeit, the shield strip
 
 **Tapping an Equipment (or a Ride/Form) target no longer spends the card on the spot.** Aj, live 3-player
