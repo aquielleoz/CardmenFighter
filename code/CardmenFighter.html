@@ -2185,11 +2185,19 @@
     if (!NO_FULL_HOUSE) trioRanks.forEach(function (tr) {                          // full houses
       pairRanks.forEach(function (pr) { if (pr !== tr) out.push([byRank[tr][0], byRank[tr][1], byRank[tr][2], byRank[pr][0], byRank[pr][1]]); });
     });
-    // straight windows over fight VALUE: 3-7 .. J-Q-K-A-2 (lo 3..11)
-    var loMin = 3, loMax = 11;
+    /* RUNS ARE BUILT OVER THE CHAIN VALUE, NOT THE FIGHT VALUE (straight-sort-picks-the-lowest, 2026-10-05).
+       Under `seqTwos: 'low'` — the DEFAULT — the 2 chains as the LOW card (2-3-4-5-6), but runs were walked over
+       fight value, where the apex 2 is 15, so a 2-low straight was never a candidate. `detectCombo` accepted it
+       and `legalFightPlays` offered ZERO straights from 2♦3♠4♥5♣6♦ — measured: the AI could never play one, and
+       the Straights sort could never show one. `runRank` moves the 2 to 2 when it chains low; every candidate is
+       still passed through `detectCombo` below, so an extra window can never make an illegal run playable. */
+    var runRank = {}; Object.keys(byRank).forEach(function (r) { runRank[r] = byRank[r]; });
+    if (SEQ_TWOS === 'low' && byRank[15]) { runRank[2] = byRank[15]; delete runRank[15]; }
+    // straight windows over chain value: 2-6 (2 low) / 3-7 .. J-Q-K-A-2 (2 high) — detectCombo decides which are legal
+    var loMin = 2, loMax = 11;
     for (var lo = loMin; lo <= loMax; lo++) {
       var window = [lo, lo + 1, lo + 2, lo + 3, lo + 4];
-      if (window.every(function (v) { return byRank[v]; })) out.push(window.map(function (v) { return byRank[v][0]; }));
+      if (window.every(function (v) { return runRank[v]; })) out.push(window.map(function (v) { return runRank[v][0]; }));
     }
     /* ONE REPRESENTATIVE PER SHAPE AND TOP VALUE, not every combination. A 三带一's strength is its trio, so
      * every choice of spare card is an equal-strength play — enumerating them all would flood the hand's legal
@@ -2246,10 +2254,10 @@
       }
     }
     if (STRAIGHT_MIN !== 'off') {                                                 // every allowed length
-      for (var clo = 3; clo <= 15; clo++) {
+      for (var clo = 2; clo <= 15; clo++) {                                        // over chain value — see runRank above
         var crun = [];
-        for (var cv = clo; cv <= 15 && byRank[cv]; cv++) {
-          crun.push(byRank[cv][0]);
+        for (var cv = clo; cv <= 15 && runRank[cv]; cv++) {
+          crun.push(runRank[cv][0]);
           if (crun.length !== 5 && straightLenOK(crun.length)) out.push(crun.slice());   // 5 is emitted below
         }
       }
@@ -6988,7 +6996,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.32.9';
+  var GAME_VERSION='v1.32.10';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};
@@ -12486,21 +12494,28 @@ window.CardFace = {};
     return groups;
   }
   // Pull out runs of 5 consecutive values as straight groups (low→high), rest as singles.
+  /* THE HIGHEST STRAIGHT FIRST, AND ONLY LEGAL ONES (straight-sort-picks-the-lowest; Aj, 2026-09-24: *"i think
+     it should sort by the higher straight"*). This walked raw fight values ASCENDING and claimed the first
+     five-in-a-row, which had two faults:
+     - it took the LOWEST run — on his hand `4 · 6789♠ · 10 10 10 · J♠ · 2 2` it built 6-7-8-9-10 and left the
+       J♠ single while 7-8-9-10-J was there, and a straight is only as good as its top card;
+     - it read `fightValue`, where the apex 2 is 15 — so under the DEFAULT rule (the 2 chains LOW) it could
+       never show 2-3-4-5-6 (and its walk COMPUTED J-Q-K-A-2, which the engine refuses — replayed in Node;
+       the page did not show that one as a group, so the visible symptom is the missing 2-low run).
+     So it asks the ENGINE: `enumerateCombos` already applies `seqTwos` and the straight-length rule, and the
+     greedy loop takes the highest-valued five-card straight, removes it, and repeats on what is left. Greedy
+     is Aj's rule; a hand where it loses to a lower-first split would be a second entry, not this one. */
   function sortIntoStraights(hand){
-    var remaining=hand.slice(), groups=[], made=true;
-    while(made){
-      made=false;
-      var byV={}; remaining.forEach(function(c){ var v=fv(c); if(!byV[v]) byV[v]=c; });   // one card per value
-      var vals=Object.keys(byV).map(Number).sort(function(a,b){return a-b;});
-      for(var s=0;s<vals.length;s++){
-        var run=[vals[s]]; for(var k=1;k<5;k++){ if(vals.indexOf(vals[s]+k)>=0) run.push(vals[s]+k); else break; }
-        if(run.length===5){
-          var cards=run.map(function(v){ return byV[v]; });
-          groups.push(cards.slice().sort(bySortVal));
-          cards.forEach(function(cd){ remaining=remaining.filter(function(x){ return x!==cd; }); });
-          made=true; break;
-        }
-      }
+    var remaining=hand.slice(), groups=[];
+    for(var guard=0; guard<4; guard++){
+      var best=null;
+      E.enumerateCombos(remaining).forEach(function(x){               // {cards, combo} — already filtered to LEGAL combos by `detectCombo`
+        if(!x.combo || x.combo.type!=='straight' || x.combo.size!==5) return; // five-card runs: what this mode has always shown
+        if(!best || x.combo.value>best.value) best={ value:x.combo.value, cards:x.cards };
+      });
+      if(!best) break;
+      groups.push(best.cards.slice().sort(bySortVal));
+      remaining=remaining.filter(function(x){ return best.cards.indexOf(x)<0; });
     }
     remaining.slice().sort(bySortVal).forEach(function(c){ groups.push([c]); });
     groups.sort(function(a,b){ return Math.min.apply(null,a.map(fv)) - Math.min.apply(null,b.map(fv)); });   // low→high by the group's lowest card

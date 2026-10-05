@@ -15,6 +15,25 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.10 — the Straights sort shows your best straight, and the AI can finally play 2-3-4-5-6
+
+**Sort: Straights now builds the HIGHEST legal straight first.** Aj: *"i think it should sort by the higher
+straight"* — on his hand `4 · 6789♠ · 10 10 10 · J♠ · 2 2` it built 6-7-8-9-10 and left the J♠ single while
+7-8-9-10-J was there, and a straight is only as good as its top card. It now takes the highest-valued legal
+five-card straight, removes it, and repeats.
+**AND IT FOUND AN ENGINE GAP THE AI HAD LIVED WITH.** Under the DEFAULT rule the 2 chains as the low card, so
+2-3-4-5-6 is a legal straight — `detectCombo` agrees — but `enumerateCombos` built runs over FIGHT value, where
+the apex 2 is 15, and never produced the window. **Measured: `legalFightPlays` offered zero straights from
+2♦3♠4♥5♣6♦**, so the AI could never play a 2-low straight and the sort could never show one; the variable-length
+runs (`straightMin: 3`) had the same hole. Runs are now built over the CHAIN value (the 2 at 2 when it chains
+low), and every candidate still goes through `detectCombo`, so nothing illegal becomes playable. **This changes
+AI play** wherever a 2-low straight is in hand.
+The sort reads the engine's legal plays instead of its own walk, so it follows `seqTwos` for free: J-Q-K-A-2
+only when the 2 chains high.
+**Tests:** `sorttest.js` (6) presses Sort on staged hands and reads the rendered groups — on v1.32.9 it
+reproduces Aj's 6-7-8-9-10 exactly. `test.js` +5 at all three `seqTwos` settings plus 3-card runs; the old
+engine reds the two "offered" assertions.
+
 ### v1.32.9 — the Demon Lord pitches the Broadway card it can spare
 
 **The Demon Lord no longer throws away the 10 its pair or straight is built from.** Aj: *"the ai should
