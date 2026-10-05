@@ -4839,10 +4839,36 @@ __QR__
    * and left the client narrating a round the host never saw (phantom rounds, `Pair (NaN, NaN)`, a client
    * "racing to the game end"). Aj found it by noticing the Fight button worked and dragging did not. Any NEW
    * way to play a card is covered for free by the guard in `playCards`. */
+  var heldIds=null;   // a netplay client's last sent play — restored as its selection if the host HOLDS it (t:'held')
   function sendClientPlay(cards){
     var ids=(cards||[]).map(function(c){ return c.id; });
     if(!ids.length){ setMessage('Select a card or combo to play.'); return; }
+    heldIds=ids.slice();
     NET.clientSend({op:'play', ids:ids}); selected={}; busy=true; render();
+  }
+  /* A HELD FIGHT (Aj, 2026-10-05): *"if the player is stopped because priority passing happened, at the end
+     of that stack emptying, the active player will not be asked anymore to press next. the sub-phase will
+     just overtly move to the fight sub-phase - with the fight sub-phase announcement. but since his
+     selected cards might be affected, by what ever happened, the player will be given the choice to
+     reselect their fight cards."* — and the cards STAY selected, with a hint that still makes sense.
+     So the line reads the board AS IT IS NOW, not the board the press was made against: what resolved may
+     have taken a selected card, or changed what beats the pile. ONE definition, for the local seat and for
+     a client told by `t:'held'`. "Or pass" only when passing is legal — the leader cannot. */
+  // the CLIENT's half: restore what it had selected (sending a play clears the selection), announce the
+  // sub-phase it was moved into if its own commit flag swallowed the edge, then say what is left to do
+  function clientHeld(){
+    if(!state || !state.players || !state.players[YOU]) return;
+    var hand=state.players[YOU].hand; selected={};
+    (heldIds||[]).forEach(function(id){ if(hand.some(function(c){ return c.id===id; })) selected[id]=true; });
+    heldIds=null;
+    var sw=(commitCrossing==='used'); commitCrossing=false; render(); if(sw) announceFight();
+    setMessage(heldPlayMessage());
+  }
+  function heldPlayMessage(){
+    var sel=selectedCards(), orPass=state.pile ? ', or <b>Pass</b>' : '';
+    if(!sel.length) return 'Someone answered — you are in the Fight sub-phase now. Pick your cards'+orPass+'.';
+    if(fightLegal(sel)) return 'Someone answered — your cards are still selected. Press <b>Fight</b> to go through with it'+(state.pile?', change them, or <b>Pass</b>.':', or change them.');
+    return 'Someone answered — your selected cards no longer make a play that beats the pile. Pick again'+orPass+'.';
   }
   function placeEmoteList(){
     var list=document.getElementById('emoteList'); if(!list) return;
@@ -5626,8 +5652,8 @@ __QR__
     if(!selNow.length) return moveToPlayThen(g, function(){ if(g===gen) render(); }, null, null, 'Next');
     commitCrossing=true;                                   // crosses AND plays — no Fight beat (see notePhaseEdge)
     moveToPlayThen(g, function(){ if(g===gen) playCards(selectedCards()); }, function(){
-      setMessage('Someone answered — your play is on hold. Press <b>Fight</b> again to go through with it.');
-      var sw=(commitCrossing==='used'); commitCrossing=false; render(); if(sw) announceFight();   // held: you ARE in the Fight Sub-Phase with nothing played — announce if the edge was swallowed (else render's edge does it)
+      var sw=(commitCrossing==='used'); commitCrossing=false; render(); if(sw) announceFight();
+      setMessage(heldPlayMessage());   // held: you ARE in the Fight Sub-Phase with nothing played — announce if the edge was swallowed (else render's edge does it)
     }, null, 'Fight');
   }
   function doPass(){
@@ -10484,6 +10510,7 @@ __QR__
         else if(m.t==='concede'){ onOpponentConcede(); }
         else if(m.t==='peer'){ clientPeerDown=(m.ev==='back'?false:m.ev); renderDisconBar(); }    // host: another player dropped('drop') / Passo covering('passo') / back(false)
         else if(m.t==='err'){ if(m.seat==null || m.seat===mySeat){ flipFrom=null; setMessage('⚠ '+(m.reason||'Illegal move.')); } }
+        else if(m.t==='held'){ if(m.seat==null || m.seat===mySeat){ clientHeld(); } }   // the host held our Fight — see heldPlayMessage
       }
     }
 
@@ -10977,14 +11004,16 @@ __QR__
          then re-apply the intent the client already sent. `hostSettle` parks for a remote seat and prompts
          the host for its own, so this needs no park of its own. */
       /* AND THE RE-APPLY IS WHERE THE DUEL'S AUTO-PASS BRAKE LIVES. Re-applying unconditionally is right
-         for a PLAY — the client named its cards and they are still its cards — and wrong for a PASS, which
-         is a decision about a board that may no longer exist. Same `stackMark` rule as every other seat;
+         for neither (Aj, 2026-10-05): a PASS is a decision about a board that may no longer exist, and a
+         PLAY's cards may have been taken or out-valued by what resolved — the client is HELD in the Fight
+         Sub-Phase with its cards still selected (`t:'held'`), exactly like the local seat. This used to
+         re-apply a play unconditionally, so a client's cards went down whatever happened. Same `stackMark` rule as every other seat;
          the broadcast is the answer, not an error, because nothing was illegal. */
       if(r && r.ok===false && r.transition==='play'){
         var passMark=stackMark(hostState, 1);
         return hostSettle(g, function(){
           if(g!==gen) return;
-          if(it.op==='pass' && stackMark(hostState, 1)!==passMark) return broadcastMirror();
+          if(stackMark(hostState, 1)!==passMark && !E.isLocked(hostState, 1)){ broadcastMirror(); if(it.op==='play') send({t:'held', seat:1}); return; }   // a LOCKED client is force-skipped by the re-apply, never held — see hostApplyMoveN   // someone ELSE acted: a pass is spent, a play is HELD (the client reselects)
           hostApplyMove(it);
         });
       }
@@ -11341,9 +11370,9 @@ __QR__
            pressed Pass on a quiet board would sit the round out after a Back Stab it never saw. It stops
            on the same `stackMark` rule the local seat uses, and BROADCASTS rather than replying with an
            error: nothing is wrong, the intent is simply spent and the client must decide again against the
-           board the mirror now carries. A FIGHT is never braked — the player is choosing cards next and
-           `moveToPlayThen` already hands them back the board for that. */
-        return moveToPlayThen(g, function(){
+           board the mirror now carries. A FIGHT IS BRAKED TOO since 2026-10-05 (Aj's held-fight rule): it
+           used to go through regardless, so a remote seat's cards went down over whatever had resolved. */
+        var goN=function(){
           if(g!==gen) return;
           var r;
           try{
@@ -11356,7 +11385,12 @@ __QR__
           netParked=null;
           if(r && (r.roundWinner!=null || r.resolution || r.fizzled)){ return hostResolveWin(r, g, function(fr){ hostSettleRoundThenCeremony(fr, g); }); }   // step 18: a round win may arrive as an OPEN go-round
           driveN();
-        }, (it.op==='pass' ? function(){ broadcastMirror(); } : null), seat, (it.op==='pass' ? 'Pass' : 'Next'));
+        };
+        /* ⚠ A LOCKED SEAT IS FORCE-SKIPPED, NEVER HELD. `moveToPlayThen` checks the lock only for the LOCAL
+           seat before it runs the hold, and a remote seat's lock lives in `goN` — so a Back Stab sprung into
+           this go-round (which IS "someone else acted") used to reach the hold and ask a locked seat to choose
+           again. `nettest_prefight` caught it on the first sweep. A locked seat takes `goN`, as it always did. */
+        return moveToPlayThen(g, goN, function(){ if(E.isLocked(hostState, seat)) return goN(); broadcastMirror(); if(it.op==='play') sendTo(seat, {t:'held', seat:seat}); }, seat, (it.op==='pass' ? 'Pass' : 'Fight'));   // a play is HELD too now — see the duel handler
       }
       var r;
       try{

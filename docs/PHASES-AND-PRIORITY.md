@@ -344,6 +344,15 @@ pile stands.
     prompts per GAME** (16.5% / 4.1 per game at 6p). A step the player meets twice in five duels must not
     cost a click on every turn; the engine already auto-passes a seat that cannot act (`canAddToStack`) and
     this is the same principle applied to the transition.
+  - **A FIGHT PRESS THAT SOMEONE ELSE ANSWERED IS HELD, AND THE PLAYER CHOOSES AGAIN** (Aj, 2026-10-05):
+    *"if the player is stopped because priority passing happened, at the end of that stack emptying, the
+    active player will not be asked anymore to press next. the sub-phase will just overtly move to the fight
+    sub-phase - with the fight sub-phase announcement. but since his selected cards might be affected, by
+    what ever happened, the player will be given the choice to reselect their fight cards."* The cards stay
+    **selected**, and the hint describes the board as it is now. Every seat: the local one via
+    `moveToPlayThen`'s `stopIfActed`, a netplay client via `t:'held'` from both host handlers (it used to
+    have its play re-applied regardless — v1.32.4). "Someone else" is the `stackMark` rule — your own cast
+    never holds your own press, same as the Pass brake.
   - **THE SUB-PHASE DECIDES WHAT A GESTURE MEANS** (Aj, 2026-09-11). In the **Main Sub-Phase**, dragging a
     card to the play area **activates** it — including the cards that need choices, so it is also how
     targeting (confirm-first: stage into `targetPick.chosen`, then the context button) and the Phantasmal
