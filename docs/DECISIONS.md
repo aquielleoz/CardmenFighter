@@ -228,8 +228,17 @@ answer to "should we be more faithful here" — so they are worth keeping even t
     usable** — counter-limited or once-per-game — which lowers its total value rather than its per-use value,
     and is untested; (c) leave `all` as the homebrew toggle it already is; (d) give ♣/♠ protection, which Aj has
     ruled out as cross-pie. Anything that makes being hit *less certain* just converges back to `chosen`.
-  - The flags (`setWardAll`, `setDamageSpan`) are on `exp/shield-break-all`, default off, with behavioural
-    self-checks in `mpsim`.
+  - **The flags are ON `main`, not on a branch (corrected 2026-10-05).** `setWardAll` / `WARD_ALL` and
+    `setDamageSpan` / `DAMAGE_SPAN` live in `engine.js`, with `setWardAll` wired into `mpsim` and `rulesim`;
+    all default off. The measurement is one line — `node mpsim.js 1000 knight loss=all wardall` — and
+    `mpsim` keeps the behavioural self-check this entry promised: one Leyline cast must protect EVERY living
+    player, so a flag that silently does nothing is caught rather than measured.
+    This line used to read *"on `exp/shield-break-all`"*, and that branch no longer exists — the work was
+    carried in and the branch pruned. **A pointer to a branch rots the moment the branch is merged or
+    deleted, which is every branch**, so it is the one cross-reference shape this file should not use: name
+    the SYMBOL and the file, the same rule already applied to `file:NNNN` citations. The failure here was
+    the benign direction (the tooling is better placed than the doc said) and it still costs a search for
+    work already in the tree.
 
 
 **WHY FLUSH IS NOT A SHAPE, and never will be.**
