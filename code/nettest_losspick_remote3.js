@@ -55,6 +55,7 @@ async function waitFor(fn,t=120,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
 
   ok(await waitFor(async()=>await c1.evaluate(()=>!!document.querySelector('.oppPanel.targetable'))),'c1 (remote winner) got the picker from its mirror');
   await c1.evaluate(()=>{ var el=document.querySelector('.oppPanel[data-seat="1"]'); if(el)el.click(); });   // c1 picks abs seat 2 (rotated index 1)
+  await wait(300); await c1.evaluate(()=>{ var f=document.getElementById('fightBtn'); if(f&&!f.disabled) f.click(); });   // the tap aims; Confirm strikes
 
   ok(await waitFor(async()=>await shieldsOf(c2)===sh0[2]-1, 80, 150),'the CHOSEN target (c2) lost a shield ('+sh0[2]+' → '+(await shieldsOf(c2))+')');
   ok(await shieldsOf(host)===sh0[0],'the host (un-chosen) kept its shields ('+(await shieldsOf(host))+')');

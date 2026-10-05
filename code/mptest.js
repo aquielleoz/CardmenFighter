@@ -176,9 +176,32 @@ function pollTimedOut(fn){ console.log('   ⏱ poll TIMED OUT: ' + String(fn).re
   ok(await p.evaluate(()=>document.querySelectorAll('.oppPanel .oppZones.open').length>0), 'targeting force-opens the panels so the target cannot hide');
   const tgt=await p.evaluate(()=>!!document.querySelector('.oppPanel .oppZones .eq.targetable'));
   ok(tgt, 'their Caltrops is marked .targetable (it was unclickable before — the whole reported bug)');
-  await p.evaluate(()=>{ const t=document.querySelector('.oppPanel .oppZones .eq.targetable'); if(t)t.click(); });
+  /* CONFIRM-FIRST (equip-target-casts-without-confirm). A tap STAGES the target and spends nothing; ⚡ Activate
+     casts. Asserted BOTH ways off one staging: a tap that still cast would pass the "removed" half, and a tap
+     that did nothing at all would pass the "staged" half. */
+  const tapEq=()=>p.evaluate(()=>{ const t=document.querySelector('.oppPanel .oppZones .eq.targetable'); if(t)t.click(); return !!t; });
+  const snap=()=>p.evaluate(()=>{ const st=window.__solo.st(), b=document.getElementById('ctxBtn');
+    return { eq:st.players[2].equipment.length, nrg:st.players[0].energy.length, hand:st.players[0].hand.length,
+             label:(b&&b.textContent)||'', aimed:!!document.querySelector('.oppPanel .oppZones .eq.aimed') }; });
+  const before=await snap();
+  ok(await tapEq(), 'tapped their Caltrops');
+  await wait(400);
+  let s1=await snap();
+  ok(s1.eq===before.eq && s1.nrg===before.nrg && s1.hand===before.hand, 'a tap only STAGES — nothing removed, no energy or card spent '+JSON.stringify([before,s1]));
+  ok(/Activate/.test(s1.label) && s1.aimed, 'the target is marked 🎯 aimed and the button reads ⚡ Activate ('+s1.label+')');
+  await p.evaluate(()=>document.getElementById('clearBtn').click()); await wait(300);
+  s1=await snap();
+  ok(s1.eq===before.eq && s1.nrg===before.nrg && !s1.aimed, 'Clear backs out with nothing spent');
+  // aim again, then confirm
+  await p.evaluate(()=>{ const c=document.querySelector('#hand .card[data-id="7D"]'); if(c)c.click();
+    const a=document.getElementById('cardActivate'), ctx=document.getElementById('ctxBtn');
+    if(a&&a.offsetParent!==null&&!a.disabled) a.click(); else if(ctx&&!ctx.disabled) ctx.click(); });
+  await wait(400);
+  ok(await tapEq(), 'aimed it again');
+  await wait(300);
+  await p.evaluate(()=>document.getElementById('ctxBtn').click());
   await wait(700);
-  ok(await p.evaluate(()=>window.__solo.st().players[2].equipment.length===0), 'tapping it REMOVED their Caltrops');
+  ok(await p.evaluate(()=>window.__solo.st().players[2].equipment.length===0), '⚡ Activate REMOVED their Caltrops');
   ok(await hasLog(/Forceful Strip/i), '…and the play is logged');
 
   // ================= C1: opponents' turns are actually presented =================

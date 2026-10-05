@@ -15,17 +15,16 @@ count — that list is the authority, and if a count there disagrees with a suit
 Wizard/Cleric, counter-heavy, boost-a-pair kill). Append new exported games to its ingestion log; use it for
 AI-tuning, balance, and a future "play like Aj" opponent.
 
-**Current version: v1.32.0.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
+**Current version: v1.32.1.** The 2-apex + Forms **rework is simply the game** — the `REWORK` flag and the
 classic pre-rework rules were deleted in v1.23.0 (no `setRework`, no `E.isRework()`). Twenty-one homebrew rules
 live behind **Custom rules**, every one defaulting OFF, because `RULE_DEFS.some(ruleOn)` *is* the definition of
 "customised".
 
 ## ☀️ START HERE
 
-`main` is at **v1.32.0** — `epic/priority-windows` has LANDED. The fourth-segment scheme retires with it;
-the next change is an ordinary `v1.32.1`. Its earlier docs commits — Bibong's profile entry and the
-three bugs his export surfaced — were carried into the epic on 2026-09-29. All the work below is on
-**`epic/priority-windows`**.
+`main` is at **v1.32.1** — `epic/priority-windows` LANDED as v1.32.0, and the fourth-segment scheme
+retired with it. **All work is on `main` again** (ordinary `fix/`/`feat/` branches); the epic-vs-"For main"
+split further down the BACKLOG is historical and no longer means anything — both halves are open main work.
 
 **⚡ THE PRIORITY MODEL IS COMPLETE AND SPECIFIED (2026-09-17).** Steps 1-23 are done and merged; the two
 boundaries that were still missing — the **end of Clean-up** and the Beginning Phase's **untap queue** —
@@ -323,30 +322,6 @@ re-read its tag.
   **ASSERT BOTH DIRECTIONS**: a `Next` press MUST still announce, a `Fight`-with-selection press must not.
   One of those alone passes on a build where the beat is simply deleted.
   `[id: fight-announce-on-commit]`
-
-- `root cause found`    · **★ TAPPING AN EQUIPMENT TARGET CASTS IMMEDIATELY — THERE IS NO CONFIRM** (Aj, live
-  3-player game 2026-10-02: *"after selecting a target for plead for peace, it didn't ask to activate, it
-  just did"*).
-  **THERE ARE TWO TARGETING MODES AND ONLY ONE OF THEM IS CONFIRM-FIRST.** `targetPick` — choosing a SEAT —
-  stages into `targetPick.chosen`, relabels the context button **⚡ Activate**, and spends nothing until
-  `confirmTargetPick()`; that is the v1.29.5 model CLAUDE.md documents. `targeting` is a SEPARATE, older
-  variable, declared *"{cardId} while choosing an equipment to remove"*, and its own comment at the
-  assignment says the quiet part out loud: *"always tap a target — energy is only spent on the tap"*. So an
-  equipment target resolves on the first tap, with no staging, no ⚡ Activate and no `Clear` to back out of.
-  **PLEAD FOR PEACE IS ♥7 `kind:'removeEquip'`**, so it takes the second path. The same is true of every
-  other equipment-targeting card — `removeEquip` is the kind to enumerate, not the card.
-  **WHY IT SURVIVED v1.29.5:** that change was written against the seat picker, and the sweep stopped at the
-  variable it was holding. This is the documented *"a fix wired in by name covered two parks of nine"*
-  shape, in the UI: `grep -n 'targetPick\|targeting *=' code/CardmenFighter.template.html` shows the two
-  modes side by side, and nothing ties them together.
-  **THE FIX IS TO ROUTE `targeting` THROUGH THE SAME STAGE-THEN-CONFIRM**, not to add a second confirm — one
-  definition, the way `isChopOf` and `resolveIds` are single definitions. Note `clearBtn` already branches
-  on `targeting` first (*"Cancelled — no energy spent"*), so the cancel half exists and only the staging
-  half is missing.
-  **MAIN WORK, BY THE ROUTING TEST:** both the declaration and the assignment are present on `main`
-  unchanged by the epic, so there is nothing epic-specific to fix this in. Held behind the epic merge like
-  the other main-routed items, per Aj 2026-10-02.
-  `[id: equip-target-casts-without-confirm]`
 
 - `root cause found`    · **★ THE RIDE TIER UNLOCKED AND NOBODY TOLD THE PLAYER — NO ROAR** (Aj, live
   3-player game 2026-10-02: *"no roar…"*).
@@ -690,6 +665,22 @@ its own. Kept separate so it does not get tangled in `epic/priority-windows`, an
 knows to check whether the epic has already moved the same lines.*
 
 ### Correctness
+
+- `ready to build`      · **A QUICK CAST FROM THE RESPOND? WINDOW NEVER ASKS FOR A TARGET — THE ENGINE PICKS
+  ONE** (found 2026-10-05 auditing every "pick, and it fires" site for v1.32.1). `respond()` pushes the Quick
+  with `opts` holding only `counterOid`, so `effectTarget` falls back to its default:
+  - **Back Stab** (a Quick under Perseus / Hermes) locks the NEXT living rival. Cast in Main the same card
+    goes through `promptTargetPick` and you choose — so at 3-6 players WHERE you cast it decides whether you
+    get a say in who is locked out.
+  - **Annoint** with no strip on the stack protects your FIRST Equipment (`resolveTopEffect`'s `protect`
+    branch reads `top.opts.target`, which nothing sets).
+  **Counter Spell is the model and already right**: one button per target, so the button you press IS the
+  choice — and its comment says why it must be chosen BEFORE the card goes on the stack. The fix is the same
+  shape for `lockout` (one button per `hostileTargets`) and `protect` (one per own Equipment when no strip is
+  on the stack), carrying `target` through `respond`'s `opts` and the wire (`{op:'respond', id, coid}` gains
+  a target) — and `respond` must VALIDATE it, because a client sends it. A duel needs nothing for Back Stab
+  (one rival); Annoint with two Equipment is the duel case.
+  `[id: respond-quick-target-never-asked]`
 
 - `ready to build`      · **THE RESPOND? WINDOW DOES NOT SAY WHAT A TARGETED EFFECT IS TARGETING** (Aj, 2026-09-30,
   with a screenshot of the window mid-game: *"what is the strip targeting?"*). It reads

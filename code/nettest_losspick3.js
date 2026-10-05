@@ -63,7 +63,13 @@ async function waitFor(fn,t=100,ms=150){ for(let i=0;i<t;i++){ if(await fn()) re
 
   ok(await waitFor(async()=>await host.evaluate(()=>!!document.querySelector('.oppPanel.targetable'))),'host got the choose-a-target prompt');
   // Host picks client 2 (absolute seat 2).
+  // a tap AIMS (🎯), Fight-as-Confirm strikes — both ways, so a tap that still struck cannot pass
   await host.evaluate(()=>{ var el=document.querySelector('.oppPanel[data-seat="2"]'); if(el)el.click(); });
+  await wait(400);
+  ok(await shieldsOf(c2)===sh0[2] && await host.evaluate(()=>{ var f=document.getElementById('fightBtn'), el=document.querySelector('.oppPanel[data-seat="2"]');
+       return !!el && el.classList.contains('aimed') && !f.disabled && /Confirm/.test(f.textContent); }),
+     'a tap only AIMS — no shield lost yet, the panel is aimed and Fight reads Confirm');
+  await host.evaluate(()=>document.getElementById('fightBtn').click());
 
   ok(await waitFor(async()=>await shieldsOf(c2)===sh0[2]-1, 80, 150),'the CHOSEN target (c2) lost a shield ('+sh0[2]+' → '+(await shieldsOf(c2))+')');
   ok(await shieldsOf(c1)===sh0[1],'the un-chosen rival (c1) kept its shield ('+(await shieldsOf(c1))+')');
