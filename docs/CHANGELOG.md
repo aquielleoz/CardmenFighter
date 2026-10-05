@@ -15,6 +15,23 @@ acts on it. That is also why it is the wrong home for anything else, and all thr
 `versiontest` asserts this file carries a `### vX.Y.Z` heading for the version in `README.md`, so a shipped
 version with no entry is a red suite rather than a silent gap.
 
+### v1.32.9 — the Demon Lord pitches the Broadway card it can spare
+
+**The Demon Lord no longer throws away the 10 its pair or straight is built from.** Aj: *"the ai should
+absolutely smart pitch as well... especially for the ones who are smarter"*. When it casts Critical Hit,
+Ultima Attack or Armor Piercing (Quick casts included), it now tries each Broadway card on a hypothetical
+hand and pitches the one that costs it least — a legal fight first, then the most multi-card plays — and
+falls back to the lowest card, the old default, when nothing is at stake. Every other tier is unchanged.
+**Measured, and it is a FEEL behaviour, not a strength lever** — full table at
+[`DECISIONS.md#smart-pitch`](DECISIONS.md#smart-pitch): non-negative on every deck that holds a pitch card
+and inside the noise on all of them (≤ +0.19 points over 40,000 games), against a ~7.6-point tier step. It
+shipped for the reason `keepsTheWin` did: it is a difference you can see across the table.
+`strengthsim` gains a `pitch` policy and now prints the policy tally on every run, control included — the
+Pure Wizard run (exactly 50.00, zero pitch casts) shows why: a tie with a zero tally is a policy that never ran.
+**Tests:** `test.js` +5 — staged so the default and the smart pick differ (a pair of 10s and a spare Ace);
+the Knight and the policy-off arm still default; with nothing load-bearing it pitches the lowest. A mutant
+that always returns the default reds the headline assertion.
+
 ### v1.32.8 — Back Stab and Annoint cast from the Respond? window let you choose the target
 
 **A Quick cast from the Respond? window now asks what it is aimed at**, like the same card cast in Main.

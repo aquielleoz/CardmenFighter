@@ -5400,9 +5400,43 @@
      apart afterwards costs more than counting as you go. A throwaway probe cannot do this: these policies
      are called as LOCAL functions, so monkey-patching the export intercepts nothing and reports a
      confident zero — it did, on the first attempt, and the zero was believed for a minute. */
-  var POLICY_STATS = { push: 0 };
-  function policyStats() { return { push: POLICY_STATS.push }; }
-  function resetPolicyStats() { POLICY_STATS.push = 0; }
+  var POLICY_STATS = { push: 0, pitch: 0, pitchCasts: 0 };
+  function policyStats() { return { push: POLICY_STATS.push, pitch: POLICY_STATS.pitch, pitchCasts: POLICY_STATS.pitchCasts }; }
+  function resetPolicyStats() { POLICY_STATS.push = 0; POLICY_STATS.pitch = 0; POLICY_STATS.pitchCasts = 0; }
+  /* THE DEMON LORD PITCHES THE BROADWAY CARD IT CAN SPARE (broadway-pitch-chooses-itself; Aj: *"the ai should
+     absolutely smart pitch as well... especially for the ones who are smarter"*). The engine's default takes
+     the LOWEST Broadway card, which is exactly the card a 10-high straight or a pair of 10s is built from.
+     `keepsTheWin`'s method, not a remembered rule: play each candidate out on a hypothetical hand and keep the
+     pitch that leaves (1) a legal fight if one exists, then (2) the most multi-card plays; ties go to the
+     lowest card — the default — so it only ever DIFFERS when the default would break something.
+     THIS IS NOT THE `opts.pitch` THAT WAS DELETED: that one was an arbitrary pick no test could separate from
+     the default. This one is separable by construction (stage the lowest Broadway card as load-bearing), and
+     it COUNTS how often it changes the pick (`pitch` of `pitchCasts`), because a policy worth nothing and a
+     policy that never ran print the same win rate. Gated on `isTop` — a tier behaviour, like `keepsTheWin`. */
+  function smartPitch(st, p, card) {
+    var pl = st.players[p], cands = E.pitchCands ? E.pitchCands(pl, card.id) : [];
+    if (cands.length < 2) return null;
+    var lowest = cands.slice().sort(function (a, b) { return E.fightValue(a) - E.fightValue(b); })[0];
+    var best = null, bs = null, kept = pl.hand;
+    for (var i = 0; i < cands.length; i++) {
+      var cand = cands[i];
+      pl.hand = kept.filter(function (x) { return x !== card && x !== cand; });
+      var plays = E.legalFightPlays(st, p), multi = 0;
+      for (var j = 0; j < plays.length; j++) if (plays[j].cards && plays[j].cards.length > 1) multi++;
+      var sc = [plays.length > 0 ? 1 : 0, multi, -E.fightValue(cand)];
+      if (!bs || sc[0] > bs[0] || (sc[0] === bs[0] && (sc[1] > bs[1] || (sc[1] === bs[1] && sc[2] > bs[2])))) { best = cand; bs = sc; }
+    }
+    pl.hand = kept;
+    POLICY_STATS.pitchCasts++;
+    if (best && best !== lowest) POLICY_STATS.pitch++;
+    return best;
+  }
+  function pitchOptsFor(st, p, card) {
+    var e = card && E.effectOf(card);
+    if (!e || !e.pitchHigh || !isTop((st._diff && st._diff[p]) || 'fighter') || !policyOn(p, 'pitch')) return null;
+    var c = smartPitch(st, p, card);
+    return c ? { pitch: c.id } : null;
+  }
   function kindOK(kind, p) { return !kindBlock || !kindBlock(kind, p); }
 
   // ---- N-PLAYER TARGETING (Phase 2): which living rival a "choose a rival" effect hits, by difficulty tier ----
@@ -6015,6 +6049,7 @@
     var card = c ? { rank: c.rank, suit: c.suit, id: c.id } : null;   // capture before the card leaves the hand
     var opts = {};                                                    // N-player: pick which rival a singular hostile effect hits
     var eff0 = c && E.effectOf(c);
+    var po = c ? pitchOptsFor(st, p, c) : null; if (po) opts.pitch = po.pitch;   // the Demon Lord pitches the Broadway card it can spare
     if (eff0 && st.numPlayers > 2 && (HOSTILE_TARGETED[eff0.kind] || (eff0.kind === 'recycle' && eff0.scope === 'opp'))) {
       var t = (tgt != null && tgt >= 0) ? tgt : chooseTarget(st, p, (st._diff && st._diff[p]) || 'fighter');
       if (t >= 0) opts.target = t;
@@ -6079,7 +6114,7 @@
       var guardC = resolutionGuardCard(st, q);
       if (guardC) { var gr = E.respond(st, q, guardC.id); if (gr && gr.ok) return gr; }
       var pushC = resolutionPushCard(st, q);                                // the WINNER's line — defence first, it is the urgent one
-      if (pushC) { var pr2 = E.respond(st, q, pushC.id); if (pr2 && pr2.ok) return pr2; }
+      if (pushC) { var pr2 = E.respond(st, q, pushC.id, pitchOptsFor(st, q, pushC)); if (pr2 && pr2.ok) return pr2; }   // Armor Piercing as a Quick: the same smart pitch
       return E.declineResponse(st, q);
     }
     function bestQuick(kind) {
@@ -6381,7 +6416,7 @@
      silently removed `preFightMove`, `lockoutWorth` and six others, and `test.js` died on the first of
      them. Notes go ABOVE the literal; entries go in it. */
   var API = { THREAT_KIND: THREAT_KIND, BENIGN_KIND: BENIGN_KIND,   // exported so test.js can require every effect kind to be CLASSIFIED
-    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, resolutionGuardCard: resolutionGuardCard, resolutionPushCard: resolutionPushCard, setArmPolicy: setArmPolicy, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
+    chooseMove: chooseMove, playPhase: playPhase, takeTurn: takeTurn, respondDecision: respondDecision, shieldGuardWants: shieldGuardWants, resolutionGuardCard: resolutionGuardCard, resolutionPushCard: resolutionPushCard, setArmPolicy: setArmPolicy, pitchOptsFor: pitchOptsFor, policyStats: policyStats, resetPolicyStats: resetPolicyStats, setStratPassMax: function (n) { STRAT_PASS_MAX = n; }, setLockoutMaxAlive: setLockoutMaxAlive, lockoutWorth: lockoutWorth, observe: observe, counterfeitHelps: counterfeitHelps,
     lockoutStats: lockoutStats, resetLockoutStats: resetLockoutStats, setStratPassMP: setStratPassMP, setStratPassSeats: setStratPassSeats, stratPassCount: stratPassCount, resetStratPassCount: resetStratPassCount, setStratPassMode: setStratPassMode, setTransformPolicy: setTransformPolicy, setEffectPolicy: setEffectPolicy, setKindBlock: setKindBlock, chooseTarget: chooseTarget, setStyles: setStyles, PERSONAS: PERSONAS, personasFor: personasFor, drawPersonas: drawPersonas };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CardmenAI = API;
@@ -6953,7 +6988,7 @@ window.CardFace = {};
    * exists because a downloaded single-file game is otherwise indistinguishable from a stale copy of itself:
    * Aj reported a missing name field that had shipped two versions earlier, and nothing on screen could have
    * told him. Shown where a bug report is actually taken from — the setup dialog and the netplay lobby bar. */
-  var GAME_VERSION='v1.32.8';
+  var GAME_VERSION='v1.32.9';
   function verTag(){ return '<span class="verStamp" title="Build version — quote this in a bug report">'+GAME_VERSION+'</span>'; }
   var YOU=0, RIVAL=1;
   var SUIT_SYMBOL={C:'♣',D:'♦',H:'♥',S:'♠'};

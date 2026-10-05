@@ -56,7 +56,7 @@ var TIERS = { minion: 1, fighter: 1, knight: 1, demon: 1 };
 /* AN ARM IS `tier` OR `tier:policies` (epic step 21). `knight` alone is the shipped game — every step-21
    policy on. `knight:none` turns them all off, `knight:hold` / `knight:push` enable exactly one. That is
    what makes two changes shipped together still ATTRIBUTABLE: measure each against `:none`, then both. */
-var POLICIES = ['push'];
+var POLICIES = ['push', 'pitch'];   // `pitch`: the Demon Lord's smart Broadway pitch (2026-10-05) — demon-gated, so it is a no-op on a knight arm
 function parseArm(spec) {
   var bits = spec.split(':'), tier = bits[0], sel = bits[1];
   if (!TIERS[tier]) { console.error('arms must be tier[:policies] — tiers: ' + Object.keys(TIERS).join(' | ')); process.exit(1); }
@@ -92,6 +92,7 @@ function playGame(seed, armSeat0, armSeat1) {
   return g.finished ? g.winner : null;
 }
 
+if (AI.resetPolicyStats) AI.resetPolicyStats();
 var aWins = 0, decided = 0, unfinished = 0, mismatch = 0;
 for (var i = 0; i < PAIRS; i++) {
   var seed = 1000003 * (i + 1) + 17;
@@ -110,6 +111,11 @@ console.log('');
 console.log('decided games: ' + decided + (unfinished ? '   (' + unfinished + ' never terminated — investigate)' : ''));
 console.log(ARM_A + ' wins ' + (share * 100).toFixed(2) + '%  =  ' + (points >= 0 ? '+' : '') + points.toFixed(2) +
             ' points' + (CONTROL ? '' : ',  ' + (sigma >= 0 ? '+' : '') + sigma.toFixed(2) + 'σ'));
+/* (tally) */
+/* THE POLICIES' OWN TALLY, because an exact tie on non-identical arms is usually a policy that never FIRED,
+   and a win rate cannot say which (CLAUDE.md — the 139-first-casts / 0-second-casts lesson). Summed over BOTH
+   arms' seats, so read it as "how often the behaviour was available at all". */
+if (AI.policyStats) console.log('policy tally: ' + JSON.stringify(AI.policyStats()));
 if (CONTROL) {
   var exact = (Math.abs(points) < 1e-9) && mismatch === 0;
   console.log(mismatch ? ('  ' + mismatch + ' of ' + PAIRS + ' pairs replayed to a DIFFERENT winner — the pairing is broken, ' +

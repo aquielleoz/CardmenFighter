@@ -737,6 +737,28 @@ idea would pay, with zero strength risk by construction.
 may only RE-TIME a behaviour its tier already has, never add one, which is the `nice` flag's +6-point
 mistake in miniature. `npm test` was 478/0 + 65/0 on that branch.
 
+### The Demon Lord's smart Broadway pitch — a FEEL behaviour, not a strength lever (2026-10-05) <a id="smart-pitch"></a>
+
+Aj: *"the ai should absolutely smart pitch as well... especially for the ones who are smarter"*. `smartPitch`
+(ai.js) plays each Broadway candidate out on a hypothetical hand — `keepsTheWin`'s method — and keeps the
+pitch that leaves a legal fight, then the most multi-card plays; ties go to the lowest card, so it only ever
+differs from the engine's default when the default would break something. Gated on `isTop` (Demon Lord) and
+policy `pitch`. Measured `demon` vs `demon:push` (pitch off), control at exactly 50.00 first:
+
+| deck | 40,000 games each | picks it changed |
+| --- | --- | --- |
+| Full Set | +0.18 pts, +0.71σ | 1,683 of 11,180 pitch casts |
+| Pure Fighter | +0.19 pts, +0.75σ | 3,371 of 22,937 |
+| Pure Rogue | +0.09 pts, +0.35σ | 1,779 of 13,778 |
+| Pure Wizard | exactly 0.00 | **0 of 0** — no pitch card in the deck |
+
+**Every deck is non-negative and none is distinguishable from zero**, against a knight→demon tier step of
+about +7.6. So it shipped for the reason `keepsTheWin` did: it is something a player can SEE (the Demon Lord
+stops throwing away the 10 its pair or straight is built from), not a difficulty lever. **The Wizard row is the
+instrument checking itself** — an exact tie with a zero tally is a policy that never ran, which is why
+`strengthsim` now prints `policyStats()` on every run, the control included. Do not re-measure this expecting
+a strength effect; re-measure only if the pitch heuristic itself changes.
+
 ## Joining, discovery, and the QR path
 
 *The `feat/qr-scanning` parked branch keeps a short pointer in the BACKLOG, per the rule that a parked branch
