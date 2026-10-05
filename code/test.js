@@ -3156,5 +3156,51 @@ function cards(ids) { return ids.map(card); }
   ok(E.pitchCands(g1.players[1], 'ap').length === 1 && E.pitchCands(rigQ([mk(10, 'H', 'b10'), mk(1, 'S', 'bA')]).players[1], 'ap').length === 2, 'pitchCands lists the Broadway cards a pitch may take, never the casting card');
 })();
 
+/* ============ A QUICK FROM THE RESPOND? WINDOW CHOOSES ITS TARGET (respond-quick-target-never-asked) ============
+   Staged so the CHOICE differs from the old default (Back Stab → the NEXT rival; Annoint → your FIRST
+   Equipment), or the assertion could not tell "chose" from "defaulted". */
+(function () {
+  var mk = function (r, s, id) { return { rank: r, suit: s, id: id }; };
+  var EN = function (s) { return [1,2,3,4,5,6,7,8,9,10,11,12].map(function (n) { return mk(n, s, 'e' + s + n); }); };
+  function rig(np, hand1, energy1, forms1, equip1) {
+    var g = E.newGame(null, { starter: 0, numPlayers: np }); g.round = 3; g.turn = 0; g.subPhase = 'main'; g.pile = null;
+    g.players[1].hand = hand1; g.players[1].energy = energy1; g.players[1].forms = forms1 || [];
+    if (equip1) g.players[1].equipment = equip1;                    // BEFORE the cast — Annoint is only castable with something to protect
+    g.players[0].energy = EN('D'); g.players[0].hand = [mk(6, 'D', 'bk'), mk(3, 'H', 'z3')];
+    E.activate(g, 0, 'bk', {}); if (g.respondFor === 0) E.declineResponse(g, 0); return g;
+  }
+  var KING = [{ rank: 13, suit: 'S', tier: 'king', name: 'King', card: mk(13, 'S', 'fk') }];
+  // --- Back Stab at 3 players: the default would be seat 2 (next after 1); choose seat 0
+  var g = rig(3, [mk(10, 'S', 'bs'), mk(4, 'D', 'x4')], EN('S'), KING);
+  ok(g.respondFor === 1, 'STAGED: seat 1 holds priority with Back Stab a Quick under a King');
+  var ch = E.respondChoices(g, 1, g.players[1].hand[0]);
+  ok(ch && ch.seats && ch.seats.join() === '0,2', 'respondChoices offers every living rival  [' + JSON.stringify(ch) + ']');
+  // read the object the instant it lands — with nobody left to answer, the go-round resolves it at once
+  var seen = null, origPush = g.stack.push; g.stack.push = function (o) { if (o && o.card && o.card.id === 'bs') seen = { target: o.opts.target, row: E.stackTargetOf(g, o) }; return origPush.apply(this, arguments); };
+  var r = E.respond(g, 1, 'bs', { target: 0 }); g.stack.push = origPush;
+  ok(r.ok && seen && seen.target === 0, 'respond carries the CHOSEN rival onto the stack (seat 0, not the default seat 2)  [' + JSON.stringify(seen) + ']');
+  ok(seen && seen.row && seen.row.seat === 0, '…and the stack row names the same seat');
+  var guard0 = 0; while (g.respondFor != null && guard0++ < 10) E.declineResponse(g, g.respondFor);
+  ok(E.isLocked(g, 0) && !E.isLocked(g, 2), '…and it LOCKED seat 0, not the default seat 2  [0:' + E.isLocked(g, 0) + ' 2:' + E.isLocked(g, 2) + ']');
+  var gb = rig(3, [mk(10, 'S', 'bs'), mk(4, 'D', 'x4')], EN('S'), KING);
+  var bad = E.respond(gb, 1, 'bs', { target: 1 });
+  ok(bad.ok === false && gb.players[1].hand.length === 2, 'targeting YOURSELF is refused, and nothing is spent  [' + bad.reason + ']');
+  var gd = rig(2, [mk(10, 'S', 'bs'), mk(4, 'D', 'x4')], EN('S'), KING);
+  ok(E.respondChoices(gd, 1, gd.players[1].hand[0]) === null, 'a DUEL has one rival — no choice, no buttons');
+
+  // --- Annoint, no strip on the stack: the default would be the FIRST piece; choose the second
+  var ga = rig(2, [mk(5, 'H', 'an'), mk(4, 'D', 'x4')], EN('H'), null, [{ id: 'eqA', name: 'Holy Bow', counters: 3 }, { id: 'eqB', name: 'Holy Shroud', counters: 3 }]);
+  var ca = E.respondChoices(ga, 1, ga.players[1].hand[0]);
+  ok(ca && ca.equip && ca.equip.length === 2, 'with no strip on the stack, Annoint offers each of your Equipment  [' + JSON.stringify(ca) + ']');
+  var ra = E.respond(ga, 1, 'an', { target: 'eqB' });
+  ok(ra.ok, 'Annoint cast aimed at the SECOND piece');
+  var guard = 0; while (ga.respondFor != null && guard++ < 10) E.declineResponse(ga, ga.respondFor);
+  var A = ga.players[1].equipment[0], B = ga.players[1].equipment[1];
+  ok(B.protectedRound === ga.round && A.protectedRound !== ga.round, '…and it protected THAT one, not the first  [eqA ' + A.protectedRound + ', eqB ' + B.protectedRound + ']');
+  var gx = rig(2, [mk(5, 'H', 'an'), mk(4, 'D', 'x4')], EN('H'), null, [{ id: 'eqA', name: 'Holy Bow', counters: 3 }]);
+  var rx = E.respond(gx, 1, 'an', { target: 'notMine' });
+  ok(E.respondChoices(gx, 1, mk(5, 'H', 'an')) === null && rx.ok, 'one piece of Equipment — nothing to choose, and a stray target is ignored rather than refused');
+})();
+
 console.log('\nPASS: ' + passes + '   FAIL: ' + fails);
 process.exit(fails ? 1 : 0);
