@@ -734,6 +734,16 @@ never read.*
   inventing a layout rather than restoring the one the compact form was compacted FROM.
   `[id: answered-quick-no-animation]`
 
+- `needs a repro`       · **`mptest`'S 3-PLAYER ROUND NEVER RESOLVED, ONCE, UNDER A FULL SWEEP (2026-10-06).** *"a round
+  resolved in a real 3-player game"* went red at 141s inside a `-j 4` sweep on a branch that touched no game code
+  (harness and docs only), then **120/0 twice alone**. It is NOT a budget: a passing run resolves in **13-22 of
+  the loop's 160 iterations** (3.7-6.2s, measured), so spending all 160 means the board sat for 40s+ in a state
+  that driver cannot play — Fight/Pass/the three window buttons all unavailable. The driver now prints a `WHY:`
+  line with that state when it gives up (verified by forcing a 1-iteration budget), and the sweep keeps `WHY:`
+  lines. **Next step: wait for it to fire again and read the line** — do not raise the budget, which would only
+  make a stuck board take longer to report.
+  `[id: mptest-3p-round-never-resolves]`
+
 - `needs a measurement` · **`mptest`'S PHASE-STRIP DRIVER STALLED UNDER LOAD — CAUSE FOUND BY ITS OWN STALL LINE, DRIVER
   FIXED, NOT YET SEEN TO HOLD** (2026-10-05). Seven reds once, sequence stopping at `spFight → spIdle → spMain →
   spFight → spIdle`, 3/3 clean alone. An idle exit now prints `⚠ PHASE-STRIP DRIVER STALLED`, and the very next
@@ -793,21 +803,6 @@ never read.*
   `[id: phone-declutter-rest]`
 
 ### Tooling
-
-- `ready to build`      · **SUITE COUNTS ARE DECLARED TWICE IN CLAUDE.md AND NOTHING CHECKS EITHER — 27 WERE STALE
-  (2026-09-30).** `versiontest` asserts `test` and `netview` only. The verified list had drifted in 3
-  places and **the COMMAND LIST in 24**, some wildly: `rulestest` said 36 against a real 150,
-  `landscapetest` 96 against 195, `peektest` 31 against 43, `resolutiontest_ui` 46 against 71. All 27 are
-  corrected; the DEFECT is that a second hand-maintained copy exists at all, which this repo's own rule
-  forbids — a measurement lives in one place, and any second copy must be ASSERTED rather than written.
-  **THE FIX IS SMALL AND FOLLOWS AN EXISTING PATTERN:** `sweep.js` already writes `.sweep-times.json`, so
-  have it record each suite's `PASS:` count in the same file, and have `docsweep.js` report declared-vs-
-  actual. **Report, never gate** — a suite legitimately changes count in the same commit that changes the
-  doc, and a gate would fire on the way past.
-  **THE COMMAND LIST IS THE ONE THAT MATTERS**, because it is what a session reads first to decide what to
-  run — and it was the one nobody was updating. Note a scan that reads only the first line of each `node
-  x.js` entry misses five, since several carry the count on a continuation line.
-  `[id: suite-counts-declared-twice]`
 
 - `needs a decision`    · **`exporttest` IS TIME-CAPPING IN THE SWEEP — GREEN, BUT TESTING LESS THAN IT
   MEANS TO (2026-09-24).** Surfaced by the sweep's new warnings section, which prints a passing suite's own
