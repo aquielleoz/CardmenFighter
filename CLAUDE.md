@@ -5,7 +5,7 @@ sound all inlined. No server, no install, runs offline in any browser, desktop o
 zero runtime dependencies** and never imports anything; `code/package.json` exists only to pin Playwright for
 the browser/netplay test suites, and `code/node_modules` is gitignored.
 
-Current version: **v1.32.15**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
+Current version: **v1.32.16**. Read [`docs/NEXT-SESSION.md`](docs/NEXT-SESSION.md) first — it is the live
 handoff doc: header block (build/test commands), `## BACKLOG`, then a newest-first changelog.
 
 ## The one rule that matters
@@ -32,7 +32,7 @@ Run everything from `code/`:
 
 ```bash
 npm run build          # = node build.js && cp CardmenFighter.html ../CardmenFighter.html
-npm test               # = node test.js && node netview.test.js — 634 + 68 assertions, must end 0 FAIL
+npm test               # = node test.js && node netview.test.js — 645 + 68 assertions, must end 0 FAIL
 npm run test:smoke     # = node browsertest.js — headless 12-duel smoke via Playwright
 ```
 
@@ -41,7 +41,7 @@ The underlying commands, if you prefer them raw:
 ```bash
 node build.js                                   # engine+ai+art+netview → code/CardmenFighter.html
 cp CardmenFighter.html ../CardmenFighter.html   # build.js writes only code/; sync the root copy yourself
-node test.js                                    # engine + AI suite — 634 assertions, must end 0 FAIL
+node test.js                                    # engine + AI suite — 645 assertions, must end 0 FAIL
 node netview.test.js                            # netplay snapshot redaction + the mirror contract — 68, must end 0 FAIL
 node nettest_log.js                             # netplay public battle log, both frames (18)
 node nettest_names.js                           # netplay player names, both directions (13)
@@ -192,7 +192,7 @@ node nettest_actloop.js                         # play must keep moving AFTER a 
 node nettest_version.js                         # the netplay build handshake, both seats + no false alarm,
                                                 # plus the EPIC LINE: a `vX.Y.Z.a` build refuses a
                                                 # `vX.Y.Z` one, two epic builds only warn (37)
-node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (150)
+node rulestest.js                               # the custom rules menu: panel, engine wiring, export stamp (152)
 node nettest_rules.js                           # custom rules over netplay: propagation + un-ready (28)
 node nettest_passoduel.js                       # PASSO IN A DUEL (epic step 13). `passoTakeover` is not gated
                                                 # to multiplayer, but `passoStep` only knew driveN's parks —
@@ -1215,8 +1215,8 @@ Three more things worth knowing before touching them:
   whole game. Two facts worth keeping: **Pusoy Dos ranks suits ♦>♥>♠>♣** against Big Two's ♠>♥>♣>♦ — the same
   mechanic with incompatible orders, which is a decent argument that suit ranking is convention rather than
   essence — and **dropping the flush is itself an attested variation** of the family, so v1.14 has precedent.
-  Four-of-a-kind **+ one** spare (Big Two's, distinct from our 四带二's two spares) remains unbuilt and is the
-  only cheap piece of it.
+  Four-of-a-kind **+ one** spare (Big Two's, distinct from our 四带二's two spares) shipped in v1.32.16 as
+  `fourOne`, an ordinary shape keyed by the quad, so the family-shape programme is done.
 - **THE SECTION'S `keys` LIST IS THE RENDER ORDER (v1.31.45).** `sectionsHTML` used to filter `RULE_DEFS`, so
   `keys` decided only WHICH rows appeared — reordering it was a silent no-op, and a reorder that measurably
   changed nothing still looked applied. Note `rulesKey()` still follows `RULE_DEFS`, so the serialised order and
@@ -1262,6 +1262,11 @@ Three more things worth knowing before touching them:
   a fifth heading plus the full-width preset line cost ~70px and went 14px over — trimmed again (section margins
   5→3, preset line 10→3, preset buttons 6→5px tall). Measure `scrollHeight > clientHeight` at 1512×945 after
   adding a rule **or a section**; there is no slack left.
+  **AND AS OF v1.32.16 IT IS ZERO, MEASURED: rule twenty-two fit at 1512×945 only because its label was shortened
+  to stop it wrapping** (*"Four of a kind + one spare"*, against its siblings' "… spare card(s)"). A ninth
+  Shapes rule opens a third grid row there, and the wrap was the 16px that tipped it over. **The next rule is a
+  structural change, not a trim** — a fifth column, or a section that genuinely has room, decided before
+  building it.
 - **NO CHOPPER BEATS ANOTHER, and that is a decision with reasons** (2026-08-27). `chopRank` returns the same
   value for every enabled chopper, so chop-vs-chop **falls through** to the ordinary same-type/same-size/value
   comparison — a chop is answered in kind. Do not add an early `return false` there: that made every chop
@@ -1309,7 +1314,7 @@ Three more things worth knowing before touching them:
   times per game, because the AI plays the **cheapest sufficient** Special and a Quadro spends four cards on a
   round a pair would win. Leading one is near-unbeatable (only a higher Quadro answers it), which is a human
   use the AI's policy never values.
-- **A NEW SHAPE ADDS OPTIONS, NOT TEMPO.** Measured on EIGHT rules now — kits, poker two-pair, Quadro and the chop all
+- **A NEW SHAPE ADDS OPTIONS, NOT TEMPO.** Measured on NINE rules now — kits, poker two-pair, Quadro, the chop and four-plus-one (v1.32.16) all
   leave pacing untouched at every player count. Treat it as the default expectation. Kits change game length by
   nothing at all (11/14/20/31 vs
   11/14/20/30) and are balance-neutral (rho 0.91), *despite* firing 0.75 times per duel and 13.4 times per
@@ -2315,7 +2320,7 @@ timed out at >180s purely because three stray busy-wait shells were spinning. If
 stray processes before suspecting the code. And never wait on work with `while pgrep -f <pattern>; do :; done`
 — the waiting shell's own command line contains the pattern, so it matches itself and spins forever.
 
-Status as of **v1.32.15 — last FULL sweep 2026-10-06, `npm run sweep`, 116/116 in 289s** (115 on the run
+Status as of **v1.32.16 — last FULL sweep 2026-10-06, `npm run sweep`, 116/116 in 294s** (115 on the run
 itself: `versiontest` red on this very line, which is the line's job — the sweep is what it records). On
 2026-10-05 the sweep ran twice on a page whose README bump was never rebuilt, and both times
 `versiontest` and `exporttest`'s build check went red on the STAMP alone. **Rebuild after bumping README,
@@ -2329,7 +2334,7 @@ the per-suite numbers below are now checked against the sweep output rather than
 it. **The "run serially, never two at once" rule this line used to carry died with v1.31.82** — `PORT` is an env
 var and `sweep.js` assigns one per job. It contradicted the sweep-runner section above for eleven versions,
 which is what a number nobody can verify looks like). Counts verified:
-`test` 634, `netview` 68, `mptest` 120, `rulestest` 150, `landscapetest` 245, `decktest` 42, `viewtest` 26,
+`test` 645, `netview` 68, `mptest` 120, `rulestest` 152, `landscapetest` 245, `decktest` 42, `viewtest` 26,
 `piletest` 30, `revealtest` 12, `phantasmtest` 12, `exporttest` 19, `lessontest` 26, `lessontest_energyorder` 14,
 `versiontest` 35, `sharetest` 17, `dragtest` 21, `qrtest` 32, `peektest` 43, `logtest` 31, `motiontest` 7, `phonetest` 72, `oppbeatstest` 11, `counterfeittest` 12, `roartest` 21, `fightbeattest` 13, `stackrowtest` 7, `sorttest` 6, `quicktest` 13, `shadowtest` 7, `prompttest` 12, `resolutiontest` 16, `resolutiontest_ui` 71, `lessontest_phases` 48, `lessontest_howto` 25,
 `lessontest_zones` 21, `lessontest_initiative` 22, `lessontest_specials` 21, `lessontest_energy` 18,

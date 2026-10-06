@@ -2262,6 +2262,42 @@ function cards(ids) { return ids.map(card); }
     E.setTrioOne(false); E.setFourTwo(false); E.setAirplane('off');
   })();
 
+  /* ---- FOUR OF A KIND + ONE (2026-10-06) — Big Two's shape, the last family piece. [4,1] is unique at size 5,
+   * so it is a toggle; it must be claimed AHEAD of the five-card straight check, which falls through to null. */
+  (function () {
+    var C = function (r, su, t) { return { rank: r, suit: su, id: (t || 'k') + r + su }; };   // the enclosing C ignores a tag, and these hands need distinct ids
+    var q7 = [C(7, 'D'), C(7, 'H'), C(7, 'C'), C(7, 'S')], q9 = [C(9, 'D'), C(9, 'H'), C(9, 'C'), C(9, 'S')];
+    var lo = q7.concat([C(13, 'D', 'x')]), hi = q9.concat([C(3, 'H', 'x')]);
+    var fh = [C(5, 'D'), C(5, 'H'), C(5, 'C'), C(8, 'S'), C(8, 'D')], st = [C(4, 'D'), C(5, 'H'), C(6, 'C'), C(7, 'S'), C(8, 'D')];
+    ok(E.detectCombo(lo) === null, 'four of a kind + one is not a play in the shipped game');
+    E.setFourOne(true);
+    var f = E.detectCombo(lo);
+    ok(f && f.type === 'fourone' && f.size === 5 && f.key[0] === 7, 'on, 7777+K is a five-card shape keyed by the FOUR — the King is not in the key');
+    ok(E.beats(E.detectCombo(hi), f) === true && E.beats(f, E.detectCombo(hi)) === false,
+       '9999+3 beats 7777+K: the four decides and the spare is baggage');
+    ok(E.beats(f, E.detectCombo(fh)) === false && E.beats(E.detectCombo(fh), f) === false
+       && E.beats(f, E.detectCombo(st)) === false && E.beats(E.detectCombo(st), f) === false,
+       'and it never meets a full house or a straight in either direction — no poker ladder, the only answer to a shape is that shape');
+    ok(E.detectCombo(fh).type === 'fullhouse' && E.detectCombo(st).type === 'straight', 'the full house and the straight are untouched with it on');
+    ok(E.detectCombo(q7.concat([C(3, 'D'), C(3, 'H')])) === null, 'a quad + a PAIR is six cards — not this shape (that is four-plus-two, still off)');
+    var hand = q7.concat([C(3, 'D', 'h'), C(11, 'S', 'h'), C(12, 'H', 'h')]);
+    var offers = E.enumerateCombos(hand).filter(function (x) { return x.combo.type === 'fourone'; });
+    ok(offers.length === 1 && offers[0].cards.some(function (c) { return c.id === 'h3D'; }),
+       'it is offered from a hand holding a quad — once, shedding the LOWEST spare (the 3), like every attachment');
+    /* DRIFT GUARD: a quad of 2s must rank the same way here as in four-plus-two, at every chain setting —
+     * both read `valueCounts`, and a second copy of "what is a 2 worth in a big play" would drift. */
+    E.setFourTwo(true);
+    var q2 = [C(2, 'D'), C(2, 'H'), C(2, 'C'), C(2, 'S')], q3 = [C(3, 'D'), C(3, 'H'), C(3, 'C'), C(3, 'S')];
+    ['low', 'high', 'off'].forEach(function (mode) {
+      E.setSeqTwos(mode);
+      var one = E.beats(E.detectCombo(q3.concat([C(5, 'D', 'y')])), E.detectCombo(q2.concat([C(4, 'D', 'y')])));
+      var two = E.beats(E.detectCombo(q3.concat([C(5, 'D', 'y'), C(6, 'H', 'y')])), E.detectCombo(q2.concat([C(4, 'D', 'y'), C(4, 'H', 'y')])));
+      ok(one === two, 'with the 2 chaining "' + mode + '", four-plus-one and four-plus-two AGREE whether 3333 beats 2222 (' + one + ')');
+    });
+    E.setSeqTwos('low'); E.setFourTwo(false); E.setFourOne(false);
+    ok(E.detectCombo(lo) === null, 'and switching it off removes it again');
+  })();
+
   E.setQuadro(false); E.setKits3(false); E.setDoublePair('off');
 })();
 

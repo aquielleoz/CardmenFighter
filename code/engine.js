@@ -221,6 +221,17 @@
         return { type: 'trioone', value: tv, size: 4, key: [tv], cards: cards };
       }
     }
+    /* FOUR OF A KIND + ONE — Big Two's shape (2026-10-06), the last of the family pieces. Its [4,1] signature is
+     * unique at size 5 (a full house is [3,2], a straight five distinct values), so it is a toggle, not a mode,
+     * and it must be claimed HERE, ahead of the straight check below, which would otherwise see five cards and
+     * fall through to null. Compared by the QUAD; the spare is baggage. */
+    if (n === 5 && FOUR_ONE) {
+      var f1 = valueCounts(cards), f1c = countsOf(f1);
+      if (f1c.length === 2 && f1c[0] === 4 && f1c[1] === 1) {
+        var q1 = topWithCount(f1, 4);
+        return { type: 'fourone', value: q1, size: 5, key: [q1], cards: cards };
+      }
+    }
     if (n === 6 && FOUR_TWO) {                       // 四带二 — quad + two spares (a pair or two singles)
       var f2 = valueCounts(cards), f2c = countsOf(f2);
       if (f2c[0] === 4 && (f2c.length === 2 || f2c.length === 3)) {
@@ -411,6 +422,15 @@
         t.forEach(function (c) { used[c.id] = true; });
         var sp = spares(used, 1);
         if (sp) out.push(t.concat(sp));
+      });
+    }
+    if (FOUR_ONE) {                                                               // four of a kind + one
+      Object.keys(byRank).forEach(function (r) {
+        var g = byRank[r]; if (g.length < 4) return;
+        var q = [g[0], g[1], g[2], g[3]], used = {};
+        q.forEach(function (c) { used[c.id] = true; });
+        var sp = spares(used, 1);
+        if (sp) out.push(q.concat(sp));
       });
     }
     if (FOUR_TWO) {                                                               // 四带二
@@ -2996,7 +3016,7 @@
    * switched off — which stopped the Tiến lên preset from being faithful, since that game has no full house at all.
    * The flag is the NEGATIVE (`NO_FULL_HOUSE`) because every rule in the panel must default off. */
   var NO_FULL_HOUSE = false;
-  var TRIO_ONE = false, FOUR_TWO = false;
+  var TRIO_ONE = false, FOUR_TWO = false, FOUR_ONE = false;
   /* CONSECUTIVE TRIOS as a MODE (Aj, 2026-08-28: "we can give it the double pair treatment"). 'wings' still
    * allows the bare form — allowing the attachment does not forbid going without it — so it is a SUPERSET of
    * 'bare', which is the same relationship that made the four-card slot a mode. 飞机带翅膀 carries one spare per
@@ -3035,6 +3055,8 @@
   function isTrioOne()     { return TRIO_ONE; }
   function setFourTwo(v)   { FOUR_TWO = !!v; }
   function isFourTwo()     { return FOUR_TWO; }
+  function setFourOne(v)   { FOUR_ONE = !!v; }
+  function isFourOne()     { return FOUR_ONE; }
   function setAirplane(m)  { AIRPLANE = (m === 'bare' || m === 'wings') ? m : 'off'; }
   function isAirplane()    { return AIRPLANE; }
   function setStraightMin(m) { STRAIGHT_MIN = (m === '3' || m === '5') ? m : 'off'; }
@@ -3449,7 +3471,7 @@
     setChopStrips: setChopStrips, isChopStrips: isChopStrips,
     setNoFullHouse: setNoFullHouse, isNoFullHouse: isNoFullHouse,
     setSeqTwos: setSeqTwos, isSeqTwos: function () { return SEQ_TWOS; },
-    setTrioOne: setTrioOne, isTrioOne: isTrioOne, setFourTwo: setFourTwo, isFourTwo: isFourTwo,
+    setTrioOne: setTrioOne, isTrioOne: isTrioOne, setFourTwo: setFourTwo, isFourTwo: isFourTwo, setFourOne: setFourOne, isFourOne: isFourOne,
     setAirplane: setAirplane, isAirplane: isAirplane,
     setStraightMin: setStraightMin, isStraightMin: isStraightMin,
     isChopQuadro: isChopQuadro, isChopKits: isChopKits, isChopSflush: isChopSflush, chopRank: chopRank,

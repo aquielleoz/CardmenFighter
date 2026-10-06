@@ -32,7 +32,7 @@ const flags=p=>p.evaluate(()=>({
   chopQuadro: CardmenEngine.isChopQuadro(), chopKits: CardmenEngine.isChopKits(), chopSflush: CardmenEngine.isChopSflush(),
   chopStrips: CardmenEngine.isChopStrips(), noFullHouse: CardmenEngine.isNoFullHouse(),
   seqTwos: CardmenEngine.isSeqTwos(),
-  trioOne: CardmenEngine.isTrioOne(), fourTwo: CardmenEngine.isFourTwo(),
+  trioOne: CardmenEngine.isTrioOne(), fourOne: CardmenEngine.isFourOne(), fourTwo: CardmenEngine.isFourTwo(),
   airplane: CardmenEngine.isAirplane(), straightLen: CardmenEngine.isStraightMin(),
 }));
 const openRules=async p=>{ await p.evaluate(()=>document.getElementById('rulesBtn').click()); await painted(p); };
@@ -51,7 +51,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
   ok(JSON.stringify(await flags(p))===JSON.stringify({loss:'chosen',mill:'targeted',shieldScale:false,drawScales:true,
        apexInf:false, apexNoStrip:false, dblPair:'off', kits3:false, quadro:false,
        chopQuadro:false, chopKits:false, chopSflush:false, chopStrips:false, noFullHouse:false, seqTwos:'low',
-       trioOne:false, fourTwo:false, airplane:'off', straightLen:'off'}),
+       trioOne:false, fourOne:false, fourTwo:false, airplane:'off', straightLen:'off'}),
      'the shipped defaults are chosen / targeted / flat shields / scaling draw / no apex rules / no pair shapes');
   await p.evaluate(()=>document.getElementById('newBtn').click()); await painted(p);
   ok(await p.evaluate(()=>!!document.getElementById('rulesBtn')), 'the setup dialog offers ⚗️ Custom rules');
@@ -60,8 +60,8 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
   /* THE SECTION'S `keys` LIST IS THE RENDER ORDER (v1.31.45) — it used to only decide membership, so this
    * assertion tracks RULE_SECTIONS now, not RULE_DEFS. Within Shapes the run rules lead: the pair-run slot and
    * its length, the straight's length, the trio-run, then the 2-in-a-run rule, then the standalone shapes. */
-  ok(JSON.stringify(keys)===JSON.stringify(['basics','lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','noSeqTwos','highTwos','dblPair','kits3','straightLen','airplane','quadro','noFullHouse','trioOne','fourTwo','chopQuadro','chopKits','chopSflush','chopStrips']),
-     `twenty-one rules — the game mode first, then the 2, then the shapes, then the chops (${keys.join(', ')})`);
+  ok(JSON.stringify(keys)===JSON.stringify(['basics','lossAll','millAll','shieldScale','flatDraw','apexInf','apexNoStrip','noSeqTwos','highTwos','dblPair','kits3','straightLen','airplane','quadro','noFullHouse','trioOne','fourOne','fourTwo','chopQuadro','chopKits','chopSflush','chopStrips']),
+     `twenty-two rules — the game mode first, then the 2, then the shapes, then the chops (${keys.join(', ')})`);
   /* ORDER IS LOAD-BEARING here: apexNoStrip's note says "unless the rule above is also on", meaning apexInf.
    * The pair shapes were first inserted between them, which silently pointed that sentence at the wrong rule. */
   ok(keys.indexOf('apexNoStrip')===keys.indexOf('apexInf')+1,
@@ -131,7 +131,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
                                    ['chopQuadro','chopQuadro',true],['chopKits','chopKits',true],
                                    ['chopSflush','chopSflush',true],
                                    ['chopStrips','chopStrips',true],
-                                   ['trioOne','trioOne',true],['fourTwo','fourTwo',true]]){
+                                   ['trioOne','trioOne',true],['fourOne','fourOne',true],['fourTwo','fourTwo',true]]){
     ok(await toggle(p,key), `toggling ${key}`);
     const f=await flags(p);
     ok(f[field]===want, `  → the engine now reports ${field}=${JSON.stringify(f[field])}`);
@@ -165,7 +165,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
     return a.length===1 && a[0].getAttribute('data-mode-v')==='poker' && a[0].getAttribute('aria-checked')==='true';
   }), 'and exactly ONE segment reads active — the modes are alternatives, never both');
   const savedKey = await p.evaluate(()=>localStorage.getItem('cmf_rules_v1'));
-  ok(savedKey==='lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,noFullHouse,noSeqTwos,trioOne,fourTwo,airplane=wings,straightLen=3,chopQuadro,chopKits,chopSflush,chopStrips',
+  ok(savedKey==='lossAll,millAll,shieldScale,flatDraw,apexInf,apexNoStrip,dblPair=poker,kits3,quadro,noFullHouse,noSeqTwos,trioOne,fourOne,fourTwo,airplane=wings,straightLen=3,chopQuadro,chopKits,chopSflush,chopStrips',
      `the choice is serialised self-describingly, like the custom-deck key — the mode row carries its VALUE [got ${savedKey}]`);
   /* The v1.31.24 boolean `kits` meant "consecutive runs of any length", which is now two settings. An old saved
    * key — or one from an older peer — must land on both halves, not silently turn the rule off. */
@@ -260,7 +260,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
    * before this was built. offsetParent is null for a display:none element. */
   const qCount = await p.evaluate(()=>document.querySelectorAll('.ruleQ[data-note-for]').length);
   const rowCount = await p.evaluate(()=>document.querySelectorAll('.settingRow[data-rule]').length);
-  ok(qCount === rowCount && rowCount === 21, `every rule carries a ? (${qCount} of ${rowCount})`);
+  ok(qCount === rowCount && rowCount === 22, `every rule carries a ? (${qCount} of ${rowCount})`);
   const noteShown = k => p.evaluate(k=>{
     const n=document.querySelector('.settingRow[data-rule="'+k+'"] .settingNote');
     return !!(n && n.offsetParent);
@@ -387,7 +387,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
   ok(JSON.stringify(await flags(p)) === JSON.stringify({ loss: 'chosen', mill: 'targeted', shieldScale: false,
        drawScales: true, apexInf: false, apexNoStrip: false, dblPair: 'off', kits3: false, quadro: false,
        chopQuadro: false, chopKits: false, chopSflush: false, chopStrips: false, noFullHouse: false, seqTwos: 'low',
-       trioOne: false, fourTwo: false, airplane: 'off', straightLen: 'off' }),
+       trioOne: false, fourOne: false, fourTwo: false, airplane: 'off', straightLen: 'off' }),
      'and the engine is back on the shipped game, mode rows included');
   ok((await p.evaluate(() => localStorage.getItem('cmf_rules_v1'))) === '', 'the cleared state is saved too');
   ok((await bulk(p)).filter(b => b.id === 'ruleClear')[0].off,
@@ -498,7 +498,7 @@ const toggle=async(p,k)=>{ const r=await p.evaluate(k=>{ const b=document.queryS
   /* TWENTY RULES STILL FIT, but only because the Shapes section leads with its MODE rows: a mode row is 102px
    * against a boolean's 46px and a grid row costs its tallest member, so three modes on three separate rows
    * charged 102px three times over. Clustering them recovered 112px, which is what paid for rule twenty. */
-  ok(wide.fits, 'and the whole panel fits — twenty-one rules need the fourth column AND the modes clustered');
+  ok(wide.fits, 'and the whole panel fits — twenty-two rules need the fourth column AND the modes clustered (and, since four-plus-one, a label short enough not to wrap)');
   ok(wide.bulkSpans, '  → and the preset line spans every column, so it reads as a divider and not as one more rule');
   ok(wide.setup === 470, `while the SETUP dialog stays narrow (${wide.setup}px) — .modal is shared by every dialog`);
   ok(wide.afterW === 470, `and the width does not leak into the next dialog (${wide.afterW}px after Done)`);

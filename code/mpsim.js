@@ -48,6 +48,7 @@ var CHOPK = flag('chopk');                            // 3+ Kits chop the 2
 var CHOPSF = flag('chopsf');                          // five in a row, one suit, chops the 2
 var TRIOONE = flag('trioone');                        // 三带一 trio + one spare
 var FOURTWO = flag('fourtwo');                        // 四带二 quad + two spares
+var FOURONE = flag('fourone');                        // Big Two's four of a kind + one spare
 var AIRPLANE = flag('airplane');                      // 飞机 consecutive trios
 var CHAINLONG = flag('chain');                        // 单顺 straights longer than five                           // Leyline protects EVERYONE's shields, not just the caster's                      // ...or HALF the table (ceil of living rivals / 2)   // Critical Hit / Ultima Attack -> all rivals
 var LALL = flag('lockoutall') || flag('hostileall');  // Back Stab -> all rivals
@@ -66,6 +67,7 @@ if (E.setChopKits) E.setChopKits(CHOPK);
 if (E.setChopSflush) E.setChopSflush(CHOPSF);
 if (E.setTrioOne) E.setTrioOne(TRIOONE);
 if (E.setFourTwo) E.setFourTwo(FOURTWO);
+if (E.setFourOne) E.setFourOne(FOURONE);
 if (E.setAirplane) E.setAirplane(AIRPLANE);
 if (E.setSeqTwos) E.setSeqTwos(SEQ2);
 if (E.setChainLong) E.setChainLong(CHAINLONG);
@@ -75,7 +77,7 @@ console.log('CONFIG: seqtwos=' + SEQ2 + ' loss=' + LM + ' mill=' + MS + ' shield
              * printed CONFIG". No-strip stopped requiring infinity on 2026-08-26 (engine ~1512). */
             ' apex=' + (APEX ? (NOSTRIP ? 'unbeatable+nostrip' : 'unbeatable') : (NOSTRIP ? 'nostrip-only(beatable 2)' : 'off')) +
             ' damageSpan=' + (DALL ? 'all' : (DHALF ? 'half' : 1)) + ' wardAll=' + WALL + ' dblPair=' + (TWOPAIR ? 'poker' : (KITS ? 'kits' : 'off')) + ' kits3=' + KITS3 + ' quadro=' + QUADRO + ' chop=' + [CHOPQ?'Q':'',CHOPK?'K':'',CHOPSF?'SF':''].join('') +
-            ' dou=' + [TRIOONE?'3+1':'',FOURTWO?'4+2':'',AIRPLANE?'plane':'',CHAINLONG?'chain':''].filter(Boolean).join('/') + ' lockoutAll=' + LALL + (LMAX ? ' lockoutMaxAlive=' + LMAX : ''));
+            ' dou=' + [TRIOONE?'3+1':'',FOURONE?'4+1':'',FOURTWO?'4+2':'',AIRPLANE?'plane':'',CHAINLONG?'chain':''].filter(Boolean).join('/') + ' lockoutAll=' + LALL + (LMAX ? ' lockoutMaxAlive=' + LMAX : ''));
 
 /* SELF-CHECK — prove the config took EFFECT, behaviourally. Echoing the flags back is not enough: the flags
  * were right and the parser was wrong, so every arm of a 40-run study silently ran the same rules. This probes
